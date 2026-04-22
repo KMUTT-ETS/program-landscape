@@ -188,6 +188,11 @@ enum DataSourceKind {
   SCRAPE
 }
 
+enum KkuOrgCodeKind {
+  FACULTY
+  DEPARTMENT
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // Organization (university → faculty → department → program)
 // ══════════════════════════════════════════════════════════════════════════
@@ -1087,4 +1092,23 @@ model DataSource {
 
   @@index([kind])
   @@map("data_sources")
+}
+
+// Bridges KKU SSO faculty/department claim values to our internal IDs.
+// Populated manually (seeded for dev) or through an admin screen once we
+// see real SSO claims from KKU IT. Auto-provisioning on first SSO login
+// reads this table to assign User.facultyId / User.departmentId.
+model KkuOrgCodeMapping {
+  id           String         @id @default(cuid())
+  kkuCode      String         @map("kku_code")
+  kind         KkuOrgCodeKind
+  facultyId    String?        @map("faculty_id")
+  departmentId String?        @map("department_id")
+  notes        String?        @db.Text
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@unique([kkuCode, kind])
+  @@index([kind])
+  @@map("kku_org_code_mappings")
 }

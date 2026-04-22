@@ -1,8 +1,12 @@
-import { z } from 'zod';
+export * from './auth';
+export * from './api';
 
-// Scope taxonomy used across the system (see CLAUDE.md §"Multi-level scope").
-// Every analytical API accepts { scope, scopeId }.
-export const ScopeSchema = z.enum(['university', 'faculty', 'department', 'program']);
+import { z } from 'zod';
+import { ScopeLevelSchema } from './auth/scope-level';
+
+// Legacy alias — prefer ScopeLevelSchema from './auth'. Kept for one or two
+// call sites and removed once those migrate.
+export const ScopeSchema = ScopeLevelSchema;
 export type Scope = z.infer<typeof ScopeSchema>;
 
 export const ScopeParamsSchema = z.object({

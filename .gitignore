@@ -48,3 +48,6 @@ coverage/
 dist/releases/
 dist/*.tar.gz
 dist/*.sha256
+
+# TypeScript incremental cache
+*.tsbuildinfo

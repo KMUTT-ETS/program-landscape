@@ -6,6 +6,8 @@
     "jsx": "preserve",
     "allowJs": true,
     "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*"]

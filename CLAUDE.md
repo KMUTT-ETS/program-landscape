@@ -245,7 +245,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 
 - [x] Prompt 00: Bootstrap  *(completed 2026-04-22)*
 - [x] Prompt 01: Data model  *(completed 2026-04-22)*
-- [ ] Prompt 02: Auth & API core
+- [x] Prompt 02: Auth & API core  *(completed 2026-04-22)*
 - [ ] Prompt 02b: Design system
 - [ ] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)
 - [ ] Prompt 03: Ingestion framework
@@ -264,6 +264,17 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 02 (2026-04-22):*
+- **JWT strategy: HS256, shared across services.** Next-auth's default is JWE (A256CBC-HS512); we override `jwt.encode`/`jwt.decode` with `jose` HS256 signing so NestJS can verify tokens via the same `NEXTAUTH_SECRET` without decryption keys. Custom codec lives in `apps/web/src/lib/auth/jwt-codec.ts`; NestJS verifies in `apps/api/src/common/jwt-auth.guard.ts`.
+- **One authorisation entry point — `can(user, permission, scopeContext?)`** in `@kku/shared/auth`. Nest decorator `@Authorized(permission)` reads metadata and calls this function; `:own_faculty` / `:own_department` auto-imply `@RequireScope()`. Modules must not roll their own RBAC checks. 24 unit tests cover the role × scope matrix.
+- **API envelope is mandatory** — `{ data, meta, error }`. `ResponseEnvelopeInterceptor` wraps every handler return. `GlobalExceptionFilter` maps ApiError taxonomy to HTTP status and envelope-shaped failure bodies.
+- **Edge-safe middleware.** `apps/web/middleware.ts` verifies the session cookie via jose directly — it does NOT import `@/lib/auth` (which pulls Prisma and is Node-only). Keep this boundary; adding a Prisma call to middleware breaks the Edge build.
+- **NextAuth callback route runtime = Node.js.** `apps/web/app/api/auth/[...nextauth]/route.ts` sets `export const runtime = 'nodejs'` because the jwt callback calls Prisma (provisioning). Don't remove.
+- **Dev-only credentials provider — hard fail in prod.** `assertLocalAuthSafe()` throws at module load if `ENABLE_LOCAL_AUTH=true` and `NODE_ENV=production`. Test in `packages/shared/test/env-guard.test.ts`.
+- **Theme preference round-trip:** client → server action → NestJS `PATCH /me/theme` → Prisma. JWT refresh happens on next session read via the `trigger === 'update'` branch of the jwt callback. Don't call `useSession().update()` unnecessarily — the page re-renders on next navigation and picks up the new token.
+- **Response envelope for lists** includes `meta.scope = { level, id }` but NOT `meta.pagination` yet — the pagination block lives in the endpoint-specific `meta` until we lift it into the envelope schema (future prompt).
+- **Non-standard ops:** `pnpm approve-builds` path — add `@swc/core` to `pnpm.onlyBuiltDependencies` so vitest can SWC-transform decorator metadata for NestJS tests.
 
 *Prompt 01 (2026-04-22):*
 - **Scope rollups: materialized views + one entry point.** Metrics stored at program level; four MVs (`mv_program_metrics`, `mv_department_metrics`, `mv_faculty_metrics`, `mv_university_metrics`) with a uniform column shape roll them up. `queryMetricByScope` in `@kku/db` is the single access point — modules must not write ad-hoc rollup joins.

@@ -2,8 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Placeholder only. Full token system lands in prompt 02b. */
+/*
+ * Minimal token set aligned with docs/design-system.md. The full token
+ * system lands in prompt 02b; these values let prompt 02 demos run in
+ * both modes without hardcoded hexes in components.
+ *
+ * Colours expressed in OKLCH-equivalent HSL where close enough; prompt 02b
+ * regenerates the ladder in OKLCH with verified WCAG-AA contrast.
+ */
+
 :root {
-  --font-body: system-ui;
-  --font-mono: ui-monospace;
+  --font-body: 'IBM Plex Sans Thai', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Warm neutrals — Stripe-stone adjacent, not cool greys. */
+  --color-surface:        32 17% 98%;   /* ~#FAFAF9 */
+  --color-surface-raised: 0 0% 100%;
+  --color-surface-muted:  30 10% 95%;
+  --color-border:         30 8% 88%;
+  --color-border-strong:  30 8% 78%;
+
+  --color-fg:             28 10% 12%;   /* body */
+  --color-fg-muted:       28 6% 42%;
+  --color-fg-subtle:      28 5% 58%;
+
+  /* KKU Cardinal — accent only. */
+  --color-brand:          352 67% 38%;  /* ~#A6192E */
+  --color-brand-fg:       0 0% 100%;
+
+  /* Secondary interactive — indigo, not brand. */
+  --color-accent:         238 72% 58%;
+  --color-accent-fg:      0 0% 100%;
+
+  /* Semantic — at-risk is DIFFERENT from brand red. */
+  --color-healthy:        158 58% 40%;
+  --color-caution:        37 92% 50%;
+  --color-at-risk:        0 72% 51%;    /* ~#DC2626 */
+  --color-info:           217 91% 60%;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}
+
+.dark {
+  /* Warm near-black, not pure #000. */
+  --color-surface:        24 6% 7%;     /* ~#131210 */
+  --color-surface-raised: 24 6% 11%;
+  --color-surface-muted:  24 6% 14%;
+  --color-border:         24 5% 22%;
+  --color-border-strong:  24 5% 34%;
+
+  --color-fg:             30 12% 94%;
+  --color-fg-muted:       30 6% 70%;
+  --color-fg-subtle:      30 4% 55%;
+
+  --color-brand:          352 70% 56%;   /* lifted for dark-mode contrast */
+  --color-accent:         238 86% 72%;
+  --color-healthy:        158 58% 52%;
+  --color-caution:        37 92% 60%;
+  --color-at-risk:        0 72% 62%;
+  --color-info:           217 91% 70%;
+}
+
+* {
+  border-color: hsl(var(--color-border));
+}
+
+html,
+body {
+  background: hsl(var(--color-surface));
+  color: hsl(var(--color-fg));
+  font-family: var(--font-body);
+  font-feature-settings: 'ss01';
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+@layer utilities {
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
 }

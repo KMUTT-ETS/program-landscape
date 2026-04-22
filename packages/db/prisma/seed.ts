@@ -612,6 +612,46 @@ async function main() {
     });
   }
 
+  // ── KKU SSO org-code mappings (dev seed — real values from KKU IT) ──────
+  // KKU SSO emits faculty/department codes in a specific taxonomy; our
+  // internal Faculty/Department primary keys are cuids. This bridge lets
+  // the auth callback resolve claims → internal IDs.
+  const ssoMappings: Array<{
+    kkuCode: string;
+    kind: 'FACULTY' | 'DEPARTMENT';
+    facultyCode?: string;
+    departmentCode?: string;
+    notes: string;
+  }> = [
+    { kkuCode: '01', kind: 'FACULTY',    facultyCode: 'EN', notes: 'Dev mapping — confirm with KKU IT.' },
+    { kkuCode: '02', kind: 'FACULTY',    facultyCode: 'SC', notes: 'Dev mapping — confirm with KKU IT.' },
+    { kkuCode: '03', kind: 'FACULTY',    facultyCode: 'MD', notes: 'Dev mapping — confirm with KKU IT.' },
+    { kkuCode: '04', kind: 'FACULTY',    facultyCode: 'HU', notes: 'Dev mapping — confirm with KKU IT.' },
+    { kkuCode: '05', kind: 'FACULTY',    facultyCode: 'BS', notes: 'Dev mapping — confirm with KKU IT.' },
+    { kkuCode: '0101', kind: 'DEPARTMENT', departmentCode: 'EN-CPE', notes: 'Dev mapping.' },
+    { kkuCode: '0102', kind: 'DEPARTMENT', departmentCode: 'EN-EE',  notes: 'Dev mapping.' },
+    { kkuCode: '0103', kind: 'DEPARTMENT', departmentCode: 'EN-ME',  notes: 'Dev mapping.' },
+    { kkuCode: '0201', kind: 'DEPARTMENT', departmentCode: 'SC-CS',  notes: 'Dev mapping.' },
+    { kkuCode: '0202', kind: 'DEPARTMENT', departmentCode: 'SC-MA',  notes: 'Dev mapping.' },
+  ];
+  for (const m of ssoMappings) {
+    const facultyId = m.facultyCode ? facultyByCode.get(m.facultyCode)?.id : null;
+    const departmentId = m.departmentCode
+      ? departmentByCode.get(m.departmentCode)?.id
+      : null;
+    await prisma.kkuOrgCodeMapping.upsert({
+      where: { kkuCode_kind: { kkuCode: m.kkuCode, kind: m.kind } },
+      update: {},
+      create: {
+        kkuCode: m.kkuCode,
+        kind: m.kind,
+        facultyId,
+        departmentId,
+        notes: m.notes,
+      },
+    });
+  }
+
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
     faculties: await prisma.faculty.count(),
@@ -629,6 +669,7 @@ async function main() {
     pdfs: await prisma.pdfDocument.count(),
     jobPostings: await prisma.jobPosting.count(),
     dataSources: await prisma.dataSource.count(),
+    kkuOrgMappings: await prisma.kkuOrgCodeMapping.count(),
   };
   // eslint-disable-next-line no-console
   console.log('seed complete:', counts);
