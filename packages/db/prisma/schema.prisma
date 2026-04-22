@@ -1,0 +1,163 @@
+// Initial schema. Full data model (metrics, time series, PDF intake, AI
+// traces, methodologies, materialized views) lands in prompt 01.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "windows"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, vector, pg_trgm]
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Organization (university / faculty / department / program)
+// ──────────────────────────────────────────────────────────────────────────
+
+model Faculty {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameTh    String
+  nameEn    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  departments Department[]
+  programs    Program[]
+  users       User[]
+
+  @@index([code])
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameTh    String
+  nameEn    String
+  facultyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  faculty  Faculty   @relation(fields: [facultyId], references: [id])
+  programs Program[]
+  users    User[]
+
+  @@index([facultyId])
+}
+
+enum ProgramLevel {
+  BACHELOR
+  MASTER
+  DOCTORAL
+}
+
+enum ProgramStatus {
+  ACTIVE
+  PAUSED
+  SUNSET
+}
+
+model Program {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  nameTh          String
+  nameEn          String
+  facultyId       String
+  departmentId    String?
+  level           ProgramLevel
+  status          ProgramStatus @default(ACTIVE)
+  yearEstablished Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  faculty    Faculty     @relation(fields: [facultyId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Users & access
+// ──────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  VIEWER
+  COUNCIL
+  EXECUTIVE
+  DEAN
+  DEPT_HEAD
+  ANALYST
+  ADMIN
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+model User {
+  id               String          @id @default(cuid())
+  email            String          @unique
+  ssoSubject       String?         @unique
+  name             String?
+  role             UserRole        @default(VIEWER)
+  facultyId        String?
+  departmentId    String?
+  themePreference  ThemePreference @default(SYSTEM)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  faculty    Faculty?    @relation(fields: [facultyId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  auditLogs    AuditLog[]
+  aiInferences AiInference[]
+
+  @@index([email])
+  @@index([ssoSubject])
+  @@index([role])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Governance: audit trail + AI inference log
+// ──────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  payloadJson Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model AiInference {
+  id          String   @id @default(cuid())
+  userId      String?
+  module      String
+  prompt      String   @db.Text
+  model       String
+  response    String   @db.Text
+  confidence  Float?
+  sourcesJson Json?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([module])
+  @@index([createdAt])
+}

@@ -99,7 +99,7 @@ Visual benchmark: **Linear, Vercel Dashboard, Stripe Dashboard, Retool, Notion, 
 - Conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`)
 - ESLint enforces no hardcoded color values (use design tokens)
 - Prettier on save
-- Run `make check` before committing (lint + typecheck + test)
+- Run `pnpm check` before committing (lint + typecheck + test)
 
 ## Council-readiness rules (NON-NEGOTIABLE)
 
@@ -243,7 +243,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 
 > **Update this section after every major session.** This is how Claude Code knows where the project stands when you return.
 
-- [ ] Prompt 00: Bootstrap
+- [x] Prompt 00: Bootstrap  *(completed 2026-04-22)*
 - [ ] Prompt 01: Data model
 - [ ] Prompt 02: Auth & API core
 - [ ] Prompt 02b: Design system
@@ -264,4 +264,11 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
-- (Add notes here as you make significant decisions during sessions)
+
+*Prompt 00 (2026-04-22):*
+- **Typography direction:** IBM Plex Sans Thai (body/UI) + IBM Plex Mono (tabular/numeric). Alternatives (Sarabun+Prompt, Noto Sans Thai Looped) documented in `docs/design-system.md`. Re-validated at real UI sizes in prompt 02b. Deliberately distinct from TH Sarabun New (that font is reserved for PDF output per prompt 02c).
+- **Colour direction:** warm neutral base (not cool greys); KKU Cardinal red (`~#A6192E`) used only as a sparing brand accent; "at-risk" uses a *different* pure red (`~#DC2626`) so risk flags aren't read as institutional rejection; indigo for default interactive affordances.
+- **Docker image for Postgres:** custom `infra/postgres/Dockerfile` on top of `postgis/postgis:16-3.4` + `postgresql-16-pgvector`. Init script at `infra/postgres/init/01-extensions.sql` enables postgis, vector, pg_trgm, btree_gin, uuid-ossp. Rebuild with `docker compose build postgres` when the Dockerfile changes.
+- **Workspace naming:** `@kku/shared`, `@kku/db`, `@kku/ui`, `@kku/design` (scoped); apps (`web`, `api`, `ingestion`) are unscoped because their names are used by the dev scripts directly.
+- **Deferred:** `pnpm install` was **not** run this session — the user runs `pnpm setup` to install deps + start infra + migrate + seed. Nothing paid installed.
+- **Deferred:** `Prisma` migrations not generated yet (waiting for prompt 01 to finalize the full schema). Scaffold schema covers Faculty / Department / Program / User / AuditLog / AiInference per prompt 00 spec.

@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Placeholder only. Full token system lands in prompt 02b. */
+:root {
+  --font-body: system-ui;
+  --font-mono: ui-monospace;
+}
