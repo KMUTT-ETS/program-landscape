@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.prod
+.env.staging
+# Keep examples
+!.env.example
+!.env.prod.example
+
+# Secrets
+secrets/
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Prisma
+prisma/.env
+
+# Testing
+coverage/
+.nyc_output/
+
+# Release artifacts
+dist/releases/
+dist/*.tar.gz
+dist/*.sha256
