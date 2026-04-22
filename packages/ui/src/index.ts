@@ -1,3 +1,8 @@
-// Placeholder. Full component library (ScopeSelector, ProvenanceButton,
-// FreshnessBadge, ConfidenceBadge, Chart, ...) lands in prompt 02b.
-export const UI_PACKAGE_VERSION = '0.0.0';
+export * from './lib/cn';
+export * from './primitives';
+export * from './feedback';
+export * from './layout';
+export * from './data';
+export * from './viz';
+export * from './nav';
+export * from './ai';

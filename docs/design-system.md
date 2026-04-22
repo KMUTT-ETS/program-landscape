@@ -1,218 +1,282 @@
-# Design system — aesthetic direction
+# Design system
 
-> This document captures the **aesthetic direction** for KKU Curriculum
-> Landscape. The detailed token system, component library, and Storybook
-> live in `packages/design` and `packages/ui`, built in **prompt 02b**.
->
-> Purpose: anchor the decisions that prompt 02b expands — so the design
-> doesn't drift into generic AI aesthetics.
+Tokens, components, and the rules that make every module feel like the
+same app. Source of truth: `packages/design/src/css/tokens.css` (values)
+and `packages/ui/src/*` (components). This document summarises both and
+adds the "when to use which" guidance that isn't in the code.
 
-## Brief (from prompt 00)
-
-> A modern enterprise SaaS for university leadership — confident, data-dense
-> but breathable, professional but not boring, suggesting institutional
-> gravitas without feeling bureaucratic.
-
-**Reference points:**
-
-- **Linear** — clarity, restraint, meaningful motion
-- **Stripe Dashboard** — how to present data density without overwhelm
-- **Notion** — calm density, typographic hierarchy
-- (secondary) Vercel Dashboard, Retool, Height
-
-**Anti-references (what we are *not*):**
-
-- Generic shadcn-on-Inter default (clean but identity-less)
-- University IT system aesthetics (cluttered, over-chromed, bureaucratic)
-- Consumer BI tools (Power BI / Tableau chartjunk)
+Visual benchmark: **Linear · Stripe Dashboard · Vercel · Retool · Notion · Height**.
+What we are NOT: generic shadcn-on-Inter defaults, legacy university IT
+chrome, consumer BI chartjunk.
 
 ## Typography
 
-The UI needs **strong Thai support** (data labels, program names) even
-though UI labels are English-only. Body font must render 14–16px Thai
-cleanly alongside English headers; numeric columns need a matching
-monospace for tabular alignment.
+- **Body / UI:** IBM Plex Sans Thai — weights 400, 500, 600, 700. Thai-
+  native, 7-weight range, pairs with IBM Plex Mono for tabular data.
+- **Mono / tabular:** IBM Plex Mono — every numeric column, every
+  timestamp, every code / id.
+- **Display:** same family, 600–700 weights. No separate display font.
+- **Thai rendering:** `word-break: keep-all` on `[lang='th']` (Thai
+  breaks at character boundaries by default — we break at words). Line
+  height ≥ 1.5 so Thai diacritics don't clash.
+- Decision to re-test in prompt 05 against real Thai content at 14px: if
+  Plex reads thin at UI sizes, fallback is Sarabun + Prompt (a Cadson
+  Demak pair). Not TH Sarabun New — that's the Cabinet-mandated **PDF**
+  font and must stay scoped to PDF output.
 
-**Note — name collision to avoid:** *TH Sarabun New* is the Cabinet-mandated
-font for **PDF output** (see prompt 02c). It is **not** the UI body font
-(its proportions and weights aren't built for on-screen UI at 14–16px). The
-options below are for the **UI** only.
+### Scale (names, not sizes)
 
-### Option 1 — IBM Plex Sans Thai (recommended) + IBM Plex Mono
+| Role | Class | Size |
+|---|---|---|
+| Display | `text-display` | 2.25rem (36px) |
+| h1 | `text-3xl` | 1.75rem (28px) |
+| h2 | `text-2xl` | 1.375rem (22px) |
+| h3 | `text-xl` | 1.125rem (18px) |
+| h4 | `text-lg` | 1rem (16px) |
+| Body | `text-base` | 0.875rem (14px) |
+| Body small | `text-sm` | 0.8125rem (13px) |
+| Caption | `text-xs` | 0.75rem (12px) |
+| Code | `font-mono` + `text-sm` | — |
 
-- **Body/UI:** IBM Plex Sans Thai
-- **Numeric/code:** IBM Plex Mono
-- **Display:** same family, heavier weights (600–700)
+Numeric columns use the `.font-tabular` utility — it sets both
+`font-variant-numeric: tabular-nums` and the mono family so column
+widths don't jitter when the digit composition changes.
 
-**Why:**
+## Colour — semantic, not literal
 
-- Distinctive without being loud. Visual vocabulary of Stripe, IBM
-  enterprise, developer-facing SaaS — aligns with the "institutional
-  gravitas, not bureaucratic" target.
-- First-class Thai coverage across 7 weights (Thin → Bold) with matching
-  Italic styles. Draws cleanly at 14px with Thai diacritics.
-- Plex Mono is one of the best monospaces for tabular numerics — essential
-  for dense tables (financial columns, headcount columns).
-- Family cohesion simplifies the token system (one family, three roles).
-- Open source (SIL OFL). Self-hostable. No Google Fonts dependency in
-  production.
+Values live in OKLCH inside CSS variables. Components consume them via
+Tailwind utilities (the preset blocks the default palette, so
+`bg-slate-500` is a compile-time error — there is no `slate-500`).
 
-**Cons:**
+### Surface ladder
 
-- Slightly technical feel. Mitigated by typographic scale + generous
-  leading.
+| Token | Light | Dark |
+|---|---|---|
+| `surface-0` | paper (near-white warm) | warm near-black |
+| `surface-1` | cards, top bar, nav | lifted one step |
+| `surface-2` | subtle-highlight rows, table headers | another step |
+| `surface-3` | selected nav items, chips | |
+| `surface-4` | hover on selected surfaces | |
 
-### Option 2 — Sarabun + Prompt (strong Thai cultural grounding)
+### Text
 
-- **Body/UI:** Sarabun (Cadson Demak) — **not** "TH Sarabun New"; a
-  different family despite similar name
-- **Display:** Prompt (Cadson Demak) — loopless geometric Thai/Latin
+| Token | Role |
+|---|---|
+| `text-primary` | body + headings |
+| `text-secondary` | supporting content |
+| `text-tertiary` | labels, helper, caption |
+| `text-disabled` | disabled inputs |
+| `text-inverse` | on-accent surfaces |
 
-**Why:**
+### Brand accent (use sparingly)
 
-- Maximally Thai-native. Sarabun reads as Thai-first in a way IBM Plex
-  does not.
-- Prompt's loopless display forms provide strong contrast for headings.
-- Both on Google Fonts, both SIL OFL.
+| Token | Use |
+|---|---|
+| `accent-default` | primary CTA (one per view), brand marks, live indicators |
+| `accent-hover` / `accent-active` | interaction states |
+| `accent-subtle` | backgrounds of accent badges, AI-insight rails |
+| `accent-fg` | readable foreground on accent surfaces |
 
-**Cons:**
+**Not** used for nav backgrounds, default buttons, or hover surfaces.
+Default interactive tone is `info` (indigo) — that keeps interaction
+signalling separate from institutional branding.
 
-- Sarabun is ubiquitous in Thai government contexts (risk: "feels like a
-  government form"). Not the image we want.
-- Name overlap with TH Sarabun New will confuse future Claude sessions;
-  we'd need clear comments in the token files.
+### Semantic
 
-### Option 3 — Noto Sans Thai Looped + JetBrains Mono (safe cross-platform)
+| Token | Use |
+|---|---|
+| `success` | "healthy" metrics, completed mutations |
+| `warning` | stale data, caution states |
+| `danger` | errors, *and* at-risk metrics (deliberately a different hue from the brand red) |
+| `info` | informational banners, default interactive links |
 
-- **Body/UI:** Noto Sans Thai Looped (body) + Noto Sans (Latin pairing)
-- **Numeric/code:** JetBrains Mono or IBM Plex Mono
+Every semantic colour has a `-subtle` background variant for badge / banner fills.
 
-**Why:**
+### Data sentiment
 
-- Google's Noto family has the broadest character coverage and aggressive
-  maintenance.
-- Noto Sans Thai Looped is the looped-Thai-preferred counterpart suited
-  to academic contexts.
+| Token | Use |
+|---|---|
+| `data-positive` | revenue growth, improved outcomes |
+| `data-negative` | at-risk metrics, declines |
+| `data-neutral` | sparklines without a sign |
 
-**Cons:**
+`data-negative` is the same hue as `danger` — deliberately **different**
+from the KKU brand red so a red badge on a program card doesn't read as
+institutional rejection.
 
-- Ubiquity of Noto makes it the "safe" choice, which undermines the
-  distinctiveness goal.
+### Chart palette
 
-### Decision
+12 colours, chroma held near 0.15, lifted lightness values in dark mode.
+Order is curated so the first-4 are distinguishable under
+deuteranopia / protanopia. Modules that want a sequential (not
+categorical) ladder should derive it from `chart-3` via OKLCH lightness
+steps (utility coming in a later prompt).
 
-**Option 1 — IBM Plex Sans Thai + IBM Plex Mono.** Reconsidered in prompt
-02b against live mockups; override then if it doesn't hold up at UI sizes
-with Thai text next to English headers.
+## Spacing, radius, shadow
 
-## Color
-
-Full palette and tokens (with WCAG-AA verified ratios in both modes) are
-generated in prompt 02b. This section commits to the *direction* only.
-
-### Base (both modes)
-
-- **Warm neutrals** as base surface, not cool greys. Target a slight warm
-  cast closer to Stripe's stone palette than Linear's cool greys.
-- Light mode surface: off-white paper (`~#FAFAF9`), not pure `#FFFFFF`.
-- Dark mode surface: warm near-black (`~#0C0A09`), not pure `#000000`.
-  Chart legibility degrades on pure black; warm near-black preserves form.
-
-### Accents
-
-- **Brand accent — KKU Cardinal (`~#A6192E`).**
-  - **Used only** for: the primary CTA in a view (at most one), brand
-    marks, critical live indicators (ongoing Council session, urgent
-    flags).
-  - **Not used** for: nav backgrounds, default buttons, large surfaces,
-    hover states. This protects the accent from wearing out.
-- **Interactive secondary — indigo (`~#4F46E5` family).** For default
-  interactive affordances (links, focus rings, default buttons). Keeps
-  interaction signaling separate from institutional branding.
-
-### Semantic (both modes, both WCAG AA)
-
-- **Healthy:** emerald (warm-side green). Deliberately *not* KKU red's
-  complement, to avoid confusion with risk.
-- **Caution:** amber.
-- **At-risk:** a **different red** from KKU Cardinal — a pure red
-  (`~#DC2626`) reserved for risk states. The brand red must not double as
-  the "danger" signal; deans would interpret the red badge on a program
-  card as institutional rejection rather than risk flag.
-- **Informational:** blue/indigo.
-
-### Charting palette
-
-- A curated **6-colour categorical palette**, tested for colour-blind
-  safety (deuteranopia, protanopia) and for WCAG-AA contrast against both
-  the light and the dark surface.
-- Extended palettes derived via OKLCH lightness steps for sequential and
-  diverging scales — not arbitrary HSL.
-- No charting-library default palettes — every chart uses tokens.
+- Spacing scale in `spacing.ts` — curated 8pt adjacents, deliberately
+  sparse (no 13px or 17px). If a module needs "between 16 and 20", that's
+  a design conversation.
+- Radius: `sm` 4, `md` 6, `lg` 8, `xl` 12, `2xl` 16, `full` (pill).
+  Default component radius is `md`.
+- Shadows: `elevation-0..4` for general surfaces; `card` and `popover`
+  for their specific roles. Dark mode shadows deeper and sharper.
 
 ## Motion
 
-- **Framer Motion, ≤200ms** for page-level transitions; 120–160ms for
-  affordance-level (hover, press).
-- Easing: `cubic-bezier(0.16, 1, 0.3, 1)` ("exit") for entering elements;
-  standard `ease-in-out` for state changes. Linear's feel.
-- **No decorative motion.** Motion signals state change; if a motion
-  doesn't carry information, remove it.
+All animation durations ≤ 200ms unless user-initiated (e.g. drawer
+slide). Tokens:
+
+| Token | Duration |
+|---|---|
+| `--motion-fast` | 100ms — hover, press |
+| `--motion-base` | 150ms — colour fades, state changes |
+| `--motion-slow` | 200ms — modal / drawer enter |
+
+Easing: `--ease-standard` (Linear-like, cubic-bezier(0.2, 0, 0, 1)).
 
 ## Density
 
-- Three density modes (user-selectable, persisted per user):
-  - **Compact** — Council members on big external monitors
-  - **Comfortable** (default) — laptop use, mixed reading + scanning
-  - **Spacious** — presentation mode, Council meeting rooms on
-    projected displays
-- Density affects row height, padding, chart tick density — not font
-  *family*, only *size* and *spacing*.
+`data-density` on the root element switches three CSS variables that
+components pick up: `cell-px`, `cell-py`, `row-h`, `gap`. Applied to
+DataTable row heights, Card padding, sidebar spacing.
 
-## Data-density principles (Stripe-adjacent)
+| Mode | When |
+|---|---|
+| `compact` | Council members on external monitors |
+| `comfortable` (default) | laptop |
+| `spacious` | projected display in the Council chamber |
 
-- **Breathe the data.** Use whitespace to give weight to the numbers that
-  matter; don't cram.
-- **Tabular numerics are sacred.** All numeric columns in tables use
-  `font-variant-numeric: tabular-nums` + mono family. Right-aligned.
-- **Secondary data in lower contrast**, not smaller size — readers
-  fatigue with 11px text.
-- **Sparklines over big charts** when the context is already a row.
-- **Side panels over full-page navigation** (Linear pattern) for detail
-  views that supplement a list.
+User preference persists — DB column in prompt 13.
 
-## Surfaces & components (to be built in prompt 02b)
+## Components
 
-This list exists so prompt 02b has a concrete target:
+See `packages/ui/src` for the source. Story-driven Storybook is deferred;
+`/styleguide` in the app is the visual contract.
 
-- `<ScopeSelector>` (university / faculty / department / program)
-- `<ProvenanceButton>` + `<ProvenanceDrawer>`
-- `<ConfidenceBadge>`
-- `<FreshnessBadge>`
-- `<Chart>` wrapper (the single charting entry point)
-- `<Table>` with sort / filter / bulk / saved-view
-- `<CommandPalette>` (cmdk)
-- `<SidePanel>` (Linear-style detail view)
-- `<EmptyState>` (helpful, not decorative)
-- `<AiInsightCard>` (narrative + confidence + sources + disagree button)
+### Primitives
 
-## What NOT to do
+`Button`, `Badge`, `Card` + sub-parts, `Skeleton`, `Divider`, `Tooltip`,
+`Dialog`, `Drawer` (right-side slide-in), `DropdownMenu`, `Popover`,
+`Input`, `Label`, `Segmented` (tab-style toggle).
 
-- ❌ Don't default to Inter.
-- ❌ Don't use KKU Cardinal red as a surface colour or default button.
-- ❌ Don't use the same red for "at-risk" that we use for the KKU brand.
-- ❌ Don't hardcode colour, font, spacing — everything through tokens.
-- ❌ Don't introduce Material or Ant Design — shadcn + Tailwind + tokens.
-- ❌ Don't use emojis as icons; use Lucide (consistent with shadcn).
-- ❌ Don't put anything critical behind colour alone — always back with
-  text label, icon, or pattern for colour-blind users.
+### Layout
 
-## Open decisions for prompt 02b
+- `<AppShell>` — the frame. TopBar + LeftNav + content (+ optional drawer).
+- `<TopBar>` — grid of brand / centre (scope + command) / right (user).
+- `<LeftNav>` — sectioned, active-state aware, badge / hint per item.
+- `<RightPanel>` — Linear-style slide-in for detail views; caller keeps
+  its context visible.
+- `<PageHeader>` — title / subtitle / actions / filters row.
+- `<Section>` — labelled content group inside a page.
 
-1. Confirm IBM Plex Sans Thai holds up at 14px alongside English headers
-   in real mockups before we commit.
-2. Exact KKU Cardinal hex — confirm against the official KKU brand guide;
-   `#A6192E` is a common internet approximation.
-3. Dark-mode surface OKLCH ladder: 6 steps? 8?
-4. Whether to ship a separate "print / projector" density or fold it into
-   "spacious".
+### Data
+
+- `<DataTable>` — TanStack Table v8. Sort, filter, paginate, sticky
+  header, density-aware, `.font-tabular` on `meta.numeric` columns.
+  **Virtualization deferred** to a follow-up prompt.
+- `<KPI>` — metric tile with label / value / delta / sparkline +
+  mandatory `meta` for provenance + freshness.
+- `<Stat>` — inline number + label, for dense dashboards and drawer
+  content.
+- `<EmptyState>` — illustration slot + description + action; never
+  just "no data".
+
+### Feedback (Council-readiness trio + more)
+
+| Component | Role |
+|---|---|
+| `<ProvenanceButton>` + `<ProvenanceDrawer>` | ⓘ icon next to every chart / metric → app-global drawer with sources, freshness, method. Required on every output. |
+| `<FreshnessBadge>` | "Updated 2h ago" with exact timestamp tooltip; tone scales with age (fresh / stale / very stale). |
+| `<ConfidenceBadge>` | High / medium / low for AI outputs; shows rationale tooltip. |
+| `<Banner>` | Page-level persistent notice. |
+
+### Visualisation
+
+- `<ChartFrame>` — universal wrapper. Owns the title row, provenance,
+  freshness, confidence, show-data toggle. Every chart type plugs in as
+  `<chart>` + `<dataTable>` children.
+- `<TrendLine>` — Recharts bridge. Auto-reads palette from CSS vars;
+  re-renders on theme switch.
+- `<Sparkline>` — inline mini-line for KPIs / table cells.
+- **Deferred to module prompts** (scaffolded via the same pattern): Bar
+  comparison, Horizontal bars, Heatmap, Bubble matrix, Funnel, Sankey,
+  Radar, Waterfall, Choropleth (Thailand provinces).
+
+### Navigation
+
+- `<ScopeSelector>` — URL-synced, RBAC-aware, hierarchical picker. Full
+  entity list filtered by `scopeAccess` from `/me`. Compare mode
+  deferred.
+- `<CommandPalette>` — Cmd/Ctrl+K. Fuzzy over faculties / departments /
+  programs + custom module actions.
+- `<KeyboardShortcuts>` — `?` opens this sheet. Modules register their
+  own shortcuts via the `shortcuts` prop.
+
+### AI surfaces
+
+- `<AiInsight>` — wraps any AI output with confidence + sources +
+  reasoning expandable + regenerate + disagree.
+- `<AiNarrative>` — Thai-primary with on-demand EN translation toggle.
+  Translator function is injected (prompt 04 wires to the LLM service).
+- `<AiBrief>` — multi-section layout composed of AiInsight cards.
+  Printable (ready for prompt 02c PDF export).
+
+## Usage rules — when to use what
+
+### Chart or DataTable?
+
+- **Chart** when the story is the shape: trend, gap, imbalance.
+- **Table** when the story is the specific number: this program, this
+  year, this cost. Always provide the "show data" toggle on a chart so
+  Council members can drill in.
+
+### Side panel or new page?
+
+- **Side panel** (`<RightPanel>`) when the deeper view is a variation
+  on the list — e.g. "drill into this program's outcomes". User keeps
+  context in view on the left.
+- **New page** when the view has its own URL to share (Program
+  Deep-Dive, Scenario Planner, Decision Record).
+
+### Banner or Toast?
+
+- **Banner** for persistent conditions (data source down, policy
+  change).
+- **Toast** for transient confirmations ("Scenario saved", "Council
+  pack exported").
+- **Modal** only when the user must stop and decide before proceeding —
+  destructive confirmations, un-saved-work warnings.
+
+### Brand accent (KKU Cardinal)?
+
+- Use it on the **one** primary CTA per view.
+- Use it on the brand mark in the top bar.
+- Use it on a live/critical indicator (e.g. Council session in progress).
+- **Not** on default buttons, nav surfaces, hover states, or large
+  backgrounds.
+
+## Accessibility checklist
+
+- Every interactive element has a `focus-visible` ring (accent-coloured).
+- Colour never carries meaning alone — always paired with text or icon.
+- Chart palette tested for deuteranopia / protanopia distinguishability
+  on the first 4 series. Sequential ladders should be monotonic in
+  lightness.
+- Text contrast ≥ AA (normal) on `surface-0` and `surface-1` for every
+  text-* token.
+- `<Tooltip>` is keyboard-accessible (Radix).
+- `<DataTable>` headers carry `scope="col"`; numeric columns are
+  right-aligned.
+
+## Open decisions (unresolved from prompt 00)
+
+1. IBM Plex Sans Thai legibility at 14px — validate with real Thai
+   program names beside English headers in prompt 05.
+2. Exact KKU Cardinal hex — confirm `#A6192E` against the official KKU
+   brand guide (we're using that as the OKLCH target; a few percent
+   shift is painless).
+3. Dark-mode surface OKLCH ladder step count — currently 5 (0..4). Add
+   a 5 if density mode needs it.
+4. Whether to ship a separate "projector / Council chamber" density or
+   fold it into `spacious`. Current: folded.

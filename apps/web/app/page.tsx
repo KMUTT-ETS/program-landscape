@@ -1,10 +1,63 @@
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { redirect } from 'next/navigation';
-import { TopBar } from '@/components/top-bar';
-import type { MeResponse, SessionUser, FacultyDto } from '@kku/shared';
+import {
+  AiInsight,
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  ChartFrame,
+  DataTable,
+  EmptyState,
+  KPI,
+  PageHeader,
+  Section,
+  Sparkline,
+  Stat,
+  TrendLine,
+  type ColumnDef,
+} from '@kku/ui';
+import type {
+  ApiMeta,
+  FacultyDto,
+  MeResponse,
+  ProgramDto,
+  SessionUser,
+} from '@kku/shared';
+import { AuthedAppShell } from '@/components/shell/app-shell-server';
 
 export const dynamic = 'force-dynamic';
+
+const SAMPLE_TREND = [
+  { x: '2020', enrolled: 2450, applications: 7800 },
+  { x: '2021', enrolled: 2380, applications: 8100 },
+  { x: '2022', enrolled: 2794, applications: 8900 },
+  { x: '2023', enrolled: 3002, applications: 9600 },
+  { x: '2024', enrolled: 3075, applications: 10096 },
+];
+
+const SAMPLE_META: ApiMeta = {
+  freshnessDate: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+  sources: [
+    { id: 'kku-reg', name: 'KKU Registration' },
+    { id: 'kku-finance', name: 'KKU Finance (projected)' },
+  ],
+  methodologyVersion: 'v1',
+  scope: { level: 'university', id: null },
+};
+
+const programColumns: ColumnDef<ProgramDto, unknown>[] = [
+  { accessorKey: 'code', header: 'Code' },
+  { accessorKey: 'nameEn', header: 'Program (EN)' },
+  { accessorKey: 'nameTh', header: 'Program (TH)' },
+  { accessorKey: 'level', header: 'Level' },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    meta: { align: 'right' },
+  },
+];
 
 export default async function HomePage() {
   const session = await auth();
@@ -13,97 +66,160 @@ export default async function HomePage() {
   }
   const user = session.user as SessionUser;
 
-  // Live API call — demonstrates JWT forwarding and envelope unwrapping.
-  const [me, faculties] = await Promise.all([
+  const [me, faculties, programsResponse] = await Promise.all([
     apiFetch<MeResponse>('/me').catch(() => null),
     apiFetch<FacultyDto[]>('/faculties').catch(() => []),
+    apiFetch<ProgramDto[]>('/programs?scope=university').catch(() => []),
   ]);
+  const programs = Array.isArray(programsResponse) ? programsResponse : [];
 
   return (
-    <div className="min-h-screen">
-      <TopBar user={user} />
-      <div className="grid min-h-[calc(100vh-57px)] grid-cols-[220px_1fr]">
-        <nav className="border-r border-border bg-surface-raised p-4 text-sm">
-          <div className="mb-3 text-xs uppercase tracking-wide text-fg-subtle">
-            Modules
+    <AuthedAppShell user={user}>
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-8 p-6">
+        <PageHeader
+          title="Portfolio overview"
+          subtitle="Prompt 02b shell. KPIs are mock values; the table is live via /api/v1/programs."
+          actions={
+            <Button variant="outline" size="sm" asChild>
+              <a href="/styleguide">Open styleguide →</a>
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <KPI
+            label="Active programs"
+            value={<span className="font-tabular">{programs.length}</span>}
+            meta={SAMPLE_META}
+            sparkline={<Sparkline data={[28, 29, 29, 30, 30]} />}
+          />
+          <KPI
+            label="Enrolled (2024)"
+            value={<span className="font-tabular">3,075</span>}
+            delta={{ value: 2.4, goodDirection: 'up', display: '+2.4% YoY' }}
+            meta={SAMPLE_META}
+            sparkline={<Sparkline data={[2450, 2380, 2794, 3002, 3075]} tone="positive" />}
+          />
+          <KPI
+            label="Applications (2024)"
+            value={<span className="font-tabular">10,096</span>}
+            delta={{ value: 5.2, goodDirection: 'up', display: '+5.2% YoY' }}
+            meta={SAMPLE_META}
+          />
+          <KPI
+            label="Net contribution (2024)"
+            value={<span className="font-tabular">฿3.67M</span>}
+            delta={{ value: -8.1, goodDirection: 'up', display: '−8.1% YoY' }}
+            meta={SAMPLE_META}
+          />
+        </div>
+
+        <Section
+          title="Enrolment & applications"
+          description="University scope, last five academic years."
+        >
+          <ChartFrame
+            title="Enrolment vs applications"
+            description="Pipeline conversion across the last five years."
+            meta={SAMPLE_META}
+            chart={
+              <TrendLine
+                data={SAMPLE_TREND}
+                series={['applications', 'enrolled']}
+                ariaLabel="Applications and enrolment, 2020–2024"
+              />
+            }
+            dataTable={
+              <DataTable<(typeof SAMPLE_TREND)[number]>
+                columns={[
+                  { accessorKey: 'x', header: 'Year' },
+                  {
+                    accessorKey: 'applications',
+                    header: 'Applications',
+                    meta: { numeric: true },
+                  },
+                  {
+                    accessorKey: 'enrolled',
+                    header: 'Enrolled',
+                    meta: { numeric: true },
+                  },
+                ]}
+                data={SAMPLE_TREND}
+                variant="ghost"
+              />
+            }
+          />
+        </Section>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader className="mb-3">
+              <CardTitle>Programs ({programs.length})</CardTitle>
+            </CardHeader>
+            {programs.length === 0 ? (
+              <EmptyState
+                title="No programs returned"
+                description="Is the API running on port 4000?"
+                action={
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="http://localhost:4000/api/v1/healthz">Check API</a>
+                  </Button>
+                }
+              />
+            ) : (
+              <DataTable<ProgramDto>
+                columns={programColumns}
+                data={programs}
+                pageSize={12}
+                variant="ghost"
+              />
+            )}
+          </Card>
+
+          <div className="flex flex-col gap-4">
+            <Card padding="md">
+              <CardHeader className="mb-3">
+                <CardTitle>Your access</CardTitle>
+              </CardHeader>
+              {me ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <Stat label="Role" value={me.role} />
+                  <Stat label="Permissions" value={me.permissions.length} />
+                  <Stat label="Faculty" value={me.scopeAccess.ownFacultyId ?? '—'} />
+                  <Stat label="Department" value={me.scopeAccess.ownDepartmentId ?? '—'} />
+                </div>
+              ) : (
+                <p className="text-sm text-text-tertiary">/me unavailable</p>
+              )}
+            </Card>
+
+            <AiInsight
+              title="Enrolment summary (mock)"
+              confidence={0.78}
+              sources={[{ id: 'kku-reg', name: 'KKU Registration, 2020–2024' }]}
+              reasoning="Mock reasoning: enrolment has risen every year since the COVID dip in 2021; conversion from applications has remained flat, suggesting capacity is the bottleneck rather than demand."
+            >
+              Enrolment is up <strong>25.5%</strong> across the five-year window,
+              while applications have grown <strong>29.4%</strong>. The two curves
+              are diverging gently — a capacity signal, not a demand signal. Real
+              AI wiring lands in prompt 04.
+            </AiInsight>
           </div>
-          <ul className="flex flex-col gap-1 text-fg-muted">
-            <li className="rounded-sm bg-surface-muted px-3 py-2 text-fg">Home</li>
-            <li className="px-3 py-2">Portfolio Cockpit — prompt 05</li>
-            <li className="px-3 py-2">Program Deep-Dive — prompt 06</li>
-            <li className="px-3 py-2">Trends Radar — prompt 07</li>
-            <li className="px-3 py-2">Gap Analyzer — prompt 08</li>
-            <li className="px-3 py-2">Scenario Planner — prompt 09</li>
-            <li className="px-3 py-2">Benchmarking — prompt 10</li>
-            <li className="px-3 py-2">AI Analyst — prompt 11</li>
-            <li className="px-3 py-2">Decision Workspace — prompt 12</li>
-          </ul>
-        </nav>
+        </div>
 
-        <main className="p-6">
-          <h1 className="mb-1 text-xl font-semibold text-fg">
-            Welcome, {user.name ?? user.email}
-          </h1>
-          <p className="mb-6 text-sm text-fg-muted">
-            Shell for prompt 02. The modules will fill in as we go.
-          </p>
-
-          <section className="mb-6 rounded-md border border-border bg-surface-raised p-4">
-            <h2 className="mb-3 text-sm font-semibold text-fg">Your access</h2>
-            {me ? (
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                <dt className="text-fg-muted">Role</dt>
-                <dd className="text-fg">{me.role}</dd>
-                <dt className="text-fg-muted">Theme preference</dt>
-                <dd className="text-fg">{me.themePreference}</dd>
-                <dt className="text-fg-muted">Own faculty ID</dt>
-                <dd className="text-fg">
-                  {me.scopeAccess.ownFacultyId ?? '—'}
-                </dd>
-                <dt className="text-fg-muted">Own department ID</dt>
-                <dd className="text-fg">
-                  {me.scopeAccess.ownDepartmentId ?? '—'}
-                </dd>
-                <dt className="text-fg-muted">Permissions</dt>
-                <dd className="text-fg">
-                  <span className="font-tabular">{me.permissions.length}</span>{' '}
-                  granted
-                </dd>
-              </dl>
-            ) : (
-              <p className="text-sm text-fg-muted">/me unavailable</p>
-            )}
-          </section>
-
-          <section className="rounded-md border border-border bg-surface-raised p-4">
-            <h2 className="mb-3 text-sm font-semibold text-fg">
-              Faculties (live from /api/v1/faculties)
-            </h2>
-            {faculties.length === 0 ? (
-              <p className="text-sm text-fg-muted">
-                No faculties returned — is the API running on port 4000?
-              </p>
-            ) : (
-              <ul className="flex flex-wrap gap-2">
-                {faculties.map((f) => (
-                  <li
-                    key={f.id}
-                    className="rounded-sm border border-border bg-surface px-2 py-1 text-xs"
-                  >
-                    <span className="font-tabular text-fg-muted">{f.code}</span>{' '}
-                    <span className="text-fg">{f.nameEn}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <p className="mt-8 text-xs text-fg-subtle">
-            KPI grid placeholder — shadcn card grid lands in prompt 02b, data
-            wiring in prompts 05+.
-          </p>
-        </main>
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {faculties.map((f) => (
+            <Card key={f.id} padding="sm">
+              <CardHeader className="mb-0">
+                <CardTitle>{f.nameEn}</CardTitle>
+              </CardHeader>
+              <div className="text-xs text-text-tertiary">
+                {f.code} · {f.nameTh}
+              </div>
+            </Card>
+          ))}
+        </section>
       </div>
-    </div>
+    </AuthedAppShell>
   );
 }

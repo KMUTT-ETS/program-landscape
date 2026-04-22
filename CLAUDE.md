@@ -246,7 +246,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 00: Bootstrap  *(completed 2026-04-22)*
 - [x] Prompt 01: Data model  *(completed 2026-04-22)*
 - [x] Prompt 02: Auth & API core  *(completed 2026-04-22)*
-- [ ] Prompt 02b: Design system
+- [x] Prompt 02b: Design system  *(completed 2026-04-22; Storybook deferred)*
 - [ ] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)
 - [ ] Prompt 03: Ingestion framework
 - [ ] Prompt 03b: PDF intake
@@ -264,6 +264,17 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 02b (2026-04-22):*
+- **Tokens are OKLCH, not HSL.** `packages/design/src/css/tokens.css` holds every value as `L C H` triplets under `[data-theme='light'|'dark']`; Tailwind utilities wrap them with `oklch(var(...) / <alpha-value>)` so `bg-surface-1/80` works. Modern evergreen browsers support it natively — no RGB fallback shipped.
+- **Tailwind preset blocks the default palette.** `packages/design/tailwind-preset.ts` resets `theme.colors` so `bg-slate-500` etc. are compile-time errors. Only tokens compile: `bg-surface-1`, `text-danger`, `bg-chart-3`, etc. Apps extend via `presets: [tailwindPreset]`.
+- **ESLint flat config at root** with `no-restricted-syntax` rule banning literal hex (`#abc`) and literal-numeric `rgb()`/`oklch()` calls. Wrappers around CSS variables (`oklch(var(--color-x))`) are explicitly allowed.
+- **Theme attribute:** `data-theme` (not `class="dark"`). `next-themes` configured with `attribute="data-theme"`; the Tailwind `darkMode` selector is `['class', '[data-theme="dark"]']` so both work.
+- **Council-readiness trio is app-global.** `<ProvenanceProvider>` wraps the root and `<ProvenanceDrawer>` lives once at the tree root; every `<ProvenanceButton>` pushes into the same drawer. `<FreshnessBadge>` and `<ConfidenceBadge>` are drop-in.
+- **Charts read the palette at runtime.** `useChartPalette()` resolves `oklch(var(--color-chart-N))` through `getComputedStyle` and subscribes to `data-theme` / `data-density` changes via MutationObserver — so Recharts re-renders with the correct colours on theme flip without remounting.
+- **ScopeSelector URL convention:** `?scope=<level>&scopeId=<id>`. University has no scopeId. Compare mode (2–4 scopes side-by-side) deferred to a follow-up prompt.
+- **Storybook deferred.** `/styleguide` page covers the visual-contract purpose; Storybook config + stories for 30+ components doesn't earn its cost this session. Revisit after module prompts if visual regression pain shows up.
+- **Next.js bundler has a resolution oddity:** importing `DENSITY_MODES` from `@kku/design` fails TS in `apps/web` even though the export chain is correct (direct-path imports work). Worked around with an inline `const DENSITY_MODES = …` in the one consumer. Investigate when the moduleResolution settings stabilise.
 
 *Prompt 02 (2026-04-22):*
 - **JWT strategy: HS256, shared across services.** Next-auth's default is JWE (A256CBC-HS512); we override `jwt.encode`/`jwt.decode` with `jose` HS256 signing so NestJS can verify tokens via the same `NEXTAUTH_SECRET` without decryption keys. Custom codec lives in `apps/web/src/lib/auth/jwt-codec.ts`; NestJS verifies in `apps/api/src/common/jwt-auth.guard.ts`.

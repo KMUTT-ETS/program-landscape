@@ -2,86 +2,218 @@
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Minimal token set aligned with docs/design-system.md. The full token
- * system lands in prompt 02b; these values let prompt 02 demos run in
- * both modes without hardcoded hexes in components.
- *
- * Colours expressed in OKLCH-equivalent HSL where close enough; prompt 02b
- * regenerates the ladder in OKLCH with verified WCAG-AA contrast.
- */
+/* Token values — canonical source is packages/design/src/css/tokens.css.
+   Inlined here because Next's CSS pipeline does not reliably resolve
+   cross-package @import for third-party / workspace CSS. When updating,
+   change the design package first and mirror the delta here. */
+
+:root,
+[data-theme='light'] {
+  --color-surface-0: 99.5% 0.002 85;
+  --color-surface-1: 97.8% 0.003 85;
+  --color-surface-2: 95.4% 0.004 85;
+  --color-surface-3: 92.2% 0.005 85;
+  --color-surface-4: 88.0% 0.006 85;
+
+  --color-border-subtle: 92.2% 0.005 85;
+  --color-border-default: 86.0% 0.007 85;
+  --color-border-strong: 72.0% 0.009 85;
+
+  --color-text-primary: 20.0% 0.012 65;
+  --color-text-secondary: 36.8% 0.010 65;
+  --color-text-tertiary: 51.8% 0.010 65;
+  --color-text-disabled: 68.0% 0.008 65;
+  --color-text-inverse: 99.0% 0.002 85;
+
+  --color-accent-default: 44.0% 0.165 20;
+  --color-accent-hover: 48.5% 0.165 20;
+  --color-accent-active: 40.0% 0.165 20;
+  --color-accent-subtle: 94.0% 0.020 20;
+  --color-accent-fg: 99.5% 0.002 85;
+
+  --color-success-default: 52.0% 0.155 150;
+  --color-success-subtle: 94.5% 0.028 150;
+  --color-warning-default: 68.0% 0.170 80;
+  --color-warning-subtle: 95.0% 0.045 80;
+  --color-danger-default: 53.0% 0.205 27;
+  --color-danger-subtle: 95.0% 0.028 27;
+  --color-info-default: 55.0% 0.175 245;
+  --color-info-subtle: 95.0% 0.030 245;
+
+  --color-data-positive: 52.0% 0.155 150;
+  --color-data-negative: 53.0% 0.205 27;
+  --color-data-neutral: 60.0% 0.012 65;
+
+  --color-chart-1: 58.0% 0.145 245;
+  --color-chart-2: 62.0% 0.120 195;
+  --color-chart-3: 58.0% 0.150 150;
+  --color-chart-4: 65.0% 0.130 120;
+  --color-chart-5: 72.0% 0.150 85;
+  --color-chart-6: 68.0% 0.170 55;
+  --color-chart-7: 58.0% 0.180 25;
+  --color-chart-8: 58.0% 0.185 340;
+  --color-chart-9: 55.0% 0.180 305;
+  --color-chart-10: 50.0% 0.185 275;
+  --color-chart-11: 65.0% 0.120 215;
+  --color-chart-12: 55.0% 0.100 40;
+
+  --shadow-elevation-0: 0 0 #0000;
+  --shadow-elevation-1: 0 1px 2px 0 rgb(28 25 23 / 0.05);
+  --shadow-elevation-2: 0 2px 6px -1px rgb(28 25 23 / 0.08), 0 1px 2px -1px rgb(28 25 23 / 0.05);
+  --shadow-elevation-3: 0 4px 12px -2px rgb(28 25 23 / 0.10), 0 2px 4px -2px rgb(28 25 23 / 0.06);
+  --shadow-elevation-4: 0 12px 28px -8px rgb(28 25 23 / 0.14), 0 4px 8px -4px rgb(28 25 23 / 0.08);
+  --shadow-card: 0 1px 3px 0 rgb(28 25 23 / 0.06), 0 1px 2px -1px rgb(28 25 23 / 0.04);
+  --shadow-popover: 0 8px 24px -4px rgb(28 25 23 / 0.18), 0 4px 8px -4px rgb(28 25 23 / 0.10);
+}
+
+[data-theme='dark'] {
+  --color-surface-0: 10.0% 0.005 60;
+  --color-surface-1: 13.5% 0.006 60;
+  --color-surface-2: 17.0% 0.008 60;
+  --color-surface-3: 21.0% 0.009 60;
+  --color-surface-4: 25.5% 0.010 60;
+
+  --color-border-subtle: 20.0% 0.008 60;
+  --color-border-default: 26.0% 0.010 60;
+  --color-border-strong: 38.0% 0.011 60;
+
+  --color-text-primary: 95.5% 0.005 85;
+  --color-text-secondary: 76.0% 0.008 85;
+  --color-text-tertiary: 60.0% 0.009 85;
+  --color-text-disabled: 45.0% 0.008 85;
+  --color-text-inverse: 15.0% 0.006 60;
+
+  --color-accent-default: 62.0% 0.175 20;
+  --color-accent-hover: 66.5% 0.175 20;
+  --color-accent-active: 57.5% 0.175 20;
+  --color-accent-subtle: 25.0% 0.050 20;
+  --color-accent-fg: 99.5% 0.002 85;
+
+  --color-success-default: 70.0% 0.165 150;
+  --color-success-subtle: 24.0% 0.060 150;
+  --color-warning-default: 78.0% 0.175 80;
+  --color-warning-subtle: 26.0% 0.065 80;
+  --color-danger-default: 68.0% 0.210 27;
+  --color-danger-subtle: 25.0% 0.065 27;
+  --color-info-default: 70.0% 0.165 245;
+  --color-info-subtle: 26.0% 0.060 245;
+
+  --color-data-positive: 70.0% 0.165 150;
+  --color-data-negative: 68.0% 0.210 27;
+  --color-data-neutral: 65.0% 0.010 85;
+
+  --color-chart-1: 72.0% 0.150 245;
+  --color-chart-2: 75.0% 0.120 195;
+  --color-chart-3: 72.0% 0.155 150;
+  --color-chart-4: 78.0% 0.130 120;
+  --color-chart-5: 82.0% 0.155 85;
+  --color-chart-6: 78.0% 0.175 55;
+  --color-chart-7: 72.0% 0.185 25;
+  --color-chart-8: 72.0% 0.190 340;
+  --color-chart-9: 70.0% 0.185 305;
+  --color-chart-10: 65.0% 0.190 275;
+  --color-chart-11: 78.0% 0.120 215;
+  --color-chart-12: 72.0% 0.100 40;
+
+  --shadow-elevation-0: 0 0 #0000;
+  --shadow-elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.30);
+  --shadow-elevation-2: 0 2px 6px -1px rgb(0 0 0 / 0.40), 0 1px 2px -1px rgb(0 0 0 / 0.30);
+  --shadow-elevation-3: 0 4px 12px -2px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.35);
+  --shadow-elevation-4: 0 12px 28px -8px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.40);
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.40), 0 1px 2px -1px rgb(0 0 0 / 0.30);
+  --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.40);
+}
 
 :root {
   --font-body: 'IBM Plex Sans Thai', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Warm neutrals — Stripe-stone adjacent, not cool greys. */
-  --color-surface:        32 17% 98%;   /* ~#FAFAF9 */
-  --color-surface-raised: 0 0% 100%;
-  --color-surface-muted:  30 10% 95%;
-  --color-border:         30 8% 88%;
-  --color-border-strong:  30 8% 78%;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-md: 0.9375rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.125rem;
+  --font-size-2xl: 1.375rem;
+  --font-size-3xl: 1.75rem;
+  --font-size-display: 2.25rem;
 
-  --color-fg:             28 10% 12%;   /* body */
-  --color-fg-muted:       28 6% 42%;
-  --color-fg-subtle:      28 5% 58%;
-
-  /* KKU Cardinal — accent only. */
-  --color-brand:          352 67% 38%;  /* ~#A6192E */
-  --color-brand-fg:       0 0% 100%;
-
-  /* Secondary interactive — indigo, not brand. */
-  --color-accent:         238 72% 58%;
-  --color-accent-fg:      0 0% 100%;
-
-  /* Semantic — at-risk is DIFFERENT from brand red. */
-  --color-healthy:        158 58% 40%;
-  --color-caution:        37 92% 50%;
-  --color-at-risk:        0 72% 51%;    /* ~#DC2626 */
-  --color-info:           217 91% 60%;
+  --line-height-tight: 1.3;
+  --line-height-base: 1.55;
+  --line-height-loose: 1.7;
 
   --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  --motion-fast: 100ms;
+  --motion-base: 150ms;
+  --motion-slow: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --ease-accelerate: cubic-bezier(0.3, 0, 1, 1);
 }
 
-.dark {
-  /* Warm near-black, not pure #000. */
-  --color-surface:        24 6% 7%;     /* ~#131210 */
-  --color-surface-raised: 24 6% 11%;
-  --color-surface-muted:  24 6% 14%;
-  --color-border:         24 5% 22%;
-  --color-border-strong:  24 5% 34%;
-
-  --color-fg:             30 12% 94%;
-  --color-fg-muted:       30 6% 70%;
-  --color-fg-subtle:      30 4% 55%;
-
-  --color-brand:          352 70% 56%;   /* lifted for dark-mode contrast */
-  --color-accent:         238 86% 72%;
-  --color-healthy:        158 58% 52%;
-  --color-caution:        37 92% 60%;
-  --color-at-risk:        0 72% 62%;
-  --color-info:           217 91% 70%;
+:root,
+[data-density='comfortable'] {
+  --density-cell-px: 0.5rem;
+  --density-cell-py: 0.375rem;
+  --density-row-h: 2.25rem;
+  --density-gap: 0.75rem;
+  --density-font-step: 0rem;
+}
+[data-density='compact'] {
+  --density-cell-px: 0.375rem;
+  --density-cell-py: 0.1875rem;
+  --density-row-h: 1.875rem;
+  --density-gap: 0.5rem;
+  --density-font-step: -0.0625rem;
+}
+[data-density='spacious'] {
+  --density-cell-px: 0.75rem;
+  --density-cell-py: 0.625rem;
+  --density-row-h: 2.75rem;
+  --density-gap: 1rem;
+  --density-font-step: 0.0625rem;
 }
 
-* {
-  border-color: hsl(var(--color-border));
+html {
+  background: oklch(var(--color-surface-0));
+  color: oklch(var(--color-text-primary));
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 html,
 body {
-  background: hsl(var(--color-surface));
-  color: hsl(var(--color-fg));
   font-family: var(--font-body);
-  font-feature-settings: 'ss01';
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
 }
 
-@layer utilities {
-  .font-tabular {
-    font-variant-numeric: tabular-nums;
-    font-family: var(--font-mono);
-  }
+[lang='th'],
+.lang-th {
+  word-break: keep-all;
+  line-break: strict;
+  overflow-wrap: normal;
+}
+
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 2px solid oklch(var(--color-accent-default));
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
