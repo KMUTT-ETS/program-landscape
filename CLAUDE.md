@@ -244,7 +244,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 > **Update this section after every major session.** This is how Claude Code knows where the project stands when you return.
 
 - [x] Prompt 00: Bootstrap  *(completed 2026-04-22)*
-- [ ] Prompt 01: Data model
+- [x] Prompt 01: Data model  *(completed 2026-04-22)*
 - [ ] Prompt 02: Auth & API core
 - [ ] Prompt 02b: Design system
 - [ ] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)
@@ -264,6 +264,15 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 01 (2026-04-22):*
+- **Scope rollups: materialized views + one entry point.** Metrics stored at program level; four MVs (`mv_program_metrics`, `mv_department_metrics`, `mv_faculty_metrics`, `mv_university_metrics`) with a uniform column shape roll them up. `queryMetricByScope` in `@kku/db` is the single access point — modules must not write ad-hoc rollup joins.
+- **Prisma owns the extensions.** Schema declares `postgis`, `vector`, `pg_trgm`, `btree_gin`, `uuidOssp` via `previewFeatures = ["postgresqlExtensions"]`. The `infra/postgres/init/01-extensions.sql` script remains as a belt-and-braces fallback; both idempotent.
+- **Non-interactive migration workflow.** Claude Code sessions can't drive `prisma migrate dev` (needs TTY). We use `prisma migrate diff --from-empty --to-schema-datamodel` to generate SQL into a manually-named migration folder (`YYYYMMDDHHMMSS_name/migration.sql`), then `prisma migrate deploy` to apply. Strip the Prisma update banner from generated SQL files before committing.
+- **pgvector fields:** `Unsupported("vector(1536)")` on Skill / JobPosting / PolicyDocument / PeerProgram / PdfDocument / PdfPage. Not accessible via Prisma Client — ingestion writes them via `$queryRaw`. Seed leaves NULL.
+- **Weighted averages** on outcome rollups use `sample_size` as the weight — never naïve `AVG()`. 500-graduate and 12-graduate programs get proportional voice.
+- **Skill rollups are NOT materialized views.** Weighted union across CourseSkill → ProgramSkill → DepartmentSkill → FacultySkill is too structural for a SUM-based MV; ingestion (prompt 04) maintains the denormalized tables.
+- **pnpm build approval:** added `pnpm.onlyBuiltDependencies` to root `package.json` for `@prisma/client`, `prisma`, `@prisma/engines`, `esbuild`, `@nestjs/core`, `msgpackr-extract`, `unrs-resolver`. Required on pnpm ≥ 10 — installs silently skip postinstalls otherwise.
 
 *Prompt 00 (2026-04-22):*
 - **Typography direction:** IBM Plex Sans Thai (body/UI) + IBM Plex Mono (tabular/numeric). Alternatives (Sarabun+Prompt, Noto Sans Thai Looped) documented in `docs/design-system.md`. Re-validated at real UI sizes in prompt 02b. Deliberately distinct from TH Sarabun New (that font is reserved for PDF output per prompt 02c).

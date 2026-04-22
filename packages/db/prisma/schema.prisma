@@ -1,51 +1,32 @@
-// Initial schema. Full data model (metrics, time series, PDF intake, AI
-// traces, methodologies, materialized views) lands in prompt 01.
+// KKU Curriculum Landscape — Prisma schema
+//
+// Conventions (see packages/db/README.md for the full narrative):
+//   - Table names: snake_case via @@map; Prisma model names camelCase.
+//   - Every row carries createdAt + updatedAt (except pure link tables
+//     and append-only log rows, where only createdAt makes sense).
+//   - Every metric table carries freshnessDate.
+//   - Every calculated metric carries methodologyVersion.
+//   - Embeddings are Unsupported("vector(1536)") — written/read via
+//     $queryRaw, not through Prisma Client field access.
+//   - Multi-level scope (university / faculty / department / program):
+//     metric rows live at the program level; rollups to higher scopes
+//     are served by materialized views (see migrations/*_materialized_views).
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "windows"]
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "windows"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [postgis, vector, pg_trgm]
+  extensions = [postgis, vector, pg_trgm, btree_gin, uuidOssp(map: "uuid-ossp")]
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Organization (university / faculty / department / program)
-// ──────────────────────────────────────────────────────────────────────────
-
-model Faculty {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  nameTh    String
-  nameEn    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  departments Department[]
-  programs    Program[]
-  users       User[]
-
-  @@index([code])
-}
-
-model Department {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  nameTh    String
-  nameEn    String
-  facultyId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  faculty  Faculty   @relation(fields: [facultyId], references: [id])
-  programs Program[]
-  users    User[]
-
-  @@index([facultyId])
-}
+// ══════════════════════════════════════════════════════════════════════════
+// Enums
+// ══════════════════════════════════════════════════════════════════════════
 
 enum ProgramLevel {
   BACHELOR
@@ -58,31 +39,6 @@ enum ProgramStatus {
   PAUSED
   SUNSET
 }
-
-model Program {
-  id              String        @id @default(cuid())
-  code            String        @unique
-  nameTh          String
-  nameEn          String
-  facultyId       String
-  departmentId    String?
-  level           ProgramLevel
-  status          ProgramStatus @default(ACTIVE)
-  yearEstablished Int?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  faculty    Faculty     @relation(fields: [facultyId], references: [id])
-  department Department? @relation(fields: [departmentId], references: [id])
-
-  @@index([facultyId])
-  @@index([departmentId])
-  @@index([status])
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Users & access
-// ──────────────────────────────────────────────────────────────────────────
 
 enum UserRole {
   VIEWER
@@ -100,64 +56,1035 @@ enum ThemePreference {
   SYSTEM
 }
 
+enum CurriculumStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum CourseType {
+  CORE
+  ELECTIVE
+  GENERAL
+}
+
+enum SkillTaxonomy {
+  LIGHTCAST
+  ESCO
+  TPQI
+  KKU
+}
+
+enum SkillSource {
+  MANUAL
+  LLM_EXTRACTED
+}
+
+enum FacultyRank {
+  LECTURER
+  ASST_PROF
+  ASSOC_PROF
+  PROF
+}
+
+enum ProgramFacultyRole {
+  COORDINATOR
+  CORE
+  SUPPORT
+}
+
+enum ResearchOutputType {
+  JOURNAL
+  CONFERENCE
+  PATENT
+  BOOK
+}
+
+enum PolicySource {
+  MHESI
+  NESDC
+  NXPO
+  BOI
+  EECO
+  OTHER
+}
+
+enum SignalType {
+  POLICY
+  RESEARCH
+  MARKET
+  TECH
+  NEWS
+}
+
+enum PdfSourceCategory {
+  POLICY
+  REPORT
+  CURRICULUM
+  PEER_PROGRAM
+  SURVEY
+  COMMITTEE_MINUTES
+  OTHER
+}
+
+enum PdfLanguage {
+  TH
+  EN
+  MIXED
+}
+
+enum PdfProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PdfExtractionType {
+  POLICY_DOC
+  JOB_POSTING_BATCH
+  CURRICULUM_SPEC
+  PEER_PROGRAM
+  LABOR_STAT
+  SURVEY_RESULT
+  OTHER
+}
+
+enum ReviewStatus {
+  AUTO_APPROVED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ScenarioScope {
+  UNIVERSITY
+  FACULTY
+  DEPARTMENT
+  PROGRAM
+}
+
+enum DecisionType {
+  CLOSE
+  MERGE
+  LAUNCH
+  RESTRUCTURE
+  KEEP_AS_IS
+  OTHER
+}
+
+enum DecisionStatus {
+  PROPOSED
+  APPROVED
+  IMPLEMENTED
+  REJECTED
+  SUPERSEDED
+}
+
+enum DataSourceKind {
+  API
+  PDF
+  CSV
+  SCRAPE
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Organization (university → faculty → department → program)
+// ══════════════════════════════════════════════════════════════════════════
+
+model Faculty {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameTh    String   @map("name_th")
+  nameEn    String   @map("name_en")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  departments    Department[]
+  programs       Program[]
+  users          User[]
+  facultyMembers FacultyMember[]
+  facultySkills  FacultySkill[]
+
+  @@index([code])
+  @@map("faculties")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameTh    String   @map("name_th")
+  nameEn    String   @map("name_en")
+  facultyId String   @map("faculty_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  faculty           Faculty            @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  programs          Program[]
+  users             User[]
+  facultyMembers    FacultyMember[]
+  departmentSkills  DepartmentSkill[]
+
+  @@index([facultyId])
+  @@map("departments")
+}
+
+model Program {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  nameTh          String        @map("name_th")
+  nameEn          String        @map("name_en")
+  facultyId       String        @map("faculty_id")
+  departmentId    String?       @map("department_id")
+  level           ProgramLevel
+  status          ProgramStatus @default(ACTIVE)
+  yearEstablished Int?          @map("year_established")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  faculty    Faculty     @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  curricula            Curriculum[]
+  courses              Course[]
+  programSkills        ProgramSkill[]
+  programFaculties     ProgramFaculty[]
+  enrollmentMetrics    EnrollmentMetric[]
+  studentDemographics  StudentDemographic[]
+  financialMetrics     FinancialMetric[]
+  graduateOutcomes     GraduateOutcome[]
+  employerFeedback     EmployerFeedback[]
+
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([level])
+  @@map("programs")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Users, audit, AI logs
+// ══════════════════════════════════════════════════════════════════════════
+
 model User {
-  id               String          @id @default(cuid())
-  email            String          @unique
-  ssoSubject       String?         @unique
-  name             String?
-  role             UserRole        @default(VIEWER)
-  facultyId        String?
-  departmentId    String?
-  themePreference  ThemePreference @default(SYSTEM)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  email           String          @unique
+  ssoSubject      String?         @unique @map("sso_subject")
+  name            String?
+  role            UserRole        @default(VIEWER)
+  facultyId       String?         @map("faculty_id")
+  departmentId    String?         @map("department_id")
+  themePreference ThemePreference @default(SYSTEM) @map("theme_preference")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  faculty    Faculty?    @relation(fields: [facultyId], references: [id])
-  department Department? @relation(fields: [departmentId], references: [id])
+  faculty    Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  auditLogs    AuditLog[]
-  aiInferences AiInference[]
+  auditLogs         AuditLog[]
+  aiInferences      AiInference[]
+  uploadedPdfs      PdfDocument[]      @relation("PdfUploader")
+  reviewedExtractions PdfExtraction[]  @relation("ExtractionReviewer")
+  scenarios         Scenario[]
+  councilDecisions  CouncilDecision[]
+  annotations       Annotation[]
 
   @@index([email])
   @@index([ssoSubject])
   @@index([role])
+  @@map("users")
 }
-
-// ──────────────────────────────────────────────────────────────────────────
-// Governance: audit trail + AI inference log
-// ──────────────────────────────────────────────────────────────────────────
 
 model AuditLog {
   id          String   @id @default(cuid())
-  userId      String?
+  userId      String?  @map("user_id")
   action      String
-  entityType  String
-  entityId    String?
-  payloadJson Json?
-  ipAddress   String?
-  createdAt   DateTime @default(now())
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  payloadJson Json?    @map("payload_json")
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model AiInference {
-  id          String   @id @default(cuid())
-  userId      String?
-  module      String
-  prompt      String   @db.Text
-  model       String
-  response    String   @db.Text
-  confidence  Float?
-  sourcesJson Json?
-  createdAt   DateTime @default(now())
+  id                String        @id @default(cuid())
+  userId            String?       @map("user_id")
+  module            String
+  prompt            String        @db.Text
+  promptVersion     String?       @map("prompt_version")
+  model             String
+  response          String        @db.Text
+  confidence        Float?
+  sourcesJson       Json?         @map("sources_json")
+  tokensInput       Int?          @map("tokens_input")
+  tokensOutput      Int?          @map("tokens_output")
+  latencyMs         Int?          @map("latency_ms")
+  createdAt         DateTime      @default(now()) @map("created_at")
 
-  user User? @relation(fields: [userId], references: [id])
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  trendSignals  TrendSignal[]
+  scenarioResults ScenarioResult[]
 
   @@index([userId])
   @@index([module])
   @@index([createdAt])
+  @@map("ai_inferences")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Curriculum & courses
+// ══════════════════════════════════════════════════════════════════════════
+
+model Curriculum {
+  id               String           @id @default(cuid())
+  programId        String           @map("program_id")
+  version          String
+  effectiveYear    Int              @map("effective_year")
+  totalCredits     Int              @map("total_credits")
+  mko2DocumentUrl  String?          @map("mko2_document_url")
+  sourcePdfId      String?          @map("source_pdf_id")
+  status           CurriculumStatus @default(DRAFT)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  program   Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sourcePdf PdfDocument?        @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  courses   CurriculumCourse[]
+
+  @@unique([programId, version])
+  @@index([programId])
+  @@index([effectiveYear])
+  @@map("curricula")
+}
+
+model Course {
+  id             String     @id @default(cuid())
+  programId      String     @map("program_id")
+  code           String
+  nameTh         String     @map("name_th")
+  nameEn         String     @map("name_en")
+  credits        Int
+  type           CourseType @default(ELECTIVE)
+  descriptionTh  String?    @map("description_th") @db.Text
+  descriptionEn  String?    @map("description_en") @db.Text
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  program     Program            @relation(fields: [programId], references: [id], onDelete: Cascade)
+  curricula   CurriculumCourse[]
+  courseSkills CourseSkill[]
+
+  @@unique([programId, code])
+  @@index([programId])
+  @@index([type])
+  @@map("courses")
+}
+
+model CurriculumCourse {
+  id           String  @id @default(cuid())
+  curriculumId String  @map("curriculum_id")
+  courseId     String  @map("course_id")
+  semester     Int
+  isRequired   Boolean @default(true) @map("is_required")
+
+  curriculum Curriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([curriculumId, courseId, semester])
+  @@index([curriculumId])
+  @@index([courseId])
+  @@map("curriculum_courses")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Skills
+// ══════════════════════════════════════════════════════════════════════════
+
+model Skill {
+  id             String        @id @default(cuid())
+  code           String        @unique
+  nameTh         String        @map("name_th")
+  nameEn         String        @map("name_en")
+  taxonomySource SkillTaxonomy @map("taxonomy_source")
+  category       String?
+  parentSkillId  String?       @map("parent_skill_id")
+  embedding      Unsupported("vector(1536)")?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  parent           Skill?            @relation("SkillHierarchy", fields: [parentSkillId], references: [id], onDelete: SetNull)
+  children         Skill[]           @relation("SkillHierarchy")
+  courseSkills     CourseSkill[]
+  programSkills    ProgramSkill[]
+  departmentSkills DepartmentSkill[]
+  facultySkills    FacultySkill[]
+  jobPostingSkills JobPostingSkill[]
+
+  @@index([code])
+  @@index([taxonomySource])
+  @@index([parentSkillId])
+  @@map("skills")
+}
+
+model CourseSkill {
+  id         String      @id @default(cuid())
+  courseId   String      @map("course_id")
+  skillId    String      @map("skill_id")
+  weight     Float       @default(1.0)
+  source     SkillSource @default(MANUAL)
+  confidence Float?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, skillId])
+  @@index([courseId])
+  @@index([skillId])
+  @@map("course_skills")
+}
+
+// Denormalized rollups — regenerated by ingestion jobs (prompt 04) whenever
+// the underlying CourseSkill weights or curriculum membership changes.
+model ProgramSkill {
+  id         String   @id @default(cuid())
+  programId  String   @map("program_id")
+  skillId    String   @map("skill_id")
+  weight     Float
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, skillId])
+  @@index([programId])
+  @@index([skillId])
+  @@map("program_skills")
+}
+
+model DepartmentSkill {
+  id           String   @id @default(cuid())
+  departmentId String   @map("department_id")
+  skillId      String   @map("skill_id")
+  weight       Float
+  computedAt   DateTime @default(now()) @map("computed_at")
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  skill      Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, skillId])
+  @@index([departmentId])
+  @@index([skillId])
+  @@map("department_skills")
+}
+
+model FacultySkill {
+  id         String   @id @default(cuid())
+  facultyId  String   @map("faculty_id")
+  skillId    String   @map("skill_id")
+  weight     Float
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, skillId])
+  @@index([facultyId])
+  @@index([skillId])
+  @@map("faculty_skills")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// People
+// ══════════════════════════════════════════════════════════════════════════
+
+model FacultyMember {
+  id                    String       @id @default(cuid())
+  facultyId             String       @map("faculty_id")
+  departmentId          String?      @map("department_id")
+  employeeCode          String       @unique @map("employee_code")
+  nameTh                String       @map("name_th")
+  nameEn                String       @map("name_en")
+  rank                  FacultyRank
+  academicQualification String?      @map("academic_qualification")
+  specialization        String?
+  dateOfBirth           DateTime?    @map("date_of_birth") @db.Date
+  hireDate              DateTime?    @map("hire_date") @db.Date
+  retirementDate        DateTime?    @map("retirement_date") @db.Date
+  isActive              Boolean      @default(true) @map("is_active")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+
+  faculty          Faculty           @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  department       Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  programFaculties ProgramFaculty[]
+  researchOutputs  ResearchOutput[]
+
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([isActive])
+  @@map("faculty_members")
+}
+
+model ProgramFaculty {
+  id              String             @id @default(cuid())
+  facultyMemberId String             @map("faculty_member_id")
+  programId       String             @map("program_id")
+  role            ProgramFacultyRole @default(CORE)
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  facultyMember FacultyMember @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
+  program       Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyMemberId, programId])
+  @@index([facultyMemberId])
+  @@index([programId])
+  @@map("program_faculties")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Student funnel
+// ══════════════════════════════════════════════════════════════════════════
+
+model EnrollmentMetric {
+  id                  String   @id @default(cuid())
+  programId           String   @map("program_id")
+  academicYear        Int      @map("academic_year")
+  applications        Int
+  admitted            Int
+  enrolled            Int
+  retainedYear2       Int      @map("retained_year2")
+  graduatedOnTime     Int      @map("graduated_on_time")
+  graduatedLate       Int      @map("graduated_late")
+  dropouts            Int
+  freshnessDate       DateTime @map("freshness_date") @db.Date
+  methodologyVersion  String   @default("v1") @map("methodology_version")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, academicYear])
+  @@index([programId])
+  @@index([academicYear])
+  @@index([freshnessDate])
+  @@map("enrollment_metrics")
+}
+
+model StudentDemographic {
+  id             String   @id @default(cuid())
+  programId      String   @map("program_id")
+  academicYear   Int      @map("academic_year")
+  breakdownJson  Json     @map("breakdown_json")
+  avgTgatScore   Float?   @map("avg_tgat_score")
+  avgTpatScore   Float?   @map("avg_tpat_score")
+  freshnessDate  DateTime @map("freshness_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, academicYear])
+  @@index([programId])
+  @@index([academicYear])
+  @@map("student_demographics")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Financial
+// ══════════════════════════════════════════════════════════════════════════
+
+model CostMethodology {
+  id              String   @id @default(cuid())
+  version         String   @unique
+  description     String   @db.Text
+  effectiveDate   DateTime @map("effective_date") @db.Date
+  documentUrl     String?  @map("document_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  financialMetrics FinancialMetric[]
+
+  @@index([effectiveDate])
+  @@map("cost_methodologies")
+}
+
+model FinancialMetric {
+  id                      String   @id @default(cuid())
+  programId               String   @map("program_id")
+  fiscalYear              Int      @map("fiscal_year")
+  tuitionRevenue          Decimal  @map("tuition_revenue") @db.Decimal(14, 2)
+  otherRevenue            Decimal  @default(0) @map("other_revenue") @db.Decimal(14, 2)
+  directCost              Decimal  @map("direct_cost") @db.Decimal(14, 2)
+  allocatedFacultyCost    Decimal  @map("allocated_faculty_cost") @db.Decimal(14, 2)
+  allocatedFacilityCost   Decimal  @map("allocated_facility_cost") @db.Decimal(14, 2)
+  allocatedOverhead       Decimal  @map("allocated_overhead") @db.Decimal(14, 2)
+  netContribution         Decimal  @map("net_contribution") @db.Decimal(14, 2)
+  costPerStudent          Decimal? @map("cost_per_student") @db.Decimal(14, 2)
+  freshnessDate           DateTime @map("freshness_date") @db.Date
+  methodologyVersion      String   @default("v1") @map("methodology_version")
+  costMethodologyId       String?  @map("cost_methodology_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  costMethodology CostMethodology? @relation(fields: [costMethodologyId], references: [id], onDelete: SetNull)
+
+  @@unique([programId, fiscalYear])
+  @@index([programId])
+  @@index([fiscalYear])
+  @@index([freshnessDate])
+  @@map("financial_metrics")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Outcomes
+// ══════════════════════════════════════════════════════════════════════════
+
+model GraduateOutcome {
+  id                 String   @id @default(cuid())
+  programId          String   @map("program_id")
+  graduationYear     Int      @map("graduation_year")
+  surveyYear         Int      @map("survey_year")
+  employmentRate     Float    @map("employment_rate")
+  averageSalary      Decimal  @map("average_salary") @db.Decimal(12, 2)
+  jobRelevanceScore  Float    @map("job_relevance_score")
+  furtherStudyRate   Float    @map("further_study_rate")
+  sampleSize         Int      @map("sample_size")
+  freshnessDate      DateTime @map("freshness_date") @db.Date
+  methodologyVersion String   @default("v1") @map("methodology_version")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, graduationYear, surveyYear])
+  @@index([programId])
+  @@index([graduationYear])
+  @@map("graduate_outcomes")
+}
+
+model EmployerFeedback {
+  id                String   @id @default(cuid())
+  programId         String   @map("program_id")
+  year              Int
+  employerName      String   @map("employer_name")
+  satisfactionScore Float    @map("satisfaction_score")
+  skillGapsJson     Json     @map("skill_gaps_json")
+  sampleSize        Int      @map("sample_size")
+  freshnessDate     DateTime @map("freshness_date") @db.Date
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId])
+  @@index([year])
+  @@map("employer_feedback")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Research
+// ══════════════════════════════════════════════════════════════════════════
+
+model ResearchOutput {
+  id              String             @id @default(cuid())
+  facultyMemberId String             @map("faculty_member_id")
+  year            Int
+  type            ResearchOutputType
+  title           String             @db.Text
+  venue           String?
+  citations       Int                @default(0)
+  scopusId        String?            @map("scopus_id")
+  doi             String?
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  facultyMember FacultyMember @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
+
+  @@index([facultyMemberId])
+  @@index([year])
+  @@index([scopusId])
+  @@map("research_outputs")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// External signals: labor market, policy, trends, peers, projections
+// ══════════════════════════════════════════════════════════════════════════
+
+model JobPosting {
+  id             String   @id @default(cuid())
+  source         String
+  externalId     String   @map("external_id")
+  title          String
+  employerName   String?  @map("employer_name")
+  location       String?
+  province       String?
+  salaryMin      Decimal? @map("salary_min") @db.Decimal(12, 2)
+  salaryMax      Decimal? @map("salary_max") @db.Decimal(12, 2)
+  postedDate     DateTime @map("posted_date") @db.Date
+  descriptionRaw String   @map("description_raw") @db.Text
+  embedding      Unsupported("vector(1536)")?
+  processedAt    DateTime? @map("processed_at")
+  sourcePdfId    String?  @map("source_pdf_id")
+  freshnessDate  DateTime @map("freshness_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  sourcePdf        PdfDocument?      @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  jobPostingSkills JobPostingSkill[]
+
+  @@unique([source, externalId])
+  @@index([source])
+  @@index([postedDate])
+  @@index([province])
+  @@map("job_postings")
+}
+
+model JobPostingSkill {
+  id           String      @id @default(cuid())
+  jobPostingId String      @map("job_posting_id")
+  skillId      String      @map("skill_id")
+  weight       Float       @default(1.0)
+  extractedBy  SkillSource @default(LLM_EXTRACTED) @map("extracted_by")
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  skill      Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobPostingId, skillId])
+  @@index([jobPostingId])
+  @@index([skillId])
+  @@map("job_posting_skills")
+}
+
+model OccupationDemand {
+  id                 String   @id @default(cuid())
+  occupationCode     String   @map("occupation_code")
+  province           String
+  year               Int
+  month              Int
+  postingsCount      Int      @map("postings_count")
+  medianSalary       Decimal? @map("median_salary") @db.Decimal(12, 2)
+  growthRate         Float?   @map("growth_rate")
+  freshnessDate      DateTime @map("freshness_date") @db.Date
+  methodologyVersion String   @default("v1") @map("methodology_version")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([occupationCode, province, year, month])
+  @@index([occupationCode])
+  @@index([province])
+  @@index([year, month])
+  @@map("occupation_demand")
+}
+
+model PolicyDocument {
+  id                String       @id @default(cuid())
+  source            PolicySource
+  title             String       @db.Text
+  publishedDate     DateTime     @map("published_date") @db.Date
+  url               String?
+  contentRaw        String?      @map("content_raw") @db.Text
+  summaryTh         String?      @map("summary_th") @db.Text
+  summaryEn         String?      @map("summary_en") @db.Text
+  embedding         Unsupported("vector(1536)")?
+  relevantProgramIds String[]    @map("relevant_program_ids")
+  relevantSkillIds   String[]    @map("relevant_skill_ids")
+  sourcePdfId       String?      @map("source_pdf_id")
+  freshnessDate     DateTime     @map("freshness_date") @db.Date
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  sourcePdf PdfDocument? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+
+  @@index([source])
+  @@index([publishedDate])
+  @@map("policy_documents")
+}
+
+model TrendSignal {
+  id                String     @id @default(cuid())
+  signalType        SignalType @map("signal_type")
+  title             String     @db.Text
+  summaryTh         String?    @map("summary_th") @db.Text
+  summaryEn         String?    @map("summary_en") @db.Text
+  sourceUrl         String?    @map("source_url")
+  detectedDate      DateTime   @map("detected_date") @db.Date
+  impactScore       Float      @map("impact_score")
+  affectedProgramIds String[]  @map("affected_program_ids")
+  affectedSkillIds   String[]  @map("affected_skill_ids")
+  aiInferenceId     String?    @map("ai_inference_id")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+
+  @@index([signalType])
+  @@index([detectedDate])
+  @@map("trend_signals")
+}
+
+model PeerProgram {
+  id             String   @id @default(cuid())
+  institution    String
+  country        String
+  programName    String   @map("program_name")
+  programLevel   ProgramLevel @map("program_level")
+  descriptionUrl String?  @map("description_url")
+  ranking        Int?
+  lastScraped    DateTime @map("last_scraped")
+  embedding      Unsupported("vector(1536)")?
+  sourcePdfId    String?  @map("source_pdf_id")
+  freshnessDate  DateTime @map("freshness_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  sourcePdf PdfDocument? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+
+  @@index([institution])
+  @@index([country])
+  @@index([programLevel])
+  @@map("peer_programs")
+}
+
+model LaborMarketForecast {
+  id                 String   @id @default(cuid())
+  occupationCode     String   @map("occupation_code")
+  region             String
+  year               Int
+  projectedDemand    Int      @map("projected_demand")
+  projectedSupply    Int      @map("projected_supply")
+  source             String
+  confidence         Float
+  freshnessDate      DateTime @map("freshness_date") @db.Date
+  methodologyVersion String   @default("v1") @map("methodology_version")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([occupationCode, region, year, source])
+  @@index([occupationCode])
+  @@index([region])
+  @@index([year])
+  @@map("labor_market_forecasts")
+}
+
+model DemographicProjection {
+  id            String   @id @default(cuid())
+  region        String
+  year          Int
+  ageCohort     String   @map("age_cohort")
+  population    Int
+  source        String
+  freshnessDate DateTime @map("freshness_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([region, year, ageCohort, source])
+  @@index([region])
+  @@index([year])
+  @@map("demographic_projections")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PDF document infrastructure (primary external-data input — prompt 03b)
+// ══════════════════════════════════════════════════════════════════════════
+
+model PdfDocument {
+  id                String              @id @default(cuid())
+  originalFilename  String              @map("original_filename")
+  storageUrl        String              @map("storage_url")
+  fileSize          Int                 @map("file_size")
+  pageCount         Int                 @map("page_count")
+  sourceCategory    PdfSourceCategory   @map("source_category")
+  sourceOrg         String?             @map("source_org")
+  language          PdfLanguage         @default(TH)
+  uploadedByUserId  String?             @map("uploaded_by_user_id")
+  uploadedAt        DateTime            @default(now()) @map("uploaded_at")
+  processingStatus  PdfProcessingStatus @default(PENDING) @map("processing_status")
+  extractedTextUrl  String?             @map("extracted_text_url")
+  ocrApplied        Boolean             @default(false) @map("ocr_applied")
+  ocrConfidence     Float?              @map("ocr_confidence")
+  contentHash       String              @unique @map("content_hash")
+  embedding         Unsupported("vector(1536)")?
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  uploadedBy User? @relation("PdfUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  pages            PdfPage[]
+  extractions      PdfExtraction[]
+  tables           PdfTable[]
+  curricula        Curriculum[]
+  jobPostings      JobPosting[]
+  policyDocuments  PolicyDocument[]
+  peerPrograms     PeerProgram[]
+
+  @@index([sourceCategory])
+  @@index([processingStatus])
+  @@index([uploadedAt])
+  @@map("pdf_documents")
+}
+
+model PdfPage {
+  id             String  @id @default(cuid())
+  pdfDocumentId  String  @map("pdf_document_id")
+  pageNumber     Int     @map("page_number")
+  textContent    String? @map("text_content") @db.Text
+  hasImages      Boolean @default(false) @map("has_images")
+  hasTables      Boolean @default(false) @map("has_tables")
+  embedding      Unsupported("vector(1536)")?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  pdfDocument PdfDocument @relation(fields: [pdfDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([pdfDocumentId, pageNumber])
+  @@index([pdfDocumentId])
+  @@map("pdf_pages")
+}
+
+model PdfExtraction {
+  id                String            @id @default(cuid())
+  pdfDocumentId     String            @map("pdf_document_id")
+  extractionType    PdfExtractionType @map("extraction_type")
+  targetEntityType  String            @map("target_entity_type")
+  targetEntityId    String?           @map("target_entity_id")
+  confidence        Float
+  methodVersion     String            @map("method_version")
+  reviewStatus      ReviewStatus      @default(PENDING_REVIEW) @map("review_status")
+  reviewedByUserId  String?           @map("reviewed_by_user_id")
+  reviewedAt        DateTime?         @map("reviewed_at")
+  payloadJson       Json              @map("payload_json")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  pdfDocument PdfDocument @relation(fields: [pdfDocumentId], references: [id], onDelete: Cascade)
+  reviewedBy  User?       @relation("ExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([pdfDocumentId])
+  @@index([extractionType])
+  @@index([reviewStatus])
+  @@index([targetEntityType, targetEntityId])
+  @@map("pdf_extractions")
+}
+
+model PdfTable {
+  id             String   @id @default(cuid())
+  pdfDocumentId  String   @map("pdf_document_id")
+  pageNumber     Int      @map("page_number")
+  tableIndex     Int      @map("table_index")
+  headersJson    Json     @map("headers_json")
+  rowsJson       Json     @map("rows_json")
+  structuredData Json?    @map("structured_data")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  pdfDocument PdfDocument @relation(fields: [pdfDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([pdfDocumentId, pageNumber, tableIndex])
+  @@index([pdfDocumentId])
+  @@map("pdf_tables")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Decisions & governance
+// ══════════════════════════════════════════════════════════════════════════
+
+model Scenario {
+  id              String        @id @default(cuid())
+  userId          String        @map("user_id")
+  name            String
+  descriptionTh   String?       @map("description_th") @db.Text
+  descriptionEn   String?       @map("description_en") @db.Text
+  scope           ScenarioScope
+  scopeId         String?       @map("scope_id")
+  assumptionsJson Json          @map("assumptions_json")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results ScenarioResult[]
+  decisions CouncilDecision[]
+
+  @@index([userId])
+  @@index([scope, scopeId])
+  @@map("scenarios")
+}
+
+model ScenarioResult {
+  id            String   @id @default(cuid())
+  scenarioId    String   @map("scenario_id")
+  metric        String
+  value         Float
+  confidence    Float?
+  aiInferenceId String?  @map("ai_inference_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  scenario    Scenario     @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+
+  @@index([scenarioId])
+  @@index([metric])
+  @@map("scenario_results")
+}
+
+model CouncilDecision {
+  id                 String         @id @default(cuid())
+  userId             String         @map("user_id")
+  scenarioId         String?        @map("scenario_id")
+  decisionType       DecisionType   @map("decision_type")
+  affectedProgramIds String[]       @map("affected_program_ids")
+  rationaleTh        String?        @map("rationale_th") @db.Text
+  rationaleEn        String?        @map("rationale_en") @db.Text
+  effectiveDate      DateTime?      @map("effective_date") @db.Date
+  status             DecisionStatus @default(PROPOSED)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  scenario Scenario? @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([decisionType])
+  @@index([status])
+  @@map("council_decisions")
+}
+
+model Annotation {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  bodyTh     String?  @map("body_th") @db.Text
+  bodyEn     String?  @map("body_en") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@map("annotations")
+}
+
+model DataSource {
+  id                 String         @id @default(cuid())
+  name               String         @unique
+  kind               DataSourceKind
+  baseUrl            String?        @map("base_url")
+  acceptsPdfUploads  Boolean        @default(false) @map("accepts_pdf_uploads")
+  lastSyncedAt       DateTime?      @map("last_synced_at")
+  status             String         @default("active")
+  notes              String?        @db.Text
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  @@index([kind])
+  @@map("data_sources")
 }

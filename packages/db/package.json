@@ -20,7 +20,8 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.17.10",
