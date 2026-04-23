@@ -21,6 +21,7 @@ import { GapModule } from './gap/gap.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { BenchmarkingModule } from './benchmarking/benchmarking.module';
 import { AnalystModule } from './analyst/analyst.module';
+import { DecisionsModule } from './decisions/decisions.module';
 
 import {
   AccessControlGuard,
@@ -61,6 +62,7 @@ import {
     ScenariosModule,
     BenchmarkingModule,
     AnalystModule,
+    DecisionsModule,
   ],
   controllers: [
     AppController,

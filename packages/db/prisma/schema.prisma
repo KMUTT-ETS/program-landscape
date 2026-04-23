@@ -193,10 +193,34 @@ enum DecisionType {
 
 enum DecisionStatus {
   PROPOSED
+  COUNCIL_REVIEWED
   APPROVED
+  IN_IMPLEMENTATION
   IMPLEMENTED
+  COMPLETED
   REJECTED
   SUPERSEDED
+  ARCHIVED
+}
+
+enum DecisionMilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+enum AnnotationVisibility {
+  PRIVATE
+  TEAM
+  COUNCIL
+}
+
+enum OutcomeReviewHorizon {
+  SIX_MONTHS
+  ONE_YEAR
+  THREE_YEARS
 }
 
 enum DataSourceKind {
@@ -351,6 +375,8 @@ model User {
   peerSets               PeerSet[]
   analystConversations   AnalystConversation[]
   analystFeedback        AnalystFeedback[]
+  milestonesOwned        DecisionMilestone[]   @relation("MilestoneOwner")
+  approvedDecisions      DecisionApprover[]    @relation("ApproverUser")
 
   @@index([email])
   @@index([ssoSubject])
@@ -397,12 +423,13 @@ model AiInference {
   costEstimateUsd Float?   @map("cost_estimate_usd")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user            User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   trendSignals    TrendSignal[]
   scenarioResults ScenarioResult[]
   scenarioRuns    ScenarioRun[]
   aiExtractions   AiExtraction[]
   annotations     Annotation[]
+  outcomeReviews  DecisionOutcomeReview[] @relation("OutcomeReviewAi")
 
   @@index([userId])
   @@index([module])
@@ -1054,13 +1081,14 @@ model PdfDocument {
 
   uploadedBy User? @relation("PdfUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
-  pages           PdfPage[]
-  extractions     PdfExtraction[]
-  tables          PdfTable[]
-  curricula       Curriculum[]
-  jobPostings     JobPosting[]
-  policyDocuments PolicyDocument[]
-  peerPrograms    PeerProgram[]
+  pages               PdfPage[]
+  extractions         PdfExtraction[]
+  tables              PdfTable[]
+  curricula           Curriculum[]
+  jobPostings         JobPosting[]
+  policyDocuments     PolicyDocument[]
+  peerPrograms        PeerProgram[]
+  decisionResolutions CouncilDecision[] @relation("DecisionResolution")
 
   @@index([sourceCategory])
   @@index([processingStatus])
@@ -1228,43 +1256,149 @@ model CouncilDecision {
   id                 String         @id @default(cuid())
   userId             String         @map("user_id")
   scenarioId         String?        @map("scenario_id")
+  // Council-facing display title. Free-text; defaults to "<DecisionType>
+  // — <first affected program>" when not provided. Added in prompt 12.
+  title              String
   decisionType       DecisionType   @map("decision_type")
   affectedProgramIds String[]       @map("affected_program_ids")
+  // Programs or faculties affected, pre-resolved for display.
+  facultyId          String?        @map("faculty_id")
   rationaleTh        String?        @map("rationale_th") @db.Text
   rationaleEn        String?        @map("rationale_en") @db.Text
+  dissentingViewsTh  String?        @map("dissenting_views_th") @db.Text
   effectiveDate      DateTime?      @map("effective_date") @db.Date
+  councilSessionRef  String?        @map("council_session_ref")
   status             DecisionStatus @default(PROPOSED)
+  // Frozen snapshot of the cockpit/gap/trend state at decision time.
+  // Captured once when status transitions to COUNCIL_REVIEWED; immutable
+  // thereafter. This is what makes the outcomes review possible —
+  // comparing what was projected vs what happened requires freezing
+  // the projection at the time of the decision.
+  snapshotJson       Json?          @map("snapshot_json")
+  snapshotCapturedAt DateTime?      @map("snapshot_captured_at")
+  // Amendment chain — a new decision row can supersede an older one.
+  // The superseded row stays in the DB (institutional memory).
+  version            Int            @default(1)
+  supersededById     String?        @map("superseded_by_id")
+  // Council resolution / board approval PDF (uploaded separately through
+  // the existing PDF intake pipeline).
+  resolutionPdfId    String?        @map("resolution_pdf_id")
   createdAt          DateTime       @default(now()) @map("created_at")
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  scenario Scenario? @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  scenario       Scenario?               @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+  supersededBy   CouncilDecision?        @relation("DecisionAmendment", fields: [supersededById], references: [id], onDelete: SetNull)
+  amendments     CouncilDecision[]       @relation("DecisionAmendment")
+  milestones     DecisionMilestone[]
+  approvers      DecisionApprover[]
+  outcomeReviews DecisionOutcomeReview[]
+  resolutionPdf  PdfDocument?            @relation("DecisionResolution", fields: [resolutionPdfId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([decisionType])
   @@index([status])
+  @@index([facultyId])
+  @@index([supersededById])
   @@map("council_decisions")
 }
 
+model DecisionMilestone {
+  id            String                  @id @default(cuid())
+  decisionId    String                  @map("decision_id")
+  title         String
+  descriptionTh String?                 @map("description_th") @db.Text
+  ownerId       String?                 @map("owner_id")
+  targetDate    DateTime?               @map("target_date") @db.Date
+  completedDate DateTime?               @map("completed_date") @db.Date
+  status        DecisionMilestoneStatus @default(PLANNED)
+  evidenceUrl   String?                 @map("evidence_url")
+  orderIdx      Int                     @default(0) @map("order_idx")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  decision CouncilDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  owner    User?           @relation("MilestoneOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([decisionId, orderIdx])
+  @@index([ownerId])
+  @@index([status])
+  @@index([targetDate])
+  @@map("decision_milestones")
+}
+
+model DecisionApprover {
+  id           String   @id @default(cuid())
+  decisionId   String   @map("decision_id")
+  userId       String   @map("user_id")
+  // 'approver' | 'observer' | 'dissenter'
+  role         String   @default("approver")
+  // E-signature placeholder — real integration with KKU e-sign service
+  // lives in prompt 14 / post-launch.
+  signatureRef String?  @map("signature_ref")
+  approvedAt   DateTime @default(now()) @map("approved_at")
+  noteTh       String?  @map("note_th") @db.Text
+
+  decision CouncilDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  user     User            @relation("ApproverUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([decisionId, userId])
+  @@index([decisionId])
+  @@index([userId])
+  @@map("decision_approvers")
+}
+
+// AI-generated outcome review. One row per (decision, horizon) pair.
+// Scheduled generation (6mo/1yr/3yr after effectiveDate) lands in
+// prompt 13 hardening — today, trigger is manual via POST.
+model DecisionOutcomeReview {
+  id                 String               @id @default(cuid())
+  decisionId         String               @map("decision_id")
+  horizon            OutcomeReviewHorizon
+  generatedAt        DateTime             @default(now()) @map("generated_at")
+  narrativeTh        String               @map("narrative_th") @db.Text
+  narrativeEn        String?              @map("narrative_en") @db.Text
+  // What worked / didn't / lessons — structured for the lessons-learned
+  // search page.
+  whatWorkedJson     Json                 @map("what_worked_json")
+  whatDidntWorkJson  Json                 @map("what_didnt_work_json")
+  lessonsJson        Json                 @map("lessons_json")
+  // Link to the AiInference row for full audit.
+  aiInferenceId      String?              @map("ai_inference_id")
+  methodologyVersion String               @default("outcome-review.v1") @map("methodology_version")
+
+  decision    CouncilDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  aiInference AiInference?    @relation("OutcomeReviewAi", fields: [aiInferenceId], references: [id], onDelete: SetNull)
+
+  @@unique([decisionId, horizon])
+  @@index([decisionId])
+  @@index([horizon])
+  @@map("decision_outcome_reviews")
+}
+
 model Annotation {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  entityType    String   @map("entity_type")
-  entityId      String   @map("entity_id")
+  id            String               @id @default(cuid())
+  userId        String               @map("user_id")
+  entityType    String               @map("entity_type")
+  entityId      String               @map("entity_id")
   // 'comment' (default), 'disagreement' (expert correction of an AI
   // output), 'narrative_edit' (human override of an AI narrative).
-  kind          String   @default("comment")
+  kind          String               @default("comment")
   // Section of the deep-dive this annotation targets — e.g. 'skills',
   // 'outcomes', 'narrative'. Free-text so new sections land without
   // schema churn.
-  sectionKey    String?  @map("section_key")
+  sectionKey    String?              @map("section_key")
   // When the annotation is a correction of a specific AI output, link
   // to the AiInference row so model-improvement tooling can find it.
-  aiInferenceId String?  @map("ai_inference_id")
-  bodyTh        String?  @map("body_th") @db.Text
-  bodyEn        String?  @map("body_en") @db.Text
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  aiInferenceId String?              @map("ai_inference_id")
+  bodyTh        String?              @map("body_th") @db.Text
+  bodyEn        String?              @map("body_en") @db.Text
+  // Visibility added in prompt 12 for the Decision Workspace:
+  // PRIVATE (default), TEAM (collaborators on a scenario/decision),
+  // COUNCIL (visible across the Council + Executive roles).
+  visibility    AnnotationVisibility @default(PRIVATE)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
@@ -1272,6 +1406,7 @@ model Annotation {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([kind])
+  @@index([visibility])
   @@map("annotations")
 }
 

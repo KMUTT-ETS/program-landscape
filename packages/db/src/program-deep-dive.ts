@@ -87,7 +87,7 @@ export interface ProgramDecisionsResult {
   decisions: Array<{
     id: string;
     decisionType: 'CLOSE' | 'MERGE' | 'LAUNCH' | 'RESTRUCTURE' | 'KEEP_AS_IS' | 'OTHER';
-    status: 'PROPOSED' | 'APPROVED' | 'IMPLEMENTED' | 'REJECTED' | 'SUPERSEDED';
+    status: 'PROPOSED' | 'COUNCIL_REVIEWED' | 'APPROVED' | 'IN_IMPLEMENTATION' | 'IMPLEMENTED' | 'COMPLETED' | 'REJECTED' | 'SUPERSEDED' | 'ARCHIVED';
     rationaleTh: string | null;
     rationaleEn: string | null;
     effectiveDate: Date | null;

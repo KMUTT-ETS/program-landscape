@@ -7,6 +7,9 @@ import { weeklyTrendDigestTemplate } from './templates/weekly-trend-digest/templ
 import { decisionRecordTemplate } from './templates/decision-record/template';
 import { dataQualityReportTemplate } from './templates/data-quality-report/template';
 import { gapReportTemplate } from './templates/gap-report/template';
+import { quarterlyReviewTemplate } from './templates/quarterly-review/template';
+import { annualStrategicReviewTemplate } from './templates/annual-strategic-review/template';
+import { facultyLevelReviewTemplate } from './templates/faculty-level-review/template';
 
 // Export the base CSS so callers that build bespoke one-off HTML (rare,
 // and only for admin-tooling-style use) can match the rest of the system.
@@ -30,6 +33,9 @@ export * from './templates/weekly-trend-digest/schema';
 export * from './templates/decision-record/schema';
 export * from './templates/data-quality-report/schema';
 export * from './templates/gap-report/schema';
+export * from './templates/quarterly-review/schema';
+export * from './templates/annual-strategic-review/schema';
+export * from './templates/faculty-level-review/schema';
 
 // Array view for callers that want to iterate rather than register.
 export const allTemplates = [
@@ -40,6 +46,9 @@ export const allTemplates = [
   decisionRecordTemplate,
   dataQualityReportTemplate,
   gapReportTemplate,
+  quarterlyReviewTemplate,
+  annualStrategicReviewTemplate,
+  facultyLevelReviewTemplate,
 ] as const;
 
 // Registers every template shipped by this package into a registry. The

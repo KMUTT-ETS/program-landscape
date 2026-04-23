@@ -332,6 +332,8 @@ export class ScenariosService {
         data: {
           userId,
           scenarioId: id,
+          // Title defaults from the scenario — editable in the decision UI.
+          title: `${body.decisionType}: ${s.name}`,
           decisionType: body.decisionType,
           affectedProgramIds: s.affectedProgramIds,
           rationaleTh: body.rationaleTh,

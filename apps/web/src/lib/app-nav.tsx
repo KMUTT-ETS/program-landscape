@@ -1,6 +1,7 @@
 import type { NavSection } from '@kku/ui';
 import {
   Building2,
+  ClipboardList,
   GitCompare,
   Home,
   LineChart,
@@ -33,6 +34,7 @@ export const appNavSections: NavSection[] = [
       { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare) },
       { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart) },
       { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope) },
+      { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList) },
     ],
   },
 ];

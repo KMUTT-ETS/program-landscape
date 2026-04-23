@@ -1086,6 +1086,9 @@ async function main() {
   // ── Competitive Benchmarking (prompt 10) ────────────────────────────────
   await seedBenchmarkingData();
 
+  // ── Decision Workspace (prompt 12) ──────────────────────────────────────
+  await seedDecisionSamples();
+
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
     faculties: await prisma.faculty.count(),
@@ -1114,6 +1117,10 @@ async function main() {
     peerSets: await prisma.peerSet.count(),
     peerProgramSkills: await prisma.peerProgramSkill.count(),
     peerRankings: await prisma.peerRanking.count(),
+    councilDecisions: await prisma.councilDecision.count(),
+    decisionMilestones: await prisma.decisionMilestone.count(),
+    decisionApprovers: await prisma.decisionApprover.count(),
+    decisionOutcomeReviews: await prisma.decisionOutcomeReview.count(),
     dataSources: await prisma.dataSource.count(),
     kkuOrgMappings: await prisma.kkuOrgCodeMapping.count(),
   };
@@ -1531,6 +1538,149 @@ async function seedBenchmarkingData() {
 
   // eslint-disable-next-line no-console
   console.log('seedBenchmarkingData: seeded', { peers: peerRows.length, peerSets: [thaiTop.name, aseanTop.name, 'Global CS'], rankings: rankingRows.length * rankingYears.length });
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Decision Workspace samples (prompt 12)
+//
+// 3 sample CouncilDecisions at different statuses (APPROVED,
+// IN_IMPLEMENTATION, COMPLETED) + milestones + approvers + 1 completed
+// OutcomeReview. Enough for Council to see the workspace on first boot.
+// ──────────────────────────────────────────────────────────────────────────
+async function seedDecisionSamples() {
+  if ((await prisma.councilDecision.count()) > 0) {
+    // eslint-disable-next-line no-console
+    console.log('seedDecisionSamples: already seeded, skipping');
+    return;
+  }
+  const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } });
+  const council = await prisma.user.findFirst({ where: { role: 'COUNCIL' }, select: { id: true } });
+  const executive = await prisma.user.findFirst({ where: { role: 'EXECUTIVE' }, select: { id: true } });
+  if (!admin || !council || !executive) {
+    // eslint-disable-next-line no-console
+    console.warn('seedDecisionSamples: need ADMIN + COUNCIL + EXECUTIVE users — skipping');
+    return;
+  }
+  const programs = await prisma.program.findMany({ take: 6, select: { id: true, code: true, facultyId: true } });
+  if (programs.length < 3) {
+    // eslint-disable-next-line no-console
+    console.warn('seedDecisionSamples: fewer than 3 programs seeded — skipping');
+    return;
+  }
+
+  const today = new Date();
+  const sevenMonthsAgo = new Date(today); sevenMonthsAgo.setMonth(today.getMonth() - 7);
+  const twoMonthsAgo = new Date(today); twoMonthsAgo.setMonth(today.getMonth() - 2);
+
+  // 1. IN_IMPLEMENTATION — recent decision with milestones.
+  const inProg = await prisma.councilDecision.create({
+    data: {
+      userId: executive.id,
+      title: 'ปรับโครงสร้างหลักสูตร Computer Engineering (ย่อย)',
+      decisionType: 'RESTRUCTURE',
+      affectedProgramIds: [programs[0]!.id],
+      facultyId: programs[0]!.facultyId,
+      rationaleTh: 'ปรับลดหน่วยกิตและเพิ่มโมดูล AI/Data เพื่อให้สอดคล้องกับทิศทางตลาดแรงงาน',
+      effectiveDate: twoMonthsAgo,
+      councilSessionRef: 'Council-2568/03',
+      status: 'IN_IMPLEMENTATION',
+    },
+  });
+  // Milestones.
+  await prisma.decisionMilestone.createMany({
+    data: [
+      { decisionId: inProg.id, title: 'เสนอโครงร่างหลักสูตรใหม่ต่อสภาวิชาการ', status: 'DONE', orderIdx: 1, completedDate: twoMonthsAgo, ownerId: executive.id },
+      { decisionId: inProg.id, title: 'สรรหาคณาจารย์ใหม่ 2 ท่าน', status: 'IN_PROGRESS', orderIdx: 2, ownerId: executive.id, targetDate: new Date(today.getFullYear(), today.getMonth() + 4, 1) },
+      { decisionId: inProg.id, title: 'เปิดรับนักศึกษาในปีการศึกษาใหม่', status: 'PLANNED', orderIdx: 3, targetDate: new Date(today.getFullYear() + 1, 5, 1) },
+    ],
+  });
+  await prisma.decisionApprover.createMany({
+    data: [
+      { decisionId: inProg.id, userId: council.id, role: 'approver', noteTh: 'เห็นควรดำเนินการ' },
+      { decisionId: inProg.id, userId: executive.id, role: 'approver' },
+    ],
+  });
+
+  // 2. COMPLETED — with outcome review at 6-month horizon.
+  const completed = await prisma.councilDecision.create({
+    data: {
+      userId: executive.id,
+      title: 'ควบรวมหลักสูตร Smart Electronics กับ CPE (ตัวอย่าง)',
+      decisionType: 'MERGE',
+      affectedProgramIds: programs.slice(1, 3).map((p) => p.id),
+      facultyId: programs[1]!.facultyId,
+      rationaleTh: 'เพื่อลดความซ้ำซ้อนของหลักสูตรและสร้างฐานทรัพยากรร่วม',
+      effectiveDate: sevenMonthsAgo,
+      councilSessionRef: 'Council-2568/01',
+      status: 'COMPLETED',
+    },
+  });
+  await prisma.decisionMilestone.createMany({
+    data: [
+      { decisionId: completed.id, title: 'เสนอและอนุมัติโดยสภา', status: 'DONE', orderIdx: 1, completedDate: sevenMonthsAgo },
+      { decisionId: completed.id, title: 'ย้ายนักศึกษา cohort ปัจจุบัน', status: 'DONE', orderIdx: 2, completedDate: new Date(sevenMonthsAgo.getFullYear(), sevenMonthsAgo.getMonth() + 2, 15) },
+      { decisionId: completed.id, title: 'ปิดรหัสหลักสูตรเก่า', status: 'DONE', orderIdx: 3, completedDate: new Date(sevenMonthsAgo.getFullYear(), sevenMonthsAgo.getMonth() + 3, 1) },
+    ],
+  });
+  await prisma.decisionApprover.createMany({
+    data: [
+      { decisionId: completed.id, userId: council.id, role: 'approver' },
+      { decisionId: completed.id, userId: executive.id, role: 'approver' },
+      { decisionId: completed.id, userId: admin.id, role: 'observer' },
+    ],
+  });
+  // Sample outcome review at 6 months — pre-filled so the Council sees
+  // the shape without needing an AI call.
+  await prisma.decisionOutcomeReview.create({
+    data: {
+      decisionId: completed.id,
+      horizon: 'SIX_MONTHS',
+      narrativeTh:
+        'ผลการควบรวมหลังจาก 6 เดือนแสดงให้เห็นประหยัดค่าใช้จ่ายประมาณ 12% ตามที่คาดการณ์ไว้ ' +
+        'นักศึกษาที่ย้ายมายังหลักสูตรรวมจำนวน 94% ของ cohort เดิม ' +
+        'อย่างไรก็ตาม ยังพบความยากลำบากในการผสานแผนการเรียนข้าม 2 หลักสูตรเดิมอย่างราบรื่น ' +
+        'บางรายวิชามีการทับซ้อนที่ยังไม่ได้ตัดออก',
+      whatWorkedJson: {
+        th: [
+          'การประหยัดค่าใช้จ่ายประมาณ 12% ใกล้เคียงกับที่คาดการณ์ (14%)',
+          'อัตรา retention ของนักศึกษาอยู่ที่ 94% (สูงกว่า baseline 90%)',
+          'การใช้ห้องปฏิบัติการร่วมช่วยลด capex',
+        ],
+      },
+      whatDidntWorkJson: {
+        th: [
+          'รายวิชาที่ทับซ้อนยังไม่ได้ตัดออกครบ ทำให้นักศึกษารู้สึก workload เพิ่ม',
+          'แผนที่ปรึกษาวิชาการสับสนในช่วง 3 เดือนแรก',
+        ],
+      },
+      lessonsJson: {
+        th: [
+          'การควบรวมที่มี cohort ใกล้จบควรมี transition plan เพิ่มเติมอย่างน้อย 1 เทอม',
+          'ควรตรวจสอบ curriculum overlap ก่อนปิดรหัสหลักสูตรเก่า ไม่ใช่หลัง',
+          'การประหยัดค่าใช้จ่ายจริงมักต่ำกว่าที่คาดการณ์ ~15% ให้เผื่อไว้',
+        ],
+      },
+      methodologyVersion: 'outcome-review.v1',
+    },
+  });
+
+  // 3. APPROVED (not yet in implementation).
+  await prisma.councilDecision.create({
+    data: {
+      userId: executive.id,
+      title: 'ปิดหลักสูตร Medical Technology (ตัวอย่าง)',
+      decisionType: 'CLOSE',
+      affectedProgramIds: [programs[3]?.id ?? programs[0]!.id],
+      facultyId: programs[3]?.facultyId ?? programs[0]!.facultyId,
+      rationaleTh: 'จำนวนผู้สมัครลดลงติดต่อกัน 5 ปี และตลาดแรงงานเริ่มอิ่มตัว',
+      effectiveDate: new Date(today.getFullYear(), today.getMonth() + 3, 1),
+      councilSessionRef: 'Council-2568/04',
+      status: 'APPROVED',
+    },
+  });
+
+  // eslint-disable-next-line no-console
+  console.log('seedDecisionSamples: seeded 3 decisions + milestones + 1 outcome review');
 }
 
 main()
