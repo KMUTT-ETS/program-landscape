@@ -4,6 +4,8 @@ export * from './pdf';
 export * from './storage';
 export * from './ingestion';
 export * from './pdf-intake';
+export * from './ai';
+export * from './skills';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

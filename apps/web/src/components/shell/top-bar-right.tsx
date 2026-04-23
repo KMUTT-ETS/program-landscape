@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { ClipboardCheck, Database, FileText, LogOut, Monitor, Moon, Palette, Sun, Upload, User } from 'lucide-react';
+import { BrainCircuit, ClipboardCheck, Database, FileText, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -91,6 +91,12 @@ export function TopBarRight({ user }: { user: SessionUser }) {
               </a>
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem asChild>
+            <a href="/skills" className="flex items-center gap-2">
+              <Network className="h-4 w-4 text-text-tertiary" aria-hidden />
+              Skill explorer
+            </a>
+          </DropdownMenuItem>
           {(user.role === 'ADMIN' || user.role === 'ANALYST') && (
             <>
               <DropdownMenuItem asChild>
@@ -103,6 +109,12 @@ export function TopBarRight({ user }: { user: SessionUser }) {
                 <a href="/admin/pdf-review" className="flex items-center gap-2">
                   <ClipboardCheck className="h-4 w-4 text-text-tertiary" aria-hidden />
                   PDF review queue
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/extraction-review" className="flex items-center gap-2">
+                  <BrainCircuit className="h-4 w-4 text-text-tertiary" aria-hidden />
+                  AI extraction review
                 </a>
               </DropdownMenuItem>
             </>

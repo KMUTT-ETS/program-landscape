@@ -284,6 +284,9 @@ async function main() {
   });
 
   // ── Skills ──────────────────────────────────────────────────────────────
+  // Synthetic 500-skill placeholder — kept so downstream seed code
+  // (course-skill mapping) has enough breadth to pick from. Real
+  // extraction in prompt 04 replaces these as it runs.
   const skills = buildSkills();
   for (const s of skills) {
     await prisma.skill.upsert({
@@ -292,6 +295,48 @@ async function main() {
       create: s,
     });
   }
+
+  // Real KKU taxonomy seed — ~60 skills with parent-child relationships
+  // across the sectors modules 05-12 actually reach into. Two-pass:
+  // first create every row (no parent), then wire parent_skill_id by
+  // code resolution.
+  const { SOURCE_CATALOG: _sourceCatalog, SKILL_TAXONOMY_SEED } = await import('@kku/shared');
+  void _sourceCatalog;
+  for (const entry of SKILL_TAXONOMY_SEED) {
+    await prisma.skill.upsert({
+      where: { code: entry.code },
+      update: {
+        nameEn: entry.nameEn,
+        nameTh: entry.nameTh,
+        category: entry.category,
+        taxonomySource: entry.taxonomySource,
+      },
+      create: {
+        code: entry.code,
+        nameEn: entry.nameEn,
+        nameTh: entry.nameTh,
+        category: entry.category,
+        taxonomySource: entry.taxonomySource,
+      },
+    });
+  }
+  // Parent resolution pass.
+  const skillsByCode = new Map<string, string>(
+    (
+      await prisma.skill.findMany({
+        where: { code: { in: SKILL_TAXONOMY_SEED.map((e) => e.code) } },
+        select: { id: true, code: true },
+      })
+    ).map((s) => [s.code, s.id]),
+  );
+  for (const entry of SKILL_TAXONOMY_SEED) {
+    if (!entry.parentCode) continue;
+    const parentId = skillsByCode.get(entry.parentCode);
+    const thisId = skillsByCode.get(entry.code);
+    if (!parentId || !thisId) continue;
+    await prisma.skill.update({ where: { id: thisId }, data: { parentSkillId: parentId } });
+  }
+
   const allSkills = await prisma.skill.findMany({ select: { id: true, category: true } });
 
   // ── Courses (~200) + CurriculumCourse + CourseSkill ─────────────────────

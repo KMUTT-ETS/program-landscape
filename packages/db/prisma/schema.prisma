@@ -323,6 +323,7 @@ model User {
   aiInferences           AiInference[]
   uploadedPdfs           PdfDocument[]     @relation("PdfUploader")
   reviewedExtractions    PdfExtraction[]   @relation("ExtractionReviewer")
+  reviewedAiExtractions  AiExtraction[]    @relation("AiExtractionReviewer")
   scenarios              Scenario[]
   councilDecisions       CouncilDecision[]
   annotations            Annotation[]
@@ -354,28 +355,80 @@ model AuditLog {
 }
 
 model AiInference {
-  id            String   @id @default(cuid())
-  userId        String?  @map("user_id")
-  module        String
-  prompt        String   @db.Text
-  promptVersion String?  @map("prompt_version")
-  model         String
-  response      String   @db.Text
-  confidence    Float?
-  sourcesJson   Json?    @map("sources_json")
-  tokensInput   Int?     @map("tokens_input")
-  tokensOutput  Int?     @map("tokens_output")
-  latencyMs     Int?     @map("latency_ms")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id              String   @id @default(cuid())
+  userId          String?  @map("user_id")
+  module          String
+  // Free-text call kind (e.g. 'course-skills.extract', 'policy-doc.summary',
+  // 'embedding', 'translation'). Used for rollup dashboards.
+  kind            String?
+  prompt          String   @db.Text
+  promptVersion   String?  @map("prompt_version")
+  model           String
+  response        String   @db.Text
+  confidence      Float?
+  sourcesJson     Json?    @map("sources_json")
+  tokensInput     Int?     @map("tokens_input")
+  tokensOutput    Int?     @map("tokens_output")
+  latencyMs       Int?     @map("latency_ms")
+  // Per-call cost estimate in USD. Computed by the provider from token
+  // counts × per-model pricing. Admin dashboard rolls this up.
+  costEstimateUsd Float?   @map("cost_estimate_usd")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   trendSignals    TrendSignal[]
   scenarioResults ScenarioResult[]
+  aiExtractions   AiExtraction[]
 
   @@index([userId])
   @@index([module])
+  @@index([kind])
   @@index([createdAt])
   @@map("ai_inferences")
+}
+
+// Structured output produced by an AiService extractStructured() call.
+// Parallel to PdfExtraction — that table handles PDF-sourced extractions,
+// this one handles everything else (course descriptions typed into admin
+// forms, job-posting JSON from connectors, policy doc narrative tagging
+// that chains off a PdfExtraction). The review UI at
+// /admin/extraction-review reads from BOTH tables.
+//
+// Lifecycle:
+//   1. AI job writes a row with reviewStatus = PENDING_REVIEW (or
+//      AUTO_APPROVED when confidence clears the threshold).
+//   2. If PENDING_REVIEW, an analyst approves/rejects/edits in the admin UI.
+//   3. On APPROVED, a post-approval handler materialises the payload into
+//      the real domain table (CourseSkill / JobPostingSkill / etc.).
+model AiExtraction {
+  id               String       @id @default(cuid())
+  // Source anchor — one of 'course', 'job_posting', 'policy_document',
+  // 'curriculum', … Keyed as text so new kinds land without enum churn.
+  sourceEntityType String       @map("source_entity_type")
+  sourceEntityId   String       @map("source_entity_id")
+  // Which extraction this row represents — 'COURSE_SKILLS',
+  // 'JOB_POSTING_SKILLS', 'POLICY_DOC_ANALYSIS', etc. Maps 1:1 to a
+  // prompt template in @kku/shared/ai/prompts.
+  extractionKind   String       @map("extraction_kind")
+  payloadJson      Json         @map("payload_json")
+  confidence       Float
+  methodVersion    String       @map("method_version")
+  aiInferenceId    String?      @map("ai_inference_id")
+  reviewStatus     ReviewStatus @default(PENDING_REVIEW) @map("review_status")
+  reviewedByUserId String?      @map("reviewed_by_user_id")
+  reviewedAt       DateTime?    @map("reviewed_at")
+  reviewNotes      String?      @map("review_notes") @db.Text
+  reasoning        String?      @db.Text
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+  reviewedBy  User?        @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([sourceEntityType, sourceEntityId])
+  @@index([extractionKind])
+  @@index([reviewStatus])
+  @@map("ai_extractions")
 }
 
 // ══════════════════════════════════════════════════════════════════════════

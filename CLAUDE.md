@@ -251,7 +251,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)  *(completed 2026-04-23; fonts must be dropped in locally, see `infra/gotenberg/README.md`)*
 - [x] Prompt 03: Ingestion framework  *(completed 2026-04-23; 23 connectors all MOCKED — real wiring in prompt 14)*
 - [x] Prompt 03b: PDF intake  *(completed 2026-04-23; plumbing complete, LLM classifier + 7 extractors stubbed — real LLM in prompt 04)*
-- [ ] Prompt 04: Skills & AI
+- [x] Prompt 04: Skills & AI  *(completed 2026-04-23; AiService + Google/Anthropic providers real; taxonomy seed; BullMQ ai-jobs; /skills + /admin/extraction-review UIs)*
 - [ ] Prompt 05: Cockpit
 - [ ] Prompt 06: Deep-Dive
 - [ ] Prompt 07: Trends Radar
@@ -265,6 +265,22 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 04 (2026-04-23):*
+- **`AiService` is THE abstraction.** Every LLM call routes through `packages/shared/src/ai/AiService`. Modules never import `@google/genai` or `@anthropic-ai/sdk` directly. The factory picks the provider from `AI_PROVIDER` env (google / anthropic / openrouter / intelsphere). OpenRouter + IntelSphere are stubs that throw at call time — deliberately loud, not silent fallback.
+- **Two real providers, two stubs.** `GoogleAiService` (Gemini) is the default; `AnthropicAiService` (Claude) is the alternative. Claude has no embeddings API, so the factory wraps the Claude-primary path to delegate `embed()` to Google transparently. This lets modules use Claude for reasoning and Gemini for vectors without juggling two service handles.
+- **Prisma-backed recorder lives in `@kku/db`.** `packages/db/src/ai-inference-recorder.ts` — `@kku/shared` can't import `@kku/db` without a cycle, so the interface lives in shared and the concrete Prisma implementation lives in db. Every AI call writes one `AiInference` row via this recorder; the providers accept it as a constructor dep, so tests get trivial mocking.
+- **`AiExtraction` is a new table, parallel to `PdfExtraction`.** Handles non-PDF-sourced AI outputs (course descriptions typed into admin forms, job posting JSON from connectors, policy doc narrative tagging that chains off a PdfExtraction). Review UI at `/admin/extraction-review` reads from it with the same approve/reject/edit pattern. Migration `20260423030000_ai_extraction`.
+- **Prompt templates are code.** `packages/shared/src/ai/prompts/*` — each file exports a `*_VERSION` constant, a Zod output schema, and a `build*Messages` function. `AiExtraction.methodVersion` captures the version that produced each row. Edit policy: behaviour change = bump version; NEVER edit an existing published version in place.
+- **New BullMQ queue: `ai-jobs`.** 4 handlers (EMBED_SKILL / EXTRACT_COURSE_SKILLS / EXTRACT_JOB_POSTING_SKILLS / ANALYZE_POLICY_DOC). Separate queue from `ingestion` and `pdf-intake` so AI concurrency + retries can be tuned for vendor rate limits independently. Apps/ingestion is the sole consumer; apps/api enqueues via the extraction-review admin endpoints.
+- **Default auto-approve threshold is 0.85.** Every AI extraction below that lands in the review queue. High by design — Council-affecting extractions sit in front of a human until accuracy is measured. Tune via `AI_AUTO_APPROVE_THRESHOLD`.
+- **Post-approval materialisation is DEFERRED.** The `/admin/extraction-review` approve endpoint currently flips `reviewStatus = APPROVED` but does NOT (yet) materialise the payload into CourseSkill / JobPostingSkill / etc. — that handler lands once we see real approved shapes. Scaffold + comment in `ai-admin.controller.ts`.
+- **Vector-similarity candidate selection is DEFERRED.** Ai-jobs handlers currently pick candidate skills via "newest 30" rather than cosine similarity. Embeddings backfill runs via the EMBED_SKILL handler; flip the `pickCandidateSkills` impl to `$queryRaw` over `embedding <-> query_vector` once every skill has a vector. Comment in `ai-jobs/handlers.ts`.
+- **Taxonomy seed is ~60 real skills + 500 synthetic.** `packages/shared/src/skills/taxonomy-seed.ts` holds the real taxonomy (parent-child hierarchy, 5 top-level categories — computing / engineering / life-sciences / agriculture / business / education / transferable / Thailand-BCG). Seed also keeps the 500 synthetic placeholder skills so downstream seed code (course-skill mapping) has depth. Full 500 ESCO + 100 TPQI bootstrap is a data-load chore — ESCO ships as RDF, requires its own parser.
+- **`/skills` UI is scope-aware from URL.** `?scope=faculty&scopeId=X` filters the tree to skills covered by programs under that scope; ancestors are shown de-emphasised so the path stays coherent. Detail pane shows program coverage + recent demand signal at the current scope.
+- **Cost tracking per call, not per rollup.** `AiInference.costEstimateUsd` filled by each provider from its PRICING table. `/admin/extraction-review` stats strip rolls per-module over 7 days. Per-month + budget alerts defer to prompt 13.
+- **Tests:** 3 new suites — `ai-service.test.ts` (interface shape + prompt template + schema), `ai-jobs.test.ts` (handler confidence → review status routing + not-found skip), existing tests still passing. No F1 accuracy test yet — see docs/ai-governance.md §accuracy (hand-labeled corpus required).
+- **Deferred with loud notes:** OpenRouter + IntelSphere providers; vector-similarity candidate selection; post-approval materialisation; F1 accuracy measurement on a hand-labeled corpus; translation cache; per-month cost rollup + budget alerts; full 500 ESCO bootstrap; rollup recomputation (CourseSkill → ProgramSkill → DepartmentSkill → FacultySkill) on extraction approval.
 
 *Prompt 03b (2026-04-23):*
 - **LLM-powered steps are stubbed, shaped correctly for prompt 04.** `PdfClassifier` + 7 `PdfExtractor` interfaces live in `@kku/shared/pdf-intake`; stub implementations return confidence 0 (extractors) or 0.5 when honouring a hint (classifier). Prompt 04's job is to replace the stub bodies with AI-service calls — interfaces, registry, review UI, state machine all keep working as-is.

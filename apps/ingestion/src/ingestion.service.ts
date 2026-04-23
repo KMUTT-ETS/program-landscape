@@ -1,7 +1,14 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Queue, QueueEvents, Worker } from 'bullmq';
-import { PipelineConfigSchema, S3Storage } from '@kku/shared';
+import {
+  PipelineConfigSchema,
+  S3Storage,
+  createAiService,
+  type AiProviderId,
+  type AiService,
+} from '@kku/shared';
+import { PrismaAiInferenceRecorder } from '@kku/db';
 
 import { ConnectorRunner, buildRegistry } from './connectors';
 import {
@@ -20,16 +27,24 @@ import {
   type PdfIntakeJobData,
 } from './pdf-intake/pipeline';
 import { StubClassifier } from './pdf-intake/extractors';
+import {
+  buildHandlers as buildAiJobHandlers,
+  createAiJobsQueue,
+  createAiJobsWorker,
+  createAiJobsEvents,
+  type AiJobData,
+} from './ai-jobs';
 
-// The single NestJS provider that owns:
-//   - the connector registry (slug → Connector instance)
-//   - the ConnectorRunner
-//   - TWO BullMQ queues + their workers:
-//       `ingestion`  — connector runs (scheduled + manual)
-//       `pdf-intake` — PDF parsing + classification + extraction
-//   - the scheduler (registers repeat jobs from DB at boot)
+// Owns FIVE runtime components:
+//   - connector registry + ConnectorRunner
+//   - `ingestion` queue/worker/events (connector runs)
+//   - `pdf-intake` queue/worker/events (PDF parsing + classification)
+//   - `ai-jobs` queue/worker/events (LLM extraction + embedding)
+//   - scheduler (registers connector cron repeats)
 //
-// Graceful shutdown drains both workers.
+// Graceful shutdown drains all three workers in order so in-flight AI
+// calls (often slow) are allowed to finish before the DB connection
+// closes.
 
 @Injectable()
 export class IngestionService implements OnModuleInit, OnModuleDestroy {
@@ -40,6 +55,9 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private pdfIntakeQueue?: Queue<PdfIntakeJobData>;
   private pdfIntakeWorker?: Worker<PdfIntakeJobData>;
   private pdfIntakeEvents?: QueueEvents;
+  private aiJobsQueue?: Queue<AiJobData>;
+  private aiJobsWorker?: Worker<AiJobData>;
+  private aiJobsEvents?: QueueEvents;
   private scheduler?: IngestionScheduler;
 
   constructor(private readonly config: ConfigService) {}
@@ -93,24 +111,76 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.pdfIntakeWorker = createPdfIntakeWorker(pdfIntakeQueueConfig, pipeline);
     this.pdfIntakeEvents = createPdfIntakeEvents(pdfIntakeQueueConfig);
 
+    // ── AI-jobs queue ──────────────────────────────────────────────────
+    const aiJobsQueueConfig = {
+      redisUrl,
+      maxAttempts: Number(this.config.get('AI_JOBS_MAX_ATTEMPTS') ?? 2),
+      backoffBaseMs: Number(this.config.get('AI_JOBS_BACKOFF_BASE_MS') ?? 15_000),
+      concurrency: Number(this.config.get('AI_JOBS_CONCURRENCY') ?? 2),
+    };
+
+    const ai = this.buildAiService();
+    const aiHandlers = buildAiJobHandlers({
+      ai,
+      autoApproveThreshold: Number(this.config.get('AI_AUTO_APPROVE_THRESHOLD') ?? 0.85),
+    });
+
+    this.aiJobsQueue = createAiJobsQueue(aiJobsQueueConfig);
+    this.aiJobsWorker = createAiJobsWorker(aiJobsQueueConfig, aiHandlers);
+    this.aiJobsEvents = createAiJobsEvents(aiJobsQueueConfig);
+
     this.logger.log(
       `ingestion worker online — ${registry.size} connectors (${registered} scheduled, ${skipped} manual-only); ` +
-        `pdf-intake worker concurrency=${pdfIntakeQueueConfig.concurrency}`,
+        `pdf-intake concurrency=${pdfIntakeQueueConfig.concurrency}; ` +
+        `ai-jobs provider=${ai.providerId} concurrency=${aiJobsQueueConfig.concurrency}`,
     );
   }
 
   async onModuleDestroy(): Promise<void> {
+    // Order: workers first (drain in-flight), then queues + events.
     await this.connectorWorker?.close();
     await this.pdfIntakeWorker?.close();
+    await this.aiJobsWorker?.close();
     await this.connectorQueue?.close();
     await this.pdfIntakeQueue?.close();
+    await this.aiJobsQueue?.close();
     await this.connectorEvents?.close();
     await this.pdfIntakeEvents?.close();
+    await this.aiJobsEvents?.close();
   }
 
   scheduleNow(slug: string, userId: string): Promise<string> {
     if (!this.scheduler) throw new Error('IngestionService not initialised');
     return this.scheduler.enqueueManual(slug, userId);
+  }
+
+  private buildAiService(): AiService {
+    const recorder = new PrismaAiInferenceRecorder();
+    const providerId = (this.config.get<string>('AI_PROVIDER') ?? 'google') as AiProviderId;
+    const intelSphereUrl = this.config.get<string>('KKU_INTELSPHERE_URL');
+    const intelSphereKey = this.config.get<string>('KKU_INTELSPHERE_API_KEY');
+    return createAiService({
+      recorder,
+      providerId,
+      apiKeys: {
+        google: this.config.get<string>('GOOGLE_AI_API_KEY'),
+        anthropic: this.config.get<string>('ANTHROPIC_API_KEY'),
+        openrouter: this.config.get<string>('OPENROUTER_API_KEY'),
+        intelSphere:
+          intelSphereUrl && intelSphereKey
+            ? { url: intelSphereUrl, apiKey: intelSphereKey }
+            : undefined,
+      },
+      models: {
+        google: {
+          completion: this.config.get<string>('AI_GOOGLE_COMPLETION_MODEL'),
+          embedding: this.config.get<string>('AI_GOOGLE_EMBEDDING_MODEL'),
+        },
+        anthropic: {
+          completion: this.config.get<string>('AI_ANTHROPIC_COMPLETION_MODEL'),
+        },
+      },
+    });
   }
 
   private required(key: string): string {
