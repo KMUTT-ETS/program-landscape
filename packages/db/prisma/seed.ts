@@ -583,31 +583,37 @@ async function main() {
     });
   }
 
-  // ── Data sources (inventory seed — real wiring in prompt 14) ────────────
-  const sourceFixtures: Array<{
-    name: string;
-    kind: DataSourceKind;
-    acceptsPdfUploads?: boolean;
-  }> = [
-    { name: 'KKU REG',           kind: 'API' },
-    { name: 'KKU Finance',       kind: 'API' },
-    { name: 'MHESI-CISA',        kind: 'API', acceptsPdfUploads: true },
-    { name: 'MHESI Policies',    kind: 'PDF', acceptsPdfUploads: true },
-    { name: 'NESDC Reports',     kind: 'PDF', acceptsPdfUploads: true },
-    { name: 'NSO Labor Force',   kind: 'PDF', acceptsPdfUploads: true },
-    { name: 'JobsDB',            kind: 'API' },
-    { name: 'JobThai',           kind: 'API' },
-    { name: 'OpenAlex',          kind: 'API' },
-  ];
-  for (const ds of sourceFixtures) {
+  // ── Data sources (inventory seed — catalog lives in @kku/shared) ────────
+  // The connector registry in apps/ingestion looks up its DataSource row
+  // by slug at boot. Keep this in sync with SOURCE_CATALOG in
+  // packages/shared/src/ingestion/catalog.ts — `pnpm db:seed` writes from
+  // that one list, so there is no drift.
+  const { SOURCE_CATALOG } = await import('@kku/shared');
+  for (const entry of SOURCE_CATALOG) {
     await prisma.dataSource.upsert({
-      where: { name: ds.name },
-      update: {},
+      where: { slug: entry.slug },
+      update: {
+        name: entry.name,
+        kind: entry.kind,
+        inputFormat: entry.inputFormat,
+        acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
+        baseUrl: entry.baseUrl ?? null,
+        cadenceCron: entry.cadenceCron ?? null,
+        ownerContact: entry.ownerContact ?? null,
+        notes: entry.notes ?? null,
+      },
       create: {
-        name: ds.name,
-        kind: ds.kind,
-        acceptsPdfUploads: ds.acceptsPdfUploads ?? false,
-        status: 'pending',
+        slug: entry.slug,
+        name: entry.name,
+        kind: entry.kind,
+        inputFormat: entry.inputFormat,
+        acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
+        baseUrl: entry.baseUrl ?? null,
+        cadenceCron: entry.cadenceCron ?? null,
+        scheduleEnabled: entry.scheduleEnabled ?? true,
+        ownerContact: entry.ownerContact ?? null,
+        notes: entry.notes ?? null,
+        status: entry.mocked ? 'mocked' : 'active',
       },
     });
   }

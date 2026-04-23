@@ -20,6 +20,7 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
+    "@kku/shared": "workspace:*",
     "@prisma/client": "^5.22.0",
     "zod": "^3.23.8"
   },

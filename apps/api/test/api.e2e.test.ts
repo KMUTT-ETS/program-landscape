@@ -33,7 +33,7 @@ import { FacultiesController } from '../src/faculties/faculties.controller';
 import { DepartmentsController } from '../src/departments/departments.controller';
 import { ProgramsController } from '../src/programs/programs.controller';
 import { UsersController } from '../src/users/users.controller';
-import { DataSourcesController } from '../src/data-sources/data-sources.controller';
+import { DataSourcesModule } from '../src/data-sources/data-sources.module';
 
 let app: INestApplication;
 const secretKey = () => new TextEncoder().encode(process.env.NEXTAUTH_SECRET!);
@@ -72,6 +72,7 @@ beforeAll(async () => {
     imports: [
       ConfigModule.forRoot({ isGlobal: true }),
       ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 1000 }] }),
+      DataSourcesModule,
     ],
     controllers: [
       AppController,
@@ -79,7 +80,6 @@ beforeAll(async () => {
       DepartmentsController,
       ProgramsController,
       UsersController,
-      DataSourcesController,
     ],
     providers: [
       { provide: APP_GUARD, useClass: JwtAuthGuard },

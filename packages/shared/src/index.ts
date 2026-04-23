@@ -2,6 +2,7 @@ export * from './auth';
 export * from './api';
 export * from './pdf';
 export * from './storage';
+export * from './ingestion';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

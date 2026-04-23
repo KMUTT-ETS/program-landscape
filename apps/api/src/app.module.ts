@@ -9,7 +9,7 @@ import { FacultiesController } from './faculties/faculties.controller';
 import { DepartmentsController } from './departments/departments.controller';
 import { ProgramsController } from './programs/programs.controller';
 import { UsersController } from './users/users.controller';
-import { DataSourcesController } from './data-sources/data-sources.controller';
+import { DataSourcesModule } from './data-sources/data-sources.module';
 import { PdfModule } from './pdf/pdf.module';
 
 import {
@@ -39,6 +39,7 @@ import {
       ],
     }),
     PdfModule,
+    DataSourcesModule,
   ],
   controllers: [
     AppController,
@@ -46,7 +47,6 @@ import {
     DepartmentsController,
     ProgramsController,
     UsersController,
-    DataSourcesController,
   ],
   providers: [
     // Global auth chain — every endpoint is authenticated unless marked

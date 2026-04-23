@@ -249,7 +249,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 02: Auth & API core  *(completed 2026-04-22)*
 - [x] Prompt 02b: Design system  *(completed 2026-04-22; Storybook deferred)*
 - [x] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)  *(completed 2026-04-23; fonts must be dropped in locally, see `infra/gotenberg/README.md`)*
-- [ ] Prompt 03: Ingestion framework
+- [x] Prompt 03: Ingestion framework  *(completed 2026-04-23; 23 connectors all MOCKED — real wiring in prompt 14)*
 - [ ] Prompt 03b: PDF intake
 - [ ] Prompt 04: Skills & AI
 - [ ] Prompt 05: Cockpit
@@ -265,6 +265,21 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 03 (2026-04-23):*
+- **Single catalog in `@kku/shared`, not per-app constants.** `packages/shared/src/ingestion/catalog.ts` is the source of truth for which sources exist. The DB seed and the `apps/ingestion` connector registry both read from it. Adding a source means editing the catalog + adding a connector class + registering — in one commit, with no DB/code drift.
+- **All 23 connectors are MOCKED.** Every connector has `readonly mocked = true` and returns realistic sample data. Their DataSource rows are seeded with `status: 'mocked'` and the admin UI shows the badge. Real wiring is prompt 14's scope; flipping a connector means replacing fetch/transform/load bodies and changing the flag in the catalog.
+- **`DataSource.slug` is the cross-ref key.** Connectors look up their DataSource row by slug (lowercase-kebab). Don't rename a slug without a DB migration — existing IngestionRun FKs point at the DataSource id, but slug is how code finds it.
+- **PDF connectors DON'T extract — they route.** `PdfUploadConnector`'s base class does one thing: create/upsert a `PdfDocument` row with `processingStatus = PENDING` and attach it to the IngestionRun via `pdfDocumentId`. Extraction (OCR, field parsing, domain-table routing) belongs in prompt 03b. If a module tries to parse a PDF inside a connector, that's a design violation.
+- **BullMQ, single queue, two producers.** The queue name `ingestion` is defined in both `apps/ingestion/src/queue/queue.ts` and `apps/api/src/data-sources/ingestion-queue.service.ts` — they MUST match. apps/ingestion is the sole consumer (worker). apps/api only produces manual-run jobs when an admin clicks Run-now.
+- **Scheduler reads cadence from DB at boot.** `IngestionScheduler.registerSchedules()` clears existing repeatables and re-registers from current `DataSource.cadenceCron` values. Admin edits take effect after the ingestion worker bounces — hot reconfiguration was judged not worth the cross-process pub-sub cost for a daily-cadence service.
+- **Non-retryable errors short-circuit BullMQ retries.** `ConnectorRunner` catches `NonRetryableError` (validation, schema drift, permanent auth failure) and marks the run FAILED without re-throwing. Everything else re-throws so BullMQ's `exponential` backoff fires (default: 3 attempts, 5s base).
+- **Provenance is best-effort today.** `getProvenance('pdf_document', id)` is precise — it follows the PdfDocument ← IngestionRun ← DataSource chain. Other entity types fall back to "most recent successful runs" because metric tables don't carry `ingestion_run_id` yet. Prompt 14 will add per-row ingestion_run_id columns to the metric tables.
+- **Admin UI lives at `/admin/data-sources`.** ANALYST + ADMIN see it; ADMIN can edit cadence + bulk pause/resume; ANALYST can Run-now + view logs. Dropdown entry in the top-bar right menu. Uses all existing prompt 02b primitives (DataTable, FreshnessBadge, RightPanel, Badge).
+- **New permissions:** existing `data_sources:read`, `data_sources:configure`, `ingestion:trigger` covered the surface — no new permissions needed. ANALYST gets `data_sources:read`; ADMIN gets all three.
+- **Migration:** `20260423010000_ingestion_framework` adds IngestionRun + 3 enums (DataSourceInputFormat / IngestionRunTrigger / IngestionRunStatus) + 4 fields on DataSource (slug / inputFormat / cadenceCron / scheduleEnabled / ownerContact). Backfills existing DataSource.slug from lowered-kebab(name); `pnpm db:seed` immediately overwrites with the catalog's canonical slugs.
+- **`@kku/db` now depends on `@kku/shared`.** Added for `SOURCE_CATALOG` + `ProvenanceEntry` types. Prior to this they were separate to avoid cycles — the cycle wasn't actually there (shared didn't import db), so the dep is clean.
+- **Deferred** (documented in docs/data-sources.md + CLAUDE.md): per-source rate limits / quotas (per-queue BullMQ limits land with real wiring in 14); hot cadence reload; Playwright-based real scraping; real alerting on hard failures (today: console log per prompt spec).
 
 *Prompt 02c (2026-04-23):*
 - **Fonts live outside Git.** `infra/gotenberg/fonts/` is `.gitignored` for `*.ttf` — devs + the prod build pipeline drop the four TH Sarabun New files in locally before `docker compose build gotenberg`. `.gitignore` only blocks ttfs in that one path; everywhere else fonts commit normally. Sourcing + naming: `infra/gotenberg/README.md`.
