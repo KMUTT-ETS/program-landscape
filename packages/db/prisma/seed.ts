@@ -1080,6 +1080,9 @@ async function main() {
   // ── Gap Analyzer seeds (prompt 08) ──────────────────────────────────────
   await seedGapAnalyzerData();
 
+  // ── Scenario Planner templates (prompt 09) ──────────────────────────────
+  await seedScenarioTemplates();
+
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
     faculties: await prisma.faculty.count(),
@@ -1102,6 +1105,8 @@ async function main() {
     skillSectors: await prisma.skillSector.count(),
     demographicProjections: await prisma.demographicProjection.count(),
     forecastRuns: await prisma.forecastRun.count(),
+    scenarios: await prisma.scenario.count(),
+    scenarioTemplates: await prisma.scenario.count({ where: { isTemplate: true } }),
     dataSources: await prisma.dataSource.count(),
     kkuOrgMappings: await prisma.kkuOrgCodeMapping.count(),
   };
@@ -1300,6 +1305,50 @@ async function seedGapAnalyzerData() {
         },
       });
     }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Scenario Planner templates (prompt 09)
+//
+// Persists the 4 canonical templates (demographic stress, financial stress,
+// AI disruption, Mekong expansion) as Scenario rows with isTemplate=true,
+// owned by the first ADMIN user (system seed owner). Users "Use this
+// template" which copies it into a fresh Scenario under their own userId.
+// ──────────────────────────────────────────────────────────────────────────
+async function seedScenarioTemplates() {
+  const { SCENARIO_TEMPLATES } = await import('@kku/shared');
+  const adminUser = await prisma.user.findFirst({
+    where: { role: 'ADMIN' },
+    select: { id: true },
+  });
+  if (!adminUser) {
+    // eslint-disable-next-line no-console
+    console.warn('seedScenarioTemplates: no ADMIN user — skipping');
+    return;
+  }
+  for (const template of SCENARIO_TEMPLATES) {
+    const existing = await prisma.scenario.findFirst({
+      where: { name: template.name, isTemplate: true },
+    });
+    if (existing) continue;
+    await prisma.scenario.create({
+      data: {
+        userId: adminUser.id,
+        name: template.name,
+        descriptionTh: template.descriptionTh,
+        descriptionEn: template.descriptionEn,
+        scope: 'UNIVERSITY',
+        scenarioType: template.scenarioType,
+        horizonYears: template.horizonYears,
+        assumptionsJson: template.assumptions,
+        // Interventions keep their selector placeholders; the API
+        // resolves them when a user copies the template.
+        interventionsJson: template.interventionBlueprint,
+        isTemplate: true,
+        workflowStatus: 'SHARED', // visible to all via library
+      },
+    });
   }
 }
 

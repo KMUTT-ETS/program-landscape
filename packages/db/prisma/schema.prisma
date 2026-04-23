@@ -166,6 +166,22 @@ enum ScenarioScope {
   PROGRAM
 }
 
+enum ScenarioType {
+  SUNSET
+  MERGE
+  LAUNCH
+  RESHAPE
+  REBALANCE
+}
+
+enum ScenarioWorkflowStatus {
+  DRAFT
+  SHARED
+  COUNCIL_REVIEWED
+  DECIDED
+  ARCHIVED
+}
+
 enum DecisionType {
   CLOSE
   MERGE
@@ -381,6 +397,7 @@ model AiInference {
   user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   trendSignals    TrendSignal[]
   scenarioResults ScenarioResult[]
+  scenarioRuns    ScenarioRun[]
   aiExtractions   AiExtraction[]
   annotations     Annotation[]
 
@@ -1110,24 +1127,73 @@ model PdfTable {
 // ══════════════════════════════════════════════════════════════════════════
 
 model Scenario {
-  id              String        @id @default(cuid())
-  userId          String        @map("user_id")
-  name            String
-  descriptionTh   String?       @map("description_th") @db.Text
-  descriptionEn   String?       @map("description_en") @db.Text
-  scope           ScenarioScope
-  scopeId         String?       @map("scope_id")
-  assumptionsJson Json          @map("assumptions_json")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                 String                 @id @default(cuid())
+  userId             String                 @map("user_id")
+  name               String
+  descriptionTh      String?                @map("description_th") @db.Text
+  descriptionEn      String?                @map("description_en") @db.Text
+  scope              ScenarioScope
+  scopeId            String?                @map("scope_id")
+  scenarioType       ScenarioType           @default(RESHAPE) @map("scenario_type")
+  workflowStatus     ScenarioWorkflowStatus @default(DRAFT) @map("workflow_status")
+  isTemplate         Boolean                @default(false) @map("is_template")
+  // Programs this scenario touches (for list-view filtering + authorisation).
+  affectedProgramIds String[]               @map("affected_program_ids")
+  horizonYears       Int                    @default(5) @map("horizon_years")
+  // Assumption overrides vs the system baseline (keyed by assumption id).
+  assumptionsJson    Json                   @map("assumptions_json")
+  // Intervention levers — shape varies by scenarioType. Validated in
+  // shared/scenarios/types.ts before the engine runs.
+  interventionsJson  Json                   @default("[]") @map("interventions_json")
+  collaboratorIds    String[]               @map("collaborator_ids")
+  parentScenarioId   String?                @map("parent_scenario_id")
+  methodologyVersion String                 @default("scenario-engine.v1") @map("methodology_version")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    Scenario?         @relation("ScenarioBranch", fields: [parentScenarioId], references: [id], onDelete: SetNull)
+  children  Scenario[]        @relation("ScenarioBranch")
   results   ScenarioResult[]
+  runs      ScenarioRun[]
   decisions CouncilDecision[]
 
   @@index([userId])
   @@index([scope, scopeId])
+  @@index([scenarioType])
+  @@index([workflowStatus])
+  @@index([isTemplate])
   @@map("scenarios")
+}
+
+// One row per engine run — captures the full projection + sensitivity
+// + risk register + Monte Carlo bounds. ScenarioResult stays as a
+// searchable flattened metric store (one row per metric-value pair);
+// ScenarioRun is the authoritative "everything we computed" blob.
+model ScenarioRun {
+  id                    String   @id @default(cuid())
+  scenarioId            String   @map("scenario_id")
+  runAt                 DateTime @default(now()) @map("run_at")
+  // Immutable snapshots of what was actually run, so the run is
+  // reproducible even after the parent scenario is edited.
+  assumptionsSnapshot   Json     @map("assumptions_snapshot")
+  interventionsSnapshot Json     @map("interventions_snapshot")
+  // Full year-by-year projection + CI + sensitivity + risks.
+  projectionJson        Json     @map("projection_json")
+  sensitivityJson       Json     @map("sensitivity_json")
+  riskRegisterJson      Json     @default("[]") @map("risk_register_json")
+  briefAiInferenceId    String?  @map("brief_ai_inference_id")
+  methodologyVersion    String   @default("scenario-engine.v1") @map("methodology_version")
+  monteCarloN           Int      @default(100) @map("monte_carlo_n")
+  // Deterministic seed for Monte Carlo — round-trip identical.
+  seed                  BigInt   @default(42)
+
+  scenario Scenario     @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  briefAi  AiInference? @relation(fields: [briefAiInferenceId], references: [id], onDelete: SetNull)
+
+  @@index([scenarioId])
+  @@index([runAt])
+  @@map("scenario_runs")
 }
 
 model ScenarioResult {

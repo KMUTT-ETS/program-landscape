@@ -18,6 +18,7 @@ import { CockpitModule } from './cockpit/cockpit.module';
 import { TrendsModule } from './trends/trends.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { GapModule } from './gap/gap.module';
+import { ScenariosModule } from './scenarios/scenarios.module';
 
 import {
   AccessControlGuard,
@@ -55,6 +56,7 @@ import {
     TrendsModule,
     NotificationsModule,
     GapModule,
+    ScenariosModule,
   ],
   controllers: [
     AppController,

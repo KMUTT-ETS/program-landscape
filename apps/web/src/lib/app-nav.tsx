@@ -30,7 +30,7 @@ export const appNavSections: NavSection[] = [
       { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), hint: 'pick a program' },
       { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles) },
       { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical) },
-      { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), hint: '09', disabled: true },
+      { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare) },
       { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), hint: '10', disabled: true },
       { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), hint: '11', disabled: true },
     ],

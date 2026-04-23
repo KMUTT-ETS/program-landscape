@@ -10,3 +10,4 @@ export * from './funnel';
 export * from './trends-radar';
 export * from './gap-bars';
 export * from './thailand-map';
+export * from './tornado';
