@@ -1,7 +1,7 @@
 import { prisma } from '@kku/db';
+import { S3Storage, type DataSourceInputFormat } from '@kku/shared';
 import type {
   ConnectorContext,
-  DataSourceInputFormat,
   LoadResult,
   NormalizedRecord,
   RawRecord,
@@ -58,9 +58,11 @@ export abstract class PdfUploadConnector extends BaseConnector {
     }));
   }
 
-  // PDF connectors don't transform the PDF in-process — extraction is
-  // 03b's job. Transform returns a single placeholder NormalizedRecord
-  // so load() has something to key the PdfDocument row off.
+  // PDF connectors don't extract in-process — extraction happens in the
+  // intake pipeline (this file's load() pushes the bytes to MinIO and
+  // creates a PdfDocument in PENDING state, the BullMQ pdf-intake worker
+  // then picks it up). Transform carries the bytes through to load() so
+  // the final step can PUT them to storage.
   async transform(_ctx: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
     const payload = raw.data as PdfRawPayload;
     return [
@@ -70,6 +72,7 @@ export abstract class PdfUploadConnector extends BaseConnector {
         payload: {
           filename: payload.filename,
           byteSize: payload.bytes.byteLength,
+          bytes: payload.bytes,
           sourceCategory: payload.sourceCategory,
           sourceOrg: payload.sourceOrg ?? null,
           language: payload.language ?? 'TH',
@@ -84,38 +87,41 @@ export abstract class PdfUploadConnector extends BaseConnector {
     let loaded = 0;
     let failed = 0;
     let lastPdfId: string | undefined;
+    const storage = getPdfStorage();
 
     for (const n of normalized) {
       try {
-        // contentHash has a UNIQUE constraint — upsert by that so repeated
-        // fetches of the same PDF bytes deduplicate cleanly.
-        const payload = n.payload as {
-          filename: string;
-          byteSize: number;
-          sourceCategory:
-            | 'POLICY'
-            | 'REPORT'
-            | 'CURRICULUM'
-            | 'PEER_PROGRAM'
-            | 'SURVEY'
-            | 'COMMITTEE_MINUTES'
-            | 'OTHER';
-          sourceOrg: string | null;
-          language: 'TH' | 'EN' | 'MIXED';
-          contentHash: string;
-        };
+        const payload = n.payload as unknown as PdfLoadPayload;
 
-        // Real impl: upload bytes to MinIO pdf-raw, get storageUrl.
-        // Mock: synthesize a placeholder URL the 03b pipeline can later
-        // detect as unresolved.
-        const storageUrl = `s3://pdf-raw/placeholder/${payload.contentHash}.pdf`;
+        // Upload bytes to MinIO under a stable, hash-derived key so the
+        // same PDF never produces two objects. PdfDocument.contentHash
+        // has a UNIQUE constraint — upsert keyed by it guarantees dedup
+        // at the DB level too.
+        const bucket = getPdfBucket();
+        const key = `${payload.sourceCategory.toLowerCase()}/${payload.contentHash}.pdf`;
+        await storage.putObject({
+          bucket,
+          key,
+          body: payload.bytes,
+          contentType: 'application/pdf',
+          metadata: {
+            originalFilename: payload.filename,
+            sourceOrg: payload.sourceOrg ?? 'unknown',
+            connectorSlug: ctx.dataSource.slug,
+          },
+        });
+        const storageUrl = `s3://${bucket}/${key}`;
 
         const doc = await prisma.pdfDocument.upsert({
           where: { contentHash: payload.contentHash },
           update: {
             // Keep metadata in sync if the same content is refetched
             // with different categorisation (ingestion taxonomy change).
-            sourceCategory: payload.sourceCategory,
+            // DON'T change sourceCategory once set — the human reviewer
+            // may have overridden it. sourceCategoryHint captures the
+            // connector's latest guess so the review UI can surface a
+            // "this connector thinks it's POLICY now" hint.
+            sourceCategoryHint: payload.sourceCategory,
             sourceOrg: payload.sourceOrg,
             language: payload.language,
           },
@@ -123,8 +129,9 @@ export abstract class PdfUploadConnector extends BaseConnector {
             originalFilename: payload.filename,
             storageUrl,
             fileSize: payload.byteSize,
-            pageCount: 0, // 03b fills this after parse
+            pageCount: 0, // filled by the intake pipeline after parse
             sourceCategory: payload.sourceCategory,
+            sourceCategoryHint: payload.sourceCategory,
             sourceOrg: payload.sourceOrg,
             language: payload.language,
             contentHash: payload.contentHash,
@@ -151,6 +158,50 @@ export abstract class PdfUploadConnector extends BaseConnector {
       metadata: { pdfsCreated: loaded },
     };
   }
+}
+
+interface PdfLoadPayload {
+  filename: string;
+  byteSize: number;
+  bytes: Buffer;
+  sourceCategory:
+    | 'POLICY'
+    | 'REPORT'
+    | 'CURRICULUM'
+    | 'PEER_PROGRAM'
+    | 'SURVEY'
+    | 'COMMITTEE_MINUTES'
+    | 'JOB_POSTINGS_BATCH'
+    | 'OTHER';
+  sourceOrg: string | null;
+  language: 'TH' | 'EN' | 'MIXED';
+  contentHash: string;
+}
+
+// Lazy singleton. Constructed once the env vars are available; subsequent
+// connectors reuse it. Keeps the PdfUploadConnector base reusable in tests
+// where nothing ever calls load().
+let _storage: S3Storage | undefined;
+function getPdfStorage(): S3Storage {
+  if (_storage) return _storage;
+  _storage = new S3Storage({
+    endpoint: requiredEnv('MINIO_ENDPOINT'),
+    region: process.env.MINIO_REGION ?? 'us-east-1',
+    accessKeyId: requiredEnv('MINIO_ACCESS_KEY'),
+    secretAccessKey: requiredEnv('MINIO_SECRET_KEY'),
+    publicEndpoint: process.env.MINIO_PUBLIC_ENDPOINT || undefined,
+  });
+  return _storage;
+}
+
+function getPdfBucket(): string {
+  return process.env.MINIO_BUCKET_PDF_RAW ?? 'pdf-raw';
+}
+
+function requiredEnv(key: string): string {
+  const v = process.env[key];
+  if (!v) throw new Error(`Missing required env var: ${key}`);
+  return v;
 }
 
 function hashBytes(buffer: Buffer): string {

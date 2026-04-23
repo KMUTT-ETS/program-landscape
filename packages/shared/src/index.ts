@@ -3,6 +3,7 @@ export * from './api';
 export * from './pdf';
 export * from './storage';
 export * from './ingestion';
+export * from './pdf-intake';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

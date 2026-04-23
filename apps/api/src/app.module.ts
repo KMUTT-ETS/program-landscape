@@ -11,6 +11,7 @@ import { ProgramsController } from './programs/programs.controller';
 import { UsersController } from './users/users.controller';
 import { DataSourcesModule } from './data-sources/data-sources.module';
 import { PdfModule } from './pdf/pdf.module';
+import { PdfIntakeModule } from './pdf-intake/pdf-intake.module';
 
 import {
   AccessControlGuard,
@@ -40,6 +41,7 @@ import {
     }),
     PdfModule,
     DataSourcesModule,
+    PdfIntakeModule,
   ],
   controllers: [
     AppController,

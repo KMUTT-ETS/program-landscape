@@ -57,3 +57,7 @@ dist/*.sha256
 infra/gotenberg/fonts/*.ttf
 infra/gotenberg/fonts/*.TTF
 
+# pdfjs-dist worker copied into apps/web/public at prebuild time; the
+# real source is node_modules/pdfjs-dist (see scripts/copy-pdf-worker.mjs).
+apps/web/public/pdf.worker.*.mjs
+

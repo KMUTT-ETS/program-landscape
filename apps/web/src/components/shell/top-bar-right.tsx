@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Database, FileText, LogOut, Monitor, Moon, Palette, Sun, User } from 'lucide-react';
+import { ClipboardCheck, Database, FileText, LogOut, Monitor, Moon, Palette, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -80,13 +80,32 @@ export function TopBarRight({ user }: { user: SessionUser }) {
               Styleguide
             </a>
           </DropdownMenuItem>
-          {(user.role === 'ADMIN' || user.role === 'ANALYST') && (
+          {(user.role === 'ADMIN' ||
+            user.role === 'ANALYST' ||
+            user.role === 'DEAN' ||
+            user.role === 'DEPT_HEAD') && (
             <DropdownMenuItem asChild>
-              <a href="/admin/data-sources" className="flex items-center gap-2">
-                <Database className="h-4 w-4 text-text-tertiary" aria-hidden />
-                Data sources
+              <a href="/upload" className="flex items-center gap-2">
+                <Upload className="h-4 w-4 text-text-tertiary" aria-hidden />
+                Upload PDFs
               </a>
             </DropdownMenuItem>
+          )}
+          {(user.role === 'ADMIN' || user.role === 'ANALYST') && (
+            <>
+              <DropdownMenuItem asChild>
+                <a href="/admin/data-sources" className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-text-tertiary" aria-hidden />
+                  Data sources
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/pdf-review" className="flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4 text-text-tertiary" aria-hidden />
+                  PDF review queue
+                </a>
+              </DropdownMenuItem>
+            </>
           )}
           {user.role === 'ADMIN' && (
             <DropdownMenuItem asChild>

@@ -23,6 +23,27 @@ vi.mock('@kku/db', () => ({
   },
 }));
 
+// PdfUploadConnector.load() now PUTs bytes to MinIO. Mock the S3Storage
+// constructor so the test doesn't need a real MinIO — we only verify
+// that the upsert fires with the right shape.
+vi.mock('@kku/shared', async () => {
+  const actual = await vi.importActual<typeof import('@kku/shared')>('@kku/shared');
+  return {
+    ...actual,
+    S3Storage: class {
+      putObject = vi.fn().mockResolvedValue({ bucket: 'pdf-raw', key: 'x', byteSize: 0 });
+      getSignedDownloadUrl = vi.fn().mockResolvedValue('https://minio.test/x');
+      headObject = vi.fn().mockResolvedValue(null);
+    },
+  };
+});
+
+// Provide dummy env so requiredEnv() doesn't throw inside pdf-upload-connector.
+process.env.MINIO_ENDPOINT = 'http://localhost:9000';
+process.env.MINIO_ACCESS_KEY = 'test';
+process.env.MINIO_SECRET_KEY = 'test';
+process.env.MINIO_BUCKET_PDF_RAW = 'pdf-raw';
+
 import { ConnectorRunner } from '../src/connectors/runner';
 import { KkuRegistryConnector } from '../src/connectors/sources/kku-connectors';
 import { NsoConnector } from '../src/connectors/sources/pdf-connectors';

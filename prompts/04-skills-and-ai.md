@@ -36,8 +36,9 @@ interface AiService {
 ```
 
 Implementations:
-- `AnthropicAiService` (default — uses Claude)
-- `OpenAiService` (alternative)
+- `GoogleAiService` (default — uses Gemini)
+- `OpenrouterAiService` (alternative — uses Gemini via Openrouter)
+- `AnthropicAiService` (alternative — uses Claude)
 - `IntelSphereAiService` (placeholder routing to KKU's multi-AI gateway — your existing infra)
 
 Every call:

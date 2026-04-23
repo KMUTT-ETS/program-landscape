@@ -124,6 +124,7 @@ enum PdfSourceCategory {
   PEER_PROGRAM
   SURVEY
   COMMITTEE_MINUTES
+  JOB_POSTINGS_BATCH
   OTHER
 }
 
@@ -147,6 +148,7 @@ enum PdfExtractionType {
   PEER_PROGRAM
   LABOR_STAT
   SURVEY_RESULT
+  COMMITTEE_MINUTES
   OTHER
 }
 
@@ -317,15 +319,15 @@ model User {
   faculty    Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  auditLogs           AuditLog[]
-  aiInferences        AiInference[]
-  uploadedPdfs        PdfDocument[]     @relation("PdfUploader")
-  reviewedExtractions PdfExtraction[]   @relation("ExtractionReviewer")
-  scenarios           Scenario[]
-  councilDecisions    CouncilDecision[]
-  annotations         Annotation[]
-  pdfGenerations      PdfGeneration[]
-  triggeredIngestionRuns IngestionRun[] @relation("IngestionTriggeredBy")
+  auditLogs              AuditLog[]
+  aiInferences           AiInference[]
+  uploadedPdfs           PdfDocument[]     @relation("PdfUploader")
+  reviewedExtractions    PdfExtraction[]   @relation("ExtractionReviewer")
+  scenarios              Scenario[]
+  councilDecisions       CouncilDecision[]
+  annotations            Annotation[]
+  pdfGenerations         PdfGeneration[]
+  triggeredIngestionRuns IngestionRun[]    @relation("IngestionTriggeredBy")
 
   @@index([email])
   @@index([ssoSubject])
@@ -936,24 +938,33 @@ model DemographicProjection {
 // ══════════════════════════════════════════════════════════════════════════
 
 model PdfDocument {
-  id               String                       @id @default(cuid())
-  originalFilename String                       @map("original_filename")
-  storageUrl       String                       @map("storage_url")
-  fileSize         Int                          @map("file_size")
-  pageCount        Int                          @map("page_count")
-  sourceCategory   PdfSourceCategory            @map("source_category")
-  sourceOrg        String?                      @map("source_org")
-  language         PdfLanguage                  @default(TH)
-  uploadedByUserId String?                      @map("uploaded_by_user_id")
-  uploadedAt       DateTime                     @default(now()) @map("uploaded_at")
-  processingStatus PdfProcessingStatus          @default(PENDING) @map("processing_status")
-  extractedTextUrl String?                      @map("extracted_text_url")
-  ocrApplied       Boolean                      @default(false) @map("ocr_applied")
-  ocrConfidence    Float?                       @map("ocr_confidence")
-  contentHash      String                       @unique @map("content_hash")
-  embedding        Unsupported("vector(1536)")?
-  createdAt        DateTime                     @default(now()) @map("created_at")
-  updatedAt        DateTime                     @updatedAt @map("updated_at")
+  id                       String                       @id @default(cuid())
+  originalFilename         String                       @map("original_filename")
+  storageUrl               String                       @map("storage_url")
+  fileSize                 Int                          @map("file_size")
+  pageCount                Int                          @map("page_count")
+  // sourceCategory is the classifier's verdict — or the connector/uploader's
+  // explicit override. sourceCategoryHint is the pre-classification guess
+  // (from the connector or the uploader's form) that the pipeline weighs
+  // against the classifier's proposal.
+  sourceCategory           PdfSourceCategory            @map("source_category")
+  sourceCategoryHint       PdfSourceCategory?           @map("source_category_hint")
+  sourceOrg                String?                      @map("source_org")
+  language                 PdfLanguage                  @default(TH)
+  uploadedByUserId         String?                      @map("uploaded_by_user_id")
+  uploadedAt               DateTime                     @default(now()) @map("uploaded_at")
+  processingStatus         PdfProcessingStatus          @default(PENDING) @map("processing_status")
+  processingError          String?                      @map("processing_error") @db.Text
+  extractedTextUrl         String?                      @map("extracted_text_url")
+  ocrApplied               Boolean                      @default(false) @map("ocr_applied")
+  ocrConfidence            Float?                       @map("ocr_confidence")
+  // Classifier's confidence in sourceCategory — low values surface in the
+  // review UI so an analyst can correct an obvious miscategorisation.
+  classificationConfidence Float?                       @map("classification_confidence")
+  contentHash              String                       @unique @map("content_hash")
+  embedding                Unsupported("vector(1536)")?
+  createdAt                DateTime                     @default(now()) @map("created_at")
+  updatedAt                DateTime                     @updatedAt @map("updated_at")
 
   uploadedBy User? @relation("PdfUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
@@ -1000,6 +1011,12 @@ model PdfExtraction {
   reviewedByUserId String?           @map("reviewed_by_user_id")
   reviewedAt       DateTime?         @map("reviewed_at")
   payloadJson      Json              @map("payload_json")
+  // LLM's own "show reasoning" explanation — filled when prompt 04 wires
+  // the AI service. Rendered in the review UI's expandable panel.
+  reasoning        String?           @db.Text
+  // Reviewer notes at approval/rejection time. Pairs with reviewStatus =
+  // APPROVED (optional note) or REJECTED (required reason).
+  reviewNotes      String?           @map("review_notes") @db.Text
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
 
@@ -1116,31 +1133,31 @@ model Annotation {
 // as they run. Seeded in packages/db/prisma/seed.ts from the connector
 // registry so names never drift between code and DB.
 model DataSource {
-  id                String              @id @default(cuid())
+  id                String                @id @default(cuid())
   // Stable, lowercase-kebab identifier the connector registry keys off
   // (e.g. "kku-registry", "mhesi-cisa"). Don't rename without a DB migration.
-  slug              String              @unique
-  name              String              @unique
+  slug              String                @unique
+  name              String                @unique
   kind              DataSourceKind
   // Connectors flagged PDF hand fetched bytes to the prompt 03b intake
   // pipeline (create a PdfDocument row) rather than extracting in-process.
   inputFormat       DataSourceInputFormat @default(JSON) @map("input_format")
-  baseUrl           String?             @map("base_url")
-  acceptsPdfUploads Boolean             @default(false) @map("accepts_pdf_uploads")
+  baseUrl           String?               @map("base_url")
+  acceptsPdfUploads Boolean               @default(false) @map("accepts_pdf_uploads")
   // Cron schedule honoured by the BullMQ scheduler. Null = manual-only.
   // Format: standard 5-field cron (minute hour day month weekday).
-  cadenceCron       String?             @map("cadence_cron")
-  scheduleEnabled   Boolean             @default(true) @map("schedule_enabled")
-  lastSyncedAt      DateTime?           @map("last_synced_at")
+  cadenceCron       String?               @map("cadence_cron")
+  scheduleEnabled   Boolean               @default(true) @map("schedule_enabled")
+  lastSyncedAt      DateTime?             @map("last_synced_at")
   // One of: 'active' | 'paused' | 'error' | 'disabled'. Free-text for now
   // so we can iterate on the lifecycle without migrations; enumify later.
-  status            String              @default("active")
+  status            String                @default("active")
   // The KKU contact who owns the data-sharing agreement for this source.
   // Non-technical field — filled in docs/data-sources.md and synced here.
-  ownerContact      String?             @map("owner_contact")
-  notes             String?             @db.Text
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  ownerContact      String?               @map("owner_contact")
+  notes             String?               @db.Text
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
 
   ingestionRuns IngestionRun[]
 
@@ -1155,34 +1172,34 @@ model DataSource {
 // "error log" panels. status = RUNNING while in-flight so we can detect
 // stuck workers; QUEUED is set by the enqueuer.
 model IngestionRun {
-  id              String             @id @default(cuid())
-  dataSourceId    String             @map("data_source_id")
+  id                String              @id @default(cuid())
+  dataSourceId      String              @map("data_source_id")
   // SCHEDULED = BullMQ cron fired, MANUAL = admin clicked "Run now",
   // BACKFILL = reserved for bulk catch-up runs.
-  trigger         IngestionRunTrigger @default(SCHEDULED)
-  triggeredByUserId String?          @map("triggered_by_user_id")
-  status          IngestionRunStatus  @default(QUEUED)
-  startedAt       DateTime?          @map("started_at")
-  completedAt     DateTime?          @map("completed_at")
-  recordsFetched  Int                @default(0) @map("records_fetched")
-  recordsLoaded   Int                @default(0) @map("records_loaded")
-  recordsFailed   Int                @default(0) @map("records_failed")
+  trigger           IngestionRunTrigger @default(SCHEDULED)
+  triggeredByUserId String?             @map("triggered_by_user_id")
+  status            IngestionRunStatus  @default(QUEUED)
+  startedAt         DateTime?           @map("started_at")
+  completedAt       DateTime?           @map("completed_at")
+  recordsFetched    Int                 @default(0) @map("records_fetched")
+  recordsLoaded     Int                 @default(0) @map("records_loaded")
+  recordsFailed     Int                 @default(0) @map("records_failed")
   // PDF-format connectors record the PdfDocument row they created so the
   // intake pipeline can follow up. Null for API/CSV/etc.
-  pdfDocumentId   String?            @map("pdf_document_id")
-  durationMs      Int?               @map("duration_ms")
+  pdfDocumentId     String?             @map("pdf_document_id")
+  durationMs        Int?                @map("duration_ms")
   // BullMQ attempt number (1 for the first try, 2+ for retries). Useful
   // for the admin dashboard when reading logs.
-  attempt         Int                @default(1)
-  errorCode       String?            @map("error_code")
-  errorMessage    String?            @map("error_message") @db.Text
+  attempt           Int                 @default(1)
+  errorCode         String?             @map("error_code")
+  errorMessage      String?             @map("error_message") @db.Text
   // Small structured blob — counts by sub-type, sample IDs, etc.
   // Connector-specific; the UI renders it as a JSON tree.
-  metadata        Json?
-  createdAt       DateTime           @default(now()) @map("created_at")
+  metadata          Json?
+  createdAt         DateTime            @default(now()) @map("created_at")
 
-  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
-  triggeredBy  User?      @relation("IngestionTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  dataSource  DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  triggeredBy User?      @relation("IngestionTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
 
   @@index([dataSourceId, createdAt])
   @@index([status])

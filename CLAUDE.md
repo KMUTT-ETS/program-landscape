@@ -250,7 +250,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 02b: Design system  *(completed 2026-04-22; Storybook deferred)*
 - [x] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)  *(completed 2026-04-23; fonts must be dropped in locally, see `infra/gotenberg/README.md`)*
 - [x] Prompt 03: Ingestion framework  *(completed 2026-04-23; 23 connectors all MOCKED — real wiring in prompt 14)*
-- [ ] Prompt 03b: PDF intake
+- [x] Prompt 03b: PDF intake  *(completed 2026-04-23; plumbing complete, LLM classifier + 7 extractors stubbed — real LLM in prompt 04)*
 - [ ] Prompt 04: Skills & AI
 - [ ] Prompt 05: Cockpit
 - [ ] Prompt 06: Deep-Dive
@@ -265,6 +265,21 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 03b (2026-04-23):*
+- **LLM-powered steps are stubbed, shaped correctly for prompt 04.** `PdfClassifier` + 7 `PdfExtractor` interfaces live in `@kku/shared/pdf-intake`; stub implementations return confidence 0 (extractors) or 0.5 when honouring a hint (classifier). Prompt 04's job is to replace the stub bodies with AI-service calls — interfaces, registry, review UI, state machine all keep working as-is.
+- **Every PDF lands in the review queue today.** Stub classifier's max 0.5 + default 0.7 threshold means no auto-approvals happen; operators see every PDF. This is deliberate — until a real classifier lands, human eyes are non-optional.
+- **Scanned PDFs park in PROCESSING, not FAILED.** `extractNativeText` detects `hasImages + very little text` and flips `isLikelyScanned`; the pipeline marks `ocrApplied: false` and sets `processingError` to "awaiting OCR". Prompt 04 wires Claude vision to finish the path — until then the park state is visible in the review UI.
+- **Dedicated `pdf-intake` BullMQ queue.** Separate from `ingestion` so PDF parse concurrency + retries can be tuned independently. Default: 2 concurrency, 2 attempts, 10s base backoff. PDF connectors in apps/ingestion push jobs via this queue; apps/api enqueues on upload + re-extract.
+- **Content-hash dedup is load-bearing.** `PdfDocument.contentHash` is UNIQUE. Upload + PDF connector both compute SHA-256 of bytes and upsert by hash. Same bytes, same row. Storage key is `<category>/<hash>.pdf` so we never store the same PDF twice in MinIO either.
+- **Re-extraction preserves audit trail.** `PdfIntakePipeline` deletes existing PdfExtraction rows only when `methodVersion` matches, keeping historical rows with older versions. Bulk reprocess (`POST /pdfs/bulk-reprocess`) uses this to regenerate extractions when a v2 extractor lands.
+- **pdfjs-dist needs `workerSrc` set to a real file path in Node.** Set via `require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')` — pdfjs 4.x still checks this even when running main-thread. Empty string silently fails.
+- **Connectors now hand bytes through transform.** `PdfUploadConnector.transform` carries `bytes: Buffer` through the `NormalizedRecord.payload` so load() can PUT to MinIO with the real content. Prior to 03b it stripped bytes and wrote a placeholder s3 URL.
+- **MinIO upload happens at BOTH entry points** — the PdfUploadConnector base AND the api `/pdfs/upload` endpoint share the same `S3Storage` client. Both compute the content hash, both upsert by hash. If a connector fetches a PDF that an operator also happens to upload, they collapse cleanly.
+- **Review UI uses react-pdf (pdfjs under the hood).** Same pdfjs-dist as the ingestion worker, so text extraction and viewer stay in lockstep on fonts + text positioning. Signed URL from MinIO; 15-min TTL default.
+- **`PdfIntakeModule` in apps/api** is a thin service + controller. The *worker* lives in apps/ingestion. Both processes open handles to the same `pdf-intake` queue — api produces, ingestion consumes.
+- **New migrations**: `20260423020000_pdf_intake` (adds source_category_hint, processing_error, classification_confidence, review_notes, reasoning + JOB_POSTINGS_BATCH source category) + `20260423020100_pdf_extraction_type_committee_minutes` (follow-up enum value discovered mid-build — split out because the prior migration was already deployed).
+- **Deferred to prompt 04:** real LLM classification + extraction bodies; OCR via Claude vision for scanned PDFs; table extraction strategy (Camelot vs vision LLM TBD); vector-similarity entity linking; trend signal auto-generation; WebSocket progress (polling is fine for admin paths); bundled sample PDFs with extraction-accuracy scores.
 
 *Prompt 03 (2026-04-23):*
 - **Single catalog in `@kku/shared`, not per-app constants.** `packages/shared/src/ingestion/catalog.ts` is the source of truth for which sources exist. The DB seed and the `apps/ingestion` connector registry both read from it. Adding a source means editing the catalog + adding a connector class + registering — in one commit, with no DB/code drift.
