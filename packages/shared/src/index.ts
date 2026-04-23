@@ -8,6 +8,7 @@ export * from './ai';
 export * from './skills';
 export * from './forecasting';
 export * from './scenarios';
+export * from './analyst';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

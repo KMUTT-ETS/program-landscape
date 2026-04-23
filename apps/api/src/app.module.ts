@@ -20,6 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { GapModule } from './gap/gap.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { BenchmarkingModule } from './benchmarking/benchmarking.module';
+import { AnalystModule } from './analyst/analyst.module';
 
 import {
   AccessControlGuard,
@@ -59,6 +60,7 @@ import {
     GapModule,
     ScenariosModule,
     BenchmarkingModule,
+    AnalystModule,
   ],
   controllers: [
     AppController,

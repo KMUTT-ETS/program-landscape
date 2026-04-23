@@ -9,6 +9,10 @@ import type {
   EmbeddingResponse,
   ExtractionRequest,
   ExtractionResponse,
+  ToolCall,
+  ToolUseMessage,
+  ToolUseRequest,
+  ToolUseResponse,
   TranslateRequest,
   TranslateResponse,
   VisionRequest,
@@ -223,6 +227,208 @@ export class AnthropicAiService implements AiService {
 
     return { text, tokens, model, latencyMs, cost, aiInferenceId };
   }
+
+  // ── Tool-use agent loop (prompt 11) ────────────────────────────────────
+  async completeWithTools(
+    req: ToolUseRequest,
+    executeTool: (call: ToolCall) => Promise<string>,
+  ): Promise<ToolUseResponse> {
+    const model = req.model ?? this.config.defaultModel ?? DEFAULT_MODEL;
+    const maxIterations = Math.max(1, Math.min(req.maxIterations ?? 8, 16));
+    const started = Date.now();
+
+    // Split system out; rebuild per-iteration conversation from incoming
+    // trace + new assistant / tool-result turns.
+    const { system, workingMessages } = splitSystemToolUse(req.messages);
+    const conversation: ToolUseMessage[] = [...workingMessages];
+    const aiInferenceIds: string[] = [];
+    let totalInput = 0;
+    let totalOutput = 0;
+    let totalCostUsd = 0;
+    let iterations = 0;
+    let stopReason: ToolUseResponse['stopReason'] = 'end_turn';
+    let finalText = '';
+    let pendingToolCalls: ToolCall[] = [];
+
+    for (iterations = 0; iterations < maxIterations; iterations++) {
+      const anthropicMessages = toAnthropicMessages(conversation);
+      const iterationStarted = Date.now();
+      const result = await this.client.messages.create({
+        model,
+        system,
+        max_tokens: req.maxOutputTokens ?? 4096,
+        temperature: req.temperature ?? 0.3,
+        tools: req.tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          input_schema: t.inputSchema as { type: 'object'; properties: Record<string, unknown> },
+        })),
+        messages: anthropicMessages,
+      });
+      const iterationLatency = Date.now() - iterationStarted;
+
+      totalInput += result.usage.input_tokens;
+      totalOutput += result.usage.output_tokens;
+      const iterCost = estimateCost(model, {
+        input: result.usage.input_tokens,
+        output: result.usage.output_tokens,
+      });
+      totalCostUsd += iterCost.usd;
+
+      // Separate text + tool_use blocks.
+      const textBlocks: string[] = [];
+      const toolCalls: ToolCall[] = [];
+      for (const block of result.content) {
+        if (block.type === 'text') textBlocks.push(block.text);
+        else if (block.type === 'tool_use') {
+          toolCalls.push({
+            id: block.id,
+            name: block.name,
+            input: (block.input ?? {}) as Record<string, unknown>,
+          });
+        }
+      }
+      const assistantTurn: ToolUseMessage = {
+        role: 'assistant',
+        content: [
+          ...textBlocks.map((t) => ({ type: 'text' as const, text: t })),
+          ...toolCalls.map((c) => ({
+            type: 'tool_use' as const,
+            id: c.id,
+            name: c.name,
+            input: c.input,
+          })),
+        ],
+      };
+      conversation.push(assistantTurn);
+
+      const { id: aiInferenceId } = await this.config.recorder.record({
+        userId: req.ctx.userId ?? null,
+        module: req.ctx.module,
+        kind: req.ctx.kind ?? 'tool-use',
+        prompt: toolUseMessagesToString(conversation.slice(0, -1)),
+        model,
+        response: textBlocks.join('\n') + (toolCalls.length > 0 ? '\n' + toolCalls.map((c) => `[tool ${c.name}]`).join('\n') : ''),
+        tokensInput: result.usage.input_tokens,
+        tokensOutput: result.usage.output_tokens,
+        latencyMs: iterationLatency,
+        costEstimateUsd: iterCost.usd,
+        sourcesJson: { toolCalls },
+      });
+      aiInferenceIds.push(aiInferenceId);
+
+      if (result.stop_reason !== 'tool_use' || toolCalls.length === 0) {
+        finalText = textBlocks.join('\n').trim();
+        pendingToolCalls = [];
+        stopReason = 'end_turn';
+        break;
+      }
+
+      // Execute each tool; feed results back.
+      const results = await Promise.all(
+        toolCalls.map(async (call) => {
+          try {
+            const content = await executeTool(call);
+            return { toolCallId: call.id, content, isError: false };
+          } catch (err) {
+            return {
+              toolCallId: call.id,
+              content: `Tool error: ${(err as Error).message}`,
+              isError: true,
+            };
+          }
+        }),
+      );
+      conversation.push({ role: 'tool', results });
+    }
+
+    if (iterations === maxIterations) {
+      stopReason = 'max_iterations';
+      pendingToolCalls = (conversation[conversation.length - 1] as { content?: unknown })?.content &&
+        Array.isArray((conversation[conversation.length - 1] as { content: unknown[] }).content)
+        ? (
+            (conversation[conversation.length - 1] as { content: unknown[] }).content.filter(
+              (b) => (b as { type?: string }).type === 'tool_use',
+            ) as Array<{ id: string; name: string; input: Record<string, unknown> }>
+          ).map((b) => ({ id: b.id, name: b.name, input: b.input }))
+        : [];
+    }
+
+    const latencyMs = Date.now() - started;
+    return {
+      trace: conversation,
+      finalText,
+      pendingToolCalls,
+      iterations: iterations + (stopReason === 'max_iterations' ? 0 : 1),
+      tokens: { input: totalInput, output: totalOutput },
+      model,
+      latencyMs,
+      cost: { usd: totalCostUsd, model },
+      aiInferenceIds,
+      stopReason,
+    };
+  }
+}
+
+function splitSystemToolUse(messages: ToolUseMessage[]): {
+  system: string | undefined;
+  workingMessages: ToolUseMessage[];
+} {
+  const sys = messages.find((m) => m.role === 'system');
+  return {
+    system: sys && sys.role === 'system' ? sys.content : undefined,
+    workingMessages: messages.filter((m) => m.role !== 'system'),
+  };
+}
+
+type AnthropicMessageParam = {
+  role: 'user' | 'assistant';
+  content:
+    | string
+    | Array<
+        | { type: 'text'; text: string }
+        | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+        | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean }
+      >;
+};
+
+function toAnthropicMessages(msgs: ToolUseMessage[]): AnthropicMessageParam[] {
+  const out: AnthropicMessageParam[] = [];
+  for (const m of msgs) {
+    if (m.role === 'system') continue;
+    if (m.role === 'user') {
+      out.push({ role: 'user', content: m.content });
+    } else if (m.role === 'assistant') {
+      out.push({ role: 'assistant', content: m.content });
+    } else if (m.role === 'tool') {
+      out.push({
+        role: 'user',
+        content: m.results.map((r) => ({
+          type: 'tool_result' as const,
+          tool_use_id: r.toolCallId,
+          content: r.content,
+          is_error: r.isError,
+        })),
+      });
+    }
+  }
+  return out;
+}
+
+function toolUseMessagesToString(msgs: ToolUseMessage[]): string {
+  return msgs
+    .map((m) => {
+      if (m.role === 'user') return `[user]\n${m.content}`;
+      if (m.role === 'system') return `[system]\n${m.content}`;
+      if (m.role === 'assistant') {
+        const text = m.content
+          .map((c) => (c.type === 'text' ? c.text : `[tool ${c.name}(${JSON.stringify(c.input)})]`))
+          .join('\n');
+        return `[assistant]\n${text}`;
+      }
+      return `[tool-results]\n${m.results.map((r) => `#${r.toolCallId}: ${r.content.slice(0, 120)}`).join('\n')}`;
+    })
+    .join('\n\n');
 }
 
 function splitSystem(messages: CompletionRequest['messages']): {

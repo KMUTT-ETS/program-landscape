@@ -337,18 +337,20 @@ model User {
 
   auditLogs              AuditLog[]
   aiInferences           AiInference[]
-  uploadedPdfs           PdfDocument[]        @relation("PdfUploader")
-  reviewedExtractions    PdfExtraction[]      @relation("ExtractionReviewer")
-  reviewedAiExtractions  AiExtraction[]       @relation("AiExtractionReviewer")
+  uploadedPdfs           PdfDocument[]         @relation("PdfUploader")
+  reviewedExtractions    PdfExtraction[]       @relation("ExtractionReviewer")
+  reviewedAiExtractions  AiExtraction[]        @relation("AiExtractionReviewer")
   scenarios              Scenario[]
   councilDecisions       CouncilDecision[]
   annotations            Annotation[]
   pdfGenerations         PdfGeneration[]
-  triggeredIngestionRuns IngestionRun[]       @relation("IngestionTriggeredBy")
+  triggeredIngestionRuns IngestionRun[]        @relation("IngestionTriggeredBy")
   savedCockpitViews      SavedCockpitView[]
   notifications          Notification[]
   signalSubscriptions    SignalSubscription[]
   peerSets               PeerSet[]
+  analystConversations   AnalystConversation[]
+  analystFeedback        AnalystFeedback[]
 
   @@index([email])
   @@index([ssoSubject])
@@ -1686,4 +1688,93 @@ model PeerRanking {
   @@index([subjectArea])
   @@index([year])
   @@map("peer_rankings")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AI Analyst (prompt 11) — conversational layer
+//
+// One AnalystConversation per threaded chat. AnalystMessage is the
+// audit-grade turn-by-turn record (one row per user message + one per
+// assistant final turn); the full tool-use trace is captured in
+// `evidenceJson` and each AiInference row referenced by
+// `aiInferenceIds` is the authoritative LLM call log.
+//
+// AnalystFeedback is thumbs-up/down + optional correction text per
+// assistant message. Used to surface bad answers for analyst review
+// and to feed a future fine-tune loop.
+// ══════════════════════════════════════════════════════════════════════════
+
+enum AnalystMessageRole {
+  USER
+  ASSISTANT
+}
+
+model AnalystConversation {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  title        String
+  // Running summary of pruned-away older turns, so the agent has memory
+  // even after we truncate messages outside the sliding window.
+  summaryTh    String?  @map("summary_th") @db.Text
+  summaryEn    String?  @map("summary_en") @db.Text
+  // Language detected from the first user turn ('th' | 'en'). Used to
+  // pick system-prompt flavour; not sticky per-message.
+  language     String   @default("en")
+  messageCount Int      @default(0) @map("message_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AnalystMessage[]
+
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("analyst_conversations")
+}
+
+model AnalystMessage {
+  id              String             @id @default(cuid())
+  conversationId  String             @map("conversation_id")
+  role            AnalystMessageRole
+  content         String             @db.Text
+  // Full tool-use trace: the array of ToolUseMessage from the engine.
+  // Kept as JSON so the evidence panel can render tool calls + results.
+  toolCallsJson   Json?              @map("tool_calls_json")
+  // Pre-computed "evidence" payload for the side panel — tool calls +
+  // data previews + confidence per sub-claim.
+  evidenceJson    Json?              @map("evidence_json")
+  // Each LLM invocation during a tool-use loop produces one AiInference
+  // row; this array stitches them all back together for audit.
+  aiInferenceIds  String[]           @map("ai_inference_ids")
+  stopReason      String?            @map("stop_reason")
+  tokensInput     Int?               @map("tokens_input")
+  tokensOutput    Int?               @map("tokens_output")
+  costEstimateUsd Float?             @map("cost_estimate_usd")
+  latencyMs       Int?               @map("latency_ms")
+  refused         Boolean            @default(false)
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  conversation AnalystConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  feedback     AnalystFeedback[]
+
+  @@index([conversationId, createdAt])
+  @@index([role])
+  @@map("analyst_messages")
+}
+
+model AnalystFeedback {
+  id         String   @id @default(cuid())
+  messageId  String   @map("message_id")
+  userId     String   @map("user_id")
+  // 'up' | 'down'
+  vote       String
+  correction String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  message AnalystMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([userId])
+  @@map("analyst_feedback")
 }

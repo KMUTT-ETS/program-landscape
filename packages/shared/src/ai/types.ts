@@ -161,6 +161,92 @@ export interface VisionResponse {
   aiInferenceId: string;
 }
 
+// ── Tool-use (agent) ─────────────────────────────────────────────────────
+//
+// Thin wrapper over Anthropic's native tool_use blocks. Exposed as its
+// own call to keep `complete()` simple; agents ("AI Analyst") use this
+// and non-agent callers keep using `complete()`.
+//
+// v1 only supports Anthropic. GoogleAiService throws a friendly
+// `ToolUseNotSupported` error — modules that need tool-use must run
+// on an Anthropic provider. Documented in CLAUDE.md.
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  // JSON Schema for the input. Callers build this from their Zod
+  // schema via `zodToJsonSchema` (or equivalent). We accept `unknown`
+  // here so we don't leak a JSON-Schema dependency into types.ts.
+  inputSchema: Record<string, unknown>;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+export interface ToolResult {
+  toolCallId: string;
+  content: string;
+  isError?: boolean;
+}
+
+export type ToolUseMessage =
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string }
+  | {
+      role: 'assistant';
+      // Mixed content: some text, some tool_use blocks.
+      content: Array<
+        | { type: 'text'; text: string }
+        | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+      >;
+    }
+  | {
+      role: 'tool';
+      // Results of previously-requested tool calls.
+      results: ToolResult[];
+    };
+
+export interface ToolUseRequest {
+  ctx: AiCallContext;
+  messages: ToolUseMessage[];
+  tools: ToolDefinition[];
+  // Iteration cap — agents loop "call tool → feed result back" until
+  // the model stops requesting tools or this limit hits. Default 8.
+  maxIterations?: number;
+  maxOutputTokens?: number;
+  temperature?: number;
+  model?: string;
+}
+
+export interface ToolUseResponse {
+  // All messages produced during the loop (assistant turns + tool-result turns).
+  trace: ToolUseMessage[];
+  // Final assistant text (what the UI shows).
+  finalText: string;
+  // The last assistant turn's tool_use blocks — if any remain, the
+  // iteration cap was hit.
+  pendingToolCalls: ToolCall[];
+  iterations: number;
+  tokens: AiTokenUsage;
+  model: string;
+  latencyMs: number;
+  cost: AiCostEstimate;
+  // One AiInference row per LLM invocation across the loop. The AGENT
+  // service stitches them into an evidence panel.
+  aiInferenceIds: string[];
+  stopReason: 'end_turn' | 'max_iterations' | 'error' | 'refusal';
+}
+
+export class ToolUseNotSupportedError extends Error {
+  constructor(providerId: string) {
+    super(`Tool use is not supported by provider '${providerId}'. Set AI_PROVIDER=anthropic for the analyst module.`);
+    this.name = 'ToolUseNotSupportedError';
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // The service.
 // ──────────────────────────────────────────────────────────────────────────
@@ -178,6 +264,15 @@ export interface AiService {
   ): Promise<ExtractionResponse<T>>;
   translate(req: TranslateRequest): Promise<TranslateResponse>;
   vision(req: VisionRequest): Promise<VisionResponse>;
+  // v1: Anthropic only. Others throw ToolUseNotSupportedError.
+  // `executeTool` is provided by the CALLER — it receives a tool call
+  // and returns the string result that gets fed back as a tool-result
+  // message. This keeps the service provider-agnostic from tool
+  // implementations.
+  completeWithTools?(
+    req: ToolUseRequest,
+    executeTool: (call: ToolCall) => Promise<string>,
+  ): Promise<ToolUseResponse>;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
