@@ -380,6 +380,7 @@ model AiInference {
   trendSignals    TrendSignal[]
   scenarioResults ScenarioResult[]
   aiExtractions   AiExtraction[]
+  annotations     Annotation[]
 
   @@index([userId])
   @@index([module])
@@ -1170,15 +1171,27 @@ model Annotation {
   userId     String   @map("user_id")
   entityType String   @map("entity_type")
   entityId   String   @map("entity_id")
+  // 'comment' (default), 'disagreement' (expert correction of an AI
+  // output), 'narrative_edit' (human override of an AI narrative).
+  kind       String   @default("comment")
+  // Section of the deep-dive this annotation targets — e.g. 'skills',
+  // 'outcomes', 'narrative'. Free-text so new sections land without
+  // schema churn.
+  sectionKey String?  @map("section_key")
+  // When the annotation is a correction of a specific AI output, link
+  // to the AiInference row so model-improvement tooling can find it.
+  aiInferenceId String? @map("ai_inference_id")
   bodyTh     String?  @map("body_th") @db.Text
   bodyEn     String?  @map("body_en") @db.Text
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([kind])
   @@map("annotations")
 }
 

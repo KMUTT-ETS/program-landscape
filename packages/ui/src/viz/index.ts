@@ -4,3 +4,6 @@ export * from './trend-line';
 export * from './sparkline';
 export * from './heatmap';
 export * from './bubble-matrix';
+export * from './radar';
+export * from './waterfall';
+export * from './funnel';

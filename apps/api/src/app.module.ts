@@ -7,7 +7,7 @@ import path from 'node:path';
 import { AppController } from './app.controller';
 import { FacultiesController } from './faculties/faculties.controller';
 import { DepartmentsController } from './departments/departments.controller';
-import { ProgramsController } from './programs/programs.controller';
+import { ProgramsModule } from './programs/programs.module';
 import { UsersController } from './users/users.controller';
 import { DataSourcesModule } from './data-sources/data-sources.module';
 import { PdfModule } from './pdf/pdf.module';
@@ -48,12 +48,12 @@ import {
     SkillsModule,
     AiAdminModule,
     CockpitModule,
+    ProgramsModule,
   ],
   controllers: [
     AppController,
     FacultiesController,
     DepartmentsController,
-    ProgramsController,
     UsersController,
   ],
   providers: [

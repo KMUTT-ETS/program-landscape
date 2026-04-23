@@ -7,5 +7,6 @@ import { PdfModule } from '../pdf/pdf.module';
   imports: [PdfModule],
   controllers: [CockpitController],
   providers: [CockpitService],
+  exports: [CockpitService],
 })
 export class CockpitModule {}

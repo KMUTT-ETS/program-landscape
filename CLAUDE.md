@@ -253,7 +253,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 03b: PDF intake  *(completed 2026-04-23; plumbing complete, LLM classifier + 7 extractors stubbed — real LLM in prompt 04)*
 - [x] Prompt 04: Skills & AI  *(completed 2026-04-23; AiService + Google/Anthropic providers real; taxonomy seed; BullMQ ai-jobs; /skills + /admin/extraction-review UIs)*
 - [x] Prompt 05: Cockpit  *(completed 2026-04-23; health-score.v1 methodology with explicit null handling; Heatmap + BubbleMatrix + Rollup views; AI brief + Council Pack export)*
-- [ ] Prompt 06: Deep-Dive
+- [x] Prompt 06: Deep-Dive  *(completed 2026-04-23; /programs/[id] with 10 sections, Radar + Funnel + Waterfall viz, role-gated faculty, disagreement capture, print + PDF export)*
 - [ ] Prompt 07: Trends Radar
 - [ ] Prompt 08: Gap Analyzer
 - [ ] Prompt 09: Scenario Planner
@@ -265,6 +265,20 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 06 (2026-04-23):*
+- **Deep-dive endpoints are explicit fan-out, not a single giant call.** Ten `GET /programs/:id/<section>` endpoints. The UI parallelises the fetches — above-the-fold sections (header, narrative) paint first, below-the-fold continue loading. Avoids the "one slow aggregator blocks the whole page" failure mode.
+- **Role-gated faculty visibility is LOAD-BEARING.** `COUNCIL` role gets `visibility: 'aggregates-only'`, which strips names + specialisation + employeeCode from every member row. Ranks + retirement date + succession risk ARE visible. Implemented at the Prisma `select` layer (not just filtered post-fetch) so the wrong data never leaves the DB. Unit-tested against prompt 14's future salary field — when we persist salaries, they inherit the same gating.
+- **`Annotation.kind` is a discriminator, not an enum.** Free-text to avoid migrations when new section names land. Values in use today: `'comment'` (default), `'disagreement'` (expert correction of an AI output), `'narrative_edit'` (reserved for prompt 12's Decision Workspace). `sectionKey` + `aiInferenceId` pinpoint which surface the disagreement is about.
+- **Disagreement flow persists, doesn't route.** `POST /programs/:id/disagreements` writes an Annotation row linked to the specific AiInference and returns. The "route to model improvement queue" wiring (retrain trigger, feedback aggregation dashboard) lives with prompt 13's hardening work — not valuable until we have enough disagreements to learn from.
+- **`/cockpit/export` handles both Council Packs AND per-program briefs.** The deep-dive PDF export button hits `/cockpit/export` with `scope: 'program'`. One audit trail, one template, one signed-URL path. Per-program-specific template (`program-brief` in `@kku/pdf-templates`) is a lighter single-page brief — kept in reserve for cases that don't need the full council-pack framing (emails, quick share links).
+- **Program scope previously 404'd from the cockpit.** That's now live at `/programs/[id]` — the cockpit's drill-in contract from prompt 05 closes.
+- **Three new viz primitives in `@kku/ui/viz`:** `<RadarChartSmall>` (Recharts), `<Waterfall>` (inline SVG — Recharts' stacked-bar waterfall is painful to colour), `<FunnelPipeline>` (Recharts FunnelChart). All three are theme-aware via `useChartPalette`.
+- **Explicit return types on `@kku/db` deep-dive helpers.** Prompt 01's `declaration: true` tsconfig baseline means inferred return types that reference Prisma-generated interfaces fail portability checks. Each public function in `program-deep-dive.ts` has an explicit `Promise<...Result>` annotation. When adding a new helper, add the interface.
+- **Print view is separate from PDF export.** `/programs/[id]/print` is a minimal A4-styled Next page designed for `Ctrl/Cmd+P` from the browser. The formal Gotenberg-backed PDF (with TH Sarabun New, Chromium rendering, Council Pack framing) is the "Export PDF" button — different deliverable, different fidelity.
+- **Section empty-states are NOT placeholders, they're the UX.** Data-sparse sections (Thailand geographic heatmap, peer auto-suggestion, rich TGAT/TPAT distribution) render with clear "blocked on prompt X" messages. A Council member opening a program with limited data sees what's known and what isn't — not a fabricated dashboard.
+- **Deferred to specific later prompts (all flagged in UI empty-states):** Thailand choropleth (needs per-graduate province — KKU-Alumni connector, prompt 14); peer auto-suggestion via skill-embedding similarity (Benchmarking module, prompt 10); real TGAT/TPAT distribution (needs TCAS connector); "top 5 AI recommendations" text (currently surfaced via the narrative regeneration path; dedicated recommendation generation lands in prompt 11's AI Analyst); per-section confidence badges beyond narrative (every section flows through Provenance drawer but per-section confidence scores wait for the extraction feedback loop in 13).
+- **Migration:** `20260423050000_annotation_kind` — three new columns on `annotations` (kind + section_key + ai_inference_id). Additive, backwards-compatible.
 
 *Prompt 05 (2026-04-23):*
 - **Health score methodology v1 is the locked reference.** `docs/methodologies/health-score.md` + `HEALTH_SCORE_VERSION = 'health-score.v1'` in `packages/db/src/health-score.ts`. **Equal-weighted across the 5 dimensions** (demand / financial / quality / relevance / capability) by design — equal weights are the least-arguable default; any weighted formulation encodes a value judgement that must be surfaced explicitly, and v1 deliberately doesn't.
