@@ -266,6 +266,10 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 
 **Recent decisions worth knowing about:**
 
+*Dev-env fix (2026-04-23):*
+- **Each app needs its own `.env` or symlink**, not just the monorepo root. Next.js `@next/env` loads from the Next project directory (`apps/web/`), never the monorepo root. When it's missing, the Edge-runtime middleware bundle is compiled with `NEXTAUTH_SECRET` undefined and every protected route 307s back to `/signin` — even though the Node runtime signs JWTs just fine. The symptom ("UI black/white + can't sign in") actually had two distinct causes bundled together: the oklch alpha syntax bug (92b23e6 → fixed) and this env-loading trap.
+- **Canonical fix:** `scripts/link-env.mjs` symlinks root `.env` into `apps/web`, `apps/api`, `apps/ingestion`. Runs as part of `pnpm setup`, also exposed as `pnpm link-env`. Falls back to copy on Windows without Developer Mode. All symlink targets are gitignored by the existing `.env` rule.
+
 *Prompt 07 (2026-04-23):*
 - **29 realistic TrendSignal rows are SEEDED, not collected.** All 23 connectors are still mocked (prompt 03) — the monitors scaffolded here run on cron but return "found nothing" until prompt 14 wires real upstreams. The seeded signals span 5 types (policy / research / market / tech / news) with bilingual summaries and three of them target seeded programs so the Deep-Dive's "Trend exposure" section surfaces content on first boot.
 - **Six monitor cron jobs live on the new `trend-monitors` BullMQ queue.** Cadences in `MONITOR_CADENCE`: policy every 6h, job-market daily, research/peer-programs/tech-signals weekly, patents monthly. Each monitor is a stub that logs "scanned, nothing new" today. When you flip one real, the two entry points are: (a) for PDF-origin signals, enqueue the existing `ANALYZE_POLICY_DOC` ai-job which already produces the AI analysis; (b) for API-origin signals, call `createSignal()` from `@apps/ingestion/src/trend-monitors/monitors` which handles fan-out for free.

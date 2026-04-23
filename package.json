@@ -9,7 +9,8 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "setup": "pnpm install && pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "link-env": "node scripts/link-env.mjs",
     "dev": "concurrently -n web,api,ingest -c blue,green,magenta \"pnpm --filter web dev\" \"pnpm --filter api start:dev\" \"pnpm --filter ingestion start:dev\"",
     "db:up": "docker compose up -d postgres redis minio gotenberg",
     "db:down": "docker compose down",
