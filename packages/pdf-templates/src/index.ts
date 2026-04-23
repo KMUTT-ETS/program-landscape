@@ -6,6 +6,7 @@ import { scenarioPackTemplate } from './templates/scenario-pack/template';
 import { weeklyTrendDigestTemplate } from './templates/weekly-trend-digest/template';
 import { decisionRecordTemplate } from './templates/decision-record/template';
 import { dataQualityReportTemplate } from './templates/data-quality-report/template';
+import { gapReportTemplate } from './templates/gap-report/template';
 
 // Export the base CSS so callers that build bespoke one-off HTML (rare,
 // and only for admin-tooling-style use) can match the rest of the system.
@@ -28,6 +29,7 @@ export * from './templates/scenario-pack/schema';
 export * from './templates/weekly-trend-digest/schema';
 export * from './templates/decision-record/schema';
 export * from './templates/data-quality-report/schema';
+export * from './templates/gap-report/schema';
 
 // Array view for callers that want to iterate rather than register.
 export const allTemplates = [
@@ -37,6 +39,7 @@ export const allTemplates = [
   weeklyTrendDigestTemplate,
   decisionRecordTemplate,
   dataQualityReportTemplate,
+  gapReportTemplate,
 ] as const;
 
 // Registers every template shipped by this package into a registry. The

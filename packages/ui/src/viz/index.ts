@@ -8,3 +8,5 @@ export * from './radar';
 export * from './waterfall';
 export * from './funnel';
 export * from './trends-radar';
+export * from './gap-bars';
+export * from './thailand-map';

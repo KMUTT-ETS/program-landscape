@@ -523,6 +523,7 @@ model Skill {
   departmentSkills DepartmentSkill[]
   facultySkills    FacultySkill[]
   jobPostingSkills JobPostingSkill[]
+  skillSectors     SkillSector[]
 
   @@index([code])
   @@index([taxonomySource])
@@ -1414,4 +1415,103 @@ model KkuOrgCodeMapping {
   @@unique([kkuCode, kind])
   @@index([kind])
   @@map("kku_org_code_mappings")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Sector taxonomy (Gap Analyzer — prompt 08)
+//
+// Thailand's BCG economy (Bio-Circular-Green) + the 10+2 S-curve
+// targeted industries are the two reference taxonomies we benchmark skill
+// demand against. Sectors are a FLAT list (no hierarchy) tagged onto
+// individual skills via `skill_sectors`. One skill may belong to several
+// sectors (e.g., "battery chemistry" is both Bio-Circular (Green) and
+// S-curve "next-gen automotive"). Aggregation is by sum/union at the
+// gap-analysis layer.
+// ══════════════════════════════════════════════════════════════════════════
+
+enum SectorFamily {
+  BCG
+  SCURVE
+  CUSTOM
+}
+
+model Sector {
+  id                 String       @id @default(cuid())
+  code               String       @unique
+  family             SectorFamily
+  nameTh             String       @map("name_th")
+  nameEn             String       @map("name_en")
+  descriptionTh      String?      @map("description_th") @db.Text
+  descriptionEn      String?      @map("description_en") @db.Text
+  // Heuristic demand-weight multiplier applied when rolling up skill demand
+  // into a sector-level index. Default 1.0; higher for strategic sectors.
+  demandMultiplier   Float        @default(1.0) @map("demand_multiplier")
+  methodologyVersion String       @default("sectors.v1") @map("methodology_version")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  skillSectors SkillSector[]
+
+  @@index([family])
+  @@map("sectors")
+}
+
+model SkillSector {
+  id        String   @id @default(cuid())
+  skillId   String   @map("skill_id")
+  sectorId  String   @map("sector_id")
+  // Weight in [0, 1]: how strongly this skill represents the sector.
+  // 1.0 = defining skill, 0.3 = adjacent/transferable.
+  weight    Float    @default(1.0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  sector Sector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, sectorId])
+  @@index([skillId])
+  @@index([sectorId])
+  @@map("skill_sectors")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Forecast runs (Gap Analyzer — prompt 08)
+//
+// Every forecast (demand projection, supply projection) writes one row
+// so we can (a) reproduce the value from inputs, (b) back-test accuracy
+// when the forecast horizon is reached. `actualValue` and `errorPct`
+// start null and are filled when the target year is observed.
+// ══════════════════════════════════════════════════════════════════════════
+
+enum ForecastKind {
+  DEMAND
+  SUPPLY
+}
+
+model ForecastRun {
+  id                 String       @id @default(cuid())
+  kind               ForecastKind
+  // Subject of the forecast — e.g., occupation code, skill id, program id.
+  subjectType        String       @map("subject_type")
+  subjectId          String       @map("subject_id")
+  region             String       @default("TH")
+  targetYear         Int          @map("target_year")
+  projectedValue     Float        @map("projected_value")
+  ci50Low            Float?       @map("ci_50_low")
+  ci50High           Float?       @map("ci_50_high")
+  ci80Low            Float?       @map("ci_80_low")
+  ci80High           Float?       @map("ci_80_high")
+  ci95Low            Float?       @map("ci_95_low")
+  ci95High           Float?       @map("ci_95_high")
+  actualValue        Float?       @map("actual_value")
+  errorPct           Float?       @map("error_pct")
+  methodologyVersion String       @default("forecasting.v1") @map("methodology_version")
+  notes              String?      @db.Text
+  runAt              DateTime     @default(now()) @map("run_at")
+
+  @@index([kind])
+  @@index([subjectType, subjectId])
+  @@index([region])
+  @@index([targetYear])
+  @@map("forecast_runs")
 }

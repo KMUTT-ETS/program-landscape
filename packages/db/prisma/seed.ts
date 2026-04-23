@@ -1077,6 +1077,9 @@ async function main() {
     });
   }
 
+  // ── Gap Analyzer seeds (prompt 08) ──────────────────────────────────────
+  await seedGapAnalyzerData();
+
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
     faculties: await prisma.faculty.count(),
@@ -1093,11 +1096,211 @@ async function main() {
     outcomes: await prisma.graduateOutcome.count(),
     pdfs: await prisma.pdfDocument.count(),
     jobPostings: await prisma.jobPosting.count(),
+    jobPostingSkills: await prisma.jobPostingSkill.count(),
+    occupationDemand: await prisma.occupationDemand.count(),
+    sectors: await prisma.sector.count(),
+    skillSectors: await prisma.skillSector.count(),
+    demographicProjections: await prisma.demographicProjection.count(),
+    forecastRuns: await prisma.forecastRun.count(),
     dataSources: await prisma.dataSource.count(),
     kkuOrgMappings: await prisma.kkuOrgCodeMapping.count(),
   };
   // eslint-disable-next-line no-console
   console.log('seed complete:', counts);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Gap Analyzer seeds (prompt 08)
+//
+// Populates: sectors (BCG + S-curve), skill-sector tags, JobPostingSkill
+// joins, OccupationDemand rows, DemographicProjection rows, and a
+// handful of ForecastRun records for the accuracy page.
+// ──────────────────────────────────────────────────────────────────────────
+
+async function seedGapAnalyzerData() {
+  // ── Sectors ─────────────────────────────────────────────────────────────
+  const sectors = [
+    { code: 'BCG-BIO',     family: 'BCG'    as const, nameTh: 'เศรษฐกิจชีวภาพ',           nameEn: 'Bio-economy',             demandMultiplier: 1.15 },
+    { code: 'BCG-CIRCULAR',family: 'BCG'    as const, nameTh: 'เศรษฐกิจหมุนเวียน',        nameEn: 'Circular economy',        demandMultiplier: 1.05 },
+    { code: 'BCG-GREEN',   family: 'BCG'    as const, nameTh: 'เศรษฐกิจสีเขียว',          nameEn: 'Green economy',           demandMultiplier: 1.20 },
+    { code: 'SC-AUTO',     family: 'SCURVE' as const, nameTh: 'ยานยนต์สมัยใหม่',           nameEn: 'Next-gen automotive',     demandMultiplier: 1.25 },
+    { code: 'SC-SMART',    family: 'SCURVE' as const, nameTh: 'อิเล็กทรอนิกส์อัจฉริยะ',     nameEn: 'Smart electronics',       demandMultiplier: 1.20 },
+    { code: 'SC-MED',      family: 'SCURVE' as const, nameTh: 'ศูนย์การแพทย์',             nameEn: 'Medical hub',             demandMultiplier: 1.30 },
+    { code: 'SC-DIGITAL',  family: 'SCURVE' as const, nameTh: 'เศรษฐกิจดิจิทัล',           nameEn: 'Digital economy',         demandMultiplier: 1.35 },
+    { code: 'SC-AGRI',     family: 'SCURVE' as const, nameTh: 'เกษตรและอาหารขั้นสูง',      nameEn: 'Advanced agri/food',      demandMultiplier: 1.15 },
+  ];
+  for (const s of sectors) {
+    await prisma.sector.upsert({
+      where: { code: s.code },
+      update: {},
+      create: s,
+    });
+  }
+
+  // ── Skill-sector tagging ────────────────────────────────────────────────
+  // Best-effort heuristic: look up each skill by keyword and tag.
+  const sectorIdByCode = new Map(
+    (await prisma.sector.findMany({ select: { id: true, code: true } })).map((s) => [s.code, s.id]),
+  );
+  const allSkills = await prisma.skill.findMany({ select: { id: true, code: true, nameEn: true } });
+
+  const tagBy = (needle: RegExp, sectorCode: string, weight = 1.0) => {
+    const sectorId = sectorIdByCode.get(sectorCode);
+    if (!sectorId) return [];
+    return allSkills
+      .filter((sk) => needle.test(sk.nameEn) || needle.test(sk.code))
+      .map((sk) => ({ skillId: sk.id, sectorId, weight }));
+  };
+
+  const skillSectorRows = [
+    ...tagBy(/bio|genetic|microb|biotech|life-sci|biology/i, 'BCG-BIO'),
+    ...tagBy(/recycl|circular|waste|reuse|sustainab/i, 'BCG-CIRCULAR'),
+    ...tagBy(/green|renewable|solar|wind|clean.?energy/i, 'BCG-GREEN'),
+    ...tagBy(/auto|vehicle|ev|battery|mechatronic/i, 'SC-AUTO'),
+    ...tagBy(/electron|embedded|iot|sensor|semicon/i, 'SC-SMART'),
+    ...tagBy(/medic|health|clinic|nurs|pharma/i, 'SC-MED'),
+    ...tagBy(/data|ai|machine.?learning|software|cloud|cyber|digital|program/i, 'SC-DIGITAL'),
+    ...tagBy(/agri|farm|food|crop|livestock|soil/i, 'SC-AGRI'),
+  ];
+  for (const r of skillSectorRows) {
+    await prisma.skillSector.upsert({
+      where: { skillId_sectorId: { skillId: r.skillId, sectorId: r.sectorId } },
+      update: {},
+      create: r,
+    });
+  }
+
+  // ── JobPostingSkill joins ───────────────────────────────────────────────
+  // Assign 2–3 skills per posting (deterministic based on posting index).
+  const postings = await prisma.jobPosting.findMany({ select: { id: true, externalId: true } });
+  const skillPool = allSkills.slice(0, Math.min(40, allSkills.length));
+  if (skillPool.length > 0) {
+    for (let i = 0; i < postings.length; i++) {
+      const posting = postings[i]!;
+      const skillCount = 2 + (i % 2);
+      for (let j = 0; j < skillCount; j++) {
+        const skill = skillPool[(i * 3 + j) % skillPool.length]!;
+        const weight = 0.5 + ((i + j) % 10) / 20;
+        await prisma.jobPostingSkill.upsert({
+          where: { jobPostingId_skillId: { jobPostingId: posting.id, skillId: skill.id } },
+          update: {},
+          create: { jobPostingId: posting.id, skillId: skill.id, weight },
+        });
+      }
+    }
+  }
+
+  // ── OccupationDemand ────────────────────────────────────────────────────
+  // 8 occupation codes × 4 provinces × 6 months = 192 rows.
+  const occupationCodes = ['2521', '2521-01', '2529', '2521-02', '2166', '2511', '2221', '2141'];
+  const demandProvinces = ['Bangkok', 'Khon Kaen', 'Chiang Mai', 'Chon Buri'];
+  const demandYear = new Date().getFullYear();
+  for (const code of occupationCodes) {
+    for (const province of demandProvinces) {
+      for (let m = 1; m <= 6; m++) {
+        const base = 50 + (code.length * 7) % 80;
+        const provinceBump = province === 'Bangkok' ? 80 : province === 'Khon Kaen' ? 30 : 20;
+        await prisma.occupationDemand.upsert({
+          where: {
+            occupationCode_province_year_month: {
+              occupationCode: code,
+              province,
+              year: demandYear,
+              month: m,
+            },
+          },
+          update: {},
+          create: {
+            occupationCode: code,
+            province,
+            year: demandYear,
+            month: m,
+            postingsCount: base + provinceBump + m * 4,
+            medianSalary: 28000 + (code.length * 500) + provinceBump * 50,
+            growthRate: 0.04 + (m % 3) * 0.01,
+            freshnessDate: new Date(demandYear, m - 1, 28),
+          },
+        });
+      }
+    }
+  }
+
+  // ── DemographicProjection ───────────────────────────────────────────────
+  // Thailand 18-22 cohort projection: ~4.5M in 2020, shrinking ~1.8%/year.
+  // Northeast ~1.2M, same shrink rate.
+  const baseThai = 4_500_000;
+  const baseNortheast = 1_200_000;
+  for (let year = 2020; year <= 2035; year++) {
+    const shrink = Math.pow(0.982, year - 2020);
+    await prisma.demographicProjection.upsert({
+      where: { region_year_ageCohort_source: { region: 'TH', year, ageCohort: '18-22', source: 'NESDC-v1' } },
+      update: {},
+      create: {
+        region: 'TH',
+        year,
+        ageCohort: '18-22',
+        population: Math.round(baseThai * shrink),
+        source: 'NESDC-v1',
+        freshnessDate: new Date(`${year}-01-01`),
+      },
+    });
+    await prisma.demographicProjection.upsert({
+      where: { region_year_ageCohort_source: { region: 'Northeast', year, ageCohort: '18-22', source: 'NESDC-v1' } },
+      update: {},
+      create: {
+        region: 'Northeast',
+        year,
+        ageCohort: '18-22',
+        population: Math.round(baseNortheast * shrink),
+        source: 'NESDC-v1',
+        freshnessDate: new Date(`${year}-01-01`),
+      },
+    });
+  }
+
+  // ── ForecastRun (back-test history) ─────────────────────────────────────
+  // 5 demand forecasts + 4 supply forecasts, all with filled actuals so
+  // /forecast-accuracy has meaningful rows on first boot. Real forecasts
+  // (written by the gap service) pile on top of these over time.
+  const past = new Date().getFullYear() - 1;
+  const existingForecasts = await prisma.forecastRun.count();
+  if (existingForecasts === 0) {
+    const samples = [
+      { kind: 'DEMAND' as const, subjectType: 'occupation', subjectId: '2521', targetYear: past, projected: 820, actual: 790 },
+      { kind: 'DEMAND' as const, subjectType: 'occupation', subjectId: '2166', targetYear: past, projected: 340, actual: 410 },
+      { kind: 'DEMAND' as const, subjectType: 'occupation', subjectId: '2221', targetYear: past, projected: 210, actual: 180 },
+      { kind: 'DEMAND' as const, subjectType: 'skill', subjectId: 'sample-skill-1', targetYear: past, projected: 95, actual: 88 },
+      { kind: 'DEMAND' as const, subjectType: 'skill', subjectId: 'sample-skill-2', targetYear: past, projected: 140, actual: 175 },
+      { kind: 'SUPPLY' as const, subjectType: 'program', subjectId: 'prog-cpe', targetYear: past, projected: 60, actual: 58 },
+      { kind: 'SUPPLY' as const, subjectType: 'program', subjectId: 'prog-cs',  targetYear: past, projected: 45, actual: 47 },
+      { kind: 'SUPPLY' as const, subjectType: 'program', subjectId: 'prog-me',  targetYear: past, projected: 40, actual: 38 },
+      { kind: 'SUPPLY' as const, subjectType: 'program', subjectId: 'prog-ee',  targetYear: past, projected: 55, actual: 52 },
+    ];
+    for (const s of samples) {
+      const spread = Math.max(s.projected * 0.2, 5);
+      const errorPct = ((s.projected - s.actual) / Math.max(Math.abs(s.actual), 1)) * 100;
+      await prisma.forecastRun.create({
+        data: {
+          kind: s.kind,
+          subjectType: s.subjectType,
+          subjectId: s.subjectId,
+          region: 'TH',
+          targetYear: s.targetYear,
+          projectedValue: s.projected,
+          ci50Low: s.projected - spread * 0.34,
+          ci50High: s.projected + spread * 0.34,
+          ci80Low: s.projected - spread * 0.65,
+          ci80High: s.projected + spread * 0.65,
+          ci95Low: s.projected - spread,
+          ci95High: s.projected + spread,
+          actualValue: s.actual,
+          errorPct,
+          methodologyVersion: 'forecasting.v1',
+          notes: 'Back-test sample — seeded for prompt 08 accuracy page.',
+        },
+      });
+    }
+  }
 }
 
 main()

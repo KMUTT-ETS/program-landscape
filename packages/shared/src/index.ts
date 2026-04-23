@@ -6,6 +6,7 @@ export * from './ingestion';
 export * from './pdf-intake';
 export * from './ai';
 export * from './skills';
+export * from './forecasting';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

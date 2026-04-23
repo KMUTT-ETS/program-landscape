@@ -17,6 +17,7 @@ import { AiAdminModule } from './ai-admin/ai-admin.module';
 import { CockpitModule } from './cockpit/cockpit.module';
 import { TrendsModule } from './trends/trends.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { GapModule } from './gap/gap.module';
 
 import {
   AccessControlGuard,
@@ -53,6 +54,7 @@ import {
     ProgramsModule,
     TrendsModule,
     NotificationsModule,
+    GapModule,
   ],
   controllers: [
     AppController,
