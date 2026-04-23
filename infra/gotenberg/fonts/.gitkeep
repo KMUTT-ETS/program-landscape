@@ -1,0 +1,4 @@
+# Place the four TH Sarabun New .ttf files in this directory before
+# running `docker compose build gotenberg`. See ../README.md for sourcing
+# and naming. The .ttf files themselves are .gitignored — this file
+# only exists so the empty directory is tracked.

@@ -87,7 +87,7 @@ Visual benchmark: **Linear, Vercel Dashboard, Stripe Dashboard, Retool, Notion, 
 - **Object storage:** MinIO (S3-compatible) for original PDFs and generated outputs
 - **Auth:** `next-auth` v5 (KKU SSO via OIDC; local credentials only in dev)
 - **i18n:** `next-intl` for static analysis-content strings
-- **Monorepo:** pnpm workspaces — `apps/web`, `apps/api`, `apps/ingestion`, `packages/shared`, `packages/db`, `packages/ui`, `packages/design`
+- **Monorepo:** pnpm workspaces — `apps/web`, `apps/api`, `apps/ingestion`, `packages/shared`, `packages/db`, `packages/ui`, `packages/design`, `packages/pdf-templates`
 - **Containerization:** docker-compose (postgres, redis, web, api, ingestion, minio)
 - **Testing:** Vitest, Playwright, testcontainers for PostgreSQL
 
@@ -235,6 +235,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - `docs/design-system.md` — visual direction and token reference
 - `docs/data-sources.md` — every external data source documented
 - `docs/pdf-ingestion.md` — PDF intake pipeline
+- `docs/pdf-generation.md` — PDF output pipeline (Gotenberg, templates, Thai gotchas)
 - `docs/ai-governance.md` — AI usage policies, prompt versioning, bias monitoring
 - `docs/auth/kku-sso.md` — KKU SSO configuration
 - `docs/methodologies/` — per-metric methodology with versions
@@ -247,7 +248,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 01: Data model  *(completed 2026-04-22)*
 - [x] Prompt 02: Auth & API core  *(completed 2026-04-22)*
 - [x] Prompt 02b: Design system  *(completed 2026-04-22; Storybook deferred)*
-- [ ] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)
+- [x] Prompt 02c: PDF generation (Gotenberg + TH Sarabun New)  *(completed 2026-04-23; fonts must be dropped in locally, see `infra/gotenberg/README.md`)*
 - [ ] Prompt 03: Ingestion framework
 - [ ] Prompt 03b: PDF intake
 - [ ] Prompt 04: Skills & AI
@@ -264,6 +265,22 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 02c (2026-04-23):*
+- **Fonts live outside Git.** `infra/gotenberg/fonts/` is `.gitignored` for `*.ttf` — devs + the prod build pipeline drop the four TH Sarabun New files in locally before `docker compose build gotenberg`. `.gitignore` only blocks ttfs in that one path; everywhere else fonts commit normally. Sourcing + naming: `infra/gotenberg/README.md`.
+- **Dockerfile fails loudly on missing fonts.** `COPY` aborts the build if a file is absent; a post-`fc-cache` check runs `fc-list | grep -ci sarabun` and exits non-zero if fewer than 4 faces registered. The common failure mode for Thai PDFs (upstream gotenberg renders tofu) can't slip through unnoticed.
+- **React SSR → HTML, not `@react-pdf/renderer`.** Templates are React components rendered with `renderToStaticMarkup`; Chromium inside Gotenberg does the actual PDF conversion. `@react-pdf/renderer` mishandles Thai tone-mark shaping — it is *explicitly banned*, not just unpreferred.
+- **`@kku/pdf-templates` is a new workspace package.** Holds `baseCss` (the Thai-safe CSS contract), `ChartForPrint` wrappers (no ResponsiveContainer, no animation, light-only palette baked in as hex), shared components (Cover / Section / ProvenanceAppendix / Footer), and six templates (`council-pack` as reference; `program-brief`, `scenario-pack`, `weekly-trend-digest`, `decision-record`, `data-quality-report` as module-filled skeletons).
+- **`apps/api/tsconfig.json` now sets `jsx: 'react-jsx'`.** pdf-templates is a source-linked workspace dep and contains `.tsx`; TS has to *parse* those files when it follows the import even though api itself emits no JSX. Don't remove this — it isn't a sign that api renders React.
+- **Template registry takes `ZodType<T, ZodTypeDef, unknown>`, not `ZodType<T>`.** Templates that use `.default()` produce input/output type divergence in Zod — `unknown` input matches what the HTTP boundary actually provides. See `packages/shared/src/pdf/types.ts` comment.
+- **`allTemplates` iterates as `TemplateDefinition<unknown>[]`.** A heterogeneous readonly tuple can't collapse to a single generic — each template's schema narrows its own data at render time, the registry treats them uniformly at boot.
+- **`<ChartForPrint>` hard-codes the light-mode chart palette as hex.** No CSS-var resolution at SSR time — the server-rendered SVG has no `<html>` to read `data-theme` off. The 12-colour `PRINT_PALETTE` array is the evaluated light version of `tokens.css`; mirror any change to the palette tokens in the same commit.
+- **`PdfService` wraps the core `PdfGenerationService`.** NestJS layer adds: Prisma `pdf_generations` row before+after each render, MinIO putObject + presigned URL, `PdfGenerationError` → `ApiError` mapping so the global exception filter emits the standard envelope. Modules inject `PdfService`, not `PdfGenerationService`.
+- **MinIO public endpoint override.** `S3Storage.getSignedDownloadUrl` signs against a separate client configured with `MINIO_PUBLIC_ENDPOINT` when set — otherwise the signature is cut for the docker-network hostname (e.g., `http://minio:9000`) which the browser can't reach. Leave `MINIO_PUBLIC_ENDPOINT` empty in pure-local dev; set it in compose + prod.
+- **New permissions: `pdf:generate` (COUNCIL / DEAN / DEPT_HEAD / ANALYST / ADMIN) and `pdf:admin` (ADMIN).** Both live in `@kku/shared/auth/permissions.ts` and are checked via `@Authorized(…)` on controllers. VIEWER cannot generate PDFs.
+- **Retry policy is single-attempt, transient-only.** `PDF_UPSTREAM_UNAVAILABLE` (Gotenberg unreachable / 5xx) retries once after 500ms. `PDF_RENDER_TIMEOUT`, `PDF_TEMPLATE_DATA_INVALID`, `PDF_UPSTREAM_REJECTED` do NOT retry — they're deterministic failures.
+- **Migration workflow unchanged from prompt 01.** `20260423000000_pdf_generations/migration.sql` hand-written to match Prisma's diff output (enum + table + indexes + FK); no TTY needed. Apply with `prisma migrate deploy`.
+- **Deferred** (noted in `docs/pdf-generation.md`): per-user rate limits on `/pdf/generate` (global throttler only today); golden-PDF visual regression tests; HTTP endpoint for `PdfGenerationService.merge` (the service method works, the controller doesn't expose it yet — Council Pack composition in prompt 12 will need it).
 
 *Prompt 02b (2026-04-22):*
 - **Tokens are OKLCH, not HSL.** `packages/design/src/css/tokens.css` holds every value as `L C H` triplets under `[data-theme='light'|'dark']`; Tailwind utilities wrap them with `oklch(var(...) / <alpha-value>)` so `bg-surface-1/80` works. Modern evergreen browsers support it natively — no RGB fallback shipped.

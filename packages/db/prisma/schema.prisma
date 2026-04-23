@@ -193,6 +193,13 @@ enum KkuOrgCodeKind {
   DEPARTMENT
 }
 
+enum PdfGenerationStatus {
+  QUEUED
+  RENDERING
+  SUCCEEDED
+  FAILED
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // Organization (university → faculty → department → program)
 // ══════════════════════════════════════════════════════════════════════════
@@ -224,11 +231,11 @@ model Department {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  faculty           Faculty            @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  programs          Program[]
-  users             User[]
-  facultyMembers    FacultyMember[]
-  departmentSkills  DepartmentSkill[]
+  faculty          Faculty           @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  programs         Program[]
+  users            User[]
+  facultyMembers   FacultyMember[]
+  departmentSkills DepartmentSkill[]
 
   @@index([facultyId])
   @@map("departments")
@@ -250,15 +257,15 @@ model Program {
   faculty    Faculty     @relation(fields: [facultyId], references: [id], onDelete: Restrict)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  curricula            Curriculum[]
-  courses              Course[]
-  programSkills        ProgramSkill[]
-  programFaculties     ProgramFaculty[]
-  enrollmentMetrics    EnrollmentMetric[]
-  studentDemographics  StudentDemographic[]
-  financialMetrics     FinancialMetric[]
-  graduateOutcomes     GraduateOutcome[]
-  employerFeedback     EmployerFeedback[]
+  curricula           Curriculum[]
+  courses             Course[]
+  programSkills       ProgramSkill[]
+  programFaculties    ProgramFaculty[]
+  enrollmentMetrics   EnrollmentMetric[]
+  studentDemographics StudentDemographic[]
+  financialMetrics    FinancialMetric[]
+  graduateOutcomes    GraduateOutcome[]
+  employerFeedback    EmployerFeedback[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -286,13 +293,14 @@ model User {
   faculty    Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  auditLogs         AuditLog[]
-  aiInferences      AiInference[]
-  uploadedPdfs      PdfDocument[]      @relation("PdfUploader")
-  reviewedExtractions PdfExtraction[]  @relation("ExtractionReviewer")
-  scenarios         Scenario[]
-  councilDecisions  CouncilDecision[]
-  annotations       Annotation[]
+  auditLogs           AuditLog[]
+  aiInferences        AiInference[]
+  uploadedPdfs        PdfDocument[]     @relation("PdfUploader")
+  reviewedExtractions PdfExtraction[]   @relation("ExtractionReviewer")
+  scenarios           Scenario[]
+  councilDecisions    CouncilDecision[]
+  annotations         Annotation[]
+  pdfGenerations      PdfGeneration[]
 
   @@index([email])
   @@index([ssoSubject])
@@ -319,22 +327,22 @@ model AuditLog {
 }
 
 model AiInference {
-  id                String        @id @default(cuid())
-  userId            String?       @map("user_id")
-  module            String
-  prompt            String        @db.Text
-  promptVersion     String?       @map("prompt_version")
-  model             String
-  response          String        @db.Text
-  confidence        Float?
-  sourcesJson       Json?         @map("sources_json")
-  tokensInput       Int?          @map("tokens_input")
-  tokensOutput      Int?          @map("tokens_output")
-  latencyMs         Int?          @map("latency_ms")
-  createdAt         DateTime      @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  userId        String?  @map("user_id")
+  module        String
+  prompt        String   @db.Text
+  promptVersion String?  @map("prompt_version")
+  model         String
+  response      String   @db.Text
+  confidence    Float?
+  sourcesJson   Json?    @map("sources_json")
+  tokensInput   Int?     @map("tokens_input")
+  tokensOutput  Int?     @map("tokens_output")
+  latencyMs     Int?     @map("latency_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  trendSignals  TrendSignal[]
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  trendSignals    TrendSignal[]
   scenarioResults ScenarioResult[]
 
   @@index([userId])
@@ -348,19 +356,19 @@ model AiInference {
 // ══════════════════════════════════════════════════════════════════════════
 
 model Curriculum {
-  id               String           @id @default(cuid())
-  programId        String           @map("program_id")
-  version          String
-  effectiveYear    Int              @map("effective_year")
-  totalCredits     Int              @map("total_credits")
-  mko2DocumentUrl  String?          @map("mko2_document_url")
-  sourcePdfId      String?          @map("source_pdf_id")
-  status           CurriculumStatus @default(DRAFT)
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id              String           @id @default(cuid())
+  programId       String           @map("program_id")
+  version         String
+  effectiveYear   Int              @map("effective_year")
+  totalCredits    Int              @map("total_credits")
+  mko2DocumentUrl String?          @map("mko2_document_url")
+  sourcePdfId     String?          @map("source_pdf_id")
+  status          CurriculumStatus @default(DRAFT)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
-  program   Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
-  sourcePdf PdfDocument?        @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  program   Program            @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sourcePdf PdfDocument?       @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
   courses   CurriculumCourse[]
 
   @@unique([programId, version])
@@ -370,20 +378,20 @@ model Curriculum {
 }
 
 model Course {
-  id             String     @id @default(cuid())
-  programId      String     @map("program_id")
-  code           String
-  nameTh         String     @map("name_th")
-  nameEn         String     @map("name_en")
-  credits        Int
-  type           CourseType @default(ELECTIVE)
-  descriptionTh  String?    @map("description_th") @db.Text
-  descriptionEn  String?    @map("description_en") @db.Text
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
+  id            String     @id @default(cuid())
+  programId     String     @map("program_id")
+  code          String
+  nameTh        String     @map("name_th")
+  nameEn        String     @map("name_en")
+  credits       Int
+  type          CourseType @default(ELECTIVE)
+  descriptionTh String?    @map("description_th") @db.Text
+  descriptionEn String?    @map("description_en") @db.Text
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  program     Program            @relation(fields: [programId], references: [id], onDelete: Cascade)
-  curricula   CurriculumCourse[]
+  program      Program            @relation(fields: [programId], references: [id], onDelete: Cascade)
+  curricula    CurriculumCourse[]
   courseSkills CourseSkill[]
 
   @@unique([programId, code])
@@ -413,16 +421,16 @@ model CurriculumCourse {
 // ══════════════════════════════════════════════════════════════════════════
 
 model Skill {
-  id             String        @id @default(cuid())
-  code           String        @unique
-  nameTh         String        @map("name_th")
-  nameEn         String        @map("name_en")
-  taxonomySource SkillTaxonomy @map("taxonomy_source")
+  id             String                       @id @default(cuid())
+  code           String                       @unique
+  nameTh         String                       @map("name_th")
+  nameEn         String                       @map("name_en")
+  taxonomySource SkillTaxonomy                @map("taxonomy_source")
   category       String?
-  parentSkillId  String?       @map("parent_skill_id")
+  parentSkillId  String?                      @map("parent_skill_id")
   embedding      Unsupported("vector(1536)")?
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
 
   parent           Skill?            @relation("SkillHierarchy", fields: [parentSkillId], references: [id], onDelete: SetNull)
   children         Skill[]           @relation("SkillHierarchy")
@@ -511,24 +519,24 @@ model FacultySkill {
 // ══════════════════════════════════════════════════════════════════════════
 
 model FacultyMember {
-  id                    String       @id @default(cuid())
-  facultyId             String       @map("faculty_id")
-  departmentId          String?      @map("department_id")
-  employeeCode          String       @unique @map("employee_code")
-  nameTh                String       @map("name_th")
-  nameEn                String       @map("name_en")
+  id                    String      @id @default(cuid())
+  facultyId             String      @map("faculty_id")
+  departmentId          String?     @map("department_id")
+  employeeCode          String      @unique @map("employee_code")
+  nameTh                String      @map("name_th")
+  nameEn                String      @map("name_en")
   rank                  FacultyRank
-  academicQualification String?      @map("academic_qualification")
+  academicQualification String?     @map("academic_qualification")
   specialization        String?
-  dateOfBirth           DateTime?    @map("date_of_birth") @db.Date
-  hireDate              DateTime?    @map("hire_date") @db.Date
-  retirementDate        DateTime?    @map("retirement_date") @db.Date
-  isActive              Boolean      @default(true) @map("is_active")
-  createdAt             DateTime     @default(now()) @map("created_at")
-  updatedAt             DateTime     @updatedAt @map("updated_at")
+  dateOfBirth           DateTime?   @map("date_of_birth") @db.Date
+  hireDate              DateTime?   @map("hire_date") @db.Date
+  retirementDate        DateTime?   @map("retirement_date") @db.Date
+  isActive              Boolean     @default(true) @map("is_active")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
 
-  faculty          Faculty           @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  department       Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  faculty          Faculty          @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  department       Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   programFaculties ProgramFaculty[]
   researchOutputs  ResearchOutput[]
 
@@ -559,20 +567,20 @@ model ProgramFaculty {
 // ══════════════════════════════════════════════════════════════════════════
 
 model EnrollmentMetric {
-  id                  String   @id @default(cuid())
-  programId           String   @map("program_id")
-  academicYear        Int      @map("academic_year")
-  applications        Int
-  admitted            Int
-  enrolled            Int
-  retainedYear2       Int      @map("retained_year2")
-  graduatedOnTime     Int      @map("graduated_on_time")
-  graduatedLate       Int      @map("graduated_late")
-  dropouts            Int
-  freshnessDate       DateTime @map("freshness_date") @db.Date
-  methodologyVersion  String   @default("v1") @map("methodology_version")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(cuid())
+  programId          String   @map("program_id")
+  academicYear       Int      @map("academic_year")
+  applications       Int
+  admitted           Int
+  enrolled           Int
+  retainedYear2      Int      @map("retained_year2")
+  graduatedOnTime    Int      @map("graduated_on_time")
+  graduatedLate      Int      @map("graduated_late")
+  dropouts           Int
+  freshnessDate      DateTime @map("freshness_date") @db.Date
+  methodologyVersion String   @default("v1") @map("methodology_version")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
@@ -584,15 +592,15 @@ model EnrollmentMetric {
 }
 
 model StudentDemographic {
-  id             String   @id @default(cuid())
-  programId      String   @map("program_id")
-  academicYear   Int      @map("academic_year")
-  breakdownJson  Json     @map("breakdown_json")
-  avgTgatScore   Float?   @map("avg_tgat_score")
-  avgTpatScore   Float?   @map("avg_tpat_score")
-  freshnessDate  DateTime @map("freshness_date") @db.Date
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  programId     String   @map("program_id")
+  academicYear  Int      @map("academic_year")
+  breakdownJson Json     @map("breakdown_json")
+  avgTgatScore  Float?   @map("avg_tgat_score")
+  avgTpatScore  Float?   @map("avg_tpat_score")
+  freshnessDate DateTime @map("freshness_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
@@ -607,13 +615,13 @@ model StudentDemographic {
 // ══════════════════════════════════════════════════════════════════════════
 
 model CostMethodology {
-  id              String   @id @default(cuid())
-  version         String   @unique
-  description     String   @db.Text
-  effectiveDate   DateTime @map("effective_date") @db.Date
-  documentUrl     String?  @map("document_url")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  version       String   @unique
+  description   String   @db.Text
+  effectiveDate DateTime @map("effective_date") @db.Date
+  documentUrl   String?  @map("document_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   financialMetrics FinancialMetric[]
 
@@ -622,22 +630,22 @@ model CostMethodology {
 }
 
 model FinancialMetric {
-  id                      String   @id @default(cuid())
-  programId               String   @map("program_id")
-  fiscalYear              Int      @map("fiscal_year")
-  tuitionRevenue          Decimal  @map("tuition_revenue") @db.Decimal(14, 2)
-  otherRevenue            Decimal  @default(0) @map("other_revenue") @db.Decimal(14, 2)
-  directCost              Decimal  @map("direct_cost") @db.Decimal(14, 2)
-  allocatedFacultyCost    Decimal  @map("allocated_faculty_cost") @db.Decimal(14, 2)
-  allocatedFacilityCost   Decimal  @map("allocated_facility_cost") @db.Decimal(14, 2)
-  allocatedOverhead       Decimal  @map("allocated_overhead") @db.Decimal(14, 2)
-  netContribution         Decimal  @map("net_contribution") @db.Decimal(14, 2)
-  costPerStudent          Decimal? @map("cost_per_student") @db.Decimal(14, 2)
-  freshnessDate           DateTime @map("freshness_date") @db.Date
-  methodologyVersion      String   @default("v1") @map("methodology_version")
-  costMethodologyId       String?  @map("cost_methodology_id")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(cuid())
+  programId             String   @map("program_id")
+  fiscalYear            Int      @map("fiscal_year")
+  tuitionRevenue        Decimal  @map("tuition_revenue") @db.Decimal(14, 2)
+  otherRevenue          Decimal  @default(0) @map("other_revenue") @db.Decimal(14, 2)
+  directCost            Decimal  @map("direct_cost") @db.Decimal(14, 2)
+  allocatedFacultyCost  Decimal  @map("allocated_faculty_cost") @db.Decimal(14, 2)
+  allocatedFacilityCost Decimal  @map("allocated_facility_cost") @db.Decimal(14, 2)
+  allocatedOverhead     Decimal  @map("allocated_overhead") @db.Decimal(14, 2)
+  netContribution       Decimal  @map("net_contribution") @db.Decimal(14, 2)
+  costPerStudent        Decimal? @map("cost_per_student") @db.Decimal(14, 2)
+  freshnessDate         DateTime @map("freshness_date") @db.Date
+  methodologyVersion    String   @default("v1") @map("methodology_version")
+  costMethodologyId     String?  @map("cost_methodology_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
   costMethodology CostMethodology? @relation(fields: [costMethodologyId], references: [id], onDelete: SetNull)
@@ -725,23 +733,23 @@ model ResearchOutput {
 // ══════════════════════════════════════════════════════════════════════════
 
 model JobPosting {
-  id             String   @id @default(cuid())
+  id             String                       @id @default(cuid())
   source         String
-  externalId     String   @map("external_id")
+  externalId     String                       @map("external_id")
   title          String
-  employerName   String?  @map("employer_name")
+  employerName   String?                      @map("employer_name")
   location       String?
   province       String?
-  salaryMin      Decimal? @map("salary_min") @db.Decimal(12, 2)
-  salaryMax      Decimal? @map("salary_max") @db.Decimal(12, 2)
-  postedDate     DateTime @map("posted_date") @db.Date
-  descriptionRaw String   @map("description_raw") @db.Text
+  salaryMin      Decimal?                     @map("salary_min") @db.Decimal(12, 2)
+  salaryMax      Decimal?                     @map("salary_max") @db.Decimal(12, 2)
+  postedDate     DateTime                     @map("posted_date") @db.Date
+  descriptionRaw String                       @map("description_raw") @db.Text
   embedding      Unsupported("vector(1536)")?
-  processedAt    DateTime? @map("processed_at")
-  sourcePdfId    String?  @map("source_pdf_id")
-  freshnessDate  DateTime @map("freshness_date") @db.Date
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  processedAt    DateTime?                    @map("processed_at")
+  sourcePdfId    String?                      @map("source_pdf_id")
+  freshnessDate  DateTime                     @map("freshness_date") @db.Date
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
 
   sourcePdf        PdfDocument?      @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
   jobPostingSkills JobPostingSkill[]
@@ -792,21 +800,21 @@ model OccupationDemand {
 }
 
 model PolicyDocument {
-  id                String       @id @default(cuid())
-  source            PolicySource
-  title             String       @db.Text
-  publishedDate     DateTime     @map("published_date") @db.Date
-  url               String?
-  contentRaw        String?      @map("content_raw") @db.Text
-  summaryTh         String?      @map("summary_th") @db.Text
-  summaryEn         String?      @map("summary_en") @db.Text
-  embedding         Unsupported("vector(1536)")?
-  relevantProgramIds String[]    @map("relevant_program_ids")
-  relevantSkillIds   String[]    @map("relevant_skill_ids")
-  sourcePdfId       String?      @map("source_pdf_id")
-  freshnessDate     DateTime     @map("freshness_date") @db.Date
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  id                 String                       @id @default(cuid())
+  source             PolicySource
+  title              String                       @db.Text
+  publishedDate      DateTime                     @map("published_date") @db.Date
+  url                String?
+  contentRaw         String?                      @map("content_raw") @db.Text
+  summaryTh          String?                      @map("summary_th") @db.Text
+  summaryEn          String?                      @map("summary_en") @db.Text
+  embedding          Unsupported("vector(1536)")?
+  relevantProgramIds String[]                     @map("relevant_program_ids")
+  relevantSkillIds   String[]                     @map("relevant_skill_ids")
+  sourcePdfId        String?                      @map("source_pdf_id")
+  freshnessDate      DateTime                     @map("freshness_date") @db.Date
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
 
   sourcePdf PdfDocument? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
 
@@ -816,19 +824,19 @@ model PolicyDocument {
 }
 
 model TrendSignal {
-  id                String     @id @default(cuid())
-  signalType        SignalType @map("signal_type")
-  title             String     @db.Text
-  summaryTh         String?    @map("summary_th") @db.Text
-  summaryEn         String?    @map("summary_en") @db.Text
-  sourceUrl         String?    @map("source_url")
-  detectedDate      DateTime   @map("detected_date") @db.Date
-  impactScore       Float      @map("impact_score")
-  affectedProgramIds String[]  @map("affected_program_ids")
-  affectedSkillIds   String[]  @map("affected_skill_ids")
-  aiInferenceId     String?    @map("ai_inference_id")
-  createdAt         DateTime   @default(now()) @map("created_at")
-  updatedAt         DateTime   @updatedAt @map("updated_at")
+  id                 String     @id @default(cuid())
+  signalType         SignalType @map("signal_type")
+  title              String     @db.Text
+  summaryTh          String?    @map("summary_th") @db.Text
+  summaryEn          String?    @map("summary_en") @db.Text
+  sourceUrl          String?    @map("source_url")
+  detectedDate       DateTime   @map("detected_date") @db.Date
+  impactScore        Float      @map("impact_score")
+  affectedProgramIds String[]   @map("affected_program_ids")
+  affectedSkillIds   String[]   @map("affected_skill_ids")
+  aiInferenceId      String?    @map("ai_inference_id")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
 
   aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
 
@@ -838,19 +846,19 @@ model TrendSignal {
 }
 
 model PeerProgram {
-  id             String   @id @default(cuid())
+  id             String                       @id @default(cuid())
   institution    String
   country        String
-  programName    String   @map("program_name")
-  programLevel   ProgramLevel @map("program_level")
-  descriptionUrl String?  @map("description_url")
+  programName    String                       @map("program_name")
+  programLevel   ProgramLevel                 @map("program_level")
+  descriptionUrl String?                      @map("description_url")
   ranking        Int?
-  lastScraped    DateTime @map("last_scraped")
+  lastScraped    DateTime                     @map("last_scraped")
   embedding      Unsupported("vector(1536)")?
-  sourcePdfId    String?  @map("source_pdf_id")
-  freshnessDate  DateTime @map("freshness_date") @db.Date
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  sourcePdfId    String?                      @map("source_pdf_id")
+  freshnessDate  DateTime                     @map("freshness_date") @db.Date
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
 
   sourcePdf PdfDocument? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
 
@@ -903,34 +911,34 @@ model DemographicProjection {
 // ══════════════════════════════════════════════════════════════════════════
 
 model PdfDocument {
-  id                String              @id @default(cuid())
-  originalFilename  String              @map("original_filename")
-  storageUrl        String              @map("storage_url")
-  fileSize          Int                 @map("file_size")
-  pageCount         Int                 @map("page_count")
-  sourceCategory    PdfSourceCategory   @map("source_category")
-  sourceOrg         String?             @map("source_org")
-  language          PdfLanguage         @default(TH)
-  uploadedByUserId  String?             @map("uploaded_by_user_id")
-  uploadedAt        DateTime            @default(now()) @map("uploaded_at")
-  processingStatus  PdfProcessingStatus @default(PENDING) @map("processing_status")
-  extractedTextUrl  String?             @map("extracted_text_url")
-  ocrApplied        Boolean             @default(false) @map("ocr_applied")
-  ocrConfidence     Float?              @map("ocr_confidence")
-  contentHash       String              @unique @map("content_hash")
-  embedding         Unsupported("vector(1536)")?
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  id               String                       @id @default(cuid())
+  originalFilename String                       @map("original_filename")
+  storageUrl       String                       @map("storage_url")
+  fileSize         Int                          @map("file_size")
+  pageCount        Int                          @map("page_count")
+  sourceCategory   PdfSourceCategory            @map("source_category")
+  sourceOrg        String?                      @map("source_org")
+  language         PdfLanguage                  @default(TH)
+  uploadedByUserId String?                      @map("uploaded_by_user_id")
+  uploadedAt       DateTime                     @default(now()) @map("uploaded_at")
+  processingStatus PdfProcessingStatus          @default(PENDING) @map("processing_status")
+  extractedTextUrl String?                      @map("extracted_text_url")
+  ocrApplied       Boolean                      @default(false) @map("ocr_applied")
+  ocrConfidence    Float?                       @map("ocr_confidence")
+  contentHash      String                       @unique @map("content_hash")
+  embedding        Unsupported("vector(1536)")?
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
 
   uploadedBy User? @relation("PdfUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
-  pages            PdfPage[]
-  extractions      PdfExtraction[]
-  tables           PdfTable[]
-  curricula        Curriculum[]
-  jobPostings      JobPosting[]
-  policyDocuments  PolicyDocument[]
-  peerPrograms     PeerProgram[]
+  pages           PdfPage[]
+  extractions     PdfExtraction[]
+  tables          PdfTable[]
+  curricula       Curriculum[]
+  jobPostings     JobPosting[]
+  policyDocuments PolicyDocument[]
+  peerPrograms    PeerProgram[]
 
   @@index([sourceCategory])
   @@index([processingStatus])
@@ -939,14 +947,14 @@ model PdfDocument {
 }
 
 model PdfPage {
-  id             String  @id @default(cuid())
-  pdfDocumentId  String  @map("pdf_document_id")
-  pageNumber     Int     @map("page_number")
-  textContent    String? @map("text_content") @db.Text
-  hasImages      Boolean @default(false) @map("has_images")
-  hasTables      Boolean @default(false) @map("has_tables")
-  embedding      Unsupported("vector(1536)")?
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            String                       @id @default(cuid())
+  pdfDocumentId String                       @map("pdf_document_id")
+  pageNumber    Int                          @map("page_number")
+  textContent   String?                      @map("text_content") @db.Text
+  hasImages     Boolean                      @default(false) @map("has_images")
+  hasTables     Boolean                      @default(false) @map("has_tables")
+  embedding     Unsupported("vector(1536)")?
+  createdAt     DateTime                     @default(now()) @map("created_at")
 
   pdfDocument PdfDocument @relation(fields: [pdfDocumentId], references: [id], onDelete: Cascade)
 
@@ -956,19 +964,19 @@ model PdfPage {
 }
 
 model PdfExtraction {
-  id                String            @id @default(cuid())
-  pdfDocumentId     String            @map("pdf_document_id")
-  extractionType    PdfExtractionType @map("extraction_type")
-  targetEntityType  String            @map("target_entity_type")
-  targetEntityId    String?           @map("target_entity_id")
-  confidence        Float
-  methodVersion     String            @map("method_version")
-  reviewStatus      ReviewStatus      @default(PENDING_REVIEW) @map("review_status")
-  reviewedByUserId  String?           @map("reviewed_by_user_id")
-  reviewedAt        DateTime?         @map("reviewed_at")
-  payloadJson       Json              @map("payload_json")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  id               String            @id @default(cuid())
+  pdfDocumentId    String            @map("pdf_document_id")
+  extractionType   PdfExtractionType @map("extraction_type")
+  targetEntityType String            @map("target_entity_type")
+  targetEntityId   String?           @map("target_entity_id")
+  confidence       Float
+  methodVersion    String            @map("method_version")
+  reviewStatus     ReviewStatus      @default(PENDING_REVIEW) @map("review_status")
+  reviewedByUserId String?           @map("reviewed_by_user_id")
+  reviewedAt       DateTime?         @map("reviewed_at")
+  payloadJson      Json              @map("payload_json")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
 
   pdfDocument PdfDocument @relation(fields: [pdfDocumentId], references: [id], onDelete: Cascade)
   reviewedBy  User?       @relation("ExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
@@ -1013,8 +1021,8 @@ model Scenario {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  results ScenarioResult[]
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results   ScenarioResult[]
   decisions CouncilDecision[]
 
   @@index([userId])
@@ -1079,19 +1087,53 @@ model Annotation {
 }
 
 model DataSource {
-  id                 String         @id @default(cuid())
-  name               String         @unique
-  kind               DataSourceKind
-  baseUrl            String?        @map("base_url")
-  acceptsPdfUploads  Boolean        @default(false) @map("accepts_pdf_uploads")
-  lastSyncedAt       DateTime?      @map("last_synced_at")
-  status             String         @default("active")
-  notes              String?        @db.Text
-  createdAt          DateTime       @default(now()) @map("created_at")
-  updatedAt          DateTime       @updatedAt @map("updated_at")
+  id                String         @id @default(cuid())
+  name              String         @unique
+  kind              DataSourceKind
+  baseUrl           String?        @map("base_url")
+  acceptsPdfUploads Boolean        @default(false) @map("accepts_pdf_uploads")
+  lastSyncedAt      DateTime?      @map("last_synced_at")
+  status            String         @default("active")
+  notes             String?        @db.Text
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
   @@index([kind])
   @@map("data_sources")
+}
+
+// Every call to PdfGenerationService writes a row here — success or
+// failure. The admin "/pdf-generation" dashboard reads this. Observability
+// only; the generated bytes live in MinIO (see storageKey).
+model PdfGeneration {
+  id                   String              @id @default(cuid())
+  templateName         String              @map("template_name")
+  templateVersion      String              @map("template_version")
+  requesterId          String?             @map("requester_id")
+  scopeLevel           String?             @map("scope_level")
+  scopeId              String?             @map("scope_id")
+  // SHA-256 of the JSON-stringified input data. Lets us detect identical
+  // regenerations without storing the (possibly large, possibly sensitive)
+  // payload itself.
+  dataHash             String              @map("data_hash")
+  status               PdfGenerationStatus @default(QUEUED)
+  byteSize             Int?                @map("byte_size")
+  pageCount            Int?                @map("page_count")
+  generationDurationMs Int?                @map("generation_duration_ms")
+  storageBucket        String?             @map("storage_bucket")
+  storageKey           String?             @map("storage_key")
+  gotenbergRequestId   String?             @map("gotenberg_request_id")
+  errorCode            String?             @map("error_code")
+  errorMessage         String?             @map("error_message") @db.Text
+  createdAt            DateTime            @default(now()) @map("created_at")
+  completedAt          DateTime?           @map("completed_at")
+
+  requester User? @relation(fields: [requesterId], references: [id], onDelete: SetNull)
+
+  @@index([templateName, createdAt])
+  @@index([requesterId, createdAt])
+  @@index([status])
+  @@map("pdf_generations")
 }
 
 // Bridges KKU SSO faculty/department claim values to our internal IDs.

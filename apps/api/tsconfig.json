@@ -11,7 +11,14 @@
     "declaration": false,
     "declarationMap": false,
     "verbatimModuleSyntax": false,
-    "noEmit": false
+    "noEmit": false,
+    // We don't emit JSX — api is a Node service. But @kku/pdf-templates
+    // is source-linked and contains .tsx, so TS needs a JSX setting to
+    // *parse* those files when it follows the import. react-jsx is the
+    // modern transform; the emitted code never runs here because api's
+    // only consumer of pdf-templates is PdfService which calls the
+    // rendered *output*.
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

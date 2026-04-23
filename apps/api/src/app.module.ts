@@ -10,6 +10,7 @@ import { DepartmentsController } from './departments/departments.controller';
 import { ProgramsController } from './programs/programs.controller';
 import { UsersController } from './users/users.controller';
 import { DataSourcesController } from './data-sources/data-sources.controller';
+import { PdfModule } from './pdf/pdf.module';
 
 import {
   AccessControlGuard,
@@ -37,6 +38,7 @@ import {
         { ttl: 60_000, limit: 120 },
       ],
     }),
+    PdfModule,
   ],
   controllers: [
     AppController,

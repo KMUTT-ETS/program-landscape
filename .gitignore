@@ -51,3 +51,9 @@ dist/*.sha256
 
 # TypeScript incremental cache
 *.tsbuildinfo
+
+# Gotenberg fonts — TH Sarabun New is sourced locally per dev
+# (see infra/gotenberg/README.md). Production images bake them in.
+infra/gotenberg/fonts/*.ttf
+infra/gotenberg/fonts/*.TTF
+

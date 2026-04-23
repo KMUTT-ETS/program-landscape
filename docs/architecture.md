@@ -11,13 +11,18 @@ apps/
   ingestion/   NestJS standalone — PDF intake, connectors, BullMQ workers
 
 packages/
-  shared/      Zod schemas, types, decorators, AI service wrapper, RBAC
-  db/          Prisma schema, migrations, scope-aware query helpers
-  ui/          shadcn-extended component library + Storybook
-  design/      Design tokens (light + dark) + Tailwind preset
+  shared/       Zod schemas, types, decorators, AI service wrapper, RBAC,
+                PDF generation service (Gotenberg client), S3/MinIO storage
+  db/           Prisma schema, migrations, scope-aware query helpers
+  ui/           shadcn-extended component library + Storybook
+  design/       Design tokens (light + dark) + Tailwind preset
+  pdf-templates/ React-rendered HTML templates for Council Pack, briefs,
+                scenario packs, decision records (rendered by Chromium via
+                Gotenberg — see `docs/pdf-generation.md`)
 
 infra/
   postgres/    Custom postgres image (postgis + pgvector + pg_trgm)
+  gotenberg/   Custom gotenberg image with TH Sarabun New embedded
 
 docs/          This folder
 prompts/       Session-by-session build manual

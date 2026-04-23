@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { LogOut, Monitor, Moon, Palette, Sun, User } from 'lucide-react';
+import { FileText, LogOut, Monitor, Moon, Palette, Sun, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -80,6 +80,14 @@ export function TopBarRight({ user }: { user: SessionUser }) {
               Styleguide
             </a>
           </DropdownMenuItem>
+          {user.role === 'ADMIN' && (
+            <DropdownMenuItem asChild>
+              <a href="/admin/pdf-generation" className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-text-tertiary" aria-hidden />
+                PDF generation
+              </a>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </>

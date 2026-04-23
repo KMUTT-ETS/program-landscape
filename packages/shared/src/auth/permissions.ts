@@ -60,6 +60,12 @@ export const PERMISSIONS = [
   'pdf:upload',
   'pdf:approve_extraction',
 
+  // PDF generation (Gotenberg-backed). Modules that need to export PDFs
+  // (Council Pack, briefs, scenario packs, decision records) require this.
+  // pdf:admin is the admin dashboard + template listing.
+  'pdf:generate',
+  'pdf:admin',
+
   // Ingestion
   'ingestion:configure',
   'ingestion:trigger',
@@ -90,6 +96,7 @@ const COUNCIL_PERMS: Permission[] = [
   'financials:read:all',
   'scenarios:read:all',
   'decisions:read:all',
+  'pdf:generate',
 ];
 
 const EXECUTIVE_PERMS: Permission[] = [
@@ -113,6 +120,7 @@ const DEAN_PERMS: Permission[] = [
   'scenarios:create:own_faculty',
   'decisions:read:all',
   'pdf:upload',
+  'pdf:generate',
 ];
 
 const DEPT_HEAD_PERMS: Permission[] = [
@@ -127,6 +135,7 @@ const DEPT_HEAD_PERMS: Permission[] = [
   'outcomes:read:all',
   'scenarios:read:all',
   'pdf:upload',
+  'pdf:generate',
 ];
 
 const ANALYST_PERMS: Permission[] = [
@@ -142,6 +151,7 @@ const ANALYST_PERMS: Permission[] = [
   'decisions:read:all',
   'pdf:upload',
   'pdf:approve_extraction',
+  'pdf:generate',
   'ingestion:configure',
   'ingestion:trigger',
   'data_sources:read',

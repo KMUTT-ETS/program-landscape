@@ -58,17 +58,34 @@ services:
       timeout: 5s
       retries: 5
 
-  # NOTE: Default upstream Gotenberg image. Prompt 02c replaces this with a
-  # custom image that embeds TH Sarabun New (Thailand's Cabinet-mandated font).
+  # Custom Gotenberg image with TH Sarabun New embedded system-wide. The
+  # upstream image renders Thai as tofu boxes (□□□) — see
+  # infra/gotenberg/README.md. Rebuild with `docker compose build gotenberg`
+  # after changing the Dockerfile or dropping new fonts into
+  # infra/gotenberg/fonts/.
   gotenberg:
-    image: gotenberg/gotenberg:8
+    build:
+      context: ./infra/gotenberg
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    image: program-landscape-gotenberg:dev
     container_name: program-landscape-gotenberg
     restart: unless-stopped
     command:
       - "gotenberg"
-      - "--chromium-disable-web-security=true"
+      - "--api-timeout=60s"
+      - "--log-level=info"
+      # Keep web security on; we never render untrusted HTML. The only
+      # fetches the templates make are to same-origin asset URLs.
+      - "--chromium-disable-web-security=false"
     ports:
-      - "3001:3000"
+      - "${GOTENBERG_PORT:-3001}:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres-data:
