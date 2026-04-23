@@ -254,7 +254,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 04: Skills & AI  *(completed 2026-04-23; AiService + Google/Anthropic providers real; taxonomy seed; BullMQ ai-jobs; /skills + /admin/extraction-review UIs)*
 - [x] Prompt 05: Cockpit  *(completed 2026-04-23; health-score.v1 methodology with explicit null handling; Heatmap + BubbleMatrix + Rollup views; AI brief + Council Pack export)*
 - [x] Prompt 06: Deep-Dive  *(completed 2026-04-23; /programs/[id] with 10 sections, Radar + Funnel + Waterfall viz, role-gated faculty, disagreement capture, print + PDF export)*
-- [ ] Prompt 07: Trends Radar
+- [x] Prompt 07: Trends Radar  *(completed 2026-04-23; 29 seeded signals, 6 monitor cron jobs scaffolded, TrendsRadar polar viz, Notification + SignalSubscription + Inbox)*
 - [ ] Prompt 08: Gap Analyzer
 - [ ] Prompt 09: Scenario Planner
 - [ ] Prompt 10: Benchmarking
@@ -265,6 +265,19 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 07 (2026-04-23):*
+- **29 realistic TrendSignal rows are SEEDED, not collected.** All 23 connectors are still mocked (prompt 03) — the monitors scaffolded here run on cron but return "found nothing" until prompt 14 wires real upstreams. The seeded signals span 5 types (policy / research / market / tech / news) with bilingual summaries and three of them target seeded programs so the Deep-Dive's "Trend exposure" section surfaces content on first boot.
+- **Six monitor cron jobs live on the new `trend-monitors` BullMQ queue.** Cadences in `MONITOR_CADENCE`: policy every 6h, job-market daily, research/peer-programs/tech-signals weekly, patents monthly. Each monitor is a stub that logs "scanned, nothing new" today. When you flip one real, the two entry points are: (a) for PDF-origin signals, enqueue the existing `ANALYZE_POLICY_DOC` ai-job which already produces the AI analysis; (b) for API-origin signals, call `createSignal()` from `@apps/ingestion/src/trend-monitors/monitors` which handles fan-out for free.
+- **Notifications are in-app only for now.** `Notification` table + `/inbox` UI + top-bar bell entry are all live; SMTP email digest is deferred to prompt 13 when we wire ops mail. The flow `createSignal → fanoutSignalToSubscribers → Notification rows` is fully tested (3 new vitest suites) and idempotent (existing (user, signal) pair never double-fires).
+- **`SignalSubscription` uses free-text discriminators.** `filterType` ∈ {`program`, `skill`, `sector`, `signal_type`}; `filterValue` is matched against fields per type. Sector today is a keyword-in-title fallback — real sector tagging lives in a `TrendSignal.tags` column we'll add when prompt 14's connectors start emitting them.
+- **`/trends` uses a Radix filter rail + polar radar side-by-side.** `<TrendsRadar>` is hand-rolled SVG (Recharts' `PolarScatter` can't do concentric time rings cleanly). Dot size + opacity encode impact; radius from centre = time since detection; angle = signal type wedge. Click a dot → detail page. Tested implicitly via build; visual regression defers with the rest (Playwright still not installed).
+- **Weekly digest endpoint returns DATA, not PDF.** `GET /trends/digest/weekly` returns the digest shape; the PDF itself is cut via `POST /pdf/generate` using the existing `weekly-trend-digest` template from prompt 02c. Separating shape from format means the in-app "digest view" (planned for prompt 12) and the PDF share one source of truth.
+- **Sub-pages `/trends/sectors` and `/trends/regions/[region]` are filter presets today.** They redirect back into `/trends` with a keyword search. Real sector/region tagging lands with prompt 14; this is enough structure for operators to bookmark.
+- **`"mark reviewed" uses Annotation with `kind='signal_review'`.** Keeps TrendSignal append-only while still giving operators a "mark as seen" affordance. Distinct from `kind='disagreement'` (from prompt 06) so the admin UI can filter.
+- **`TrendsController` "dangerZoneCount" returns 0 today.** That cross-join (signals × programs in cockpit danger zone) is a natural prompt-08 deliverable — Gap Analyzer computes program-level risk routinely and can feed this number. Shape kept stable so the prompt-08 wire-up is a one-line code change.
+- **Deferred with loud notes:** real signal detection (prompt 14 connector wiring); SMTP email digest (prompt 13); `/trends/sectors` real sector tagging; patent API access; "Add to scenario" button (prompt 09); related-signal suggestion via vector similarity (prompt 10); Thailand region choropleth on `/trends/regions/*` (same data gap as the deep-dive's geographic section).
+- **Migration:** `20260423060000_notifications_and_subs` — additive, two new tables (notifications, signal_subscriptions). No changes to `trend_signals`.
 
 *Prompt 06 (2026-04-23):*
 - **Deep-dive endpoints are explicit fan-out, not a single giant call.** Ten `GET /programs/:id/<section>` endpoints. The UI parallelises the fetches — above-the-fold sections (header, narrative) paint first, below-the-fold continue loading. Avoids the "one slow aggregator blocks the whole page" failure mode.

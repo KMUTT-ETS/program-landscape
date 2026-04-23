@@ -34,6 +34,13 @@ import {
   createAiJobsEvents,
   type AiJobData,
 } from './ai-jobs';
+import {
+  createTrendMonitorsQueue,
+  createTrendMonitorsWorker,
+  createTrendMonitorsEvents,
+  scheduleMonitors,
+  type TrendMonitorJobData,
+} from './trend-monitors';
 
 // Owns FIVE runtime components:
 //   - connector registry + ConnectorRunner
@@ -58,6 +65,9 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private aiJobsQueue?: Queue<AiJobData>;
   private aiJobsWorker?: Worker<AiJobData>;
   private aiJobsEvents?: QueueEvents;
+  private trendMonitorsQueue?: Queue<TrendMonitorJobData>;
+  private trendMonitorsWorker?: Worker<TrendMonitorJobData>;
+  private trendMonitorsEvents?: QueueEvents;
   private scheduler?: IngestionScheduler;
 
   constructor(private readonly config: ConfigService) {}
@@ -129,10 +139,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.aiJobsWorker = createAiJobsWorker(aiJobsQueueConfig, aiHandlers);
     this.aiJobsEvents = createAiJobsEvents(aiJobsQueueConfig);
 
+    // ── Trend monitors (prompt 07) ────────────────────────────────────
+    this.trendMonitorsQueue = createTrendMonitorsQueue({ redisUrl });
+    this.trendMonitorsWorker = createTrendMonitorsWorker({ redisUrl });
+    this.trendMonitorsEvents = createTrendMonitorsEvents({ redisUrl });
+    const { registered: monitorsRegistered } = await scheduleMonitors(this.trendMonitorsQueue);
+
     this.logger.log(
       `ingestion worker online — ${registry.size} connectors (${registered} scheduled, ${skipped} manual-only); ` +
         `pdf-intake concurrency=${pdfIntakeQueueConfig.concurrency}; ` +
-        `ai-jobs provider=${ai.providerId} concurrency=${aiJobsQueueConfig.concurrency}`,
+        `ai-jobs provider=${ai.providerId} concurrency=${aiJobsQueueConfig.concurrency}; ` +
+        `trend-monitors registered=${monitorsRegistered}`,
     );
   }
 
@@ -141,12 +158,15 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     await this.connectorWorker?.close();
     await this.pdfIntakeWorker?.close();
     await this.aiJobsWorker?.close();
+    await this.trendMonitorsWorker?.close();
     await this.connectorQueue?.close();
     await this.pdfIntakeQueue?.close();
     await this.aiJobsQueue?.close();
+    await this.trendMonitorsQueue?.close();
     await this.connectorEvents?.close();
     await this.pdfIntakeEvents?.close();
     await this.aiJobsEvents?.close();
+    await this.trendMonitorsEvents?.close();
   }
 
   scheduleNow(slug: string, userId: string): Promise<string> {

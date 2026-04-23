@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { BrainCircuit, ClipboardCheck, Database, FileText, Gauge, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
+import { Bell, BrainCircuit, ClipboardCheck, Compass, Database, FileText, Gauge, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -98,9 +98,21 @@ export function TopBarRight({ user }: { user: SessionUser }) {
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
+            <a href="/trends" className="flex items-center gap-2">
+              <Compass className="h-4 w-4 text-text-tertiary" aria-hidden />
+              Trends radar
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
             <a href="/skills" className="flex items-center gap-2">
               <Network className="h-4 w-4 text-text-tertiary" aria-hidden />
               Skill explorer
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href="/inbox" className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-text-tertiary" aria-hidden />
+              Inbox
             </a>
           </DropdownMenuItem>
           {(user.role === 'ADMIN' || user.role === 'ANALYST') && (

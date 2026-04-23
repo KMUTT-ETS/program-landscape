@@ -7,3 +7,4 @@ export * from './bubble-matrix';
 export * from './radar';
 export * from './waterfall';
 export * from './funnel';
+export * from './trends-radar';

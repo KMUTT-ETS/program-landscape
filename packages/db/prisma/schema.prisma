@@ -321,15 +321,17 @@ model User {
 
   auditLogs              AuditLog[]
   aiInferences           AiInference[]
-  uploadedPdfs           PdfDocument[]      @relation("PdfUploader")
-  reviewedExtractions    PdfExtraction[]    @relation("ExtractionReviewer")
-  reviewedAiExtractions  AiExtraction[]     @relation("AiExtractionReviewer")
+  uploadedPdfs           PdfDocument[]        @relation("PdfUploader")
+  reviewedExtractions    PdfExtraction[]      @relation("ExtractionReviewer")
+  reviewedAiExtractions  AiExtraction[]       @relation("AiExtractionReviewer")
   scenarios              Scenario[]
   councilDecisions       CouncilDecision[]
   annotations            Annotation[]
   pdfGenerations         PdfGeneration[]
-  triggeredIngestionRuns IngestionRun[]     @relation("IngestionTriggeredBy")
+  triggeredIngestionRuns IngestionRun[]       @relation("IngestionTriggeredBy")
   savedCockpitViews      SavedCockpitView[]
+  notifications          Notification[]
+  signalSubscriptions    SignalSubscription[]
 
   @@index([email])
   @@index([ssoSubject])
@@ -1167,24 +1169,24 @@ model CouncilDecision {
 }
 
 model Annotation {
-  id         String   @id @default(cuid())
-  userId     String   @map("user_id")
-  entityType String   @map("entity_type")
-  entityId   String   @map("entity_id")
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id")
   // 'comment' (default), 'disagreement' (expert correction of an AI
   // output), 'narrative_edit' (human override of an AI narrative).
-  kind       String   @default("comment")
+  kind          String   @default("comment")
   // Section of the deep-dive this annotation targets — e.g. 'skills',
   // 'outcomes', 'narrative'. Free-text so new sections land without
   // schema churn.
-  sectionKey String?  @map("section_key")
+  sectionKey    String?  @map("section_key")
   // When the annotation is a correction of a specific AI output, link
   // to the AiInference row so model-improvement tooling can find it.
-  aiInferenceId String? @map("ai_inference_id")
-  bodyTh     String?  @map("body_th") @db.Text
-  bodyEn     String?  @map("body_en") @db.Text
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  aiInferenceId String?  @map("ai_inference_id")
+  bodyTh        String?  @map("body_th") @db.Text
+  bodyEn        String?  @map("body_en") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
@@ -1330,6 +1332,69 @@ model SavedCockpitView {
 
   @@index([userId, lastUsedAt])
   @@map("saved_cockpit_views")
+}
+
+// In-app notification inbox. Created by fan-out when a new high-impact
+// TrendSignal affects a program the user subscribes to (or, via role +
+// faculty association, is responsible for). The inbox surface is a
+// top-bar bell + /inbox list; email fan-out is deferred to prompt 13
+// when SMTP infra lands.
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  // 'trend_signal' (default), 'extraction_ready', 'decision_pending' —
+  // free-text discriminator so new kinds don't require migrations.
+  kind       String    @default("trend_signal")
+  // Short single-line headline (English). Thai body goes in bodyTh.
+  title      String
+  bodyEn     String?   @map("body_en") @db.Text
+  bodyTh     String?   @map("body_th") @db.Text
+  // Optional link to the entity that triggered the notification. Kept
+  // as text pair so notifications for different entity kinds share the
+  // same table. Consumer maps (entityType, entityId) to an app route.
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id")
+  // Severity drives badge tone in the bell. 'low' / 'medium' / 'high'.
+  severity   String    @default("medium")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([kind])
+  @@map("notifications")
+}
+
+// Per-user subscription rules. When a TrendSignal matches any rule the
+// user subscribed to, fan-out writes a Notification row. Rules are
+// ORed (any match fires). Each rule carries ONE filter type to keep
+// the matching loop simple.
+model SignalSubscription {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  // One of 'program', 'skill', 'sector', 'signal_type'.
+  filterType     String   @map("filter_type")
+  // Matched against TrendSignal fields depending on filterType:
+  //   program      → programId (present in TrendSignal.affectedProgramIds)
+  //   skill        → skillId   (present in TrendSignal.affectedSkillIds)
+  //   sector       → tags (a planned TrendSignal.tags Text[] — for now
+  //                  matched against title substring)
+  //   signal_type  → one of POLICY/RESEARCH/MARKET/TECH/NEWS
+  filterValue    String   @map("filter_value")
+  // Minimum impactScore (0-1) below which the signal is skipped.
+  minImpactScore Float    @default(0) @map("min_impact_score")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, filterType, filterValue])
+  @@index([filterType, filterValue])
+  @@index([isActive])
+  @@map("signal_subscriptions")
 }
 
 // Bridges KKU SSO faculty/department claim values to our internal IDs.
