@@ -21,7 +21,13 @@ export default async function middleware(req: NextRequest) {
 
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) {
-    // Fail closed in any environment rather than silently allowing.
+    // Fail closed + log loudly. Silent redirect loops when the secret
+    // isn't loaded are the worst-class-of-bug to debug; the one-line
+    // warning makes the cause obvious in the server log.
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[middleware] NEXTAUTH_SECRET is not set — every protected route will redirect to /signin. Check apps/web/.env and restart.',
+    );
     return redirectToSignIn(req);
   }
   const payload = await decodeJwt({ token, secret });

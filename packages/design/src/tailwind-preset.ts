@@ -7,11 +7,16 @@ import { shadow } from './tokens/shadow';
 
 // Wraps a CSS variable holding `L C H` (OKLCH triplet) with `oklch()`.
 // Tailwind's alpha modifiers (`bg-surface-1/80`) need a `<alpha-value>`
-// placeholder in the output. The `from var(...) l c h / <alpha>` syntax
-// is the modern CSS Colour 4 "relative colour" form — it re-reads the
-// referenced colour and re-emits it with the supplied alpha. Browsers
-// that support `oklch()` support this.
-const oklch = (v: string) => `oklch(from ${v} l c h / <alpha-value>)`;
+// placeholder in the output — the CSS Color 4 `oklch()` function accepts
+// a space-separated triplet followed by `/ alpha`. Our variables store
+// the bare triplet (e.g. `97.8% 0.003 85`), so `oklch(var(--c) / <alpha>)`
+// expands to a valid `oklch(L C H / alpha)` color string.
+//
+// NOTE: do NOT use `oklch(from var(--c) l c h / <alpha>)` — the relative-
+// color `from` syntax requires a full color expression as its argument,
+// not a bare L C H triplet. That variant renders as invalid in every
+// browser and you get an unstyled black/white UI. Ask me how I know.
+const oklch = (v: string) => `oklch(${v} / <alpha-value>)`;
 
 function mapColor<T extends Record<string, string>>(m: T): Record<keyof T, string> {
   const out: Record<string, string> = {};

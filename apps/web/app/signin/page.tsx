@@ -11,25 +11,25 @@ export default function SignInPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-12">
       <div className="flex items-center gap-3">
-        <div aria-hidden className="h-8 w-8 rounded-md bg-brand" />
+        <div aria-hidden className="h-8 w-8 rounded-md bg-accent-default" />
         <div>
-          <div className="text-sm font-medium text-fg">
+          <div className="text-sm font-medium text-text-primary">
             KKU Curriculum Landscape
           </div>
-          <div className="text-xs text-fg-muted">
+          <div className="text-xs text-text-secondary">
             Strategic decision-support for the University Council
           </div>
         </div>
       </div>
 
-      <h1 className="text-2xl font-semibold text-fg">Sign in</h1>
+      <h1 className="text-2xl font-semibold text-text-primary">Sign in</h1>
 
       <SignInForm
         ssoConfigured={ssoConfigured}
         localAuthEnabled={localAuthEnabled}
       />
 
-      <p className="text-xs text-fg-subtle">
+      <p className="text-xs text-text-tertiary">
         Trouble signing in? Contact the KKU Digital Transformation Office.
       </p>
     </main>
