@@ -65,6 +65,17 @@ export default async function HomePage() {
     redirect('/signin');
   }
   const user = session.user as SessionUser;
+  // Council + senior-leadership roles land on the cockpit by default
+  // (prompt 05 contract). Analysts stay on this overview page which
+  // doubles as the "everything at once" snapshot used during build.
+  if (
+    user.role === 'COUNCIL' ||
+    user.role === 'EXECUTIVE' ||
+    user.role === 'DEAN' ||
+    user.role === 'DEPT_HEAD'
+  ) {
+    redirect('/cockpit');
+  }
 
   const [me, faculties, programsResponse] = await Promise.all([
     apiFetch<MeResponse>('/me').catch(() => null),

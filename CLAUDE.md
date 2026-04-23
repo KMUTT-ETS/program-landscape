@@ -252,7 +252,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [x] Prompt 03: Ingestion framework  *(completed 2026-04-23; 23 connectors all MOCKED — real wiring in prompt 14)*
 - [x] Prompt 03b: PDF intake  *(completed 2026-04-23; plumbing complete, LLM classifier + 7 extractors stubbed — real LLM in prompt 04)*
 - [x] Prompt 04: Skills & AI  *(completed 2026-04-23; AiService + Google/Anthropic providers real; taxonomy seed; BullMQ ai-jobs; /skills + /admin/extraction-review UIs)*
-- [ ] Prompt 05: Cockpit
+- [x] Prompt 05: Cockpit  *(completed 2026-04-23; health-score.v1 methodology with explicit null handling; Heatmap + BubbleMatrix + Rollup views; AI brief + Council Pack export)*
 - [ ] Prompt 06: Deep-Dive
 - [ ] Prompt 07: Trends Radar
 - [ ] Prompt 08: Gap Analyzer
@@ -265,6 +265,19 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - [ ] Prompt 14: Real data integration
 
 **Recent decisions worth knowing about:**
+
+*Prompt 05 (2026-04-23):*
+- **Health score methodology v1 is the locked reference.** `docs/methodologies/health-score.md` + `HEALTH_SCORE_VERSION = 'health-score.v1'` in `packages/db/src/health-score.ts`. **Equal-weighted across the 5 dimensions** (demand / financial / quality / relevance / capability) by design — equal weights are the least-arguable default; any weighted formulation encodes a value judgement that must be surfaced explicitly, and v1 deliberately doesn't.
+- **Null handling rule is LOAD-BEARING.** Missing metrics are EXCLUDED from the average, NEVER substituted with 0 or 50. Every score carries `dataCompletenessPct` and the UI (Heatmap + overall cells) renders null as `—` in tertiary text. Do NOT "fix" null-with-zero — that would punish programs for data gaps.
+- **`relevance` + `capability` dimensions return null for v1.** Real relevance needs the post-approval ProgramSkill materialisation (still deferred from prompt 04); real capability needs the KKU-HR real feed. Both have placeholder scorer functions that deliberately return `{ score: null, completeness: 0 }` so every row shows "low data" rather than a fabricated number.
+- **Cross-scope composite consistency is NOT asserted.** Faculty overall ≠ weighted mean of its departments' overalls — each is computed independently from the MV at its own scope. For v1 the divergence is small; enforce bottom-up consistency in a future version if it ever matters.
+- **Heatmap + BubbleMatrix are new in `@kku/ui/viz`.** Deferred from 02b. BubbleMatrix renders inline SVG (no Recharts) for PDF export compatibility; pulls palette via `useChartPalette()` so dark-mode switch works without remount. Heatmap rows are clickable for drill-in; cells with `completeness < 50%` get a muted row-background tint so the reader notices the gap.
+- **AI brief generation has a graceful no-key fallback.** When no `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` is configured the brief endpoint returns a Thai+English placeholder explaining what's missing and `confidence: 0`. The rest of the flow (save to Decision Workspace, etc.) still works — operators get feedback rather than a 500.
+- **Council Pack export composes through prompt 02c's `pdf` service.** `/cockpit/export` builds the `council-pack` template's `sections` + `executiveSummary` + `provenance` from live cockpit data and calls `PdfService.generateAndPersist`. PDF is always light theme (that invariant already lives in `packages/pdf-templates/base-css.ts`).
+- **Program scope redirects to `/programs/:id` from the cockpit.** Deep-Dive is prompt 06; the redirect is in place so the top-bar ScopeSelector's program picker doesn't land in a broken state. Today `/programs/:id` is a 404 — that's expected and will resolve in prompt 06.
+- **Landing page changes:** authenticated COUNCIL / EXECUTIVE / DEAN / DEPT_HEAD users redirect from `/` → `/cockpit`. ANALYST / ADMIN still land on the existing dev overview at `/` (it's an "everything at once" snapshot used during build; analysts like it).
+- **`SavedCockpitView` is per-user, JSON filter blob.** Migration `20260423040000_saved_cockpit_views`. Filter shape is Zod-validated at the API boundary but free-form in the DB so new filter facets land without a migration. `lastUsedAt` is touch-bumped on each load so recent views sort naturally.
+- **Deferred with notes in `docs/methodologies/health-score.md`:** real demand signal (needs JobThai/JobsDB real), rollup consistency, Redis aggregation cache (simple passthrough now — prod-scale caching lands with prompt 13 if the materialized-view reads ever become the bottleneck), Playwright visual regression (scaffold exists — run `npx playwright install` then `pnpm e2e` to kick off), F1 accuracy on handcrafted Thai-vs-English corpora (same blocker as prompt 04 — no ground truth yet).
 
 *Prompt 04 (2026-04-23):*
 - **`AiService` is THE abstraction.** Every LLM call routes through `packages/shared/src/ai/AiService`. Modules never import `@google/genai` or `@anthropic-ai/sdk` directly. The factory picks the provider from `AI_PROVIDER` env (google / anthropic / openrouter / intelsphere). OpenRouter + IntelSphere are stubs that throw at call time — deliberately loud, not silent fallback.

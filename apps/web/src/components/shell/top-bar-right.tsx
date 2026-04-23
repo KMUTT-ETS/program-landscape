@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { BrainCircuit, ClipboardCheck, Database, FileText, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
+import { BrainCircuit, ClipboardCheck, Database, FileText, Gauge, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -91,6 +91,12 @@ export function TopBarRight({ user }: { user: SessionUser }) {
               </a>
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem asChild>
+            <a href="/cockpit" className="flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-text-tertiary" aria-hidden />
+              Portfolio cockpit
+            </a>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href="/skills" className="flex items-center gap-2">
               <Network className="h-4 w-4 text-text-tertiary" aria-hidden />

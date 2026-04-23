@@ -17,3 +17,4 @@ export * from '@prisma/client';
 export * from './scope';
 export * from './provenance';
 export * from './ai-inference-recorder';
+export * from './health-score';

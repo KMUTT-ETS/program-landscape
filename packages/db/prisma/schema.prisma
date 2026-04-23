@@ -321,14 +321,15 @@ model User {
 
   auditLogs              AuditLog[]
   aiInferences           AiInference[]
-  uploadedPdfs           PdfDocument[]     @relation("PdfUploader")
-  reviewedExtractions    PdfExtraction[]   @relation("ExtractionReviewer")
-  reviewedAiExtractions  AiExtraction[]    @relation("AiExtractionReviewer")
+  uploadedPdfs           PdfDocument[]      @relation("PdfUploader")
+  reviewedExtractions    PdfExtraction[]    @relation("ExtractionReviewer")
+  reviewedAiExtractions  AiExtraction[]     @relation("AiExtractionReviewer")
   scenarios              Scenario[]
   councilDecisions       CouncilDecision[]
   annotations            Annotation[]
   pdfGenerations         PdfGeneration[]
-  triggeredIngestionRuns IngestionRun[]    @relation("IngestionTriggeredBy")
+  triggeredIngestionRuns IngestionRun[]     @relation("IngestionTriggeredBy")
+  savedCockpitViews      SavedCockpitView[]
 
   @@index([email])
   @@index([ssoSubject])
@@ -1292,6 +1293,30 @@ model PdfGeneration {
   @@index([requesterId, createdAt])
   @@index([status])
   @@map("pdf_generations")
+}
+
+// Per-user saved cockpit filter state. A "saved view" captures enough
+// URL state + filter JSON to restore the cockpit exactly as the user
+// left it. Small, cheap, scoped to a single user — not shared.
+model SavedCockpitView {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  // Cockpit view mode ('heatmap' / 'matrix' / 'rollup').
+  viewMode    String   @map("view_mode")
+  scope       String
+  scopeId     String?  @map("scope_id")
+  // Free-shape filter blob so new filter facets land without a schema
+  // migration. Shape is declared in the cockpit DTO Zod schema.
+  filtersJson Json     @map("filters_json")
+  lastUsedAt  DateTime @default(now()) @map("last_used_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastUsedAt])
+  @@map("saved_cockpit_views")
 }
 
 // Bridges KKU SSO faculty/department claim values to our internal IDs.

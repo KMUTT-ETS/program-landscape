@@ -14,6 +14,7 @@ import { PdfModule } from './pdf/pdf.module';
 import { PdfIntakeModule } from './pdf-intake/pdf-intake.module';
 import { SkillsModule } from './skills/skills.module';
 import { AiAdminModule } from './ai-admin/ai-admin.module';
+import { CockpitModule } from './cockpit/cockpit.module';
 
 import {
   AccessControlGuard,
@@ -46,6 +47,7 @@ import {
     PdfIntakeModule,
     SkillsModule,
     AiAdminModule,
+    CockpitModule,
   ],
   controllers: [
     AppController,
