@@ -266,6 +266,36 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes: 'Scrapes Thai + ASEAN peer universities\' program pages + downloads their brochure PDFs. Legal grey zone — stick to public catalogue pages.',
     mocked: true,
   },
+  {
+    slug: 'the-rankings',
+    name: 'Times Higher Education (THE) Subject Rankings',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 3 1 * *', // monthly (rankings release annually; cadence covers new-edition releases)
+    ownerContact: 'KKU Library — licence + API credentials',
+    notes: 'THE subject rankings + annual overall rankings. Licensed API; free tier gives top-200 only. Subscription needed for full peer-group visibility.',
+    mocked: true,
+  },
+  {
+    slug: 'qs-rankings',
+    name: 'QS Subject Rankings',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 4 1 * *',
+    ownerContact: 'KKU Library — licence + API credentials',
+    notes: 'QS WUR + subject rankings. Requires subscription agreement. HTML scrape is possible for the public tier but fragile.',
+    mocked: true,
+  },
+  {
+    slug: 'scimago',
+    name: 'SCImago Journal & Institution Rankings',
+    kind: 'SCRAPE',
+    inputFormat: 'JSON',
+    cadenceCron: '0 5 1 * *',
+    ownerContact: 'KKU Library',
+    notes: 'Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
+    mocked: true,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

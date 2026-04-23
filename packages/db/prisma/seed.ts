@@ -1083,6 +1083,9 @@ async function main() {
   // ── Scenario Planner templates (prompt 09) ──────────────────────────────
   await seedScenarioTemplates();
 
+  // ── Competitive Benchmarking (prompt 10) ────────────────────────────────
+  await seedBenchmarkingData();
+
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
     faculties: await prisma.faculty.count(),
@@ -1107,6 +1110,10 @@ async function main() {
     forecastRuns: await prisma.forecastRun.count(),
     scenarios: await prisma.scenario.count(),
     scenarioTemplates: await prisma.scenario.count({ where: { isTemplate: true } }),
+    peerPrograms: await prisma.peerProgram.count(),
+    peerSets: await prisma.peerSet.count(),
+    peerProgramSkills: await prisma.peerProgramSkill.count(),
+    peerRankings: await prisma.peerRanking.count(),
     dataSources: await prisma.dataSource.count(),
     kkuOrgMappings: await prisma.kkuOrgCodeMapping.count(),
   };
@@ -1350,6 +1357,180 @@ async function seedScenarioTemplates() {
       },
     });
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Competitive Benchmarking seeds (prompt 10)
+//
+// Creates 3 peer sets (Thai top-10, ASEAN top-20, Global subject leaders),
+// ~12 peer programs across 3 subject areas, skill tags for peers, and
+// ~20 PeerRanking rows spanning THE + QS + SCImago over 3 years.
+// Connectors to these sources are mocked — all data is editorially
+// seeded until prompt 14 wires the real APIs.
+// ──────────────────────────────────────────────────────────────────────────
+async function seedBenchmarkingData() {
+  if ((await prisma.peerSet.count()) > 0) {
+    // eslint-disable-next-line no-console
+    console.log('seedBenchmarkingData: already seeded, skipping');
+    return;
+  }
+
+  // 12 peer programs across CS, Engineering, Medicine.
+  const peers = [
+    { institution: 'Chulalongkorn University',    country: 'TH',   subject: 'Computer Science',         level: 'BACHELOR' as const, rank: 1 },
+    { institution: 'Chulalongkorn University',    country: 'TH',   subject: 'Engineering',              level: 'BACHELOR' as const, rank: 1 },
+    { institution: 'Mahidol University',          country: 'TH',   subject: 'Medicine',                 level: 'BACHELOR' as const, rank: 1 },
+    { institution: 'Mahidol University',          country: 'TH',   subject: 'Computer Science',         level: 'BACHELOR' as const, rank: 3 },
+    { institution: 'Chiang Mai University',       country: 'TH',   subject: 'Computer Science',         level: 'BACHELOR' as const, rank: 2 },
+    { institution: 'Chiang Mai University',       country: 'TH',   subject: 'Medicine',                 level: 'BACHELOR' as const, rank: 4 },
+    { institution: 'National University of Singapore', country: 'SG', subject: 'Computer Science',      level: 'BACHELOR' as const, rank: 11 },
+    { institution: 'Nanyang Technological Univ.', country: 'SG',   subject: 'Computer Science',         level: 'BACHELOR' as const, rank: 14 },
+    { institution: 'Universiti Malaya',           country: 'MY',   subject: 'Medicine',                 level: 'BACHELOR' as const, rank: 65 },
+    { institution: 'ETH Zurich',                  country: 'CH',   subject: 'Computer Science',         level: 'MASTER'   as const, rank: 9 },
+    { institution: 'MIT',                         country: 'US',   subject: 'Computer Science',         level: 'BACHELOR' as const, rank: 1 },
+    { institution: 'Tsinghua University',         country: 'CN',   subject: 'Engineering',              level: 'BACHELOR' as const, rank: 12 },
+  ];
+
+  const peerRows: { id: string; subject: string; level: string }[] = [];
+  const now = new Date();
+  for (const p of peers) {
+    const existing = await prisma.peerProgram.findFirst({
+      where: { institution: p.institution, programName: `${p.subject} (${p.level})` },
+    });
+    if (existing) {
+      peerRows.push({ id: existing.id, subject: p.subject, level: p.level });
+      continue;
+    }
+    const row = await prisma.peerProgram.create({
+      data: {
+        institution: p.institution,
+        country: p.country,
+        subjectArea: p.subject,
+        programName: `${p.subject} (${p.level})`,
+        programLevel: p.level,
+        ranking: p.rank,
+        lastScraped: now,
+        freshnessDate: now,
+      },
+    });
+    peerRows.push({ id: row.id, subject: p.subject, level: p.level });
+  }
+
+  // Attach a handful of skill tags to each peer — prefer real skill ids
+  // seeded earlier; fall back to first N skills if they don't match.
+  const skills = await prisma.skill.findMany({ take: 40, select: { id: true, code: true, nameEn: true } });
+  if (skills.length > 0) {
+    for (let i = 0; i < peerRows.length; i++) {
+      const peer = peerRows[i]!;
+      // Each peer gets 4–6 skill tags — deterministic based on index.
+      const tagCount = 4 + (i % 3);
+      for (let j = 0; j < tagCount; j++) {
+        const skill = skills[(i * 3 + j) % skills.length]!;
+        await prisma.peerProgramSkill.upsert({
+          where: { peerProgramId_skillId: { peerProgramId: peer.id, skillId: skill.id } },
+          update: {},
+          create: {
+            peerProgramId: peer.id,
+            skillId: skill.id,
+            weight: 0.4 + ((i + j) % 10) / 20,
+          },
+        });
+      }
+    }
+  }
+
+  // 3 peer sets — seed + populate members.
+  const thaiTop = await prisma.peerSet.create({
+    data: {
+      name: 'Thai Top-10',
+      descriptionTh: 'มหาวิทยาลัยไทยระดับท็อป 10 ตามการจัดอันดับในประเทศ',
+      descriptionEn: 'Top-10 Thai universities by domestic ranking.',
+      isSystem: true,
+      region: 'TH',
+      members: {
+        create: peerRows
+          .filter((p, idx) => peers[idx]?.country === 'TH')
+          .map((p) => ({ peerProgramId: p.id })),
+      },
+    },
+  });
+  const aseanTop = await prisma.peerSet.create({
+    data: {
+      name: 'ASEAN Top-20',
+      descriptionTh: 'มหาวิทยาลัยในอาเซียนท็อป 20',
+      descriptionEn: 'Top-20 ASEAN universities.',
+      isSystem: true,
+      region: 'ASEAN',
+      members: {
+        create: peerRows
+          .filter((_, idx) => ['TH', 'SG', 'MY'].includes(peers[idx]?.country ?? ''))
+          .map((p) => ({ peerProgramId: p.id })),
+      },
+    },
+  });
+  await prisma.peerSet.create({
+    data: {
+      name: 'Global Subject Leaders — CS',
+      descriptionTh: 'ผู้นำด้านสาขาวิทยาการคอมพิวเตอร์ระดับโลก',
+      descriptionEn: 'Global subject leaders in Computer Science.',
+      isSystem: true,
+      region: 'GLOBAL',
+      subjectArea: 'Computer Science',
+      members: {
+        create: peerRows
+          .filter((p) => p.subject === 'Computer Science')
+          .map((p) => ({ peerProgramId: p.id })),
+      },
+    },
+  });
+
+  // PeerRanking: THE + QS + SCImago over 3 years for a subset of institutions.
+  const rankingYears = [now.getFullYear() - 2, now.getFullYear() - 1, now.getFullYear()];
+  const rankingRows: Array<{ institution: string; source: string; subjectArea: string | null; rank: number; percentile: number }> = [
+    // THE overall university
+    { institution: 'Chulalongkorn University', source: 'THE', subjectArea: null, rank: 601, percentile: 60 },
+    { institution: 'Mahidol University',       source: 'THE', subjectArea: null, rank: 501, percentile: 50 },
+    { institution: 'KKU',                      source: 'THE', subjectArea: null, rank: 1001, percentile: 25 },
+    // QS subject CS
+    { institution: 'Chulalongkorn University', source: 'QS',  subjectArea: 'Computer Science', rank: 200, percentile: 80 },
+    { institution: 'Mahidol University',       source: 'QS',  subjectArea: 'Computer Science', rank: 350, percentile: 65 },
+    { institution: 'KKU',                      source: 'QS',  subjectArea: 'Computer Science', rank: 601, percentile: 40 },
+    { institution: 'NUS',                      source: 'QS',  subjectArea: 'Computer Science', rank: 11,  percentile: 99 },
+    // SCImago research
+    { institution: 'Chulalongkorn University', source: 'SCImago', subjectArea: 'Computer Science', rank: 150, percentile: 85 },
+    { institution: 'KKU',                      source: 'SCImago', subjectArea: 'Computer Science', rank: 700, percentile: 30 },
+  ];
+
+  for (const base of rankingRows) {
+    for (let i = 0; i < rankingYears.length; i++) {
+      const year = rankingYears[i]!;
+      // Small yearly drift.
+      const rank = base.rank + (i - 1) * 10;
+      await prisma.peerRanking.upsert({
+        where: {
+          institution_source_subjectArea_year: {
+            institution: base.institution,
+            source: base.source,
+            subjectArea: base.subjectArea ?? '',
+            year,
+          },
+        },
+        update: {},
+        create: {
+          institution: base.institution,
+          source: base.source,
+          subjectArea: base.subjectArea,
+          year,
+          rank: Math.max(1, rank),
+          percentile: base.percentile,
+          freshnessDate: new Date(`${year}-06-01`),
+        },
+      });
+    }
+  }
+
+  // eslint-disable-next-line no-console
+  console.log('seedBenchmarkingData: seeded', { peers: peerRows.length, peerSets: [thaiTop.name, aseanTop.name, 'Global CS'], rankings: rankingRows.length * rankingYears.length });
 }
 
 main()

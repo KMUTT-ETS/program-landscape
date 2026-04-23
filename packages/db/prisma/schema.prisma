@@ -348,6 +348,7 @@ model User {
   savedCockpitViews      SavedCockpitView[]
   notifications          Notification[]
   signalSubscriptions    SignalSubscription[]
+  peerSets               PeerSet[]
 
   @@index([email])
   @@index([ssoSubject])
@@ -533,14 +534,15 @@ model Skill {
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @updatedAt @map("updated_at")
 
-  parent           Skill?            @relation("SkillHierarchy", fields: [parentSkillId], references: [id], onDelete: SetNull)
-  children         Skill[]           @relation("SkillHierarchy")
-  courseSkills     CourseSkill[]
-  programSkills    ProgramSkill[]
-  departmentSkills DepartmentSkill[]
-  facultySkills    FacultySkill[]
-  jobPostingSkills JobPostingSkill[]
-  skillSectors     SkillSector[]
+  parent            Skill?             @relation("SkillHierarchy", fields: [parentSkillId], references: [id], onDelete: SetNull)
+  children          Skill[]            @relation("SkillHierarchy")
+  courseSkills      CourseSkill[]
+  programSkills     ProgramSkill[]
+  departmentSkills  DepartmentSkill[]
+  facultySkills     FacultySkill[]
+  jobPostingSkills  JobPostingSkill[]
+  skillSectors      SkillSector[]
+  peerProgramSkills PeerProgramSkill[]
 
   @@index([code])
   @@index([taxonomySource])
@@ -953,6 +955,10 @@ model PeerProgram {
   country        String
   programName    String                       @map("program_name")
   programLevel   ProgramLevel                 @map("program_level")
+  // Free-text subject area (e.g. "Computer Science", "Biomedical
+  // Engineering"). Allows cross-institution subject grouping without a
+  // rigid taxonomy. Added in prompt 10 for benchmarking rollups.
+  subjectArea    String?                      @map("subject_area")
   descriptionUrl String?                      @map("description_url")
   ranking        Int?
   lastScraped    DateTime                     @map("last_scraped")
@@ -962,11 +968,14 @@ model PeerProgram {
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @updatedAt @map("updated_at")
 
-  sourcePdf PdfDocument? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  sourcePdf         PdfDocument?       @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  peerSetMembers    PeerSetMember[]
+  peerProgramSkills PeerProgramSkill[]
 
   @@index([institution])
   @@index([country])
   @@index([programLevel])
+  @@index([subjectArea])
   @@map("peer_programs")
 }
 
@@ -1580,4 +1589,101 @@ model ForecastRun {
   @@index([region])
   @@index([targetYear])
   @@map("forecast_runs")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Competitive Benchmarking (prompt 10)
+//
+// Peers live in `peer_programs` already (prompt 01). This module adds:
+//   - PeerSet: named, re-usable peer collections (Thai top-10, ASEAN,
+//     Global subject leaders, Custom). `isSystem=true` = seeded + read-only.
+//   - PeerSetMember: join table with per-peer analyst notes.
+//   - PeerProgramSkill: which skills each peer program teaches — enables
+//     skill-coverage comparison against KKU's ProgramSkill.
+//   - PeerRanking: THE/QS/SCImago rankings by year + subject. Lets the
+//     subject-leadership view plot a trend line without joining across
+//     multiple sources per metric.
+// ══════════════════════════════════════════════════════════════════════════
+
+model PeerSet {
+  id            String   @id @default(cuid())
+  name          String
+  descriptionTh String?  @map("description_th") @db.Text
+  descriptionEn String?  @map("description_en") @db.Text
+  // System sets (seeded) vs user-created custom sets.
+  isSystem      Boolean  @default(false) @map("is_system")
+  // Optional subject area for subject-specific peer sets.
+  subjectArea   String?  @map("subject_area")
+  // Region tag for filtering: TH | ASEAN | GLOBAL | CUSTOM.
+  region        String   @default("CUSTOM")
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  creator User?           @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  members PeerSetMember[]
+
+  @@index([isSystem])
+  @@index([region])
+  @@index([subjectArea])
+  @@map("peer_sets")
+}
+
+model PeerSetMember {
+  id            String   @id @default(cuid())
+  peerSetId     String   @map("peer_set_id")
+  peerProgramId String   @map("peer_program_id")
+  // Analyst-editable note: "apples-to-oranges because different credit system"
+  noteTh        String?  @map("note_th") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  peerSet     PeerSet     @relation(fields: [peerSetId], references: [id], onDelete: Cascade)
+  peerProgram PeerProgram @relation(fields: [peerProgramId], references: [id], onDelete: Cascade)
+
+  @@unique([peerSetId, peerProgramId])
+  @@index([peerSetId])
+  @@index([peerProgramId])
+  @@map("peer_set_members")
+}
+
+model PeerProgramSkill {
+  id            String      @id @default(cuid())
+  peerProgramId String      @map("peer_program_id")
+  skillId       String      @map("skill_id")
+  weight        Float       @default(1.0)
+  source        SkillSource @default(LLM_EXTRACTED)
+  confidence    Float?
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  peerProgram PeerProgram @relation(fields: [peerProgramId], references: [id], onDelete: Cascade)
+  skill       Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([peerProgramId, skillId])
+  @@index([peerProgramId])
+  @@index([skillId])
+  @@map("peer_program_skills")
+}
+
+model PeerRanking {
+  id            String   @id @default(cuid())
+  institution   String
+  // Free-text source identifier: 'THE' | 'QS' | 'SCImago' | 'custom'.
+  source        String
+  // Free-text subject area — empty for overall (university) rankings.
+  subjectArea   String?  @map("subject_area")
+  year          Int
+  rank          Int
+  // Percentile within the ranked cohort (0–100). Optional — some sources
+  // only publish the rank.
+  percentile    Float?
+  url           String?
+  freshnessDate DateTime @map("freshness_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([institution, source, subjectArea, year])
+  @@index([institution])
+  @@index([source])
+  @@index([subjectArea])
+  @@index([year])
+  @@map("peer_rankings")
 }

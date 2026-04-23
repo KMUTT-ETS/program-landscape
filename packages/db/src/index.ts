@@ -20,3 +20,4 @@ export * from './ai-inference-recorder';
 export * from './health-score';
 export * from './program-deep-dive';
 export * from './gap-analysis';
+export * from './benchmarking';

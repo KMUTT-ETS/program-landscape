@@ -19,6 +19,7 @@ import { TrendsModule } from './trends/trends.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { GapModule } from './gap/gap.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
+import { BenchmarkingModule } from './benchmarking/benchmarking.module';
 
 import {
   AccessControlGuard,
@@ -57,6 +58,7 @@ import {
     NotificationsModule,
     GapModule,
     ScenariosModule,
+    BenchmarkingModule,
   ],
   controllers: [
     AppController,
