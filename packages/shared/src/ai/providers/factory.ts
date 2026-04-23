@@ -3,6 +3,7 @@ import { GoogleAiService } from './google-ai';
 import { AnthropicAiService } from './anthropic-ai';
 import { OpenrouterAiService } from './openrouter-ai';
 import { IntelSphereAiService } from './intel-sphere-ai';
+import { StubAiService } from './stub-ai';
 
 // Provider factory.
 //
@@ -10,6 +11,9 @@ import { IntelSphereAiService } from './intel-sphere-ai';
 //   AI_PROVIDER=anthropic    — Claude via @anthropic-ai/sdk
 //   AI_PROVIDER=openrouter   — stub; throws on call
 //   AI_PROVIDER=intelsphere  — stub; throws on call
+//   AI_PROVIDER=stub         — dev fallback; deterministic placeholders +
+//                              AiInference rows, no external call. Use when
+//                              running `pnpm dev` without API keys.
 //
 // Routing exception: embeddings. Anthropic doesn't have an embeddings
 // API, so when a caller invokes `.embed()` through an Anthropic-primary
@@ -18,7 +22,7 @@ import { IntelSphereAiService } from './intel-sphere-ai';
 // model='text-embedding-004' + provider='google' even on an
 // anthropic-primary install), which is the right audit trail.
 
-export type AiProviderId = 'google' | 'anthropic' | 'openrouter' | 'intelsphere';
+export type AiProviderId = 'google' | 'anthropic' | 'openrouter' | 'intelsphere' | 'stub';
 
 export interface AiFactoryConfig {
   recorder: AiInferenceRecorder;
@@ -87,6 +91,8 @@ export function createAiService(config: AiFactoryConfig): AiService {
         recorder,
       });
     }
+    case 'stub':
+      return new StubAiService({ recorder });
     default: {
       const _exhaustive: never = providerId;
       throw new Error(`Unknown AI_PROVIDER: ${_exhaustive}`);
