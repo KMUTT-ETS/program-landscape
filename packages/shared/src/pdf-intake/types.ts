@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AiService } from '../ai/types';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types shared between:
@@ -51,6 +52,10 @@ export interface PdfContext {
   language: PdfLanguage;
   sourceCategoryHint?: PdfSourceCategory;
   sourceOrgHint?: string;
+  // Optional AI service handle — LLM-backed extractors (Gemini curriculum
+  // extractor, etc.) consume this. Undefined when the pipeline runs with
+  // no configured AI provider; LLM extractors fall back to heuristics.
+  ai?: AiService;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

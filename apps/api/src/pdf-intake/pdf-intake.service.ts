@@ -4,6 +4,7 @@ import { Prisma, prisma, type PdfSourceCategory, type PdfLanguage } from '@kku/d
 import { S3Storage, ApiError } from '@kku/shared';
 import { createHash } from 'node:crypto';
 import { PdfIntakeQueueService } from './pdf-intake-queue.service';
+import { decodeMultipartFilename, looksLikeMojibake } from './filename-utils';
 
 // Service backing the /pdfs/* endpoints. Owns:
 //   - the MinIO client (for upload + signed URLs)
@@ -52,18 +53,59 @@ export class PdfIntakeService implements OnModuleInit {
     notes?: string;
   }): Promise<{ pdfDocumentId: string; deduplicated: boolean; enqueued: boolean }> {
     const contentHash = createHash('sha256').update(input.bytes).digest('hex');
-    const existing = await prisma.pdfDocument.findUnique({ where: { contentHash } });
+    const existing = await prisma.pdfDocument.findUnique({
+      where: { contentHash },
+      include: {
+        extractions: {
+          where: { extractionType: 'CURRICULUM_SPEC' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { methodVersion: true },
+        },
+      },
+    });
     if (existing) {
-      // Re-enqueue only if it's stuck in PENDING. A COMPLETED doc needs
-      // the explicit "Re-extract" action, not an upload-as-retry.
+      // On dedup, bring the existing row up to par with the new upload:
+      //   1. Rewrite `originalFilename` when the incoming one is cleaner
+      //      (not mojibake, and different from what's stored). This fixes
+      //      rows that were persisted before the multipart-UTF-8 fix.
+      //   2. Re-enqueue intake when the most recent CURRICULUM_SPEC
+      //      extraction came from an older method version — so stub/heuristic
+      //      rows get a Gemini pass on re-upload.
+      //   3. Always re-enqueue when the doc is in PENDING or FAILED
+      //      (original behaviour — unblocks a stuck pipeline).
+      const updates: Prisma.PdfDocumentUpdateInput = {};
+      if (
+        input.originalFilename &&
+        input.originalFilename !== existing.originalFilename &&
+        !looksLikeMojibake(input.originalFilename)
+      ) {
+        updates.originalFilename = input.originalFilename;
+      }
+
+      const latestMethod = existing.extractions[0]?.methodVersion ?? null;
+      const staleExtraction =
+        (existing.sourceCategory === 'CURRICULUM' ||
+          input.sourceCategoryHint === 'CURRICULUM') &&
+        latestMethod !== null &&
+        latestMethod !== 'gemini-v1';
+
       let enqueued = false;
-      if (existing.processingStatus === 'PENDING' || existing.processingStatus === 'FAILED') {
-        await prisma.pdfDocument.update({
-          where: { id: existing.id },
-          data: { processingStatus: 'PENDING', processingError: null },
-        });
-        await this.intakeQueue.enqueue(existing.id, 'UPLOAD');
+      if (
+        existing.processingStatus === 'PENDING' ||
+        existing.processingStatus === 'FAILED' ||
+        staleExtraction
+      ) {
+        updates.processingStatus = 'PENDING';
+        updates.processingError = null;
         enqueued = true;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.pdfDocument.update({ where: { id: existing.id }, data: updates });
+      }
+      if (enqueued) {
+        await this.intakeQueue.enqueue(existing.id, 'UPLOAD');
       }
       return { pdfDocumentId: existing.id, deduplicated: true, enqueued };
     }
@@ -194,6 +236,37 @@ export class PdfIntakeService implements OnModuleInit {
       data: { processingStatus: 'PENDING', processingError: null },
     });
     await this.intakeQueue.enqueue(pdfDocumentId, 'MANUAL');
+  }
+
+  // Backfill for PDFs uploaded before the multipart-filename UTF-8 fix
+  // shipped. Scans every row whose `original_filename` still looks like
+  // latin1-mis-decoded UTF-8 and rewrites it. Idempotent.
+  async fixMojibakeFilenames(opts: { limit: number; dryRun: boolean }) {
+    const rows = await prisma.pdfDocument.findMany({
+      select: { id: true, originalFilename: true },
+      take: opts.limit,
+    });
+    let scanned = 0;
+    let fixed = 0;
+    const changes: Array<{ id: string; from: string; to: string }> = [];
+    for (const r of rows) {
+      scanned++;
+      if (!looksLikeMojibake(r.originalFilename)) continue;
+      const decoded = decodeMultipartFilename(r.originalFilename);
+      if (decoded === r.originalFilename) continue;
+      changes.push({ id: r.id, from: r.originalFilename, to: decoded });
+      if (!opts.dryRun) {
+        await prisma.pdfDocument.update({
+          where: { id: r.id },
+          data: { originalFilename: decoded },
+        });
+      }
+      fixed++;
+    }
+    this.logger.log(
+      `fix-filenames: scanned=${scanned} fixed=${fixed} dryRun=${opts.dryRun}`,
+    );
+    return { scanned, fixed, dryRun: opts.dryRun, changes };
   }
 
   async bulkReprocess(opts: { sourceCategory?: PdfSourceCategory; limit: number; triggeredBy: string }) {

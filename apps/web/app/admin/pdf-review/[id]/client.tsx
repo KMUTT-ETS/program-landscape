@@ -208,6 +208,12 @@ export function ReviewClient({ pdf, fileUrl }: { pdf: PdfDetail; fileUrl: string
                 onReject={() => void onReject()}
               />
             )}
+            {selected.extractionType === 'CURRICULUM_SPEC' && (
+              <ApplyToProgramPanel
+                extractionId={selected.id}
+                pdfId={pdf.id}
+              />
+            )}
           </Card>
         )}
       </div>
@@ -250,4 +256,130 @@ function reviewTone(
   if (status === 'REJECTED') return 'danger';
   if (status === 'PENDING_REVIEW') return 'warning';
   return 'neutral';
+}
+
+// Apply-to-program — lets the admin pick a target Program (by code search)
+// and materialize the CURRICULUM_SPEC payload onto the Program row. The
+// PDF is then attached with role=CURRENT_CURRICULUM.
+//
+// Keeps the picker minimal on purpose — auto-complete is a nice-to-have
+// but a code textbox is enough for the "one PDF at a time" admin flow.
+function ApplyToProgramPanel({
+  extractionId,
+  pdfId: _pdfId,
+}: {
+  extractionId: string;
+  pdfId: string;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = React.useState('');
+  const [options, setOptions] = React.useState<
+    Array<{ id: string; code: string; nameEn: string; nameTh: string }>
+  >([]);
+  const [target, setTarget] = React.useState<{
+    id: string;
+    code: string;
+    nameEn: string;
+  } | null>(null);
+  const [applying, setApplying] = React.useState(false);
+
+  React.useEffect(() => {
+    // Short-debounce lookup against /admin/programs.
+    if (!query || query.length < 2) {
+      setOptions([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      const res = await fetch(
+        `/api/admin-programs?q=${encodeURIComponent(query)}&pageSize=10`,
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      const rows = (json?.data ?? []) as Array<{
+        id: string;
+        code: string;
+        nameEn: string;
+        nameTh: string;
+      }>;
+      setOptions(rows);
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  const apply = async () => {
+    if (!target) return;
+    setApplying(true);
+    try {
+      const res = await fetch(
+        `/api/admin-programs/${target.id}/apply-extraction/${extractionId}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ attachAsCurrent: true }),
+        },
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+      }
+      toast.success(`Applied to ${target.code}. Program fields updated.`);
+      router.push(`/admin/programs/${target.id}`);
+    } catch (err) {
+      toast.error(`Apply failed: ${(err as Error).message}`);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 border-t border-border-subtle pt-3">
+      <Label>Apply to program</Label>
+      <p className="text-xs text-text-tertiary">
+        Pick a program — this extraction&apos;s fields will be written onto it, and the
+        PDF attached as the current curriculum.
+      </p>
+      {target ? (
+        <div className="flex items-center justify-between rounded-md border border-border-default bg-surface-1 px-3 py-2 text-sm">
+          <div>
+            <span className="font-tabular font-medium">{target.code}</span>
+            {' · '}
+            <span>{target.nameEn}</span>
+          </div>
+          <Button variant="ghost" size="xs" onClick={() => setTarget(null)}>
+            Change
+          </Button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by code or name"
+          />
+          {options.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-border-default bg-surface-0 shadow-lg">
+              {options.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setTarget(o)}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-surface-1"
+                >
+                  <span className="font-tabular text-xs text-text-tertiary">
+                    {o.code}
+                  </span>
+                  <span className="flex-1 truncate">{o.nameEn}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <Button variant="primary" size="sm" onClick={apply} disabled={!target || applying}>
+          {applying ? 'Applying…' : 'Apply extraction to program'}
+        </Button>
+      </div>
+    </div>
+  );
 }

@@ -16,28 +16,34 @@ import type {
 } from '../types';
 
 // Google/Gemini provider. Default because:
-//   - Thai handling is strong on Gemini's top-tier models (1.5 Pro, 2.0
-//     Flash); Claude is equally strong but the Anthropic API's Thai
-//     responses occasionally drop tone marks under high-temp settings
+//   - Thai handling is strong on Gemini's top-tier models; Claude is
+//     equally strong but the Anthropic API's Thai responses occasionally
+//     drop tone marks under high-temp settings
 //   - flash-lite tier is cost-effective for extractor pipelines
 //   - embedding model (text-embedding-004) is multilingual
 //
-// Model choice per call:
-//   extractStructured → 'gemini-2.0-flash-001' (reliable structured output)
-//   complete/analysis  → 'gemini-2.0-flash-001' (or override per call)
-//   vision             → 'gemini-2.0-flash-001'
+// Model choice per call (defaults — callers can override):
+//   extractStructured → 'gemini-3-flash-preview' (best Thai tone-mark
+//                       restoration in tests against มคอ.2 PDFs)
+//   complete/analysis  → 'gemini-3-flash-preview' (or override per call)
+//   vision             → 'gemini-3-flash-preview'
 //   embed              → 'text-embedding-004' (1536 dims — matches pgvector)
+//
+// Note: 2.0-flash was deprecated in 2026; 2.5-flash is GA; 3-flash-preview
+// is the current best for Thai structured extraction.
 
-const DEFAULT_COMPLETION_MODEL = 'gemini-2.0-flash-001';
+const DEFAULT_COMPLETION_MODEL = 'gemini-3-flash-preview';
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
 
 // Per-1k-token prices in USD. Approximate + conservative — used for cost
 // audit only, not billing. Update when Google bumps pricing.
 const PRICING: Record<string, { input: number; output: number }> = {
-  'gemini-2.0-flash-001': { input: 0.000075, output: 0.0003 },
-  'gemini-1.5-pro-002':   { input: 0.00125,  output: 0.005 },
-  'gemini-1.5-flash-002': { input: 0.000075, output: 0.0003 },
-  'text-embedding-004':   { input: 0.00001,  output: 0 },
+  'gemini-3-flash-preview': { input: 0.00030,  output: 0.00250 },
+  'gemini-2.5-flash':       { input: 0.00030,  output: 0.00250 },
+  'gemini-2.5-flash-lite':  { input: 0.00010,  output: 0.00040 },
+  'gemini-2.5-pro':         { input: 0.00125,  output: 0.01000 },
+  'gemini-flash-latest':    { input: 0.00030,  output: 0.00250 },
+  'text-embedding-004':     { input: 0.00001,  output: 0 },
 };
 
 export interface GoogleAiConfig {
@@ -101,6 +107,9 @@ export class GoogleAiService implements AiService {
     const { system, userText } = splitSystemFromMessages(req.messages);
 
     // Ask for JSON directly. Gemini honours responseMimeType when set.
+    // Disable "thinking" for structured extraction — thinking tokens eat
+    // the output budget without improving JSON fidelity and occasionally
+    // leave the response truncated before the final } fires.
     const result = await this.client.models.generateContent({
       model,
       contents: userText,
@@ -109,7 +118,8 @@ export class GoogleAiService implements AiService {
         temperature: 0,
         maxOutputTokens: req.maxOutputTokens ?? 4096,
         responseMimeType: 'application/json',
-      },
+        thinkingConfig: { thinkingBudget: 0 },
+      } as Parameters<typeof this.client.models.generateContent>[0]['config'],
     });
     const latencyMs = Date.now() - started;
 

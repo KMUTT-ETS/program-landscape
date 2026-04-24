@@ -90,6 +90,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.scheduler = new IngestionScheduler(this.connectorQueue);
     const { registered, skipped } = await this.scheduler.registerSchedules();
 
+    // Build AI first — both the PDF-intake pipeline (for curriculum
+    // extraction) and the ai-jobs workers consume it.
+    const ai = this.buildAiService();
+
     // ── PDF intake queue ──────────────────────────────────────────────
     const pdfIntakeQueueConfig = {
       redisUrl,
@@ -115,6 +119,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           this.config.get('PDF_INTAKE_EXTRACTOR_THRESHOLD') ?? 0.8,
         ),
       }),
+      ai,
     });
 
     this.pdfIntakeQueue = createPdfIntakeQueue(pdfIntakeQueueConfig);
@@ -129,7 +134,6 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       concurrency: Number(this.config.get('AI_JOBS_CONCURRENCY') ?? 2),
     };
 
-    const ai = this.buildAiService();
     const aiHandlers = buildAiJobHandlers({
       ai,
       autoApproveThreshold: Number(this.config.get('AI_AUTO_APPROVE_THRESHOLD') ?? 0.85),

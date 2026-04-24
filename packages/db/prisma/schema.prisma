@@ -40,6 +40,14 @@ enum ProgramStatus {
   SUNSET
 }
 
+enum ProgramDocumentRole {
+  CURRENT_CURRICULUM
+  PREVIOUS_CURRICULUM
+  COMMITTEE_ORDER
+  EVALUATION_REPORT
+  SUPPLEMENTARY
+}
+
 enum UserRole {
   VIEWER
   COUNCIL
@@ -317,8 +325,30 @@ model Program {
   level           ProgramLevel
   status          ProgramStatus @default(ACTIVE)
   yearEstablished Int?          @map("year_established")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // มคอ.2 header fields (Section 1 "ข้อมูลทั่วไป"). Nullable because older
+  // seeded rows pre-date the curriculum-doc import flow; populated when an
+  // admin applies a reviewed CURRICULUM_SPEC extraction.
+  degreeNameTh             String?  @map("degree_name_th")
+  degreeNameEn             String?  @map("degree_name_en")
+  degreeAbbrTh             String?  @map("degree_abbr_th")
+  degreeAbbrEn             String?  @map("degree_abbr_en")
+  majors                   String[] @default([])
+  totalCredits             Int?     @map("total_credits")
+  durationYears            Int?     @map("duration_years")
+  programPlans             String[] @default([]) @map("program_plans")
+  language                 String?
+  admissionScope           String?  @map("admission_scope")
+  careersThJson            Json?    @map("careers_th_json")
+  openingYear              Int?     @map("opening_year")
+  openingSemester          Int?     @map("opening_semester")
+  curriculumYearBE         Int?     @map("curriculum_year_be")
+  isRevision               Boolean  @default(false) @map("is_revision")
+  previousCurriculumYearBE Int?     @map("previous_curriculum_year_be")
+  approvalHistoryJson      Json?    @map("approval_history_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   faculty    Faculty     @relation(fields: [facultyId], references: [id], onDelete: Restrict)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
@@ -332,12 +362,35 @@ model Program {
   financialMetrics    FinancialMetric[]
   graduateOutcomes    GraduateOutcome[]
   employerFeedback    EmployerFeedback[]
+  documents           ProgramDocument[]
 
   @@index([facultyId])
   @@index([departmentId])
   @@index([status])
   @@index([level])
   @@map("programs")
+}
+
+model ProgramDocument {
+  id               String              @id @default(cuid())
+  programId        String              @map("program_id")
+  pdfDocumentId    String              @map("pdf_document_id")
+  role             ProgramDocumentRole
+  curriculumYearBE Int?                @map("curriculum_year_be")
+  isCurrent        Boolean             @default(false) @map("is_current")
+  notes            String?
+  attachedById     String?             @map("attached_by_id")
+  attachedAt       DateTime            @default(now()) @map("attached_at")
+
+  program     Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  pdfDocument PdfDocument @relation(fields: [pdfDocumentId], references: [id], onDelete: Cascade)
+  attachedBy  User?       @relation("ProgramDocAttacher", fields: [attachedById], references: [id], onDelete: SetNull)
+
+  @@unique([programId, pdfDocumentId])
+  @@index([programId])
+  @@index([pdfDocumentId])
+  @@index([role])
+  @@map("program_documents")
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -377,6 +430,7 @@ model User {
   analystFeedback        AnalystFeedback[]
   milestonesOwned        DecisionMilestone[]   @relation("MilestoneOwner")
   approvedDecisions      DecisionApprover[]    @relation("ApproverUser")
+  attachedProgramDocs    ProgramDocument[]     @relation("ProgramDocAttacher")
 
   @@index([email])
   @@index([ssoSubject])
@@ -1089,6 +1143,7 @@ model PdfDocument {
   policyDocuments     PolicyDocument[]
   peerPrograms        PeerProgram[]
   decisionResolutions CouncilDecision[] @relation("DecisionResolution")
+  programDocuments    ProgramDocument[]
 
   @@index([sourceCategory])
   @@index([processingStatus])

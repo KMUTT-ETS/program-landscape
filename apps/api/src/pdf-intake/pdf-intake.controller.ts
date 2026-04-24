@@ -21,6 +21,7 @@ import {
   ZodValidationPipe,
 } from '../common';
 import { PdfIntakeService } from './pdf-intake.service';
+import { decodeMultipartFilename } from './filename-utils';
 
 // Multipart upload + review admin surface.
 //
@@ -93,7 +94,7 @@ export class PdfIntakeController {
     for (const file of files) {
       results.push(
         await this.service.uploadPdf({
-          originalFilename: file.originalname,
+          originalFilename: decodeMultipartFilename(file.originalname),
           bytes: file.buffer,
           uploadedByUserId: user.userId,
           sourceCategoryHint: hint,
@@ -176,6 +177,30 @@ export class PdfIntakeController {
       sourceCategory: body.sourceCategory,
       limit: body.limit,
       triggeredBy: user.userId,
+    });
+  }
+
+  // Backfill for rows uploaded before the multipart-filename UTF-8 fix
+  // shipped — scans + rewrites any `original_filename` that looks like
+  // latin1-mis-decoded UTF-8 (Thai, emoji, etc.). Idempotent. Pass
+  // `dryRun: true` to preview what would change without writing.
+  @Post('fix-filenames')
+  @Authorized('pdf:admin')
+  @AuditLog({ action: 'pdf.fix_filenames', entityType: 'PdfDocument' })
+  async fixFilenames(
+    @Body(
+      new ZodValidationPipe(
+        z.object({
+          limit: z.number().int().positive().max(5000).default(1000),
+          dryRun: z.boolean().default(false),
+        }),
+      ),
+    )
+    body: { limit: number; dryRun: boolean },
+  ) {
+    return this.service.fixMojibakeFilenames({
+      limit: body.limit,
+      dryRun: body.dryRun,
     });
   }
 }

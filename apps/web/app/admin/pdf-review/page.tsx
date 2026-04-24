@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Card, EmptyState, PageHeader, Section } from '@kku/ui';
+import { FixFilenamesButton } from './fix-filenames-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'PDF Review — Admin' };
@@ -39,6 +40,7 @@ export default async function AdminPdfReviewPage() {
       <PageHeader
         title="PDF review queue"
         subtitle="PDFs whose extractions landed below the auto-approve threshold. Open one to inspect the source + verify the extracted structured data before it affects downstream analytics."
+        actions={user.role === 'ADMIN' ? <FixFilenamesButton /> : null}
       />
       <Section title={`Pending review (${pending.length})`}>
         {pending.length === 0 ? (

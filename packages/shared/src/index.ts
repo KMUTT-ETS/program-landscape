@@ -9,6 +9,7 @@ export * from './skills';
 export * from './forecasting';
 export * from './scenarios';
 export * from './analyst';
+export * from './programs';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

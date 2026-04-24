@@ -28,6 +28,27 @@ export const PolicyDocPayloadSchema = z.object({
 export type PolicyDocPayload = z.infer<typeof PolicyDocPayloadSchema>;
 
 // CURRICULUM_SPEC — มคอ.2 / มคอ.3
+//
+// The extractor populates everything it can from the Thai Section-1
+// header; the apply-extraction endpoint materializes them onto the
+// Program row. Every field is optional so partial-extractions
+// still validate (the admin can fill gaps in the review UI).
+export const ApprovalBodyExtSchema = z.enum([
+  'FACULTY_COMMITTEE',
+  'UNIVERSITY_SCREENING',
+  'ACADEMIC_COUNCIL',
+  'UNIVERSITY_COUNCIL',
+  'GRADUATE_SCHOOL',
+  'OTHER',
+]);
+
+export const ExtractedApprovalEntrySchema = z.object({
+  body: ApprovalBodyExtSchema,
+  meetingNo: z.string().optional(),
+  meetingDate: z.string().optional(),
+  decisionTh: z.string().optional(),
+});
+
 export const CurriculumPayloadSchema = z.object({
   programCode: z.string().optional(),
   programNameTh: z.string(),
@@ -37,17 +58,39 @@ export const CurriculumPayloadSchema = z.object({
   level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']).optional(),
   totalCredits: z.number().int().positive().optional(),
   durationYears: z.number().positive().optional(),
+  // CE year of the curriculum revision — extractor emits BE as-is when it
+  // reads a Thai year (pattern "พ.ศ. 25xx"); the apply-extraction step
+  // converts to BE correctly either way.
   curriculumYear: z.number().int().optional(),
-  courses: z.array(
-    z.object({
-      code: z.string(),
-      nameTh: z.string(),
-      nameEn: z.string().optional(),
-      credits: z.number().int().nonnegative(),
-      courseType: z.enum(['CORE', 'ELECTIVE', 'GENERAL']).default('CORE'),
-      descriptionTh: z.string().optional(),
-    }),
-  ).default([]),
+
+  // Extended Section-1 fields (Thai มคอ.2)
+  degreeNameTh: z.string().optional(),
+  degreeNameEn: z.string().optional(),
+  degreeAbbrTh: z.string().optional(),
+  degreeAbbrEn: z.string().optional(),
+  majors: z.array(z.string().min(1)).default([]),
+  programPlans: z.array(z.string().min(1)).default([]),
+  language: z.enum(['TH', 'EN', 'MIXED']).optional(),
+  admissionScope: z.enum(['TH_ONLY', 'TH_AND_INTL', 'INTL_ONLY']).optional(),
+  isRevision: z.boolean().optional(),
+  previousCurriculumYearBE: z.number().int().optional(),
+  openingYear: z.number().int().optional(),
+  openingSemester: z.number().int().optional(),
+  approvalHistory: z.array(ExtractedApprovalEntrySchema).default([]),
+  careersTh: z.array(z.string().min(1)).default([]),
+
+  courses: z
+    .array(
+      z.object({
+        code: z.string(),
+        nameTh: z.string(),
+        nameEn: z.string().optional(),
+        credits: z.number().int().nonnegative(),
+        courseType: z.enum(['CORE', 'ELECTIVE', 'GENERAL']).default('CORE'),
+        descriptionTh: z.string().optional(),
+      }),
+    )
+    .default([]),
 });
 export type CurriculumPayload = z.infer<typeof CurriculumPayloadSchema>;
 

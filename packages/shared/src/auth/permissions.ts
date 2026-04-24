@@ -27,6 +27,12 @@ export const PERMISSIONS = [
   'programs:read:own_faculty',
   'programs:read:own_department',
 
+  // Program management (admin-facing CRUD + curriculum-PDF attachment).
+  // Separate from :read because mutation risk is much higher — every Program
+  // row is a strategic line item in the Council's view.
+  'programs:manage:all',
+  'programs:manage:own_faculty',
+
   // Financial data — separate from programs:read because FinancialMetric is
   // the most sensitive resource in the system.
   'financials:read:all',
@@ -111,6 +117,7 @@ const DEAN_PERMS: Permission[] = [
   'departments:read:all',
   'programs:read:all',
   'programs:read:own_faculty',
+  'programs:manage:own_faculty',
   'financials:read:own_faculty',
   'financials:read:aggregated_only', // other faculties
   'faculty_members:read:own_faculty',
@@ -128,6 +135,7 @@ const DEPT_HEAD_PERMS: Permission[] = [
   'departments:read:all',
   'programs:read:all',
   'programs:read:own_department',
+  'programs:manage:own_faculty',
   'financials:read:own_department',
   'financials:read:aggregated_only',
   'faculty_members:read:own_department',
@@ -142,6 +150,7 @@ const ANALYST_PERMS: Permission[] = [
   'faculties:read:all',
   'departments:read:all',
   'programs:read:all',
+  'programs:manage:all',
   'financials:read:all',
   'faculty_members:read:all',
   'outcomes:read:all',

@@ -1,4 +1,5 @@
 import type { ExtractionRecord, PdfContext, PdfExtractor, PdfSourceCategory } from '@kku/shared';
+import { CurriculumAiExtractor } from './curriculum-ai-extractor';
 
 // Stub extractors — one per domain category. Each returns a single
 // "placeholder" extraction that:
@@ -137,7 +138,11 @@ export class StubJobPostingsBatchExtractor extends StubExtractorBase {
 export const EXTRACTORS: readonly PdfExtractor[] = [
   new StubPolicyDocExtractor(),
   new StubStatisticalReportExtractor(),
-  new StubCurriculumExtractor(),
+  // Curriculum intake is Gemini-backed via AiService.extractStructured.
+  // When no AI provider is configured (ctx.ai === undefined) the extractor
+  // transparently falls back to the regex-based heuristic so intake never
+  // blocks on AI availability.
+  new CurriculumAiExtractor(),
   new StubPeerProgramExtractor(),
   new StubSurveyExtractor(),
   new StubCommitteeMinutesExtractor(),

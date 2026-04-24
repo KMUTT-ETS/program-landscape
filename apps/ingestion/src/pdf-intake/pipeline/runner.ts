@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@kku/db';
 import {
   S3Storage,
+  type AiService,
   type PdfClassifier,
   type PdfContext,
   type PdfExtractor,
@@ -35,6 +36,10 @@ export interface PipelineDeps {
   storage: S3Storage;
   rawBucket: string;
   config: PipelineConfig;
+  // Optional AI handle — AI-backed extractors (curriculum) consume it via
+  // PdfContext.ai. Undefined when no provider is configured; extractors
+  // fall back to heuristics.
+  ai?: AiService;
 }
 
 export class PdfIntakePipeline {
@@ -132,6 +137,7 @@ export class PdfIntakePipeline {
         language: pdf.language,
         sourceCategoryHint: pdf.sourceCategoryHint ?? undefined,
         sourceOrgHint: pdf.sourceOrg ?? undefined,
+        ai: this.deps.ai,
       };
       const classification = await this.deps.classifier.classify(ctx);
 

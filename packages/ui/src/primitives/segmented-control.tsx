@@ -43,3 +43,7 @@ export const SegmentedTrigger = React.forwardRef<
     />
   );
 });
+
+// Content panel — exported so consumers can pair it with Segmented without
+// taking a direct dep on @radix-ui/react-tabs.
+export const SegmentedContent = TabsPrimitive.Content;

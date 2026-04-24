@@ -58,8 +58,6 @@ export class ProgramsController {
       meta: {
         scope: { level: q.scope, id: q.scopeId ?? null },
         pagination: { page: q.page, pageSize: q.pageSize, total },
-        // Caller: `user` is available here if we later want to annotate
-        // the response with scope-access flags per user.
         viewerRole: user.role,
       },
     };
