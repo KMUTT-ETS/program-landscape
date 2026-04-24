@@ -21,9 +21,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, '..', 'public');
 mkdirSync(publicDir, { recursive: true });
 
-const require = createRequire(import.meta.url);
-// resolve pdfjs-dist from this workspace's node_modules
-const pkgJsonPath = require.resolve('pdfjs-dist/package.json');
+// Resolve pdfjs-dist THROUGH react-pdf, not from this workspace
+// directly. react-pdf pins its own pdfjs-dist version; the runtime
+// `pdfjs.version` string (set by `import { pdfjs } from 'react-pdf'`)
+// is whichever version react-pdf's own dep resolves to. If we copy the
+// worker from apps/web's hoisted pdfjs-dist and the two versions
+// differ, the client requests `pdf.worker.<react-pdf-version>.mjs` and
+// hits 404. Resolving via react-pdf keeps them in lock-step.
+const hereRequire = createRequire(import.meta.url);
+const reactPdfPkg = hereRequire.resolve('react-pdf/package.json');
+const reactPdfRequire = createRequire(reactPdfPkg);
+const pkgJsonPath = reactPdfRequire.resolve('pdfjs-dist/package.json');
 const { version } = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
 const workerSrc = path.join(path.dirname(pkgJsonPath), 'build', 'pdf.worker.min.mjs');
 
