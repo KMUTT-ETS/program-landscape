@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import {
   BENCHMARKING_VERSION,
@@ -26,6 +27,7 @@ import {
   AuditLog,
   Provenance,
   ZodValidationPipe,
+  AiQuota,
 } from '../common';
 import { BenchmarkingInsightsService } from './benchmarking-insights.service';
 
@@ -166,6 +168,8 @@ export class BenchmarkingController {
 
   @Post('programs/:id/peers/suggest')
   @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'benchmarking' })
   @AiCall({ module: 'benchmarking' })
   async suggestPeers(
     @AuthSession() user: SessionUser,

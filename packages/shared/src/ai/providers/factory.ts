@@ -47,12 +47,23 @@ export function createAiService(config: AiFactoryConfig): AiService {
   switch (providerId) {
     case 'google': {
       if (!apiKeys.google) throw new Error('AI_PROVIDER=google but no GOOGLE_AI_API_KEY configured');
-      return new GoogleAiService({
+      const google = new GoogleAiService({
         apiKey: apiKeys.google,
         recorder,
         defaultCompletionModel: models?.google?.completion,
         defaultEmbeddingModel: models?.google?.embedding,
       });
+      // Optional secondary: if an Anthropic key is also configured,
+      // build a claude provider and use it as the transient-error
+      // fallback. Swap is only triggered on 429/5xx/timeouts.
+      const secondary = apiKeys.anthropic
+        ? new AnthropicAiService({
+            apiKey: apiKeys.anthropic,
+            recorder,
+            defaultModel: models?.anthropic?.completion,
+          })
+        : undefined;
+      return wrapWithTransientFallback(google, secondary);
     }
     case 'anthropic': {
       if (!apiKeys.anthropic) throw new Error('AI_PROVIDER=anthropic but no ANTHROPIC_API_KEY configured');
@@ -69,7 +80,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
         recorder,
         defaultModel: models?.anthropic?.completion,
       });
-      const embeddingFallback = apiKeys.google
+      const googleSecondary = apiKeys.google
         ? new GoogleAiService({
             apiKey: apiKeys.google,
             recorder,
@@ -77,7 +88,10 @@ export function createAiService(config: AiFactoryConfig): AiService {
             defaultEmbeddingModel: models?.google?.embedding,
           })
         : undefined;
-      return wrapWithEmbeddingFallback(primary, embeddingFallback);
+      // Embedding fallback first (Claude has no embed API), then layer
+      // transient-error fallback on top so Claude 429 → Gemini.
+      const withEmbeddings = wrapWithEmbeddingFallback(primary, googleSecondary);
+      return wrapWithTransientFallback(withEmbeddings, googleSecondary);
     }
     case 'openrouter': {
       if (!apiKeys.openrouter) throw new Error('AI_PROVIDER=openrouter but no OPENROUTER_API_KEY configured');
@@ -115,5 +129,89 @@ function wrapWithEmbeddingFallback(primary: AiService, fallback: AiService | und
       if (!fallback) return primary.embed(r);
       return fallback.embed(r);
     },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Transient-error fallback.
+//
+// Wrap a primary + secondary AiService so that transient failures on the
+// primary (429, 5xx, timeouts, network drops) transparently retry on the
+// secondary. Every swap is logged via console.warn — upstream services
+// that care (AI governance dashboard) consume this from AiInference rows,
+// where the model name reveals which provider ultimately ran the call.
+//
+// Non-transient failures (4xx other than 429, safety refusals, schema
+// validation on structured output) are NOT retried — they're deterministic
+// and would fail on the secondary too.
+// ──────────────────────────────────────────────────────────────────────
+
+const TRANSIENT_ERROR_PATTERNS = [
+  /\b(429|5\d\d)\b/,
+  /timeout/i,
+  /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED/,
+  /unavailable|overloaded/i,
+  /quota|rate[_\s-]?limit/i,
+];
+
+function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return TRANSIENT_ERROR_PATTERNS.some((re) => re.test(msg));
+}
+
+export function wrapWithTransientFallback(
+  primary: AiService,
+  secondary: AiService | undefined,
+): AiService {
+  if (!secondary) return primary;
+  const withFallback = async <T>(
+    label: string,
+    primaryCall: () => Promise<T>,
+    secondaryCall: () => Promise<T>,
+  ): Promise<T> => {
+    try {
+      return await primaryCall();
+    } catch (err) {
+      if (!isTransientError(err)) throw err;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[ai/fallback] ${label}: primary=${primary.providerId} failed with transient error, retrying on secondary=${secondary.providerId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return secondaryCall();
+    }
+  };
+
+  return {
+    providerId: primary.providerId,
+    complete: (r) =>
+      withFallback(
+        'complete',
+        () => primary.complete(r),
+        () => secondary.complete(r),
+      ),
+    extractStructured: (r, s) =>
+      withFallback(
+        'extractStructured',
+        () => primary.extractStructured(r, s),
+        () => secondary.extractStructured(r, s),
+      ),
+    translate: (r) =>
+      withFallback(
+        'translate',
+        () => primary.translate(r),
+        () => secondary.translate(r),
+      ),
+    vision: (r) =>
+      withFallback(
+        'vision',
+        () => primary.vision(r),
+        () => secondary.vision(r),
+      ),
+    // Embeddings: if the primary supports it, prefer it. Otherwise the
+    // secondary is the designated embedding provider (typical setup: we
+    // keep google for embeddings even with anthropic-primary).
+    embed: (r) => primary.embed(r).catch(() => secondary.embed(r)),
   };
 }

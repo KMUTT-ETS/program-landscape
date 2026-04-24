@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import {
@@ -16,6 +17,7 @@ import {
   Authorized,
   Provenance,
   ZodValidationPipe,
+  AiQuota,
 } from '../common';
 import { DecisionsService } from './decisions.service';
 import { DecisionReviewService } from './decision-review.service';
@@ -298,6 +300,8 @@ export class DecisionsController {
   // ── Outcome review ────────────────────────────────────────────────
   @Post('/decisions/:id/outcome-review')
   @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'decisions' })
   @AiCall({ module: 'decisions' })
   async outcomeReview(
     @AuthSession() user: SessionUser,

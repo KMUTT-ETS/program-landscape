@@ -1,11 +1,13 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import { ANALYST_BRIEFS, getBriefTemplate } from '@kku/shared';
 import {
+  AiCall,
+  AiQuota,
   AuthSession,
   Authorized,
-  AiCall,
   ZodValidationPipe,
 } from '../common';
 import { AnalystService } from './analyst.service';
@@ -84,6 +86,8 @@ export class AnalystController {
 
   @Post('chat')
   @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 20, ttl: 60_000 }, ai_hourly: { limit: 200, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'analyst' })
   @AiCall({ module: 'analyst' })
   async chat(
     @AuthSession() user: SessionUser,
@@ -98,6 +102,8 @@ export class AnalystController {
 
   @Post('briefs/generate')
   @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 50, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'analyst' })
   @AiCall({ module: 'analyst' })
   async generateBrief(
     @AuthSession() user: SessionUser,

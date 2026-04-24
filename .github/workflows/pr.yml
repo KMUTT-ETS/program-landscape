@@ -1,0 +1,90 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: kku
+          POSTGRES_PASSWORD: kku
+          POSTGRES_DB: kku_landscape
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U kku -d kku_landscape"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Link env fallback
+        run: |
+          cp .env.example .env
+          node scripts/link-env.mjs
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Prisma generate
+        run: pnpm --filter @kku/db exec prisma generate
+
+      - name: Apply migrations (test DB)
+        env:
+          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+        run: pnpm --filter @kku/db exec prisma migrate deploy
+
+      - name: Seed (test DB)
+        env:
+          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+          NODE_ENV: test
+        run: pnpm --filter @kku/db seed
+
+      - name: Test
+        env:
+          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+          REDIS_URL: redis://localhost:6379
+          NEXTAUTH_SECRET: test-secret-please-override-for-anything-real
+          AI_PROVIDER: stub
+        run: pnpm test
+
+      - name: AI eval (offline safety-gate coverage)
+        run: pnpm ai:eval

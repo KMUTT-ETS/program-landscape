@@ -1,0 +1,57 @@
+name: Release bundle
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck + lint
+        run: pnpm lint && pnpm typecheck
+
+      # The actual pack-and-ship bundle script lives in prompt 13b. This
+      # workflow placeholder does the checks that GATE the release — a
+      # tag never ships unless lint + typecheck pass. The bundling script
+      # (scripts/bundle.sh) is invoked manually on the dev machine per
+      # CLAUDE.md → "Deployment model: pack-and-ship". Publishing to
+      # ghcr via this workflow lands in 13b once the script is written.
+      - name: Build web (smoke)
+        run: pnpm --filter web build
+
+      - name: Build api (smoke)
+        run: pnpm --filter api build
+
+      - name: Build ingestion (smoke)
+        run: pnpm --filter ingestion build
+
+      - name: Print release metadata
+        run: |
+          echo "Tag: ${GITHUB_REF_NAME}"
+          echo "SHA: ${GITHUB_SHA}"
+          echo "Run: ${GITHUB_RUN_ID}"
+          echo "Next: run scripts/bundle.sh on the dev machine (once 13b ships)."

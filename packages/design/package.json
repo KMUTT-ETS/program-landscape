@@ -7,7 +7,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "peerDependencies": {
     "tailwindcss": "^3.4.17"

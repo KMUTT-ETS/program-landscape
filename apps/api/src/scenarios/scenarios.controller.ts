@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import {
@@ -16,6 +17,7 @@ import {
   AiCall,
   Provenance,
   ZodValidationPipe,
+  AiQuota,
 } from '../common';
 import { ScenariosService } from './scenarios.service';
 import { ScenarioInsightsService } from './scenario-insights.service';
@@ -226,6 +228,8 @@ export class ScenariosController {
 
   @Post(':id/brief')
   @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'scenarios' })
   @AiCall({ module: 'scenarios' })
   async brief(
     @AuthSession() user: SessionUser,

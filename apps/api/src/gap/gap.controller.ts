@@ -6,6 +6,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import {
   computeForecastAccuracy,
@@ -23,6 +24,7 @@ import {
   AiCall,
   Provenance,
   ZodValidationPipe,
+  AiQuota,
 } from '../common';
 import { GapInsightsService } from './gap-insights.service';
 
@@ -112,6 +114,8 @@ export class GapController {
 
   @Post('insights/generate')
   @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'gap-analysis' })
   @AiCall({ module: 'gap-analysis' })
   async generateInsights(
     @AuthSession() user: SessionUser,

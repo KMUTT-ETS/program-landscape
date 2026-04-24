@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.createApplicationContext(AppModule);
-  const logger = new Logger('ingestion');
+  const app = await NestFactory.createApplicationContext(AppModule, {
+    bufferLogs: true,
+  });
+  const logger = app.get(Logger);
+  app.useLogger(logger);
 
   // Hold the process open until SIGTERM/SIGINT. IngestionService's
   // onModuleInit has already wired the BullMQ worker + registered

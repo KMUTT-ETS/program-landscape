@@ -60,9 +60,52 @@ if (isLocalAuthEnabled()) {
   );
 }
 
+// Prod: honour secure-cookie defaults even when the terminating TLS is
+// at KKU's reverse proxy. next-auth's heuristic looks at NEXTAUTH_URL
+// so this is usually fine, but we set it explicitly to avoid surprise
+// if someone runs the app behind a different proxy that strips the
+// X-Forwarded-Proto header.
+const useSecureCookies = process.env.NODE_ENV === 'production';
+
 export const authConfig: NextAuthConfig = {
   providers,
   session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
+  useSecureCookies,
+  cookies: {
+    sessionToken: {
+      name: useSecureCookies
+        ? '__Secure-authjs.session-token'
+        : 'authjs.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies,
+      },
+    },
+    callbackUrl: {
+      name: useSecureCookies
+        ? '__Secure-authjs.callback-url'
+        : 'authjs.callback-url',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies,
+      },
+    },
+    csrfToken: {
+      name: useSecureCookies
+        ? '__Host-authjs.csrf-token'
+        : 'authjs.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies,
+      },
+    },
+  },
   jwt: {
     encode: ({ token, secret, maxAge }) =>
       encodeJwt({

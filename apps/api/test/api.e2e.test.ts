@@ -60,6 +60,20 @@ async function signFor(role: UserRole, facultyId: string | null = null, departme
   return { jwt, user };
 }
 
+// Skip when Postgres isn't reachable — this test is a real end-to-end
+// probe that needs `pnpm db:up && pnpm db:seed`. The existence check is
+// cheap (~ms) and avoids noisy failures during CI runs that haven't
+// provisioned the DB yet.
+const postgresUp: boolean = await (async () => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const describeIfDb = postgresUp ? describe : describe.skip;
+
 beforeAll(async () => {
   // Make sure env is loaded even when run outside pnpm dev.
   const dotenv = await import('dotenv');
@@ -102,7 +116,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('Public endpoints', () => {
+describeIfDb('Public endpoints', () => {
   it('GET /healthz does not require auth', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/healthz');
     expect(res.status).toBe(200);
@@ -110,7 +124,7 @@ describe('Public endpoints', () => {
   });
 });
 
-describe('Authenticated endpoints — missing token', () => {
+describeIfDb('Authenticated endpoints — missing token', () => {
   it('401 when no Authorization header', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/me');
     expect(res.status).toBe(401);
@@ -131,7 +145,7 @@ describe('Authenticated endpoints — missing token', () => {
   });
 });
 
-describe('/me', () => {
+describeIfDb('/me', () => {
   it('returns identity + permissions for ADMIN', async () => {
     const { jwt } = await signFor('ADMIN');
     const res = await request(app.getHttpServer())
@@ -144,7 +158,7 @@ describe('/me', () => {
   });
 });
 
-describe('/data-sources — admin only', () => {
+describeIfDb('/data-sources — admin only', () => {
   it('ADMIN can list', async () => {
     const { jwt } = await signFor('ADMIN');
     const res = await request(app.getHttpServer())
@@ -173,7 +187,7 @@ describe('/data-sources — admin only', () => {
   });
 });
 
-describe('/programs', () => {
+describeIfDb('/programs', () => {
   it('returns programs at university scope for COUNCIL', async () => {
     const { jwt } = await signFor('COUNCIL');
     const res = await request(app.getHttpServer())
@@ -194,7 +208,7 @@ describe('/programs', () => {
   });
 });
 
-describe('/faculties', () => {
+describeIfDb('/faculties', () => {
   it('COUNCIL can list', async () => {
     const { jwt } = await signFor('COUNCIL');
     const res = await request(app.getHttpServer())

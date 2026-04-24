@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Bell, BrainCircuit, ClipboardCheck, Compass, Database, FileText, Gauge, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
+import { Activity, Bell, BrainCircuit, Building2, ClipboardCheck, Compass, Database, FileText, Gauge, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -137,8 +137,31 @@ export function TopBarRight({ user }: { user: SessionUser }) {
               Inbox
             </a>
           </DropdownMenuItem>
+          {(user.role === 'ADMIN' ||
+            user.role === 'ANALYST' ||
+            user.role === 'EXECUTIVE' ||
+            user.role === 'COUNCIL') && (
+            <DropdownMenuItem asChild>
+              <a href="/admin/system-status" className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-text-tertiary" aria-hidden />
+                System status
+              </a>
+            </DropdownMenuItem>
+          )}
           {(user.role === 'ADMIN' || user.role === 'ANALYST') && (
             <>
+              <DropdownMenuItem asChild>
+                <a href="/admin/programs" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-text-tertiary" aria-hidden />
+                  Programs
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/data-quality" className="flex items-center gap-2">
+                  <Gauge className="h-4 w-4 text-text-tertiary" aria-hidden />
+                  Data quality
+                </a>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a href="/admin/data-sources" className="flex items-center gap-2">
                   <Database className="h-4 w-4 text-text-tertiary" aria-hidden />
