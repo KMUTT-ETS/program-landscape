@@ -1,0 +1,82 @@
+# Exclude everything that doesn't belong in the Docker build context.
+# The prod Dockerfiles deliberately COPY only what each app needs, but a
+# tight .dockerignore keeps the transfer fast and prevents leaking local
+# state into the image.
+
+# Node dependencies (we install fresh inside the image)
+**/node_modules
+**/.pnpm-store
+
+# Build output
+**/dist
+**/build
+**/.next
+**/out
+**/.turbo
+
+# Env / secrets — never ship these
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Secrets directory (mounted at deploy time, never in the build)
+secrets/
+**/*.pem
+**/*.key
+
+# Logs + caches
+*.log
+npm-debug.log*
+pnpm-debug.log*
+**/coverage
+**/.nyc_output
+**/*.tsbuildinfo
+**/.next/cache
+**/.vite
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.swp
+
+# Git + CI
+.git
+.github
+.gitignore
+.gitattributes
+
+# Tests + fixtures (runtime doesn't need them)
+**/test
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+
+# Docs + repo metadata (runtime doesn't need these either)
+docs
+*.md
+!README.md
+!apps/*/README.md
+
+# Claude Code per-session state
+.claude
+.history
+
+# Release artifacts
+dist/releases
+dist/*.tar.gz
+dist/*.sha256
+
+# Playwright + Storybook
+**/playwright-report
+**/storybook-static
+
+# Gotenberg fonts (handled by the gotenberg Docker build context)
+infra/gotenberg/fonts/*.ttf
+infra/gotenberg/fonts/*.TTF
+
+# PDF worker copy — regenerated during prebuild
+apps/web/public/pdf.worker.*.mjs

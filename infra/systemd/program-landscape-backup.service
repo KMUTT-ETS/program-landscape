@@ -1,0 +1,16 @@
+[Unit]
+Description=Program Landscape nightly backup (pg_dump + MinIO mirror)
+Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/program-landscape
+ExecStart=/opt/program-landscape/current/scripts/backup.sh
+# Don't tie the systemd unit's "success" to the job — the script
+# itself exits 0 on retention-prune warnings, which is desired.
+SuccessExitStatus=0
+Nice=10
+IOSchedulingClass=idle

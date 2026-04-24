@@ -1,0 +1,65 @@
+# syntax=docker/dockerfile:1.7
+# apps/ingestion — production image for the standalone BullMQ worker
+# + trend-monitors scheduler. No HTTP surface — runs until SIGTERM.
+#
+# Shape parallels apps/api/Dockerfile.prod; the only runtime differences
+# are the entrypoint and the absence of an HTTP healthcheck.
+
+ARG NODE_VERSION=20-alpine
+
+# ── Stage 1: deps ────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY apps/ingestion/package.json ./apps/ingestion/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/db/package.json ./packages/db/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/design/package.json ./packages/design/
+COPY packages/pdf-templates/package.json ./packages/pdf-templates/
+RUN pnpm fetch --prod=false
+
+COPY . .
+RUN pnpm install --frozen-lockfile --offline --prefer-offline
+
+# ── Stage 2: build ───────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS build
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.1 --activate
+COPY --from=deps /app /app
+
+RUN pnpm --filter @kku/db exec prisma generate
+RUN pnpm --filter ingestion build
+RUN pnpm deploy --filter ingestion --prod /tmp/ingestion
+
+# ── Stage 3: runner ──────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS runner
+WORKDIR /app
+RUN apk add --no-cache tini openssl \
+  && addgroup -S app -g 1001 \
+  && adduser -S app -G app -u 1001
+
+ENV NODE_ENV=production
+
+COPY --from=build --chown=app:app /tmp/ingestion/dist ./dist
+COPY --from=build --chown=app:app /tmp/ingestion/node_modules ./node_modules
+COPY --from=build --chown=app:app /app/packages/db/prisma ./packages/db/prisma
+COPY --from=build --chown=app:app /app/packages/db/package.json ./packages/db/
+COPY --from=build --chown=app:app /app/apps/ingestion/package.json ./
+
+USER app
+
+# No HTTP port — Docker healthcheck probes the process.
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 --start-period=30s \
+  CMD pgrep -f 'node dist/main.js' >/dev/null || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/main.js"]

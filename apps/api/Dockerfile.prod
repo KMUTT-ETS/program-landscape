@@ -1,0 +1,75 @@
+# syntax=docker/dockerfile:1.7
+# apps/api — production image for the NestJS HTTP API.
+#
+# Three stages: workspace-wide deps install, per-app build, slim runner.
+# Prisma binary target `linux-musl-openssl-3.0.x` is declared in the
+# schema so the generated client runs on node:20-alpine.
+
+ARG NODE_VERSION=20-alpine
+
+# ── Stage 1: deps ────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY apps/ingestion/package.json ./apps/ingestion/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/db/package.json ./packages/db/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/design/package.json ./packages/design/
+COPY packages/pdf-templates/package.json ./packages/pdf-templates/
+RUN pnpm fetch --prod=false
+
+COPY . .
+RUN pnpm install --frozen-lockfile --offline --prefer-offline
+
+# ── Stage 2: build ───────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS build
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.1 --activate
+COPY --from=deps /app /app
+
+# Generate Prisma client (linux-musl target) + compile the Nest app.
+RUN pnpm --filter @kku/db exec prisma generate
+RUN pnpm --filter api build
+
+# Prune dev deps for a leaner runtime.
+RUN pnpm deploy --filter api --prod /tmp/api \
+  # Copy the Prisma generated client + schema into the deployed tree so
+  # the runtime can reach it.
+  && cp -r /app/node_modules/.pnpm/@prisma+client@* /tmp/api/node_modules/.pnpm/ 2>/dev/null || true
+
+# ── Stage 3: runner ──────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS runner
+WORKDIR /app
+RUN apk add --no-cache tini openssl \
+  && addgroup -S app -g 1001 \
+  && adduser -S app -G app -u 1001
+
+ENV NODE_ENV=production \
+    PORT=4000
+
+# Compiled JS + trimmed node_modules.
+COPY --from=build --chown=app:app /tmp/api/dist ./dist
+COPY --from=build --chown=app:app /tmp/api/node_modules ./node_modules
+# Prisma schema + migrations — runtime Prisma client reads them when
+# calling $queryRaw with prepared statements.
+COPY --from=build --chown=app:app /app/packages/db/prisma ./packages/db/prisma
+COPY --from=build --chown=app:app /app/packages/db/package.json ./packages/db/
+COPY --from=build --chown=app:app /app/apps/api/package.json ./
+
+USER app
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=15s \
+  CMD wget -qO- http://127.0.0.1:4000/api/v1/ready 2>&1 | grep -q '"status":"ok"' || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/main.js"]

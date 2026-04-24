@@ -4,18 +4,27 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0 or dev-testing)'
+        required: true
+        default: 'dev-ci'
 
 jobs:
   bundle:
+    name: Build release bundle
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
-      contents: write
-      packages: write
-      id-token: write
+      contents: write       # create releases + upload assets
+      packages: write       # push to ghcr (optional)
+      id-token: write       # provenance attestation
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # commit SHA for the bundle manifest
 
       - uses: pnpm/action-setup@v4
         with:
@@ -28,30 +37,85 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_TYPE:-}" = "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck + lint
+      - name: Link env placeholder
+        run: |
+          cp .env.example .env
+          node scripts/link-env.mjs
+
+      - name: Prisma generate
+        run: pnpm --filter @kku/db exec prisma generate
+
+      - name: Lint + typecheck
         run: pnpm lint && pnpm typecheck
 
-      # The actual pack-and-ship bundle script lives in prompt 13b. This
-      # workflow placeholder does the checks that GATE the release — a
-      # tag never ships unless lint + typecheck pass. The bundling script
-      # (scripts/bundle.sh) is invoked manually on the dev machine per
-      # CLAUDE.md → "Deployment model: pack-and-ship". Publishing to
-      # ghcr via this workflow lands in 13b once the script is written.
-      - name: Build web (smoke)
-        run: pnpm --filter web build
+      - name: Tests
+        env:
+          NODE_ENV: test
+          AI_PROVIDER: stub
+          NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use
+        run: pnpm -r --if-present test
 
-      - name: Build api (smoke)
-        run: pnpm --filter api build
+      - name: Build release bundle
+        run: pnpm build:release "${{ steps.version.outputs.version }}"
 
-      - name: Build ingestion (smoke)
-        run: pnpm --filter ingestion build
-
-      - name: Print release metadata
+      - name: Bundle summary
         run: |
-          echo "Tag: ${GITHUB_REF_NAME}"
-          echo "SHA: ${GITHUB_SHA}"
-          echo "Run: ${GITHUB_RUN_ID}"
-          echo "Next: run scripts/bundle.sh on the dev machine (once 13b ships)."
+          set -e
+          ls -lh dist/program-landscape-*.tar.gz*
+          echo '## Release bundle' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '| File | Size | SHA-256 |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/program-landscape-*.tar.gz; do
+            SIZE=$(du -h "$f" | cut -f1)
+            SHA=$(cat "$f.sha256" | cut -d' ' -f1)
+            echo "| $(basename "$f") | $SIZE | \`$SHA\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      # GitHub release — only on tag push; workflow_dispatch skips this.
+      - name: Publish GitHub release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/program-landscape-*.tar.gz
+            dist/program-landscape-*.tar.gz.sha256
+          fail_on_unmatched_files: true
+          body: |
+            Production release bundle for Program Landscape.
+
+            **Deploy on the prod server:**
+            ```
+            scp program-landscape-*.tar.gz kku-prod:/tmp/
+            ssh kku-prod
+            cd /tmp && tar xzf program-landscape-*.tar.gz
+            cd program-landscape-*
+            sudo ./scripts/deploy.sh
+            ```
+
+            Full runbook in `DEPLOYMENT.md` (bundled). Checksum file
+            alongside the tarball — verify with `sha256sum -c`.
+
+      # Upload as a build artefact on manual runs too (operators can
+      # download + transfer without creating a GitHub Release).
+      - name: Upload bundle artefact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: program-landscape-${{ steps.version.outputs.version }}
+          path: |
+            dist/program-landscape-*.tar.gz
+            dist/program-landscape-*.tar.gz.sha256
+          retention-days: 14

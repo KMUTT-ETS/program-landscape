@@ -55,6 +55,14 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@kku/ui', '@kku/design', '@kku/shared'],
+  // Emit a self-contained server bundle at `.next/standalone` so the
+  // production Dockerfile can copy it without shipping `node_modules`.
+  // Static assets live at `.next/static` and are copied alongside.
+  output: 'standalone',
+  // The monorepo root is two levels up from apps/web. Next uses this to
+  // trace dependencies during the standalone build; without it, the
+  // tracer walks to `/` which is wrong in our WSL2 / Docker layout.
+  outputFileTracingRoot: new URL('../../', import.meta.url).pathname,
   experimental: {
     typedRoutes: true,
   },

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: mailto:security@kku.ac.th
+    about: Please email the security team directly — do NOT open a public issue.
+  - name: Ask a question
+    url: https://github.com/khon-kaen-university/program-landscape/discussions
+    about: For non-bug, non-feature questions, use Discussions.

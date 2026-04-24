@@ -6,8 +6,16 @@ sustainability, and labor market demand.
 
 Internal codename: *Curriculum Compass* / *ทักษทัศน์*.
 
-**Status:** under construction — see `CLAUDE.md` → *Current status* for the
-checklist of prompts completed.
+**Status:** hardened + production-shippable. 8 modules functional; security
++ observability + AI governance pass complete (prompt 13); pack-and-ship
+deployment pipeline ready (prompt 13b). Real-data connectors land with
+prompt 14. See `CLAUDE.md` → *Current status* for the full checklist.
+
+<p align="left">
+  <a href="https://github.com/khon-kaen-university/program-landscape/actions/workflows/pr.yml"><img alt="CI" src="https://github.com/khon-kaen-university/program-landscape/actions/workflows/pr.yml/badge.svg" /></a>
+  <a href="https://github.com/khon-kaen-university/program-landscape/actions/workflows/release.yml"><img alt="Release" src="https://github.com/khon-kaen-university/program-landscape/actions/workflows/release.yml/badge.svg" /></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-internal-lightgrey" /></a>
+</p>
 
 ## Getting started (dev — WSL2 / macOS / Linux)
 
@@ -67,14 +75,33 @@ prompts/       Session-by-session build manual
 
 ## Documentation
 
-- `CLAUDE.md` — project conventions (read at every Claude Code session start)
-- `prompts/README.md` — build plan, prompt sequence, cadence
-- `prompts/GLOBAL-UPDATES.md` — cross-cutting requirements
-- `prompts/SKILLS.md` — which Claude skills to invoke per session
-- `prompts/WINDOWS-DEV.md` — Windows/WSL2 dev setup
-- `docs/design-system.md` — aesthetic direction (expanded in prompt 02b)
-- `docs/auth/kku-sso.md` — KKU SSO configuration
-- `docs/methodologies/` — per-metric methodology (versioned)
+**Deployment + ops**
+- [`DEPLOYMENT.md`](./DEPLOYMENT.md) — production deploy runbook (pack-and-ship)
+- [`docs/deployment/kku-network-integration.md`](./docs/deployment/kku-network-integration.md) — KKU reverse-proxy handshake
+- [`docs/backup-dr.md`](./docs/backup-dr.md) — backup classes + restore drill
+- [`docs/migration-policy.md`](./docs/migration-policy.md) — forward-only schema policy
+- [`docs/security-review.md`](./docs/security-review.md) — endpoint authz + dep audit snapshot
+
+**Guides**
+- [`docs/guides/council-th.md`](./docs/guides/council-th.md) — Council (Thai)
+- [`docs/guides/executive.md`](./docs/guides/executive.md) — VPs + Deans
+- [`docs/guides/analyst.md`](./docs/guides/analyst.md) — daily cadence + runbook
+- [`docs/guides/admin-runbook.md`](./docs/guides/admin-runbook.md) — IT ops
+
+**AI + compliance**
+- [`docs/ai-governance.md`](./docs/ai-governance.md) — model policy, eval, bias monitoring
+- [`docs/pdpa.md`](./docs/pdpa.md) — personal-data inventory
+- [`docs/dsar-workflow.md`](./docs/dsar-workflow.md) — data-subject request workflow
+
+**Reference**
+- [`CLAUDE.md`](./CLAUDE.md) — project conventions
+- [`SECURITY.md`](./SECURITY.md) — vulnerability reporting
+- [`docs/methodologies/README.md`](./docs/methodologies/README.md) — versioned metric formulas
+- [`prompts/`](./prompts) — session-by-session build manual (GLOBAL-UPDATES, SKILLS, per-prompt)
+
+**Build + release**
+- `pnpm build:release 1.0.0` — pack the release into `dist/program-landscape-1.0.0.tar.gz`
+- `ssh kku-prod ./deploy.sh` — deploy on the prod server
 
 ## Platform
 

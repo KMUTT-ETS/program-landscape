@@ -1,0 +1,86 @@
+name: Bug report
+description: Something is broken or behaves incorrectly.
+title: "[bug] "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't file security issues here — email security@kku.ac.th instead
+        (see `SECURITY.md`).
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Dev / staging / prod. Release tag if known.
+      placeholder: "prod · v0.14.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the bug in 1–2 sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Minimum steps to reproduce.
+      placeholder: |
+        1. Sign in as DEAN for Faculty of Engineering
+        2. Open /admin/programs?facultyId=...
+        3. Click "Edit" on BSc Computer Engineering
+        4. Save — spinner hangs for > 30s
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Browser console / `docker compose logs <service>` tail / request-id from the Network tab.
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Who's affected?
+      multiple: true
+      options:
+        - Council
+        - Executive
+        - Dean / Dept head
+        - Analyst
+        - Admin / IT ops
+        - All users
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 — Council meeting in < 24h, app unusable
+        - P1 — Major feature broken, workaround painful
+        - P2 — Nuisance, acceptable workaround exists
+        - P3 — Polish
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I confirmed this is not a known limitation in `CLAUDE.md` or `docs/`.
+          required: true

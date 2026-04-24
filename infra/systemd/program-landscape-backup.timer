@@ -1,0 +1,14 @@
+[Unit]
+Description=Program Landscape — trigger the backup service nightly
+Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
+
+[Timer]
+# 02:00 Asia/Bangkok every day. Keep the RandomizedDelay small so
+# the window is predictable for monitoring.
+OnCalendar=*-*-* 02:00:00 Asia/Bangkok
+RandomizedDelaySec=120
+Persistent=true
+Unit=program-landscape-backup.service
+
+[Install]
+WantedBy=timers.target

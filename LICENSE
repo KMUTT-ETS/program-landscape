@@ -1,0 +1,54 @@
+Program Landscape — Khon Kaen University Internal License
+==========================================================
+
+Copyright (c) 2026 Khon Kaen University. All rights reserved.
+
+This software is the confidential and proprietary information of Khon
+Kaen University ("KKU"). It is provided to KKU's faculty, staff,
+Council members, and designated contractors ("Authorised Users") for
+the express purpose of operating the Program Landscape decision-support
+system on behalf of KKU's University Council and administration.
+
+You may:
+
+- Read, modify, and run the source code within KKU's organisational
+  scope.
+- Deploy the software to hardware owned or leased by KKU.
+- Grant access to the running application to KKU faculty, staff, and
+  Council members in accordance with the role-based access controls
+  defined by the application.
+
+You may NOT, without prior written authorisation from KKU's Office of
+the Vice President for Education and Digital:
+
+- Redistribute the source code, binaries, or release bundles outside
+  KKU's organisational scope.
+- Publish copies of the source or derivative works on public
+  repositories.
+- Use the software, or material derived from it, for commercial
+  purposes unrelated to KKU's academic operations.
+- Disclose personal data processed by the application in a manner
+  inconsistent with Thailand's Personal Data Protection Act B.E. 2562
+  (see `docs/pdpa.md`).
+
+This license does not extend to third-party components bundled or
+referenced by the software — those are governed by their respective
+licenses. Notable third-party components:
+
+- Next.js, NestJS, React, Tailwind CSS, Prisma, BullMQ — MIT License
+- PostgreSQL, PostGIS, pgvector — PostgreSQL License
+- Gotenberg — MIT License
+- Anthropic SDK, Google GenAI SDK — Apache-2.0 License
+
+For questions about usage, licensing, or access, contact the KKU
+Office of the Vice President for Education and Digital.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL KKU BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+— End of license —

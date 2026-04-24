@@ -1,0 +1,63 @@
+name: Feature request
+description: A new capability or an adjustment that changes user-visible behaviour.
+title: "[feature] "
+labels: [feature, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What's painful today? Who feels it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What you'd like to see. Sketches / mocks welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Primary audience
+      options:
+        - Council
+        - Executive / Dean / Dept head
+        - Analyst
+        - Admin / IT ops
+        - All users
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - Cockpit (01)
+        - Deep-Dive (02)
+        - Trends Radar (03)
+        - Gap Analyzer (04)
+        - Scenario Planner (05)
+        - Benchmarking (06)
+        - AI Analyst (07)
+        - Decision Workspace (08)
+        - Admin / ops
+        - Cross-cutting
+
+  - type: textarea
+    id: council_readiness
+    attributes:
+      label: Council-readiness implications
+      description: |
+        Will this affect provenance, confidence, freshness, audit, or
+        methodology versioning? Any AI governance touchpoints?
+      placeholder: |
+        (e.g. Adds a new AI-generated output — needs a ConfidenceBadge,
+        ProvenanceButton, and safety-gate coverage.)

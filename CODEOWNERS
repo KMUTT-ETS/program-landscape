@@ -1,0 +1,52 @@
+# CODEOWNERS — GitHub enforces PR review by the listed owners.
+#
+# Path patterns follow .gitignore-style globbing. The LAST matching
+# pattern wins, so more specific paths go at the bottom.
+
+# ── Default ──────────────────────────────────────────────────────────
+# Project lead + senior engineer review anything not caught by a more
+# specific rule below. Replace the placeholder handles with the real
+# KKU github usernames before production.
+*                                    @khon-kaen-university/program-landscape-core
+
+# ── Frontend ─────────────────────────────────────────────────────────
+/apps/web/                           @khon-kaen-university/program-landscape-web
+/packages/ui/                        @khon-kaen-university/program-landscape-web
+/packages/design/                    @khon-kaen-university/program-landscape-web
+
+# ── Backend + AI ─────────────────────────────────────────────────────
+/apps/api/                           @khon-kaen-university/program-landscape-backend
+/apps/ingestion/                    @khon-kaen-university/program-landscape-backend
+/packages/shared/src/ai/             @khon-kaen-university/program-landscape-ai
+/packages/shared/src/analyst/        @khon-kaen-university/program-landscape-ai
+
+# ── Data + schema ────────────────────────────────────────────────────
+/packages/db/                        @khon-kaen-university/program-landscape-data
+/packages/shared/src/forecasting/    @khon-kaen-university/program-landscape-data
+/packages/shared/src/scenarios/      @khon-kaen-university/program-landscape-data
+/docs/methodologies/                 @khon-kaen-university/program-landscape-data
+
+# ── Infra + deploy ───────────────────────────────────────────────────
+/infra/                              @khon-kaen-university/program-landscape-ops
+/scripts/                            @khon-kaen-university/program-landscape-ops
+/docker-compose.prod.yml             @khon-kaen-university/program-landscape-ops
+/.github/                            @khon-kaen-university/program-landscape-ops
+/DEPLOYMENT.md                       @khon-kaen-university/program-landscape-ops
+/docs/deployment/                    @khon-kaen-university/program-landscape-ops
+/docs/backup-dr.md                   @khon-kaen-university/program-landscape-ops
+/docs/migration-policy.md            @khon-kaen-university/program-landscape-ops
+
+# ── Security + compliance ────────────────────────────────────────────
+/SECURITY.md                         @khon-kaen-university/program-landscape-security
+/docs/security-review.md             @khon-kaen-university/program-landscape-security
+/docs/pdpa.md                        @khon-kaen-university/program-landscape-security
+/docs/dsar-workflow.md               @khon-kaen-university/program-landscape-security
+/docs/ai-governance.md               @khon-kaen-university/program-landscape-security
+/apps/api/src/common/ai-quota.guard.ts      @khon-kaen-university/program-landscape-security
+/apps/api/src/common/data-export.guard.ts   @khon-kaen-university/program-landscape-security
+/packages/shared/src/auth/           @khon-kaen-university/program-landscape-security
+
+# ── Guides (writing quality) ─────────────────────────────────────────
+/docs/guides/                        @khon-kaen-university/program-landscape-docs
+/README.md                           @khon-kaen-university/program-landscape-docs
+/CLAUDE.md                           @khon-kaen-university/program-landscape-core

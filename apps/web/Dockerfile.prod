@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1.7
+# apps/web — production image for the Next.js App Router frontend.
+#
+# Multi-stage build:
+#   1. `deps`  — install pnpm workspace deps (the whole monorepo) with
+#                cache-friendly layer order.
+#   2. `build` — copy source + run `pnpm --filter web build`. Next
+#                emits a self-contained standalone server under
+#                `.next/standalone`.
+#   3. `runner`— minimal alpine layer that serves the standalone
+#                bundle as a non-root user, with `tini` as PID 1.
+
+ARG NODE_VERSION=20-alpine
+
+# ── Stage 1: deps ────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.1 --activate
+
+# Copy only files needed for the lockfile-driven install first — this
+# makes the dep layer cache-hit whenever package.json files haven't
+# changed.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY apps/ingestion/package.json ./apps/ingestion/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/db/package.json ./packages/db/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/design/package.json ./packages/design/
+COPY packages/pdf-templates/package.json ./packages/pdf-templates/
+RUN pnpm fetch --prod=false
+
+COPY . .
+RUN pnpm install --frozen-lockfile --offline --prefer-offline
+
+# ── Stage 2: build ───────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS build
+WORKDIR /app
+RUN apk add --no-cache libc6-compat \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.1 --activate
+COPY --from=deps /app /app
+
+# Generate Prisma client — the web app references shared types that
+# transitively pull from @kku/db.
+RUN pnpm --filter @kku/db exec prisma generate
+
+# Build the Next.js standalone bundle.
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter web run prebuild || true
+RUN pnpm --filter web build
+
+# ── Stage 3: runner ──────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS runner
+WORKDIR /app
+RUN apk add --no-cache tini \
+  && addgroup -S app -g 1001 \
+  && adduser -S app -G app -u 1001
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
+
+# Standalone output already includes a minimal node_modules. We copy it
+# into /app, then layer static assets + public on top.
+COPY --from=build --chown=app:app /app/apps/web/.next/standalone/ ./
+COPY --from=build --chown=app:app /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=app:app /app/apps/web/public ./apps/web/public
+
+USER app
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
+  CMD wget -qO- http://127.0.0.1:3000/api/auth/providers >/dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+# Next's standalone output includes a server.js at the monorepo root
+# relative to the standalone bundle.
+CMD ["node", "apps/web/server.js"]

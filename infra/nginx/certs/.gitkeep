@@ -1,0 +1,4 @@
+# This directory holds the self-signed TLS cert that the KKU reverse
+# proxy trusts. Files `fullchain.pem` + `privkey.pem` are generated on
+# the prod server by scripts/generate-self-signed-cert.sh and are never
+# committed — they are gitignored via the top-level .gitignore.

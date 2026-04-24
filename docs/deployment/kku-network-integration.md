@@ -1,0 +1,184 @@
+# KKU Network Integration
+
+Coordinates the on-prem Ubuntu server (hosting Program Landscape) with the university's public reverse proxy + DNS + monitoring. This is an **operator-to-operator handover**: engineering sets up what it controls, hands the rest to KKU network team with a clear ask list.
+
+---
+
+## Summary of the handshake
+
+| Our side | KKU network team side |
+|---|---|
+| Runs internal nginx on `:8443` (HTTPS, self-signed). | Runs the university reverse proxy that terminates the public cert for `program-landscape.kku.ac.th`. |
+| Serves a `/healthz` endpoint at `:8443` that returns 200. | Polls `/healthz` and marks us up/down. |
+| Trusts `X-Forwarded-For` / `X-Forwarded-Proto` / `X-Forwarded-Host` from their proxy IP(s). | Sends those headers with real client data. |
+| Provides cert SHA-256 fingerprint. | Pins the fingerprint OR sets `proxy_ssl_verify off`. |
+| Listens on a single host/port pair — no port hopping. | Points `program-landscape.kku.ac.th` → KKU proxy → us at a fixed IP. |
+
+## 1. DNS
+
+- KKU DNS team configures an A record (or CNAME) for `program-landscape.kku.ac.th` → the university reverse proxy.
+- Our Ubuntu server does NOT have a public DNS record. It is reachable only from the KKU proxy over the internal network.
+- TTL: 300s during rollout, raise to 3600s once stable.
+
+## 2. KKU reverse proxy configuration
+
+What we need the KKU team to configure:
+
+```nginx
+# Fragment they add to their reverse proxy config
+server {
+  listen 443 ssl http2;
+  server_name program-landscape.kku.ac.th;
+
+  ssl_certificate     /etc/kku/certs/program-landscape.kku.ac.th.fullchain.pem;
+  ssl_certificate_key /etc/kku/certs/program-landscape.kku.ac.th.privkey.pem;
+
+  location / {
+    proxy_pass https://<OUR_HOST_IP>:8443;     # our Ubuntu server
+    proxy_ssl_server_name on;
+    proxy_ssl_name program-landscape.kku.ac.th;
+
+    # TWO CHOICES — pick one:
+
+    # (A) Relaxed: accept any cert from us (simpler but less secure)
+    proxy_ssl_verify off;
+
+    # (B) Strict: pin our self-signed cert fingerprint
+    # proxy_ssl_trusted_certificate /etc/kku/certs/program-landscape-upstream.pem;
+    # proxy_ssl_verify on;
+    # proxy_ssl_verify_depth 1;
+
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host  $host;
+
+    # Match our nginx's timeout; PDF + AI calls can take 30+ seconds.
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+    client_max_body_size 100M;
+  }
+}
+```
+
+**Decision for v1:** go with `proxy_ssl_verify off` (simpler). Switch to cert pinning before Council rollout Phase 3 — we give them our SHA-256 fingerprint at that time.
+
+## 3. Firewall / ACL
+
+- KKU proxy IP(s) → our server on TCP/8443: **allow**.
+- KKU proxy IP(s) → our server on TCP/8080 (HTTP-redirect): **allow** (optional — for safety).
+- Everything else → our server: **deny**.
+- Our server outbound: unrestricted HTTPS (for AI providers + ingestion connectors). If KKU needs to restrict, ask.
+
+Implementation options:
+- **UFW on the Ubuntu host** (simplest):
+  ```bash
+  sudo ufw default deny incoming
+  sudo ufw allow from <KKU_PROXY_CIDR> to any port 8443 proto tcp
+  sudo ufw allow from <KKU_PROXY_CIDR> to any port 8080 proto tcp
+  sudo ufw allow OpenSSH   # operator SSH
+  sudo ufw enable
+  ```
+- **KKU firewall** — preferred if it exists at the network edge.
+
+## 4. Health check poll
+
+- KKU proxy polls `GET https://<OUR_HOST_IP>:8443/healthz` every 10–30 seconds with `--insecure` / `proxy_ssl_verify off`.
+- Our `/healthz` returns `200 OK\nok\n` when nginx is reachable (not gated on downstream dep health — that's `/ready`).
+- If the poll fails for N consecutive checks, KKU proxy marks us down and returns a branded error page to users.
+
+## 5. Forwarded headers
+
+KKU proxy MUST send, and our nginx trusts:
+
+| Header | Value | Used for |
+|---|---|---|
+| `Host` | `program-landscape.kku.ac.th` | NextAuth callback URLs, CSP `connect-src` |
+| `X-Real-IP` | client IP | optional |
+| `X-Forwarded-For` | `<client>, <kku-proxy>` | audit IPs in `AuditLog` |
+| `X-Forwarded-Proto` | `https` | NextAuth `secure` flag, app-generated links |
+| `X-Forwarded-Host` | `program-landscape.kku.ac.th` | same |
+
+If KKU uses non-standard header names (some orgs do `X-KKU-Forwarded-*`), tell us — we can map them in `infra/nginx/nginx.conf` via `real_ip_header` + a small `map` block.
+
+## 6. Update `set_real_ip_from` in our nginx.conf
+
+`infra/nginx/nginx.conf` currently lists placeholder CIDRs:
+
+```nginx
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 192.168.0.0/16;
+```
+
+**Before Phase 2 of the rollout:** replace with the actual KKU reverse proxy CIDR (ask KKU network team). This is the set of IPs we trust to send `X-Forwarded-For`. Narrower is more secure — a spoofed `X-Forwarded-For` from an outside IP would be ignored.
+
+## 7. Cert fingerprint exchange
+
+On the prod server:
+
+```bash
+sudo openssl x509 -in /opt/program-landscape/certs/fullchain.pem -noout -fingerprint -sha256
+# e.g. sha256 Fingerprint=AB:CD:EF:...
+```
+
+Share that fingerprint + the public bundle (`fullchain.pem`) with KKU network team via your usual secure channel (email with encrypted attachment, or in-person handover). They decide whether to pin (strong) or just `proxy_ssl_verify off` (acceptable v1).
+
+## 8. Cert renewal
+
+Our self-signed cert is valid for **10 years**. Calendar reminder at year 9 to run:
+
+```bash
+cd /opt/program-landscape
+sudo mv certs certs.old.$(date +%Y%m%d)
+sudo ./current/scripts/generate-self-signed-cert.sh
+sudo docker compose -f current/docker-compose.yml restart nginx
+# Then notify KKU network team of the new fingerprint.
+```
+
+During Phase 1–2 of rollout we test this drill on staging.
+
+## 9. Outage escalation
+
+| Symptom | Responsibility |
+|---|---|
+| `program-landscape.kku.ac.th` DNS fails | KKU DNS team |
+| `program-landscape.kku.ac.th` returns KKU-branded 502 | KKU network team (their proxy can't reach us) |
+| KKU-branded 502 + `sudo docker ps` shows all green locally | Firewall ACL at the KKU edge; ping us on `8443` from a KKU proxy box |
+| `/healthz` OK but `/api/v1/ready` returns 503 | Our side — see `docs/guides/admin-runbook.md` |
+
+## 10. First-deploy handshake checklist
+
+Before the first `deploy.sh` in production:
+
+- [ ] DNS A-record confirmed for `program-landscape.kku.ac.th`.
+- [ ] KKU proxy source IP(s) placed in our nginx `set_real_ip_from`.
+- [ ] KKU proxy config uses `proxy_ssl_verify off` OR our cert fingerprint pinned.
+- [ ] KKU proxy forwards to `https://<our-ip>:8443` (not `:443`, not `http://`).
+- [ ] Firewall allows ingress on `:8443` from KKU proxy IPs only.
+- [ ] Health-check poll confirmed (KKU ops can see our `/healthz` green).
+- [ ] Forwarded-headers agreed (standard `X-Forwarded-*` unless KKU customises).
+- [ ] Cert fingerprint shared with KKU (even when pinning isn't active).
+- [ ] Operator SSH access to our Ubuntu server green through KKU bastion.
+- [ ] SMTP egress (if used for email alerts) allowed, or KKU mail relay address documented.
+
+---
+
+## Appendix: verification commands
+
+```bash
+# From an operator workstation inside KKU network
+curl -I --resolve program-landscape.kku.ac.th:443:<KKU_PROXY_IP> \
+  https://program-landscape.kku.ac.th/healthz
+# expect: HTTP/2 200, served by nginx/1.27-alpine through KKU proxy
+
+# From our Ubuntu server (ignores KKU proxy; talks direct to local nginx)
+curl -kI https://localhost:8443/healthz
+# expect: HTTP/2 200
+
+# Cert chain as KKU proxy sees it
+openssl s_client -connect <OUR_HOST_IP>:8443 -servername program-landscape.kku.ac.th < /dev/null 2>/dev/null \
+  | openssl x509 -noout -fingerprint -sha256
+# expect: matches the fingerprint stored on KKU side (if pinning) or the one from our generate-self-signed-cert.sh
+```

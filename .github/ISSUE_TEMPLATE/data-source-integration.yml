@@ -1,0 +1,79 @@
+name: Data source integration
+description: A new or updated external feed (policy doc, stats, peer programs, etc.).
+title: "[data] "
+labels: [data-source, prompt-14]
+body:
+  - type: input
+    id: source_name
+    attributes:
+      label: Source name
+      placeholder: "MHESI — annual HE enrollment report"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Source type
+      options:
+        - PDF (text-native)
+        - PDF (scanned)
+        - Web scrape
+        - Public API (JSON)
+        - KKU internal API
+        - Spreadsheet / CSV
+        - Human-curated
+
+  - type: input
+    id: url
+    attributes:
+      label: URL / location
+      description: Where does the feed come from? Include auth requirements if any.
+
+  - type: input
+    id: owner
+    attributes:
+      label: Upstream owner
+      description: Who at KKU or externally curates the source?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cadence
+    attributes:
+      label: Update cadence
+      options:
+        - Real-time
+        - Daily
+        - Weekly
+        - Monthly
+        - Quarterly
+        - Annually
+        - Ad-hoc
+
+  - type: textarea
+    id: fields
+    attributes:
+      label: Fields consumed
+      description: List the fields we extract + which domain tables they feed.
+
+  - type: textarea
+    id: pdpa
+    attributes:
+      label: PDPA impact
+      description: Does this feed contain personal data? Cross-border transfer? If yes, coordinate with DPO (`docs/pdpa.md`).
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Which module consumes it?
+      options:
+        - Cockpit
+        - Deep-Dive
+        - Trends Radar
+        - Gap Analyzer
+        - Scenario Planner
+        - Benchmarking
+        - AI Analyst tool
+        - Decision Workspace
+        - Cross-cutting
