@@ -20,6 +20,23 @@ import {
 } from '../common';
 import { IngestionQueueService } from './ingestion-queue.service';
 
+type RunBucket = { status: string; createdAt: Date; durationMs: number | null };
+function bucketByDay(runs: RunBucket[]): Array<{ day: string; succeeded: number; failed: number }> {
+  const days: Record<string, { succeeded: number; failed: number }> = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    days[key] = { succeeded: 0, failed: 0 };
+  }
+  for (const r of runs) {
+    const key = r.createdAt.toISOString().slice(0, 10);
+    if (!days[key]) continue;
+    if (r.status === 'SUCCEEDED') days[key].succeeded++;
+    else if (r.status === 'FAILED') days[key].failed++;
+  }
+  return Object.entries(days).map(([day, v]) => ({ day, ...v }));
+}
+
 const PatchBodySchema = z.object({
   cadenceCron: z.string().min(1).nullable().optional(),
   scheduleEnabled: z.boolean().optional(),
@@ -76,6 +93,108 @@ export class DataSourcesController {
       }),
     ]);
     return { total, active, paused, erroring, runsLast24h, failuresLast24h };
+  }
+
+  @Get('by-slug/:slug/stats')
+  @Authorized('data_sources:read')
+  @Provenance({ sources: [{ id: 'internal', name: 'Ingestion Framework' }] })
+  async slugStats(@Param('slug') slug: string) {
+    const source = await prisma.dataSource.findUnique({ where: { slug } });
+    if (!source) throw new NotFoundException();
+    return this.computeStats(source.id, source);
+  }
+
+  @Get(':id/stats')
+  @Authorized('data_sources:read')
+  @Provenance({ sources: [{ id: 'internal', name: 'Ingestion Framework' }] })
+  async stats(@Param('id') id: string) {
+    const source = await prisma.dataSource.findUnique({ where: { id } });
+    if (!source) throw new NotFoundException();
+    return this.computeStats(source.id, source);
+  }
+
+  private async computeStats(
+    dataSourceId: string,
+    source: { slug: string; name: string; status: string; lastSyncedAt: Date | null },
+  ) {
+    const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [last7d, last30d, lastSuccess, lastFailure, recent, successPer7d] = await Promise.all([
+      prisma.ingestionRun.groupBy({
+        by: ['status'],
+        where: { dataSourceId, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        _count: { _all: true },
+      }),
+      prisma.ingestionRun.groupBy({
+        by: ['status'],
+        where: { dataSourceId, createdAt: { gte: windowStart } },
+        _count: { _all: true },
+        _sum: { recordsFetched: true, recordsLoaded: true, recordsFailed: true, durationMs: true },
+      }),
+      prisma.ingestionRun.findFirst({
+        where: { dataSourceId, status: 'SUCCEEDED' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdAt: true, recordsLoaded: true, durationMs: true, attempt: true },
+      }),
+      prisma.ingestionRun.findFirst({
+        where: { dataSourceId, status: 'FAILED' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdAt: true, errorCode: true, errorMessage: true, attempt: true },
+      }),
+      prisma.ingestionRun.findMany({
+        where: { dataSourceId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          durationMs: true,
+          recordsLoaded: true,
+          recordsFailed: true,
+          errorCode: true,
+        },
+      }),
+      prisma.ingestionRun.findMany({
+        where: {
+          dataSourceId,
+          createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+        select: { status: true, createdAt: true, durationMs: true },
+      }),
+    ]);
+
+    const succeeded7d = last7d.find((r) => r.status === 'SUCCEEDED')?._count._all ?? 0;
+    const failed7d = last7d.find((r) => r.status === 'FAILED')?._count._all ?? 0;
+    const total7d = succeeded7d + failed7d;
+    const successRate7d = total7d > 0 ? succeeded7d / total7d : null;
+
+    const loaded30d = last30d.reduce((acc, r) => acc + (r._sum.recordsLoaded ?? 0), 0);
+    const failedRecords30d = last30d.reduce((acc, r) => acc + (r._sum.recordsFailed ?? 0), 0);
+    const durationMs30d = last30d.reduce((acc, r) => acc + (r._sum.durationMs ?? 0), 0);
+    const totalRuns30d = last30d.reduce((acc, r) => acc + r._count._all, 0);
+    const avgDurationMs = totalRuns30d > 0 ? Math.round(durationMs30d / totalRuns30d) : null;
+
+    const sparkline = bucketByDay(successPer7d);
+
+    return {
+      slug: source.slug,
+      name: source.name,
+      status: source.status,
+      lastSyncedAt: source.lastSyncedAt,
+      window: {
+        last7d: { succeeded: succeeded7d, failed: failed7d, successRate: successRate7d },
+        last30d: {
+          totalRuns: totalRuns30d,
+          recordsLoaded: loaded30d,
+          recordsFailed: failedRecords30d,
+          avgDurationMs,
+        },
+      },
+      lastSuccess,
+      lastFailure,
+      recent,
+      sparkline,
+    };
   }
 
   @Get(':id')

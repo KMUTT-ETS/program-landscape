@@ -27,8 +27,15 @@ interface DataQuality {
     current_year: number;
     current_value: number;
     prior_value: number;
-    pct_change: number;
+    pct_change: number | null;
+    severity: 'critical' | 'high' | 'moderate';
   }>;
+}
+
+function severityTone(s: 'critical' | 'high' | 'moderate'): 'danger' | 'warning' | 'neutral' {
+  if (s === 'critical') return 'danger';
+  if (s === 'high') return 'warning';
+  return 'neutral';
 }
 
 function toneForPct(pct: number): 'success' | 'warning' | 'danger' {
@@ -116,11 +123,11 @@ export default async function DataQualityPage() {
             </Card>
           </Section>
 
-          <Section title="Anomalies (≥50% change year-over-year)">
+          <Section title="Drift detection (enrollment · graduated · revenue · employment)">
             <Card padding="none">
               {dq.anomalies.length === 0 ? (
                 <div className="px-4 py-6 text-center text-sm text-text-secondary">
-                  No anomalies flagged.
+                  No drift flagged across any metric series.
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -128,6 +135,7 @@ export default async function DataQualityPage() {
                     <tr>
                       <th className="px-4 py-2 text-left">Program</th>
                       <th className="px-4 py-2 text-left">Metric</th>
+                      <th className="px-4 py-2 text-left">Severity</th>
                       <th className="px-4 py-2 text-right">Year</th>
                       <th className="px-4 py-2 text-right">Prior</th>
                       <th className="px-4 py-2 text-right">Current</th>
@@ -136,7 +144,7 @@ export default async function DataQualityPage() {
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {dq.anomalies.map((a, idx) => (
-                      <tr key={`${a.program_id}-${a.current_year}-${idx}`}>
+                      <tr key={`${a.program_id}-${a.metric}-${a.current_year}-${idx}`}>
                         <td className="px-4 py-2">
                           <a
                             href={`/programs/${a.program_id}`}
@@ -145,25 +153,31 @@ export default async function DataQualityPage() {
                             {a.program_id.slice(0, 10)}…
                           </a>
                         </td>
-                        <td className="px-4 py-2">{a.metric}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{a.metric}</td>
+                        <td className="px-4 py-2">
+                          <Badge tone={severityTone(a.severity)}>{a.severity}</Badge>
+                        </td>
                         <td className="px-4 py-2 text-right font-tabular">
                           {a.current_year}
                         </td>
                         <td className="px-4 py-2 text-right font-tabular text-text-secondary">
-                          {a.prior_value}
+                          {typeof a.prior_value === 'number' ? a.prior_value.toFixed(2) : '—'}
                         </td>
                         <td className="px-4 py-2 text-right font-tabular">
-                          {a.current_value}
+                          {typeof a.current_value === 'number' ? a.current_value.toFixed(2) : '—'}
                         </td>
                         <td className="px-4 py-2 text-right font-tabular">
-                          <span
-                            className={
-                              a.pct_change >= 0 ? 'text-success' : 'text-danger'
-                            }
-                          >
-                            {a.pct_change >= 0 ? '+' : ''}
-                            {a.pct_change.toFixed(1)}%
-                          </span>
+                          {a.pct_change === null ? (
+                            <span className="text-text-tertiary">—</span>
+                          ) : (
+                            <span
+                              className={a.pct_change >= 0 ? 'text-success' : 'text-danger'}
+                            >
+                              {a.pct_change >= 0 ? '+' : ''}
+                              {a.pct_change.toFixed(1)}
+                              {a.metric.startsWith('outcome.') ? ' pts' : '%'}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}

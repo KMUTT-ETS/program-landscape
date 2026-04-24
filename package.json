@@ -21,6 +21,7 @@
     "db:backup": "node scripts/pre-deploy-snapshot.mjs",
     "db:seed": "pnpm --filter @kku/db seed",
     "ai:eval": "tsx scripts/ai-eval.mjs",
+    "pdf:bulk-load": "tsx apps/ingestion/src/scripts/bulk-pdf-load.ts",
     "build:release": "tsx scripts/build-release.ts",
     "test": "pnpm -r --if-present test",
     "e2e": "pnpm --filter web test:e2e",

@@ -315,6 +315,14 @@ function DetailContent({
 
   return (
     <div className="flex flex-col gap-5 p-1">
+      <section className="text-sm">
+        <a
+          href={`/admin/data-sources/${encodeURIComponent(row.slug)}`}
+          className="inline-flex items-center gap-1 rounded border border-border-default bg-surface-2 px-2 py-1 text-xs hover:bg-surface-3"
+        >
+          Open full stats →
+        </a>
+      </section>
       <section className="flex flex-col gap-1 text-sm">
         <div className="text-text-tertiary">Owner</div>
         <div>{row.ownerContact ?? '—'}</div>
