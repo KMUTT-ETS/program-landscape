@@ -81,6 +81,32 @@ const preset: Partial<Config> = {
         11: oklch(colorTokens.chart[11]),
         12: oklch(colorTokens.chart[12]),
       },
+      /* Sidebar brand-home surfaces — 2026-04-24 redesign */
+      nav: {
+        surface: oklch(colorTokens.nav.surface),
+        'surface-hover': oklch(colorTokens.nav.surfaceHover),
+        fg: oklch(colorTokens.nav.fg),
+        'fg-muted': oklch(colorTokens.nav.fgMuted),
+      },
+      /* Per-module signature colours */
+      module: {
+        cockpit: oklch(colorTokens.module.cockpit),
+        'cockpit-subtle': oklch(colorTokens.module.cockpitSubtle),
+        programs: oklch(colorTokens.module.programs),
+        'programs-subtle': oklch(colorTokens.module.programsSubtle),
+        trends: oklch(colorTokens.module.trends),
+        'trends-subtle': oklch(colorTokens.module.trendsSubtle),
+        gap: oklch(colorTokens.module.gap),
+        'gap-subtle': oklch(colorTokens.module.gapSubtle),
+        scenarios: oklch(colorTokens.module.scenarios),
+        'scenarios-subtle': oklch(colorTokens.module.scenariosSubtle),
+        benchmarking: oklch(colorTokens.module.benchmarking),
+        'benchmarking-subtle': oklch(colorTokens.module.benchmarkingSubtle),
+        analyst: oklch(colorTokens.module.analyst),
+        'analyst-subtle': oklch(colorTokens.module.analystSubtle),
+        decisions: oklch(colorTokens.module.decisions),
+        'decisions-subtle': oklch(colorTokens.module.decisionsSubtle),
+      },
     },
     borderColor: ({ theme }: { theme: (p: string) => unknown }) => ({
       DEFAULT: theme('colors.border.default') as string,

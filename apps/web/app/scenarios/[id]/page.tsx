@@ -8,7 +8,7 @@ import { ScenarioEditorClient } from './editor-client';
 import type { ScenarioDetail } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Scenario — KKU' };
+export const metadata = { title: 'Scenario' };
 
 export default async function ScenarioEditorPage({
   params,

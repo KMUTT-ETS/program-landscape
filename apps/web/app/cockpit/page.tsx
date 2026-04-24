@@ -3,12 +3,12 @@ import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { PageHeader, Section, FreshnessBadge } from '@kku/ui';
+import { PageHeader, FreshnessBadge } from '@kku/ui';
 import { CockpitClient } from './client';
 import type { CockpitKpis, CockpitHeatmap, CockpitMatrix, CockpitRollup, SavedView } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Portfolio Cockpit — KKU' };
+export const metadata = { title: 'Portfolio Cockpit' };
 
 export default async function CockpitPage({
   searchParams,
@@ -47,27 +47,27 @@ export default async function CockpitPage({
   return (
     <AuthedAppShell user={user}>
       <PageHeader
-        title="Portfolio Overview Cockpit"
-        subtitle="Programs health, financial contribution, and strategic positioning at the selected scope."
+        moduleKey="cockpit"
+        eyebrow="Module 01 · Portfolio Cockpit"
+        title="Portfolio Overview"
+        subtitle="Health heatmap, strategic matrix, and rollup tree for every program at the selected scope."
         actions={
           kpis?.latestFreshness ? (
             <FreshnessBadge freshnessDate={kpis.latestFreshness} />
           ) : undefined
         }
       />
-      <Section title="">
-        <CockpitClient
-          user={user}
-          scope={scope}
-          scopeId={scopeId}
-          initialView={initialView}
-          kpis={kpis}
-          heatmap={heatmap}
-          matrix={matrix}
-          rollup={rollup}
-          savedViews={savedViews}
-        />
-      </Section>
+      <CockpitClient
+        user={user}
+        scope={scope}
+        scopeId={scopeId}
+        initialView={initialView}
+        kpis={kpis}
+        heatmap={heatmap}
+        matrix={matrix}
+        rollup={rollup}
+        savedViews={savedViews}
+      />
     </AuthedAppShell>
   );
 }

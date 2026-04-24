@@ -1,5 +1,10 @@
+// 2026-04-24 — Inter for Latin glyphs, Sarabun for Thai glyphs. The
+// browser tries Latin first and falls back to Thai automatically for
+// Thai codepoints (via Unicode range coverage on each family). We list
+// Sarabun ahead of Inter in the stack for the Thai-primary analysis
+// text; Inter still wins on Latin glyphs inside mixed strings.
 export const fontFamily = {
-  sans: 'var(--font-body)',
+  sans: 'var(--font-body-latin), var(--font-body-thai)',
   mono: 'var(--font-mono)',
 } as const;
 

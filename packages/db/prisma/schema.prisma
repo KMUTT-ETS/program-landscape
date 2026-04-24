@@ -1,4 +1,4 @@
-// KKU Curriculum Landscape — Prisma schema
+// KKU Curriculum Intelligence Platform · Program Landscape — Prisma schema
 //
 // Conventions (see packages/db/README.md for the full narrative):
 //   - Table names: snake_case via @@map; Prisma model names camelCase.

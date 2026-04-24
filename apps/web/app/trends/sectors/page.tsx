@@ -6,7 +6,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader, Section } from '@kku/ui';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Sectoral Trends — KKU' };
+export const metadata = { title: 'Sectoral Trends' };
 
 // Sector filter presets. Each card deep-links into /trends with a
 // search query that narrows to that sector. Real sector-tagged signals

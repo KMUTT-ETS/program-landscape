@@ -59,9 +59,49 @@ export const colorTokens = {
     11: 'var(--color-chart-11)',
     12: 'var(--color-chart-12)',
   },
+  /* Brand-home / sidebar dark surface — 2026-04-24 redesign */
+  nav: {
+    surface: 'var(--color-nav-surface)',
+    surfaceHover: 'var(--color-nav-surface-hover)',
+    fg: 'var(--color-nav-fg)',
+    fgMuted: 'var(--color-nav-fg-muted)',
+  },
+  /* Per-module signature colours — 2026-04-24 redesign */
+  module: {
+    cockpit: 'var(--color-module-cockpit)',
+    cockpitSubtle: 'var(--color-module-cockpit-subtle)',
+    programs: 'var(--color-module-programs)',
+    programsSubtle: 'var(--color-module-programs-subtle)',
+    trends: 'var(--color-module-trends)',
+    trendsSubtle: 'var(--color-module-trends-subtle)',
+    gap: 'var(--color-module-gap)',
+    gapSubtle: 'var(--color-module-gap-subtle)',
+    scenarios: 'var(--color-module-scenarios)',
+    scenariosSubtle: 'var(--color-module-scenarios-subtle)',
+    benchmarking: 'var(--color-module-benchmarking)',
+    benchmarkingSubtle: 'var(--color-module-benchmarking-subtle)',
+    analyst: 'var(--color-module-analyst)',
+    analystSubtle: 'var(--color-module-analyst-subtle)',
+    decisions: 'var(--color-module-decisions)',
+    decisionsSubtle: 'var(--color-module-decisions-subtle)',
+  },
 } as const;
 
 /** For Recharts etc. that want a pre-resolved string list. */
 export const chartPaletteOrder: Array<keyof typeof colorTokens.chart> = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 ];
+
+/** Module keys — used as a discriminator on nav items + page headers. */
+export const MODULE_KEYS = [
+  'cockpit',
+  'programs',
+  'trends',
+  'gap',
+  'scenarios',
+  'benchmarking',
+  'analyst',
+  'decisions',
+  'neutral',
+] as const;
+export type ModuleKey = (typeof MODULE_KEYS)[number];

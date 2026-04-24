@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { ProgramPeersResponse } from '../../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Program Benchmarking — KKU' };
+export const metadata = { title: 'Program Benchmarking' };
 
 interface ProgramOverview {
   program: {

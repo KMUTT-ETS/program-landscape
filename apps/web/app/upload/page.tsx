@@ -6,7 +6,7 @@ import { PageHeader, Section } from '@kku/ui';
 import { UploadClient } from './client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Upload PDFs — KKU Curriculum Landscape' };
+export const metadata = { title: 'Upload PDFs' };
 
 export default async function UploadPage() {
   const session = await auth();

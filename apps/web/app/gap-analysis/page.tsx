@@ -13,7 +13,7 @@ import type {
 } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Demand-Supply Gap Analyzer — KKU' };
+export const metadata = { title: 'Demand-Supply Gap Analyzer' };
 
 export default async function GapAnalysisPage({
   searchParams,

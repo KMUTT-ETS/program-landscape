@@ -12,7 +12,7 @@ import type {
 } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Competitive Benchmarking — KKU' };
+export const metadata = { title: 'Competitive Benchmarking' };
 
 export default async function BenchmarkingPage({
   searchParams,

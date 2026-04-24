@@ -20,7 +20,7 @@ import type {
 } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Program Deep-Dive — KKU' };
+export const metadata = { title: 'Program Deep-Dive' };
 
 export default async function ProgramDeepDivePage({
   params,

@@ -7,7 +7,7 @@ import { EmptyState, PageHeader, Section } from '@kku/ui';
 import { InboxClient } from './client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Inbox — KKU' };
+export const metadata = { title: 'Inbox' };
 
 export interface NotificationDto {
   id: string;

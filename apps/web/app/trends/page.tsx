@@ -8,7 +8,7 @@ import { TrendsClient } from './client';
 import type { TrendsFeedResponse } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Future Trends Radar — KKU' };
+export const metadata = { title: 'Future Trends Radar' };
 
 export default async function TrendsPage({
   searchParams,

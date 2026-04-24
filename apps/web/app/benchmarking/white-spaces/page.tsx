@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { WhiteSpaceResponse } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'White-space Opportunities — KKU' };
+export const metadata = { title: 'White-space Opportunities' };
 
 export default async function WhiteSpacesPage({
   searchParams,

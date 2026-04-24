@@ -73,7 +73,7 @@ export const councilPackTemplate: TemplateDefinition<CouncilPackData> = {
       html: bodyHtml,
       css: baseCss,
       footerHtml: buildFooterHtml({
-        leftLabel: `KKU Curriculum Landscape · ${data.titleTh}`,
+        leftLabel: `KKU Curriculum Intelligence · Program Landscape · ${data.titleTh}`,
         rightLabel: data.confidentialityLabel,
       }),
     };

@@ -53,8 +53,16 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
         setOpen((x) => !x);
       }
     };
+    // Custom event channel so the TopBar's visible search trigger can
+    // open the palette without simulating a keyboard event (which is
+    // fragile across browsers + triggers a11y focus weirdness).
+    const onCustom = () => setOpen(true);
     document.addEventListener('keydown', onKeydown);
-    return () => document.removeEventListener('keydown', onKeydown);
+    document.addEventListener('kku:command-palette-open', onCustom);
+    return () => {
+      document.removeEventListener('keydown', onKeydown);
+      document.removeEventListener('kku:command-palette-open', onCustom);
+    };
   }, []);
 
   const setScopeUrl = (scope: string, id: string | null) => {

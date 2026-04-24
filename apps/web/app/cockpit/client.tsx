@@ -15,10 +15,23 @@ import {
   Segmented,
   SegmentedList,
   SegmentedTrigger,
+  Stat,
+  StatStrip,
   type ColumnDef,
   type HeatmapRow,
 } from '@kku/ui';
-import { FileText, Filter, Save, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  BookOpen,
+  CircleDot,
+  FileText,
+  Filter,
+  GraduationCap,
+  Save,
+  Sparkles,
+  TrendingDown,
+  Wallet,
+} from 'lucide-react';
 import type { SessionUser } from '@kku/shared';
 import {
   deleteSavedViewAction,
@@ -241,7 +254,7 @@ export function CockpitClient(props: Props) {
         </div>
 
         {view === 'heatmap' && props.heatmap && (
-          <Card padding="none" className="p-4">
+          <Card accent="cockpit" padding="md">
             <Heatmap
               rows={toHeatmapRows(props.heatmap)}
               columnLabels={['Demand', 'Financial', 'Quality', 'Relevance', 'Capability']}
@@ -255,18 +268,20 @@ export function CockpitClient(props: Props) {
                 onRowDrill(nextScope, r.id);
               }}
             />
-            <p className="mt-2 text-xs text-text-tertiary">
+            <p className="mt-3 text-xs text-text-tertiary">
               Cells: 0–100. &lt;40 danger · 40–65 needs attention · &gt;65 healthy. Hover a cell to see underlying drivers. Methodology {props.heatmap.methodologyVersion} — see /methodologies/health-score.md
             </p>
           </Card>
         )}
 
         {view === 'matrix' && props.matrix && (
-          <Card>
+          <Card accent="cockpit">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold">BCG-style Strategic Matrix</h3>
-                <p className="text-xs text-text-tertiary">
+                <h3 className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-secondary">
+                  BCG-style Strategic Matrix
+                </h3>
+                <p className="mt-0.5 text-xs text-text-tertiary">
                   Size = annual revenue · Colour = net contribution (green positive, red negative) · Dashed =
                   low data completeness
                 </p>
@@ -287,18 +302,20 @@ export function CockpitClient(props: Props) {
         )}
 
         {view === 'rollup' && props.rollup && (
-          <RollupTable
-            rollup={props.rollup}
-            onRowClick={(node) => {
-              const nextScope =
-                props.scope === 'university'
-                  ? 'faculty'
-                  : props.scope === 'faculty'
-                    ? 'department'
-                    : 'program';
-              onRowDrill(nextScope, node.scopeId);
-            }}
-          />
+          <Card accent="cockpit" padding="none">
+            <RollupTable
+              rollup={props.rollup}
+              onRowClick={(node) => {
+                const nextScope =
+                  props.scope === 'university'
+                    ? 'faculty'
+                    : props.scope === 'faculty'
+                      ? 'department'
+                      : 'program';
+                onRowDrill(nextScope, node.scopeId);
+              }}
+            />
+          </Card>
         )}
       </div>
 
@@ -354,67 +371,65 @@ export function CockpitClient(props: Props) {
 
 function KpiStrip({ kpis }: { kpis: CockpitKpis | null }) {
   if (!kpis) {
-    return <div className="text-sm text-text-tertiary">KPI data unavailable at this scope.</div>;
+    return (
+      <Card padding="md" className="text-sm text-text-tertiary">
+        KPI data unavailable at this scope.
+      </Card>
+    );
   }
-  const tiles: Array<{
-    label: string;
-    value: string;
-    tone?: 'danger' | 'warning' | 'success';
-    hint?: string;
-  }> = [
-    { label: 'Active programs', value: kpis.programCount.toLocaleString('en-US') },
-    {
-      label: 'Enrolled',
-      value: kpis.enrolledTotal === null ? '—' : kpis.enrolledTotal.toLocaleString('en-US'),
-    },
-    {
-      label: 'Net contribution (THB)',
-      value:
-        kpis.netContributionTotal === null
-          ? '—'
-          : kpis.netContributionTotal.toLocaleString('en-US'),
-      tone: kpis.netContributionTotal !== null && kpis.netContributionTotal < 0 ? 'danger' : undefined,
-    },
-    {
-      label: 'Danger zone',
-      value: kpis.dangerZoneCount.toLocaleString('en-US'),
-      tone: kpis.dangerZoneCount > 0 ? 'danger' : undefined,
-    },
-    {
-      label: 'Quality concern',
-      value: kpis.qualityConcernCount.toLocaleString('en-US'),
-      tone: kpis.qualityConcernCount > 0 ? 'warning' : undefined,
-    },
-    {
-      label: 'Avg curriculum age',
-      value:
-        kpis.averageCurriculumAgeYears === null
-          ? '—'
-          : `${kpis.averageCurriculumAgeYears.toFixed(1)} yrs`,
-    },
-  ];
+  const fmt = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-US'));
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-      {tiles.map((t) => (
-        <Card key={t.label} padding="sm">
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">{t.label}</div>
-          <div
-            className={
-              'mt-1 font-tabular text-xl font-semibold ' +
-              (t.tone === 'danger'
-                ? 'text-danger'
-                : t.tone === 'warning'
-                  ? 'text-warning'
-                  : t.tone === 'success'
-                    ? 'text-success'
-                    : 'text-text-primary')
-            }
-          >
-            {t.value}
-          </div>
-        </Card>
-      ))}
-    </div>
+    <StatStrip columns={6}>
+      <Stat
+        moduleKey="cockpit"
+        icon={<BookOpen />}
+        label="Active programs"
+        value={fmt(kpis.programCount)}
+      />
+      <Stat
+        moduleKey="cockpit"
+        icon={<GraduationCap />}
+        label="Enrolled"
+        value={fmt(kpis.enrolledTotal)}
+      />
+      <Stat
+        moduleKey="cockpit"
+        icon={<Wallet />}
+        label="Net contrib. THB"
+        value={fmt(kpis.netContributionTotal)}
+        deltaTone={
+          kpis.netContributionTotal !== null && kpis.netContributionTotal < 0
+            ? 'negative'
+            : undefined
+        }
+      />
+      <Stat
+        moduleKey="cockpit"
+        icon={<AlertTriangle />}
+        label="Danger zone"
+        value={fmt(kpis.dangerZoneCount)}
+        hint={kpis.dangerZoneCount > 0 ? 'health < 40' : 'none'}
+        deltaTone={kpis.dangerZoneCount > 0 ? 'negative' : 'neutral'}
+      />
+      <Stat
+        moduleKey="cockpit"
+        icon={<TrendingDown />}
+        label="Quality concern"
+        value={fmt(kpis.qualityConcernCount)}
+        hint="aging faculty"
+        deltaTone={kpis.qualityConcernCount > 0 ? 'negative' : 'neutral'}
+      />
+      <Stat
+        moduleKey="cockpit"
+        icon={<CircleDot />}
+        label="Avg curriculum age"
+        value={
+          kpis.averageCurriculumAgeYears === null
+            ? '—'
+            : `${kpis.averageCurriculumAgeYears.toFixed(1)}y`
+        }
+      />
+    </StatStrip>
   );
 }
 
@@ -509,14 +524,12 @@ function RollupTable({
     },
   ];
   return (
-    <Card padding="none">
-      <DataTable
-        columns={columns}
-        data={rollup.nodes}
-        variant="ghost"
-        onRowClick={onRowClick}
-        pageSize={100}
-      />
-    </Card>
+    <DataTable
+      columns={columns}
+      data={rollup.nodes}
+      variant="ghost"
+      onRowClick={onRowClick}
+      pageSize={100}
+    />
   );
 }

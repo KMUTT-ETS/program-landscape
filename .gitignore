@@ -61,3 +61,6 @@ infra/gotenberg/fonts/*.TTF
 # real source is node_modules/pdfjs-dist (see scripts/copy-pdf-worker.mjs).
 apps/web/public/pdf.worker.*.mjs
 
+# Claude Code per-session state (schedules, local overrides).
+.claude/
+

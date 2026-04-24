@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -28,26 +27,49 @@ export function TopBarRight({ user }: { user: SessionUser }) {
     );
   };
 
+  const initials = (user.name ?? user.email)
+    .split(/[\s.@]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join('');
+
   return (
     <>
-      <kbd className="hidden rounded border border-border-default bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary md:inline">
-        ⌘K
-      </kbd>
+      {/* Notification bell — neutral-on-surface. Reads as muted chrome
+          in default state; pops on hover. */}
+      <a
+        href="/inbox"
+        aria-label="Notifications inbox"
+        className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+      >
+        <Bell className="h-[17px] w-[17px]" aria-hidden />
+      </a>
+
+      <div className="mx-1 h-6 w-px bg-border-subtle" aria-hidden />
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <div className="grid h-6 w-6 place-items-center rounded-full bg-surface-3 text-[10px] font-semibold text-text-secondary">
-              {(user.name ?? user.email).slice(0, 1).toUpperCase()}
+          <button
+            type="button"
+            className="group flex h-9 items-center gap-2 rounded-md pl-1 pr-2 py-1 ring-1 ring-inset ring-transparent transition-colors duration-fast hover:bg-surface-2 hover:ring-border-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+          >
+            {/* Avatar — accent-tinted initials on subtle surface. */}
+            <div
+              aria-hidden
+              className="grid h-7 w-7 place-items-center rounded-full bg-accent-subtle text-[11px] font-bold uppercase text-accent-default ring-1 ring-accent-default/15"
+            >
+              {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
             </div>
             <div className="hidden flex-col items-start leading-tight md:flex">
-              <span className="text-xs font-medium text-text-primary">
-                {user.name ?? user.email}
+              <span className="text-[12.5px] font-semibold text-text-primary">
+                {user.name ?? user.email.split('@')[0]}
               </span>
-              <span className="text-[10px] uppercase tracking-wide text-text-tertiary">
+              <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-text-tertiary">
                 {user.role.replaceAll('_', ' ')}
               </span>
             </div>
-          </Button>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Account</DropdownMenuLabel>

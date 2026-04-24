@@ -8,7 +8,7 @@ import { ScenariosLibraryClient } from './library-client';
 import type { ScenarioListRow, ScenarioTemplate } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Strategic Scenario Planner — KKU' };
+export const metadata = { title: 'Strategic Scenario Planner' };
 
 export default async function ScenariosPage({
   searchParams,

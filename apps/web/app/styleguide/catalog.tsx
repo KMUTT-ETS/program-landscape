@@ -249,13 +249,13 @@ export function StyleguideCatalog() {
             <Stat label="Freshness" value="2h ago" />
           </Card>
           <Card padding="sm">
-            <Stat label="Confidence" value="0.78" helper="medium" />
+            <Stat label="Confidence" value="0.78" hint="medium" />
           </Card>
           <Card padding="sm">
-            <Stat label="Scope" value="University" helper="30 programs" />
+            <Stat label="Scope" value="University" hint="30 programs" />
           </Card>
           <Card padding="sm">
-            <Stat label="Records" value="1,234,567" align="right" />
+            <Stat label="Records" value="1,234,567" />
           </Card>
         </div>
       </Section>

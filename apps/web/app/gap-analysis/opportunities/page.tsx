@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { OpportunityRowDto } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Gap Opportunities — KKU' };
+export const metadata = { title: 'Gap Opportunities' };
 
 interface OpportunityResponse {
   filter: Record<string, unknown>;

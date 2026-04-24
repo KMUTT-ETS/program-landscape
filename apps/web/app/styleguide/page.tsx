@@ -5,7 +5,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { StyleguideCatalog } from './catalog';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Styleguide — KKU Curriculum Landscape' };
+export const metadata = { title: 'Styleguide' };
 
 // Admin-only in production, public in dev. This page is the visual
 // contract: every primitive, in both themes + all three densities.

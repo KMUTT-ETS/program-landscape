@@ -8,7 +8,7 @@ import { DecisionDetailClient } from './detail-client';
 import type { DecisionDetail, DecisionStatus } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Decision — KKU' };
+export const metadata = { title: 'Decision' };
 
 const STATUS_TONE: Record<DecisionStatus, 'neutral' | 'outline' | 'warning' | 'success' | 'danger' | 'accent'> = {
   PROPOSED: 'outline',

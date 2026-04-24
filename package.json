@@ -2,19 +2,20 @@
   "name": "program-landscape",
   "version": "0.0.0",
   "private": true,
-  "description": "KKU Curriculum Landscape — strategic decision-support platform",
+  "description": "KKU Curriculum Intelligence Platform · Program Landscape — strategic decision-support for the University Council",
   "packageManager": "pnpm@10.33.1",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed",
     "link-env": "node scripts/link-env.mjs",
+    "minio:init": "node scripts/ensure-minio-buckets.mjs",
     "dev": "concurrently -n web,api,ingest -c blue,green,magenta \"pnpm --filter web dev\" \"pnpm --filter api start:dev\" \"pnpm --filter ingestion start:dev\"",
     "db:up": "docker compose up -d postgres redis minio gotenberg",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "db:reset": "docker compose down -v && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed",
     "db:migrate": "pnpm --filter @kku/db prisma migrate deploy",
     "db:seed": "pnpm --filter @kku/db seed",
     "test": "pnpm -r --if-present test",

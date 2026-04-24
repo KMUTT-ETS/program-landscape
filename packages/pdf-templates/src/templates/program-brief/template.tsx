@@ -85,7 +85,7 @@ export const programBriefTemplate: TemplateDefinition<ProgramBriefData> = {
       html: renderTemplateToHtml(<ProgramBriefDoc data={data} />),
       css: baseCss,
       footerHtml: buildFooterHtml({
-        leftLabel: `KKU Curriculum Landscape · ${data.programNameTh}`,
+        leftLabel: `KKU Curriculum Intelligence · Program Landscape · ${data.programNameTh}`,
       }),
     };
   },

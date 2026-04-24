@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { LessonHit } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Lessons Learned — KKU' };
+export const metadata = { title: 'Lessons Learned' };
 
 export default async function LessonsLearnedPage({
   searchParams,

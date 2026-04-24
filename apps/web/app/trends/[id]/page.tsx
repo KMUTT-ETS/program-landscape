@@ -9,7 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import { MarkReviewedButton } from './mark-reviewed';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Trend Signal — KKU' };
+export const metadata = { title: 'Trend Signal' };
 
 interface TrendDetail {
   signal: {

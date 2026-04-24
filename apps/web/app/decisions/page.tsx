@@ -8,7 +8,7 @@ import { DecisionsLibraryClient } from './library-client';
 import type { DecisionListRow } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Decision Workspace — KKU' };
+export const metadata = { title: 'Decision Workspace' };
 
 export default async function DecisionsPage({
   searchParams,
@@ -31,8 +31,10 @@ export default async function DecisionsPage({
   return (
     <AuthedAppShell user={user}>
       <PageHeader
+        moduleKey="decisions"
+        eyebrow="Module 08 · Decision Workspace"
         title="Decision Workspace"
-        subtitle="Council decisions captured with context, approved with audit trail, tracked to outcome."
+        subtitle="Council decisions captured with context, approved with audit trail, tracked through to outcome review."
       />
       <DecisionsLibraryClient
         decisions={decisions}

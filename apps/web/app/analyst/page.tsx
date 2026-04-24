@@ -12,7 +12,7 @@ import type {
 } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'AI Analyst — KKU' };
+export const metadata = { title: 'AI Analyst' };
 
 export default async function AnalystPage({
   searchParams,

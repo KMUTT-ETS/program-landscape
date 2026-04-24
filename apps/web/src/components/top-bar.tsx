@@ -14,7 +14,7 @@ export function TopBar({ user }: { user: SessionUser }) {
             className="h-6 w-6 rounded-sm bg-brand"
             title="KKU Cardinal — brand accent"
           />
-          <span className="font-semibold text-fg">Curriculum Landscape</span>
+          <span className="font-semibold text-fg">Program Landscape</span>
         </div>
         <ScopeSelector />
       </div>

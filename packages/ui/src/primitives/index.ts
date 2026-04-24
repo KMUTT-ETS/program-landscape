@@ -10,3 +10,4 @@ export * from './popover';
 export * from './input';
 export * from './segmented-control';
 export * from './divider';
+export * from './stat';

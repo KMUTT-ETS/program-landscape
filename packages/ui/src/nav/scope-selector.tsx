@@ -134,22 +134,27 @@ export function ScopeSelector({ entities, access, onChange }: ScopeSelectorProps
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
+        {/* Raw button (not the shared Button) so the scope pill can use
+            the accent-on-cardinal treatment without clashing with the
+            default surface-tinted Button variants. Max-width keeps long
+            breadcrumbs (e.g. "Faculty of Agricultural Tech · Dept of
+            Plant Science · Program of …") from running into the search
+            trigger to the right — they truncate inside the pill. */}
+        <button
+          type="button"
           aria-label="Change scope"
-          className="min-w-0 justify-start gap-1.5 text-left"
+          className="group flex h-9 min-w-0 max-w-[320px] items-center gap-2 rounded-md bg-surface-1 px-2.5 text-left ring-1 ring-inset ring-border-subtle transition-colors duration-fast hover:bg-surface-2 hover:ring-border-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
         >
-          <span className="shrink-0 text-[11px] uppercase tracking-wide text-text-tertiary">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
             Scope
           </span>
-          <span className="truncate text-text-primary">
+          <span className="truncate text-[13px] font-medium text-text-primary">
             {breadcrumb.slice(1).length > 0
               ? breadcrumb.slice(1).join(' · ')
               : 'University'}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-tertiary" aria-hidden />
-        </Button>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform duration-fast group-data-[state=open]:rotate-180" aria-hidden />
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-[380px] p-0" align="start">
         <Command className="flex flex-col">

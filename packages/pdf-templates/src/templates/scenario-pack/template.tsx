@@ -70,7 +70,7 @@ export const scenarioPackTemplate: TemplateDefinition<ScenarioPackData> = {
     return {
       html: renderTemplateToHtml(<ScenarioPackDoc data={data} />),
       css: baseCss,
-      footerHtml: buildFooterHtml({ leftLabel: `KKU Curriculum Landscape · ${data.titleTh}` }),
+      footerHtml: buildFooterHtml({ leftLabel: `KKU Curriculum Intelligence · Program Landscape · ${data.titleTh}` }),
     };
   },
 };

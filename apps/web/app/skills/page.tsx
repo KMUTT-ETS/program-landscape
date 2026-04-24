@@ -7,7 +7,7 @@ import { PageHeader, Section } from '@kku/ui';
 import { SkillsExplorer } from './client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Skills — KKU Curriculum Landscape' };
+export const metadata = { title: 'Skills' };
 
 export interface SkillNode {
   id: string;

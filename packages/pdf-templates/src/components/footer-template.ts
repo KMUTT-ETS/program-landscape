@@ -20,7 +20,7 @@
 // block — the main document's fonts are not available here.
 
 export interface FooterOptions {
-  leftLabel: string;      // e.g., "KKU Curriculum Landscape — Council Pack"
+  leftLabel: string;      // e.g., "KKU Curriculum Intelligence · Program Landscape — Council Pack"
   rightLabel?: string;    // e.g., "ลับ — สำหรับการประชุมสภาเท่านั้น"
 }
 

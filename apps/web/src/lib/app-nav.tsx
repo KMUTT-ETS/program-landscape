@@ -20,21 +20,21 @@ export const appNavSections: NavSection[] = [
   {
     label: 'Work',
     items: [
-      { href: '/', label: 'Home', icon: createElement(Home) },
-      { href: '/styleguide', label: 'Styleguide', icon: createElement(Palette) },
+      { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' },
+      { href: '/styleguide', label: 'Styleguide', icon: createElement(Palette), moduleKey: 'neutral' },
     ],
   },
   {
     label: 'Modules',
     items: [
-      { href: '/cockpit', label: 'Portfolio Cockpit', icon: createElement(PieChart) },
-      { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), hint: 'pick a program' },
-      { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles) },
-      { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical) },
-      { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare) },
-      { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart) },
-      { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope) },
-      { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList) },
+      { href: '/cockpit', label: 'Portfolio Cockpit', icon: createElement(PieChart), moduleKey: 'cockpit' },
+      { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), moduleKey: 'programs' },
+      { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles), moduleKey: 'trends' },
+      { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
+      { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
+      { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
+      { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
+      { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList), moduleKey: 'decisions' },
     ],
   },
 ];

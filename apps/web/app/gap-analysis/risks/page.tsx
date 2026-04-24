@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { RiskRowDto } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Gap Risks — KKU' };
+export const metadata = { title: 'Gap Risks' };
 
 interface RiskResponse {
   filter: Record<string, unknown>;
