@@ -5,6 +5,14 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
+// Prisma returns BigInt for @db.BigInt columns (e.g. ScenarioRun.seed).
+// Express's res.json() uses JSON.stringify which can't serialize BigInt.
+// Convert to string at the boundary — safe because these fields are
+// seeds/ids that round-trip fine as strings.
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function (this: bigint) {
+  return this.toString();
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   // Swap Nest's default logger for the pino logger from the module.

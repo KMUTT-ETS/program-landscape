@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import type { SessionUser, ApiSuccess } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchEnvelope } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Button, PageHeader, Section } from '@kku/ui';
 import Link from 'next/link';
@@ -11,10 +11,9 @@ import { ProgramsListClient, type ProgramListRow } from './list-client';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Programs — Admin' };
 
-interface ListResponse {
-  data: ProgramListRow[];
-  meta: { pagination: { page: number; pageSize: number; total: number } };
-}
+type PaginatedEnvelope = ApiSuccess<ProgramListRow[]> & {
+  meta: { pagination?: { page: number; pageSize: number; total: number } };
+};
 
 export default async function AdminProgramsPage({
   searchParams,
@@ -40,16 +39,25 @@ export default async function AdminProgramsPage({
   query.set('pageSize', '200');
 
   const [rows, faculties] = await Promise.all([
-    apiFetch<ListResponse>(`/admin/programs?${query.toString()}`).catch(
-      () => ({
-        data: [] as ProgramListRow[],
-        meta: { pagination: { page: 1, pageSize: 200, total: 0 } },
-      }),
+    apiFetchEnvelope<ProgramListRow[]>(
+      `/admin/programs?${query.toString()}`,
+    ).catch(
+      () =>
+        ({
+          data: [] as ProgramListRow[],
+          meta: {
+            freshnessDate: null,
+            sources: [],
+            pagination: { page: 1, pageSize: 200, total: 0 },
+          },
+          error: null,
+        }) satisfies PaginatedEnvelope,
     ),
     apiFetch<Array<{ id: string; code: string; nameEn: string; nameTh: string }>>(
       '/faculties',
     ).catch(() => []),
   ]);
+  const rowsEnvelope = rows as PaginatedEnvelope;
 
   return (
     <AuthedAppShell user={user}>
@@ -76,8 +84,8 @@ export default async function AdminProgramsPage({
       />
       <Section>
         <ProgramsListClient
-          rows={rows.data}
-          total={rows.meta.pagination.total}
+          rows={rowsEnvelope.data ?? []}
+          total={rowsEnvelope.meta.pagination?.total ?? (rowsEnvelope.data?.length ?? 0)}
           faculties={faculties}
           initialFilters={{ q, facultyId, level, status }}
         />
