@@ -1,0 +1,876 @@
+{
+  "VIEWSTUDENTENROLLFEE": [
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTENROLLFEE",
+      "COLUMN_NAME": "STUDENTID",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 1
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTENROLLFEE",
+      "COLUMN_NAME": "STUDENTCODE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 16,
+      "NULLABLE": "N",
+      "COLUMN_ID": 2
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTENROLLFEE",
+      "COLUMN_NAME": "ACADYEAR",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 3
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTENROLLFEE",
+      "COLUMN_NAME": "SEMESTER",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 4
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTENROLLFEE",
+      "COLUMN_NAME": "AMOUNT",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 5
+    }
+  ],
+  "VIEWSTUDENTINFO": [
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "STUDENTID",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 1
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "STUDENTCODE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 16,
+      "NULLABLE": "N",
+      "COLUMN_ID": 2
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "PREFIXNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 40,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 3
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "STUDENTNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 4
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "STUDENTSURNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 5
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "STUDENTSTATUS",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 6
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "STUDENTSTASTUSNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 7
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "FACULTYID",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 8
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "FACULTYNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 9
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "CITIZENID",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 13,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 10
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "KKUMAIL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 56,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 11
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "ADMITACADYEAR",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "N",
+      "COLUMN_ID": 12
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEWSTUDENTINFO",
+      "COLUMN_NAME": "LEVELNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "N",
+      "COLUMN_ID": 13
+    }
+  ],
+  "VIEW_STUDENT_DETAIL": [
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "STUDENTCODE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 16,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 1
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "STUDENTSEX",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 1,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 2
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "NATIONNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 3
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "SCHOOLNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 200,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 4
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "SCHOOLPROVINCENAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 5
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "HOMEPROVINCENAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 6
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "MAJOR",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 513,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 7
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "FACULTYNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 8
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "PROGRAMNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 512,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 9
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "PROGRAMLEVEL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 26,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 10
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "ENTRYGPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 11
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "GPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 12
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "ENGLISH_GPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 13
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "ENTRYTYPE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 14
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "STUDENTSTATUS",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 15
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "FATHER_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 16
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "FATHER_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 17
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "MOTHER_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 18
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "MOTHER_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 19
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "PARENT_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 20
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "PARENT_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 21
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "KKUMAIL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 56,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 22
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "STUDENTEMAIL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 23
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "CONTACTPHONENO",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 32,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 24
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "BIRTHDATE",
+      "DATA_TYPE": "DATE",
+      "DATA_LENGTH": 7,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 25
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "BIRTHDATE_CHAR",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 10,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 26
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "CITIZENID",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 13,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 27
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "CITIZENID_SHA256",
+      "DATA_TYPE": "RAW",
+      "DATA_LENGTH": 32,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 28
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL",
+      "COLUMN_NAME": "VACCINE_ID",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 4000,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 29
+    }
+  ],
+  "VIEW_STUDENT_DETAIL_ALL": [
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "STUDENTCODE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 16,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 1
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "STUDENTSEX",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 1,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 2
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "NATIONNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 3
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "SCHOOLNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 200,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 4
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "SCHOOLPROVINCENAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 5
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "HOMEPROVINCENAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 6
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "MAJOR",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 513,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 7
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "FACULTYNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 8
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "PROGRAMNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 512,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 9
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "PROGRAMLEVEL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 26,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 10
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "ENTRYGPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 11
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "GPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 12
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "ENGLISH_GPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 13
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "ENTRYTYPE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 14
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "STUDENTSTATUSCODE",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 15
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "STUDENTSTATUS",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 16
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "FATHER_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 17
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "FATHER_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 18
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "MOTHER_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 19
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "MOTHER_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 20
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "PARENT_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 21
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "PARENT_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 22
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "LEVELID",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 23
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "STUDENTEMAIL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 24
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "KKUMAIL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 56,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 25
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "CONTACTPHONENO",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 32,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 26
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "ADMITACADYEAR",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 27
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALL",
+      "COLUMN_NAME": "ADMITSEMESTER",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 28
+    }
+  ],
+  "VIEW_STUDENT_DETAIL_ALUMNI": [
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "STUDENTCODE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 16,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 1
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "STUDENTSEX",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 1,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 2
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "NATIONNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 3
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "SCHOOLNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 200,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 4
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "SCHOOLPROVINCENAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 5
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "HOMEPROVINCENAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 6
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "MAJOR",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 513,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 7
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "FACULTYNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 8
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "PROGRAMNAME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 512,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 9
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "PROGRAMLEVEL",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 26,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 10
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "ENTRYGPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 11
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "GPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 12
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "ENTRYTYPE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 13
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "STUDENTSTATUS",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 150,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 14
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "ENGLISH_GPA",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 15
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "FATHER_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 16
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "FATHER_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 17
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "MOTHER_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 18
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "MOTHER_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 19
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "PARENT_OCCUPATION",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 20
+    },
+    {
+      "OWNER": "POWERBI",
+      "TABLE_NAME": "VIEW_STUDENT_DETAIL_ALUMNI",
+      "COLUMN_NAME": "PARENT_OCCUPATION_INCOME",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 100,
+      "NULLABLE": "Y",
+      "COLUMN_ID": 21
+    }
+  ]
+}

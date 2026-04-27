@@ -363,6 +363,7 @@ model Program {
   graduateOutcomes    GraduateOutcome[]
   employerFeedback    EmployerFeedback[]
   documents           ProgramDocument[]
+  registryMappings    RegistryProgramMapping[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -1967,4 +1968,47 @@ model AnalystFeedback {
   @@index([messageId])
   @@index([userId])
   @@map("analyst_feedback")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Connector bridge tables
+// ══════════════════════════════════════════════════════════════════════════
+
+// Bridge between the KKU Registrar's Oracle views (denormalised, text
+// keys only — no stable program code) and our Program rows.
+//
+// The registrar exposes student rows annotated with FACULTYNAME +
+// PROGRAMNAME + PROGRAMLEVEL + MAJOR (all Thai text). We need to roll
+// each row up to the right Program.id at load time. Rather than fuzzy-
+// match, we keep an explicit allowlist here. An admin (or a one-off
+// seed script) populates this table once per program; future ingestion
+// runs do an exact-tuple lookup.
+//
+// `registry_major` is `''` when the source PROGRAMNAME has no major
+// (most undergrad programs). The unique constraint then collapses two
+// "no-major" rows for the same program — required because Postgres
+// treats NULLs as distinct in unique indexes by default and we want
+// the empty case to still de-duplicate.
+//
+// Rows fetched from the registrar that do not match any mapping land
+// in IngestionRun.metadata.unmappedSamples[] for the analyst on duty
+// to triage. Once a mapping is added, the next run picks it up.
+model RegistryProgramMapping {
+  id                  String    @id @default(cuid())
+  registryFacultyName String    @map("registry_faculty_name") @db.Text
+  registryProgramName String    @map("registry_program_name") @db.Text
+  registryLevel       String    @map("registry_level")
+  registryMajor       String    @default("") @map("registry_major") @db.Text
+  programId           String    @map("program_id")
+  notes               String?   @db.Text
+  confirmedBy         String?   @map("confirmed_by")
+  confirmedAt         DateTime? @map("confirmed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([registryFacultyName, registryProgramName, registryLevel, registryMajor])
+  @@index([programId])
+  @@map("registry_program_mappings")
 }
