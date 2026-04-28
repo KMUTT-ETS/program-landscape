@@ -1,0 +1,331 @@
+{
+  "BIRTHDAY": {
+    "distinctYearBuckets": 75,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "1932",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1933",
+        "N": 2
+      },
+      {
+        "YEAR_BUCKET": "1934",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1935",
+        "N": 6
+      },
+      {
+        "YEAR_BUCKET": "1936",
+        "N": 18
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "2002",
+        "N": 153
+      },
+      {
+        "YEAR_BUCKET": "2003",
+        "N": 55
+      },
+      {
+        "YEAR_BUCKET": "2004",
+        "N": 23
+      },
+      {
+        "YEAR_BUCKET": "2005",
+        "N": 15
+      },
+      {
+        "YEAR_BUCKET": "2006",
+        "N": 2
+      }
+    ]
+  },
+  "FIRSTHIREDATE": {
+    "distinctYearBuckets": 61,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "1966",
+        "N": 41
+      },
+      {
+        "YEAR_BUCKET": "1967",
+        "N": 28
+      },
+      {
+        "YEAR_BUCKET": "1968",
+        "N": 38
+      },
+      {
+        "YEAR_BUCKET": "1969",
+        "N": 62
+      },
+      {
+        "YEAR_BUCKET": "1970",
+        "N": 52
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "2022",
+        "N": 641
+      },
+      {
+        "YEAR_BUCKET": "2023",
+        "N": 551
+      },
+      {
+        "YEAR_BUCKET": "2024",
+        "N": 658
+      },
+      {
+        "YEAR_BUCKET": "2025",
+        "N": 2967
+      },
+      {
+        "YEAR_BUCKET": "2026",
+        "N": 104
+      }
+    ]
+  },
+  "STARTDATE": {
+    "distinctYearBuckets": 61,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "1966",
+        "N": 41
+      },
+      {
+        "YEAR_BUCKET": "1967",
+        "N": 28
+      },
+      {
+        "YEAR_BUCKET": "1968",
+        "N": 38
+      },
+      {
+        "YEAR_BUCKET": "1969",
+        "N": 62
+      },
+      {
+        "YEAR_BUCKET": "1970",
+        "N": 53
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "2022",
+        "N": 909
+      },
+      {
+        "YEAR_BUCKET": "2023",
+        "N": 830
+      },
+      {
+        "YEAR_BUCKET": "2024",
+        "N": 987
+      },
+      {
+        "YEAR_BUCKET": "2025",
+        "N": 909
+      },
+      {
+        "YEAR_BUCKET": "2026",
+        "N": 159
+      }
+    ]
+  },
+  "APPROVE_DATE": {
+    "distinctYearBuckets": 65,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "1966",
+        "N": 12
+      },
+      {
+        "YEAR_BUCKET": "1967",
+        "N": 51
+      },
+      {
+        "YEAR_BUCKET": "1968",
+        "N": 35
+      },
+      {
+        "YEAR_BUCKET": "1969",
+        "N": 56
+      },
+      {
+        "YEAR_BUCKET": "1970",
+        "N": 58
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "2026",
+        "N": 357
+      },
+      {
+        "YEAR_BUCKET": "2027",
+        "N": 20
+      },
+      {
+        "YEAR_BUCKET": "2028",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "2030",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "2032",
+        "N": 1
+      }
+    ]
+  },
+  "PRODATE": {
+    "distinctYearBuckets": 16,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "0",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "122",
+        "N": 19
+      },
+      {
+        "YEAR_BUCKET": "123",
+        "N": 9
+      },
+      {
+        "YEAR_BUCKET": "151",
+        "N": 2
+      },
+      {
+        "YEAR_BUCKET": "181",
+        "N": 4471
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "31",
+        "N": 150
+      },
+      {
+        "YEAR_BUCKET": "334",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "61",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "91",
+        "N": 5
+      },
+      {
+        "YEAR_BUCKET": "92",
+        "N": 15
+      }
+    ]
+  },
+  "ENDWORKDATE": {
+    "distinctYearBuckets": 39,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "1976",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1983",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1985",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1989",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1992",
+        "N": 1
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "2022",
+        "N": 761
+      },
+      {
+        "YEAR_BUCKET": "2023",
+        "N": 785
+      },
+      {
+        "YEAR_BUCKET": "2024",
+        "N": 822
+      },
+      {
+        "YEAR_BUCKET": "2025",
+        "N": 751
+      },
+      {
+        "YEAR_BUCKET": "2026",
+        "N": 379
+      }
+    ]
+  },
+  "RESIGNDATE": {
+    "distinctYearBuckets": 39,
+    "firstFiveBuckets": [
+      {
+        "YEAR_BUCKET": "1976",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1983",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1985",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1989",
+        "N": 1
+      },
+      {
+        "YEAR_BUCKET": "1992",
+        "N": 1
+      }
+    ],
+    "lastFiveBuckets": [
+      {
+        "YEAR_BUCKET": "2022",
+        "N": 752
+      },
+      {
+        "YEAR_BUCKET": "2023",
+        "N": 788
+      },
+      {
+        "YEAR_BUCKET": "2024",
+        "N": 826
+      },
+      {
+        "YEAR_BUCKET": "2025",
+        "N": 751
+      },
+      {
+        "YEAR_BUCKET": "2026",
+        "N": 398
+      }
+    ]
+  }
+}

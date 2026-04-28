@@ -286,11 +286,13 @@ model Faculty {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  departments    Department[]
-  programs       Program[]
-  users          User[]
-  facultyMembers FacultyMember[]
-  facultySkills  FacultySkill[]
+  departments         Department[]
+  programs            Program[]
+  users               User[]
+  facultyMembers      FacultyMember[]
+  facultySkills       FacultySkill[]
+  hrOrgMappings       HrOrgMapping[]
+  facultyCompensation FacultyCompensation[]
 
   @@index([code])
   @@map("faculties")
@@ -305,11 +307,13 @@ model Department {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  faculty          Faculty           @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  programs         Program[]
-  users            User[]
-  facultyMembers   FacultyMember[]
-  departmentSkills DepartmentSkill[]
+  faculty             Faculty               @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  programs            Program[]
+  users               User[]
+  facultyMembers      FacultyMember[]
+  departmentSkills    DepartmentSkill[]
+  hrOrgMappings       HrOrgMapping[]
+  facultyCompensation FacultyCompensation[]
 
   @@index([facultyId])
   @@map("departments")
@@ -2011,4 +2015,86 @@ model RegistryProgramMapping {
   @@unique([registryFacultyName, registryProgramName, registryLevel, registryMajor])
   @@index([programId])
   @@map("registry_program_mappings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HR org bridge — used by the kku-hr connector. HCMEmployee uses 5-digit
+// numeric BU codes (e.g., "07000" = Faculty of Medicine; "07408" = a
+// department under it). Our Faculty/Department FKs need an explicit
+// allowlist; same pattern as RegistryProgramMapping (no fuzzy match).
+//
+// hrCode is the BU code from HCMEmployee.BU1/BU2/BU3. Each row resolves
+// it to either a Faculty (if hrCode is a faculty-level code) or a
+// Department (if hrCode is a department-level code) — never both.
+// hrLabelTh is the human-readable label from epm_report.dbo.Faculty
+// (`code - ชื่อ`) for analyst reference.
+//
+// hrOrgKind discriminates the row's purpose:
+//   FACULTY    — hrCode resolves to a Faculty (facultyId required)
+//   DEPARTMENT — hrCode resolves to a Department (departmentId required)
+//
+// Codes that have no KKU equivalent (hospital sub-units, central admin
+// offices) get isResolved=false rows so the analyst can confirm "this
+// is intentionally unmapped" rather than "we forgot it".
+model HrOrgMapping {
+  id           String       @id @default(cuid())
+  hrCode       String       @unique @map("hr_code")
+  hrLabelTh    String?      @map("hr_label_th") @db.Text
+  hrOrgKind    HrOrgKind    @map("hr_org_kind")
+  facultyId    String?      @map("faculty_id")
+  departmentId String?      @map("department_id")
+  isResolved   Boolean      @default(true) @map("is_resolved")
+  notes        String?      @db.Text
+  confirmedBy  String?      @map("confirmed_by")
+  confirmedAt  DateTime?    @map("confirmed_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  faculty    Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([hrOrgKind])
+  @@map("hr_org_mappings")
+}
+
+enum HrOrgKind {
+  FACULTY
+  DEPARTMENT
+  UNRESOLVED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aggregate compensation per (faculty × department × rank × year) from
+// the kku-hr connector. Server-side GROUP BY in HR Q2 ensures no per-
+// person salary ever crosses the wire. HEADCOUNT < 5 cells are
+// suppressed at the source (HAVING COUNT(*) >= 5).
+//
+// Used by the cost-allocation methodology — see
+// docs/methodologies/cost-allocation.md. Until KKU-Finance lands, this
+// is the only authoritative source of academic-payroll information.
+model FacultyCompensation {
+  id                 String      @id @default(cuid())
+  facultyId          String      @map("faculty_id")
+  departmentId       String?     @map("department_id")
+  rank               FacultyRank
+  fiscalYear         Int         @map("fiscal_year")
+  headcount          Int
+  sumSalary          Decimal     @map("sum_salary") @db.Decimal(14, 2)
+  meanSalary         Decimal     @map("mean_salary") @db.Decimal(14, 2)
+  minSalary          Decimal     @map("min_salary") @db.Decimal(14, 2)
+  maxSalary          Decimal     @map("max_salary") @db.Decimal(14, 2)
+  freshnessDate      DateTime    @map("freshness_date") @db.Date
+  methodologyVersion String      @default("kku-hr.v1") @map("methodology_version")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  faculty    Faculty     @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([facultyId, departmentId, rank, fiscalYear])
+  @@index([facultyId])
+  @@index([fiscalYear])
+  @@map("faculty_compensation")
 }

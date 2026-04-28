@@ -1,0 +1,668 @@
+[
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "PERSON_NUMBER",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 1
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMPLOYEEID",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "NO",
+    "ORDINAL_POSITION": 2
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "ID_PEOPLE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 3
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "IDEXPDATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 4
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "PASSPORT_NO",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 5
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "IDTAX",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 6
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "IDSOC",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 7
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_PREFIX",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 8
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "FNAME",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 9
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EFNAME",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 10
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "LNAME",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 11
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "ELNAME",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 12
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "STATUS",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 13
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "JOB",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 14
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "TDESC",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 15
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "PL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 16
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SUBGRADE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 17
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SUBGRADE_ID",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 18
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BRANCH",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 19
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU1",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 20
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU2",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 21
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU3",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 22
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU4",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 23
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU5",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 24
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU6",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 25
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BU7",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 26
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_POSITION",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 27
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_GROUP",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 28
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "COSTCENTER",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 29
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "WORKAREA",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 30
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CONTRACTNO",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 31
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "DOC_NO",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 32
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_TYPE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 33
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "FIRSTHIREDATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 34
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "STARTDATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 35
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "APPROVE_DATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 36
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "PRODATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 37
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BIRTHDAY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 38
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SEX",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 39
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "STATMARRY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 40
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "ALIEN",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 41
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_NATIONAL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 42
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMAIL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 43
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SALATYPE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 44
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SALARY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 45
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_EVERY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 46
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CURCHGINC",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 47
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "RECEIVE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 48
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CURRENCY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 49
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "OLDSALARY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 50
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "OLDEVERY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 51
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "LSTCHGINC",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 52
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "OLDCURRENCY",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 53
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "ENDWORKDATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 54
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "RESIGNDATE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 55
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "RESIGNREASONID",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 56
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "BOSS_ID",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 57
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CALSOC",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 58
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SOCSTART",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 59
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "SOCHOS",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 60
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CALPVF",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 61
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CALTAX",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 62
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "TAX_METHOD_ACT",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 63
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "LASTMONTH",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 64
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "TAXTABLE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 65
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "COMPEN_TAXTABLE",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 66
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "EMP_LEVEL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 67
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "IHANDICAPPED",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 68
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CALLOAN",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 69
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "UNITCALSAL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 70
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "CENTERSAL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 71
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "DEPARTSAL",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 72
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "Assignment_Category",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 73
+  },
+  {
+    "TABLE_SCHEMA": "dbo",
+    "TABLE_NAME": "EmployeeDetail",
+    "COLUMN_NAME": "Budget_Type",
+    "DATA_TYPE": "nvarchar",
+    "CHARACTER_MAXIMUM_LENGTH": 500,
+    "IS_NULLABLE": "YES",
+    "ORDINAL_POSITION": 74
+  }
+]
