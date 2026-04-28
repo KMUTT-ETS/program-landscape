@@ -1,0 +1,1 @@
+export { KkuResearchRealConnector } from './connector';

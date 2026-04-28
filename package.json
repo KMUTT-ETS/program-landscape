@@ -27,6 +27,7 @@
     "hr:capture": "tsx apps/ingestion/src/scripts/capture-hr-sample.ts",
     "hr:seed-mappings": "tsx apps/ingestion/src/scripts/seed-hr-mappings.ts",
     "finance:capture": "tsx apps/ingestion/src/scripts/capture-finance-sample.ts",
+    "research:capture": "tsx apps/ingestion/src/scripts/capture-research-sample.ts",
     "connector:run": "tsx apps/ingestion/src/scripts/run-connector.ts",
     "build:release": "tsx scripts/build-release.ts",
     "test": "pnpm -r --if-present test",

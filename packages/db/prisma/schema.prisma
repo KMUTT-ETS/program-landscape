@@ -725,6 +725,12 @@ model FacultyMember {
   hireDate              DateTime?   @map("hire_date") @db.Date
   retirementDate        DateTime?   @map("retirement_date") @db.Date
   isActive              Boolean     @default(true) @map("is_active")
+  // Cross-system author identifiers — populated by the kku-research
+  // connector as papers land. ORCID is the gold standard; OpenAlex
+  // and Scopus author IDs are source-specific stable keys.
+  orcid                 String?     @unique
+  openalexAuthorId      String?     @unique @map("openalex_author_id")
+  scopusAuthorId        String?     @unique @map("scopus_author_id")
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 
@@ -902,22 +908,37 @@ model EmployerFeedback {
 
 model ResearchOutput {
   id              String             @id @default(cuid())
-  facultyMemberId String             @map("faculty_member_id")
+  // Nullable so KKU-affiliated papers whose author can't be resolved
+  // to a FacultyMember row still land for analyst triage. The
+  // (openalexId, facultyMemberId) unique pair allows the same paper
+  // to be linked once per matched KKU author.
+  facultyMemberId String?            @map("faculty_member_id")
   year            Int
   type            ResearchOutputType
   title           String             @db.Text
   venue           String?
   citations       Int                @default(0)
   scopusId        String?            @map("scopus_id")
+  openalexId      String?            @map("openalex_id")
   doi             String?
+  // The connector that wrote / last updated this row.
+  source          String?
+  // Raw author display name from the source — used for analyst
+  // reconciliation when facultyMemberId is null. Multiple KKU authors
+  // on one paper produce multiple rows, each carrying that author's
+  // display name here.
+  kkuAuthorName   String?            @map("kku_author_name")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
 
-  facultyMember FacultyMember @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
+  facultyMember FacultyMember? @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
 
+  @@unique([openalexId, facultyMemberId])
   @@index([facultyMemberId])
   @@index([year])
   @@index([scopusId])
+  @@index([openalexId])
+  @@index([doi])
   @@map("research_outputs")
 }
 

@@ -1,0 +1,1190 @@
+{
+  "selectedInstitutionId": "I179193067",
+  "institution": {
+    "id": "https://openalex.org/I179193067",
+    "ror": "https://ror.org/03cq4gr50",
+    "display_name": "Khon Kaen University",
+    "relevance_score": 175015.95,
+    "country_code": "TH",
+    "type": "education",
+    "type_id": "https://openalex.org/institution-types/education",
+    "lineage": [
+      "https://openalex.org/I179193067"
+    ],
+    "homepage_url": "http://www.kku.ac.th/?l=en",
+    "image_url": null,
+    "image_thumbnail_url": null,
+    "display_name_acronyms": [
+      "KKU"
+    ],
+    "display_name_alternatives": [
+      "Khon Kaen University",
+      "มหาวิทยาลัยขอนแก่น"
+    ],
+    "repositories": [],
+    "works_count": 35748,
+    "cited_by_count": 1319779,
+    "summary_stats": {
+      "2yr_mean_citedness": 2.0145443602989115,
+      "h_index": 283,
+      "i10_index": 30348
+    },
+    "ids": {
+      "openalex": "https://openalex.org/I179193067",
+      "ror": "https://ror.org/03cq4gr50",
+      "grid": "grid.9786.0",
+      "wikipedia": "http://en.wikipedia.org/wiki/Khon_Kaen_University",
+      "wikidata": "https://www.wikidata.org/wiki/Q368329"
+    },
+    "geo": {
+      "city": "Khon Kaen",
+      "geonames_city_id": "1609776",
+      "region": null,
+      "country_code": "TH",
+      "country": "Thailand",
+      "latitude": 16.44671058654785,
+      "longitude": 102.83300018310547
+    },
+    "international": {},
+    "associated_institutions": [
+      {
+        "id": "https://openalex.org/I4387155510",
+        "ror": "https://ror.org/050519n85",
+        "display_name": "Postharvest Technology Innovation Center",
+        "country_code": null,
+        "type": "government",
+        "relationship": "related"
+      }
+    ],
+    "counts_by_year": [
+      {
+        "year": 2026,
+        "works_count": 927,
+        "oa_works_count": 735,
+        "cited_by_count": 54
+      },
+      {
+        "year": 2025,
+        "works_count": 3080,
+        "oa_works_count": 2371,
+        "cited_by_count": 4003
+      },
+      {
+        "year": 2024,
+        "works_count": 3051,
+        "oa_works_count": 2379,
+        "cited_by_count": 10995
+      },
+      {
+        "year": 2023,
+        "works_count": 2870,
+        "oa_works_count": 2304,
+        "cited_by_count": 17517
+      },
+      {
+        "year": 2022,
+        "works_count": 3341,
+        "oa_works_count": 2751,
+        "cited_by_count": 31138
+      },
+      {
+        "year": 2021,
+        "works_count": 2624,
+        "oa_works_count": 1929,
+        "cited_by_count": 29948
+      },
+      {
+        "year": 2020,
+        "works_count": 2249,
+        "oa_works_count": 1561,
+        "cited_by_count": 29573
+      },
+      {
+        "year": 2019,
+        "works_count": 1804,
+        "oa_works_count": 1161,
+        "cited_by_count": 28409
+      },
+      {
+        "year": 2018,
+        "works_count": 1642,
+        "oa_works_count": 928,
+        "cited_by_count": 37324
+      },
+      {
+        "year": 2017,
+        "works_count": 1658,
+        "oa_works_count": 975,
+        "cited_by_count": 29760
+      },
+      {
+        "year": 2016,
+        "works_count": 1542,
+        "oa_works_count": 833,
+        "cited_by_count": 25520
+      },
+      {
+        "year": 2015,
+        "works_count": 1537,
+        "oa_works_count": 713,
+        "cited_by_count": 25856
+      },
+      {
+        "year": 2014,
+        "works_count": 1632,
+        "oa_works_count": 737,
+        "cited_by_count": 29793
+      },
+      {
+        "year": 2013,
+        "works_count": 1386,
+        "oa_works_count": 719,
+        "cited_by_count": 27427
+      },
+      {
+        "year": 2012,
+        "works_count": 1159,
+        "oa_works_count": 493,
+        "cited_by_count": 25660
+      },
+      {
+        "year": 2011,
+        "works_count": 773,
+        "oa_works_count": 261,
+        "cited_by_count": 21689
+      },
+      {
+        "year": 2010,
+        "works_count": 729,
+        "oa_works_count": 270,
+        "cited_by_count": 18572
+      }
+    ],
+    "roles": [
+      {
+        "role": "funder",
+        "id": "https://openalex.org/F4320322335",
+        "works_count": 7856
+      },
+      {
+        "role": "institution",
+        "id": "https://openalex.org/I179193067",
+        "works_count": 35748
+      },
+      {
+        "role": "publisher",
+        "id": "https://openalex.org/P4310319384",
+        "works_count": 1734
+      }
+    ],
+    "topics": [
+      {
+        "id": "https://openalex.org/T10695",
+        "display_name": "Parasites and Host Interactions",
+        "count": 915,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2405",
+          "display_name": "Parasitology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/24",
+          "display_name": "Immunology and Microbiology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T11364",
+        "display_name": "Cholangiocarcinoma and Gallbladder Cancer Studies",
+        "count": 804,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2746",
+          "display_name": "Surgery"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10098",
+        "display_name": "Ruminant Nutrition and Digestive Physiology",
+        "count": 660,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1102",
+          "display_name": "Agronomy and Crop Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10815",
+        "display_name": "Parasite Biology and Host Interactions",
+        "count": 622,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2303",
+          "display_name": "Ecology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/23",
+          "display_name": "Environmental Science"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10171",
+        "display_name": "Biofuel production and bioconversion",
+        "count": 451,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2204",
+          "display_name": "Biomedical Engineering"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/22",
+          "display_name": "Engineering"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10209",
+        "display_name": "Global Maternal and Child Health",
+        "count": 421,
+        "score": 0.9998999834060669,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2735",
+          "display_name": "Pediatrics, Perinatology and Child Health"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10015",
+        "display_name": "Genomics and Phylogenetic Studies",
+        "count": 387,
+        "score": 0.9995999932289124,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1312",
+          "display_name": "Molecular Biology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/13",
+          "display_name": "Biochemistry, Genetics and Molecular Biology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10554",
+        "display_name": "Hemoglobinopathies and Related Disorders",
+        "count": 381,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2716",
+          "display_name": "Genetics"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T11074",
+        "display_name": "Helminth infection and control",
+        "count": 360,
+        "score": 0.9998999834060669,
+        "subfield": {
+          "id": "https://openalex.org/subfields/3404",
+          "display_name": "Small Animals"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/34",
+          "display_name": "Veterinary"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10033",
+        "display_name": "Concrete and Cement Materials Research",
+        "count": 345,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2205",
+          "display_name": "Civil and Structural Engineering"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/22",
+          "display_name": "Engineering"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12951",
+        "display_name": "Burkholderia infections and melioidosis",
+        "count": 331,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2713",
+          "display_name": "Epidemiology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10107",
+        "display_name": "Ferroelectric and Piezoelectric Materials",
+        "count": 326,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2505",
+          "display_name": "Materials Chemistry"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/25",
+          "display_name": "Materials Science"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10288",
+        "display_name": "Fractional Differential Equations Solutions",
+        "count": 325,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2611",
+          "display_name": "Modeling and Simulation"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/26",
+          "display_name": "Mathematics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10451",
+        "display_name": "Mycorrhizal Fungi and Plant Interactions",
+        "count": 315,
+        "score": 0.9998999834060669,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13249",
+        "display_name": "Dielectric properties of ceramics",
+        "count": 314,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2505",
+          "display_name": "Materials Chemistry"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/25",
+          "display_name": "Materials Science"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10825",
+        "display_name": "Plant Pathogens and Fungal Diseases",
+        "count": 310,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1307",
+          "display_name": "Cell Biology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/13",
+          "display_name": "Biochemistry, Genetics and Molecular Biology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10452",
+        "display_name": "Iron Metabolism and Disorders",
+        "count": 298,
+        "score": 0.9998999834060669,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2720",
+          "display_name": "Hematology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10166",
+        "display_name": "Mosquito-borne diseases and control",
+        "count": 268,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2739",
+          "display_name": "Public Health, Environmental and Occupational Health"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10146",
+        "display_name": "Cervical Cancer and HPV Research",
+        "count": 266,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2713",
+          "display_name": "Epidemiology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12305",
+        "display_name": "Cassava research and cyanide",
+        "count": 266,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T11385",
+        "display_name": "Natural product bioactivities and synthesis",
+        "count": 265,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1312",
+          "display_name": "Molecular Biology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/13",
+          "display_name": "Biochemistry, Genetics and Molecular Biology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10434",
+        "display_name": "Chromosomal and Genetic Variations",
+        "count": 253,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10035",
+        "display_name": "Phytochemicals and Antioxidant Activities",
+        "count": 251,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2704",
+          "display_name": "Biochemistry"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10596",
+        "display_name": "Child Nutrition and Water Access",
+        "count": 251,
+        "score": 0.9998999834060669,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2916",
+          "display_name": "Nutrition and Dietetics"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/29",
+          "display_name": "Nursing"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10518",
+        "display_name": "Gallbladder and Bile Duct Disorders",
+        "count": 247,
+        "score": 1,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2740",
+          "display_name": "Pulmonary and Respiratory Medicine"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      }
+    ],
+    "topic_share": [
+      {
+        "id": "https://openalex.org/T12951",
+        "display_name": "Burkholderia infections and melioidosis",
+        "value": 0.018245,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2713",
+          "display_name": "Epidemiology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13249",
+        "display_name": "Dielectric properties of ceramics",
+        "value": 0.0154171,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2505",
+          "display_name": "Materials Chemistry"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/25",
+          "display_name": "Materials Science"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10695",
+        "display_name": "Parasites and Host Interactions",
+        "value": 0.0069869,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2405",
+          "display_name": "Parasitology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/24",
+          "display_name": "Immunology and Microbiology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T11364",
+        "display_name": "Cholangiocarcinoma and Gallbladder Cancer Studies",
+        "value": 0.0065359,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2746",
+          "display_name": "Surgery"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T11564",
+        "display_name": "Mathematical Inequalities and Applications",
+        "value": 0.0055464,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2604",
+          "display_name": "Applied Mathematics"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/26",
+          "display_name": "Mathematics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12347",
+        "display_name": "Ginger and Zingiberaceae research",
+        "value": 0.0053126,
+        "subfield": {
+          "id": "https://openalex.org/subfields/3004",
+          "display_name": "Pharmacology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/30",
+          "display_name": "Pharmacology, Toxicology and Pharmaceutics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12431",
+        "display_name": "Sugarcane Cultivation and Processing",
+        "value": 0.0049709,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10098",
+        "display_name": "Ruminant Nutrition and Digestive Physiology",
+        "value": 0.0048993,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1102",
+          "display_name": "Agronomy and Crop Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13281",
+        "display_name": "Andrographolide Research and Applications",
+        "value": 0.0044258,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2707",
+          "display_name": "Complementary and alternative medicine"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T11074",
+        "display_name": "Helminth infection and control",
+        "value": 0.0043928,
+        "subfield": {
+          "id": "https://openalex.org/subfields/3404",
+          "display_name": "Small Animals"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/34",
+          "display_name": "Veterinary"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12305",
+        "display_name": "Cassava research and cyanide",
+        "value": 0.0042564,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13002",
+        "display_name": "Southeast Asian Sociopolitical Studies",
+        "value": 0.0036641,
+        "subfield": {
+          "id": "https://openalex.org/subfields/3320",
+          "display_name": "Political Science and International Relations"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/33",
+          "display_name": "Social Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/2",
+          "display_name": "Social Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13037",
+        "display_name": "Piperaceae Chemical and Biological Studies",
+        "value": 0.0035683,
+        "subfield": {
+          "id": "https://openalex.org/subfields/3004",
+          "display_name": "Pharmacology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/30",
+          "display_name": "Pharmacology, Toxicology and Pharmaceutics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10815",
+        "display_name": "Parasite Biology and Host Interactions",
+        "value": 0.0035486,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2303",
+          "display_name": "Ecology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/23",
+          "display_name": "Environmental Science"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10284",
+        "display_name": "Anaerobic Digestion and Biogas Production",
+        "value": 0.0033502,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2215",
+          "display_name": "Building and Construction"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/22",
+          "display_name": "Engineering"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T14194",
+        "display_name": "Bioactive Compounds in Plants",
+        "value": 0.0029426,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12855",
+        "display_name": "Peanut Plant Research Studies",
+        "value": 0.0029005,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12257",
+        "display_name": "Bioactive natural compounds",
+        "value": 0.0028551,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1312",
+          "display_name": "Molecular Biology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/13",
+          "display_name": "Biochemistry, Genetics and Molecular Biology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12497",
+        "display_name": "Traditional and Medicinal Uses of Annonaceae",
+        "value": 0.0027539,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1303",
+          "display_name": "Biochemistry"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/13",
+          "display_name": "Biochemistry, Genetics and Molecular Biology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13846",
+        "display_name": "Mangiferin and Mango Extracts",
+        "value": 0.0027466,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2707",
+          "display_name": "Complementary and alternative medicine"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/27",
+          "display_name": "Medicine"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/4",
+          "display_name": "Health Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12508",
+        "display_name": "Functional Equations Stability Results",
+        "value": 0.0027284,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2604",
+          "display_name": "Applied Mathematics"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/26",
+          "display_name": "Mathematics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T10288",
+        "display_name": "Fractional Differential Equations Solutions",
+        "value": 0.0027058,
+        "subfield": {
+          "id": "https://openalex.org/subfields/2611",
+          "display_name": "Modeling and Simulation"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/26",
+          "display_name": "Mathematics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/3",
+          "display_name": "Physical Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T12087",
+        "display_name": "Natural Compound Pharmacology Studies",
+        "value": 0.0026843,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1110",
+          "display_name": "Plant Science"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/11",
+          "display_name": "Agricultural and Biological Sciences"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T14049",
+        "display_name": "Plant and Fungal Species Descriptions",
+        "value": 0.0026697,
+        "subfield": {
+          "id": "https://openalex.org/subfields/1312",
+          "display_name": "Molecular Biology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/13",
+          "display_name": "Biochemistry, Genetics and Molecular Biology"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      },
+      {
+        "id": "https://openalex.org/T13719",
+        "display_name": "Phytochemistry and Bioactivity Studies",
+        "value": 0.0026427,
+        "subfield": {
+          "id": "https://openalex.org/subfields/3004",
+          "display_name": "Pharmacology"
+        },
+        "field": {
+          "id": "https://openalex.org/fields/30",
+          "display_name": "Pharmacology, Toxicology and Pharmaceutics"
+        },
+        "domain": {
+          "id": "https://openalex.org/domains/1",
+          "display_name": "Life Sciences"
+        }
+      }
+    ],
+    "is_super_system": false,
+    "status": "active",
+    "works_api_url": "https://api.openalex.org/works?filter=institutions.id:I179193067",
+    "updated_date": "2026-04-28T05:59:53",
+    "created_date": "2016-06-24T00:00:00"
+  },
+  "yearlyCounts": [
+    {
+      "year": 2026,
+      "count": 923
+    },
+    {
+      "year": 2025,
+      "count": 2588
+    },
+    {
+      "year": 2024,
+      "count": 2331
+    },
+    {
+      "year": 2023,
+      "count": 2121
+    },
+    {
+      "year": 2022,
+      "count": 2366
+    },
+    {
+      "year": 2021,
+      "count": 1984
+    },
+    {
+      "year": 2020,
+      "count": 1701
+    },
+    {
+      "year": 2019,
+      "count": 1547
+    },
+    {
+      "year": 2018,
+      "count": 1422
+    },
+    {
+      "year": 2017,
+      "count": 1370
+    },
+    {
+      "year": 2016,
+      "count": 1316
+    },
+    {
+      "year": 2015,
+      "count": 1368
+    }
+  ],
+  "byType": [
+    {
+      "type": "https://openalex.org/types/article",
+      "count": 27067
+    },
+    {
+      "type": "https://openalex.org/types/preprint",
+      "count": 741
+    },
+    {
+      "type": "https://openalex.org/types/review",
+      "count": 740
+    },
+    {
+      "type": "https://openalex.org/types/book-chapter",
+      "count": 573
+    },
+    {
+      "type": "https://openalex.org/types/dataset",
+      "count": 158
+    },
+    {
+      "type": "https://openalex.org/types/letter",
+      "count": 126
+    },
+    {
+      "type": "https://openalex.org/types/erratum",
+      "count": 95
+    },
+    {
+      "type": "https://openalex.org/types/reference-entry",
+      "count": 72
+    },
+    {
+      "type": "https://openalex.org/types/peer-review",
+      "count": 66
+    },
+    {
+      "type": "https://openalex.org/types/other",
+      "count": 52
+    },
+    {
+      "type": "https://openalex.org/types/editorial",
+      "count": 33
+    },
+    {
+      "type": "https://openalex.org/types/paratext",
+      "count": 24
+    },
+    {
+      "type": "https://openalex.org/types/book",
+      "count": 23
+    },
+    {
+      "type": "https://openalex.org/types/retraction",
+      "count": 6
+    },
+    {
+      "type": "https://openalex.org/types/report",
+      "count": 5
+    },
+    {
+      "type": "https://openalex.org/types/dissertation",
+      "count": 3
+    }
+  ],
+  "matchedInstitutions": [
+    {
+      "id": "I179193067",
+      "display_name": "Khon Kaen University",
+      "ror": "https://ror.org/03cq4gr50",
+      "country_code": "TH",
+      "works_count": 35748
+    }
+  ]
+}

@@ -1,0 +1,1166 @@
+{
+  "institutionId": "I179193067",
+  "totalCount": 29784,
+  "sample": [
+    {
+      "openalexId": "W2132273917",
+      "doi": "https://doi.org/10.1016/j.jamda.2013.11.025",
+      "title": "Sarcopenia in Asia: Consensus Report of the Asian Working Group for Sarcopenia",
+      "year": 2014,
+      "type": "article",
+      "citationsCount": 4283,
+      "venue": "Journal of the American Medical Directors Association",
+      "venueType": "journal",
+      "authorCount": 26,
+      "firstFiveAuthors": [
+        {
+          "name": "Liang‐Kung Chen",
+          "orcid": "https://orcid.org/0000-0002-2387-8508",
+          "affiliations": [
+            "Taipei Veterans General Hospital"
+          ]
+        },
+        {
+          "name": "Li-Kuo Liu",
+          "orcid": "https://orcid.org/0000-0003-2334-348X",
+          "affiliations": [
+            "Taipei Veterans General Hospital"
+          ]
+        },
+        {
+          "name": "Jean Woo",
+          "orcid": "https://orcid.org/0000-0001-7593-3081",
+          "affiliations": [
+            "Chinese University of Hong Kong"
+          ]
+        },
+        {
+          "name": "Prasert Assantachai",
+          "orcid": "https://orcid.org/0000-0001-8467-5803",
+          "affiliations": [
+            "Siriraj Hospital",
+            "Mahidol University"
+          ]
+        },
+        {
+          "name": "Tung‐Wai Auyeung",
+          "orcid": null,
+          "affiliations": [
+            "Chinese University of Hong Kong"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2899173353",
+      "doi": "https://doi.org/10.1016/s2214-109x(18)30451-0",
+      "title": "Global, regional, and national estimates of levels of preterm birth in 2014: a systematic review and modelling analysis",
+      "year": 2018,
+      "type": "review",
+      "citationsCount": 3121,
+      "venue": "The Lancet Global Health",
+      "venueType": "journal",
+      "authorCount": 18,
+      "firstFiveAuthors": [
+        {
+          "name": "Saifon Chawanpaiboon",
+          "orcid": "https://orcid.org/0000-0002-3207-6187",
+          "affiliations": [
+            "Mahidol University",
+            "Siriraj Hospital"
+          ]
+        },
+        {
+          "name": "Joshua P. Vogel",
+          "orcid": "https://orcid.org/0000-0002-3214-7096",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Ann‐Beth Moller",
+          "orcid": "https://orcid.org/0000-0003-3581-0938",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Pisake Lumbiganon",
+          "orcid": "https://orcid.org/0000-0001-9372-0071",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Max Petzold",
+          "orcid": "https://orcid.org/0000-0003-4908-2169",
+          "affiliations": [
+            "University of the Witwatersrand",
+            "University of Gothenburg"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W4231015464",
+      "doi": "https://doi.org/10.1016/j.clnu.2018.08.002",
+      "title": "GLIM criteria for the diagnosis of malnutrition – A consensus report from the global clinical nutrition community",
+      "year": 2018,
+      "type": "article",
+      "citationsCount": 2689,
+      "venue": "Clinical Nutrition",
+      "venueType": "journal",
+      "authorCount": 66,
+      "firstFiveAuthors": [
+        {
+          "name": "Tommy Cederholm",
+          "orcid": "https://orcid.org/0000-0003-3705-0725",
+          "affiliations": [
+            "Uppsala University",
+            "Karolinska University Hospital",
+            "Uppsala University Hospital"
+          ]
+        },
+        {
+          "name": "Gordon L. Jensen",
+          "orcid": "https://orcid.org/0000-0001-5223-7622",
+          "affiliations": [
+            "University of Vermont"
+          ]
+        },
+        {
+          "name": "María Isabel Toulson Davisson Correia",
+          "orcid": "https://orcid.org/0000-0002-3503-4302",
+          "affiliations": [
+            "Universidade Federal de Minas Gerais"
+          ]
+        },
+        {
+          "name": "Marı́a Cristina González",
+          "orcid": null,
+          "affiliations": [
+            "Universidade Católica de Pelotas"
+          ]
+        },
+        {
+          "name": "Ryoji Fukushima",
+          "orcid": "https://orcid.org/0000-0003-4464-664X",
+          "affiliations": []
+        }
+      ]
+    },
+    {
+      "openalexId": "W2930675045",
+      "doi": "https://doi.org/10.1002/jcsm.12383",
+      "title": "GLIM criteria for the diagnosis of malnutrition – A consensus report from the global clinical nutrition community",
+      "year": 2019,
+      "type": "article",
+      "citationsCount": 1627,
+      "venue": "Journal of Cachexia Sarcopenia and Muscle",
+      "venueType": "journal",
+      "authorCount": 33,
+      "firstFiveAuthors": [
+        {
+          "name": "Tommy Cederholm",
+          "orcid": "https://orcid.org/0000-0003-3705-0725",
+          "affiliations": [
+            "Uppsala University",
+            "Karolinska University Hospital"
+          ]
+        },
+        {
+          "name": "Gordon L. Jensen",
+          "orcid": "https://orcid.org/0000-0001-5223-7622",
+          "affiliations": [
+            "University of Vermont"
+          ]
+        },
+        {
+          "name": "María Isabel Toulson Davisson Correia",
+          "orcid": "https://orcid.org/0000-0002-3503-4302",
+          "affiliations": [
+            "Universidade Federal de Minas Gerais"
+          ]
+        },
+        {
+          "name": "Marı́a Cristina González",
+          "orcid": "https://orcid.org/0000-0002-3901-8182",
+          "affiliations": [
+            "Universidade Católica de Pelotas"
+          ]
+        },
+        {
+          "name": "Ryoji Fukushima",
+          "orcid": "https://orcid.org/0000-0003-4464-664X",
+          "affiliations": [
+            "The University of Tokyo"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2889765177",
+      "doi": "https://doi.org/10.1002/jpen.1440",
+      "title": "GLIM Criteria for the Diagnosis of Malnutrition: A Consensus Report From the Global Clinical Nutrition Community",
+      "year": 2018,
+      "type": "article",
+      "citationsCount": 1404,
+      "venue": "Journal of Parenteral and Enteral Nutrition",
+      "venueType": "journal",
+      "authorCount": 33,
+      "firstFiveAuthors": [
+        {
+          "name": "Gordon L. Jensen",
+          "orcid": "https://orcid.org/0000-0001-5223-7622",
+          "affiliations": [
+            "W. L. Gore & Associates (Germany)",
+            "University of Vermont"
+          ]
+        },
+        {
+          "name": "Tommy Cederholm",
+          "orcid": "https://orcid.org/0000-0003-3705-0725",
+          "affiliations": [
+            "W. L. Gore & Associates (Germany)",
+            "Karolinska University Hospital",
+            "Uppsala University Hospital"
+          ]
+        },
+        {
+          "name": "María Isabel Toulson Davisson Correia",
+          "orcid": "https://orcid.org/0000-0002-3503-4302",
+          "affiliations": [
+            "Universidade Federal de Minas Gerais"
+          ]
+        },
+        {
+          "name": "Marı́a Cristina González",
+          "orcid": null,
+          "affiliations": [
+            "Universidade Católica de Pelotas"
+          ]
+        },
+        {
+          "name": "Ryoji Fukushima",
+          "orcid": "https://orcid.org/0000-0003-4464-664X",
+          "affiliations": [
+            "Tokyo University of Technology",
+            "Tokyo Medical University",
+            "The University of Tokyo"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W4281645619",
+      "doi": "https://doi.org/10.1056/evidoa2100070",
+      "title": "Tremelimumab plus Durvalumab in Unresectable Hepatocellular Carcinoma",
+      "year": 2022,
+      "type": "article",
+      "citationsCount": 1364,
+      "venue": "NEJM Evidence",
+      "venueType": "journal",
+      "authorCount": 31,
+      "firstFiveAuthors": [
+        {
+          "name": "Ghassan K. Abou‐Alfa",
+          "orcid": "https://orcid.org/0000-0002-1522-8054",
+          "affiliations": [
+            "Cornell University",
+            "Memorial Sloan Kettering Cancer Center"
+          ]
+        },
+        {
+          "name": "George Lau",
+          "orcid": "https://orcid.org/0000-0002-8928-3769",
+          "affiliations": [
+            "Humanity & Health"
+          ]
+        },
+        {
+          "name": "Masatoshi Kudo",
+          "orcid": "https://orcid.org/0000-0002-4102-3474",
+          "affiliations": [
+            "Kindai University"
+          ]
+        },
+        {
+          "name": "Stephen L. Chan",
+          "orcid": "https://orcid.org/0000-0001-8998-5480",
+          "affiliations": [
+            "Chinese University of Hong Kong"
+          ]
+        },
+        {
+          "name": "Robin Kate Kelley",
+          "orcid": "https://orcid.org/0000-0002-1984-2430",
+          "affiliations": [
+            "UCSF Helen Diller Family Comprehensive Cancer Center",
+            "University of California, San Francisco"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2101771006",
+      "doi": "https://doi.org/10.1016/s0140-6736(09)61870-5",
+      "title": "Method of delivery and pregnancy outcomes in Asia: the WHO global survey on maternal and perinatal health 2007–08",
+      "year": 2010,
+      "type": "article",
+      "citationsCount": 1115,
+      "venue": "The Lancet",
+      "venueType": "journal",
+      "authorCount": 23,
+      "firstFiveAuthors": [
+        {
+          "name": "Pisake Lumbiganon",
+          "orcid": "https://orcid.org/0000-0001-9372-0071",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Malinee Laopaiboon",
+          "orcid": "https://orcid.org/0000-0002-2554-0543",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "A. Metin Gülmezog̈lu",
+          "orcid": "https://orcid.org/0000-0003-4674-0998",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "João Paulo Souza",
+          "orcid": "https://orcid.org/0000-0002-2288-4244",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Surasak Taneepanichskul",
+          "orcid": "https://orcid.org/0000-0003-2761-2288",
+          "affiliations": [
+            "Chulalongkorn University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2801499275",
+      "doi": "https://doi.org/10.1016/j.bpobgyn.2018.04.003",
+      "title": "The global epidemiology of preterm birth",
+      "year": 2018,
+      "type": "review",
+      "citationsCount": 1001,
+      "venue": "Best Practice & Research Clinical Obstetrics & Gynaecology",
+      "venueType": "journal",
+      "authorCount": 6,
+      "firstFiveAuthors": [
+        {
+          "name": "Joshua P. Vogel",
+          "orcid": "https://orcid.org/0000-0002-3214-7096",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Saifon Chawanpaiboon",
+          "orcid": "https://orcid.org/0000-0002-3207-6187",
+          "affiliations": [
+            "Siriraj Hospital",
+            "Mahidol University"
+          ]
+        },
+        {
+          "name": "Ann‐Beth Moller",
+          "orcid": "https://orcid.org/0000-0003-3581-0938",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Kanokwaroon Watananirun",
+          "orcid": "https://orcid.org/0000-0001-5622-4183",
+          "affiliations": [
+            "Siriraj Hospital",
+            "Mahidol University"
+          ]
+        },
+        {
+          "name": "Mercedes Bonet",
+          "orcid": "https://orcid.org/0000-0001-9015-1635",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2020124994",
+      "doi": "https://doi.org/10.1016/j.fuel.2011.01.018",
+      "title": "NaOH-activated ground fly ash geopolymer cured at ambient temperature",
+      "year": 2011,
+      "type": "article",
+      "citationsCount": 973,
+      "venue": "Fuel",
+      "venueType": "journal",
+      "authorCount": 4,
+      "firstFiveAuthors": [
+        {
+          "name": "Kiatsuda Somna",
+          "orcid": "https://orcid.org/0000-0001-7591-9044",
+          "affiliations": [
+            "King Mongkut's University of Technology Thonburi"
+          ]
+        },
+        {
+          "name": "Chai Jaturapitakkul",
+          "orcid": "https://orcid.org/0000-0002-8785-947X",
+          "affiliations": [
+            "King Mongkut's University of Technology Thonburi"
+          ]
+        },
+        {
+          "name": "Puangrat Kajitvichyanukul",
+          "orcid": "https://orcid.org/0000-0001-6651-3683",
+          "affiliations": [
+            "King Mongkut's University of Technology Thonburi",
+            "Naresuan University",
+            "Center of Excellence on Hazardous Substance Management"
+          ]
+        },
+        {
+          "name": "Prinya Chindaprasirt",
+          "orcid": "https://orcid.org/0000-0003-1062-3626",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2724543993",
+      "doi": "https://doi.org/10.1158/2159-8290.cd-17-0368",
+      "title": "Whole-Genome and Epigenomic Landscapes of Etiologically Distinct Subtypes of Cholangiocarcinoma",
+      "year": 2017,
+      "type": "article",
+      "citationsCount": 970,
+      "venue": "Cancer Discovery",
+      "venueType": "journal",
+      "authorCount": 58,
+      "firstFiveAuthors": [
+        {
+          "name": "Apinya Jusakul",
+          "orcid": "https://orcid.org/0000-0001-7652-7771",
+          "affiliations": [
+            "Khon Kaen University",
+            "Duke-NUS Medical School",
+            "National Cancer Centre Singapore"
+          ]
+        },
+        {
+          "name": "Ioana Cutcutache",
+          "orcid": "https://orcid.org/0000-0001-5924-653X",
+          "affiliations": [
+            "Duke-NUS Medical School"
+          ]
+        },
+        {
+          "name": "Chern Han Yong",
+          "orcid": "https://orcid.org/0000-0001-5176-4543",
+          "affiliations": [
+            "Duke-NUS Medical School"
+          ]
+        },
+        {
+          "name": "Jing Quan Lim",
+          "orcid": "https://orcid.org/0000-0003-3732-8707",
+          "affiliations": [
+            "National Cancer Centre Singapore"
+          ]
+        },
+        {
+          "name": "Mi Ni Huang",
+          "orcid": "https://orcid.org/0000-0002-7669-7364",
+          "affiliations": [
+            "Duke-NUS Medical School"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2012400934",
+      "doi": "https://doi.org/10.1111/1471-0528.12630",
+      "title": "Pregnancy and childbirth outcomes among adolescent mothers: a <scp>W</scp>orld <scp>H</scp>ealth <scp>O</scp>rganization multicountry study",
+      "year": 2014,
+      "type": "article",
+      "citationsCount": 917,
+      "venue": "BJOG An International Journal of Obstetrics & Gynaecology",
+      "venueType": "journal",
+      "authorCount": 13,
+      "firstFiveAuthors": [
+        {
+          "name": "Togoobaatar Ganchimeg",
+          "orcid": "https://orcid.org/0000-0002-5116-5601",
+          "affiliations": [
+            "National Center For Child Health and Development"
+          ]
+        },
+        {
+          "name": "Erika Ota",
+          "orcid": "https://orcid.org/0000-0002-3945-7441",
+          "affiliations": [
+            "National Center For Child Health and Development"
+          ]
+        },
+        {
+          "name": "Naho Morisaki",
+          "orcid": "https://orcid.org/0000-0001-6151-4513",
+          "affiliations": [
+            "The University of Tokyo",
+            "National Center For Child Health and Development"
+          ]
+        },
+        {
+          "name": "Malinee Laopaiboon",
+          "orcid": "https://orcid.org/0000-0002-2554-0543",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Pisake Lumbiganon",
+          "orcid": "https://orcid.org/0000-0001-9372-0071",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W1988590033",
+      "doi": "https://doi.org/10.1016/j.mineng.2009.03.022",
+      "title": "Influence of NaOH solution on the synthesis of fly ash geopolymer",
+      "year": 2009,
+      "type": "article",
+      "citationsCount": 909,
+      "venue": "Minerals Engineering",
+      "venueType": "journal",
+      "authorCount": 2,
+      "firstFiveAuthors": [
+        {
+          "name": "Ubolluk Rattanasak",
+          "orcid": "https://orcid.org/0000-0002-4611-5511",
+          "affiliations": [
+            "Burapha University"
+          ]
+        },
+        {
+          "name": "Prinya Chindaprasirt",
+          "orcid": "https://orcid.org/0000-0003-1062-3626",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2007833236",
+      "doi": "https://doi.org/10.1016/j.cemconcomp.2006.11.002",
+      "title": "Workability and strength of coarse high calcium fly ash geopolymer",
+      "year": 2006,
+      "type": "article",
+      "citationsCount": 842,
+      "venue": "Cement and Concrete Composites",
+      "venueType": "journal",
+      "authorCount": 3,
+      "firstFiveAuthors": [
+        {
+          "name": "Prinya Chindaprasirt",
+          "orcid": "https://orcid.org/0000-0003-1062-3626",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "T. Chareerat",
+          "orcid": null,
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Vute Sirivivatnanon",
+          "orcid": "https://orcid.org/0000-0003-1901-6064",
+          "affiliations": [
+            "CSIRO Manufacturing"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2068430855",
+      "doi": "https://doi.org/10.1038/nm887",
+      "title": "Original antigenic sin and apoptosis in the pathogenesis of dengue hemorrhagic fever",
+      "year": 2003,
+      "type": "article",
+      "citationsCount": 818,
+      "venue": "Nature Medicine",
+      "venueType": "journal",
+      "authorCount": 14,
+      "firstFiveAuthors": [
+        {
+          "name": "Juthathip Mongkolsapaya",
+          "orcid": "https://orcid.org/0000-0003-3416-9480",
+          "affiliations": [
+            "John Radcliffe Hospital",
+            "MRC Human Immunology Unit"
+          ]
+        },
+        {
+          "name": "Wanwisa Dejnirattisai",
+          "orcid": "https://orcid.org/0000-0001-7996-2699",
+          "affiliations": [
+            "Siriraj Hospital",
+            "Mahidol University"
+          ]
+        },
+        {
+          "name": "Xiao‐Ning Xu",
+          "orcid": null,
+          "affiliations": [
+            "MRC Human Immunology Unit",
+            "John Radcliffe Hospital"
+          ]
+        },
+        {
+          "name": "Sirijitt Vasanawathana",
+          "orcid": null,
+          "affiliations": [
+            "Khon Kaen University",
+            "Ministry of Public Health"
+          ]
+        },
+        {
+          "name": "Nattaya Tangthawornchaikul",
+          "orcid": null,
+          "affiliations": [
+            "National Center for Genetic Engineering and Biotechnology",
+            "National Science and Technology Development Agency"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W4211248913",
+      "doi": "https://doi.org/10.1038/s41572-021-00300-2",
+      "title": "Cholangiocarcinoma",
+      "year": 2021,
+      "type": "review",
+      "citationsCount": 818,
+      "venue": "Nature Reviews Disease Primers",
+      "venueType": "journal",
+      "authorCount": 9,
+      "firstFiveAuthors": [
+        {
+          "name": "Paul J. Brindley",
+          "orcid": "https://orcid.org/0000-0003-1765-0002",
+          "affiliations": [
+            "George Washington University"
+          ]
+        },
+        {
+          "name": "Melinda Bachini",
+          "orcid": "https://orcid.org/0000-0001-6850-2929",
+          "affiliations": [
+            "Cholangiocarcinoma Foundation"
+          ]
+        },
+        {
+          "name": "Sumera I. Ilyas",
+          "orcid": "https://orcid.org/0000-0002-2709-3003",
+          "affiliations": [
+            "Mayo Clinic in Arizona"
+          ]
+        },
+        {
+          "name": "Shahid A. Khan",
+          "orcid": "https://orcid.org/0000-0003-2538-0911",
+          "affiliations": [
+            "Imperial College London"
+          ]
+        },
+        {
+          "name": "Alex Loukas",
+          "orcid": "https://orcid.org/0000-0002-0896-8441",
+          "affiliations": [
+            "Australian Institute of Tropical Health and Medicine",
+            "James Cook University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2498603190",
+      "doi": "https://doi.org/10.1093/trstmh/trw048",
+      "title": "Antibiotic resistance is the quintessential One Health issue",
+      "year": 2016,
+      "type": "editorial",
+      "citationsCount": 776,
+      "venue": "Transactions of the Royal Society of Tropical Medicine and Hygiene",
+      "venueType": "journal",
+      "authorCount": 16,
+      "firstFiveAuthors": [
+        {
+          "name": "Timothy P. Robinson",
+          "orcid": "https://orcid.org/0000-0002-4266-963X",
+          "affiliations": []
+        },
+        {
+          "name": "Dengpan Bu",
+          "orcid": "https://orcid.org/0000-0003-1548-5509",
+          "affiliations": [
+            "Chinese Academy of Agricultural Sciences"
+          ]
+        },
+        {
+          "name": "Juan Carrique‐Mas",
+          "orcid": "https://orcid.org/0000-0001-9161-8890",
+          "affiliations": [
+            "Oxford University Clinical Research Unit"
+          ]
+        },
+        {
+          "name": "Eric M. Fèvre",
+          "orcid": "https://orcid.org/0000-0001-8931-4986",
+          "affiliations": [
+            "University of Liverpool"
+          ]
+        },
+        {
+          "name": "Marius Gilbert",
+          "orcid": "https://orcid.org/0000-0003-3708-3359",
+          "affiliations": [
+            "Université Libre de Bruxelles"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W1964488322",
+      "doi": "https://doi.org/10.1371/journal.pmed.0040201",
+      "title": "Liver Fluke Induces Cholangiocarcinoma",
+      "year": 2007,
+      "type": "review",
+      "citationsCount": 765,
+      "venue": "PLoS Medicine",
+      "venueType": "journal",
+      "authorCount": 13,
+      "firstFiveAuthors": [
+        {
+          "name": "Banchob Sripa",
+          "orcid": "https://orcid.org/0000-0001-8899-5919",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Sasithorn Kaewkes",
+          "orcid": null,
+          "affiliations": [
+            "George Washington University",
+            "Tulane University"
+          ]
+        },
+        {
+          "name": "Paiboon Sithithaworn",
+          "orcid": "https://orcid.org/0000-0002-9480-1778",
+          "affiliations": [
+            "Tulane University",
+            "George Washington University"
+          ]
+        },
+        {
+          "name": "Eimorn Mairiang",
+          "orcid": null,
+          "affiliations": [
+            "George Washington University",
+            "Tulane University"
+          ]
+        },
+        {
+          "name": "Thewarach Laha",
+          "orcid": "https://orcid.org/0000-0003-1334-9976",
+          "affiliations": [
+            "Tulane University",
+            "George Washington University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2188611891",
+      "doi": "https://doi.org/10.1371/journal.pmed.1001920",
+      "title": "World Health Organization Estimates of the Global and Regional Disease Burden of 11 Foodborne Parasitic Diseases, 2010: A Data Synthesis",
+      "year": 2015,
+      "type": "review",
+      "citationsCount": 762,
+      "venue": "PLoS Medicine",
+      "venueType": "journal",
+      "authorCount": 18,
+      "firstFiveAuthors": [
+        {
+          "name": "Paul R. Torgerson",
+          "orcid": "https://orcid.org/0000-0003-4277-9983",
+          "affiliations": [
+            "University of Zurich"
+          ]
+        },
+        {
+          "name": "Brecht Devleesschauwer",
+          "orcid": "https://orcid.org/0000-0002-2867-6892",
+          "affiliations": [
+            "UCLouvain",
+            "Instituut voor Tropische Geneeskunde",
+            "Ghent University Hospital"
+          ]
+        },
+        {
+          "name": "Nicolas Praet",
+          "orcid": "https://orcid.org/0000-0002-6680-9588",
+          "affiliations": [
+            "Instituut voor Tropische Geneeskunde"
+          ]
+        },
+        {
+          "name": "Niko Speybroeck",
+          "orcid": "https://orcid.org/0000-0003-3322-3502",
+          "affiliations": [
+            "UCLouvain"
+          ]
+        },
+        {
+          "name": "Arve Lee Willingham",
+          "orcid": "https://orcid.org/0000-0002-4168-2779",
+          "affiliations": [
+            "Ross University School of Veterinary Medicine"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W1986963833",
+      "doi": "https://doi.org/10.5054/tq.2011.244483",
+      "title": "Should We Use Characteristics of Conversation to Measure Grammatical Complexity in L2 Writing Development?",
+      "year": 2011,
+      "type": "article",
+      "citationsCount": 760,
+      "venue": "TESOL Quarterly",
+      "venueType": "journal",
+      "authorCount": 3,
+      "firstFiveAuthors": [
+        {
+          "name": "Douglas Biber",
+          "orcid": "https://orcid.org/0000-0002-7024-505X",
+          "affiliations": [
+            "Northern Arizona University"
+          ]
+        },
+        {
+          "name": "Bethany Gray",
+          "orcid": "https://orcid.org/0000-0003-0118-6508",
+          "affiliations": [
+            "Northern Arizona University"
+          ]
+        },
+        {
+          "name": "Kornwipa Poonpon",
+          "orcid": "https://orcid.org/0000-0002-8349-2834",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W1985781493",
+      "doi": "https://doi.org/10.1016/s0140-6736(13)60686-8",
+      "title": "Moving beyond essential interventions for reduction of maternal mortality (the WHO Multicountry Survey on Maternal and Newborn Health): a cross-sectional study",
+      "year": 2013,
+      "type": "article",
+      "citationsCount": 758,
+      "venue": "The Lancet",
+      "venueType": "journal",
+      "authorCount": 60,
+      "firstFiveAuthors": [
+        {
+          "name": "João Paulo Souza",
+          "orcid": "https://orcid.org/0000-0002-2288-4244",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "A. Metin Gülmezog̈lu",
+          "orcid": "https://orcid.org/0000-0003-4674-0998",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Joshua P. Vogel",
+          "orcid": "https://orcid.org/0000-0002-3214-7096",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Guillermo Carroli",
+          "orcid": null,
+          "affiliations": [
+            "Centro Rosarino de Estudios Perinatales"
+          ]
+        },
+        {
+          "name": "Pisake Lumbiganon",
+          "orcid": "https://orcid.org/0000-0001-9372-0071",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2170298115",
+      "doi": "https://doi.org/10.1183/09031936.03.00027003",
+      "title": "Maintenance therapy with budesonide and formoterol in chronicobstructive pulmonary disease",
+      "year": 2003,
+      "type": "article",
+      "citationsCount": 738,
+      "venue": "European Respiratory Journal",
+      "venueType": "journal",
+      "authorCount": 6,
+      "firstFiveAuthors": [
+        {
+          "name": "Peter M.A. Calverley",
+          "orcid": "https://orcid.org/0000-0003-4676-9993",
+          "affiliations": [
+            "Aintree University Hospital",
+            "University of Liverpool"
+          ]
+        },
+        {
+          "name": "Watchara Boonsawat",
+          "orcid": null,
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Z. Cseke",
+          "orcid": null,
+          "affiliations": [
+            "University of Liverpool",
+            "Khon Kaen University",
+            "Aintree University Hospital"
+          ]
+        },
+        {
+          "name": "Nanshan Zhong",
+          "orcid": "https://orcid.org/0000-0003-2274-1427",
+          "affiliations": [
+            "State Key Laboratory of Respiratory Disease"
+          ]
+        },
+        {
+          "name": "Stefan Peterson",
+          "orcid": "https://orcid.org/0000-0001-7203-3096",
+          "affiliations": [
+            "AstraZeneca (Sweden)"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2132089139",
+      "doi": "https://doi.org/10.1186/1741-7015-8-71",
+      "title": "Caesarean section without medical indications is associated with an increased risk of adverse short-term maternal outcomes: the 2004-2008 WHO Global Survey on Maternal and Perinatal Health",
+      "year": 2010,
+      "type": "article",
+      "citationsCount": 734,
+      "venue": "BMC Medicine",
+      "venueType": "journal",
+      "authorCount": 7,
+      "firstFiveAuthors": [
+        {
+          "name": "João Paulo Souza",
+          "orcid": "https://orcid.org/0000-0002-2288-4244",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "AM Gülmezoglu",
+          "orcid": null,
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "Pisake Lumbiganon",
+          "orcid": "https://orcid.org/0000-0001-9372-0071",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Malinee Laopaiboon",
+          "orcid": "https://orcid.org/0000-0002-2554-0543",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "G. Carroli",
+          "orcid": null,
+          "affiliations": [
+            "Centro Rosarino de Estudios Perinatales"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2047756601",
+      "doi": "https://doi.org/10.1016/j.wasman.2008.06.023",
+      "title": "Comparative study on the characteristics of fly ash and bottom ash geopolymers",
+      "year": 2008,
+      "type": "article",
+      "citationsCount": 719,
+      "venue": "Waste Management",
+      "venueType": "journal",
+      "authorCount": 4,
+      "firstFiveAuthors": [
+        {
+          "name": "Prinya Chindaprasirt",
+          "orcid": "https://orcid.org/0000-0003-1062-3626",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        },
+        {
+          "name": "Chai Jaturapitakkul",
+          "orcid": "https://orcid.org/0000-0002-8785-947X",
+          "affiliations": [
+            "King Mongkut's University of Technology Thonburi"
+          ]
+        },
+        {
+          "name": "Wichian Chalee",
+          "orcid": "https://orcid.org/0000-0001-5255-0061",
+          "affiliations": [
+            "Burapha University"
+          ]
+        },
+        {
+          "name": "Ubolluk Rattanasak",
+          "orcid": "https://orcid.org/0000-0002-4611-5511",
+          "affiliations": [
+            "Burapha University"
+          ]
+        }
+      ]
+    },
+    {
+      "openalexId": "W2580088840",
+      "doi": "https://doi.org/10.1371/journal.pmed.1002220",
+      "title": "The World Health Organization Fetal Growth Charts: A Multinational Longitudinal Study of Ultrasound Biometric Measurements and Estimated Fetal Weight",
+      "year": 2017,
+      "type": "article",
+      "citationsCount": 718,
+      "venue": "PLoS Medicine",
+      "venueType": "journal",
+      "authorCount": 22,
+      "firstFiveAuthors": [
+        {
+          "name": "Torvid Kiserud",
+          "orcid": "https://orcid.org/0000-0003-1825-1660",
+          "affiliations": [
+            "Haukeland University Hospital",
+            "University of Bergen"
+          ]
+        },
+        {
+          "name": "Gilda Piaggio",
+          "orcid": "https://orcid.org/0000-0002-9885-8392",
+          "affiliations": [
+            "London School of Hygiene & Tropical Medicine"
+          ]
+        },
+        {
+          "name": "Guillermo Carroli",
+          "orcid": null,
+          "affiliations": [
+            "Centro Rosarino de Estudios Perinatales"
+          ]
+        },
+        {
+          "name": "Mariana Widmer",
+          "orcid": "https://orcid.org/0000-0002-4866-109X",
+          "affiliations": [
+            "World Health Organization"
+          ]
+        },
+        {
+          "name": "José Ferreira de Carvalho",
+          "orcid": "https://orcid.org/0000-0002-8901-9802",
+          "affiliations": []
+        }
+      ]
+    },
+    {
+      "openalexId": "W2742805164",
+      "doi": "https://doi.org/10.1038/s41598-017-08669-5",
+      "title": "Nanopriming technology for enhancing germination and starch metabolism of aged rice seeds using phytosynthesized silver nanoparticles",
+      "year": 2017,
+      "type": "article",
+      "citationsCount": 698,
+      "venue": "Scientific Reports",
+      "venueType": "journal",
+      "authorCount": 4,
+      "firstFiveAuthors": [
+        {
+          "name": "Wuttipong Mahakham",
+          "orcid": "https://orcid.org/0000-0003-4837-7715",
+          "affiliations": [
+            "University of Auckland"
+          ]
+        },
+        {
+          "name": "Ajit K. Sarmah",
+          "orcid": "https://orcid.org/0000-0003-0664-2605",
+          "affiliations": [
+            "University of Auckland"
+          ]
+        },
+        {
+          "name": "Santi Maensiri",
+          "orcid": "https://orcid.org/0000-0003-1798-3747",
+          "affiliations": [
+            "Suranaree University of Technology"
+          ]
+        },
+        {
+          "name": "Piyada Theerakulpisut",
+          "orcid": "https://orcid.org/0000-0001-5495-2953",
+          "affiliations": [
+            "Khon Kaen University"
+          ]
+        }
+      ]
+    }
+  ]
+}

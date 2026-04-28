@@ -1,0 +1,3 @@
+{
+  "error": "KKU_SCOPUS_API_KEY not set; obtain from KKU Library / Elsevier and add to .env"
+}

@@ -19,6 +19,7 @@ import {
 import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
+import { KkuResearchRealConnector } from './sources/kku-research';
 import {
   AdbGmsConnector,
   BoiSectoralConnector,
@@ -84,7 +85,11 @@ const ENTRIES: readonly ConnectorEntry[] = [
     real: () => new KkuHrRealConnector(),
   },
   { slug: 'kku-alumni',         mock: () => new KkuAlumniConnector() },
-  { slug: 'kku-research',       mock: () => new KkuResearchConnector() },
+  {
+    slug: 'kku-research',
+    mock: () => new KkuResearchConnector(),
+    real: () => new KkuResearchRealConnector(),
+  },
   { slug: 'digital-transcript', mock: () => new DigitalTranscriptConnector() },
 
   // National Thai (API) ──────────────────────────────────────────────
