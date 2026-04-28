@@ -293,6 +293,7 @@ model Faculty {
   facultySkills       FacultySkill[]
   hrOrgMappings       HrOrgMapping[]
   facultyCompensation FacultyCompensation[]
+  facultyBudgets      FacultyBudget[]
 
   @@index([code])
   @@map("faculties")
@@ -2097,4 +2098,48 @@ model FacultyCompensation {
   @@index([facultyId])
   @@index([fiscalYear])
   @@map("faculty_compensation")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Raw budget allocation per (division × fund × fiscal year) from the
+// kku-finance connector's Q2 (MSSQL ERPPowerBI.BudgetData). Stored at
+// the division level — does NOT cascade to programs (that's the
+// cost-allocation methodology layer downstream).
+//
+// `facultyId` is nullable: divisions that aren't faculties (central
+// admin, external research centres) get null but are still tracked so
+// total spend reconciles. `divisionName` preserves the original
+// (un-stripped) division name for transparency on hospital sub-units.
+//
+// `fundCategory` is the revenue-source split — values like
+// `งบประมาณเงินรายได้` (university revenue) vs `งบประมาณเงินอุดหนุนจากรัฐ`
+// (government subsidy). The 75/25 mix is a non-trivial Council talking
+// point.
+//
+// `BudgetData` upstream is current-year-only; each ingestion run
+// over-writes the latest snapshot for the same (division, fund, year)
+// tuple via the unique constraint.
+model FacultyBudget {
+  id                 String   @id @default(cuid())
+  facultyId          String?  @map("faculty_id")
+  divisionName       String   @map("division_name") @db.Text
+  fundCategory       String   @map("fund_category")
+  fiscalYear         Int      @map("fiscal_year")
+  snapshotName       String?  @map("snapshot_name")
+  totalBudget        Decimal  @map("total_budget") @db.Decimal(16, 2)
+  totalCommitment    Decimal  @default(0) @map("total_commitment") @db.Decimal(16, 2)
+  totalObligation    Decimal  @default(0) @map("total_obligation") @db.Decimal(16, 2)
+  totalExpenditure   Decimal  @default(0) @map("total_expenditure") @db.Decimal(16, 2)
+  fundsAvailable     Decimal  @default(0) @map("funds_available") @db.Decimal(16, 2)
+  freshnessDate      DateTime @map("freshness_date") @db.Date
+  methodologyVersion String   @default("kku-finance.v1") @map("methodology_version")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  faculty Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+
+  @@unique([divisionName, fundCategory, fiscalYear])
+  @@index([facultyId])
+  @@index([fiscalYear])
+  @@map("faculty_budgets")
 }

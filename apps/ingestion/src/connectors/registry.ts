@@ -16,6 +16,7 @@ import {
   ScopusConnector,
   WorldBankConnector,
 } from './sources/kku-connectors';
+import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
 import {
@@ -72,7 +73,11 @@ const ENTRIES: readonly ConnectorEntry[] = [
     mock: () => new KkuRegistryConnector(),
     real: () => new KkuRegistryRealConnector(),
   },
-  { slug: 'kku-finance',        mock: () => new KkuFinanceConnector() },
+  {
+    slug: 'kku-finance',
+    mock: () => new KkuFinanceConnector(),
+    real: () => new KkuFinanceRealConnector(),
+  },
   {
     slug: 'kku-hr',
     mock: () => new KkuHrConnector(),

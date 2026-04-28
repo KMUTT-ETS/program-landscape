@@ -1,0 +1,226 @@
+{
+  "schema": [
+    {
+      "COLUMN_NAME": "STUDENTID",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "DATA_PRECISION": 12,
+      "NULLABLE": "N",
+      "COLUMN_ID": 1
+    },
+    {
+      "COLUMN_NAME": "STUDENTCODE",
+      "DATA_TYPE": "VARCHAR2",
+      "DATA_LENGTH": 16,
+      "DATA_PRECISION": null,
+      "NULLABLE": "N",
+      "COLUMN_ID": 2
+    },
+    {
+      "COLUMN_NAME": "ACADYEAR",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "DATA_PRECISION": 4,
+      "NULLABLE": "N",
+      "COLUMN_ID": 3
+    },
+    {
+      "COLUMN_NAME": "SEMESTER",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "DATA_PRECISION": 1,
+      "NULLABLE": "N",
+      "COLUMN_ID": 4
+    },
+    {
+      "COLUMN_NAME": "AMOUNT",
+      "DATA_TYPE": "NUMBER",
+      "DATA_LENGTH": 22,
+      "DATA_PRECISION": 10,
+      "NULLABLE": "N",
+      "COLUMN_ID": 5
+    }
+  ],
+  "totalRows": 388487,
+  "yearCoverage": [
+    {
+      "ACADYEAR_BE": 2569,
+      "ACADYEAR_CE": 2026,
+      "SEMESTER": 1,
+      "ROW_COUNT": 4114,
+      "AMOUNT_SUM_THB": 86121101
+    },
+    {
+      "ACADYEAR_BE": 2568,
+      "ACADYEAR_CE": 2025,
+      "SEMESTER": 1,
+      "ROW_COUNT": 37682,
+      "AMOUNT_SUM_THB": 848054785.9
+    },
+    {
+      "ACADYEAR_BE": 2568,
+      "ACADYEAR_CE": 2025,
+      "SEMESTER": 2,
+      "ROW_COUNT": 35400,
+      "AMOUNT_SUM_THB": 798947785.9
+    },
+    {
+      "ACADYEAR_BE": 2568,
+      "ACADYEAR_CE": 2025,
+      "SEMESTER": 3,
+      "ROW_COUNT": 3267,
+      "AMOUNT_SUM_THB": 38006750
+    },
+    {
+      "ACADYEAR_BE": 2568,
+      "ACADYEAR_CE": 2025,
+      "SEMESTER": 4,
+      "ROW_COUNT": 826,
+      "AMOUNT_SUM_THB": 7431000
+    },
+    {
+      "ACADYEAR_BE": 2567,
+      "ACADYEAR_CE": 2024,
+      "SEMESTER": 1,
+      "ROW_COUNT": 37051,
+      "AMOUNT_SUM_THB": 794625953.6
+    },
+    {
+      "ACADYEAR_BE": 2567,
+      "ACADYEAR_CE": 2024,
+      "SEMESTER": 2,
+      "ROW_COUNT": 35613,
+      "AMOUNT_SUM_THB": 765931491.6
+    },
+    {
+      "ACADYEAR_BE": 2567,
+      "ACADYEAR_CE": 2024,
+      "SEMESTER": 3,
+      "ROW_COUNT": 3324,
+      "AMOUNT_SUM_THB": 40685400
+    },
+    {
+      "ACADYEAR_BE": 2567,
+      "ACADYEAR_CE": 2024,
+      "SEMESTER": 4,
+      "ROW_COUNT": 800,
+      "AMOUNT_SUM_THB": 7200000
+    },
+    {
+      "ACADYEAR_BE": 2566,
+      "ACADYEAR_CE": 2023,
+      "SEMESTER": 1,
+      "ROW_COUNT": 36418,
+      "AMOUNT_SUM_THB": 752138432
+    },
+    {
+      "ACADYEAR_BE": 2566,
+      "ACADYEAR_CE": 2023,
+      "SEMESTER": 2,
+      "ROW_COUNT": 34821,
+      "AMOUNT_SUM_THB": 711182429
+    },
+    {
+      "ACADYEAR_BE": 2566,
+      "ACADYEAR_CE": 2023,
+      "SEMESTER": 3,
+      "ROW_COUNT": 3879,
+      "AMOUNT_SUM_THB": 44083703
+    },
+    {
+      "ACADYEAR_BE": 2566,
+      "ACADYEAR_CE": 2023,
+      "SEMESTER": 4,
+      "ROW_COUNT": 785,
+      "AMOUNT_SUM_THB": 7062000
+    },
+    {
+      "ACADYEAR_BE": 2565,
+      "ACADYEAR_CE": 2022,
+      "SEMESTER": 1,
+      "ROW_COUNT": 36346,
+      "AMOUNT_SUM_THB": 720881767.5
+    },
+    {
+      "ACADYEAR_BE": 2565,
+      "ACADYEAR_CE": 2022,
+      "SEMESTER": 2,
+      "ROW_COUNT": 34887,
+      "AMOUNT_SUM_THB": 690978453.5
+    },
+    {
+      "ACADYEAR_BE": 2565,
+      "ACADYEAR_CE": 2022,
+      "SEMESTER": 3,
+      "ROW_COUNT": 4382,
+      "AMOUNT_SUM_THB": 48841550
+    },
+    {
+      "ACADYEAR_BE": 2565,
+      "ACADYEAR_CE": 2022,
+      "SEMESTER": 4,
+      "ROW_COUNT": 838,
+      "AMOUNT_SUM_THB": 7539000
+    },
+    {
+      "ACADYEAR_BE": 2564,
+      "ACADYEAR_CE": 2021,
+      "SEMESTER": 1,
+      "ROW_COUNT": 36953,
+      "AMOUNT_SUM_THB": 716363042.05
+    },
+    {
+      "ACADYEAR_BE": 2564,
+      "ACADYEAR_CE": 2021,
+      "SEMESTER": 2,
+      "ROW_COUNT": 35900,
+      "AMOUNT_SUM_THB": 707551032.05
+    },
+    {
+      "ACADYEAR_BE": 2564,
+      "ACADYEAR_CE": 2021,
+      "SEMESTER": 3,
+      "ROW_COUNT": 4414,
+      "AMOUNT_SUM_THB": 50455201
+    },
+    {
+      "ACADYEAR_BE": 2564,
+      "ACADYEAR_CE": 2021,
+      "SEMESTER": 4,
+      "ROW_COUNT": 787,
+      "AMOUNT_SUM_THB": 7077000
+    }
+  ],
+  "joinCoverageVsStudentDetail": [
+    {
+      "ACADYEAR_BE": 2569,
+      "feeRows": 4114,
+      "matchedRows": 4113,
+      "coveragePct": 100
+    },
+    {
+      "ACADYEAR_BE": 2568,
+      "feeRows": 77175,
+      "matchedRows": 77175,
+      "coveragePct": 100
+    },
+    {
+      "ACADYEAR_BE": 2567,
+      "feeRows": 76788,
+      "matchedRows": 76781,
+      "coveragePct": 100
+    },
+    {
+      "ACADYEAR_BE": 2566,
+      "feeRows": 75903,
+      "matchedRows": 75898,
+      "coveragePct": 100
+    },
+    {
+      "ACADYEAR_BE": 2565,
+      "feeRows": 76453,
+      "matchedRows": 76439,
+      "coveragePct": 100
+    }
+  ]
+}

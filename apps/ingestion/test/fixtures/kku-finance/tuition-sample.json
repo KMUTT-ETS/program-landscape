@@ -1,0 +1,351 @@
+{
+  "totalCells": 2315,
+  "totalAggregateSumThb": 7701703135.1,
+  "totalDistinctStudents": 184813,
+  "summaryByYear": [
+    {
+      "ACADYEAR_BE": 2569,
+      "ACADYEAR_CE": 2026,
+      "cells": 149,
+      "students": 3867,
+      "tuitionSumThb": 78728600
+    },
+    {
+      "ACADYEAR_BE": 2568,
+      "ACADYEAR_CE": 2025,
+      "cells": 439,
+      "students": 36944,
+      "tuitionSumThb": 1664396821.8
+    },
+    {
+      "ACADYEAR_BE": 2567,
+      "ACADYEAR_CE": 2024,
+      "cells": 431,
+      "students": 36356,
+      "tuitionSumThb": 1577077333.2
+    },
+    {
+      "ACADYEAR_BE": 2566,
+      "ACADYEAR_CE": 2023,
+      "cells": 430,
+      "students": 35918,
+      "tuitionSumThb": 1483434059
+    },
+    {
+      "ACADYEAR_BE": 2565,
+      "ACADYEAR_CE": 2022,
+      "cells": 447,
+      "students": 35960,
+      "tuitionSumThb": 1440806807
+    },
+    {
+      "ACADYEAR_BE": 2564,
+      "ACADYEAR_CE": 2021,
+      "cells": 419,
+      "students": 35768,
+      "tuitionSumThb": 1457259514.1
+    }
+  ],
+  "sampleRowsTop30": [
+    {
+      "FACULTY_NAME": "คณะแพทยศาสตร์",
+      "PROGRAM_NAME": "แพทยศาสตรบัณฑิต",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "แพทยศาสตรบัณฑิต ",
+      "ACADYEAR": 2565,
+      "STUDENT_COUNT": 1720,
+      "ROW_COUNT": 5019,
+      "TUITION_SUM": 60408000
+    },
+    {
+      "FACULTY_NAME": "คณะสัตวแพทยศาสตร์",
+      "PROGRAM_NAME": "สัตวแพทยศาสตรบัณฑิต",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "สัตวแพทยศาสตรบัณฑิต ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 471,
+      "ROW_COUNT": 961,
+      "TUITION_SUM": 31468000
+    },
+    {
+      "FACULTY_NAME": "คณะวิทยาศาสตร์",
+      "PROGRAM_NAME": "คณิตศาสตร์ประยุกต์ แบบ 2.1",
+      "PROGRAM_LEVEL": "ปริญญาเอก",
+      "MAJOR": "คณิตศาสตร์ประยุกต์ ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 34,
+      "ROW_COUNT": 60,
+      "TUITION_SUM": 1605000
+    },
+    {
+      "FACULTY_NAME": "คณะนิติศาสตร์",
+      "PROGRAM_NAME": "นิติศาสตร์",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "นิติศาสตร์ ",
+      "ACADYEAR": 2565,
+      "STUDENT_COUNT": 2473,
+      "ROW_COUNT": 5036,
+      "TUITION_SUM": 88983000
+    },
+    {
+      "FACULTY_NAME": "คณะเทคโนโลยี",
+      "PROGRAM_NAME": "เทคโนโลยีการผลิต",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "เทคโนโลยีการผลิต ",
+      "ACADYEAR": 2565,
+      "STUDENT_COUNT": 140,
+      "ROW_COUNT": 292,
+      "TUITION_SUM": 3426000
+    },
+    {
+      "FACULTY_NAME": "คณะวิทยาศาสตร์",
+      "PROGRAM_NAME": "เคมี",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "เคมี ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 365,
+      "ROW_COUNT": 752,
+      "TUITION_SUM": 8784000
+    },
+    {
+      "FACULTY_NAME": "คณะสหวิทยาการ",
+      "PROGRAM_NAME": "วิทยาการคอมพิวเตอร์และสารสนเทศ",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "วิทยาการคอมพิวเตอร์และสารสนเทศ ",
+      "ACADYEAR": 2565,
+      "STUDENT_COUNT": 71,
+      "ROW_COUNT": 141,
+      "TUITION_SUM": 1686000
+    },
+    {
+      "FACULTY_NAME": "คณะสถาปัตยกรรมศาสตร์",
+      "PROGRAM_NAME": "การออกแบบ",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "การออกแบบ ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 310,
+      "ROW_COUNT": 630,
+      "TUITION_SUM": 11295000
+    },
+    {
+      "FACULTY_NAME": "คณะแพทยศาสตร์",
+      "PROGRAM_NAME": "แพทยศาสตรบัณฑิต",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "แพทยศาสตรบัณฑิต ",
+      "ACADYEAR": 2568,
+      "STUDENT_COUNT": 1768,
+      "ROW_COUNT": 5150,
+      "TUITION_SUM": 77175000
+    },
+    {
+      "FACULTY_NAME": "คณะวิทยาศาสตร์",
+      "PROGRAM_NAME": "วิทยาศาสตร์สิ่งแวดล้อม",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "วิทยาศาสตร์สิ่งแวดล้อม ",
+      "ACADYEAR": 2567,
+      "STUDENT_COUNT": 209,
+      "ROW_COUNT": 415,
+      "TUITION_SUM": 4968000
+    },
+    {
+      "FACULTY_NAME": "คณะสหวิทยาการ",
+      "PROGRAM_NAME": "วิทยาการคอมพิวเตอร์และสารสนเทศ",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "วิทยาการคอมพิวเตอร์และสารสนเทศ ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 50,
+      "ROW_COUNT": 101,
+      "TUITION_SUM": 1206000
+    },
+    {
+      "FACULTY_NAME": "คณะสหวิทยาการ",
+      "PROGRAM_NAME": "นิติศาสตร์",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "นิติศาสตร์ ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 293,
+      "ROW_COUNT": 612,
+      "TUITION_SUM": 5885000
+    },
+    {
+      "FACULTY_NAME": "คณะมนุษยศาสตร์และสังคมศาสตร์",
+      "PROGRAM_NAME": "สารสนเทศศึกษา แบบ 1.1",
+      "PROGRAM_LEVEL": "ปริญญาเอก",
+      "MAJOR": "สารสนเทศศึกษา ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 7,
+      "ROW_COUNT": 10,
+      "TUITION_SUM": 503750
+    },
+    {
+      "FACULTY_NAME": "คณะศึกษาศาสตร์",
+      "PROGRAM_NAME": "ศึกษาศาสตรบัณฑิต วิชาเอกคอมพิวเตอร์ศึกษา",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "ศึกษาศาสตรบัณฑิต ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 146,
+      "ROW_COUNT": 303,
+      "TUITION_SUM": 2980000
+    },
+    {
+      "FACULTY_NAME": "คณะมนุษยศาสตร์และสังคมศาสตร์",
+      "PROGRAM_NAME": "ภาษาตะวันตก วิชาเอกภาษาสเปน",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "ภาษาตะวันตก ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 143,
+      "ROW_COUNT": 282,
+      "TUITION_SUM": 2820000
+    },
+    {
+      "FACULTY_NAME": "คณะสถาปัตยกรรมศาสตร์",
+      "PROGRAM_NAME": "สถาปัตยกรรมศาสตรบัณฑิต",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "สถาปัตยกรรมศาสตรบัณฑิต ",
+      "ACADYEAR": 2567,
+      "STUDENT_COUNT": 353,
+      "ROW_COUNT": 703,
+      "TUITION_SUM": 12636000
+    },
+    {
+      "FACULTY_NAME": "คณะสถาปัตยกรรมศาสตร์",
+      "PROGRAM_NAME": "การออกแบบ",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "การออกแบบ ",
+      "ACADYEAR": 2567,
+      "STUDENT_COUNT": 299,
+      "ROW_COUNT": 600,
+      "TUITION_SUM": 10683000
+    },
+    {
+      "FACULTY_NAME": "คณะเกษตรศาสตร์",
+      "PROGRAM_NAME": "เกษตรศาสตร์ วิชาเอกปฐพีศาสตร์และสิ่งแวดล้อม แผนที่ 2",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "เกษตรศาสตร์ ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 127,
+      "ROW_COUNT": 251,
+      "TUITION_SUM": 3000000
+    },
+    {
+      "FACULTY_NAME": "คณะบริหารธุรกิจและการบัญชี",
+      "PROGRAM_NAME": "บริหารธุรกิจบัณฑิต วิชาเอกการจัดการธุรกิจบริการและการจัดงาน",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "บริหารธุรกิจบัณฑิต ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 309,
+      "ROW_COUNT": 657,
+      "TUITION_SUM": 9690000
+    },
+    {
+      "FACULTY_NAME": "คณะเกษตรศาสตร์",
+      "PROGRAM_NAME": "เกษตรศาสตร์ วิชาเอกพืชสวน แผนที่ 1",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "เกษตรศาสตร์ ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 60,
+      "ROW_COUNT": 123,
+      "TUITION_SUM": 1434000
+    },
+    {
+      "FACULTY_NAME": "คณะเกษตรศาสตร์",
+      "PROGRAM_NAME": "เกษตรศาสตร์ วิชาเอกสัตวศาสตร์ แผนที่ 2",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "เกษตรศาสตร์ ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 157,
+      "ROW_COUNT": 322,
+      "TUITION_SUM": 3804000
+    },
+    {
+      "FACULTY_NAME": "วิทยาลัยการปกครองท้องถิ่น",
+      "PROGRAM_NAME": "รัฐประศาสนศาสตรมหาบัณฑิต แผน ข",
+      "PROGRAM_LEVEL": "ปริญญาโท",
+      "MAJOR": "รัฐประศาสนศาสตรมหาบัณฑิต ",
+      "ACADYEAR": 2565,
+      "STUDENT_COUNT": 109,
+      "ROW_COUNT": 167,
+      "TUITION_SUM": 5757000
+    },
+    {
+      "FACULTY_NAME": "วิทยาลัยการคอมพิวเตอร์",
+      "PROGRAM_NAME": "วิทยาการข้อมูลและปัญญาประดิษฐ์ (นานาชาติ) แผน ก แบบ ก 2",
+      "PROGRAM_LEVEL": "ปริญญาโท",
+      "MAJOR": "วิทยาการข้อมูลและปัญญาประดิษฐ์ ",
+      "ACADYEAR": 2565,
+      "STUDENT_COUNT": 12,
+      "ROW_COUNT": 19,
+      "TUITION_SUM": 511000
+    },
+    {
+      "FACULTY_NAME": "คณะนิติศาสตร์",
+      "PROGRAM_NAME": "นิติศาสตร์",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "นิติศาสตร์ ",
+      "ACADYEAR": 2567,
+      "STUDENT_COUNT": 2219,
+      "ROW_COUNT": 4372,
+      "TUITION_SUM": 78552000
+    },
+    {
+      "FACULTY_NAME": "คณะวิศวกรรมศาสตร์",
+      "PROGRAM_NAME": "วิศวกรรมไฟฟ้า",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "วิศวกรรมไฟฟ้า ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 168,
+      "ROW_COUNT": 378,
+      "TUITION_SUM": 5025750
+    },
+    {
+      "FACULTY_NAME": "คณะมนุษยศาสตร์และสังคมศาสตร์",
+      "PROGRAM_NAME": "ภาษาตะวันออก วิชาเอกภาษาจีน (แผน B)",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "ภาษาตะวันออก ",
+      "ACADYEAR": 2566,
+      "STUDENT_COUNT": 86,
+      "ROW_COUNT": 154,
+      "TUITION_SUM": 3435444
+    },
+    {
+      "FACULTY_NAME": "วิทยาลัยการปกครองท้องถิ่น",
+      "PROGRAM_NAME": "การจัดการเมืองและโครงสร้างพื้นฐาน",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "การจัดการเมืองและโครงสร้างพื้นฐาน ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 275,
+      "ROW_COUNT": 629,
+      "TUITION_SUM": 17584000
+    },
+    {
+      "FACULTY_NAME": "คณะวิทยาศาสตร์",
+      "PROGRAM_NAME": "วิทยาศาสตร์สิ่งแวดล้อม",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "วิทยาศาสตร์สิ่งแวดล้อม ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 257,
+      "ROW_COUNT": 537,
+      "TUITION_SUM": 6378000
+    },
+    {
+      "FACULTY_NAME": "วิทยาลัยการคอมพิวเตอร์",
+      "PROGRAM_NAME": "วิทยาการคอมพิวเตอร์ (โครงการพิเศษ)",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "วิทยาการคอมพิวเตอร์ ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 240,
+      "ROW_COUNT": 508,
+      "TUITION_SUM": 14865000
+    },
+    {
+      "FACULTY_NAME": "วิทยาลัยนานาชาติ",
+      "PROGRAM_NAME": "หลักสูตรบริหารธุรกิจบัณฑิต วิชาเอกการตลาดระหว่างประเทศ (หลักสูตรนานาชาติ)",
+      "PROGRAM_LEVEL": "ปริญญาตรี",
+      "MAJOR": "หลักสูตรบริหารธุรกิจบัณฑิต ",
+      "ACADYEAR": 2564,
+      "STUDENT_COUNT": 178,
+      "ROW_COUNT": 440,
+      "TUITION_SUM": 16910000
+    }
+  ]
+}

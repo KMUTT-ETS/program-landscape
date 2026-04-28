@@ -1,0 +1,695 @@
+{
+  "detectedColumns": {
+    "facCol": "DIVISION_NAME",
+    "yearCol": "BUDGET_PERIOD",
+    "amountCol": "TOTAL_BUDGET",
+    "itemCol": "ACCOUNT_NAME",
+    "fundCol": "FUND_NAME",
+    "expenditureCol": "TOTAL_EXPENDITURE"
+  },
+  "byFacultyAndYear": [
+    {
+      "faculty": "สำนักงานอธิการบดี",
+      "year": 2569,
+      "sumThb": 7588689435.31,
+      "rowCount": 3734
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์ - โรงพยาบาลศรีนครินทร์",
+      "year": 2569,
+      "sumThb": 7588109614.65,
+      "rowCount": 206
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์",
+      "year": 2569,
+      "sumThb": 2644683468.62,
+      "rowCount": 490
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์ - ศูนย์หัวใจสิริกิติ์ ภาคตะวันออกเฉียงเหนือ",
+      "year": 2569,
+      "sumThb": 1309810000,
+      "rowCount": 118
+    },
+    {
+      "faculty": "คณะศึกษาศาสตร์ - โรงเรียนสาธิตศึกษาศาสตร์",
+      "year": 2569,
+      "sumThb": 318224420,
+      "rowCount": 261
+    },
+    {
+      "faculty": "คณะวิทยาศาสตร์",
+      "year": 2569,
+      "sumThb": 277539295.7,
+      "rowCount": 551
+    },
+    {
+      "faculty": "คณะพยาบาลศาสตร์",
+      "year": 2569,
+      "sumThb": 199372099.6,
+      "rowCount": 151
+    },
+    {
+      "faculty": "คณะทันตแพทยศาสตร์ - โรงพยาบาลทันตกรรม",
+      "year": 2569,
+      "sumThb": 197497241.2,
+      "rowCount": 85
+    },
+    {
+      "faculty": "คณะทันตแพทยศาสตร์",
+      "year": 2569,
+      "sumThb": 196496081,
+      "rowCount": 536
+    },
+    {
+      "faculty": "คณะวิศวกรรมศาสตร์",
+      "year": 2569,
+      "sumThb": 195239485,
+      "rowCount": 819
+    },
+    {
+      "faculty": "วิทยาลัยนานาชาติ",
+      "year": 2569,
+      "sumThb": 192746902,
+      "rowCount": 79
+    },
+    {
+      "faculty": "วิทยาลัยการคอมพิวเตอร์",
+      "year": 2569,
+      "sumThb": 180102600,
+      "rowCount": 201
+    },
+    {
+      "faculty": "คณะศึกษาศาสตร์",
+      "year": 2569,
+      "sumThb": 146347020,
+      "rowCount": 375
+    },
+    {
+      "faculty": "คณะบริหารธุรกิจและการบัญชี",
+      "year": 2569,
+      "sumThb": 144452420,
+      "rowCount": 298
+    },
+    {
+      "faculty": "คณะมนุษยศาสตร์และสังคมศาสตร์",
+      "year": 2569,
+      "sumThb": 132907375.8,
+      "rowCount": 161
+    },
+    {
+      "faculty": "คณะเกษตรศาสตร์",
+      "year": 2569,
+      "sumThb": 130956912.74,
+      "rowCount": 551
+    },
+    {
+      "faculty": "คณะเภสัชศาสตร์",
+      "year": 2569,
+      "sumThb": 122837365,
+      "rowCount": 111
+    },
+    {
+      "faculty": "วิทยาลัยบัณฑิตศึกษาการจัดการ",
+      "year": 2569,
+      "sumThb": 116839917,
+      "rowCount": 88
+    },
+    {
+      "faculty": "สำนักบริหารและพัฒนาวิชาการ",
+      "year": 2569,
+      "sumThb": 90723360,
+      "rowCount": 159
+    },
+    {
+      "faculty": "สำนักบริการวิชาการ",
+      "year": 2569,
+      "sumThb": 80594145,
+      "rowCount": 53
+    },
+    {
+      "faculty": "คณะสหวิทยาการ",
+      "year": 2569,
+      "sumThb": 75363936.71,
+      "rowCount": 322
+    },
+    {
+      "faculty": "คณะนิติศาสตร์",
+      "year": 2569,
+      "sumThb": 74727200,
+      "rowCount": 304
+    },
+    {
+      "faculty": "คณะเทคนิคการแพทย์",
+      "year": 2569,
+      "sumThb": 74258570,
+      "rowCount": 150
+    },
+    {
+      "faculty": "คณะสถาปัตยกรรมศาสตร์",
+      "year": 2569,
+      "sumThb": 70902259,
+      "rowCount": 60
+    },
+    {
+      "faculty": "วิทยาลัยการปกครองท้องถิ่น",
+      "year": 2569,
+      "sumThb": 69359215,
+      "rowCount": 106
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - อุทยานวิทยาศาสตร์",
+      "year": 2569,
+      "sumThb": 66250000,
+      "rowCount": 80
+    },
+    {
+      "faculty": "คณะสัตวแพทยศาสตร์ - โรงพยาบาลสัตว์",
+      "year": 2569,
+      "sumThb": 63700000,
+      "rowCount": 77
+    },
+    {
+      "faculty": "คณะสาธารณสุขศาสตร์",
+      "year": 2569,
+      "sumThb": 61101250,
+      "rowCount": 448
+    },
+    {
+      "faculty": "คณะสัตวแพทยศาสตร์",
+      "year": 2569,
+      "sumThb": 55685396.2,
+      "rowCount": 221
+    },
+    {
+      "faculty": "คณะเทคนิคการแพทย์-สถานบริการสุขภาพและกายภาพบำบัด",
+      "year": 2569,
+      "sumThb": 54000000,
+      "rowCount": 30
+    },
+    {
+      "faculty": "คณะศิลปกรรมศาสตร์",
+      "year": 2569,
+      "sumThb": 48408532.4,
+      "rowCount": 234
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - ศูนย์บริหารจัดการด้านโรงแรม",
+      "year": 2569,
+      "sumThb": 46000000,
+      "rowCount": 18
+    },
+    {
+      "faculty": "สำนักเทคโนโลยีดิจิทัล",
+      "year": 2569,
+      "sumThb": 45905027.9,
+      "rowCount": 65
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์ - สถานบริหารจัดการงานวิจัยคลินิก",
+      "year": 2569,
+      "sumThb": 43000000,
+      "rowCount": 31
+    },
+    {
+      "faculty": "คณะเทคโนโลยี",
+      "year": 2569,
+      "sumThb": 40276984.9,
+      "rowCount": 457
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - ศูนย์บริการสู่ชุมชน",
+      "year": 2569,
+      "sumThb": 38587500,
+      "rowCount": 28
+    },
+    {
+      "faculty": "คณะสหวิทยาการ -  โรงเรียนสาธิตมหาวิทยาลัยขอนแก่น วิทยาเขตหนองคาย",
+      "year": 2569,
+      "sumThb": 35093100,
+      "rowCount": 113
+    },
+    {
+      "faculty": "คณะเศรษฐศาสตร์",
+      "year": 2569,
+      "sumThb": 32253251,
+      "rowCount": 229
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - โรงพิมพ์มหาวิทยาลัยขอนแก่น",
+      "year": 2569,
+      "sumThb": 31000000,
+      "rowCount": 14
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - ศูนย์สื่อการเรียนรู้",
+      "year": 2569,
+      "sumThb": 29000000,
+      "rowCount": 13
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี- ศูนย์เซลล์บำบัด มหาวิทยาลัยขอนแก่น",
+      "year": 2569,
+      "sumThb": 25781000,
+      "rowCount": 30
+    },
+    {
+      "faculty": "บัณฑิตวิทยาลัย",
+      "year": 2569,
+      "sumThb": 22775825,
+      "rowCount": 65
+    },
+    {
+      "faculty": "สำนักหอสมุด",
+      "year": 2569,
+      "sumThb": 21908765.6,
+      "rowCount": 81
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - โรงงานแบตเตอรี่และพลังงานยุคใหม่",
+      "year": 2569,
+      "sumThb": 21060000,
+      "rowCount": 12
+    },
+    {
+      "faculty": "คณะวิศวกรรมศาสตร์ - ศูนย์นวัตกรรมและบริการวิศวกรรม",
+      "year": 2569,
+      "sumThb": 18855200,
+      "rowCount": 34
+    },
+    {
+      "faculty": "คณะสหวิทยาการ - พิพิธภัณฑ์สัตว์น้ำจังหวัดหนองคาย ",
+      "year": 2569,
+      "sumThb": 15060600,
+      "rowCount": 24
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - ศูนย์บริหารจัดการทรัพย์สิน",
+      "year": 2569,
+      "sumThb": 11736700,
+      "rowCount": 24
+    },
+    {
+      "faculty": "คณะวิศวกรรมศาสตร์ - สถานจัดการและอนุรักษ์พลังงาน",
+      "year": 2569,
+      "sumThb": 10000000,
+      "rowCount": 17
+    },
+    {
+      "faculty": "คณะวิทยาศาสตร์ - ศูนย์บริการวิทยาศาสตร์และนวัตกรรม",
+      "year": 2569,
+      "sumThb": 5000000,
+      "rowCount": 39
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - ศูนย์ปลูกและสกัดกัญชง-กัญชา",
+      "year": 2569,
+      "sumThb": 4200000,
+      "rowCount": 21
+    },
+    {
+      "faculty": "สำนักงานสภามหาวิทยาลัย",
+      "year": 2569,
+      "sumThb": 0,
+      "rowCount": 1
+    }
+  ],
+  "topItemsBySum": [
+    {
+      "item": "บัญชีค่าจ้างพนักงานมหาวิทยาลัย",
+      "sumThb": 4538295449,
+      "rowCount": 58
+    },
+    {
+      "item": "บัญชียา",
+      "sumThb": 2886760000,
+      "rowCount": 2
+    },
+    {
+      "item": "บัญชีค่าใช้จ่ายเงินอุดหนุนเพื่อการดำเนินงาน",
+      "sumThb": 2590312690.3,
+      "rowCount": 916
+    },
+    {
+      "item": "บัญชีค่าใช้สอย",
+      "sumThb": 2087439086.14,
+      "rowCount": 2129
+    },
+    {
+      "item": "บัญชีค่าตอบแทน",
+      "sumThb": 1949288205.34,
+      "rowCount": 1443
+    },
+    {
+      "item": "บัญชีวัสดุคงคลัง",
+      "sumThb": 1441495875.14,
+      "rowCount": 92
+    },
+    {
+      "item": "บัญชีพักสิ่งก่อสร้าง",
+      "sumThb": 1141816401,
+      "rowCount": 57
+    },
+    {
+      "item": "บัญชีค่าวัสดุ",
+      "sumThb": 941288818.86,
+      "rowCount": 1560
+    },
+    {
+      "item": "บัญชีค่าใช้จ่ายอื่น",
+      "sumThb": 770786148.85,
+      "rowCount": 87
+    },
+    {
+      "item": "บัญชีพักครุภัณฑ์วิทยาศาสตร์และการแพทย์",
+      "sumThb": 701118407.22,
+      "rowCount": 504
+    },
+    {
+      "item": "บัญชีงานระหว่างก่อสร้าง",
+      "sumThb": 690891600.84,
+      "rowCount": 113
+    },
+    {
+      "item": "บัญชีค่าจ้างชั่วคราว",
+      "sumThb": 407853556,
+      "rowCount": 34
+    },
+    {
+      "item": "บัญชีเวชภัณฑ์ที่ไม่ใช่ยา",
+      "sumThb": 397300000,
+      "rowCount": 3
+    },
+    {
+      "item": "บัญชีค่าสาธารณูปโภค",
+      "sumThb": 366307246.54,
+      "rowCount": 671
+    },
+    {
+      "item": "บัญชีพักส่วนปรับปรุงอาคาร",
+      "sumThb": 346739298,
+      "rowCount": 58
+    },
+    {
+      "item": "บัญชีเงินเดือนข้าราชการและลูกจ้างประจำ",
+      "sumThb": 276946884,
+      "rowCount": 8
+    },
+    {
+      "item": "บัญชีค่าใช้จ่ายด้านการฝึกอบรม",
+      "sumThb": 221269127.82,
+      "rowCount": 1321
+    },
+    {
+      "item": "บัญชีเงินสมทบกองทุนสำรองเลี้ยงชีพของนายจ้าง",
+      "sumThb": 200063257,
+      "rowCount": 44
+    },
+    {
+      "item": "บัญชีค่าใช้จ่ายเดินทาง",
+      "sumThb": 141285836.52,
+      "rowCount": 1199
+    },
+    {
+      "item": "บัญชีเงินชดเชยกรณีเลิกจ้าง",
+      "sumThb": 129440912,
+      "rowCount": 43
+    },
+    {
+      "item": "บัญชีพักครุภัณฑ์คอมพิวเตอร์",
+      "sumThb": 115181254,
+      "rowCount": 283
+    },
+    {
+      "item": "บัญชีสวัสดิการอื่น ๆ ตามที่คณะกรรมการกำหนด",
+      "sumThb": 107920382.33,
+      "rowCount": 108
+    },
+    {
+      "item": "บัญชีเงินสมทบประกันสังคมส่วนของนายจ้าง",
+      "sumThb": 101363248,
+      "rowCount": 51
+    },
+    {
+      "item": "บัญชีพักสินทรัพย์โครงสร้างพื้นฐานอื่น",
+      "sumThb": 87768400,
+      "rowCount": 12
+    },
+    {
+      "item": "บัญชีพักครุภัณฑ์สำนักงาน",
+      "sumThb": 73724472.45,
+      "rowCount": 626
+    },
+    {
+      "item": "บัญชีเงินชดเชย",
+      "sumThb": 60699116.67,
+      "rowCount": 31
+    },
+    {
+      "item": "บัญชีเงินช่วยเหลือด้านการศึกษาและรักษาพยาบาล",
+      "sumThb": 50000000,
+      "rowCount": 1
+    },
+    {
+      "item": "บัญชีพักครุภัณฑ์การศึกษา",
+      "sumThb": 47201681,
+      "rowCount": 83
+    },
+    {
+      "item": "บัญชีพักอาคารเพื่อประโยชน์อื่น",
+      "sumThb": 35000000,
+      "rowCount": 1
+    },
+    {
+      "item": "บัญชีพักครุภัณฑ์โฆษณาและเผยแพร่",
+      "sumThb": 27928147,
+      "rowCount": 228
+    }
+  ],
+  "byFund": [
+    {
+      "fund": "งบประมาณเงินรายได้",
+      "sumThb": 16683086868.73,
+      "rowCount": 11830
+    },
+    {
+      "fund": "งบประมาณเงินอุดหนุนจากรัฐ",
+      "sumThb": 5577194695.6,
+      "rowCount": 422
+    },
+    {
+      "fund": "เงินนอกงบประมาณ",
+      "sumThb": 530954700,
+      "rowCount": 3
+    },
+    {
+      "fund": "เงินรับฝาก",
+      "sumThb": 184556208,
+      "rowCount": 93
+    },
+    {
+      "fund": "งบกลาง Benefit",
+      "sumThb": 70000000,
+      "rowCount": 8
+    },
+    {
+      "fund": "เงินเบิกแทน",
+      "sumThb": 19627000,
+      "rowCount": 18
+    },
+    {
+      "fund": "งบกลาง Project",
+      "sumThb": 0,
+      "rowCount": 1
+    }
+  ],
+  "facultyBudgetVsActualLatestYear": [
+    {
+      "faculty": "สำนักงานอธิการบดี",
+      "budgetThb": 7588689435.31,
+      "expenditureThb": 2891108077.45,
+      "utilisationPct": 38.1
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์ - โรงพยาบาลศรีนครินทร์",
+      "budgetThb": 7588109614.65,
+      "expenditureThb": 2443707986.69,
+      "utilisationPct": 32.2
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์",
+      "budgetThb": 2644683468.62,
+      "expenditureThb": 510871433.62,
+      "utilisationPct": 19.3
+    },
+    {
+      "faculty": "คณะแพทยศาสตร์ - ศูนย์หัวใจสิริกิติ์ ภาคตะวันออกเฉียงเหนือ",
+      "budgetThb": 1309810000,
+      "expenditureThb": 279631260.69,
+      "utilisationPct": 21.3
+    },
+    {
+      "faculty": "คณะศึกษาศาสตร์ - โรงเรียนสาธิตศึกษาศาสตร์",
+      "budgetThb": 318224420,
+      "expenditureThb": 50616219.36,
+      "utilisationPct": 15.9
+    },
+    {
+      "faculty": "คณะวิทยาศาสตร์",
+      "budgetThb": 277539295.7,
+      "expenditureThb": 54478505.65,
+      "utilisationPct": 19.6
+    },
+    {
+      "faculty": "คณะพยาบาลศาสตร์",
+      "budgetThb": 199372099.6,
+      "expenditureThb": 32243268.81,
+      "utilisationPct": 16.2
+    },
+    {
+      "faculty": "คณะทันตแพทยศาสตร์ - โรงพยาบาลทันตกรรม",
+      "budgetThb": 197497241.2,
+      "expenditureThb": 79707147.46,
+      "utilisationPct": 40.4
+    },
+    {
+      "faculty": "คณะทันตแพทยศาสตร์",
+      "budgetThb": 196496081,
+      "expenditureThb": 31432662.75,
+      "utilisationPct": 16
+    },
+    {
+      "faculty": "คณะวิศวกรรมศาสตร์",
+      "budgetThb": 195239485,
+      "expenditureThb": 46814116.17,
+      "utilisationPct": 24
+    },
+    {
+      "faculty": "วิทยาลัยนานาชาติ",
+      "budgetThb": 192746902,
+      "expenditureThb": 3511536.07,
+      "utilisationPct": 1.8
+    },
+    {
+      "faculty": "วิทยาลัยการคอมพิวเตอร์",
+      "budgetThb": 180102600,
+      "expenditureThb": 14930596.5,
+      "utilisationPct": 8.3
+    },
+    {
+      "faculty": "คณะศึกษาศาสตร์",
+      "budgetThb": 146347020,
+      "expenditureThb": 30145965.85,
+      "utilisationPct": 20.6
+    },
+    {
+      "faculty": "คณะบริหารธุรกิจและการบัญชี",
+      "budgetThb": 144452420,
+      "expenditureThb": 29352547.51,
+      "utilisationPct": 20.3
+    },
+    {
+      "faculty": "คณะมนุษยศาสตร์และสังคมศาสตร์",
+      "budgetThb": 132907375.8,
+      "expenditureThb": 30485891.76,
+      "utilisationPct": 22.9
+    },
+    {
+      "faculty": "คณะเกษตรศาสตร์",
+      "budgetThb": 130956912.74,
+      "expenditureThb": 28412353.91,
+      "utilisationPct": 21.7
+    },
+    {
+      "faculty": "คณะเภสัชศาสตร์",
+      "budgetThb": 122837365,
+      "expenditureThb": 30626856.41,
+      "utilisationPct": 24.9
+    },
+    {
+      "faculty": "วิทยาลัยบัณฑิตศึกษาการจัดการ",
+      "budgetThb": 116839917,
+      "expenditureThb": 14605773.32,
+      "utilisationPct": 12.5
+    },
+    {
+      "faculty": "สำนักบริหารและพัฒนาวิชาการ",
+      "budgetThb": 90723360,
+      "expenditureThb": 30130415.11,
+      "utilisationPct": 33.2
+    },
+    {
+      "faculty": "สำนักบริการวิชาการ",
+      "budgetThb": 80594145,
+      "expenditureThb": 20998319.7,
+      "utilisationPct": 26.1
+    },
+    {
+      "faculty": "คณะสหวิทยาการ",
+      "budgetThb": 75363936.71,
+      "expenditureThb": 19272995.1,
+      "utilisationPct": 25.6
+    },
+    {
+      "faculty": "คณะนิติศาสตร์",
+      "budgetThb": 74727200,
+      "expenditureThb": 14643806.97,
+      "utilisationPct": 19.6
+    },
+    {
+      "faculty": "คณะเทคนิคการแพทย์",
+      "budgetThb": 74258570,
+      "expenditureThb": 15387753.51,
+      "utilisationPct": 20.7
+    },
+    {
+      "faculty": "คณะสถาปัตยกรรมศาสตร์",
+      "budgetThb": 70902259,
+      "expenditureThb": 8105053.15,
+      "utilisationPct": 11.4
+    },
+    {
+      "faculty": "วิทยาลัยการปกครองท้องถิ่น",
+      "budgetThb": 69359215,
+      "expenditureThb": 9894817.51,
+      "utilisationPct": 14.3
+    },
+    {
+      "faculty": "สำนักงานอธิการบดี - อุทยานวิทยาศาสตร์",
+      "budgetThb": 66250000,
+      "expenditureThb": 0,
+      "utilisationPct": 0
+    },
+    {
+      "faculty": "คณะสัตวแพทยศาสตร์ - โรงพยาบาลสัตว์",
+      "budgetThb": 63700000,
+      "expenditureThb": 11657636.99,
+      "utilisationPct": 18.3
+    },
+    {
+      "faculty": "คณะสาธารณสุขศาสตร์",
+      "budgetThb": 61101250,
+      "expenditureThb": 14203217.71,
+      "utilisationPct": 23.2
+    },
+    {
+      "faculty": "คณะสัตวแพทยศาสตร์",
+      "budgetThb": 55685396.2,
+      "expenditureThb": 13815724.85,
+      "utilisationPct": 24.8
+    },
+    {
+      "faculty": "คณะเทคนิคการแพทย์-สถานบริการสุขภาพและกายภาพบำบัด",
+      "budgetThb": 54000000,
+      "expenditureThb": 0,
+      "utilisationPct": 0
+    }
+  ],
+  "yearCoverage": [
+    {
+      "year": 2569,
+      "rowCount": 12375
+    }
+  ]
+}

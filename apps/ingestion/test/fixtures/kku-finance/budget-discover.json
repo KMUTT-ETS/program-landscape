@@ -1,0 +1,293 @@
+{
+  "schema": [
+    {
+      "COLUMN_NAME": "ID",
+      "DATA_TYPE": "bigint",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 19,
+      "NUMERIC_SCALE": 0,
+      "IS_NULLABLE": "NO",
+      "ORDINAL_POSITION": 1
+    },
+    {
+      "COLUMN_NAME": "SOURCE_BUDGET",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 100,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 2
+    },
+    {
+      "COLUMN_NAME": "LINE_NUMBER",
+      "DATA_TYPE": "bigint",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 19,
+      "NUMERIC_SCALE": 0,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 3
+    },
+    {
+      "COLUMN_NAME": "BUDGET_SYNC_DATE",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 4
+    },
+    {
+      "COLUMN_NAME": "PERIOD_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 15,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 5
+    },
+    {
+      "COLUMN_NAME": "KKU_DIVISION",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 2,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 6
+    },
+    {
+      "COLUMN_NAME": "DIVISION_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 7
+    },
+    {
+      "COLUMN_NAME": "KKU_COSTCENTER",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 5,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 8
+    },
+    {
+      "COLUMN_NAME": "COSCENTRE_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 9
+    },
+    {
+      "COLUMN_NAME": "KKU_ACCOUNT",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 10,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 10
+    },
+    {
+      "COLUMN_NAME": "ACCOUNT_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 11
+    },
+    {
+      "COLUMN_NAME": "KKU_FUND",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 2,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 12
+    },
+    {
+      "COLUMN_NAME": "FUND_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 13
+    },
+    {
+      "COLUMN_NAME": "KKU_SERVICE",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 4,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 14
+    },
+    {
+      "COLUMN_NAME": "SERVICE_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 15
+    },
+    {
+      "COLUMN_NAME": "KKU_PLAN",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 4,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 16
+    },
+    {
+      "COLUMN_NAME": "PLAN_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 17
+    },
+    {
+      "COLUMN_NAME": "KKU_SUBPLAN",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 6,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 18
+    },
+    {
+      "COLUMN_NAME": "SUBPLAN_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 19
+    },
+    {
+      "COLUMN_NAME": "KKU_PROJECT",
+      "DATA_TYPE": "char",
+      "CHARACTER_MAXIMUM_LENGTH": 6,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 20
+    },
+    {
+      "COLUMN_NAME": "PROJECT_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 21
+    },
+    {
+      "COLUMN_NAME": "BUDGET_PERIOD",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 22
+    },
+    {
+      "COLUMN_NAME": "BUDGET_PERIOD_NAME",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 240,
+      "NUMERIC_PRECISION": null,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 23
+    },
+    {
+      "COLUMN_NAME": "TOTAL_BUDGET",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 24
+    },
+    {
+      "COLUMN_NAME": "TOTAL_COMMITMENT",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 25
+    },
+    {
+      "COLUMN_NAME": "TOTAL_OBLIGATION",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 26
+    },
+    {
+      "COLUMN_NAME": "OTHER_CONSUMPTION",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 27
+    },
+    {
+      "COLUMN_NAME": "TOTAL_EXPENDITURE",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 28
+    },
+    {
+      "COLUMN_NAME": "TOTAL_CONSUMPTION",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 29
+    },
+    {
+      "COLUMN_NAME": "FUNDS_AVAILABLE",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 30
+    },
+    {
+      "COLUMN_NAME": "DPA_FUNDS_BALANCE",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 31
+    },
+    {
+      "COLUMN_NAME": "MAX_FUNDS_BALANCE",
+      "DATA_TYPE": "float",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "NUMERIC_PRECISION": 53,
+      "NUMERIC_SCALE": null,
+      "IS_NULLABLE": "YES",
+      "ORDINAL_POSITION": 32
+    }
+  ],
+  "rowCount": 12375
+}
