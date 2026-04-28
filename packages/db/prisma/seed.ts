@@ -38,15 +38,54 @@ const randInt = (min: number, max: number) =>
 const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)]!;
 
 // ──────────────────────────────────────────────────────────────────────────
-// 1. Faculties (5) and Departments (12)
+// 1. Faculties (24) and Departments (12)
+//
+// All 24 academic units of KKU. The Thai names match exactly the
+// `Alias_Default` (after stripping the "BUcode - " prefix) seen in
+// epm_report.dbo.Faculty during the kku-hr discovery, so the
+// kku-hr seed-mappings auto-mapper resolves all 24 BU1 codes (vs
+// the original 5) and the kku-finance DIVISION_NAME → facultyId
+// resolution maps the 24 corresponding budget divisions.
+//
+// The 6 KKU central-admin units (Office of President, Library,
+// Office of Digital Technology, Office of Academic Services, Office
+// of the University Council, Office of Academic Administration) are
+// deliberately NOT seeded as Faculties — they don't host academic
+// programs, and the kku-finance connector is happy to land them as
+// FacultyBudget rows with `facultyId = null` for transparency.
+// Graduate School (บัณฑิตวิทยาลัย, BU1 = 10000) is seeded as a
+// Faculty even though it doesn't run undergraduate programs — it
+// has academic staff + a budget line, and our schema's "Faculty" is
+// the natural home for any academic unit.
 // ──────────────────────────────────────────────────────────────────────────
 
 const FACULTIES = [
-  { code: 'EN', nameTh: 'คณะวิศวกรรมศาสตร์', nameEn: 'Faculty of Engineering' },
-  { code: 'SC', nameTh: 'คณะวิทยาศาสตร์', nameEn: 'Faculty of Science' },
-  { code: 'MD', nameTh: 'คณะแพทยศาสตร์', nameEn: 'Faculty of Medicine' },
-  { code: 'HU', nameTh: 'คณะมนุษยศาสตร์และสังคมศาสตร์', nameEn: 'Faculty of Humanities and Social Sciences' },
-  { code: 'BS', nameTh: 'คณะบริหารธุรกิจและการบัญชี', nameEn: 'Faculty of Business Administration and Accountancy' },
+  // Original 5 (existed before the prompt-14 expansion)
+  { code: 'EN',   nameTh: 'คณะวิศวกรรมศาสตร์',                    nameEn: 'Faculty of Engineering' },
+  { code: 'SC',   nameTh: 'คณะวิทยาศาสตร์',                       nameEn: 'Faculty of Science' },
+  { code: 'MD',   nameTh: 'คณะแพทยศาสตร์',                        nameEn: 'Faculty of Medicine' },
+  { code: 'HU',   nameTh: 'คณะมนุษยศาสตร์และสังคมศาสตร์',           nameEn: 'Faculty of Humanities and Social Sciences' },
+  { code: 'BS',   nameTh: 'คณะบริหารธุรกิจและการบัญชี',             nameEn: 'Faculty of Business Administration and Accountancy' },
+  // 19 added 2026-04-28 to lift kku-hr / kku-finance / kku-research coverage
+  { code: 'AG',   nameTh: 'คณะเกษตรศาสตร์',                        nameEn: 'Faculty of Agriculture' },
+  { code: 'ED',   nameTh: 'คณะศึกษาศาสตร์',                        nameEn: 'Faculty of Education' },
+  { code: 'NU',   nameTh: 'คณะพยาบาลศาสตร์',                       nameEn: 'Faculty of Nursing' },
+  { code: 'AMS',  nameTh: 'คณะเทคนิคการแพทย์',                     nameEn: 'Faculty of Associated Medical Sciences' },
+  { code: 'GS',   nameTh: 'บัณฑิตวิทยาลัย',                         nameEn: 'Graduate School' },
+  { code: 'PH',   nameTh: 'คณะสาธารณสุขศาสตร์',                    nameEn: 'Faculty of Public Health' },
+  { code: 'DT',   nameTh: 'คณะทันตแพทยศาสตร์',                     nameEn: 'Faculty of Dentistry' },
+  { code: 'MBA',  nameTh: 'วิทยาลัยบัณฑิตศึกษาการจัดการ',           nameEn: 'College of Graduate Study in Management' },
+  { code: 'PHA',  nameTh: 'คณะเภสัชศาสตร์',                        nameEn: 'Faculty of Pharmaceutical Sciences' },
+  { code: 'TC',   nameTh: 'คณะเทคโนโลยี',                          nameEn: 'Faculty of Technology' },
+  { code: 'VM',   nameTh: 'คณะสัตวแพทยศาสตร์',                     nameEn: 'Faculty of Veterinary Medicine' },
+  { code: 'AR',   nameTh: 'คณะสถาปัตยกรรมศาสตร์',                  nameEn: 'Faculty of Architecture' },
+  { code: 'FAR',  nameTh: 'คณะศิลปกรรมศาสตร์',                     nameEn: 'Faculty of Fine and Applied Arts' },
+  { code: 'COLA', nameTh: 'วิทยาลัยการปกครองท้องถิ่น',               nameEn: 'College of Local Administration' },
+  { code: 'IC',   nameTh: 'วิทยาลัยนานาชาติ',                       nameEn: 'International College' },
+  { code: 'EC',   nameTh: 'คณะเศรษฐศาสตร์',                        nameEn: 'Faculty of Economics' },
+  { code: 'NK',   nameTh: 'คณะสหวิทยาการ',                         nameEn: 'Faculty of Interdisciplinary Studies' },
+  { code: 'COC',  nameTh: 'วิทยาลัยการคอมพิวเตอร์',                 nameEn: 'College of Computing' },
+  { code: 'LAW',  nameTh: 'คณะนิติศาสตร์',                         nameEn: 'Faculty of Law' },
 ] as const;
 
 const DEPARTMENTS = [
