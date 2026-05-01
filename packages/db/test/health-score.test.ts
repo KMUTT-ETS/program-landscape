@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   departmentFindMany: vi.fn(),
   programFindMany: vi.fn(),
   programFindUnique: vi.fn(),
+  kmitlDemandFindMany: vi.fn(),
   queryMetricByScope: vi.fn(),
 }));
 
@@ -24,6 +25,11 @@ vi.mock('../src/index', async () => {
         findMany: mocks.programFindMany,
         findUnique: mocks.programFindUnique,
       },
+      // KMITL labor-market alignment driver (health-score v2). The default
+      // empty-array mock makes the driver return null (no data → null, not
+      // zero) which is the existing null-handling contract these tests
+      // already exercise. Override per-test if a positive case is needed.
+      kmitlCareerSkillDemand: { findMany: mocks.kmitlDemandFindMany },
     },
   };
 });
@@ -40,6 +46,9 @@ import { computeHealthScores, HEALTH_SCORE_VERSION } from '../src/health-score';
 
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
+  // Default: KMITL has no demand data → driver returns null. Tests can
+  // override per-case for positive paths.
+  mocks.kmitlDemandFindMany.mockResolvedValue([]);
 });
 
 describe('computeHealthScores — null handling', () => {
@@ -82,8 +91,10 @@ describe('computeHealthScores — null handling', () => {
 
     const rows = await computeHealthScores('university', null);
     const demand = rows[0]?.dimensions.demand;
-    // 1 of 3 drivers non-null → completeness 33.3%
-    expect(demand?.dataCompletenessPct).toBeCloseTo(33.33, 0);
+    // 1 of 4 demand drivers non-null → completeness 25%. The fourth driver
+    // is the KMITL labor-market alignment (health-score v2); empty-mocked
+    // → null, contributes to the denominator but not the numerator.
+    expect(demand?.dataCompletenessPct).toBeCloseTo(25, 0);
     // That one driver scored 100 (yield 0.4 / 0.3 clamped to 100).
     expect(demand?.score).toBe(100);
   });

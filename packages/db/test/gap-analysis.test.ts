@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   occupationFindMany: vi.fn(),
   occupationGroupBy: vi.fn(),
   sectorFindMany: vi.fn(),
+  kmitlDemandCount: vi.fn(),
+  kmitlDemandFindMany: vi.fn(),
 }));
 
 vi.mock('../src/index', async () => {
@@ -41,6 +43,13 @@ vi.mock('../src/index', async () => {
         groupBy: mocks.occupationGroupBy,
       },
       sector: { findMany: mocks.sectorFindMany },
+      // KMITL demand source (gap-analysis: demandSource='auto' picks
+      // 'kmitl' when count > 0, else falls back to 'job_postings'). Default
+      // mocks return 0 / [] so existing tests keep their job-postings path.
+      kmitlCareerSkillDemand: {
+        count: mocks.kmitlDemandCount,
+        findMany: mocks.kmitlDemandFindMany,
+      },
     },
   };
 });
@@ -53,6 +62,10 @@ import {
 
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
+  // Default: KMITL has no rows → 'auto' demand-source falls back to the
+  // existing job-postings path. Tests can override per-case.
+  mocks.kmitlDemandCount.mockResolvedValue(0);
+  mocks.kmitlDemandFindMany.mockResolvedValue([]);
 });
 
 describe('computeSkillGap', () => {
