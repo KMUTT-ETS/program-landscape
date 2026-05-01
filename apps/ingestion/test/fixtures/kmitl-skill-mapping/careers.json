@@ -1,0 +1,512 @@
+[
+  {
+    "id": 1,
+    "name": "Digital Marketing Consultant",
+    "sub_groups": [
+      "Digital Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Digital Marketing Director",
+    "sub_groups": [
+      "Digital Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Digital Marketing Executive",
+    "sub_groups": [
+      "Digital Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Digital Marketing Manager",
+    "sub_groups": [
+      "Digital Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 5,
+    "name": "Digital Marketing Specialist",
+    "sub_groups": [
+      "Digital Marketing ",
+      "Digital "
+    ],
+    "groups": [
+      "Digital Marketing",
+      "New S Curve"
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Social Media Marketing Consultant",
+    "sub_groups": [
+      "Social Media Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 7,
+    "name": "Social Media Marketing Manager",
+    "sub_groups": [
+      "Social Media Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Social Media Marketing Specialist",
+    "sub_groups": [
+      "Social Media Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 9,
+    "name": "Search Engine Optimization Analyst",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Search Engine Optimization Consultant",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 11,
+    "name": "Search Engine Optimization Copywriter",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 12,
+    "name": "Search Engine Optimization Executive",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 13,
+    "name": "Search Engine Optimization Manager",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 14,
+    "name": "Search Engine Optimization Project Manager",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 15,
+    "name": "Search Engine Optimization Specialist",
+    "sub_groups": [
+      "Search Engine Optimization "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 16,
+    "name": "Online Marketing Analyst",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 17,
+    "name": "Online Marketing Assistant",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 18,
+    "name": "Online Marketing Consultant",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 19,
+    "name": "Online Marketing Coordinator",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 20,
+    "name": "Online Marketing Executive",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 21,
+    "name": "Online Marketing Manager",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 22,
+    "name": "Online Marketing Specialist",
+    "sub_groups": [
+      "Online Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 23,
+    "name": "Internet Marketing Analyst",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 24,
+    "name": "Internet Marketing Assistant",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 25,
+    "name": "Internet Marketing Consultant",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 26,
+    "name": "Internet Marketing Coordinator",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 27,
+    "name": "Internet Marketing Executive",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 28,
+    "name": "Internet Marketing Manager",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 29,
+    "name": "Internet Marketing Specialist",
+    "sub_groups": [
+      "Internet Marketing "
+    ],
+    "groups": [
+      "Digital Marketing"
+    ]
+  },
+  {
+    "id": 31,
+    "name": "Farmer",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 32,
+    "name": "Landscaper",
+    "sub_groups": [
+      "Landscape "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 33,
+    "name": "Agricultural Engineer",
+    "sub_groups": [
+      "Agriculture "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 34,
+    "name": "Agronomist",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 35,
+    "name": "Farm Manager",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 36,
+    "name": "Landscape Architect",
+    "sub_groups": [
+      "Landscape ",
+      "Landscape Architecture "
+    ],
+    "groups": [
+      "Smart Farmer",
+      "Architecture"
+    ]
+  },
+  {
+    "id": 37,
+    "name": "Agriculture Specialist",
+    "sub_groups": [
+      "Agriculture ",
+      "Bioenergy & Biochemicals "
+    ],
+    "groups": [
+      "Smart Farmer",
+      "New S Curve"
+    ]
+  },
+  {
+    "id": 38,
+    "name": "Florist",
+    "sub_groups": [
+      "Floral "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 39,
+    "name": "Farm Hand",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 40,
+    "name": "Breeder",
+    "sub_groups": [
+      "Breeder "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 41,
+    "name": "Agricultural Economist",
+    "sub_groups": [
+      "Agriculture ",
+      "Economics "
+    ],
+    "groups": [
+      "Smart Farmer",
+      "Social Science"
+    ]
+  },
+  {
+    "id": 42,
+    "name": "Poultry Farmer",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 43,
+    "name": "Rancher",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 44,
+    "name": "Ranch Manager",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 45,
+    "name": "Ranch Hand",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 46,
+    "name": "Entomologist",
+    "sub_groups": [
+      "Farmer/Rancher ",
+      "Academic Support "
+    ],
+    "groups": [
+      "Smart Farmer",
+      "Health Science"
+    ]
+  },
+  {
+    "id": 47,
+    "name": "Horticulturist",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 48,
+    "name": "Tree Planter",
+    "sub_groups": [
+      "Farmer/Rancher "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 49,
+    "name": "Fisherman",
+    "sub_groups": [
+      "Fisheries "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 50,
+    "name": "Fisheries Biologist",
+    "sub_groups": [
+      "Fisheries "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  },
+  {
+    "id": 51,
+    "name": "Fisheries Technician",
+    "sub_groups": [
+      "Fisheries "
+    ],
+    "groups": [
+      "Smart Farmer"
+    ]
+  }
+]

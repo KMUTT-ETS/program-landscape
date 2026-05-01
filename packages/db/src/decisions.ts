@@ -139,8 +139,8 @@ export async function captureSnapshot(decisionId: string, force = false): Promis
   const scopeId = decision.facultyId ?? undefined;
   const [health, risks, topSkillGaps, recentTrendCount] = await Promise.all([
     computeHealthScores(scope, scopeId ?? null),
-    computeRisks({ scope, scopeId, region: 'TH', horizon: 5, comparison: 'absolute', limit: 20 }),
-    computeSkillGap({ scope, scopeId, region: 'TH', horizon: 0, comparison: 'absolute', limit: 10 }),
+    computeRisks({ scope, scopeId, region: 'TH', horizon: 5, comparison: 'absolute', limit: 20, demandSource: 'auto' }),
+    computeSkillGap({ scope, scopeId, region: 'TH', horizon: 0, comparison: 'absolute', limit: 10, demandSource: 'auto' }),
     prisma.trendSignal.count({
       where: {
         detectedDate: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },

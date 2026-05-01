@@ -1,6 +1,8 @@
 # JobsDB / SEEK
 
-**Slug:** `jobsdb` · **Phase:** B · **Kind:** API · **Cadence:** every 6h · **Status:** 🚧 mocked
+> ⛔ **SUPERSEDED 2026-05-01.** Replaced by [kmitl-skill-mapping](./kmitl-skill-mapping.md) — KMITL exposes aggregated LinkedIn + job-postings + grad data via free API, eliminating the JobsDB paid-access blocker. Catalog entry retained so historical IngestionRun rows don't orphan; full removal after kmitl-skill-mapping clears the 30-day green-history gate (per `docs/readiness-checklist.md` gate 11).
+
+**Slug:** `jobsdb` · **Phase:** B · **Kind:** API · **Cadence:** every 6h · **Status:** 🚧 mocked (deprecated)
 
 ---
 

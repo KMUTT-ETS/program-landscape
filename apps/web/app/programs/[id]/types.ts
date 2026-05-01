@@ -7,7 +7,7 @@ export interface DeepDiveOverview {
     code: string;
     nameEn: string;
     nameTh: string;
-    level: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+    level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
     status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
     yearEstablished: number | null;
     faculty: { id: string; nameEn: string; nameTh: string };

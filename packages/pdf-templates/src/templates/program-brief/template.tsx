@@ -12,6 +12,7 @@ const LEVEL_LABEL: Record<ProgramBriefData['level'], string> = {
   BACHELOR: 'ปริญญาตรี',
   MASTER: 'ปริญญาโท',
   DOCTORAL: 'ปริญญาเอก',
+  HIGHER_GRAD_DIPLOMA: 'ประกาศนียบัตรบัณฑิตชั้นสูง',
 };
 
 function ProgramBriefDoc({ data }: { data: ProgramBriefData }) {

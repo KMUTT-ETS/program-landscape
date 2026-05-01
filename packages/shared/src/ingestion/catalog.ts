@@ -116,24 +116,37 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: true,
   },
   {
+    slug: 'kmitl-skill-mapping',
+    name: 'KMITL Skill Mapping (Aggregated demand)',
+    kind: 'API',
+    inputFormat: 'JSON',
+    baseUrl: 'https://skill.kmitl.ac.th/api/v1',
+    cadenceCron: '0 6 * * 1', // weekly Monday 06:00
+    ownerContact: 'KKU ↔ KMITL institutional partnership (CLIENT_ID issued by KMITL)',
+    notes: 'Aggregated skill-demand intelligence (LinkedIn profiles + job postings + grad data, processed by KMITL). Returns percentages at career/group/sub-group level — no per-posting rows, no salary, no province granularity. Replaces jobthai + jobsdb.',
+    mocked: true,
+  },
+  {
     slug: 'jobthai',
     name: 'JobThai (Job postings)',
     kind: 'API',
     inputFormat: 'JSON',
-    cadenceCron: '0 */6 * * *', // every 6 hours
+    cadenceCron: '0 */6 * * *', // every 6 hours (no longer scheduled — see deprecated)
     ownerContact: 'KKU Data Office (scraping agreement TBD)',
-    notes: 'Job postings used for skill demand + salary signals. Real wiring goes through JobThai\'s commercial feed when the agreement is signed.',
+    notes: 'SUPERSEDED by kmitl-skill-mapping (2026-05-01). Catalog entry retained so historical IngestionRun rows don\'t orphan; full removal after kmitl-skill-mapping clears 30-day green-history gate.',
     mocked: true,
+    deprecated: true,
   },
   {
     slug: 'jobsdb',
     name: 'JobsDB (Job postings)',
     kind: 'API',
     inputFormat: 'JSON',
-    cadenceCron: '0 */6 * * *', // every 6 hours
+    cadenceCron: '0 */6 * * *', // every 6 hours (no longer scheduled — see deprecated)
     ownerContact: 'KKU Data Office',
-    notes: 'Broader regional coverage than JobThai. Commercial API — budget pending.',
+    notes: 'SUPERSEDED by kmitl-skill-mapping (2026-05-01). Catalog entry retained so historical IngestionRun rows don\'t orphan; full removal after kmitl-skill-mapping clears 30-day green-history gate.',
     mocked: true,
+    deprecated: true,
   },
   {
     slug: 'mhesi-policy',

@@ -68,6 +68,11 @@ export interface SourceCatalogEntry {
   // false only when the connector actually hits the real source. The
   // admin UI shows a "mocked" badge to make it obvious to operators.
   mocked: boolean;
+  // True when the source is being phased out — kept in the catalog so
+  // historical IngestionRun rows don't orphan, but the registry skips
+  // scheduling it. Removal happens after the replacement source has
+  // 30 days of green history (per docs/readiness-checklist.md gate 11).
+  deprecated?: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

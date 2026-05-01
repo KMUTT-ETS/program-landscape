@@ -748,7 +748,7 @@ export class ProgramsService {
       programCode?: string;
       programNameTh?: string;
       programNameEn?: string;
-      level?: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+      level?: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
       totalCredits?: number;
       durationYears?: number;
       curriculumYear?: number; // BE or CE — normalized below

@@ -13,10 +13,10 @@ export class PrismaAiInferenceRecorder implements AiInferenceRecorder {
         userId: r.userId ?? null,
         module: r.module,
         kind: r.kind,
-        prompt: truncate(r.prompt, 100_000),
+        prompt: sanitiseTextForPg(truncate(r.prompt, 100_000)),
         promptVersion: r.promptVersion,
         model: r.model,
-        response: truncate(r.response, 100_000),
+        response: sanitiseTextForPg(truncate(r.response, 100_000)),
         confidence: r.confidence,
         sourcesJson: r.sourcesJson ? (r.sourcesJson as object) : undefined,
         tokensInput: r.tokensInput,
@@ -35,4 +35,14 @@ export class PrismaAiInferenceRecorder implements AiInferenceRecorder {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max) + `\n…[truncated, was ${s.length} chars]`;
+}
+
+// Strip NUL bytes (U+0000) — Postgres TEXT/VARCHAR rejects them with
+// `invalid byte sequence for encoding "UTF8": 0x00` and the whole row
+// fails. Gemini occasionally emits a literal NUL in its output. We
+// reference the NUL via String.fromCharCode rather than a literal in the
+// source so the file itself stays NUL-free.
+const NUL_CHAR = String.fromCharCode(0);
+function sanitiseTextForPg(s: string): string {
+  return s.indexOf(NUL_CHAR) >= 0 ? s.split(NUL_CHAR).join('') : s;
 }

@@ -1,0 +1,3286 @@
+{
+  "groupId": 1,
+  "groupName": "Digital Marketing",
+  "payload": {
+    "id": 1,
+    "name": "Digital Marketing",
+    "sub_groups": [
+      {
+        "id": 1,
+        "name": "Digital Marketing ",
+        "skills": [
+          {
+            "name": "Digital Marketing",
+            "amount": 400046,
+            "percentage": 92.3
+          },
+          {
+            "name": "Social Media Marketing",
+            "amount": 155117,
+            "percentage": 35.8
+          },
+          {
+            "name": "Search Engine Optimization (SEO)",
+            "amount": 150887,
+            "percentage": 34.8
+          },
+          {
+            "name": "Ad Serving",
+            "amount": 149492,
+            "percentage": 34.5
+          },
+          {
+            "name": "Google Analytics",
+            "amount": 96019,
+            "percentage": 22.2
+          },
+          {
+            "name": "Google Ads",
+            "amount": 91925,
+            "percentage": 21.2
+          },
+          {
+            "name": "Online Marketing",
+            "amount": 90486,
+            "percentage": 20.9
+          },
+          {
+            "name": "Email Marketing",
+            "amount": 86237,
+            "percentage": 19.9
+          },
+          {
+            "name": "Web Analytics",
+            "amount": 68477,
+            "percentage": 15.8
+          },
+          {
+            "name": "Search Engine Marketing (SEM)",
+            "amount": 67615,
+            "percentage": 15.6
+          },
+          {
+            "name": "Adobe Photoshop",
+            "amount": 63529,
+            "percentage": 14.7
+          },
+          {
+            "name": "E-commerce",
+            "amount": 61066,
+            "percentage": 14.1
+          },
+          {
+            "name": "Online Advertising",
+            "amount": 57313,
+            "percentage": 13.2
+          },
+          {
+            "name": "WordPress",
+            "amount": 54226,
+            "percentage": 12.5
+          },
+          {
+            "name": "Analytics",
+            "amount": 52044,
+            "percentage": 12
+          },
+          {
+            "name": "Graphic Design",
+            "amount": 46895,
+            "percentage": 10.8
+          },
+          {
+            "name": "Content Marketing",
+            "amount": 43489,
+            "percentage": 10
+          },
+          {
+            "name": "Lead Generation",
+            "amount": 42824,
+            "percentage": 9.9
+          },
+          {
+            "name": "Web Design",
+            "amount": 42460,
+            "percentage": 9.8
+          },
+          {
+            "name": "Pay Per Click (PPC)",
+            "amount": 42409,
+            "percentage": 9.8
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Social Media Marketing ",
+        "skills": [
+          {
+            "name": "Social Media Marketing",
+            "amount": 111529,
+            "percentage": 56.3
+          },
+          {
+            "name": "Digital Marketing",
+            "amount": 79863,
+            "percentage": 40.3
+          },
+          {
+            "name": "Adobe Photoshop",
+            "amount": 32806,
+            "percentage": 16.6
+          },
+          {
+            "name": "Instagram",
+            "amount": 32087,
+            "percentage": 16.2
+          },
+          {
+            "name": "Search Engine Optimization (SEO)",
+            "amount": 23066,
+            "percentage": 11.7
+          },
+          {
+            "name": "Graphic Design",
+            "amount": 20828,
+            "percentage": 10.5
+          },
+          {
+            "name": "Online Marketing",
+            "amount": 18869,
+            "percentage": 9.5
+          },
+          {
+            "name": "Copywriting",
+            "amount": 17919,
+            "percentage": 9.1
+          },
+          {
+            "name": "Digital Media",
+            "amount": 14095,
+            "percentage": 7.1
+          },
+          {
+            "name": "Email Marketing",
+            "amount": 13998,
+            "percentage": 7.1
+          },
+          {
+            "name": "Adobe Illustrator",
+            "amount": 13577,
+            "percentage": 6.9
+          },
+          {
+            "name": "WordPress",
+            "amount": 13236,
+            "percentage": 6.7
+          },
+          {
+            "name": "Social Networking",
+            "amount": 12797,
+            "percentage": 6.5
+          },
+          {
+            "name": "Google Analytics",
+            "amount": 12773,
+            "percentage": 6.5
+          },
+          {
+            "name": "Online Advertising",
+            "amount": 12260,
+            "percentage": 6.2
+          },
+          {
+            "name": "Video Editing",
+            "amount": 11684,
+            "percentage": 5.9
+          },
+          {
+            "name": "YouTube",
+            "amount": 11614,
+            "percentage": 5.9
+          },
+          {
+            "name": "Journalism",
+            "amount": 11449,
+            "percentage": 5.8
+          },
+          {
+            "name": "Creative Writing",
+            "amount": 11265,
+            "percentage": 5.7
+          },
+          {
+            "name": "Content Marketing",
+            "amount": 11176,
+            "percentage": 5.6
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Search Engine Optimization ",
+        "skills": [
+          {
+            "name": "Search Engine Optimization (SEO)",
+            "amount": 191415,
+            "percentage": 91.6
+          },
+          {
+            "name": "Digital Marketing",
+            "amount": 59185,
+            "percentage": 28.3
+          },
+          {
+            "name": "Google Analytics",
+            "amount": 41258,
+            "percentage": 19.7
+          },
+          {
+            "name": "Social Media Marketing",
+            "amount": 37886,
+            "percentage": 18.1
+          },
+          {
+            "name": "Web Analytics",
+            "amount": 35498,
+            "percentage": 17
+          },
+          {
+            "name": "Online Marketing",
+            "amount": 32518,
+            "percentage": 15.6
+          },
+          {
+            "name": "WordPress",
+            "amount": 30073,
+            "percentage": 14.4
+          },
+          {
+            "name": "Search Engine Marketing (SEM)",
+            "amount": 30009,
+            "percentage": 14.4
+          },
+          {
+            "name": "Google Ads",
+            "amount": 28462,
+            "percentage": 13.6
+          },
+          {
+            "name": "Keyword Research",
+            "amount": 25764,
+            "percentage": 12.3
+          },
+          {
+            "name": "Link Building",
+            "amount": 23564,
+            "percentage": 11.3
+          },
+          {
+            "name": "HTML",
+            "amount": 23036,
+            "percentage": 11
+          },
+          {
+            "name": "Off-Page SEO",
+            "amount": 20992,
+            "percentage": 10
+          },
+          {
+            "name": "E-commerce",
+            "amount": 19522,
+            "percentage": 9.3
+          },
+          {
+            "name": "Web Development",
+            "amount": 18947,
+            "percentage": 9.1
+          },
+          {
+            "name": "Web Design",
+            "amount": 17712,
+            "percentage": 8.5
+          },
+          {
+            "name": "Social Media Optimization (SMO)",
+            "amount": 17272,
+            "percentage": 8.3
+          },
+          {
+            "name": "Analytics",
+            "amount": 17208,
+            "percentage": 8.2
+          },
+          {
+            "name": "Email Marketing",
+            "amount": 16608,
+            "percentage": 7.9
+          },
+          {
+            "name": "Adobe Photoshop",
+            "amount": 15662,
+            "percentage": 7.5
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "Online Marketing ",
+        "skills": [
+          {
+            "name": "Online Marketing",
+            "amount": 56158,
+            "percentage": 79.7
+          },
+          {
+            "name": "Digital Marketing",
+            "amount": 14887,
+            "percentage": 21.1
+          },
+          {
+            "name": "Search Engine Optimization (SEO)",
+            "amount": 13900,
+            "percentage": 19.7
+          },
+          {
+            "name": "Social Media Marketing",
+            "amount": 13427,
+            "percentage": 19.1
+          },
+          {
+            "name": "Google Analytics",
+            "amount": 8519,
+            "percentage": 12.1
+          },
+          {
+            "name": "Google Ads",
+            "amount": 8058,
+            "percentage": 11.4
+          },
+          {
+            "name": "Online Advertising",
+            "amount": 7461,
+            "percentage": 10.6
+          },
+          {
+            "name": "E-commerce",
+            "amount": 7106,
+            "percentage": 10.1
+          },
+          {
+            "name": "Email Marketing",
+            "amount": 6942,
+            "percentage": 9.9
+          },
+          {
+            "name": "Search Engine Marketing (SEM)",
+            "amount": 6536,
+            "percentage": 9.3
+          },
+          {
+            "name": "Adobe Photoshop",
+            "amount": 6206,
+            "percentage": 8.8
+          },
+          {
+            "name": "Web Analytics",
+            "amount": 5543,
+            "percentage": 7.9
+          },
+          {
+            "name": "WordPress",
+            "amount": 5163,
+            "percentage": 7.3
+          },
+          {
+            "name": "Marketing Communications",
+            "amount": 3971,
+            "percentage": 5.6
+          },
+          {
+            "name": "Web Design",
+            "amount": 3968,
+            "percentage": 5.6
+          },
+          {
+            "name": "Content Marketing",
+            "amount": 3604,
+            "percentage": 5.1
+          },
+          {
+            "name": "Pay Per Click (PPC)",
+            "amount": 3027,
+            "percentage": 4.3
+          },
+          {
+            "name": "HTML",
+            "amount": 2938,
+            "percentage": 4.2
+          },
+          {
+            "name": "Graphic Design",
+            "amount": 2893,
+            "percentage": 4.1
+          },
+          {
+            "name": "Web Development",
+            "amount": 2829,
+            "percentage": 4
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "Internet Marketing ",
+        "skills": [
+          {
+            "name": "Online Marketing",
+            "amount": 18407,
+            "percentage": 73.3
+          },
+          {
+            "name": "Digital Marketing",
+            "amount": 9657,
+            "percentage": 38.5
+          },
+          {
+            "name": "Search Engine Optimization (SEO)",
+            "amount": 5569,
+            "percentage": 22.2
+          },
+          {
+            "name": "Social Media Marketing",
+            "amount": 4990,
+            "percentage": 19.9
+          },
+          {
+            "name": "Google Ads",
+            "amount": 3692,
+            "percentage": 14.7
+          },
+          {
+            "name": "Email Marketing",
+            "amount": 3506,
+            "percentage": 14
+          },
+          {
+            "name": "Google Analytics",
+            "amount": 3354,
+            "percentage": 13.4
+          },
+          {
+            "name": "Online Advertising",
+            "amount": 3075,
+            "percentage": 12.2
+          },
+          {
+            "name": "Adobe Photoshop",
+            "amount": 2734,
+            "percentage": 10.9
+          },
+          {
+            "name": "E-commerce",
+            "amount": 2631,
+            "percentage": 10.5
+          },
+          {
+            "name": "Search Engine Marketing (SEM)",
+            "amount": 2569,
+            "percentage": 10.2
+          },
+          {
+            "name": "Web Design",
+            "amount": 2226,
+            "percentage": 8.9
+          },
+          {
+            "name": "Web Analytics",
+            "amount": 2104,
+            "percentage": 8.4
+          },
+          {
+            "name": "WordPress",
+            "amount": 1949,
+            "percentage": 7.8
+          },
+          {
+            "name": "Web Development",
+            "amount": 1814,
+            "percentage": 7.2
+          },
+          {
+            "name": "Pay Per Click (PPC)",
+            "amount": 1670,
+            "percentage": 6.7
+          },
+          {
+            "name": "Analytics",
+            "amount": 1658,
+            "percentage": 6.6
+          },
+          {
+            "name": "Lead Generation",
+            "amount": 1556,
+            "percentage": 6.2
+          },
+          {
+            "name": "Graphic Design",
+            "amount": 1433,
+            "percentage": 5.7
+          },
+          {
+            "name": "Social Networking",
+            "amount": 1394,
+            "percentage": 5.6
+          }
+        ]
+      }
+    ],
+    "skills_overview": [
+      {
+        "group": "Digital Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 400046,
+        "percentage": 92.3
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 155117,
+        "percentage": 35.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 150887,
+        "percentage": 34.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Ad Serving",
+        "amount": 149492,
+        "percentage": 34.5
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Analytics",
+        "amount": 96019,
+        "percentage": 22.2
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Ads",
+        "amount": 91925,
+        "percentage": 21.2
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Online Marketing",
+        "amount": 90486,
+        "percentage": 20.9
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Email Marketing",
+        "amount": 86237,
+        "percentage": 19.9
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Web Analytics",
+        "amount": 68477,
+        "percentage": 15.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 67615,
+        "percentage": 15.6
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 63529,
+        "percentage": 14.7
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "E-commerce",
+        "amount": 61066,
+        "percentage": 14.1
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Online Advertising",
+        "amount": 57313,
+        "percentage": 13.2
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "WordPress",
+        "amount": 54226,
+        "percentage": 12.5
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Analytics",
+        "amount": 52044,
+        "percentage": 12
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Graphic Design",
+        "amount": 46895,
+        "percentage": 10.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Content Marketing",
+        "amount": 43489,
+        "percentage": 10
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Lead Generation",
+        "amount": 42824,
+        "percentage": 9.9
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Web Design",
+        "amount": 42460,
+        "percentage": 9.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Pay Per Click (PPC)",
+        "amount": 42409,
+        "percentage": 9.8
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 111529,
+        "percentage": 56.3
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 79863,
+        "percentage": 40.3
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 32806,
+        "percentage": 16.6
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Instagram",
+        "amount": 32087,
+        "percentage": 16.2
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 23066,
+        "percentage": 11.7
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Graphic Design",
+        "amount": 20828,
+        "percentage": 10.5
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Online Marketing",
+        "amount": 18869,
+        "percentage": 9.5
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Copywriting",
+        "amount": 17919,
+        "percentage": 9.1
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Media",
+        "amount": 14095,
+        "percentage": 7.1
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Email Marketing",
+        "amount": 13998,
+        "percentage": 7.1
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Adobe Illustrator",
+        "amount": 13577,
+        "percentage": 6.9
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "WordPress",
+        "amount": 13236,
+        "percentage": 6.7
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Social Networking",
+        "amount": 12797,
+        "percentage": 6.5
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Google Analytics",
+        "amount": 12773,
+        "percentage": 6.5
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Online Advertising",
+        "amount": 12260,
+        "percentage": 6.2
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Video Editing",
+        "amount": 11684,
+        "percentage": 5.9
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "YouTube",
+        "amount": 11614,
+        "percentage": 5.9
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Journalism",
+        "amount": 11449,
+        "percentage": 5.8
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Creative Writing",
+        "amount": 11265,
+        "percentage": 5.7
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Content Marketing",
+        "amount": 11176,
+        "percentage": 5.6
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 191415,
+        "percentage": 91.6
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Digital Marketing",
+        "amount": 59185,
+        "percentage": 28.3
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Analytics",
+        "amount": 41258,
+        "percentage": 19.7
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Social Media Marketing",
+        "amount": 37886,
+        "percentage": 18.1
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Web Analytics",
+        "amount": 35498,
+        "percentage": 17
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Online Marketing",
+        "amount": 32518,
+        "percentage": 15.6
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "WordPress",
+        "amount": 30073,
+        "percentage": 14.4
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 30009,
+        "percentage": 14.4
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Ads",
+        "amount": 28462,
+        "percentage": 13.6
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Keyword Research",
+        "amount": 25764,
+        "percentage": 12.3
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Link Building",
+        "amount": 23564,
+        "percentage": 11.3
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "HTML",
+        "amount": 23036,
+        "percentage": 11
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Off-Page SEO",
+        "amount": 20992,
+        "percentage": 10
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "E-commerce",
+        "amount": 19522,
+        "percentage": 9.3
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Web Development",
+        "amount": 18947,
+        "percentage": 9.1
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Web Design",
+        "amount": 17712,
+        "percentage": 8.5
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Social Media Optimization (SMO)",
+        "amount": 17272,
+        "percentage": 8.3
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Analytics",
+        "amount": 17208,
+        "percentage": 8.2
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Email Marketing",
+        "amount": 16608,
+        "percentage": 7.9
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Adobe Photoshop",
+        "amount": 15662,
+        "percentage": 7.5
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Online Marketing",
+        "amount": 56158,
+        "percentage": 79.7
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 14887,
+        "percentage": 21.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 13900,
+        "percentage": 19.7
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 13427,
+        "percentage": 19.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Analytics",
+        "amount": 8519,
+        "percentage": 12.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Ads",
+        "amount": 8058,
+        "percentage": 11.4
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Online Advertising",
+        "amount": 7461,
+        "percentage": 10.6
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "E-commerce",
+        "amount": 7106,
+        "percentage": 10.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Email Marketing",
+        "amount": 6942,
+        "percentage": 9.9
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 6536,
+        "percentage": 9.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 6206,
+        "percentage": 8.8
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Web Analytics",
+        "amount": 5543,
+        "percentage": 7.9
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "WordPress",
+        "amount": 5163,
+        "percentage": 7.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Marketing Communications",
+        "amount": 3971,
+        "percentage": 5.6
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Web Design",
+        "amount": 3968,
+        "percentage": 5.6
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Content Marketing",
+        "amount": 3604,
+        "percentage": 5.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Pay Per Click (PPC)",
+        "amount": 3027,
+        "percentage": 4.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "HTML",
+        "amount": 2938,
+        "percentage": 4.2
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Graphic Design",
+        "amount": 2893,
+        "percentage": 4.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Web Development",
+        "amount": 2829,
+        "percentage": 4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Online Marketing",
+        "amount": 18407,
+        "percentage": 73.3
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 9657,
+        "percentage": 38.5
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 5569,
+        "percentage": 22.2
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 4990,
+        "percentage": 19.9
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Ads",
+        "amount": 3692,
+        "percentage": 14.7
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Email Marketing",
+        "amount": 3506,
+        "percentage": 14
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Analytics",
+        "amount": 3354,
+        "percentage": 13.4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Online Advertising",
+        "amount": 3075,
+        "percentage": 12.2
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 2734,
+        "percentage": 10.9
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "E-commerce",
+        "amount": 2631,
+        "percentage": 10.5
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 2569,
+        "percentage": 10.2
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Web Design",
+        "amount": 2226,
+        "percentage": 8.9
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Web Analytics",
+        "amount": 2104,
+        "percentage": 8.4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "WordPress",
+        "amount": 1949,
+        "percentage": 7.8
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Web Development",
+        "amount": 1814,
+        "percentage": 7.2
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Pay Per Click (PPC)",
+        "amount": 1670,
+        "percentage": 6.7
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Analytics",
+        "amount": 1658,
+        "percentage": 6.6
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Lead Generation",
+        "amount": 1556,
+        "percentage": 6.2
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Graphic Design",
+        "amount": 1433,
+        "percentage": 5.7
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Social Networking",
+        "amount": 1394,
+        "percentage": 5.6
+      }
+    ],
+    "sub_groups_job_posts_overview": [
+      {
+        "group": "Digital Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 13054,
+        "percentage": 11.28
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Ad Serving",
+        "amount": 11333,
+        "percentage": 9.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 6780,
+        "percentage": 5.86
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 6776,
+        "percentage": 5.86
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Analytics",
+        "amount": 5960,
+        "percentage": 5.15
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Web Analytics",
+        "amount": 4890,
+        "percentage": 4.23
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Analytics",
+        "amount": 4410,
+        "percentage": 3.81
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Ads",
+        "amount": 3954,
+        "percentage": 3.42
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 3800,
+        "percentage": 3.29
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Email Marketing",
+        "amount": 2764,
+        "percentage": 2.39
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Pay Per Click (PPC)",
+        "amount": 2479,
+        "percentage": 2.14
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Online Marketing",
+        "amount": 2398,
+        "percentage": 2.07
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "E-commerce",
+        "amount": 2326,
+        "percentage": 2.01
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Business-to-Business (B2B)",
+        "amount": 2180,
+        "percentage": 1.88
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Landing Pages",
+        "amount": 1747,
+        "percentage": 1.51
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 1833,
+        "percentage": 9.86
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 1656,
+        "percentage": 8.91
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Instagram",
+        "amount": 1573,
+        "percentage": 8.46
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 959,
+        "percentage": 5.16
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Analytics",
+        "amount": 847,
+        "percentage": 4.5600000000000005
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "YouTube",
+        "amount": 747,
+        "percentage": 4.02
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 575,
+        "percentage": 3.09
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Social Media Strategy",
+        "amount": 573,
+        "percentage": 3.08
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Web Analytics",
+        "amount": 503,
+        "percentage": 2.71
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Content Creation",
+        "amount": 493,
+        "percentage": 2.65
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 5726,
+        "percentage": 12.04
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Analytics",
+        "amount": 3230,
+        "percentage": 6.79
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Analytical Skills",
+        "amount": 3029,
+        "percentage": 6.37
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Web Analytics",
+        "amount": 2870,
+        "percentage": 6.03
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engines",
+        "amount": 2849,
+        "percentage": 5.99
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Analytics",
+        "amount": 2752,
+        "percentage": 5.79
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Digital Marketing",
+        "amount": 2341,
+        "percentage": 4.92
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Keyword Research",
+        "amount": 1870,
+        "percentage": 3.93
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Ad Serving",
+        "amount": 1583,
+        "percentage": 3.33
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Link Building",
+        "amount": 1266,
+        "percentage": 2.66
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "SEMrush",
+        "amount": 1247,
+        "percentage": 2.62
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Search Console",
+        "amount": 1119,
+        "percentage": 2.35
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Off-Page SEO",
+        "amount": 1081,
+        "percentage": 2.27
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 1033,
+        "percentage": 2.17
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Organic Search",
+        "amount": 904,
+        "percentage": 1.9
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Ahrefs",
+        "amount": 853,
+        "percentage": 1.79
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Content Strategy",
+        "amount": 815,
+        "percentage": 1.71
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "E-commerce",
+        "amount": 812,
+        "percentage": 1.71
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Content Management Systems (CMS)",
+        "amount": 765,
+        "percentage": 1.6099999999999999
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Online Marketing",
+        "amount": 1785,
+        "percentage": 19.94
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 751,
+        "percentage": 8.39
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 510,
+        "percentage": 5.7
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Analytics",
+        "amount": 481,
+        "percentage": 5.37
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "E-commerce",
+        "amount": 478,
+        "percentage": 5.34
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Analytics",
+        "amount": 381,
+        "percentage": 4.26
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Ads",
+        "amount": 377,
+        "percentage": 4.21
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Web Analytics",
+        "amount": 352,
+        "percentage": 3.93
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Performance Marketing",
+        "amount": 311,
+        "percentage": 3.4699999999999998
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 293,
+        "percentage": 3.27
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Physical Therapy",
+        "amount": 289,
+        "percentage": 3.23
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Data Analysis",
+        "amount": 196,
+        "percentage": 2.19
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Instagram",
+        "amount": 184,
+        "percentage": 2.05
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Business-to-Business (B2B)",
+        "amount": 181,
+        "percentage": 2.02
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 351,
+        "percentage": 15.11
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 165,
+        "percentage": 7.1
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Ads",
+        "amount": 161,
+        "percentage": 6.93
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Analytics",
+        "amount": 146,
+        "percentage": 6.28
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Online Marketing",
+        "amount": 118,
+        "percentage": 5.08
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 105,
+        "percentage": 4.52
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Analytics",
+        "amount": 105,
+        "percentage": 4.52
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Social Networking",
+        "amount": 104,
+        "percentage": 4.48
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Lead Generation",
+        "amount": 93,
+        "percentage": 4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Email Marketing",
+        "amount": 79,
+        "percentage": 3.4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Facebook Ads",
+        "amount": 79,
+        "percentage": 3.4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Propaganda",
+        "amount": 79,
+        "percentage": 3.4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Inbound Marketing",
+        "amount": 72,
+        "percentage": 3.1
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Instagram",
+        "amount": 61,
+        "percentage": 2.63
+      }
+    ],
+    "thailand_skills_overview": [
+      {
+        "group": "Digital Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 2178,
+        "percentage": 77.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 844,
+        "percentage": 30.2
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Online Marketing",
+        "amount": 619,
+        "percentage": 22.1
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 597,
+        "percentage": 21.3
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Ad Serving",
+        "amount": 536,
+        "percentage": 19.1
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 488,
+        "percentage": 17.4
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Ads",
+        "amount": 463,
+        "percentage": 16.5
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Analytics",
+        "amount": 456,
+        "percentage": 16.3
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Online Advertising",
+        "amount": 390,
+        "percentage": 13.9
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "E-commerce",
+        "amount": 376,
+        "percentage": 13.4
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 344,
+        "percentage": 12.3
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Content Marketing",
+        "amount": 335,
+        "percentage": 12
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Graphic Design",
+        "amount": 324,
+        "percentage": 11.6
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Web Analytics",
+        "amount": 289,
+        "percentage": 10.3
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Digital Media",
+        "amount": 287,
+        "percentage": 10.3
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Adobe Illustrator",
+        "amount": 274,
+        "percentage": 9.8
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Facebook Ads",
+        "amount": 255,
+        "percentage": 9.1
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Email Marketing",
+        "amount": 241,
+        "percentage": 8.6
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Facebook Marketing",
+        "amount": 234,
+        "percentage": 8.4
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Digital Strategy",
+        "amount": 227,
+        "percentage": 8.1
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 248,
+        "percentage": 47.7
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 203,
+        "percentage": 39
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 87,
+        "percentage": 16.7
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Online Marketing",
+        "amount": 62,
+        "percentage": 11.9
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 60,
+        "percentage": 11.5
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Copywriting",
+        "amount": 54,
+        "percentage": 10.4
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Content Marketing",
+        "amount": 50,
+        "percentage": 9.6
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Adobe Illustrator",
+        "amount": 47,
+        "percentage": 9
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "E-commerce",
+        "amount": 45,
+        "percentage": 8.7
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Graphic Design",
+        "amount": 43,
+        "percentage": 8.3
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Instagram",
+        "amount": 42,
+        "percentage": 8.1
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Online Advertising",
+        "amount": 39,
+        "percentage": 7.5
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Data Analysis",
+        "amount": 36,
+        "percentage": 6.9
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Content Strategy",
+        "amount": 32,
+        "percentage": 6.2
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Media",
+        "amount": 32,
+        "percentage": 6.2
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Hospitality",
+        "amount": 30,
+        "percentage": 5.8
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Creative Writing",
+        "amount": 30,
+        "percentage": 5.8
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Marketing Communications",
+        "amount": 29,
+        "percentage": 5.6
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Market Research",
+        "amount": 27,
+        "percentage": 5.2
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 26,
+        "percentage": 5
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 461,
+        "percentage": 74.2
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Digital Marketing",
+        "amount": 143,
+        "percentage": 23
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Analytics",
+        "amount": 113,
+        "percentage": 18.2
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Online Marketing",
+        "amount": 112,
+        "percentage": 18
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "WordPress",
+        "amount": 100,
+        "percentage": 16.1
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Social Media Marketing",
+        "amount": 93,
+        "percentage": 15
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Web Analytics",
+        "amount": 90,
+        "percentage": 14.5
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 89,
+        "percentage": 14.3
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Ads",
+        "amount": 85,
+        "percentage": 13.7
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "E-commerce",
+        "amount": 64,
+        "percentage": 10.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Online Marketing",
+        "amount": 669,
+        "percentage": 59.4
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 218,
+        "percentage": 19.4
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 141,
+        "percentage": 12.5
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Adobe Photoshop",
+        "amount": 126,
+        "percentage": 11.2
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 105,
+        "percentage": 9.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Online Advertising",
+        "amount": 78,
+        "percentage": 6.9
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 71,
+        "percentage": 6.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "E-commerce",
+        "amount": 71,
+        "percentage": 6.3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Ads",
+        "amount": 70,
+        "percentage": 6.2
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Graphic Design",
+        "amount": 69,
+        "percentage": 6.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Adobe Illustrator",
+        "amount": 69,
+        "percentage": 6.1
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Analytics",
+        "amount": 67,
+        "percentage": 6
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Content Marketing",
+        "amount": 65,
+        "percentage": 5.8
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Web Analytics",
+        "amount": 45,
+        "percentage": 4
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Email Marketing",
+        "amount": 42,
+        "percentage": 3.7
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Marketing Communications",
+        "amount": 42,
+        "percentage": 3.7
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Facebook Marketing",
+        "amount": 38,
+        "percentage": 3.4
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Web Design",
+        "amount": 34,
+        "percentage": 3
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Adobe Premiere Pro",
+        "amount": 33,
+        "percentage": 2.9
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Digital Media",
+        "amount": 32,
+        "percentage": 2.8
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Online Marketing",
+        "amount": 159,
+        "percentage": 70.7
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 30,
+        "percentage": 13.3
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 21,
+        "percentage": 9.3
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 16,
+        "percentage": 7.1
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "E-commerce",
+        "amount": 14,
+        "percentage": 6.2
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Online Advertising",
+        "amount": 11,
+        "percentage": 4.9
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Analytics",
+        "amount": 9,
+        "percentage": 4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Web Development",
+        "amount": 9,
+        "percentage": 4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Ads",
+        "amount": 9,
+        "percentage": 4
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Web Design",
+        "amount": 8,
+        "percentage": 3.6
+      }
+    ],
+    "thailand_sub_groups_job_posts_overview": [
+      {
+        "group": "Digital Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 69,
+        "percentage": 11.13
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Ad Serving",
+        "amount": 59,
+        "percentage": 9.52
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 37,
+        "percentage": 5.97
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 32,
+        "percentage": 5.16
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Marketing Campaigns",
+        "amount": 27,
+        "percentage": 4.35
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Web Analytics",
+        "amount": 26,
+        "percentage": 4.19
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Analytics",
+        "amount": 25,
+        "percentage": 4.03
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Ads",
+        "amount": 24,
+        "percentage": 3.87
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Google Analytics",
+        "amount": 24,
+        "percentage": 3.87
+      },
+      {
+        "group": "Digital Marketing ",
+        "skill": "Facebook Ads",
+        "amount": 20,
+        "percentage": 3.23
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "YouTube",
+        "amount": 10,
+        "percentage": 11.76
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 9,
+        "percentage": 10.59
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "E-commerce",
+        "amount": 9,
+        "percentage": 10.59
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Instagram",
+        "amount": 7,
+        "percentage": 8.24
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Social Media Marketing",
+        "amount": 6,
+        "percentage": 7.06
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Analytical Skills",
+        "amount": 6,
+        "percentage": 7.06
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Analytics",
+        "amount": 5,
+        "percentage": 5.88
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Digital Media",
+        "amount": 4,
+        "percentage": 4.71
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Data Analytics",
+        "amount": 4,
+        "percentage": 4.71
+      },
+      {
+        "group": "Social Media Marketing ",
+        "skill": "Web Analytics",
+        "amount": 3,
+        "percentage": 3.5300000000000002
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 15,
+        "percentage": 14.02
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Analytical Skills",
+        "amount": 9,
+        "percentage": 8.41
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engines",
+        "amount": 9,
+        "percentage": 8.41
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Keyword Research",
+        "amount": 7,
+        "percentage": 6.54
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Digital Marketing",
+        "amount": 5,
+        "percentage": 4.67
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Google Analytics",
+        "amount": 5,
+        "percentage": 4.67
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Web Analytics",
+        "amount": 5,
+        "percentage": 4.67
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Analytics",
+        "amount": 5,
+        "percentage": 4.67
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Online Marketing",
+        "amount": 3,
+        "percentage": 2.8
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Off-Page SEO",
+        "amount": 3,
+        "percentage": 2.8
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Landing Pages",
+        "amount": 3,
+        "percentage": 2.8
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Moz",
+        "amount": 3,
+        "percentage": 2.8
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "WordPress",
+        "amount": 2,
+        "percentage": 1.87
+      },
+      {
+        "group": "Search Engine Optimization ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 2,
+        "percentage": 1.87
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Online Marketing",
+        "amount": 31,
+        "percentage": 36.47
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 11,
+        "percentage": 12.94
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "YouTube",
+        "amount": 6,
+        "percentage": 7.06
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Google Ads",
+        "amount": 5,
+        "percentage": 5.88
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Instagram",
+        "amount": 4,
+        "percentage": 4.71
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 3,
+        "percentage": 3.5300000000000002
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 2,
+        "percentage": 2.35
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "E-commerce",
+        "amount": 2,
+        "percentage": 2.35
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Facebook Marketing",
+        "amount": 2,
+        "percentage": 2.35
+      },
+      {
+        "group": "Online Marketing ",
+        "skill": "Analytics",
+        "amount": 2,
+        "percentage": 2.35
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Online Marketing",
+        "amount": 4,
+        "percentage": 25
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 3,
+        "percentage": 18.75
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Google Ads",
+        "amount": 2,
+        "percentage": 12.5
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Pay Per Click (PPC)",
+        "amount": 2,
+        "percentage": 12.5
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Digital Marketing",
+        "amount": 1,
+        "percentage": 6.25
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "E-commerce",
+        "amount": 1,
+        "percentage": 6.25
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Email Marketing",
+        "amount": 1,
+        "percentage": 6.25
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Affiliate Marketing",
+        "amount": 1,
+        "percentage": 6.25
+      },
+      {
+        "group": "Internet Marketing ",
+        "skill": "Web Content",
+        "amount": 1,
+        "percentage": 6.25
+      }
+    ],
+    "common_careers_overview": [
+      {
+        "career": "Digital Marketing Specialist",
+        "amount": 183359,
+        "percentage": 19.8
+      },
+      {
+        "career": "Digital Marketing Manager",
+        "amount": 143628,
+        "percentage": 15.5
+      },
+      {
+        "career": "Social Media Marketing Specialist",
+        "amount": 136209,
+        "percentage": 14.7
+      },
+      {
+        "career": "Search Engine Optimization Specialist",
+        "amount": 128528,
+        "percentage": 13.9
+      },
+      {
+        "career": "Digital Marketing Executive",
+        "amount": 42947,
+        "percentage": 4.6
+      },
+      {
+        "career": "Online Marketing Specialist",
+        "amount": 41763,
+        "percentage": 4.5
+      },
+      {
+        "career": "Digital Marketing Consultant",
+        "amount": 34220,
+        "percentage": 3.7
+      },
+      {
+        "career": "Search Engine Optimization Executive",
+        "amount": 29885,
+        "percentage": 3.2
+      },
+      {
+        "career": "Digital Marketing Intern",
+        "amount": 24493,
+        "percentage": 2.6
+      },
+      {
+        "career": "Social Media Marketing Manager",
+        "amount": 23974,
+        "percentage": 2.6
+      }
+    ],
+    "thailand_common_careers_overview": [
+      {
+        "career": "Digital Marketing Specialist",
+        "amount": 1337,
+        "percentage": 25.5
+      },
+      {
+        "career": "Digital Marketing Manager",
+        "amount": 834,
+        "percentage": 15.9
+      },
+      {
+        "career": "Online Marketing Specialist",
+        "amount": 710,
+        "percentage": 13.5
+      },
+      {
+        "career": "Search Engine Optimization Specialist",
+        "amount": 471,
+        "percentage": 9
+      },
+      {
+        "career": "Social Media Marketing Specialist",
+        "amount": 416,
+        "percentage": 7.9
+      },
+      {
+        "career": "Digital Marketing Executive",
+        "amount": 353,
+        "percentage": 6.7
+      },
+      {
+        "career": "Online Marketing Manager",
+        "amount": 211,
+        "percentage": 4
+      },
+      {
+        "career": "Internet Marketing Specialist",
+        "amount": 178,
+        "percentage": 3.4
+      },
+      {
+        "career": "Digital Marketing Consultant",
+        "amount": 172,
+        "percentage": 3.3
+      },
+      {
+        "career": "Online Marketing Executive",
+        "amount": 85,
+        "percentage": 1.6
+      }
+    ],
+    "job_posts_overview": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 17618,
+        "percentage": 10.04
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 13813,
+        "percentage": 7.87
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 13635,
+        "percentage": 7.77
+      },
+      {
+        "skill": "Analytical Skills",
+        "amount": 11568,
+        "percentage": 6.59
+      },
+      {
+        "skill": "Analytics",
+        "amount": 10681,
+        "percentage": 6.09
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 8466,
+        "percentage": 4.83
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 7843,
+        "percentage": 4.47
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 5342,
+        "percentage": 3.05
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 5095,
+        "percentage": 2.9
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 5026,
+        "percentage": 2.87
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 3972,
+        "percentage": 2.26
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 3795,
+        "percentage": 2.16
+      },
+      {
+        "skill": "Instagram",
+        "amount": 3592,
+        "percentage": 2.05
+      },
+      {
+        "skill": "Pay Per Click (PPC)",
+        "amount": 3198,
+        "percentage": 1.8199999999999998
+      },
+      {
+        "skill": "Email Marketing",
+        "amount": 3178,
+        "percentage": 1.81
+      },
+      {
+        "skill": "Business-to-Business (B2B)",
+        "amount": 2748,
+        "percentage": 1.5699999999999998
+      },
+      {
+        "skill": "Events",
+        "amount": 2701,
+        "percentage": 1.54
+      },
+      {
+        "skill": "Customer Relationship Management (CRM)",
+        "amount": 2507,
+        "percentage": 1.43
+      },
+      {
+        "skill": "Keyword Research",
+        "amount": 2498,
+        "percentage": 1.42
+      },
+      {
+        "skill": "YouTube",
+        "amount": 2252,
+        "percentage": 1.28
+      }
+    ],
+    "thailand_job_posts_overview": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 82,
+        "percentage": 10.53
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 62,
+        "percentage": 7.96
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 57,
+        "percentage": 7.32
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 56,
+        "percentage": 7.19
+      },
+      {
+        "skill": "Analytical Skills",
+        "amount": 47,
+        "percentage": 6.03
+      },
+      {
+        "skill": "Analytics",
+        "amount": 35,
+        "percentage": 4.49
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 32,
+        "percentage": 4.11
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 28,
+        "percentage": 3.59
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 27,
+        "percentage": 3.4699999999999998
+      },
+      {
+        "skill": "Instagram",
+        "amount": 26,
+        "percentage": 3.34
+      },
+      {
+        "skill": "Marketing Campaigns",
+        "amount": 26,
+        "percentage": 3.34
+      },
+      {
+        "skill": "YouTube",
+        "amount": 21,
+        "percentage": 2.7
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 20,
+        "percentage": 2.57
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 20,
+        "percentage": 2.57
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 16,
+        "percentage": 2.05
+      }
+    ],
+    "common_skills_overview": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 553865,
+        "percentage": 59.9
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 376654,
+        "percentage": 40.7
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 315705,
+        "percentage": 34.1
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 211948,
+        "percentage": 22.9
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 158329,
+        "percentage": 17.1
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 154024,
+        "percentage": 16.7
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 139199,
+        "percentage": 15
+      },
+      {
+        "skill": "Email Marketing",
+        "amount": 124297,
+        "percentage": 13.4
+      },
+      {
+        "skill": "Adobe Photoshop",
+        "amount": 119098,
+        "percentage": 12.9
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 113864,
+        "percentage": 12.3
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 109127,
+        "percentage": 11.8
+      },
+      {
+        "skill": "WordPress",
+        "amount": 101903,
+        "percentage": 11
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 98377,
+        "percentage": 10.6
+      },
+      {
+        "skill": "Online Advertising",
+        "amount": 92680,
+        "percentage": 10
+      },
+      {
+        "skill": "Analytics",
+        "amount": 80680,
+        "percentage": 8.7
+      },
+      {
+        "skill": "Graphic Design",
+        "amount": 78838,
+        "percentage": 8.5
+      },
+      {
+        "skill": "Web Design",
+        "amount": 74697,
+        "percentage": 8.1
+      },
+      {
+        "skill": "Instagram",
+        "amount": 71875,
+        "percentage": 7.8
+      },
+      {
+        "skill": "Copywriting",
+        "amount": 70588,
+        "percentage": 7.6
+      },
+      {
+        "skill": "Content Marketing",
+        "amount": 70387,
+        "percentage": 7.6
+      }
+    ],
+    "thailand_common_skills_overview": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 2731,
+        "percentage": 52
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 1586,
+        "percentage": 30.2
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 1318,
+        "percentage": 25.1
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 1227,
+        "percentage": 23.4
+      },
+      {
+        "skill": "Adobe Photoshop",
+        "amount": 749,
+        "percentage": 14.3
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 655,
+        "percentage": 12.5
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 631,
+        "percentage": 12
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 556,
+        "percentage": 10.6
+      },
+      {
+        "skill": "Online Advertising",
+        "amount": 553,
+        "percentage": 10.5
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 551,
+        "percentage": 10.5
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 511,
+        "percentage": 9.7
+      },
+      {
+        "skill": "Content Marketing",
+        "amount": 491,
+        "percentage": 9.4
+      },
+      {
+        "skill": "Graphic Design",
+        "amount": 458,
+        "percentage": 8.7
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 430,
+        "percentage": 8.2
+      },
+      {
+        "skill": "Adobe Illustrator",
+        "amount": 405,
+        "percentage": 7.7
+      },
+      {
+        "skill": "Digital Media",
+        "amount": 358,
+        "percentage": 6.8
+      },
+      {
+        "skill": "Email Marketing",
+        "amount": 336,
+        "percentage": 6.4
+      },
+      {
+        "skill": "Facebook Ads",
+        "amount": 320,
+        "percentage": 6.1
+      },
+      {
+        "skill": "WordPress",
+        "amount": 319,
+        "percentage": 6.1
+      },
+      {
+        "skill": "Facebook Marketing",
+        "amount": 305,
+        "percentage": 5.8
+      }
+    ],
+    "skills_growth_overview": [
+      {
+        "skill": "Instagram Marketing",
+        "percentage": 111.1
+      },
+      {
+        "skill": "Engineering",
+        "percentage": 92.5
+      },
+      {
+        "skill": "Marketing Consulting",
+        "percentage": 82.2
+      },
+      {
+        "skill": "Facebook Ads",
+        "percentage": 68.7
+      },
+      {
+        "skill": "Finance",
+        "percentage": 63.5
+      },
+      {
+        "skill": "Ad Serving",
+        "percentage": 59.4
+      },
+      {
+        "skill": "Off-Page SEO",
+        "percentage": 48
+      },
+      {
+        "skill": "On-Page Optimization",
+        "percentage": 47.2
+      },
+      {
+        "skill": "Information Technology",
+        "percentage": 40.8
+      },
+      {
+        "skill": "Social Media Advertising",
+        "percentage": 39.8
+      },
+      {
+        "skill": "Data Entry",
+        "percentage": 39.3
+      },
+      {
+        "skill": "Facebook Marketing",
+        "percentage": 39.1
+      },
+      {
+        "skill": "Business Planning",
+        "percentage": 35.5
+      },
+      {
+        "skill": "Customer Experience",
+        "percentage": 35.2
+      },
+      {
+        "skill": "SEO Audits",
+        "percentage": 34.1
+      },
+      {
+        "skill": "Events",
+        "percentage": 34
+      },
+      {
+        "skill": "Analytical Skills",
+        "percentage": 34
+      },
+      {
+        "skill": "Creativity Skills",
+        "percentage": 33.9
+      },
+      {
+        "skill": "Video Editing",
+        "percentage": 30.1
+      },
+      {
+        "skill": "Web Content Writing",
+        "percentage": 29.7
+      }
+    ],
+    "thailand_skills_growth_overview": [
+      {
+        "skill": "Data Analytics",
+        "percentage": 203.6
+      },
+      {
+        "skill": "Sales & Marketing",
+        "percentage": 112.5
+      },
+      {
+        "skill": "Finance",
+        "percentage": 111.6
+      },
+      {
+        "skill": "Design",
+        "percentage": 86.8
+      },
+      {
+        "skill": "Online Content Creation",
+        "percentage": 84.2
+      },
+      {
+        "skill": "Ad Serving",
+        "percentage": 81.8
+      },
+      {
+        "skill": "Facebook Ads",
+        "percentage": 71.1
+      },
+      {
+        "skill": "Facebook Ads Manager",
+        "percentage": 67.1
+      },
+      {
+        "skill": "Information Technology",
+        "percentage": 57.1
+      },
+      {
+        "skill": "Marketing Consulting",
+        "percentage": 55.2
+      },
+      {
+        "skill": "Social Media Communications",
+        "percentage": 55.1
+      },
+      {
+        "skill": "Social Media Advertising",
+        "percentage": 52.2
+      },
+      {
+        "skill": "Copywriting",
+        "percentage": 52
+      },
+      {
+        "skill": "Content Strategy",
+        "percentage": 49.7
+      },
+      {
+        "skill": "Analytical Skills",
+        "percentage": 48
+      },
+      {
+        "skill": "Lead Generation",
+        "percentage": 46
+      },
+      {
+        "skill": "Off-Page SEO",
+        "percentage": 44
+      },
+      {
+        "skill": "Video Editing",
+        "percentage": 40
+      },
+      {
+        "skill": "SEO Copywriting",
+        "percentage": 38.8
+      },
+      {
+        "skill": "Content Marketing",
+        "percentage": 38.3
+      }
+    ],
+    "industries_overview": [
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 22.75
+      },
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 10.73
+      },
+      {
+        "industry": "Internet",
+        "percentage": 8.97
+      },
+      {
+        "industry": "Computer Software",
+        "percentage": 3.43
+      },
+      {
+        "industry": "Retail",
+        "percentage": 2.45
+      },
+      {
+        "industry": "Education Management",
+        "percentage": 2.06
+      },
+      {
+        "industry": "Online Media",
+        "percentage": 2.02
+      },
+      {
+        "industry": "Higher Education",
+        "percentage": 1.73
+      },
+      {
+        "industry": "Health, Wellness & Fitness",
+        "percentage": 1.67
+      },
+      {
+        "industry": "Financial Services",
+        "percentage": 1.6600000000000001
+      }
+    ],
+    "industries_job_posts_overview": [
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 14.78
+      },
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 14.06
+      },
+      {
+        "industry": "Staffing & Recruiting",
+        "percentage": 10.82
+      },
+      {
+        "industry": "Internet",
+        "percentage": 8.68
+      },
+      {
+        "industry": "Computer Software",
+        "percentage": 4.26
+      },
+      {
+        "industry": "Human Resources",
+        "percentage": 3.38
+      },
+      {
+        "industry": "Retail",
+        "percentage": 2.68
+      },
+      {
+        "industry": "Financial Services",
+        "percentage": 2.5
+      },
+      {
+        "industry": "Management Consulting",
+        "percentage": 2.05
+      },
+      {
+        "industry": "Real Estate",
+        "percentage": 1.62
+      },
+      {
+        "industry": "Consumer Goods",
+        "percentage": 1.42
+      },
+      {
+        "industry": "Health, Wellness & Fitness",
+        "percentage": 1.37
+      },
+      {
+        "industry": "Hospital & Health Care",
+        "percentage": 1.23
+      },
+      {
+        "industry": "Education Management",
+        "percentage": 1.16
+      },
+      {
+        "industry": "E-learning",
+        "percentage": 1.16
+      }
+    ],
+    "thailand_industries_overview": [
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 20.16
+      },
+      {
+        "industry": "Internet",
+        "percentage": 7.32
+      },
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 6.39
+      },
+      {
+        "industry": "Retail",
+        "percentage": 4.59
+      },
+      {
+        "industry": "Hospitality",
+        "percentage": 3.49
+      },
+      {
+        "industry": "Online Media",
+        "percentage": 3.19
+      },
+      {
+        "industry": "Real Estate",
+        "percentage": 2.85
+      },
+      {
+        "industry": "Consumer Goods",
+        "percentage": 2.07
+      },
+      {
+        "industry": "Entertainment",
+        "percentage": 1.87
+      },
+      {
+        "industry": "Cosmetics",
+        "percentage": 1.8599999999999999
+      }
+    ],
+    "thailand_industries_job_posts_overview": [
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 21
+      },
+      {
+        "industry": "Internet",
+        "percentage": 15
+      },
+      {
+        "industry": "Real Estate",
+        "percentage": 7
+      },
+      {
+        "industry": "Computer Software",
+        "percentage": 7
+      },
+      {
+        "industry": "Staffing & Recruiting",
+        "percentage": 6
+      },
+      {
+        "industry": "Accounting",
+        "percentage": 6
+      },
+      {
+        "industry": "Hospitality",
+        "percentage": 5
+      },
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 4
+      },
+      {
+        "industry": "Financial Services",
+        "percentage": 3
+      },
+      {
+        "industry": "Food & Beverages",
+        "percentage": 3
+      },
+      {
+        "industry": "Consumer Goods",
+        "percentage": 2
+      },
+      {
+        "industry": "Health, Wellness & Fitness",
+        "percentage": 2
+      },
+      {
+        "industry": "E-learning",
+        "percentage": 2
+      },
+      {
+        "industry": "Logistics & Supply Chain",
+        "percentage": 2
+      },
+      {
+        "industry": "Publishing",
+        "percentage": 2
+      }
+    ],
+    "universities_overview": [],
+    "thailand_universities_overview": [
+      {
+        "university": "Chulalongkorn University",
+        "percentage": 9.9
+      },
+      {
+        "university": "Thammasat University",
+        "percentage": 9.8
+      },
+      {
+        "university": "Bangkok University",
+        "percentage": 7.4
+      },
+      {
+        "university": "Kasetsart University",
+        "percentage": 5.82
+      },
+      {
+        "university": "Assumption University",
+        "percentage": 5.13
+      },
+      {
+        "university": "Mahidol University",
+        "percentage": 4.08
+      },
+      {
+        "university": "Ramkhamhaeng University",
+        "percentage": 3.91
+      },
+      {
+        "university": "Srinakharinwirot University",
+        "percentage": 3.7800000000000002
+      },
+      {
+        "university": "Chiang Mai University",
+        "percentage": 3.16
+      },
+      {
+        "university": "Silpakorn University",
+        "percentage": 2.6
+      }
+    ],
+    "counts": {
+      "sample": 949340,
+      "sample_th": 5332,
+      "job_posts_sample": 26005,
+      "job_posts_sample_th": 161
+    }
+  }
+}

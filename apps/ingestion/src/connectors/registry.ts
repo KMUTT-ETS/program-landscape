@@ -11,6 +11,7 @@ import {
   KkuHrConnector,
   KkuRegistryConnector,
   KkuResearchConnector,
+  KmitlSkillMappingConnector,
   MhesiCisaConnector,
   OpenAlexConnector,
   ScopusConnector,
@@ -20,6 +21,7 @@ import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
 import { KkuResearchRealConnector } from './sources/kku-research';
+import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
 import {
   AdbGmsConnector,
   BoiSectoralConnector,
@@ -94,6 +96,13 @@ const ENTRIES: readonly ConnectorEntry[] = [
 
   // National Thai (API) ──────────────────────────────────────────────
   { slug: 'mhesi-cisa',         mock: () => new MhesiCisaConnector() },
+  {
+    slug: 'kmitl-skill-mapping',
+    mock: () => new KmitlSkillMappingConnector(),
+    real: () => new KmitlSkillMappingRealConnector(),
+  },
+  // Deprecated — kept so historical IngestionRun rows don't orphan.
+  // Scheduler skips them via DataSource.scheduleEnabled=false (set in seed).
   { slug: 'jobthai',            mock: () => new JobThaiConnector() },
   { slug: 'jobsdb',             mock: () => new JobsDbConnector() },
 

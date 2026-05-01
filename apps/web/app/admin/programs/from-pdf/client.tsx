@@ -32,7 +32,7 @@ interface CollisionMatch {
   code: string;
   nameTh: string;
   nameEn: string;
-  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
   status: string;
   reasons: Array<
     'same_code' | 'same_name_th' | 'same_name_en' | 'same_degree_same_department'
@@ -57,7 +57,7 @@ interface Extraction {
     programNameEn?: string;
     facultyNameTh?: string;
     departmentNameTh?: string;
-    level?: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+    level?: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
     totalCredits?: number;
     durationYears?: number;
     curriculumYear?: number;
@@ -351,7 +351,7 @@ function FillStep({
     nameEn: payload.programNameEn ?? '',
     facultyId: matchFacultyId(payload.facultyNameTh, faculties) ?? '',
     departmentId: '',
-    level: (payload.level ?? 'BACHELOR') as 'BACHELOR' | 'MASTER' | 'DOCTORAL',
+    level: (payload.level ?? 'BACHELOR') as 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
     yearEstablished: '',
   }));
 

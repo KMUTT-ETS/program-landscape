@@ -34,8 +34,18 @@ export const GapFilterSchema = z.object({
   horizon: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10)]).default(0),
   comparison: z.enum(['absolute', 'per-capita', 'growth-adjusted']).default('absolute'),
   limit: z.number().int().min(1).max(200).default(30),
+  // Demand source for skill-gap computation. Default 'auto' picks 'kmitl'
+  // when KmitlCareerSkillDemand has rows, else 'job_postings' (mock seed).
+  // 'blended' weighs both 0.5/0.5 — analyst exploration only, not Council-
+  // facing. Added 2026-05-01 with the kmitl-skill-mapping connector.
+  demandSource: z.enum(['auto', 'job_postings', 'kmitl', 'blended']).default('auto'),
 });
+// Output type (post-parse, defaults applied). Used internally + as the
+// shape returned from helpers. Public callers can pass GapFilterInput
+// (any field optional — defaults fill in) and receive a normalised
+// GapFilter back via the schema.parse(filter) at function entry.
 export type GapFilter = z.infer<typeof GapFilterSchema>;
+export type GapFilterInput = z.input<typeof GapFilterSchema>;
 
 // ── Skill gap ────────────────────────────────────────────────────────
 export interface SkillGapRow {
@@ -60,7 +70,7 @@ export interface SkillGapResult {
   lowConfidenceReason: string | null;
 }
 
-export async function computeSkillGap(filter: GapFilter): Promise<SkillGapResult> {
+export async function computeSkillGap(filter: GapFilterInput): Promise<SkillGapResult> {
   const f = GapFilterSchema.parse(filter);
 
   // Scope filter for supply side — faculty/department/program restrict
@@ -69,29 +79,16 @@ export async function computeSkillGap(filter: GapFilter): Promise<SkillGapResult
   // internal org).
   const programIds = await programIdsForScope(f.scope, f.scopeId);
 
+  // Demand source resolution. 'auto' picks kmitl when its tables have rows,
+  // else falls back to job_postings (which today is the mock seed).
+  const resolvedSource = await resolveDemandSource(f.demandSource);
+
   // Demand: JobPostingSkill × JobPosting in region + recency window.
   // Window = 12 months back for horizon=0, else we use the forecast.
   const demandWindowStart = new Date();
   demandWindowStart.setFullYear(demandWindowStart.getFullYear() - 1);
 
-  const demandRows = await prisma.$queryRaw<
-    {
-      skill_id: string;
-      demand: number;
-      top_employers: string[];
-    }[]
-  >(Prisma.sql`
-    SELECT
-      jps.skill_id,
-      SUM(jps.weight)::float AS demand,
-      (ARRAY_AGG(DISTINCT jp.employer_name) FILTER (WHERE jp.employer_name IS NOT NULL))[1:3]
-        AS top_employers
-    FROM job_posting_skills jps
-    JOIN job_postings jp ON jp.id = jps.job_posting_id
-    WHERE jp.posted_date >= ${demandWindowStart}
-      ${regionFilterClause(f.region, 'jp.province')}
-    GROUP BY jps.skill_id
-  `);
+  const demandRows = await fetchDemandRows(resolvedSource, demandWindowStart, f);
 
   // Supply: ProgramSkill weights × graduate counts at the program.
   // Uses latest enrollment_metrics.graduated_on_time as per-year supply.
@@ -163,10 +160,12 @@ export async function computeSkillGap(filter: GapFilter): Promise<SkillGapResult
 
   const lowConfidenceReason =
     demandRows.length === 0 && supplyRows.length === 0
-      ? 'No demand or supply signal yet — job-posting connectors are mocked until prompt 14.'
+      ? `No demand or supply signal yet (demandSource=${resolvedSource}).`
       : demandRows.length === 0
-        ? 'Demand side empty (JobThai/JobsDB connectors mocked) — only supply counts are live.'
-        : null;
+        ? `Demand side empty (demandSource=${resolvedSource}) — only supply counts are live.`
+        : resolvedSource === 'job_postings' && (await kmitlDemandHasRows())
+          ? 'Using legacy job_postings source while kmitl-skill-mapping clears its 30-day green-history gate.'
+          : null;
 
   return {
     filter: f,
@@ -175,6 +174,95 @@ export async function computeSkillGap(filter: GapFilter): Promise<SkillGapResult
     asOf: new Date().toISOString(),
     lowConfidenceReason,
   };
+}
+
+// ── Demand-source resolution + alternate fetchers ────────────────────────
+
+type ResolvedDemandSource = 'job_postings' | 'kmitl' | 'blended';
+
+async function resolveDemandSource(
+  source: GapFilter['demandSource'],
+): Promise<ResolvedDemandSource> {
+  if (source === 'auto') {
+    return (await kmitlDemandHasRows()) ? 'kmitl' : 'job_postings';
+  }
+  return source;
+}
+
+async function kmitlDemandHasRows(): Promise<boolean> {
+  const n = await prisma.kmitlCareerSkillDemand.count({
+    where: { dataScope: 'THAILAND', dataSource: 'JOB_POSTINGS' },
+    take: 1,
+  });
+  return n > 0;
+}
+
+interface DemandRow {
+  skill_id: string;
+  demand: number;
+  top_employers: string[];
+}
+
+async function fetchDemandRows(
+  source: ResolvedDemandSource,
+  windowStart: Date,
+  f: GapFilter,
+): Promise<DemandRow[]> {
+  if (source === 'job_postings') {
+    return prisma.$queryRaw<DemandRow[]>(Prisma.sql`
+      SELECT
+        jps.skill_id,
+        SUM(jps.weight)::float AS demand,
+        (ARRAY_AGG(DISTINCT jp.employer_name) FILTER (WHERE jp.employer_name IS NOT NULL))[1:3]
+          AS top_employers
+      FROM job_posting_skills jps
+      JOIN job_postings jp ON jp.id = jps.job_posting_id
+      WHERE jp.posted_date >= ${windowStart}
+        ${regionFilterClause(f.region, 'jp.province')}
+      GROUP BY jps.skill_id
+    `);
+  }
+
+  // KMITL demand: aggregate percentage across all careers in the THAILAND ×
+  // JOB_POSTINGS scope, latest snapshot. `demand` is the SUM of percentage
+  // values — analogous to "total weight" in the job_postings pathway.
+  // `top_employers` is empty (KMITL is aggregate-only, no employer names);
+  // we surface KMITL career names instead via top_employers.
+  const kmitlRows = await prisma.$queryRaw<DemandRow[]>(Prisma.sql`
+    SELECT
+      d.skill_id,
+      SUM(d.percentage)::float AS demand,
+      (ARRAY_AGG(c.career_name ORDER BY d.percentage DESC))[1:3] AS top_employers
+    FROM kmitl_career_skill_demands d
+    JOIN kmitl_careers c ON c.id = d.career_id
+    WHERE d.skill_id IS NOT NULL
+      AND d.data_scope = 'THAILAND'
+      AND d.data_source = 'JOB_POSTINGS'
+    GROUP BY d.skill_id
+  `);
+
+  if (source === 'kmitl') return kmitlRows;
+
+  // Blended: 0.5 × job_postings + 0.5 × kmitl (normalised independently to
+  // their own max, then summed). Analyst exploration only.
+  const jpRows = await fetchDemandRows('job_postings', windowStart, f);
+  const jpMax = Math.max(...jpRows.map((r) => r.demand), 1);
+  const kmitlMax = Math.max(...kmitlRows.map((r) => r.demand), 1);
+  const merged = new Map<string, DemandRow>();
+  for (const r of jpRows) {
+    merged.set(r.skill_id, { ...r, demand: (r.demand / jpMax) * 50 });
+  }
+  for (const r of kmitlRows) {
+    const existing = merged.get(r.skill_id);
+    const scaled = (r.demand / kmitlMax) * 50;
+    if (existing) {
+      existing.demand += scaled;
+      existing.top_employers = [...new Set([...existing.top_employers, ...r.top_employers])].slice(0, 3);
+    } else {
+      merged.set(r.skill_id, { ...r, demand: scaled });
+    }
+  }
+  return [...merged.values()];
 }
 
 // ── Occupation gap ───────────────────────────────────────────────────
@@ -202,7 +290,7 @@ export interface OccupationGapResult {
   lowConfidenceReason: string | null;
 }
 
-export async function computeOccupationGap(filter: GapFilter): Promise<OccupationGapResult> {
+export async function computeOccupationGap(filter: GapFilterInput): Promise<OccupationGapResult> {
   const f = GapFilterSchema.parse(filter);
 
   const latest = await prisma.occupationDemand.findMany({
@@ -281,7 +369,7 @@ export interface SectorGapResult {
   asOf: string;
 }
 
-export async function computeSectorGap(filter: GapFilter): Promise<SectorGapResult> {
+export async function computeSectorGap(filter: GapFilterInput): Promise<SectorGapResult> {
   const f = GapFilterSchema.parse(filter);
 
   const sectors = await prisma.sector.findMany({
@@ -382,7 +470,7 @@ export interface RegionalGapResult {
   lowConfidenceReason: string | null;
 }
 
-export async function computeRegionalGap(filter: GapFilter): Promise<RegionalGapResult> {
+export async function computeRegionalGap(filter: GapFilterInput): Promise<RegionalGapResult> {
   const f = GapFilterSchema.parse(filter);
   // Demand by province from OccupationDemand (last 12 months).
   const now = new Date();
@@ -451,7 +539,7 @@ export interface OpportunityResult {
   asOf: string;
 }
 
-export async function computeOpportunities(filter: GapFilter): Promise<OpportunityResult> {
+export async function computeOpportunities(filter: GapFilterInput): Promise<OpportunityResult> {
   const f = GapFilterSchema.parse(filter);
   const gap = await computeSkillGap({ ...f, limit: 200 });
   // Underserved = positive gap + demand > small threshold + existing supply zero or tiny.
@@ -500,7 +588,7 @@ export interface RiskResult {
   lowConfidenceReason: string | null;
 }
 
-export async function computeRisks(filter: GapFilter): Promise<RiskResult> {
+export async function computeRisks(filter: GapFilterInput): Promise<RiskResult> {
   const f = GapFilterSchema.parse(filter);
   const programIds = await programIdsForScope(f.scope, f.scopeId);
   const programs = await prisma.program.findMany({

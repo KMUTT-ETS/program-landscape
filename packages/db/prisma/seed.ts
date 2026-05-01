@@ -1048,6 +1048,7 @@ async function main() {
   // that one list, so there is no drift.
   const { SOURCE_CATALOG } = await import('@kku/shared');
   for (const entry of SOURCE_CATALOG) {
+    const scheduleEnabled = entry.deprecated ? false : (entry.scheduleEnabled ?? true);
     await prisma.dataSource.upsert({
       where: { slug: entry.slug },
       update: {
@@ -1057,6 +1058,7 @@ async function main() {
         acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
         baseUrl: entry.baseUrl ?? null,
         cadenceCron: entry.cadenceCron ?? null,
+        scheduleEnabled,
         ownerContact: entry.ownerContact ?? null,
         notes: entry.notes ?? null,
       },
@@ -1068,7 +1070,7 @@ async function main() {
         acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
         baseUrl: entry.baseUrl ?? null,
         cadenceCron: entry.cadenceCron ?? null,
-        scheduleEnabled: entry.scheduleEnabled ?? true,
+        scheduleEnabled,
         ownerContact: entry.ownerContact ?? null,
         notes: entry.notes ?? null,
         status: entry.mocked ? 'mocked' : 'active',

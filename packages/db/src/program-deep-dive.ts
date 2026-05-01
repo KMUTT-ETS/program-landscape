@@ -25,7 +25,7 @@ export interface ProgramOverviewResult {
     code: string;
     nameEn: string;
     nameTh: string;
-    level: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+    level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
     status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
     yearEstablished: number | null;
     faculty: { id: string; nameEn: string; nameTh: string };
@@ -61,7 +61,7 @@ export interface ProgramPeersResult {
     institution: string;
     country: string;
     programName: string;
-    programLevel: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+    programLevel: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
     ranking: number | null;
     descriptionUrl: string | null;
   }>;

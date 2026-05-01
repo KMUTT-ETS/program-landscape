@@ -1,0 +1,582 @@
+[
+  {
+    "id": 1,
+    "name": "Marketing & Advertising"
+  },
+  {
+    "id": 2,
+    "name": "Information Technology & Services"
+  },
+  {
+    "id": 3,
+    "name": "Internet"
+  },
+  {
+    "id": 4,
+    "name": "Computer Software"
+  },
+  {
+    "id": 5,
+    "name": "Education Management"
+  },
+  {
+    "id": 6,
+    "name": "Retail"
+  },
+  {
+    "id": 7,
+    "name": "E-learning"
+  },
+  {
+    "id": 8,
+    "name": "Financial Services"
+  },
+  {
+    "id": 9,
+    "name": "Real Estate"
+  },
+  {
+    "id": 10,
+    "name": "Health, Wellness & Fitness"
+  },
+  {
+    "id": 11,
+    "name": "Hospitality"
+  },
+  {
+    "id": 12,
+    "name": "Consumer Goods"
+  },
+  {
+    "id": 13,
+    "name": "Online Media"
+  },
+  {
+    "id": 14,
+    "name": "Automotive"
+  },
+  {
+    "id": 15,
+    "name": "Higher Education"
+  },
+  {
+    "id": 16,
+    "name": "Non-profit Organization Management"
+  },
+  {
+    "id": 17,
+    "name": "Entertainment"
+  },
+  {
+    "id": 18,
+    "name": "Food & Beverages"
+  },
+  {
+    "id": 19,
+    "name": "Management Consulting"
+  },
+  {
+    "id": 20,
+    "name": "Outsourcing/Offshoring"
+  },
+  {
+    "id": 21,
+    "name": "Hospital & Health Care"
+  },
+  {
+    "id": 22,
+    "name": "Airlines/Aviation"
+  },
+  {
+    "id": 23,
+    "name": "Cosmetics"
+  },
+  {
+    "id": 24,
+    "name": "Insurance"
+  },
+  {
+    "id": 25,
+    "name": "Apparel & Fashion"
+  },
+  {
+    "id": 26,
+    "name": "Public Relations & Communications"
+  },
+  {
+    "id": 27,
+    "name": "Sports"
+  },
+  {
+    "id": 28,
+    "name": "Design"
+  },
+  {
+    "id": 29,
+    "name": "Telecommunications"
+  },
+  {
+    "id": 30,
+    "name": "Computer Networking"
+  },
+  {
+    "id": 31,
+    "name": "Business Supplies & Equipment"
+  },
+  {
+    "id": 32,
+    "name": "Market Research"
+  },
+  {
+    "id": 33,
+    "name": "Publishing"
+  },
+  {
+    "id": 34,
+    "name": "Media Production"
+  },
+  {
+    "id": 35,
+    "name": "Computer Hardware"
+  },
+  {
+    "id": 36,
+    "name": "Legal Services"
+  },
+  {
+    "id": 37,
+    "name": "Building Materials"
+  },
+  {
+    "id": 38,
+    "name": "Packaging & Containers"
+  },
+  {
+    "id": 39,
+    "name": "Writing & Editing"
+  },
+  {
+    "id": 40,
+    "name": "Human Resources"
+  },
+  {
+    "id": 41,
+    "name": "Program Development"
+  },
+  {
+    "id": 42,
+    "name": "Fine Art"
+  },
+  {
+    "id": 43,
+    "name": "Executive Office"
+  },
+  {
+    "id": 44,
+    "name": "Accounting"
+  },
+  {
+    "id": 45,
+    "name": "Luxury Goods & Jewelry"
+  },
+  {
+    "id": 46,
+    "name": "Leisure, Travel & Tourism"
+  },
+  {
+    "id": 47,
+    "name": "Wholesale"
+  },
+  {
+    "id": 48,
+    "name": "Gambling & Casinos"
+  },
+  {
+    "id": 49,
+    "name": "Music"
+  },
+  {
+    "id": 50,
+    "name": "Primary/Secondary Education"
+  },
+  {
+    "id": 51,
+    "name": "Logistics & Supply Chain"
+  },
+  {
+    "id": 52,
+    "name": "Government Administration"
+  },
+  {
+    "id": 53,
+    "name": "Computer Games"
+  },
+  {
+    "id": 54,
+    "name": "Professional Training & Coaching"
+  },
+  {
+    "id": 55,
+    "name": "Staffing & Recruiting"
+  },
+  {
+    "id": 56,
+    "name": "Electrical & Electronic Manufacturing"
+  },
+  {
+    "id": 57,
+    "name": "Import & Export"
+  },
+  {
+    "id": 58,
+    "name": "Construction"
+  },
+  {
+    "id": 59,
+    "name": "Supermarkets"
+  },
+  {
+    "id": 60,
+    "name": "Military"
+  },
+  {
+    "id": 61,
+    "name": "Consumer Electronics"
+  },
+  {
+    "id": 62,
+    "name": "Farming"
+  },
+  {
+    "id": 63,
+    "name": "Architecture & Planning"
+  },
+  {
+    "id": 64,
+    "name": "Food Production"
+  },
+  {
+    "id": 65,
+    "name": "Ranching"
+  },
+  {
+    "id": 66,
+    "name": "Environmental Services"
+  },
+  {
+    "id": 67,
+    "name": "Dairy"
+  },
+  {
+    "id": 68,
+    "name": "Fishery"
+  },
+  {
+    "id": 69,
+    "name": "Maritime"
+  },
+  {
+    "id": 70,
+    "name": "Research"
+  },
+  {
+    "id": 71,
+    "name": "Museums & Institutions"
+  },
+  {
+    "id": 72,
+    "name": "Chemicals"
+  },
+  {
+    "id": 73,
+    "name": "Facilities Services"
+  },
+  {
+    "id": 74,
+    "name": "Consumer Services"
+  },
+  {
+    "id": 75,
+    "name": "Civil Engineering"
+  },
+  {
+    "id": 76,
+    "name": "Arts & Crafts"
+  },
+  {
+    "id": 77,
+    "name": "Events Services"
+  },
+  {
+    "id": 78,
+    "name": "Veterinary"
+  },
+  {
+    "id": 79,
+    "name": "Biotechnology"
+  },
+  {
+    "id": 80,
+    "name": "Restaurants"
+  },
+  {
+    "id": 81,
+    "name": "International Trade & Development"
+  },
+  {
+    "id": 82,
+    "name": "Banking"
+  },
+  {
+    "id": 83,
+    "name": "Wine & Spirits"
+  },
+  {
+    "id": 84,
+    "name": "Animation"
+  },
+  {
+    "id": 85,
+    "name": "Oil & Energy"
+  },
+  {
+    "id": 86,
+    "name": "Utilities"
+  },
+  {
+    "id": 87,
+    "name": "Aviation & Aerospace"
+  },
+  {
+    "id": 88,
+    "name": "Semiconductors"
+  },
+  {
+    "id": 89,
+    "name": "Think Tanks"
+  },
+  {
+    "id": 90,
+    "name": "Photography"
+  },
+  {
+    "id": 91,
+    "name": "Renewables & Environment"
+  },
+  {
+    "id": 92,
+    "name": "Paper & Forest Products"
+  },
+  {
+    "id": 93,
+    "name": "Mechanical Or Industrial Engineering"
+  },
+  {
+    "id": 94,
+    "name": "Government Relations"
+  },
+  {
+    "id": 95,
+    "name": "Industrial Automation"
+  },
+  {
+    "id": 96,
+    "name": "International Affairs"
+  },
+  {
+    "id": 97,
+    "name": "Textiles"
+  },
+  {
+    "id": 98,
+    "name": "Graphic Design"
+  },
+  {
+    "id": 99,
+    "name": "Commercial Real Estate"
+  },
+  {
+    "id": 100,
+    "name": "Capital Markets"
+  },
+  {
+    "id": 101,
+    "name": "Newspapers"
+  },
+  {
+    "id": 102,
+    "name": "Recreational Facilities & Services"
+  },
+  {
+    "id": 103,
+    "name": "Individual & Family Services"
+  },
+  {
+    "id": 104,
+    "name": "Medical Practice"
+  },
+  {
+    "id": 105,
+    "name": "Medical Device"
+  },
+  {
+    "id": 106,
+    "name": "Alternative Medicine"
+  },
+  {
+    "id": 107,
+    "name": "Civic & Social Organization"
+  },
+  {
+    "id": 108,
+    "name": "Transportation/Trucking/Railroad"
+  },
+  {
+    "id": 109,
+    "name": "Mental Health Care"
+  },
+  {
+    "id": 110,
+    "name": "Broadcast Media"
+  },
+  {
+    "id": 116,
+    "name": "Defense & Space"
+  },
+  {
+    "id": 117,
+    "name": "Pharmaceuticals"
+  },
+  {
+    "id": 118,
+    "name": "Plastics"
+  },
+  {
+    "id": 119,
+    "name": "Legislative Office"
+  },
+  {
+    "id": 120,
+    "name": "Information Services"
+  },
+  {
+    "id": 121,
+    "name": "Investment Banking"
+  },
+  {
+    "id": 122,
+    "name": "Translation & Localization"
+  },
+  {
+    "id": 123,
+    "name": "Printing"
+  },
+  {
+    "id": 124,
+    "name": "Performing Arts"
+  },
+  {
+    "id": 125,
+    "name": "Shipbuilding"
+  },
+  {
+    "id": 126,
+    "name": "Investment Management"
+  },
+  {
+    "id": 127,
+    "name": "Law Enforcement"
+  },
+  {
+    "id": 128,
+    "name": "Furniture"
+  },
+  {
+    "id": 129,
+    "name": "Sporting Goods"
+  },
+  {
+    "id": 130,
+    "name": "Philanthropy"
+  },
+  {
+    "id": 131,
+    "name": "Computer & Network Security"
+  },
+  {
+    "id": 132,
+    "name": "Security & Investigations"
+  },
+  {
+    "id": 133,
+    "name": "Warehousing"
+  },
+  {
+    "id": 134,
+    "name": "Alternative Dispute Resolution"
+  },
+  {
+    "id": 135,
+    "name": "Mining & Metals"
+  },
+  {
+    "id": 136,
+    "name": "Law Practice"
+  },
+  {
+    "id": 137,
+    "name": "Libraries"
+  },
+  {
+    "id": 138,
+    "name": "Public Policy"
+  },
+  {
+    "id": 139,
+    "name": "Wireless"
+  },
+  {
+    "id": 140,
+    "name": "Machinery"
+  },
+  {
+    "id": 141,
+    "name": "Motion Pictures & Film"
+  },
+  {
+    "id": 142,
+    "name": "Judiciary"
+  },
+  {
+    "id": 143,
+    "name": "Venture Capital & Private Equity"
+  },
+  {
+    "id": 144,
+    "name": "Political Organization"
+  },
+  {
+    "id": 145,
+    "name": "Conservation Programs"
+  },
+  {
+    "id": 146,
+    "name": "Paper and Forest Product Manufacturing"
+  },
+  {
+    "id": 147,
+    "name": "Non-profit Organizations"
+  },
+  {
+    "id": 148,
+    "name": "Forestry and Logging"
+  },
+  {
+    "id": 149,
+    "name": "Farming, Ranching, Forestry"
+  },
+  {
+    "id": 150,
+    "name": "Mining"
+  }
+]

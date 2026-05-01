@@ -64,3 +64,6 @@ apps/web/public/pdf.worker.*.mjs
 # Claude Code per-session state (schedules, local overrides).
 .claude/
 
+
+# Bulk-digest run logs (per-run artifacts, not source-of-truth)
+logs/

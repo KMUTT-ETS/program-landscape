@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "name": "Digital Marketing"
+  },
+  {
+    "id": 3,
+    "name": "Smart Farmer"
+  },
+  {
+    "id": 5,
+    "name": "Tour&Travel"
+  },
+  {
+    "id": 7,
+    "name": "Health Science"
+  },
+  {
+    "id": 8,
+    "name": "Architecture"
+  },
+  {
+    "id": 9,
+    "name": "Arts"
+  },
+  {
+    "id": 12,
+    "name": "Food"
+  },
+  {
+    "id": 14,
+    "name": "Business"
+  },
+  {
+    "id": 15,
+    "name": "IT"
+  },
+  {
+    "id": 16,
+    "name": "Science"
+  },
+  {
+    "id": 17,
+    "name": "Social Science"
+  },
+  {
+    "id": 18,
+    "name": "Teacher"
+  },
+  {
+    "id": 19,
+    "name": "Engineer"
+  },
+  {
+    "id": 20,
+    "name": "New S Curve"
+  }
+]

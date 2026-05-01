@@ -6,7 +6,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { Prisma, prisma } from '@kku/db';
+import { Prisma, prisma, materialiseProgramDigest } from '@kku/db';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import {
@@ -99,12 +99,31 @@ export class AiAdminController {
     if (body.editedPayload) {
       update.payloadJson = body.editedPayload as Prisma.InputJsonValue;
     }
-    return prisma.aiExtraction.update({ where: { id }, data: update });
-    // Materialisation into CourseSkill / etc. lives in a post-approval
-    // handler invoked by the ai-jobs worker when prompt 04 goes live
-    // with real LLM outputs. The scaffold is here; the materialisation
-    // body lands once we see what approved extractions actually look
-    // like — see CLAUDE.md "Deferred" notes.
+    const updated = await prisma.aiExtraction.update({ where: { id }, data: update });
+
+    // Post-approval materialisation. PROGRAM_DIGEST writes through to
+    // Program columns + ProgramSkill rows; unmatched skill names land
+    // as PROPOSED_SKILL extractions for analyst follow-up. Other
+    // extractionKinds keep the deferred-scaffold posture for now.
+    if (updated.extractionKind === 'PROGRAM_DIGEST') {
+      try {
+        const result = await materialiseProgramDigest(id);
+        return {
+          ...updated,
+          materialisation: result,
+        };
+      } catch (err) {
+        // Don't unwind the approval — materialisation can be retried.
+        // The error surfaces in the API response so the reviewer can
+        // re-trigger via the admin UI's "Re-materialise" action (lands
+        // in Phase 4.2 alongside the per-program detail page).
+        return {
+          ...updated,
+          materialisationError: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
+    return updated;
   }
 
   @Post('extractions/:id/reject')

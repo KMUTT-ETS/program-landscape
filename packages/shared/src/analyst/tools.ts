@@ -26,7 +26,7 @@ const ScopeSchema = z.object({
 export const QueryProgramsInputSchema = z.object({
   ...ScopeSchema.shape,
   status: z.enum(['ACTIVE', 'PAUSED', 'SUNSET']).optional(),
-  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']).optional(),
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).optional(),
   limit: z.number().int().min(1).max(50).default(10),
   sortBy: z.enum(['name', 'healthScore', 'enrollment', 'netContribution']).default('name'),
 });

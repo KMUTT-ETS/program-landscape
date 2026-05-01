@@ -51,6 +51,7 @@ const LEVEL_TH: Record<ProgramLevel, string> = {
   BACHELOR: 'ปริญญาตรี',
   MASTER: 'ปริญญาโท',
   DOCTORAL: 'ปริญญาเอก',
+  HIGHER_GRAD_DIPLOMA: 'ประกาศนียบัตรบัณฑิตชั้นสูง',
 };
 
 interface Q1Row {

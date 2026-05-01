@@ -1,0 +1,986 @@
+{
+  "careerId": 1,
+  "careerName": "Digital Marketing Consultant",
+  "payload": {
+    "id": 1,
+    "name": "Digital Marketing Consultant",
+    "sub_groups": [
+      {
+        "id": 1,
+        "name": "Digital Marketing "
+      }
+    ],
+    "skills": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 32590,
+        "percentage": 95.3
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 15340,
+        "percentage": 44.9
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 14725,
+        "percentage": 43.1
+      },
+      {
+        "skill": "Marketing Consulting",
+        "amount": 11963,
+        "percentage": 35
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 11527,
+        "percentage": 33.7
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 10313,
+        "percentage": 30.2
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 10289,
+        "percentage": 30.1
+      },
+      {
+        "skill": "Email Marketing",
+        "amount": 9630,
+        "percentage": 28.2
+      },
+      {
+        "skill": "Online Advertising",
+        "amount": 8564,
+        "percentage": 25
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 8537,
+        "percentage": 25
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 8314,
+        "percentage": 24.3
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 8183,
+        "percentage": 23.9
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 8016,
+        "percentage": 23.4
+      },
+      {
+        "skill": "Analytics",
+        "amount": 6487,
+        "percentage": 19
+      },
+      {
+        "skill": "WordPress",
+        "amount": 6043,
+        "percentage": 17.7
+      },
+      {
+        "skill": "Digital Strategy",
+        "amount": 6035,
+        "percentage": 17.6
+      },
+      {
+        "skill": "Adobe Photoshop",
+        "amount": 5446,
+        "percentage": 15.9
+      },
+      {
+        "skill": "Web Design",
+        "amount": 5344,
+        "percentage": 15.6
+      },
+      {
+        "skill": "Digital Media",
+        "amount": 5211,
+        "percentage": 15.2
+      },
+      {
+        "skill": "Content Marketing",
+        "amount": 5199,
+        "percentage": 15.2
+      }
+    ],
+    "thailand_skills": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 147,
+        "percentage": 85.5
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 70,
+        "percentage": 40.7
+      },
+      {
+        "skill": "Marketing Consulting",
+        "amount": 57,
+        "percentage": 33.1
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 55,
+        "percentage": 32
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 51,
+        "percentage": 29.7
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 51,
+        "percentage": 29.7
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 40,
+        "percentage": 23.3
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 39,
+        "percentage": 22.7
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 36,
+        "percentage": 20.9
+      },
+      {
+        "skill": "Online Advertising",
+        "amount": 35,
+        "percentage": 20.3
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 34,
+        "percentage": 19.8
+      },
+      {
+        "skill": "Digital Strategy",
+        "amount": 31,
+        "percentage": 18
+      },
+      {
+        "skill": "Adobe Photoshop",
+        "amount": 29,
+        "percentage": 16.9
+      },
+      {
+        "skill": "Digital Media",
+        "amount": 28,
+        "percentage": 16.3
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 27,
+        "percentage": 15.7
+      },
+      {
+        "skill": "Customer Relationship Management (CRM)",
+        "amount": 25,
+        "percentage": 14.5
+      },
+      {
+        "skill": "Content Marketing",
+        "amount": 24,
+        "percentage": 14
+      },
+      {
+        "skill": "Facebook Ads",
+        "amount": 22,
+        "percentage": 12.8
+      },
+      {
+        "skill": "Facebook Marketing",
+        "amount": 22,
+        "percentage": 12.8
+      },
+      {
+        "skill": "Web Development",
+        "amount": 22,
+        "percentage": 12.8
+      }
+    ],
+    "skills_job_posts": [
+      {
+        "skill": "Digital Marketing",
+        "amount": 355,
+        "percentage": 13.3
+      },
+      {
+        "skill": "Ad Serving",
+        "amount": 268,
+        "percentage": 10.04
+      },
+      {
+        "skill": "Marketing Consulting",
+        "amount": 263,
+        "percentage": 9.85
+      },
+      {
+        "skill": "Analytical Skills",
+        "amount": 135,
+        "percentage": 5.06
+      },
+      {
+        "skill": "Analytics",
+        "amount": 123,
+        "percentage": 4.61
+      },
+      {
+        "skill": "Search Engine Optimization (SEO)",
+        "amount": 113,
+        "percentage": 4.23
+      },
+      {
+        "skill": "Web Analytics",
+        "amount": 83,
+        "percentage": 3.11
+      },
+      {
+        "skill": "Google Analytics",
+        "amount": 80,
+        "percentage": 3
+      },
+      {
+        "skill": "Google Ads",
+        "amount": 79,
+        "percentage": 2.96
+      },
+      {
+        "skill": "Online Marketing",
+        "amount": 78,
+        "percentage": 2.92
+      },
+      {
+        "skill": "Online Advertising",
+        "amount": 71,
+        "percentage": 2.66
+      },
+      {
+        "skill": "Pay Per Click (PPC)",
+        "amount": 68,
+        "percentage": 2.55
+      },
+      {
+        "skill": "Data Analysis",
+        "amount": 66,
+        "percentage": 2.4699999999999998
+      },
+      {
+        "skill": "E-commerce",
+        "amount": 49,
+        "percentage": 1.8399999999999999
+      },
+      {
+        "skill": "Search Engine Marketing (SEM)",
+        "amount": 49,
+        "percentage": 1.8399999999999999
+      },
+      {
+        "skill": "Customer Relationship Management (CRM)",
+        "amount": 48,
+        "percentage": 1.8
+      },
+      {
+        "skill": "Business-to-Business (B2B)",
+        "amount": 48,
+        "percentage": 1.8
+      },
+      {
+        "skill": "Customer Experience",
+        "amount": 46,
+        "percentage": 1.72
+      },
+      {
+        "skill": "Digital Strategy",
+        "amount": 44,
+        "percentage": 1.65
+      },
+      {
+        "skill": "Content Management Systems (CMS)",
+        "amount": 43,
+        "percentage": 1.6099999999999999
+      },
+      {
+        "skill": "Events",
+        "amount": 39,
+        "percentage": 1.46
+      },
+      {
+        "skill": "Email Marketing",
+        "amount": 36,
+        "percentage": 1.35
+      },
+      {
+        "skill": "User Experience (UX)",
+        "amount": 33,
+        "percentage": 1.24
+      },
+      {
+        "skill": "Vestibular",
+        "amount": 33,
+        "percentage": 1.24
+      },
+      {
+        "skill": "Consulting",
+        "amount": 29,
+        "percentage": 1.09
+      },
+      {
+        "skill": "Salesforce.com",
+        "amount": 26,
+        "percentage": 0.97
+      },
+      {
+        "skill": "Content Marketing",
+        "amount": 25,
+        "percentage": 0.94
+      },
+      {
+        "skill": "Digital Media",
+        "amount": 23,
+        "percentage": 0.86
+      },
+      {
+        "skill": "Lead Generation",
+        "amount": 23,
+        "percentage": 0.86
+      },
+      {
+        "skill": "Instagram",
+        "amount": 21,
+        "percentage": 0.79
+      },
+      {
+        "skill": "Display Advertising",
+        "amount": 19,
+        "percentage": 0.71
+      },
+      {
+        "skill": "Inbound Marketing",
+        "amount": 18,
+        "percentage": 0.67
+      },
+      {
+        "skill": "Search Advertising",
+        "amount": 18,
+        "percentage": 0.67
+      },
+      {
+        "skill": "Content Management",
+        "amount": 15,
+        "percentage": 0.56
+      },
+      {
+        "skill": "Product Marketing",
+        "amount": 15,
+        "percentage": 0.56
+      },
+      {
+        "skill": "Social Media Marketing",
+        "amount": 14,
+        "percentage": 0.52
+      },
+      {
+        "skill": "Content Strategy",
+        "amount": 14,
+        "percentage": 0.52
+      },
+      {
+        "skill": "YouTube",
+        "amount": 14,
+        "percentage": 0.52
+      },
+      {
+        "skill": "Facebook Ads",
+        "amount": 13,
+        "percentage": 0.49
+      },
+      {
+        "skill": "Campaign Management",
+        "amount": 13,
+        "percentage": 0.49
+      },
+      {
+        "skill": "Market Research",
+        "amount": 10,
+        "percentage": 0.37
+      },
+      {
+        "skill": "Integrated Marketing",
+        "amount": 10,
+        "percentage": 0.37
+      },
+      {
+        "skill": "Brand Awareness",
+        "amount": 9,
+        "percentage": 0.34
+      },
+      {
+        "skill": "Conversion Optimization",
+        "amount": 8,
+        "percentage": 0.3
+      },
+      {
+        "skill": "Orthotics",
+        "amount": 8,
+        "percentage": 0.3
+      },
+      {
+        "skill": "Facebook Marketing",
+        "amount": 7,
+        "percentage": 0.26
+      },
+      {
+        "skill": "HTML",
+        "amount": 6,
+        "percentage": 0.22
+      },
+      {
+        "skill": "Strategic Communications",
+        "amount": 6,
+        "percentage": 0.22
+      },
+      {
+        "skill": "Web Content Writing",
+        "amount": 5,
+        "percentage": 0.19
+      },
+      {
+        "skill": "Affiliate Marketing",
+        "amount": 5,
+        "percentage": 0.19
+      },
+      {
+        "skill": "Marketing Communications",
+        "amount": 4,
+        "percentage": 0.15
+      },
+      {
+        "skill": "Social Media Advertising",
+        "amount": 4,
+        "percentage": 0.15
+      },
+      {
+        "skill": "WordPress",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "Copywriting",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "New Business Development",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "Direct Marketing",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "Adobe Creative Suite",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "Customer Satisfaction",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "Media Planning",
+        "amount": 3,
+        "percentage": 0.11
+      },
+      {
+        "skill": "Sales Management",
+        "amount": 2,
+        "percentage": 0.07
+      },
+      {
+        "skill": "Marketing Management",
+        "amount": 2,
+        "percentage": 0.07
+      },
+      {
+        "skill": "Adobe Illustrator",
+        "amount": 2,
+        "percentage": 0.07
+      },
+      {
+        "skill": "Community Management",
+        "amount": 2,
+        "percentage": 0.07
+      },
+      {
+        "skill": "Video Production",
+        "amount": 2,
+        "percentage": 0.07
+      },
+      {
+        "skill": "Graphic Design",
+        "amount": 1,
+        "percentage": 0.04
+      },
+      {
+        "skill": "Social Networking",
+        "amount": 1,
+        "percentage": 0.04
+      },
+      {
+        "skill": "Social Media Optimization (SMO)",
+        "amount": 1,
+        "percentage": 0.04
+      },
+      {
+        "skill": "Brand Management",
+        "amount": 1,
+        "percentage": 0.04
+      },
+      {
+        "skill": "Business Planning",
+        "amount": 1,
+        "percentage": 0.04
+      },
+      {
+        "skill": "Information Technology",
+        "amount": 1,
+        "percentage": 0.04
+      },
+      {
+        "skill": "Merchandising",
+        "amount": 1,
+        "percentage": 0.04
+      }
+    ],
+    "thailand_skills_job_posts": [],
+    "skills_growth": [
+      {
+        "skill": "Marketing Consulting",
+        "percentage": 94.7
+      },
+      {
+        "skill": "Facebook Ads",
+        "percentage": 34.5
+      },
+      {
+        "skill": "Ad Serving",
+        "percentage": 31.9
+      },
+      {
+        "skill": "Information Technology",
+        "percentage": 26.2
+      },
+      {
+        "skill": "Social Media Advertising",
+        "percentage": 26.2
+      },
+      {
+        "skill": "Finance",
+        "percentage": 18.6
+      },
+      {
+        "skill": "Facebook Marketing",
+        "percentage": 13.4
+      },
+      {
+        "skill": "LinkedIn",
+        "percentage": 12.3
+      },
+      {
+        "skill": "SEO Copywriting",
+        "percentage": 11.2
+      },
+      {
+        "skill": "Web Content Writing",
+        "percentage": 10.9
+      },
+      {
+        "skill": "Customer Experience",
+        "percentage": 10.8
+      },
+      {
+        "skill": "Video Editing",
+        "percentage": 10.2
+      },
+      {
+        "skill": "Brand Awareness",
+        "percentage": 9.9
+      },
+      {
+        "skill": "Merchandising",
+        "percentage": 9.9
+      },
+      {
+        "skill": "Analytical Skills",
+        "percentage": 9.7
+      },
+      {
+        "skill": "Keyword Research",
+        "percentage": 9.3
+      },
+      {
+        "skill": "Content Marketing",
+        "percentage": 9
+      },
+      {
+        "skill": "Instagram",
+        "percentage": 8.7
+      },
+      {
+        "skill": "Events",
+        "percentage": 8.6
+      },
+      {
+        "skill": "Google Ads",
+        "percentage": 8.5
+      }
+    ],
+    "thailand_skills_growth": [
+      {
+        "skill": "LinkedIn",
+        "percentage": 250
+      },
+      {
+        "skill": "Marketing Communications Planning",
+        "percentage": 150
+      },
+      {
+        "skill": "Social Media Measurement",
+        "percentage": 150
+      },
+      {
+        "skill": "Media Relations",
+        "percentage": 150
+      },
+      {
+        "skill": "Facebook Ads",
+        "percentage": 120
+      },
+      {
+        "skill": "Performance Marketing",
+        "percentage": 100
+      },
+      {
+        "skill": "International Marketing",
+        "percentage": 100
+      },
+      {
+        "skill": "Analytics",
+        "percentage": 88.9
+      },
+      {
+        "skill": "Adobe Illustrator",
+        "percentage": 66.7
+      },
+      {
+        "skill": "Social Media Optimization (SMO)",
+        "percentage": 66.7
+      },
+      {
+        "skill": "Creative Strategy",
+        "percentage": 66.7
+      },
+      {
+        "skill": "Cascading Style Sheets (CSS)",
+        "percentage": 66.7
+      },
+      {
+        "skill": "Conversion Optimization",
+        "percentage": 66.7
+      },
+      {
+        "skill": "Adobe Premiere Pro",
+        "percentage": 66.7
+      },
+      {
+        "skill": "Social Media Consulting",
+        "percentage": 66.7
+      },
+      {
+        "skill": "HTML",
+        "percentage": 60
+      },
+      {
+        "skill": "Social Media Advertising",
+        "percentage": 57.1
+      },
+      {
+        "skill": "SQL",
+        "percentage": 50
+      },
+      {
+        "skill": "Community Management",
+        "percentage": 50
+      },
+      {
+        "skill": "Strategic Communications",
+        "percentage": 50
+      }
+    ],
+    "industries": [
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 37.16
+      },
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 8.35
+      },
+      {
+        "industry": "Internet",
+        "percentage": 7.33
+      },
+      {
+        "industry": "Management Consulting",
+        "percentage": 2.73
+      },
+      {
+        "industry": "Computer Software",
+        "percentage": 2.29
+      },
+      {
+        "industry": "Online Media",
+        "percentage": 2.01
+      },
+      {
+        "industry": "Higher Education",
+        "percentage": 1.9300000000000002
+      },
+      {
+        "industry": "Health, Wellness & Fitness",
+        "percentage": 1.72
+      },
+      {
+        "industry": "Financial Services",
+        "percentage": 1.7
+      },
+      {
+        "industry": "Education Management",
+        "percentage": 1.63
+      }
+    ],
+    "thailand_industries": [
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 35.87
+      },
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 8.07
+      },
+      {
+        "industry": "Internet",
+        "percentage": 7.17
+      },
+      {
+        "industry": "Online Media",
+        "percentage": 3.59
+      },
+      {
+        "industry": "Outsourcing/Offshoring",
+        "percentage": 3.59
+      },
+      {
+        "industry": "Management Consulting",
+        "percentage": 2.69
+      },
+      {
+        "industry": "Real Estate",
+        "percentage": 2.69
+      },
+      {
+        "industry": "Health, Wellness & Fitness",
+        "percentage": 2.24
+      },
+      {
+        "industry": "Education Management",
+        "percentage": 2.24
+      },
+      {
+        "industry": "Food & Beverages",
+        "percentage": 1.79
+      }
+    ],
+    "industries_job_posts": [
+      {
+        "industry": "Marketing & Advertising",
+        "percentage": 31.93
+      },
+      {
+        "industry": "Staffing & Recruiting",
+        "percentage": 15.06
+      },
+      {
+        "industry": "Information Technology & Services",
+        "percentage": 13.55
+      },
+      {
+        "industry": "Management Consulting",
+        "percentage": 8.13
+      },
+      {
+        "industry": "Internet",
+        "percentage": 6.63
+      },
+      {
+        "industry": "Outsourcing/Offshoring",
+        "percentage": 3.61
+      },
+      {
+        "industry": "Human Resources",
+        "percentage": 3.61
+      },
+      {
+        "industry": "Market Research",
+        "percentage": 3.61
+      },
+      {
+        "industry": "Financial Services",
+        "percentage": 2.11
+      },
+      {
+        "industry": "Broadcast Media",
+        "percentage": 1.81
+      },
+      {
+        "industry": "Hospital & Health Care",
+        "percentage": 1.2
+      },
+      {
+        "industry": "Media Production",
+        "percentage": 1.2
+      },
+      {
+        "industry": "Computer Software",
+        "percentage": 0.9
+      },
+      {
+        "industry": "Automotive",
+        "percentage": 0.9
+      },
+      {
+        "industry": "Retail",
+        "percentage": 0.6
+      },
+      {
+        "industry": "Public Relations & Communications",
+        "percentage": 0.6
+      },
+      {
+        "industry": "Wholesale",
+        "percentage": 0.6
+      },
+      {
+        "industry": "Computer Networking",
+        "percentage": 0.6
+      },
+      {
+        "industry": "Online Media",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Real Estate",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Design",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Telecommunications",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Construction",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Writing & Editing",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Accounting",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Mining & Metals",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Investment Management",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Medical Device",
+        "percentage": 0.3
+      },
+      {
+        "industry": "Philanthropy",
+        "percentage": 0.3
+      }
+    ],
+    "thailand_industries_job_posts": [],
+    "universities": [],
+    "thailand_universities": [
+      {
+        "university": "Chulalongkorn University",
+        "percentage": 9.24
+      },
+      {
+        "university": "Thammasat University",
+        "percentage": 8.15
+      },
+      {
+        "university": "Assumption University",
+        "percentage": 5.98
+      },
+      {
+        "university": "Srinakharinwirot University",
+        "percentage": 3.8
+      },
+      {
+        "university": "Ramkhamhaeng University",
+        "percentage": 3.8
+      },
+      {
+        "university": "Chiang Mai University",
+        "percentage": 3.26
+      },
+      {
+        "university": "Mahidol University",
+        "percentage": 3.26
+      },
+      {
+        "university": "University of the Thai Chamber of Commerce",
+        "percentage": 2.7199999999999998
+      },
+      {
+        "university": "Rangsit University",
+        "percentage": 2.7199999999999998
+      },
+      {
+        "university": "Silpakorn University",
+        "percentage": 2.17
+      }
+    ]
+  }
+}

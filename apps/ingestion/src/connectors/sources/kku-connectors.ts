@@ -284,6 +284,45 @@ export class JobsDbConnector extends ApiConnector {
   }
 }
 
+// KMITL Skill Mapping — aggregated skill-demand intelligence (LinkedIn
+// profiles + job postings + grad data, processed by KMITL). Replaces
+// jobthai + jobsdb. Returns percentages at career level, not per-posting
+// rows. Real implementation lives in sources/kmitl-skill-mapping/.
+export class KmitlSkillMappingConnector extends ApiConnector {
+  readonly slug = 'kmitl-skill-mapping';
+  readonly mocked = true;
+
+  async fetch(): Promise<RawRecord[]> {
+    return [
+      {
+        externalId: 'KMITL-CAREER-101',
+        sourceTimestamp: new Date('2026-05-01'),
+        data: {
+          careerId: 101,
+          careerName: 'Software Engineer',
+          groupName: 'ICT Professionals',
+          subGroupName: 'Software Development',
+          skillsJobPosts: [
+            { skill: 'Python', amount: 1240, percentage: 78.4 },
+            { skill: 'SQL', amount: 980, percentage: 62.0 },
+            { skill: 'AWS', amount: 720, percentage: 45.6 },
+          ],
+          skillsGrowth: [
+            { skill: 'AI/ML', percentage: 38.2 },
+            { skill: 'Kubernetes', percentage: 22.7 },
+          ],
+        },
+      },
+    ];
+  }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'kmitl_career_skill_demands', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked — load is a no-op' } };
+  }
+}
+
 export class ScopusConnector extends ApiConnector {
   readonly slug = 'scopus';
   readonly mocked = true;

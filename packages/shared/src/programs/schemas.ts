@@ -95,7 +95,7 @@ export interface CollisionMatch {
   nameEn: string;
   facultyId: string;
   departmentId: string | null;
-  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
   status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
   reasons: Array<
     | 'same_code'

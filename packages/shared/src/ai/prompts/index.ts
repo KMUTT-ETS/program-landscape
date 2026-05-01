@@ -5,3 +5,4 @@ export * from './gap-insights';
 export * from './scenario-insights';
 export * from './benchmarking-insights';
 export * from './decision-review';
+export * from './program-digest';

@@ -9,7 +9,7 @@ export const ProgramBriefDataSchema = z.object({
   programNameEn: z.string(),
   facultyNameTh: z.string(),
   departmentNameTh: z.string().optional(),
-  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']),
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']),
   dateLabel: z.string(),
   // A single paragraph — Thai — summarising the program's current
   // strategic position. AI-authored with human review.

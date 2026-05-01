@@ -127,7 +127,31 @@ export class GoogleAiService implements AiService {
     const tokens = extractUsage(result.usageMetadata);
     const cost = estimateCost(model, tokens);
 
-    const { parsed, confidence, reasoning } = parseStructured<T>(rawText, schema);
+    // Parse-or-record-on-failure. When the model returns garbage,
+    // truncated JSON, or a refusal, parseStructured throws; we still
+    // record the inference (with confidence=0) so the response is
+    // available for diagnosis and retry, then re-throw.
+    let parseOutcome: { parsed: T; confidence: number; reasoning?: string };
+    try {
+      parseOutcome = parseStructured<T>(rawText, schema);
+    } catch (parseErr) {
+      await this.config.recorder.record({
+        userId: req.ctx.userId ?? null,
+        module: req.ctx.module,
+        kind: req.ctx.kind ?? 'extract',
+        prompt: messagesToString(req.messages),
+        promptVersion: req.methodVersion,
+        model,
+        response: rawText,
+        confidence: 0,
+        tokensInput: tokens.input,
+        tokensOutput: tokens.output,
+        latencyMs,
+        costEstimateUsd: cost.usd,
+      });
+      throw parseErr;
+    }
+    const { parsed, confidence, reasoning } = parseOutcome;
 
     const { id: aiInferenceId } = await this.config.recorder.record({
       userId: req.ctx.userId ?? null,
@@ -320,17 +344,39 @@ function parseStructured<T>(
   let result = tryParse(rawText);
   let usedFixup = false;
   if (!result || !result.success) {
-    // Strip markdown fences
+    // Strip markdown fences + leading prose
     const stripped = rawText
       .replace(/^```(?:json)?\s*/i, '')
       .replace(/```\s*$/, '')
       .trim();
-    // Find first '{' or '['
     const firstBrace = stripped.search(/[{[]/);
     if (firstBrace >= 0) {
       const candidate = stripped.slice(firstBrace);
       result = tryParse(candidate);
       usedFixup = true;
+
+      // Brace-balance fixup. Gemini occasionally emits one or more trailing
+      // `}` past the structurally-balanced point of a valid JSON object —
+      // observed in ~80% of program-digest failures. Drop trailing `}` /
+      // `]` chars one at a time while the count of closes exceeds opens,
+      // re-trying parse after each. Skips silently if the imbalance goes
+      // the other way (truncation) — that's not recoverable here.
+      if (!result || !result.success) {
+        const open = (candidate.match(/[{[]/g) ?? []).length;
+        const close = (candidate.match(/[}\]]/g) ?? []).length;
+        if (close > open) {
+          let trimmed = candidate;
+          let drops = close - open;
+          while (drops > 0 && trimmed.length > 0) {
+            const last = trimmed.search(/[}\]]\s*$/);
+            if (last < 0) break;
+            trimmed = trimmed.slice(0, last).trimEnd();
+            drops--;
+          }
+          const balanced = tryParse(trimmed);
+          if (balanced && balanced.success) result = balanced;
+        }
+      }
     }
   }
   if (!result || !result.success) {

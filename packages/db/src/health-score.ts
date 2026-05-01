@@ -14,7 +14,11 @@ import { queryMetricByScope } from './scope';
 // (not substituted with 0 or 50). dataCompletenessPct on every score
 // tells the reader how much data actually went into it.
 
-export const HEALTH_SCORE_VERSION = 'health-score.v1';
+// v2 (2026-05-01): demand dimension extended with `labor_market_alignment_kmitl`
+// driver — the share of a program's skills that overlap with KMITL Skill
+// Mapping's THAILAND × JOB_POSTINGS demanded-skills set (percentage ≥ 5%).
+// v1 stays in `health-score.v1` rows for audit; new rows stamp v2.
+export const HEALTH_SCORE_VERSION = 'health-score.v2';
 
 export const HEALTH_DIMENSIONS = [
   'demand',
@@ -88,6 +92,12 @@ export async function computeHealthScores(
   const childScope = childScopeFor(scope);
   const children = await resolveChildren(scope, scopeId);
 
+  // KMITL labor-market alignment — one query for the demanded-skills set,
+  // one for ProgramSkill rows, then averaged per child below. Returns an
+  // empty map when no KMITL data is loaded yet — `rollupKmitlAlignmentToChild`
+  // surfaces that as a null driver (data gap, not zero).
+  const programAlignment = await computeKmitlProgramAlignment();
+
   const rows: HealthScoreRow[] = [];
   for (const child of children) {
     // Latest-year metric row at the child scope.
@@ -110,8 +120,9 @@ export async function computeHealthScores(
     });
     const oLatest = outcomes.at(-1);
 
+    const kmitlAlignment = await rollupKmitlAlignmentToChild(child.id, childScope, programAlignment);
     const dimensions: HealthScoreRow['dimensions'] = {
-      demand: scoreDemand(latest ?? null),
+      demand: scoreDemand(latest ?? null, kmitlAlignment),
       financial: scoreFinancial(fLatest ?? null),
       quality: scoreQuality(oLatest ?? null),
       relevance: scoreRelevancePlaceholder(),
@@ -203,10 +214,11 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
 
 import type { MetricRow } from './scope';
 
-function scoreDemand(row: MetricRow | null): HealthScore {
-  // Drivers: admission yield, retention year 2, enrolled-per-program.
-  // Demand's proper form (labour-market + demographic ceiling) needs
-  // prompt 14's real connectors — placeholders filled in below.
+function scoreDemand(row: MetricRow | null, kmitlAlignment: number | null): HealthScore {
+  // Drivers: admission yield, retention year 2, on-time graduation, plus
+  // labor-market alignment from KMITL Skill Mapping (v2, 2026-05-01). The
+  // first three are internal-KKU signals (proxies for demand); the fourth
+  // is the real external labour-market signal that v1 left null.
   const drivers = [
     {
       label: 'admission_yield',
@@ -236,8 +248,99 @@ function scoreDemand(row: MetricRow | null): HealthScore {
       })(),
       raw: row?.graduatedOnTimeTotal,
     },
+    {
+      // KMITL labor-market alignment: % of program skills overlapping with
+      // skills that have ≥5% demand share in any KMITL career
+      // (THAILAND × JOB_POSTINGS, latest snapshot). Null when there are no
+      // KMITL rows yet — preview-quality until 2026-05-31 (30-day green-
+      // history gate per docs/readiness-checklist.md gate 11).
+      label: 'labor_market_alignment_kmitl',
+      value: kmitlAlignment === null ? null : clamp(kmitlAlignment),
+      raw: kmitlAlignment,
+    },
   ];
   return summariseDrivers(drivers);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// KMITL alignment helpers (added in health-score.v2)
+// ──────────────────────────────────────────────────────────────────────────
+
+const KMITL_DEMAND_THRESHOLD_PCT = 5;
+
+/**
+ * Per-program % alignment with KMITL-demanded skills. Returns Map<programId,
+ * percent> for every program with ≥1 ProgramSkill row. Empty map when KMITL
+ * has no demand data loaded yet — caller should treat that as "data gap"
+ * (null driver), not zero alignment.
+ */
+async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
+  const demandRows = await prisma.kmitlCareerSkillDemand.findMany({
+    where: {
+      dataScope: 'THAILAND',
+      dataSource: 'JOB_POSTINGS',
+      percentage: { gte: KMITL_DEMAND_THRESHOLD_PCT },
+      skillId: { not: null },
+    },
+    select: { skillId: true },
+    distinct: ['skillId'],
+  });
+  if (demandRows.length === 0) return new Map();
+
+  const demandedSkills = new Set(demandRows.map((r) => r.skillId!).filter(Boolean));
+  const programSkills = await prisma.programSkill.findMany({
+    select: { programId: true, skillId: true },
+  });
+
+  const counts = new Map<string, { matched: number; total: number }>();
+  for (const ps of programSkills) {
+    const c = counts.get(ps.programId) ?? { matched: 0, total: 0 };
+    c.total++;
+    if (demandedSkills.has(ps.skillId)) c.matched++;
+    counts.set(ps.programId, c);
+  }
+
+  const out = new Map<string, number>();
+  for (const [pid, { matched, total }] of counts) {
+    if (total > 0) out.set(pid, (matched / total) * 100);
+  }
+  return out;
+}
+
+/**
+ * Average per-program alignment across the programs under one child node.
+ * Returns null when no programs (or no KMITL data) — surfaces as a "data
+ * gap" driver, not zero.
+ */
+async function rollupKmitlAlignmentToChild(
+  childId: string,
+  childScope: ScopeLevel,
+  programAlignment: Map<string, number>,
+): Promise<number | null> {
+  if (programAlignment.size === 0) return null;
+  let programIds: string[];
+  if (childScope === 'program') {
+    programIds = [childId];
+  } else if (childScope === 'department') {
+    const ps = await prisma.program.findMany({
+      where: { departmentId: childId },
+      select: { id: true },
+    });
+    programIds = ps.map((p) => p.id);
+  } else if (childScope === 'faculty') {
+    const ps = await prisma.program.findMany({
+      where: { department: { facultyId: childId } },
+      select: { id: true },
+    });
+    programIds = ps.map((p) => p.id);
+  } else {
+    return null;
+  }
+  const values = programIds
+    .map((id) => programAlignment.get(id))
+    .filter((v): v is number => v !== undefined);
+  if (values.length === 0) return null;
+  return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
 function scoreFinancial(row: MetricRow | null): HealthScore {

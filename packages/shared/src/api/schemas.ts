@@ -56,7 +56,7 @@ export const DepartmentSchema = z.object({
 });
 export type DepartmentDto = z.infer<typeof DepartmentSchema>;
 
-export const ProgramLevelSchema = z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']);
+export const ProgramLevelSchema = z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']);
 export const ProgramStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'SUNSET']);
 
 export const ProgramSchema = z.object({

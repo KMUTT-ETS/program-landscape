@@ -1,0 +1,834 @@
+[
+  {
+    "id": 1,
+    "name": "Thammasat University"
+  },
+  {
+    "id": 2,
+    "name": "Chulalongkorn University"
+  },
+  {
+    "id": 3,
+    "name": "Bangkok University"
+  },
+  {
+    "id": 4,
+    "name": "Kasetsart University"
+  },
+  {
+    "id": 5,
+    "name": "Assumption University"
+  },
+  {
+    "id": 6,
+    "name": "Mahidol University"
+  },
+  {
+    "id": 7,
+    "name": "Srinakharinwirot University"
+  },
+  {
+    "id": 8,
+    "name": "Ramkhamhaeng University"
+  },
+  {
+    "id": 9,
+    "name": "Chiang Mai University"
+  },
+  {
+    "id": 10,
+    "name": "Silpakorn University"
+  },
+  {
+    "id": 11,
+    "name": "King Mongkut's Institute of Technology Ladkrabang"
+  },
+  {
+    "id": 12,
+    "name": "University of the Thai Chamber of Commerce"
+  },
+  {
+    "id": 13,
+    "name": "Rangsit University"
+  },
+  {
+    "id": 14,
+    "name": "Dhurakij Pundit University"
+  },
+  {
+    "id": 15,
+    "name": "School of Global Studies, Thammasat University"
+  },
+  {
+    "id": 16,
+    "name": "King Mongkut's University of Technology Thonburi"
+  },
+  {
+    "id": 17,
+    "name": "Assumption University of Thailand"
+  },
+  {
+    "id": 18,
+    "name": "Sukhothai Thammathirat Open University"
+  },
+  {
+    "id": 19,
+    "name": "Mae Fah Luang University"
+  },
+  {
+    "id": 20,
+    "name": "Bangkok Patana School"
+  },
+  {
+    "id": 22,
+    "name": "Suan Dusit Rajabhat University"
+  },
+  {
+    "id": 24,
+    "name": "Siam University"
+  },
+  {
+    "id": 25,
+    "name": "Udon Thani Rajabhat University"
+  },
+  {
+    "id": 26,
+    "name": "Huachiew Chalermprakiet University"
+  },
+  {
+    "id": 27,
+    "name": "Maejo University"
+  },
+  {
+    "id": 28,
+    "name": "Khon Kaen University"
+  },
+  {
+    "id": 29,
+    "name": "King Mongkut's University of Technology North Bangkok"
+  },
+  {
+    "id": 30,
+    "name": "Chetupon Commercial College"
+  },
+  {
+    "id": 31,
+    "name": "Sripatum University"
+  },
+  {
+    "id": 32,
+    "name": "Prince of Songkla University"
+  },
+  {
+    "id": 33,
+    "name": "Burapha University"
+  },
+  {
+    "id": 35,
+    "name": "Nakhon Pathom Rajabhat University"
+  },
+  {
+    "id": 36,
+    "name": "Rajamangala University of Technology Thanyaburi"
+  },
+  {
+    "id": 37,
+    "name": "Bansomdejchaopraya Rajabhat University"
+  },
+  {
+    "id": 38,
+    "name": "Rajamangala University of Technology Tawan-ok"
+  },
+  {
+    "id": 39,
+    "name": "Bangkokthonburi University"
+  },
+  {
+    "id": 40,
+    "name": "Suan Sunandha Rajabhat University"
+  },
+  {
+    "id": 46,
+    "name": "Naresuan University"
+  },
+  {
+    "id": 47,
+    "name": "Phranakhon Rajabhat University"
+  },
+  {
+    "id": 48,
+    "name": "Ubon Ratchathani University"
+  },
+  {
+    "id": 49,
+    "name": "Kalasin Technical College"
+  },
+  {
+    "id": 51,
+    "name": "Phetchaburi Rajabhat University"
+  },
+  {
+    "id": 67,
+    "name": "Asian Institute of Technology"
+  },
+  {
+    "id": 72,
+    "name": "Chumphonkhetudomsak Fisheries College"
+  },
+  {
+    "id": 77,
+    "name": "ChiangMai Rajabhat University"
+  },
+  {
+    "id": 80,
+    "name": "Suranaree University of Technology"
+  },
+  {
+    "id": 81,
+    "name": "Civil Aviation Training Center"
+  },
+  {
+    "id": 82,
+    "name": "Ubon Ratchathani Rajabhat University"
+  },
+  {
+    "id": 86,
+    "name": "Thammasat Design School"
+  },
+  {
+    "id": 88,
+    "name": "Landscape Architecture Dept , Chulalongkorn University"
+  },
+  {
+    "id": 92,
+    "name": "Rajamangala University of Technology Lanna"
+  },
+  {
+    "id": 94,
+    "name": "Dusit Thani College"
+  },
+  {
+    "id": 95,
+    "name": "National Institute of Development Administration"
+  },
+  {
+    "id": 104,
+    "name": "Phramongkutklao College of Medicine"
+  },
+  {
+    "id": 105,
+    "name": "New York University"
+  },
+  {
+    "id": 106,
+    "name": "Harvard University"
+  },
+  {
+    "id": 107,
+    "name": "Phranakhon Si Ayutthaya Rajabhat University"
+  },
+  {
+    "id": 108,
+    "name": "Songkhla Rajabhat University"
+  },
+  {
+    "id": 109,
+    "name": "Nakhonratchasima College"
+  },
+  {
+    "id": 110,
+    "name": "Sirindhorn College of Public Health, Chonburi"
+  },
+  {
+    "id": 111,
+    "name": "Sirindhorn College of Public Health, Yala"
+  },
+  {
+    "id": 112,
+    "name": "King's College London"
+  },
+  {
+    "id": 113,
+    "name": "University of South Alabama"
+  },
+  {
+    "id": 114,
+    "name": "Alfred University"
+  },
+  {
+    "id": 115,
+    "name": "University of San Carlos"
+  },
+  {
+    "id": 116,
+    "name": "Murdoch University"
+  },
+  {
+    "id": 117,
+    "name": "Kingston International College"
+  },
+  {
+    "id": 118,
+    "name": "West Visayas State University"
+  },
+  {
+    "id": 119,
+    "name": "Webster University Thailand"
+  },
+  {
+    "id": 120,
+    "name": "Mahanakorn University of Technology"
+  },
+  {
+    "id": 121,
+    "name": "Seoul National University"
+  },
+  {
+    "id": 122,
+    "name": "University of Washington"
+  },
+  {
+    "id": 123,
+    "name": "Balıkesir University"
+  },
+  {
+    "id": 124,
+    "name": "United States Air Force Academy"
+  },
+  {
+    "id": 125,
+    "name": "University of Hawaii John A. Burns School of Medicine"
+  },
+  {
+    "id": 126,
+    "name": "University of Birmingham"
+  },
+  {
+    "id": 127,
+    "name": "University of Bern"
+  },
+  {
+    "id": 128,
+    "name": "The University of Hong Kong"
+  },
+  {
+    "id": 129,
+    "name": "Oral Roberts University"
+  },
+  {
+    "id": 130,
+    "name": "Orthopaedic Institute for Children (OIC)"
+  },
+  {
+    "id": 131,
+    "name": "National Taiwan University"
+  },
+  {
+    "id": 132,
+    "name": "University of the East"
+  },
+  {
+    "id": 133,
+    "name": "Ecole nationale supérieure Louis Lumière"
+  },
+  {
+    "id": 134,
+    "name": "Phuket Rajabhat University"
+  },
+  {
+    "id": 135,
+    "name": "Humber College"
+  },
+  {
+    "id": 136,
+    "name": "Exeter High School"
+  },
+  {
+    "id": 137,
+    "name": "Nakhon Phanom University"
+  },
+  {
+    "id": 138,
+    "name": "Shanghai Normal University"
+  },
+  {
+    "id": 139,
+    "name": "Istanbul University"
+  },
+  {
+    "id": 140,
+    "name": "Heriot-Watt University"
+  },
+  {
+    "id": 141,
+    "name": "Paris ESLSCA Business School"
+  },
+  {
+    "id": 142,
+    "name": "Università degli Studi di Parma"
+  },
+  {
+    "id": 143,
+    "name": "Royal Academy of Art, The Hague | Koninklijke Academie van Beeldende Kunsten (KABK)"
+  },
+  {
+    "id": 144,
+    "name": "East Siberian State Academy of Culture and Arts"
+  },
+  {
+    "id": 145,
+    "name": "University of Minnesota"
+  },
+  {
+    "id": 146,
+    "name": "Saint Petersburg State University of Engineering and Economics"
+  },
+  {
+    "id": 147,
+    "name": "Pokhara Vishwavidalaya"
+  },
+  {
+    "id": 148,
+    "name": "Aspire2 International"
+  },
+  {
+    "id": 149,
+    "name": "Chatfield College"
+  },
+  {
+    "id": 150,
+    "name": "Xiamen University"
+  },
+  {
+    "id": 151,
+    "name": "Hotel Management School Geneva | EHG"
+  },
+  {
+    "id": 152,
+    "name": "University of Toronto"
+  },
+  {
+    "id": 153,
+    "name": "Yunnan Normal University"
+  },
+  {
+    "id": 154,
+    "name": "Vatel France"
+  },
+  {
+    "id": 155,
+    "name": "Valaya Alongkorn Rajabhat University"
+  },
+  {
+    "id": 156,
+    "name": "International School Bangkok"
+  },
+  {
+    "id": 157,
+    "name": "Chang Gung University"
+  },
+  {
+    "id": 158,
+    "name": "Estácio"
+  },
+  {
+    "id": 159,
+    "name": "Robert-Franck-Schule Ludwigsburg"
+  },
+  {
+    "id": 160,
+    "name": "Thunderbird School of Global Management"
+  },
+  {
+    "id": 161,
+    "name": "Chiang Rai Rajabhat University"
+  },
+  {
+    "id": 162,
+    "name": "G.B. Pant Govt. Engineering College"
+  },
+  {
+    "id": 163,
+    "name": "Payap University"
+  },
+  {
+    "id": 164,
+    "name": "ROC Midden Nederland"
+  },
+  {
+    "id": 165,
+    "name": "The Field School"
+  },
+  {
+    "id": 166,
+    "name": "University of Oklahoma"
+  },
+  {
+    "id": 167,
+    "name": "University of South Carolina"
+  },
+  {
+    "id": 168,
+    "name": "EPHEC"
+  },
+  {
+    "id": 169,
+    "name": "Bangna Commercial College"
+  },
+  {
+    "id": 170,
+    "name": "Hastings College"
+  },
+  {
+    "id": 171,
+    "name": "Katholieke Hogeschool Mechelen"
+  },
+  {
+    "id": 172,
+    "name": "Institut Supérieur de l'Environnement"
+  },
+  {
+    "id": 173,
+    "name": "University of Tasmania"
+  },
+  {
+    "id": 174,
+    "name": "University of Tübingen"
+  },
+  {
+    "id": 175,
+    "name": "Providence University"
+  },
+  {
+    "id": 176,
+    "name": "Cornell University"
+  },
+  {
+    "id": 177,
+    "name": "Chongqing Technology and Business University"
+  },
+  {
+    "id": 178,
+    "name": "Rajamangala University of Technology Krungthep"
+  },
+  {
+    "id": 179,
+    "name": "Kean University"
+  },
+  {
+    "id": 180,
+    "name": "Aarhus University"
+  },
+  {
+    "id": 181,
+    "name": "Karel de Grote-Hogeschool"
+  },
+  {
+    "id": 182,
+    "name": "Ritsumeikan Asia Pacific University"
+  },
+  {
+    "id": 183,
+    "name": "Auezov University"
+  },
+  {
+    "id": 184,
+    "name": "KIMEP University"
+  },
+  {
+    "id": 185,
+    "name": "한림대학교(Hallym University)"
+  },
+  {
+    "id": 186,
+    "name": "National Museum Institute of History of Art, Conservation and Museology"
+  },
+  {
+    "id": 187,
+    "name": "Homer Community High School"
+  },
+  {
+    "id": 188,
+    "name": "National University"
+  },
+  {
+    "id": 189,
+    "name": "University of Oregon"
+  },
+  {
+    "id": 190,
+    "name": "The LIFE School"
+  },
+  {
+    "id": 191,
+    "name": "North-Eastern University"
+  },
+  {
+    "id": 192,
+    "name": "City College of San Francisco"
+  },
+  {
+    "id": 193,
+    "name": "The Lawrence School - Sanawar - India"
+  },
+  {
+    "id": 194,
+    "name": "The Open University"
+  },
+  {
+    "id": 195,
+    "name": "Arroyo High School"
+  },
+  {
+    "id": 196,
+    "name": "TAFE NSW"
+  },
+  {
+    "id": 197,
+    "name": "University of Kashmir"
+  },
+  {
+    "id": 198,
+    "name": "Fordham University"
+  },
+  {
+    "id": 199,
+    "name": "Oxford Brookes University"
+  },
+  {
+    "id": 200,
+    "name": "Paris School of Business"
+  },
+  {
+    "id": 201,
+    "name": "University of Kentucky"
+  },
+  {
+    "id": 202,
+    "name": "Future University - Egypt"
+  },
+  {
+    "id": 203,
+    "name": "Kanchanaburi Rajabhat University"
+  },
+  {
+    "id": 204,
+    "name": "Morocco"
+  },
+  {
+    "id": 205,
+    "name": "ILAC"
+  },
+  {
+    "id": 206,
+    "name": "Hightstown High School"
+  },
+  {
+    "id": 207,
+    "name": "Columbia Business School"
+  },
+  {
+    "id": 208,
+    "name": "Sigtunaskolan Humanistiska Läroverket (SSHL)"
+  },
+  {
+    "id": 209,
+    "name": "Eskişehir Osmangazi Üniversitesi"
+  },
+  {
+    "id": 210,
+    "name": "The Hong Kong Polytechnic University"
+  },
+  {
+    "id": 211,
+    "name": "Loei Rajabhat University"
+  },
+  {
+    "id": 212,
+    "name": "University of Montpellier"
+  },
+  {
+    "id": 213,
+    "name": "University of Portsmouth"
+  },
+  {
+    "id": 214,
+    "name": "University of Southern Queensland"
+  },
+  {
+    "id": 215,
+    "name": "iTrain Malaysia"
+  },
+  {
+    "id": 216,
+    "name": "Copenhagen Business School"
+  },
+  {
+    "id": 217,
+    "name": "The Maritime Academy"
+  },
+  {
+    "id": 218,
+    "name": "Abilene Christian University"
+  },
+  {
+    "id": 219,
+    "name": "Imperial College London"
+  },
+  {
+    "id": 220,
+    "name": "Saint Paul University"
+  },
+  {
+    "id": 221,
+    "name": "The University of Queensland"
+  },
+  {
+    "id": 222,
+    "name": "Middle Tennessee State University (MTSU)"
+  },
+  {
+    "id": 223,
+    "name": "Les Roches Crans-Montana Global Hospitality"
+  },
+  {
+    "id": 224,
+    "name": "Rangitoto College"
+  },
+  {
+    "id": 225,
+    "name": "Institut national des langues et civilisations orientales (Inalco)"
+  },
+  {
+    "id": 226,
+    "name": "James Cook University Singapore"
+  },
+  {
+    "id": 227,
+    "name": "Istanbul Kultur University"
+  },
+  {
+    "id": 228,
+    "name": "Southern Alberta Institute of Technology (SAIT)"
+  },
+  {
+    "id": 229,
+    "name": "Université Paris Nanterre"
+  },
+  {
+    "id": 230,
+    "name": "Rajamangala University of Technology Phra Nakhon"
+  },
+  {
+    "id": 231,
+    "name": "INSEAD"
+  },
+  {
+    "id": 232,
+    "name": "The International Hotel and Tourism Industry Management School (I-TIM)"
+  },
+  {
+    "id": 233,
+    "name": "Southern Cross University"
+  },
+  {
+    "id": 234,
+    "name": "Ohio University"
+  },
+  {
+    "id": 235,
+    "name": "Universidad Técnica Federico Santa María"
+  },
+  {
+    "id": 236,
+    "name": "University of Canberra"
+  },
+  {
+    "id": 237,
+    "name": "Hatyai University"
+  },
+  {
+    "id": 238,
+    "name": "Kranbeunpra Pitsanuklok  Commercial College"
+  },
+  {
+    "id": 239,
+    "name": "NIST International School"
+  },
+  {
+    "id": 240,
+    "name": "International College for Sustainability Studies, Srinakharinwirot University"
+  },
+  {
+    "id": 241,
+    "name": "Rattana Bundit University"
+  },
+  {
+    "id": 242,
+    "name": "University of International Business and Economics"
+  },
+  {
+    "id": 243,
+    "name": "Kaplan University"
+  },
+  {
+    "id": 244,
+    "name": "Far Eastern University"
+  },
+  {
+    "id": 245,
+    "name": "Uttaradit Rajabhat University"
+  },
+  {
+    "id": 246,
+    "name": "Lyceum of the Philippines University"
+  },
+  {
+    "id": 247,
+    "name": "Swiss Hotel Management School"
+  },
+  {
+    "id": 248,
+    "name": "Polytechnic West"
+  },
+  {
+    "id": 249,
+    "name": "Kyiv National Economics University"
+  },
+  {
+    "id": 250,
+    "name": "L.N.Gumilyov Eurasian National University"
+  },
+  {
+    "id": 251,
+    "name": "Chandrakasem Rajabhat University"
+  },
+  {
+    "id": 252,
+    "name": "National Taiwan Normal University"
+  },
+  {
+    "id": 253,
+    "name": "University of Amsterdam"
+  },
+  {
+    "id": 254,
+    "name": "Stamford International University"
+  },
+  {
+    "id": 255,
+    "name": "Eastern Washington University"
+  },
+  {
+    "id": 256,
+    "name": "University of Rizal System-Rizal State College"
+  },
+  {
+    "id": 257,
+    "name": "University of Wales, Cardiff"
+  },
+  {
+    "id": 258,
+    "name": "OXFORD COLLEGE"
+  }
+]

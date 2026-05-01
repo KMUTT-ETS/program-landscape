@@ -28,7 +28,7 @@ import {
 // programs.service.ts getOne()).
 // ─────────────────────────────────────────────────────────────────────────
 
-type Level = 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+type Level = 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
 type Status = 'ACTIVE' | 'PAUSED' | 'SUNSET';
 type DocRole =
   | 'CURRENT_CURRICULUM'

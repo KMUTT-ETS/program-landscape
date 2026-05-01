@@ -101,7 +101,7 @@ export async function computePortfolioComparison(peerSetId: string): Promise<Por
     include: { department: { select: { nameEn: true } } },
   });
   const kkuSubjectDist: Record<string, number> = {};
-  const kkuLevelDist: Record<ProgramLevel, number> = { BACHELOR: 0, MASTER: 0, DOCTORAL: 0 };
+  const kkuLevelDist: Record<ProgramLevel, number> = { BACHELOR: 0, MASTER: 0, DOCTORAL: 0, HIGHER_GRAD_DIPLOMA: 0 };
   for (const p of kkuPrograms) {
     const subject = p.department?.nameEn ?? 'Other';
     kkuSubjectDist[subject] = (kkuSubjectDist[subject] ?? 0) + 1;
@@ -120,7 +120,7 @@ export async function computePortfolioComparison(peerSetId: string): Promise<Por
   const peerSubjectCounter: Record<string, Set<string>> = {};
   for (const [institution, members] of byInstitution) {
     const subjectDist: Record<string, number> = {};
-    const levelDist: Record<ProgramLevel, number> = { BACHELOR: 0, MASTER: 0, DOCTORAL: 0 };
+    const levelDist: Record<ProgramLevel, number> = { BACHELOR: 0, MASTER: 0, DOCTORAL: 0, HIGHER_GRAD_DIPLOMA: 0 };
     for (const m of members) {
       const subject = m.peerProgram.subjectArea ?? 'Other';
       subjectDist[subject] = (subjectDist[subject] ?? 0) + 1;

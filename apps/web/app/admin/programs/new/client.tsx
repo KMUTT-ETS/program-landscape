@@ -25,7 +25,7 @@ export function NewProgramClient({
     nameEn: '',
     facultyId: '',
     departmentId: '',
-    level: 'BACHELOR' as 'BACHELOR' | 'MASTER' | 'DOCTORAL',
+    level: 'BACHELOR' as 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
     yearEstablished: '',
   });
 

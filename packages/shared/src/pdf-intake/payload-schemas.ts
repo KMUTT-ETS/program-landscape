@@ -55,7 +55,7 @@ export const CurriculumPayloadSchema = z.object({
   programNameEn: z.string().optional(),
   facultyNameTh: z.string().optional(),
   departmentNameTh: z.string().optional(),
-  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']).optional(),
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).optional(),
   totalCredits: z.number().int().positive().optional(),
   durationYears: z.number().positive().optional(),
   // CE year of the curriculum revision — extractor emits BE as-is when it
@@ -100,7 +100,7 @@ export const PeerProgramPayloadSchema = z.object({
   country: z.string().default('TH'),
   programNameTh: z.string().optional(),
   programNameEn: z.string(),
-  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']).optional(),
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).optional(),
   durationYears: z.number().positive().optional(),
   totalCredits: z.number().int().positive().optional(),
   descriptionEn: z.string().optional(),

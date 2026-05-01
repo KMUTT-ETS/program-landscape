@@ -18,7 +18,7 @@ export interface ProgramListRow {
   code: string;
   nameTh: string;
   nameEn: string;
-  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
   status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
   curriculumYearBE: number | null;
   totalCredits: number | null;
@@ -51,6 +51,7 @@ const LEVEL_LABEL: Record<ProgramListRow['level'], string> = {
   BACHELOR: 'Bachelor',
   MASTER: 'Master',
   DOCTORAL: 'Doctoral',
+  HIGHER_GRAD_DIPLOMA: 'Higher Grad. Diploma',
 };
 
 const STATUS_TONE: Record<

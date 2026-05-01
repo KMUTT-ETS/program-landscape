@@ -1,8 +1,27 @@
 # Health score methodology
 
-**Version:** `health-score.v1`
-**Reviewed:** 2026-04-23
+**Version:** `health-score.v2`
+**Reviewed:** 2026-05-01
 **Owner:** KKU Data Office
+
+> **v2 changes (2026-05-01):** Demand dimension extended with a fourth driver
+> `labor_market_alignment_kmitl`. The first three drivers (admission yield,
+> retention year 2, on-time graduation) are unchanged — they remain internal-
+> KKU proxies for demand. The new driver pulls real external labour-market
+> signal from KMITL Skill Mapping (`KmitlCareerSkillDemand`, scope=THAILAND,
+> source=JOB_POSTINGS, percentage ≥ 5%). Computation: per-program, the share
+> of ProgramSkill rows whose skill_id is in the KMITL demanded set, ×100.
+> Faculty/department aggregates average across child programs. Returns null
+> (data gap) when KMITL has no rows, NOT zero.
+>
+> Per `docs/readiness-checklist.md` gate 11, KMITL data is preview-quality
+> until **2026-05-31** (30-day green-history countdown started 2026-05-01).
+> Until then, Council-facing Cockpit views should surface "preview" framing
+> on the demand dimension.
+>
+> Old `health-score.v1` rows are retained for audit; new computations stamp
+> `v2`. The connector behind the new driver is `kmitl-skill-mapping`, which
+> replaces the original prompt-14 plan to ingest JobThai + JobsDB.
 
 Every program has five health dimensions plus an overall composite. Scores
 run 0–100 where 100 is healthiest. Below 40 is "danger zone"; 40–65 is

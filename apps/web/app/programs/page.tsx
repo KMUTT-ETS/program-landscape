@@ -14,7 +14,7 @@ interface ProgramRow {
   code: string;
   nameEn: string;
   nameTh: string;
-  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL';
+  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
   status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
   facultyId: string;
   departmentId: string | null;
@@ -43,6 +43,7 @@ const LEVEL_LABEL: Record<ProgramRow['level'], string> = {
   BACHELOR: 'B.Sc.',
   MASTER: 'M.Sc.',
   DOCTORAL: 'Ph.D.',
+  HIGHER_GRAD_DIPLOMA: 'H.Grad.Dip.',
 };
 
 export default async function ProgramsDirectoryPage({
