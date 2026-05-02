@@ -17,16 +17,13 @@ import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
 import { setThemePreferenceAction } from '@/lib/actions/theme';
 
+// Top-bar right cluster — bell · theme · user.
+//
+// 2026-05-02 cleanup: theme picker promoted out of the user dropdown
+// into its own icon button (the standard Linear/Vercel pattern).
+// The user dropdown is now strictly account info + sign out.
+
 export function TopBarRight({ user }: { user: SessionUser }) {
-  const { theme, setTheme } = useTheme();
-
-  const onTheme = (value: string) => {
-    setTheme(value);
-    void setThemePreferenceAction(
-      value === 'light' ? 'LIGHT' : value === 'dark' ? 'DARK' : 'SYSTEM',
-    );
-  };
-
   const initials = (user.name ?? user.email)
     .split(/[\s.@]+/)
     .filter(Boolean)
@@ -45,6 +42,8 @@ export function TopBarRight({ user }: { user: SessionUser }) {
       >
         <Bell className="h-[17px] w-[17px]" aria-hidden />
       </a>
+
+      <ThemeButton />
 
       <div className="mx-1 h-6 w-px bg-border-subtle" aria-hidden />
 
@@ -78,38 +77,59 @@ export function TopBarRight({ user }: { user: SessionUser }) {
             <span className="truncate">{user.email}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={onTheme}>
-            <DropdownMenuRadioItem value="light">
-              <Sun className="h-4 w-4 text-text-tertiary" aria-hidden /> Light
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="dark">
-              <Moon className="h-4 w-4 text-text-tertiary" aria-hidden /> Dark
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="system">
-              <Monitor className="h-4 w-4 text-text-tertiary" aria-hidden /> System
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void signOut({ callbackUrl: '/signin' })}>
             <LogOut className="h-4 w-4 text-text-tertiary" aria-hidden />
             Sign out
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {/* Personal action — notifications. Module nav lives in the
-              sidebar; admin pages live in the sidebar's admin sections;
-              uploading PDFs is reached through Setup hub or any
-              category card so the user has context before uploading.
-              Anything else here would re-introduce the duplicate-path
-              problem this dropdown had before 2026-05-02. */}
-          <DropdownMenuItem asChild>
-            <a href="/inbox" className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-text-tertiary" aria-hidden />
-              Inbox
-            </a>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>
+  );
+}
+
+// ─── Theme button ──────────────────────────────────────────────────────────
+
+function ThemeButton() {
+  const { theme, resolvedTheme, setTheme } = useTheme();
+
+  const onTheme = (value: string) => {
+    setTheme(value);
+    void setThemePreferenceAction(
+      value === 'light' ? 'LIGHT' : value === 'dark' ? 'DARK' : 'SYSTEM',
+    );
+  };
+
+  // Show the icon for the *resolved* theme so the button always reflects
+  // what the user is actually seeing. When the preference is 'system' we
+  // still pick sun/moon based on the resolved value, which is what users
+  // expect (the picker reveals that 'system' is the current preference).
+  const Icon = resolvedTheme === 'dark' ? Moon : Sun;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Change theme"
+          className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+        >
+          <Icon className="h-[17px] w-[17px]" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[180px]">
+        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={onTheme}>
+          <DropdownMenuRadioItem value="light">
+            <Sun className="h-4 w-4 text-text-tertiary" aria-hidden /> Light
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">
+            <Moon className="h-4 w-4 text-text-tertiary" aria-hidden /> Dark
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system">
+            <Monitor className="h-4 w-4 text-text-tertiary" aria-hidden /> System
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
