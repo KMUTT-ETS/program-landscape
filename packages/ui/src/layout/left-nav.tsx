@@ -138,12 +138,18 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
   return (
     <nav
       className={cn(
-        'flex h-full flex-col bg-nav-surface text-nav-fg',
+        // 2026-05-02b: glossy backdrop on the nav surface — peach-cream
+        // gradient at the top fading to flat surface, so the whole
+        // column reads as one panel with the canvas. Right-edge hairline
+        // uses the accent-edge palette to echo the EdgeGlow vocabulary.
+        'kku-leftnav relative flex h-full flex-col bg-nav-surface text-nav-fg',
         className,
       )}
     >
       {brand ? (
-        <div className="flex items-center gap-3 border-b border-border-subtle px-5 py-5">
+        // Brand block — bespoke glossy backdrop so the KKU monogram +
+        // wordmark reads as a hero spot, not a flat tile.
+        <div className="kku-leftnav-brand relative flex items-center gap-3 px-5 py-5">
           {brand}
         </div>
       ) : null}
@@ -152,8 +158,10 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
         {sections.map((section, si) => (
           <div key={si} className={cn('flex flex-col gap-1', si > 0 && 'mt-6')}>
             {section.label && (
-              <div className="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-nav-fg-muted">
-                {section.label}
+              <div className="flex items-center gap-2 px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-nav-fg-muted">
+                <span className="h-px flex-1 bg-gradient-to-r from-transparent to-border-default" aria-hidden />
+                <span>{section.label}</span>
+                <span className="h-px flex-1 bg-gradient-to-l from-transparent to-border-default" aria-hidden />
               </div>
             )}
             {section.items.map((item) => {
@@ -191,20 +199,23 @@ function NavTile({
   active: boolean;
   classes: (typeof MODULE_CLASSES)[ModuleKey];
 }) {
-  // 2026-05-02 redesign — pill-shaped tiles, soft accent ring on active.
-  // Active = module-tinted bg + module-coloured icon chip + coloured
-  // label + left rail + subtle inset highlight. Inactive = neutral-on-
-  // nav with coloured chip foreground.
+  // 2026-05-02b — pill tiles with a layered active state:
+  //   • module-subtle bg
+  //   • inset top highlight (sheen)
+  //   • coral-tinted glow shadow that echoes shadow-glow-accent
+  //   • module-coloured rail still on the left edge
+  // Inactive state is muted; hover lifts the tile toward accent-subtle
+  // so the whole row feels alive even before click.
   const base = cn(
     'group relative flex items-center gap-3 rounded-full px-3 py-2.5',
-    'transition-[background-color,color,box-shadow] duration-fast',
+    'transition-[background-color,color,box-shadow,transform] duration-fast',
     active
       ? cn(
           classes.activeTileBg,
           classes.labelActive,
-          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]',
+          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_4px_12px_-4px_rgb(255_140_70/0.20)]',
         )
-      : 'text-nav-fg/80 hover:bg-nav-surface-hover hover:text-nav-fg',
+      : 'text-nav-fg/80 hover:bg-accent-subtle/50 hover:text-text-primary',
     item.disabled && 'pointer-events-none opacity-40',
   );
 

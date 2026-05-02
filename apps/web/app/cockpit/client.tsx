@@ -109,7 +109,7 @@ export function CockpitClient(props: Props) {
               <select
                 value={levelFilter}
                 onChange={(e) => setLevelFilter(e.target.value)}
-                className="w-full rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+                className="w-full kku-select"
               >
                 <option value="">All</option>
                 <option value="BACHELOR">Bachelor</option>
@@ -122,7 +122,7 @@ export function CockpitClient(props: Props) {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+                className="w-full kku-select"
               >
                 <option value="">All</option>
                 <option value="ACTIVE">Active</option>

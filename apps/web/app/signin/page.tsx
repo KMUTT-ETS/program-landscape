@@ -13,7 +13,7 @@ export default function SignInPage() {
       <div className="flex items-center gap-3">
         <div
           aria-hidden
-          className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-default text-[16px] font-bold text-accent-fg shadow-[0_1px_0_0_rgba(255,255,255,0.08)_inset]"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-default text-[18px] font-bold text-accent-fg shadow-glow-accent"
         >
           K
         </div>

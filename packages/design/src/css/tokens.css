@@ -366,6 +366,121 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* ── Form controls — pill-shaped native select wrapper ─────────────
+   Native HTML select takes minimal styling, but a shared utility
+   makes 30+ scattered call-sites consistent without each one
+   re-specifying border/radius/padding. Pill-shaped, accent ring on
+   focus, soft accent border on hover. */
+.kku-select {
+  display: inline-flex;
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 1rem;
+  font-size: var(--font-size-sm);
+  color: oklch(var(--color-text-primary));
+  background-color: oklch(var(--color-surface-1) / 0.8);
+  background-image: linear-gradient(
+    180deg,
+    oklch(var(--color-glossy-highlight) / 0.25) 0%,
+    oklch(var(--color-surface-1) / 0.0) 100%
+  );
+  border: 1px solid oklch(var(--color-border-default));
+  border-radius: var(--radius-full);
+  transition: border-color var(--motion-fast) var(--ease-standard),
+              box-shadow var(--motion-fast) var(--ease-standard);
+}
+.kku-select:hover {
+  border-color: oklch(var(--color-accent-default) / 0.5);
+}
+.kku-select:focus-visible {
+  outline: none;
+  border-color: oklch(var(--color-accent-default));
+  box-shadow: 0 0 0 3px oklch(var(--color-accent-default) / 0.15);
+}
+.kku-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Left-nav (sidebar) treatment ──────────────────────────────────
+   Glossy gradient backdrop. The right-edge hairline picks up the
+   accent-edge palette so the whole shell reads as one continuous
+   pastel surface with a coral edge that frames the canvas.
+   Brand block: bespoke peach gradient that anchors the column. */
+.kku-leftnav {
+  background-image: linear-gradient(
+    180deg,
+    oklch(var(--color-glossy-tint) / 0.45) 0%,
+    oklch(var(--color-nav-surface) / 0.0) 22%
+  );
+}
+.kku-leftnav::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    oklch(var(--color-edge-1) / 0.45) 0%,
+    oklch(var(--color-border-default)) 30%,
+    oklch(var(--color-border-subtle)) 100%
+  );
+  pointer-events: none;
+}
+.kku-leftnav-brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    oklch(var(--color-glossy-highlight) / 0.55) 0%,
+    oklch(var(--color-glossy-tint) / 0.35) 40%,
+    oklch(var(--color-nav-surface) / 0.0) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.kku-leftnav-brand > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Top-bar treatment ─────────────────────────────────────────────
+   Subtle peach-wash gradient at the top fading down to surface-0,
+   plus a thin gradient hairline at the bottom that uses the accent
+   palette on the right edge. Distinct visual identity vs a plain
+   blurred bar. */
+.kku-topbar {
+  position: relative;
+  isolation: isolate;
+}
+.kku-topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    oklch(var(--color-glossy-tint) / 0.55) 0%,
+    oklch(var(--color-surface-0) / 0.0) 80%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+.kku-topbar::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    oklch(var(--color-border-subtle)) 0%,
+    oklch(var(--color-border-default) / 0.6) 60%,
+    oklch(var(--color-edge-1) / 0.45) 100%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* ── Glossy surface — used by Card variant tone="glossy" ───────── */
 /* The base background gradient comes from Tailwind utilities on the Card
    itself; this layer adds a soft white highlight at the top that mimics

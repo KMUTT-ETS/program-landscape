@@ -177,7 +177,7 @@ export function UploadClient() {
           <select
             value={sourceCategory}
             onChange={(e) => setSourceCategory(e.target.value)}
-            className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+            className="kku-select"
           >
             {CATEGORY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -199,7 +199,7 @@ export function UploadClient() {
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value as typeof language)}
-            className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+            className="kku-select"
           >
             <option value="">Auto-detect</option>
             <option value="TH">Thai</option>

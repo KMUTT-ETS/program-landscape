@@ -36,20 +36,20 @@ export function TopBarRight({ user }: { user: SessionUser }) {
       <a
         href="/inbox"
         aria-label="Notifications inbox"
-        className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-transparent transition-[background-color,color,box-shadow] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
       >
         <Bell className="h-[17px] w-[17px]" aria-hidden />
       </a>
 
       <ThemeButton />
 
-      <div className="mx-1 h-6 w-px bg-border-subtle" aria-hidden />
+      <div className="mx-1.5 h-5 w-px bg-gradient-to-b from-transparent via-border-default to-transparent" aria-hidden />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="group flex h-9 items-center gap-2 rounded-md pl-1 pr-2 py-1 ring-1 ring-inset ring-transparent transition-colors duration-fast hover:bg-surface-2 hover:ring-border-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+            className="group flex h-9 items-center gap-2 rounded-full pl-1 pr-3 py-1 ring-1 ring-inset ring-border-subtle bg-surface-1/60 transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
           >
             {/* Avatar — accent-tinted initials on subtle surface. */}
             <div
@@ -125,7 +125,7 @@ function ThemeButton() {
       onClick={cycle}
       title={`${THEME_LABEL[current]} · click for ${THEME_LABEL[next].toLowerCase()}`}
       aria-label={`${THEME_LABEL[current]}. Click to switch to ${THEME_LABEL[next].toLowerCase()}.`}
-      className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+      className="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-transparent transition-[background-color,color,box-shadow] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
     >
       <Icon className="h-[17px] w-[17px]" aria-hidden />
     </button>

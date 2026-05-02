@@ -548,7 +548,7 @@ function FillStep({
               <select
                 value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value as typeof form.level })}
-                className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+                className="kku-select"
               >
                 <option value="BACHELOR">Bachelor</option>
                 <option value="MASTER">Master</option>
@@ -576,7 +576,7 @@ function FillStep({
                 onChange={(e) =>
                   setForm({ ...form, facultyId: e.target.value, departmentId: '' })
                 }
-                className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+                className="kku-select"
               >
                 <option value="">— Select faculty —</option>
                 {faculties.map((f) => (
@@ -591,7 +591,7 @@ function FillStep({
                 value={form.departmentId}
                 disabled={!form.facultyId}
                 onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-                className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm disabled:opacity-50"
+                className="kku-select disabled:opacity-50"
               >
                 <option value="">— None / Faculty-level —</option>
                 {filteredDepts.map((d) => (

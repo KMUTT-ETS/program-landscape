@@ -22,14 +22,14 @@ export interface TopBarProps {
 export function TopBar({ breadcrumb, center, right, className }: TopBarProps) {
   return (
     <header
-      // data-surface="neutral" (default) — child components that used to
-      // check for data-surface="accent" now render in their default
-      // neutral-on-surface mode. Kept as a hook for future variants.
       data-surface="neutral"
       className={cn(
         'sticky top-0 z-30 flex h-14 items-center gap-4 px-5',
-        'bg-surface-0/85 backdrop-blur-md',
-        'border-b border-border-subtle',
+        // Glossy translucent backdrop with faint coral wash. The
+        // ::before layer (added via .kku-topbar) carries a subtle
+        // gradient + a 1px hairline at the bottom that fades into
+        // the accent edge palette on the right side.
+        'kku-topbar bg-surface-0/70 backdrop-blur-xl',
         'text-text-primary',
         className,
       )}
@@ -38,7 +38,7 @@ export function TopBar({ breadcrumb, center, right, className }: TopBarProps) {
         {breadcrumb}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-3">{center}</div>
-      <div className="flex shrink-0 items-center gap-1">{right}</div>
+      <div className="flex shrink-0 items-center gap-1.5">{right}</div>
     </header>
   );
 }

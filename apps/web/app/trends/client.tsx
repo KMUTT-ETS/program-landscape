@@ -74,7 +74,7 @@ export function TrendsClient({
               setFilters(next);
               applyFilters(next);
             }}
-            className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+            className="kku-select"
           >
             {TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -89,7 +89,7 @@ export function TrendsClient({
               setFilters(next);
               applyFilters(next);
             }}
-            className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+            className="kku-select"
           >
             {WINDOW_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

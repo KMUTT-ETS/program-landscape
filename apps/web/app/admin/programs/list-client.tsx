@@ -115,7 +115,7 @@ export function ProgramsListClient({
                 setFacultyId(e.target.value);
                 applyFilters({ facultyId: e.target.value });
               }}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">All faculties</option>
               {faculties.map((f) => (
@@ -133,7 +133,7 @@ export function ProgramsListClient({
                 setLevel(e.target.value);
                 applyFilters({ level: e.target.value });
               }}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">All levels</option>
               <option value="BACHELOR">Bachelor</option>
@@ -149,7 +149,7 @@ export function ProgramsListClient({
                 setStatus(e.target.value);
                 applyFilters({ status: e.target.value });
               }}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">All statuses</option>
               <option value="ACTIVE">Active</option>

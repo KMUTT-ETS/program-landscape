@@ -257,7 +257,7 @@ function OverviewTab({
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value as Status })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="ACTIVE">Active</option>
               <option value="PAUSED">Paused</option>
@@ -274,7 +274,7 @@ function OverviewTab({
             <select
               value={form.facultyId}
               onChange={(e) => setForm({ ...form, facultyId: e.target.value, departmentId: '' })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               {faculties.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -287,7 +287,7 @@ function OverviewTab({
             <select
               value={form.departmentId}
               onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">— None / Faculty-level —</option>
               {filteredDepts.map((d) => (
@@ -305,7 +305,7 @@ function OverviewTab({
             <select
               value={form.level}
               onChange={(e) => setForm({ ...form, level: e.target.value as Level })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="BACHELOR">Bachelor</option>
               <option value="MASTER">Master</option>
@@ -358,7 +358,7 @@ function OverviewTab({
             <select
               value={form.language}
               onChange={(e) => setForm({ ...form, language: e.target.value })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">— Unspecified —</option>
               <option value="TH">Thai</option>
@@ -371,7 +371,7 @@ function OverviewTab({
               value={form.majorsText}
               onChange={(e) => setForm({ ...form, majorsText: e.target.value })}
               rows={4}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             />
           </Field>
           <Field label="Program plans" hint="One per line — e.g. แผน ก แบบ ก1 / แบบ 2.2">
@@ -379,7 +379,7 @@ function OverviewTab({
               value={form.programPlansText}
               onChange={(e) => setForm({ ...form, programPlansText: e.target.value })}
               rows={4}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             />
           </Field>
         </div>
@@ -390,7 +390,7 @@ function OverviewTab({
             <select
               value={form.admissionScope}
               onChange={(e) => setForm({ ...form, admissionScope: e.target.value })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">— Unspecified —</option>
               <option value="TH_ONLY">Thai only</option>
@@ -410,7 +410,7 @@ function OverviewTab({
             <select
               value={form.openingSemester}
               onChange={(e) => setForm({ ...form, openingSemester: e.target.value })}
-              className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+              className="kku-select"
             >
               <option value="">—</option>
               <option value="1">Semester 1</option>
@@ -867,7 +867,7 @@ function FilesTab({ program }: { program: ProgramDetail }) {
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value as DocRole)}
-                className="rounded-md border border-border-default bg-surface-1 px-2 py-1.5 text-sm"
+                className="kku-select"
               >
                 {Object.entries(ROLE_LABEL).map(([v, l]) => (
                   <option key={v} value={v}>
