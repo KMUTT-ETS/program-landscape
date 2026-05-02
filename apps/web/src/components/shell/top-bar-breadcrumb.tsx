@@ -45,17 +45,17 @@ export function TopBarBreadcrumb() {
   const rest = segments.slice(moduleEntry ? moduleEntry.href.split('/').filter(Boolean).length : 1);
 
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5">
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2">
       <Link
         href={firstHref}
-        className="truncate font-medium text-text-primary transition-colors duration-fast hover:text-accent-default"
+        className="truncate text-base font-semibold tracking-tight text-text-primary transition-colors duration-fast hover:text-accent-default"
       >
         {firstLabel}
       </Link>
       {rest.map((seg, idx) => (
         <React.Fragment key={`${seg}-${idx}`}>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-tertiary" aria-hidden />
-          <span className="truncate text-text-secondary">{prettify(seg)}</span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
+          <span className="truncate text-base font-medium text-text-secondary">{prettify(seg)}</span>
         </React.Fragment>
       ))}
     </nav>

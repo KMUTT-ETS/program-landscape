@@ -31,38 +31,39 @@ export function TopBarRight({ user }: { user: SessionUser }) {
 
   return (
     <>
-      {/* Notification bell — neutral-on-surface. Reads as muted chrome
-          in default state; pops on hover. */}
+      {/* Notification bell — generous icon button. */}
       <a
         href="/inbox"
         aria-label="Notifications inbox"
-        className="relative flex h-11 w-11 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/60 transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+        className="relative flex h-12 w-12 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
       >
-        <Bell className="h-[19px] w-[19px]" aria-hidden />
+        <Bell className="h-[22px] w-[22px]" aria-hidden strokeWidth={1.8} />
       </a>
 
       <ThemeButton />
 
-      <div className="mx-1.5 h-5 w-px bg-gradient-to-b from-transparent via-border-default to-transparent" aria-hidden />
+      <div className="mx-2 h-7 w-px bg-gradient-to-b from-transparent via-border-default to-transparent" aria-hidden />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="group flex h-11 items-center gap-2.5 rounded-full pl-1 pr-3.5 py-1 ring-1 ring-inset ring-border-subtle bg-surface-1/70 transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+            className="group flex h-12 items-center gap-3 rounded-full pl-1.5 pr-4 ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
           >
-            {/* Avatar — accent-tinted initials on subtle surface. */}
+            {/* Avatar — solid coral disk with bold initials. Simplified
+                from the previous gradient + ring + shadow stack which
+                read as "distorted" at small sizes. */}
             <div
               aria-hidden
-              className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-accent-default to-accent-hover text-sm font-bold uppercase text-accent-fg shadow-[0_2px_8px_-2px_rgb(255_140_70/0.45)] ring-1 ring-accent-default/20"
+              className="grid h-9 w-9 place-items-center rounded-full bg-accent-default text-[13px] font-bold uppercase tracking-wider text-accent-fg shadow-[0_2px_10px_-2px_rgb(255_140_70/0.55)]"
             >
               {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
             </div>
-            <div className="hidden flex-col items-start leading-tight md:flex">
-              <span className="text-sm font-semibold text-text-primary">
+            <div className="hidden flex-col items-start leading-none md:flex">
+              <span className="text-[15px] font-semibold tracking-tight text-text-primary">
                 {user.name ?? user.email.split('@')[0]}
               </span>
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-tertiary">
+              <span className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-accent-default">
                 {user.role.replaceAll('_', ' ')}
               </span>
             </div>
@@ -125,9 +126,9 @@ function ThemeButton() {
       onClick={cycle}
       title={`${THEME_LABEL[current]} · click for ${THEME_LABEL[next].toLowerCase()}`}
       aria-label={`${THEME_LABEL[current]}. Click to switch to ${THEME_LABEL[next].toLowerCase()}.`}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/60 transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+      className="relative flex h-12 w-12 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
     >
-      <Icon className="h-[19px] w-[19px]" aria-hidden />
+      <Icon className="h-[22px] w-[22px]" aria-hidden strokeWidth={1.8} />
     </button>
   );
 }

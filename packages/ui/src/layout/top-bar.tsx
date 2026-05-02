@@ -33,7 +33,7 @@ export function TopBar({ breadcrumb, center, right, className }: TopBarProps) {
         className,
       )}
     >
-      <div className="flex min-w-0 shrink-0 items-center gap-2 text-sm text-text-secondary">
+      <div className="flex min-w-0 shrink-0 items-center gap-2 text-[15px] text-text-secondary">
         {breadcrumb}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-3">{center}</div>
