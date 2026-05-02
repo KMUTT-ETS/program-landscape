@@ -6,8 +6,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
@@ -87,49 +85,49 @@ export function TopBarRight({ user }: { user: SessionUser }) {
   );
 }
 
-// ─── Theme button ──────────────────────────────────────────────────────────
+// ─── Theme toggle ──────────────────────────────────────────────────────────
+
+// Single-click cycle: light → dark → system → light. Icon reflects the
+// current preference (Sun / Moon / Monitor) so the user always knows
+// what's set; title/aria-label announces what the next click will do.
+
+const THEME_CYCLE = ['light', 'dark', 'system'] as const;
+type ThemePref = (typeof THEME_CYCLE)[number];
+
+const THEME_ICON: Record<ThemePref, typeof Sun> = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor,
+};
+
+const THEME_LABEL: Record<ThemePref, string> = {
+  light: 'Light theme',
+  dark: 'Dark theme',
+  system: 'System theme (follows OS)',
+};
 
 function ThemeButton() {
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const current = (THEME_CYCLE.includes(theme as ThemePref) ? theme : 'system') as ThemePref;
+  const next = THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length]!;
+  const Icon = THEME_ICON[current];
 
-  const onTheme = (value: string) => {
-    setTheme(value);
+  const cycle = () => {
+    setTheme(next);
     void setThemePreferenceAction(
-      value === 'light' ? 'LIGHT' : value === 'dark' ? 'DARK' : 'SYSTEM',
+      next === 'light' ? 'LIGHT' : next === 'dark' ? 'DARK' : 'SYSTEM',
     );
   };
 
-  // Show the icon for the *resolved* theme so the button always reflects
-  // what the user is actually seeing. When the preference is 'system' we
-  // still pick sun/moon based on the resolved value, which is what users
-  // expect (the picker reveals that 'system' is the current preference).
-  const Icon = resolvedTheme === 'dark' ? Moon : Sun;
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Change theme"
-          className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
-        >
-          <Icon className="h-[17px] w-[17px]" aria-hidden />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[180px]">
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={onTheme}>
-          <DropdownMenuRadioItem value="light">
-            <Sun className="h-4 w-4 text-text-tertiary" aria-hidden /> Light
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <Moon className="h-4 w-4 text-text-tertiary" aria-hidden /> Dark
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            <Monitor className="h-4 w-4 text-text-tertiary" aria-hidden /> System
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      type="button"
+      onClick={cycle}
+      title={`${THEME_LABEL[current]} · click for ${THEME_LABEL[next].toLowerCase()}`}
+      aria-label={`${THEME_LABEL[current]}. Click to switch to ${THEME_LABEL[next].toLowerCase()}.`}
+      className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+    >
+      <Icon className="h-[17px] w-[17px]" aria-hidden />
+    </button>
   );
 }
