@@ -48,6 +48,20 @@ const preset: Partial<Config> = {
       border: mapColor(colorTokens.border),
       text: mapColor(colorTokens.text),
       accent: mapColor(colorTokens.accent),
+      edge: {
+        1: oklch(colorTokens.edge[1]),
+        2: oklch(colorTokens.edge[2]),
+        3: oklch(colorTokens.edge[3]),
+      },
+      glossy: {
+        tint: oklch(colorTokens.glossy.tint),
+        highlight: oklch(colorTokens.glossy.highlight),
+      },
+      'brand-cardinal': {
+        DEFAULT: oklch(colorTokens.brandCardinal.default),
+        hover: oklch(colorTokens.brandCardinal.hover),
+        subtle: oklch(colorTokens.brandCardinal.subtle),
+      },
       success: {
         DEFAULT: oklch(colorTokens.semantic.success),
         subtle: oklch(colorTokens.semantic.successSubtle),

@@ -30,6 +30,22 @@ export const colorTokens = {
     subtle: 'var(--color-accent-subtle)',
     fg: 'var(--color-accent-fg)',
   },
+  /* 2026-05-02: razor-edge gradient stops + glossy surface anchors */
+  edge: {
+    1: 'var(--color-edge-1)',
+    2: 'var(--color-edge-2)',
+    3: 'var(--color-edge-3)',
+  },
+  glossy: {
+    tint: 'var(--color-glossy-tint)',
+    highlight: 'var(--color-glossy-highlight)',
+  },
+  /* KKU Cardinal — preserved for Decisions module + PDF generation. */
+  brandCardinal: {
+    default: 'var(--color-brand-cardinal)',
+    hover: 'var(--color-brand-cardinal-hover)',
+    subtle: 'var(--color-brand-cardinal-subtle)',
+  },
   semantic: {
     success: 'var(--color-success-default)',
     successSubtle: 'var(--color-success-subtle)',

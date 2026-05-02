@@ -14,6 +14,7 @@ import {
   ConfidenceBadge,
   DataTable,
   Divider,
+  EdgeGlow,
   EmptyState,
   FreshnessBadge,
   Input,
@@ -31,6 +32,7 @@ import {
   TrendLine,
   type ColumnDef,
 } from '@kku/ui';
+import { Sparkles } from 'lucide-react';
 import type { ApiMeta } from '@kku/shared';
 
 const DENSITY_MODES = ['compact', 'comfortable', 'spacious'] as const;
@@ -96,8 +98,76 @@ export function StyleguideCatalog() {
         }
       />
 
+      {/* ── 2026-05-02 redesign showcase ───────────────────────────── */}
+      <Section
+        title="Redesign — pastel coral · glossy · razor edges"
+        description="2026-05-02 visual refresh. Pill buttons, glossy Card variant, animated edge glow, Sarabun primary."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <EdgeGlow>
+            <Card padding="lg" tone="glossy" className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-accent-default">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden /> Hero CTA
+              </div>
+              <h3 className="text-2xl font-semibold text-text-primary">
+                Run analyse-the-landscape on the next 44 programs
+              </h3>
+              <p className="text-sm text-text-secondary">
+                Glossy Card + EdgeGlow + pill primary button. The edge gradient
+                rotates every 4.5s and respects <code className="font-mono text-xs">prefers-reduced-motion</code>.
+              </p>
+              <div className="mt-2 flex items-center gap-3">
+                <Button variant="primary">Start digest</Button>
+                <Button variant="outline">Inspect bucket</Button>
+                <Button variant="ghost">Cancel</Button>
+              </div>
+            </Card>
+          </EdgeGlow>
+
+          <Card padding="lg" tone="glossy" className="flex flex-col gap-3">
+            <CardHeader>
+              <CardTitle>Glossy without edge glow</CardTitle>
+            </CardHeader>
+            <p className="text-sm text-text-secondary">
+              Use the glossy tone for hero blocks and primary KPIs. The
+              gradient is subtle — peach-cream highlight at the top fading
+              into surface-1, with elevation-2 shadow.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <KPI label="Digested" value="228" />
+              <KPI label="Pending review" value="0" />
+            </div>
+          </Card>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <EdgeGlow inline>
+            <Button variant="primary" size="lg">
+              Pill button + edge
+            </Button>
+          </EdgeGlow>
+          <EdgeGlow
+            inline
+            colors={[
+              'oklch(72% 0.155 150)',
+              'oklch(78% 0.140 130)',
+              'oklch(82% 0.130 95)',
+            ]}
+          >
+            <Button variant="default" size="lg">
+              Custom green edge
+            </Button>
+          </EdgeGlow>
+          <EdgeGlow inline speed="2s" thickness="2px">
+            <Button variant="outline" size="lg">
+              Faster · thicker
+            </Button>
+          </EdgeGlow>
+        </div>
+      </Section>
+
       {/* ── Typography ─────────────────────────────────────────────── */}
-      <Section title="Typography" description="IBM Plex Sans Thai · IBM Plex Mono">
+      <Section title="Typography" description="Sarabun (primary, screen + Thai) · JetBrains Mono (tabular)">
         <Card padding="lg" className="flex flex-col gap-4">
           <div className="font-sans text-display font-semibold">
             ทักษทัศน์ — Curriculum Compass

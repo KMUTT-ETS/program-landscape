@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  EdgeGlow,
   EmptyState,
   KPI,
   Segmented,
@@ -339,16 +340,28 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
         </div>
         <div className="flex items-center gap-2">
           {bucket === 'need-digest' && (
-            <Button onClick={runBulkDigest} disabled={bulkRunning || total === 0}>
-              <Play className="h-4 w-4" aria-hidden />
-              Run digest on all {total} ({(total * 0.04).toFixed(2)} USD est.)
-            </Button>
+            <EdgeGlow inline>
+              <Button
+                variant="primary"
+                onClick={runBulkDigest}
+                disabled={bulkRunning || total === 0}
+              >
+                <Play className="h-4 w-4" aria-hidden />
+                Run digest on all {total} ({(total * 0.04).toFixed(2)} USD est.)
+              </Button>
+            </EdgeGlow>
           )}
           {bucket === 'pending-review' && (
-            <Button onClick={approveSelected} disabled={bulkRunning || selected.size === 0}>
-              <CheckCircle2 className="h-4 w-4" aria-hidden />
-              Approve selected ({selected.size})
-            </Button>
+            <EdgeGlow inline>
+              <Button
+                variant="primary"
+                onClick={approveSelected}
+                disabled={bulkRunning || selected.size === 0}
+              >
+                <CheckCircle2 className="h-4 w-4" aria-hidden />
+                Approve selected ({selected.size})
+              </Button>
+            </EdgeGlow>
           )}
         </div>
       </div>

@@ -4,39 +4,51 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../lib/cn';
 
 // Button — used everywhere. Keep variants small and opinionated; the
-// styleguide is the contract. KKU Cardinal (accent) is used only for
-// the single primary CTA per view; use `outline` or `ghost` for the rest.
+// styleguide is the contract.
+//
+// 2026-05-02 redesign:
+//   - Default shape is `pill` (rounded-full). Opt out with `shape="square"`
+//     when the pill curves clip glyphs at the ends (e.g. wide hero CTAs
+//     inside a Card with rounded corners that already curve).
+//   - Primary buttons gain a coral glow on hover via shadow-glow-accent
+//     so the accent feels lit-up against the pastel surfaces.
+//   - Padding bumped slightly so pill silhouettes don't pinch the label.
 const buttonVariants = cva(
   [
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md',
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
     'font-medium text-sm',
-    'transition-[background-color,color,border-color,box-shadow] duration-fast ease-standard',
+    'transition-[background-color,color,border-color,box-shadow,transform] duration-fast ease-standard',
     'disabled:pointer-events-none disabled:opacity-50',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0',
   ].join(' '),
   {
     variants: {
       variant: {
-        primary: 'bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active',
+        primary:
+          'bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active hover:shadow-glow-accent',
         default:
           'bg-surface-1 text-text-primary border border-border-default hover:bg-surface-2',
         outline:
-          'bg-transparent text-text-primary border border-border-default hover:bg-surface-1',
+          'bg-transparent text-text-primary border border-border-default hover:bg-surface-1 hover:border-accent',
         ghost: 'bg-transparent text-text-primary hover:bg-surface-1',
-        subtle: 'bg-surface-2 text-text-primary hover:bg-surface-3',
+        subtle: 'bg-accent-subtle text-text-primary hover:bg-surface-3',
         danger:
           'bg-danger text-accent-fg hover:opacity-90 focus-visible:ring-danger',
         link: 'bg-transparent text-accent-default underline-offset-4 hover:underline',
       },
       size: {
-        xs: 'h-6 px-2 text-xs',
-        sm: 'h-8 px-3 text-sm',
-        md: 'h-9 px-4 text-sm',
-        lg: 'h-10 px-5 text-base',
-        icon: 'h-8 w-8 p-0',
+        xs: 'h-7 px-3 text-xs',
+        sm: 'h-9 px-4 text-sm',
+        md: 'h-10 px-5 text-sm',
+        lg: 'h-11 px-6 text-base',
+        icon: 'h-9 w-9 p-0',
+      },
+      shape: {
+        pill: 'rounded-full',
+        square: 'rounded-md',
       },
     },
-    defaultVariants: { variant: 'default', size: 'md' },
+    defaultVariants: { variant: 'default', size: 'md', shape: 'pill' },
   },
 );
 
@@ -48,7 +60,7 @@ export interface ButtonProps
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
-    { className, variant, size, asChild, type = 'button', ...props },
+    { className, variant, size, shape, asChild, type = 'button', ...props },
     ref,
   ) {
     const Comp = asChild ? Slot : 'button';
@@ -56,7 +68,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <Comp
         ref={ref}
         type={asChild ? undefined : type}
-        className={cn(buttonVariants({ variant, size }), className)}
+        className={cn(buttonVariants({ variant, size, shape }), className)}
         {...props}
       />
     );

@@ -35,9 +35,15 @@ const cardVariants = cva(
         default: '',
         raised: 'bg-surface-2',
         quiet: 'bg-surface-0',
+        /* 2026-05-02: glossy variant — peach-cream gradient + soft inner
+           highlight + slightly lifted shadow. The .kku-glossy class
+           layers a ::before that runs the highlight; defined in the
+           same file so consumers don't have to inject CSS. */
+        glossy:
+          'kku-glossy bg-gradient-to-br from-glossy-highlight/80 via-surface-1 to-glossy-tint/70 border-border-subtle',
       },
       interactive: {
-        true: 'hover:border-border-default hover:shadow-[0_4px_12px_rgba(16,24,40,0.08)]',
+        true: 'hover:border-accent hover:shadow-elevation-3',
         false: '',
       },
     },

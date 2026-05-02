@@ -6,4 +6,6 @@ export const shadow = {
   'elevation-4': 'var(--shadow-elevation-4)',
   card: 'var(--shadow-card)',
   popover: 'var(--shadow-popover)',
+  /* 2026-05-02: pastel-coral glow used by primary CTAs + EdgeGlow base */
+  'glow-accent': 'var(--shadow-glow-accent)',
 } as const;

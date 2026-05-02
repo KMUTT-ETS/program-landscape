@@ -3,14 +3,15 @@ import { Inter, Sarabun, JetBrains_Mono } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 
-// 2026-04-24 redesign: typography pairing.
+// 2026-05-02 redesign: typography pairing — Sarabun primary.
 //
-// - **Inter** for Latin UI chrome — the de-facto SaaS sans, excellent
-//   OpenType features (tabular figures, contextual alternates).
-// - **Sarabun** for Thai — matches the Cabinet-mandated doc font the
-//   PDFs already use, so screen ↔ print feel continuous. When the
-//   browser is rendering a block tagged `lang="th"` or `.lang-th`, it
-//   picks up Sarabun first via the --font-body-th fallback.
+// - **Sarabun** is now the primary UI font (was Thai-only fallback before).
+//   Loaded with both `thai` + `latin` subsets so a single typeface handles
+//   the whole interface; the `--font-body` token in tokens.css lists it
+//   first. Screen ↔ print continuity preserved with the Cabinet-mandated
+//   TH Sarabun New (PDF generation; same family, official cut).
+// - **Inter** retained as a Latin fallback for screens where Sarabun's
+//   Latin glyphs feel awkward (tight-tracked nav chrome, etc.).
 // - **JetBrains Mono** for tabular numerics — metric cards, data
 //   tables, timestamps. Paired with font-variant-numeric: tabular-nums.
 //

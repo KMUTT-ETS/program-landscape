@@ -1,6 +1,7 @@
 export * from './button';
 export * from './badge';
 export * from './card';
+export * from './edge-glow';
 export * from './skeleton';
 export * from './tooltip';
 export * from './dialog';
