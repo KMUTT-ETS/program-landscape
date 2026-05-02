@@ -44,7 +44,7 @@ export const DropdownMenuItem = React.forwardRef<
     <DropdownMenuPrimitive.Item
       ref={ref}
       className={cn(
-        'flex cursor-default select-none items-center gap-2.5 rounded-full px-3 py-2 text-sm',
+        'flex cursor-default select-none items-center gap-3 rounded-full px-3 py-2 text-sm',
         'outline-none transition-colors duration-fast',
         'focus:bg-accent-subtle focus:text-accent-default',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
@@ -65,7 +65,7 @@ export const DropdownMenuRadioItem = React.forwardRef<
     <DropdownMenuPrimitive.RadioItem
       ref={ref}
       className={cn(
-        'relative flex cursor-default select-none items-center gap-2.5 rounded-full py-2 pl-8 pr-3 text-sm',
+        'relative flex cursor-default select-none items-center gap-3 rounded-full py-2 pl-8 pr-3 text-sm',
         'outline-none transition-colors duration-fast',
         'focus:bg-accent-subtle focus:text-accent-default',
         'data-[state=checked]:text-accent-default data-[state=checked]:font-semibold',

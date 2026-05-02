@@ -147,7 +147,7 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
       )}
     >
       {brand ? (
-        <div className="kku-leftnav-brand relative flex items-center gap-3.5 px-6 py-6">
+        <div className="kku-leftnav-brand relative flex items-center gap-4 px-6 py-6">
           {brand}
         </div>
       ) : null}
@@ -199,8 +199,9 @@ function NavTile({
 }) {
   // 2026-05-02c — bigger pill tiles with dramatic active state.
   // Larger hit-area, more breathing, glow that's visible not subtle.
+  // gap-4 (16px) between icon and label — gap-3.5 felt cramped.
   const base = cn(
-    'group relative flex items-center gap-3.5 rounded-full px-3.5 py-3',
+    'group relative flex items-center gap-4 rounded-full px-3.5 py-3',
     'transition-[background-color,color,box-shadow,transform] duration-fast',
     active
       ? cn(

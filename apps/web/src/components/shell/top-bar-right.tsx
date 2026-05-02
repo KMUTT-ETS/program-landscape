@@ -48,7 +48,7 @@ export function TopBarRight({ user }: { user: SessionUser }) {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="group flex h-12 items-center gap-3 rounded-full pl-1.5 pr-4 ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+            className="group flex h-12 items-center gap-3.5 rounded-full pl-1.5 pr-5 ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
           >
             {/* Avatar — solid coral disk with bold initials. Simplified
                 from the previous gradient + ring + shadow stack which

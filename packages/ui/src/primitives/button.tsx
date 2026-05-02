@@ -15,7 +15,7 @@ import { cn } from '../lib/cn';
 //   - Padding bumped slightly so pill silhouettes don't pinch the label.
 const buttonVariants = cva(
   [
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
+    'inline-flex items-center justify-center gap-2.5 whitespace-nowrap',
     'font-medium text-sm',
     'transition-[background-color,color,border-color,box-shadow,transform] duration-fast ease-standard',
     'disabled:pointer-events-none disabled:opacity-50',
