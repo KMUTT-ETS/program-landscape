@@ -186,12 +186,18 @@
   --color-text-disabled: 45.0% 0.012 55;
   --color-text-inverse: 18.0% 0.020 50;
 
-  /* ── Pastel coral, lifted for dark surfaces ──────────────────── */
-  --color-accent-default: 75.0% 0.155 50;
-  --color-accent-hover: 80.0% 0.150 50;
-  --color-accent-active: 70.0% 0.155 50;
+  /* ── Coral primary — dark-mode pattern ───────────────────────────
+     2026-05-02f: dark mode flipped from "pastel + dark text" (which
+     read as washed-out on the dark canvas) to the conventional
+     dark-mode primary — saturated deep coral with white text. Same
+     vibrance as Linear/Stripe primary buttons in dark mode. White on
+     L=53 coral hits ~5:1 (AA pass), hover deepens to ~6:1, active to
+     ~7:1. accent-subtle stays at the dark warm-grey-coral chip bg. */
+  --color-accent-default: 53.0% 0.180 38;
+  --color-accent-hover: 48.0% 0.190 35;
+  --color-accent-active: 43.0% 0.195 32;
   --color-accent-subtle: 30.0% 0.060 50;
-  --color-accent-fg: 14.0% 0.020 50;
+  --color-accent-fg: 99.0% 0.005 70;
 
   --color-edge-1: 80.0% 0.180 40;
   --color-edge-2: 84.0% 0.170 70;

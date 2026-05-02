@@ -25,7 +25,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active active:text-text-inverse hover:shadow-glow-accent',
+          'bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active hover:shadow-glow-accent',
         default:
           'bg-surface-1 text-text-primary border border-border-default hover:bg-surface-2',
         outline:

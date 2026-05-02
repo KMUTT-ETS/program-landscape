@@ -197,11 +197,12 @@ function NavTile({
   active: boolean;
   classes: (typeof MODULE_CLASSES)[ModuleKey];
 }) {
-  // 2026-05-02c — bigger pill tiles with dramatic active state.
-  // Larger hit-area, more breathing, glow that's visible not subtle.
-  // gap-4 (16px) between icon and label — gap-3.5 felt cramped.
+  // 2026-05-02f — menu tiles are NOT pills. rounded-full read as
+  // "button" and the icon chip overlapped the curve at the left edge.
+  // Switched to rounded-2xl (20px corner) which reads as a soft menu
+  // row, with px-4 so the chip has room to breathe inside.
   const base = cn(
-    'group relative flex items-center gap-4 rounded-full px-3.5 py-3',
+    'group relative flex items-center gap-4 rounded-2xl px-4 py-3',
     'transition-[background-color,color,box-shadow,transform] duration-fast',
     active
       ? cn(
@@ -219,7 +220,11 @@ function NavTile({
         <span
           aria-hidden
           className={cn(
-            'absolute inset-y-2 left-0 w-[3px] rounded-r-full',
+            // Inset by 6px from the left edge so the rail sits inside
+            // the rounded-2xl corner instead of poking out of it. Full
+            // pill on both ends so it reads as a deliberate accent
+            // mark, not a clipped border.
+            'absolute inset-y-2.5 left-1.5 w-[3px] rounded-full',
             classes.activeRail,
           )}
         />
