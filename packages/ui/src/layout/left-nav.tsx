@@ -243,7 +243,7 @@ function NavTile({
           {item.icon}
         </span>
       )}
-      <span className="min-w-0 flex-1 truncate text-[15px] font-medium leading-tight">
+      <span className="min-w-0 flex-1 truncate text-[15px] font-medium leading-tight relative top-[-1px]">
         {item.label}
       </span>
       {item.badge && (

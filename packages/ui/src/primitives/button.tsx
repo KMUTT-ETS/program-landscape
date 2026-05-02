@@ -36,11 +36,16 @@ const buttonVariants = cva(
           'bg-danger text-text-inverse hover:opacity-90 focus-visible:ring-danger',
         link: 'bg-transparent text-accent-default underline-offset-4 hover:underline',
       },
+      // Sarabun ascender metric reserves vertical space above the
+      // baseline for Thai tone marks. With items-center on a fixed-
+      // height button, that reserved space pushes Latin glyphs visually
+      // toward the bottom edge. A 1-2px bottom-padding nudge shifts
+      // the centered area up enough to optically balance.
       size: {
-        xs: 'h-7 px-3 text-xs',
-        sm: 'h-9 px-4 text-sm',
-        md: 'h-10 px-5 text-sm',
-        lg: 'h-11 px-6 text-base',
+        xs: 'h-7 px-3 pb-[1px] text-xs',
+        sm: 'h-9 px-4 pb-[1px] text-sm',
+        md: 'h-10 px-5 pb-[2px] text-sm',
+        lg: 'h-11 px-6 pb-[2px] text-base',
         icon: 'h-9 w-9 p-0',
       },
       shape: {

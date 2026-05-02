@@ -34,7 +34,8 @@ export const SegmentedTrigger = React.forwardRef<
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        'inline-flex h-7 items-center justify-center gap-1.5 rounded-full px-4 text-xs font-medium text-text-secondary',
+        // pb-[1px] for Sarabun ascender — see note in Button.
+        'inline-flex h-7 items-center justify-center gap-1.5 rounded-full px-4 pb-[1px] text-xs font-medium text-text-secondary',
         'transition-[background-color,color,box-shadow] duration-fast',
         'hover:text-text-primary',
         'data-[state=active]:bg-accent data-[state=active]:text-accent-fg data-[state=active]:shadow-[0_2px_8px_-2px_rgb(255_140_70/0.45)]',

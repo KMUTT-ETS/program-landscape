@@ -35,8 +35,9 @@ export function CommandPaletteTrigger({
       onClick={open}
       aria-label="Open command palette"
       className={cn(
+        // pb-[1px] for Sarabun ascender alignment — see note in Button.
         'group flex h-11 w-full max-w-xl items-center gap-3 rounded-full',
-        'bg-surface-1/70 backdrop-blur-sm pl-4 pr-2 text-left text-sm text-text-tertiary',
+        'bg-surface-1/70 backdrop-blur-sm pl-4 pr-2 pb-[1px] text-left text-sm text-text-tertiary',
         'ring-1 ring-inset ring-border-subtle',
         'transition-[background-color,box-shadow,color,ring-color] duration-fast',
         'hover:bg-accent-subtle hover:text-text-primary hover:ring-accent/40',

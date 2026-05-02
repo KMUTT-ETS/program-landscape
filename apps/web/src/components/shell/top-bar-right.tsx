@@ -59,7 +59,7 @@ export function TopBarRight({ user }: { user: SessionUser }) {
             >
               {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
             </div>
-            <div className="hidden flex-col items-start leading-none md:flex">
+            <div className="hidden flex-col items-start leading-none md:flex relative top-[-0.5px]">
               <span className="text-[15px] font-semibold tracking-tight text-text-primary">
                 {user.name ?? user.email.split('@')[0]}
               </span>

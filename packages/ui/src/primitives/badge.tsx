@@ -19,9 +19,10 @@ const badgeVariants = cva(
         info: 'bg-info-subtle text-info border-transparent',
         outline: 'bg-transparent text-text-secondary border-border-default',
       },
+      // pb nudge for Sarabun's tall ascender — see note in Button.
       size: {
-        sm: 'h-5 px-1.5 text-[10px]',
-        md: 'h-6 px-2 text-xs',
+        sm: 'h-5 px-1.5 pb-[1px] text-[10px]',
+        md: 'h-6 px-2 pb-[1px] text-xs',
       },
     },
     defaultVariants: { tone: 'neutral', size: 'md' },
