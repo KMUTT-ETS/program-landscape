@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Activity, Bell, BrainCircuit, Building2, ClipboardCheck, Compass, Database, FileText, Gauge, GitBranch, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
+import { Bell, LogOut, Monitor, Moon, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -96,10 +96,13 @@ export function TopBarRight({ user }: { user: SessionUser }) {
             Sign out
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          {/* Quick actions — personal/per-user shortcuts. Module nav lives
+              in the sidebar; admin pages live in the sidebar's admin
+              sections. Trimmed 2026-05-02 to remove duplicate paths. */}
           <DropdownMenuItem asChild>
-            <a href="/styleguide" className="flex items-center gap-2">
-              <Palette className="h-4 w-4 text-text-tertiary" aria-hidden />
-              Styleguide
+            <a href="/inbox" className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-text-tertiary" aria-hidden />
+              Inbox
             </a>
           </DropdownMenuItem>
           {(user.role === 'ADMIN' ||
@@ -110,89 +113,6 @@ export function TopBarRight({ user }: { user: SessionUser }) {
               <a href="/upload" className="flex items-center gap-2">
                 <Upload className="h-4 w-4 text-text-tertiary" aria-hidden />
                 Upload PDFs
-              </a>
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem asChild>
-            <a href="/cockpit" className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-text-tertiary" aria-hidden />
-              Portfolio cockpit
-            </a>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <a href="/trends" className="flex items-center gap-2">
-              <Compass className="h-4 w-4 text-text-tertiary" aria-hidden />
-              Trends radar
-            </a>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <a href="/skills" className="flex items-center gap-2">
-              <Network className="h-4 w-4 text-text-tertiary" aria-hidden />
-              Skill explorer
-            </a>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <a href="/inbox" className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-text-tertiary" aria-hidden />
-              Inbox
-            </a>
-          </DropdownMenuItem>
-          {(user.role === 'ADMIN' ||
-            user.role === 'ANALYST' ||
-            user.role === 'EXECUTIVE' ||
-            user.role === 'COUNCIL') && (
-            <DropdownMenuItem asChild>
-              <a href="/admin/system-status" className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-text-tertiary" aria-hidden />
-                System status
-              </a>
-            </DropdownMenuItem>
-          )}
-          {(user.role === 'ADMIN' || user.role === 'ANALYST') && (
-            <>
-              <DropdownMenuItem asChild>
-                <a href="/admin/programs" className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-text-tertiary" aria-hidden />
-                  Programs
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="/admin/programs/pipeline" className="flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-text-tertiary" aria-hidden />
-                  Curriculum pipeline
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="/admin/data-quality" className="flex items-center gap-2">
-                  <Gauge className="h-4 w-4 text-text-tertiary" aria-hidden />
-                  Data quality
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="/admin/data-sources" className="flex items-center gap-2">
-                  <Database className="h-4 w-4 text-text-tertiary" aria-hidden />
-                  Data sources
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="/admin/pdf-review" className="flex items-center gap-2">
-                  <ClipboardCheck className="h-4 w-4 text-text-tertiary" aria-hidden />
-                  PDF review queue
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="/admin/extraction-review" className="flex items-center gap-2">
-                  <BrainCircuit className="h-4 w-4 text-text-tertiary" aria-hidden />
-                  AI extraction review
-                </a>
-              </DropdownMenuItem>
-            </>
-          )}
-          {user.role === 'ADMIN' && (
-            <DropdownMenuItem asChild>
-              <a href="/admin/pdf-generation" className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-text-tertiary" aria-hidden />
-                PDF generation
               </a>
             </DropdownMenuItem>
           )}

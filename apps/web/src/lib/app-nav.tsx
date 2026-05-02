@@ -47,7 +47,6 @@ const workSection: NavSection = {
   label: 'Work',
   items: [
     { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' },
-    { href: '/styleguide', label: 'Styleguide', icon: createElement(Palette), moduleKey: 'neutral' },
   ],
 };
 
@@ -79,7 +78,7 @@ const adminSystemSection: NavSection = {
   label: 'System',
   items: [
     { href: '/admin/system-status', label: 'System status', icon: createElement(Activity), moduleKey: 'neutral' },
-    { href: '/admin/ai-cost', label: 'AI cost', icon: createElement(BrainCircuit), moduleKey: 'neutral' },
+    { href: '/styleguide', label: 'Styleguide', icon: createElement(Palette), moduleKey: 'neutral' },
   ],
 };
 

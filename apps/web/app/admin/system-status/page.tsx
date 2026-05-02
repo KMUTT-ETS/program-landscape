@@ -3,6 +3,8 @@ import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 import { Badge, Card, PageHeader, Section, FreshnessBadge } from '@kku/ui';
 
 export const dynamic = 'force-dynamic';
@@ -135,7 +137,18 @@ export default async function SystemStatusPage() {
               </Card>
             </Section>
 
-            <Section title="AI usage — last 24 hours">
+            <Section
+              title="AI usage — last 24 hours"
+              actions={
+                <Link
+                  href="/admin/ai-cost"
+                  className="inline-flex items-center gap-1 text-sm text-accent-default hover:underline"
+                >
+                  Full cost report
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              }
+            >
               <Card tone="glossy">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <Stat label="Calls" value={status.ai24h.calls.toString()} />
