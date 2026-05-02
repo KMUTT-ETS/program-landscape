@@ -109,6 +109,29 @@ const THEME_LABEL: Record<ThemePref, string> = {
 
 function ThemeButton() {
   const { theme, setTheme } = useTheme();
+
+  // next-themes only knows the theme on the client (it reads
+  // localStorage / system preference after mount). Rendering the
+  // theme-specific icon during SSR + initial hydration triggers a
+  // mismatch when the client value differs from the SSR default.
+  // Mount-guard: render a neutral placeholder until the hook is
+  // hydrated, then swap to the real icon.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  const buttonClass =
+    'relative flex h-12 w-12 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40';
+
+  if (!mounted) {
+    // Placeholder — same dimensions, neutral icon. No theme-dependent
+    // strings, so SSR + first client render produce identical HTML.
+    return (
+      <button type="button" aria-label="Change theme" className={buttonClass} suppressHydrationWarning>
+        <Sun className="h-[22px] w-[22px] opacity-0" aria-hidden strokeWidth={1.8} />
+      </button>
+    );
+  }
+
   const current = (THEME_CYCLE.includes(theme as ThemePref) ? theme : 'system') as ThemePref;
   const next = THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length]!;
   const Icon = THEME_ICON[current];
@@ -126,7 +149,7 @@ function ThemeButton() {
       onClick={cycle}
       title={`${THEME_LABEL[current]} · click for ${THEME_LABEL[next].toLowerCase()}`}
       aria-label={`${THEME_LABEL[current]}. Click to switch to ${THEME_LABEL[next].toLowerCase()}.`}
-      className="relative flex h-12 w-12 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+      className={buttonClass}
     >
       <Icon className="h-[22px] w-[22px]" aria-hidden strokeWidth={1.8} />
     </button>
