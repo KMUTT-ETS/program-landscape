@@ -11,7 +11,9 @@ import {
   buildJobPostingSkillExtractionMessages,
   buildPolicyDocAnalysisMessages,
   type AiService,
+  type S3Storage,
 } from '@kku/shared';
+import { runProgramDigest } from '../program-digest/run';
 import type { AiJobKind } from './queue';
 
 // Each handler consumes one job, calls the AI service, writes an
@@ -38,6 +40,10 @@ export interface AiJobHandlersDeps {
   // When true (default), low-confidence extractions land in PENDING_REVIEW.
   // Tests can flip to false to exercise the materialisation path.
   autoApproveThreshold: number;
+  // RUN_PROGRAM_DIGEST handler reads the linked curriculum PDF from
+  // MinIO. Optional so unit tests of the other kinds don't need it
+  // wired; the program-digest handler asserts presence at run time.
+  storage?: S3Storage;
 }
 
 export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobHandler> {
@@ -215,6 +221,35 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         status: 'SUCCEEDED',
         aiExtractionId: row.id,
         aiInferenceId: resp.aiInferenceId,
+      };
+    },
+
+    RUN_PROGRAM_DIGEST: async ({ entityId, triggeredByUserId }) => {
+      if (!deps.storage) {
+        return { status: 'FAILED', message: 'AiJobsHandlersDeps.storage missing — cannot read PDF' };
+      }
+      const outcome = await runProgramDigest({
+        programId: entityId,
+        ai: deps.ai,
+        storage: deps.storage,
+        triggeredByUserId,
+      });
+      if (outcome.status === 'SUCCEEDED') {
+        logger.log(
+          `RUN_PROGRAM_DIGEST programId=${entityId} ` +
+            `extractionId=${outcome.aiExtractionId} ` +
+            `tokens=${outcome.tokensInput}→${outcome.tokensOutput} ` +
+            `$${outcome.costUsd.toFixed(4)}`,
+        );
+        return {
+          status: 'SUCCEEDED',
+          aiExtractionId: outcome.aiExtractionId,
+          aiInferenceId: outcome.aiInferenceId ?? undefined,
+        };
+      }
+      return {
+        status: outcome.status,
+        message: outcome.reason,
       };
     },
   };

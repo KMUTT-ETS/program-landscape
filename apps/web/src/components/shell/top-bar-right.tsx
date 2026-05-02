@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Activity, Bell, BrainCircuit, Building2, ClipboardCheck, Compass, Database, FileText, Gauge, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
+import { Activity, Bell, BrainCircuit, Building2, ClipboardCheck, Compass, Database, FileText, Gauge, GitBranch, LogOut, Monitor, Moon, Network, Palette, Sun, Upload, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -154,6 +154,12 @@ export function TopBarRight({ user }: { user: SessionUser }) {
                 <a href="/admin/programs" className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-text-tertiary" aria-hidden />
                   Programs
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/programs/pipeline" className="flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 text-text-tertiary" aria-hidden />
+                  Curriculum pipeline
                 </a>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

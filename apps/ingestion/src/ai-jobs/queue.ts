@@ -7,6 +7,9 @@ import type { AiJobHandler } from './handlers';
 //   EXTRACT_COURSE_SKILLS — course → CourseSkill proposals
 //   EXTRACT_JOB_POSTING_SKILLS — job → JobPostingSkill proposals
 //   ANALYZE_POLICY_DOC   — policy PDF → PolicyDocument + tags + trend signal
+//   RUN_PROGRAM_DIGEST   — program-digest.v1 against the program's CURRENT
+//                          curriculum PDF. Triggered by the admin pipeline
+//                          UI in apps/web; fires entityId=programId.
 //
 // Separate from `ingestion` and `pdf-intake` so AI concurrency (usually
 // lower than the connector queue's — vendor rate limits) + retry policy
@@ -19,7 +22,8 @@ export type AiJobKind =
   | 'EMBED_SKILL'
   | 'EXTRACT_COURSE_SKILLS'
   | 'EXTRACT_JOB_POSTING_SKILLS'
-  | 'ANALYZE_POLICY_DOC';
+  | 'ANALYZE_POLICY_DOC'
+  | 'RUN_PROGRAM_DIGEST';
 
 export interface AiJobData {
   kind: AiJobKind;

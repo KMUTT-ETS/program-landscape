@@ -182,4 +182,57 @@ export class ProgramsAdminController {
   ) {
     return this.svc.applyExtraction(user, id, extractionId, body);
   }
+
+  // ─── Curriculum pipeline (admin/programs/pipeline page) ──────────────
+  // Under /pipeline/* sub-path so the static routes don't collide with
+  // the parametric @Get(':id') above.
+
+  @Get('pipeline/stats')
+  @Authorized('programs:manage:all')
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  async pipelineStats() {
+    return this.svc.getPipelineStats();
+  }
+
+  @Get('pipeline/bucket/:bucket')
+  @Authorized('programs:manage:all')
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  async pipelineBucket(
+    @Param('bucket') bucket: string,
+    @Query('limit') limitRaw?: string,
+    @Query('offset') offsetRaw?: string,
+  ) {
+    const allowed = ['missing-pdf', 'need-digest', 'pending-review', 'approved'] as const;
+    if (!(allowed as readonly string[]).includes(bucket)) {
+      throw new Error(`unknown bucket: ${bucket} (valid: ${allowed.join(', ')})`);
+    }
+    return this.svc.listPipelineBucket(
+      bucket as (typeof allowed)[number],
+      {
+        limit: limitRaw ? Number(limitRaw) : undefined,
+        offset: offsetRaw ? Number(offsetRaw) : undefined,
+      },
+    );
+  }
+
+  @Post('pipeline/run-digest-bulk')
+  @Authorized('programs:manage:all')
+  @AuditLog({ action: 'program.run_digest_bulk', entityType: 'Program' })
+  async runDigestBulk(
+    @AuthSession() user: SessionUser,
+    @Body() body: { limit?: number } = {},
+  ) {
+    return this.svc.enqueueDigestBulk(user, { limit: body.limit });
+  }
+
+  @Post(':id/run-digest')
+  @Authorized('programs:manage:all')
+  @AuditLog({ action: 'program.run_digest', entityType: 'Program' })
+  async runDigest(
+    @AuthSession() user: SessionUser,
+    @Param('id') id: string,
+    @Body() body: { force?: boolean } = {},
+  ) {
+    return this.svc.enqueueDigest(user, id, { force: !!body.force });
+  }
 }

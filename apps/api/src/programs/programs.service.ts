@@ -15,6 +15,7 @@ import {
   type CollisionMatch,
   type CollisionReport,
 } from '@kku/shared';
+import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 
 // ─────────────────────────────────────────────────────────────────────────
 // ProgramsService — admin CRUD + curriculum-PDF attachment.
@@ -34,6 +35,8 @@ type PrismaTx = Omit<
 
 @Injectable()
 export class ProgramsService {
+  constructor(private readonly aiJobs: AiJobsQueueService) {}
+
   // ───────────────────────────────────────────────────────────────────────
   // Authorization helpers
   // ───────────────────────────────────────────────────────────────────────
@@ -929,4 +932,282 @@ export class ProgramsService {
     return data;
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Curriculum pipeline — surface for /admin/programs/pipeline
+  //
+  // Buckets a program by its position in the analyse-the-landscape
+  // pipeline so the operator can drive the next required action:
+  //
+  //   missing-pdf    — no CURRENT_CURRICULUM linked yet (need upload)
+  //   need-digest    — has PDF, no PROGRAM_DIGEST extraction yet
+  //   pending-review — digest is PENDING_REVIEW (analyst sign-off)
+  //   approved       — fully analysed (read-only)
+  //
+  // The bucket query exists on top of the existing list/detail endpoints
+  // so the pipeline page is one module on top of stable data — no schema
+  // changes required.
+  // ─────────────────────────────────────────────────────────────────────
+
+  async getPipelineStats() {
+    // One round-trip per scalar; cheap (each is an indexed count).
+    const [
+      total,
+      withPdfRows,
+      digestedRows,
+      approvedRows,
+      pendingRows,
+    ] = await Promise.all([
+      prisma.program.count(),
+      prisma.program.findMany({
+        where: { documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } } },
+        select: { id: true },
+      }),
+      prisma.aiExtraction.findMany({
+        where: { sourceEntityType: 'program', extractionKind: 'PROGRAM_DIGEST' },
+        select: { sourceEntityId: true },
+        distinct: ['sourceEntityId'],
+      }),
+      prisma.aiExtraction.count({
+        where: {
+          sourceEntityType: 'program',
+          extractionKind: 'PROGRAM_DIGEST',
+          reviewStatus: { in: ['APPROVED', 'AUTO_APPROVED'] },
+        },
+      }),
+      prisma.aiExtraction.count({
+        where: {
+          sourceEntityType: 'program',
+          extractionKind: 'PROGRAM_DIGEST',
+          reviewStatus: 'PENDING_REVIEW',
+        },
+      }),
+    ]);
+
+    const withPdf = withPdfRows.length;
+    const digested = digestedRows.length;
+    return {
+      programsTotal: total,
+      withPdf,
+      missingPdf: total - withPdf,
+      digested,
+      needDigest: withPdf - digested,
+      pendingReview: pendingRows,
+      approved: approvedRows,
+    };
+  }
+
+  async listPipelineBucket(
+    bucket: 'missing-pdf' | 'need-digest' | 'pending-review' | 'approved',
+    opts: { limit?: number; offset?: number } = {},
+  ) {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 500);
+    const offset = Math.max(opts.offset ?? 0, 0);
+
+    if (bucket === 'missing-pdf') {
+      const [items, total] = await Promise.all([
+        prisma.program.findMany({
+          where: { documents: { none: { role: 'CURRENT_CURRICULUM', isCurrent: true } } },
+          select: {
+            id: true,
+            code: true,
+            nameTh: true,
+            nameEn: true,
+            level: true,
+            faculty: { select: { id: true, nameEn: true, nameTh: true } },
+          },
+          orderBy: [{ level: 'asc' }, { code: 'asc' }],
+          take: limit,
+          skip: offset,
+        }),
+        prisma.program.count({
+          where: { documents: { none: { role: 'CURRENT_CURRICULUM', isCurrent: true } } },
+        }),
+      ]);
+      return { items, total, bucket };
+    }
+
+    // The remaining three buckets all need the digested-program-id set.
+    const allDigested = await prisma.aiExtraction.findMany({
+      where: { sourceEntityType: 'program', extractionKind: 'PROGRAM_DIGEST' },
+      select: { sourceEntityId: true },
+      distinct: ['sourceEntityId'],
+    });
+    const digestedIds = allDigested.map((r) => r.sourceEntityId);
+
+    if (bucket === 'need-digest') {
+      const where: Prisma.ProgramWhereInput = {
+        documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
+        ...(digestedIds.length > 0 ? { id: { notIn: digestedIds } } : {}),
+      };
+      const [items, total] = await Promise.all([
+        prisma.program.findMany({
+          where,
+          select: {
+            id: true,
+            code: true,
+            nameTh: true,
+            nameEn: true,
+            level: true,
+            faculty: { select: { id: true, nameEn: true, nameTh: true } },
+            documents: {
+              where: { role: 'CURRENT_CURRICULUM', isCurrent: true },
+              select: { pdfDocument: { select: { id: true, originalFilename: true, pageCount: true } } },
+              take: 1,
+            },
+          },
+          orderBy: [{ level: 'asc' }, { code: 'asc' }],
+          take: limit,
+          skip: offset,
+        }),
+        prisma.program.count({ where }),
+      ]);
+      return { items, total, bucket };
+    }
+
+    // pending-review + approved — surface the latest extraction per program.
+    const reviewStatusFilter: Prisma.AiExtractionWhereInput['reviewStatus'] =
+      bucket === 'pending-review' ? 'PENDING_REVIEW' : { in: ['APPROVED', 'AUTO_APPROVED'] };
+    const [extractions, total] = await Promise.all([
+      prisma.aiExtraction.findMany({
+        where: {
+          sourceEntityType: 'program',
+          extractionKind: 'PROGRAM_DIGEST',
+          reviewStatus: reviewStatusFilter,
+        },
+        select: {
+          id: true,
+          sourceEntityId: true,
+          confidence: true,
+          createdAt: true,
+          reviewStatus: true,
+          reviewedAt: true,
+          methodVersion: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.aiExtraction.count({
+        where: {
+          sourceEntityType: 'program',
+          extractionKind: 'PROGRAM_DIGEST',
+          reviewStatus: reviewStatusFilter,
+        },
+      }),
+    ]);
+    const programIds = extractions.map((e) => e.sourceEntityId);
+    const programs = await prisma.program.findMany({
+      where: { id: { in: programIds } },
+      select: {
+        id: true,
+        code: true,
+        nameTh: true,
+        nameEn: true,
+        level: true,
+        faculty: { select: { id: true, nameEn: true, nameTh: true } },
+      },
+    });
+    const programById = new Map(programs.map((p) => [p.id, p]));
+    const items = extractions
+      .map((e) => {
+        const p = programById.get(e.sourceEntityId);
+        if (!p) return null;
+        return {
+          ...p,
+          extraction: {
+            id: e.id,
+            confidence: e.confidence,
+            createdAt: e.createdAt,
+            reviewStatus: e.reviewStatus,
+            reviewedAt: e.reviewedAt,
+            methodVersion: e.methodVersion,
+          },
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    return { items, total, bucket };
+  }
+
+  async enqueueDigest(
+    user: SessionUser,
+    programId: string,
+    opts: { force?: boolean } = {},
+  ): Promise<{ jobId: string; programId: string; force: boolean }> {
+    const program = await prisma.program.findUnique({
+      where: { id: programId },
+      select: {
+        id: true,
+        facultyId: true,
+        documents: {
+          where: { role: 'CURRENT_CURRICULUM', isCurrent: true },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!program) throw new ApiError('NOT_FOUND', `program not found: ${programId}`);
+    this.assertCanManage(user, program.facultyId);
+    if (program.documents.length === 0) {
+      throw new ApiError('VALIDATION_FAILED', 'program has no CURRENT_CURRICULUM PDF — link one first');
+    }
+    if (!opts.force) {
+      const existing = await prisma.aiExtraction.findFirst({
+        where: {
+          sourceEntityType: 'program',
+          sourceEntityId: programId,
+          extractionKind: 'PROGRAM_DIGEST',
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new ApiError(
+          'VALIDATION_FAILED',
+          'PROGRAM_DIGEST already exists for this program — re-run with force=true to overwrite',
+        );
+      }
+    }
+    const jobId = await this.aiJobs.enqueue({
+      kind: 'RUN_PROGRAM_DIGEST',
+      entityId: programId,
+      triggeredByUserId: user.userId,
+      trigger: 'MANUAL',
+    });
+    return { jobId, programId, force: !!opts.force };
+  }
+
+  async enqueueDigestBulk(
+    user: SessionUser,
+    opts: { limit?: number } = {},
+  ): Promise<{ enqueued: number; jobIds: string[] }> {
+    if (!can(user, 'programs:manage:all')) {
+      throw new ApiError('FORBIDDEN', 'bulk digest requires programs:manage:all');
+    }
+    const limit = Math.min(Math.max(opts.limit ?? 500, 1), 500);
+    const alreadyDigested = await prisma.aiExtraction.findMany({
+      where: { sourceEntityType: 'program', extractionKind: 'PROGRAM_DIGEST' },
+      select: { sourceEntityId: true },
+      distinct: ['sourceEntityId'],
+    });
+    const excludeIds = alreadyDigested.map((r) => r.sourceEntityId);
+    const candidates = await prisma.program.findMany({
+      where: {
+        documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
+        ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
+      },
+      select: { id: true },
+      orderBy: [{ level: 'asc' }, { code: 'asc' }],
+      take: limit,
+    });
+    const jobIds: string[] = [];
+    for (const c of candidates) {
+      const jobId = await this.aiJobs.enqueue({
+        kind: 'RUN_PROGRAM_DIGEST',
+        entityId: c.id,
+        triggeredByUserId: user.userId,
+        trigger: 'MANUAL',
+      });
+      jobIds.push(jobId);
+    }
+    return { enqueued: jobIds.length, jobIds };
+  }
 }

@@ -13,7 +13,7 @@
 // Auto-resume: the eligibility query excludes anything with an existing
 // PROGRAM_DIGEST row, so a re-run picks up where the last one stopped. To
 // re-digest a specific program, delete its existing PROGRAM_DIGEST extraction
-// first.
+// first (or use the per-program script with --force).
 //
 // Output: streams a JSONL audit log to logs/bulk-digest-<ts>.jsonl so the
 // progress is tail-able from another shell while the script runs.
@@ -47,15 +47,8 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { prisma, PrismaAiInferenceRecorder, type ProgramLevel } from '@kku/db';
-import {
-  buildProgramDigestMessages,
-  createAiService,
-  ProgramDigestSchema,
-  PROGRAM_DIGEST_VERSION,
-  S3Storage,
-  type AiProviderId,
-} from '@kku/shared';
-import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
+import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
+import { runProgramDigest } from '../program-digest/run';
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 
@@ -84,123 +77,12 @@ function audit(record: Record<string, unknown>): void {
   appendFileSync(LOG_PATH, JSON.stringify({ ts: new Date().toISOString(), ...record }) + '\n', 'utf8');
 }
 
-// ── Per-program digest (mirrors digest-program.ts) ───────────────────────────
-
 const LEVEL_TH_LABEL: Record<string, string> = {
   BACHELOR: 'ป.ตรี',
   MASTER: 'ป.โท',
   DOCTORAL: 'ป.เอก',
   HIGHER_GRAD_DIPLOMA: 'ป.บัณฑิตชั้นสูง',
 };
-
-interface ProgramRow {
-  id: string;
-  code: string;
-  nameTh: string;
-  level: string;
-  mhesiCode: string | null;
-  sequenceNoFromSheet: number | null;
-  curriculumYearBE: number | null;
-  majors: string[];
-  facultyNameTh: string;
-  pdfStorageUrl: string;
-  pdfFilename: string;
-}
-
-function parseS3Url(storageUrl: string): { bucket: string; key: string } {
-  const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(storageUrl);
-  if (!m) throw new Error(`unrecognised storageUrl: ${storageUrl}`);
-  return { bucket: m[1]!, key: m[2]! };
-}
-
-interface DigestOutcome {
-  status: 'success' | 'failed';
-  costUsd: number;
-  tokensIn: number;
-  tokensOut: number;
-  confidence: number;
-  durationMs: number;
-  skillsExtracted: number;
-  errorMessage?: string;
-}
-
-async function digestOne(
-  program: ProgramRow,
-  storage: S3Storage,
-  ai: ReturnType<typeof createAiService>,
-): Promise<DigestOutcome> {
-  const startedAt = Date.now();
-  try {
-    const { bucket, key } = parseS3Url(program.pdfStorageUrl);
-    const url = await storage.getSignedDownloadUrl({ bucket, key, ttlSeconds: 300 });
-    const pdfRes = await fetch(url);
-    if (!pdfRes.ok) throw new Error(`PDF fetch ${pdfRes.status}`);
-    const bytes = Buffer.from(await pdfRes.arrayBuffer());
-    const extracted = await extractNativeText(bytes);
-
-    const messages = buildProgramDigestMessages({
-      programMetaFromSheet: {
-        facultyNameTh: program.facultyNameTh,
-        levelTh: LEVEL_TH_LABEL[program.level] ?? program.level,
-        degreeNameFromSheet: program.nameTh,
-        majorNameFromSheet: program.majors[0] ?? '',
-        curriculumYearBe: program.curriculumYearBE,
-        mhesiCode: program.mhesiCode,
-      },
-      pdfText: extracted.fullText,
-    });
-
-    const response = await ai.extractStructured(
-      {
-        ctx: {
-          module: 'curriculum',
-          kind: 'program-digest',
-          userId: null,
-          traceId: `bulk-digest-${program.id}`,
-        },
-        messages,
-        methodVersion: PROGRAM_DIGEST_VERSION,
-        maxOutputTokens: 16000,
-      },
-      ProgramDigestSchema,
-    );
-
-    await prisma.aiExtraction.create({
-      data: {
-        sourceEntityType: 'program',
-        sourceEntityId: program.id,
-        extractionKind: 'PROGRAM_DIGEST',
-        payloadJson: response.parsed as object,
-        confidence: response.confidence,
-        methodVersion: PROGRAM_DIGEST_VERSION,
-        aiInferenceId: response.aiInferenceId,
-        reviewStatus: 'PENDING_REVIEW',
-        reasoning: response.reasoning ?? null,
-      },
-    });
-
-    return {
-      status: 'success',
-      costUsd: response.cost.usd,
-      tokensIn: response.tokens.input,
-      tokensOut: response.tokens.output,
-      confidence: response.confidence,
-      durationMs: Date.now() - startedAt,
-      skillsExtracted: response.parsed.extractedSkills.length,
-    };
-  } catch (err) {
-    return {
-      status: 'failed',
-      costUsd: 0,
-      tokensIn: 0,
-      tokensOut: 0,
-      confidence: 0,
-      durationMs: Date.now() - startedAt,
-      skillsExtracted: 0,
-      errorMessage: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
@@ -224,13 +106,12 @@ async function main(): Promise<void> {
       documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
       ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
     },
-    include: {
+    select: {
+      id: true,
+      code: true,
+      nameTh: true,
+      level: true,
       faculty: { select: { nameTh: true } },
-      documents: {
-        where: { role: 'CURRENT_CURRICULUM', isCurrent: true },
-        include: { pdfDocument: { select: { storageUrl: true, originalFilename: true } } },
-        take: 1,
-      },
     },
     orderBy: [{ level: 'asc' }, { code: 'asc' }],
     ...(LIMIT ? { take: LIMIT } : {}),
@@ -238,7 +119,6 @@ async function main(): Promise<void> {
 
   console.log(`Eligible programs: ${candidates.length}`);
   audit({ event: 'eligible', count: candidates.length });
-
   if (candidates.length === 0) {
     console.log('Nothing to do.');
     return;
@@ -267,51 +147,45 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i]!;
-    const doc = c.documents[0];
-    if (!doc) continue; // shouldn't happen given the where-clause, but guard anyway.
+    const prefix = `[${(i + 1).toString().padStart(3)}/${candidates.length}] ${c.code} ${LEVEL_TH_LABEL[c.level]} ${c.faculty.nameTh}`;
+    console.log(`${prefix}\n  ${c.nameTh.slice(0, 80)}`);
 
-    const program: ProgramRow = {
-      id: c.id,
-      code: c.code,
-      nameTh: c.nameTh,
-      level: c.level,
-      mhesiCode: c.mhesiCode,
-      sequenceNoFromSheet: c.sequenceNoFromSheet,
-      curriculumYearBE: c.curriculumYearBE,
-      majors: c.majors,
-      facultyNameTh: c.faculty.nameTh,
-      pdfStorageUrl: doc.pdfDocument.storageUrl,
-      pdfFilename: doc.pdfDocument.originalFilename,
-    };
+    const startedAt = Date.now();
+    const outcome = await runProgramDigest({ programId: c.id, ai, storage });
+    const durationMs = Date.now() - startedAt;
 
-    const prefix = `[${(i + 1).toString().padStart(3)}/${candidates.length}] ${program.code} ${LEVEL_TH_LABEL[program.level]} ${program.facultyNameTh}`;
-    console.log(`${prefix}\n  ${program.nameTh.slice(0, 80)}`);
-    const outcome = await digestOne(program, storage, ai);
-
-    if (outcome.status === 'success') {
+    if (outcome.status === 'SUCCEEDED') {
       successes++;
       totalCostUsd += outcome.costUsd;
       console.log(
-        `  ✓ ${(outcome.durationMs / 1000).toFixed(1)}s  ` +
+        `  ✓ ${(durationMs / 1000).toFixed(1)}s  ` +
           `conf=${outcome.confidence.toFixed(2)}  ` +
-          `${outcome.tokensIn.toLocaleString()}→${outcome.tokensOut.toLocaleString()} tok  ` +
+          `${outcome.tokensInput.toLocaleString()}→${outcome.tokensOutput.toLocaleString()} tok  ` +
           `$${outcome.costUsd.toFixed(4)}  ` +
           `${outcome.skillsExtracted} skills`,
       );
     } else {
       failures++;
-      console.log(`  ✗ ${(outcome.durationMs / 1000).toFixed(1)}s  ${outcome.errorMessage}`);
+      const reason = outcome.status === 'SKIPPED' ? `SKIPPED: ${outcome.reason}` : outcome.reason;
+      console.log(`  ✗ ${(durationMs / 1000).toFixed(1)}s  ${reason}`);
     }
     audit({
       event: 'program',
       index: i + 1,
       total: candidates.length,
-      programId: program.id,
-      programCode: program.code,
-      programNameTh: program.nameTh,
-      level: program.level,
-      facultyNameTh: program.facultyNameTh,
-      ...outcome,
+      programId: c.id,
+      programCode: c.code,
+      programNameTh: c.nameTh,
+      level: c.level,
+      facultyNameTh: c.faculty.nameTh,
+      durationMs,
+      status: outcome.status === 'SUCCEEDED' ? 'success' : 'failed',
+      errorMessage: outcome.status !== 'SUCCEEDED' ? outcome.reason : undefined,
+      costUsd: outcome.status === 'SUCCEEDED' ? outcome.costUsd : 0,
+      tokensIn: outcome.status === 'SUCCEEDED' ? outcome.tokensInput : 0,
+      tokensOut: outcome.status === 'SUCCEEDED' ? outcome.tokensOutput : 0,
+      confidence: outcome.status === 'SUCCEEDED' ? outcome.confidence : 0,
+      skillsExtracted: outcome.status === 'SUCCEEDED' ? outcome.skillsExtracted : 0,
     });
   }
 

@@ -101,15 +101,16 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       backoffBaseMs: Number(this.config.get('PDF_INTAKE_BACKOFF_BASE_MS') ?? 10_000),
       concurrency: Number(this.config.get('PDF_INTAKE_CONCURRENCY') ?? 2),
     };
+    const storage = new S3Storage({
+      endpoint: this.required('MINIO_ENDPOINT'),
+      region: this.config.get<string>('MINIO_REGION') ?? 'us-east-1',
+      accessKeyId: this.required('MINIO_ACCESS_KEY'),
+      secretAccessKey: this.required('MINIO_SECRET_KEY'),
+      publicEndpoint: this.config.get<string>('MINIO_PUBLIC_ENDPOINT') || undefined,
+    });
     const pipeline = new PdfIntakePipeline({
       classifier: new StubClassifier(),
-      storage: new S3Storage({
-        endpoint: this.required('MINIO_ENDPOINT'),
-        region: this.config.get<string>('MINIO_REGION') ?? 'us-east-1',
-        accessKeyId: this.required('MINIO_ACCESS_KEY'),
-        secretAccessKey: this.required('MINIO_SECRET_KEY'),
-        publicEndpoint: this.config.get<string>('MINIO_PUBLIC_ENDPOINT') || undefined,
-      }),
+      storage,
       rawBucket: this.required('MINIO_BUCKET_PDF_RAW'),
       config: PipelineConfigSchema.parse({
         classifierAutoApproveThreshold: Number(
@@ -137,6 +138,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     const aiHandlers = buildAiJobHandlers({
       ai,
       autoApproveThreshold: Number(this.config.get('AI_AUTO_APPROVE_THRESHOLD') ?? 0.85),
+      storage,
     });
 
     this.aiJobsQueue = createAiJobsQueue(aiJobsQueueConfig);
