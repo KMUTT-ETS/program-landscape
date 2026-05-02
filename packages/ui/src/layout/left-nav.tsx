@@ -44,8 +44,10 @@ export interface LeftNavProps {
 // strings here (rather than building them at render time) ensures the
 // Tailwind JIT scanner sees the class names literally.
 //
-// For each module: icon chip bg + icon colour + active-tile bg +
-// active left-rail bg.
+// 2026-05-02b: nav surface is now a light cream tint, so active-tile
+// uses the dedicated `-subtle` variant (which is light-tinted in light
+// mode + dark-tinted in dark mode — same key handles both). Inactive
+// chip lifted from /15 to /20 so the icon chip reads on cream too.
 const MODULE_CLASSES: Record<
   ModuleKey,
   {
@@ -58,76 +60,76 @@ const MODULE_CLASSES: Record<
   }
 > = {
   cockpit: {
-    chipBg: 'bg-module-cockpit/15',
+    chipBg: 'bg-module-cockpit/20',
     chipActiveBg: 'bg-module-cockpit',
     chipIcon: 'text-module-cockpit',
-    activeTileBg: 'bg-module-cockpit/12',
+    activeTileBg: 'bg-module-cockpit-subtle',
     activeRail: 'bg-module-cockpit',
     labelActive: 'text-module-cockpit',
   },
   programs: {
-    chipBg: 'bg-module-programs/15',
+    chipBg: 'bg-module-programs/20',
     chipActiveBg: 'bg-module-programs',
     chipIcon: 'text-module-programs',
-    activeTileBg: 'bg-module-programs/12',
+    activeTileBg: 'bg-module-programs-subtle',
     activeRail: 'bg-module-programs',
     labelActive: 'text-module-programs',
   },
   trends: {
-    chipBg: 'bg-module-trends/15',
+    chipBg: 'bg-module-trends/20',
     chipActiveBg: 'bg-module-trends',
     chipIcon: 'text-module-trends',
-    activeTileBg: 'bg-module-trends/12',
+    activeTileBg: 'bg-module-trends-subtle',
     activeRail: 'bg-module-trends',
     labelActive: 'text-module-trends',
   },
   gap: {
-    chipBg: 'bg-module-gap/15',
+    chipBg: 'bg-module-gap/20',
     chipActiveBg: 'bg-module-gap',
     chipIcon: 'text-module-gap',
-    activeTileBg: 'bg-module-gap/12',
+    activeTileBg: 'bg-module-gap-subtle',
     activeRail: 'bg-module-gap',
     labelActive: 'text-module-gap',
   },
   scenarios: {
-    chipBg: 'bg-module-scenarios/15',
+    chipBg: 'bg-module-scenarios/20',
     chipActiveBg: 'bg-module-scenarios',
     chipIcon: 'text-module-scenarios',
-    activeTileBg: 'bg-module-scenarios/12',
+    activeTileBg: 'bg-module-scenarios-subtle',
     activeRail: 'bg-module-scenarios',
     labelActive: 'text-module-scenarios',
   },
   benchmarking: {
-    chipBg: 'bg-module-benchmarking/15',
+    chipBg: 'bg-module-benchmarking/20',
     chipActiveBg: 'bg-module-benchmarking',
     chipIcon: 'text-module-benchmarking',
-    activeTileBg: 'bg-module-benchmarking/12',
+    activeTileBg: 'bg-module-benchmarking-subtle',
     activeRail: 'bg-module-benchmarking',
     labelActive: 'text-module-benchmarking',
   },
   analyst: {
-    chipBg: 'bg-module-analyst/15',
+    chipBg: 'bg-module-analyst/20',
     chipActiveBg: 'bg-module-analyst',
     chipIcon: 'text-module-analyst',
-    activeTileBg: 'bg-module-analyst/12',
+    activeTileBg: 'bg-module-analyst-subtle',
     activeRail: 'bg-module-analyst',
     labelActive: 'text-module-analyst',
   },
   decisions: {
-    chipBg: 'bg-module-decisions/18',
+    chipBg: 'bg-module-decisions/22',
     chipActiveBg: 'bg-module-decisions',
     chipIcon: 'text-module-decisions',
-    activeTileBg: 'bg-module-decisions/14',
+    activeTileBg: 'bg-module-decisions-subtle',
     activeRail: 'bg-module-decisions',
     labelActive: 'text-module-decisions',
   },
   neutral: {
-    chipBg: 'bg-nav-fg/10',
-    chipActiveBg: 'bg-nav-fg/20',
-    chipIcon: 'text-nav-fg',
-    activeTileBg: 'bg-nav-fg/8',
-    activeRail: 'bg-nav-fg',
-    labelActive: 'text-nav-fg',
+    chipBg: 'bg-accent-subtle',
+    chipActiveBg: 'bg-accent',
+    chipIcon: 'text-accent-default',
+    activeTileBg: 'bg-accent-subtle',
+    activeRail: 'bg-accent-default',
+    labelActive: 'text-accent-default',
   },
 };
 
@@ -141,7 +143,7 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
       )}
     >
       {brand ? (
-        <div className="flex items-center gap-3 border-b border-white/5 px-5 py-5">
+        <div className="flex items-center gap-3 border-b border-border-subtle px-5 py-5">
           {brand}
         </div>
       ) : null}
@@ -174,7 +176,7 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
       </div>
 
       {footer ? (
-        <div className="border-t border-white/5 p-3">{footer}</div>
+        <div className="border-t border-border-subtle p-3">{footer}</div>
       ) : null}
     </nav>
   );

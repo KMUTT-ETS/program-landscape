@@ -41,12 +41,15 @@
   --color-glossy-tint: 96.0% 0.040 60;     /* faint peach sheen */
   --color-glossy-highlight: 99.5% 0.012 75;/* near-white reflection */
 
-  /* Nav surface — keep the brand-home dark mode for the sidebar so
-     accent buttons + module dots pop. Slight orange undertone. */
-  --color-nav-surface: 16.0% 0.012 55;
-  --color-nav-surface-hover: 20.5% 0.016 55;
-  --color-nav-fg: 94.0% 0.012 70;
-  --color-nav-fg-muted: 68.0% 0.014 65;
+  /* Nav surface — 2026-05-02b: switched from dark brand-home to a
+     light cream surface so the sidebar reads as one continuous panel
+     with the main canvas. Sits one step deeper than surface-0 so it's
+     visually distinct without being a separate zone. Slight peach
+     undertone keeps continuity with the gradient palette. */
+  --color-nav-surface: 96.5% 0.014 65;
+  --color-nav-surface-hover: 92.0% 0.022 60;
+  --color-nav-fg: 22.0% 0.020 50;
+  --color-nav-fg-muted: 50.0% 0.016 50;
 
   /* ── Borders ─────────────────────────────────────────────────── */
   --color-border-subtle: 92.5% 0.014 60;
@@ -158,10 +161,13 @@
   --color-glossy-tint: 18.0% 0.030 50;
   --color-glossy-highlight: 26.0% 0.040 60;
 
-  --color-nav-surface: 8.5% 0.012 50;
-  --color-nav-surface-hover: 14.0% 0.018 50;
-  --color-nav-fg: 94.0% 0.012 70;
-  --color-nav-fg-muted: 64.0% 0.014 65;
+  /* Dark mode — sidebar is still dark, but lifted to match surface-1
+     instead of going deeper than surface-0. Same "one continuous panel"
+     intent applied to dark canvas. */
+  --color-nav-surface: 14.0% 0.018 50;
+  --color-nav-surface-hover: 19.0% 0.024 50;
+  --color-nav-fg: 95.0% 0.010 70;
+  --color-nav-fg-muted: 70.0% 0.014 65;
 
   /* ── Borders ─────────────────────────────────────────────────── */
   --color-border-subtle: 22.0% 0.020 50;
