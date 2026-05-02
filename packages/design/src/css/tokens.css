@@ -258,27 +258,25 @@
   --font-body: var(--font-body-thai), var(--font-body-latin), system-ui, sans-serif;
   --font-body-display: var(--font-body-thai), var(--font-body-latin), system-ui, sans-serif;
 
-  /* 2026-05-02 — third Sarabun lift. Body now 18px (was 17, was 16
-     before redesign). Many UI surfaces use `text-sm` for body text
-     so that step gets the same +1px treatment to avoid creating two
-     unrelated readability tiers. Headings continue to scale up: xl
-     24→26, 2xl 30→32, 3xl 36→40, display 48→56 — the redesign reads as
-     more confident at hero sizes too.
-     Line-height nudged 1.55 → 1.6 because Sarabun tone marks (◌่ ◌้
-     ◌๊ ◌๋) need a touch more breathing room at 18px. */
-  --font-size-xs: 0.9375rem;   /* 15 — captions, data labels */
-  --font-size-sm: 1.0625rem;   /* 17 — secondary UI text */
-  --font-size-base: 1.125rem;  /* 18 — default body, inputs */
-  --font-size-md: 1.25rem;     /* 20 — prose */
-  --font-size-lg: 1.375rem;    /* 22 — emphasised paragraphs */
-  --font-size-xl: 1.625rem;    /* 26 — card/section headers */
-  --font-size-2xl: 2rem;       /* 32 — page titles */
-  --font-size-3xl: 2.5rem;     /* 40 — marketing/cover */
-  --font-size-display: 3.5rem; /* 56 — hero */
+  /* 2026-05-02 — Sarabun-comfort scale, dialled in. The earlier
+     versions of this file claimed lifts to 17/18px but never reached
+     the browser due to globals.css drift; once the canonical tokens
+     actually loaded, 18px overshot. Settling at 16px body — +1px over
+     the pre-redesign default to compensate for Sarabun's narrower
+     x-height vs Inter, without crossing into "feels oversized". */
+  --font-size-xs: 0.8125rem;   /* 13 — captions, data labels */
+  --font-size-sm: 0.9375rem;   /* 15 — secondary UI text */
+  --font-size-base: 1rem;      /* 16 — default body, inputs */
+  --font-size-md: 1.0625rem;   /* 17 — prose */
+  --font-size-lg: 1.125rem;    /* 18 — emphasised paragraphs */
+  --font-size-xl: 1.3125rem;   /* 21 — card/section headers */
+  --font-size-2xl: 1.625rem;   /* 26 — page titles */
+  --font-size-3xl: 2rem;       /* 32 — marketing/cover */
+  --font-size-display: 2.625rem;/* 42 — hero */
 
   --line-height-tight: 1.3;
-  --line-height-base: 1.6;
-  --line-height-loose: 1.75;
+  --line-height-base: 1.55;
+  --line-height-loose: 1.7;
 
   /* ── Radius ──────────────────────────────────────────────────── */
   /* Bumped up: glossy aesthetic feels right with more curvature. */
