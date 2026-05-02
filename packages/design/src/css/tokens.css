@@ -63,19 +63,21 @@
   --color-text-disabled: 70.0% 0.012 55;
   --color-text-inverse: 99.0% 0.005 70;
 
-  /* ── Coral primary accent ────────────────────────────────────────
-     2026-05-02d: deepened from L=64/69/59 to L=58/53/48 so white
-     `accent-fg` text on the button passes WCAG AA (~5:1 contrast on
-     default, ~5.7:1 on hover, ~6.7:1 on active). Hover convention
-     reversed to darker-not-lighter — classic primary-CTA behaviour
-     where pressing in increases contrast.
-     Pastel feel preserved on the surface tokens (accent-subtle,
-     glossy-tint). Only the button-fill weight gets the darker coral. */
-  --color-accent-default: 58.0% 0.155 38;
-  --color-accent-hover: 53.0% 0.165 35;
-  --color-accent-active: 48.0% 0.170 32;
+  /* ── Coral primary accent — pastel + dark text ───────────────────
+     2026-05-02e: previous attempt deepened the coral to L=58 thinking
+     OKLCH L percentages mapped linearly to WCAG luminance — they
+     don't. White on L=58% coral is still ~3:1 contrast (fails AA).
+     Driving the coral darker enough for white text (≤ L=48%) ruins
+     the "pastel" feel — it becomes terracotta.
+     Right fix: flip the foreground to DARK text on PASTEL coral. Same
+     pattern as Notion / Tailwind UI marketing buttons. Lifts the
+     button fill back to a confident pastel (L=70/76/62) and gains
+     ~6.5:1 contrast in the default state. */
+  --color-accent-default: 70.0% 0.150 45;
+  --color-accent-hover: 76.0% 0.140 48;
+  --color-accent-active: 62.0% 0.165 40;
   --color-accent-subtle: 95.5% 0.040 50;
-  --color-accent-fg: 99.0% 0.005 70;
+  --color-accent-fg: 22.0% 0.050 35;
 
   /* Razor-edge accents — slightly more chroma than the base palette so
      animated edges visibly trace, even at 1px width. Three stops drive

@@ -207,13 +207,13 @@ export function StyleguideCatalog() {
       <Section title="Accent, semantic, data sentiment">
         <div className="flex flex-wrap gap-3">
           <Swatch name="accent" className="bg-accent text-accent-fg" />
-          <Swatch name="success" className="bg-success text-accent-fg" />
+          <Swatch name="success" className="bg-success text-text-inverse" />
           <Swatch name="warning" className="bg-warning text-text-primary" />
-          <Swatch name="danger" className="bg-danger text-accent-fg" />
-          <Swatch name="info" className="bg-info text-accent-fg" />
+          <Swatch name="danger" className="bg-danger text-text-inverse" />
+          <Swatch name="info" className="bg-info text-text-inverse" />
           <Divider orientation="vertical" />
-          <Swatch name="data-positive" className="bg-data-positive text-accent-fg" />
-          <Swatch name="data-negative" className="bg-data-negative text-accent-fg" />
+          <Swatch name="data-positive" className="bg-data-positive text-text-inverse" />
+          <Swatch name="data-negative" className="bg-data-negative text-text-inverse" />
           <Swatch name="data-neutral" className="bg-data-neutral text-text-primary" />
         </div>
       </Section>

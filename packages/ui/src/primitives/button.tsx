@@ -25,7 +25,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active hover:shadow-glow-accent',
+          'bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active active:text-text-inverse hover:shadow-glow-accent',
         default:
           'bg-surface-1 text-text-primary border border-border-default hover:bg-surface-2',
         outline:
@@ -33,7 +33,7 @@ const buttonVariants = cva(
         ghost: 'bg-transparent text-text-primary hover:bg-surface-1',
         subtle: 'bg-accent-subtle text-text-primary hover:bg-surface-3',
         danger:
-          'bg-danger text-accent-fg hover:opacity-90 focus-visible:ring-danger',
+          'bg-danger text-text-inverse hover:opacity-90 focus-visible:ring-danger',
         link: 'bg-transparent text-accent-default underline-offset-4 hover:underline',
       },
       size: {
