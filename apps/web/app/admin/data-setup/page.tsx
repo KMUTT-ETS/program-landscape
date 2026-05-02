@@ -141,7 +141,7 @@ export default async function AdminDataSetupPage() {
               `${stats.facultyStaff.active} currently active`,
               `Source: kku-hr connector (live)`,
             ]}
-            href="/admin/data-sources"
+            href="/admin/data-sources/kku-hr"
             cta="View kku-hr data source"
           />
         </div>
@@ -227,7 +227,7 @@ export default async function AdminDataSetupPage() {
               `${stats.studentInfo.programsWithoutEnrollment} programs with no enrollment data`,
               `Source: kku-registry connector (live)`,
             ]}
-            href="/admin/data-sources/by-slug/kku-registry"
+            href="/admin/data-sources/kku-registry"
             cta="View kku-registry data source"
           />
 
@@ -249,7 +249,7 @@ export default async function AdminDataSetupPage() {
               `${stats.financial.facultyBudgetRows} faculty-budget rows`,
               `Source: kku-finance connector (live)`,
             ]}
-            href="/admin/data-sources/by-slug/kku-finance"
+            href="/admin/data-sources/kku-finance"
             cta="View kku-finance data source"
           />
         </div>
