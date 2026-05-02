@@ -136,7 +136,7 @@ export default async function SystemStatusPage() {
             </Section>
 
             <Section title="AI usage — last 24 hours">
-              <Card>
+              <Card tone="glossy">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <Stat label="Calls" value={status.ai24h.calls.toString()} />
                   <Stat

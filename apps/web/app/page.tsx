@@ -99,12 +99,14 @@ export default async function HomePage() {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <KPI
+            tone="glossy"
             label="Active programs"
             value={<span className="font-tabular">{programs.length}</span>}
             meta={SAMPLE_META}
             sparkline={<Sparkline data={[28, 29, 29, 30, 30]} />}
           />
           <KPI
+            tone="glossy"
             label="Enrolled (2024)"
             value={<span className="font-tabular">3,075</span>}
             delta={{ value: 2.4, goodDirection: 'up', display: '+2.4% YoY' }}
@@ -112,12 +114,14 @@ export default async function HomePage() {
             sparkline={<Sparkline data={[2450, 2380, 2794, 3002, 3075]} tone="positive" />}
           />
           <KPI
+            tone="glossy"
             label="Applications (2024)"
             value={<span className="font-tabular">10,096</span>}
             delta={{ value: 5.2, goodDirection: 'up', display: '+5.2% YoY' }}
             meta={SAMPLE_META}
           />
           <KPI
+            tone="glossy"
             label="Net contribution (2024)"
             value={<span className="font-tabular">฿3.67M</span>}
             delta={{ value: -8.1, goodDirection: 'up', display: '−8.1% YoY' }}

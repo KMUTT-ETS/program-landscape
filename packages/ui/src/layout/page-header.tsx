@@ -75,11 +75,11 @@ export function PageHeader({
               {eyebrow}
             </div>
           )}
-          <h1 className="truncate text-[28px] font-semibold leading-tight tracking-[-0.01em] text-text-primary">
+          <h1 className="truncate text-2xl font-semibold leading-tight tracking-[-0.01em] text-text-primary">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-2 max-w-[70ch] text-[15px] leading-relaxed text-text-secondary">
+            <p className="mt-2 max-w-[70ch] text-sm leading-relaxed text-text-secondary">
               {subtitle}
             </p>
           )}

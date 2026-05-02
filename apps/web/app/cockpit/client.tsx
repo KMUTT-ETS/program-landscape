@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   DataTable,
+  EdgeGlow,
   Heatmap,
   Input,
   RightPanel,
@@ -230,26 +231,28 @@ export function CockpitClient(props: Props) {
               <Sparkles className="h-4 w-4" aria-hidden />
               Generate Council brief
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={exportBusy}
-              onClick={async () => {
-                setExportBusy(true);
-                const r = await exportCouncilPackAction({
-                  scope: props.scope,
-                  scopeId: props.scopeId || null,
-                });
-                setExportBusy(false);
-                if (r.ok) {
-                  toast.success('Council Pack ready');
-                  window.open(r.pdfUrl, '_blank');
-                } else toast.error(r.message);
-              }}
-            >
-              <FileText className="h-4 w-4" aria-hidden />
-              {exportBusy ? 'Generating…' : 'Export Council Pack PDF'}
-            </Button>
+            <EdgeGlow inline>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={exportBusy}
+                onClick={async () => {
+                  setExportBusy(true);
+                  const r = await exportCouncilPackAction({
+                    scope: props.scope,
+                    scopeId: props.scopeId || null,
+                  });
+                  setExportBusy(false);
+                  if (r.ok) {
+                    toast.success('Council Pack ready');
+                    window.open(r.pdfUrl, '_blank');
+                  } else toast.error(r.message);
+                }}
+              >
+                <FileText className="h-4 w-4" aria-hidden />
+                {exportBusy ? 'Generating…' : 'Export Council Pack PDF'}
+              </Button>
+            </EdgeGlow>
           </div>
         </div>
 

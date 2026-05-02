@@ -25,10 +25,12 @@ export interface KPIProps {
   sparkline?: React.ReactNode;
   /** Provenance metadata. Required for Council use — skippable only in styleguide stubs. */
   meta?: ApiMeta;
+  /** Visual tone — `glossy` for hero KPI strips (2026-05-02 redesign). */
+  tone?: 'default' | 'glossy';
   className?: string;
 }
 
-export function KPI({ label, value, delta, sparkline, meta, className }: KPIProps) {
+export function KPI({ label, value, delta, sparkline, meta, tone: visualTone, className }: KPIProps) {
   const tone =
     !delta || !delta.goodDirection
       ? 'text-text-tertiary'
@@ -37,7 +39,12 @@ export function KPI({ label, value, delta, sparkline, meta, className }: KPIProp
         : 'text-data-negative';
   const Arrow = !delta ? null : delta.value === 0 ? ArrowRight : delta.value > 0 ? ArrowUp : ArrowDown;
   return (
-    <Card padding="sm" elevation="sm" className={cn('flex flex-col gap-1.5', className)}>
+    <Card
+      padding="sm"
+      elevation="sm"
+      tone={visualTone === 'glossy' ? 'glossy' : 'default'}
+      className={cn('flex flex-col gap-1.5', className)}
+    >
       <CardHeader className="mb-0">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <CardTitle className="truncate text-xs font-medium uppercase tracking-wide text-text-tertiary">

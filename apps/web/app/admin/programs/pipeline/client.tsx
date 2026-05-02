@@ -99,12 +99,12 @@ export function PipelineClient({ initialStats }: { initialStats: PipelineStats }
     <div className="flex flex-col gap-6">
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <KPI label="Programs" value={stats.programsTotal.toLocaleString()} />
-        <KPI label="With PDF" value={stats.withPdf.toLocaleString()} />
-        <KPI label="Missing PDF" value={stats.missingPdf.toLocaleString()} />
-        <KPI label="Digested" value={stats.digested.toLocaleString()} />
-        <KPI label="Need digest" value={stats.needDigest.toLocaleString()} />
-        <KPI label="Pending review" value={stats.pendingReview.toLocaleString()} />
+        <KPI tone="glossy" label="Programs" value={stats.programsTotal.toLocaleString()} />
+        <KPI tone="glossy" label="With PDF" value={stats.withPdf.toLocaleString()} />
+        <KPI tone="glossy" label="Missing PDF" value={stats.missingPdf.toLocaleString()} />
+        <KPI tone="glossy" label="Digested" value={stats.digested.toLocaleString()} />
+        <KPI tone="glossy" label="Need digest" value={stats.needDigest.toLocaleString()} />
+        <KPI tone="glossy" label="Pending review" value={stats.pendingReview.toLocaleString()} />
       </div>
 
       <div className="flex items-center justify-between">

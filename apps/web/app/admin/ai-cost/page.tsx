@@ -79,7 +79,7 @@ export default async function AiCostPage({
         </Card>
       ) : (
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card tone="glossy">
             <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
               <Stat label="Calls" value={data.total.calls.toString()} />
               <Stat
