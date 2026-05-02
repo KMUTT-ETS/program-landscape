@@ -24,21 +24,20 @@ export function TopBar({ breadcrumb, center, right, className }: TopBarProps) {
     <header
       data-surface="neutral"
       className={cn(
-        'sticky top-0 z-30 flex h-14 items-center gap-4 px-5',
-        // Glossy translucent backdrop with faint coral wash. The
-        // ::before layer (added via .kku-topbar) carries a subtle
-        // gradient + a 1px hairline at the bottom that fades into
-        // the accent edge palette on the right side.
-        'kku-topbar bg-surface-0/70 backdrop-blur-xl',
+        // 2026-05-02c: 56px → 72px, bold gradient backdrop, animated
+        // coral underline edge — replaces the previous "thin
+        // translucent strip with subtle tints" that read as
+        // unchanged.
+        'kku-topbar sticky top-0 z-30 flex h-[72px] items-center gap-5 px-7',
         'text-text-primary',
         className,
       )}
     >
-      <div className="flex min-w-0 shrink-0 items-center gap-2 text-[13px] text-text-secondary">
+      <div className="flex min-w-0 shrink-0 items-center gap-2 text-sm text-text-secondary">
         {breadcrumb}
       </div>
       <div className="flex min-w-0 flex-1 items-center gap-3">{center}</div>
-      <div className="flex shrink-0 items-center gap-1.5">{right}</div>
+      <div className="flex shrink-0 items-center gap-2">{right}</div>
     </header>
   );
 }

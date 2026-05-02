@@ -37,21 +37,21 @@ export async function AuthedAppShell({
 
   const brand = (
     <>
-      {/* KKU monogram — coral block on the near-black nav. 2026-05-02:
-          tile is now circular to match the pill aesthetic and gains the
-          accent glow shadow. */}
+      {/* KKU monogram — bold coral with layered glow. 2026-05-02c:
+          larger tile, gradient fill, multi-layer shadow so it reads
+          as a hero spot, not a badge. */}
       <div
         aria-hidden
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-default text-[16px] font-bold text-accent-fg shadow-glow-accent"
+        className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-default to-accent-hover text-lg font-bold text-accent-fg shadow-[0_4px_16px_-4px_rgb(255_140_70/0.55),inset_0_1px_0_0_rgba(255,255,255,0.25)] ring-1 ring-accent-default/20"
         title="KKU Curriculum Intelligence Platform · Program Landscape"
       >
         K
       </div>
       <div className="flex min-w-0 flex-col leading-none">
-        <span className="truncate text-[15px] font-semibold tracking-tight text-nav-fg">
+        <span className="truncate text-base font-semibold tracking-tight text-text-primary">
           Program Landscape
         </span>
-        <span className="mt-1 truncate text-[10px] font-medium uppercase tracking-[0.14em] text-nav-fg-muted">
+        <span className="mt-1.5 truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] text-accent-default">
           KKU Curriculum Intelligence
         </span>
       </div>

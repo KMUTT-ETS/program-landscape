@@ -36,9 +36,9 @@ export function TopBarRight({ user }: { user: SessionUser }) {
       <a
         href="/inbox"
         aria-label="Notifications inbox"
-        className="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-transparent transition-[background-color,color,box-shadow] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/60 transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
       >
-        <Bell className="h-[17px] w-[17px]" aria-hidden />
+        <Bell className="h-[19px] w-[19px]" aria-hidden />
       </a>
 
       <ThemeButton />
@@ -49,20 +49,20 @@ export function TopBarRight({ user }: { user: SessionUser }) {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="group flex h-9 items-center gap-2 rounded-full pl-1 pr-3 py-1 ring-1 ring-inset ring-border-subtle bg-surface-1/60 transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+            className="group flex h-11 items-center gap-2.5 rounded-full pl-1 pr-3.5 py-1 ring-1 ring-inset ring-border-subtle bg-surface-1/70 transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
           >
             {/* Avatar — accent-tinted initials on subtle surface. */}
             <div
               aria-hidden
-              className="grid h-7 w-7 place-items-center rounded-full bg-accent-subtle text-[11px] font-bold uppercase text-accent-default ring-1 ring-accent-default/15"
+              className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-accent-default to-accent-hover text-sm font-bold uppercase text-accent-fg shadow-[0_2px_8px_-2px_rgb(255_140_70/0.45)] ring-1 ring-accent-default/20"
             >
               {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
             </div>
             <div className="hidden flex-col items-start leading-tight md:flex">
-              <span className="text-[12.5px] font-semibold text-text-primary">
+              <span className="text-sm font-semibold text-text-primary">
                 {user.name ?? user.email.split('@')[0]}
               </span>
-              <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-text-tertiary">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-tertiary">
                 {user.role.replaceAll('_', ' ')}
               </span>
             </div>
@@ -125,9 +125,9 @@ function ThemeButton() {
       onClick={cycle}
       title={`${THEME_LABEL[current]} · click for ${THEME_LABEL[next].toLowerCase()}`}
       aria-label={`${THEME_LABEL[current]}. Click to switch to ${THEME_LABEL[next].toLowerCase()}.`}
-      className="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-transparent transition-[background-color,color,box-shadow] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+      className="relative flex h-11 w-11 items-center justify-center rounded-full text-text-secondary ring-1 ring-inset ring-border-subtle bg-surface-1/60 transition-[background-color,color,box-shadow,transform] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
     >
-      <Icon className="h-[17px] w-[17px]" aria-hidden />
+      <Icon className="h-[19px] w-[19px]" aria-hidden />
     </button>
   );
 }

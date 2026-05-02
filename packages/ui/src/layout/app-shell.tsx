@@ -29,7 +29,7 @@ export function AppShell({
   topBar,
   leftNav,
   children,
-  navWidthClass = 'w-[240px]',
+  navWidthClass = 'w-[280px]',
   className,
 }: AppShellProps) {
   return (
@@ -42,12 +42,9 @@ export function AppShell({
       >
         {leftNav}
       </aside>
-      <div className="flex min-h-screen flex-col md:ml-[240px]">
+      <div className="flex min-h-screen flex-col md:ml-[280px]">
         {topBar}
-        {/* Padding lives on the shell so pages don't each re-invent
-            it. max-w keeps long-form content from drifting into
-            unreadable measures on ultra-wide monitors. */}
-        <main className="min-w-0 flex-1 px-6 py-6 md:px-8 md:py-8">
+        <main className="min-w-0 flex-1 px-6 py-8 md:px-10 md:py-10">
           <div className="mx-auto max-w-[1400px]">{children}</div>
         </main>
       </div>

@@ -147,21 +147,19 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
       )}
     >
       {brand ? (
-        // Brand block — bespoke glossy backdrop so the KKU monogram +
-        // wordmark reads as a hero spot, not a flat tile.
-        <div className="kku-leftnav-brand relative flex items-center gap-3 px-5 py-5">
+        <div className="kku-leftnav-brand relative flex items-center gap-3.5 px-6 py-6">
           {brand}
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-5">
         {sections.map((section, si) => (
-          <div key={si} className={cn('flex flex-col gap-1', si > 0 && 'mt-6')}>
+          <div key={si} className={cn('flex flex-col gap-1.5', si > 0 && 'mt-7')}>
             {section.label && (
-              <div className="flex items-center gap-2 px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-nav-fg-muted">
-                <span className="h-px flex-1 bg-gradient-to-r from-transparent to-border-default" aria-hidden />
+              <div className="flex items-center gap-2.5 px-3 pb-2.5 pt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent-default">
+                <span className="h-[2px] w-3 rounded-full bg-gradient-to-r from-accent-default to-accent-hover" aria-hidden />
                 <span>{section.label}</span>
-                <span className="h-px flex-1 bg-gradient-to-l from-transparent to-border-default" aria-hidden />
+                <span className="h-px flex-1 bg-gradient-to-r from-border-default/60 to-transparent" aria-hidden />
               </div>
             )}
             {section.items.map((item) => {
@@ -199,23 +197,18 @@ function NavTile({
   active: boolean;
   classes: (typeof MODULE_CLASSES)[ModuleKey];
 }) {
-  // 2026-05-02b — pill tiles with a layered active state:
-  //   • module-subtle bg
-  //   • inset top highlight (sheen)
-  //   • coral-tinted glow shadow that echoes shadow-glow-accent
-  //   • module-coloured rail still on the left edge
-  // Inactive state is muted; hover lifts the tile toward accent-subtle
-  // so the whole row feels alive even before click.
+  // 2026-05-02c — bigger pill tiles with dramatic active state.
+  // Larger hit-area, more breathing, glow that's visible not subtle.
   const base = cn(
-    'group relative flex items-center gap-3 rounded-full px-3 py-2.5',
+    'group relative flex items-center gap-3.5 rounded-full px-3.5 py-3',
     'transition-[background-color,color,box-shadow,transform] duration-fast',
     active
       ? cn(
           classes.activeTileBg,
           classes.labelActive,
-          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_4px_12px_-4px_rgb(255_140_70/0.20)]',
+          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.7),0_8px_20px_-6px_rgb(255_140_70/0.35),0_0_0_1px_rgb(255_140_70/0.12)]',
         )
-      : 'text-nav-fg/80 hover:bg-accent-subtle/50 hover:text-text-primary',
+      : 'text-text-secondary hover:bg-accent-subtle/40 hover:text-text-primary hover:translate-x-[1px]',
     item.disabled && 'pointer-events-none opacity-40',
   );
 
@@ -234,15 +227,17 @@ function NavTile({
         <span
           aria-hidden
           className={cn(
-            'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-            '[&>svg]:h-[18px] [&>svg]:w-[18px] [&>svg]:shrink-0 [&>svg]:stroke-[2]',
-            active ? cn(classes.chipActiveBg, 'text-white') : cn(classes.chipBg, classes.chipIcon),
+            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+            '[&>svg]:h-[20px] [&>svg]:w-[20px] [&>svg]:shrink-0 [&>svg]:stroke-[2]',
+            active
+              ? cn(classes.chipActiveBg, 'text-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.15)]')
+              : cn(classes.chipBg, classes.chipIcon),
           )}
         >
           {item.icon}
         </span>
       )}
-      <span className="min-w-0 flex-1 truncate text-[14px] font-medium leading-tight">
+      <span className="min-w-0 flex-1 truncate text-[15px] font-medium leading-tight">
         {item.label}
       </span>
       {item.badge && (
