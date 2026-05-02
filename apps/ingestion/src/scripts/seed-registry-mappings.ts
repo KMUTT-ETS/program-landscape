@@ -120,25 +120,69 @@ async function main(): Promise<number> {
   });
   console.log(`[seed-mappings] our DB has ${programs.length} programs`);
 
+  // Second index — by (faculty, level, major). Registry's "program" field
+  // is *usually* the same as its "major" field, but using major-only as
+  // the lookup key catches the master-sheet → registry naming mismatch:
+  // master stores "<degree> (<major>)" as Program.nameTh, registry stores
+  // just "<major>". Falling back to majors[0] from our DB lifts coverage
+  // from ~3% to >50% in the kku-registry case.
+  const programs2 = await prisma.program.findMany({
+    select: {
+      id: true,
+      nameTh: true,
+      majors: true,
+      level: true,
+      faculty: { select: { nameTh: true } },
+    },
+  });
+
+  // Build (faculty, level, major) → tuple index for the fallback lookup.
+  const byFacLevelMajor = new Map<string, Tuple[]>();
+  for (const t of tuples.values()) {
+    const key = `${t.faculty}|${t.level}|${t.major}`;
+    let bucket = byFacLevelMajor.get(key);
+    if (!bucket) {
+      bucket = [];
+      byFacLevelMajor.set(key, bucket);
+    }
+    bucket.push(t);
+  }
+
   let matchedPrograms = 0;
   let mappingsToCreate = 0;
   let mappingsCreated = 0;
+  let matchedViaExact = 0;
+  let matchedViaMajor = 0;
   const unmatched: { faculty: string; program: string; level: string }[] = [];
 
-  for (const p of programs) {
+  for (const p of programs2) {
     const facTh = (p.faculty?.nameTh ?? '').trim();
     const programTh = (p.nameTh ?? '').trim();
     const levelTh = LEVEL_TH[p.level];
-    const lookupKey = `${facTh}|${programTh}|${levelTh}`;
-    const matches = byFacProgLevel.get(lookupKey);
+    const major = (p.majors[0] ?? '').trim();
 
-    if (!matches || matches.length === 0) {
+    // 1. Exact match on (faculty, programNameTh, levelTh). Catches the
+    // ~3% of programs where master sheet name == registry program name.
+    let matches: Tuple[] | undefined = byFacProgLevel.get(`${facTh}|${programTh}|${levelTh}`);
+    let strategy: 'exact' | 'major' | undefined;
+    if (matches && matches.length > 0) {
+      strategy = 'exact';
+    } else if (major) {
+      // 2. Fallback: match on (faculty, level, majors[0]). Bridges the
+      // structural format mismatch.
+      matches = byFacLevelMajor.get(`${facTh}|${levelTh}|${major}`);
+      if (matches && matches.length > 0) strategy = 'major';
+    }
+
+    if (!matches || matches.length === 0 || !strategy) {
       unmatched.push({ faculty: facTh, program: programTh, level: levelTh });
       continue;
     }
 
     matchedPrograms++;
     mappingsToCreate += matches.length;
+    if (strategy === 'exact') matchedViaExact++;
+    else matchedViaMajor++;
 
     if (dryRun) continue;
 
@@ -158,10 +202,9 @@ async function main(): Promise<number> {
           registryLevel: tuple.level,
           registryMajor: tuple.major,
           programId: p.id,
-          notes: 'auto-seeded by seed-registry-mappings.ts via exact (faculty, program, level) match',
+          notes: `auto-seeded by seed-registry-mappings.ts via ${strategy} match`,
         },
         update: {
-          // Idempotent: re-run does nothing destructive.
           programId: p.id,
         },
       });
@@ -171,7 +214,9 @@ async function main(): Promise<number> {
 
   console.log();
   console.log('[seed-mappings] summary');
-  console.log(`  matched programs:        ${matchedPrograms} / ${programs.length}`);
+  console.log(`  matched programs:        ${matchedPrograms} / ${programs2.length}`);
+  console.log(`    via exact (fac,prog,level): ${matchedViaExact}`);
+  console.log(`    via major (fac,level,major): ${matchedViaMajor}`);
   console.log(`  mappings ${dryRun ? 'would create' : 'created (upserted)'}: ${dryRun ? mappingsToCreate : mappingsCreated}`);
   console.log(`  unmatched programs:      ${unmatched.length}`);
   if (unmatched.length > 0 && unmatched.length <= 30) {
