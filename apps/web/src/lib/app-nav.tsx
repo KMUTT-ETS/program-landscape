@@ -8,7 +8,6 @@ import {
   ClipboardList,
   Database,
   FileSearch,
-  GitBranch,
   GitCompare,
   Home,
   LayoutDashboard,
@@ -60,7 +59,6 @@ const adminDataSetupSection: NavSection = {
   items: [
     { href: '/admin/data-setup', label: 'Setup hub', icon: createElement(LayoutDashboard), moduleKey: 'neutral' },
     { href: '/admin/programs', label: 'Programs', icon: createElement(Building2), moduleKey: 'neutral' },
-    { href: '/admin/programs/pipeline', label: 'Curriculum pipeline', icon: createElement(GitBranch), moduleKey: 'neutral' },
     { href: '/admin/data-sources', label: 'Connectors / feeds', icon: createElement(Database), moduleKey: 'neutral' },
   ],
 };

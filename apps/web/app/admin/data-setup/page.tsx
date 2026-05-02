@@ -125,7 +125,7 @@ export default async function AdminDataSetupPage() {
               `${stats.curriculumDocs.total} PDF documents in curriculum library`,
               `${stats.programs.missingCurriculumPdf} programs still missing a current PDF`,
             ]}
-            href="/admin/programs/pipeline"
+            href="/admin/programs?view=pipeline"
             cta="Open curriculum pipeline"
           />
 

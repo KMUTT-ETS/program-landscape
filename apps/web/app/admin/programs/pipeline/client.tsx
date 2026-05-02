@@ -9,7 +9,6 @@ import {
   Card,
   EdgeGlow,
   EmptyState,
-  KPI,
   Segmented,
   SegmentedContent,
   SegmentedList,
@@ -97,16 +96,10 @@ export function PipelineClient({ initialStats }: { initialStats: PipelineStats }
 
   return (
     <div className="flex flex-col gap-6">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <KPI tone="glossy" label="Programs" value={stats.programsTotal.toLocaleString()} />
-        <KPI tone="glossy" label="With PDF" value={stats.withPdf.toLocaleString()} />
-        <KPI tone="glossy" label="Missing PDF" value={stats.missingPdf.toLocaleString()} />
-        <KPI tone="glossy" label="Digested" value={stats.digested.toLocaleString()} />
-        <KPI tone="glossy" label="Need digest" value={stats.needDigest.toLocaleString()} />
-        <KPI tone="glossy" label="Pending review" value={stats.pendingReview.toLocaleString()} />
-      </div>
-
+      {/* KPI strip is owned by the parent page (apps/web/app/admin/
+          programs/page.tsx) since it applies to both the list and
+          pipeline views. PipelineClient only renders the bucket
+          control here. */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-text-secondary">
           {stats.approved.toLocaleString()} of {stats.programsTotal.toLocaleString()} programs have an
