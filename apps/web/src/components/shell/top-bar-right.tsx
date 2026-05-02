@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Bell, LogOut, Monitor, Moon, Sun, Upload, User } from 'lucide-react';
+import { Bell, LogOut, Monitor, Moon, Sun, User } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -96,26 +96,18 @@ export function TopBarRight({ user }: { user: SessionUser }) {
             Sign out
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {/* Quick actions — personal/per-user shortcuts. Module nav lives
-              in the sidebar; admin pages live in the sidebar's admin
-              sections. Trimmed 2026-05-02 to remove duplicate paths. */}
+          {/* Personal action — notifications. Module nav lives in the
+              sidebar; admin pages live in the sidebar's admin sections;
+              uploading PDFs is reached through Setup hub or any
+              category card so the user has context before uploading.
+              Anything else here would re-introduce the duplicate-path
+              problem this dropdown had before 2026-05-02. */}
           <DropdownMenuItem asChild>
             <a href="/inbox" className="flex items-center gap-2">
               <Bell className="h-4 w-4 text-text-tertiary" aria-hidden />
               Inbox
             </a>
           </DropdownMenuItem>
-          {(user.role === 'ADMIN' ||
-            user.role === 'ANALYST' ||
-            user.role === 'DEAN' ||
-            user.role === 'DEPT_HEAD') && (
-            <DropdownMenuItem asChild>
-              <a href="/upload" className="flex items-center gap-2">
-                <Upload className="h-4 w-4 text-text-tertiary" aria-hidden />
-                Upload PDFs
-              </a>
-            </DropdownMenuItem>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </>
