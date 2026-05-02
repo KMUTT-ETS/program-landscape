@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { AppShell, LeftNav, TopBar } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
-import { appNavSections } from '@/lib/app-nav';
+import { appNavSectionsFor } from '@/lib/app-nav';
 import { fetchScopeEntities } from '@/lib/app-entities';
 import { apiFetch } from '@/lib/api-client';
 import type { MeResponse } from '@kku/shared';
@@ -37,13 +37,12 @@ export async function AuthedAppShell({
 
   const brand = (
     <>
-      {/* KKU monogram — deep cardinal block on the near-black nav. The
-          letterform stays crisp at 36px, the corner radius matches the
-          module icon chips below so the whole column reads as one
-          family. */}
+      {/* KKU monogram — coral block on the near-black nav. 2026-05-02:
+          tile is now circular to match the pill aesthetic and gains the
+          accent glow shadow. */}
       <div
         aria-hidden
-        className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-default text-[15px] font-bold text-accent-fg shadow-[0_1px_0_0_rgba(255,255,255,0.08)_inset]"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-default text-[16px] font-bold text-accent-fg shadow-glow-accent"
         title="KKU Curriculum Intelligence Platform · Program Landscape"
       >
         K
@@ -70,7 +69,7 @@ export async function AuthedAppShell({
       }
       leftNav={
         <LeftNav
-          sections={appNavSections}
+          sections={appNavSectionsFor(user)}
           brand={brand}
           footer={<NavUserFooter user={user} />}
         />

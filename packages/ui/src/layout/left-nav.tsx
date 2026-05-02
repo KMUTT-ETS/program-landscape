@@ -189,14 +189,19 @@ function NavTile({
   active: boolean;
   classes: (typeof MODULE_CLASSES)[ModuleKey];
 }) {
-  // Base visuals: the tile. Active = module-tinted bg + module-coloured
-  // icon chip + coloured label + left rail. Inactive = neutral-on-nav
-  // with coloured chip foreground.
+  // 2026-05-02 redesign — pill-shaped tiles, soft accent ring on active.
+  // Active = module-tinted bg + module-coloured icon chip + coloured
+  // label + left rail + subtle inset highlight. Inactive = neutral-on-
+  // nav with coloured chip foreground.
   const base = cn(
-    'group relative flex items-center gap-3 rounded-lg px-3 py-2.5',
-    'transition-[background-color,color] duration-fast',
+    'group relative flex items-center gap-3 rounded-full px-3 py-2.5',
+    'transition-[background-color,color,box-shadow] duration-fast',
     active
-      ? cn(classes.activeTileBg, classes.labelActive)
+      ? cn(
+          classes.activeTileBg,
+          classes.labelActive,
+          'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]',
+        )
       : 'text-nav-fg/80 hover:bg-nav-surface-hover hover:text-nav-fg',
     item.disabled && 'pointer-events-none opacity-40',
   );
@@ -216,7 +221,7 @@ function NavTile({
         <span
           aria-hidden
           className={cn(
-            'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+            'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
             '[&>svg]:h-[18px] [&>svg]:w-[18px] [&>svg]:shrink-0 [&>svg]:stroke-[2]',
             active ? cn(classes.chipActiveBg, 'text-white') : cn(classes.chipBg, classes.chipIcon),
           )}
