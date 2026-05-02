@@ -63,14 +63,17 @@
   --color-text-disabled: 70.0% 0.012 55;
   --color-text-inverse: 99.0% 0.005 70;
 
-  /* ── Pastel coral — primary accent ───────────────────────────────
-     Coral / peach in the warm-orange range. Chroma kept ≤ 0.15 so it
-     reads as pastel, not vibrant. Default is the "button" weight;
-     hover lifts L by 4-5; active deepens. Subtle is the chip / badge
-     background; fg is the high-contrast text on top of `default`. */
-  --color-accent-default: 64.0% 0.150 45;
-  --color-accent-hover: 69.0% 0.150 45;
-  --color-accent-active: 59.0% 0.150 45;
+  /* ── Coral primary accent ────────────────────────────────────────
+     2026-05-02d: deepened from L=64/69/59 to L=58/53/48 so white
+     `accent-fg` text on the button passes WCAG AA (~5:1 contrast on
+     default, ~5.7:1 on hover, ~6.7:1 on active). Hover convention
+     reversed to darker-not-lighter — classic primary-CTA behaviour
+     where pressing in increases contrast.
+     Pastel feel preserved on the surface tokens (accent-subtle,
+     glossy-tint). Only the button-fill weight gets the darker coral. */
+  --color-accent-default: 58.0% 0.155 38;
+  --color-accent-hover: 53.0% 0.165 35;
+  --color-accent-active: 48.0% 0.170 32;
   --color-accent-subtle: 95.5% 0.040 50;
   --color-accent-fg: 99.0% 0.005 70;
 
@@ -569,6 +572,40 @@ body {
       oklch(var(--color-glossy-tint) / 0.30) 0%,
       oklch(var(--color-surface-0) / 0.0) 100%
     );
+}
+
+/* ── Popup surface (Dropdown, Dialog, Popover, Tooltip) ───────────
+   Shared chrome so every floating element reads as one family.
+   Glossy gradient + accent-tinted border + coral-shadow + backdrop
+   blur. Replaces the generic "surface-1 with rounded-md" shadcn look. */
+.kku-popup {
+  position: relative;
+  background-image: linear-gradient(
+    180deg,
+    oklch(var(--color-glossy-highlight) / 0.4) 0%,
+    oklch(var(--color-surface-1) / 0.95) 60%
+  );
+  background-color: oklch(var(--color-surface-1) / 0.95);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid oklch(var(--color-border-default));
+  box-shadow:
+    0 16px 48px -12px oklch(var(--color-text-primary) / 0.18),
+    0 4px 16px -4px oklch(var(--color-edge-1) / 0.12),
+    inset 0 1px 0 0 oklch(var(--color-glossy-highlight) / 0.5);
+}
+[data-theme='dark'] .kku-popup {
+  background-image: linear-gradient(
+    180deg,
+    oklch(var(--color-glossy-tint) / 0.6) 0%,
+    oklch(var(--color-surface-2) / 0.95) 60%
+  );
+  background-color: oklch(var(--color-surface-2) / 0.95);
+  border-color: oklch(var(--color-border-default));
+  box-shadow:
+    0 16px 48px -12px rgba(0, 0, 0, 0.55),
+    0 4px 16px -4px oklch(var(--color-edge-1) / 0.18),
+    inset 0 1px 0 0 oklch(var(--color-glossy-highlight) / 0.15);
 }
 
 /* ── Glossy surface — used by Card variant tone="glossy" ───────── */
