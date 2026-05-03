@@ -42,6 +42,13 @@ export function FreshnessBadge({
   className,
   label = 'data',
 }: FreshnessBadgeProps) {
+  // Defer the time-relative render to after hydration so SSR and client
+  // markup match. `Date.now()` differs between the two, so computing
+  // tone/text during render produces hydration mismatches near every
+  // bucket boundary (59m → 1h, 23h → 1d, …).
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
   const date = parse(freshnessDate);
   if (!date) {
     return (
@@ -58,11 +65,14 @@ export function FreshnessBadge({
     );
   }
 
-  const { text, hours } = relative(date);
-  const tone =
-    hours < 24
+  const isoDate = date.toISOString().slice(0, 10);
+  const rel = mounted ? relative(date) : null;
+  const text = rel ? rel.text : isoDate;
+  const tone = !rel
+    ? 'bg-surface-2 text-text-secondary'
+    : rel.hours < 24
       ? 'bg-surface-2 text-text-secondary'
-      : hours < 24 * 7
+      : rel.hours < 24 * 7
         ? 'bg-warning-subtle text-warning'
         : 'bg-danger-subtle text-danger';
 
@@ -85,7 +95,7 @@ export function FreshnessBadge({
           <span className="text-[11px] uppercase tracking-wide text-text-tertiary">
             {label}
           </span>
-          <span className="font-tabular">{date.toLocaleString()}</span>
+          <span className="font-tabular">{date.toISOString().replace('T', ' ').slice(0, 19)} UTC</span>
         </div>
       </TooltipContent>
     </Tooltip>
