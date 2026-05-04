@@ -1,34 +1,36 @@
 #!/usr/bin/env tsx
 // ─────────────────────────────────────────────────────────────────────────────
-// One-shot seed: wipe mock programs → pull KKU master programs sheet →
-// upsert real Program rows → walk /home/denpong/kku_programs and link each
-// PDF to its Program via ProgramDocument.
+// KKU master programs sheet → Program rows.
+//
+// 2026-05-02 rewrite — discipline-from-parens approach:
+//   • Canonical discipline name comes from the FIRST `(...)` in column D
+//     ("ชื่อปริญญา"), NOT column E ("ชื่อสาขา"). Column E is unreliable —
+//     it carries rename history, typos, and legacy notes.
+//   • When column E disagrees with the parsed-from-D discipline, column E
+//     is preserved verbatim in `Program.sheet_remark` for analyst review.
+//   • For degree titles WITHOUT parens (e.g., "ทันตแพทยศาสตรบัณฑิต"), the
+//     full degree string IS the discipline.
+//
+// Modes:
+//   default       smart-merge (upsert by sequenceNoFromSheet); does NOT
+//                 overwrite digest-derived fields (nameEn, totalCredits,
+//                 durationYears, language, recruitmentSummaryTh, etc.) —
+//                 those come from the PDF and are authoritative.
+//   --dry-run     report only, no writes.
+//   --wipe        destructive: delete all Program rows + cascade, then
+//                 insert from sheet. Use only when the schema changes
+//                 require a clean recreate. Wipes 228+ digests' Program-
+//                 side materialisation; AiExtraction rows survive.
 //
 // Sheet columns (8):
 //   ลำดับหลักสูตร | สถานะ | คณะ | ชื่อปริญญา | ชื่อสาขา | ระดับ | ปี พ.ศ. | รหัสหลักสูตร อว.
 //
-// Faculty match: Sheet drops the "คณะ"/"วิทยาลัย" prefix on most rows; we
-// normalise by prepending "คณะ" unless the name already starts with one of
-// the institutional prefixes ("วิทยาลัย", "บัณฑิตวิทยาลัย").
-//
-// PDF→Program match: walk /home/denpong/kku_programs/<level>/<faculty>/*.pdf
-// and substring-match the major name (ชื่อสาขา) against the filename.
-// Unmatched PDFs and unmatched programs both surface in the final report.
-//
-// Usage:  pnpm programs:seed-from-sheet [--dry-run]
-//
-// PDF storage path:
-//   - SHA-256 content-hash dedup (matches the existing intake pipeline)
-//   - Uploaded to MinIO bucket pdf-raw under curriculum/<hash>.pdf
-//   - One PdfDocument row per unique-hash PDF
-//   - One ProgramDocument link per (program, pdf) with role=CURRENT_CURRICULUM
-//     and isCurrent=true
+// PDF linking is delegated to `link-orphan-pdfs.ts` (run separately).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { existsSync, readFileSync } from 'node:fs';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 
 loadDotEnv(path.resolve(process.cwd(), '.env'));
 
@@ -50,44 +52,71 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { prisma, type ProgramLevel, type ProgramStatus } from '@kku/db';
-import { S3Storage } from '@kku/shared';
 
 const SHEET_URL =
   'https://docs.google.com/spreadsheets/d/1d_JxDNNCtgnFEwRAhmQy64npYYRAAclAdwNK_pYFsEg/export?format=csv&gid=0';
 const CSV_CACHE_PATH = '/tmp/kku-programs-sheet.csv';
-const KKU_PROGRAMS_DIR = '/home/denpong/kku_programs';
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has('--dry-run');
+const WIPE = args.has('--wipe');
 
 // ─── CSV parsing ─────────────────────────────────────────────────────────────
 
 interface SheetRow {
   sequenceNo: number;
-  statusFromSheet: string; // 'Active' | 'Inactive'
+  statusFromSheet: string;
   facultyShort: string;
-  degreeName: string;
-  majorName: string;
-  level: string; // ป.ตรี / ป.โท / ป.เอก / ป.บัณฑิตชั้นสูง
+  degreeName: string;          // column D ("ชื่อปริญญา")
+  originalSheetMajor: string;  // column E ("ชื่อสาขา") — kept raw
+  level: string;
   curriculumYearBe: number | null;
   mhesiCode: string;
 }
 
+/** Full-CSV parser that respects multi-line quoted fields. The previous
+ *  split-on-newline approach silently dropped 7+ rows when a sheet cell
+ *  contained an embedded newline (e.g., "กลุ่มวิชา…1.…\n2.…\n3.…"). */
+function parseCsvRows(csv: string): string[][] {
+  const norm = csv.replace(/\r\n/g, '\n');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < norm.length; i++) {
+    const c = norm[i]!;
+    if (inQuotes) {
+      if (c === '"' && norm[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else cur += c; // newlines inside quotes are part of the cell
+    } else {
+      if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+      else if (c === '"') inQuotes = true;
+      else cur += c;
+    }
+  }
+  if (cur !== '' || row.length > 0) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
 function parseCsv(csv: string): SheetRow[] {
-  const lines = csv.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim() !== '');
+  const rows = parseCsvRows(csv);
   const out: SheetRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCsvLine(lines[i]!);
+  // Skip header (first row); subsequent rows that don't parse as a numeric
+  // sequence in column A are footers or blank lines — silently ignored.
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i]!;
     if (cells.length < 8) continue;
     const [seq, status, fac, degree, major, level, year, mhesi] = cells;
     const sequenceNo = Number((seq ?? '').trim());
-    if (!Number.isInteger(sequenceNo)) continue;
+    if (!Number.isInteger(sequenceNo) || sequenceNo <= 0) continue;
     out.push({
       sequenceNo,
       statusFromSheet: (status ?? '').trim(),
       facultyShort: (fac ?? '').trim(),
       degreeName: (degree ?? '').trim(),
-      majorName: (major ?? '').trim(),
+      originalSheetMajor: (major ?? '').trim(),
       level: (level ?? '').trim(),
       curriculumYearBe: parseYear(year ?? ''),
       mhesiCode: (mhesi ?? '').trim(),
@@ -96,46 +125,68 @@ function parseCsv(csv: string): SheetRow[] {
   return out;
 }
 
-function parseCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let inQuotes = false;
-  let cur = '';
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]!;
-    if (inQuotes) {
-      if (c === '"' && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else if (c === '"') {
-        inQuotes = false;
-      } else {
-        cur += c;
-      }
-    } else {
-      if (c === ',') {
-        out.push(cur);
-        cur = '';
-      } else if (c === '"') {
-        inQuotes = true;
-      } else {
-        cur += c;
-      }
-    }
-  }
-  out.push(cur);
-  return out;
-}
-
 function parseYear(s: string): number | null {
   const n = Number(s.trim());
   return Number.isInteger(n) && n >= 2400 && n <= 2700 ? n : null;
 }
 
+// ─── Discipline extraction (the new core logic) ──────────────────────────────
+
+interface ExtractedDegree {
+  /** First parenthetical, the canonical discipline. Equals the full degree
+   *  string when no parens are present (single-discipline degrees like
+   *  "ทันตแพทยศาสตรบัณฑิต"). */
+  discipline: string;
+  /** Subsequent parens — modifiers like "(นานาชาติ)", "(หลักสูตรใหม่)". */
+  modifiers: string[];
+  /** Degree-prefix preceding the first paren — e.g., "วิทยาศาสตรบัณฑิต". */
+  degreePrefix: string;
+}
+
+export function extractDisciplineFromDegree(degreeName: string): ExtractedDegree {
+  const trimmed = degreeName.trim();
+  const matches = [...trimmed.matchAll(/\(([^)]+)\)/g)];
+  if (matches.length === 0) {
+    return { discipline: trimmed, modifiers: [], degreePrefix: trimmed };
+  }
+  const first = matches[0]!;
+  const discipline = first[1]!.trim();
+  const modifiers = matches.slice(1).map((m) => m[1]!.trim());
+  const degreePrefix = trimmed.slice(0, first.index).trim();
+  return { discipline, modifiers, degreePrefix };
+}
+
+/** Normalise for equality comparison: trim, collapse runs of whitespace,
+ *  strip a few common decorations that show up on the column-E side only. */
+function normaliseForCompare(s: string): string {
+  return s
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\(หลักสูตรนานาชาติ\)\s*/g, '')
+    .replace(/\s*\(นานาชาติ\)\s*/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Decide whether column E carries information not already encoded by
+ *  the parsed-from-D discipline. Returns the verbatim column E string
+ *  to persist as `sheet_remark`, or null when E adds nothing. */
+function deriveSheetRemark(extracted: ExtractedDegree, columnE: string, columnD: string): string | null {
+  if (!columnE) return null;
+  const e = normaliseForCompare(columnE);
+  const disc = normaliseForCompare(extracted.discipline);
+  const fullD = normaliseForCompare(columnD);
+  // Identical to discipline — no signal.
+  if (e === disc) return null;
+  // Identical to the full degree string — also no signal (E mirrors D).
+  if (e === fullD) return null;
+  // E contains the discipline as a substring AND has no extra Thai words
+  // beyond modifier text — still no useful signal.
+  // Conservative: keep everything else.
+  return columnE;
+}
+
 // ─── Faculty + level normalisation ───────────────────────────────────────────
 
-// Sheet sometimes uses abbreviated faculty names with the Pai-yan-noi (ฯ)
-// marker. Map back to the canonical full names registered in the Faculty
-// table. Other ad-hoc shortenings get added here over time.
 const FACULTY_ALIAS_MAP: Record<string, string> = {
   'คณะมนุษยศาสตร์ฯ': 'คณะมนุษยศาสตร์และสังคมศาสตร์',
   'คณะบริหารธุรกิจฯ': 'คณะบริหารธุรกิจและการบัญชี',
@@ -144,7 +195,6 @@ const FACULTY_ALIAS_MAP: Record<string, string> = {
 function normaliseFacultyName(short: string): string {
   const s = short.trim();
   if (!s) return s;
-  // Skip rows that are clearly sheet notes / footers, not real faculties.
   if (s.startsWith('หมายเหตุ') || s.length > 60) return '';
   const candidate =
     s.startsWith('วิทยาลัย') || s.startsWith('บัณฑิตวิทยาลัย') ? s : `คณะ${s}`;
@@ -153,62 +203,43 @@ function normaliseFacultyName(short: string): string {
 
 function normaliseLevel(thaiLevel: string): ProgramLevel | null {
   switch (thaiLevel.trim()) {
-    case 'ป.ตรี':
-      return 'BACHELOR';
-    case 'ป.โท':
-      return 'MASTER';
-    case 'ป.เอก':
-      return 'DOCTORAL';
-    case 'ป.บัณฑิตชั้นสูง':
-      return 'HIGHER_GRAD_DIPLOMA';
-    default:
-      return null;
+    case 'ป.ตรี': return 'BACHELOR';
+    case 'ป.โท': return 'MASTER';
+    case 'ป.เอก': return 'DOCTORAL';
+    case 'ป.บัณฑิตชั้นสูง': return 'HIGHER_GRAD_DIPLOMA';
+    default: return null;
   }
 }
 
 function normaliseStatus(sheetStatus: string): ProgramStatus {
-  // Sheet uses Active/Inactive; we keep ACTIVE as-is, map Inactive → PAUSED
-  // (most analogous of the three enum values; user kept all rows per Q1).
   return sheetStatus.toLowerCase() === 'active' ? 'ACTIVE' : 'PAUSED';
 }
 
-// Internal `code`: derived from sequenceNoFromSheet — guaranteed unique per
-// sheet row. We don't use mhesiCode here because the sheet has duplicate
-// mhesi codes (same code reused across Bachelor + Master variants).
 function deriveCode(row: SheetRow): string {
   return `KKU-SEQ-${row.sequenceNo.toString().padStart(4, '0')}`;
 }
 
+/** `nameTh` is the full degree string from column D — preserves modifiers
+ *  like "(นานาชาติ)" inline. The PDF digest may overwrite this with a
+ *  cleaner form on materialisation. */
 function deriveNameTh(row: SheetRow): string {
-  // The most "program name"-ish column. Sheet's ชื่อปริญญา is sometimes the
-  // bare degree title with the major in parens; ชื่อสาขา sometimes carries
-  // historical-rename notes. Prefer the degree name if it already contains
-  // the major in parens; otherwise concatenate them.
-  if (!row.majorName) return row.degreeName || row.facultyShort;
-  if (row.degreeName.includes(`(${row.majorName})`)) return row.degreeName;
-  if (row.degreeName.includes(row.majorName)) return row.degreeName;
-  return `${row.degreeName} (${row.majorName})`;
+  return row.degreeName || row.originalSheetMajor || row.facultyShort;
 }
 
-// ─── Phase A: wipe mock programs ─────────────────────────────────────────────
+// ─── Phase A: optional wipe ──────────────────────────────────────────────────
 
-async function wipeMockPrograms(): Promise<void> {
+async function wipePrograms(): Promise<void> {
   const existing = await prisma.program.count();
   if (existing === 0) {
     console.log('No existing Program rows to wipe.');
     return;
   }
   console.log(`Wiping ${existing} existing Program rows + cascade-dependent rows…`);
+  console.log('  AiExtraction rows survive (FK-free); re-materialise via /admin/extraction-review.');
   if (DRY_RUN) {
     console.log('  (dry-run, skipping)');
     return;
   }
-  // Manual cascade for arrays / relations Prisma's cascade doesn't cover:
-  // CouncilDecision.affectedProgramIds and Scenario.affectedProgramIds are
-  // String[] columns — orphan IDs are cosmetic, leave as-is.
-  // Annotation rows referencing programs cascade via FK.
-  // ProgramSkill / Course / Curriculum / ProgramDocument / metrics all
-  // cascade from Program via onDelete: Cascade in the schema.
   await prisma.program.deleteMany({});
   console.log('  Wipe complete.');
 }
@@ -224,35 +255,40 @@ async function fetchSheetCsv(): Promise<string> {
       return readFileSync(CSV_CACHE_PATH, 'utf8');
     }
   }
-  console.log(`Fetching ${SHEET_URL} (with redirect-follow)…`);
+  console.log(`Fetching ${SHEET_URL}…`);
   const res = await fetch(SHEET_URL, { redirect: 'follow' });
-  if (!res.ok) {
-    throw new Error(`Sheet fetch failed: ${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status} ${res.statusText}`);
   const csv = await res.text();
-  await import('node:fs/promises').then((fs) => fs.writeFile(CSV_CACHE_PATH, csv, 'utf8'));
+  await writeFile(CSV_CACHE_PATH, csv, 'utf8');
   return csv;
 }
 
-// ─── Phase C: seed programs ──────────────────────────────────────────────────
+// ─── Phase C: smart-merge upsert ─────────────────────────────────────────────
 
 interface SeedReport {
   totalRowsInSheet: number;
-  upserted: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  withRemark: number;
   skipped: { reason: string; count: number; samples: string[] }[];
   facultyMisses: string[];
+  remarkSamples: string[];
 }
 
 async function seedProgramsFromCsv(rows: SheetRow[]): Promise<SeedReport> {
-  // Build Faculty.nameTh → id map once.
   const faculties = await prisma.faculty.findMany({ select: { id: true, nameTh: true } });
   const facultyByNameTh = new Map(faculties.map((f) => [f.nameTh, f.id]));
 
   const report: SeedReport = {
     totalRowsInSheet: rows.length,
-    upserted: 0,
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    withRemark: 0,
     skipped: [],
     facultyMisses: [],
+    remarkSamples: [],
   };
 
   const skipReasons = new Map<string, { count: number; samples: string[] }>();
@@ -262,6 +298,12 @@ async function seedProgramsFromCsv(rows: SheetRow[]): Promise<SeedReport> {
     r.count++;
     if (r.samples.length < 5) r.samples.push(sample);
   };
+
+  // Pre-fetch existing programs by sequenceNoFromSheet for change detection.
+  const existing = await prisma.program.findMany({
+    select: { sequenceNoFromSheet: true, majors: true, sheetRemark: true, degreeNameTh: true, mhesiCode: true, curriculumYearBE: true, facultyId: true, level: true, status: true },
+  });
+  const existingBySeq = new Map(existing.filter((e) => e.sequenceNoFromSheet !== null).map((e) => [e.sequenceNoFromSheet!, e]));
 
   for (const row of rows) {
     const facultyNameTh = normaliseFacultyName(row.facultyShort);
@@ -277,37 +319,70 @@ async function seedProgramsFromCsv(rows: SheetRow[]): Promise<SeedReport> {
       continue;
     }
 
-    const data = {
+    const extracted = extractDisciplineFromDegree(row.degreeName);
+    const sheetRemark = deriveSheetRemark(extracted, row.originalSheetMajor, row.degreeName);
+    if (sheetRemark) {
+      report.withRemark++;
+      if (report.remarkSamples.length < 8) {
+        report.remarkSamples.push(`seq=${row.sequenceNo} D="${row.degreeName}" → discipline="${extracted.discipline}" | E="${row.originalSheetMajor.slice(0, 80)}"`);
+      }
+    }
+
+    // Sheet-owned fields. `nameTh` and `majors` are in this set; the
+    // digest's `materialiseProgramDigest` doesn't currently touch them
+    // (it touches nameEn / totalCredits / durationYears / language /
+    // recruitmentSummaryTh — see packages/db/src/program-digest-materialize.ts).
+    const sheetOwned = {
       code: deriveCode(row),
       mhesiCode: row.mhesiCode || null,
       sequenceNoFromSheet: row.sequenceNo,
       nameTh: deriveNameTh(row),
-      nameEn: '', // PDF digest will fill this in Phase 2
       facultyId,
       level,
       status: normaliseStatus(row.statusFromSheet),
       degreeNameTh: row.degreeName || null,
-      majors: row.majorName ? [row.majorName] : [],
+      majors: [extracted.discipline, ...extracted.modifiers].filter((s) => s.length > 0),
       curriculumYearBE: row.curriculumYearBe,
+      sheetRemark,
     };
 
+    const prev = existingBySeq.get(row.sequenceNo);
+    const isCreate = !prev;
+    const hasChange =
+      !!prev && (
+        prev.facultyId !== sheetOwned.facultyId ||
+        prev.level !== sheetOwned.level ||
+        prev.status !== sheetOwned.status ||
+        prev.degreeNameTh !== sheetOwned.degreeNameTh ||
+        prev.mhesiCode !== sheetOwned.mhesiCode ||
+        prev.curriculumYearBE !== sheetOwned.curriculumYearBE ||
+        prev.sheetRemark !== sheetOwned.sheetRemark ||
+        JSON.stringify(prev.majors) !== JSON.stringify(sheetOwned.majors)
+      );
+
     if (DRY_RUN) {
-      report.upserted++;
+      if (isCreate) report.created++;
+      else if (hasChange) report.updated++;
+      else report.unchanged++;
       continue;
     }
 
     try {
-      // Upsert key is sequenceNoFromSheet (guaranteed unique per sheet row).
-      // mhesiCode is NOT unique — KKU's master sheet has duplicates between
-      // Bachelor + Master variants of some programs.
+      // Smart-merge: `update` payload only touches sheet-owned fields.
+      // Digest-derived fields (nameEn, totalCredits, durationYears,
+      // language, recruitmentSummaryTh, careersThJson, …) are NOT in the
+      // update payload and remain authoritative once a digest has
+      // materialised them.
       await prisma.program.upsert({
         where: { sequenceNoFromSheet: row.sequenceNo },
-        update: data,
-        create: data,
+        update: sheetOwned,
+        create: { ...sheetOwned, nameEn: '' },
       });
-      report.upserted++;
+      if (isCreate) report.created++;
+      else if (hasChange) report.updated++;
+      else report.unchanged++;
     } catch (err) {
-      noteSkip(`upsert_failed`, `seq=${row.sequenceNo}: ${err instanceof Error ? err.message : String(err)}`);
+      noteSkip('upsert_failed', `seq=${row.sequenceNo}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -317,216 +392,58 @@ async function seedProgramsFromCsv(rows: SheetRow[]): Promise<SeedReport> {
   return report;
 }
 
-// ─── Phase D: walk folder + upload PDFs ──────────────────────────────────────
-
-interface PdfReport {
-  pdfsFound: number;
-  pdfsUploaded: number;
-  pdfsDeduplicated: number;
-  programsLinked: number;
-  pdfsOrphan: { filename: string; level: string; faculty: string; reason: string }[];
-}
-
-async function uploadAndLinkPdfs(): Promise<PdfReport> {
-  const report: PdfReport = {
-    pdfsFound: 0,
-    pdfsUploaded: 0,
-    pdfsDeduplicated: 0,
-    programsLinked: 0,
-    pdfsOrphan: [],
-  };
-
-  if (DRY_RUN) {
-    console.log('  (dry-run, skipping PDF upload)');
-    return report;
-  }
-
-  const storage = new S3Storage({
-    endpoint: process.env.MINIO_ENDPOINT ?? 'http://localhost:9000',
-    accessKeyId: process.env.MINIO_ACCESS_KEY ?? 'minio_dev',
-    secretAccessKey: process.env.MINIO_SECRET_KEY ?? 'minio_dev_password',
-    region: process.env.MINIO_REGION ?? 'us-east-1',
-  });
-  const rawBucket = process.env.MINIO_BUCKET_PDF_RAW ?? 'pdf-raw';
-
-  const levelDirs = await readdir(KKU_PROGRAMS_DIR);
-  for (const levelDir of levelDirs) {
-    const levelEnum = normaliseLevel(levelDir);
-    if (!levelEnum) {
-      console.log(`Skipping unknown level dir: ${levelDir}`);
-      continue;
-    }
-    const facultyDirs = await readdir(path.join(KKU_PROGRAMS_DIR, levelDir));
-    for (const facultyDir of facultyDirs) {
-      const facultyPath = path.join(KKU_PROGRAMS_DIR, levelDir, facultyDir);
-      const stats = await stat(facultyPath);
-      if (!stats.isDirectory()) continue;
-
-      const faculty = await prisma.faculty.findUnique({
-        where: { code: facultyDir },
-        select: { id: true },
-      }).catch(() => null);
-      const facultyByName = await prisma.faculty.findFirst({
-        where: { nameTh: facultyDir },
-        select: { id: true },
-      });
-      const facultyId = faculty?.id ?? facultyByName?.id ?? null;
-
-      // Programs in this (level, faculty) bucket
-      const programs = facultyId
-        ? await prisma.program.findMany({
-            where: { level: levelEnum, facultyId },
-            select: { id: true, nameTh: true, majors: true, code: true },
-          })
-        : [];
-
-      const files = await readdir(facultyPath);
-      for (const file of files) {
-        if (!file.toLowerCase().endsWith('.pdf')) continue;
-        report.pdfsFound++;
-        const fullPath = path.join(facultyPath, file);
-
-        if (!facultyId) {
-          report.pdfsOrphan.push({ filename: file, level: levelDir, faculty: facultyDir, reason: 'unknown_faculty' });
-          continue;
-        }
-
-        // Match PDF to program — by major-name (ชื่อสาขา) substring on filename.
-        // Pick the longest-major match (more specific wins).
-        const lowerFile = file;
-        const matches = programs
-          .filter((p) => {
-            const major = p.majors?.[0] ?? '';
-            return major.length > 0 && lowerFile.includes(major);
-          })
-          .sort((a, b) => (b.majors[0]?.length ?? 0) - (a.majors[0]?.length ?? 0));
-
-        const program = matches[0];
-        if (!program) {
-          report.pdfsOrphan.push({ filename: file, level: levelDir, faculty: facultyDir, reason: 'no_major_match' });
-          continue;
-        }
-
-        // Upload to MinIO + create PdfDocument with content-hash dedup
-        const bytes = await readFile(fullPath);
-        const contentHash = createHash('sha256').update(bytes).digest('hex');
-
-        const existing = await prisma.pdfDocument.findUnique({
-          where: { contentHash },
-          select: { id: true },
-        });
-        let pdfDocId: string;
-        if (existing) {
-          pdfDocId = existing.id;
-          report.pdfsDeduplicated++;
-        } else {
-          const key = `curriculum/${contentHash}.pdf`;
-          // S3/MinIO metadata headers must be ASCII-safe — Thai filenames
-          // raise ERR_INVALID_CHAR. URL-encode non-ASCII before sending.
-          await storage.putObject({
-            bucket: rawBucket,
-            key,
-            body: bytes,
-            contentType: 'application/pdf',
-            metadata: {
-              'original-filename-utf8': encodeURIComponent(file),
-              uploader: 'seed-programs-from-sheet',
-              'program-id': program.id,
-            },
-          });
-          const created = await prisma.pdfDocument.create({
-            data: {
-              originalFilename: file,
-              storageUrl: `s3://${rawBucket}/${key}`,
-              fileSize: bytes.byteLength,
-              pageCount: 0, // filled by intake worker later
-              sourceCategory: 'CURRICULUM',
-              sourceCategoryHint: 'CURRICULUM',
-              sourceOrg: 'KKU',
-              language: 'TH',
-              contentHash,
-              processingStatus: 'PENDING',
-            },
-          });
-          pdfDocId = created.id;
-          report.pdfsUploaded++;
-        }
-
-        // Link via ProgramDocument (unique on (programId, pdfDocumentId))
-        await prisma.programDocument.upsert({
-          where: { programId_pdfDocumentId: { programId: program.id, pdfDocumentId: pdfDocId } },
-          update: {
-            role: 'CURRENT_CURRICULUM',
-            isCurrent: true,
-            notes: `Seeded from ${levelDir}/${facultyDir}/${file}`,
-          },
-          create: {
-            programId: program.id,
-            pdfDocumentId: pdfDocId,
-            role: 'CURRENT_CURRICULUM',
-            isCurrent: true,
-            notes: `Seeded from ${levelDir}/${facultyDir}/${file}`,
-          },
-        });
-        report.programsLinked++;
-      }
-    }
-  }
-
-  return report;
-}
-
 // ─── Main orchestrator ───────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log(`Mode: ${DRY_RUN ? 'DRY RUN' : 'LIVE'}`);
+  const mode = WIPE ? 'WIPE+RECREATE' : DRY_RUN ? 'DRY RUN (smart-merge)' : 'SMART-MERGE (writes)';
+  console.log(`Mode: ${mode}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  console.log('\n[1/4] Wiping mock programs…');
-  await wipeMockPrograms();
+  if (WIPE) {
+    console.log('\n[1/3] Wiping all Program rows…');
+    await wipePrograms();
+  } else {
+    console.log('\n[1/3] Smart-merge mode — no wipe; existing rows updated in place.');
+  }
 
-  console.log('\n[2/4] Fetching KKU master programs sheet…');
+  console.log('\n[2/3] Fetching KKU master programs sheet…');
   const csv = await fetchSheetCsv();
   const rows = parseCsv(csv);
-  console.log(`  Parsed ${rows.length} rows`);
+  console.log(`  Parsed ${rows.length} sheet rows`);
 
-  console.log('\n[3/4] Seeding Program rows…');
-  const seedReport = await seedProgramsFromCsv(rows);
-  console.log(`  Upserted: ${seedReport.upserted} / ${seedReport.totalRowsInSheet}`);
-  for (const s of seedReport.skipped) {
-    console.log(`  Skipped (${s.reason}): ${s.count} — samples: ${s.samples.slice(0, 3).join(' | ')}`);
-  }
-  if (seedReport.facultyMisses.length > 0) {
-    console.log(`  Faculty names not found in DB:`);
-    for (const f of seedReport.facultyMisses) console.log(`    ${f}`);
-  }
+  console.log('\n[3/3] Upserting Program rows…');
+  const report = await seedProgramsFromCsv(rows);
+  console.log(`  Created:    ${report.created}`);
+  console.log(`  Updated:    ${report.updated}`);
+  console.log(`  Unchanged:  ${report.unchanged}`);
+  console.log(`  With sheet_remark (column E ≠ extracted discipline): ${report.withRemark}`);
 
-  console.log('\n[4/4] Walking folder + uploading PDFs to MinIO…');
-  const pdfReport = await uploadAndLinkPdfs();
-  console.log(`  PDFs found: ${pdfReport.pdfsFound}`);
-  console.log(`  PDFs uploaded (new): ${pdfReport.pdfsUploaded}`);
-  console.log(`  PDFs dedup (already in MinIO): ${pdfReport.pdfsDeduplicated}`);
-  console.log(`  Programs linked: ${pdfReport.programsLinked}`);
-  console.log(`  Orphan PDFs (no program match): ${pdfReport.pdfsOrphan.length}`);
-  if (pdfReport.pdfsOrphan.length > 0) {
-    const byReason = new Map<string, number>();
-    for (const o of pdfReport.pdfsOrphan) byReason.set(o.reason, (byReason.get(o.reason) ?? 0) + 1);
-    for (const [reason, count] of byReason) console.log(`    ${reason}: ${count}`);
-    console.log(`  First 10 orphans:`);
-    for (const o of pdfReport.pdfsOrphan.slice(0, 10)) {
-      console.log(`    [${o.reason}] ${o.level}/${o.faculty}/${o.filename}`);
+  if (report.skipped.length > 0) {
+    console.log('\n  Skipped:');
+    for (const s of report.skipped) {
+      console.log(`    (${s.reason}): ${s.count} — samples: ${s.samples.slice(0, 3).join(' | ')}`);
     }
+  }
+  if (report.facultyMisses.length > 0) {
+    console.log('\n  Faculty names not found in DB:');
+    for (const f of report.facultyMisses) console.log(`    ${f}`);
+  }
+  if (report.remarkSamples.length > 0) {
+    console.log('\n  sheet_remark samples (first 8):');
+    for (const s of report.remarkSamples) console.log(`    ${s}`);
   }
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('Final DB state:');
   const programCount = await prisma.program.count();
-  const pdfCount = await prisma.pdfDocument.count({ where: { sourceCategory: 'CURRICULUM' } });
-  const linkCount = await prisma.programDocument.count();
-  console.log(`  Programs: ${programCount}`);
-  console.log(`  PdfDocuments (CURRICULUM): ${pdfCount}`);
-  console.log(`  ProgramDocument links: ${linkCount}`);
-  console.log('Done.');
+  const programWithRemark = await prisma.program.count({ where: { sheetRemark: { not: null } } });
+  const pdfLinkCount = await prisma.programDocument.count({ where: { role: 'CURRENT_CURRICULUM', isCurrent: true } });
+  const programsWithoutPdf = await prisma.program.count({ where: { documents: { none: { role: 'CURRENT_CURRICULUM', isCurrent: true } } } });
+  console.log(`  Programs:                          ${programCount}`);
+  console.log(`  Programs with sheet_remark:        ${programWithRemark}`);
+  console.log(`  CURRENT_CURRICULUM links:          ${pdfLinkCount}`);
+  console.log(`  Programs without curriculum PDF:   ${programsWithoutPdf}`);
+  console.log('\nNext: pnpm programs:link-orphan-pdfs --apply');
 }
 
 main()

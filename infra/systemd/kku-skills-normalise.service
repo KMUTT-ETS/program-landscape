@@ -1,0 +1,22 @@
+[Unit]
+Description=KKU Curriculum Landscape — skill-name normaliser (LinkedIn / program-digest aliases)
+Documentation=file:///home/denpong/projects/program-landscape/CLAUDE.md
+# We don't depend on the API container — the script reads/writes Postgres
+# directly via Prisma. Postgres MUST be reachable on localhost:5432 by the
+# time this fires; the timer's Persistent=true catches missed runs.
+
+[Service]
+Type=oneshot
+# Working directory is established by the wrapper; no need to set it here.
+ExecStart=%h/projects/program-landscape/scripts/skills-normalise.sh
+# Don't fail the unit on benign warnings the script writes to stderr.
+SuccessExitStatus=0
+# Keep CPU/IO out of the way — this is a background data-quality job.
+Nice=10
+IOSchedulingClass=idle
+# Cap wall-clock at 3 hours. Full-portfolio first run was ~2h; subsequent
+# weekly runs typically <5 minutes (only new names hit the LLM).
+TimeoutStartSec=10800
+
+[Install]
+WantedBy=default.target

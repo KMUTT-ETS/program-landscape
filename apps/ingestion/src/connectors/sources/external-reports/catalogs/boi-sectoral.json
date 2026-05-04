@@ -1,0 +1,40 @@
+{
+  "sourceOrgName": "Thailand Board of Investment (BOI)",
+  "pdfCategory": "REPORT",
+  "defaultLanguage": "MIXED",
+  "entries": [
+    {
+      "externalId": "boi-investment-promotion-strategy-2023",
+      "title": "BOI Investment Promotion Strategy 2023-2027",
+      "summaryTh": "ยุทธศาสตร์การส่งเสริมการลงทุน 5 ปี (พ.ศ. 2566-2570) โดย BOI มุ่งเน้น 5 อุตสาหกรรมเป้าหมาย: BCG, EV, อิเล็กทรอนิกส์อัจฉริยะ, ดิจิทัล, การแพทย์และสุขภาพ พร้อมสิทธิประโยชน์ทางภาษี",
+      "summaryEn": "BOI 5-year investment promotion strategy 2023-2027 — focuses on 5 target industries: BCG (bio-circular-green), EV, smart electronics, digital, medical/health. Anchors Thailand's industrial policy direction; relevant to engineering / science / health programme demand projections.",
+      "sourceUrl": "https://www.boi.go.th/upload/content/BOI_Strategy_2023.pdf",
+      "publishedDate": "2023-04-01",
+      "signalType": "POLICY",
+      "impactScore": 0.88,
+      "tags": ["industrial-policy", "ev", "bcg", "smart-electronics", "thailand"]
+    },
+    {
+      "externalId": "boi-target-industries-incentives-2024",
+      "title": "BOI Target Industries — Updated Investment Incentives 2024",
+      "summaryTh": "ประกาศอัปเดตสิทธิประโยชน์สำหรับ S-curve และ New S-curve อุตสาหกรรมเป้าหมาย โดย BOI — รวม EV, แบตเตอรี่, เซมิคอนดักเตอร์, ไบโอเทคโนโลยี, ระบบอัตโนมัติ",
+      "summaryEn": "BOI updated incentive package for S-curve and New S-curve target industries — covering EV, batteries, semiconductors, biotech, automation. Direct demand-signal for related engineering and science programmes.",
+      "sourceUrl": "https://www.boi.go.th/index.php?page=incentives_target",
+      "publishedDate": "2024-07-12",
+      "signalType": "POLICY",
+      "impactScore": 0.80,
+      "tags": ["s-curve", "incentives", "ev", "semiconductors"]
+    },
+    {
+      "externalId": "boi-sectoral-statistics-2024-h1",
+      "title": "BOI Investment Statistics — H1 2024 Sectoral Breakdown",
+      "summaryTh": "สถิติการลงทุนรายสาขา ครึ่งแรกของปี 2024 โดย BOI — มูลค่าโครงการที่ได้รับอนุมัติส่งเสริมและการจ้างงานคาดว่าจะเกิดขึ้น แบ่งตามภาคอุตสาหกรรม",
+      "summaryEn": "BOI sectoral investment statistics for H1 2024 — approved project values and projected employment, by industry. Useful for benchmarking how investment flow is shaping demand for graduates.",
+      "sourceUrl": "https://www.boi.go.th/index.php?page=statistics_thailand_investment",
+      "publishedDate": "2024-08-30",
+      "signalType": "MARKET",
+      "impactScore": 0.70,
+      "tags": ["investment-statistics", "employment", "thailand"]
+    }
+  ]
+}

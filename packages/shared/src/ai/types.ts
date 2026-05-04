@@ -105,6 +105,30 @@ export interface ExtractionRequest {
   model?: string;
   // Max output tokens. Budget at 2× worst-case expected JSON size.
   maxOutputTokens?: number;
+  // Optional file URI to attach (Gemini File API; 48h retention). When
+  // provided the model reads the file natively instead of receiving
+  // pre-parsed text in the prompt — better quality for PDFs and 30-50×
+  // cheaper input tokens than re-sending the full text per call.
+  fileAttachment?: {
+    fileUri: string;
+    mimeType: string;
+  };
+  // Enable thinking-mode reasoning (Gemini Pro). Default false on
+  // extractStructured because thinking tokens often eat the JSON
+  // output budget. Set true for high-stakes reasoning calls (peer
+  // review, recommendations).
+  thinking?: boolean;
+}
+
+/** Result of uploading a file to Gemini's File API. URI valid for 48h. */
+export interface AiFileUpload {
+  fileUri: string;
+  mimeType: string;
+  name: string;
+  /** SHA-256 of file bytes — used by callers for caching. */
+  contentHash: string;
+  /** Server-reported expiry (ISO). */
+  expiresAt: string | null;
 }
 
 export interface ExtractionResponse<T> {
@@ -264,6 +288,12 @@ export interface AiService {
   ): Promise<ExtractionResponse<T>>;
   translate(req: TranslateRequest): Promise<TranslateResponse>;
   vision(req: VisionRequest): Promise<VisionResponse>;
+  /** Upload a file (typically a PDF) for reuse across multiple
+   *  extraction calls within the provider's retention window
+   *  (Gemini: 48h). Returns a stable URI to attach via
+   *  `ExtractionRequest.fileAttachment`. Optional — non-File-API
+   *  providers throw `FileApiNotSupportedError`. */
+  uploadFile?(bytes: Buffer, displayName: string, mimeType?: string): Promise<AiFileUpload>;
   // v1: Anthropic only. Others throw ToolUseNotSupportedError.
   // `executeTool` is provided by the CALLER — it receives a tool call
   // and returns the string result that gets fed back as a tool-result

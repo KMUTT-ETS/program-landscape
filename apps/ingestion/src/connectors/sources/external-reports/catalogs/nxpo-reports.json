@@ -1,0 +1,29 @@
+{
+  "sourceOrgName": "National Higher Education, Science, Research and Innovation Policy Council (NXPO)",
+  "pdfCategory": "POLICY",
+  "defaultLanguage": "TH",
+  "entries": [
+    {
+      "externalId": "nxpo-research-strategy-2025",
+      "title": "Higher Education, Science, Research and Innovation Policy and Strategy 2023-2027",
+      "summaryTh": "นโยบายและยุทธศาสตร์การอุดมศึกษา วิทยาศาสตร์ วิจัยและนวัตกรรม พ.ศ. 2566-2570 จัดทำโดย NXPO ครอบคลุม 5 แพลตฟอร์ม รวมถึง EECi, Smart Manufacturing, BCG ฯลฯ พร้อมเป้าหมายงบประมาณวิจัย R&D 2% ของ GDP",
+      "summaryEn": "NXPO 5-year master strategy for HE/STI 2023-2027 covering 5 strategic platforms (EECi, Smart Manufacturing, BCG bio-circular-green, Health & Medicine, Future Mobility). Sets the 2% R&D/GDP target — a binding constraint on KKU's research strategy.",
+      "sourceUrl": "https://www.nxpo.or.th/th/policy-strategy/",
+      "publishedDate": "2023-01-15",
+      "signalType": "POLICY",
+      "impactScore": 0.90,
+      "tags": ["sti-policy", "rd-budget", "thailand", "platforms"]
+    },
+    {
+      "externalId": "nxpo-bcg-economy-2024",
+      "title": "BCG Economy Model — Annual Implementation Report 2024",
+      "summaryTh": "รายงานประจำปีการขับเคลื่อน BCG Economy Model (Bio-Circular-Green) ระบุความก้าวหน้า 4 อุตสาหกรรมเป้าหมาย: เกษตรและอาหาร พลังงาน วัสดุและเคมีชีวภาพ การแพทย์และสุขภาพ การท่องเที่ยวและบริการ",
+      "summaryEn": "Annual implementation report of Thailand's BCG Economy Model — progress on the 4 target industries (agri-food, energy, bio-chemicals, medical, tourism). Aligns with KKU's bio-economy and agri-tech program portfolio.",
+      "sourceUrl": "https://www.nxpo.or.th/th/bcg-economy-model/",
+      "publishedDate": "2024-09-30",
+      "signalType": "POLICY",
+      "impactScore": 0.78,
+      "tags": ["bcg", "bio-economy", "agri-food", "thailand"]
+    }
+  ]
+}

@@ -23,6 +23,18 @@ import { KkuRegistryRealConnector } from './sources/kku-registry';
 import { KkuResearchRealConnector } from './sources/kku-research';
 import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
 import {
+  AdbGmsRealConnector,
+  BoiSectoralRealConnector,
+  EecoReportsRealConnector,
+  MhesiPolicyRealConnector,
+  NesdcReportsRealConnector,
+  NxpoReportsRealConnector,
+  OecdReportsRealConnector,
+  WefFutureOfJobsRealConnector,
+} from './sources/external-reports';
+import { WorldBankRealConnector } from './sources/world-bank';
+import { TcasRealConnector } from './sources/tcas';
+import {
   AdbGmsConnector,
   BoiSectoralConnector,
   EecoReportConnector,
@@ -108,19 +120,59 @@ const ENTRIES: readonly ConnectorEntry[] = [
 
   // National Thai (PDF) ──────────────────────────────────────────────
   { slug: 'nso-labor-force',    mock: () => new NsoConnector() },
-  { slug: 'tcas',               mock: () => new TcasConnector() },
+  {
+    slug: 'tcas',
+    mock: () => new TcasConnector(),
+    real: () => new TcasRealConnector(),
+  },
   { slug: 'tpqi',               mock: () => new TpqiConnector() },
-  { slug: 'mhesi-policy',       mock: () => new MhesiPolicyConnector() },
-  { slug: 'nesdc-reports',      mock: () => new NesdcReportConnector() },
-  { slug: 'nxpo-reports',       mock: () => new NxpoReportConnector() },
-  { slug: 'boi-sectoral',       mock: () => new BoiSectoralConnector() },
-  { slug: 'eeco-reports',       mock: () => new EecoReportConnector() },
+  {
+    slug: 'mhesi-policy',
+    mock: () => new MhesiPolicyConnector(),
+    real: () => new MhesiPolicyRealConnector(),
+  },
+  {
+    slug: 'nesdc-reports',
+    mock: () => new NesdcReportConnector(),
+    real: () => new NesdcReportsRealConnector(),
+  },
+  {
+    slug: 'nxpo-reports',
+    mock: () => new NxpoReportConnector(),
+    real: () => new NxpoReportsRealConnector(),
+  },
+  {
+    slug: 'boi-sectoral',
+    mock: () => new BoiSectoralConnector(),
+    real: () => new BoiSectoralRealConnector(),
+  },
+  {
+    slug: 'eeco-reports',
+    mock: () => new EecoReportConnector(),
+    real: () => new EecoReportsRealConnector(),
+  },
 
   // International ────────────────────────────────────────────────────
-  { slug: 'wef-future-of-jobs', mock: () => new WefFutureOfJobsConnector() },
-  { slug: 'oecd-reports',       mock: () => new OecdReportConnector() },
-  { slug: 'world-bank',         mock: () => new WorldBankConnector() },
-  { slug: 'adb-gms',            mock: () => new AdbGmsConnector() },
+  {
+    slug: 'wef-future-of-jobs',
+    mock: () => new WefFutureOfJobsConnector(),
+    real: () => new WefFutureOfJobsRealConnector(),
+  },
+  {
+    slug: 'oecd-reports',
+    mock: () => new OecdReportConnector(),
+    real: () => new OecdReportsRealConnector(),
+  },
+  {
+    slug: 'world-bank',
+    mock: () => new WorldBankConnector(),
+    real: () => new WorldBankRealConnector(),
+  },
+  {
+    slug: 'adb-gms',
+    mock: () => new AdbGmsConnector(),
+    real: () => new AdbGmsRealConnector(),
+  },
   { slug: 'scopus',             mock: () => new ScopusConnector() },
   { slug: 'openalex',           mock: () => new OpenAlexConnector() },
 

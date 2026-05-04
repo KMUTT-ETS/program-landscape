@@ -20,9 +20,24 @@
 //     career-detail.skills_growth (both contexts retained — see schema)
 //
 // Skill resolution: case-insensitive trimmed exact match on Skill.nameEn,
-// then Skill.nameTh. Unmatched → skillId=NULL + raw name in
+// then Skill.nameTh, then the SkillAlias cache (sourceContext='linkedin',
+// status='RESOLVED'). Unmatched → skillId=NULL + raw name in
 // KmitlCareerSkillDemand.skillNameRaw, surfaced in IngestionRun.metadata
 // for analyst triage.
+//
+// The SkillAlias cache is filled by the AI normaliser script (run via
+// `pnpm skills:normalise --source=linkedin --auto-promote` after each
+// successful sync). Once names are resolved into the alias cache, every
+// subsequent connector run resolves them WITHOUT an LLM round-trip — the
+// alias cache is the single source of truth for free-text → Skill.id
+// mappings encountered by this feed.
+//
+// Operator workflow (recurring):
+//   1. Mon 06:00 UTC — connector cron triggers a full sync
+//   2. Optional: `pnpm skills:normalise --source=linkedin --auto-promote`
+//      processes any newly-encountered raw names (typically <50 per week
+//      after initial backfill) and updates KmitlCareerSkillDemand.skill_id
+//      for the new resolutions.
 //
 // PDPA: API contract is aggregate-only; no per-person fields. The discovery
 // script's no-PII guard runs every Phase B refresh; the connector itself
@@ -151,10 +166,25 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
   }
 
   private async fetchSkillLookup(): Promise<SkillLookup> {
-    const skills = await this.db.skill.findMany({
-      select: { id: true, nameEn: true, nameTh: true },
-    });
-    return buildSkillLookup(skills);
+    // Pull both the direct taxonomy (Skill.nameEn/Th exact match) AND
+    // the previously-resolved aliases for this source (skill_aliases with
+    // sourceContext='linkedin' AND status='RESOLVED'). The alias cache
+    // means once the AI normaliser has resolved a free-text name, every
+    // subsequent sync picks up the mapping without an LLM round-trip.
+    const [skills, aliases] = await Promise.all([
+      this.db.skill.findMany({
+        select: { id: true, nameEn: true, nameTh: true },
+      }),
+      this.db.skillAlias.findMany({
+        where: { sourceContext: 'linkedin', status: 'RESOLVED', resolvedSkillId: { not: null } },
+        select: { rawNameLower: true, resolvedSkillId: true },
+      }),
+    ]);
+    // Coerce: resolvedSkillId is non-null because of the where clause.
+    return buildSkillLookup(
+      skills,
+      aliases.map((a) => ({ rawNameLower: a.rawNameLower, resolvedSkillId: a.resolvedSkillId! })),
+    );
   }
 
   // ─── Connector lifecycle ───────────────────────────────────────────────────

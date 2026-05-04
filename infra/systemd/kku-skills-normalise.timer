@@ -1,0 +1,19 @@
+[Unit]
+Description=KKU Curriculum Landscape — trigger skill-name normaliser weekly
+Documentation=file:///home/denpong/projects/program-landscape/CLAUDE.md
+
+[Timer]
+# Every Monday 08:00 Asia/Bangkok = 01:00 UTC. The KMITL connector cron
+# fires at 06:00 (Mon) and a full sync takes ~6 minutes; a 2-hour buffer
+# is comfortable.
+OnCalendar=Mon *-*-* 08:00:00 Asia/Bangkok
+# Add a small jitter so two co-tenant timers don't fire to the millisecond.
+RandomizedDelaySec=300
+# If the machine was off when the timer was supposed to fire, run it on
+# next boot. Idempotent — re-running the script over the same data is a
+# no-op (the alias cache short-circuits).
+Persistent=true
+Unit=kku-skills-normalise.service
+
+[Install]
+WantedBy=timers.target

@@ -47,28 +47,34 @@ function gaussian(rng: () => number, mean = 0, stdDev = 1): number {
 
 // ── Public entry point ──────────────────────────────────────────────
 export function runScenario(input: EngineInput): ScenarioRunResult {
-  // Validate inputs — cheap and catches schema drift early.
+  // Validate inputs — cheap and catches schema drift early. Use the
+  // parsed result (which fills in defaults for missing assumption keys
+  // via the Zod schema) so downstream math doesn't NaN out when the
+  // caller passes a partial / wrong-keyed assumptions object.
   BaselineSnapshotSchema.parse(input.baseline);
-  ScenarioAssumptionsSchema.parse(input.assumptions);
+  const assumptions = ScenarioAssumptionsSchema.parse(input.assumptions);
 
   const horizonYears = Math.max(1, Math.min(input.horizonYears, 20));
   const monteCarloN = Math.max(1, Math.min(input.monteCarloN ?? 100, 2000));
   const seed = input.seed ?? 42;
 
   // Point estimates: baseline outcome (no interventions) vs scenario outcome.
-  const baseline = projectOutcome(input.baseline, input.assumptions, [], horizonYears);
+  const baseline = projectOutcome(input.baseline, assumptions, [], horizonYears);
   const scenario = projectOutcome(
     input.baseline,
-    input.assumptions,
+    assumptions,
     input.interventions,
     horizonYears,
   );
 
   // Sensitivity — bump each assumption ±10% and record the outcome delta.
-  const sensitivity = computeSensitivity(input, horizonYears);
+  // Pass the parsed (defaults-filled) assumptions so the sensitivity sweep
+  // doesn't NaN out on missing keys.
+  const inputWithParsedAssumptions = { ...input, assumptions };
+  const sensitivity = computeSensitivity(inputWithParsedAssumptions, horizonYears);
 
   // Monte Carlo.
-  const monteCarlo = runMonteCarlo(input, horizonYears, monteCarloN, seed);
+  const monteCarlo = runMonteCarlo(inputWithParsedAssumptions, horizonYears, monteCarloN, seed);
 
   return {
     baseline,

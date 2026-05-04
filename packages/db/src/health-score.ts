@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { ScopeLevel } from './scope';
 import { prisma } from './index';
-import { queryMetricByScope } from './scope';
+import { queryMetricByScope, type MetricRow } from './scope';
 
-// Health scores for the Portfolio Overview Cockpit (prompt 05). Five
-// dimensions + overall composite. Scores 0-100 where 100 is healthy.
+// Health scores for the Portfolio Overview Cockpit + Deep-Dive radar.
+// Five dimensions + overall composite. Scores 0-100 where 100 is healthy.
 //
 // Methodology: see docs/methodologies/health-score.md. Edit that first
 // when changing the formula, then bump HEALTH_SCORE_VERSION here, then
@@ -14,18 +14,81 @@ import { queryMetricByScope } from './scope';
 // (not substituted with 0 or 50). dataCompletenessPct on every score
 // tells the reader how much data actually went into it.
 
-// v2 (2026-05-01): demand dimension extended with `labor_market_alignment_kmitl`
-// driver — the share of a program's skills that overlap with KMITL Skill
-// Mapping's THAILAND × JOB_POSTINGS demanded-skills set (percentage ≥ 5%).
-// v1 stays in `health-score.v1` rows for audit; new rows stamp v2.
-export const HEALTH_SCORE_VERSION = 'health-score.v2';
+// v3.0 (2026-05-02) — full redesign. Five dimensions, all backed by
+// real data after the 2026-04-27 → 2026-05-02 connector flips:
+//
+//   * attractiveness  — TCAS-anchored: competition vs peers, fill rate,
+//                       enrollment trend
+//   * financial       — net contribution per student, revenue coverage,
+//                       tuition trend
+//   * capability      — senior-rank share, publications per faculty,
+//                       retirement horizon (was placeholder in v2)
+//   * outcomes        — TCAS percentile + alumni outcomes (kku-alumni
+//                       still pending; TCAS percentile lights it up)
+//   * relevance       — labour-market alignment, demand-match filled,
+//                       demographic resilience, strategic sector
+//                       alignment (was placeholder in v2)
+//
+// v2 / v2.1 driver `labor_market_alignment_kmitl` (LinkedIn via MHESI,
+// 4-quadrant fallback) is preserved under `relevance`. v1 / v2 / v2.1
+// rows retained for audit; new rows stamp v3.0.
+export const HEALTH_SCORE_VERSION = 'health-score.v3.4';
+
+// ── KKU intake-floor policy ─────────────────────────────────────────
+// Council policy (2026): every program must hit a minimum new-intake
+// floor each academic year. Failing the floor is a structural risk
+// signal — strict for undergraduate (closure-track), watch-list for
+// postgraduate (where small-cohort is structurally normal).
+//
+// Compliance state surfaces in the attractiveness driver's `raw.compliance`
+// field and feeds the lifecycle verdict.
+export const KKU_INTAKE_FLOOR_BACHELOR = 30;
+export const KKU_INTAKE_FLOOR_POSTGRAD = 8;
+
+export type IntakeCompliance = 'compliant' | 'watch' | 'breach' | 'unknown';
+
+/** Standalone helper for surface-layer code (deep-dive header, dashboard,
+ *  cockpit). Returns the canonical compliance state for any program given
+ *  its level + latest intake. Wraps `intakeComplianceFor` so callers
+ *  don't need to import the internal scoring math. */
+export function getKkuIntakePolicyVerdict(
+  level: string,
+  latestIntake: number | null,
+): { state: IntakeCompliance; floor: number } {
+  const v = intakeComplianceFor(level, latestIntake);
+  return { state: v.state, floor: v.floor };
+}
+
+function intakeComplianceFor(
+  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA' | string,
+  intake: number | null,
+): { state: IntakeCompliance; floor: number; score: number | null } {
+  if (intake === null) return { state: 'unknown', floor: 0, score: null };
+  if (level === 'BACHELOR') {
+    const floor = KKU_INTAKE_FLOOR_BACHELOR;
+    if (intake < floor) {
+      // Strict policy: severely punish — far below floor → 0;
+      // half the floor → ~25.
+      return { state: 'breach', floor, score: clamp((intake / floor) * 50) };
+    }
+    // At or above floor — scale to 100 at 2× floor.
+    return { state: 'compliant', floor, score: clamp(50 + ((intake - floor) / floor) * 50) };
+  }
+  // Postgraduate (MASTER / DOCTORAL / HIGHER_GRAD_DIPLOMA) — watch-list,
+  // not strict closure-track. Below floor still penalised but not zeroed.
+  const floor = KKU_INTAKE_FLOOR_POSTGRAD;
+  if (intake < floor) {
+    return { state: 'watch', floor, score: clamp(30 + (intake / floor) * 30) };
+  }
+  return { state: 'compliant', floor, score: clamp(60 + ((intake - floor) / floor) * 40) };
+}
 
 export const HEALTH_DIMENSIONS = [
-  'demand',
+  'attractiveness',
   'financial',
-  'quality',
-  'relevance',
   'capability',
+  'outcomes',
+  'relevance',
 ] as const;
 export type HealthDimension = (typeof HEALTH_DIMENSIONS)[number];
 
@@ -45,46 +108,31 @@ export const HealthScoreSchema = z.object({
 });
 export type HealthScore = z.infer<typeof HealthScoreSchema>;
 
-// Each dimension is guaranteed present — using z.object (not z.record)
-// gives consumers a narrowed type without undefined-checking on every
-// access.
 export const HealthDimensionScoresSchema = z.object({
-  demand: HealthScoreSchema,
+  attractiveness: HealthScoreSchema,
   financial: HealthScoreSchema,
-  quality: HealthScoreSchema,
-  relevance: HealthScoreSchema,
   capability: HealthScoreSchema,
+  outcomes: HealthScoreSchema,
+  relevance: HealthScoreSchema,
 });
 export type HealthDimensionScores = z.infer<typeof HealthDimensionScoresSchema>;
 
 export const HealthScoreRowSchema = z.object({
-  scope: z.string(),                     // 'university' | 'faculty' | 'department' | 'program'
+  scope: z.string(),
   scopeId: z.string(),
-  scopeLabel: z.string(),                // human-facing name
-  parentScopeId: z.string().nullable(),  // faculty within which a department sits, etc.
+  scopeLabel: z.string(),
+  parentScopeId: z.string().nullable(),
   methodologyVersion: z.string(),
   dimensions: HealthDimensionScoresSchema,
   overall: HealthScoreSchema,
-  // Freshness of the newest underlying metric row used.
   latestFreshness: z.date().nullable(),
 });
 export type HealthScoreRow = z.infer<typeof HealthScoreRowSchema>;
 
 // ──────────────────────────────────────────────────────────────────────────
-// Public entry points
+// Public entry point
 // ──────────────────────────────────────────────────────────────────────────
 
-/**
- * Health scores for every rollup node under a given scope.
- *
- * At university scope → one row per faculty.
- * At faculty scope → one row per department in that faculty.
- * At department scope → one row per program in that department.
- * At program scope → a single row for that program.
- *
- * The caller decides whether to show overall only, or all five
- * dimensions — the row carries both.
- */
 export async function computeHealthScores(
   scope: ScopeLevel,
   scopeId: string | null,
@@ -92,43 +140,57 @@ export async function computeHealthScores(
   const childScope = childScopeFor(scope);
   const children = await resolveChildren(scope, scopeId);
 
-  // KMITL labor-market alignment — one query for the demanded-skills set,
-  // one for ProgramSkill rows, then averaged per child below. Returns an
-  // empty map when no KMITL data is loaded yet — `rollupKmitlAlignmentToChild`
-  // surfaces that as a null driver (data gap, not zero).
+  // Pre-compute KMITL alignment for every program in one pass — used
+  // by the relevance dimension. Empty map when the LinkedIn-via-MHESI
+  // dataset has no rows yet → driver returns null per scope.
   const programAlignment = await computeKmitlProgramAlignment();
 
   const rows: HealthScoreRow[] = [];
   for (const child of children) {
-    // Latest-year metric row at the child scope.
-    const metrics = await queryMetricByScope({
+    const enrollment = await queryMetricByScope({
       scope: childScope,
       scopeId: child.id,
       family: 'enrollment',
     });
-    const latest = metrics.at(-1);
-    const financials = await queryMetricByScope({
+    const financialsAgg = await queryMetricByScope({
       scope: childScope,
       scopeId: child.id,
       family: 'financial',
     });
-    const fLatest = financials.at(-1);
     const outcomes = await queryMetricByScope({
       scope: childScope,
       scopeId: child.id,
       family: 'outcomes',
     });
-    const oLatest = outcomes.at(-1);
 
-    const kmitlAlignment = await rollupKmitlAlignmentToChild(child.id, childScope, programAlignment);
+    // Program-scope reads raw rows directly so the scorers can apply
+    // partial-year heuristics + use program-internal fields the MV
+    // doesn't expose. Faculty/dept/uni scopes still use the MV.
+    const isProgram = childScope === 'program';
+
+    const attractiveness = isProgram
+      ? await scoreAttractivenessProgram(child.id)
+      : scoreAttractivenessScope(enrollment.at(-1) ?? null);
+    const financial = isProgram
+      ? await scoreFinancialProgram(child.id, enrollment)
+      : scoreFinancialScope(financialsAgg.at(-1) ?? null);
+    const capability = isProgram
+      ? await scoreCapabilityProgram(child.id)
+      : await scoreCapabilityScope(child.id, childScope);
+    const outcomesScore = isProgram
+      ? await scoreOutcomesProgram(child.id, outcomes.at(-1) ?? null)
+      : scoreOutcomesScope(outcomes.at(-1) ?? null);
+    const relevance = isProgram
+      ? await scoreRelevanceProgram(child.id, programAlignment.get(child.id) ?? null)
+      : await scoreRelevanceScope(child.id, childScope, programAlignment);
+
     const dimensions: HealthScoreRow['dimensions'] = {
-      demand: scoreDemand(latest ?? null, kmitlAlignment),
-      financial: scoreFinancial(fLatest ?? null),
-      quality: scoreQuality(oLatest ?? null),
-      relevance: scoreRelevancePlaceholder(),
-      capability: scoreCapabilityPlaceholder(),
+      attractiveness,
+      financial,
+      capability,
+      outcomes: outcomesScore,
+      relevance,
     };
-
     rows.push({
       scope: childScope,
       scopeId: child.id,
@@ -138,26 +200,25 @@ export async function computeHealthScores(
       dimensions,
       overall: combineDimensions(Object.values(dimensions)),
       latestFreshness:
-        latest?.latestFreshness ?? fLatest?.latestFreshness ?? oLatest?.latestFreshness ?? null,
+        enrollment.at(-1)?.latestFreshness ??
+        financialsAgg.at(-1)?.latestFreshness ??
+        outcomes.at(-1)?.latestFreshness ??
+        null,
     });
   }
   return rows;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Child resolution — which nodes hang off the given scope?
+// Child resolution
 // ──────────────────────────────────────────────────────────────────────────
 
 function childScopeFor(scope: ScopeLevel): ScopeLevel {
   switch (scope) {
-    case 'university':
-      return 'faculty';
-    case 'faculty':
-      return 'department';
-    case 'department':
-      return 'program';
-    case 'program':
-      return 'program';
+    case 'university': return 'faculty';
+    case 'faculty':    return 'department';
+    case 'department': return 'program';
+    case 'program':    return 'program';
   }
 }
 
@@ -193,7 +254,6 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
     });
     return rows.map((r) => ({ id: r.id, label: `${r.nameEn} · ${r.nameTh}`, parentId: r.departmentId }));
   }
-  // program
   if (!scopeId) return [];
   const row = await prisma.program.findUnique({
     where: { id: scopeId },
@@ -205,154 +265,230 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Dimension scorers — each returns a HealthScore or the empty shape.
-//
-// Each one is a pure function of a metric row (or null). Null in →
-// score: null, completeness: 0. Missing field in the row → that driver
-// is null; completeness proportional to non-null drivers.
+// Attractiveness — TCAS competition + fill + enrollment trend
 // ──────────────────────────────────────────────────────────────────────────
 
-import type { MetricRow } from './scope';
+async function scoreAttractivenessProgram(programId: string): Promise<HealthScore> {
+  // Pull the program's level + latest TCAS row in parallel — level
+  // drives the KKU intake-floor policy (bachelor=30, postgrad=8).
+  const [tcasRow, programRow] = await Promise.all([
+    prisma.tcasAdmissionStat.findFirst({
+      where: { programId },
+      orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
+    }),
+    prisma.program.findUnique({
+      where: { id: programId },
+      select: { level: true },
+    }),
+  ]);
 
-function scoreDemand(row: MetricRow | null, kmitlAlignment: number | null): HealthScore {
-  // Drivers: admission yield, retention year 2, on-time graduation, plus
-  // labor-market alignment from KMITL Skill Mapping (v2, 2026-05-01). The
-  // first three are internal-KKU signals (proxies for demand); the fourth
-  // is the real external labour-market signal that v1 left null.
+  // Peer median competition ratio for the same (year, round) and same
+  // programmeName / subject signature. We approximate by matching on
+  // the same `programmeName` substring of any open word.
+  let peerMedianRatio: number | null = null;
+  if (tcasRow) {
+    const subjectKey = extractSubjectSignature(tcasRow.programmeName);
+    const peerRows = await prisma.tcasAdmissionStat.findMany({
+      where: {
+        entryYearBE: tcasRow.entryYearBE,
+        round: tcasRow.round,
+        institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        programmeName: { contains: subjectKey, mode: 'insensitive' },
+      },
+      select: { quota: true, applicants: true, programmeName: true },
+    });
+    const peerRatios = peerRows
+      .filter((r) => r.quota > 0 && extractSubjectSignature(r.programmeName) === subjectKey)
+      .map((r) => r.applicants / r.quota)
+      .sort((a, b) => a - b);
+    if (peerRatios.length > 0) {
+      peerMedianRatio = peerRatios[Math.floor(peerRatios.length / 2)] ?? null;
+    }
+  }
+
+  // Enrollment series for the trend driver.
+  const enrollment = await prisma.enrollmentMetric.findMany({
+    where: { programId },
+    orderBy: { academicYear: 'asc' },
+    select: { academicYear: true, enrolled: true },
+  });
+
+  const drivers = [
+    {
+      label: 'tcas_competition_vs_peers',
+      value: (() => {
+        if (!tcasRow || tcasRow.quota <= 0) return null;
+        const kkuRatio = tcasRow.applicants / tcasRow.quota;
+        if (peerMedianRatio === null || peerMedianRatio <= 0) return null;
+        // Score 50 = parity with peer median; 100 = 2× peer median.
+        return clamp((kkuRatio / peerMedianRatio) * 50);
+      })(),
+      raw: tcasRow ? { applicants: tcasRow.applicants, quota: tcasRow.quota, peerMedianRatio } : null,
+    },
+    {
+      label: 'tcas_fill_rate',
+      value: (() => {
+        if (!tcasRow || tcasRow.quota <= 0) return null;
+        const admitted = tcasRow.admittedPass1 + tcasRow.admittedPass2;
+        return clamp((admitted / tcasRow.quota) * 100);
+      })(),
+      raw: tcasRow ? { admitted: tcasRow.admittedPass1 + tcasRow.admittedPass2, quota: tcasRow.quota } : null,
+    },
+    {
+      label: 'enrollment_trend_slope',
+      value: (() => {
+        // Drop the most-recent year if it looks partial (cohort < 30%
+        // of the prior year — same heuristic as financials).
+        const series = applyPartialYearDrop(
+          enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
+        );
+        if (series.length < 2) return null;
+        const slope = linearSlope(series);
+        // 0 = flat (50). +5 students/year → 100. -5 → 0.
+        return clamp(50 + (slope / 5) * 50);
+      })(),
+      raw: { series: enrollment.map((r) => r.enrolled) },
+    },
+    {
+      // KKU intake-floor policy — bachelor=30, postgrad=8.
+      // Bachelor breaches are strict (closure-track); postgrad
+      // breaches are watch-list. The driver's `raw.compliance` is
+      // the canonical surface for UI badges + lifecycle verdicts.
+      label: 'kku_intake_policy',
+      value: (() => {
+        const series = applyPartialYearDrop(
+          enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
+        );
+        const latestIntake = series[series.length - 1]?.value ?? null;
+        return intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake).score;
+      })(),
+      raw: (() => {
+        const series = applyPartialYearDrop(
+          enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
+        );
+        const latestIntake = series[series.length - 1]?.value ?? null;
+        const verdict = intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake);
+        return {
+          level: programRow?.level ?? null,
+          latestIntake,
+          floor: verdict.floor,
+          compliance: verdict.state,
+        };
+      })(),
+    },
+  ];
+  return summariseDrivers(drivers);
+}
+
+function scoreAttractivenessScope(row: MetricRow | null): HealthScore {
+  // Faculty/dept/uni-level fallback — uses MV-aggregated funnel +
+  // retention proxies until per-scope TCAS aggregation lands.
   const drivers = [
     {
       label: 'admission_yield',
-      value: (() => {
-        if (!row?.admittedTotal || !row.applicationsTotal) return null;
-        const yieldPct = row.admittedTotal / row.applicationsTotal;
-        // Higher yield = higher demand-to-supply. Scale 0.3 → 100.
-        return clamp((yieldPct / 0.3) * 100);
-      })(),
+      value: row?.admittedTotal && row.applicationsTotal
+        ? clamp(((row.admittedTotal / row.applicationsTotal) / 0.3) * 100)
+        : null,
       raw: row?.applicationsTotal,
     },
     {
       label: 'retention_year2',
-      value: (() => {
-        if (!row?.retainedYear2Total || !row.enrolledTotal) return null;
-        return clamp((row.retainedYear2Total / row.enrolledTotal) * 100);
-      })(),
+      value: row?.retainedYear2Total && row.enrolledTotal
+        ? clamp((row.retainedYear2Total / row.enrolledTotal) * 100)
+        : null,
       raw: row?.retainedYear2Total,
-    },
-    {
-      label: 'on_time_graduation',
-      value: (() => {
-        if (!row?.graduatedOnTimeTotal) return null;
-        const total = (row.graduatedOnTimeTotal ?? 0) + (row.graduatedLateTotal ?? 0) + (row.dropoutsTotal ?? 0);
-        if (total === 0) return null;
-        return clamp((row.graduatedOnTimeTotal / total) * 100);
-      })(),
-      raw: row?.graduatedOnTimeTotal,
-    },
-    {
-      // KMITL labor-market alignment: % of program skills overlapping with
-      // skills that have ≥5% demand share in any KMITL career
-      // (THAILAND × JOB_POSTINGS, latest snapshot). Null when there are no
-      // KMITL rows yet — preview-quality until 2026-05-31 (30-day green-
-      // history gate per docs/readiness-checklist.md gate 11).
-      label: 'labor_market_alignment_kmitl',
-      value: kmitlAlignment === null ? null : clamp(kmitlAlignment),
-      raw: kmitlAlignment,
     },
   ];
   return summariseDrivers(drivers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// KMITL alignment helpers (added in health-score.v2)
+// Financial — per-student contribution + cost coverage + tuition trend
 // ──────────────────────────────────────────────────────────────────────────
 
-const KMITL_DEMAND_THRESHOLD_PCT = 5;
+async function scoreFinancialProgram(
+  programId: string,
+  enrollment: MetricRow[],
+): Promise<HealthScore> {
+  const rows = await prisma.financialMetric.findMany({
+    where: { programId },
+    orderBy: { fiscalYear: 'asc' },
+  });
+  if (rows.length === 0) {
+    return emptyScore([
+      'net_contribution_per_student',
+      'revenue_coverage_program_direct',
+      'tuition_trend_slope',
+    ]);
+  }
+  const num = (v: { toNumber: () => number } | unknown): number =>
+    typeof v === 'number' ? v : (v as { toNumber: () => number }).toNumber();
 
-/**
- * Per-program % alignment with KMITL-demanded skills. Returns Map<programId,
- * percent> for every program with ≥1 ProgramSkill row. Empty map when KMITL
- * has no demand data loaded yet — caller should treat that as "data gap"
- * (null driver), not zero alignment.
- */
-async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
-  const demandRows = await prisma.kmitlCareerSkillDemand.findMany({
-    where: {
-      dataScope: 'THAILAND',
-      dataSource: 'JOB_POSTINGS',
-      percentage: { gte: KMITL_DEMAND_THRESHOLD_PCT },
-      skillId: { not: null },
+  // Drop most-recent year if partial (tuition < 30% of prior).
+  const PARTIAL = 0.3;
+  let pickIndex = rows.length - 1;
+  if (rows.length >= 2) {
+    const last = num(rows[rows.length - 1]!.tuitionRevenue);
+    const prior = num(rows[rows.length - 2]!.tuitionRevenue);
+    if (prior > 0 && last < prior * PARTIAL) pickIndex = rows.length - 2;
+  }
+  const head = rows[pickIndex]!;
+  const tuition = num(head.tuitionRevenue);
+  const direct = num(head.directCost);
+  const facility = num(head.allocatedFacilityCost);
+  const overhead = num(head.allocatedOverhead);
+  const netContribution = num(head.netContribution);
+  const programDirectCost = direct + facility + overhead;
+
+  const enrolledHead =
+    enrollment.find((e) => e.year === head.fiscalYear)?.enrolledTotal ??
+    enrollment.at(-1)?.enrolledTotal ??
+    null;
+
+  const drivers = [
+    {
+      label: 'net_contribution_per_student',
+      value: (() => {
+        if (!enrolledHead || enrolledHead === 0) return null;
+        const perStudent = netContribution / enrolledHead;
+        // 100k THB / student → 100; 0 → 50; -50k → 0.
+        return clamp(50 + (perStudent / 100_000) * 50);
+      })(),
+      raw: enrolledHead ? netContribution / enrolledHead : null,
     },
-    select: { skillId: true },
-    distinct: ['skillId'],
-  });
-  if (demandRows.length === 0) return new Map();
-
-  const demandedSkills = new Set(demandRows.map((r) => r.skillId!).filter(Boolean));
-  const programSkills = await prisma.programSkill.findMany({
-    select: { programId: true, skillId: true },
-  });
-
-  const counts = new Map<string, { matched: number; total: number }>();
-  for (const ps of programSkills) {
-    const c = counts.get(ps.programId) ?? { matched: 0, total: 0 };
-    c.total++;
-    if (demandedSkills.has(ps.skillId)) c.matched++;
-    counts.set(ps.programId, c);
-  }
-
-  const out = new Map<string, number>();
-  for (const [pid, { matched, total }] of counts) {
-    if (total > 0) out.set(pid, (matched / total) * 100);
-  }
-  return out;
+    {
+      label: 'revenue_coverage_program_direct',
+      value: (() => {
+        if (programDirectCost <= 0) return tuition > 0 ? 80 : null;
+        return clamp((tuition / programDirectCost / 1.2) * 100);
+      })(),
+      raw: tuition,
+    },
+    {
+      label: 'tuition_trend_slope',
+      value: (() => {
+        const series = applyPartialYearDrop(
+          rows.map((r) => ({ year: r.fiscalYear, value: num(r.tuitionRevenue) })),
+        );
+        if (series.length < 2) return null;
+        const slope = linearSlope(series);
+        // +500k THB/year growth → 100; flat → 50; declining → toward 0.
+        return clamp(50 + (slope / 500_000) * 50);
+      })(),
+      raw: rows.map((r) => num(r.tuitionRevenue)),
+    },
+  ];
+  return summariseDrivers(drivers);
 }
 
-/**
- * Average per-program alignment across the programs under one child node.
- * Returns null when no programs (or no KMITL data) — surfaces as a "data
- * gap" driver, not zero.
- */
-async function rollupKmitlAlignmentToChild(
-  childId: string,
-  childScope: ScopeLevel,
-  programAlignment: Map<string, number>,
-): Promise<number | null> {
-  if (programAlignment.size === 0) return null;
-  let programIds: string[];
-  if (childScope === 'program') {
-    programIds = [childId];
-  } else if (childScope === 'department') {
-    const ps = await prisma.program.findMany({
-      where: { departmentId: childId },
-      select: { id: true },
-    });
-    programIds = ps.map((p) => p.id);
-  } else if (childScope === 'faculty') {
-    const ps = await prisma.program.findMany({
-      where: { department: { facultyId: childId } },
-      select: { id: true },
-    });
-    programIds = ps.map((p) => p.id);
-  } else {
-    return null;
-  }
-  const values = programIds
-    .map((id) => programAlignment.get(id))
-    .filter((v): v is number => v !== undefined);
-  if (values.length === 0) return null;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function scoreFinancial(row: MetricRow | null): HealthScore {
+function scoreFinancialScope(row: MetricRow | null): HealthScore {
   const drivers = [
     {
       label: 'net_contribution_per_program',
       value: (() => {
         if (row?.netContributionTotal === null || row?.netContributionTotal === undefined) return null;
         if (!row.programCount) return null;
-        const perProgram = row.netContributionTotal / row.programCount;
-        // 20M THB / program → 100. 0 → 50. Negative → scales down to 0.
-        return clamp(50 + (perProgram / 20_000_000) * 50);
+        return clamp(50 + (row.netContributionTotal / row.programCount / 20_000_000) * 50);
       })(),
       raw: row?.netContributionTotal,
     },
@@ -360,9 +496,7 @@ function scoreFinancial(row: MetricRow | null): HealthScore {
       label: 'revenue_coverage_ratio',
       value: (() => {
         if (!row?.tuitionRevenueTotal || !row.totalCostTotal) return null;
-        const ratio = row.tuitionRevenueTotal / row.totalCostTotal;
-        // 1.0 → 80. Below 1 (subsidised) → scales down. 1.2+ → 100.
-        return clamp((ratio / 1.2) * 100);
+        return clamp((row.tuitionRevenueTotal / row.totalCostTotal / 1.2) * 100);
       })(),
       raw: row?.tuitionRevenueTotal,
     },
@@ -370,7 +504,411 @@ function scoreFinancial(row: MetricRow | null): HealthScore {
   return summariseDrivers(drivers);
 }
 
-function scoreQuality(row: MetricRow | null): HealthScore {
+// ──────────────────────────────────────────────────────────────────────────
+// Capability — senior rank + publications + retirement horizon
+// ──────────────────────────────────────────────────────────────────────────
+
+async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
+  const links = await prisma.programFaculty.findMany({
+    where: { programId },
+    include: {
+      facultyMember: {
+        select: {
+          id: true,
+          rank: true,
+          isActive: true,
+          retirementDate: true,
+        },
+      },
+    },
+  });
+  const active = links.filter((l) => l.facultyMember.isActive);
+  if (active.length === 0) {
+    return emptyScore([
+      'senior_rank_share',
+      'publications_per_faculty',
+      'retirement_horizon_5y',
+      'student_faculty_ratio',
+    ]);
+  }
+
+  // Latest-year enrolment + faculty discipline (drives the SFR band).
+  // QS/THE both weight student-faculty ratio heavily — and apply
+  // different thresholds by subject (clinical = strict, humanities =
+  // lenient). Pull the program's faculty.code so we can pick the
+  // right band.
+  const [latestEnrollment, programRow] = await Promise.all([
+    prisma.enrollmentMetric.findFirst({
+      where: { programId },
+      orderBy: { academicYear: 'desc' },
+      select: { enrolled: true },
+    }),
+    prisma.program.findUnique({
+      where: { id: programId },
+      select: { faculty: { select: { code: true } } },
+    }),
+  ]);
+  const enrolled = latestEnrollment?.enrolled ?? 0;
+  const sfrBand = sfrBandFor(programRow?.faculty?.code);
+
+  // Publications: research outputs in the last 3 years for the same
+  // faculty members.
+  const memberIds = active.map((l) => l.facultyMember.id);
+  const currentYear = new Date().getUTCFullYear();
+  const pubCount = memberIds.length > 0
+    ? await prisma.researchOutput.count({
+        where: {
+          facultyMemberId: { in: memberIds },
+          year: { gte: currentYear - 3 },
+        },
+      })
+    : 0;
+
+  const seniorCount = active.filter(
+    (l) => l.facultyMember.rank === 'PROF' || l.facultyMember.rank === 'ASSOC_PROF',
+  ).length;
+
+  const fiveYearHorizon = new Date();
+  fiveYearHorizon.setUTCFullYear(fiveYearHorizon.getUTCFullYear() + 5);
+  const retiringSoon = active.filter(
+    (l) =>
+      l.facultyMember.retirementDate !== null &&
+      l.facultyMember.retirementDate <= fiveYearHorizon,
+  ).length;
+
+  const drivers = [
+    {
+      label: 'senior_rank_share',
+      value: clamp((seniorCount / active.length) * 200), // 50% senior → 100
+      raw: { seniorCount, total: active.length },
+    },
+    {
+      label: 'publications_per_faculty',
+      value: (() => {
+        const ratio = pubCount / active.length;
+        // 5 publications / faculty / 3 years → 100. 0 → 0.
+        return clamp((ratio / 5) * 100);
+      })(),
+      raw: { pubCount, faculty: active.length, windowYears: 3 },
+    },
+    {
+      label: 'retirement_horizon_5y',
+      value: clamp(100 - (retiringSoon / active.length) * 100),
+      raw: { retiringSoon, total: active.length },
+    },
+    {
+      label: 'student_faculty_ratio',
+      // Discipline-aware: clinical programs scored against a stricter
+      // band than humanities. Null when no enrolment data yet —
+      // programs without recent EnrollmentMetric rows get a null
+      // driver rather than a misleading "perfect" 100.
+      value: enrolled === 0
+        ? null
+        : clamp(scoreStudentFacultyRatio(enrolled / active.length, sfrBand)),
+      raw: {
+        enrolled,
+        faculty: active.length,
+        ratio: enrolled === 0 ? null : enrolled / active.length,
+        band: sfrBand,
+        bandThresholds: SFR_BANDS[sfrBand],
+      },
+    },
+  ];
+  return summariseDrivers(drivers);
+}
+
+// ── Discipline-aware student-per-faculty ratio scoring ────────────────
+//
+// QS World Rankings + THE both apply different SFR thresholds by
+// subject. Clinical disciplines (MD, dentistry, vet, nursing) require
+// far more 1:1 supervision than humanities or business; a flat 5/15/45
+// scale would punish humanities programs and over-reward medical
+// schools. The bands below mirror QS subject-band conventions:
+//
+//   CLINICAL    — bedside / lab-supervised programs       6:1 → 100, 16:1 → 0
+//   STEM_LAB    — lab-intensive sciences + engineering    10:1 → 100, 28:1 → 0
+//   STUDIO      — studio / individual-instruction arts    8:1 → 100, 22:1 → 0
+//   PROFESSIONAL — business / law / professional cohorts  18:1 → 100, 38:1 → 0
+//   HUMANITIES  — lecture-driven humanities + social sci  22:1 → 100, 48:1 → 0
+//
+// Each band: linear from "world-class" at the lower bound to 0 at the
+// upper bound; below lower → 100; above upper → 0.
+type SfrBand = 'CLINICAL' | 'STEM_LAB' | 'STUDIO' | 'PROFESSIONAL' | 'HUMANITIES';
+const SFR_BANDS: Record<SfrBand, { lower: number; upper: number }> = {
+  CLINICAL:     { lower: 6,  upper: 16 },
+  STEM_LAB:     { lower: 10, upper: 28 },
+  STUDIO:       { lower: 8,  upper: 22 },
+  PROFESSIONAL: { lower: 18, upper: 38 },
+  HUMANITIES:   { lower: 22, upper: 48 },
+};
+
+// Faculty-code → SFR band. Anchored to KKU's 24 faculties as of 2026-05.
+// Graduate School / MBA / International College roll up small cohorts of
+// mixed discipline; default them to PROFESSIONAL (mid-band) — analyst
+// can refine later via per-program override if needed.
+const SFR_BAND_BY_FACULTY: Record<string, SfrBand> = {
+  // Clinical / patient-supervised
+  MD:   'CLINICAL',
+  DT:   'CLINICAL',
+  VM:   'CLINICAL',
+  NU:   'CLINICAL',
+  AMS:  'CLINICAL',
+  PH:   'CLINICAL',
+  PHA:  'CLINICAL',
+  // Lab-intensive sciences + engineering
+  AG:   'STEM_LAB',
+  SC:   'STEM_LAB',
+  EN:   'STEM_LAB',
+  TC:   'STEM_LAB',
+  COC:  'STEM_LAB',
+  // Studio / individual-instruction
+  AR:   'STUDIO',
+  FAR:  'STUDIO',
+  // Professional / cohort-based
+  BS:   'PROFESSIONAL',
+  LAW:  'PROFESSIONAL',
+  EC:   'PROFESSIONAL',
+  COLA: 'PROFESSIONAL',
+  IC:   'PROFESSIONAL',
+  NK:   'PROFESSIONAL',
+  GS:   'PROFESSIONAL',
+  MBA:  'PROFESSIONAL',
+  // Humanities + lecture-heavy social science / education
+  HU:   'HUMANITIES',
+  ED:   'HUMANITIES',
+};
+
+function sfrBandFor(facultyCode: string | null | undefined): SfrBand {
+  if (!facultyCode) return 'PROFESSIONAL'; // defensive default — middle of the road
+  return SFR_BAND_BY_FACULTY[facultyCode] ?? 'PROFESSIONAL';
+}
+
+function scoreStudentFacultyRatio(ratio: number, band: SfrBand): number {
+  const { lower, upper } = SFR_BANDS[band];
+  if (ratio <= lower) return 100;
+  if (ratio >= upper) return 0;
+  return 100 - ((ratio - lower) / (upper - lower)) * 100;
+}
+
+async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise<HealthScore> {
+  // Aggregate over all programs under this scope.
+  const programIds = await collectProgramIdsForScope(scopeId, scope);
+  const driverLabels = [
+    'senior_rank_share',
+    'publications_per_faculty',
+    'retirement_horizon_5y',
+    'student_faculty_ratio',
+  ];
+  if (programIds.length === 0) return emptyScore(driverLabels);
+
+  // SFR band selection at scope level:
+  //   faculty / department → use that faculty's discipline band
+  //   university (rollup)  → use PROFESSIONAL (middle-of-the-road) since
+  //                          the row aggregates a mix of disciplines
+  let scopeBand: SfrBand = 'PROFESSIONAL';
+  if (scope === 'faculty' || scope === 'department') {
+    const fac = await prisma.faculty.findFirst({
+      where:
+        scope === 'faculty'
+          ? { id: scopeId }
+          : { departments: { some: { id: scopeId } } },
+      select: { code: true },
+    });
+    scopeBand = sfrBandFor(fac?.code);
+  } else if (scope === 'program') {
+    const p = await prisma.program.findUnique({
+      where: { id: scopeId },
+      select: { faculty: { select: { code: true } } },
+    });
+    scopeBand = sfrBandFor(p?.faculty?.code);
+  }
+  const links = await prisma.programFaculty.findMany({
+    where: { programId: { in: programIds } },
+    include: {
+      facultyMember: {
+        select: { id: true, rank: true, isActive: true, retirementDate: true },
+      },
+    },
+  });
+  const distinctActive = new Map<string, typeof links[number]['facultyMember']>();
+  for (const l of links) {
+    if (l.facultyMember.isActive) distinctActive.set(l.facultyMember.id, l.facultyMember);
+  }
+  const active = [...distinctActive.values()];
+  if (active.length === 0) return emptyScore(driverLabels);
+
+  const memberIds = active.map((m) => m.id);
+  const currentYear = new Date().getUTCFullYear();
+  const pubCount = await prisma.researchOutput.count({
+    where: { facultyMemberId: { in: memberIds }, year: { gte: currentYear - 3 } },
+  });
+  const seniorCount = active.filter((m) => m.rank === 'PROF' || m.rank === 'ASSOC_PROF').length;
+  const fiveYearHorizon = new Date();
+  fiveYearHorizon.setUTCFullYear(fiveYearHorizon.getUTCFullYear() + 5);
+  const retiringSoon = active.filter(
+    (m) => m.retirementDate !== null && m.retirementDate <= fiveYearHorizon,
+  ).length;
+
+  // Aggregate enrolment across all programs in scope (sum of latest year per program).
+  const latestEnrolByProgram = await prisma.$queryRaw<Array<{ enrolled: bigint }>>`
+    WITH latest AS (
+      SELECT program_id, MAX(academic_year) as max_year
+      FROM enrollment_metrics
+      WHERE program_id = ANY(${programIds})
+      GROUP BY program_id
+    )
+    SELECT em.enrolled::bigint as enrolled
+    FROM enrollment_metrics em
+    JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year;
+  `;
+  const totalEnrolled = latestEnrolByProgram.reduce((s, r) => s + Number(r.enrolled), 0);
+  const drivers = [
+    { label: 'senior_rank_share', value: clamp((seniorCount / active.length) * 200), raw: { seniorCount, total: active.length } },
+    { label: 'publications_per_faculty', value: clamp((pubCount / active.length / 5) * 100), raw: { pubCount, total: active.length } },
+    { label: 'retirement_horizon_5y', value: clamp(100 - (retiringSoon / active.length) * 100), raw: { retiringSoon, total: active.length } },
+    {
+      label: 'student_faculty_ratio',
+      value: totalEnrolled === 0
+        ? null
+        : clamp(scoreStudentFacultyRatio(totalEnrolled / active.length, scopeBand)),
+      raw: {
+        enrolled: totalEnrolled,
+        faculty: active.length,
+        ratio: totalEnrolled === 0 ? null : totalEnrolled / active.length,
+        band: scopeBand,
+        bandThresholds: SFR_BANDS[scopeBand],
+      },
+    },
+  ];
+  return summariseDrivers(drivers);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Outcomes — TCAS percentile + employment + salary
+// ──────────────────────────────────────────────────────────────────────────
+
+async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): Promise<HealthScore> {
+  // TCAS min-score percentile: KKU's min score's percentile among
+  // peer programs in the same subject + (year, round).
+  const kkuTcas = await prisma.tcasAdmissionStat.findFirst({
+    where: { programId, minScorePass1: { not: null } },
+    orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
+  });
+  let percentile: number | null = null;
+  if (kkuTcas && kkuTcas.minScorePass1 !== null) {
+    const subjectKey = extractSubjectSignature(kkuTcas.programmeName);
+    const peers = await prisma.tcasAdmissionStat.findMany({
+      where: {
+        entryYearBE: kkuTcas.entryYearBE,
+        round: kkuTcas.round,
+        minScorePass1: { not: null },
+        institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        programmeName: { contains: subjectKey, mode: 'insensitive' },
+      },
+      select: { minScorePass1: true, programmeName: true },
+    });
+    const peerScores = peers
+      .filter((p) => extractSubjectSignature(p.programmeName) === subjectKey)
+      .map((p) => p.minScorePass1!)
+      .filter((v): v is number => v !== null);
+    if (peerScores.length >= 3) {
+      const below = peerScores.filter((s) => s < kkuTcas.minScorePass1!).length;
+      percentile = (below / peerScores.length) * 100;
+    }
+  }
+
+  // Pull the latest GraduateOutcome row directly. The annual KKU
+  // graduate-employment survey (real data, ingested via
+  // `pnpm outcomes:ingest`) is the canonical source; fall back to the
+  // MV-aggregate `oRow` when no GraduateOutcome row exists yet for
+  // this program (postgrad programs aren't surveyed; older cohorts
+  // may not yet be ingested).
+  const grad = await prisma.graduateOutcome.findFirst({
+    where: { programId },
+    orderBy: [{ surveyYear: 'desc' }, { graduationYear: 'desc' }],
+  });
+
+  const drivers = [
+    {
+      label: 'tcas_min_score_percentile',
+      value: percentile !== null ? clamp(percentile) : null,
+      raw: { kkuMin: kkuTcas?.minScorePass1, percentile },
+    },
+    {
+      label: 'employment_rate',
+      // GraduateOutcome.employmentRate is 0..1; convert to 0..100.
+      // Fall back to MV when no survey row exists.
+      value: grad
+        ? clamp(grad.employmentRate * 100)
+        : oRow?.employmentRateWeighted != null
+          ? clamp(oRow.employmentRateWeighted * 100)
+          : null,
+      raw: grad
+        ? {
+            employmentRate: grad.employmentRate,
+            surveyYear: grad.surveyYear,
+            graduationYear: grad.graduationYear,
+            sampleSize: grad.sampleSize,
+            method: grad.methodologyVersion,
+          }
+        : oRow?.employmentRateWeighted,
+    },
+    {
+      label: 'job_relevance',
+      // Share of graduates whose job is "ตรงสาขา" (matches discipline).
+      // 0..1 → 0..100. Null when not surveyed (postgrad) or when the
+      // report didn't break this out per program.
+      value: grad && grad.jobRelevanceScore > 0
+        ? clamp(grad.jobRelevanceScore * 100)
+        : null,
+      raw: grad
+        ? { jobRelevanceScore: grad.jobRelevanceScore, surveyYear: grad.surveyYear }
+        : null,
+    },
+    {
+      label: 'average_salary',
+      // Thai graduate-salary anchors (Council benchmark 2024):
+      //   ฿15,000 → 0     (legal floor)
+      //   ฿20,000 → 40    (typical entry)
+      //   ฿25,000 → 70
+      //   ฿35,000+ → 100  (premium / high-skill clinical / engineering)
+      value: (() => {
+        const salary = grad ? Number(grad.averageSalary) : oRow?.averageSalaryWeighted ?? null;
+        if (!salary || salary <= 0) return null;
+        return clamp(((salary - 15_000) / 200));
+      })(),
+      raw: grad
+        ? { averageSalary: Number(grad.averageSalary), surveyYear: grad.surveyYear }
+        : oRow?.averageSalaryWeighted,
+    },
+    {
+      label: 'further_study_rate',
+      // Share continuing to graduate school. Mid-band is the sweet
+      // spot — too low signals weak academic pipeline; too high
+      // suggests under-employment masquerading as further study.
+      // 0..0.05 → 50 (low), 0.05..0.15 → 100 (sweet spot), 0.15..0.30
+      // → 70, 0.30+ → 30.
+      value: grad
+        ? clamp(scoreFurtherStudyRate(grad.furtherStudyRate))
+        : null,
+      raw: grad
+        ? { furtherStudyRate: grad.furtherStudyRate, surveyYear: grad.surveyYear }
+        : null,
+    },
+  ];
+  return summariseDrivers(drivers);
+}
+
+// Sweet-spot scoring for further-study rate. Both extremes are
+// negative signals (no academic pipeline / under-employment).
+function scoreFurtherStudyRate(rate: number): number {
+  if (rate <= 0.05) return 50 + (rate / 0.05) * 50; // 0% → 50, 5% → 100
+  if (rate <= 0.15) return 100;
+  if (rate <= 0.30) return 100 - ((rate - 0.15) / 0.15) * 30; // → 70 at 30%
+  return Math.max(30, 70 - ((rate - 0.30) / 0.20) * 40);     // taper to 30
+}
+
+function scoreOutcomesScope(row: MetricRow | null): HealthScore {
   const drivers = [
     {
       label: 'employment_rate',
@@ -381,60 +919,279 @@ function scoreQuality(row: MetricRow | null): HealthScore {
     },
     {
       label: 'average_salary',
-      value: (() => {
-        if (!row?.averageSalaryWeighted) return null;
-        // Salary 30k THB/month → 100 (strong entry level in Khon Kaen
-        // for a fresh graduate). 15k → 50. Clamp beyond.
-        return clamp((row.averageSalaryWeighted / 30_000) * 100);
-      })(),
+      value: row?.averageSalaryWeighted ? clamp((row.averageSalaryWeighted / 30_000) * 100) : null,
       raw: row?.averageSalaryWeighted,
     },
   ];
   return summariseDrivers(drivers);
 }
 
-function scoreRelevancePlaceholder(): HealthScore {
-  // Real relevance = skill coverage × policy alignment. Needs the
-  // prompt-04 ProgramSkill rollups to be materialised (post-approval
-  // handler — deferred). For now we return empty so every row shows
-  // "low data" rather than a fabricated number.
-  return {
-    score: null,
-    dataCompletenessPct: 0,
-    drivers: [
-      { label: 'skill_coverage_vs_demand', value: null, raw: null },
-      { label: 'policy_alignment', value: null, raw: null },
-    ],
-  };
+// ──────────────────────────────────────────────────────────────────────────
+// Relevance — labour-market alignment + demand-match + demographic +
+// strategic-sector. Most signals real after the connector flips on
+// 2026-04-27 → 2026-05-02.
+// ──────────────────────────────────────────────────────────────────────────
+
+const STRATEGIC_KMITL_GROUPS = new Set([
+  'IT',
+  'Engineer',
+  'Health Science',
+  'Smart Farmer',
+  'New S Curve',
+  'Food',
+]);
+
+async function scoreRelevanceProgram(
+  programId: string,
+  kmitlAlignment: number | null,
+): Promise<HealthScore> {
+  // Demand-match: share of *relevant* demanded skills the curriculum
+  // already teaches. Only counts rows where relevant=true.
+  const matchRows = await prisma.programDemandMatch.findMany({
+    where: { programId, relevant: true },
+    select: { matched: true },
+  });
+  let demandMatchValue: number | null = null;
+  if (matchRows.length > 0) {
+    const matched = matchRows.filter((r) => r.matched).length;
+    demandMatchValue = clamp((matched / matchRows.length) * 100);
+  }
+
+  // Demographic resilience: inverted required cohort share at +10y.
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { kmitlCareerIds: true, level: true },
+  });
+  const demoOutlook = await computeRequiredShareAt10Y(programId, program?.level ?? 'BACHELOR');
+  let demoValue: number | null = null;
+  if (demoOutlook !== null) {
+    // requiredShare 0.05% (5e-4) → 50; 0.001% → ~100; 0.2% → ~0.
+    demoValue = clamp(100 - (demoOutlook / 0.002) * 100);
+  }
+
+  // Strategic-sector alignment: 100 if any KMITL career maps to a
+  // strategic-sector group; 50 otherwise.
+  let sectorValue: number | null = null;
+  if (program && program.kmitlCareerIds.length > 0) {
+    const careers = await prisma.kmitlCareer.findMany({
+      where: { kmitlCareerId: { in: program.kmitlCareerIds } },
+      select: { groupName: true },
+    });
+    const inStrategic = careers.some((c) => STRATEGIC_KMITL_GROUPS.has(c.groupName));
+    sectorValue = inStrategic ? 100 : 50;
+  }
+
+  const drivers = [
+    {
+      label: 'labour_market_alignment',
+      value: kmitlAlignment === null ? null : clamp(kmitlAlignment),
+      raw: kmitlAlignment,
+    },
+    { label: 'demand_match_filled', value: demandMatchValue, raw: { totalRelevant: matchRows.length } },
+    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook } },
+    { label: 'strategic_sector_alignment', value: sectorValue, raw: { kmitlCareers: program?.kmitlCareerIds.length ?? 0 } },
+  ];
+  return summariseDrivers(drivers);
 }
 
-function scoreCapabilityPlaceholder(): HealthScore {
-  // Real capability = faculty-to-student ratio + retirement horizon +
-  // active research. Needs KKU-HR real feed (prompt 14) + research
-  // output crosswalk. Empty for v1.
-  return {
-    score: null,
-    dataCompletenessPct: 0,
-    drivers: [
-      { label: 'faculty_student_ratio', value: null, raw: null },
-      { label: 'retirement_horizon', value: null, raw: null },
-      { label: 'active_research', value: null, raw: null },
-    ],
-  };
+async function scoreRelevanceScope(
+  scopeId: string,
+  scope: ScopeLevel,
+  programAlignment: Map<string, number>,
+): Promise<HealthScore> {
+  const programIds = await collectProgramIdsForScope(scopeId, scope);
+  if (programIds.length === 0) {
+    return emptyScore([
+      'labour_market_alignment',
+      'demand_match_filled',
+      'demographic_resilience',
+      'strategic_sector_alignment',
+    ]);
+  }
+  const alignmentValues = programIds
+    .map((id) => programAlignment.get(id))
+    .filter((v): v is number => v !== undefined);
+  const alignment =
+    alignmentValues.length > 0
+      ? alignmentValues.reduce((a, b) => a + b, 0) / alignmentValues.length
+      : null;
+
+  const matchRows = await prisma.programDemandMatch.findMany({
+    where: { programId: { in: programIds }, relevant: true },
+    select: { matched: true, programId: true },
+  });
+  const byProgram = new Map<string, { m: number; t: number }>();
+  for (const r of matchRows) {
+    const c = byProgram.get(r.programId) ?? { m: 0, t: 0 };
+    c.t++;
+    if (r.matched) c.m++;
+    byProgram.set(r.programId, c);
+  }
+  const matchValues = [...byProgram.values()].filter((c) => c.t > 0).map((c) => (c.m / c.t) * 100);
+  const demandMatch =
+    matchValues.length > 0 ? matchValues.reduce((a, b) => a + b, 0) / matchValues.length : null;
+
+  // Skip demographic + sector at scope level for v3.0 — they're
+  // per-program signals; the cockpit can roll them up explicitly when
+  // analyst surfaces require it.
+  const drivers = [
+    { label: 'labour_market_alignment', value: alignment === null ? null : clamp(alignment), raw: alignment },
+    { label: 'demand_match_filled', value: demandMatch === null ? null : clamp(demandMatch), raw: demandMatch },
+    { label: 'demographic_resilience', value: null, raw: null },
+    { label: 'strategic_sector_alignment', value: null, raw: null },
+  ];
+  return summariseDrivers(drivers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Aggregators
+// Helpers
 // ──────────────────────────────────────────────────────────────────────────
+
+const KMITL_DEMAND_THRESHOLD_PCT = 5;
+const KMITL_QUADRANT_FALLBACK = [
+  { dataScope: 'THAILAND' as const, dataSource: 'JOB_POSTINGS' as const },
+  { dataScope: 'GLOBAL' as const,   dataSource: 'JOB_POSTINGS' as const },
+  { dataScope: 'THAILAND' as const, dataSource: 'PROFILES' as const },
+  { dataScope: 'GLOBAL' as const,   dataSource: 'PROFILES' as const },
+] as const;
+
+async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
+  const programSkills = await prisma.programSkill.findMany({
+    select: { programId: true, skillId: true },
+  });
+  if (programSkills.length === 0) return new Map();
+  const skillsByProgram = new Map<string, Set<string>>();
+  for (const ps of programSkills) {
+    const set = skillsByProgram.get(ps.programId) ?? new Set();
+    set.add(ps.skillId);
+    skillsByProgram.set(ps.programId, set);
+  }
+  const out = new Map<string, number>();
+  const programIds = [...skillsByProgram.keys()];
+  for (const quadrant of KMITL_QUADRANT_FALLBACK) {
+    const remaining = programIds.filter((id) => !out.has(id));
+    if (remaining.length === 0) break;
+    const demandRows = await prisma.kmitlCareerSkillDemand.findMany({
+      where: {
+        dataScope: quadrant.dataScope,
+        dataSource: quadrant.dataSource,
+        percentage: { gte: KMITL_DEMAND_THRESHOLD_PCT },
+        skillId: { not: null },
+      },
+      select: { skillId: true },
+      distinct: ['skillId'],
+    });
+    if (demandRows.length === 0) continue;
+    const demanded = new Set(demandRows.map((r) => r.skillId!).filter(Boolean));
+    for (const pid of remaining) {
+      const skills = skillsByProgram.get(pid)!;
+      let matched = 0;
+      for (const sid of skills) if (demanded.has(sid)) matched++;
+      if (matched > 0 && skills.size > 0) out.set(pid, (matched / skills.size) * 100);
+    }
+  }
+  return out;
+}
+
+async function computeRequiredShareAt10Y(
+  programId: string,
+  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
+): Promise<number | null> {
+  const cohort = level === 'BACHELOR' ? '18-22' : '23-29';
+  const targetYear = new Date().getUTCFullYear() + 10;
+  const projection = await prisma.demographicProjection.findFirst({
+    where: {
+      region: 'Northeast',
+      ageCohort: cohort,
+      year: targetYear,
+      source: 'NESDC-PopProj-2010-2040',
+    },
+    select: { population: true },
+  });
+  if (!projection || projection.population <= 0) return null;
+  const enrollment = await prisma.enrollmentMetric.findMany({
+    where: { programId },
+    orderBy: { academicYear: 'desc' },
+    take: 2,
+    select: { enrolled: true },
+  });
+  if (enrollment.length === 0) return null;
+  // Use the prior year if it's higher (in-progress current year is
+  // partial — enrolled count would be too small).
+  const baseline = enrollment.length >= 2 && enrollment[1]!.enrolled > enrollment[0]!.enrolled
+    ? enrollment[1]!.enrolled
+    : enrollment[0]!.enrolled;
+  if (baseline === 0) return null;
+  return baseline / projection.population;
+}
+
+async function collectProgramIdsForScope(scopeId: string, scope: ScopeLevel): Promise<string[]> {
+  if (scope === 'program') return [scopeId];
+  if (scope === 'department') {
+    const ps = await prisma.program.findMany({
+      where: { departmentId: scopeId },
+      select: { id: true },
+    });
+    return ps.map((p) => p.id);
+  }
+  if (scope === 'faculty') {
+    const ps = await prisma.program.findMany({
+      where: { OR: [{ facultyId: scopeId }, { department: { facultyId: scopeId } }] },
+      select: { id: true },
+    });
+    return ps.map((p) => p.id);
+  }
+  // university
+  const ps = await prisma.program.findMany({ select: { id: true } });
+  return ps.map((p) => p.id);
+}
+
+function extractSubjectSignature(programmeName: string): string {
+  const inParens = programmeName.match(/\(([^)]+)\)/);
+  if (inParens) return inParens[1]!.trim().toLowerCase();
+  const withSakha = programmeName.match(/สาขาวิชา\s*([^\s,()/]+(?:\s+[^\s,()/]+)?)/);
+  if (withSakha) return withSakha[1]!.trim().toLowerCase();
+  return programmeName.trim().toLowerCase();
+}
+
+interface SeriesPoint { year: number; value: number }
+function applyPartialYearDrop(series: SeriesPoint[]): SeriesPoint[] {
+  if (series.length < 2) return series;
+  const last = series[series.length - 1]!.value;
+  const prior = series[series.length - 2]!.value;
+  if (prior > 0 && last < prior * 0.3) return series.slice(0, -1);
+  return series;
+}
+
+function linearSlope(series: SeriesPoint[]): number {
+  if (series.length < 2) return 0;
+  const n = series.length;
+  const meanX = series.reduce((s, p) => s + p.year, 0) / n;
+  const meanY = series.reduce((s, p) => s + p.value, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (const p of series) {
+    num += (p.year - meanX) * (p.value - meanY);
+    den += (p.year - meanX) ** 2;
+  }
+  if (den === 0) return 0;
+  return num / den;
+}
 
 function summariseDrivers(drivers: HealthScore['drivers']): HealthScore {
   const nonNull = drivers.filter((d) => d.value !== null);
   const completeness = (nonNull.length / drivers.length) * 100;
-  if (nonNull.length === 0) {
-    return { score: null, dataCompletenessPct: 0, drivers };
-  }
+  if (nonNull.length === 0) return { score: null, dataCompletenessPct: 0, drivers };
   const score = nonNull.reduce((s, d) => s + (d.value ?? 0), 0) / nonNull.length;
   return { score: clamp(score), dataCompletenessPct: completeness, drivers };
+}
+
+function emptyScore(labels: string[]): HealthScore {
+  return {
+    score: null,
+    dataCompletenessPct: 0,
+    drivers: labels.map((label) => ({ label, value: null, raw: null })),
+  };
 }
 
 function combineDimensions(dims: HealthScore[]): HealthScore {

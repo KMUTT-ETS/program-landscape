@@ -83,6 +83,27 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: true,
   },
   {
+    // Thailand population — official annual civil registration totals
+    // (DOPA, Ministry of Interior) plus the long-term population
+    // projection (NESDC: "Population Projections of Thailand
+    // 2010-2040"). BOI's demographic page (boi.go.th/.../demographic)
+    // is a downstream republisher of these two sources for foreign-
+    // investor briefings; we cite it as the user-facing reference but
+    // ingest from the upstream statutory sources directly. Refresh
+    // cadence is annual — DOPA publishes around February for the
+    // prior year; NESDC re-baselines projections every 5–10 years.
+    slug: 'thailand-demographics',
+    name: 'Thailand Demographics (DOPA · NESDC · BOI repost)',
+    kind: 'PDF',
+    inputFormat: 'MIXED',
+    acceptsPdfUploads: true,
+    cadenceCron: '0 9 15 2 *', // annual on Feb 15
+    ownerContact: 'KKU Strategic Planning Office (public statutory data)',
+    notes:
+      'Annual population by age × region × sex from DOPA civil registration; long-term cohort projections from NESDC. BOI republishes summary tables at boi.go.th — used as the user-facing reference but the connector reads from DOPA/NESDC raw files because BOI is bot-firewalled (Incapsula). Drives the demographic ceiling on each program (the 18-22 cohort projection in the program\'s catchment region) and feeds the Gap Analyzer\'s supply-side forecasting.',
+    mocked: true,
+  },
+  {
     slug: 'nso-labor-force',
     name: 'NSO Labor Force Survey',
     kind: 'PDF',
@@ -116,14 +137,19 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: true,
   },
   {
+    // Slug stays `kmitl-skill-mapping` because it identifies the technical
+    // API endpoint (https://skill.kmitl.ac.th). The DATA SOURCE is LinkedIn,
+    // SUBSCRIBED BY MHESI under a national agreement, with KMITL operating
+    // the API layer. All user-facing labels reflect that attribution chain;
+    // the slug is a stable internal handle.
     slug: 'kmitl-skill-mapping',
-    name: 'KMITL Skill Mapping (Aggregated demand)',
+    name: 'LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted)',
     kind: 'API',
     inputFormat: 'JSON',
     baseUrl: 'https://skill.kmitl.ac.th/api/v1',
     cadenceCron: '0 6 * * 1', // weekly Monday 06:00
-    ownerContact: 'KKU ↔ KMITL institutional partnership (CLIENT_ID issued by KMITL)',
-    notes: 'Aggregated skill-demand intelligence (LinkedIn profiles + job postings + grad data, processed by KMITL). Returns percentages at career/group/sub-group level — no per-posting rows, no salary, no province granularity. Replaces jobthai + jobsdb.',
+    ownerContact: 'MHESI subscribes the LinkedIn data; KMITL operates the API. CLIENT_ID issued by KMITL under the MHESI agreement.',
+    notes: 'Aggregated skill-demand intelligence sourced from LinkedIn (profiles + Thai job postings + university grad data). Subscribed by MHESI under a national agreement; KMITL hosts the API endpoint that aggregates and serves the data. Returns percentages at career/group/sub-group level — no per-posting rows, no salary, no province granularity. Replaces jobthai + jobsdb.',
     mocked: true,
   },
   {

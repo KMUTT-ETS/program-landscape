@@ -63,9 +63,9 @@ export class CockpitController {
   @Provenance({
     sources: [
       { id: 'mv_metrics', name: 'Materialized metric rollups' },
-      { id: 'health-score', name: 'Health score methodology v1' },
+      { id: 'health-score', name: 'Health score methodology v2.1' },
     ],
-    methodologyVersion: 'health-score.v1',
+    methodologyVersion: 'health-score.v2.1',
   })
   async kpis(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
     return this.cockpit.kpis(q.scope, q.scopeId ?? null);
@@ -74,8 +74,8 @@ export class CockpitController {
   @Get('heatmap')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'health-score', name: 'Health score methodology v1' }],
-    methodologyVersion: 'health-score.v1',
+    sources: [{ id: 'health-score', name: 'Health score methodology v2.1' }],
+    methodologyVersion: 'health-score.v2.1',
   })
   async heatmap(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
     return this.cockpit.heatmap(q.scope, q.scopeId ?? null);
@@ -84,8 +84,8 @@ export class CockpitController {
   @Get('matrix')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'health-score', name: 'Health score methodology v1' }],
-    methodologyVersion: 'health-score.v1',
+    sources: [{ id: 'health-score', name: 'Health score methodology v2.1' }],
+    methodologyVersion: 'health-score.v2.1',
   })
   async matrix(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
     return this.cockpit.matrix(q.scope, q.scopeId ?? null);
@@ -96,9 +96,9 @@ export class CockpitController {
   @Provenance({
     sources: [
       { id: 'mv_metrics', name: 'Materialized metric rollups' },
-      { id: 'health-score', name: 'Health score methodology v1' },
+      { id: 'health-score', name: 'Health score methodology v2.1' },
     ],
-    methodologyVersion: 'health-score.v1',
+    methodologyVersion: 'health-score.v2.1',
   })
   async rollup(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
     return this.cockpit.rollup(q.scope, q.scopeId ?? null);
@@ -164,7 +164,7 @@ export class CockpitController {
               label: 'Health score methodology',
               source: 'KKU Data Office',
               freshnessDate: formatThaiDate(new Date()),
-              methodologyVersion: 'health-score.v1',
+              methodologyVersion: 'health-score.v2.1',
             },
             {
               id: 'mv-metrics',
@@ -269,7 +269,7 @@ function buildCouncilPackSections(inputs: CouncilPackInputs): Array<{ title: str
 
   const heatmapRowsHtml = rows
     .map((r) => {
-      const cells = (['demand', 'financial', 'quality', 'relevance', 'capability'] as const)
+      const cells = (['attractiveness', 'financial', 'capability', 'outcomes', 'relevance'] as const)
         .map((dim) => {
           const s = r.dimensions[dim];
           if (s.score === null) return `<td class="muted">—</td>`;

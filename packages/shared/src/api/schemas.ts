@@ -12,7 +12,11 @@ export const IsoDateSchema = z.string().datetime();
 
 export const PaginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(50),
+  // Cap at 1000: KKU's portfolio is ~300 programs, but analytical views
+  // legitimately request the full set in one round-trip (Cockpit, Deep-
+  // Dive listing, Benchmarking). 200 was too tight and silently 400-ed
+  // the /programs page (which fetches all 297 with pageSize=500).
+  pageSize: z.coerce.number().int().min(1).max(1000).default(50),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
 

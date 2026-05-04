@@ -1,8 +1,29 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import { Module, ValidationPipe, type ExecutionContext } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import path from 'node:path';
+
+/**
+ * Build a `skipIf` predicate for a named throttler bucket. The bucket
+ * fires only when a route's `@Throttle({ <name>: {...} })` decorator
+ * (at the method or controller level) explicitly references it.
+ *
+ * Without this, every configured throttler applies to every route — so
+ * a strict bucket like `heavy: 10/min` would rate-limit unrelated
+ * endpoints to 10/min. The metadata key `THROTTLER:LIMIT` carries the
+ * decorator's record; presence of <name> means opt-in.
+ */
+function skipUnlessRouteOptsInTo(name: string): (ctx: ExecutionContext) => boolean {
+  return (ctx) => {
+    const handler = ctx.getHandler();
+    const cls = ctx.getClass();
+    const meta =
+      (Reflect.getMetadata('THROTTLER:LIMIT', handler) as Record<string, unknown> | undefined) ??
+      (Reflect.getMetadata('THROTTLER:LIMIT', cls) as Record<string, unknown> | undefined);
+    return !meta || !(name in meta);
+  };
+}
 
 import { buildLoggerModule } from './common/logger.module';
 import { CacheService } from './common/cache.service';
@@ -27,6 +48,7 @@ import { AnalystModule } from './analyst/analyst.module';
 import { DecisionsModule } from './decisions/decisions.module';
 import { AdminModule } from './admin/admin.module';
 import { AdminDataSetupModule } from './admin-data-setup/admin-data-setup.module';
+import { EducationModule } from './education/education.module';
 
 import {
   AccessControlGuard,
@@ -36,6 +58,7 @@ import {
   GlobalExceptionFilter,
   JwtAuthGuard,
   ResponseEnvelopeInterceptor,
+  UserAwareThrottlerGuard,
 } from './common';
 
 @Module({
@@ -52,16 +75,25 @@ import {
     buildLoggerModule(),
     ThrottlerModule.forRoot({
       throttlers: [
-        // Named throttlers — routes can @Throttle({ name: '...' }) to pick
-        // a specific bucket.
-        //   default:   baseline for every API endpoint
-        //   ai_short:  AI endpoints — burst protection
-        //   ai_hourly: AI endpoints — sustained limit (complements daily quota)
-        //   heavy:     PDF generation + exports
-        { name: 'default',   ttl: 60_000,           limit: 120 },
-        { name: 'ai_short',  ttl: 60_000,           limit: 20  },
-        { name: 'ai_hourly', ttl: 60 * 60 * 1000,   limit: 200 },
-        { name: 'heavy',     ttl: 60_000,           limit: 10  },
+        // Named throttlers — bucket key is the userId for authenticated
+        // requests (see UserAwareThrottlerGuard) so each user gets their
+        // own counter.
+        //
+        // CRITICAL: @nestjs/throttler v6 applies EVERY configured throttler
+        // to every route by default. Without `skipIf`, the strict buckets
+        // (ai_short=20, heavy=10) would silently rate-limit every endpoint
+        // including healthz + program list to 10 req/min. We make
+        // non-default buckets OPT-IN: they only fire when a route's
+        // @Throttle({ <name>: {...} }) decorator references them.
+        //
+        //   default:   baseline for every API endpoint (always-on)
+        //   ai_short:  AI endpoints — burst protection (opt-in)
+        //   ai_hourly: AI endpoints — sustained limit (opt-in)
+        //   heavy:     PDF generation + exports (opt-in)
+        { name: 'default',   ttl: 60_000,           limit: 240 },
+        { name: 'ai_short',  ttl: 60_000,           limit: 20,  skipIf: skipUnlessRouteOptsInTo('ai_short') },
+        { name: 'ai_hourly', ttl: 60 * 60 * 1000,   limit: 200, skipIf: skipUnlessRouteOptsInTo('ai_hourly') },
+        { name: 'heavy',     ttl: 60_000,           limit: 10,  skipIf: skipUnlessRouteOptsInTo('heavy') },
       ],
     }),
     PdfModule,
@@ -80,6 +112,7 @@ import {
     DecisionsModule,
     AdminModule,
     AdminDataSetupModule,
+    EducationModule,
   ],
   exports: [CacheService],
   controllers: [
@@ -98,7 +131,10 @@ import {
     // @RequirePermission / @RequireScope metadata.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: AccessControlGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // UserAwareThrottlerGuard keys by user ID (not source IP) so each
+    // user gets their own bucket. JwtAuthGuard runs first and sets
+    // req.user, which the throttler reads.
+    { provide: APP_GUARD, useClass: UserAwareThrottlerGuard },
     // Per-user daily AI-cost cap. No-op for routes without @AiQuota().
     { provide: APP_GUARD, useClass: AiQuotaGuard },
     // @RequireExportReason() enforces a textual reason on endpoints that

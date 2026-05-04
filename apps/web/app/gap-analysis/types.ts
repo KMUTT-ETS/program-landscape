@@ -92,6 +92,33 @@ export interface OpportunityRowDto {
   fitNote: string;
 }
 
+export interface OpportunityResponse {
+  filter: Record<string, unknown>;
+  rows: OpportunityRowDto[];
+  asOf: string;
+}
+
+export interface ProgramDemandGapRowDto {
+  programId: string;
+  programCode: string;
+  programNameEn: string;
+  programNameTh: string;
+  facultyCode: string;
+  relevantSkillCount: number;
+  coveredCount: number;
+  gapCount: number;
+  coverageRatio: number;
+  topGaps: Array<{ skillId: string; skillNameEn: string; skillNameTh: string; relatedness: number }>;
+  methodologyVersion: string;
+}
+
+export interface ProgramDemandGapResponse {
+  filter: Record<string, unknown>;
+  rows: ProgramDemandGapRowDto[];
+  uncoveredProgramCount: number;
+  asOf: string;
+}
+
 export interface RiskRowDto {
   programId: string;
   programCode: string;

@@ -49,8 +49,11 @@ export async function withConnection<T>(
       min: 0,
       idleTimeoutMillis: 30_000,
     },
-    requestTimeout: 30_000,
-    connectionTimeout: 15_000,
+    // Bumped from 30s → 120s. The Q1 faculty-members query has been
+    // timing out under load (cross-DB JOIN with collation coercion).
+    // 30s is too tight when the SQL Server is busy.
+    requestTimeout: 120_000,
+    connectionTimeout: 30_000,
   });
   try {
     return await fn(pool);

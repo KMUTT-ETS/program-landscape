@@ -9,6 +9,7 @@ import {
   Database,
   FileSearch,
   GitCompare,
+  GraduationCap,
   Home,
   LayoutDashboard,
   LineChart,
@@ -46,6 +47,12 @@ const workSection: NavSection = {
   label: 'Work',
   items: [
     { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' },
+    {
+      href: '/education',
+      label: 'Education dashboard',
+      icon: createElement(GraduationCap),
+      moduleKey: 'neutral',
+    },
   ],
 };
 

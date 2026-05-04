@@ -31,6 +31,12 @@ export class AdminDataSetupController {
       dataSourcesTotal,
       dataSourcesActive,
       dataSourcesMocked,
+      kmitlCareers,
+      kmitlSkillDemandRows,
+      kmitlSkillGrowthRows,
+      researchOutputsTotal,
+      researchOutputsMatched,
+      facultyMembersWithExternalIds,
     ] = await Promise.all([
       prisma.program.count(),
       prisma.program.count({
@@ -54,6 +60,21 @@ export class AdminDataSetupController {
       prisma.dataSource.count(),
       prisma.dataSource.count({ where: { status: 'active' } }),
       prisma.dataSource.count({ where: { status: 'mocked' } }),
+      // Demand-side labour-market skills (KMITL skill-mapping connector)
+      prisma.kmitlCareer.count(),
+      prisma.kmitlCareerSkillDemand.count(),
+      prisma.kmitlSkillGrowth.count(),
+      // Research outputs (kku-research / OpenAlex connector)
+      prisma.researchOutput.count(),
+      prisma.researchOutput.count({ where: { facultyMemberId: { not: null } } }),
+      prisma.facultyMember.count({
+        where: {
+          OR: [
+            { orcid: { not: null } },
+            { openalexAuthorId: { not: null } },
+          ],
+        },
+      }),
     ]);
 
     const pdfByCat = new Map(pdfsByCategory.map((r) => [r.sourceCategory, r._count.id]));
@@ -105,6 +126,27 @@ export class AdminDataSetupController {
         total: dataSourcesTotal,
         live: dataSourcesActive,
         mocked: dataSourcesMocked,
+      },
+      laborMarketSkills: {
+        // Demand-side skills aggregates from LinkedIn (subscribed by
+        // MHESI; API operated by KMITL at https://skill.kmitl.ac.th). The
+        // table-prefix `kmitl*` and the metric keys `kmitlCareers / …`
+        // match the technical API endpoint name; the underlying source is
+        // LinkedIn profile + Thai job-posting + university grad data
+        // already aggregated by the API (no per-person rows). Drives the
+        // gap-analyzer's labour-market demand source + the health-score's
+        // labour-market-alignment driver.
+        kmitlCareers,
+        kmitlSkillDemandRows,
+        kmitlSkillGrowthRows,
+      },
+      researchOutputs: {
+        // Publications via OpenAlex (kku-research connector). Used by the
+        // deep-dive's research section + benchmarking subject leadership.
+        total: researchOutputsTotal,
+        matchedToFaculty: researchOutputsMatched,
+        unmatched: researchOutputsTotal - researchOutputsMatched,
+        facultyMembersWithExternalIds,
       },
     };
   }

@@ -1,0 +1,289 @@
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { z } from 'zod';
+import type { SessionUser } from '@kku/shared';
+import {
+  AuditLog,
+  AuthSession,
+  Authorized,
+  ZodValidationPipe,
+} from '../common';
+import { EducationService } from './education.service';
+import {
+  EducationRefreshService,
+  REFRESHABLE_CUBES,
+  type RefreshableCube,
+} from './education-refresh.service';
+
+// Express coerces a query param that appears once into a string and
+// twice or more into a string[]. We normalise both to string[] at the
+// schema layer so the service interfaces stay clean.
+const StringArray = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((v): string[] => {
+    if (v === undefined) return [];
+    if (Array.isArray(v)) return v.filter((x) => x.length > 0);
+    return v.length > 0 ? [v] : [];
+  });
+
+const NumberArray = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((v): number[] => {
+    const arr = v === undefined ? [] : Array.isArray(v) ? v : [v];
+    return arr
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n));
+  });
+
+const StatusGroupArray = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((v): Array<'INCOMING' | 'CURRENT' | 'FORMER'> => {
+    const allowed = new Set(['INCOMING', 'CURRENT', 'FORMER']);
+    const arr = v === undefined ? [] : Array.isArray(v) ? v : [v];
+    return arr.filter((x): x is 'INCOMING' | 'CURRENT' | 'FORMER' =>
+      allowed.has(x),
+    );
+  });
+
+const StudentInfoQuerySchema = z.object({
+  facultyName: StringArray,
+  programLevel: StringArray,
+  programName: StringArray,
+  statusCode: NumberArray,
+  statusGroup: StatusGroupArray,
+});
+type StudentInfoQuery = z.infer<typeof StudentInfoQuerySchema>;
+
+const LocationQuerySchema = z.object({
+  cohortYearBe: NumberArray,
+  facultyName: StringArray,
+  programLevel: StringArray,
+  programName: StringArray,
+  region: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v): Array<'NORTH' | 'NORTHEAST' | 'CENTRAL' | 'EAST' | 'WEST' | 'SOUTH'> => {
+      const allowed = new Set([
+        'NORTH',
+        'NORTHEAST',
+        'CENTRAL',
+        'EAST',
+        'WEST',
+        'SOUTH',
+      ]);
+      const arr = v === undefined ? [] : Array.isArray(v) ? v : [v];
+      return arr.filter((x): x is 'NORTH' | 'NORTHEAST' | 'CENTRAL' | 'EAST' | 'WEST' | 'SOUTH' =>
+        allowed.has(x),
+      );
+    }),
+});
+type LocationQuery = z.infer<typeof LocationQuerySchema>;
+
+const TuitionQuerySchema = z.object({
+  semester: StringArray,
+  facultyName: StringArray,
+});
+type TuitionQuery = z.infer<typeof TuitionQuerySchema>;
+
+const PerformanceQuerySchema = z.object({
+  facultyName: StringArray,
+  programLevel: StringArray,
+  programName: StringArray,
+  region: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v): Array<'NORTH' | 'NORTHEAST' | 'CENTRAL' | 'EAST' | 'WEST' | 'SOUTH'> => {
+      const allowed = new Set([
+        'NORTH',
+        'NORTHEAST',
+        'CENTRAL',
+        'EAST',
+        'WEST',
+        'SOUTH',
+      ]);
+      const arr = v === undefined ? [] : Array.isArray(v) ? v : [v];
+      return arr.filter((x): x is 'NORTH' | 'NORTHEAST' | 'CENTRAL' | 'EAST' | 'WEST' | 'SOUTH' =>
+        allowed.has(x),
+      );
+    }),
+});
+type PerformanceQuery = z.infer<typeof PerformanceQuerySchema>;
+
+@Controller('/education')
+export class EducationController {
+  constructor(
+    private readonly education: EducationService,
+    private readonly refresher: EducationRefreshService,
+  ) {}
+
+  @Post('refresh')
+  @Authorized('programs:read:all')
+  @AuditLog({
+    action: 'education.refresh_cubes',
+    entityType: 'EducationCubeRefresh',
+  })
+  async refresh(
+    @AuthSession() user: SessionUser,
+    @Body(
+      new ZodValidationPipe(
+        z
+          .object({
+            cubes: z
+              .array(
+                z.enum([
+                  'student',
+                  'location',
+                  'tuition',
+                  'performance',
+                  'entryScores',
+                ]),
+              )
+              .optional(),
+          })
+          .default({}),
+      ),
+    )
+    body: { cubes?: RefreshableCube[] },
+  ) {
+    // Validate cube list — null / empty array means refresh everything.
+    const cubes =
+      body.cubes && body.cubes.length > 0
+        ? body.cubes.filter((c): c is RefreshableCube =>
+            REFRESHABLE_CUBES.includes(c),
+          )
+        : undefined;
+    const result = await this.refresher.refresh(user.userId, cubes);
+    return {
+      startedAt: result.startedAt.toISOString(),
+      completedAt: result.completedAt.toISOString(),
+      durationMs: result.completedAt.getTime() - result.startedAt.getTime(),
+      recordsByCube: result.recordsByCube,
+      cubes,
+    };
+  }
+
+  @Get('refresh/status')
+  @Authorized('programs:read:all')
+  async refreshStatus() {
+    const latest = await this.refresher.latestPerCube();
+    return {
+      isRunning: this.refresher.isRunning(),
+      cubes: latest.map((r) => ({
+        cubeName: r.cubeName,
+        status: r.status,
+        startedAt: r.startedAt.toISOString(),
+        completedAt: r.completedAt?.toISOString() ?? null,
+        recordsLoaded: r.recordsLoaded,
+        durationMs: r.durationMs,
+        errorMessage: r.errorMessage,
+      })),
+    };
+  }
+
+  @Get('student-info')
+  @Authorized('programs:read:all')
+  async studentInfo(
+    @Query(new ZodValidationPipe(StudentInfoQuerySchema)) q: StudentInfoQuery,
+  ) {
+    return this.education.studentInfo({
+      facultyName: q.facultyName,
+      programLevel: q.programLevel,
+      programName: q.programName,
+      statusCode: q.statusCode,
+      statusGroup: q.statusGroup,
+    });
+  }
+
+  @Get('by-location')
+  @Authorized('programs:read:all')
+  async byLocation(
+    @Query(new ZodValidationPipe(LocationQuerySchema)) q: LocationQuery,
+  ) {
+    return this.education.byLocation({
+      cohortYearBe: q.cohortYearBe,
+      region: q.region,
+      facultyName: q.facultyName,
+      programLevel: q.programLevel,
+      programName: q.programName,
+    });
+  }
+
+  @Get('active-pivot')
+  @Authorized('programs:read:all')
+  async activePivot() {
+    return this.education.activePivot();
+  }
+
+  @Get('international')
+  @Authorized('programs:read:all')
+  async international() {
+    return this.education.international();
+  }
+
+  @Get('tuition')
+  @Authorized('programs:read:all')
+  async tuition(
+    @Query(new ZodValidationPipe(TuitionQuerySchema)) q: TuitionQuery,
+  ) {
+    return this.education.tuition({
+      semester: q.semester,
+      facultyName: q.facultyName,
+    });
+  }
+
+  // ── Performance dashboard endpoints ──────────────────────────────
+
+  @Get('performance/overall')
+  @Authorized('programs:read:all')
+  async performanceOverall(
+    @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
+  ) {
+    return this.education.performanceOverall({
+      facultyName: q.facultyName,
+      programLevel: q.programLevel,
+      programName: q.programName,
+      region: q.region,
+    });
+  }
+
+  @Get('performance/by-program')
+  @Authorized('programs:read:all')
+  async performanceByProgram(
+    @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
+  ) {
+    return this.education.performanceByProgram({
+      facultyName: q.facultyName,
+      programLevel: q.programLevel,
+      programName: q.programName,
+      region: q.region,
+    });
+  }
+
+  @Get('performance/by-location')
+  @Authorized('programs:read:all')
+  async performanceByLocation(
+    @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
+  ) {
+    return this.education.performanceByLocation({
+      facultyName: q.facultyName,
+      programLevel: q.programLevel,
+      programName: q.programName,
+      region: q.region,
+    });
+  }
+
+  @Get('entry-scores')
+  @Authorized('programs:read:all')
+  async entryScores(
+    @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
+  ) {
+    return this.education.entryScores({
+      facultyName: q.facultyName,
+      programLevel: q.programLevel,
+      programName: q.programName,
+      region: q.region,
+    });
+  }
+}

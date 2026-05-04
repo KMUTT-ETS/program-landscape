@@ -1,4 +1,66 @@
 // Shared DTOs for the Benchmarking UI. Mirror the API response shapes.
+// New (real-data) types are at the bottom; legacy v1 types kept for
+// backwards compat with /benchmarking/programs/[id] sub-route.
+
+export type ContentModernity = 'OLD_SCHOOL' | 'IN_BETWEEN' | 'FRONTIER';
+
+export interface BenchmarkingHero {
+  programsBenchmarked: number;
+  programsReviewed: number;
+  totalActivePrograms: number;
+  modernityCounts: { OLD_SCHOOL: number; IN_BETWEEN: number; FRONTIER: number; UNKNOWN: number };
+}
+
+export interface CitedPeerRow {
+  rankedUniversityId: string;
+  name: string;
+  country: string;
+  qsWorldRank: number | null;
+  theWorldRank: number | null;
+  selectionCount: number;
+  byTier: { WORLD: number; ASIA: number; SOUTHEAST_ASIA: number; THAILAND_PEER: number };
+}
+
+export interface RecentReviewRow {
+  programId: string;
+  programCode: string;
+  programNameEn: string;
+  programNameTh: string;
+  facultyCode: string;
+  contentModernity: ContentModernity | null;
+  modernityNarrative: string | null;
+  topStrength: string | null;
+  topWeakness: string | null;
+  topContentGap: { topic: string; severity: 'major' | 'moderate' | 'minor' } | null;
+  topPeer: { name: string; country: string; tier: string } | null;
+  generatedAt: string;
+}
+
+export interface ProgramBenchmarkRow {
+  programId: string;
+  programCode: string;
+  programNameEn: string;
+  programNameTh: string;
+  facultyCode: string;
+  contentModernity: ContentModernity | null;
+  peerCount: number;
+  topPeerName: string | null;
+  topPeerCountry: string | null;
+  topGapTopic: string | null;
+  hasReview: boolean;
+}
+
+export interface BenchmarkingOverviewDto {
+  methodologyVersion: string;
+  generatedAt: string;
+  hero: BenchmarkingHero;
+  citedPeers: CitedPeerRow[];
+  recentReviews: RecentReviewRow[];
+  programs: ProgramBenchmarkRow[];
+}
+
+// ─── Legacy v1 types (kept for sub-routes) ──────────────────────────────────
+
 
 export interface PeerSetDto {
   id: string;

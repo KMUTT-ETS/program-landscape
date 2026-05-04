@@ -1,0 +1,40 @@
+{
+  "sourceOrgName": "Ministry of Higher Education, Science, Research and Innovation (MHESI)",
+  "pdfCategory": "POLICY",
+  "defaultLanguage": "TH",
+  "entries": [
+    {
+      "externalId": "mhesi-tcas-policy-2025",
+      "title": "TCAS Reform — MHESI Policy Direction for Tertiary Admissions",
+      "summaryTh": "นโยบายการปรับปรุงระบบการคัดเลือกกลางบุคคลเข้าศึกษาในสถาบันอุดมศึกษา (TCAS) โดย ทปอ. ภายใต้การกำกับของ MHESI ครอบคลุมการลด TGAT/TPAT และการให้น้ำหนัก portfolio เพิ่มขึ้น",
+      "summaryEn": "MHESI direction on TCAS reform — reduces TGAT/TPAT weight and increases portfolio-based admissions weight. Direct impact on admissions strategy across all KKU bachelor programmes.",
+      "sourceUrl": "https://www.mhesi.go.th/",
+      "publishedDate": "2024-12-10",
+      "signalType": "POLICY",
+      "impactScore": 0.85,
+      "tags": ["tcas", "admissions", "thailand"]
+    },
+    {
+      "externalId": "mhesi-skill-mapping-policy-2024",
+      "title": "MHESI Skill Mapping Initiative — National Skill Demand Intelligence",
+      "summaryTh": "นโยบาย MHESI ในการสร้างระบบ Skill Mapping ระดับชาติ — สมัครรับข้อมูลตลาดแรงงานจาก LinkedIn และพัฒนา API ผ่าน KMITL เพื่อให้สถาบันอุดมศึกษาทั่วประเทศใช้ปรับปรุงหลักสูตร",
+      "summaryEn": "MHESI national skill-mapping initiative — subscribes to LinkedIn labour-market data, develops API access via KMITL, and provides skill-demand intelligence to all Thai higher-ed institutions for curriculum refresh.",
+      "sourceUrl": "https://www.mhesi.go.th/",
+      "publishedDate": "2024-04-22",
+      "signalType": "POLICY",
+      "impactScore": 0.82,
+      "tags": ["skill-mapping", "linkedin", "thailand"]
+    },
+    {
+      "externalId": "mhesi-cisa-platform",
+      "title": "CISA — Course-Industry-Skills Alignment Platform Launch",
+      "summaryTh": "เปิดตัวแพลตฟอร์ม CISA โดย MHESI สำหรับการเชื่อมโยงรายวิชาในระบบอุดมศึกษากับทักษะที่อุตสาหกรรมต้องการ ใช้เป็นช่องทางในการตรวจสอบความสอดคล้องของหลักสูตรกับตลาดแรงงาน",
+      "summaryEn": "Launch of MHESI's CISA platform connecting university courses to industry-required skills. Provides a verification channel for curriculum-labour-market alignment.",
+      "sourceUrl": "https://cisa.mhesi.go.th/",
+      "publishedDate": "2025-09-15",
+      "signalType": "POLICY",
+      "impactScore": 0.75,
+      "tags": ["cisa", "curriculum-alignment", "thailand"]
+    }
+  ]
+}

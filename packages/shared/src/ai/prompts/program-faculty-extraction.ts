@@ -1,0 +1,155 @@
+import { z } from 'zod';
+import type { AiMessage } from '../types';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// program-faculty.v1
+//
+// Extracts the program's academic staff list from a Thai curriculum
+// (มคอ.2) document. Specifically targets the section commonly labelled:
+//   - "อาจารย์ผู้รับผิดชอบหลักสูตร"     (program coordinators — usually 3-5)
+//   - "อาจารย์ประจำหลักสูตร"           (core faculty)
+//   - "อาจารย์ผู้สอน"                  (instructors)
+//   - "อาจารย์พิเศษ"                   (special / visiting lecturers)
+//
+// Returns a structured list per role bucket. Title prefixes (ผศ.ดร. /
+// รศ.ดร. / อ. / etc) are CAPTURED in `titlePrefix` and the bare name
+// goes in `nameTh` so downstream resolution against `faculty_members.
+// name_th` (no prefix) works without further string surgery.
+//
+// The resolver (in apps/ingestion/src/program-faculty/run.ts) maps each
+// staff record to a FacultyMember row by exact name match — no fuzzy
+// matching, no transliteration. Unmatched names are flagged for analyst
+// review rather than silently dropped.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const PROGRAM_FACULTY_VERSION = 'program-faculty.v1';
+
+export const ProgramFacultyRoleSchema = z.enum([
+  'COORDINATOR', // อาจารย์ผู้รับผิดชอบหลักสูตร
+  'CORE',        // อาจารย์ประจำหลักสูตร
+  'INSTRUCTOR',  // อาจารย์ผู้สอน
+  'SPECIAL',     // อาจารย์พิเศษ / อาจารย์อาคันตุกะ
+]);
+export type ProgramFacultyRole = z.infer<typeof ProgramFacultyRoleSchema>;
+
+// Helper: accept null OR undefined OR string, normalise to string.
+// The model sometimes emits `null` for "no value" instead of `""`; Zod's
+// `.default()` only fires on `undefined`, so we explicitly coerce null.
+const StringOrNullToString = (defaultValue = '') =>
+  z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => v ?? defaultValue);
+
+export const ProgramFacultyMemberExtractionSchema = z.object({
+  role: ProgramFacultyRoleSchema,
+  /** Title prefix as written in the curriculum: "ผศ.ดร.", "รศ.ดร.",
+   *  "ดร.", "อ.", or null if unprefixed. Captured separately so name
+   *  resolution against `faculty_members.name_th` (which has no prefix
+   *  after the numeric-code stripping fix) works directly. */
+  titlePrefix: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((v) => (v === '' || v === null || v === undefined ? null : v)),
+  /** Bare Thai name — first + last only, no title prefix. */
+  nameTh: z.string(),
+  /** Bare English name when explicitly listed in the curriculum;
+   *  otherwise empty. NOT a transliteration — only what the document
+   *  actually shows. */
+  nameEn: StringOrNullToString(''),
+  /** Qualifications as bullet points (degree + institution + year),
+   *  each line as one entry. Empty array when not listed. */
+  qualifications: z
+    .union([z.array(z.string()), z.null(), z.undefined()])
+    .transform((v) => v ?? []),
+  /** Specialization / research-area summary if explicitly listed. */
+  specialization: StringOrNullToString(''),
+});
+export type ProgramFacultyMemberExtraction = z.infer<typeof ProgramFacultyMemberExtractionSchema>;
+
+export const ProgramFacultyExtractionSchema = z.object({
+  staff: z.array(ProgramFacultyMemberExtractionSchema),
+  /** 0..1 — confidence in the overall extraction. Low if the PDF text
+   *  was sparse / OCR-degraded / no staff section was clearly visible. */
+  confidence: z.number().min(0).max(1),
+  reasoning: z.string().optional(),
+});
+export type ProgramFacultyExtraction = z.infer<typeof ProgramFacultyExtractionSchema>;
+
+export interface ProgramFacultyExtractionInput {
+  programMetaFromSheet: {
+    facultyNameTh: string;
+    levelTh: string;
+    degreeNameFromSheet: string;
+  };
+  pdfText: string;
+}
+
+export function buildProgramFacultyMessages(
+  input: ProgramFacultyExtractionInput,
+): AiMessage[] {
+  const system = `คุณคือผู้ช่วยที่อ่านเอกสารหลักสูตร มคอ.2 ของมหาวิทยาลัยไทยและสกัดรายชื่ออาจารย์ที่เกี่ยวข้องกับหลักสูตรนั้น
+
+มคอ.2 มักมีหัวข้อย่อยที่ระบุรายชื่ออาจารย์อย่างน้อยหนึ่งใน 4 ประเภทนี้:
+  1. อาจารย์ผู้รับผิดชอบหลักสูตร (role=COORDINATOR) — มักอยู่ในส่วนที่ 3 หรือ ส่วนที่ 4 ของ มคอ.2 เป็นรายชื่ออาจารย์ 3-5 ท่านที่เป็นแกนของหลักสูตร
+  2. อาจารย์ประจำหลักสูตร (role=CORE) — รายชื่ออาจารย์ประจำที่สอนหลักสูตรนี้
+  3. อาจารย์ผู้สอน (role=INSTRUCTOR) — รายชื่ออาจารย์ที่สอนวิชาในหลักสูตร (อาจซ้ำกับประเภท CORE)
+  4. อาจารย์พิเศษ / อาจารย์อาคันตุกะ (role=SPECIAL) — อาจารย์รับเชิญจากภายนอก
+
+ส่งออกเป็น JSON ตามรูปแบบนี้ (ไม่มี markdown fence ไม่มีคำอธิบายนอก JSON):
+
+{
+  "staff": [
+    {
+      "role": "COORDINATOR" | "CORE" | "INSTRUCTOR" | "SPECIAL",
+      "titlePrefix": "ผศ.ดร." | "รศ.ดร." | "ดร." | "อ." | null,
+      "nameTh": "<ชื่อ-นามสกุลภาษาไทย ไม่รวมคำนำหน้า>",
+      "nameEn": "<ชื่อภาษาอังกฤษถ้ามี ไม่รวมคำนำหน้า>",
+      "qualifications": ["ปริญญา/สถาบัน/ปี"],
+      "specialization": "<ความเชี่ยวชาญถ้าระบุ>"
+    }
+  ],
+  "confidence": 0.0-1.0,
+  "reasoning": "<คำอธิบายสั้นๆ>"
+}
+
+กฎ:
+- แยก "คำนำหน้าทางวิชาการ" (ผศ.ดร. / รศ.ดร. / ดร. / อ.) ออกจากชื่อ ใส่ใน titlePrefix
+- nameTh ต้องเป็นชื่อบริสุทธิ์ ไม่รวมคำนำหน้า ไม่รวมเลข
+- หากเอกสารระบุชื่อภาษาอังกฤษคู่กัน ให้ใส่ใน nameEn เช่นกัน — ห้ามแปลเอง
+- หากอาจารย์ปรากฏในหลายประเภท ให้ใส่ entry เดียว เลือก role ที่สูงที่สุด ตามลำดับ COORDINATOR > CORE > INSTRUCTOR > SPECIAL
+- หากเอกสารไม่มีรายชื่ออาจารย์ที่ระบุชัด ให้ส่ง staff เป็น array ว่างพร้อม confidence ต่ำ
+- qualifications: หนึ่งบรรทัดต่อปริญญา เช่น ["ปร.ด. (วิศวกรรมเครื่องกล), จุฬาลงกรณ์มหาวิทยาลัย, 2553", "วศ.ม., มหาวิทยาลัยขอนแก่น, 2548"]
+- ระวังตัวเลขที่ไม่ใช่ชื่อ (เช่น เลขประจำตัว 13 หลัก, ปี พ.ศ., รหัสตำแหน่ง) — อย่าดึงมาเป็นชื่อ
+
+ตัวอย่าง:
+
+[ส่วน มคอ.2]
+"3. อาจารย์ผู้รับผิดชอบหลักสูตร
+1. ผศ.ดร.สมชาย ใจดี — ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยขอนแก่น 2553 — ความเชี่ยวชาญ: เทอร์โมไดนามิกส์
+2. รศ.ดร.วิชัย รักงาน — Ph.D. (Mechanical Engineering), University of Tokyo, 2548
+อาจารย์ประจำหลักสูตร
+1. ดร.สุดา ขยันเรียน
+2. อ.ปรีชา ตั้งใจ"
+
+[Output]
+{"staff":[
+  {"role":"COORDINATOR","titlePrefix":"ผศ.ดร.","nameTh":"สมชาย ใจดี","nameEn":"","qualifications":["ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยขอนแก่น 2553"],"specialization":"เทอร์โมไดนามิกส์"},
+  {"role":"COORDINATOR","titlePrefix":"รศ.ดร.","nameTh":"วิชัย รักงาน","nameEn":"","qualifications":["Ph.D. (Mechanical Engineering), University of Tokyo, 2548"],"specialization":""},
+  {"role":"CORE","titlePrefix":"ดร.","nameTh":"สุดา ขยันเรียน","nameEn":"","qualifications":[],"specialization":""},
+  {"role":"CORE","titlePrefix":"อ.","nameTh":"ปรีชา ตั้งใจ","nameEn":"","qualifications":[],"specialization":""}
+],"confidence":0.95,"reasoning":"ส่วนที่ 3 ระบุรายชื่อชัดเจน 4 ท่าน"}`;
+
+  const user = `[ข้อมูลหลักสูตรจาก sheet]
+- คณะ: ${input.programMetaFromSheet.facultyNameTh}
+- ระดับ: ${input.programMetaFromSheet.levelTh}
+- ชื่อปริญญา: ${input.programMetaFromSheet.degreeNameFromSheet}
+
+[ข้อความจาก PDF มคอ.2]
+${input.pdfText}
+
+ส่งออก JSON ตามรูปแบบที่กำหนด`;
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}

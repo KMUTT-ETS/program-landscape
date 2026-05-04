@@ -5,9 +5,10 @@ import { ProgramsService } from './programs.service';
 import { DeepDiveController } from './deep-dive.controller';
 import { CockpitModule } from '../cockpit/cockpit.module';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
+import { PdfModule } from '../pdf/pdf.module';
 
 @Module({
-  imports: [CockpitModule, AiJobsModule],
+  imports: [CockpitModule, AiJobsModule, PdfModule],
   controllers: [ProgramsController, ProgramsAdminController, DeepDiveController],
   providers: [ProgramsService],
   exports: [ProgramsService],

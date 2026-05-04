@@ -30,7 +30,6 @@ import {
   GraduationCap,
   Save,
   Sparkles,
-  TrendingDown,
   Wallet,
 } from 'lucide-react';
 import type { SessionUser } from '@kku/shared';
@@ -260,7 +259,7 @@ export function CockpitClient(props: Props) {
           <Card accent="cockpit" padding="md">
             <Heatmap
               rows={toHeatmapRows(props.heatmap)}
-              columnLabels={['Demand', 'Financial', 'Quality', 'Relevance', 'Capability']}
+              columnLabels={['Attractiveness', 'Financial', 'Capability', 'Outcomes', 'Relevance']}
               onRowClick={(r) => {
                 const nextScope =
                   props.scope === 'university'
@@ -380,26 +379,51 @@ function KpiStrip({ kpis }: { kpis: CockpitKpis | null }) {
       </Card>
     );
   }
-  const fmt = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-US'));
+  const fmtNum = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-US'));
+  const fmtMoney = (n: number | null): string => {
+    if (n === null) return '—';
+    const abs = Math.abs(n);
+    const sign = n < 0 ? '−' : '';
+    if (abs >= 1_000_000_000) return `${sign}฿${(abs / 1_000_000_000).toFixed(2)}B`;
+    if (abs >= 1_000_000) return `${sign}฿${(abs / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${sign}฿${(abs / 1_000).toFixed(0)}K`;
+    return `${sign}฿${abs.toFixed(0)}`;
+  };
+  const denom = kpis.programsWithTrend > 0 ? kpis.programsWithTrend : kpis.programCount;
+  const completenessLabel =
+    kpis.dataCompletenessPct === null
+      ? '—'
+      : `${kpis.dataCompletenessPct.toFixed(0)}%`;
+  const completenessHint =
+    kpis.dataCompletenessPct === null
+      ? ''
+      : kpis.dataCompletenessPct >= 75
+        ? 'high'
+        : kpis.dataCompletenessPct >= 50
+          ? 'partial'
+          : 'thin — preview only';
   return (
     <StatStrip columns={6}>
       <Stat
         moduleKey="cockpit"
         icon={<BookOpen />}
         label="Active programs"
-        value={fmt(kpis.programCount)}
+        value={fmtNum(kpis.programCount)}
+        hint="status = ACTIVE"
       />
       <Stat
         moduleKey="cockpit"
         icon={<GraduationCap />}
-        label="Enrolled"
-        value={fmt(kpis.enrolledTotal)}
+        label="Currently enrolled"
+        value={fmtNum(kpis.enrolledTotal)}
+        hint="latest academic year"
       />
       <Stat
         moduleKey="cockpit"
         icon={<Wallet />}
-        label="Net contrib. THB"
-        value={fmt(kpis.netContributionTotal)}
+        label="Net contribution"
+        value={fmtMoney(kpis.netContributionTotal)}
+        hint="latest fiscal year"
         deltaTone={
           kpis.netContributionTotal !== null && kpis.netContributionTotal < 0
             ? 'negative'
@@ -409,27 +433,29 @@ function KpiStrip({ kpis }: { kpis: CockpitKpis | null }) {
       <Stat
         moduleKey="cockpit"
         icon={<AlertTriangle />}
-        label="Danger zone"
-        value={fmt(kpis.dangerZoneCount)}
-        hint={kpis.dangerZoneCount > 0 ? 'health < 40' : 'none'}
-        deltaTone={kpis.dangerZoneCount > 0 ? 'negative' : 'neutral'}
+        label="At risk"
+        value={`${kpis.atRiskCount} / ${denom}`}
+        hint={kpis.atRiskCount > 0 ? 'zero enrol + ≤−50% 3yr' : 'none'}
+        deltaTone={kpis.atRiskCount > 0 ? 'negative' : 'neutral'}
       />
       <Stat
         moduleKey="cockpit"
-        icon={<TrendingDown />}
-        label="Quality concern"
-        value={fmt(kpis.qualityConcernCount)}
-        hint="aging faculty"
-        deltaTone={kpis.qualityConcernCount > 0 ? 'negative' : 'neutral'}
+        icon={<Sparkles />}
+        label="Surging"
+        value={`${kpis.surgingCount} / ${denom}`}
+        hint={kpis.surgingCount > 0 ? '≥+50% 3yr enrolment' : 'no high-growth'}
+        deltaTone={kpis.surgingCount > 0 ? 'positive' : 'neutral'}
       />
       <Stat
         moduleKey="cockpit"
         icon={<CircleDot />}
-        label="Avg curriculum age"
-        value={
-          kpis.averageCurriculumAgeYears === null
-            ? '—'
-            : `${kpis.averageCurriculumAgeYears.toFixed(1)}y`
+        label="Data confidence"
+        value={completenessLabel}
+        hint={completenessHint}
+        deltaTone={
+          kpis.dataCompletenessPct !== null && kpis.dataCompletenessPct < 50
+            ? 'negative'
+            : undefined
         }
       />
     </StatStrip>
@@ -446,17 +472,17 @@ function toHeatmapRows(hm: CockpitHeatmap): HeatmapRow[] {
     label: r.scopeLabel,
     parentId: r.parentScopeId,
     cells: [
-      toCell(r.dimensions.demand),
+      toCell(r.dimensions.attractiveness),
       toCell(r.dimensions.financial),
-      toCell(r.dimensions.quality),
-      toCell(r.dimensions.relevance),
       toCell(r.dimensions.capability),
+      toCell(r.dimensions.outcomes),
+      toCell(r.dimensions.relevance),
     ],
     overall: toCell(r.overall),
   }));
 }
 
-function toCell(s: CockpitHeatmap['rows'][number]['dimensions']['demand']) {
+function toCell(s: CockpitHeatmap['rows'][number]['dimensions']['attractiveness']) {
   return {
     score: s.score,
     dataCompletenessPct: s.dataCompletenessPct,

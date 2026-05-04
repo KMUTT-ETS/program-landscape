@@ -1,63 +1,26 @@
-import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { auth } from '@/lib/auth';
+import { getDashboardOverview } from '@kku/db';
 import {
-  AiInsight,
-  Button,
   Card,
   CardHeader,
   CardTitle,
-  ChartFrame,
-  DataTable,
-  EmptyState,
-  KPI,
+  FreshnessBadge,
   PageHeader,
-  Section,
-  Sparkline,
+  ProvenanceButton,
   Stat,
-  TrendLine,
-  type ColumnDef,
 } from '@kku/ui';
-import type {
-  ApiMeta,
-  FacultyDto,
-  MeResponse,
-  ProgramDto,
-  SessionUser,
-} from '@kku/shared';
+import type { SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { HeroQuadrant } from '@/components/dashboard/hero-quadrant';
+import { FacultyTreemap } from '@/components/dashboard/faculty-treemap';
+import { AlertColumn } from '@/components/dashboard/alert-card';
+import { LevelMix } from '@/components/dashboard/level-mix';
+import { PulseStrip } from '@/components/dashboard/pulse-strip';
 
 export const dynamic = 'force-dynamic';
-
-const SAMPLE_TREND = [
-  { x: '2020', enrolled: 2450, applications: 7800 },
-  { x: '2021', enrolled: 2380, applications: 8100 },
-  { x: '2022', enrolled: 2794, applications: 8900 },
-  { x: '2023', enrolled: 3002, applications: 9600 },
-  { x: '2024', enrolled: 3075, applications: 10096 },
-];
-
-const SAMPLE_META: ApiMeta = {
-  freshnessDate: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-  sources: [
-    { id: 'kku-reg', name: 'KKU Registration' },
-    { id: 'kku-finance', name: 'KKU Finance (projected)' },
-  ],
-  methodologyVersion: 'v1',
-  scope: { level: 'university', id: null },
-};
-
-const programColumns: ColumnDef<ProgramDto, unknown>[] = [
-  { accessorKey: 'code', header: 'Code' },
-  { accessorKey: 'nameEn', header: 'Program (EN)' },
-  { accessorKey: 'nameTh', header: 'Program (TH)' },
-  { accessorKey: 'level', header: 'Level' },
-  {
-    accessorKey: 'status',
-    header: 'Status',
-    meta: { align: 'right' },
-  },
-];
+export const metadata = { title: 'Curriculum Landscape · KKU' };
 
 export default async function HomePage() {
   const session = await auth();
@@ -65,176 +28,248 @@ export default async function HomePage() {
     redirect('/signin');
   }
   const user = session.user as SessionUser;
-  // Council + senior-leadership roles land on the cockpit by default
-  // (prompt 05 contract). Analysts stay on this overview page which
-  // doubles as the "everything at once" snapshot used during build.
-  if (
-    user.role === 'COUNCIL' ||
-    user.role === 'EXECUTIVE' ||
-    user.role === 'DEAN' ||
-    user.role === 'DEPT_HEAD'
-  ) {
-    redirect('/cockpit');
-  }
 
-  const [me, faculties, programsResponse] = await Promise.all([
-    apiFetch<MeResponse>('/me').catch(() => null),
-    apiFetch<FacultyDto[]>('/faculties').catch(() => []),
-    apiFetch<ProgramDto[]>('/programs?scope=university').catch(() => []),
-  ]);
-  const programs = Array.isArray(programsResponse) ? programsResponse : [];
+  const overview = await getDashboardOverview();
+  const k = overview.kpis;
+  const bulkRunning = k.bulkPipelineProgress.done < k.bulkPipelineProgress.total;
+  const generatedAtIso = overview.generatedAt.toISOString();
+
+  // Caveat for the hero quadrant: every program shows positive net
+  // contribution today because cost-allocation methodology is still
+  // pending Finance Committee approval (see CLAUDE.md). Be honest about
+  // it on the chart.
+  const quadrantCaveat =
+    overview.quadrant.points.filter((p) => p.quadrant === 'dog' || p.quadrant === 'question').length === 0
+      ? 'Cost-allocation methodology pending — every program shows positive net contribution because allocated costs are zero. True "Dog" / "Question" quadrants will appear once cost methodology is approved.'
+      : undefined;
 
   return (
     <AuthedAppShell user={user}>
-      <div className="mx-auto flex max-w-[1200px] flex-col gap-8 p-6">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-6 p-6">
+        {/* HEADER */}
         <PageHeader
-          title="Portfolio overview"
-          subtitle="Prompt 02b shell. KPIs are mock values; the table is live via /api/v1/programs."
-          actions={
-            <Button variant="outline" size="sm" asChild>
-              <a href="/styleguide">Open styleguide →</a>
-            </Button>
-          }
+          eyebrow="Module 00 · Executive Landscape"
+          title="Curriculum Landscape"
+          subtitle={`Strategic snapshot of all ${k.programCount} KKU programs across ${k.facultyCount} faculties.`}
+          actions={<FreshnessBadge freshnessDate={generatedAtIso} label="dashboard sync" />}
         />
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <KPI
-            tone="glossy"
-            label="Active programs"
-            value={<span className="font-tabular">{programs.length}</span>}
-            meta={SAMPLE_META}
-            sparkline={<Sparkline data={[28, 29, 29, 30, 30]} />}
+        {/* HERO STATS */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <HeroStat
+            tone="default"
+            label="Programs"
+            value={k.programCount.toLocaleString('en-US')}
+            sub={`${k.facultyCount} faculties`}
           />
-          <KPI
-            tone="glossy"
-            label="Enrolled (2024)"
-            value={<span className="font-tabular">3,075</span>}
-            delta={{ value: 2.4, goodDirection: 'up', display: '+2.4% YoY' }}
-            meta={SAMPLE_META}
-            sparkline={<Sparkline data={[2450, 2380, 2794, 3002, 3075]} tone="positive" />}
+          <HeroStat
+            tone="default"
+            label="Currently enrolled"
+            value={k.latestEnrolled.toLocaleString('en-US')}
+            sub="latest academic year"
           />
-          <KPI
-            tone="glossy"
-            label="Applications (2024)"
-            value={<span className="font-tabular">10,096</span>}
-            delta={{ value: 5.2, goodDirection: 'up', display: '+5.2% YoY' }}
-            meta={SAMPLE_META}
+          <HeroStat
+            tone="positive"
+            label="Net contribution"
+            value={`฿${(k.netContributionThb / 1_000_000).toFixed(0)}M`}
+            sub="FY 2024+ aggregate"
           />
-          <KPI
-            tone="glossy"
-            label="Net contribution (2024)"
-            value={<span className="font-tabular">฿3.67M</span>}
-            delta={{ value: -8.1, goodDirection: 'up', display: '−8.1% YoY' }}
-            meta={SAMPLE_META}
+          <HeroStat
+            tone="warning"
+            label="Crashing"
+            value={k.crashingCount.toString()}
+            sub="−50%+ enrolment in 3 yrs"
+          />
+          <HeroStat
+            tone="danger"
+            label="BACHELOR · below KKU floor"
+            value={k.intakePolicy.bachelorBreach.toString()}
+            sub={`< ${30} intake · closure-track per Council policy`}
           />
         </div>
-
-        <Section
-          title="Enrolment & applications"
-          description="University scope, last five academic years."
-        >
-          <ChartFrame
-            title="Enrolment vs applications"
-            description="Pipeline conversion across the last five years."
-            meta={SAMPLE_META}
-            chart={
-              <TrendLine
-                data={SAMPLE_TREND}
-                series={['applications', 'enrolled']}
-                ariaLabel="Applications and enrolment, 2020–2024"
-              />
-            }
-            dataTable={
-              <DataTable<(typeof SAMPLE_TREND)[number]>
-                columns={[
-                  { accessorKey: 'x', header: 'Year' },
-                  {
-                    accessorKey: 'applications',
-                    header: 'Applications',
-                    meta: { numeric: true },
-                  },
-                  {
-                    accessorKey: 'enrolled',
-                    header: 'Enrolled',
-                    meta: { numeric: true },
-                  },
-                ]}
-                data={SAMPLE_TREND}
-                variant="ghost"
-              />
-            }
-          />
-        </Section>
-
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader className="mb-3">
-              <CardTitle>Programs ({programs.length})</CardTitle>
-            </CardHeader>
-            {programs.length === 0 ? (
-              <EmptyState
-                title="No programs returned"
-                description="Is the API running on port 4000?"
-                action={
-                  <Button variant="outline" size="sm" asChild>
-                    <a href="http://localhost:4000/api/v1/healthz">Check API</a>
-                  </Button>
-                }
-              />
-            ) : (
-              <DataTable<ProgramDto>
-                columns={programColumns}
-                data={programs}
-                pageSize={12}
-                variant="ghost"
-              />
-            )}
-          </Card>
-
-          <div className="flex flex-col gap-4">
-            <Card padding="md">
-              <CardHeader className="mb-3">
-                <CardTitle>Your access</CardTitle>
-              </CardHeader>
-              {me ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <Stat label="Role" value={me.role} />
-                  <Stat label="Permissions" value={me.permissions.length} />
-                  <Stat label="Faculty" value={me.scopeAccess.ownFacultyId ?? '—'} />
-                  <Stat label="Department" value={me.scopeAccess.ownDepartmentId ?? '—'} />
-                </div>
-              ) : (
-                <p className="text-sm text-text-tertiary">/me unavailable</p>
-              )}
-            </Card>
-
-            <AiInsight
-              title="Enrolment summary (mock)"
-              confidence={0.78}
-              sources={[{ id: 'kku-reg', name: 'KKU Registration, 2020–2024' }]}
-              reasoning="Mock reasoning: enrolment has risen every year since the COVID dip in 2021; conversion from applications has remained flat, suggesting capacity is the bottleneck rather than demand."
-            >
-              Enrolment is up <strong>25.5%</strong> across the five-year window,
-              while applications have grown <strong>29.4%</strong>. The two curves
-              are diverging gently — a capacity signal, not a demand signal. Real
-              AI wiring lands in prompt 04.
-            </AiInsight>
+        {(k.intakePolicy.bachelorBreach > 0 || k.intakePolicy.postgradWatch > 0) && (
+          <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[11px] text-text-secondary">
+            <strong className="text-warning">KKU intake-floor policy:</strong>{' '}
+            {k.intakePolicy.bachelorBreach} BACHELOR programs in <strong>breach</strong> (intake &lt; 30 — closure-track),{' '}
+            {k.intakePolicy.postgradWatch} postgrad programs on <strong>watch list</strong> (intake &lt; 8). {' '}
+            {k.intakePolicy.bachelorCompliant + k.intakePolicy.postgradCompliant} compliant ·{' '}
+            {k.intakePolicy.unknownCount} unknown (no recent intake data).
           </div>
+        )}
+
+        {/* PULSE STRIP — only visible while bulk running */}
+        {bulkRunning && (
+          <PulseStrip
+            done={k.bulkPipelineProgress.done}
+            total={k.bulkPipelineProgress.total}
+            lastCompletedCode={k.bulkPipelineProgress.lastCompletedCode}
+            lastCompletedAt={k.bulkPipelineProgress.lastCompletedAt?.toISOString() ?? null}
+            pulse={overview.pulse.map((p) => ({ ...p, generatedAt: p.generatedAt.toISOString() }))}
+          />
+        )}
+
+        {/* HERO QUADRANT */}
+        <PanelFrame
+          title="Lifecycle × Revenue Quadrant"
+          description="Each dot is one program. X = 3-year enrolment change. Y = net contribution. Click any dot to drill into the program."
+          freshnessDate={generatedAtIso}
+          provenanceMeta={{
+            freshnessDate: generatedAtIso,
+            sources: [
+              { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
+              { id: 'financial_metrics', name: 'KKU Finance · tuition revenue' },
+            ],
+            methodologyVersion: overview.methodologyVersion,
+            scope: { level: 'university', id: null },
+          }}
+        >
+          <HeroQuadrant
+            points={overview.quadrant.points}
+            excludedCount={overview.quadrant.excludedCount}
+            caveat={quadrantCaveat}
+          />
+        </PanelFrame>
+
+        {/* ROW: TREEMAP + ALERTS */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <PanelFrame
+              title="Portfolio composition"
+              description="Box size = current enrolment. Colour intensity = net contribution per student. Click a faculty to scope the cockpit."
+              freshnessDate={generatedAtIso}
+              provenanceMeta={{
+                freshnessDate: generatedAtIso,
+                sources: [{ id: 'enrollment_metrics', name: 'KKU Registry' }],
+                methodologyVersion: overview.methodologyVersion,
+                scope: { level: 'university', id: null },
+              }}
+            >
+              <FacultyTreemap tiles={overview.facultyTiles} height={420} />
+            </PanelFrame>
+          </div>
+
+          <Card padding="md" className="flex flex-col gap-4">
+            <CardHeader className="mb-0">
+              <CardTitle className="text-sm">Demographic mix</CardTitle>
+            </CardHeader>
+            <LevelMix rows={overview.levelMix} />
+            <p className="text-[11px] text-text-tertiary">
+              Thailand 18–22 cohort declines ~1.8%/yr. Bachelor's exposure is highest;
+              Doctoral programs already average &lt;2 students each.
+            </p>
+          </Card>
         </div>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {faculties.map((f) => (
-            <Card key={f.id} padding="sm">
-              <CardHeader className="mb-0">
-                <CardTitle>{f.nameEn}</CardTitle>
-              </CardHeader>
-              <div className="text-xs text-text-tertiary">
-                {f.code} · {f.nameTh}
-              </div>
-            </Card>
-          ))}
-        </section>
+        {/* RISK + MOMENTUM */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card padding="md">
+            <AlertColumn
+              tone="urgent"
+              alerts={overview.urgent}
+              title="Urgent review"
+              emptyHint="No programs in the urgent-review window."
+            />
+          </Card>
+          <Card padding="md">
+            <AlertColumn
+              tone="momentum"
+              alerts={overview.momentum}
+              title="Momentum (3-yr enrolment growth)"
+              emptyHint="No high-growth programs detected in the 3-yr window."
+            />
+          </Card>
+        </div>
+
+        {/* FOOTER STAT GRID — for analyst eyes */}
+        <Card padding="md" className="bg-surface-2/40">
+          <CardHeader className="mb-3">
+            <CardTitle className="text-xs uppercase tracking-wide text-text-tertiary">
+              Coverage & data quality
+            </CardTitle>
+          </CardHeader>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <Stat
+              label="Quadrant coverage"
+              value={`${overview.quadrant.points.length}/${k.programCount}`}
+            />
+            <Stat label="Surging programs" value={k.surgingCount} />
+            <Stat label="Crashing programs" value={k.crashingCount} />
+            <Stat
+              label="Strategic narratives"
+              value={`${k.bulkPipelineProgress.done}/${k.bulkPipelineProgress.total}`}
+            />
+          </div>
+          <p className="mt-3 text-[11px] text-text-tertiary">
+            Methodology version: <span className="font-tabular text-text-secondary">{overview.methodologyVersion}</span>
+            <span className="mx-2 opacity-60">·</span>
+            Scope: university · all 24 faculties
+            <span className="mx-2 opacity-60">·</span>
+            <Link href="/cockpit" className="text-accent-default hover:underline">
+              Drill into the cockpit →
+            </Link>
+          </p>
+        </Card>
       </div>
     </AuthedAppShell>
+  );
+}
+
+function PanelFrame({
+  title,
+  description,
+  freshnessDate,
+  provenanceMeta,
+  children,
+}: {
+  title: string;
+  description?: string;
+  freshnessDate: string;
+  provenanceMeta: React.ComponentProps<typeof ProvenanceButton>['meta'];
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3 rounded-lg border border-border-default bg-surface-1 p-4">
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h3 className="truncate text-sm font-semibold text-text-primary">{title}</h3>
+            <ProvenanceButton size="xs" title={title} meta={provenanceMeta} />
+          </div>
+          {description && (
+            <p className="mt-0.5 text-xs text-text-tertiary">{description}</p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <FreshnessBadge freshnessDate={freshnessDate} label={title} />
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function HeroStat({
+  tone,
+  label,
+  value,
+  sub,
+}: {
+  tone: 'default' | 'positive' | 'warning' | 'danger';
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  const valueClass = {
+    default: 'text-text-primary',
+    positive: 'text-positive',
+    warning: 'text-warning',
+    danger: 'text-danger',
+  }[tone];
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-1 p-4">
+      <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+      <p className={`font-tabular text-2xl font-semibold ${valueClass}`}>{value}</p>
+      <p className="text-[11px] text-text-tertiary">{sub}</p>
+    </div>
   );
 }

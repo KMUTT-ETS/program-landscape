@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from './index';
+import { lookupAliasesBulk } from './skill-normaliser';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Post-approval materialisation for `PROGRAM_DIGEST` extractions.
@@ -49,6 +50,10 @@ export interface MaterialiseProgramDigestResult {
   programId: string;
   programFieldsUpdated: number;
   skillsLinked: number;
+  /** Subset of skillsLinked: links resolved via the SkillAlias cache
+   *  (i.e., a prior AI normalisation or analyst-curated mapping). The
+   *  remainder came from direct nameEn/nameTh exact match on Skill. */
+  skillsLinkedViaAlias: number;
   skillsProposed: number;
   alreadyMaterialised: boolean;
 }
@@ -109,7 +114,15 @@ export async function materialiseProgramDigest(
   }
 
   // 2. Resolve skills + write ProgramSkill rows.
-  // Build a lookup for name matching (case-insensitive trim on EN, exact TH).
+  // Resolution order:
+  //   (a) Case-insensitive trim exact match on Skill.nameEn → nameTh
+  //   (b) SkillAlias cache (source='program_digest') — picks up prior
+  //       AI-normalised mappings from earlier digests
+  //   (c) Unmatched → queued as PROPOSED_SKILL AiExtraction
+  //
+  // The SkillAlias cache means re-digests of the same program don't
+  // re-emit PROPOSED_SKILL extractions for skill names already resolved
+  // through the analyst-or-AI normalisation path.
   const allSkills = await prisma.skill.findMany({ select: { id: true, nameEn: true, nameTh: true } });
   const byEn = new Map<string, string>();
   const byTh = new Map<string, string>();
@@ -120,15 +133,39 @@ export async function materialiseProgramDigest(
     if (th) byTh.set(th, s.id);
   }
 
+  // Bulk-fetch any existing aliases for the names this digest emits, so
+  // we don't round-trip per skill.
+  const aliasCandidates = payload.extractedSkills.flatMap((es) => [es.nameEn ?? '', es.nameTh ?? ''].filter(Boolean));
+  const aliases = await lookupAliasesBulk(aliasCandidates, 'program_digest');
+
   let skillsLinked = 0;
+  let skillsViaAlias = 0;
   const proposedSkills: Array<{ nameTh: string; nameEn: string; category: string; weight: number; evidenceQuote: string }> = [];
 
   for (const es of payload.extractedSkills) {
     const en = (es.nameEn ?? '').trim().toLowerCase();
     const th = (es.nameTh ?? '').trim();
     let skillId: string | null = null;
+
+    // (a) Direct taxonomy hit
     if (en && byEn.has(en)) skillId = byEn.get(en)!;
     else if (th && byTh.has(th)) skillId = byTh.get(th)!;
+
+    // (b) SkillAlias cache — only when status=RESOLVED (skip AMBIGUOUS, REJECTED, NEW_PROPOSED)
+    if (!skillId && en) {
+      const a = aliases.get(en);
+      if (a?.status === 'RESOLVED' && a.skillId) {
+        skillId = a.skillId;
+        skillsViaAlias++;
+      }
+    }
+    if (!skillId && th) {
+      const a = aliases.get(th.toLowerCase());
+      if (a?.status === 'RESOLVED' && a.skillId) {
+        skillId = a.skillId;
+        skillsViaAlias++;
+      }
+    }
 
     if (skillId) {
       // Upsert ProgramSkill — keep highest weight on conflict (analyst review
@@ -185,6 +222,7 @@ export async function materialiseProgramDigest(
     programId,
     programFieldsUpdated: Object.keys(updates).length,
     skillsLinked,
+    skillsLinkedViaAlias: skillsViaAlias,
     skillsProposed: proposedSkills.length,
     alreadyMaterialised: false,
   };

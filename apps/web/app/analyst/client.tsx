@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge, Card } from '@kku/ui';
+import ReactMarkdown from 'react-markdown';
 import type {
   AnalystBriefTemplate,
   AnalystConversationDto,
@@ -269,9 +270,69 @@ function MessageBubble({
       <div className="mb-1 flex items-center gap-2 text-xs text-text-tertiary">
         {isUser ? <Badge tone="accent">You</Badge> : <Badge tone="outline">Analyst</Badge>}
         {message.refused ? <Badge tone="danger">Refused</Badge> : null}
-        <span className="ml-auto font-mono">{new Date(message.createdAt).toLocaleTimeString('en-GB')}</span>
+        <span className="ml-auto font-mono">{new Date(message.createdAt).toISOString().slice(11, 19)}</span>
       </div>
-      <p className="whitespace-pre-wrap">{message.content}</p>
+      {isUser ? (
+        // User messages stay plain — no markdown rendering on user input
+        // (avoids accidentally formatting prompts that contain ## etc.)
+        <p className="whitespace-pre-wrap">{message.content}</p>
+      ) : (
+        <div className="analyst-prose">
+          <ReactMarkdown
+            components={{
+              h1: ({ children }) => (
+                <h2 className="mt-3 mb-1 text-base font-semibold text-text-primary first:mt-0">{children}</h2>
+              ),
+              h2: ({ children }) => (
+                <h3 className="mt-3 mb-1 text-sm font-semibold uppercase tracking-wide text-text-secondary first:mt-0">{children}</h3>
+              ),
+              h3: ({ children }) => (
+                <h4 className="mt-2 mb-1 text-sm font-semibold text-text-secondary first:mt-0">{children}</h4>
+              ),
+              p: ({ children }) => <p className="my-1.5 text-sm leading-relaxed">{children}</p>,
+              ul: ({ children }) => (
+                <ul className="my-1.5 ml-5 list-disc space-y-1 text-sm leading-relaxed">{children}</ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="my-1.5 ml-5 list-decimal space-y-1 text-sm leading-relaxed">{children}</ol>
+              ),
+              li: ({ children }) => <li className="text-sm">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold text-text-primary">{children}</strong>,
+              em: ({ children }) => <em className="italic text-text-secondary">{children}</em>,
+              code: ({ children }) => (
+                <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-text-primary">{children}</code>
+              ),
+              pre: ({ children }) => (
+                <pre className="my-2 overflow-x-auto rounded bg-surface-2 p-2 text-[12px] text-text-primary">{children}</pre>
+              ),
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noreferrer" className="text-accent-default underline hover:text-accent-strong">
+                  {children}
+                </a>
+              ),
+              blockquote: ({ children }) => (
+                <blockquote className="my-2 border-l-2 border-border-default pl-3 text-sm italic text-text-secondary">
+                  {children}
+                </blockquote>
+              ),
+              table: ({ children }) => (
+                <div className="my-2 overflow-x-auto">
+                  <table className="w-full border-collapse text-xs">{children}</table>
+                </div>
+              ),
+              th: ({ children }) => (
+                <th className="border-b border-border-default px-2 py-1 text-left font-semibold text-text-primary">{children}</th>
+              ),
+              td: ({ children }) => (
+                <td className="border-b border-border-subtle px-2 py-1 text-text-secondary">{children}</td>
+              ),
+              hr: () => <hr className="my-3 border-border-subtle" />,
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   );
 }

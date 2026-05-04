@@ -11,6 +11,16 @@ const mocks = vi.hoisted(() => ({
   programFindMany: vi.fn(),
   programFindUnique: vi.fn(),
   kmitlDemandFindMany: vi.fn(),
+  programSkillFindMany: vi.fn(),
+  financialMetricFindMany: vi.fn(),
+  enrollmentMetricFindMany: vi.fn(),
+  programFacultyFindMany: vi.fn(),
+  researchOutputCount: vi.fn(),
+  programDemandMatchFindMany: vi.fn(),
+  tcasFindFirst: vi.fn(),
+  tcasFindMany: vi.fn(),
+  demographicFindFirst: vi.fn(),
+  kmitlCareerFindMany: vi.fn(),
   queryMetricByScope: vi.fn(),
 }));
 
@@ -25,11 +35,19 @@ vi.mock('../src/index', async () => {
         findMany: mocks.programFindMany,
         findUnique: mocks.programFindUnique,
       },
-      // KMITL labor-market alignment driver (health-score v2). The default
-      // empty-array mock makes the driver return null (no data → null, not
-      // zero) which is the existing null-handling contract these tests
-      // already exercise. Override per-test if a positive case is needed.
       kmitlCareerSkillDemand: { findMany: mocks.kmitlDemandFindMany },
+      programSkill: { findMany: mocks.programSkillFindMany },
+      financialMetric: { findMany: mocks.financialMetricFindMany },
+      enrollmentMetric: { findMany: mocks.enrollmentMetricFindMany },
+      programFaculty: { findMany: mocks.programFacultyFindMany },
+      researchOutput: { count: mocks.researchOutputCount },
+      programDemandMatch: { findMany: mocks.programDemandMatchFindMany },
+      tcasAdmissionStat: {
+        findFirst: mocks.tcasFindFirst,
+        findMany: mocks.tcasFindMany,
+      },
+      demographicProjection: { findFirst: mocks.demographicFindFirst },
+      kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
     },
   };
 });
@@ -46,9 +64,23 @@ import { computeHealthScores, HEALTH_SCORE_VERSION } from '../src/health-score';
 
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
-  // Default: KMITL has no demand data → driver returns null. Tests can
-  // override per-case for positive paths.
+  // Defaults — every data source empty → all drivers null. Per-test
+  // overrides drive specific scenarios.
   mocks.kmitlDemandFindMany.mockResolvedValue([]);
+  mocks.programSkillFindMany.mockResolvedValue([]);
+  mocks.financialMetricFindMany.mockResolvedValue([]);
+  mocks.enrollmentMetricFindMany.mockResolvedValue([]);
+  mocks.programFacultyFindMany.mockResolvedValue([]);
+  mocks.researchOutputCount.mockResolvedValue(0);
+  mocks.programDemandMatchFindMany.mockResolvedValue([]);
+  mocks.tcasFindFirst.mockResolvedValue(null);
+  mocks.tcasFindMany.mockResolvedValue([]);
+  mocks.demographicFindFirst.mockResolvedValue(null);
+  mocks.kmitlCareerFindMany.mockResolvedValue([]);
+  // collectProgramIdsForScope hits prisma.program.findMany at uni
+  // scope — empty array means relevance/capability scope-aggregations
+  // fall through cleanly.
+  mocks.programFindMany.mockResolvedValue([]);
 });
 
 describe('computeHealthScores — null handling', () => {
@@ -56,23 +88,22 @@ describe('computeHealthScores — null handling', () => {
     mocks.facultyFindMany.mockResolvedValue([
       { id: 'f1', nameEn: 'Test', nameTh: 'ทดสอบ' },
     ]);
-    // Empty metric arrays → scorers see no data.
     mocks.queryMetricByScope.mockResolvedValue([]);
 
     const rows = await computeHealthScores('university', null);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.overall.score).toBe(null);
     expect(rows[0]?.overall.dataCompletenessPct).toBe(0);
-    // v1 methodology stamped.
     expect(rows[0]?.methodologyVersion).toBe(HEALTH_SCORE_VERSION);
   });
 
-  it('data-completeness reflects the fraction of non-null drivers (demand)', async () => {
+  it('data-completeness reflects the fraction of non-null drivers (attractiveness scope-level)', async () => {
+    // v3.0 attractiveness scope-fallback driver set is {admission_yield,
+    // retention_year2}. With one of two drivers populated, completeness
+    // should be 50% and the score reflects the single resolved driver.
     mocks.facultyFindMany.mockResolvedValue([
       { id: 'f2', nameEn: 'Partial', nameTh: 'บางส่วน' },
     ]);
-    // Return enrollment row where admission yield is resolvable but
-    // retention + on-time-grad are null.
     mocks.queryMetricByScope
       .mockResolvedValueOnce([
         {
@@ -87,15 +118,28 @@ describe('computeHealthScores — null handling', () => {
           latestFreshness: new Date('2026-04-01'),
         },
       ])
-      .mockResolvedValue([]); // financial + outcomes empty
+      .mockResolvedValue([]);
 
     const rows = await computeHealthScores('university', null);
-    const demand = rows[0]?.dimensions.demand;
-    // 1 of 4 demand drivers non-null → completeness 25%. The fourth driver
-    // is the KMITL labor-market alignment (health-score v2); empty-mocked
-    // → null, contributes to the denominator but not the numerator.
-    expect(demand?.dataCompletenessPct).toBeCloseTo(25, 0);
-    // That one driver scored 100 (yield 0.4 / 0.3 clamped to 100).
-    expect(demand?.score).toBe(100);
+    const attractiveness = rows[0]?.dimensions.attractiveness;
+    expect(attractiveness?.dataCompletenessPct).toBeCloseTo(50, 0);
+    expect(attractiveness?.score).toBe(100);
+  });
+
+  it('exposes the v3.0 5-dimension contract on every row', async () => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'f3', nameEn: 'Shape', nameTh: 'รูปร่าง' },
+    ]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    const rows = await computeHealthScores('university', null);
+    const dims = rows[0]?.dimensions;
+    expect(dims).toBeDefined();
+    expect(Object.keys(dims!).sort()).toEqual([
+      'attractiveness',
+      'capability',
+      'financial',
+      'outcomes',
+      'relevance',
+    ]);
   });
 });

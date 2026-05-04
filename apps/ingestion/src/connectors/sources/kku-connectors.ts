@@ -284,10 +284,15 @@ export class JobsDbConnector extends ApiConnector {
   }
 }
 
-// KMITL Skill Mapping — aggregated skill-demand intelligence (LinkedIn
-// profiles + job postings + grad data, processed by KMITL). Replaces
-// jobthai + jobsdb. Returns percentages at career level, not per-posting
-// rows. Real implementation lives in sources/kmitl-skill-mapping/.
+// LinkedIn Labour-Market Insights — aggregated skill-demand intelligence
+// sourced from LinkedIn (profiles + Thai job postings + grad data).
+// Subscribed by MHESI under a national agreement; KMITL operates the API
+// endpoint at https://skill.kmitl.ac.th. The slug remains
+// `kmitl-skill-mapping` because it identifies the technical API endpoint;
+// human-facing labels reflect the data attribution chain (LinkedIn ←
+// MHESI ← KMITL). Replaces jobthai + jobsdb. Returns percentages at
+// career level, not per-posting rows. Real implementation lives in
+// sources/kmitl-skill-mapping/.
 export class KmitlSkillMappingConnector extends ApiConnector {
   readonly slug = 'kmitl-skill-mapping';
   readonly mocked = true;

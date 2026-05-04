@@ -45,6 +45,13 @@ export function TrendsClient({
   const [filters, setFilters] = React.useState(initialFilters);
   const [highlighted, setHighlighted] = React.useState<string | null>(null);
 
+  // `Date.now()` differs between SSR and hydration, which would change
+  // every dot's radial position and trigger a hydration mismatch. Defer
+  // the time-relative computation to after mount: the radar renders
+  // empty during SSR, then populates on the client.
+  const [nowMs, setNowMs] = React.useState<number | null>(null);
+  React.useEffect(() => setNowMs(Date.now()), []);
+
   const applyFilters = (next: typeof filters) => {
     const qs = new URLSearchParams();
     if (next.signalType) qs.set('signalType', next.signalType);
@@ -54,13 +61,16 @@ export function TrendsClient({
     router.push(`/trends?${qs}`);
   };
 
-  const dots: TrendDot[] = feed.signals.map((s) => ({
-    id: s.id,
-    title: s.title,
-    signalType: s.signalType as TrendSignalType,
-    detectedAtMsAgo: Date.now() - new Date(s.detectedDate).getTime(),
-    impactScore: s.impactScore,
-  }));
+  const dots: TrendDot[] = React.useMemo(() => {
+    if (nowMs === null) return [];
+    return feed.signals.map((s) => ({
+      id: s.id,
+      title: s.title,
+      signalType: s.signalType as TrendSignalType,
+      detectedAtMsAgo: nowMs - new Date(s.detectedDate).getTime(),
+      impactScore: s.impactScore,
+    }));
+  }, [feed.signals, nowMs]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -155,7 +165,7 @@ export function TrendsClient({
                       <div className="flex items-center gap-2">
                         <Badge tone={typeTone(s.signalType)}>{s.signalType}</Badge>
                         <span className="text-xs text-text-tertiary">
-                          {new Date(s.detectedDate).toLocaleDateString()}
+                          {new Date(s.detectedDate).toISOString().slice(0, 10)}
                         </span>
                       </div>
                       <h3 className="mt-1 text-sm font-semibold">{s.title}</h3>

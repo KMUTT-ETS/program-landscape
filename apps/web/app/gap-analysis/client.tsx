@@ -3,57 +3,52 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Card, useChartPalette } from '@kku/ui';
 import {
-  Badge,
-  Card,
-  GapBars,
-  ThailandMap,
-  type GapBarRow,
-  type ThailandRegion,
-} from '@kku/ui';
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Database,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
 import type {
-  OccupationGapResponse,
-  RegionalGapResponse,
-  SectorGapResponse,
+  OpportunityResponse,
+  ProgramDemandGapResponse,
   SkillGapResponse,
 } from './types';
 
-type Dimension = 'skills' | 'occupations' | 'sectors';
-
-const DIMENSION_OPTIONS: Array<{ value: Dimension; label: string }> = [
-  { value: 'skills', label: 'Skills' },
-  { value: 'occupations', label: 'Occupations' },
-  { value: 'sectors', label: 'Sectors' },
-];
-
-const REGION_OPTIONS = [
-  { value: 'TH', label: 'Thailand' },
-  { value: 'Northeast', label: 'Northeast (Isaan)' },
-  { value: 'Mekong', label: 'Mekong' },
-  { value: 'Khon Kaen', label: 'Khon Kaen' },
-  { value: 'Bangkok', label: 'Bangkok' },
-];
-
-const HORIZON_OPTIONS = [
-  { value: '0', label: 'Current' },
-  { value: '3', label: '3-year forecast' },
-  { value: '5', label: '5-year forecast' },
-  { value: '10', label: '10-year forecast' },
-];
-
-const COMPARISON_OPTIONS = [
-  { value: 'absolute', label: 'Absolute gap' },
-  { value: 'per-capita', label: 'Per-capita gap' },
-  { value: 'growth-adjusted', label: 'Growth-adjusted' },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Demand-Supply Gap Analyzer — redesigned 2026-05-03 around real data only.
+//
+// Drops:
+//   - Region selector (no per-province data populated)
+//   - Horizon / forecast selector (ForecastRun is empty)
+//   - Comparison selector (per-capita / growth-adjusted: cosmetic, not real)
+//   - Occupation panel (OccupationDemand is 0 rows — never repointed after
+//     the JobThai/JobsDB→KMITL connector swap)
+//   - Sector panel (skillSectors → JobPostingSkill chain is empty)
+//   - Regional Thailand map (no province-level supply or demand data)
+//
+// Keeps + adds:
+//   - Hero KPIs anchored in reality (alumni coverage, KMITL coverage,
+//     overall gap counts)
+//   - Two-side skill split: shortage (need more grads) vs oversupply
+//     (too many grads for the demand signal we have)
+//   - Fastest-growing skills (KmitlSkillGrowth) with KKU coverage flag
+//   - Per-program demand-match gaps (NEW data — 1,282 AI-resolved
+//     discipline-relevant gaps across 207 programs)
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface Filters {
-  dimension: string;
-  region: string;
-  horizon: string;
-  comparison: string;
   scope: string;
   scopeId: string;
+}
+
+interface PageData {
+  skillGap: SkillGapResponse | null;
+  opportunities: OpportunityResponse | null;
+  programGaps: ProgramDemandGapResponse | null;
 }
 
 export function GapAnalysisClient({
@@ -61,351 +56,366 @@ export function GapAnalysisClient({
   data,
 }: {
   initialFilters: Filters;
-  data: {
-    skills: SkillGapResponse | null;
-    sectors: SectorGapResponse | null;
-    occupations: OccupationGapResponse | null;
-    regional: RegionalGapResponse | null;
-  };
+  data: PageData;
 }) {
   const router = useRouter();
-  const [filters, setFilters] = React.useState(initialFilters);
+  const [filters] = React.useState(initialFilters);
 
-  const applyFilters = (next: Filters) => {
-    const qs = new URLSearchParams();
-    qs.set('dimension', next.dimension);
-    qs.set('region', next.region);
-    qs.set('horizon', next.horizon);
-    qs.set('comparison', next.comparison);
-    qs.set('scope', next.scope);
-    if (next.scopeId) qs.set('scopeId', next.scopeId);
-    router.push(`/gap-analysis?${qs}`);
-  };
+  // Compute KPI inputs from the live responses.
+  const skillsRows = data.skillGap?.rows ?? [];
+  const shortages = skillsRows.filter((r) => r.gap > 0);
+  const oversupplies = skillsRows.filter((r) => r.gap < 0);
+  const programGaps = data.programGaps;
+  const opps = data.opportunities;
+  const totalProgramsAssessed = (programGaps?.rows.length ?? 0) + (programGaps?.uncoveredProgramCount ?? 0);
+  const programCoveragePct =
+    totalProgramsAssessed > 0
+      ? ((programGaps?.rows.length ?? 0) / totalProgramsAssessed) * 100
+      : null;
+  const topGrowthSkill = (opps?.rows ?? [])
+    .filter((r) => r.demandGrowthPct > 0)
+    .sort((a, b) => b.demandGrowthPct - a.demandGrowthPct)[0];
 
-  const updateFilter = (key: keyof Filters, value: string) => {
-    const next = { ...filters, [key]: value };
-    setFilters(next);
-    applyFilters(next);
-  };
+  void router;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Filter bar */}
-      <Card padding="sm">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Selector label="Dimension" value={filters.dimension} options={DIMENSION_OPTIONS} onChange={(v) => updateFilter('dimension', v)} />
-          <Selector label="Region" value={filters.region} options={REGION_OPTIONS} onChange={(v) => updateFilter('region', v)} />
-          <Selector label="Horizon" value={filters.horizon} options={HORIZON_OPTIONS} onChange={(v) => updateFilter('horizon', v)} />
-          <Selector label="Comparison" value={filters.comparison} options={COMPARISON_OPTIONS} onChange={(v) => updateFilter('comparison', v)} />
-          <div className="ml-auto flex items-center gap-2 text-xs text-text-tertiary">
-            <Link href="/gap-analysis/opportunities" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
-              Opportunities →
-            </Link>
-            <Link href="/gap-analysis/risks" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
-              Risks →
-            </Link>
-          </div>
+    <div className="flex flex-col gap-6">
+      {/* Provenance line — replaces the fake-filter bar */}
+      <Card padding="sm" className="bg-surface-2/40">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary">
+          <span className="inline-flex items-center gap-1.5">
+            <Database className="h-3.5 w-3.5" aria-hidden />
+            <strong className="text-text-secondary">Demand</strong> · KMITL skill mapping (LinkedIn × Thai job postings)
+          </span>
+          <span>·</span>
+          <span>
+            <strong className="text-text-secondary">Supply</strong> · KKU AlumniCohortStatus (real cohort outcomes) ·
+            fallback to admission-side enrolment proxy
+          </span>
+          <span>·</span>
+          <span>
+            <strong className="text-text-secondary">Per-program gaps</strong> · AI-resolved, discipline-filtered
+          </span>
+          <span>·</span>
+          <span title="transferable / language / soft skills are excluded because job-posting taxonomies systematically under-list them">
+            <strong className="text-text-secondary">Soft skills</strong> excluded
+          </span>
+          {filters.scope !== 'university' && (
+            <span className="ml-auto rounded bg-accent-subtle px-2 py-0.5 text-text-secondary">
+              Scope: {filters.scope}
+            </span>
+          )}
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
-        {/* Main panel */}
-        <div className="flex flex-col gap-4">
-          {filters.dimension === 'skills' && <SkillsPanel data={data.skills} />}
-          {filters.dimension === 'occupations' && <OccupationsPanel data={data.occupations} />}
-          {filters.dimension === 'sectors' && <SectorsPanel data={data.sectors} />}
-        </div>
-
-        {/* Right rail: regional map */}
-        <aside className="flex flex-col gap-3">
-          <Card padding="md">
-            <h3 className="mb-2 text-sm font-semibold text-text-primary">Regional gap</h3>
-            <p className="mb-3 text-xs text-text-tertiary">
-              Click a region to filter this page to that scope.
-            </p>
-            <RegionalMap data={data.regional} highlight={filters.region} onRegionClick={(r) => updateFilter('region', r)} />
-          </Card>
-
-          <Card padding="md">
-            <h3 className="mb-1 text-sm font-semibold text-text-primary">About this view</h3>
-            <p className="text-xs leading-relaxed text-text-tertiary">
-              Demand is sourced from job postings (last 12 months); supply from ProgramSkill × graduate counts. Forecasts use{' '}
-              <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[10px]">forecasting.v1</code>{' '}
-              (Holt's linear trend for demand; linear + demographic for supply). See{' '}
-              <Link href="/styleguide" className="underline">
-                methodology docs
-              </Link>
-              .
-            </p>
-          </Card>
-        </aside>
+      {/* Hero KPIs */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <HeroStat
+          tone="warning"
+          icon={<AlertTriangle />}
+          label="Skills in shortage"
+          value={shortages.length.toString()}
+          sub="demand > supply (top 20 considered)"
+        />
+        <HeroStat
+          tone="positive"
+          icon={<TrendingUp />}
+          label="Skills in oversupply"
+          value={oversupplies.length.toString()}
+          sub="supply > demand (re-balance candidates)"
+        />
+        <HeroStat
+          tone="default"
+          icon={<Sparkles />}
+          label="Top growth skill"
+          value={topGrowthSkill ? `+${topGrowthSkill.demandGrowthPct.toFixed(0)}%` : '—'}
+          sub={topGrowthSkill?.nameEn ?? 'no growth-tagged skills'}
+        />
+        <HeroStat
+          tone="default"
+          icon={<Database />}
+          label="Per-program coverage"
+          value={programCoveragePct === null ? '—' : `${programCoveragePct.toFixed(0)}%`}
+          sub={`${programGaps?.rows.length ?? 0} of ${totalProgramsAssessed} programs assessed`}
+        />
       </div>
+
+      {/* Shortage + oversupply twin columns */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Panel
+          title="Need more graduates"
+          subtitle="Skills where labour demand exceeds KKU supply. Sorted by gap."
+          icon={<ArrowUpRight className="text-warning" />}
+          tone="warning"
+        >
+          <SkillGapList rows={shortages.slice(0, 10)} variant="shortage" />
+        </Panel>
+        <Panel
+          title="Too many graduates"
+          subtitle="Skills where KKU produces more than the demand signal. Re-balance candidates."
+          icon={<ArrowDownRight className="text-positive" />}
+          tone="positive"
+        >
+          <SkillGapList rows={oversupplies.slice(0, 10)} variant="oversupply" />
+        </Panel>
+      </div>
+
+      {/* Growth signal */}
+      <Panel
+        title="Fastest-growing skills (Thailand · LinkedIn job postings)"
+        subtitle="From KMITL skill-mapping growth signal. Green dot = at least one KKU program teaches it."
+        icon={<Sparkles className="text-accent" />}
+      >
+        <GrowthList rows={(opps?.rows ?? []).filter((r) => r.demandGrowthPct > 0).sort((a, b) => b.demandGrowthPct - a.demandGrowthPct).slice(0, 10)} />
+      </Panel>
+
+      {/* Per-program demand-match gaps */}
+      <Panel
+        title="Per-program demand-match gaps"
+        subtitle={
+          programGaps
+            ? `Programs with the largest curriculum gaps in their own discipline. ${programGaps.uncoveredProgramCount} programs excluded — AI demand-match hasn't run for them yet.`
+            : 'Loading…'
+        }
+        icon={<AlertTriangle className="text-warning" />}
+      >
+        <ProgramGapTable rows={programGaps?.rows.slice(0, 12) ?? []} />
+      </Panel>
+
+      {/* Footer disclosures */}
+      <Card padding="sm" className="text-[11px] text-text-tertiary">
+        <p>
+          This page renders only what is backed by populated tables. Region, occupation, sector,
+          and forecast horizon views are intentionally omitted because their underlying data
+          sources are not yet wired (OccupationDemand 0 rows; per-province alumni tracking
+          deferred; ForecastRun 0 rows). Soft / transferable / language skills are also
+          excluded — KMITL and other job-posting taxonomies under-list them, so including
+          them would create artificial "oversupply" rows (every program teaches teamwork;
+          no posting demands it by name).
+        </p>
+        {data.skillGap?.lowConfidenceReason && (
+          <p className="mt-1 text-warning">⚠ {data.skillGap.lowConfidenceReason}</p>
+        )}
+        <p className="mt-2 flex items-center gap-3">
+          <Link href="/gap-analysis/opportunities" className="underline hover:text-accent-default">
+            Opportunities (white-spaces) →
+          </Link>
+          <Link href="/gap-analysis/risks" className="underline hover:text-accent-default">
+            Risks (oversupply forecast) →
+          </Link>
+        </p>
+      </Card>
     </div>
   );
 }
 
-function Selector({
+// ─── Building blocks ─────────────────────────────────────────────────────────
+
+function HeroStat({
+  tone,
+  icon,
   label,
   value,
-  options,
-  onChange,
+  sub,
 }: {
+  tone: 'default' | 'positive' | 'warning' | 'danger';
+  icon: React.ReactNode;
   label: string;
   value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (v: string) => void;
+  sub: string;
 }) {
+  const valueClass = {
+    default: 'text-text-primary',
+    positive: 'text-positive',
+    warning: 'text-warning',
+    danger: 'text-danger',
+  }[tone];
   return (
-    <label className="flex items-center gap-2 text-xs text-text-secondary">
-      <span className="uppercase tracking-wide">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-default bg-surface-1 px-2 py-1.5 text-sm text-text-primary"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function SkillsPanel({ data }: { data: SkillGapResponse | null }) {
-  if (!data) return <EmptyState title="Skills gap unavailable" />;
-  if (data.rows.length === 0) return <EmptyState title="No skill gap rows" hint={data.lowConfidenceReason ?? undefined} />;
-  const gapBarRows: GapBarRow[] = data.rows.map((r) => ({
-    id: r.skillId,
-    label: r.nameEn,
-    sublabel: r.nameTh,
-    demand: r.demand,
-    supply: r.supply,
-  }));
-  return (
-    <Card padding="md">
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="text-sm font-semibold text-text-primary">Skill gap — top {data.rows.length}</h3>
-        <span className="text-xs text-text-tertiary">by |gap| · {data.totalSkillsConsidered} skills considered</span>
+    <div className="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-1 p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+        <span className="text-text-tertiary">{icon}</span>
       </div>
-      {data.lowConfidenceReason && (
-        <div className="mb-3 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-text-secondary">
-          {data.lowConfidenceReason}
-        </div>
-      )}
-      <GapBars rows={gapBarRows} width={800} />
-    </Card>
-  );
-}
-
-function OccupationsPanel({ data }: { data: OccupationGapResponse | null }) {
-  if (!data) return <EmptyState title="Occupations gap unavailable" />;
-  if (data.rows.length === 0)
-    return <EmptyState title="No occupation rows" hint={data.lowConfidenceReason ?? undefined} />;
-
-  return (
-    <Card padding="md">
-      <h3 className="mb-3 text-sm font-semibold text-text-primary">Occupation gap — top {data.rows.length}</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-subtle text-left text-xs uppercase tracking-wide text-text-tertiary">
-              <th className="py-2 pr-3">Code</th>
-              <th className="py-2 pr-3">Region</th>
-              <th className="py-2 pr-3 text-right">Demand now</th>
-              <th className="py-2 pr-3 text-right">Supply now</th>
-              <th className="py-2 pr-3 text-right">Gap</th>
-              <th className="py-2 pr-3 text-right">TH share</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.rows.map((r) => (
-              <tr key={`${r.occupationCode}-${r.region}`} className="border-b border-subtle last:border-0">
-                <td className="py-2 pr-3 font-mono text-xs">{r.occupationCode}</td>
-                <td className="py-2 pr-3">{r.region}</td>
-                <td className="py-2 pr-3 text-right">{r.demandCurrent.toFixed(0)}</td>
-                <td className="py-2 pr-3 text-right">{r.supplyCurrent.toFixed(0)}</td>
-                <td className="py-2 pr-3 text-right">
-                  <span className={r.gap > 0 ? 'text-danger' : r.gap < 0 ? 'text-success' : 'text-text-secondary'}>
-                    {r.gap.toFixed(0)}
-                  </span>
-                </td>
-                <td className="py-2 pr-3 text-right">{(r.thailandAverageShare * 100).toFixed(1)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-function SectorsPanel({ data }: { data: SectorGapResponse | null }) {
-  if (!data) return <EmptyState title="Sectors gap unavailable" />;
-  if (data.rows.length === 0) return <EmptyState title="No sector data" />;
-
-  const gapBarRows: GapBarRow[] = data.rows.map((r) => ({
-    id: r.sectorId,
-    label: `${r.nameEn}`,
-    sublabel: `${r.family} · ${r.nameTh}`,
-    demand: r.demandIndex,
-    supply: r.supplyIndex,
-  }));
-
-  return (
-    <div className="flex flex-col gap-4">
-      <Card padding="md">
-        <h3 className="mb-3 text-sm font-semibold text-text-primary">Sector gap — BCG + S-curve</h3>
-        <GapBars rows={gapBarRows} width={800} />
-      </Card>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {data.rows.slice(0, 6).map((r) => (
-          <Card key={r.sectorId} padding="md">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Badge tone="outline">{r.family}</Badge>
-                  <span className="text-xs font-mono text-text-tertiary">{r.sectorCode}</span>
-                </div>
-                <h4 className="mt-2 text-sm font-semibold text-text-primary">{r.nameEn}</h4>
-                <p className="text-xs text-text-tertiary">{r.nameTh}</p>
-              </div>
-              <TrendBadge trend={r.trend} />
-            </div>
-            <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
-              <Stat label="Demand" value={r.demandIndex.toFixed(0)} />
-              <Stat label="Supply" value={r.supplyIndex.toFixed(0)} />
-              <Stat
-                label="Gap"
-                value={r.gap.toFixed(0)}
-                valueClass={r.gap > 0 ? 'text-danger' : r.gap < 0 ? 'text-success' : ''}
-              />
-            </dl>
-            {r.contributingProgramIds.length > 0 && (
-              <p className="mt-2 text-[11px] text-text-tertiary">
-                {r.contributingProgramIds.length} KKU program{r.contributingProgramIds.length > 1 ? 's' : ''} contributing
-              </p>
-            )}
-          </Card>
-        ))}
-      </div>
+      <p className={`font-tabular text-2xl font-semibold ${valueClass}`}>{value}</p>
+      <p className="line-clamp-2 text-[11px] text-text-tertiary">{sub}</p>
     </div>
   );
 }
 
-function RegionalMap({
-  data,
-  highlight,
-  onRegionClick,
+function Panel({
+  title,
+  subtitle,
+  icon,
+  tone,
+  children,
 }: {
-  data: RegionalGapResponse | null;
-  highlight: string;
-  onRegionClick: (region: string) => void;
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  tone?: 'warning' | 'positive';
+  children: React.ReactNode;
 }) {
-  // Collapse province-level cells into 6 regions for the schematic map.
-  const ISAAN = new Set([
-    'Khon Kaen', 'Udon Thani', 'Nakhon Ratchasima', 'Ubon Ratchathani', 'Buriram',
-    'Sisaket', 'Surin', 'Roi Et', 'Chaiyaphum', 'Sakon Nakhon', 'Kalasin',
-    'Maha Sarakham', 'Loei', 'Nong Khai', 'Nong Bua Lamphu', 'Yasothon',
-    'Mukdahan', 'Nakhon Phanom', 'Amnat Charoen', 'Bueng Kan',
-  ]);
-  const NORTH = new Set(['Chiang Mai', 'Chiang Rai', 'Lampang', 'Phayao', 'Nan', 'Mae Hong Son', 'Phrae', 'Lamphun']);
-  const CENTRAL = new Set(['Bangkok', 'Nonthaburi', 'Pathum Thani', 'Samut Prakan', 'Ayutthaya', 'Nakhon Pathom', 'Saraburi']);
-  const EAST = new Set(['Chonburi', 'Rayong', 'Chanthaburi', 'Trat', 'Sa Kaeo', 'Chachoengsao', 'Prachinburi']);
-  const WEST = new Set(['Kanchanaburi', 'Ratchaburi', 'Suphanburi', 'Phetchaburi', 'Prachuap Khiri Khan']);
-  const SOUTH = new Set(['Phuket', 'Krabi', 'Songkhla', 'Trang', 'Surat Thani', 'Pattani', 'Yala', 'Narathiwat', 'Nakhon Si Thammarat']);
-
-  const regions: Record<string, { demand: number; supply: number; intensity: ThailandRegion['intensity'] }> = {
-    N: { demand: 0, supply: 0, intensity: 'no-data' },
-    NE: { demand: 0, supply: 0, intensity: 'no-data' },
-    C: { demand: 0, supply: 0, intensity: 'no-data' },
-    E: { demand: 0, supply: 0, intensity: 'no-data' },
-    W: { demand: 0, supply: 0, intensity: 'no-data' },
-    S: { demand: 0, supply: 0, intensity: 'no-data' },
-  };
-
-  for (const cell of data?.cells ?? []) {
-    let key: keyof typeof regions | null = null;
-    if (ISAAN.has(cell.province)) key = 'NE';
-    else if (NORTH.has(cell.province)) key = 'N';
-    else if (CENTRAL.has(cell.province)) key = 'C';
-    else if (EAST.has(cell.province)) key = 'E';
-    else if (WEST.has(cell.province)) key = 'W';
-    else if (SOUTH.has(cell.province)) key = 'S';
-    if (!key) continue;
-    regions[key]!.demand += cell.demandTotal;
-    regions[key]!.supply += cell.supplyTotal;
-  }
-  // Assign intensity based on demand/supply deltas.
-  for (const key of Object.keys(regions)) {
-    const r = regions[key]!;
-    if (r.demand === 0 && r.supply === 0) r.intensity = 'no-data';
-    else if (Math.abs(r.demand - r.supply) / Math.max(r.demand + r.supply, 1) < 0.1) r.intensity = 'balanced';
-    else r.intensity = r.demand > r.supply ? 'demand-heavy' : 'supply-heavy';
-  }
-
-  const regionNames: Record<string, { en: string; th: string }> = {
-    N: { en: 'North', th: 'ภาคเหนือ' },
-    NE: { en: 'Northeast', th: 'ภาคอีสาน' },
-    C: { en: 'Central', th: 'ภาคกลาง' },
-    E: { en: 'East', th: 'ภาคตะวันออก' },
-    W: { en: 'West', th: 'ภาคตะวันตก' },
-    S: { en: 'South', th: 'ภาคใต้' },
-  };
-
-  const rows: ThailandRegion[] = Object.entries(regions).map(([code, r]) => ({
-    code,
-    nameEn: regionNames[code]!.en,
-    nameTh: regionNames[code]!.th,
-    demand: r.demand,
-    supply: r.supply,
-    intensity: r.intensity,
-  }));
-
-  const highlightCode = highlight === 'Northeast' ? 'NE' : highlight === 'TH' ? 'NE' : undefined;
-
+  const stripe =
+    tone === 'warning' ? 'border-l-warning/60' : tone === 'positive' ? 'border-l-positive/60' : 'border-l-border-default';
   return (
-    <ThailandMap
-      regions={rows}
-      highlightRegionCode={highlightCode}
-      onRegionClick={(r) => {
-        const regionMap: Record<string, string> = {
-          N: 'Chiang Mai',
-          NE: 'Northeast',
-          C: 'Bangkok',
-          E: 'Chonburi',
-          W: 'Kanchanaburi',
-          S: 'Phuket',
-        };
-        onRegionClick(regionMap[r.code] ?? 'TH');
-      }}
-    />
+    <Card padding="md" className={`border-l-4 ${stripe}`}>
+      <header className="mb-3 flex items-start gap-2">
+        {icon && <span className="mt-0.5 h-4 w-4 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+          {subtitle && <p className="mt-0.5 text-xs text-text-tertiary">{subtitle}</p>}
+        </div>
+      </header>
+      {children}
+    </Card>
   );
 }
 
-function TrendBadge({ trend }: { trend: 'growing' | 'shrinking' | 'flat' }) {
-  const colour = trend === 'growing' ? 'text-success' : trend === 'shrinking' ? 'text-danger' : 'text-text-tertiary';
-  const label = trend === 'growing' ? '▲ Growing' : trend === 'shrinking' ? '▼ Shrinking' : '— Flat';
-  return <span className={`text-xs font-medium ${colour}`}>{label}</span>;
+function SkillGapList({
+  rows,
+  variant,
+}: {
+  rows: SkillGapResponse['rows'];
+  variant: 'shortage' | 'oversupply';
+}) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-text-tertiary">No skills in this bucket.</p>;
+  }
+  // Find the bar baseline: largest abs(gap) in this list.
+  const maxAbsGap = Math.max(...rows.map((r) => Math.abs(r.gap)), 1);
+  return (
+    <ul className="flex flex-col gap-2.5">
+      {rows.map((r) => {
+        const widthPct = Math.max(4, (Math.abs(r.gap) / maxAbsGap) * 100);
+        const sign = variant === 'shortage' ? '+' : '−';
+        const toneClass = variant === 'shortage' ? 'bg-warning/70' : 'bg-positive/70';
+        const labelTone = variant === 'shortage' ? 'text-warning' : 'text-positive';
+        return (
+          <li key={r.skillId} className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="truncate text-sm font-medium text-text-primary" title={r.nameTh}>
+                {r.nameEn}
+              </span>
+              <span className={`shrink-0 font-tabular text-xs font-semibold ${labelTone}`}>
+                {sign}
+                {Math.abs(r.gap).toFixed(0)}
+              </span>
+            </div>
+            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+              <div className={`h-full ${toneClass}`} style={{ width: `${widthPct}%` }} />
+            </div>
+            <div className="flex justify-between text-[10px] text-text-tertiary">
+              <span>demand {r.demand.toFixed(0)} · supply {r.supply.toFixed(0)}</span>
+              {r.topDemandingEmployers.length > 0 && (
+                <span className="truncate" title={r.topDemandingEmployers.join(' · ')}>
+                  top: {r.topDemandingEmployers.slice(0, 2).join(' · ')}
+                </span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
-function Stat({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+function GrowthList({ rows }: { rows: OpportunityResponse['rows'] }) {
+  const palette = useChartPalette();
+  if (rows.length === 0) {
+    return <p className="text-sm text-text-tertiary">No skills with positive growth in the current window.</p>;
+  }
+  const maxGrowth = Math.max(...rows.map((r) => r.demandGrowthPct), 1);
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</div>
-      <div className={`font-mono text-sm ${valueClass ?? 'text-text-primary'}`}>{value}</div>
+    <ul className="flex flex-col gap-2">
+      {rows.map((r) => {
+        const widthPct = Math.max(4, (r.demandGrowthPct / maxGrowth) * 100);
+        const isCovered = r.existingProgramCount > 0;
+        return (
+          <li key={r.skillId} className="flex items-center gap-3">
+            <span
+              title={isCovered ? `${r.existingProgramCount} KKU programs teach this` : 'No KKU coverage'}
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: isCovered ? palette.positive : palette.negative, opacity: 0.85 }}
+            />
+            <div className="flex flex-1 flex-col gap-0.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="truncate text-sm font-medium text-text-primary">{r.nameEn}</span>
+                <span className="font-tabular text-xs font-semibold text-accent">
+                  +{r.demandGrowthPct.toFixed(0)}%
+                </span>
+              </div>
+              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                <div className="h-full bg-accent-default/70" style={{ width: `${widthPct}%` }} />
+              </div>
+              <div className="text-[10px] text-text-tertiary">
+                demand {r.recentDemand.toFixed(0)} · {isCovered
+                  ? `${r.existingProgramCount} KKU program${r.existingProgramCount === 1 ? '' : 's'}`
+                  : 'no KKU coverage'}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ProgramGapTable({ rows }: { rows: ProgramDemandGapResponse['rows'] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-text-tertiary">No per-program gap data yet.</p>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-border-subtle text-left text-text-tertiary">
+            <th className="py-2 pr-3 font-normal">Program</th>
+            <th className="py-2 pr-3 font-normal">Faculty</th>
+            <th className="py-2 pr-3 text-right font-normal">Demand-relevant skills</th>
+            <th className="py-2 pr-3 text-right font-normal">Covered</th>
+            <th className="py-2 pr-3 text-right font-normal">Gaps</th>
+            <th className="py-2 pr-3 text-right font-normal">Coverage</th>
+            <th className="py-2 pr-3 font-normal">Top gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.programId} className="border-b border-border-subtle last:border-0 hover:bg-surface-2/40">
+              <td className="py-2 pr-3">
+                <Link
+                  href={`/programs/${r.programId}`}
+                  className="font-medium text-text-primary hover:text-accent-default"
+                >
+                  {(r.programNameEn || r.programNameTh).slice(0, 50)}
+                </Link>
+                <div className="text-[10px] text-text-tertiary font-tabular">{r.programCode}</div>
+              </td>
+              <td className="py-2 pr-3 text-text-secondary">{r.facultyCode}</td>
+              <td className="py-2 pr-3 text-right font-tabular">{r.relevantSkillCount}</td>
+              <td className="py-2 pr-3 text-right font-tabular text-positive">{r.coveredCount}</td>
+              <td className="py-2 pr-3 text-right font-tabular text-warning">{r.gapCount}</td>
+              <td className="py-2 pr-3 text-right">
+                <CoverageBar pct={r.coverageRatio * 100} />
+              </td>
+              <td className="py-2 pr-3 text-text-secondary">
+                {r.topGaps[0] ? r.topGaps[0].skillNameEn : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function EmptyState({ title, hint }: { title: string; hint?: string }) {
+function CoverageBar({ pct }: { pct: number }) {
+  const tone = pct >= 70 ? 'bg-positive/70' : pct >= 40 ? 'bg-warning/70' : 'bg-danger/70';
   return (
-    <Card padding="lg">
-      <div className="flex flex-col items-center py-8 text-center">
-        <div className="mb-2 text-sm font-semibold text-text-primary">{title}</div>
-        {hint ? <p className="max-w-md text-xs leading-relaxed text-text-tertiary">{hint}</p> : null}
+    <div className="inline-flex items-center gap-1.5 align-middle">
+      <span className="font-tabular text-[11px] text-text-secondary">{pct.toFixed(0)}%</span>
+      <div className="relative h-1.5 w-16 overflow-hidden rounded-full bg-surface-2">
+        <div className={`h-full ${tone}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
       </div>
-    </Card>
+    </div>
   );
 }

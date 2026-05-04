@@ -2,6 +2,7 @@ import type { TemplateDefinition, TemplateRegistry } from '@kku/shared';
 
 import { councilPackTemplate } from './templates/council-pack/template';
 import { programBriefTemplate } from './templates/program-brief/template';
+import { programDetailTemplate } from './templates/program-detail/template';
 import { scenarioPackTemplate } from './templates/scenario-pack/template';
 import { weeklyTrendDigestTemplate } from './templates/weekly-trend-digest/template';
 import { decisionRecordTemplate } from './templates/decision-record/template';
@@ -28,6 +29,7 @@ export { renderTemplateToHtml } from './render';
 // surface at the module boundary instead of inside Gotenberg.
 export * from './templates/council-pack/schema';
 export * from './templates/program-brief/schema';
+export * from './templates/program-detail/schema';
 export * from './templates/scenario-pack/schema';
 export * from './templates/weekly-trend-digest/schema';
 export * from './templates/decision-record/schema';
@@ -41,6 +43,7 @@ export * from './templates/faculty-level-review/schema';
 export const allTemplates = [
   councilPackTemplate,
   programBriefTemplate,
+  programDetailTemplate,
   scenarioPackTemplate,
   weeklyTrendDigestTemplate,
   decisionRecordTemplate,

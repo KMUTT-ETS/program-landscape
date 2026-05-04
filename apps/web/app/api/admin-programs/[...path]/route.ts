@@ -36,6 +36,13 @@ async function forward(
   if (token) headers.set('authorization', `Bearer ${token}`);
   const ct = req.headers.get('content-type');
   if (ct) headers.set('content-type', ct);
+  // Propagate the caller's IP so NestJS's throttler can key per-user/IP
+  // rather than collapsing every proxied request onto the Next.js host.
+  const xff =
+    req.headers.get('x-forwarded-for') ??
+    req.headers.get('x-real-ip') ??
+    null;
+  if (xff) headers.set('x-forwarded-for', xff);
 
   const incoming = new URL(req.url);
   const subPath = pathSegments.map(encodeURIComponent).join('/');

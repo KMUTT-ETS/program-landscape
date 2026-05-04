@@ -1,0 +1,40 @@
+{
+  "sourceOrgName": "Office of the National Economic and Social Development Council (NESDC)",
+  "pdfCategory": "POLICY",
+  "defaultLanguage": "TH",
+  "entries": [
+    {
+      "externalId": "nesdc-13th-nesdp",
+      "title": "13th National Economic and Social Development Plan (BE 2566–2570 / 2023–2027)",
+      "summaryTh": "แผนพัฒนาเศรษฐกิจและสังคมแห่งชาติ ฉบับที่ 13 ระยะเวลา 5 ปี (พ.ศ. 2566-2570) มี 13 หมุดหมาย เน้นเศรษฐกิจมูลค่าสูงเป็นมิตรต่อสิ่งแวดล้อม การพัฒนาทรัพยากรมนุษย์ที่มีคุณภาพ ลดความเหลื่อมล้ำ และพลังจากภาคีพัฒนา",
+      "summaryEn": "The 13th NESDP guides Thailand's development for 2023–2027 across 13 milestones, prioritising high-value-added green economy, quality human capital, equity reduction, and partnership-driven development. Foundational policy framework for higher-ed alignment.",
+      "sourceUrl": "https://www.nesdc.go.th/main.php?filename=plan13",
+      "publishedDate": "2023-01-01",
+      "signalType": "POLICY",
+      "impactScore": 0.95,
+      "tags": ["nesdp-13", "5-year-plan", "human-capital", "thailand"]
+    },
+    {
+      "externalId": "nesdc-thailand-future-skills-2030",
+      "title": "Thailand Future Skills Outlook 2030",
+      "summaryTh": "รายงานคาดการณ์ทักษะที่ตลาดแรงงานต้องการในปี 2030 จัดทำโดย NESDC ร่วมกับสถาบันวิจัยทักษะ ระบุ 10 ทักษะสำคัญ รวมถึงทักษะดิจิทัล การคิดเชิงวิเคราะห์ และทักษะการบริหารจัดการ",
+      "summaryEn": "NESDC outlook on Thai labour-market skill demand to 2030 — identifies the 10 highest-priority skills including digital, analytical, and management capabilities.",
+      "sourceUrl": "https://www.nesdc.go.th/",
+      "publishedDate": "2024-03-15",
+      "signalType": "RESEARCH",
+      "impactScore": 0.82,
+      "tags": ["future-skills", "thailand", "labour-market"]
+    },
+    {
+      "externalId": "nesdc-economic-outlook-quarterly",
+      "title": "Thai Economy: Quarterly Economic Outlook",
+      "summaryTh": "รายงานภาวะเศรษฐกิจไทยรายไตรมาส โดย NESDC ครอบคลุม GDP การจ้างงาน เงินเฟ้อ การลงทุน และคาดการณ์เศรษฐกิจ มีการอัปเดตทุกไตรมาสและเป็นแหล่งข้อมูลสำคัญสำหรับการวางแผนหลักสูตรเชิงเศรษฐกิจ",
+      "summaryEn": "NESDC quarterly Thai economy outlook — GDP, employment, inflation, investment, growth forecasts. Updated each quarter; key macro signal for curriculum planning.",
+      "sourceUrl": "https://www.nesdc.go.th/main.php?filename=QGDP_report",
+      "publishedDate": "2026-02-19",
+      "signalType": "MARKET",
+      "impactScore": 0.65,
+      "tags": ["macroeconomic", "quarterly", "thailand"]
+    }
+  ]
+}

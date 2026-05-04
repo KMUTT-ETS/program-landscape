@@ -207,7 +207,10 @@ export const ANALYST_TOOL_DEFINITIONS: ToolDefinition[] = [
         scope: { type: 'string', enum: ['university', 'faculty', 'department', 'program'], default: 'university' },
         scopeId: { type: 'string' },
         region: { type: 'string', default: 'TH' },
-        horizon: { type: 'number', enum: [0, 3, 5, 10], default: 0 },
+        // Gemini function-calling rejects number-typed enums (only string
+        // enums are accepted), so use min/max + a description hint
+        // instead. Downstream Zod still constrains to {0,3,5,10}.
+        horizon: { type: 'number', minimum: 0, maximum: 10, description: 'Years forward (canonical: 0, 3, 5, or 10).', default: 0 },
         limit: { type: 'number', minimum: 1, maximum: 50, default: 20 },
       },
       required: ['dimension'],

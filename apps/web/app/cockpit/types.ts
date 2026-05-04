@@ -8,6 +8,14 @@ export interface CockpitKpis {
   netContributionTotal: number | null;
   dangerZoneCount: number;
   qualityConcernCount: number;
+  /** Zero-enrolment + crashing (3-yr delta ≤-50%) at this scope. */
+  atRiskCount: number;
+  /** 3-yr delta ≥+50% at this scope. */
+  surgingCount: number;
+  /** Programs at this scope that have a 3-yr enrolment trend (denominator). */
+  programsWithTrend: number;
+  /** Average data-completeness across the heatmap rows at this scope, 0-100. */
+  dataCompletenessPct: number | null;
   averageCurriculumAgeYears: number | null;
   methodologyVersion: string;
   latestFreshness: string | null;
@@ -26,11 +34,11 @@ export interface HealthScoreRow {
   parentScopeId: string | null;
   methodologyVersion: string;
   dimensions: {
-    demand: HealthScoreCell;
+    attractiveness: HealthScoreCell;
     financial: HealthScoreCell;
-    quality: HealthScoreCell;
-    relevance: HealthScoreCell;
     capability: HealthScoreCell;
+    outcomes: HealthScoreCell;
+    relevance: HealthScoreCell;
   };
   overall: HealthScoreCell;
   latestFreshness: string | null;

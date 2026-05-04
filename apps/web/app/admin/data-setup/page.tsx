@@ -14,6 +14,7 @@ import {
 } from '@kku/ui';
 import {
   Banknote,
+  BookText,
   Building2,
   Database,
   ExternalLink,
@@ -23,6 +24,7 @@ import {
   Globe,
   GraduationCap,
   HelpCircle,
+  TrendingUp,
   Upload,
   UserSquare2,
 } from 'lucide-react';
@@ -61,6 +63,17 @@ interface DataSetupStats {
     facultyBudgetRows: number;
   };
   dataFeeds: { total: number; live: number; mocked: number };
+  laborMarketSkills: {
+    kmitlCareers: number;
+    kmitlSkillDemandRows: number;
+    kmitlSkillGrowthRows: number;
+  };
+  researchOutputs: {
+    total: number;
+    matchedToFaculty: number;
+    unmatched: number;
+    facultyMembersWithExternalIds: number;
+  };
 }
 
 const EMPTY_STATS: DataSetupStats = {
@@ -71,6 +84,8 @@ const EMPTY_STATS: DataSetupStats = {
   studentInfo: { enrollmentMetricRows: 0, programsWithEnrollment: 0, programsWithoutEnrollment: 0 },
   financial: { programMetrics: 0, programsWithFinancial: 0, programsWithoutFinancial: 0, facultyBudgetRows: 0 },
   dataFeeds: { total: 0, live: 0, mocked: 0 },
+  laborMarketSkills: { kmitlCareers: 0, kmitlSkillDemandRows: 0, kmitlSkillGrowthRows: 0 },
+  researchOutputs: { total: 0, matchedToFaculty: 0, unmatched: 0, facultyMembersWithExternalIds: 0 },
 };
 
 export default async function AdminDataSetupPage() {
@@ -127,6 +142,8 @@ export default async function AdminDataSetupPage() {
             ]}
             href="/admin/programs?view=pipeline"
             cta="Open curriculum pipeline"
+            rawHref="/admin/data-setup/raw/curriculum-pdfs"
+            rawCta="View raw data"
           />
 
           <CategoryCard
@@ -143,6 +160,8 @@ export default async function AdminDataSetupPage() {
             ]}
             href="/admin/data-sources/kku-hr"
             cta="View kku-hr data source"
+            rawHref="/admin/data-setup/raw/faculty-members"
+            rawCta="View raw data"
           />
         </div>
       </Section>
@@ -229,6 +248,8 @@ export default async function AdminDataSetupPage() {
             ]}
             href="/admin/data-sources/kku-registry"
             cta="View kku-registry data source"
+            rawHref="/admin/data-setup/raw/enrollment-metrics"
+            rawCta="View raw data"
           />
 
           <CategoryCard
@@ -251,6 +272,56 @@ export default async function AdminDataSetupPage() {
             ]}
             href="/admin/data-sources/kku-finance"
             cta="View kku-finance data source"
+            rawHref="/admin/data-setup/raw/financial-metrics"
+            rawCta="View raw data"
+          />
+        </div>
+      </Section>
+
+      {/* ── Labour-market & research — auto-fed via connectors ──── */}
+      <Section
+        title="Labour-market & research signal"
+        description="Demand-side and discovery-side inputs that the AI compares the curriculum against — what employers want now vs what KKU researchers are publishing."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <CategoryCard
+            tone="glossy"
+            icon={<TrendingUp />}
+            title="Labour-market skills demand (LinkedIn via MHESI)"
+            description="Aggregated skill demand from LinkedIn — profiles, Thai job postings, and university grad data. Subscribed by MHESI under a national agreement; KMITL operates the API endpoint that aggregates and serves the data. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
+            primary={{
+              label: `${stats.laborMarketSkills.kmitlSkillDemandRows.toLocaleString()} demand rows`,
+              tone: stats.laborMarketSkills.kmitlSkillDemandRows > 0 ? 'success' : 'neutral',
+            }}
+            secondary={[
+              `${stats.laborMarketSkills.kmitlCareers.toLocaleString()} career taxonomy entries`,
+              `${stats.laborMarketSkills.kmitlSkillGrowthRows.toLocaleString()} skill-growth rows (trend signal)`,
+              `Data: LinkedIn · Subscriber: MHESI · API host: KMITL · Live since 2026-05-01`,
+            ]}
+            href="/admin/data-sources/kmitl-skill-mapping"
+            cta="View labour-market data source"
+            rawHref="/admin/data-setup/raw/kmitl-skill-demands"
+            rawCta="View raw data"
+          />
+
+          <CategoryCard
+            icon={<BookText />}
+            title="Research outputs"
+            description="Publications via OpenAlex (free institutional API). Drives the deep-dive research section, benchmarking subject leadership, and faculty-member impact views. Scopus enrichment deferred until KKU Library provides an API key."
+            primary={{
+              label: `${stats.researchOutputs.total.toLocaleString()} papers`,
+              tone: stats.researchOutputs.total > 0 ? 'success' : 'neutral',
+            }}
+            secondary={[
+              `${stats.researchOutputs.matchedToFaculty.toLocaleString()} matched to a faculty member`,
+              `${stats.researchOutputs.unmatched.toLocaleString()} unmatched (display-name only)`,
+              `${stats.researchOutputs.facultyMembersWithExternalIds.toLocaleString()} faculty members with ORCID / OpenAlex ID`,
+              `Source: kku-research connector (live since 2026-04-28)`,
+            ]}
+            href="/admin/data-sources/kku-research"
+            cta="View kku-research data source"
+            rawHref="/admin/data-setup/raw/research-outputs"
+            rawCta="View raw data"
           />
         </div>
       </Section>
@@ -275,6 +346,30 @@ export default async function AdminDataSetupPage() {
           href="/admin/data-sources"
           cta="Manage connectors"
         />
+      </Section>
+
+      {/* ── Browse all raw datasets (full index) ─────────────────── */}
+      <Section
+        title="Browse all raw datasets"
+        description="Direct access to every data set in tabular form. Useful for verifying real-data flow + spot-checking specific records."
+      >
+        <Card padding="md" tone="quiet">
+          <ul className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2 lg:grid-cols-3">
+            <RawDatasetLink slug="enrollment-metrics" label="Enrollment metrics" />
+            <RawDatasetLink slug="student-demographics" label="Student demographics" />
+            <RawDatasetLink slug="financial-metrics" label="Financial — per program" />
+            <RawDatasetLink slug="faculty-budgets" label="Faculty budgets" />
+            <RawDatasetLink slug="faculty-members" label="Academic staff" />
+            <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
+            <RawDatasetLink slug="kmitl-careers" label="KMITL career taxonomy" />
+            <RawDatasetLink slug="kmitl-skill-demands" label="LinkedIn skill demand (15.8k)" />
+            <RawDatasetLink slug="kmitl-skill-growths" label="LinkedIn skill growth (7.4k)" />
+            <RawDatasetLink slug="research-outputs" label="Research outputs" />
+            <RawDatasetLink slug="skill-aliases" label="Skill alias cache" />
+            <RawDatasetLink slug="proposed-skills" label="Proposed skills (review queue)" />
+            <RawDatasetLink slug="curriculum-pdfs" label="Curriculum PDFs" />
+          </ul>
+        </Card>
       </Section>
 
       {/* ── Other useful inputs (suggestions) ─────────────────────── */}
@@ -333,6 +428,9 @@ interface CategoryCardProps {
   secondary: string[];
   href: string;
   cta: string;
+  /** Optional second CTA — typically the raw-data viewer link. */
+  rawHref?: string;
+  rawCta?: string;
   tone?: 'default' | 'glossy';
 }
 
@@ -344,6 +442,8 @@ function CategoryCard({
   secondary,
   href,
   cta,
+  rawHref,
+  rawCta,
   tone = 'default',
 }: CategoryCardProps) {
   return (
@@ -365,15 +465,36 @@ function CategoryCard({
           <li key={i}>• {s}</li>
         ))}
       </ul>
-      <div className="mt-auto pt-2">
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
         <Button variant="outline" asChild>
           <Link href={href}>
             {cta}
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </Button>
+        {rawHref && rawCta && (
+          <Button variant="ghost" asChild>
+            <Link href={rawHref}>
+              {rawCta}
+            </Link>
+          </Button>
+        )}
       </div>
     </Card>
+  );
+}
+
+function RawDatasetLink({ slug, label }: { slug: string; label: string }) {
+  return (
+    <li>
+      <Link
+        href={`/admin/data-setup/raw/${slug}`}
+        className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-surface-1 px-3 py-2 text-sm hover:border-accent/40 hover:bg-accent-subtle/40"
+      >
+        <span className="text-text-primary">{label}</span>
+        <ExternalLink className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />
+      </Link>
+    </li>
   );
 }
 

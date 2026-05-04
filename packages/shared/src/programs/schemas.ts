@@ -167,7 +167,7 @@ export const AdminProgramListQuerySchema = z.object({
   hasPendingExtraction: z.coerce.boolean().optional(),
   q: z.string().max(200).optional(), // search nameTh/nameEn/code
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(50),
+  pageSize: z.coerce.number().int().min(1).max(1000).default(50),
 });
 export type AdminProgramListQuery = z.infer<typeof AdminProgramListQuerySchema>;
 

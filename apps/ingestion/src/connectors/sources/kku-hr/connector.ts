@@ -72,6 +72,9 @@ import {
 const Q1_FACULTY_MEMBERS = `
 SELECT
   CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(e.EMPLOYEEID AS varbinary(500))), 2) AS EMPLOYEE_HASH,
+  -- EMPLOYEEID raw — HR-internal employment number, NOT citizen ID.
+  -- Confirmed not PII per KKU 2026-05-02. Surfaced for analyst lookup.
+  CAST(e.EMPLOYEEID AS varchar(50)) AS EMPLOYEE_ID,
   CASE WHEN e.ID_PEOPLE IS NULL OR e.ID_PEOPLE = ''
        THEN NULL
        ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(e.ID_PEOPLE AS varbinary(500))), 2)
@@ -398,6 +401,7 @@ export class KkuHrRealConnector extends ApiConnector {
           facultyId,
           departmentId,
           employeeCode: buildEmployeeCode(q1.EMPLOYEE_HASH),
+          employeeId: q1.EMPLOYEE_ID,
           nameTh,
           nameEn,
           rank,
@@ -471,6 +475,7 @@ export class KkuHrRealConnector extends ApiConnector {
             facultyId: string;
             departmentId: string | null;
             employeeCode: string;
+            employeeId: string | null;
             nameTh: string;
             nameEn: string;
             rank: FacultyRank;
@@ -485,6 +490,7 @@ export class KkuHrRealConnector extends ApiConnector {
               facultyId: p.facultyId,
               departmentId: p.departmentId ?? undefined,
               employeeCode: p.employeeCode,
+              employeeId: p.employeeId,
               nameTh: p.nameTh,
               nameEn: p.nameEn,
               rank: p.rank,
@@ -496,6 +502,7 @@ export class KkuHrRealConnector extends ApiConnector {
             update: {
               facultyId: p.facultyId,
               departmentId: p.departmentId,
+              employeeId: p.employeeId,
               nameTh: p.nameTh,
               nameEn: p.nameEn,
               rank: p.rank,

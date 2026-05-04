@@ -202,6 +202,25 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
     void load();
   }, [load]);
 
+  // Auto-refresh the bucket while a bulk-digest run is in progress.
+  // Lives in a useEffect (not inside the click handler) so its cleanup
+  // runs on unmount or when bulkRunning flips back to false — preventing
+  // the runaway-interval class of bug that previously kept hammering the
+  // API after the user navigated away or re-triggered bulk.
+  React.useEffect(() => {
+    if (!bulkRunning) return;
+    const start = Date.now();
+    const intervalId = setInterval(() => {
+      if (Date.now() - start > 5 * 60 * 1000) {
+        setBulkRunning(false);
+        return;
+      }
+      void load();
+      onChange();
+    }, 10_000);
+    return () => clearInterval(intervalId);
+  }, [bulkRunning, load, onChange]);
+
   const toggleAll = (checked: boolean) => {
     if (checked) setSelected(new Set(items.map((i) => (i.extraction ? i.extraction.id : i.id))));
     else setSelected(new Set());
@@ -236,7 +255,6 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
 
   const runBulkDigest = async () => {
     if (!confirm(`Enqueue digest for ${total} eligible programs? Each takes ~30-60s and ~$0.04 in LLM cost.`)) return;
-    setBulkRunning(true);
     try {
       const res = await fetch('/api/admin-programs/pipeline/run-digest-bulk', {
         method: 'POST',
@@ -251,17 +269,10 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
       const enqueued = (j.data as { enqueued: number }).enqueued;
       toast.success(`Enqueued ${enqueued} digest jobs. Watch the pending-review bucket — programs land there as workers complete.`);
       onChange();
-      // Auto-refresh the bucket list every 10s for the next 5 minutes (~30 jobs).
-      const start = Date.now();
-      const refreshInterval = setInterval(() => {
-        if (Date.now() - start > 5 * 60 * 1000) {
-          clearInterval(refreshInterval);
-          setBulkRunning(false);
-          return;
-        }
-        void load();
-        onChange();
-      }, 10000);
+      // Trigger the polling effect below (bulkRunning=true). The interval
+      // lives in a useEffect with a proper cleanup, so navigating away
+      // OR re-triggering bulk doesn't leak parallel intervals.
+      setBulkRunning(true);
     } catch (err) {
       toast.error(`Bulk digest enqueue failed: ${(err as Error).message}`);
       setBulkRunning(false);

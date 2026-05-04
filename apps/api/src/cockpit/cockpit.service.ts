@@ -65,12 +65,29 @@ export class CockpitService implements OnModuleInit {
 
     const programCount = await countProgramsAtScope(scope, scopeId);
 
-    // Health rollup at the child scope — use it to derive danger + quality counts.
+    // Health rollup at the child scope — drives risk count + data confidence.
     const scores = await computeHealthScores(scope, scopeId);
     const dangerZone = scores.filter((s) => (s.overall.score ?? 100) < 40).length;
     const qualityConcern = scores.filter(
-      (s) => (s.dimensions.quality.score ?? 100) < 50,
+      (s) => (s.dimensions.outcomes.score ?? 100) < 50,
     ).length;
+
+    // Average data completeness across the rows visible in the heatmap.
+    // 0-100. Null when no rows. Tells Council how trustworthy the rest
+    // of the dashboard is at this scope.
+    const completenessSamples = scores
+      .map((s) => s.overall.dataCompletenessPct)
+      .filter((v): v is number => v !== null && Number.isFinite(v));
+    const dataCompletenessPct =
+      completenessSamples.length > 0
+        ? completenessSamples.reduce((a, b) => a + b, 0) / completenessSamples.length
+        : null;
+
+    // Enrolment trend — programs at this scope with 3-yr enrolment history.
+    // Used to count "at risk" (zero-enrolment OR crashing ≤-50%) and
+    // "surging" (≥+50%). Replaces the stale "qualityConcern" + "avg
+    // curriculum age" stats.
+    const trend = await enrolmentTrendCountsAtScope(scope, scopeId);
 
     return {
       programCount,
@@ -78,8 +95,13 @@ export class CockpitService implements OnModuleInit {
       netContributionTotal: latestFinancial?.netContributionTotal ?? null,
       dangerZoneCount: dangerZone,
       qualityConcernCount: qualityConcern,
+      atRiskCount: trend.zeroEnrolment + trend.crashing,
+      surgingCount: trend.surging,
+      programsWithTrend: trend.totalWithTrend,
+      dataCompletenessPct,
       // Average curriculum age — derived from Program.yearEstablished
-      // vs current year. Null when scope has no programs.
+      // vs current year. Null when scope has no programs (or, today,
+      // when yearEstablished is unpopulated, which is everywhere).
       averageCurriculumAgeYears: await averageCurriculumAge(scope, scopeId),
       methodologyVersion: HEALTH_SCORE_VERSION,
       latestFreshness:
@@ -272,6 +294,68 @@ export class CockpitService implements OnModuleInit {
 // Helpers — pure functions, no service-level state.
 // ──────────────────────────────────────────────────────────────────────────
 
+interface EnrolmentTrendCounts {
+  zeroEnrolment: number;
+  crashing: number; // 3-yr delta ≤ -50% (excluding zero-enrolment programs)
+  surging: number;  // 3-yr delta ≥ +50%
+  totalWithTrend: number;
+}
+
+async function enrolmentTrendCountsAtScope(
+  scope: ScopeLevel,
+  scopeId: string | null,
+): Promise<EnrolmentTrendCounts> {
+  if (scope === 'program' && scopeId) {
+    // Single-program scope is degenerate — the cockpit redirects to the
+    // deep-dive in this case, so just return zeros.
+    return { zeroEnrolment: 0, crashing: 0, surging: 0, totalWithTrend: 0 };
+  }
+
+  const facultyFilter =
+    scope === 'faculty' && scopeId ? Prisma.sql`AND p.faculty_id = ${scopeId}` : Prisma.empty;
+  const deptFilter =
+    scope === 'department' && scopeId ? Prisma.sql`AND p.department_id = ${scopeId}` : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<
+    Array<{ zero_enrolment: bigint; crashing: bigint; surging: bigint; total_with_trend: bigint }>
+  >`
+    WITH latest AS (
+      SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
+    ),
+    trends AS (
+      SELECT
+        p.id,
+        now_em.enrolled::int as latest,
+        old_em.enrolled::int as old,
+        CASE
+          WHEN old_em.enrolled IS NOT NULL AND old_em.enrolled > 0
+          THEN ((now_em.enrolled::numeric - old_em.enrolled::numeric) / old_em.enrolled::numeric) * 100
+          ELSE NULL
+        END as delta_pct
+      FROM programs p
+      JOIN latest l ON l.program_id = p.id
+      JOIN enrollment_metrics now_em ON now_em.program_id = p.id AND now_em.academic_year = l.max_year
+      LEFT JOIN enrollment_metrics old_em ON old_em.program_id = p.id AND old_em.academic_year = l.max_year - 3
+      WHERE p.status = 'ACTIVE'
+      ${facultyFilter}
+      ${deptFilter}
+    )
+    SELECT
+      COUNT(*) FILTER (WHERE latest = 0)::bigint as zero_enrolment,
+      COUNT(*) FILTER (WHERE latest > 0 AND delta_pct IS NOT NULL AND delta_pct <= -50)::bigint as crashing,
+      COUNT(*) FILTER (WHERE delta_pct IS NOT NULL AND delta_pct >= 50)::bigint as surging,
+      COUNT(*)::bigint as total_with_trend
+    FROM trends;
+  `;
+  const r = rows[0];
+  return {
+    zeroEnrolment: Number(r?.zero_enrolment ?? 0n),
+    crashing: Number(r?.crashing ?? 0n),
+    surging: Number(r?.surging ?? 0n),
+    totalWithTrend: Number(r?.total_with_trend ?? 0n),
+  };
+}
+
 async function countProgramsAtScope(scope: ScopeLevel, scopeId: string | null): Promise<number> {
   if (scope === 'university') {
     return prisma.program.count({ where: { status: 'ACTIVE' } });
@@ -349,13 +433,13 @@ async function bubblesForScope(scope: ScopeLevel, scopeId: string | null): Promi
     const scores = await computeHealthScores('program', p.id);
     const sc = scores[0];
     if (!sc) continue;
-    const competitive = sc.dimensions.quality.score ?? 50;
-    const demandGrowth = sc.dimensions.demand.score ?? 50;
+    const competitive = sc.dimensions.outcomes.score ?? 50;
+    const demandGrowth = sc.dimensions.attractiveness.score ?? 50;
     const revenue = lf?.tuitionRevenueTotal ?? 0;
     const netContrib = lf?.netContributionTotal ?? 0;
     const completeness =
-      ((sc.dimensions.quality.dataCompletenessPct ?? 0) +
-        (sc.dimensions.demand.dataCompletenessPct ?? 0)) /
+      ((sc.dimensions.outcomes.dataCompletenessPct ?? 0) +
+        (sc.dimensions.attractiveness.dataCompletenessPct ?? 0)) /
       2;
 
     bubbles.push({

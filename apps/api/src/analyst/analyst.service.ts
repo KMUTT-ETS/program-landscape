@@ -60,12 +60,13 @@ export class AnalystService implements OnModuleInit {
 
   onModuleInit(): void {
     const recorder = new PrismaAiInferenceRecorder();
-    const providerId = (this.config.get<string>('AI_PROVIDER') ?? 'anthropic') as AiProviderId;
+    // Analyst follows the global AI_PROVIDER setting. Both Anthropic and
+    // Google now support `completeWithTools`: Google via Gemini Flash
+    // function calling (cheap + fast), Anthropic via the native tool_use
+    // protocol. OpenRouter / IntelSphere still throw ToolUseNotSupportedError.
+    const providerId = (this.config.get<string>('AI_PROVIDER') ?? 'google') as AiProviderId;
     const intelSphereUrl = this.config.get<string>('KKU_INTELSPHERE_URL');
     const intelSphereKey = this.config.get<string>('KKU_INTELSPHERE_API_KEY');
-    // Analyst prefers Anthropic (tool-use is v1 Anthropic-only). If the
-    // operator sets AI_PROVIDER=google, the service will still boot —
-    // chat() returns a friendly "tool-use requires Anthropic" error.
     this.ai = createAiService({
       recorder,
       providerId,
@@ -83,6 +84,14 @@ export class AnalystService implements OnModuleInit {
 
   private hasAnthropicKey(): boolean {
     return Boolean(this.config.get<string>('ANTHROPIC_API_KEY'));
+  }
+
+  /** Either provider supports the agent loop now. Google via Gemini Flash
+   *  function-calling, Anthropic via the native tool_use API. */
+  private hasToolUseProvider(): boolean {
+    return Boolean(
+      this.config.get<string>('ANTHROPIC_API_KEY') || this.config.get<string>('GOOGLE_AI_API_KEY'),
+    );
   }
 
   // ── Conversation CRUD ───────────────────────────────────────────────
@@ -186,18 +195,20 @@ export class AnalystService implements OnModuleInit {
       };
     }
 
-    // 4. No Anthropic key → friendly placeholder (feature unavailable).
-    if (!this.hasAnthropicKey()) {
+    // 4. No tool-use-capable provider → friendly placeholder. Both
+    //    Anthropic + Google now support the agent loop; we only refuse
+    //    when neither key is set.
+    if (!this.hasToolUseProvider()) {
       const placeholderText =
         language === 'th'
-          ? 'ไม่พบการตั้งค่า Anthropic API key — โมดูล AI Analyst ต้องใช้ provider Anthropic สำหรับ tool use. กรุณาตั้งค่า ANTHROPIC_API_KEY'
-          : 'Anthropic API key not configured — the AI Analyst module requires the Anthropic provider for tool use. Set ANTHROPIC_API_KEY.';
+          ? 'ไม่พบการตั้งค่า AI provider — โมดูล AI Analyst ต้องการ key ของ Google (GOOGLE_AI_API_KEY) หรือ Anthropic (ANTHROPIC_API_KEY) อย่างน้อยหนึ่งตัว'
+          : 'No AI provider configured — the AI Analyst module needs either GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY.';
       const message = await prisma.analystMessage.create({
         data: {
           conversationId,
           role: 'ASSISTANT',
           content: placeholderText,
-          evidenceJson: { reason: 'no-anthropic-key' },
+          evidenceJson: { reason: 'no-tool-use-provider' },
         },
       });
       await prisma.analystConversation.update({
@@ -251,6 +262,15 @@ export class AnalystService implements OnModuleInit {
     }
 
     // 6. Run the tool-use loop.
+    //
+    // Force model = `gemini-2.5-flash` (Anthropic provider ignores this
+    // string). Reason: Gemini 3.x preview models mandate echoing a
+    // `thoughtSignature` field that the @google/genai v0.3.1 SDK
+    // doesn't expose on its Part type → multi-turn agent loops fail
+    // with HTTP 400. 2.5-flash uses the same function-calling
+    // protocol but doesn't require signatures, so the agent works
+    // without an SDK upgrade. Anthropic users get their default
+    // Sonnet/Haiku via the provider's own routing.
     const req: ToolUseRequest = {
       ctx: { module: 'analyst', kind: 'chat', userId: params.userId },
       messages,
@@ -258,6 +278,7 @@ export class AnalystService implements OnModuleInit {
       maxIterations: 6,
       maxOutputTokens: 2500,
       temperature: 0.3,
+      model: this.ai.providerId === 'google' ? 'gemini-2.5-flash' : undefined,
     };
 
     const toolCallsForEvidence: Array<{ name: string; input: Record<string, unknown>; result?: string }> = [];

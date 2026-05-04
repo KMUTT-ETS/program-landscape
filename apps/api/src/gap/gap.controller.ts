@@ -12,6 +12,7 @@ import {
   computeForecastAccuracy,
   computeOccupationGap,
   computeOpportunities,
+  computeProgramDemandGaps,
   computeRegionalGap,
   computeRisks,
   computeSectorGap,
@@ -103,6 +104,18 @@ export class GapController {
   @Provenance({ sources: [{ id: 'enrollment-metrics', name: 'Enrollment metrics' }, { id: 'demographic-projections', name: 'Demographic projections' }] })
   async risks(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
     return computeRisks(q);
+  }
+
+  @Get('program-demand-gaps')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'program-demand-match', name: 'AI demand-match per program' },
+      { id: 'kmitl-skill-mapping', name: 'KMITL skill demand' },
+    ],
+  })
+  async programDemandGaps(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
+    return computeProgramDemandGaps(q);
   }
 
   @Get('forecast-accuracy')

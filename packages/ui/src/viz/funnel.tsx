@@ -22,6 +22,20 @@ export interface FunnelProps {
 
 export function FunnelPipeline({ stages, width = 560, height = 320 }: FunnelProps) {
   const palette = useChartPalette();
+  // Mount-guard — Recharts SSR markup can drift from the first
+  // client render. Same pattern as RadarChartSmall.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  if (!mounted) {
+    return (
+      <div
+        style={{ width, height }}
+        className="flex items-center justify-center rounded-md border border-dashed border-border-subtle text-xs text-text-tertiary"
+      >
+        Loading…
+      </div>
+    );
+  }
   // Bigger stages render first (top); Recharts FunnelChart doesn't
   // auto-sort, so we ensure descending order.
   const data = stages

@@ -19,6 +19,13 @@ import {
   programOverview,
   programPeers,
   programSkills,
+  programStudentCohorts,
+  programDemographicOutlook,
+  programTcasStats,
+  programAiPeers,
+  programAiReadiness,
+  programLifecycleVerdict,
+  programStrategicNarrative,
   programTrends,
 } from '@kku/db';
 import {
@@ -29,6 +36,8 @@ import {
   ZodValidationPipe,
 } from '../common';
 import { CockpitService } from '../cockpit/cockpit.service';
+import { PdfService } from '../pdf/pdf.service';
+import { buildProgramDetailData } from './program-detail-data';
 
 // Per-program deep-dive endpoints. Endpoint fan-out is explicit (one
 // per section) so the UI can parallelise and prioritise above-the-fold
@@ -54,13 +63,14 @@ type NarrativeBody = z.infer<typeof NarrativeBodySchema>;
 export class DeepDiveController {
   constructor(
     @Inject(CockpitService) private readonly cockpit: CockpitService,
+    private readonly pdf: PdfService,
   ) {}
 
   @Get('overview')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'health-score', name: 'Health score v1' }],
-    methodologyVersion: 'health-score.v1',
+    sources: [{ id: 'health-score', name: 'Health score v2.1' }],
+    methodologyVersion: 'health-score.v2.1',
   })
   async overview(@Param('programId') programId: string) {
     const r = await programOverview(programId);
@@ -73,6 +83,79 @@ export class DeepDiveController {
   @Provenance({ sources: [{ id: 'mv_metrics', name: 'Metric rollups' }] })
   async demandFunnel(@Param('programId') programId: string) {
     return programDemandFunnel(programId);
+  }
+
+  @Get('student-cohorts')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'kku-registry', name: 'KKU Registrar (Oracle)' }],
+  })
+  async studentCohorts(@Param('programId') programId: string) {
+    return programStudentCohorts(programId);
+  }
+
+  @Get('tcas-stats')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'tcas', name: 'TCAS3 Admission (mytcas.com / CUPT)' }],
+    methodologyVersion: 'tcas-stat.v1',
+  })
+  async tcasStats(@Param('programId') programId: string) {
+    return programTcasStats(programId);
+  }
+
+  @Get('strategic-narrative')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'strategic-narrative', name: 'Strategic narrative v1' }],
+    methodologyVersion: 'program-strategic-narrative.v1',
+  })
+  async strategicNarrative(@Param('programId') programId: string) {
+    return programStrategicNarrative(programId);
+  }
+
+  @Get('ai-readiness')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'ai-readiness', name: 'AI Readiness scorer v1' }],
+    methodologyVersion: 'ai-readiness.v1',
+  })
+  async aiReadiness(@Param('programId') programId: string) {
+    return programAiReadiness(programId);
+  }
+
+  @Get('lifecycle')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'health-score', name: 'Health score v3.0' }],
+    methodologyVersion: 'lifecycle.v1',
+  })
+  async lifecycle(@Param('programId') programId: string) {
+    return programLifecycleVerdict(programId);
+  }
+
+  @Get('ai-peers')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'qs-rankings', name: 'QS World University Rankings 2025' },
+      { id: 'the-rankings', name: 'Times Higher Education World Rankings 2025' },
+    ],
+    methodologyVersion: 'program-peer-selection.v1',
+  })
+  async aiPeers(@Param('programId') programId: string) {
+    return programAiPeers(programId);
+  }
+
+  @Get('demographic-outlook')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'thailand-demographics', name: 'NESDC Population Projections (republished by BOI)' },
+    ],
+  })
+  async demographicOutlook(@Param('programId') programId: string) {
+    return programDemographicOutlook(programId);
   }
 
   @Get('financials')
@@ -159,6 +242,41 @@ export class DeepDiveController {
       userId: user.userId,
     });
     return r;
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // POST /programs/:id/export-detail-pdf — generates the comprehensive
+  // tabular detail PDF (Gotenberg, TH Sarabun New). Returns a signed
+  // MinIO URL the caller can redirect to. This is the analyst working
+  // document, NOT a Council-facing brief.
+  // ──────────────────────────────────────────────────────────────────
+  @Post('export-detail-pdf')
+  @Authorized('pdf:generate')
+  @AuditLog({ action: 'program.export_detail_pdf', entityType: 'PdfGeneration' })
+  async exportDetailPdf(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+  ) {
+    const facultyVisibility: 'full' | 'aggregates-only' =
+      user.role === 'COUNCIL' ? 'aggregates-only' : 'full';
+    const data = await buildProgramDetailData(programId, facultyVisibility);
+    if (!data) throw new NotFoundException();
+    const result = await this.pdf.generateAndPersist(
+      {
+        templateName: 'program-detail',
+        data,
+        scope: { level: 'program', id: programId },
+      },
+      user.userId,
+    );
+    return {
+      pdfUrl: result.signedUrl,
+      expiresAt: result.signedUrlExpiresAt?.toISOString(),
+      byteSize: result.byteSize,
+      pageCount: result.pageCount,
+      templateName: result.templateName,
+      templateVersion: result.templateVersion,
+    };
   }
 
   // ──────────────────────────────────────────────────────────────────

@@ -1,20 +1,115 @@
 # Health score methodology
 
-**Version:** `health-score.v2`
-**Reviewed:** 2026-05-01
+**Version:** `health-score.v3.0`
+**Reviewed:** 2026-05-02
 **Owner:** KKU Data Office
+
+> **v3 redesign (2026-05-02):** Five dimensions, all with real-data backing in
+> 2026-05. Replaces the v1/v2 set in which `relevance` and `capability` were
+> placeholder-null. Each dimension now maps directly to one of the 8 Council
+> strategic questions and has 2–4 drivers with explicit data sources.
+>
+> **Dimension map:**
+>
+> | Dimension | Council question | Drivers | Source tables (status) |
+> |---|---|---|---|
+> | **Attractiveness** | Q1: Do students choose this program? | tcas_competition_vs_peers · tcas_fill_rate · enrollment_trend_slope | `tcas_admission_stats` (REAL) · `enrollment_metrics` (REAL via kku-registry) |
+> | **Financial** | Q2: Does it pay for itself? | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope | `financial_metrics` (REAL via link-financials) · `enrollment_metrics` (REAL) |
+> | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) |
+> | **Outcomes** | Q1+Q6: Do graduates thrive? | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (REAL) · `graduate_outcomes` (PENDING kku-alumni) · `employer_feedback` (PENDING) |
+> | **Relevance** | Q1+Q3+Q7: 10y forward-looking strategic fit? | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills` × `kmitl_career_skill_demands` (REAL) · `program_demand_matches` (REAL) · `demographic_projections` (REAL) · `kmitl_careers` (REAL) |
+>
+> **What changed from v2:**
+>
+> * `demand` → `attractiveness` — repurposed to TCAS-anchored signals (the v2 demand
+>   drivers `admission_yield`/`retention_year2` were null for SEQ-0062 because the
+>   registry connector doesn't fill applications/admitted/retainedYear2). Real TCAS3
+>   data from `tcas_admission_stats` makes this a Council-grade signal.
+> * `quality` → `outcomes` — broader name; adds `tcas_min_score_percentile` so the
+>   dimension has live data even before kku-alumni.
+> * `relevance` and `capability` are no longer placeholders — both have real scorers
+>   backed by real data flips (kku-hr, kku-research, kmitl-skill-mapping, KKU
+>   demographics seed, link-financials, link-cohorts, programs:extract-faculty,
+>   programs:extract-skills).
+> * Driver `labor_market_alignment_kmitl` from v2 (LinkedIn-via-MHESI) is preserved
+>   under `relevance`, with the same 4-quadrant fallback chain introduced in v2.1.
+>
+> **What stayed the same:**
+>
+> * Equal-weighting across the 5 dimensions (no weighted formulation — the simplest
+>   defensible default).
+> * Null-handling rule: missing data → `null`, never `0`. `dataCompletenessPct` on
+>   every score reports the fraction of non-null drivers.
+> * 0–100 scale; <40 "danger zone", 40–65 "needs attention", ≥65 "healthy".
+> * Two-reviewer Council approval for any closure/merger/launch decision —
+>   regardless of computed score.
+>
+> v1 + v2 + v2.1 rows are retained for audit; new computations stamp `v3.0`.
+
+## v3.0 driver specifications
+
+### Attractiveness
+
+| Driver | Formula | Data source |
+|---|---|---|
+| `tcas_competition_vs_peers` | `clamp((kku_ratio / peer_median_ratio) × 50)` — score 50 means parity, 100 means 2× peer median | `tcas_admission_stats` for KKU + same-subject peer rows |
+| `tcas_fill_rate` | `clamp(((admittedPass1 + admittedPass2) / quota) × 100)` | `tcas_admission_stats` (latest year+round) |
+| `enrollment_trend_slope` | Slope of `enrolled` per year over last 5 years; `clamp(50 + slope/maxSlope × 50)` | `enrollment_metrics` |
+
+### Financial
+
+| Driver | Formula | Data source |
+|---|---|---|
+| `net_contribution_per_student` | `(net_contribution / enrolled)`. 100K THB/student → 100; 0 → 50; negative scales toward 0 | `financial_metrics` + `enrollment_metrics` (latest complete year, partial-year-aware) |
+| `revenue_coverage_program_direct` | `tuition / (direct + facility + overhead)` (gov salary subsidy excluded). 1.0 → 80, 1.2+ → 100 | `financial_metrics` |
+| `tuition_trend_slope` | Linear-regression slope of tuition over last 5 years; positive = growing | `financial_metrics` |
+
+### Capability
+
+| Driver | Formula | Data source |
+|---|---|---|
+| `senior_rank_share` | `(prof + assoc_prof) / total_active`. 50% → 100. Floor at 0 | `program_faculties` × `faculty_members.rank` |
+| `publications_per_faculty` | `total_research_outputs / total_active_faculty`. 5/year → 100 | `program_faculties` × `research_outputs` (year >= currentYear-3) |
+| `retirement_horizon_5y` | `100 - (retiring_5y / total × 100)`. Inverted: more retiring soon = lower score | `program_faculties` × `faculty_members.retirementDate` |
+
+### Outcomes
+
+| Driver | Formula | Data source | Status |
+|---|---|---|---|
+| `tcas_min_score_percentile` | KKU's TCAS3 min-score percentile within same-subject peer set | `tcas_admission_stats` | REAL |
+| `employment_rate` | `clamp(rate × 100)` | `graduate_outcomes` | PENDING (kku-alumni real connector) |
+| `average_salary` | `clamp(salary / 30000 × 100)` (30k THB → 100) | `graduate_outcomes` | PENDING |
+
+### Relevance
+
+| Driver | Formula | Data source |
+|---|---|---|
+| `labour_market_alignment` | % of program skills matching LinkedIn-demanded set, with 4-quadrant fallback (Thailand/Job → Global/Job → Thailand/Profiles → Global/Profiles) | `program_skills` × `kmitl_career_skill_demands` |
+| `demand_match_filled` | `100 × (matched_demanded / relevant_demanded)` — share of *relevant* demanded skills the curriculum already teaches | `program_demand_matches` |
+| `demographic_resilience` | `100 - clamp((required_share_at_+10y × 100000) × 100)` — inverted required cohort share. <0.05% → ~100, >0.2% → ~0 | `programDemographicOutlook` (`demographic_projections`) |
+| `strategic_sector_alignment` | 100 if any KMITL career maps to a BCG/S-curve target sector; 50 otherwise | `kmitl_careers` × `Program.kmitlCareerIds` × strategic-sector heuristic |
+
+
 
 > **v2 changes (2026-05-01):** Demand dimension extended with a fourth driver
 > `labor_market_alignment_kmitl`. The first three drivers (admission yield,
 > retention year 2, on-time graduation) are unchanged — they remain internal-
 > KKU proxies for demand. The new driver pulls real external labour-market
-> signal from KMITL Skill Mapping (`KmitlCareerSkillDemand`, scope=THAILAND,
-> source=JOB_POSTINGS, percentage ≥ 5%). Computation: per-program, the share
-> of ProgramSkill rows whose skill_id is in the KMITL demanded set, ×100.
-> Faculty/department aggregates average across child programs. Returns null
-> (data gap) when KMITL has no rows, NOT zero.
+> signal from **LinkedIn**, sourced via the **MHESI subscription** to the
+> labour-market-insights API hosted at KMITL (`KmitlCareerSkillDemand`,
+> scope=THAILAND, source=JOB_POSTINGS, percentage ≥ 5%). Computation: per-
+> program, the share of ProgramSkill rows whose skill_id is in the demanded
+> set (skills with ≥5% prevalence in any career), ×100. Faculty/department
+> aggregates average across child programs. Returns null (data gap) when no
+> labour-market rows have been loaded yet, NOT zero.
 >
-> Per `docs/readiness-checklist.md` gate 11, KMITL data is preview-quality
+> The driver-name `labor_market_alignment_kmitl` and table-prefix `Kmitl*`
+> are technical handles that match the API endpoint name; the underlying
+> data source is LinkedIn (via MHESI). The `_kmitl` suffix is preserved as
+> a stable code identifier — it does not imply that KMITL is the data
+> owner.
+>
+> Per `docs/readiness-checklist.md` gate 11, this driver is preview-quality
 > until **2026-05-31** (30-day green-history countdown started 2026-05-01).
 > Until then, Council-facing Cockpit views should surface "preview" framing
 > on the demand dimension.

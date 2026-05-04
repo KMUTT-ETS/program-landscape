@@ -1,0 +1,39 @@
+{
+  "sourceOrgName": "Organisation for Economic Co-operation and Development",
+  "pdfCategory": "REPORT",
+  "defaultLanguage": "EN",
+  "entries": [
+    {
+      "externalId": "oecd-skills-strategy-southeast-asia",
+      "title": "OECD Skills Strategy for Southeast Asia",
+      "summaryEn": "OECD synthesis of skills challenges in ASEAN economies — coverage of vocational education, digital skills, lifelong learning, alignment with green and digital transitions. Includes Thailand-specific recommendations on TVET reform, labour-market signal feedback, and continuing education.",
+      "summaryTh": "รายงาน OECD ด้านยุทธศาสตร์ทักษะในเอเชียตะวันออกเฉียงใต้ — ครอบคลุมอาชีวศึกษา ทักษะดิจิทัล การเรียนรู้ตลอดชีวิต และการปรับตัวเข้ากับเศรษฐกิจสีเขียวและดิจิทัล มีข้อเสนอแนะเฉพาะประเทศไทยเรื่องการปฏิรูป TVET และการสะท้อนสัญญาณตลาดแรงงาน",
+      "sourceUrl": "https://www.oecd.org/en/publications/oecd-skills-strategy-southeast-asia_5c5af83d-en.html",
+      "publishedDate": "2023-11-08",
+      "signalType": "POLICY",
+      "impactScore": 0.78,
+      "tags": ["asean", "skills-strategy", "tvet", "thailand"]
+    },
+    {
+      "externalId": "oecd-economic-survey-thailand-2023",
+      "title": "OECD Economic Survey: Thailand 2023",
+      "summaryEn": "Biennial OECD Thailand survey — macro-economic outlook, structural reforms, productivity diagnostic, labour-market gaps. Notes ageing population and skill-mismatch as primary medium-term constraints on Thailand's growth. Specific recommendations on tertiary-education quality + digital skills.",
+      "summaryTh": "รายงานการสำรวจเศรษฐกิจไทยโดย OECD ปี 2023 — แนวโน้มเศรษฐกิจมหภาค การปฏิรูปโครงสร้าง และการวินิจฉัยผลิตภาพ ระบุประชากรสูงอายุและทักษะไม่ตรงกันเป็นข้อจำกัดหลักต่อการเติบโตของไทย",
+      "sourceUrl": "https://www.oecd.org/economy/thailand-economic-snapshot/",
+      "publishedDate": "2023-06-21",
+      "signalType": "RESEARCH",
+      "impactScore": 0.83,
+      "tags": ["thailand", "macroeconomics", "education-policy"]
+    },
+    {
+      "externalId": "oecd-employment-outlook-2024",
+      "title": "OECD Employment Outlook 2024 — AI and the labour market",
+      "summaryEn": "Annual OECD employment outlook focused on AI's labour-market impact across member economies. Estimates 27% of jobs at high risk of automation; identifies which occupations are most exposed and how skill upgrading can protect workers. Thailand referenced as an OECD partner.",
+      "sourceUrl": "https://www.oecd.org/employment/oecd-employment-outlook-19991266.htm",
+      "publishedDate": "2024-07-09",
+      "signalType": "RESEARCH",
+      "impactScore": 0.80,
+      "tags": ["ai", "automation", "labour-market"]
+    }
+  ]
+}

@@ -10,6 +10,7 @@ export * from './forecasting';
 export * from './scenarios';
 export * from './analyst';
 export * from './programs';
+export * from './geo/thailand-regions';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

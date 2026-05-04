@@ -1,0 +1,39 @@
+{
+  "sourceOrgName": "World Economic Forum",
+  "pdfCategory": "REPORT",
+  "defaultLanguage": "EN",
+  "entries": [
+    {
+      "externalId": "wef-foj-2025",
+      "title": "Future of Jobs Report 2025",
+      "summaryEn": "Biennial WEF report based on a survey of 1,000+ global employers covering 14 million workers across 22 industries. Identifies fastest-growing skills (AI/big data, networks/cybersecurity, technological literacy) and fastest-declining (manual dexterity, reading/writing/math, global citizenship). Skills disruption: 39% of workers' core skills expected to change by 2030.",
+      "summaryTh": "รายงาน Future of Jobs ฉบับ 2025 จาก WEF — สำรวจนายจ้าง 1,000+ รายทั่วโลก ครอบคลุมแรงงาน 14 ล้านคนใน 22 อุตสาหกรรม ทักษะที่เติบโตเร็วที่สุดคือ AI/Big Data, ความปลอดภัยไซเบอร์ ขณะที่ทักษะที่ลดลงเร็วที่สุดคืองานใช้มือ การอ่านเขียนคำนวณ คาดว่าทักษะหลัก 39% จะเปลี่ยนภายในปี 2030",
+      "sourceUrl": "https://www3.weforum.org/docs/WEF_Future_of_Jobs_Report_2025.pdf",
+      "publishedDate": "2025-01-07",
+      "signalType": "RESEARCH",
+      "impactScore": 0.92,
+      "tags": ["future-skills", "ai", "automation", "skills-gap"]
+    },
+    {
+      "externalId": "wef-foj-2023",
+      "title": "Future of Jobs Report 2023",
+      "summaryEn": "Prior-cycle WEF Future of Jobs report. Forecast 23% labour-market churn by 2027, 44% of workers' skills disrupted within 5 years. Top growth: AI/ML specialists, sustainability, BI analysts, info-security. Top decline: data entry, admin secretaries, accounting clerks.",
+      "summaryTh": "รายงาน Future of Jobs ฉบับ 2023 — คาดการณ์อัตราการเปลี่ยนงาน 23% ภายในปี 2027 ทักษะของแรงงาน 44% จะถูกกระทบภายใน 5 ปี",
+      "sourceUrl": "https://www3.weforum.org/docs/WEF_Future_of_Jobs_2023.pdf",
+      "publishedDate": "2023-04-30",
+      "signalType": "RESEARCH",
+      "impactScore": 0.85,
+      "tags": ["future-skills", "automation"]
+    },
+    {
+      "externalId": "wef-jobs-initiative-reskilling",
+      "title": "Reskilling Revolution Initiative — 2024 update",
+      "summaryEn": "WEF flagship initiative committed to providing better jobs/skills/opportunities to one billion people by 2030. 2024 update tracks progress against the target and partners' contributions, with macro skills shifts.",
+      "sourceUrl": "https://www.weforum.org/agenda/2024/01/reskilling-revolution-2024-davos/",
+      "publishedDate": "2024-01-15",
+      "signalType": "POLICY",
+      "impactScore": 0.65,
+      "tags": ["reskilling", "policy"]
+    }
+  ]
+}

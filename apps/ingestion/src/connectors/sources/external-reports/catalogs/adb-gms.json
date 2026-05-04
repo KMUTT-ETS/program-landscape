@@ -1,0 +1,38 @@
+{
+  "sourceOrgName": "Asian Development Bank (ADB) — Greater Mekong Subregion (GMS)",
+  "pdfCategory": "REPORT",
+  "defaultLanguage": "EN",
+  "entries": [
+    {
+      "externalId": "adb-gms-strategic-framework-2030",
+      "title": "GMS Strategic Framework 2030",
+      "summaryEn": "ADB-led GMS strategic framework guiding regional cooperation among Cambodia, China (Yunnan, Guangxi), Lao PDR, Myanmar, Thailand, and Vietnam to 2030. Six priority areas including transport connectivity, energy, agriculture, urban development, environment, and human resource development. Anchors KKU's role as a regional skills provider for the Mekong economies.",
+      "summaryTh": "กรอบยุทธศาสตร์ GMS 2030 โดย ADB — การร่วมมือระดับภูมิภาคระหว่างกัมพูชา จีน (ยูนนาน กว่างซี) ลาว เมียนมาร์ ไทย และเวียดนาม จนถึงปี 2030 ครอบคลุม 6 พื้นที่ลำดับสำคัญรวมถึงการพัฒนาทรัพยากรมนุษย์",
+      "sourceUrl": "https://www.adb.org/sites/default/files/publication/653996/gms-2030-strategic-framework.pdf",
+      "publishedDate": "2021-09-09",
+      "signalType": "POLICY",
+      "impactScore": 0.72,
+      "tags": ["gms", "mekong", "regional-cooperation", "human-capital"]
+    },
+    {
+      "externalId": "adb-thailand-country-partnership-2023-2027",
+      "title": "ADB-Thailand Country Partnership Strategy 2023-2027",
+      "summaryEn": "ADB's strategic engagement plan with Thailand 2023-2027 — covers green growth, ageing demographic transition, urban competitiveness, and quality jobs. Notes upskilling pressure on Thai universities and recommends private-sector partnerships.",
+      "sourceUrl": "https://www.adb.org/documents/thailand-country-partnership-strategy-2023-2027",
+      "publishedDate": "2023-12-12",
+      "signalType": "POLICY",
+      "impactScore": 0.68,
+      "tags": ["thailand", "adb-partnership", "green-growth", "ageing"]
+    },
+    {
+      "externalId": "adb-asia-skills-shortages-2024",
+      "title": "Asia's Skills Shortages: Trends and Policy Responses 2024",
+      "summaryEn": "ADB regional report on skills shortages across Asia. Identifies critical gaps in digital, green, and care economy skills. Specific Thailand chapter covers ageing workforce + digital-skill mismatch as twin constraints on competitiveness.",
+      "sourceUrl": "https://www.adb.org/publications/skills-shortages-asia",
+      "publishedDate": "2024-06-25",
+      "signalType": "RESEARCH",
+      "impactScore": 0.74,
+      "tags": ["skills-shortage", "digital", "green-economy", "asia"]
+    }
+  ]
+}

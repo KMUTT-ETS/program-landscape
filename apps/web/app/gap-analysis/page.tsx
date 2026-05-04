@@ -6,9 +6,8 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
 import { GapAnalysisClient } from './client';
 import type {
-  OccupationGapResponse,
-  RegionalGapResponse,
-  SectorGapResponse,
+  OpportunityResponse,
+  ProgramDemandGapResponse,
   SkillGapResponse,
 } from './types';
 
@@ -18,56 +17,36 @@ export const metadata = { title: 'Demand-Supply Gap Analyzer' };
 export default async function GapAnalysisPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    dimension?: string;
-    region?: string;
-    horizon?: string;
-    comparison?: string;
-    scope?: string;
-    scopeId?: string;
-  }>;
+  searchParams: Promise<{ scope?: string; scopeId?: string }>;
 }) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
   const sp = await searchParams;
-  const dimension = (sp.dimension ?? 'skills') as 'skills' | 'occupations' | 'sectors';
-  const region = sp.region ?? 'TH';
-  const horizon = sp.horizon ?? '0';
-  const comparison = sp.comparison ?? 'absolute';
   const scope = sp.scope ?? 'university';
   const scopeId = sp.scopeId ?? '';
 
-  const qs = new URLSearchParams({
-    scope,
-    region,
-    horizon,
-    comparison,
-    limit: '30',
-  });
+  const qs = new URLSearchParams({ scope, limit: '20' });
   if (scopeId) qs.set('scopeId', scopeId);
 
-  // Fan-out: one request per panel. Above-the-fold paints first even if
-  // one source is slow.
-  const [skills, sectors, occupations, regional] = await Promise.all([
+  // Three real-data fetches. Fan-out so above-the-fold paints if any
+  // single endpoint is slow.
+  const [skillGap, opportunities, programGaps] = await Promise.all([
     apiFetch<SkillGapResponse>(`/gap/skills?${qs}`).catch(() => null),
-    apiFetch<SectorGapResponse>(`/gap/sectors?${qs}`).catch(() => null),
-    apiFetch<OccupationGapResponse>(`/gap/occupations?${qs}`).catch(() => null),
-    apiFetch<RegionalGapResponse>(`/gap/regional/${encodeURIComponent(region)}?${qs}`).catch(
-      () => null,
-    ),
+    apiFetch<OpportunityResponse>(`/gap/opportunities?${qs}`).catch(() => null),
+    apiFetch<ProgramDemandGapResponse>(`/gap/program-demand-gaps?${qs}`).catch(() => null),
   ]);
 
   return (
     <AuthedAppShell user={user}>
       <PageHeader
         title="Demand-Supply Gap Analyzer"
-        subtitle="Labor market demand vs KKU graduate supply — by skill, occupation, sector, and region."
+        subtitle="Where labour-market demand and KKU graduate supply diverge — KMITL skill demand × KKU alumni cohort outcomes."
       />
       <GapAnalysisClient
-        initialFilters={{ dimension, region, horizon, comparison, scope, scopeId }}
-        data={{ skills, sectors, occupations, regional }}
+        initialFilters={{ scope, scopeId }}
+        data={{ skillGap, opportunities, programGaps }}
       />
     </AuthedAppShell>
   );

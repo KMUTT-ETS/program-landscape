@@ -1,6 +1,67 @@
 // Shape-only types mirroring @kku/db's program-deep-dive exports so
 // the client can import without pulling Prisma.
 
+export interface DeepDiveStrategicNarrative {
+  contentMarkdown: string;
+  confidence: number;
+  methodVersion: string;
+  generatedAt: string;
+}
+
+export interface DeepDiveAiReadinessGap {
+  topic: string;
+  severity: 'major' | 'moderate' | 'minor';
+  observation: string;
+  peerReference: string | null;
+}
+
+export interface DeepDiveAiReadinessRecommendation {
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  detail: string;
+  effortHorizon: 'short' | 'medium' | 'long';
+}
+
+export interface DeepDiveAiReadiness {
+  overallScore: number;
+  subScores: {
+    curriculumIntegration: number;
+    skillResilience: number;
+    researchPresence: number;
+    pedagogicalReadiness: number | null;
+  };
+  skillBreakdown: {
+    aiNative: number;
+    aiAugmented: number;
+    aiDisplaceable: number;
+    neutral: number;
+  };
+  aiPublicationsLast3Years: number;
+  totalPublicationsLast3Years: number;
+  gaps: DeepDiveAiReadinessGap[];
+  recommendations: DeepDiveAiReadinessRecommendation[];
+  summary: string;
+  methodologyVersion: string;
+  generatedAt: string;
+}
+
+export type DeepDiveLifecycleVerdict = 'SUNSET' | 'STABLE' | 'RISING' | 'FRONTIER';
+
+export interface DeepDiveLifecycleDriver {
+  label: string;
+  contribution: number;
+  raw: unknown;
+}
+
+export interface DeepDiveLifecycle {
+  verdict: DeepDiveLifecycleVerdict;
+  trajectoryScore: number;
+  drivers: DeepDiveLifecycleDriver[];
+  narrative: string;
+  methodologyVersion: string;
+  generatedAt: string;
+}
+
 export interface DeepDiveOverview {
   program: {
     id: string;
@@ -17,11 +78,11 @@ export interface DeepDiveOverview {
     scopeLabel: string;
     methodologyVersion: string;
     dimensions: {
-      demand: HealthCell;
+      attractiveness: HealthCell;
       financial: HealthCell;
-      quality: HealthCell;
-      relevance: HealthCell;
       capability: HealthCell;
+      outcomes: HealthCell;
+      relevance: HealthCell;
     };
     overall: HealthCell;
     latestFreshness: string | null;
@@ -32,30 +93,199 @@ export interface DeepDiveOverview {
 export interface HealthCell {
   score: number | null;
   dataCompletenessPct: number;
-  drivers: Array<{ label: string; value: number | null }>;
+  /** Per-driver breakdown. `raw` carries the underlying numbers/payload
+   *  used to compute the driver's score — surfaced in the deep-dive
+   *  Health Score Breakdown panel so Council can audit the calculation. */
+  drivers: Array<{ label: string; value: number | null; raw?: unknown }>;
 }
 
 export interface DeepDiveDemandFunnel {
+  /** Entry year (BE) the funnel is anchored on. */
+  anchorEntryYearBE: number | null;
+  anchorEntryYearCE: number | null;
+  /** True when the cohort has had time to complete (entry ≤ currentBE − duration − 1). */
+  cohortCompleted: boolean;
+  programDurationYears: number | null;
   stages: Array<{ key: string; label: string; value: number }>;
   conversions: Array<{ fromKey: string; toKey: string; rate: number | null }>;
-  fiveYearTrend: Array<{
-    year: number;
-    applications: number | null;
-    admitted: number | null;
-    enrolled: number | null;
-    retainedYear2: number | null;
-    graduatedOnTime: number | null;
+  alumniBreakdown: Array<{ bucket: string; count: number; pct: number }>;
+  stillEnrolledForAnchor: number;
+  cohortTrend: Array<{
+    entryYearBE: number;
+    entryYearCE: number;
+    admittedTotal: number;
+    enrolled: number;
+    stillEnrolled: number;
+    graduated: number;
+    droppedTotal: number;
+    renouncedOrNoReport: number;
+    cohortCompleted: boolean;
   }>;
   latestFreshness: string | null;
   benchmarks: {
     faculty: { admissionYield: number | null; year2Retention: number | null } | null;
     university: { admissionYield: number | null; year2Retention: number | null } | null;
   } | null;
+  methodologyVersion: string;
+}
+
+export interface DeepDiveAiPeerEntry {
+  rankInTier: number;
+  institutionName: string;
+  country: string;
+  qsWorldRank: number | null;
+  theWorldRank: number | null;
+  qsAsiaRank: number | null;
+  websiteUrl: string | null;
+  peerProgramName: string;
+  peerProgramUrl: string | null;
+  rationale: string;
+  confidence: number;
+  subjectArea: string | null;
+}
+
+export interface DeepDiveAiPeerReviewBullet {
+  claim: string;
+  evidence: string;
+}
+
+export interface DeepDiveAiPeerReviewRecommendation {
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  detail: string;
+  effortHorizon: 'short' | 'medium' | 'long';
+}
+
+export interface DeepDivePeerReviewContentGap {
+  topic: string;
+  kkuStatus: string;
+  peerExamples: string;
+  severity: 'major' | 'moderate' | 'minor';
+  recommendation: string;
+}
+
+export interface DeepDiveAiPeerReview {
+  strengths: DeepDiveAiPeerReviewBullet[];
+  weaknesses: DeepDiveAiPeerReviewBullet[];
+  tierVerdicts: {
+    WORLD: string;
+    ASIA: string;
+    SOUTHEAST_ASIA: string;
+    THAILAND_PEER: string;
+  };
+  contentModernity: {
+    verdict: 'OLD_SCHOOL' | 'IN_BETWEEN' | 'FRONTIER';
+    narrative: string;
+  } | null;
+  contentGaps: DeepDivePeerReviewContentGap[] | null;
+  recommendations: DeepDiveAiPeerReviewRecommendation[];
+  subjectBenchmarkSummary: string;
+  confidence: number;
+  generatedAt: string;
+  methodVersion: string;
+  peerCountTotal: number;
+}
+
+export interface DeepDiveAiPeers {
+  subjectSignature: string | null;
+  tiers: {
+    WORLD: DeepDiveAiPeerEntry[];
+    ASIA: DeepDiveAiPeerEntry[];
+    SOUTHEAST_ASIA: DeepDiveAiPeerEntry[];
+    THAILAND_PEER: DeepDiveAiPeerEntry[];
+  };
+  selectedAt: string | null;
+  rankingYear: number | null;
+  review: DeepDiveAiPeerReview | null;
+}
+
+export interface DeepDiveTcasStats {
+  history: Array<{
+    entryYearBE: number;
+    round: string;
+    quota: number;
+    applicants: number;
+    admittedPass1: number;
+    admittedPass2: number;
+    competitionRatio: number;
+    fillRate: number;
+    minScorePass1: number | null;
+    maxScorePass1: number | null;
+    minScorePass2: number | null;
+    maxScorePass2: number | null;
+    sourceUrl: string;
+  }>;
+  peers: Array<{
+    institutionName: string;
+    facultyName: string | null;
+    programmeName: string;
+    entryYearBE: number;
+    round: string;
+    quota: number;
+    applicants: number;
+    competitionRatio: number;
+    minScorePass1: number | null;
+    maxScorePass1: number | null;
+    matchTier: 'exact' | 'subject';
+  }>;
+  latestEntryYearBE: number | null;
+  yearsObserved: number[];
+  peerMatchKey: string | null;
+}
+
+export interface DeepDiveDemographicOutlook {
+  catchmentRegion: 'Northeast' | 'TH';
+  source: string;
+  ageCohort: '18-22' | '23-29';
+  baselineYearOneIntake: number | null;
+  projections: Array<{
+    year: number;
+    cohortPopulation: number;
+    cohortPopulationNational: number | null;
+    requiredShareOfCohort: number | null;
+    cohortDeclinePct: number;
+  }>;
+  fifteenYearContraction: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'unknown';
+}
+
+export interface DeepDiveStudentCohorts {
+  cohorts: Array<{
+    entryYearBE: number;
+    entryYearCE: number;
+    studentCount: number;
+    yearInProgramme: number;
+    status: 'incoming' | 'on-track' | 'delayed';
+  }>;
+  totalActive: number;
+  currentAcademicYearBE: number;
+  programDurationYears: number | null;
+  incomingCount: number;
+  onTrackCount: number;
+  delayedCount: number;
+  refreshedAt: string | null;
 }
 
 export interface DeepDiveFinancials {
   waterfall: Array<{ label: string; value: number; kind: 'positive' | 'negative' | 'total' }>;
-  trend: Array<{ year: number; tuitionRevenue: number | null; totalCost: number | null; netContribution: number | null }>;
+  trend: Array<{
+    year: number;
+    tuitionRevenue: number | null;
+    facultyCostSubsidy: number | null;
+    netContribution: number | null;
+  }>;
+  /** The fiscal year (CE) the headline KPIs are sourced from.
+   *  Excludes partial in-progress years. */
+  latestFiscalYear: number | null;
+  /** True when a more recent fiscal year exists in the data but was
+   *  classified as partial/in-progress (signaled by tuition < 30% of
+   *  prior year). UI surfaces an "in progress" hint. */
+  partialCurrentYearAvailable: boolean;
+  /** Annual government-funded faculty salary subsidy for this program.
+   *  Informational — NOT netted from tuition (Thai public university
+   *  model: salaries paid from the government block grant). */
+  governmentFacultySubsidy: number | null;
+  /** Government investment per enrolled student per year. */
   costPerStudent: number | null;
   sensitivity: {
     tuitionPlus5Pct: { tuitionRevenue: number; netContribution: number };
@@ -65,11 +295,64 @@ export interface DeepDiveFinancials {
 }
 
 export interface DeepDiveSkills {
-  taught: Array<{ skillId: string; nameEn: string; nameTh: string; category: string | null; weight: number }>;
-  demanded: Array<{ skillId: string; nameEn: string; nameTh: string; category: string | null; jobCount: number }>;
-  gaps: Array<{ skillId: string; nameEn: string; nameTh: string; jobCount: number }>;
-  surplus: Array<{ skillId: string; nameEn: string; nameTh: string; weight: number }>;
+  taught: Array<{
+    skillId: string;
+    nameEn: string;
+    nameTh: string;
+    category: string | null;
+    weight: number;
+    /** Aggregate signal from compulsory courses + PLOs (MAJOR contribution). */
+    compulsoryWeight: number | null;
+    /** Aggregate signal from elective courses (MINOR contribution). */
+    electiveWeight: number | null;
+    /** True when this skill appears in a Program Learning Outcome. */
+    pickedFromPlo: boolean;
+    /** Verbatim PLO/course quote justifying the mapping. */
+    evidenceQuote: string | null;
+  }>;
+  /** Skills with MAJOR contribution (PLO-tagged or compulsory ≥ 0.5). */
+  majorContributorCount: number;
+  /** Skills with MINOR contribution (elective only / compulsory < 0.5, no PLO). */
+  minorContributorCount: number;
+  /** How many taught skills are explicitly tagged in PLOs. */
+  ploSkillCount: number;
+  demanded: Array<{
+    skillId: string;
+    nameEn: string;
+    nameTh: string;
+    category: string | null;
+    /** Peak demand share across this program's target careers. */
+    peakDemandPct: number;
+    /** Number of target careers where this skill clears threshold. */
+    careerCount: number;
+    /** AI-determined: does the curriculum teach this demanded skill? */
+    curriculumMatched: boolean | null;
+    /** 'plo' | 'course' | 'extracted-skill' | 'unmatched' | null. */
+    matchSource: string | null;
+    /** 0..1 strength of curriculum coverage. */
+    relatedness: number | null;
+    /** Verbatim PLO/course quote evidence (when matched). */
+    evidenceQuote: string | null;
+  }>;
+  gaps: Array<{ skillId: string; nameEn: string; nameTh: string; peakDemandPct: number; careerCount: number }>;
+  surplus: Array<{
+    skillId: string;
+    nameEn: string;
+    nameTh: string;
+    weight: number;
+    compulsoryWeight: number | null;
+    pickedFromPlo: boolean;
+  }>;
   matchScore: number;
+  demandSource: string;
+  /** Tier of the fallback chain that produced the demand rows.
+   *  'thailand-job-postings' is preferred; 'global-*' fires when Thai
+   *  data is sparse for the program's career set. */
+  demandTier: string;
+  /** Number of labour-market careers the demand was filtered to.
+   *  0 = no career mapping yet → shows "unfiltered" banner. */
+  careerFilterCount: number;
+  careerFilterIds: number[];
 }
 
 export interface DeepDiveOutcomes {
@@ -89,11 +372,17 @@ export interface DeepDiveOutcomes {
 
 export interface DeepDiveFaculty {
   visibility: 'full' | 'aggregates-only';
+  /** Where the roster came from. `program` = program-specific link table;
+   *  `department` = all FacultyMembers in the program's department;
+   *  `faculty` = all FacultyMembers in the parent Faculty (broadest
+   *  fallback when no per-program/per-department roster exists). */
+  rosterScope: 'program' | 'department' | 'faculty';
   totalActive: number;
   ranks: Record<string, number>;
   averageAgeYears: number | null;
   retiringWithin5Years: number;
   successionRiskPct: number;
+  totalPublications: number;
   members: Array<{
     id: string;
     rank: string;

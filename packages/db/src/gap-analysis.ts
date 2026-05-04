@@ -39,6 +39,12 @@ export const GapFilterSchema = z.object({
   // 'blended' weighs both 0.5/0.5 — analyst exploration only, not Council-
   // facing. Added 2026-05-01 with the kmitl-skill-mapping connector.
   demandSource: z.enum(['auto', 'job_postings', 'kmitl', 'blended']).default('auto'),
+  // Exclude soft / transferable / language skills from the gap analysis.
+  // Job-posting taxonomies (KMITL, JobThai, JobsDB) systematically
+  // under-list these — every employer wants "teamwork" but few list it
+  // as a posting requirement. Including them creates artificial
+  // "oversupply" rows that mislead Council. Default ON.
+  excludeSoftSkills: z.boolean().default(true),
 });
 // Output type (post-parse, defaults applied). Used internally + as the
 // shape returned from helpers. Public callers can pass GapFilterInput
@@ -90,8 +96,18 @@ export async function computeSkillGap(filter: GapFilterInput): Promise<SkillGapR
 
   const demandRows = await fetchDemandRows(resolvedSource, demandWindowStart, f);
 
-  // Supply: ProgramSkill weights × graduate counts at the program.
-  // Uses latest enrollment_metrics.graduated_on_time as per-year supply.
+  // Supply: ProgramSkill weight × per-program graduate count.
+  //
+  // Per-program graduate count uses real cohort outcomes from
+  // AlumniCohortStatus (sum of GRADUATED bucket across recent entry
+  // years) when present. Falls back to enrollment_metrics
+  // graduated_on_time (the older admission-side proxy) for programs
+  // that don't have alumni rows yet. 207 / 297 active programs are
+  // currently covered by AlumniCohortStatus.
+  //
+  // Recency window: alumni entry years BE ≥ (latest - 5) → roughly the
+  // last 5 cohorts of graduates, which approximates "graduates per
+  // year × 5". Divided by 5 below for a per-year supply rate.
   const supplyRows = await prisma.$queryRaw<
     {
       skill_id: string;
@@ -99,17 +115,38 @@ export async function computeSkillGap(filter: GapFilterInput): Promise<SkillGapR
       top_programs: string[];
     }[]
   >(Prisma.sql`
-    WITH latest_grad AS (
+    WITH latest_be AS (
+      SELECT MAX(entry_year_be) AS max_be FROM alumni_cohort_statuses
+    ),
+    alumni_per_program AS (
+      SELECT
+        program_id,
+        SUM(count)::float / 5.0 AS graduates_per_year
+      FROM alumni_cohort_statuses, latest_be
+      WHERE status_bucket = 'GRADUATED'
+        AND entry_year_be >= latest_be.max_be - 5
+      GROUP BY program_id
+    ),
+    latest_grad AS (
       SELECT DISTINCT ON (program_id) program_id, graduated_on_time
       FROM enrollment_metrics
       ORDER BY program_id, academic_year DESC
+    ),
+    per_program_supply AS (
+      SELECT
+        p.id as program_id,
+        COALESCE(a.graduates_per_year, lg.graduated_on_time, 0)::float AS supply,
+        CASE WHEN a.graduates_per_year IS NOT NULL THEN 'alumni' ELSE 'enrolment-proxy' END AS source
+      FROM programs p
+      LEFT JOIN alumni_per_program a ON a.program_id = p.id
+      LEFT JOIN latest_grad lg ON lg.program_id = p.id
     )
     SELECT
       ps.skill_id,
-      SUM(ps.weight * COALESCE(lg.graduated_on_time, 0))::float AS supply,
+      SUM(ps.weight * pps.supply)::float AS supply,
       (ARRAY_AGG(ps.program_id ORDER BY ps.weight DESC))[1:3] AS top_programs
     FROM program_skills ps
-    LEFT JOIN latest_grad lg ON lg.program_id = ps.program_id
+    JOIN per_program_supply pps ON pps.program_id = ps.program_id
     ${programIds.length > 0 ? Prisma.sql`WHERE ps.program_id = ANY(${programIds})` : Prisma.empty}
     GROUP BY ps.skill_id
   `);
@@ -121,10 +158,13 @@ export async function computeSkillGap(filter: GapFilterInput): Promise<SkillGapR
   for (const r of supplyRows) supplyMap.set(r.skill_id, { supply: r.supply ?? 0, top: r.top_programs ?? [] });
 
   const allSkillIds = new Set([...demandMap.keys(), ...supplyMap.keys()]);
-  const skillRows = await prisma.skill.findMany({
+  const skillRowsRaw = await prisma.skill.findMany({
     where: { id: { in: [...allSkillIds] } },
     select: { id: true, code: true, nameTh: true, nameEn: true, category: true },
   });
+  const skillRows = f.excludeSoftSkills
+    ? skillRowsRaw.filter((s) => !isSoftSkill(s.category, s.nameEn))
+    : skillRowsRaw;
 
   const rows: SkillGapRow[] = skillRows.map((s) => {
     const d = demandMap.get(s.id)?.demand ?? 0;
@@ -164,7 +204,7 @@ export async function computeSkillGap(filter: GapFilterInput): Promise<SkillGapR
       : demandRows.length === 0
         ? `Demand side empty (demandSource=${resolvedSource}) — only supply counts are live.`
         : resolvedSource === 'job_postings' && (await kmitlDemandHasRows())
-          ? 'Using legacy job_postings source while kmitl-skill-mapping clears its 30-day green-history gate.'
+          ? 'Using legacy job_postings source while the LinkedIn-via-MHESI labour-market data clears its 30-day green-history gate.'
           : null;
 
   return {
@@ -223,11 +263,14 @@ async function fetchDemandRows(
     `);
   }
 
-  // KMITL demand: aggregate percentage across all careers in the THAILAND ×
-  // JOB_POSTINGS scope, latest snapshot. `demand` is the SUM of percentage
-  // values — analogous to "total weight" in the job_postings pathway.
-  // `top_employers` is empty (KMITL is aggregate-only, no employer names);
-  // we surface KMITL career names instead via top_employers.
+  // LinkedIn (via MHESI / KMITL-hosted API) demand: aggregate percentage
+  // across all careers in the THAILAND × JOB_POSTINGS scope, latest
+  // snapshot. `demand` is the SUM of percentage values — analogous to
+  // "total weight" in the job_postings pathway. `top_employers` is empty
+  // (the LinkedIn API contract is aggregate-only, no per-employer names);
+  // we surface career names instead via top_employers. The internal enum
+  // value `'kmitl'` is preserved as a code identifier — it identifies the
+  // API endpoint; the data source is LinkedIn.
   const kmitlRows = await prisma.$queryRaw<DemandRow[]>(Prisma.sql`
     SELECT
       d.skill_id,
@@ -402,7 +445,7 @@ export async function computeSectorGap(filter: GapFilterInput): Promise<SectorGa
   >(Prisma.sql`
     SELECT DISTINCT ON (program_id) program_id, graduated_on_time
     FROM enrollment_metrics
-    ORDER BY program_id, year DESC
+    ORDER BY program_id, academic_year DESC
   `);
   const gradMap = new Map(latestGrad.map((r) => [r.program_id, r.graduated_on_time ?? 0]));
 
@@ -545,6 +588,20 @@ export async function computeOpportunities(filter: GapFilterInput): Promise<Oppo
   // Underserved = positive gap + demand > small threshold + existing supply zero or tiny.
   const underserved = gap.rows.filter((r) => r.gap > 0 && r.demand > 5 && r.supply < 5);
 
+  // Pull real growth pcts from KmitlSkillGrowth for the candidate skills.
+  // Prefer the most recent group-level growth signal (broad context),
+  // averaging across data scopes when multiple snapshots exist.
+  const skillIds = underserved.slice(0, f.limit).map((r) => r.skillId);
+  const growthRows = skillIds.length === 0 ? [] : await prisma.kmitlSkillGrowth.groupBy({
+    by: ['skillId'],
+    where: { skillId: { in: skillIds }, contextLevel: 'group' },
+    _avg: { growthPct: true },
+  });
+  const growthMap = new Map<string, number>();
+  for (const g of growthRows) {
+    if (g.skillId && g._avg.growthPct !== null) growthMap.set(g.skillId, g._avg.growthPct);
+  }
+
   const rows: OpportunityRow[] = await Promise.all(
     underserved.slice(0, f.limit).map(async (r) => {
       const [programCount, peerCount] = await Promise.all([
@@ -556,11 +613,13 @@ export async function computeOpportunities(filter: GapFilterInput): Promise<Oppo
         nameTh: r.nameTh,
         nameEn: r.nameEn,
         recentDemand: r.demand,
-        demandGrowthPct: 0, // needs historical window — v1 passes 0 + low-confidence note
+        demandGrowthPct: growthMap.get(r.skillId) ?? 0,
         existingProgramCount: programCount,
         peerProgramCount: peerCount,
         estimatedCohortSize: Math.round(r.demand / 12), // very rough: annualised
-        fitNote: 'Auto-ranked by positive gap. Editorial fit note lands when prompt 10 peers are real.',
+        fitNote: growthMap.has(r.skillId)
+          ? 'Demand growth from KMITL skill-mapping (THAILAND × LinkedIn job postings).'
+          : 'Auto-ranked by positive gap. Growth pct unavailable (skill not in KMITL taxonomy).',
       };
     }),
   );
@@ -660,6 +719,142 @@ export async function computeRisks(filter: GapFilterInput): Promise<RiskResult> 
   };
 }
 
+// ── Per-program demand-match gaps ────────────────────────────────────
+//
+// Powered by ProgramDemandMatch — AI-resolved per-program assessments
+// of "is this in-demand skill (a) relevant to this discipline AND (b)
+// covered by the curriculum?". v1: 5,377 rows × 207 programs, ~24% of
+// pairs are TRUE GAPS (demand-relevant skill the curriculum doesn't
+// teach). Sharper than aggregated computeSkillGap because each row is
+// already discipline-filtered.
+
+export interface ProgramDemandGapRow {
+  programId: string;
+  programCode: string;
+  programNameEn: string;
+  programNameTh: string;
+  facultyCode: string;
+  /** Total relevant skills (matched + unmatched). */
+  relevantSkillCount: number;
+  /** Skills the curriculum already covers. */
+  coveredCount: number;
+  /** Relevant skills the curriculum does NOT cover — the gap. */
+  gapCount: number;
+  /** 0..1 — coveredCount / relevantSkillCount. */
+  coverageRatio: number;
+  /** Top 5 highest-relatedness gaps (by demanded skill name + relatedness). */
+  topGaps: Array<{
+    skillId: string;
+    skillNameEn: string;
+    skillNameTh: string;
+    relatedness: number;
+  }>;
+  methodologyVersion: string;
+}
+
+export interface ProgramDemandGapResult {
+  filter: GapFilter;
+  rows: ProgramDemandGapRow[];
+  /** Programs with NO demand-match data yet (excluded from rows). */
+  uncoveredProgramCount: number;
+  asOf: string;
+}
+
+export async function computeProgramDemandGaps(
+  filter: GapFilterInput,
+): Promise<ProgramDemandGapResult> {
+  const f = GapFilterSchema.parse(filter);
+  const programIds = await programIdsForScope(f.scope, f.scopeId);
+
+  // Pull ProgramDemandMatch + program metadata in one go.
+  const matchesRaw = await prisma.programDemandMatch.findMany({
+    where: {
+      ...(programIds.length > 0 ? { programId: { in: programIds } } : {}),
+      relevant: true,
+    },
+    include: {
+      program: {
+        select: {
+          id: true,
+          code: true,
+          nameEn: true,
+          nameTh: true,
+          faculty: { select: { code: true } },
+        },
+      },
+      skill: { select: { id: true, nameEn: true, nameTh: true, category: true } },
+    },
+  });
+  // Filter out soft skills from the per-program gap analysis. Same
+  // rationale as computeSkillGap: job-posting taxonomies under-list
+  // soft skills, so flagging them as "uncovered" against demand is
+  // misleading (every program teaches teamwork; no posting demands it
+  // by name). Default ON via filter.
+  const matches = f.excludeSoftSkills
+    ? matchesRaw.filter((m) => !isSoftSkill(m.skill.category, m.skill.nameEn))
+    : matchesRaw;
+
+  // Group by program.
+  const byProgram = new Map<
+    string,
+    {
+      program: { id: string; code: string; nameEn: string; nameTh: string; faculty: { code: string } };
+      relevant: typeof matches;
+    }
+  >();
+  for (const m of matches) {
+    const e = byProgram.get(m.programId);
+    if (e) e.relevant.push(m);
+    else byProgram.set(m.programId, { program: m.program, relevant: [m] });
+  }
+
+  // Compute counts of programs with zero demand-match data — for the
+  // "uncoveredProgramCount" stat (Council needs to know how many
+  // programs were excluded because the AI hasn't run yet).
+  const totalProgramsAtScope =
+    programIds.length > 0
+      ? programIds.length
+      : await prisma.program.count({ where: { status: 'ACTIVE' } });
+  const uncoveredProgramCount = totalProgramsAtScope - byProgram.size;
+
+  const rows: ProgramDemandGapRow[] = [...byProgram.values()].map(({ program, relevant }) => {
+    const covered = relevant.filter((m) => m.matched);
+    const gaps = relevant.filter((m) => !m.matched);
+    const topGaps = [...gaps]
+      .sort((a, b) => b.relatedness - a.relatedness)
+      .slice(0, 5)
+      .map((m) => ({
+        skillId: m.skill.id,
+        skillNameEn: m.skill.nameEn,
+        skillNameTh: m.skill.nameTh,
+        relatedness: m.relatedness,
+      }));
+    return {
+      programId: program.id,
+      programCode: program.code,
+      programNameEn: program.nameEn,
+      programNameTh: program.nameTh,
+      facultyCode: program.faculty.code,
+      relevantSkillCount: relevant.length,
+      coveredCount: covered.length,
+      gapCount: gaps.length,
+      coverageRatio: relevant.length > 0 ? covered.length / relevant.length : 0,
+      topGaps,
+      methodologyVersion: 'demand-match.v1',
+    };
+  });
+
+  // Sort by gapCount desc — programs with the biggest curriculum holes first.
+  rows.sort((a, b) => b.gapCount - a.gapCount);
+
+  return {
+    filter: f,
+    rows: rows.slice(0, f.limit),
+    uncoveredProgramCount,
+    asOf: new Date().toISOString(),
+  };
+}
+
 // ── Forecast accuracy ────────────────────────────────────────────────
 export interface ForecastAccuracyRow {
   id: string;
@@ -715,6 +910,22 @@ export async function computeForecastAccuracy(): Promise<ForecastAccuracyResult>
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────
+
+// Soft / transferable / language skill detector. Job-posting taxonomies
+// systematically under-list these — every employer wants "teamwork" but
+// few list it as a posting requirement. Including them in the gap
+// analysis creates artificial "oversupply" rows that mislead Council.
+//
+// Detection: category substring match (covers `transferable`,
+// `Transferable`, `transferable/engineering`, `language/transferable`,
+// etc.) plus a name-based fallback for un-categorised soft skills.
+const SOFT_CATEGORY_RE = /(transferable|^language|^vocational|soft.skill|transversal)/i;
+const SOFT_NAME_RE = /\b(teamwork|leadership|critical thinking|problem solving|communication|interpersonal|self.directed|professional ethics|english language|english communication|research methodology|entrepreneurship|collaboration|presentation skills|negotiation skills|time management)\b/i;
+function isSoftSkill(category: string | null, nameEn: string | null): boolean {
+  if (category && SOFT_CATEGORY_RE.test(category)) return true;
+  if (nameEn && SOFT_NAME_RE.test(nameEn)) return true;
+  return false;
+}
 
 async function programIdsForScope(scope: ScopeLevel, scopeId: string | undefined): Promise<string[]> {
   if (scope === 'university') return [];

@@ -1,0 +1,29 @@
+{
+  "sourceOrgName": "Eastern Economic Corridor Office (EECO)",
+  "pdfCategory": "POLICY",
+  "defaultLanguage": "TH",
+  "entries": [
+    {
+      "externalId": "eeco-master-plan-phase-2",
+      "title": "EEC Phase 2 Master Plan 2023-2027",
+      "summaryTh": "แผนแม่บทระยะที่ 2 ของพื้นที่ระเบียงเศรษฐกิจพิเศษภาคตะวันออก (EEC) พ.ศ. 2566-2570 ครอบคลุม 12 อุตสาหกรรมเป้าหมาย เป้าการลงทุน 2.2 ล้านล้านบาท เน้นการพัฒนาทักษะแรงงานคุณภาพสูง",
+      "summaryEn": "EEC Phase 2 master plan 2023-2027 covering 12 target industries with 2.2 trillion baht investment target. Strong emphasis on high-skilled workforce development. Geographical focus is Eastern Thailand but skills demand spillover affects KKU graduates.",
+      "sourceUrl": "https://www.eeco.or.th/en/master-plan",
+      "publishedDate": "2023-09-20",
+      "signalType": "POLICY",
+      "impactScore": 0.78,
+      "tags": ["eec", "industrial-corridor", "12-target-industries", "thailand"]
+    },
+    {
+      "externalId": "eeco-workforce-demand-2024",
+      "title": "EEC Workforce Demand Forecast 2024-2030",
+      "summaryTh": "รายงานคาดการณ์ความต้องการแรงงานในพื้นที่ EEC ปี 2024-2030 — ระบุตำแหน่งและทักษะที่ขาดแคลน 475,000 ตำแหน่งใน 10 อุตสาหกรรมเป้าหมาย รวมถึง EV, การบิน, ดิจิทัล, ปิโตรเคมี",
+      "summaryEn": "EECO workforce demand forecast 2024-2030 — identifies 475,000 unfilled positions across 10 target industries including EV, aviation, digital, petrochemicals. Direct demand-side input for engineering/science programme planning.",
+      "sourceUrl": "https://www.eeco.or.th/",
+      "publishedDate": "2024-05-18",
+      "signalType": "MARKET",
+      "impactScore": 0.85,
+      "tags": ["workforce-demand", "ev", "aviation", "thailand"]
+    }
+  ]
+}

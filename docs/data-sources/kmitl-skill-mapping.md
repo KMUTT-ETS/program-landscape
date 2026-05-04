@@ -1,12 +1,27 @@
-# KMITL Skill Mapping
+# LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted)
 
 **Slug:** `kmitl-skill-mapping` · **Phase:** B · **Kind:** API · **Cadence:** `0 6 * * 1` (weekly Monday 06:00) · **Status:** 🚧 mocked (Phase A scaffolded 2026-05-01)
+
+> **Slug stays `kmitl-skill-mapping`** because it identifies the technical API endpoint at `https://skill.kmitl.ac.th`. The data attribution is different from the host name — see below.
+
+---
+
+## Attribution chain
+
+| Role | Party |
+|---|---|
+| **Original data source** | LinkedIn (talent-insight aggregates: profiles + Thai job postings + university grad data) |
+| **Subscription / licensee** | Ministry of Higher Education, Science, Research and Innovation of Thailand (**MHESI**) — under a national agreement |
+| **API operator / technical host** | King Mongkut's Institute of Technology Ladkrabang (**KMITL**) — operates `https://skill.kmitl.ac.th` |
+| **Consumer** | Khon Kaen University (**KKU**) — accesses the API via the MHESI agreement, with credentials issued by KMITL |
+
+Whenever this dataset is cited in Council-facing surfaces, reports, or PDFs, the attribution is **"LinkedIn data, subscribed by MHESI under a national agreement; API hosted at KMITL."** Not "KMITL data" — KMITL is the technical host, not the data owner.
 
 ---
 
 ## What it is
 
-Aggregated skill-demand intelligence built and curated by **King Mongkut's Institute of Technology Ladkrabang (KMITL)** from three input streams: LinkedIn profiles, Thai job-postings, and university graduate records. Exposed via a REST API (`https://skill.kmitl.ac.th/api/v1`) to authorized institutional partners — KKU has access via the institutional partnership.
+Aggregated skill-demand intelligence sourced from **LinkedIn**, derived from three input streams: LinkedIn profiles, Thai job postings, and university graduate records. The data is licensed to **MHESI** under a national agreement and made available to Thai universities via a REST API operated by **KMITL** at `https://skill.kmitl.ac.th/api/v1`. KKU's access is granted under MHESI's agreement, with API credentials issued by KMITL.
 
 **Replaces** the original prompt-14 plan to ingest JobThai + JobsDB directly. Trade-offs:
 
@@ -114,7 +129,7 @@ Specific failure modes to alert on:
 ## PDPA posture
 
 - **Personal data categories collected:** *none*. API contract is aggregate-only — percentages and counts at career/group/skill level. No per-person fields, no employer names.
-- **Legal basis (PDPA §24):** §24(4) — legitimate interests of KKU governance + planning. KMITL has obtained primary consent / legal basis from data subjects (LinkedIn ToS + job-poster public-by-context).
+- **Legal basis (PDPA §24):** §24(4) — legitimate interests of KKU governance + planning. The primary consent / legal basis from data subjects is obtained by **LinkedIn** (under its ToS + privacy policy) and inherited downstream through the **MHESI** subscription agreement. KMITL operates the technical aggregation/API layer; aggregation is performed before delivery so per-person data never reaches KKU.
 - **Retention:** indefinite for aggregate snapshots (necessary for time-series demand analysis).
 - **Cross-border transfer:** *no* — KMITL is Thailand-resident (server IP `161.246.127.161`).
 

@@ -18,6 +18,9 @@ import { z } from 'zod';
 
 export const Q1RowSchema = z.object({
   EMPLOYEE_HASH: z.string().min(1), // SHA256(EMPLOYEEID), 64 hex chars
+  // EMPLOYEEID raw — HR-internal employment number, NOT citizen ID.
+  // Confirmed not PII per KKU 2026-05-02; safe to display.
+  EMPLOYEE_ID: z.string().nullable(),
   PERSON_HASH: z.string().min(1).nullable(), // SHA256(ID_PEOPLE) — null if ID_PEOPLE blank
   EMP_PREFIX: z.string().nullable(),
   FNAME: z.string().nullable(),
@@ -106,13 +109,20 @@ export function parseBirthYear(value: string | null): Date | null {
 /**
  * Composes the Thai display name from prefix + first + last.
  * Falls back to whatever's available; trims internal extra whitespace.
+ *
+ * EMP_PREFIX from HCM is sometimes a numeric code ("001" = นาย, "002" =
+ * นาง, "003" = นางสาว) rather than the actual Thai title. Stripping
+ * any all-digits prefix avoids surfacing the code as if it were part
+ * of the name. When the prefix is genuinely Thai ("ผศ.", "รศ."), it
+ * passes through unchanged.
  */
 export function buildNameTh(
   prefix: string | null,
   firstName: string | null,
   lastName: string | null,
 ): string {
-  return [prefix, firstName, lastName]
+  const cleanedPrefix = (prefix?.trim() ?? '').replace(/^\d+$/, '');
+  return [cleanedPrefix, firstName, lastName]
     .map((s) => s?.trim() ?? '')
     .filter((s) => s.length > 0)
     .join(' ');

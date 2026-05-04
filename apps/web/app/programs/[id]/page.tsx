@@ -10,13 +10,19 @@ import { DeepDiveClient } from './client';
 import type {
   DeepDiveOverview,
   DeepDiveDemandFunnel,
+  DeepDiveDemographicOutlook,
   DeepDiveFinancials,
   DeepDiveSkills,
   DeepDiveOutcomes,
   DeepDiveFaculty,
   DeepDivePeers,
+  DeepDiveStudentCohorts,
+  DeepDiveTcasStats,
+  DeepDiveAiPeers,
+  DeepDiveAiReadiness,
+  DeepDiveLifecycle,
+  DeepDiveStrategicNarrative,
   DeepDiveTrends,
-  DeepDiveDecisions,
 } from './types';
 
 export const dynamic = 'force-dynamic';
@@ -38,23 +44,35 @@ export default async function ProgramDeepDivePage({
   const [
     overview,
     demandFunnel,
+    studentCohorts,
+    tcasStats,
+    aiPeers,
+    aiReadiness,
+    lifecycle,
+    strategicNarrative,
+    demographicOutlook,
     financials,
     skills,
     outcomes,
     facultyData,
     peers,
     trends,
-    decisions,
   ] = await Promise.all([
     apiFetch<DeepDiveOverview>(`/programs/${id}/overview`).catch(() => null),
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
+    apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
+    apiFetch<DeepDiveTcasStats>(`/programs/${id}/tcas-stats`).catch(() => null),
+    apiFetch<DeepDiveAiPeers>(`/programs/${id}/ai-peers`).catch(() => null),
+    apiFetch<DeepDiveAiReadiness>(`/programs/${id}/ai-readiness`).catch(() => null),
+    apiFetch<DeepDiveLifecycle>(`/programs/${id}/lifecycle`).catch(() => null),
+    apiFetch<DeepDiveStrategicNarrative>(`/programs/${id}/strategic-narrative`).catch(() => null),
+    apiFetch<DeepDiveDemographicOutlook>(`/programs/${id}/demographic-outlook`).catch(() => null),
     apiFetch<DeepDiveFinancials>(`/programs/${id}/financials`).catch(() => null),
     apiFetch<DeepDiveSkills>(`/programs/${id}/skills`).catch(() => null),
     apiFetch<DeepDiveOutcomes>(`/programs/${id}/outcomes`).catch(() => null),
     apiFetch<DeepDiveFaculty>(`/programs/${id}/faculty`).catch(() => null),
     apiFetch<DeepDivePeers>(`/programs/${id}/peers`).catch(() => null),
     apiFetch<DeepDiveTrends>(`/programs/${id}/trends`).catch(() => null),
-    apiFetch<DeepDiveDecisions>(`/programs/${id}/decisions`).catch(() => null),
   ]);
 
   if (!overview) notFound();
@@ -67,13 +85,22 @@ export default async function ProgramDeepDivePage({
         actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/programs/${id}/print`}>
+              <Link href={`/programs/${id}/print`} target="_blank" rel="noopener noreferrer">
                 <Printer className="h-4 w-4" />
                 Print view
               </Link>
             </Button>
+            {/* Export PDF — server-side Gotenberg render of the
+                comprehensive tabular detail report. The route returns
+                a 302 redirect to a signed MinIO URL, so the browser
+                downloads the PDF directly. Print view is the on-screen
+                browser-print version of the same content. */}
             <Button variant="outline" size="sm" asChild>
-              <a href={`/api/admin-program-export/${id}`} target="_blank" rel="noopener noreferrer">
+              <a
+                href={`/api/admin-program-export/${id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <FileText className="h-4 w-4" />
                 Export PDF
               </a>
@@ -86,13 +113,19 @@ export default async function ProgramDeepDivePage({
         programId={id}
         overview={overview}
         demandFunnel={demandFunnel}
+        studentCohorts={studentCohorts}
+        tcasStats={tcasStats}
+        aiPeers={aiPeers}
+        aiReadiness={aiReadiness}
+        lifecycle={lifecycle}
+        strategicNarrative={strategicNarrative}
+        demographicOutlook={demographicOutlook}
         financials={financials}
         skills={skills}
         outcomes={outcomes}
         faculty={facultyData}
         peers={peers}
         trends={trends}
-        decisions={decisions}
       />
     </AuthedAppShell>
   );

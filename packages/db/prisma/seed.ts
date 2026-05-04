@@ -38,6 +38,26 @@ const randInt = (min: number, max: number) =>
 const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)]!;
 
 // ──────────────────────────────────────────────────────────────────────────
+// Mock-data gate. Default: OFF — seed only real reference/structural data
+// (faculties, departments, programs from sheet, skill taxonomy, sectors,
+// demographic projections, data-source catalog, KKU SSO mappings).
+//
+// Set SEED_MOCKS=true to additionally seed sample/demo content:
+//   • mock job postings + job_posting_skills
+//   • 29 sample trend signals
+//   • 4 scenario templates
+//   • 12 peer programs + 3 peer sets + rankings
+//   • 3 sample council decisions + milestones + outcome reviews
+//   • 192 mock occupation_demand rows
+//   • 9 synthetic forecast back-tests
+//
+// Production / Council-facing environments should keep this OFF so analyses
+// reflect ONLY data flowing from real connectors (kku-registry, kku-hr,
+// kku-finance, kku-research, kmitl-skill-mapping) + the curated workflow.
+// ──────────────────────────────────────────────────────────────────────────
+const SEED_MOCKS = process.env.SEED_MOCKS === 'true';
+
+// ──────────────────────────────────────────────────────────────────────────
 // 1. Faculties (24) and Departments (12)
 //
 // All 24 academic units of KKU. The Thai names match exactly the
@@ -446,7 +466,11 @@ async function main() {
     }
   }
 
-  // ── Faculty members (5 per department) + ProgramFaculty assignments ─────
+  // ── Faculty members (5 per department) + ProgramFaculty — gated ──────
+  // Real faculty roster is loaded by the kku-hr connector (employee_code
+  // prefix `hr_<hash>`). These synthetic rows ("Faculty Member 1 …") were
+  // useful for early demo; in real-data mode they pollute the staff list.
+  if (SEED_MOCKS) {
   const ranks: FacultyRank[] = ['LECTURER', 'ASST_PROF', 'ASSOC_PROF', 'PROF'];
   for (const [deptCode, dept] of departmentByCode) {
     for (let i = 1; i <= 5; i++) {
@@ -488,8 +512,13 @@ async function main() {
       }
     }
   }
+  } // end if (SEED_MOCKS) — Faculty members + ProgramFaculty
 
-  // ── Enrollment + Financial + Graduate outcomes for 3 years ──────────────
+  // ── Enrollment + Financial + Graduate outcomes ── gated ──────────────
+  // Real enrollment / financial come from kku-registry + kku-finance.
+  // These synthetic rows are tied to the mock 30-program seed, which gets
+  // wiped + replaced by the sheet-seed workflow — they'd orphan anyway.
+  if (SEED_MOCKS) {
   const years = [2022, 2023, 2024];
   for (const [, program] of programByCode) {
     for (const year of years) {
@@ -584,8 +613,12 @@ async function main() {
       }
     }
   }
+  } // end if (SEED_MOCKS) — Enrollment / Financial / Outcomes
 
-  // ── PDF documents (5 mock) ──────────────────────────────────────────────
+  // ── PDF documents (5 mock fixtures) ── gated ───────────────────────────
+  // Real curriculum PDFs land via the seed-from-sheet workflow + the
+  // smart linker. Real policy/report/peer/minutes PDFs come via /upload.
+  if (SEED_MOCKS) {
   const pdfFixtures = [
     {
       filename: 'MHESI-2024-policy-brief.pdf',
@@ -639,8 +672,10 @@ async function main() {
       },
     });
   }
+  } // end if (SEED_MOCKS) — pdf fixtures
 
-  // ── Job postings (50) ───────────────────────────────────────────────────
+  // ── Job postings (50) ── gated behind SEED_MOCKS ───────────────────────
+  if (SEED_MOCKS) {
   const sources = ['JobsDB', 'JobThai'];
   const provinces = ['Bangkok', 'Khon Kaen', 'Chiang Mai', 'Chon Buri'];
   for (let i = 1; i <= 50; i++) {
@@ -666,8 +701,10 @@ async function main() {
       },
     });
   }
+  } // end if (SEED_MOCKS) — job postings
 
-  // ── Trend signals (30+ across 5 types × sectors) ───────────────────────
+  // ── Trend signals (30+ across 5 types × sectors) ── gated ─────────────
+  if (SEED_MOCKS) {
   // Real signals land via the monitor jobs in apps/ingestion once
   // connectors are wired to real upstreams (prompt 14). These seeds
   // make /trends and the deep-dive trend-exposure section useful on
@@ -1040,6 +1077,7 @@ async function main() {
       },
     });
   }
+  } // end if (SEED_MOCKS) — trend signals
 
   // ── Data sources (inventory seed — catalog lives in @kku/shared) ────────
   // The connector registry in apps/ingestion looks up its DataSource row
@@ -1119,16 +1157,19 @@ async function main() {
   }
 
   // ── Gap Analyzer seeds (prompt 08) ──────────────────────────────────────
+  // Always seeds reference data (sectors, skill_sectors, demographic
+  // projections); mock subsets (occupation_demand, forecast_runs) gate
+  // on SEED_MOCKS internally.
   await seedGapAnalyzerData();
 
-  // ── Scenario Planner templates (prompt 09) ──────────────────────────────
-  await seedScenarioTemplates();
+  // ── Scenario Planner templates (prompt 09) — gated ─────────────────────
+  if (SEED_MOCKS) await seedScenarioTemplates();
 
-  // ── Competitive Benchmarking (prompt 10) ────────────────────────────────
-  await seedBenchmarkingData();
+  // ── Competitive Benchmarking (prompt 10) — gated ───────────────────────
+  if (SEED_MOCKS) await seedBenchmarkingData();
 
-  // ── Decision Workspace (prompt 12) ──────────────────────────────────────
-  await seedDecisionSamples();
+  // ── Decision Workspace (prompt 12) — gated ─────────────────────────────
+  if (SEED_MOCKS) await seedDecisionSamples();
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
@@ -1230,8 +1271,8 @@ async function seedGapAnalyzerData() {
     });
   }
 
-  // ── JobPostingSkill joins ───────────────────────────────────────────────
-  // Assign 2–3 skills per posting (deterministic based on posting index).
+  // ── JobPostingSkill joins — gated (depends on mock job postings) ─────
+  if (SEED_MOCKS) {
   const postings = await prisma.jobPosting.findMany({ select: { id: true, externalId: true } });
   const skillPool = allSkills.slice(0, Math.min(40, allSkills.length));
   if (skillPool.length > 0) {
@@ -1249,8 +1290,10 @@ async function seedGapAnalyzerData() {
       }
     }
   }
+  } // end if (SEED_MOCKS) — JobPostingSkill
 
-  // ── OccupationDemand ────────────────────────────────────────────────────
+  // ── OccupationDemand ── gated (mock seed) ──────────────────────────────
+  if (SEED_MOCKS) {
   // 8 occupation codes × 4 provinces × 6 months = 192 rows.
   const occupationCodes = ['2521', '2521-01', '2529', '2521-02', '2166', '2511', '2221', '2141'];
   const demandProvinces = ['Bangkok', 'Khon Kaen', 'Chiang Mai', 'Chon Buri'];
@@ -1284,8 +1327,9 @@ async function seedGapAnalyzerData() {
       }
     }
   }
+  } // end if (SEED_MOCKS) — OccupationDemand
 
-  // ── DemographicProjection ───────────────────────────────────────────────
+  // ── DemographicProjection ── public reference data, always seeded ─────
   // Thailand 18-22 cohort projection: ~4.5M in 2020, shrinking ~1.8%/year.
   // Northeast ~1.2M, same shrink rate.
   const baseThai = 4_500_000;
@@ -1318,10 +1362,8 @@ async function seedGapAnalyzerData() {
     });
   }
 
-  // ── ForecastRun (back-test history) ─────────────────────────────────────
-  // 5 demand forecasts + 4 supply forecasts, all with filled actuals so
-  // /forecast-accuracy has meaningful rows on first boot. Real forecasts
-  // (written by the gap service) pile on top of these over time.
+  // ── ForecastRun (back-test history) ── gated (synthetic data) ────────
+  if (SEED_MOCKS) {
   const past = new Date().getFullYear() - 1;
   const existingForecasts = await prisma.forecastRun.count();
   if (existingForecasts === 0) {
@@ -1361,6 +1403,7 @@ async function seedGapAnalyzerData() {
       });
     }
   }
+  } // end if (SEED_MOCKS) — ForecastRun
 }
 
 // ──────────────────────────────────────────────────────────────────────────
