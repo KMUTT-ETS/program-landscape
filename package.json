@@ -52,6 +52,7 @@
     "peers:select": "tsx apps/ingestion/src/scripts/select-program-peers.ts",
     "skills:normalise": "tsx apps/ingestion/src/scripts/normalise-skill-names.ts",
     "staff:enrich-scopus": "tsx apps/ingestion/src/scripts/enrich-scopus-ids.ts",
+    "staff:reconcile-mhesi": "tsx apps/api/src/staff/reconcile-mhesi-codes.ts",
     "data:remove-mocks": "tsx apps/ingestion/src/scripts/remove-mock-data.ts",
     "connector:run": "tsx apps/ingestion/src/scripts/run-connector.ts",
     "build:release": "tsx scripts/build-release.ts",

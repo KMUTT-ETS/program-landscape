@@ -1,0 +1,1 @@
+export { KkuHrProcessedRealConnector } from './connector';

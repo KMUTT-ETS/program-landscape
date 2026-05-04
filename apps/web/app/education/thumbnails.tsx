@@ -73,38 +73,93 @@ export function StudentInfoThumb() {
 
 // Dashboard 2 — Location: Thailand silhouette + pins.
 export function LocationThumb() {
+  // Stylised Thailand silhouette tiled by the six NESDC regions.
+  // Coordinates are hand-tuned (not from a TopoJSON) so the shapes
+  // approximate the country's actual outline: a wide North, the
+  // Isaan plateau bulging east along the Mekong, the long peninsular
+  // tail going south. Each region renders as its own polygon so the
+  // colour split is the silhouette itself — no outline needed.
+  const REGIONS = [
+    {
+      name: 'North',
+      color: COLORS.primary,
+      // Chiang Mai / Chiang Rai / Lampang — wide top
+      d: 'M 38 18 L 56 10 L 76 11 L 86 19 L 88 32 L 80 38 L 60 36 L 46 32 L 38 26 Z',
+    },
+    {
+      name: 'Northeast',
+      color: COLORS.amber,
+      // Isaan plateau — bulges east, follows the Mekong curve
+      d: 'M 80 24 L 102 22 L 116 32 L 119 46 L 113 60 L 96 62 L 84 56 L 78 44 L 78 32 Z',
+    },
+    {
+      name: 'West',
+      color: COLORS.blue,
+      // Tenasserim border strip with Myanmar
+      d: 'M 36 30 L 48 34 L 52 56 L 48 72 L 40 76 L 32 66 L 30 48 Z',
+    },
+    {
+      name: 'Central',
+      color: COLORS.green,
+      // Chao Phraya valley + Bangkok
+      d: 'M 50 38 L 78 40 L 84 52 L 80 66 L 68 72 L 56 68 L 50 56 Z',
+    },
+    {
+      name: 'East',
+      color: COLORS.warm,
+      // Eastern seaboard — Chonburi, Rayong, Trat
+      d: 'M 84 56 L 102 60 L 108 70 L 100 76 L 86 76 L 80 68 Z',
+    },
+    {
+      name: 'South',
+      color: COLORS.accent,
+      // Peninsular tail — Phuket / Surat Thani / Songkhla
+      d: 'M 58 76 L 72 76 L 76 88 L 70 102 L 64 116 L 58 116 L 53 102 L 53 88 Z',
+    },
+  ];
+
   return (
     <Frame>
-      {/* Highly stylised Thailand outline (a sloping vertical with a head + tail) */}
-      <path
-        d="M 105 18 L 115 28 L 118 42 L 124 56 L 122 70 L 116 84 L 112 96 L 108 102 L 104 96 L 100 86 L 98 74 L 96 60 L 100 46 L 100 32 Z"
-        fill={COLORS.green}
-        opacity="0.4"
-        stroke={COLORS.green}
-        strokeWidth="1.5"
-      />
-      {/* Region pins */}
-      {[
-        { x: 108, y: 30, color: COLORS.accent }, // North
-        { x: 116, y: 50, color: COLORS.primary }, // NE
-        { x: 108, y: 64, color: COLORS.amber }, // Central
-        { x: 102, y: 90, color: COLORS.blue }, // South
-      ].map((p, i) => (
-        <g key={i}>
-          <circle cx={p.x} cy={p.y} r="4" fill={p.color} />
-          <circle cx={p.x} cy={p.y} r="8" fill={p.color} opacity="0.25" />
+      <g transform="translate(8, -4)">
+        {/* Subtle drop shadow for the country */}
+        <g transform="translate(2, 2)">
+          {REGIONS.map((r) => (
+            <path key={r.name} d={r.d} fill="#000" opacity="0.06" />
+          ))}
         </g>
-      ))}
-      {/* Region labels right side */}
-      <g transform="translate(150, 28)" fontSize="8" fill={COLORS.ink}>
-        <text y="0">North</text>
-        <circle cx="-8" cy="-3" r="3" fill={COLORS.accent} />
-        <text y="14">Northeast</text>
-        <circle cx="-8" cy="11" r="3" fill={COLORS.primary} />
-        <text y="28">Central</text>
-        <circle cx="-8" cy="25" r="3" fill={COLORS.amber} />
-        <text y="42">South</text>
-        <circle cx="-8" cy="39" r="3" fill={COLORS.blue} />
+        {REGIONS.map((r) => (
+          <path key={r.name} d={r.d} fill={r.color} opacity="0.9" />
+        ))}
+        {/* Hairline outline for cohesion */}
+        {REGIONS.map((r) => (
+          <path
+            key={`stroke-${r.name}`}
+            d={r.d}
+            fill="none"
+            stroke={COLORS.bg}
+            strokeWidth="0.7"
+            opacity="0.7"
+          />
+        ))}
+      </g>
+
+      {/* Two-column legend on the right */}
+      <g transform="translate(148, 22)" fontSize="8" fill={COLORS.ink}>
+        {[
+          { label: 'North', color: COLORS.primary, x: 0, y: 0 },
+          { label: 'Northeast', color: COLORS.amber, x: 0, y: 16 },
+          { label: 'West', color: COLORS.blue, x: 0, y: 32 },
+          { label: 'Central', color: COLORS.green, x: 46, y: 0 },
+          { label: 'East', color: COLORS.warm, x: 46, y: 16 },
+          { label: 'South', color: COLORS.accent, x: 46, y: 32 },
+        ].map((item) => (
+          <g key={item.label} transform={`translate(${item.x}, ${item.y})`}>
+            <rect x="-2" y="-5" width="6" height="6" rx="1" fill={item.color} />
+            <text x="8" y="0">
+              {item.label}
+            </text>
+          </g>
+        ))}
       </g>
     </Frame>
   );

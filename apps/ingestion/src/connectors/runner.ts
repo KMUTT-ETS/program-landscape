@@ -77,6 +77,7 @@ export class ConnectorRunner {
     });
 
     const ctx: ConnectorContext = {
+      runId: run.id,
       dataSource: {
         id: dataSource.id,
         slug: dataSource.slug,

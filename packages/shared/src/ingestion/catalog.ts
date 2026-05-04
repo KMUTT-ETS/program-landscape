@@ -335,6 +335,56 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes: 'Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
     mocked: true,
   },
+  {
+    slug: 'unicon-ds1001',
+    name: 'UNICON DS1001 — Student information',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 4 * * *', // daily at 04:00 (after DS2004 03:00 so resolution sees latest aliases)
+    ownerContact: 'KKU Registrar — UNICON system administrator',
+    notes: 'Per-student snapshot. PII-stripped projection — names + full DOB + address + passport never leave the source. CITIZEN_ID + STD_ID hashed at ingestion; CURR_ID joins Program.mhesiCode ∪ ProgramMhesiAlias.',
+    mocked: false,
+  },
+  {
+    slug: 'unicon-ds2001',
+    name: 'UNICON DS2001 — Staff master record',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 5 * * *', // daily at 05:00
+    ownerContact: 'KKU Personnel — UNICON system administrator',
+    notes: 'Per-staff master snapshot. Names retained (RBAC-gated); CITIZEN_ID hashed. Drives the Staff dashboard suite.',
+    mocked: false,
+  },
+  {
+    slug: 'kku-hr-processed',
+    name: 'KKU HR Processed — Salary aggregate',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 6 * * *', // daily at 06:00
+    ownerContact: 'KKU HR Office',
+    notes: 'Server-side GROUP BY ... HAVING n>=5 from vw_history salary. Per-person never crosses the wire. Powers Staff #6 Compensation + program pipeline cost-allocation methodology.',
+    mocked: false,
+  },
+  {
+    slug: 'unicon-ds2003',
+    name: 'UNICON DS2003 — Employee education qualifications',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 2 * * *', // daily at 02:00
+    ownerContact: 'KKU Personnel — UNICON system administrator',
+    notes: 'KKU\'s submission to MHESI-UniCON. One row per (staff × degree). Hashed citizen ID is the cross-system join key.',
+    mocked: false,
+  },
+  {
+    slug: 'unicon-ds2004',
+    name: 'UNICON DS2004 — Academic staff per program',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 3 * * *', // daily at 03:00
+    ownerContact: 'KKU Registrar — UNICON system administrator',
+    notes: 'Academic staff appointments per MHESI curriculum. CURR_ID joins Program.mhesiCode. Auto-resolves the latest ds2004_<YYSEM> table.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

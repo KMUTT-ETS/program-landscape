@@ -98,6 +98,13 @@ enum FacultyRank {
   PROF
 }
 
+enum FacultyKind {
+  ACADEMIC
+  ADMIN
+  INSTITUTE
+  RESEARCH_CENTER
+}
+
 enum ProgramFacultyRole {
   COORDINATOR
   CORE
@@ -282,12 +289,13 @@ enum IngestionRunStatus {
 // ══════════════════════════════════════════════════════════════════════════
 
 model Faculty {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  nameTh    String   @map("name_th")
-  nameEn    String   @map("name_en")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String      @id @default(cuid())
+  code      String      @unique
+  nameTh    String      @map("name_th")
+  nameEn    String      @map("name_en")
+  kind      FacultyKind @default(ACADEMIC)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
   departments         Department[]
   programs            Program[]
@@ -297,6 +305,8 @@ model Faculty {
   hrOrgMappings       HrOrgMapping[]
   facultyCompensation FacultyCompensation[]
   facultyBudgets      FacultyBudget[]
+  staffMasterRecords  StaffMasterRecord[]
+  staffCompensationCubes StaffCompensationCube[]
 
   @@index([code])
   @@map("faculties")
@@ -409,6 +419,9 @@ model Program {
   documents             ProgramDocument[]
   registryMappings      RegistryProgramMapping[]
   demandMatches         ProgramDemandMatch[]
+  staffAssignments      StaffProgramAssignment[]
+  mhesiAliases          ProgramMhesiAlias[]
+  studentRecords        StudentProgramRecord[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -973,6 +986,11 @@ model FacultyMember {
   orcid                 String?     @unique
   openalexAuthorId      String?     @unique @map("openalex_author_id")
   scopusAuthorId        String?     @unique @map("scopus_author_id")
+  // Cross-system identity key — SHA-256 of digit-stripped Thai citizen ID
+  // (or alphanumeric-stripped passport for foreign staff). Computed via
+  // hashCitizenId() in @kku/shared. Populated lazily as connectors
+  // observe a matching person across DS2003 / DS2004 / processed-HR.
+  citizenIdHash         String?     @unique @map("citizen_id_hash")
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 
@@ -2065,8 +2083,13 @@ model IngestionRun {
   metadata          Json?
   createdAt         DateTime            @default(now()) @map("created_at")
 
-  dataSource  DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
-  triggeredBy User?      @relation("IngestionTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  dataSource              DataSource               @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  triggeredBy             User?                    @relation("IngestionTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  staffEducationHistories StaffEducationHistory[]
+  staffProgramAssignments StaffProgramAssignment[]
+  studentProgramRecords   StudentProgramRecord[]
+  staffMasterRecords      StaffMasterRecord[]
+  staffCompensationCubes  StaffCompensationCube[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
@@ -2940,4 +2963,292 @@ model EducationCubeRefresh {
   @@index([cubeName, startedAt])
   @@index([status])
   @@map("education_cube_refresh")
+}
+
+// ─── Staff cross-system identity tables ─────────────────────────────────
+//
+// These two tables receive UNICON DS2003 + DS2004 data. Both are keyed
+// by `citizenIdHash` — SHA-256 of the digit-stripped Thai citizen ID
+// (or alphanumeric-stripped passport for foreign staff). Same hash is
+// computed by the processed-HR mart connector and (eventually) the
+// rehashed kku-hr feed; one canonical join key across all sources.
+//
+// `facultyMemberId` is a soft FK populated lazily — initial ingestion
+// leaves it NULL; it gets filled when a connector observes a matching
+// citizenIdHash on a FacultyMember row. Service-layer queries can join
+// directly on citizenIdHash for unmatched rows.
+
+// DS2003 — one row per (staff × degree). Source: UNICON_STAFF_KKU.DS2003.
+model StaffEducationHistory {
+  id              String   @id @default(cuid())
+  citizenIdHash   String   @map("citizen_id_hash")
+  source          String   // 'unicon-ds2003'
+  academicYear    String?  @map("academic_year")  // BE year as string for source fidelity
+  semester        String?
+  univId          String?  @map("univ_id")
+  gradYear        String?  @map("grad_year")        // BE year of graduation
+  gradLevelId     String?  @map("grad_level_id")    // REF_LEV id; '-' or NULL when source missed it
+  gradLevelName   String?  @map("grad_level_name")  // derived from gradCurriculum if id absent
+  gradCurriculum  String?  @map("grad_curriculum")  // GRAD_CURR — full degree+major name
+  gradIscedId     String?  @map("grad_isced_id")    // ISCED-2013 code; mostly empty in current data
+  gradProgram     String?  @map("grad_program")     // GRAD_PROG — major
+  gradInstitute   String?  @map("grad_institute")   // GRAD_UNIV — institute name
+  gradCountryId   String?  @map("grad_country_id")  // ISO-3166-1 alpha-2
+  ingestionRunId  String?  @map("ingestion_run_id")
+  ingestedAt      DateTime @default(now()) @map("ingested_at")
+
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@index([citizenIdHash])
+  @@index([gradCountryId])
+  @@index([gradLevelId])
+  @@map("staff_education_history")
+}
+
+// DS2004 — one row per (staff × program × teach-type). Source: reg_unicon.ds2004_<YYSEM>.
+model StaffProgramAssignment {
+  id             String   @id @default(cuid())
+  citizenIdHash  String   @map("citizen_id_hash")
+  programId      String?  @map("program_id")  // resolved via Program.mhesiCode = CURR_ID
+  mhesiCurrId    String   @map("mhesi_curr_id")  // raw CURR_ID, kept for audit + unresolved rows
+  facId          String?  @map("fac_id")  // raw MHESI faculty code (REF_FAC)
+  teachTypeId    Int      @map("teach_type_id")  // 1=regular, 2=curriculum lecturer, 3=responsible
+  academicYear   Int      @map("academic_year")  // BE year
+  semester       Int
+  univId         String?  @map("univ_id")
+  ingestionRunId String?  @map("ingestion_run_id")
+  ingestedAt     DateTime @default(now()) @map("ingested_at")
+
+  program      Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([academicYear, semester, citizenIdHash, mhesiCurrId, teachTypeId], map: "uq_staff_prog_natural")
+  @@index([citizenIdHash])
+  @@index([programId])
+  @@index([mhesiCurrId])
+  @@map("staff_program_assignment")
+}
+
+// One Program ↔ many MHESI CURR_IDs. Reconciles cases where MHESI tracks
+// distinct curriculum codes for what we model as a single Program (Thai
+// vs International program-mode variants, curriculum-revision codes,
+// etc.). UNICON is the trust source for CURR_IDs; this table is the
+// many-side that lets DS2004 resolve all of them to our single Program
+// row. `Program.mhesiCode` remains the canonical primary; aliases here
+// are non-primary by definition.
+model ProgramMhesiAlias {
+  id          String   @id @default(cuid())
+  programId   String   @map("program_id")
+  mhesiCode   String   @unique @map("mhesi_code")
+  source      String   // 'unicon-ds2004', 'analyst-curated', etc.
+  note        String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId])
+  @@map("program_mhesi_aliases")
+}
+
+// DS1001 — student-level snapshot, one row per (student × AY × sem).
+// Source: reg_unicon.view_ds1001 (KKU's UNICON submission).
+//
+// PII handling at ingestion (DPO-approved 2026-05-04):
+//   - Direct identifiers DROPPED: name (TH+EN), full DOB, sub-district,
+//     passport number/dates, prefix.
+//   - CITIZEN_ID and STD_ID HASHED via @kku/shared/identity/hash-citizen-id.
+//     citizenIdHash is the canonical cross-system join key (matches
+//     staff_program_assignment, staff_education_history).
+//   - BIRTHDAY → birth year only (year-precision, like FacultyMember).
+//   - DEFORM_ID (disability) and FUND_STATUS_ID retained but flagged
+//     as §26-sensitive — RBAC gate at the service layer.
+//
+// CURR_ID resolves to Program via Program.mhesiCode ∪ ProgramMhesiAlias.
+// Snapshot replace by (academicYear, semester) on every refresh.
+model StudentProgramRecord {
+  id                 String   @id @default(cuid())
+  citizenIdHash      String   @map("citizen_id_hash")
+  studentCodeHash    String?  @map("student_code_hash")  // SHA-256 of STD_ID
+  programId          String?  @map("program_id")
+  mhesiCurrId        String   @map("mhesi_curr_id")
+  facId              String?  @map("fac_id")
+  academicYear       Int      @map("academic_year")
+  semester           Int
+  univId             String?  @map("univ_id")
+
+  // Demographics — categorical, low re-identification risk
+  genderId           String?  @map("gender_id")
+  nationalityId      String?  @map("nationality_id")
+  birthYear          Int?     @map("birth_year")
+  admitYear          Int?     @map("admit_year")
+
+  // Study mode + status
+  studyTypeId        String?  @map("study_type_id")
+  studyTimeId        String?  @map("study_time_id")
+  studyRegId         String?  @map("study_reg_id")
+  classYear          String?  @map("class_year")
+  degreeNum          Int?     @map("degree_num")
+  graduationStatusId String?  @map("graduation_status_id")
+  studentStatusId    String?  @map("student_status_id")
+  terminateCause     String?  @map("terminate_cause")
+
+  // Academic performance — sensitive; RBAC-gate
+  gpa                Float?
+  gpax               Float?
+  numCredit          Int?     @map("num_credit")
+  accCredit          Int?     @map("acc_credit")
+
+  // Funding aid + accessibility — §26-adjacent; RBAC-gate
+  fundStatusId       String?  @map("fund_status_id")
+  fundName           String?  @map("fund_name")
+  deformId           String?  @map("deform_id")
+  talentId           String?  @map("talent_id")
+
+  ingestionRunId     String?  @map("ingestion_run_id")
+  ingestedAt         DateTime @default(now()) @map("ingested_at")
+
+  program      Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([academicYear, semester, citizenIdHash], map: "uq_student_record_natural")
+  @@index([citizenIdHash])
+  @@index([programId])
+  @@index([mhesiCurrId])
+  @@index([facId])
+  @@index([studentStatusId])
+  @@map("student_program_record")
+}
+
+// DS2001 — staff master record (one row per staff per AY+sem). Source:
+// UNICON_STAFF_KKU.DS2001 via the unicon-ds2001 connector.
+//
+// PII handling at projection (DPO-approved 2026-05-04):
+//   DROPPED:  HOMEADD, MOO, STREET, SUB_DISTRICT_ID, ZIPCODE, TELEPHONE,
+//             EMAIL, PASSPORT_*, APPOINTMENT_*, SCHOLAR_ORDER_*,
+//             DECORATION_ID/DATE
+//   HASHED:   CITIZEN_ID → citizenIdHash (canonical cross-system join key)
+//   YEAR-DOWN: BIRTHDAY → birth_year only
+//
+// Names KEPT — useful for staff rosters + top-producer panels (DPO scope
+// covers internal Council/management surfaces; service layer RBAC-gates
+// the name fields when serving non-admin requests).
+model StaffMasterRecord {
+  id                            String    @id @default(cuid())
+  citizenIdHash                 String    @map("citizen_id_hash")
+
+  // Names — RBAC-gate at service layer for non-admin readers
+  prefixNameId                  String?   @map("prefix_name_id")
+  firstName                     String?   @map("first_name")
+  middleName                    String?   @map("middle_name")
+  lastName                      String?   @map("last_name")
+  firstNameEn                   String?   @map("first_name_en")
+  middleNameEn                  String?   @map("middle_name_en")
+  lastNameEn                    String?   @map("last_name_en")
+
+  // Demographics
+  genderId                      String?   @map("gender_id")
+  birthYear                     Int?      @map("birth_year")
+  nationalityId                 String?   @map("nationality_id")
+
+  // Type / track
+  staffTypeId                   String?   @map("staff_type_id")
+  subStaffTypeId                String?   @map("sub_staff_type_id")
+  timeContactId                 String?   @map("time_contact_id")
+  budgetId                      String?   @map("budget_id")
+  adminPositionId               String?   @map("admin_position_id")
+  positionWork                  String?   @map("position_work")
+  academicStandingId            String?   @map("academic_standing_id")
+  positionLevelId               String?   @map("position_level_id")
+
+  // Org placement
+  departmentRawId               String?   @map("department_raw_id")
+  facultyId                     String?   @map("faculty_id")
+
+  // Lifecycle
+  dateInWork                    DateTime? @map("date_in_work") @db.Date
+  dateStartThisU                DateTime? @map("date_start_this_u") @db.Date
+  movementTypeId                String?   @map("movement_type_id")
+  movementDate                  DateTime? @map("movement_date") @db.Date
+
+  // Specialisation
+  specialNameId1                String?   @map("special_name_id_1")
+  specialNameId2                String?   @map("special_name_id_2")
+  academicStandingSubjectId     String?   @map("academic_standing_subject_id")
+  academicStandingSubjectOther  String?   @map("academic_standing_subject_other")
+  teachLevelId                  String?   @map("teach_level_id")
+
+  // Income — UNICON-codified band (e.g., '15001-20000', '20001-25000')
+  incomeId                      String?   @map("income_id")
+
+  // §26-sensitive — RBAC strict
+  deformId                      String?   @map("deform_id")
+
+  researcherStatusId            String?   @map("researcher_status_id")
+
+  academicYear                  Int       @map("academic_year")
+  semester                      Int       @map("semester")
+  univId                        String?   @map("univ_id")
+  ingestionRunId                String?   @map("ingestion_run_id")
+  ingestedAt                    DateTime  @default(now()) @map("ingested_at")
+
+  faculty       Faculty?      @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  ingestionRun  IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([academicYear, semester, citizenIdHash], map: "uq_staff_master_natural")
+  @@index([citizenIdHash])
+  @@index([facultyId])
+  @@index([staffTypeId])
+  @@index([subStaffTypeId])
+  @@index([academicStandingId])
+  @@index([positionLevelId])
+  @@map("staff_master_record")
+}
+
+// Processed-HR salary aggregates (sourced from `vw_history` at
+// 202.28.117.84:3306). Aggregate-at-source via `GROUP BY ... HAVING n>=5`
+// — no per-person salary ever crosses the wire. Two grain levels:
+// (faculty × isAcademic × rank/level × salType) for the dashboard,
+// reusable in the cost-allocation methodology + program pipeline.
+model StaffCompensationCube {
+  id              String   @id @default(cuid())
+  fiscalYear      Int      @map("fiscal_year")
+  facultyName     String   @map("faculty_name")    // raw Thai name from vw_history.faculty
+  facultyId       String?  @map("faculty_id")      // resolved to our Faculty
+  isAcademic      Boolean  @map("is_academic")     // true if posi_academic non-empty
+  level           String?                          // ผศ/รศ/ศ/อ./ปฏิบัติการ/ชำนาญการ/...
+  salType         String?  @map("sal_type")        // เงินงบประมาณ / เงินรายได้ / 50:50 / ...
+
+  headcount       Int
+  meanSalary      Float    @map("mean_salary")
+  minSalary       Float    @map("min_salary")
+  maxSalary       Float    @map("max_salary")
+  sumSalary       Float    @map("sum_salary")
+
+  ingestionRunId  String?  @map("ingestion_run_id")
+  ingestedAt      DateTime @default(now()) @map("ingested_at")
+
+  faculty       Faculty?      @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  ingestionRun  IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([fiscalYear, facultyName, isAcademic, level, salType], map: "uq_staff_comp_natural")
+  @@index([facultyId])
+  @@index([fiscalYear])
+  @@index([isAcademic])
+  @@map("staff_compensation_cube")
+}
+
+// Per-person year-precision lifecycle dates from processed-HR vw_history.
+// PII-narrow projection: just SHA-256(citizen_id) + the four year ints.
+// Snapshot replace by source on every refresh.
+model StaffLifecycleDates {
+  citizenIdHash String   @id @map("citizen_id_hash")
+  birthYearAd   Int?     @map("birth_year_ad")
+  retireYearAd  Int?     @map("retire_year_ad")
+  sixtyYearAd   Int?     @map("sixty_year_ad")
+  source        String   @default("kku-hr-processed")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([retireYearAd])
+  @@index([birthYearAd])
+  @@map("staff_lifecycle_dates")
 }

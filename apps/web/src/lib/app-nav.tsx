@@ -18,6 +18,7 @@ import {
   PieChart,
   Sparkles,
   SplitSquareVertical,
+  Users,
 } from 'lucide-react';
 import { createElement } from 'react';
 
@@ -51,6 +52,12 @@ const workSection: NavSection = {
       href: '/education',
       label: 'Education dashboard',
       icon: createElement(GraduationCap),
+      moduleKey: 'neutral',
+    },
+    {
+      href: '/staff',
+      label: 'Staff dashboard',
+      icon: createElement(Users),
       moduleKey: 'neutral',
     },
   ],

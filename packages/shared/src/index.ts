@@ -11,6 +11,7 @@ export * from './scenarios';
 export * from './analyst';
 export * from './programs';
 export * from './geo/thailand-regions';
+export * from './identity';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

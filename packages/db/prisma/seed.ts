@@ -81,31 +81,46 @@ const SEED_MOCKS = process.env.SEED_MOCKS === 'true';
 
 const FACULTIES = [
   // Original 5 (existed before the prompt-14 expansion)
-  { code: 'EN',   nameTh: 'คณะวิศวกรรมศาสตร์',                    nameEn: 'Faculty of Engineering' },
-  { code: 'SC',   nameTh: 'คณะวิทยาศาสตร์',                       nameEn: 'Faculty of Science' },
-  { code: 'MD',   nameTh: 'คณะแพทยศาสตร์',                        nameEn: 'Faculty of Medicine' },
-  { code: 'HU',   nameTh: 'คณะมนุษยศาสตร์และสังคมศาสตร์',           nameEn: 'Faculty of Humanities and Social Sciences' },
-  { code: 'BS',   nameTh: 'คณะบริหารธุรกิจและการบัญชี',             nameEn: 'Faculty of Business Administration and Accountancy' },
+  { code: 'EN',   nameTh: 'คณะวิศวกรรมศาสตร์',                    nameEn: 'Faculty of Engineering',                          kind: 'ACADEMIC' as const },
+  { code: 'SC',   nameTh: 'คณะวิทยาศาสตร์',                       nameEn: 'Faculty of Science',                              kind: 'ACADEMIC' as const },
+  { code: 'MD',   nameTh: 'คณะแพทยศาสตร์',                        nameEn: 'Faculty of Medicine',                             kind: 'ACADEMIC' as const },
+  { code: 'HU',   nameTh: 'คณะมนุษยศาสตร์และสังคมศาสตร์',           nameEn: 'Faculty of Humanities and Social Sciences',       kind: 'ACADEMIC' as const },
+  { code: 'BS',   nameTh: 'คณะบริหารธุรกิจและการบัญชี',             nameEn: 'Faculty of Business Administration and Accountancy', kind: 'ACADEMIC' as const },
   // 19 added 2026-04-28 to lift kku-hr / kku-finance / kku-research coverage
-  { code: 'AG',   nameTh: 'คณะเกษตรศาสตร์',                        nameEn: 'Faculty of Agriculture' },
-  { code: 'ED',   nameTh: 'คณะศึกษาศาสตร์',                        nameEn: 'Faculty of Education' },
-  { code: 'NU',   nameTh: 'คณะพยาบาลศาสตร์',                       nameEn: 'Faculty of Nursing' },
-  { code: 'AMS',  nameTh: 'คณะเทคนิคการแพทย์',                     nameEn: 'Faculty of Associated Medical Sciences' },
-  { code: 'GS',   nameTh: 'บัณฑิตวิทยาลัย',                         nameEn: 'Graduate School' },
-  { code: 'PH',   nameTh: 'คณะสาธารณสุขศาสตร์',                    nameEn: 'Faculty of Public Health' },
-  { code: 'DT',   nameTh: 'คณะทันตแพทยศาสตร์',                     nameEn: 'Faculty of Dentistry' },
-  { code: 'MBA',  nameTh: 'วิทยาลัยบัณฑิตศึกษาการจัดการ',           nameEn: 'College of Graduate Study in Management' },
-  { code: 'PHA',  nameTh: 'คณะเภสัชศาสตร์',                        nameEn: 'Faculty of Pharmaceutical Sciences' },
-  { code: 'TC',   nameTh: 'คณะเทคโนโลยี',                          nameEn: 'Faculty of Technology' },
-  { code: 'VM',   nameTh: 'คณะสัตวแพทยศาสตร์',                     nameEn: 'Faculty of Veterinary Medicine' },
-  { code: 'AR',   nameTh: 'คณะสถาปัตยกรรมศาสตร์',                  nameEn: 'Faculty of Architecture' },
-  { code: 'FAR',  nameTh: 'คณะศิลปกรรมศาสตร์',                     nameEn: 'Faculty of Fine and Applied Arts' },
-  { code: 'COLA', nameTh: 'วิทยาลัยการปกครองท้องถิ่น',               nameEn: 'College of Local Administration' },
-  { code: 'IC',   nameTh: 'วิทยาลัยนานาชาติ',                       nameEn: 'International College' },
-  { code: 'EC',   nameTh: 'คณะเศรษฐศาสตร์',                        nameEn: 'Faculty of Economics' },
-  { code: 'NK',   nameTh: 'คณะสหวิทยาการ',                         nameEn: 'Faculty of Interdisciplinary Studies' },
-  { code: 'COC',  nameTh: 'วิทยาลัยการคอมพิวเตอร์',                 nameEn: 'College of Computing' },
-  { code: 'LAW',  nameTh: 'คณะนิติศาสตร์',                         nameEn: 'Faculty of Law' },
+  { code: 'AG',   nameTh: 'คณะเกษตรศาสตร์',                        nameEn: 'Faculty of Agriculture',                          kind: 'ACADEMIC' as const },
+  { code: 'ED',   nameTh: 'คณะศึกษาศาสตร์',                        nameEn: 'Faculty of Education',                            kind: 'ACADEMIC' as const },
+  { code: 'NU',   nameTh: 'คณะพยาบาลศาสตร์',                       nameEn: 'Faculty of Nursing',                              kind: 'ACADEMIC' as const },
+  { code: 'AMS',  nameTh: 'คณะเทคนิคการแพทย์',                     nameEn: 'Faculty of Associated Medical Sciences',          kind: 'ACADEMIC' as const },
+  { code: 'GS',   nameTh: 'บัณฑิตวิทยาลัย',                         nameEn: 'Graduate School',                                 kind: 'ACADEMIC' as const },
+  { code: 'PH',   nameTh: 'คณะสาธารณสุขศาสตร์',                    nameEn: 'Faculty of Public Health',                        kind: 'ACADEMIC' as const },
+  { code: 'DT',   nameTh: 'คณะทันตแพทยศาสตร์',                     nameEn: 'Faculty of Dentistry',                            kind: 'ACADEMIC' as const },
+  { code: 'MBA',  nameTh: 'วิทยาลัยบัณฑิตศึกษาการจัดการ',           nameEn: 'College of Graduate Study in Management',         kind: 'ACADEMIC' as const },
+  { code: 'PHA',  nameTh: 'คณะเภสัชศาสตร์',                        nameEn: 'Faculty of Pharmaceutical Sciences',              kind: 'ACADEMIC' as const },
+  { code: 'TC',   nameTh: 'คณะเทคโนโลยี',                          nameEn: 'Faculty of Technology',                           kind: 'ACADEMIC' as const },
+  { code: 'VM',   nameTh: 'คณะสัตวแพทยศาสตร์',                     nameEn: 'Faculty of Veterinary Medicine',                  kind: 'ACADEMIC' as const },
+  { code: 'AR',   nameTh: 'คณะสถาปัตยกรรมศาสตร์',                  nameEn: 'Faculty of Architecture',                         kind: 'ACADEMIC' as const },
+  { code: 'FAR',  nameTh: 'คณะศิลปกรรมศาสตร์',                     nameEn: 'Faculty of Fine and Applied Arts',                kind: 'ACADEMIC' as const },
+  { code: 'COLA', nameTh: 'วิทยาลัยการปกครองท้องถิ่น',               nameEn: 'College of Local Administration',                 kind: 'ACADEMIC' as const },
+  { code: 'IC',   nameTh: 'วิทยาลัยนานาชาติ',                       nameEn: 'International College',                           kind: 'ACADEMIC' as const },
+  { code: 'EC',   nameTh: 'คณะเศรษฐศาสตร์',                        nameEn: 'Faculty of Economics',                            kind: 'ACADEMIC' as const },
+  { code: 'NK',   nameTh: 'คณะสหวิทยาการ',                         nameEn: 'Faculty of Interdisciplinary Studies',            kind: 'ACADEMIC' as const },
+  { code: 'COC',  nameTh: 'วิทยาลัยการคอมพิวเตอร์',                 nameEn: 'College of Computing',                            kind: 'ACADEMIC' as const },
+  { code: 'LAW',  nameTh: 'คณะนิติศาสตร์',                         nameEn: 'Faculty of Law',                                  kind: 'ACADEMIC' as const },
+  // 12 added 2026-05-04 — non-academic org units that host support staff
+  // surfaced via the processed-HR mart (vw_history). These appear in
+  // org rollups but never own programs.
+  { code: 'PRES', nameTh: 'สำนักงานอธิการบดี',                      nameEn: 'Office of the President',                         kind: 'ADMIN' as const },
+  { code: 'CONS', nameTh: 'สำนักงานสภามหาวิทยาลัย',                  nameEn: 'University Council Office',                       kind: 'ADMIN' as const },
+  { code: 'RAD',  nameTh: 'กองบริหารงานวิจัย',                       nameEn: 'Division of Research Administration',             kind: 'ADMIN' as const },
+  { code: 'DTO',  nameTh: 'สำนักเทคโนโลยีดิจิทัล',                   nameEn: 'Office of Digital Technology',                    kind: 'ADMIN' as const },
+  { code: 'LIB',  nameTh: 'สำนักหอสมุด',                            nameEn: 'KKU Library',                                     kind: 'ADMIN' as const },
+  { code: 'OAA',  nameTh: 'สำนักบริหารและพัฒนาวิชาการ',              nameEn: 'Office of Academic Affairs and Development',      kind: 'ADMIN' as const },
+  { code: 'OAS',  nameTh: 'สำนักบริการวิชาการ',                      nameEn: 'Academic Service Office',                         kind: 'ADMIN' as const },
+  { code: 'LANG', nameTh: 'สถาบันภาษา',                            nameEn: 'Language Institute',                              kind: 'INSTITUTE' as const },
+  { code: 'CONF', nameTh: 'สถาบันขงจื่อ',                          nameEn: 'Confucius Institute',                             kind: 'INSTITUTE' as const },
+  { code: 'HPRI', nameTh: 'สถาบันวิจัยเพื่อพัฒนาสมรรถนะมนุษย์และการเสริมสร้างสุขภาพ', nameEn: 'Human Performance and Health Promotion Research Institute', kind: 'RESEARCH_CENTER' as const },
+  { code: 'CRRI', nameTh: 'สถาบันวิจัยมะเร็งท่อน้ำดี',                 nameEn: 'Cholangiocarcinoma Research Institute',           kind: 'RESEARCH_CENTER' as const },
+  { code: 'BNEF', nameTh: 'โรงงานแบตเตอรี่และพลังงานยุคใหม่',         nameEn: 'Battery and New-Energy Factory',                  kind: 'RESEARCH_CENTER' as const },
 ] as const;
 
 const DEPARTMENTS = [
@@ -268,8 +283,8 @@ async function main() {
   for (const f of FACULTIES) {
     const row = await prisma.faculty.upsert({
       where: { code: f.code },
-      update: {},
-      create: { code: f.code, nameTh: f.nameTh, nameEn: f.nameEn },
+      update: { kind: f.kind },
+      create: { code: f.code, nameTh: f.nameTh, nameEn: f.nameEn, kind: f.kind },
     });
     facultyByCode.set(f.code, row);
   }

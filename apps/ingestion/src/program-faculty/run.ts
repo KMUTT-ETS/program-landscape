@@ -10,6 +10,7 @@ import {
   type S3Storage,
 } from '@kku/shared';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
+import { loadProgramSystemContext } from '../program-system-context/load';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-program academic-staff extraction.
@@ -74,10 +75,25 @@ export type RunProgramFacultyOutcome =
       staffMatched: number;
       staffUnmatched: number;
       programFacultyRowsWritten: number;
+      // Number of rows seeded directly from DS2004 (the MHESI submission)
+      // — these are the high-confidence, citizen-ID-anchored matches
+      // that no longer rely on PDF text extraction.
+      programFacultyRowsFromMhesi: number;
       unmatchedNames: string[];
     }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
+
+/**
+ * Map a DS2004 teach_type_id to our ProgramFaculty role enum.
+ *   1 = อาจารย์ประจำ              → CORE
+ *   2 = อาจารย์ประจำหลักสูตร       → CORE (curriculum-listed)
+ *   3 = อาจารย์ผู้รับผิดชอบหลักสูตร → COORDINATOR (responsible 5-person)
+ */
+function teachTypeToRole(teachTypeId: number): 'COORDINATOR' | 'CORE' | 'SUPPORT' {
+  if (teachTypeId === 3) return 'COORDINATOR';
+  return 'CORE';
+}
 
 /** Normalise for name comparison: trim, collapse whitespace, lowercase. */
 function normName(s: string): string {
@@ -113,6 +129,46 @@ export async function runProgramFacultyExtraction(
     });
     if (existing) {
       return { status: 'SKIPPED', reason: 'PROGRAM_FACULTY_LIST already exists; pass force=true to re-run' };
+    }
+  }
+
+  // ── PHASE A — Seed ProgramFaculty rows from DS2004 (the MHESI
+  // submission), which is now the *primary* source of truth for who
+  // teaches in this program. Rows are anchored on FacultyMember by
+  // citizenIdHash, no name-matching guesswork. The PDF extraction
+  // below runs as enrichment for staff that DS2004 doesn't track
+  // (visiting lecturers, external instructors, brand-new appointments
+  // not yet submitted to MHESI). ──────────────────────────────────
+  const systemContext = await loadProgramSystemContext(program.id);
+  let programFacultyRowsFromMhesi = 0;
+  const facultyMemberIdsFromMhesi = new Set<string>();
+  for (const s of systemContext.staffFromMhesi) {
+    if (!s.facultyMemberId) continue;
+    facultyMemberIdsFromMhesi.add(s.facultyMemberId);
+    try {
+      await prisma.programFaculty.upsert({
+        where: {
+          facultyMemberId_programId: {
+            facultyMemberId: s.facultyMemberId,
+            programId: program.id,
+          },
+        },
+        create: {
+          facultyMemberId: s.facultyMemberId,
+          programId: program.id,
+          role: teachTypeToRole(s.teachTypeId),
+        },
+        update: {
+          // Don't downgrade an existing COORDINATOR back to CORE on re-run.
+          role:
+            s.teachTypeId === 3
+              ? 'COORDINATOR'
+              : undefined,
+        },
+      });
+      programFacultyRowsFromMhesi += 1;
+    } catch {
+      // Best-effort. Per-row failures shouldn't fail the whole step.
     }
   }
 
@@ -196,6 +252,13 @@ export async function runProgramFacultyExtraction(
     }
     matched++;
 
+    // Skip if DS2004 already seeded this person — the MHESI submission
+    // is more authoritative than PDF name-matching, and we don't want
+    // to overwrite a COORDINATOR role with a PDF-derived CORE role.
+    if (facultyMemberIdsFromMhesi.has(facultyMemberId)) {
+      continue;
+    }
+
     try {
       await prisma.programFaculty.upsert({
         where: { facultyMemberId_programId: { facultyMemberId, programId: program.id } },
@@ -250,6 +313,7 @@ export async function runProgramFacultyExtraction(
     staffMatched: matched,
     staffUnmatched: unmatchedNames.length,
     programFacultyRowsWritten,
+    programFacultyRowsFromMhesi,
     unmatchedNames,
   };
 }

@@ -14,7 +14,12 @@ import {
   KmitlSkillMappingConnector,
   MhesiCisaConnector,
   OpenAlexConnector,
+  KkuHrProcessedConnector,
   ScopusConnector,
+  UniconDs1001Connector,
+  UniconDs2001Connector,
+  UniconDs2003Connector,
+  UniconDs2004Connector,
   WorldBankConnector,
 } from './sources/kku-connectors';
 import { KkuFinanceRealConnector } from './sources/kku-finance';
@@ -22,6 +27,11 @@ import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
 import { KkuResearchRealConnector } from './sources/kku-research';
 import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
+import { KkuHrProcessedRealConnector } from './sources/kku-hr-processed';
+import { UniconDs1001RealConnector } from './sources/unicon-ds1001';
+import { UniconDs2001RealConnector } from './sources/unicon-ds2001';
+import { UniconDs2003RealConnector } from './sources/unicon-ds2003';
+import { UniconDs2004RealConnector } from './sources/unicon-ds2004';
 import {
   AdbGmsRealConnector,
   BoiSectoralRealConnector,
@@ -178,6 +188,35 @@ const ENTRIES: readonly ConnectorEntry[] = [
 
   // Scrape ───────────────────────────────────────────────────────────
   { slug: 'peer-programs-scraper', mock: () => new PeerProgramScraperConnector() },
+
+  // UNICON (MHESI submissions) ───────────────────────────────────────
+  {
+    slug: 'unicon-ds1001',
+    mock: () => new UniconDs1001Connector(),
+    real: () => new UniconDs1001RealConnector(),
+  },
+  {
+    slug: 'unicon-ds2001',
+    mock: () => new UniconDs2001Connector(),
+    real: () => new UniconDs2001RealConnector(),
+  },
+  {
+    slug: 'unicon-ds2003',
+    mock: () => new UniconDs2003Connector(),
+    real: () => new UniconDs2003RealConnector(),
+  },
+  {
+    slug: 'unicon-ds2004',
+    mock: () => new UniconDs2004Connector(),
+    real: () => new UniconDs2004RealConnector(),
+  },
+  // Processed-HR (MySQL aggregate; powers Staff Compensation dashboard
+  // + cost-allocation methodology in the program pipeline)
+  {
+    slug: 'kku-hr-processed',
+    mock: () => new KkuHrProcessedConnector(),
+    real: () => new KkuHrProcessedRealConnector(),
+  },
 ];
 
 const logger = new Logger('ConnectorRegistry');

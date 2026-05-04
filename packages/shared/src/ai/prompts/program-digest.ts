@@ -119,6 +119,25 @@ export interface ProgramDigestInput {
   // Soft cap on courses to enumerate. Some PDFs list 60+ courses;
   // truncating keeps token cost bounded. Default 80, override per-call.
   maxCourses?: number;
+  // Live system grounding — pulled by the caller from DS2004 / DS2003 /
+  // DS1001 / kku-hr. When present, the LLM treats these as factual
+  // anchors that override anything the PDF says about staff counts,
+  // student enrolment, or faculty composition. The recruitment summary
+  // is also told NOT to invent stats — only mention the numbers below.
+  systemContext?: ProgramSystemFacts;
+}
+
+export interface ProgramSystemFacts {
+  staffTotal: number;
+  staffByTeachType: { type1: number; type2: number; type3: number };
+  staffByRank: { lecturer: number; asstProf: number; assocProf: number; prof: number; unranked: number };
+  staffEducationOrigin: { thai: number; international: number; unknown: number };
+  internationalCountriesTop: Array<{ country: string; count: number }>;
+  studentTotal: number;
+  studentByGender: { male: number; female: number; other: number };
+  studentByNationality: { thai: number; foreign: number };
+  studentAdmitYearRange: { earliest: number | null; latest: number | null };
+  studentGpaAvg: number | null;
 }
 
 export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage[] {
@@ -185,7 +204,9 @@ export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage
 - ปีหลักสูตร (พ.ศ.): ${meta.curriculumYearBe ?? 'ไม่ระบุ'}
 - รหัสหลักสูตร อว.: ${meta.mhesiCode ?? 'ไม่ระบุ'}`;
 
-  const user = `${sheetMeta}
+  const systemFactsBlock = buildSystemFactsBlock(input.systemContext);
+
+  const user = `${sheetMeta}${systemFactsBlock}
 
 [เอกสารหลักสูตรฉบับเต็ม - มคอ.2]
 ${input.pdfText}
@@ -196,4 +217,75 @@ ${input.pdfText}
     { role: 'system', content: system },
     { role: 'user', content: user },
   ];
+}
+
+// Live grounding facts injected from DS2004 / DS2003 / DS1001 / kku-hr.
+// The LLM is instructed to TRUST these over anything the PDF says.
+function buildSystemFactsBlock(ctx: ProgramSystemFacts | undefined): string {
+  if (!ctx) return '';
+
+  const lines: string[] = [];
+  lines.push('');
+  lines.push('[ข้อเท็จจริงจริงปัจจุบัน — ดึงจากระบบ MHESI/UNICON + HR ของ มข.]');
+  lines.push(
+    'ให้ใช้ตัวเลขในส่วนนี้เป็น "ข้อเท็จจริง" สำหรับ recruitmentSummaryTh และ caveats',
+  );
+  lines.push('— ห้าม "นักศึกษา 200+ คน" หรือ "อาจารย์ผู้ทรงคุณวุฒิจำนวนมาก" ถ้าตัวเลขจริงไม่สอดคล้อง');
+  lines.push('— เมื่อ PDF ระบุตัวเลขที่ขัดกับด้านล่าง ให้บันทึกใน caveats แทนที่จะใช้ใน summary');
+  lines.push('');
+
+  // Staff
+  if (ctx.staffTotal > 0) {
+    const r = ctx.staffByRank;
+    const ranks: string[] = [];
+    if (r.prof) ranks.push(`ศ. ${r.prof}`);
+    if (r.assocProf) ranks.push(`รศ. ${r.assocProf}`);
+    if (r.asstProf) ranks.push(`ผศ. ${r.asstProf}`);
+    if (r.lecturer) ranks.push(`อ. ${r.lecturer}`);
+    if (r.unranked) ranks.push(`ไม่ระบุ ${r.unranked}`);
+    lines.push(`อาจารย์ปัจจุบันที่สังกัดหลักสูตรนี้ (DS2004): ${ctx.staffTotal} คน`);
+    if (ranks.length) lines.push(`  • แยกตามตำแหน่ง: ${ranks.join(' / ')}`);
+    lines.push(
+      `  • บทบาทในหลักสูตร — ผู้รับผิดชอบ: ${ctx.staffByTeachType.type3} · ประจำหลักสูตร: ${ctx.staffByTeachType.type2} · ประจำ: ${ctx.staffByTeachType.type1}`,
+    );
+
+    const intl = ctx.staffEducationOrigin.international;
+    const thai = ctx.staffEducationOrigin.thai;
+    if (intl + thai > 0) {
+      const intlPct = Math.round((intl / (intl + thai)) * 100);
+      lines.push(`  • วุฒิการศึกษาสูงสุด: จบจากต่างประเทศ ${intl}/${intl + thai} (${intlPct}%)`);
+      if (ctx.internationalCountriesTop.length) {
+        const tops = ctx.internationalCountriesTop
+          .map((c) => `${c.country} ${c.count}`)
+          .join(', ');
+        lines.push(`  • ประเทศต้นทางการศึกษา (ต่างประเทศ): ${tops}`);
+      }
+    }
+  } else {
+    lines.push('อาจารย์ปัจจุบันที่สังกัดหลักสูตรนี้ (DS2004): ไม่มีข้อมูล');
+  }
+
+  // Students
+  if (ctx.studentTotal > 0) {
+    lines.push(`นักศึกษาปัจจุบันที่ลงทะเบียน (DS1001): ${ctx.studentTotal} คน`);
+    const g = ctx.studentByGender;
+    if (g.male + g.female > 0) {
+      lines.push(`  • เพศ: ชาย ${g.male} / หญิง ${g.female}${g.other ? ` / อื่นๆ ${g.other}` : ''}`);
+    }
+    const n = ctx.studentByNationality;
+    if (n.foreign > 0) {
+      lines.push(`  • สัญชาติ: ไทย ${n.thai} / ต่างชาติ ${n.foreign}`);
+    }
+    const ay = ctx.studentAdmitYearRange;
+    if (ay.earliest && ay.latest) {
+      lines.push(`  • ปีที่เข้าศึกษา: ${ay.earliest}-${ay.latest} (พ.ศ.)`);
+    }
+    if (ctx.studentGpaAvg !== null) {
+      lines.push(`  • GPA สะสมเฉลี่ย: ${ctx.studentGpaAvg.toFixed(2)}`);
+    }
+  } else {
+    lines.push('นักศึกษาปัจจุบันที่ลงทะเบียน (DS1001): ไม่มีข้อมูล');
+  }
+
+  return '\n' + lines.join('\n');
 }

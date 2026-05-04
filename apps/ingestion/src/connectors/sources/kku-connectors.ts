@@ -412,3 +412,106 @@ export class WorldBankConnector extends ApiConnector {
     return { recordsFetched: n.length, recordsLoaded: n.length, recordsFailed: 0, metadata: { note: 'mocked' } };
   }
 }
+
+export class UniconDs2003Connector extends ApiConnector {
+  readonly slug = 'unicon-ds2003';
+  readonly mocked = true;
+
+  async fetch(): Promise<RawRecord[]> {
+    return [
+      {
+        externalId: 'mock-ds2003-1',
+        sourceTimestamp: new Date('2026-04-20'),
+        data: {
+          ACADEMIC_YEAR: '2568', SEMESTER: '2', UNIV_ID: '00300',
+          CITIZEN_ID: '0000000000000', GRAD_YEAR: '2545',
+          GRAD_LEV_ID: '40', GRAD_CURR: 'หลักสูตรปรัชญาดุษฎีบัณฑิต',
+          GRAD_ISCED_ID: null, GRAD_PROG: null, GRAD_UNIV: null,
+          GRAD_COUNTRY_ID: 'TH',
+        },
+      },
+    ];
+  }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'staff_education_history', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}
+
+export class UniconDs2004Connector extends ApiConnector {
+  readonly slug = 'unicon-ds2004';
+  readonly mocked = true;
+
+  async fetch(): Promise<RawRecord[]> {
+    return [
+      {
+        externalId: 'mock-ds2004-1',
+        sourceTimestamp: new Date('2026-04-20'),
+        data: {
+          ACADEMIC_YEAR: 2568, SEMESTER: 2, UNIV_ID: '00300',
+          CITIZEN_ID: '0000000000000', FAC_ID: '00056',
+          CURR_ID: '25430031100056', TEACH_TYPE_ID: 1,
+        },
+      },
+    ];
+  }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'staff_program_assignment', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}
+
+export class UniconDs1001Connector extends ApiConnector {
+  readonly slug = 'unicon-ds1001';
+  readonly mocked = true;
+
+  async fetch(): Promise<RawRecord[]> {
+    return [
+      {
+        externalId: 'mock-ds1001-1',
+        sourceTimestamp: new Date('2026-04-20'),
+        data: {
+          ACADEMIC_YEAR: '2568', SEMESTER: '2', UNIV_ID: '00300',
+          CITIZEN_ID: '0000000000000', STD_ID: '0000000000',
+          GENDER_ID: '1', NATIONALITY_ID: 'TH', BIRTH_YEAR: '2546',
+          ADMIT_YEAR: '2566', FAC_ID: '00056', CURR_ID: '25430031100056',
+          STUDY_TYPE_ID: '1', GRAD_STATUS_ID: null, STD_STATUS_ID: '1',
+        },
+      },
+    ];
+  }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'student_program_record', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}
+
+export class UniconDs2001Connector extends ApiConnector {
+  readonly slug = 'unicon-ds2001';
+  readonly mocked = true;
+  async fetch(): Promise<RawRecord[]> { return []; }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'staff_master_record', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}
+
+export class KkuHrProcessedConnector extends ApiConnector {
+  readonly slug = 'kku-hr-processed';
+  readonly mocked = true;
+  async fetch(): Promise<RawRecord[]> { return []; }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'staff_compensation_cube', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}

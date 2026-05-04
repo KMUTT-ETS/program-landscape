@@ -75,9 +75,14 @@ SELECT
   -- EMPLOYEEID raw — HR-internal employment number, NOT citizen ID.
   -- Confirmed not PII per KKU 2026-05-02. Surfaced for analyst lookup.
   CAST(e.EMPLOYEEID AS varchar(50)) AS EMPLOYEE_ID,
+  -- ID_PEOPLE is NVARCHAR in HCM. CAST'ing to varbinary(500) of an
+  -- NVARCHAR yields UTF-16-LE bytes, which produces a different SHA-256
+  -- than Node's hashCitizenId() which uses UTF-8. Cast to VARCHAR first
+  -- so the hash bytes match the canonical lowercase-hex SHA-256(UTF-8)
+  -- shared across DS2003 / DS2004 / DS1001 / processed-HR.
   CASE WHEN e.ID_PEOPLE IS NULL OR e.ID_PEOPLE = ''
        THEN NULL
-       ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(e.ID_PEOPLE AS varbinary(500))), 2)
+       ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CAST(e.ID_PEOPLE AS varchar(50)) AS varbinary(500))), 2)
   END                          AS PERSON_HASH,
   e.EMP_PREFIX, e.FNAME, e.LNAME, e.EFNAME, e.ELNAME,
   e.STATUS,
@@ -402,6 +407,12 @@ export class KkuHrRealConnector extends ApiConnector {
           departmentId,
           employeeCode: buildEmployeeCode(q1.EMPLOYEE_HASH),
           employeeId: q1.EMPLOYEE_ID,
+          // PERSON_HASH = SHA-256(ID_PEOPLE) computed server-side. This
+          // is the same value `hashCitizenId(rawCitizenId)` produces in
+          // every other connector — it's the canonical cross-system
+          // join key linking kku-hr ↔ DS2003 ↔ DS2004 ↔ DS1001 ↔
+          // processed-HR. Null when ID_PEOPLE was blank in HCM.
+          citizenIdHash: q1.PERSON_HASH,
           nameTh,
           nameEn,
           rank,
@@ -476,6 +487,7 @@ export class KkuHrRealConnector extends ApiConnector {
             departmentId: string | null;
             employeeCode: string;
             employeeId: string | null;
+            citizenIdHash: string | null;
             nameTh: string;
             nameEn: string;
             rank: FacultyRank;
@@ -491,6 +503,11 @@ export class KkuHrRealConnector extends ApiConnector {
               departmentId: p.departmentId ?? undefined,
               employeeCode: p.employeeCode,
               employeeId: p.employeeId,
+              // Lowercase to match Node's SHA-256 hex output. SQL Server's
+              // HASHBYTES → CONVERT(varchar, …, 2) emits UPPERCASE hex; the
+              // canonical convention across our app is lowercase (matches
+              // hashCitizenId() in @kku/shared, used by every other connector).
+              citizenIdHash: p.citizenIdHash?.toLowerCase() ?? undefined,
               nameTh: p.nameTh,
               nameEn: p.nameEn,
               rank: p.rank,
@@ -503,6 +520,7 @@ export class KkuHrRealConnector extends ApiConnector {
               facultyId: p.facultyId,
               departmentId: p.departmentId,
               employeeId: p.employeeId,
+              citizenIdHash: p.citizenIdHash?.toLowerCase() ?? null,
               nameTh: p.nameTh,
               nameEn: p.nameEn,
               rank: p.rank,

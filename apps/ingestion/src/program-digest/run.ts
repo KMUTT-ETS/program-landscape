@@ -7,6 +7,7 @@ import {
   type S3Storage,
 } from '@kku/shared';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
+import { loadProgramSystemContext } from '../program-system-context/load';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Single source of truth for the per-program digest run. Used by:
@@ -96,6 +97,11 @@ export async function runProgramDigest(
 
   const extracted = await extractNativeText(bytes);
 
+  // Load live grounding from DS2004 + DS2003 + DS1001 + kku-hr so the
+  // recruitment summary's claims about staff and student composition
+  // are anchored in real numbers, not invented from the PDF.
+  const systemContext = await loadProgramSystemContext(program.id);
+
   const messages = buildProgramDigestMessages({
     programMetaFromSheet: {
       facultyNameTh: program.faculty.nameTh,
@@ -106,6 +112,18 @@ export async function runProgramDigest(
       mhesiCode: program.mhesiCode,
     },
     pdfText: extracted.fullText,
+    systemContext: {
+      staffTotal: systemContext.summary.staffTotal,
+      staffByTeachType: systemContext.summary.staffByTeachType,
+      staffByRank: systemContext.summary.staffByRank,
+      staffEducationOrigin: systemContext.summary.staffEducationOrigin,
+      internationalCountriesTop: systemContext.summary.internationalCountriesTop,
+      studentTotal: systemContext.summary.studentTotal,
+      studentByGender: systemContext.summary.studentByGender,
+      studentByNationality: systemContext.summary.studentByNationality,
+      studentAdmitYearRange: systemContext.summary.studentAdmitYearRange,
+      studentGpaAvg: systemContext.summary.studentGpaAvg,
+    },
   });
 
   const response = await params.ai.extractStructured(

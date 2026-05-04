@@ -91,12 +91,14 @@ interface CliArgs {
   only: Phase[];
   skip: Set<Phase>;
   resume: boolean;
+  force: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   const positional = argv.find((a) => !a.startsWith('--')) ?? null;
   const all = argv.includes('--all');
   const resume = argv.includes('--resume');
+  const force = argv.includes('--force');
   const limitArg = argv.find((a) => a.startsWith('--limit='));
   const limit = limitArg ? parseInt(limitArg.split('=')[1] ?? '0', 10) : null;
   const onlyArg = argv.find((a) => a.startsWith('--only='));
@@ -111,11 +113,11 @@ function parseArgs(argv: string[]): CliArgs {
   );
   if (!positional && !all) {
     console.error(
-      'Usage: pnpm programs:pipeline <code|mhesi|seq|id> | --all [--resume] [--limit=N] [--only=phaseN,...] [--skip=phaseN,...]',
+      'Usage: pnpm programs:pipeline <code|mhesi|seq|id> | --all [--resume] [--limit=N] [--only=phaseN,...] [--skip=phaseN,...] [--force]',
     );
     process.exit(1);
   }
-  return { programArg: positional, all, limit, only, skip, resume };
+  return { programArg: positional, all, limit, only, skip, resume, force };
 }
 
 interface ProgramSummary {
@@ -219,13 +221,13 @@ async function processProgram(
   if (shouldRun('phase1')) {
     const t = Date.now();
     const [digest, faculty, skills] = await Promise.all([
-      runProgramDigest({ programId: program.id, ai, storage }).catch((e) => ({
+      runProgramDigest({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
         status: 'FAILED' as const, reason: String(e?.message ?? e),
       })),
-      runProgramFacultyExtraction({ programId: program.id, ai, storage }).catch((e) => ({
+      runProgramFacultyExtraction({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
         status: 'FAILED' as const, reason: String(e?.message ?? e),
       })),
-      runProgramSkillsDetailed({ programId: program.id, ai, storage }).catch((e) => ({
+      runProgramSkillsDetailed({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
         status: 'FAILED' as const, reason: String(e?.message ?? e),
       })),
     ]);

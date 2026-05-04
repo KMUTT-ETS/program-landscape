@@ -126,6 +126,10 @@ export interface LoadResult {
 }
 
 export interface ConnectorContext {
+  // The IngestionRun row this invocation runs under — connectors that
+  // tag persisted rows with `ingestion_run_id` read this value. Always
+  // present (the runner creates the row before invoking the connector).
+  runId: string;
   // The DataSource row matched by slug at boot — the runner hands this
   // to every step in case the connector needs baseUrl / notes / etc.
   dataSource: {
