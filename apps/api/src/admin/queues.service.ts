@@ -183,7 +183,47 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
     const q = this.resolve(name);
     const job = await q.getJob(jobId);
     if (!job) throw new ApiError('NOT_FOUND', `job ${jobId} not found in ${name}`);
-    await job.remove();
+    // BullMQ repeatable-schedule pending firings have ids of the form
+    // `repeat:<hashKey>:<msEpoch>`. You can't remove just one firing —
+    // BullMQ throws, AND even if it didn't, the schedule would respawn
+    // it at the next worker boot. Refuse with an actionable message
+    // pointing the operator at the right surface.
+    if (typeof job.id === 'string' && job.id.startsWith('repeat:')) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        `Job ${jobId} is the next firing of a recurring schedule (${job.name}). ` +
+          `Remove the schedule itself via /admin/data-sources (toggle the ` +
+          `source's cadence) or call removeRepeatableSchedule. Removing one ` +
+          `instance has no effect — the scheduler will recreate it on next boot.`,
+      );
+    }
+    try {
+      await job.remove();
+    } catch (err) {
+      // BullMQ surfaces operator-readable messages (e.g. "Job is locked"
+      // when something is mid-process). Forward as 400 not 500.
+      throw new ApiError('VALIDATION_FAILED', (err as Error).message);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Remove a recurring repeatable schedule (and its pending next firing).
+   * Use this when the operator legitimately wants to stop a schedule from
+   * the queues UI rather than the data-sources page. The IngestionScheduler
+   * will re-create it on next worker boot if `DataSource.scheduleEnabled`
+   * stays true — this is for one-off pruning of orphan schedules whose
+   * source has been deprecated.
+   */
+  async removeRepeatableSchedule(
+    name: string,
+    repeatJobKey: string,
+  ): Promise<{ ok: true }> {
+    const q = this.resolve(name);
+    const ok = await q.removeRepeatableByKey(repeatJobKey);
+    if (!ok) {
+      throw new ApiError('NOT_FOUND', `repeatable schedule ${repeatJobKey} not found in ${name}`);
+    }
     return { ok: true };
   }
 
