@@ -45,6 +45,7 @@
     "programs:pipeline": "tsx apps/ingestion/src/scripts/programs-pipeline.ts",
     "programs:pipeline-status": "tsx apps/ingestion/src/scripts/pipeline-status.ts",
     "programs:ai-readiness": "tsx apps/ingestion/src/scripts/generate-program-ai-readiness.ts",
+    "programs:lifecycle-snapshot": "tsx apps/ingestion/src/scripts/backfill-lifecycle-snapshots.ts",
     "scenarios:seed-templates": "tsx apps/ingestion/src/scripts/seed-scenario-templates.ts",
     "outcomes:ingest": "tsx apps/ingestion/src/scripts/ingest-employment-surveys.ts",
     "demographics:seed": "tsx apps/ingestion/src/scripts/seed-thailand-demographics.ts",

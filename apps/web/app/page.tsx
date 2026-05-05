@@ -18,6 +18,8 @@ import { FacultyTreemap } from '@/components/dashboard/faculty-treemap';
 import { AlertColumn } from '@/components/dashboard/alert-card';
 import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
+import { LifecycleVerdictViz } from '@/components/dashboard/lifecycle-verdict';
+import { HealthByFaculty } from '@/components/dashboard/health-by-faculty';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Curriculum Landscape · KKU' };
@@ -129,6 +131,56 @@ export default async function HomePage() {
             caveat={quadrantCaveat}
           />
         </PanelFrame>
+
+        {/* ROW: LIFECYCLE VERDICT + FACULTY HEALTH */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <PanelFrame
+            title="Lifecycle verdict"
+            description="Forward-looking trajectory across all programs. Combines AI readiness, content modernity, enrolment + financial trends, capability strength, demographic resilience."
+            freshnessDate={overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso}
+            provenanceMeta={{
+              freshnessDate: overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso,
+              sources: [
+                { id: 'health_score', name: 'KKU health score (5 dimensions)' },
+                { id: 'ai_readiness', name: 'AI readiness assessment (per-program)' },
+                { id: 'peer_review', name: 'AI peer review · content modernity' },
+              ],
+              methodologyVersion:
+                overview.lifecycle.methodologyVersions[0] ?? overview.methodologyVersion,
+              scope: { level: 'university', id: null },
+            }}
+          >
+            <LifecycleVerdictViz
+              total={overview.lifecycle.total}
+              expectedTotal={overview.lifecycle.expectedTotal}
+              counts={overview.lifecycle.counts}
+              methodologyVersions={overview.lifecycle.methodologyVersions}
+              latestComputedAt={overview.lifecycle.latestComputedAt?.toISOString() ?? null}
+            />
+          </PanelFrame>
+
+          <PanelFrame
+            title="Health score · by faculty"
+            description="Equal-weighted across 5 dimensions: attractiveness, financial, capability, outcomes, relevance. Click any row to drill into the cockpit."
+            freshnessDate={generatedAtIso}
+            provenanceMeta={{
+              freshnessDate: generatedAtIso,
+              sources: [
+                { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
+                { id: 'financial_metrics', name: 'KKU Finance · revenue + cost' },
+                { id: 'graduate_outcomes', name: 'KKU Alumni · outcomes' },
+                { id: 'kmitl_demand', name: 'KMITL skill mapping · labour market' },
+              ],
+              methodologyVersion: 'health-score.v1',
+              scope: { level: 'university', id: null },
+            }}
+          >
+            <HealthByFaculty
+              rows={overview.facultyHealth.map((r) => ({ ...r }))}
+              methodologyVersion="health-score.v1"
+            />
+          </PanelFrame>
+        </div>
 
         {/* ROW: TREEMAP + ALERTS */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

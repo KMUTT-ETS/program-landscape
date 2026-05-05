@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { prisma } from './index';
-import { getKkuIntakePolicyVerdict } from './health-score';
+import { computeHealthScores, getKkuIntakePolicyVerdict, type HealthScoreRow } from './health-score';
 
 export const DASHBOARD_OVERVIEW_VERSION = 'dashboard-overview.v1';
 
@@ -89,6 +89,36 @@ export interface NarrativePulseRow {
   confidence: number;
 }
 
+export interface LifecycleDistribution {
+  /** Total programs covered by a snapshot. < programCount when backfill is partial. */
+  total: number;
+  /** Total canonical programs the snapshot is being compared against (= 297). */
+  expectedTotal: number;
+  /** Per-verdict counts. Missing verdicts default to 0. */
+  counts: { FRONTIER: number; RISING: number; STABLE: number; SUNSET: number };
+  /** Methodology versions present in the current snapshot set (drift detection). */
+  methodologyVersions: string[];
+  /** Most recent computedAt. null when no snapshots exist. */
+  latestComputedAt: Date | null;
+}
+
+export interface FacultyHealthRow {
+  facultyId: string;
+  scopeLabel: string;
+  /** Overall 0-100 score; null when every dimension was null. */
+  overallScore: number | null;
+  /** 0-100 share of dimensions that had usable data. */
+  dataCompletenessPct: number;
+  /** Per-dimension overall scores (each can be null). */
+  dimensions: {
+    attractiveness: number | null;
+    financial: number | null;
+    capability: number | null;
+    outcomes: number | null;
+    relevance: number | null;
+  };
+}
+
 export interface DashboardOverview {
   methodologyVersion: string;
   generatedAt: Date;
@@ -103,6 +133,10 @@ export interface DashboardOverview {
   momentum: ProgramAlert[];
   levelMix: LevelMixRow[];
   pulse: NarrativePulseRow[];
+  /** Lifecycle verdict distribution from persisted snapshots. */
+  lifecycle: LifecycleDistribution;
+  /** Per-faculty health rollup from `computeHealthScores('university')`. */
+  facultyHealth: FacultyHealthRow[];
 }
 
 export async function getDashboardOverview(): Promise<DashboardOverview> {
@@ -117,6 +151,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     pulseRows,
     narrativeProgress,
     intakeRows,
+    lifecycleSnapshots,
+    facultyHealthRows,
   ] = await Promise.all([
     // Count only ACTIVE programs from the canonical 297 KKU master
     // sheet. Legacy mock-seed rows (`sequence_no_from_sheet IS NULL`)
@@ -273,6 +309,18 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL;
     `,
+    // Lifecycle verdict distribution. Reads from the write-through
+    // snapshot table populated by `programLifecycleVerdict()`. Filter to
+    // canonical-297 programs so legacy mock-seed rows can't inflate the
+    // distribution. Returns one row per program; we group in JS.
+    prisma.programLifecycleSnapshot.findMany({
+      where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } },
+      select: { verdict: true, methodologyVersion: true, computedAt: true },
+    }),
+    // Faculty-level health rollup. The university scope returns one
+    // HealthScoreRow per faculty (24 rows) — fast enough to inline in
+    // the dashboard payload.
+    computeHealthScores('university', null),
   ]);
 
   const latestEnrolled = Number(latestEnrolledRow[0]?.total ?? 0);
@@ -403,6 +451,48 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
 
   const lastNarrative = pulseRows[0];
 
+  // ── Lifecycle distribution ──────────────────────────────────────────
+  const lifecycleCounts = { FRONTIER: 0, RISING: 0, STABLE: 0, SUNSET: 0 };
+  const methodologyVersionsSet = new Set<string>();
+  let latestComputedAt: Date | null = null;
+  for (const s of lifecycleSnapshots) {
+    lifecycleCounts[s.verdict] += 1;
+    methodologyVersionsSet.add(s.methodologyVersion);
+    if (latestComputedAt === null || s.computedAt > latestComputedAt) {
+      latestComputedAt = s.computedAt;
+    }
+  }
+  const lifecycle: LifecycleDistribution = {
+    total: lifecycleSnapshots.length,
+    expectedTotal: programCount,
+    counts: lifecycleCounts,
+    methodologyVersions: Array.from(methodologyVersionsSet).sort(),
+    latestComputedAt,
+  };
+
+  // ── Faculty health rollup ───────────────────────────────────────────
+  // computeHealthScores('university', null) returns one row per
+  // faculty across all 24 — including non-academic ones. Filter to
+  // faculties that appear in `facultyTiles` (academic + has programs)
+  // so the home page card matches the rest of the dashboard.
+  const academicFacultyIds = new Set(facultyTiles.map((t) => t.facultyId));
+  const facultyHealth: FacultyHealthRow[] = (facultyHealthRows as HealthScoreRow[])
+    .filter((row) => academicFacultyIds.has(row.scopeId))
+    .map((row) => ({
+      facultyId: row.scopeId,
+      scopeLabel: row.scopeLabel,
+      overallScore: row.overall.score,
+      dataCompletenessPct: row.overall.dataCompletenessPct,
+      dimensions: {
+        attractiveness: row.dimensions.attractiveness.score,
+        financial: row.dimensions.financial.score,
+        capability: row.dimensions.capability.score,
+        outcomes: row.dimensions.outcomes.score,
+        relevance: row.dimensions.relevance.score,
+      },
+    }))
+    .sort((a, b) => (b.overallScore ?? -1) - (a.overallScore ?? -1));
+
   return {
     methodologyVersion: DASHBOARD_OVERVIEW_VERSION,
     generatedAt: new Date(),
@@ -431,5 +521,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     momentum,
     levelMix: levelMix.map((r) => ({ ...r })),
     pulse,
+    lifecycle,
+    facultyHealth,
   };
 }

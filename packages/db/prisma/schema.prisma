@@ -413,6 +413,7 @@ model Program {
   peerReview            ProgramPeerReview?
   strategicNarrative    ProgramStrategicNarrative?
   aiReadinessAssessment ProgramAiReadinessAssessment?
+  lifecycleSnapshot     ProgramLifecycleSnapshot?
   financialMetrics      FinancialMetric[]
   graduateOutcomes      GraduateOutcome[]
   employerFeedback      EmployerFeedback[]
@@ -1554,6 +1555,41 @@ model ProgramAiReadinessAssessment {
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@map("program_ai_readiness_assessments")
+}
+
+/// Persisted per-program lifecycle verdict snapshot. Computed by
+/// `programLifecycleVerdict()` (lifecycle.v1.x). Acts as a write-through
+/// cache so the home dashboard + cockpit rollups can read aggregate
+/// distributions without re-running the full multi-driver compute (which
+/// reads ~15 queries per program). One row per program; re-generation
+/// upserts.
+model ProgramLifecycleSnapshot {
+  id                  String                   @id @default(cuid())
+  programId           String                   @unique @map("program_id")
+  verdict             ProgramLifecycleVerdict
+  /// Trajectory score 0-100 from the multi-driver compute.
+  trajectoryScore     Float                    @map("trajectory_score")
+  /// Methodology version that produced this snapshot (`lifecycle.v1.1`,
+  /// etc.) — bump invalidates older snapshots at the consumer's
+  /// discretion.
+  methodologyVersion  String                   @map("methodology_version")
+  /// All driver contributions, raw values, and the rule-based narrative
+  /// — typed in TypeScript via `ProgramLifecycleResult`. JSONB so the
+  /// driver list can grow without per-bump migrations.
+  driversJson         Json                     @map("drivers_json")
+  computedAt          DateTime                 @default(now()) @map("computed_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([verdict])
+  @@map("program_lifecycle_snapshots")
+}
+
+enum ProgramLifecycleVerdict {
+  SUNSET
+  STABLE
+  RISING
+  FRONTIER
 }
 
 /// Frank AI-generated comparative review of one KKU program against its

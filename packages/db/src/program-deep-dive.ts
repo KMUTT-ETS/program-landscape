@@ -1,3 +1,4 @@
+import { Prisma, type ProgramLifecycleVerdict } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from './index';
 import {
@@ -991,7 +992,11 @@ export async function programAiReadiness(programId: string): Promise<ProgramAiRe
 //                continued development.
 //   - FRONTIER — leading-edge program, future-defining. Council action:
 //                showcase + scale.
-export type ProgramLifecycleVerdict = 'SUNSET' | 'STABLE' | 'RISING' | 'FRONTIER';
+//
+// NOTE: `ProgramLifecycleVerdict` is now exported as a Prisma-generated
+// enum from `@prisma/client` (the snapshot table uses it as a column
+// type). Re-exporting here would clash, so consumers import the type
+// directly from `@kku/db` via the wildcard re-export of `@prisma/client`.
 
 export interface ProgramLifecycleDriver {
   label: string;
@@ -1230,7 +1235,7 @@ export async function programLifecycleVerdict(
   }
   const narrative = narrativeParts.join(' ');
 
-  return {
+  const result: ProgramLifecycleResult = {
     verdict,
     trajectoryScore,
     drivers: sortedDrivers,
@@ -1238,6 +1243,33 @@ export async function programLifecycleVerdict(
     methodologyVersion: LIFECYCLE_VERSION,
     generatedAt: new Date().toISOString(),
   };
+
+  // Write-through cache for the home dashboard + cockpit aggregations.
+  // Re-running lifecycle compute for ~300 programs takes tens of
+  // seconds; reading the snapshot is one indexed query. Failure is
+  // intentionally swallowed — the snapshot is observability, not the
+  // source of truth.
+  prisma.programLifecycleSnapshot
+    .upsert({
+      where: { programId },
+      create: {
+        programId,
+        verdict,
+        trajectoryScore,
+        methodologyVersion: LIFECYCLE_VERSION,
+        driversJson: result as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        verdict,
+        trajectoryScore,
+        methodologyVersion: LIFECYCLE_VERSION,
+        driversJson: result as unknown as Prisma.InputJsonValue,
+        computedAt: new Date(),
+      },
+    })
+    .catch(() => undefined);
+
+  return result;
 }
 
 function extractDriverFromHealth(

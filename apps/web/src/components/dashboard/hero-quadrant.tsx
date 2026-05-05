@@ -73,10 +73,14 @@ export function HeroQuadrant({ points, excludedCount, caveat }: Props) {
     || view.yMax !== defaultViewport.yMax;
   const resetView = React.useCallback(() => setView(defaultViewport), [defaultViewport]);
 
-  // SVG canvas
+  // SVG canvas. PAD.bottom must reserve room for the X-axis ticks +
+  // axis title (+36 below the inner plot) AND the bottom-row quadrant
+  // headers (label at +56, subtitle at +70) AND a small breathing gap.
+  // Anything past the viewBox is clipped and visually crashes into the
+  // legend row below the SVG.
   const W = 980;
-  const H = 520;
-  const PAD = { top: 56, right: 220, bottom: 64, left: 220 };
+  const H = 560;
+  const PAD = { top: 56, right: 220, bottom: 84, left: 220 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
