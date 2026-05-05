@@ -954,27 +954,24 @@ export class ProgramsService {
   // ─────────────────────────────────────────────────────────────────────
 
   async getPipelineStats() {
-    // One round-trip per scalar; cheap (each is an indexed count).
-    // Pipeline only operates on the canonical 297 — extraction rows for
-    // legacy/non-canonical Program ids are filtered out before counting
-    // so the bucket totals match the curriculum landscape.
+    // Pipeline buckets are computed against the LATEST PROGRAM_DIGEST
+    // extraction per program — NOT every extraction row. A re-digest
+    // (--force) creates a fresh PENDING_REVIEW row alongside the prior
+    // APPROVED row; the old approval is kept for audit, but a program's
+    // current state is its newest row. Counting all rows would have a
+    // re-digested program show up in "pending-review" forever AFTER its
+    // newer row was also approved (because every historical pending row
+    // would still tally), making the bucket totals climb with every
+    // re-run instead of reflecting current state.
+    //
+    // Pipeline operates on the canonical 297 only.
     const canonicalIdRows = await prisma.program.findMany({
       where: IS_CANONICAL_PROGRAM,
       select: { id: true },
     });
     const canonicalIds = canonicalIdRows.map((r) => r.id);
-    const inCanonical: Prisma.AiExtractionWhereInput =
-      canonicalIds.length > 0
-        ? { sourceEntityId: { in: canonicalIds } }
-        : { sourceEntityId: { in: ['__none__'] } };
 
-    const [
-      total,
-      withPdfRows,
-      digestedRows,
-      approvedRows,
-      pendingRows,
-    ] = await Promise.all([
+    const [total, withPdfRows, latestDigests] = await Promise.all([
       prisma.program.count({ where: IS_CANONICAL_PROGRAM }),
       prisma.program.findMany({
         where: {
@@ -983,43 +980,50 @@ export class ProgramsService {
         },
         select: { id: true },
       }),
-      prisma.aiExtraction.findMany({
-        where: {
-          sourceEntityType: 'program',
-          extractionKind: 'PROGRAM_DIGEST',
-          ...inCanonical,
-        },
-        select: { sourceEntityId: true },
-        distinct: ['sourceEntityId'],
-      }),
-      prisma.aiExtraction.count({
-        where: {
-          sourceEntityType: 'program',
-          extractionKind: 'PROGRAM_DIGEST',
-          reviewStatus: { in: ['APPROVED', 'AUTO_APPROVED'] },
-          ...inCanonical,
-        },
-      }),
-      prisma.aiExtraction.count({
-        where: {
-          sourceEntityType: 'program',
-          extractionKind: 'PROGRAM_DIGEST',
-          reviewStatus: 'PENDING_REVIEW',
-          ...inCanonical,
-        },
-      }),
+      // ROW_NUMBER() picks the newest PROGRAM_DIGEST per program. We
+      // collapse every extraction row down to a single "latest status"
+      // per program, then bucket those.
+      canonicalIds.length > 0
+        ? prisma.$queryRaw<
+            Array<{ source_entity_id: string; review_status: string }>
+          >`
+            WITH ranked AS (
+              SELECT
+                ae.source_entity_id,
+                ae.review_status,
+                ROW_NUMBER() OVER (
+                  PARTITION BY ae.source_entity_id
+                  ORDER BY ae.created_at DESC
+                ) AS rn
+              FROM ai_extractions ae
+              WHERE ae.source_entity_type = 'program'
+                AND ae.extraction_kind = 'PROGRAM_DIGEST'
+                AND ae.source_entity_id = ANY(${canonicalIds}::text[])
+            )
+            SELECT source_entity_id, review_status FROM ranked WHERE rn = 1;
+          `
+        : Promise.resolve([] as Array<{ source_entity_id: string; review_status: string }>),
     ]);
 
+    let approved = 0;
+    let pending = 0;
+    for (const r of latestDigests) {
+      if (r.review_status === 'APPROVED' || r.review_status === 'AUTO_APPROVED') approved++;
+      else if (r.review_status === 'PENDING_REVIEW') pending++;
+      // REJECTED rows count as "not yet digested" for pipeline purposes —
+      // they fall through into the digested set neither way.
+    }
+
     const withPdf = withPdfRows.length;
-    const digested = digestedRows.length;
+    const digested = latestDigests.length;
     return {
       programsTotal: total,
       withPdf,
       missingPdf: total - withPdf,
       digested,
       needDigest: withPdf - digested,
-      pendingReview: pendingRows,
-      approved: approvedRows,
+      pendingReview: pending,
+      approved,
     };
   }
 
@@ -1105,47 +1109,60 @@ export class ProgramsService {
       return { items, total, bucket };
     }
 
-    // pending-review + approved — surface the latest extraction per program.
-    // Both list and count restrict to extractions whose program is in the
-    // canonical 297; legacy/non-canonical programs are filtered out so the
-    // pipeline buckets match the curriculum landscape.
-    const reviewStatusFilter: Prisma.AiExtractionWhereInput['reviewStatus'] =
-      bucket === 'pending-review' ? 'PENDING_REVIEW' : { in: ['APPROVED', 'AUTO_APPROVED'] };
-    const inCanonical: Prisma.AiExtractionWhereInput =
-      canonicalIds.length > 0
-        ? { sourceEntityId: { in: canonicalIds } }
-        : { sourceEntityId: { in: ['__none__'] } };
-    const [extractions, total] = await Promise.all([
-      prisma.aiExtraction.findMany({
-        where: {
-          sourceEntityType: 'program',
-          extractionKind: 'PROGRAM_DIGEST',
-          reviewStatus: reviewStatusFilter,
-          ...inCanonical,
-        },
-        select: {
-          id: true,
-          sourceEntityId: true,
-          confidence: true,
-          createdAt: true,
-          reviewStatus: true,
-          reviewedAt: true,
-          methodVersion: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset,
-      }),
-      prisma.aiExtraction.count({
-        where: {
-          sourceEntityType: 'program',
-          extractionKind: 'PROGRAM_DIGEST',
-          reviewStatus: reviewStatusFilter,
-          ...inCanonical,
-        },
-      }),
-    ]);
-    const programIds = extractions.map((e) => e.sourceEntityId);
+    // pending-review + approved — surface the LATEST extraction per
+    // program (one row per program, not one per extraction). A re-digest
+    // creates a new row alongside the prior one for audit; the bucket
+    // reflects the program's CURRENT state, which is its newest row.
+    if (canonicalIds.length === 0) {
+      return { items: [], total: 0, bucket };
+    }
+    const targetStatuses =
+      bucket === 'pending-review'
+        ? ['PENDING_REVIEW']
+        : ['APPROVED', 'AUTO_APPROVED'];
+
+    // ROW_NUMBER() picks the newest extraction per program; we keep
+    // only those whose latest matches the bucket status.
+    const latestRows = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        source_entity_id: string;
+        confidence: number;
+        created_at: Date;
+        review_status: string;
+        reviewed_at: Date | null;
+        method_version: string;
+      }>
+    >`
+      WITH ranked AS (
+        SELECT
+          ae.id,
+          ae.source_entity_id,
+          ae.confidence,
+          ae.created_at,
+          ae.review_status::text AS review_status,
+          ae.reviewed_at,
+          ae.method_version,
+          ROW_NUMBER() OVER (
+            PARTITION BY ae.source_entity_id
+            ORDER BY ae.created_at DESC
+          ) AS rn
+        FROM ai_extractions ae
+        WHERE ae.source_entity_type = 'program'
+          AND ae.extraction_kind = 'PROGRAM_DIGEST'
+          AND ae.source_entity_id = ANY(${canonicalIds}::text[])
+      )
+      SELECT id, source_entity_id, confidence, created_at, review_status,
+             reviewed_at, method_version
+      FROM ranked
+      WHERE rn = 1
+        AND review_status = ANY(${targetStatuses}::text[])
+      ORDER BY created_at DESC;
+    `;
+
+    const total = latestRows.length;
+    const page = latestRows.slice(offset, offset + limit);
+    const programIds = page.map((e) => e.source_entity_id);
     const programs = await prisma.program.findMany({
       where: { id: { in: programIds } },
       select: {
@@ -1158,19 +1175,19 @@ export class ProgramsService {
       },
     });
     const programById = new Map(programs.map((p) => [p.id, p]));
-    const items = extractions
+    const items = page
       .map((e) => {
-        const p = programById.get(e.sourceEntityId);
+        const p = programById.get(e.source_entity_id);
         if (!p) return null;
         return {
           ...p,
           extraction: {
             id: e.id,
             confidence: e.confidence,
-            createdAt: e.createdAt,
-            reviewStatus: e.reviewStatus,
-            reviewedAt: e.reviewedAt,
-            methodVersion: e.methodVersion,
+            createdAt: e.created_at,
+            reviewStatus: e.review_status,
+            reviewedAt: e.reviewed_at,
+            methodVersion: e.method_version,
           },
         };
       })
