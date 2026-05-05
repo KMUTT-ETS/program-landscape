@@ -144,7 +144,13 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
     const q = this.resolve(name);
     const limit = Math.min(Math.max(opts.limit ?? 25, 1), 200);
     const offset = Math.max(opts.offset ?? 0, 0);
-    const jobs = await q.getJobs([state], offset, offset + limit - 1, true);
+    // Sort order:
+    //   - waiting/active/delayed → ascending (oldest about-to-run first;
+    //     that's the order they'll actually be processed in)
+    //   - completed/failed/paused → descending (most recent first; the
+    //     job the operator just triggered should be at the top)
+    const asc = state === 'waiting' || state === 'active' || state === 'delayed';
+    const jobs = await q.getJobs([state], offset, offset + limit - 1, asc);
     const counts = await q.getJobCounts(state);
     const total = (counts as Record<string, number>)[state] ?? jobs.length;
     const items: QueueJob[] = await Promise.all(jobs.map((j) => serialiseJob(j, state)));
