@@ -76,7 +76,10 @@ export class AnalystToolExecutor {
   private handlers: Record<string, (input: unknown) => Promise<unknown>> = {
     query_programs: async (input) => {
       const q = QueryProgramsInputSchema.parse(input);
-      const where: Prisma.ProgramWhereInput = {};
+      // Analyst always operates on the canonical 297 (sheet-seeded
+      // KKU programs). Legacy mock-seed Program rows must not surface
+      // in tool results — they exist only for staff/student joins.
+      const where: Prisma.ProgramWhereInput = { sequenceNoFromSheet: { not: null } };
       if (q.status) where.status = q.status;
       if (q.level) where.level = q.level;
       if (q.scope === 'faculty' && q.scopeId) where.facultyId = q.scopeId;
@@ -229,7 +232,10 @@ export class AnalystToolExecutor {
       if (q.programId) affectedIds.push(q.programId);
       if (q.programIds) affectedIds.push(...q.programIds);
       const programs = await prisma.program.findMany({
-        where: affectedIds.length > 0 ? { id: { in: affectedIds } } : { status: 'ACTIVE' },
+        where:
+          affectedIds.length > 0
+            ? { id: { in: affectedIds } }
+            : { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
         take: 30, // cap
         include: {
           enrollmentMetrics: { orderBy: { academicYear: 'desc' }, take: 1 },

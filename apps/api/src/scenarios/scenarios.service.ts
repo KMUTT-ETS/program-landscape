@@ -107,7 +107,10 @@ export class ScenariosService {
       const interventions: Intervention[] = [];
       if (template.interventionBlueprint.length > 0) {
         const firstProgram = (
-          await prisma.program.findFirst({ where: { status: 'ACTIVE' }, select: { id: true } })
+          await prisma.program.findFirst({
+            where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+            select: { id: true },
+          })
         )?.id;
         for (const blueprint of template.interventionBlueprint) {
           // Blueprint is partially typed — cast after materialising the ids.
@@ -372,11 +375,12 @@ export class ScenariosService {
 
   // ── Baseline construction ──────────────────────────────────────────
   private async buildBaseline(affectedProgramIds: string[]) {
-    // If caller didn't specify affected programs, run on ALL active programs
-    // (scope = university). If they did, run just on those.
+    // If caller didn't specify affected programs, run on the canonical
+    // 297 (sheet-seeded ACTIVE programs) — scenarios are decisions on
+    // the curriculum landscape, not on legacy mock-seed rows.
     const where: Prisma.ProgramWhereInput = affectedProgramIds.length > 0
       ? { id: { in: affectedProgramIds } }
-      : { status: 'ACTIVE' };
+      : { status: 'ACTIVE', sequenceNoFromSheet: { not: null } };
     const programs = await prisma.program.findMany({
       where,
       include: {

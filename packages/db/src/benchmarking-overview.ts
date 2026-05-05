@@ -79,7 +79,9 @@ export async function getBenchmarkingOverview(): Promise<BenchmarkingOverview> {
     reviews,
     selections,
   ] = await Promise.all([
-    prisma.program.count({ where: { status: 'ACTIVE' } }),
+    prisma.program.count({
+      where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+    }),
     prisma.programPeerSelection.groupBy({ by: ['programId'] }).then((r) => r.length),
     prisma.programPeerReview.findMany({
       orderBy: { generatedAt: 'desc' },

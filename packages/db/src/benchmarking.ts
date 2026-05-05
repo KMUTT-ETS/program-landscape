@@ -97,7 +97,7 @@ export async function computePortfolioComparison(peerSetId: string): Promise<Por
   // for subject area (we don't have a dedicated SubjectArea column on
   // KKU Program; department name is a defensible stand-in for v1).
   const kkuPrograms = await prisma.program.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
     include: { department: { select: { nameEn: true } } },
   });
   const kkuSubjectDist: Record<string, number> = {};

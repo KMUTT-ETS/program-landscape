@@ -21,6 +21,10 @@ export async function fetchScopeEntities(): Promise<ScopeSelectorEntities> {
       },
     }),
     prisma.program.findMany({
+      // Scope selector + command palette show the canonical 297 only.
+      // Legacy mock-seed Program rows still exist for staff/student
+      // joins but should not be navigation targets.
+      where: { sequenceNoFromSheet: { not: null } },
       orderBy: { code: 'asc' },
       select: {
         id: true,

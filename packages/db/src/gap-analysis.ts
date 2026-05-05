@@ -814,7 +814,9 @@ export async function computeProgramDemandGaps(
   const totalProgramsAtScope =
     programIds.length > 0
       ? programIds.length
-      : await prisma.program.count({ where: { status: 'ACTIVE' } });
+      : await prisma.program.count({
+          where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+        });
   const uncoveredProgramCount = totalProgramsAtScope - byProgram.size;
 
   const rows: ProgramDemandGapRow[] = [...byProgram.values()].map(({ program, relevant }) => {
@@ -928,15 +930,30 @@ function isSoftSkill(category: string | null, nameEn: string | null): boolean {
 }
 
 async function programIdsForScope(scope: ScopeLevel, scopeId: string | undefined): Promise<string[]> {
-  if (scope === 'university') return [];
+  // All branches restrict to canonical 297 (sheet-seeded) — gap
+  // analysis is part of the curriculum-landscape universe; legacy
+  // mock-seed Program rows must not contribute.
+  if (scope === 'university') {
+    const progs = await prisma.program.findMany({
+      where: { sequenceNoFromSheet: { not: null } },
+      select: { id: true },
+    });
+    return progs.map((p) => p.id);
+  }
   if (!scopeId) return [];
   if (scope === 'program') return [scopeId];
   if (scope === 'faculty') {
-    const progs = await prisma.program.findMany({ where: { facultyId: scopeId }, select: { id: true } });
+    const progs = await prisma.program.findMany({
+      where: { facultyId: scopeId, sequenceNoFromSheet: { not: null } },
+      select: { id: true },
+    });
     return progs.map((p) => p.id);
   }
   if (scope === 'department') {
-    const progs = await prisma.program.findMany({ where: { departmentId: scopeId }, select: { id: true } });
+    const progs = await prisma.program.findMany({
+      where: { departmentId: scopeId, sequenceNoFromSheet: { not: null } },
+      select: { id: true },
+    });
     return progs.map((p) => p.id);
   }
   return [];

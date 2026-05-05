@@ -29,7 +29,9 @@ export class DataQualityController {
       extractionFailures,
       extractionsTotal,
     ] = await Promise.all([
-      prisma.program.count({ where: { status: 'ACTIVE' } }),
+      prisma.program.count({
+        where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+      }),
       prisma.enrollmentMetric.groupBy({
         by: ['programId'],
         where: { academicYear: { in: threeYears } },

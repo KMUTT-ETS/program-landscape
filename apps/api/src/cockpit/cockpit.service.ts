@@ -337,6 +337,7 @@ async function enrolmentTrendCountsAtScope(
       JOIN enrollment_metrics now_em ON now_em.program_id = p.id AND now_em.academic_year = l.max_year
       LEFT JOIN enrollment_metrics old_em ON old_em.program_id = p.id AND old_em.academic_year = l.max_year - 3
       WHERE p.status = 'ACTIVE'
+        AND p.sequence_no_from_sheet IS NOT NULL
       ${facultyFilter}
       ${deptFilter}
     )
@@ -357,14 +358,18 @@ async function enrolmentTrendCountsAtScope(
 }
 
 async function countProgramsAtScope(scope: ScopeLevel, scopeId: string | null): Promise<number> {
+  // Cockpit operates on the canonical 297 (sheet-seeded) only. Legacy
+  // mock-seed rows that still exist for staff/student joins must not
+  // inflate the headline count.
+  const canonical: Prisma.ProgramWhereInput = { sequenceNoFromSheet: { not: null } };
   if (scope === 'university') {
-    return prisma.program.count({ where: { status: 'ACTIVE' } });
+    return prisma.program.count({ where: { ...canonical, status: 'ACTIVE' } });
   }
   if (scope === 'faculty' && scopeId) {
-    return prisma.program.count({ where: { facultyId: scopeId, status: 'ACTIVE' } });
+    return prisma.program.count({ where: { ...canonical, facultyId: scopeId, status: 'ACTIVE' } });
   }
   if (scope === 'department' && scopeId) {
-    return prisma.program.count({ where: { departmentId: scopeId, status: 'ACTIVE' } });
+    return prisma.program.count({ where: { ...canonical, departmentId: scopeId, status: 'ACTIVE' } });
   }
   if (scope === 'program' && scopeId) {
     const exists = await prisma.program.findUnique({ where: { id: scopeId } });
@@ -374,7 +379,10 @@ async function countProgramsAtScope(scope: ScopeLevel, scopeId: string | null): 
 }
 
 async function averageCurriculumAge(scope: ScopeLevel, scopeId: string | null): Promise<number | null> {
-  const whereClause: Prisma.ProgramWhereInput = { yearEstablished: { not: null } };
+  const whereClause: Prisma.ProgramWhereInput = {
+    yearEstablished: { not: null },
+    sequenceNoFromSheet: { not: null },
+  };
   if (scope === 'faculty' && scopeId) whereClause.facultyId = scopeId;
   if (scope === 'department' && scopeId) whereClause.departmentId = scopeId;
   if (scope === 'program' && scopeId) whereClause.id = scopeId;
@@ -407,7 +415,9 @@ async function bubblesForScope(scope: ScopeLevel, scopeId: string | null): Promi
   // be a LOT — the client-side BubbleMatrix handles ~300 points fine
   // but we still cap at 200 for the first render; users zoom/filter
   // to see more.
-  const where: Prisma.ProgramWhereInput = {};
+  // Bubble matrix shows only the canonical 297 — same scoping rule as
+  // the headline KPI count.
+  const where: Prisma.ProgramWhereInput = { sequenceNoFromSheet: { not: null } };
   if (scope === 'faculty' && scopeId) where.facultyId = scopeId;
   if (scope === 'department' && scopeId) where.departmentId = scopeId;
   if (scope === 'program' && scopeId) where.id = scopeId;
