@@ -1114,6 +1114,7 @@ async function main() {
         scheduleEnabled,
         ownerContact: entry.ownerContact ?? null,
         notes: entry.notes ?? null,
+        status: entry.mocked ? 'mocked' : 'active',
       },
       create: {
         slug: entry.slug,

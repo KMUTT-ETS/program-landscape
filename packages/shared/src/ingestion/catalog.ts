@@ -281,8 +281,9 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'JSON',
     cadenceCron: '0 12 * * 0', // weekly Sunday
     ownerContact: 'KKU Library (existing subscription)',
-    notes: 'Elsevier Scopus — research output with citation counts. Requires API key. Subscribes via KKU Library.',
-    mocked: true,
+    notes:
+      'Elsevier Scopus — research output with citation counts. Active via the kku-research connector (Q2 enrichment lane); set `KKU_SCOPUS_API_KEY` to enable.',
+    mocked: false,
   },
   {
     slug: 'openalex',
@@ -291,8 +292,9 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'JSON',
     cadenceCron: '0 13 * * 0', // weekly Sunday
     ownerContact: 'KKU Data Office (public API, no agreement needed)',
-    notes: 'Open scholarly metadata — backup + cross-check for Scopus. Free API with generous rate limits.',
-    mocked: true,
+    notes:
+      'Open scholarly metadata. Active via the kku-research connector (institution I179193067). Free polite-pool API; set `OPENALEX_MAILTO` for the higher rate tier.',
+    mocked: false,
   },
   {
     slug: 'peer-programs-scraper',
