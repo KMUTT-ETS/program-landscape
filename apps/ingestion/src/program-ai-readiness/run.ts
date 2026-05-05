@@ -86,7 +86,10 @@ export async function runProgramAiReadiness(
   const skillsForPrompt = programSkills.slice(0, 40).map((ps) => ({
     name: ps.skill.nameEn?.trim() || ps.skill.nameTh || '(unnamed)',
     weight: ps.weight,
-    compulsory: ps.isCompulsory ?? false,
+    // Schema swapped a single `isCompulsory` flag for split
+    // compulsoryWeight / electiveWeight columns. Treat a non-zero
+    // compulsoryWeight as compulsory; null or 0 → elective/unknown.
+    compulsory: (ps.compulsoryWeight ?? 0) > 0,
   }));
 
   // Pull courses + careerPaths from the most recent approved program-digest

@@ -103,7 +103,7 @@ async function snapshot(): Promise<Snapshot> {
     if (latestLog) {
       const lastStart = execSync(`grep "^▶" "${latestLog}" | tail -1`, { encoding: 'utf8' }).trim();
       const m = lastStart.match(/^▶\s+(\S+)/);
-      if (m) inFlightCode = m[1];
+      if (m) inFlightCode = m[1] ?? null;
     }
   } catch {
     /* ignore */
