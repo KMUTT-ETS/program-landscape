@@ -14,7 +14,6 @@ import {
 import type { SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { HeroQuadrant } from '@/components/dashboard/hero-quadrant';
-import { FacultyTreemap } from '@/components/dashboard/faculty-treemap';
 import { AlertColumn } from '@/components/dashboard/alert-card';
 import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
@@ -182,35 +181,17 @@ export default async function HomePage() {
           </PanelFrame>
         </div>
 
-        {/* ROW: TREEMAP + ALERTS */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <PanelFrame
-              title="Portfolio composition"
-              description="Box size = current enrolment. Colour intensity = net contribution per student. Click a faculty to scope the cockpit."
-              freshnessDate={generatedAtIso}
-              provenanceMeta={{
-                freshnessDate: generatedAtIso,
-                sources: [{ id: 'enrollment_metrics', name: 'KKU Registry' }],
-                methodologyVersion: overview.methodologyVersion,
-                scope: { level: 'university', id: null },
-              }}
-            >
-              <FacultyTreemap tiles={overview.facultyTiles} height={420} />
-            </PanelFrame>
-          </div>
-
-          <Card padding="md" className="flex flex-col gap-4">
-            <CardHeader className="mb-0">
-              <CardTitle className="text-sm">Demographic mix</CardTitle>
-            </CardHeader>
-            <LevelMix rows={overview.levelMix} />
-            <p className="text-[11px] text-text-tertiary">
-              Thailand 18–22 cohort declines ~1.8%/yr. Bachelor's exposure is highest;
-              Doctoral programs already average &lt;2 students each.
-            </p>
-          </Card>
-        </div>
+        {/* DEMOGRAPHIC MIX */}
+        <Card padding="md" className="flex flex-col gap-4">
+          <CardHeader className="mb-0">
+            <CardTitle className="text-sm">Demographic mix</CardTitle>
+          </CardHeader>
+          <LevelMix rows={overview.levelMix} />
+          <p className="text-[11px] text-text-tertiary">
+            Thailand 18–22 cohort declines ~1.8%/yr. Bachelor's exposure is highest;
+            Doctoral programs already average &lt;2 students each.
+          </p>
+        </Card>
 
         {/* RISK + MOMENTUM */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
