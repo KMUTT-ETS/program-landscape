@@ -108,7 +108,7 @@ export interface DashboardOverview {
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   const [
     programCount,
-    facultyCount,
+    facultyCountRow,
     latestEnrolledRow,
     financialSum,
     quadrantPoints,
@@ -129,8 +129,11 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // Faculty count for the curriculum landscape = academic faculties
     // only. Non-academic units (ADMIN / RESEARCH_CENTER / INSTITUTE)
     // host staff but not programs and would inflate the count from
-    // 24 to 36.
-    prisma.faculty.count({ where: { kind: 'ACADEMIC' } }),
+    // 24 to 36. Raw SQL because long-running dev processes may still
+    // hold a Prisma client predating the FacultyKind schema addition.
+    prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count FROM faculties WHERE kind = 'ACADEMIC';
+    `,
     prisma.$queryRaw<Array<{ total: bigint }>>`
       WITH latest AS (
         SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
@@ -273,6 +276,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   ]);
 
   const latestEnrolled = Number(latestEnrolledRow[0]?.total ?? 0);
+  const facultyCount = Number(facultyCountRow[0]?.count ?? 0);
   const netContributionThb = Number(financialSum._sum.netContribution ?? 0);
 
   // Bucket programs by KKU intake-floor policy (bachelor=30, postgrad=8).
