@@ -28,6 +28,7 @@ import {
   Upload,
   UserSquare2,
 } from 'lucide-react';
+import { ProgramsPipelineLauncher } from './programs-pipeline-launcher';
 
 // Admin landing page — the operational hub for "feed the AI everything
 // it needs to analyse the curriculum landscape". Every input category
@@ -144,6 +145,7 @@ export default async function AdminDataSetupPage() {
             cta="Open curriculum pipeline"
             rawHref="/admin/data-setup/raw/curriculum-pdfs"
             rawCta="View raw data"
+            footer={<ProgramsPipelineLauncher />}
           />
 
           <CategoryCard
@@ -432,6 +434,9 @@ interface CategoryCardProps {
   rawHref?: string;
   rawCta?: string;
   tone?: 'default' | 'glossy';
+  /** Optional richer slot rendered below the CTA row — e.g. the
+   * pipeline-launcher buttons on the Programs card. */
+  footer?: React.ReactNode;
 }
 
 function CategoryCard({
@@ -445,6 +450,7 @@ function CategoryCard({
   rawHref,
   rawCta,
   tone = 'default',
+  footer,
 }: CategoryCardProps) {
   return (
     <Card tone={tone} padding="lg" className="flex flex-col gap-4">
@@ -480,6 +486,9 @@ function CategoryCard({
           </Button>
         )}
       </div>
+      {footer && (
+        <div className="mt-1 border-t border-border-subtle pt-3">{footer}</div>
+      )}
     </Card>
   );
 }

@@ -33,6 +33,7 @@ import {
   ZodValidationPipe,
 } from '../common';
 import type { SessionUser } from '@kku/shared';
+import type { ProgramPipelinePhase } from '../ai-jobs/ai-jobs-queue.service';
 import { ProgramsService } from './programs.service';
 
 // ═════════════════════════════════════════════════════════════════════
@@ -234,5 +235,49 @@ export class ProgramsAdminController {
     @Body() body: { force?: boolean } = {},
   ) {
     return this.svc.enqueueDigest(user, id, { force: !!body.force });
+  }
+
+  // ─── Full pipeline (phases 1-6) ─────────────────────────────────────
+  // Single-program pipeline run. Runs all 6 phases by default; pass
+  // `phases: ['phase1','phase2',...]` to restrict (the partial-run UI
+  // uses this to retry e.g. only phase5+phase6 after a peer-data fix).
+  @Post(':id/run-pipeline')
+  @Authorized('programs:manage:all')
+  @AuditLog({ action: 'program.run_pipeline', entityType: 'Program' })
+  async runPipeline(
+    @AuthSession() user: SessionUser,
+    @Param('id') id: string,
+    @Body() body: { phases?: ProgramPipelinePhase[]; force?: boolean } = {},
+  ) {
+    return this.svc.enqueuePipeline(user, id, {
+      phases: body.phases,
+      force: !!body.force,
+    });
+  }
+
+  // Bulk pipeline run — used by the data-setup "Run pipeline on all
+  // canonical 297" / "Resume pending" buttons. Same phase + force
+  // semantics as the per-program endpoint.
+  @Post('pipeline/run-pipeline-bulk')
+  @Authorized('programs:manage:all')
+  @AuditLog({ action: 'program.run_pipeline_bulk', entityType: 'Program' })
+  async runPipelineBulk(
+    @AuthSession() user: SessionUser,
+    @Body()
+    body: {
+      phases?: ProgramPipelinePhase[];
+      force?: boolean;
+      programIds?: string[];
+      limit?: number;
+      resume?: boolean;
+    } = {},
+  ) {
+    return this.svc.enqueuePipelineBulk(user, {
+      phases: body.phases,
+      force: !!body.force,
+      programIds: body.programIds,
+      limit: body.limit,
+      resume: !!body.resume,
+    });
   }
 }

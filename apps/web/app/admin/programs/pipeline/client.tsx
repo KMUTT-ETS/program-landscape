@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   ExternalLink,
   FileText,
+  Layers,
   Play,
   RefreshCw,
   Upload,
@@ -297,6 +298,37 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
     }
   };
 
+  // Single-program full-pipeline run — all 6 phases on one program.
+  // Useful when retrying a single program after fixing its PDF or
+  // peer set without re-paying the bulk run for the other 296.
+  const runSinglePipeline = async (programId: string, programCode: string) => {
+    if (
+      !confirm(
+        `Run the full 6-phase pipeline on ${programCode}?\n\n` +
+          'Takes ~5-10 min and ~$0.50 in LLM cost. Phases run in the background; ' +
+          'check back on this page in 10 minutes.',
+      )
+    )
+      return;
+    try {
+      const res = await fetch(`/api/admin-programs/${programId}/run-pipeline`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ force: false }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+      }
+      const j = await res.json();
+      const { jobId } = j.data as { jobId: string };
+      toast.success(`Pipeline enqueued for ${programCode} (job ${jobId.slice(0, 8)})`);
+      onChange();
+    } catch (err) {
+      toast.error(`Pipeline enqueue failed: ${(err as Error).message}`);
+    }
+  };
+
   const approveSelected = async () => {
     const ids = Array.from(selected);
     if (ids.length === 0) {
@@ -492,6 +524,20 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                             Run digest
                           </Button>
                         )}
+                        {/* Full 6-phase pipeline run for this single program.
+                            Available on every bucket — even already-approved
+                            programs may need a re-run after a peer-set
+                            update or methodology bump. */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => runSinglePipeline(p.id, p.code)}
+                          disabled={bulkRunning}
+                          title="Run all 6 pipeline phases on this program"
+                        >
+                          <Layers className="h-4 w-4" aria-hidden />
+                          Run pipeline
+                        </Button>
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/admin/programs/${p.id}`}>
                             <ExternalLink className="h-4 w-4" aria-hidden />

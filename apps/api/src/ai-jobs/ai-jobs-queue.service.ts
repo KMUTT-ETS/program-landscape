@@ -19,13 +19,26 @@ export type AiJobKind =
   | 'EXTRACT_COURSE_SKILLS'
   | 'EXTRACT_JOB_POSTING_SKILLS'
   | 'ANALYZE_POLICY_DOC'
-  | 'RUN_PROGRAM_DIGEST';
+  | 'RUN_PROGRAM_DIGEST'
+  | 'RUN_PROGRAM_PIPELINE';
+
+export type ProgramPipelinePhase =
+  | 'phase1'
+  | 'phase2'
+  | 'phase3'
+  | 'phase4'
+  | 'phase5'
+  | 'phase6';
 
 export interface AiJobData {
   kind: AiJobKind;
   entityId: string;
   triggeredByUserId?: string | null;
   trigger: 'MANUAL' | 'SCHEDULED' | 'CHAINED';
+  /** RUN_PROGRAM_PIPELINE only — restrict to this subset of phases. */
+  pipelinePhases?: ProgramPipelinePhase[];
+  /** RUN_PROGRAM_PIPELINE only — pass --force to overwrite prior results. */
+  pipelineForce?: boolean;
 }
 
 @Injectable()

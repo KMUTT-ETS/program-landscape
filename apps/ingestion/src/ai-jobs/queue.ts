@@ -23,7 +23,16 @@ export type AiJobKind =
   | 'EXTRACT_COURSE_SKILLS'
   | 'EXTRACT_JOB_POSTING_SKILLS'
   | 'ANALYZE_POLICY_DOC'
-  | 'RUN_PROGRAM_DIGEST';
+  | 'RUN_PROGRAM_DIGEST'
+  | 'RUN_PROGRAM_PIPELINE';
+
+export type ProgramPipelinePhase =
+  | 'phase1'
+  | 'phase2'
+  | 'phase3'
+  | 'phase4'
+  | 'phase5'
+  | 'phase6';
 
 export interface AiJobData {
   kind: AiJobKind;
@@ -35,6 +44,10 @@ export interface AiJobData {
   // by the completion of another job, e.g. PDF intake finishing a
   // curriculum PDF enqueues extract-course-skills jobs for each Course).
   trigger: 'MANUAL' | 'SCHEDULED' | 'CHAINED';
+  /** RUN_PROGRAM_PIPELINE only — restrict to this subset of phases. */
+  pipelinePhases?: ProgramPipelinePhase[];
+  /** RUN_PROGRAM_PIPELINE only — pass --force to overwrite prior results. */
+  pipelineForce?: boolean;
 }
 
 export interface AiJobsConfig {
@@ -73,7 +86,7 @@ export function createAiJobsWorker(
   return new Worker<AiJobData>(
     AI_JOBS_QUEUE_NAME,
     async (job) => {
-      const { kind, entityId, trigger, triggeredByUserId } = job.data;
+      const { kind, entityId, trigger, triggeredByUserId, pipelinePhases, pipelineForce } = job.data;
       const handler = handlers[kind];
       if (!handler) throw new Error(`No handler registered for ${kind}`);
       logger.log(`Handling ${kind} entityId=${entityId} trigger=${trigger}`);
@@ -81,6 +94,8 @@ export function createAiJobsWorker(
         entityId,
         trigger,
         triggeredByUserId: triggeredByUserId ?? null,
+        pipelinePhases,
+        pipelineForce,
       });
       return outcome;
     },

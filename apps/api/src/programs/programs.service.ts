@@ -15,7 +15,7 @@ import {
   type CollisionMatch,
   type CollisionReport,
 } from '@kku/shared';
-import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
+import { AiJobsQueueService, type ProgramPipelinePhase } from '../ai-jobs/ai-jobs-queue.service';
 
 // ─────────────────────────────────────────────────────────────────────────
 // ProgramsService — admin CRUD + curriculum-PDF attachment.
@@ -1259,5 +1259,115 @@ export class ProgramsService {
       jobIds.push(jobId);
     }
     return { enqueued: jobIds.length, jobIds };
+  }
+
+  // ─── Full pipeline (phases 1-6) ──────────────────────────────────────
+  // Difference from `enqueueDigest`: the digest job runs only Phase 1's
+  // PROGRAM_DIGEST extraction. The pipeline job spawns the unified
+  // 6-phase script (digest + faculty + skills + approve + careers +
+  // demand + Oracle/MSSQL linkage + peer review + strategic narrative).
+  //
+  // `phases` is an explicit allowlist; absent = all six. Used by the
+  // partial-run UI on /admin/data-setup so analysts can rerun e.g.
+  // only phase5+phase6 without re-paying for digest/faculty/skills.
+
+  async enqueuePipeline(
+    user: SessionUser,
+    programId: string,
+    opts: {
+      phases?: ProgramPipelinePhase[];
+      force?: boolean;
+    } = {},
+  ): Promise<{ jobId: string; programId: string; phases: ProgramPipelinePhase[] | 'all' }> {
+    const program = await prisma.program.findUnique({
+      where: { id: programId },
+      select: { id: true, facultyId: true, sequenceNoFromSheet: true },
+    });
+    if (!program) throw new ApiError('NOT_FOUND', `program not found: ${programId}`);
+    if (program.sequenceNoFromSheet === null) {
+      // The pipeline only runs on the canonical 297. Legacy/non-canonical
+      // Program rows are out-of-scope.
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        'pipeline runs on the canonical 297 only; this program is not in the master sheet',
+      );
+    }
+    this.assertCanManage(user, program.facultyId);
+
+    const jobId = await this.aiJobs.enqueue({
+      kind: 'RUN_PROGRAM_PIPELINE',
+      entityId: programId,
+      triggeredByUserId: user.userId,
+      trigger: 'MANUAL',
+      pipelinePhases: opts.phases,
+      pipelineForce: opts.force,
+    });
+    return {
+      jobId,
+      programId,
+      phases: opts.phases && opts.phases.length > 0 ? opts.phases : 'all',
+    };
+  }
+
+  async enqueuePipelineBulk(
+    user: SessionUser,
+    opts: {
+      phases?: ProgramPipelinePhase[];
+      force?: boolean;
+      // Subset of canonical programs to run on. Default = all 297.
+      programIds?: string[];
+      // Cap on how many to enqueue; defaults to all candidates so the
+      // operator gets the full run on one click. Hard ceiling 500.
+      limit?: number;
+      // When true, skip programs that already have a Phase 6 strategic
+      // narrative — same semantic as the CLI's `--resume`.
+      resume?: boolean;
+    } = {},
+  ): Promise<{ enqueued: number; jobIds: string[]; skipped: number }> {
+    if (!can(user, 'programs:manage:all')) {
+      throw new ApiError('FORBIDDEN', 'bulk pipeline requires programs:manage:all');
+    }
+    const limit = Math.min(Math.max(opts.limit ?? 500, 1), 500);
+
+    const baseWhere: Prisma.ProgramWhereInput = {
+      // Canonical 297 only.
+      sequenceNoFromSheet: { not: null },
+      ...(opts.programIds && opts.programIds.length > 0
+        ? { id: { in: opts.programIds } }
+        : {}),
+    };
+
+    let candidates = await prisma.program.findMany({
+      where: baseWhere,
+      select: { id: true },
+      orderBy: [{ level: 'asc' }, { code: 'asc' }],
+      take: limit,
+    });
+
+    let skipped = 0;
+    if (opts.resume) {
+      const done = await prisma.programStrategicNarrative.findMany({
+        where: { programId: { in: candidates.map((c) => c.id) } },
+        select: { programId: true },
+      });
+      const doneIds = new Set(done.map((d) => d.programId));
+      const before = candidates.length;
+      candidates = candidates.filter((c) => !doneIds.has(c.id));
+      skipped = before - candidates.length;
+    }
+
+    const jobIds: string[] = [];
+    for (const c of candidates) {
+      const jobId = await this.aiJobs.enqueue({
+        kind: 'RUN_PROGRAM_PIPELINE',
+        entityId: c.id,
+        triggeredByUserId: user.userId,
+        trigger: 'MANUAL',
+        pipelinePhases: opts.phases,
+        pipelineForce: opts.force,
+      });
+      jobIds.push(jobId);
+    }
+    return { enqueued: jobIds.length, jobIds, skipped };
   }
 }

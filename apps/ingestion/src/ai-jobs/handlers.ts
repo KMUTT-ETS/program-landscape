@@ -1,3 +1,6 @@
+import { spawn } from 'node:child_process';
+import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
+import path from 'node:path';
 import { Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@kku/db';
 import {
@@ -14,7 +17,7 @@ import {
   type S3Storage,
 } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
-import type { AiJobKind } from './queue';
+import type { AiJobKind, ProgramPipelinePhase } from './queue';
 
 // Each handler consumes one job, calls the AI service, writes an
 // AiExtraction row. Approval (in the review UI) materialises the
@@ -24,6 +27,10 @@ export interface AiJobContext {
   entityId: string;
   trigger: 'MANUAL' | 'SCHEDULED' | 'CHAINED';
   triggeredByUserId: string | null;
+  /** RUN_PROGRAM_PIPELINE only — phases to run; absent = all phases. */
+  pipelinePhases?: ProgramPipelinePhase[];
+  /** RUN_PROGRAM_PIPELINE only — pass --force to the pipeline. */
+  pipelineForce?: boolean;
 }
 
 export interface AiJobOutcome {
@@ -250,6 +257,98 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       return {
         status: outcome.status,
         message: outcome.reason,
+      };
+    },
+
+    // Runs the unified per-program pipeline (phases 1-6) by spawning
+    // the existing CLI script. The script is the source of truth for
+    // phase orchestration (parallel digest+faculty+skills, approve,
+    // careers+demand, Oracle/MSSQL linkage, peer review, narrative).
+    // Spawning here instead of importing keeps phase 4's child-script
+    // model intact and avoids a dual code path when the CLI itself is
+    // run by an operator.
+    //
+    // BullMQ's job lock is auto-renewed while we await the spawn —
+    // 5-10 min runs are fine. Logs go to logs/programs-pipeline-<jobId>.log
+    // alongside the operator-facing logs from the CLI.
+    RUN_PROGRAM_PIPELINE: async ({ entityId, pipelinePhases, pipelineForce, triggeredByUserId }) => {
+      const program = await prisma.program.findUnique({
+        where: { id: entityId },
+        select: { id: true, code: true, nameEn: true },
+      });
+      if (!program) return { status: 'SKIPPED', message: `program not found: ${entityId}` };
+
+      const args: string[] = [program.code];
+      if (pipelinePhases && pipelinePhases.length > 0) {
+        args.push(`--only=${pipelinePhases.join(',')}`);
+      }
+      if (pipelineForce) args.push('--force');
+
+      // Locate the script. apps/ingestion runs from its own dist folder
+      // in prod and from the source tree in dev — derive both.
+      const scriptCandidates = [
+        path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.ts'),
+        path.resolve(__dirname, '..', '..', 'src', 'scripts', 'programs-pipeline.ts'),
+      ];
+      const scriptPath = scriptCandidates.find((p) => existsSync(p));
+      if (!scriptPath) {
+        return {
+          status: 'FAILED',
+          message: `programs-pipeline.ts not found in ${scriptCandidates.join(' | ')}`,
+        };
+      }
+
+      const logsDir = path.resolve(process.cwd(), 'logs');
+      try {
+        mkdirSync(logsDir, { recursive: true });
+      } catch {
+        // ignore — fall through; logs just won't persist if FS is read-only
+      }
+      const logPath = path.resolve(
+        logsDir,
+        `programs-pipeline-job-${program.code}-${Date.now()}.log`,
+      );
+
+      logger.log(
+        `RUN_PROGRAM_PIPELINE spawning programs-pipeline ${args.join(' ')} ` +
+          `(by user ${triggeredByUserId ?? 'unknown'}); log → ${logPath}`,
+      );
+
+      // Resolve tsx/cli via Node's require so we don't depend on a
+      // shell PATH that may not include pnpm/npx in the worker env.
+      let tsxBin: string;
+      try {
+        tsxBin = require.resolve('tsx/cli');
+      } catch (err) {
+        return {
+          status: 'FAILED',
+          message: `tsx/cli not resolvable: ${(err as Error).message}`,
+        };
+      }
+
+      const exitCode: number = await new Promise((resolve) => {
+        const child = spawn('node', [tsxBin, scriptPath, ...args], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: process.env,
+        });
+        const logStream = createWriteStream(logPath, { flags: 'a' });
+        child.stdout.pipe(logStream);
+        child.stderr.pipe(logStream);
+        child.on('exit', (code) => resolve(code ?? 1));
+        child.on('error', (err) => {
+          logStream.write(`\n[spawn error] ${err.message}\n`);
+          resolve(1);
+        });
+      });
+
+      if (exitCode === 0) {
+        logger.log(`RUN_PROGRAM_PIPELINE ${program.code} succeeded`);
+        return { status: 'SUCCEEDED', message: `pipeline finished; log=${logPath}` };
+      }
+      logger.error(`RUN_PROGRAM_PIPELINE ${program.code} failed (exit=${exitCode}); log=${logPath}`);
+      return {
+        status: 'FAILED',
+        message: `pipeline exited with code ${exitCode}; log=${logPath}`,
       };
     },
   };
