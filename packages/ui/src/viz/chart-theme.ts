@@ -7,6 +7,47 @@ import * as React from 'react';
 // inside SVG attributes reliably), so we flatten `oklch(var(--...))` to
 // the computed colour string at render time. When the theme toggles, we
 // re-read and force a Recharts re-render.
+//
+// During SSR + the brief moment before the post-mount effect fires there
+// is no `document` to compute styles from. Without a fallback, every
+// resolveColor() returned `'currentColor'` — Recharts then painted every
+// series, axis, grid and label in inherited text colour, producing a
+// flash of black-and-white charts on first paint. Use the static
+// FALLBACK_PALETTE below (light-mode hex evaluated from
+// packages/design/src/css/tokens.css) as the SSR / pre-mount seed.
+
+// ── Static light-mode evaluation of the palette tokens ────────────────
+// Sourced literally from packages/design/src/css/tokens.css under
+// [data-theme='light']. Using oklch() strings instead of approximated
+// hex means the SSR/pre-mount paint matches the live CSS exactly — no
+// "looks slightly off" flash. If the design tokens shift, mirror the
+// change here. (PRINT_PALETTE in @kku/pdf-templates uses hex because
+// older Chromium-on-Gotenberg renderers don't support oklch reliably;
+// at runtime the browser does, so we use it directly.)
+const FALLBACK_SERIES = [
+  'oklch(65.0% 0.155 50)',  // chart-1
+  'oklch(70.0% 0.150 75)',  // chart-2
+  'oklch(75.0% 0.140 95)',  // chart-3
+  'oklch(70.0% 0.110 130)', // chart-4
+  'oklch(62.0% 0.110 195)', // chart-5
+  'oklch(65.0% 0.115 225)', // chart-6
+  'oklch(58.0% 0.150 250)', // chart-7
+  'oklch(55.0% 0.165 280)', // chart-8
+  'oklch(58.0% 0.150 310)', // chart-9
+  'oklch(60.0% 0.165 345)', // chart-10
+  'oklch(64.0% 0.155 25)',  // chart-11
+  'oklch(55.0% 0.080 55)',  // chart-12
+];
+
+const FALLBACK_PALETTE: ChartPalette = {
+  series: FALLBACK_SERIES,
+  axis: 'oklch(54.0% 0.015 50)',
+  grid: 'oklch(92.5% 0.014 60)',
+  text: 'oklch(38.0% 0.018 50)',
+  positive: 'oklch(56.0% 0.155 150)',
+  negative: 'oklch(58.0% 0.205 25)',
+  neutral: 'oklch(60.0% 0.018 60)',
+};
 
 function resolveColor(varName: string): string {
   if (typeof window === 'undefined') return 'currentColor';
@@ -28,6 +69,11 @@ export interface ChartPalette {
 }
 
 export function readChartPalette(): ChartPalette {
+  // SSR (and the few ms before the first useEffect fires) has no live
+  // CSS to read — fall back to the static light-mode palette so Recharts
+  // doesn't paint everything in `currentColor` (= grey/black). Dark-mode
+  // users see one quick re-render to the real dark palette after mount.
+  if (typeof window === 'undefined') return FALLBACK_PALETTE;
   return {
     series: [
       resolveColor('--color-chart-1'),
