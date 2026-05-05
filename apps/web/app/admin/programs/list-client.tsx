@@ -16,6 +16,11 @@ import { Search, FileText, FilePlus2 } from 'lucide-react';
 export interface ProgramListRow {
   id: string;
   code: string;
+  /** UNICON / MHESI curriculum ID — primary CURR_ID per the registry
+   *  (`Program.mhesiCode`). Surfaced under the canonical code so analysts
+   *  can cross-reference the row in `staff_program_assignment` /
+   *  `student_program_record`. */
+  mhesiCode: string | null;
   nameTh: string;
   nameEn: string;
   level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
@@ -188,7 +193,7 @@ export function ProgramsListClient({
             <table className="w-full text-sm">
               <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
                 <tr>
-                  <th className="px-4 py-2 text-left">Code</th>
+                  <th className="px-4 py-2 text-left">Code · CURR_ID</th>
                   <th className="px-4 py-2 text-left">Program</th>
                   <th className="px-4 py-2 text-left">Faculty · Dept</th>
                   <th className="px-4 py-2 text-left">Level</th>
@@ -204,7 +209,17 @@ export function ProgramsListClient({
                   const pending = r.pendingExtractions.length;
                   return (
                     <tr key={r.id} className="hover:bg-surface-1">
-                      <td className="px-4 py-2 font-tabular font-medium text-text-primary">{r.code}</td>
+                      <td className="px-4 py-2 font-tabular font-medium text-text-primary">
+                        <div className="flex flex-col leading-tight">
+                          <span>{r.code}</span>
+                          <span
+                            className="text-[10.5px] font-normal text-text-tertiary"
+                            title="UNICON / MHESI curriculum ID — Program.mhesiCode"
+                          >
+                            {r.mhesiCode ?? '— no CURR_ID —'}
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-4 py-2">
                         <div className="flex flex-col">
                           <Link

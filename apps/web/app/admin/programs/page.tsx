@@ -57,7 +57,11 @@ export default async function AdminProgramsPage({
   if (facultyId) query.set('facultyId', facultyId);
   if (level) query.set('level', level);
   if (status) query.set('status', status);
-  query.set('pageSize', '200');
+  // Admin program management is a workbench, not a paginated public
+  // list — show every canonical program on one page so analysts can
+  // Ctrl-F across the whole portfolio. Schema cap is 1000, well above
+  // the 297 canonical rows.
+  query.set('pageSize', '1000');
 
   // Always fetch pipeline stats (drives the always-visible KPI strip).
   // Only fetch the program list when on that view — saves a round-trip
