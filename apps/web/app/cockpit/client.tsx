@@ -416,7 +416,7 @@ function KpiStrip({ kpis }: { kpis: CockpitKpis | null }) {
         icon={<GraduationCap />}
         label="Currently enrolled"
         value={fmtNum(kpis.enrolledTotal)}
-        hint="latest year per program"
+        hint="all active students"
       />
       <Stat
         moduleKey="cockpit"

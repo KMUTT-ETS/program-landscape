@@ -67,7 +67,7 @@ export default async function HomePage() {
             tone="default"
             label="Currently enrolled"
             value={k.latestEnrolled.toLocaleString('en-US')}
-            sub="latest academic year"
+            sub="all active students (status 10–39)"
           />
           <HeroStat
             tone="positive"

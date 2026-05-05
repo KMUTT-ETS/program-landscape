@@ -27,3 +27,4 @@ export * from './skill-normaliser';
 export * from './dashboard-overview';
 export * from './benchmarking-overview';
 export * from './canonical-programs';
+export * from './currently-enrolled';

@@ -1,6 +1,14 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, prisma, computeHealthScores, queryMetricByScope, HEALTH_SCORE_VERSION, type HealthScoreRow } from '@kku/db';
+import {
+  Prisma,
+  prisma,
+  computeHealthScores,
+  currentlyEnrolledStudents,
+  queryMetricByScope,
+  HEALTH_SCORE_VERSION,
+  type HealthScoreRow,
+} from '@kku/db';
 import {
   ApiError,
   createAiService,
@@ -63,15 +71,14 @@ export class CockpitService implements OnModuleInit {
     const latestEnrollment = enrollment.at(-1);
     const latestFinancial = financial.at(-1);
 
-    // Currently-enrolled + net-contribution headline numbers are
-    // computed via per-program-latest summation, NOT the materialized
-    // view's "latest universe-wide year" pivot. The MV pivot drops any
-    // program whose data ends in an earlier year than the universe-
-    // wide max, which under-counts the active portfolio (often by
-    // ~half — observed home=2593 vs MV=1467 at university scope). The
-    // home dashboard already uses per-program-latest; the cockpit must
-    // match it so the same number means the same thing across surfaces.
-    const enrolledTotal = await enrolledLatestAtScope(scope, scopeId);
+    // Currently-enrolled HEADCOUNT (not yearly intake) — sourced from the
+    // education_student_cube via `currentlyEnrolledStudents()`, which is
+    // the single source of truth for this KPI across home + cockpit.
+    // Returns the total of registrar status codes 10-39 (= 36,133 at
+    // university scope, matching KKU's public registry stat).
+    const enrolledTotal = await currentlyEnrolledStudents(scope, scopeId);
+    // Net contribution = FY 2024+ aggregate at scope. See helper note
+    // for why we don't read the MV's latest-fiscal-year pivot here.
     const netContributionTotal = await netContributionAggregateAtScope(scope, scopeId);
 
     const programCount = await countProgramsAtScope(scope, scopeId);
@@ -366,44 +373,6 @@ async function enrolmentTrendCountsAtScope(
     surging: Number(r?.surging ?? 0n),
     totalWithTrend: Number(r?.total_with_trend ?? 0n),
   };
-}
-
-// Sum of per-program latest-year `enrolled`. Each program contributes
-// its OWN latest academic year, even if the universe-wide max is later
-// — matches the home dashboard's `latestEnrolled` semantics.
-async function enrolledLatestAtScope(
-  scope: ScopeLevel,
-  scopeId: string | null,
-): Promise<number | null> {
-  if (scope === 'program' && scopeId) {
-    const row = await prisma.$queryRaw<Array<{ enrolled: number | null }>>`
-      SELECT em.enrolled::int AS enrolled
-      FROM enrollment_metrics em
-      WHERE em.program_id = ${scopeId}
-      ORDER BY em.academic_year DESC
-      LIMIT 1;
-    `;
-    return row[0]?.enrolled ?? null;
-  }
-  const facultyFilter =
-    scope === 'faculty' && scopeId ? Prisma.sql`AND p.faculty_id = ${scopeId}` : Prisma.empty;
-  const deptFilter =
-    scope === 'department' && scopeId ? Prisma.sql`AND p.department_id = ${scopeId}` : Prisma.empty;
-  const rows = await prisma.$queryRaw<Array<{ total: bigint }>>`
-    WITH latest AS (
-      SELECT program_id, MAX(academic_year) AS max_year
-      FROM enrollment_metrics GROUP BY program_id
-    )
-    SELECT COALESCE(SUM(em.enrolled), 0)::bigint AS total
-    FROM enrollment_metrics em
-    JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
-    JOIN programs p ON p.id = em.program_id
-      AND p.status = 'ACTIVE'
-      AND p.sequence_no_from_sheet IS NOT NULL
-    ${facultyFilter}
-    ${deptFilter};
-  `;
-  return Number(rows[0]?.total ?? 0n);
 }
 
 // FY 2024+ net-contribution aggregate at scope. Matches the home

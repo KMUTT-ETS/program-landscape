@@ -13,6 +13,7 @@
 
 import { prisma } from './index';
 import { computeHealthScores, getKkuIntakePolicyVerdict, type HealthScoreRow } from './health-score';
+import { currentlyEnrolledStudents } from './currently-enrolled';
 
 export const DASHBOARD_OVERVIEW_VERSION = 'dashboard-overview.v1';
 
@@ -323,7 +324,13 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     computeHealthScores('university', null),
   ]);
 
-  const latestEnrolled = Number(latestEnrolledRow[0]?.total ?? 0);
+  // `latestEnrolled` is now total currently-enrolled headcount across all
+  // status_code 10-39 (registrar's "Current student" group). Matches KKU's
+  // public registry stat exactly. The `latestEnrolledRow` query is kept but
+  // only its result is no longer used for this KPI — the variable is now
+  // ignored in favour of the cube-backed helper.
+  void latestEnrolledRow;
+  const latestEnrolled = (await currentlyEnrolledStudents('university', null)) ?? 0;
   const facultyCount = Number(facultyCountRow[0]?.count ?? 0);
   const netContributionThb = Number(financialSum._sum.netContribution ?? 0);
 
