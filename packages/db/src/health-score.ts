@@ -230,7 +230,22 @@ interface ChildNode {
 
 async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promise<ChildNode[]> {
   if (scope === 'university') {
+    // Curriculum landscape = academic faculties that host at least one
+    // canonical-297 program. Excludes:
+    //   - non-academic units (kind != ACADEMIC: ADMIN / RESEARCH_CENTER /
+    //     INSTITUTE) — they hold staff but no curriculum
+    //   - academic faculties with zero canonical programs — cockpit
+    //     can't compute meaningful health scores for them anyway
     const rows = await prisma.faculty.findMany({
+      where: {
+        kind: 'ACADEMIC',
+        programs: {
+          some: {
+            status: 'ACTIVE',
+            sequenceNoFromSheet: { not: null },
+          },
+        },
+      },
       select: { id: true, nameEn: true, nameTh: true },
       orderBy: { code: 'asc' },
     });
@@ -238,8 +253,19 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
   }
   if (scope === 'faculty') {
     if (!scopeId) return [];
+    // Same filter applied one level down — only show departments that
+    // host canonical programs so faculty rollups don't include empty
+    // research/admin sub-units inherited from the org chart.
     const rows = await prisma.department.findMany({
-      where: { facultyId: scopeId },
+      where: {
+        facultyId: scopeId,
+        programs: {
+          some: {
+            status: 'ACTIVE',
+            sequenceNoFromSheet: { not: null },
+          },
+        },
+      },
       select: { id: true, nameEn: true, nameTh: true, facultyId: true },
       orderBy: { code: 'asc' },
     });
@@ -248,7 +274,11 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
   if (scope === 'department') {
     if (!scopeId) return [];
     const rows = await prisma.program.findMany({
-      where: { departmentId: scopeId },
+      where: {
+        departmentId: scopeId,
+        status: 'ACTIVE',
+        sequenceNoFromSheet: { not: null },
+      },
       select: { id: true, nameEn: true, nameTh: true, departmentId: true },
       orderBy: { code: 'asc' },
     });
