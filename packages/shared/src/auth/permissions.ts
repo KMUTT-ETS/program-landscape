@@ -81,6 +81,11 @@ export const PERMISSIONS = [
   'kku_sso_mapping:manage',
   'data_sources:read',
   'data_sources:configure',
+  // BullMQ queue inspection + management (ai-jobs / ingestion / pdf-intake
+  // / trend-monitors). Read = look at counts and job payloads; manage =
+  // retry / remove / clean / pause / resume.
+  'queues:read',
+  'queues:manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -164,6 +169,9 @@ const ANALYST_PERMS: Permission[] = [
   'ingestion:configure',
   'ingestion:trigger',
   'data_sources:read',
+  // Analyst can see what's in the queues (job payloads, counts, failures)
+  // but mutation actions stay with ADMIN.
+  'queues:read',
 ];
 
 const ADMIN_PERMS: Permission[] = [

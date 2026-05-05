@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Home,
   LayoutDashboard,
+  Layers,
   LineChart,
   Microscope,
   Palette,
@@ -90,6 +91,7 @@ const adminSystemSection: NavSection = {
   label: 'System',
   items: [
     { href: '/admin/system-status', label: 'System status', icon: createElement(Activity), moduleKey: 'neutral' },
+    { href: '/admin/queues', label: 'Job queues', icon: createElement(Layers), moduleKey: 'neutral' },
     { href: '/styleguide', label: 'Styleguide', icon: createElement(Palette), moduleKey: 'neutral' },
   ],
 };
