@@ -35,15 +35,30 @@ async function snapshot(): Promise<Snapshot> {
   const fifteenMinAgo = new Date(now - 15 * 60_000);
   const oneHourAgo = new Date(now - 60 * 60_000);
 
+  // Canonical 297 = curriculum landscape. The pipeline only runs on
+  // programs seeded from the master Google Sheet; legacy mock-seed
+  // rows are not pipeline targets and would otherwise inflate "total".
   const [total, done, recent, completedLast15m, completedLast1h, recentInferences] = await Promise.all([
-    prisma.program.count(),
-    prisma.programStrategicNarrative.count(),
+    prisma.program.count({ where: { sequenceNoFromSheet: { not: null } } }),
+    prisma.programStrategicNarrative.count({
+      where: { program: { sequenceNoFromSheet: { not: null } } },
+    }),
     prisma.programStrategicNarrative.findFirst({
       orderBy: { generatedAt: 'desc' },
       select: { generatedAt: true, program: { select: { code: true, nameEn: true } } },
     }),
-    prisma.programStrategicNarrative.count({ where: { generatedAt: { gte: fifteenMinAgo } } }),
-    prisma.programStrategicNarrative.count({ where: { generatedAt: { gte: oneHourAgo } } }),
+    prisma.programStrategicNarrative.count({
+      where: {
+        generatedAt: { gte: fifteenMinAgo },
+        program: { sequenceNoFromSheet: { not: null } },
+      },
+    }),
+    prisma.programStrategicNarrative.count({
+      where: {
+        generatedAt: { gte: oneHourAgo },
+        program: { sequenceNoFromSheet: { not: null } },
+      },
+    }),
     prisma.aiInference.aggregate({
       where: { createdAt: { gte: oneHourAgo } },
       _sum: { costEstimateUsd: true },

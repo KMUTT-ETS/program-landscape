@@ -102,6 +102,9 @@ async function main(): Promise<void> {
 
   const candidates = await prisma.program.findMany({
     where: {
+      // Canonical 297 only — bulk digest is a curriculum-pipeline tool
+      // and must not pick up legacy/non-canonical Program rows.
+      sequenceNoFromSheet: { not: null },
       ...(LEVEL_FILTER ? { level: LEVEL_FILTER } : {}),
       documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
       ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),

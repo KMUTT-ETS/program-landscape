@@ -1,5 +1,5 @@
 import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
-import { prisma } from '@kku/db';
+import { prisma, withCanonical } from '@kku/db';
 import {
   ApiError,
   ProgramListQuerySchema,
@@ -43,14 +43,21 @@ export class ProgramsController {
       where.id = q.scopeId;
     }
 
+    // The curriculum landscape is the canonical 297 KKU programs (those
+    // with a sequenceNoFromSheet from the master sheet). Legacy mock-seed
+    // rows and programs that arrive only via staff/student ingestion as
+    // a side-effect must NOT show here — they remain joinable from staff
+    // and education dashboards but are not "the curriculum".
+    const canonicalWhere = withCanonical(where);
+
     const [rows, total] = await prisma.$transaction([
       prisma.program.findMany({
-        where,
+        where: canonicalWhere,
         orderBy: { code: 'asc' },
         skip: (q.page - 1) * q.pageSize,
         take: q.pageSize,
       }),
-      prisma.program.count({ where }),
+      prisma.program.count({ where: canonicalWhere }),
     ]);
 
     return {

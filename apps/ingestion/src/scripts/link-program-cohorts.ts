@@ -213,7 +213,12 @@ async function main(): Promise<void> {
 
   if (args.all) {
     const programs = await prisma.program.findMany({
-      where: { majors: { isEmpty: false } },
+      where: {
+        // Canonical 297 only — cohort linking is part of the curriculum
+        // pipeline and does not run against legacy/non-canonical rows.
+        sequenceNoFromSheet: { not: null },
+        majors: { isEmpty: false },
+      },
       select: {
         id: true,
         code: true,

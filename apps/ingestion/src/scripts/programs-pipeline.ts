@@ -128,7 +128,12 @@ interface ProgramSummary {
 
 async function resolveProgramIds(args: CliArgs): Promise<ProgramSummary[]> {
   if (args.all) {
+    // Pipeline operates on the canonical 297 active programs only
+    // (those seeded from the master Google Sheet, sequenceNoFromSheet
+    // IS NOT NULL). Legacy mock-seed rows + side-effect rows from
+    // staff/student ingestion are excluded.
     let programs = await prisma.program.findMany({
+      where: { sequenceNoFromSheet: { not: null } },
       orderBy: { code: 'asc' },
       select: { id: true, code: true, nameEn: true },
     });

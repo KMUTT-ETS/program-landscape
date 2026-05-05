@@ -82,7 +82,7 @@ export default async function ProgramsDirectoryPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="Programs"
-        subtitle={`${total} active curricula across KKU — click through for the full deep-dive on any program.`}
+        subtitle={`${total} of the 297 canonical KKU programs — click through for the full deep-dive on any program. Legacy and non-canonical programs are excluded from this view but remain joinable from staff and education dashboards.`}
       />
       <div className="flex flex-col gap-4">
         <Card padding="sm">

@@ -59,7 +59,10 @@ function parseArgs(argv: string[]): CliArgs {
 async function resolveTargets(args: CliArgs): Promise<Array<{ id: string; code: string; nameEn: string }>> {
   if (args.all) {
     let programs = await prisma.program.findMany({
-      where: { status: 'ACTIVE' },
+      // Canonical 297 only — readiness assessments are part of the
+      // curriculum pipeline and must not run on legacy/non-canonical
+      // Program rows.
+      where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
       select: { id: true, code: true, nameEn: true, nameTh: true },
       orderBy: { code: 'asc' },
     });

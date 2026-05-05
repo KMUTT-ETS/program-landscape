@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { prisma } from '@kku/db';
+import { prisma, IS_CANONICAL_PROGRAM, withCanonical } from '@kku/db';
 import type { Prisma, PrismaClient } from '@kku/db';
 import {
   ApiError,
@@ -102,9 +102,14 @@ export class ProgramsService {
         : { none: { isCurrent: true } };
     }
 
+    // Admin program list = curriculum-pipeline workbench → restrict to
+    // the canonical 297. Legacy mock-seed rows still exist for staff /
+    // education joins but must not show in the pipeline view.
+    const canonicalWhere = withCanonical(where);
+
     const [rows, total] = await prisma.$transaction([
       prisma.program.findMany({
-        where,
+        where: canonicalWhere,
         orderBy: [{ code: 'asc' }],
         skip: (q.page - 1) * q.pageSize,
         take: q.pageSize,
@@ -129,7 +134,7 @@ export class ProgramsService {
           _count: { select: { documents: true } },
         },
       }),
-      prisma.program.count({ where }),
+      prisma.program.count({ where: canonicalWhere }),
     ]);
 
     // Annotate each row with "has pending extraction" for the UI badge.
@@ -950,6 +955,19 @@ export class ProgramsService {
 
   async getPipelineStats() {
     // One round-trip per scalar; cheap (each is an indexed count).
+    // Pipeline only operates on the canonical 297 — extraction rows for
+    // legacy/non-canonical Program ids are filtered out before counting
+    // so the bucket totals match the curriculum landscape.
+    const canonicalIdRows = await prisma.program.findMany({
+      where: IS_CANONICAL_PROGRAM,
+      select: { id: true },
+    });
+    const canonicalIds = canonicalIdRows.map((r) => r.id);
+    const inCanonical: Prisma.AiExtractionWhereInput =
+      canonicalIds.length > 0
+        ? { sourceEntityId: { in: canonicalIds } }
+        : { sourceEntityId: { in: ['__none__'] } };
+
     const [
       total,
       withPdfRows,
@@ -957,13 +975,20 @@ export class ProgramsService {
       approvedRows,
       pendingRows,
     ] = await Promise.all([
-      prisma.program.count(),
+      prisma.program.count({ where: IS_CANONICAL_PROGRAM }),
       prisma.program.findMany({
-        where: { documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } } },
+        where: {
+          ...IS_CANONICAL_PROGRAM,
+          documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
+        },
         select: { id: true },
       }),
       prisma.aiExtraction.findMany({
-        where: { sourceEntityType: 'program', extractionKind: 'PROGRAM_DIGEST' },
+        where: {
+          sourceEntityType: 'program',
+          extractionKind: 'PROGRAM_DIGEST',
+          ...inCanonical,
+        },
         select: { sourceEntityId: true },
         distinct: ['sourceEntityId'],
       }),
@@ -972,6 +997,7 @@ export class ProgramsService {
           sourceEntityType: 'program',
           extractionKind: 'PROGRAM_DIGEST',
           reviewStatus: { in: ['APPROVED', 'AUTO_APPROVED'] },
+          ...inCanonical,
         },
       }),
       prisma.aiExtraction.count({
@@ -979,6 +1005,7 @@ export class ProgramsService {
           sourceEntityType: 'program',
           extractionKind: 'PROGRAM_DIGEST',
           reviewStatus: 'PENDING_REVIEW',
+          ...inCanonical,
         },
       }),
     ]);
@@ -1004,9 +1031,13 @@ export class ProgramsService {
     const offset = Math.max(opts.offset ?? 0, 0);
 
     if (bucket === 'missing-pdf') {
+      const where: Prisma.ProgramWhereInput = {
+        ...IS_CANONICAL_PROGRAM,
+        documents: { none: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
+      };
       const [items, total] = await Promise.all([
         prisma.program.findMany({
-          where: { documents: { none: { role: 'CURRENT_CURRICULUM', isCurrent: true } } },
+          where,
           select: {
             id: true,
             code: true,
@@ -1019,16 +1050,25 @@ export class ProgramsService {
           take: limit,
           skip: offset,
         }),
-        prisma.program.count({
-          where: { documents: { none: { role: 'CURRENT_CURRICULUM', isCurrent: true } } },
-        }),
+        prisma.program.count({ where }),
       ]);
       return { items, total, bucket };
     }
 
     // The remaining three buckets all need the digested-program-id set.
+    // Restrict to canonical-program extractions so legacy Program rows
+    // can't leak into the pipeline view.
+    const canonicalIdRows = await prisma.program.findMany({
+      where: IS_CANONICAL_PROGRAM,
+      select: { id: true },
+    });
+    const canonicalIds = canonicalIdRows.map((r) => r.id);
     const allDigested = await prisma.aiExtraction.findMany({
-      where: { sourceEntityType: 'program', extractionKind: 'PROGRAM_DIGEST' },
+      where: {
+        sourceEntityType: 'program',
+        extractionKind: 'PROGRAM_DIGEST',
+        sourceEntityId: { in: canonicalIds.length > 0 ? canonicalIds : ['__none__'] },
+      },
       select: { sourceEntityId: true },
       distinct: ['sourceEntityId'],
     });
@@ -1036,6 +1076,7 @@ export class ProgramsService {
 
     if (bucket === 'need-digest') {
       const where: Prisma.ProgramWhereInput = {
+        ...IS_CANONICAL_PROGRAM,
         documents: { some: { role: 'CURRENT_CURRICULUM', isCurrent: true } },
         ...(digestedIds.length > 0 ? { id: { notIn: digestedIds } } : {}),
       };
@@ -1065,14 +1106,22 @@ export class ProgramsService {
     }
 
     // pending-review + approved — surface the latest extraction per program.
+    // Both list and count restrict to extractions whose program is in the
+    // canonical 297; legacy/non-canonical programs are filtered out so the
+    // pipeline buckets match the curriculum landscape.
     const reviewStatusFilter: Prisma.AiExtractionWhereInput['reviewStatus'] =
       bucket === 'pending-review' ? 'PENDING_REVIEW' : { in: ['APPROVED', 'AUTO_APPROVED'] };
+    const inCanonical: Prisma.AiExtractionWhereInput =
+      canonicalIds.length > 0
+        ? { sourceEntityId: { in: canonicalIds } }
+        : { sourceEntityId: { in: ['__none__'] } };
     const [extractions, total] = await Promise.all([
       prisma.aiExtraction.findMany({
         where: {
           sourceEntityType: 'program',
           extractionKind: 'PROGRAM_DIGEST',
           reviewStatus: reviewStatusFilter,
+          ...inCanonical,
         },
         select: {
           id: true,
@@ -1092,6 +1141,7 @@ export class ProgramsService {
           sourceEntityType: 'program',
           extractionKind: 'PROGRAM_DIGEST',
           reviewStatus: reviewStatusFilter,
+          ...inCanonical,
         },
       }),
     ]);

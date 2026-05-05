@@ -26,3 +26,4 @@ export * from './program-digest-materialize';
 export * from './skill-normaliser';
 export * from './dashboard-overview';
 export * from './benchmarking-overview';
+export * from './canonical-programs';

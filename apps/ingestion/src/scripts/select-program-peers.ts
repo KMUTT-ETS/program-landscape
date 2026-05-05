@@ -67,6 +67,8 @@ function parseArgs(argv: string[]): CliArgs {
 async function resolveProgramIds(args: CliArgs): Promise<string[]> {
   if (args.all) {
     const programs = await prisma.program.findMany({
+      // Canonical 297 only.
+      where: { sequenceNoFromSheet: { not: null } },
       orderBy: { code: 'asc' },
       select: { id: true },
       ...(args.limit ? { take: args.limit } : {}),

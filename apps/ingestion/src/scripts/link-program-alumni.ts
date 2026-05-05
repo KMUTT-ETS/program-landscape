@@ -87,7 +87,11 @@ interface ProgramRow {
 async function resolveProgramIds(args: CliArgs): Promise<ProgramRow[]> {
   if (args.all) {
     return prisma.program.findMany({
-      where: { majors: { isEmpty: false } },
+      where: {
+        // Canonical 297 only.
+        sequenceNoFromSheet: { not: null },
+        majors: { isEmpty: false },
+      },
       select: {
         id: true, code: true, nameTh: true, level: true, majors: true,
         faculty: { select: { nameTh: true } },
