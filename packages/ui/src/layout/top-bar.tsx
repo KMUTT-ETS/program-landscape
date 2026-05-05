@@ -28,16 +28,21 @@ export function TopBar({ breadcrumb, center, right, className }: TopBarProps) {
         // coral underline edge — replaces the previous "thin
         // translucent strip with subtle tints" that read as
         // unchanged.
-        'kku-topbar sticky top-0 z-30 flex h-[72px] items-center gap-5 px-7',
+        // 2026-05-05: responsive padding/gap so the bar doesn't
+        // overflow on narrow viewports. The mobile-only hamburger
+        // strip sits above this on <md screens (rendered by
+        // AppShell), so the topbar still reads as the second row.
+        'kku-topbar sticky top-14 z-20 flex h-14 items-center gap-2 px-3',
+        'md:top-0 md:z-30 md:h-[72px] md:gap-5 md:px-7',
         'text-text-primary',
         className,
       )}
     >
-      <div className="flex min-w-0 shrink-0 items-center gap-2 text-[15px] text-text-secondary">
+      <div className="hidden min-w-0 shrink-0 items-center gap-2 text-[15px] text-text-secondary md:flex">
         {breadcrumb}
       </div>
-      <div className="flex min-w-0 flex-1 items-center gap-3">{center}</div>
-      <div className="flex shrink-0 items-center gap-2">{right}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">{center}</div>
+      <div className="flex shrink-0 items-center gap-1 md:gap-2">{right}</div>
     </header>
   );
 }
