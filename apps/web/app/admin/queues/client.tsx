@@ -264,17 +264,17 @@ function QueueDetail({
   onChanged: () => void;
 }) {
   // Pick the most informative tab to land on. Priority:
-  //   1. failed (operator should triage these first)
-  //   2. active (something in flight)
+  //   1. active (job running RIGHT NOW — most operationally relevant;
+  //      the operator likely just clicked Run-now and wants to see it)
+  //   2. failed (triage queue — but historical, can wait a click)
   //   3. waiting/delayed (about to run)
-  //   4. completed (recently finished — important for fast jobs the
-  //      operator just triggered; without this, sub-second jobs leave
-  //      every "live" tab empty before the page even loads)
+  //   4. completed (recently finished — covers sub-second jobs that
+  //      vanished before the page loaded)
   const [state, setState] = React.useState<JobState>(
-    queue.counts.failed > 0
-      ? 'failed'
-      : queue.counts.active > 0
-        ? 'active'
+    queue.counts.active > 0
+      ? 'active'
+      : queue.counts.failed > 0
+        ? 'failed'
         : queue.counts.waiting + queue.counts.delayed > 0
           ? 'waiting'
           : queue.counts.completed > 0
