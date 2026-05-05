@@ -155,6 +155,7 @@ export default async function HomePage() {
               counts={overview.lifecycle.counts}
               methodologyVersions={overview.lifecycle.methodologyVersions}
               latestComputedAt={overview.lifecycle.latestComputedAt?.toISOString() ?? null}
+              programs={overview.lifecycle.programs}
             />
           </PanelFrame>
 

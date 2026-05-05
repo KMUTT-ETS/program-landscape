@@ -90,6 +90,17 @@ export interface NarrativePulseRow {
   confidence: number;
 }
 
+export interface LifecycleProgram {
+  programId: string;
+  code: string;
+  name: string;
+  facultyId: string;
+  facultyCode: string;
+  facultyName: string;
+  verdict: 'FRONTIER' | 'RISING' | 'STABLE' | 'SUNSET';
+  trajectoryScore: number;
+}
+
 export interface LifecycleDistribution {
   /** Total programs covered by a snapshot. < programCount when backfill is partial. */
   total: number;
@@ -101,6 +112,8 @@ export interface LifecycleDistribution {
   methodologyVersions: string[];
   /** Most recent computedAt. null when no snapshots exist. */
   latestComputedAt: Date | null;
+  /** Per-program rows for drill-down — same set the counts are built from. */
+  programs: LifecycleProgram[];
 }
 
 export interface FacultyHealthRow {
@@ -313,10 +326,24 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // Lifecycle verdict distribution. Reads from the write-through
     // snapshot table populated by `programLifecycleVerdict()`. Filter to
     // canonical-297 programs so legacy mock-seed rows can't inflate the
-    // distribution. Returns one row per program; we group in JS.
+    // distribution. Pulls program + faculty metadata for the drill-down.
     prisma.programLifecycleSnapshot.findMany({
       where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } },
-      select: { verdict: true, methodologyVersion: true, computedAt: true },
+      select: {
+        verdict: true,
+        methodologyVersion: true,
+        computedAt: true,
+        trajectoryScore: true,
+        program: {
+          select: {
+            id: true,
+            code: true,
+            nameEn: true,
+            nameTh: true,
+            faculty: { select: { id: true, code: true, nameEn: true, nameTh: true } },
+          },
+        },
+      },
     }),
     // Faculty-level health rollup. The university scope returns one
     // HealthScoreRow per faculty (24 rows) — fast enough to inline in
@@ -479,12 +506,23 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   const lifecycleCounts = { FRONTIER: 0, RISING: 0, STABLE: 0, SUNSET: 0 };
   const methodologyVersionsSet = new Set<string>();
   let latestComputedAt: Date | null = null;
+  const lifecyclePrograms: LifecycleProgram[] = [];
   for (const s of lifecycleSnapshots) {
     lifecycleCounts[s.verdict] += 1;
     methodologyVersionsSet.add(s.methodologyVersion);
     if (latestComputedAt === null || s.computedAt > latestComputedAt) {
       latestComputedAt = s.computedAt;
     }
+    lifecyclePrograms.push({
+      programId: s.program.id,
+      code: s.program.code,
+      name: (s.program.nameEn?.trim() || s.program.nameTh).slice(0, 100),
+      facultyId: s.program.faculty.id,
+      facultyCode: s.program.faculty.code,
+      facultyName: s.program.faculty.nameEn?.trim() || s.program.faculty.nameTh,
+      verdict: s.verdict,
+      trajectoryScore: s.trajectoryScore,
+    });
   }
   const lifecycle: LifecycleDistribution = {
     total: lifecycleSnapshots.length,
@@ -492,6 +530,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     counts: lifecycleCounts,
     methodologyVersions: Array.from(methodologyVersionsSet).sort(),
     latestComputedAt,
+    programs: lifecyclePrograms,
   };
 
   // ── Faculty health rollup ───────────────────────────────────────────

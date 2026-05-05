@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
 import { useChartPalette } from '@kku/ui';
 
 interface VerdictCounts {
@@ -8,6 +10,19 @@ interface VerdictCounts {
   RISING: number;
   STABLE: number;
   SUNSET: number;
+}
+
+type Verdict = keyof VerdictCounts;
+
+interface LifecycleProgram {
+  programId: string;
+  code: string;
+  name: string;
+  facultyId: string;
+  facultyCode: string;
+  facultyName: string;
+  verdict: Verdict;
+  trajectoryScore: number;
 }
 
 interface Props {
@@ -18,6 +33,8 @@ interface Props {
   counts: VerdictCounts;
   methodologyVersions: string[];
   latestComputedAt: string | null;
+  /** Per-program rows for drill-down. */
+  programs: LifecycleProgram[];
 }
 
 // Lifecycle verdict distribution — horizontal stacked bar with one
@@ -25,12 +42,12 @@ interface Props {
 // Verdicts are ordered FRONTIER (best) → SUNSET (worst); rendered
 // left-to-right so the eye reads health left-to-right.
 //
-// When no snapshots exist (backfill not run yet) we render an empty
-// state with a copy-pasteable command instead of fabricating zeros.
+// Click any tile to expand a drill-down panel below the row, listing
+// the programs in that bucket grouped by faculty.
 
-const VERDICTS: Array<keyof VerdictCounts> = ['FRONTIER', 'RISING', 'STABLE', 'SUNSET'];
+const VERDICTS: Verdict[] = ['FRONTIER', 'RISING', 'STABLE', 'SUNSET'];
 
-const COPY: Record<keyof VerdictCounts, { label: string; description: string }> = {
+const COPY: Record<Verdict, { label: string; description: string }> = {
   FRONTIER: {
     label: 'Frontier',
     description: 'Leading-edge curriculum + strong fundamentals + AI-ready. Future-defining.',
@@ -55,10 +72,13 @@ export function LifecycleVerdictViz({
   counts,
   methodologyVersions,
   latestComputedAt,
+  programs,
 }: Props) {
   const palette = useChartPalette();
+  const [expandedVerdict, setExpandedVerdict] = React.useState<Verdict | null>(null);
+  const [expandedFaculties, setExpandedFaculties] = React.useState<Set<string>>(new Set());
 
-  const tone: Record<keyof VerdictCounts, string> = {
+  const tone: Record<Verdict, string> = {
     FRONTIER: palette.positive,
     RISING: palette.series[0] ?? palette.neutral,
     STABLE: palette.series[2] ?? palette.neutral,
@@ -76,6 +96,62 @@ export function LifecycleVerdictViz({
       </div>
     );
   }
+
+  // Group `programs` by verdict → faculty so the expanded panel can
+  // render quickly without recomputing on every collapse toggle.
+  const grouped = React.useMemo(() => {
+    const out: Record<Verdict, FacultyBucket[]> = {
+      FRONTIER: [],
+      RISING: [],
+      STABLE: [],
+      SUNSET: [],
+    };
+    for (const v of VERDICTS) {
+      const faculties = new Map<string, FacultyBucket>();
+      for (const p of programs) {
+        if (p.verdict !== v) continue;
+        const key = p.facultyId;
+        let bucket = faculties.get(key);
+        if (!bucket) {
+          bucket = {
+            facultyId: p.facultyId,
+            facultyCode: p.facultyCode,
+            facultyName: p.facultyName,
+            programs: [],
+          };
+          faculties.set(key, bucket);
+        }
+        bucket.programs.push(p);
+      }
+      // Sort faculties by program count desc, programs by trajectory desc.
+      const list = Array.from(faculties.values());
+      for (const f of list) {
+        f.programs.sort((a, b) => b.trajectoryScore - a.trajectoryScore);
+      }
+      list.sort((a, b) => b.programs.length - a.programs.length);
+      out[v] = list;
+    }
+    return out;
+  }, [programs]);
+
+  const toggleVerdict = (v: Verdict) => {
+    if (expandedVerdict === v) {
+      setExpandedVerdict(null);
+      setExpandedFaculties(new Set());
+    } else {
+      setExpandedVerdict(v);
+      setExpandedFaculties(new Set());
+    }
+  };
+
+  const toggleFaculty = (facultyId: string) => {
+    setExpandedFaculties((prev) => {
+      const next = new Set(prev);
+      if (next.has(facultyId)) next.delete(facultyId);
+      else next.add(facultyId);
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -102,40 +178,137 @@ export function LifecycleVerdictViz({
         })}
       </div>
 
-      {/* 4-up tile row */}
+      {/* 4-up tile row — clickable */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {VERDICTS.map((v) => {
           const value = counts[v];
           const pct = total > 0 ? (value / total) * 100 : 0;
+          const isExpanded = expandedVerdict === v;
           return (
-            <div
+            <button
               key={v}
-              className="flex flex-col gap-1 rounded-md border border-border-subtle bg-surface-1 p-2.5"
+              type="button"
+              onClick={() => toggleVerdict(v)}
+              aria-expanded={isExpanded}
+              className={`flex flex-col gap-1 rounded-md border p-3 text-left transition-colors ${
+                isExpanded
+                  ? 'border-accent-default bg-surface-2/60 ring-1 ring-accent-default/30'
+                  : 'border-border-subtle bg-surface-1 hover:bg-surface-2/40'
+              }`}
             >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ backgroundColor: tone[v] }}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: tone[v] }}
+                  />
+                  <span className="text-[10px] uppercase tracking-wide text-text-tertiary">
+                    {COPY[v].label}
+                  </span>
+                </div>
+                <ChevronRight
+                  className={`h-3.5 w-3.5 text-text-tertiary transition-transform ${
+                    isExpanded ? 'rotate-90' : ''
+                  }`}
                 />
-                <span className="text-[10px] uppercase tracking-wide text-text-tertiary">
-                  {COPY[v].label}
-                </span>
               </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-tabular text-xl font-semibold text-text-primary">
+              <div className="flex items-baseline gap-2.5">
+                <span className="font-tabular text-3xl font-semibold leading-none text-text-primary">
                   {value}
                 </span>
-                <span className="font-tabular text-[10.5px] text-text-tertiary">
-                  {pct.toFixed(0)}%
+                <span className="font-tabular text-xs text-text-tertiary">
+                  {pct.toFixed(0)} %
                 </span>
               </div>
               <p className="text-[10.5px] leading-snug text-text-tertiary">
                 {COPY[v].description}
               </p>
-            </div>
+            </button>
           );
         })}
       </div>
+
+      {/* Drill-down: faculty → program for the expanded verdict */}
+      {expandedVerdict && (
+        <div className="rounded-md border border-border-subtle bg-surface-1">
+          <header className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
+            <h4 className="text-[11px] font-semibold text-text-primary">
+              <span
+                className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
+                style={{ backgroundColor: tone[expandedVerdict] }}
+              />
+              {COPY[expandedVerdict].label} programs
+              <span className="ml-1.5 font-tabular text-[10.5px] font-normal text-text-tertiary">
+                {counts[expandedVerdict]}
+              </span>
+            </h4>
+            <button
+              type="button"
+              onClick={() => setExpandedVerdict(null)}
+              className="text-[10.5px] text-text-tertiary hover:text-text-primary"
+            >
+              Close ✕
+            </button>
+          </header>
+          {grouped[expandedVerdict].length === 0 ? (
+            <p className="px-3 py-4 text-[11px] text-text-tertiary">No programs in this bucket.</p>
+          ) : (
+            <ul className="flex flex-col">
+              {grouped[expandedVerdict].map((bucket) => {
+                const isOpen = expandedFaculties.has(bucket.facultyId);
+                return (
+                  <li
+                    key={bucket.facultyId}
+                    className="border-t border-border-subtle first:border-t-0"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleFaculty(bucket.facultyId)}
+                      aria-expanded={isOpen}
+                      className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-surface-2/50"
+                    >
+                      <span className="flex items-center gap-1.5 text-[11.5px] text-text-primary">
+                        <ChevronRight
+                          className={`h-3 w-3 text-text-tertiary transition-transform ${
+                            isOpen ? 'rotate-90' : ''
+                          }`}
+                        />
+                        <span className="truncate">{bucket.facultyName}</span>
+                      </span>
+                      <span className="ml-2 shrink-0 font-tabular text-[10.5px] text-text-tertiary">
+                        {bucket.programs.length}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <ul className="border-t border-border-subtle bg-surface-2/30">
+                        {bucket.programs.map((p) => (
+                          <li key={p.programId} className="border-t border-border-subtle/60 first:border-t-0">
+                            <Link
+                              href={`/programs/${p.programId}`}
+                              className="flex items-center justify-between gap-3 px-7 py-1.5 text-[11px] text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                              title={p.name}
+                            >
+                              <span className="flex min-w-0 items-baseline gap-2">
+                                <span className="font-tabular text-[10.5px] text-text-tertiary">
+                                  {p.code}
+                                </span>
+                                <span className="truncate">{p.name}</span>
+                              </span>
+                              <span className="shrink-0 font-tabular text-[10px] text-text-tertiary">
+                                traj {p.trajectoryScore.toFixed(0)}
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Footer: coverage + methodology */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10.5px] text-text-tertiary">
@@ -172,4 +345,11 @@ export function LifecycleVerdictViz({
       </div>
     </div>
   );
+}
+
+interface FacultyBucket {
+  facultyId: string;
+  facultyCode: string;
+  facultyName: string;
+  programs: LifecycleProgram[];
 }
