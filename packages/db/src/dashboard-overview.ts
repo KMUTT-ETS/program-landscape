@@ -371,7 +371,24 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     };
   });
 
-  const zeroEnrollmentCount = points.filter((p) => p.enrolledLatest === 0).length;
+  // zeroEnrollmentCount must NOT be derived from `points` — the
+  // quadrant query filters out programs without a positive 3-yr-prior
+  // enrolment, so a program that has been at 0 for years won't appear
+  // there at all. Count from ALL canonical+ACTIVE programs at their
+  // own latest year, matching cockpit's `at risk` semantics.
+  const zeroEnrolRow = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    WITH latest AS (
+      SELECT program_id, MAX(academic_year) AS max_year
+      FROM enrollment_metrics GROUP BY program_id
+    )
+    SELECT COUNT(*)::bigint AS count
+    FROM enrollment_metrics em
+    JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
+    JOIN programs p ON p.id = em.program_id
+      AND p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+    WHERE em.enrolled = 0;
+  `;
+  const zeroEnrollmentCount = Number(zeroEnrolRow[0]?.count ?? 0n);
   const crashingCount = points.filter((p) => p.enrolledLatest > 0 && p.enrollmentDeltaPct <= -50).length;
   const surgingCount = points.filter((p) => p.enrollmentDeltaPct >= 50).length;
 

@@ -416,14 +416,14 @@ function KpiStrip({ kpis }: { kpis: CockpitKpis | null }) {
         icon={<GraduationCap />}
         label="Currently enrolled"
         value={fmtNum(kpis.enrolledTotal)}
-        hint="latest academic year"
+        hint="latest year per program"
       />
       <Stat
         moduleKey="cockpit"
         icon={<Wallet />}
         label="Net contribution"
         value={fmtMoney(kpis.netContributionTotal)}
-        hint="latest fiscal year"
+        hint="FY 2024+ aggregate"
         deltaTone={
           kpis.netContributionTotal !== null && kpis.netContributionTotal < 0
             ? 'negative'

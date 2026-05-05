@@ -63,6 +63,17 @@ export class CockpitService implements OnModuleInit {
     const latestEnrollment = enrollment.at(-1);
     const latestFinancial = financial.at(-1);
 
+    // Currently-enrolled + net-contribution headline numbers are
+    // computed via per-program-latest summation, NOT the materialized
+    // view's "latest universe-wide year" pivot. The MV pivot drops any
+    // program whose data ends in an earlier year than the universe-
+    // wide max, which under-counts the active portfolio (often by
+    // ~half — observed home=2593 vs MV=1467 at university scope). The
+    // home dashboard already uses per-program-latest; the cockpit must
+    // match it so the same number means the same thing across surfaces.
+    const enrolledTotal = await enrolledLatestAtScope(scope, scopeId);
+    const netContributionTotal = await netContributionAggregateAtScope(scope, scopeId);
+
     const programCount = await countProgramsAtScope(scope, scopeId);
 
     // Health rollup at the child scope — drives risk count + data confidence.
@@ -91,8 +102,8 @@ export class CockpitService implements OnModuleInit {
 
     return {
       programCount,
-      enrolledTotal: latestEnrollment?.enrolledTotal ?? null,
-      netContributionTotal: latestFinancial?.netContributionTotal ?? null,
+      enrolledTotal,
+      netContributionTotal,
       dangerZoneCount: dangerZone,
       qualityConcernCount: qualityConcern,
       atRiskCount: trend.zeroEnrolment + trend.crashing,
@@ -355,6 +366,70 @@ async function enrolmentTrendCountsAtScope(
     surging: Number(r?.surging ?? 0n),
     totalWithTrend: Number(r?.total_with_trend ?? 0n),
   };
+}
+
+// Sum of per-program latest-year `enrolled`. Each program contributes
+// its OWN latest academic year, even if the universe-wide max is later
+// — matches the home dashboard's `latestEnrolled` semantics.
+async function enrolledLatestAtScope(
+  scope: ScopeLevel,
+  scopeId: string | null,
+): Promise<number | null> {
+  if (scope === 'program' && scopeId) {
+    const row = await prisma.$queryRaw<Array<{ enrolled: number | null }>>`
+      SELECT em.enrolled::int AS enrolled
+      FROM enrollment_metrics em
+      WHERE em.program_id = ${scopeId}
+      ORDER BY em.academic_year DESC
+      LIMIT 1;
+    `;
+    return row[0]?.enrolled ?? null;
+  }
+  const facultyFilter =
+    scope === 'faculty' && scopeId ? Prisma.sql`AND p.faculty_id = ${scopeId}` : Prisma.empty;
+  const deptFilter =
+    scope === 'department' && scopeId ? Prisma.sql`AND p.department_id = ${scopeId}` : Prisma.empty;
+  const rows = await prisma.$queryRaw<Array<{ total: bigint }>>`
+    WITH latest AS (
+      SELECT program_id, MAX(academic_year) AS max_year
+      FROM enrollment_metrics GROUP BY program_id
+    )
+    SELECT COALESCE(SUM(em.enrolled), 0)::bigint AS total
+    FROM enrollment_metrics em
+    JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
+    JOIN programs p ON p.id = em.program_id
+      AND p.status = 'ACTIVE'
+      AND p.sequence_no_from_sheet IS NOT NULL
+    ${facultyFilter}
+    ${deptFilter};
+  `;
+  return Number(rows[0]?.total ?? 0n);
+}
+
+// FY 2024+ net-contribution aggregate at scope. Matches the home
+// dashboard's headline "Net contribution · FY 2024+ aggregate" —
+// the cockpit was previously using the MV's single-latest-fiscal-year
+// pivot which produced ~45× smaller numbers at university scope.
+async function netContributionAggregateAtScope(
+  scope: ScopeLevel,
+  scopeId: string | null,
+): Promise<number | null> {
+  const programFilter: Prisma.ProgramWhereInput = {
+    status: 'ACTIVE',
+    sequenceNoFromSheet: { not: null },
+    ...(scope === 'faculty' && scopeId ? { facultyId: scopeId } : {}),
+    ...(scope === 'department' && scopeId ? { departmentId: scopeId } : {}),
+  };
+  const where: Prisma.FinancialMetricWhereInput = {
+    fiscalYear: { gte: 2024 },
+    program: programFilter,
+    ...(scope === 'program' && scopeId ? { programId: scopeId } : {}),
+  };
+  const agg = await prisma.financialMetric.aggregate({
+    _sum: { netContribution: true },
+    where,
+  });
+  return agg._sum.netContribution !== null ? Number(agg._sum.netContribution) : null;
 }
 
 async function countProgramsAtScope(scope: ScopeLevel, scopeId: string | null): Promise<number> {
