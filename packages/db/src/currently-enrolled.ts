@@ -24,10 +24,12 @@
 
 import { prisma } from './index';
 import type { ScopeLevel } from './scope';
+import { STUDENT_STATUS_GROUP_RANGES } from './student-status';
 
-/** Inclusive status-code range for "currently enrolled" per the registrar. */
-export const CURRENT_STUDENT_STATUS_MIN = 10;
-export const CURRENT_STUDENT_STATUS_MAX = 39;
+/** Inclusive status-code bounds for "currently enrolled" — pulled from the
+ *  canonical CURRENT range so this helper and the Education dashboard's
+ *  Student-info pivot can never drift. */
+const CURRENT = STUDENT_STATUS_GROUP_RANGES.CURRENT;
 
 /**
  * Returns the count of currently-enrolled students at the given scope. Uses
@@ -45,7 +47,7 @@ export async function currentlyEnrolledStudents(
     const rows = await prisma.$queryRaw<Array<{ total: bigint }>>`
       SELECT COALESCE(SUM(student_count), 0)::bigint AS total
       FROM education_student_cube
-      WHERE status_code BETWEEN ${CURRENT_STUDENT_STATUS_MIN} AND ${CURRENT_STUDENT_STATUS_MAX};
+      WHERE status_code BETWEEN ${CURRENT.min} AND ${CURRENT.max};
     `;
     return Number(rows[0]?.total ?? 0n);
   }
@@ -59,7 +61,7 @@ export async function currentlyEnrolledStudents(
     const rows = await prisma.$queryRaw<Array<{ total: bigint }>>`
       SELECT COALESCE(SUM(student_count), 0)::bigint AS total
       FROM education_student_cube
-      WHERE status_code BETWEEN ${CURRENT_STUDENT_STATUS_MIN} AND ${CURRENT_STUDENT_STATUS_MAX}
+      WHERE status_code BETWEEN ${CURRENT.min} AND ${CURRENT.max}
         AND faculty_name = ${facultyRow.nameTh};
     `;
     return Number(rows[0]?.total ?? 0n);

@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, prisma } from '@kku/db';
+import {
+  Prisma,
+  prisma,
+  STUDENT_STATUS_GROUP_RANGES,
+  studentStatusGroupOf,
+  type StudentStatusGroup,
+} from '@kku/db';
 import {
   THAILAND_REGION_LABELS,
   THAILAND_REGION_ORDER,
@@ -21,26 +27,13 @@ import {
 // student-info dashboard exposes the three status groups + the raw
 // underlying codes via the StatusGroup multi-select.
 
-export type StatusGroup = 'INCOMING' | 'CURRENT' | 'FORMER';
-
-// Inclusive ranges per the registrar's status taxonomy:
-//   < 10  = Incoming / not-yet-enrolled (รายงานตัว / สำรอง / etc.)
-//   10-39 = Current students (active, leave of absence, awaiting graduation)
-//   ≥ 40  = Former (graduated, withdrawn, dismissed, deceased)
-export const STATUS_GROUP_RANGES: Record<
-  StatusGroup,
-  { min: number; max: number; label: string }
-> = {
-  INCOMING: { min: 0, max: 9, label: 'Incoming students (status < 10)' },
-  CURRENT: { min: 10, max: 39, label: 'Current students (status 10–39)' },
-  FORMER: { min: 40, max: 999, label: 'Former students (status ≥ 40)' },
-};
-
-function statusGroupOf(code: number): StatusGroup {
-  if (code < 10) return 'INCOMING';
-  if (code < 40) return 'CURRENT';
-  return 'FORMER';
-}
+// Status taxonomy moved to @kku/db (`student-status.ts`) so the home +
+// cockpit "Currently enrolled" KPI tile and this dashboard share the
+// same definition. Local aliases keep the existing call sites
+// untouched.
+export type StatusGroup = StudentStatusGroup;
+export const STATUS_GROUP_RANGES = STUDENT_STATUS_GROUP_RANGES;
+const statusGroupOf = studentStatusGroupOf;
 
 const DEFAULT_STATUS_GROUP: StatusGroup = 'CURRENT';
 // Legacy default (used by the active-pivot, location, and international
