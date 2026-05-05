@@ -542,6 +542,7 @@ export class ProgramsService {
 
     const data: Prisma.ProgramUpdateInput = {};
     if (input.code !== undefined) data.code = input.code;
+    if (input.mhesiCode !== undefined) data.mhesiCode = input.mhesiCode;
     if (input.nameTh !== undefined) data.nameTh = input.nameTh;
     if (input.nameEn !== undefined) data.nameEn = input.nameEn;
     if (input.facultyId !== undefined) data.faculty = { connect: { id: input.facultyId } };
@@ -898,6 +899,7 @@ export class ProgramsService {
   ): Prisma.ProgramUpdateInput {
     const data: Prisma.ProgramUpdateInput = {};
     if (input.code !== undefined) data.code = input.code;
+    if (input.mhesiCode !== undefined) data.mhesiCode = input.mhesiCode;
     if (input.nameTh !== undefined) data.nameTh = input.nameTh;
     if (input.nameEn !== undefined) data.nameEn = input.nameEn;
     if (input.facultyId !== undefined) data.faculty = { connect: { id: input.facultyId } };

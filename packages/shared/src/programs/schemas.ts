@@ -117,6 +117,15 @@ export interface CollisionReport {
 
 export const PatchProgramSchema = z.object({
   code: z.string().min(1).max(64).optional(),
+  /** UNICON / MHESI 14-digit curriculum ID (Program.mhesiCode). NOT
+   *  @unique in the schema — sheet may reuse the same code between
+   *  related Bachelor/Master variants. Nullable. */
+  mhesiCode: z
+    .string()
+    .max(64)
+    .transform((s) => (s.trim() === '' ? null : s.trim()))
+    .nullable()
+    .optional(),
   nameTh: z.string().min(1).max(300).optional(),
   nameEn: z.string().min(1).max(300).optional(),
   facultyId: CuidSchema.optional(),

@@ -82,6 +82,8 @@ interface ProgramDocument {
 export interface ProgramDetail {
   id: string;
   code: string;
+  /** UNICON / MHESI 14-digit curriculum ID. Nullable. */
+  mhesiCode: string | null;
   nameTh: string;
   nameEn: string;
   facultyId: string;
@@ -167,6 +169,7 @@ function OverviewTab({
   const [saving, setSaving] = React.useState(false);
   const [form, setForm] = React.useState({
     code: program.code,
+    mhesiCode: program.mhesiCode ?? '',
     nameTh: program.nameTh,
     nameEn: program.nameEn,
     facultyId: program.facultyId,
@@ -200,6 +203,7 @@ function OverviewTab({
     try {
       const body = {
         code: form.code.trim(),
+        mhesiCode: form.mhesiCode.trim() || null,
         nameTh: form.nameTh.trim(),
         nameEn: form.nameEn.trim(),
         facultyId: form.facultyId,
@@ -252,6 +256,14 @@ function OverviewTab({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Field label="Code">
             <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+          </Field>
+          <Field label="UNICON CURR_ID (MHESI)">
+            <Input
+              value={form.mhesiCode}
+              onChange={(e) => setForm({ ...form, mhesiCode: e.target.value })}
+              placeholder="e.g. 25430031100056"
+              className="font-tabular"
+            />
           </Field>
           <Field label="Status">
             <select
