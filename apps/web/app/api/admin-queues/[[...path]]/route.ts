@@ -65,17 +65,21 @@ async function forward(
   });
 }
 
+// Optional catch-all `[[...path]]`: `params.path` is `undefined` when the
+// route matches the root (`/api/admin-queues`) and a string[] when one or
+// more segments follow. Required catch-all (`[...path]`) would 404 the
+// root — which is exactly the listSummaries() entry point.
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ path: string[] }> },
+  { params }: { params: Promise<{ path?: string[] }> },
 ) {
   const { path } = await params;
-  return forward(req, path);
+  return forward(req, path ?? []);
 }
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ path: string[] }> },
+  { params }: { params: Promise<{ path?: string[] }> },
 ) {
   const { path } = await params;
-  return forward(req, path);
+  return forward(req, path ?? []);
 }
