@@ -118,11 +118,19 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     narrativeProgress,
     intakeRows,
   ] = await Promise.all([
-    // Count only ACTIVE programs — SUNSET / PAUSED rows shouldn't
-    // inflate the headline portfolio number. The dashboard is a
-    // snapshot of the live curriculum landscape, not the audit log.
-    prisma.program.count({ where: { status: 'ACTIVE' } }),
-    prisma.faculty.count(),
+    // Count only ACTIVE programs from the canonical 297 KKU master
+    // sheet. Legacy mock-seed rows (`sequence_no_from_sheet IS NULL`)
+    // and SUNSET/PAUSED rows must not inflate the headline portfolio
+    // number — the curriculum landscape is the canonical 297, not
+    // every Program row that ever existed.
+    prisma.program.count({
+      where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+    }),
+    // Faculty count for the curriculum landscape = academic faculties
+    // only. Non-academic units (ADMIN / RESEARCH_CENTER / INSTITUTE)
+    // host staff but not programs and would inflate the count from
+    // 24 to 36.
+    prisma.faculty.count({ where: { kind: 'ACADEMIC' } }),
     prisma.$queryRaw<Array<{ total: bigint }>>`
       WITH latest AS (
         SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
@@ -130,7 +138,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       SELECT COALESCE(SUM(em.enrolled), 0)::bigint as total
       FROM enrollment_metrics em
       JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
-      JOIN programs p ON p.id = em.program_id AND p.status = 'ACTIVE';
+      JOIN programs p ON p.id = em.program_id
+        AND p.status = 'ACTIVE'
+        AND p.sequence_no_from_sheet IS NOT NULL;
     `,
     prisma.financialMetric.aggregate({
       _sum: { netContribution: true },
@@ -172,7 +182,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         SELECT net_contribution FROM financial_metrics WHERE program_id = p.id ORDER BY fiscal_year DESC LIMIT 1
       ) latest_fm ON true
       WHERE old_em.enrolled IS NOT NULL AND old_em.enrolled > 0
-        AND p.status = 'ACTIVE';
+        AND p.status = 'ACTIVE'
+        AND p.sequence_no_from_sheet IS NOT NULL;
     `,
     prisma.$queryRaw<
       Array<{
@@ -194,13 +205,16 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         COALESCE(SUM(latest_em.enrolled), 0)::int as "enrollmentLatest",
         COALESCE(SUM(latest_fm.net_contribution), 0)::float8 as "netContributionThb"
       FROM faculties f
-      LEFT JOIN programs p ON p.faculty_id = f.id AND p.status = 'ACTIVE'
+      LEFT JOIN programs p ON p.faculty_id = f.id
+        AND p.status = 'ACTIVE'
+        AND p.sequence_no_from_sheet IS NOT NULL
       LEFT JOIN LATERAL (
         SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
       LEFT JOIN LATERAL (
         SELECT net_contribution FROM financial_metrics WHERE program_id = p.id ORDER BY fiscal_year DESC LIMIT 1
       ) latest_fm ON true
+      WHERE f.kind = 'ACADEMIC'
       GROUP BY f.id, f.code, f.name_en, f.name_th
       HAVING COUNT(DISTINCT p.id) > 0
       ORDER BY "enrollmentLatest" DESC;
@@ -215,6 +229,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
       WHERE p.status = 'ACTIVE'
+        AND p.sequence_no_from_sheet IS NOT NULL
       GROUP BY p.level
       ORDER BY MIN(
         CASE p.level::text
@@ -236,7 +251,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         program: { select: { code: true, nameEn: true, nameTh: true, faculty: { select: { code: true } } } },
       },
     }),
-    prisma.programStrategicNarrative.count(),
+    prisma.programStrategicNarrative.count({
+      where: { program: { sequenceNoFromSheet: { not: null } } },
+    }),
     // KKU intake-floor compliance — pull every active program with its
     // latest-year intake, then bucket via the canonical helper.
     prisma.$queryRaw<Array<{ id: string; level: string; intake: number | null }>>`
@@ -250,7 +267,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       FROM programs p
       LEFT JOIN latest l ON l.program_id = p.id
       LEFT JOIN enrollment_metrics em ON em.program_id = p.id AND em.academic_year = l.max_year
-      WHERE p.status = 'ACTIVE';
+      WHERE p.status = 'ACTIVE'
+        AND p.sequence_no_from_sheet IS NOT NULL;
     `,
   ]);
 
