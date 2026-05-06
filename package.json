@@ -48,6 +48,7 @@
     "programs:lifecycle-snapshot": "tsx apps/ingestion/src/scripts/backfill-lifecycle-snapshots.ts",
     "scenarios:seed-templates": "tsx apps/ingestion/src/scripts/seed-scenario-templates.ts",
     "outcomes:ingest": "tsx apps/ingestion/src/scripts/ingest-employment-surveys.ts",
+    "outcomes:ingest-xlsx": "tsx apps/ingestion/src/scripts/ingest-employment-surveys-xlsx.ts",
     "demographics:seed": "tsx apps/ingestion/src/scripts/seed-thailand-demographics.ts",
     "peers:seed-universities": "tsx apps/ingestion/src/scripts/seed-ranked-universities.ts",
     "peers:select": "tsx apps/ingestion/src/scripts/select-program-peers.ts",
