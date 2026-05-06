@@ -378,34 +378,70 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
 // ──────────────────────────────────────────────────────────────────────────
 
 async function scoreAttractivenessProgram(programId: string): Promise<HealthScore> {
-  // Latest-year TCAS funnel — sums ACROSS rounds 1–4 (and any
-  // sub-rounds) for the program's most recent entry year.
-  // POWERBI.ADMISSION_STAT_CURRID gives us the full funnel: quota,
-  // applicants, passed, Clearinghouse send + confirm, and the
-  // registrar's reg_reported tail.
+  // Latest COMPLETE year TCAS funnel — sums across rounds 1–4 + any
+  // sub-rounds for the program's most recent FINISHED recruitment.
+  // POWERBI.ADMISSION_STAT_CURRID gives quota / applicants / passed /
+  // Clearinghouse send + confirm / registrar reg_reported.
   //
-  // Three drivers:
+  // "Complete" = at least one round has reg_reported > 0. The current
+  // recruitment year (in-progress) has reg_reported still null/0 across
+  // all rounds — including it would make the registration-yield
+  // driver score that program at 0% which is misleading. We score
+  // against the latest completed cohort instead; the in-progress year
+  // stays in the DB as informational data.
+  //
+  // Four drivers:
   //   - tcas_competition_ratio  (applicants / enrollSeats)
   //   - tcas_fill_rate          (totalPassed / enrollSeats)
   //   - tcas_registration_yield (regReported / sendClearinghouse)
-  //       — the actual conversion from "got accepted, sent to CH" to
-  //       "showed up at registrar". Strong attractiveness signal —
-  //       a program that admits 100 and ends with 30 reporting in is
-  //       NOT as attractive as one that ends with 80.
+  //   - tcas_competition_vs_peers — KKU's competition ratio vs the
+  //     median ratio across other Thai universities running a
+  //     comparable subject in TCAS3 (peer rows still live in
+  //     TcasAdmissionStat — only KKU rows there were retired).
   //
   // Plus enrollment-trend + KKU intake-floor compliance drivers
   // (unchanged).
   const programRow = await prisma.program.findUnique({
     where: { id: programId },
-    select: { level: true },
+    select: { level: true, nameTh: true },
   });
 
-  // Find the program's latest entry year in the funnel.
-  const latestRow = await prisma.tcasAdmissionFunnel.findFirst({
-    where: { programId },
-    orderBy: [{ entryYearBE: 'desc' }],
-    select: { entryYearBE: true },
-  });
+  // Find the latest COMPLETE year — every round in that year has
+  // reg_reported NOT NULL AND > 0. Years where ANY round has 0 / null
+  // reg_reported are still in-progress (e.g. round 2 done with
+  // reg_reported populated but rounds 3/4 not run yet). Such years
+  // stay in the DB as informational data — not used for scoring.
+  let latestCompleteYear: number | null = null;
+  let latestYearOverall: number | null = null;
+  const yearStatusRows = await prisma.$queryRaw<
+    Array<{
+      entry_year_be: number;
+      rows: bigint;
+      with_reg: bigint;
+      min_reg: number | null;
+    }>
+  >`
+    SELECT
+      entry_year_be,
+      COUNT(*)::bigint AS rows,
+      COUNT(reg_reported)::bigint AS with_reg,
+      MIN(reg_reported) AS min_reg
+    FROM tcas_admission_funnels
+    WHERE program_id = ${programId}
+    GROUP BY entry_year_be ORDER BY entry_year_be DESC
+  `;
+  for (const r of yearStatusRows) {
+    if (latestYearOverall === null) latestYearOverall = r.entry_year_be;
+    const allRoundsReported =
+      Number(r.rows) === Number(r.with_reg) &&
+      r.min_reg !== null &&
+      Number(r.min_reg) > 0;
+    if (allRoundsReported) {
+      latestCompleteYear = r.entry_year_be;
+      break;
+    }
+  }
+
   let funnelTotals: {
     enrollSeats: number;
     applicants: number;
@@ -413,10 +449,12 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     sendCh: number;
     regReported: number;
     rounds: number;
+    year: number;
+    inProgressYear: number | null;
   } | null = null;
-  if (latestRow) {
+  if (latestCompleteYear !== null) {
     const rows = await prisma.tcasAdmissionFunnel.findMany({
-      where: { programId, entryYearBE: latestRow.entryYearBE },
+      where: { programId, entryYearBE: latestCompleteYear },
       select: {
         enrollSeats: true,
         totalApplicants: true,
@@ -433,9 +471,46 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
         sendCh: acc.sendCh + (r.sendClearinghouse ?? 0),
         regReported: acc.regReported + (r.regReported ?? 0),
         rounds: acc.rounds + 1,
+        year: latestCompleteYear,
+        inProgressYear:
+          latestYearOverall !== null && latestYearOverall > latestCompleteYear
+            ? latestYearOverall
+            : null,
       }),
-      { enrollSeats: 0, applicants: 0, passed: 0, sendCh: 0, regReported: 0, rounds: 0 },
+      {
+        enrollSeats: 0, applicants: 0, passed: 0, sendCh: 0, regReported: 0,
+        rounds: 0, year: latestCompleteYear, inProgressYear: null as number | null,
+      },
     );
+  }
+
+  // Peer competition ratio for the latest complete year — TCAS3 peer
+  // rows in TcasAdmissionStat (KKU's own rows there were retired but
+  // ~25,705 peer rows remain). Match by extractSubjectSignature on
+  // Program.nameTh (the new funnel doesn't carry programmeName).
+  let peerMedianRatio: number | null = null;
+  let peerCount = 0;
+  if (latestCompleteYear !== null && programRow?.nameTh) {
+    const subjectKey = extractSubjectSignature(programRow.nameTh);
+    if (subjectKey.length >= 2) {
+      const peerRows = await prisma.tcasAdmissionStat.findMany({
+        where: {
+          entryYearBE: latestCompleteYear,
+          institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+          programmeName: { contains: subjectKey, mode: 'insensitive' },
+          quota: { gt: 0 },
+        },
+        select: { quota: true, applicants: true, programmeName: true },
+      });
+      const peerRatios = peerRows
+        .filter((p) => extractSubjectSignature(p.programmeName) === subjectKey)
+        .map((p) => p.applicants / p.quota)
+        .sort((a, b) => a - b);
+      peerCount = peerRatios.length;
+      if (peerRatios.length > 0) {
+        peerMedianRatio = peerRatios[Math.floor(peerRatios.length / 2)] ?? null;
+      }
+    }
   }
 
   // Enrollment series for the trend driver.
@@ -493,6 +568,30 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       raw: funnelTotals
         ? { regReported: funnelTotals.regReported, sendCh: funnelTotals.sendCh }
         : null,
+    },
+    {
+      label: 'tcas_competition_vs_peers',
+      value: (() => {
+        if (!funnelTotals || funnelTotals.enrollSeats <= 0) return null;
+        if (peerMedianRatio === null || peerMedianRatio <= 0) return null;
+        const kkuRatio = funnelTotals.applicants / funnelTotals.enrollSeats;
+        // Score 50 = parity with peer median; 100 = 2× peer median.
+        // Peers come from TCAS3 only — sample size and methodology
+        // differ from our full-funnel data, so this is comparative
+        // signal not a precise apples-to-apples metric. Worth half
+        // weight in summariseDrivers (which it gets automatically by
+        // virtue of being one of N drivers).
+        return clamp((kkuRatio / peerMedianRatio) * 50);
+      })(),
+      raw: {
+        kkuRatio:
+          funnelTotals && funnelTotals.enrollSeats > 0
+            ? funnelTotals.applicants / funnelTotals.enrollSeats
+            : null,
+        peerMedianRatio,
+        peerCount,
+        year: latestCompleteYear,
+      },
     },
     {
       label: 'enrollment_trend_slope',
@@ -563,6 +662,10 @@ async function scoreAttractivenessScope(
         ? Prisma.sql`AND p.department_id = ${scopeId}`
         : Prisma.empty;
 
+  // Pivot to the latest COMPLETE recruitment year — i.e. the latest
+  // year where any row at the scope has reg_reported > 0. Excluding
+  // the in-progress current cycle keeps the registration-yield
+  // driver from collapsing the score every spring.
   const rows = await prisma.$queryRaw<
     Array<{
       applicants: bigint | null;
@@ -582,7 +685,24 @@ async function scoreAttractivenessScope(
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
         ${scopePredicate}
     ),
-    latest AS (SELECT MAX(entry_year_be) AS y FROM eligible)
+    -- A year is COMPLETE at scope-level when EVERY row in it (across
+    -- programs × rounds) has reg_reported NOT NULL AND > 0. Any
+    -- in-progress round (reg_reported = 0 / null) drops the year out.
+    -- Excluding in-progress years keeps the registration-yield driver
+    -- from collapsing the score every spring while the new cohort is
+    -- mid-recruitment.
+    year_status AS (
+      SELECT
+        entry_year_be,
+        COUNT(*) AS row_count,
+        COUNT(reg_reported) AS reg_count,
+        MIN(reg_reported) AS min_reg
+      FROM eligible GROUP BY entry_year_be
+    ),
+    latest_complete AS (
+      SELECT MAX(entry_year_be) AS y FROM year_status
+      WHERE row_count = reg_count AND min_reg > 0
+    )
     SELECT
       COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
       COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
@@ -590,7 +710,7 @@ async function scoreAttractivenessScope(
       COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
       COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported
     FROM eligible e
-    JOIN latest l ON e.entry_year_be = l.y;
+    JOIN latest_complete l ON e.entry_year_be = l.y;
   `;
 
   const r = rows[0];
@@ -1390,10 +1510,28 @@ async function collectProgramIdsForScope(scopeId: string, scope: ScopeLevel): Pr
 
 function extractSubjectSignature(programmeName: string): string {
   const inParens = programmeName.match(/\(([^)]+)\)/);
-  if (inParens) return inParens[1]!.trim().toLowerCase();
+  if (inParens) return normaliseSubjectKey(inParens[1]!);
   const withSakha = programmeName.match(/สาขาวิชา\s*([^\s,()/]+(?:\s+[^\s,()/]+)?)/);
-  if (withSakha) return withSakha[1]!.trim().toLowerCase();
-  return programmeName.trim().toLowerCase();
+  if (withSakha) return normaliseSubjectKey(withSakha[1]!);
+  return normaliseSubjectKey(programmeName);
+}
+
+// Normalise a Thai discipline key for cross-row equality. Strips
+// degree-name suffixes (บัณฑิต / มหาบัณฑิต / ดุษฎีบัณฑิต), the
+// "หลักสูตร"/"สาขาวิชา" prefix words, and the mai-thanthakhat (์) silent
+// mark — so "แพทยศาสตรบัณฑิต" and "แพทยศาสตร์" both collapse to
+// "แพทยศาสตร". Necessary because the new TCAS funnel doesn't carry the
+// peer institutions' programmeName format; we resolve via Program.nameTh
+// which often has the degree-only form.
+function normaliseSubjectKey(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/^(หลักสูตร|สาขาวิชา)\s*/g, '')
+    .replace(/(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)$/g, '')
+    .replace(/์/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 interface SeriesPoint { year: number; value: number }
