@@ -48,6 +48,7 @@ import {
   AdbGmsConnector,
   BoiSectoralConnector,
   EecoReportConnector,
+  ImdRankingsConnector,
   MhesiPolicyConnector,
   NesdcReportConnector,
   NsoConnector,
@@ -187,6 +188,7 @@ const ENTRIES: readonly ConnectorEntry[] = [
   { slug: 'openalex',           mock: () => new OpenAlexConnector() },
 
   // Scrape ───────────────────────────────────────────────────────────
+  { slug: 'imd-rankings',          mock: () => new ImdRankingsConnector() },
   { slug: 'peer-programs-scraper', mock: () => new PeerProgramScraperConnector() },
 
   // UNICON (MHESI submissions) ───────────────────────────────────────

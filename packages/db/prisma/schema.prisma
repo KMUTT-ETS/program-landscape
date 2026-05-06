@@ -3288,3 +3288,93 @@ model StaffLifecycleDates {
   @@index([birthYearAd])
   @@map("staff_lifecycle_dates")
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// IMD World Competitiveness Center — country-level competitiveness rankings
+// (Lausanne, free public summaries from imd.org/wcc).
+//
+// Three datasets (ImdDataset):
+//   WCY  = World Competitiveness Yearbook (~67 economies, 4 pillars)
+//   WTR  = World Talent Ranking (~67 economies, 3 factors)
+//   WDCR = World Digital Competitiveness Ranking (~67 economies, 3 factors)
+//
+// Country-level only — IMD doesn't publish per-program data. Used as a
+// macro-context backdrop for the Trends Radar narrative, the Cockpit AI
+// brief's executive paragraph, and the Benchmarking module's ASEAN
+// peer-country comparator.
+//
+// Two ingest paths:
+//   1. Manual seed via `pnpm imd:seed` (analyst-curated JSON, refreshed
+//      annually after IMD's June/July/September releases)
+//   2. PDF intake of the annual WCY summary PDF (mocked Q1; real LLM
+//      extraction in a later session)
+// ══════════════════════════════════════════════════════════════════════════
+
+enum ImdDataset {
+  WCY   // World Competitiveness Yearbook
+  WTR   // World Talent Ranking
+  WDCR  // World Digital Competitiveness Ranking
+}
+
+/// IMD's economy taxonomy (~67 entries; mostly nation-states + Hong Kong
+/// SAR / Macao / Taiwan). Code is IMD's preferred 2- or 3-letter slug;
+/// region groupings are coarse for ASEAN/peer comparison.
+model ImdEconomy {
+  id          String   @id @default(cuid())
+  /// 2–3 letter ISO-style code as published by IMD (e.g. "TH", "SG", "USA").
+  code        String   @unique
+  name        String
+  /// Coarse region — "ASEAN", "EastAsia", "Europe", "NorthAmerica", etc.
+  region      String?
+  /// True when the analyst flags this as a KKU peer country worth
+  /// surfacing in dashboards. Drives the default comparator on the
+  /// Benchmarking country axis.
+  isPeer      Boolean  @default(false) @map("is_peer")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rankings ImdRanking[]
+
+  @@index([region])
+  @@map("imd_economies")
+}
+
+/// One row per (year × dataset × economy × indicator). The pillar/factor
+/// hierarchy lives in `indicatorKey` as a slash-delimited path
+/// (e.g. "wcy.overall", "wcy.economic_performance",
+/// "wtr.overall", "wdcr.knowledge"). Free-text by design — IMD adjusts
+/// pillar wording every 1–2 years.
+model ImdRanking {
+  id                 String     @id @default(cuid())
+  year               Int
+  dataset            ImdDataset
+  economyId          String     @map("economy_id")
+  /// Slash-delimited indicator path; lowercase. "<dataset>.overall" for
+  /// the headline; "<dataset>.<pillar>" for sub-scores.
+  indicatorKey       String     @map("indicator_key")
+  /// Numeric value when one is published (score 0–100 or raw indicator).
+  /// Null when only a rank is available.
+  value              Float?
+  /// Position rank — 1 = best. Null when only a value is published.
+  rank               Int?
+  /// Total economies ranked that year (denominator for percentile calc).
+  totalRanked        Int?       @map("total_ranked")
+  /// Original published string from the IMD report — kept verbatim for
+  /// audit + analyst sanity-check.
+  rawValue           String?    @map("raw_value")
+  /// Free text — sub-pillar name, methodology bump notes, etc.
+  notes              String?
+  methodologyVersion String     @default("imd.v1") @map("methodology_version")
+  /// 'manual-seed' | 'imd-wcy-pdf' | 'imd-wtr-pdf' | 'imd-wdcr-pdf'
+  /// — points back at the connector / CLI that wrote the row.
+  source             String
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  economy ImdEconomy @relation(fields: [economyId], references: [id], onDelete: Cascade)
+
+  @@unique([year, dataset, economyId, indicatorKey])
+  @@index([dataset, year])
+  @@index([economyId])
+  @@map("imd_rankings")
+}

@@ -1,0 +1,102 @@
+{
+  "$comment": [
+    "IMD World Competitiveness Center — annual rankings.",
+    "Source: imd.org/wcc public summaries (free executive briefs).",
+    "Update annually after IMD's June (WCY), September (WTR), and",
+    "November (WDCR) releases.",
+    "",
+    "indicatorKey convention:",
+    "  '<dataset>.overall'                  — headline rank",
+    "  '<dataset>.<pillar>'                 — sub-pillar rank within the dataset",
+    "",
+    "WCY pillars  : economic_performance, government_efficiency, business_efficiency, infrastructure",
+    "WTR factors  : investment_development, appeal, readiness",
+    "WDCR factors : knowledge, technology, future_readiness",
+    "",
+    "Values are RANK positions (1 = best). totalRanked is the universe size",
+    "for that year. Numeric `value` left null when only a rank is published."
+  ],
+
+  "economies": [
+    { "code": "TH",  "name": "Thailand",     "region": "ASEAN",        "isPeer": false },
+    { "code": "SG",  "name": "Singapore",    "region": "ASEAN",        "isPeer": true },
+    { "code": "MY",  "name": "Malaysia",     "region": "ASEAN",        "isPeer": true },
+    { "code": "ID",  "name": "Indonesia",    "region": "ASEAN",        "isPeer": true },
+    { "code": "PH",  "name": "Philippines",  "region": "ASEAN",        "isPeer": true },
+    { "code": "VN",  "name": "Vietnam",      "region": "ASEAN",        "isPeer": true },
+    { "code": "CN",  "name": "China Mainland","region": "EastAsia",    "isPeer": true },
+    { "code": "JP",  "name": "Japan",        "region": "EastAsia",     "isPeer": false },
+    { "code": "KR",  "name": "South Korea",  "region": "EastAsia",     "isPeer": false },
+    { "code": "HK",  "name": "Hong Kong SAR","region": "EastAsia",     "isPeer": false },
+    { "code": "TW",  "name": "Taiwan",       "region": "EastAsia",     "isPeer": false },
+    { "code": "USA", "name": "USA",          "region": "NorthAmerica", "isPeer": false }
+  ],
+
+  "$comment_rankings": [
+    "Headline ranks below are sourced from IMD's published executive ",
+    "summaries (free PDFs at imd.org/wcc). Values are best-effort and ",
+    "may need analyst sanity-check after each annual release. ",
+    "totalRanked: 67 for WCY/WTR/WDCR 2024; 64 in 2023 and earlier."
+  ],
+
+  "rankings": [
+    { "year": 2024, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.overall", "rank": 25, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.economic_performance", "rank": 5, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.government_efficiency", "rank": 24, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.business_efficiency", "rank": 20, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.infrastructure", "rank": 43, "totalRanked": 67 },
+
+    { "year": 2024, "dataset": "WCY", "economy": "SG",  "indicatorKey": "wcy.overall", "rank": 1,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "MY",  "indicatorKey": "wcy.overall", "rank": 34, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "ID",  "indicatorKey": "wcy.overall", "rank": 27, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "PH",  "indicatorKey": "wcy.overall", "rank": 52, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "VN",  "indicatorKey": "wcy.overall", "rank": 44, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "CN",  "indicatorKey": "wcy.overall", "rank": 14, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "JP",  "indicatorKey": "wcy.overall", "rank": 38, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "KR",  "indicatorKey": "wcy.overall", "rank": 20, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "HK",  "indicatorKey": "wcy.overall", "rank": 5,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "TW",  "indicatorKey": "wcy.overall", "rank": 8,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WCY", "economy": "USA", "indicatorKey": "wcy.overall", "rank": 12, "totalRanked": 67 },
+
+    { "year": 2023, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.overall", "rank": 30, "totalRanked": 64 },
+    { "year": 2022, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.overall", "rank": 33, "totalRanked": 63 },
+    { "year": 2021, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.overall", "rank": 28, "totalRanked": 64 },
+    { "year": 2020, "dataset": "WCY", "economy": "TH", "indicatorKey": "wcy.overall", "rank": 29, "totalRanked": 63 },
+
+    { "year": 2024, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.overall", "rank": 47, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.investment_development", "rank": 49, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.appeal", "rank": 33, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.readiness", "rank": 46, "totalRanked": 67 },
+
+    { "year": 2024, "dataset": "WTR", "economy": "SG",  "indicatorKey": "wtr.overall", "rank": 2,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "MY",  "indicatorKey": "wtr.overall", "rank": 33, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "ID",  "indicatorKey": "wtr.overall", "rank": 49, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "PH",  "indicatorKey": "wtr.overall", "rank": 63, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "VN",  "indicatorKey": "wtr.overall", "rank": 60, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "CN",  "indicatorKey": "wtr.overall", "rank": 38, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "HK",  "indicatorKey": "wtr.overall", "rank": 9,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WTR", "economy": "TW",  "indicatorKey": "wtr.overall", "rank": 26, "totalRanked": 67 },
+
+    { "year": 2023, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.overall", "rank": 41, "totalRanked": 64 },
+    { "year": 2022, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.overall", "rank": 39, "totalRanked": 63 },
+    { "year": 2021, "dataset": "WTR", "economy": "TH", "indicatorKey": "wtr.overall", "rank": 39, "totalRanked": 64 },
+
+    { "year": 2024, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.overall", "rank": 37, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.knowledge", "rank": 41, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.technology", "rank": 19, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.future_readiness", "rank": 47, "totalRanked": 67 },
+
+    { "year": 2024, "dataset": "WDCR", "economy": "SG",  "indicatorKey": "wdcr.overall", "rank": 1,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "MY",  "indicatorKey": "wdcr.overall", "rank": 33, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "ID",  "indicatorKey": "wdcr.overall", "rank": 43, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "PH",  "indicatorKey": "wdcr.overall", "rank": 61, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "VN",  "indicatorKey": "wdcr.overall", "rank": 57, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "CN",  "indicatorKey": "wdcr.overall", "rank": 14, "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "HK",  "indicatorKey": "wdcr.overall", "rank": 7,  "totalRanked": 67 },
+    { "year": 2024, "dataset": "WDCR", "economy": "TW",  "indicatorKey": "wdcr.overall", "rank": 9,  "totalRanked": 67 },
+
+    { "year": 2023, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.overall", "rank": 35, "totalRanked": 64 },
+    { "year": 2022, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.overall", "rank": 40, "totalRanked": 63 },
+    { "year": 2021, "dataset": "WDCR", "economy": "TH", "indicatorKey": "wdcr.overall", "rank": 38, "totalRanked": 64 }
+  ]
+}

@@ -297,6 +297,22 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: false,
   },
   {
+    slug: 'imd-rankings',
+    name: 'IMD World Competitiveness Rankings',
+    kind: 'PDF',
+    inputFormat: 'MIXED',
+    acceptsPdfUploads: true,
+    // No cron — IMD only releases 3× a year (June/Sep/Nov) and the
+    // primary data path is the manual seed CLI. Operator triggers
+    // Run-now after each release. scheduleEnabled=false keeps the
+    // BullMQ queue free of monthly mock-PDF runs.
+    scheduleEnabled: false,
+    ownerContact: 'KKU Strategic Office (free imd.org/wcc summaries)',
+    notes:
+      'IMD World Competitiveness Yearbook + World Talent Ranking + World Digital Competitiveness Ranking. Country-level only (~67 economies). Manual seed via `pnpm imd:seed` is the primary path; PDF intake of the public summary brochures is a secondary path. KKU Library does NOT have a Smartcomp subscription — restricted to free public summaries.',
+    mocked: false,
+  },
+  {
     slug: 'peer-programs-scraper',
     name: 'Peer University Program Pages',
     kind: 'SCRAPE',

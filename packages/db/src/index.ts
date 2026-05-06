@@ -29,3 +29,4 @@ export * from './benchmarking-overview';
 export * from './canonical-programs';
 export * from './currently-enrolled';
 export * from './student-status';
+export * from './imd-rankings';

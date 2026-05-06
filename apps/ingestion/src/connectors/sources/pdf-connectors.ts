@@ -200,3 +200,39 @@ export class AdbGmsConnector extends PdfUploadConnector {
     ];
   }
 }
+
+export class ImdRankingsConnector extends PdfUploadConnector {
+  readonly slug = 'imd-rankings';
+  readonly mocked = true;
+  // IMD's annual reports are hosted at imd.org/wcc with predictable URL
+  // shapes. Real connector (a follow-up session) would enumerate the
+  // three annual release PDFs and fetch their bytes; the mock here
+  // returns one placeholder per dataset so the PdfDocument table has
+  // distinct rows for the WCY/WTR/WDCR streams.
+  async fetchPdfs(_c: ConnectorContext): Promise<PdfRawPayload[]> {
+    const year = new Date().getUTCFullYear();
+    return [
+      {
+        bytes: mockPdfBytes(`imd-wcy-${year}`),
+        filename: `IMD-WCY-${year}.pdf`,
+        sourceCategory: 'REPORT',
+        sourceOrg: 'IMD World Competitiveness Center, Lausanne',
+        language: 'EN',
+      },
+      {
+        bytes: mockPdfBytes(`imd-wtr-${year}`),
+        filename: `IMD-WTR-${year}.pdf`,
+        sourceCategory: 'REPORT',
+        sourceOrg: 'IMD World Competitiveness Center, Lausanne',
+        language: 'EN',
+      },
+      {
+        bytes: mockPdfBytes(`imd-wdcr-${year}`),
+        filename: `IMD-WDCR-${year}.pdf`,
+        sourceCategory: 'REPORT',
+        sourceOrg: 'IMD World Competitiveness Center, Lausanne',
+        language: 'EN',
+      },
+    ];
+  }
+}
