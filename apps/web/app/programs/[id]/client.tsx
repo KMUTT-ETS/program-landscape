@@ -37,6 +37,7 @@ import type {
   DeepDiveSkills,
   DeepDiveStudentCohorts,
   DeepDiveTcasStats,
+  DeepDiveRecruitment,
   DeepDiveTrends,
 } from './types';
 
@@ -51,6 +52,7 @@ interface Props {
   demandFunnel: DeepDiveDemandFunnel | null;
   studentCohorts: DeepDiveStudentCohorts | null;
   tcasStats: DeepDiveTcasStats | null;
+  recruitment: DeepDiveRecruitment | null;
   aiPeers: DeepDiveAiPeers | null;
   aiReadiness: DeepDiveAiReadiness | null;
   lifecycle: DeepDiveLifecycle | null;
@@ -181,6 +183,7 @@ export function DeepDiveClient(props: Props) {
         <AiReadinessSection data={props.aiReadiness} />
         <DemandFunnelSection data={props.demandFunnel} />
         <TcasStatsSection data={props.tcasStats} />
+        <RecruitmentSection data={props.recruitment} />
         <StudentCohortsSection data={props.studentCohorts} />
         <DemographicOutlookSection data={props.demographicOutlook} />
         <OutcomesSection data={props.outcomes} />
@@ -3229,4 +3232,278 @@ function formatRawValue(v: unknown, key?: string): string {
     return JSON.stringify(v).slice(0, 80);
   }
   return JSON.stringify(v).slice(0, 80);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Recruitment funnel — full TCAS round 1–4 from POWERBI.ADMISSION_STAT_CURRID.
+// Distinct from the older TcasStatsSection (TCAS3 + peer comparison only).
+// ──────────────────────────────────────────────────────────────────────────
+
+function RecruitmentSection({ data }: { data: DeepDiveRecruitment | null }) {
+  if (!data || data.byYear.length === 0) {
+    return (
+      <Section id="recruitment" title="Recruitment funnel (TCAS rounds 1–4)">
+        <Card padding="md">
+          <p className="text-sm text-text-tertiary">
+            No recruitment data — this program isn&apos;t listed in
+            POWERBI.ADMISSION_STAT_CURRID, or its CURR_ID couldn&apos;t be
+            mapped to a Program record.
+          </p>
+        </Card>
+      </Section>
+    );
+  }
+
+  const latestComplete = data.byYear.find((y) => y.isComplete) ?? null;
+  const inProgress = data.byYear.find((y) => !y.isComplete) ?? null;
+
+  return (
+    <Section id="recruitment" title="Recruitment funnel (TCAS rounds 1–4)">
+      <div className="flex flex-col gap-4">
+        {inProgress && (
+          <div className="rounded-lg border border-info/30 bg-info/5 p-3 text-sm">
+            <div className="font-semibold text-info">
+              BE {inProgress.entryYearBE} (CE {inProgress.entryYearCE}) — recruitment in progress
+            </div>
+            <div className="mt-1 text-text-secondary">
+              <span className="font-tabular">{inProgress.totalApplicants.toLocaleString()}</span>{' '}
+              applicants for <span className="font-tabular">{inProgress.planPerYear ?? '—'}</span>{' '}
+              planned seats so far.{' '}
+              {inProgress.regReported > 0 && (
+                <>
+                  <span className="font-tabular">{inProgress.regReported.toLocaleString()}</span>{' '}
+                  reported in to date (
+                  {inProgress.fillRateVsPlan !== null
+                    ? `${(inProgress.fillRateVsPlan * 100).toFixed(0)} % of plan`
+                    : 'plan unknown'}
+                  ).
+                </>
+              )}{' '}
+              Numbers update as later rounds run; not used for health-score scoring.
+            </div>
+          </div>
+        )}
+
+        {/* KPI strip — latest complete year */}
+        {latestComplete && (
+          <Card padding="md">
+            <div className="mb-3 flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">
+                Latest complete cohort — BE {latestComplete.entryYearBE}{' '}
+                <span className="text-text-tertiary">(CE {latestComplete.entryYearCE})</span>
+              </h3>
+              <span className="text-xs text-text-tertiary">
+                {latestComplete.rounds} round{latestComplete.rounds === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+              <RecruitmentTile
+                label="Plan / yr"
+                value={latestComplete.planPerYear?.toLocaleString() ?? '—'}
+                sub="annual target"
+              />
+              <RecruitmentTile
+                label="Allocated"
+                value={latestComplete.enrollSeats.toLocaleString()}
+                sub={
+                  latestComplete.overAllocationFactor
+                    ? `${latestComplete.overAllocationFactor.toFixed(2)}× over-alloc`
+                    : 'sum across rounds'
+                }
+              />
+              <RecruitmentTile
+                label="Applicants"
+                value={latestComplete.totalApplicants.toLocaleString()}
+                sub={
+                  latestComplete.competitionRatio
+                    ? `${latestComplete.competitionRatio.toFixed(1)}× competition`
+                    : undefined
+                }
+              />
+              <RecruitmentTile
+                label="Passed"
+                value={latestComplete.totalPassed.toLocaleString()}
+                sub="cleared the round cut"
+              />
+              <RecruitmentTile
+                label="Confirm CH"
+                value={latestComplete.confirmClearinghouse.toLocaleString()}
+                sub="accepted the offer"
+              />
+              <RecruitmentTile
+                label="Reported in"
+                value={latestComplete.regReported.toLocaleString()}
+                sub={
+                  latestComplete.fillRateVsPlan !== null
+                    ? `${(latestComplete.fillRateVsPlan * 100).toFixed(0)} % of plan`
+                    : undefined
+                }
+                tone={
+                  latestComplete.fillRateVsPlan === null
+                    ? undefined
+                    : latestComplete.fillRateVsPlan >= 1
+                      ? 'positive'
+                      : latestComplete.fillRateVsPlan >= 0.85
+                        ? 'warning'
+                        : 'danger'
+                }
+              />
+            </div>
+          </Card>
+        )}
+
+        {/* Per-year history table */}
+        <Card padding="none">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
+                <tr>
+                  <th className="px-4 py-2 text-left">BE year</th>
+                  <th className="px-4 py-2 text-left">Status</th>
+                  <th className="px-4 py-2 text-right">Plan</th>
+                  <th className="px-4 py-2 text-right">Allocated</th>
+                  <th className="px-4 py-2 text-right">Over-alloc</th>
+                  <th className="px-4 py-2 text-right">Applicants</th>
+                  <th className="px-4 py-2 text-right">Comp. ratio</th>
+                  <th className="px-4 py-2 text-right">Passed</th>
+                  <th className="px-4 py-2 text-right">Confirm CH</th>
+                  <th className="px-4 py-2 text-right">Reported in</th>
+                  <th className="px-4 py-2 text-right">vs Plan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {data.byYear.map((y) => {
+                  const planClass =
+                    y.fillRateVsPlan === null
+                      ? ''
+                      : y.fillRateVsPlan >= 1
+                        ? 'text-positive'
+                        : y.fillRateVsPlan >= 0.85
+                          ? 'text-warning'
+                          : 'text-danger';
+                  return (
+                    <tr key={y.entryYearBE} className={y.isComplete ? '' : 'opacity-70'}>
+                      <td className="px-4 py-2 font-tabular font-semibold">
+                        {y.entryYearBE}{' '}
+                        <span className="text-xs text-text-tertiary">(CE {y.entryYearCE})</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        {y.isComplete ? (
+                          <Badge tone="success">complete</Badge>
+                        ) : (
+                          <Badge tone="info">in progress</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.planPerYear?.toLocaleString() ?? '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.enrollSeats.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular text-text-tertiary">
+                        {y.overAllocationFactor
+                          ? `${y.overAllocationFactor.toFixed(2)}×`
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.totalApplicants.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.competitionRatio === null
+                          ? '—'
+                          : `${y.competitionRatio.toFixed(1)}×`}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.totalPassed.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.confirmClearinghouse.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {y.regReported.toLocaleString()}
+                      </td>
+                      <td
+                        className={`px-4 py-2 text-right font-tabular font-semibold ${planClass}`}
+                      >
+                        {y.fillRateVsPlan === null
+                          ? '—'
+                          : `${(y.fillRateVsPlan * 100).toFixed(0)}%`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* Per-round breakdown for the latest complete year */}
+        {data.latestRounds && (
+          <Card padding="none">
+            <header className="border-b border-border-subtle px-4 py-2 text-xs uppercase tracking-wide text-text-tertiary">
+              Round-by-round breakdown — BE {data.latestRounds.entryYearBE}
+            </header>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Round</th>
+                    <th className="px-4 py-2 text-right">Allocated</th>
+                    <th className="px-4 py-2 text-right">Applicants</th>
+                    <th className="px-4 py-2 text-right">Passed</th>
+                    <th className="px-4 py-2 text-right">Send CH</th>
+                    <th className="px-4 py-2 text-right">Confirm CH</th>
+                    <th className="px-4 py-2 text-right">Send Reg</th>
+                    <th className="px-4 py-2 text-right">Reported in</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {data.latestRounds.rounds.map((r) => (
+                    <tr key={r.round}>
+                      <td className="px-4 py-2 font-tabular font-semibold">{r.round}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.enrollSeats ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.totalApplicants ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.totalPassed ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.sendClearinghouse ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.confirmClearinghouse ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.sendRegReported ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-tabular">{r.regReported ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function RecruitmentTile({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: 'positive' | 'warning' | 'danger';
+}) {
+  const valueClass =
+    tone === 'positive'
+      ? 'text-positive'
+      : tone === 'warning'
+        ? 'text-warning'
+        : tone === 'danger'
+          ? 'text-danger'
+          : 'text-text-primary';
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-border-subtle bg-surface-1 p-3">
+      <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+      <p className={`font-tabular text-xl font-semibold ${valueClass}`}>{value}</p>
+      {sub && <p className="text-[11px] text-text-tertiary">{sub}</p>}
+    </div>
+  );
 }

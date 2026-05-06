@@ -18,6 +18,7 @@ import type {
   DeepDivePeers,
   DeepDiveStudentCohorts,
   DeepDiveTcasStats,
+  DeepDiveRecruitment,
   DeepDiveAiPeers,
   DeepDiveAiReadiness,
   DeepDiveLifecycle,
@@ -46,6 +47,7 @@ export default async function ProgramDeepDivePage({
     demandFunnel,
     studentCohorts,
     tcasStats,
+    recruitment,
     aiPeers,
     aiReadiness,
     lifecycle,
@@ -62,6 +64,7 @@ export default async function ProgramDeepDivePage({
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
     apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
     apiFetch<DeepDiveTcasStats>(`/programs/${id}/tcas-stats`).catch(() => null),
+    apiFetch<DeepDiveRecruitment>(`/programs/${id}/recruitment`).catch(() => null),
     apiFetch<DeepDiveAiPeers>(`/programs/${id}/ai-peers`).catch(() => null),
     apiFetch<DeepDiveAiReadiness>(`/programs/${id}/ai-readiness`).catch(() => null),
     apiFetch<DeepDiveLifecycle>(`/programs/${id}/lifecycle`).catch(() => null),
@@ -115,6 +118,7 @@ export default async function ProgramDeepDivePage({
         demandFunnel={demandFunnel}
         studentCohorts={studentCohorts}
         tcasStats={tcasStats}
+        recruitment={recruitment}
         aiPeers={aiPeers}
         aiReadiness={aiReadiness}
         lifecycle={lifecycle}

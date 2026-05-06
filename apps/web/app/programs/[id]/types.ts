@@ -441,3 +441,44 @@ export interface DeepDiveDecisions {
     createdAt: string;
   }>;
 }
+
+// ─── Recruitment funnel (TcasAdmissionFunnel — full TCAS round 1–4) ─────────
+
+export interface DeepDiveRecruitmentRoundRow {
+  round: string;
+  enrollSeats: number | null;
+  planPerYear: number | null;
+  totalApplicants: number | null;
+  totalPassed: number | null;
+  sendClearinghouse: number | null;
+  confirmClearinghouse: number | null;
+  sendRegReported: number | null;
+  regReported: number | null;
+}
+
+export interface DeepDiveRecruitmentYearTotals {
+  entryYearBE: number;
+  entryYearCE: number;
+  isComplete: boolean;
+  planPerYear: number | null;
+  enrollSeats: number;
+  totalApplicants: number;
+  totalPassed: number;
+  sendClearinghouse: number;
+  confirmClearinghouse: number;
+  sendRegReported: number;
+  regReported: number;
+  competitionRatio: number | null;
+  overAllocationFactor: number | null;
+  fillRateVsPlan: number | null;
+  registrationYield: number | null;
+  rounds: number;
+}
+
+export interface DeepDiveRecruitment {
+  programId: string;
+  byYear: DeepDiveRecruitmentYearTotals[];
+  latestRounds: { entryYearBE: number; rounds: DeepDiveRecruitmentRoundRow[] } | null;
+  inProgressRounds: { entryYearBE: number; rounds: DeepDiveRecruitmentRoundRow[] } | null;
+  methodologyVersion: string;
+}

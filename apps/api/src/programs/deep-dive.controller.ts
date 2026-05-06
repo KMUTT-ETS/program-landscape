@@ -22,6 +22,7 @@ import {
   programStudentCohorts,
   programDemographicOutlook,
   programTcasStats,
+  programRecruitment,
   programAiPeers,
   programAiReadiness,
   programLifecycleVerdict,
@@ -102,6 +103,21 @@ export class DeepDiveController {
   })
   async tcasStats(@Param('programId') programId: string) {
     return programTcasStats(programId);
+  }
+
+  @Get('recruitment')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      {
+        id: 'kku-tcas-funnel',
+        name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID',
+      },
+    ],
+    methodologyVersion: 'program-recruitment.v1',
+  })
+  async recruitment(@Param('programId') programId: string) {
+    return programRecruitment(programId);
   }
 
   @Get('strategic-narrative')

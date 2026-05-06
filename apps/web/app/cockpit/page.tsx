@@ -6,6 +6,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader, FreshnessBadge } from '@kku/ui';
 import { CockpitClient } from './client';
 import type { CockpitKpis, CockpitHeatmap, CockpitMatrix, CockpitRollup, SavedView } from './types';
+import type { RecruitmentDashboardPayload } from '../education/recruitment/client';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Portfolio Cockpit' };
@@ -31,18 +32,20 @@ export default async function CockpitPage({
   }
 
   const qs = new URLSearchParams({ scope, ...(scopeId ? { scopeId } : {}) });
-  const [kpis, heatmap, matrix, rollup, savedViews] = await Promise.all([
+  const [kpis, heatmap, matrix, rollup, recruitment, savedViews] = await Promise.all([
     apiFetch<CockpitKpis>(`/cockpit/kpis?${qs}`).catch(() => null),
     apiFetch<CockpitHeatmap>(`/cockpit/heatmap?${qs}`).catch(() => null),
     apiFetch<CockpitMatrix>(`/cockpit/matrix?${qs}`).catch(() => null),
     apiFetch<CockpitRollup>(`/cockpit/rollup?${qs}`).catch(() => null),
+    apiFetch<RecruitmentDashboardPayload>(`/cockpit/recruitment?${qs}`).catch(() => null),
     apiFetch<SavedView[]>(`/cockpit/saved-views`).catch(() => [] as SavedView[]),
   ]);
 
-  const initialView = (sp.view === 'matrix' || sp.view === 'rollup' ? sp.view : 'heatmap') as
-    | 'heatmap'
-    | 'matrix'
-    | 'rollup';
+  const initialView = (
+    sp.view === 'matrix' || sp.view === 'rollup' || sp.view === 'recruitment'
+      ? sp.view
+      : 'heatmap'
+  ) as 'heatmap' | 'matrix' | 'rollup' | 'recruitment';
 
   return (
     <AuthedAppShell user={user}>
@@ -66,6 +69,7 @@ export default async function CockpitPage({
         heatmap={heatmap}
         matrix={matrix}
         rollup={rollup}
+        recruitment={recruitment}
         savedViews={savedViews}
       />
     </AuthedAppShell>

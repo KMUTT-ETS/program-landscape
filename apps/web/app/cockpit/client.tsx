@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   BookOpen,
   CircleDot,
+  ExternalLink,
   FileText,
   Filter,
   GraduationCap,
@@ -33,6 +34,8 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { SessionUser } from '@kku/shared';
+import Link from 'next/link';
+import type { RecruitmentDashboardPayload } from '../education/recruitment/client';
 import {
   deleteSavedViewAction,
   generateBriefAction,
@@ -55,7 +58,7 @@ import type {
 // hydrates this with already-fetched data so the first paint is the
 // real chart, not a skeleton.
 
-type ViewMode = 'heatmap' | 'matrix' | 'rollup';
+type ViewMode = 'heatmap' | 'matrix' | 'rollup' | 'recruitment';
 
 interface Props {
   user: SessionUser;
@@ -66,6 +69,7 @@ interface Props {
   heatmap: CockpitHeatmap | null;
   matrix: CockpitMatrix | null;
   rollup: CockpitRollup | null;
+  recruitment: RecruitmentDashboardPayload | null;
   savedViews: SavedView[];
 }
 
@@ -152,9 +156,13 @@ export function CockpitClient(props: Props) {
               onClick={async () => {
                 const name = window.prompt('Name this view');
                 if (!name) return;
+                // Saved views capture analytical layouts only — the
+                // Recruitment tab is a passthrough panel, not a layout.
+                const savableView: 'heatmap' | 'matrix' | 'rollup' =
+                  view === 'recruitment' ? 'heatmap' : view;
                 const res = await saveViewAction({
                   name,
-                  viewMode: view,
+                  viewMode: savableView,
                   scope: props.scope,
                   scopeId: props.scopeId || null,
                   filters: { levelFilter, statusFilter, search },
@@ -219,6 +227,7 @@ export function CockpitClient(props: Props) {
               <SegmentedTrigger value="heatmap">Health heatmap</SegmentedTrigger>
               <SegmentedTrigger value="matrix">Strategic matrix</SegmentedTrigger>
               <SegmentedTrigger value="rollup">Rollup tree</SegmentedTrigger>
+              <SegmentedTrigger value="recruitment">Recruitment</SegmentedTrigger>
             </SegmentedList>
           </Segmented>
           <div className="flex items-center gap-2">
@@ -318,6 +327,10 @@ export function CockpitClient(props: Props) {
               }}
             />
           </Card>
+        )}
+
+        {view === 'recruitment' && (
+          <RecruitmentPanel data={props.recruitment} />
         )}
       </div>
 
@@ -560,5 +573,201 @@ function RollupTable({
       onRowClick={onRowClick}
       pageSize={100}
     />
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Recruitment panel — TCAS round 1–4 funnel rollup at the current scope.
+// Compact view; for the full drill-down + per-round detail link out to
+// /education/recruitment.
+// ──────────────────────────────────────────────────────────────────────────
+
+function RecruitmentPanel({ data }: { data: RecruitmentDashboardPayload | null }) {
+  if (!data || data.meta.selectedYear === null) {
+    return (
+      <Card accent="cockpit" padding="md">
+        <p className="text-sm text-text-tertiary">
+          No recruitment data at this scope. Try a faculty scope, or check{' '}
+          <Link href="/education/recruitment" className="text-accent-default hover:underline">
+            the full recruitment dashboard
+          </Link>
+          .
+        </p>
+      </Card>
+    );
+  }
+  const k = data.kpis;
+  const overAlloc = k.planPerYear > 0 ? k.seats / k.planPerYear : null;
+  const yieldVsPlan = k.planPerYear > 0 ? k.regReported / k.planPerYear : null;
+  const yieldClass =
+    yieldVsPlan === null
+      ? ''
+      : yieldVsPlan >= 1
+        ? 'text-positive'
+        : yieldVsPlan >= 0.85
+          ? 'text-warning'
+          : 'text-danger';
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header — selected year + drill-out link */}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h3 className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-secondary">
+            Recruitment funnel
+          </h3>
+          <p className="mt-0.5 text-xs text-text-tertiary">
+            BE {data.meta.selectedYear}{' '}
+            {data.meta.selectedYearIsComplete ? (
+              <Badge tone="success">complete</Badge>
+            ) : (
+              <Badge tone="info">in progress</Badge>
+            )}
+            {data.meta.inProgressYear !== null &&
+              data.meta.inProgressYear !== data.meta.selectedYear && (
+                <span className="ml-2 text-text-tertiary">
+                  · in-progress: BE {data.meta.inProgressYear}
+                </span>
+              )}
+          </p>
+        </div>
+        <Link
+          href={`/education/recruitment${
+            data.meta.appliedFilters.facultyId
+              ? `?facultyId=${encodeURIComponent(data.meta.appliedFilters.facultyId)}`
+              : ''
+          }`}
+          className="inline-flex items-center gap-1 text-xs text-accent-default hover:underline"
+        >
+          View full dashboard <ExternalLink className="h-3 w-3" />
+        </Link>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <RecPanelTile
+          label="Programs"
+          value={k.programCount.toLocaleString()}
+          sub={`${k.rounds} rounds total`}
+        />
+        <RecPanelTile
+          label="Plan / yr"
+          value={k.planPerYear.toLocaleString()}
+          sub="annual seat target"
+        />
+        <RecPanelTile
+          label="Allocated"
+          value={k.seats.toLocaleString()}
+          sub={overAlloc !== null ? `${overAlloc.toFixed(2)}× over-alloc` : 'across rounds'}
+        />
+        <RecPanelTile
+          label="Applicants"
+          value={k.applicants.toLocaleString()}
+          sub={
+            k.competitionRatio !== null
+              ? `${k.competitionRatio.toFixed(1)}× competition`
+              : undefined
+          }
+        />
+        <RecPanelTile
+          label="Reported in"
+          value={k.regReported.toLocaleString()}
+          sub={
+            yieldVsPlan !== null ? `${(yieldVsPlan * 100).toFixed(0)} % of plan` : undefined
+          }
+          valueClass={yieldClass}
+        />
+        <RecPanelTile
+          label="Reg yield"
+          value={
+            k.regYield !== null ? `${(k.regYield * 100).toFixed(0)} %` : '—'
+          }
+          sub="reg / send-CH"
+        />
+      </div>
+
+      {/* Faculty rollup — top 8 by applicants */}
+      {data.byFaculty.length > 0 && (
+        <Card accent="cockpit" padding="none">
+          <header className="border-b border-border-subtle px-4 py-2 text-xs uppercase tracking-wide text-text-tertiary">
+            By faculty (top {Math.min(8, data.byFaculty.length)})
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
+                <tr>
+                  <th className="px-4 py-2 text-left">Faculty</th>
+                  <th className="px-4 py-2 text-right">Plan</th>
+                  <th className="px-4 py-2 text-right">Applicants</th>
+                  <th className="px-4 py-2 text-right">Comp.</th>
+                  <th className="px-4 py-2 text-right">Reported</th>
+                  <th className="px-4 py-2 text-right">vs Plan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {data.byFaculty.slice(0, 8).map((f) => {
+                  const ratio = f.totals.seats > 0 ? f.totals.applicants / f.totals.seats : 0;
+                  const fillVsPlan =
+                    f.totals.planPerYear > 0
+                      ? f.totals.regReported / f.totals.planPerYear
+                      : null;
+                  const fillClass =
+                    fillVsPlan === null
+                      ? ''
+                      : fillVsPlan >= 1
+                        ? 'text-positive'
+                        : fillVsPlan >= 0.85
+                          ? 'text-warning'
+                          : 'text-danger';
+                  return (
+                    <tr key={f.facultyId}>
+                      <td className="px-4 py-2">
+                        <div className="font-medium">{f.facultyCode}</div>
+                        <div className="text-xs text-text-secondary">{f.facultyNameEn}</div>
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {f.totals.planPerYear.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {f.totals.applicants.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {ratio.toFixed(1)}×
+                      </td>
+                      <td className="px-4 py-2 text-right font-tabular">
+                        {f.totals.regReported.toLocaleString()}
+                      </td>
+                      <td className={`px-4 py-2 text-right font-tabular font-semibold ${fillClass}`}>
+                        {fillVsPlan === null ? '—' : `${(fillVsPlan * 100).toFixed(0)}%`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function RecPanelTile({
+  label,
+  value,
+  sub,
+  valueClass = 'text-text-primary',
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-1 p-4">
+      <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+      <p className={`font-tabular text-2xl font-semibold ${valueClass}`}>{value}</p>
+      {sub && <p className="text-[11px] text-text-tertiary">{sub}</p>}
+    </div>
   );
 }

@@ -18,6 +18,7 @@ import {
 } from '../common';
 import { CockpitService } from './cockpit.service';
 import { PdfService } from '../pdf/pdf.service';
+import { RecruitmentService } from '../education/recruitment.service';
 
 const ScopeQuerySchema = z.object({
   scope: ScopeLevelSchema.default('university'),
@@ -56,7 +57,29 @@ export class CockpitController {
   constructor(
     private readonly cockpit: CockpitService,
     private readonly pdf: PdfService,
+    private readonly recruitment: RecruitmentService,
   ) {}
+
+  @Get('recruitment')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'kku-tcas-funnel', name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID' },
+    ],
+    methodologyVersion: 'recruitment-rollup.v1',
+  })
+  async recruitmentRollup(
+    @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
+  ) {
+    // Reuse the RecruitmentService — it already supports a facultyId
+    // filter. University scope leaves filters empty; faculty scope
+    // narrows to that faculty. Department scope falls through to
+    // university (the recruitment data is per-program, not
+    // per-department, since CURR_ID maps to programs not departments).
+    return this.recruitment.getDashboard({
+      facultyId: q.scope === 'faculty' ? (q.scopeId ?? null) : null,
+    });
+  }
 
   @Get('kpis')
   @Authorized('programs:read:all')
