@@ -168,18 +168,30 @@ export async function computeHealthScores(
     // doesn't expose. Faculty/dept/uni scopes still use the MV.
     const isProgram = childScope === 'program';
 
+    // Pick the latest year that ACTUALLY has data for this family,
+    // not just the latest year in the MV's union-of-years column. The
+    // MV creates a row per (scope × year) for every distinct year
+    // across enrollment ∪ financial ∪ outcomes; the freshest family
+    // pulls forward the year axis, leaving NULL columns for the lagging
+    // families. Without this filter, the LAGGING family (typically
+    // outcomes — the survey runs ~6mo after the academic year) reads
+    // null because its row at the latest universe-wide year is empty.
+    const latestEnrolment = latestWith(enrollment, (r) => r.enrolledTotal !== null);
+    const latestFinancial = latestWith(financialsAgg, (r) => r.netContributionTotal !== null);
+    const latestOutcomes = latestWith(outcomes, (r) => r.employmentRateWeighted !== null);
+
     const attractiveness = isProgram
       ? await scoreAttractivenessProgram(child.id)
-      : scoreAttractivenessScope(enrollment.at(-1) ?? null);
+      : scoreAttractivenessScope(latestEnrolment);
     const financial = isProgram
       ? await scoreFinancialProgram(child.id, enrollment)
-      : scoreFinancialScope(financialsAgg.at(-1) ?? null);
+      : scoreFinancialScope(latestFinancial);
     const capability = isProgram
       ? await scoreCapabilityProgram(child.id)
       : await scoreCapabilityScope(child.id, childScope);
     const outcomesScore = isProgram
-      ? await scoreOutcomesProgram(child.id, outcomes.at(-1) ?? null)
-      : scoreOutcomesScope(outcomes.at(-1) ?? null);
+      ? await scoreOutcomesProgram(child.id, latestOutcomes)
+      : scoreOutcomesScope(latestOutcomes);
     const relevance = isProgram
       ? await scoreRelevanceProgram(child.id, programAlignment.get(child.id) ?? null)
       : await scoreRelevanceScope(child.id, childScope, programAlignment);
@@ -207,6 +219,17 @@ export async function computeHealthScores(
     });
   }
   return rows;
+}
+
+// Pick the most recent year-row in a metric series that actually
+// satisfies `predicate`. Falls back to null when no row qualifies.
+// MV rows are ordered ASC by year, so we walk backwards from the tail.
+function latestWith<T>(rows: T[], predicate: (r: T) => boolean): T | null {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i]!;
+    if (predicate(r)) return r;
+  }
+  return null;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
