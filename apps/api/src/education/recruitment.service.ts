@@ -20,7 +20,13 @@ export interface RecruitmentFilters {
 }
 
 export interface FunnelTotals {
+  /** Per-round ENROLLSEAT, summed. Intentionally over-allocated vs the
+   *  registrar's actual annual plan to compensate for no-show. */
   seats: number;
+  /** PLAN_PER_YEAR — the registrar's actual annual seat target.
+   *  Aggregated as SUM(MAX_per_program) so each program contributes
+   *  its plan once regardless of how many rounds it has. */
+  planPerYear: number;
   applicants: number;
   passed: number;
   sendCh: number;
@@ -63,6 +69,10 @@ export interface ProgramDrillRow {
   round: string;
   entryYearBE: number;
   enrollSeats: number | null;
+  /** Annual planned seats — same value across rounds of the same
+   *  (program × year), shown on every row so analyst can see the
+   *  per-round allocation against the year target. */
+  planPerYear: number | null;
   totalApplicants: number | null;
   totalPassed: number | null;
   sendClearinghouse: number | null;
@@ -164,9 +174,12 @@ export class RecruitmentService {
     filters: RecruitmentFilters,
   ): Promise<FunnelTotals> {
     const programFilter = this.programFilter(filters);
+    // PLAN_PER_YEAR must sum-MAX-by-program (not multi-count across
+    // rounds). Funnel columns sum across all rows. Two CTEs.
     const rows = await prisma.$queryRaw<
       Array<{
         seats: bigint | null;
+        plan_per_year: bigint | null;
         applicants: bigint | null;
         passed: bigint | null;
         send_ch: bigint | null;
@@ -177,25 +190,39 @@ export class RecruitmentService {
         programs: bigint;
       }>
     >`
-      SELECT
-        COALESCE(SUM(f.enroll_seats), 0)::bigint AS seats,
-        COALESCE(SUM(f.total_applicants), 0)::bigint AS applicants,
-        COALESCE(SUM(f.total_passed), 0)::bigint AS passed,
-        COALESCE(SUM(f.send_clearinghouse), 0)::bigint AS send_ch,
-        COALESCE(SUM(f.confirm_clearinghouse), 0)::bigint AS confirm_ch,
-        COALESCE(SUM(f.send_reg_reported), 0)::bigint AS send_reg,
-        COALESCE(SUM(f.reg_reported), 0)::bigint AS reg_reported,
-        COUNT(*)::bigint AS rounds,
-        COUNT(DISTINCT f.program_id)::bigint AS programs
-      FROM tcas_admission_funnels f
-      JOIN programs p ON p.id = f.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND f.entry_year_be = ${year}
-        ${programFilter};
+      WITH eligible AS (
+        SELECT f.*
+        FROM tcas_admission_funnels f
+        JOIN programs p ON p.id = f.program_id
+        WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+          AND f.entry_year_be = ${year}
+          ${programFilter}
+      ),
+      per_program AS (
+        SELECT program_id, MAX(plan_per_year) AS plan_per_year
+        FROM eligible WHERE program_id IS NOT NULL GROUP BY program_id
+      ),
+      funnel AS (
+        SELECT
+          COALESCE(SUM(enroll_seats), 0)::bigint AS seats,
+          COALESCE(SUM(total_applicants), 0)::bigint AS applicants,
+          COALESCE(SUM(total_passed), 0)::bigint AS passed,
+          COALESCE(SUM(send_clearinghouse), 0)::bigint AS send_ch,
+          COALESCE(SUM(confirm_clearinghouse), 0)::bigint AS confirm_ch,
+          COALESCE(SUM(send_reg_reported), 0)::bigint AS send_reg,
+          COALESCE(SUM(reg_reported), 0)::bigint AS reg_reported,
+          COUNT(*)::bigint AS rounds,
+          COUNT(DISTINCT program_id)::bigint AS programs
+        FROM eligible
+      )
+      SELECT funnel.*,
+        (SELECT COALESCE(SUM(plan_per_year), 0)::bigint FROM per_program) AS plan_per_year
+      FROM funnel;
     `;
     const r = rows[0];
     return {
       seats: Number(r?.seats ?? 0n),
+      planPerYear: Number(r?.plan_per_year ?? 0n),
       applicants: Number(r?.applicants ?? 0n),
       passed: Number(r?.passed ?? 0n),
       sendCh: Number(r?.send_ch ?? 0n),
@@ -212,6 +239,8 @@ export class RecruitmentService {
     filters: RecruitmentFilters,
   ): Promise<FacultyRow[]> {
     const programFilter = this.programFilter(filters);
+    // Two-stage aggregation: roll PLAN_PER_YEAR up by MAX-per-program,
+    // then SUM into the faculty bucket alongside the per-row funnel sums.
     const rows = await prisma.$queryRaw<
       Array<{
         faculty_id: string;
@@ -220,6 +249,7 @@ export class RecruitmentService {
         faculty_name_en: string;
         program_count: bigint;
         seats: bigint | null;
+        plan_per_year: bigint | null;
         applicants: bigint | null;
         passed: bigint | null;
         send_ch: bigint | null;
@@ -229,28 +259,49 @@ export class RecruitmentService {
         rounds: bigint;
       }>
     >`
+      WITH eligible AS (
+        SELECT f.*, p.faculty_id AS faculty_id
+        FROM tcas_admission_funnels f
+        JOIN programs p ON p.id = f.program_id
+        WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+          AND f.entry_year_be = ${year}
+          ${programFilter}
+      ),
+      per_program AS (
+        SELECT faculty_id, program_id, MAX(plan_per_year) AS plan_per_year
+        FROM eligible WHERE program_id IS NOT NULL
+        GROUP BY faculty_id, program_id
+      ),
+      plan_by_fac AS (
+        SELECT faculty_id, COALESCE(SUM(plan_per_year), 0)::bigint AS plan_per_year
+        FROM per_program GROUP BY faculty_id
+      ),
+      funnel_by_fac AS (
+        SELECT
+          e.faculty_id,
+          COUNT(DISTINCT e.program_id)::bigint AS program_count,
+          COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
+          COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
+          COALESCE(SUM(e.total_passed), 0)::bigint AS passed,
+          COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
+          COALESCE(SUM(e.confirm_clearinghouse), 0)::bigint AS confirm_ch,
+          COALESCE(SUM(e.send_reg_reported), 0)::bigint AS send_reg,
+          COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported,
+          COUNT(*)::bigint AS rounds
+        FROM eligible e GROUP BY e.faculty_id
+      )
       SELECT
         fac.id AS faculty_id,
         fac.code AS faculty_code,
         fac.name_th AS faculty_name_th,
         fac.name_en AS faculty_name_en,
-        COUNT(DISTINCT f.program_id)::bigint AS program_count,
-        COALESCE(SUM(f.enroll_seats), 0)::bigint AS seats,
-        COALESCE(SUM(f.total_applicants), 0)::bigint AS applicants,
-        COALESCE(SUM(f.total_passed), 0)::bigint AS passed,
-        COALESCE(SUM(f.send_clearinghouse), 0)::bigint AS send_ch,
-        COALESCE(SUM(f.confirm_clearinghouse), 0)::bigint AS confirm_ch,
-        COALESCE(SUM(f.send_reg_reported), 0)::bigint AS send_reg,
-        COALESCE(SUM(f.reg_reported), 0)::bigint AS reg_reported,
-        COUNT(*)::bigint AS rounds
-      FROM tcas_admission_funnels f
-      JOIN programs p ON p.id = f.program_id
-      JOIN faculties fac ON fac.id = p.faculty_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND f.entry_year_be = ${year}
-        ${programFilter}
-      GROUP BY fac.id, fac.code, fac.name_th, fac.name_en
-      ORDER BY applicants DESC;
+        fb.program_count, fb.seats, fb.applicants, fb.passed, fb.send_ch,
+        fb.confirm_ch, fb.send_reg, fb.reg_reported, fb.rounds,
+        COALESCE(pf.plan_per_year, 0)::bigint AS plan_per_year
+      FROM funnel_by_fac fb
+      JOIN faculties fac ON fac.id = fb.faculty_id
+      LEFT JOIN plan_by_fac pf ON pf.faculty_id = fb.faculty_id
+      ORDER BY fb.applicants DESC;
     `;
     return rows.map((r) => ({
       facultyId: r.faculty_id,
@@ -260,6 +311,7 @@ export class RecruitmentService {
       programCount: Number(r.program_count),
       totals: {
         seats: Number(r.seats ?? 0n),
+        planPerYear: Number(r.plan_per_year ?? 0n),
         applicants: Number(r.applicants ?? 0n),
         passed: Number(r.passed ?? 0n),
         sendCh: Number(r.send_ch ?? 0n),
@@ -314,6 +366,9 @@ export class RecruitmentService {
       round: r.round,
       totals: {
         seats: Number(r.seats ?? 0n),
+        // PLAN_PER_YEAR is annual, not per-round — set 0 here. The
+        // round breakdown table doesn't render this column anyway.
+        planPerYear: 0,
         applicants: Number(r.applicants ?? 0n),
         passed: Number(r.passed ?? 0n),
         sendCh: Number(r.send_ch ?? 0n),
@@ -334,6 +389,7 @@ export class RecruitmentService {
       Array<{
         entry_year_be: number;
         seats: bigint | null;
+        plan_per_year: bigint | null;
         applicants: bigint | null;
         passed: bigint | null;
         send_ch: bigint | null;
@@ -342,29 +398,42 @@ export class RecruitmentService {
         reg_reported: bigint | null;
         rounds: bigint;
         programs: bigint;
-        with_reg: bigint;
-        min_reg: number | null;
       }>
     >`
-      SELECT
-        f.entry_year_be,
-        COALESCE(SUM(f.enroll_seats), 0)::bigint AS seats,
-        COALESCE(SUM(f.total_applicants), 0)::bigint AS applicants,
-        COALESCE(SUM(f.total_passed), 0)::bigint AS passed,
-        COALESCE(SUM(f.send_clearinghouse), 0)::bigint AS send_ch,
-        COALESCE(SUM(f.confirm_clearinghouse), 0)::bigint AS confirm_ch,
-        COALESCE(SUM(f.send_reg_reported), 0)::bigint AS send_reg,
-        COALESCE(SUM(f.reg_reported), 0)::bigint AS reg_reported,
-        COUNT(*)::bigint AS rounds,
-        COUNT(DISTINCT f.program_id)::bigint AS programs,
-        COUNT(f.reg_reported)::bigint AS with_reg,
-        MIN(f.reg_reported) AS min_reg
-      FROM tcas_admission_funnels f
-      JOIN programs p ON p.id = f.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        ${programFilter}
-      GROUP BY f.entry_year_be
-      ORDER BY f.entry_year_be ASC;
+      WITH eligible AS (
+        SELECT f.*
+        FROM tcas_admission_funnels f
+        JOIN programs p ON p.id = f.program_id
+        WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+          ${programFilter}
+      ),
+      per_program_year AS (
+        SELECT entry_year_be, program_id, MAX(plan_per_year) AS plan_per_year
+        FROM eligible WHERE program_id IS NOT NULL
+        GROUP BY entry_year_be, program_id
+      ),
+      plan_by_year AS (
+        SELECT entry_year_be, COALESCE(SUM(plan_per_year), 0)::bigint AS plan_per_year
+        FROM per_program_year GROUP BY entry_year_be
+      ),
+      funnel_by_year AS (
+        SELECT
+          e.entry_year_be,
+          COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
+          COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
+          COALESCE(SUM(e.total_passed), 0)::bigint AS passed,
+          COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
+          COALESCE(SUM(e.confirm_clearinghouse), 0)::bigint AS confirm_ch,
+          COALESCE(SUM(e.send_reg_reported), 0)::bigint AS send_reg,
+          COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported,
+          COUNT(*)::bigint AS rounds,
+          COUNT(DISTINCT e.program_id)::bigint AS programs
+        FROM eligible e GROUP BY e.entry_year_be
+      )
+      SELECT fy.*, COALESCE(py.plan_per_year, 0)::bigint AS plan_per_year
+      FROM funnel_by_year fy
+      LEFT JOIN plan_by_year py ON py.entry_year_be = fy.entry_year_be
+      ORDER BY fy.entry_year_be ASC;
     `;
     return rows.map((r) => {
       const isComplete = this.isYearComplete(r.entry_year_be);
@@ -373,6 +442,7 @@ export class RecruitmentService {
         isComplete,
         totals: {
           seats: Number(r.seats ?? 0n),
+          planPerYear: Number(r.plan_per_year ?? 0n),
           applicants: Number(r.applicants ?? 0n),
           passed: Number(r.passed ?? 0n),
           sendCh: Number(r.send_ch ?? 0n),
@@ -442,6 +512,7 @@ export class RecruitmentService {
           round: r.round,
           entryYearBE: r.entryYearBE,
           enrollSeats: r.enrollSeats,
+          planPerYear: r.planPerYear,
           totalApplicants: r.totalApplicants,
           totalPassed: r.totalPassed,
           sendClearinghouse: r.sendClearinghouse,
@@ -469,6 +540,7 @@ export class RecruitmentService {
     if (selectedYear === null) {
       const empty: FunnelTotals = {
         seats: 0,
+        planPerYear: 0,
         applicants: 0,
         passed: 0,
         sendCh: 0,

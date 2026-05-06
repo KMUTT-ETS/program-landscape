@@ -16,6 +16,10 @@ import { ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
 
 interface FunnelTotals {
   seats: number;
+  /** Annual planned seats — the registrar's actual target, smaller
+   *  than `seats` (per-round allocation deliberately over-allocated
+   *  to compensate for no-show). */
+  planPerYear: number;
   applicants: number;
   passed: number;
   sendCh: number;
@@ -58,6 +62,7 @@ interface ProgramDrillRow {
   round: string;
   entryYearBE: number;
   enrollSeats: number | null;
+  planPerYear: number | null;
   totalApplicants: number | null;
   totalPassed: number | null;
   sendClearinghouse: number | null;
@@ -105,7 +110,8 @@ const LEVELS = [
 ] as const;
 
 const FUNNEL_LABELS = [
-  'Seats (quota)',
+  'Planned seats (annual)',
+  'Allocated seats (rounds)',
   'Applicants',
   'Passed',
   'Send to Clearinghouse',
@@ -368,6 +374,10 @@ function KpiStrip({
   kpis: RecruitmentDashboardPayload['kpis'];
   year: number | null;
 }) {
+  const overAlloc =
+    kpis.planPerYear > 0 ? kpis.seats / kpis.planPerYear : null;
+  const yieldVsPlan =
+    kpis.planPerYear > 0 ? kpis.regReported / kpis.planPerYear : null;
   const tiles: Array<{ label: string; value: string; sub?: string; tone?: 'positive' | 'warning' }> = [
     {
       label: 'Programs',
@@ -375,9 +385,17 @@ function KpiStrip({
       sub: `${kpis.rounds} program × round rows`,
     },
     {
-      label: 'Seats',
+      label: 'Planned seats',
+      value: kpis.planPerYear.toLocaleString('en-US'),
+      sub: 'annual target (PLAN_PER_YEAR)',
+    },
+    {
+      label: 'Allocated seats',
       value: kpis.seats.toLocaleString('en-US'),
-      sub: 'admission quota',
+      sub:
+        overAlloc !== null
+          ? `${overAlloc.toFixed(2)}× over-allocated for no-show`
+          : 'sum across rounds',
     },
     {
       label: 'Applicants',
@@ -387,13 +405,16 @@ function KpiStrip({
     {
       label: 'Reported in',
       value: kpis.regReported.toLocaleString('en-US'),
-      sub: kpis.regYield !== null ? `${(kpis.regYield * 100).toFixed(0)} % yield` : undefined,
-      tone: kpis.regYield !== null && kpis.regYield < 0.5 ? 'warning' : 'positive',
-    },
-    {
-      label: 'Fill rate',
-      value: kpis.fillRate !== null ? `${(kpis.fillRate * 100).toFixed(0)} %` : '—',
-      sub: 'passed / seats',
+      sub:
+        yieldVsPlan !== null
+          ? `${(yieldVsPlan * 100).toFixed(0)} % of plan filled`
+          : kpis.regYield !== null
+            ? `${(kpis.regYield * 100).toFixed(0)} % CH yield`
+            : undefined,
+      tone:
+        yieldVsPlan !== null && yieldVsPlan < 1
+          ? 'warning'
+          : 'positive',
     },
     {
       label: 'BE year',
@@ -429,6 +450,7 @@ function KpiStrip({
 
 function buildFunnelStages(kpis: RecruitmentDashboardPayload['kpis']): FunnelStage[] {
   const values = [
+    kpis.planPerYear,
     kpis.seats,
     kpis.applicants,
     kpis.passed,
@@ -557,20 +579,31 @@ function FacultyRollupTable({ rows }: { rows: FacultyRow[] }) {
         <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
           <tr>
             <th className="px-4 py-2 text-left">Faculty</th>
-            <th className="px-4 py-2 text-right">Programs</th>
-            <th className="px-4 py-2 text-right">Seats</th>
+            <th className="px-4 py-2 text-right">Progs</th>
+            <th className="px-4 py-2 text-right" title="Annual plan target (PLAN_PER_YEAR)">Plan</th>
+            <th className="px-4 py-2 text-right" title="Sum of ENROLLSEAT across rounds (over-allocated to compensate no-show)">Allocated</th>
+            <th className="px-4 py-2 text-right">Over-alloc</th>
             <th className="px-4 py-2 text-right">Applicants</th>
             <th className="px-4 py-2 text-right">Comp. ratio</th>
             <th className="px-4 py-2 text-right">Reported in</th>
-            <th className="px-4 py-2 text-right">Reg yield</th>
-            <th className="px-4 py-2 text-left">Distribution</th>
+            <th className="px-4 py-2 text-right" title="Reported in / Planned seats — % of annual target filled">vs Plan</th>
+            <th className="px-4 py-2 text-left">Applicants distribution</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border-subtle">
           {rows.map((r) => {
             const ratio = r.totals.seats > 0 ? r.totals.applicants / r.totals.seats : 0;
-            const yieldR = r.totals.sendCh > 0 ? r.totals.regReported / r.totals.sendCh : null;
+            const overAlloc = r.totals.planPerYear > 0 ? r.totals.seats / r.totals.planPerYear : null;
+            const yieldVsPlan = r.totals.planPerYear > 0 ? r.totals.regReported / r.totals.planPerYear : null;
             const w = (r.totals.applicants / maxApps) * 100;
+            const planClass =
+              yieldVsPlan === null
+                ? ''
+                : yieldVsPlan >= 1
+                  ? 'text-positive'
+                  : yieldVsPlan >= 0.85
+                    ? 'text-warning'
+                    : 'text-danger';
             return (
               <tr key={r.facultyId} className="hover:bg-surface-1">
                 <td className="px-4 py-2">
@@ -578,12 +611,16 @@ function FacultyRollupTable({ rows }: { rows: FacultyRow[] }) {
                   <div className="text-xs text-text-secondary">{r.facultyNameEn}</div>
                 </td>
                 <td className="px-4 py-2 text-right font-tabular">{r.programCount}</td>
+                <td className="px-4 py-2 text-right font-tabular">{r.totals.planPerYear.toLocaleString()}</td>
                 <td className="px-4 py-2 text-right font-tabular">{r.totals.seats.toLocaleString()}</td>
+                <td className="px-4 py-2 text-right font-tabular text-text-tertiary">
+                  {overAlloc === null ? '—' : `${overAlloc.toFixed(2)}×`}
+                </td>
                 <td className="px-4 py-2 text-right font-tabular">{r.totals.applicants.toLocaleString()}</td>
                 <td className="px-4 py-2 text-right font-tabular">{ratio.toFixed(1)}×</td>
                 <td className="px-4 py-2 text-right font-tabular">{r.totals.regReported.toLocaleString()}</td>
-                <td className="px-4 py-2 text-right font-tabular">
-                  {yieldR === null ? '—' : `${(yieldR * 100).toFixed(0)}%`}
+                <td className={`px-4 py-2 text-right font-tabular font-semibold ${planClass}`}>
+                  {yieldVsPlan === null ? '—' : `${(yieldVsPlan * 100).toFixed(0)}%`}
                 </td>
                 <td className="px-4 py-2">
                   <div className="h-2 w-full rounded bg-surface-2">
@@ -648,8 +685,8 @@ function RoundBreakdownTable({ rows }: { rows: RoundRow[] }) {
 }
 
 type SortKey =
-  | 'programCode' | 'level' | 'round' | 'enrollSeats' | 'totalApplicants'
-  | 'competitionRatio' | 'totalPassed' | 'sendClearinghouse'
+  | 'programCode' | 'level' | 'round' | 'enrollSeats' | 'planPerYear'
+  | 'totalApplicants' | 'competitionRatio' | 'totalPassed' | 'sendClearinghouse'
   | 'confirmClearinghouse' | 'regReported' | 'registrationYield';
 
 function ProgramDrillTable({ rows }: { rows: ProgramDrillRow[] }) {
@@ -740,6 +777,7 @@ function ProgramDrillTable({ rows }: { rows: ProgramDrillRow[] }) {
               <SortHeader label="Code · Name" k="programCode" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader label="Level" k="level" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader label="Round" k="round" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+              <SortHeader label="Plan/yr" k="planPerYear" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
               <SortHeader label="Seats" k="enrollSeats" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
               <SortHeader label="Applicants" k="totalApplicants" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
               <SortHeader label="Comp. ratio" k="competitionRatio" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
@@ -788,7 +826,19 @@ function SortHeader({
 function ProgramGroup({ programCode, items }: { programCode: string; items: ProgramDrillRow[] }) {
   const [open, setOpen] = React.useState(false);
   const head = items[0]!;
-  // Aggregate the program across rounds for the header row
+  // Aggregate the program across rounds for the header row. PLAN_PER_YEAR
+  // is annual — take MAX (constant across rounds for the same year),
+  // never SUM.
+  const planPerYear =
+    items.reduce<number | null>(
+      (acc, r) =>
+        r.planPerYear === null
+          ? acc
+          : acc === null
+            ? r.planPerYear
+            : Math.max(acc, r.planPerYear),
+      null,
+    ) ?? 0;
   const totals = items.reduce(
     (acc, r) => ({
       seats: acc.seats + (r.enrollSeats ?? 0),
@@ -801,7 +851,7 @@ function ProgramGroup({ programCode, items }: { programCode: string; items: Prog
     { seats: 0, apps: 0, passed: 0, sendCh: 0, confirmCh: 0, reg: 0 },
   );
   const ratio = totals.seats > 0 ? totals.apps / totals.seats : null;
-  const yieldR = totals.sendCh > 0 ? totals.reg / totals.sendCh : null;
+  const yieldVsPlan = planPerYear > 0 ? totals.reg / planPerYear : null;
 
   return (
     <>
@@ -820,6 +870,7 @@ function ProgramGroup({ programCode, items }: { programCode: string; items: Prog
         </td>
         <td className="px-3 py-2 text-xs">{head.level}</td>
         <td className="px-3 py-2 text-right text-xs text-text-tertiary">{items.length} rounds</td>
+        <td className="px-3 py-2 text-right font-tabular">{planPerYear || '—'}</td>
         <td className="px-3 py-2 text-right font-tabular">{totals.seats.toLocaleString()}</td>
         <td className="px-3 py-2 text-right font-tabular">{totals.apps.toLocaleString()}</td>
         <td className="px-3 py-2 text-right font-tabular">{ratio === null ? '—' : `${ratio.toFixed(1)}×`}</td>
@@ -827,7 +878,7 @@ function ProgramGroup({ programCode, items }: { programCode: string; items: Prog
         <td className="px-3 py-2 text-right font-tabular">{totals.sendCh.toLocaleString()}</td>
         <td className="px-3 py-2 text-right font-tabular">{totals.confirmCh.toLocaleString()}</td>
         <td className="px-3 py-2 text-right font-tabular">{totals.reg.toLocaleString()}</td>
-        <td className="px-3 py-2 text-right font-tabular">{yieldR === null ? '—' : `${(yieldR * 100).toFixed(0)}%`}</td>
+        <td className="px-3 py-2 text-right font-tabular">{yieldVsPlan === null ? '—' : `${(yieldVsPlan * 100).toFixed(0)}%`}</td>
         <td className="px-2 py-2">
           <Link
             href={`/programs/${head.programId}`}
@@ -863,6 +914,7 @@ function DrillRow({ r, indent }: { r: ProgramDrillRow; indent: boolean }) {
       </td>
       <td className="px-3 py-1.5">{r.level}</td>
       <td className="px-3 py-1.5 text-right font-tabular">{r.round}</td>
+      <td className="px-3 py-1.5 text-right font-tabular text-text-tertiary">{r.planPerYear ?? '—'}</td>
       <td className="px-3 py-1.5 text-right font-tabular">{r.enrollSeats ?? '—'}</td>
       <td className="px-3 py-1.5 text-right font-tabular">{r.totalApplicants ?? '—'}</td>
       <td className="px-3 py-1.5 text-right font-tabular">{ratio === null ? '—' : `${ratio.toFixed(1)}×`}</td>

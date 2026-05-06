@@ -3414,8 +3414,18 @@ model TcasAdmissionFunnel {
   round                String
   /// Buddhist Era entry year (e.g. 2568 for the 2025 cohort).
   entryYearBE          Int      @map("entry_year_be")
-  /// จำนวนรับ — admission seats / quota.
+  /// จำนวนรับ — admission seats allocated to THIS round. Sum across
+  /// rounds in a year is intentionally LARGER than `planPerYear` —
+  /// the registrar over-allocates to compensate for no-show. The
+  /// observed over-allocation factor at KKU sits around 1.5–2.0×
+  /// (BE 2568: 1.65×).
   enrollSeats          Int?     @map("enroll_seats")
+  /// PLAN_PER_YEAR — the registrar's actual annual seat target for
+  /// the program (year-level value). Same value repeats across rounds
+  /// of the same (CURR_ID × ACADYEAR), with rare drift across rounds
+  /// when the plan is revised mid-cycle (~1% of cases). Use MAX()
+  /// when aggregating per program to collapse those cases.
+  planPerYear          Int?     @map("plan_per_year")
   /// จำนวนผู้สมัคร — total applicants.
   totalApplicants      Int?     @map("total_applicants")
   /// TOTAL_PASS — total who passed the round.
