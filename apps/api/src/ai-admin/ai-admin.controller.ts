@@ -6,7 +6,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { Prisma, prisma, materialiseProgramDigest } from '@kku/db';
+import { Prisma, prisma, materialiseProgramDigest, materialiseImdRankings } from '@kku/db';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import {
@@ -117,6 +117,17 @@ export class AiAdminController {
         // The error surfaces in the API response so the reviewer can
         // re-trigger via the admin UI's "Re-materialise" action (lands
         // in Phase 4.2 alongside the per-program detail page).
+        return {
+          ...updated,
+          materialisationError: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
+    if (updated.extractionKind === 'IMD_RANKINGS') {
+      try {
+        const result = await materialiseImdRankings(id);
+        return { ...updated, materialisation: result };
+      } catch (err) {
         return {
           ...updated,
           materialisationError: err instanceof Error ? err.message : String(err),

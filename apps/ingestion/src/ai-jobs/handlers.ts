@@ -17,6 +17,7 @@ import {
   type S3Storage,
 } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
+import { runImdRankingsExtract } from '../imd-rankings-extract/run';
 import type { AiJobKind, ProgramPipelinePhase } from './queue';
 
 // Each handler consumes one job, calls the AI service, writes an
@@ -349,6 +350,40 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       return {
         status: 'FAILED',
         message: `pipeline exited with code ${exitCode}; log=${logPath}`,
+      };
+    },
+
+    RUN_IMD_RANKINGS_EXTRACT: async ({ entityId, triggeredByUserId }) => {
+      // entityId is a PdfDocument id. Reads the PDF from MinIO, calls
+      // the imd-rankings.v1 extractor, and writes an AiExtraction row
+      // (kind=IMD_RANKINGS) for analyst review at /admin/extraction-review.
+      // Approving the extraction triggers materialiseImdRankings, which
+      // upserts ImdEconomy + ImdRanking rows.
+      if (!deps.storage) {
+        return { status: 'FAILED', message: 'AiJobsHandlersDeps.storage missing — cannot read PDF' };
+      }
+      const outcome = await runImdRankingsExtract({
+        pdfDocumentId: entityId,
+        ai: deps.ai,
+        storage: deps.storage,
+        triggeredByUserId,
+      });
+      if (outcome.status === 'SUCCEEDED') {
+        logger.log(
+          `RUN_IMD_RANKINGS_EXTRACT pdfId=${entityId} ` +
+            `extractionId=${outcome.aiExtractionId} ` +
+            `rows=${outcome.rowsExtracted} conf=${outcome.confidence.toFixed(2)} ` +
+            `$${outcome.costUsd.toFixed(4)}`,
+        );
+        return {
+          status: 'SUCCEEDED',
+          aiExtractionId: outcome.aiExtractionId,
+          aiInferenceId: outcome.aiInferenceId ?? undefined,
+        };
+      }
+      return {
+        status: outcome.status,
+        message: outcome.reason,
       };
     },
   };

@@ -24,7 +24,8 @@ export type AiJobKind =
   | 'EXTRACT_JOB_POSTING_SKILLS'
   | 'ANALYZE_POLICY_DOC'
   | 'RUN_PROGRAM_DIGEST'
-  | 'RUN_PROGRAM_PIPELINE';
+  | 'RUN_PROGRAM_PIPELINE'
+  | 'RUN_IMD_RANKINGS_EXTRACT';
 
 export type ProgramPipelinePhase =
   | 'phase1'

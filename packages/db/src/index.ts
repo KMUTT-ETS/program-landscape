@@ -30,3 +30,4 @@ export * from './canonical-programs';
 export * from './currently-enrolled';
 export * from './student-status';
 export * from './imd-rankings';
+export * from './imd-materialize';

@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
+import { ImdUploadWidget } from './imd-upload';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data Source — Stats' };
@@ -88,6 +89,8 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
           </span>
         }
       />
+
+      {stats.slug === 'imd-rankings' && <ImdUploadWidget />}
 
       <Section title="Health (7d)">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
