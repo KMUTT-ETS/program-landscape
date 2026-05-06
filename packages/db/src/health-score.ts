@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import type { ScopeLevel } from './scope';
 import { prisma } from './index';
@@ -176,13 +177,16 @@ export async function computeHealthScores(
     // families. Without this filter, the LAGGING family (typically
     // outcomes — the survey runs ~6mo after the academic year) reads
     // null because its row at the latest universe-wide year is empty.
-    const latestEnrolment = latestWith(enrollment, (r) => r.enrolledTotal !== null);
+    // (Attractiveness pulls TCAS directly per scope — see
+    // scoreAttractivenessScope — so we don't pre-pick an enrolment row
+    // for it. Financial / outcomes still pivot on the latest year that
+    // actually has data for that family.)
     const latestFinancial = latestWith(financialsAgg, (r) => r.netContributionTotal !== null);
     const latestOutcomes = latestWith(outcomes, (r) => r.employmentRateWeighted !== null);
 
     const attractiveness = isProgram
       ? await scoreAttractivenessProgram(child.id)
-      : scoreAttractivenessScope(latestEnrolment);
+      : await scoreAttractivenessScope(childScope, child.id);
     const financial = isProgram
       ? await scoreFinancialProgram(child.id, enrollment)
       : scoreFinancialScope(latestFinancial);
@@ -433,23 +437,90 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   return summariseDrivers(drivers);
 }
 
-function scoreAttractivenessScope(row: MetricRow | null): HealthScore {
-  // Faculty/dept/uni-level fallback — uses MV-aggregated funnel +
-  // retention proxies until per-scope TCAS aggregation lands.
+async function scoreAttractivenessScope(
+  scope: ScopeLevel,
+  scopeId: string,
+): Promise<HealthScore> {
+  // Faculty/dept/uni attractiveness = TCAS funnel aggregated over
+  // canonical+ACTIVE programs at the scope, latest entry year only.
+  //
+  // The MV-funnel columns (applications_total, admitted_total,
+  // retained_year2_total) are kept sentinel-zero by the kku-registry
+  // connector — registrar views can't fill upstream funnel data, so
+  // the previous MV-based scoring returned null for every faculty.
+  // TCAS data IS rich (~600 rows across canonical programs after the
+  // tcas-stat connector lands), so we aggregate it directly here.
+  //
+  // Two drivers (equal-weighted in summariseDrivers):
+  //   - tcas_competition_ratio = applicants / quota
+  //       → ≥10× : 100  (highly competitive)
+  //       → 5×   : 70
+  //       → 2×   : 40
+  //       → 1×   : 20
+  //       → <1×  : 0    (more seats than applicants)
+  //   - tcas_fill_rate = admitted_total / quota
+  //       → 0.5+ : 100  (typical for selective programs that
+  //                       deliberately admit only top candidates)
+  //       → linear-from-0 below that
+  const facultyFilter =
+    scope === 'faculty' ? Prisma.sql`AND p.faculty_id = ${scopeId}` : Prisma.empty;
+  const deptFilter =
+    scope === 'department' ? Prisma.sql`AND p.department_id = ${scopeId}` : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<
+    Array<{ applicants: bigint | null; admitted: bigint | null; quota: bigint | null }>
+  >`
+    WITH latest AS (
+      SELECT MAX(entry_year_be) AS y FROM tcas_admission_stats t
+      JOIN programs p ON p.id = t.program_id
+      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+        ${facultyFilter}
+        ${deptFilter}
+    )
+    SELECT
+      COALESCE(SUM(t.applicants), 0)::bigint AS applicants,
+      COALESCE(SUM(t.admitted_pass1 + t.admitted_pass2), 0)::bigint AS admitted,
+      COALESCE(SUM(t.quota), 0)::bigint AS quota
+    FROM tcas_admission_stats t
+    JOIN programs p ON p.id = t.program_id
+    JOIN latest l ON t.entry_year_be = l.y
+    WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+      ${facultyFilter}
+      ${deptFilter};
+  `;
+
+  const r = rows[0];
+  const applicants = Number(r?.applicants ?? 0n);
+  const admitted = Number(r?.admitted ?? 0n);
+  const quota = Number(r?.quota ?? 0n);
+
+  const competitionRatio = quota > 0 ? applicants / quota : null;
+  const fillRate = quota > 0 ? admitted / quota : null;
+
   const drivers = [
     {
-      label: 'admission_yield',
-      value: row?.admittedTotal && row.applicationsTotal
-        ? clamp(((row.admittedTotal / row.applicationsTotal) / 0.3) * 100)
-        : null,
-      raw: row?.applicationsTotal,
+      label: 'tcas_competition_ratio',
+      value: competitionRatio === null
+        ? null
+        : competitionRatio >= 10
+          ? 100
+          : competitionRatio >= 5
+            ? 70 + ((competitionRatio - 5) / 5) * 30
+            : competitionRatio >= 2
+              ? 40 + ((competitionRatio - 2) / 3) * 30
+              : competitionRatio >= 1
+                ? 20 + (competitionRatio - 1) * 20
+                : Math.max(0, competitionRatio * 20),
+      raw: { applicants, quota, competitionRatio },
     },
     {
-      label: 'retention_year2',
-      value: row?.retainedYear2Total && row.enrolledTotal
-        ? clamp((row.retainedYear2Total / row.enrolledTotal) * 100)
-        : null,
-      raw: row?.retainedYear2Total,
+      label: 'tcas_fill_rate',
+      value: fillRate === null
+        ? null
+        : fillRate >= 0.5
+          ? 100
+          : clamp((fillRate / 0.5) * 100),
+      raw: { admitted, quota, fillRate },
     },
   ];
   return summariseDrivers(drivers);
