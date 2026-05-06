@@ -655,7 +655,7 @@ async function scoreAttractivenessScope(
       send_ch: bigint | null;
       reg_reported: bigint | null;
     }>
-  >`
+  >(Prisma.sql`
     WITH eligible AS (
       SELECT
         t.entry_year_be,
@@ -676,7 +676,7 @@ async function scoreAttractivenessScope(
       COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported
     FROM eligible e
     JOIN latest_complete l ON e.entry_year_be = l.y;
-  `;
+  `);
 
   const r = rows[0];
   const applicants = Number(r?.applicants ?? 0n);
