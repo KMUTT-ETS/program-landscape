@@ -138,8 +138,12 @@ export async function computeHealthScores(
   scope: ScopeLevel,
   scopeId: string | null,
 ): Promise<HealthScoreRow[]> {
-  const childScope = childScopeFor(scope);
-  const children = await resolveChildren(scope, scopeId);
+  // resolveChildren returns the EFFECTIVE child scope — usually the
+  // natural child (faculty → department → program) but can collapse
+  // a level when the org tree is incomplete (e.g., faculties whose
+  // canonical programs all have departmentId=NULL skip the department
+  // tier and return programs directly).
+  const { scope: childScope, nodes: children } = await resolveChildren(scope, scopeId);
 
   // Pre-compute KMITL alignment for every program in one pass — used
   // by the relevance dimension. Empty map when the LinkedIn-via-MHESI
@@ -240,14 +244,6 @@ function latestWith<T>(rows: T[], predicate: (r: T) => boolean): T | null {
 // Child resolution
 // ──────────────────────────────────────────────────────────────────────────
 
-function childScopeFor(scope: ScopeLevel): ScopeLevel {
-  switch (scope) {
-    case 'university': return 'faculty';
-    case 'faculty':    return 'department';
-    case 'department': return 'program';
-    case 'program':    return 'program';
-  }
-}
 
 interface ChildNode {
   id: string;
@@ -255,7 +251,15 @@ interface ChildNode {
   parentId: string | null;
 }
 
-async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promise<ChildNode[]> {
+interface ChildResolution {
+  /** Effective scope of the returned nodes — usually the natural child
+   *  scope (university → faculty → department → program), but may
+   *  collapse one level when an intermediate org tier is empty. */
+  scope: ScopeLevel;
+  nodes: ChildNode[];
+}
+
+async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promise<ChildResolution> {
   if (scope === 'university') {
     // Curriculum landscape = academic faculties that host at least one
     // canonical-297 program. Excludes:
@@ -276,14 +280,19 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
       select: { id: true, nameEn: true, nameTh: true },
       orderBy: { code: 'asc' },
     });
-    return rows.map((r) => ({ id: r.id, label: `${r.nameEn} · ${r.nameTh}`, parentId: null }));
+    return {
+      scope: 'faculty',
+      nodes: rows.map((r) => ({ id: r.id, label: `${r.nameEn} · ${r.nameTh}`, parentId: null })),
+    };
   }
   if (scope === 'faculty') {
-    if (!scopeId) return [];
-    // Same filter applied one level down — only show departments that
-    // host canonical programs so faculty rollups don't include empty
-    // research/admin sub-units inherited from the org chart.
-    const rows = await prisma.department.findMany({
+    if (!scopeId) return { scope: 'department', nodes: [] };
+    // Departments that host canonical+ACTIVE programs. When none exist
+    // (KKU master sheet seeds many programs with departmentId=NULL —
+    // 19 of 19 Engineering programs, for example), fall through to the
+    // faculty's programs directly so the cockpit drill-down still
+    // shows something instead of an empty heatmap.
+    const deptRows = await prisma.department.findMany({
       where: {
         facultyId: scopeId,
         programs: {
@@ -296,10 +305,43 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
       select: { id: true, nameEn: true, nameTh: true, facultyId: true },
       orderBy: { code: 'asc' },
     });
-    return rows.map((r) => ({ id: r.id, label: `${r.nameEn} · ${r.nameTh}`, parentId: r.facultyId }));
+    if (deptRows.length > 0) {
+      return {
+        scope: 'department',
+        nodes: deptRows.map((r) => ({
+          id: r.id,
+          label: `${r.nameEn} · ${r.nameTh}`,
+          parentId: r.facultyId,
+        })),
+      };
+    }
+    // No departments host canonical programs — list the faculty's
+    // programs directly. The childScope is normally 'department' here;
+    // but since we're returning Program nodes, the caller will treat
+    // them as program-scope. We mark this by returning Programs and
+    // the caller's childScope continues to be 'department' which means
+    // nothing tries to drill INTO these — they're terminal nodes in
+    // the rollup at this level.
+    const progRows = await prisma.program.findMany({
+      where: {
+        facultyId: scopeId,
+        status: 'ACTIVE',
+        sequenceNoFromSheet: { not: null },
+      },
+      select: { id: true, nameEn: true, nameTh: true, facultyId: true },
+      orderBy: { code: 'asc' },
+    });
+    return {
+      scope: 'program',
+      nodes: progRows.map((r) => ({
+        id: r.id,
+        label: `${r.nameEn} · ${r.nameTh}`,
+        parentId: r.facultyId,
+      })),
+    };
   }
   if (scope === 'department') {
-    if (!scopeId) return [];
+    if (!scopeId) return { scope: 'program', nodes: [] };
     const rows = await prisma.program.findMany({
       where: {
         departmentId: scopeId,
@@ -309,16 +351,26 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
       select: { id: true, nameEn: true, nameTh: true, departmentId: true },
       orderBy: { code: 'asc' },
     });
-    return rows.map((r) => ({ id: r.id, label: `${r.nameEn} · ${r.nameTh}`, parentId: r.departmentId }));
+    return {
+      scope: 'program',
+      nodes: rows.map((r) => ({
+        id: r.id,
+        label: `${r.nameEn} · ${r.nameTh}`,
+        parentId: r.departmentId,
+      })),
+    };
   }
-  if (!scopeId) return [];
+  if (!scopeId) return { scope: 'program', nodes: [] };
   const row = await prisma.program.findUnique({
     where: { id: scopeId },
     select: { id: true, nameEn: true, nameTh: true, departmentId: true },
   });
-  return row
-    ? [{ id: row.id, label: `${row.nameEn} · ${row.nameTh}`, parentId: row.departmentId }]
-    : [];
+  return {
+    scope: 'program',
+    nodes: row
+      ? [{ id: row.id, label: `${row.nameEn} · ${row.nameTh}`, parentId: row.departmentId }]
+      : [],
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -462,31 +514,36 @@ async function scoreAttractivenessScope(
   //       → 0.5+ : 100  (typical for selective programs that
   //                       deliberately admit only top candidates)
   //       → linear-from-0 below that
-  const facultyFilter =
-    scope === 'faculty' ? Prisma.sql`AND p.faculty_id = ${scopeId}` : Prisma.empty;
-  const deptFilter =
-    scope === 'department' ? Prisma.sql`AND p.department_id = ${scopeId}` : Prisma.empty;
+  // The scope predicate is interpolated EXACTLY ONCE here. A previous
+  // version reused the Prisma.sql fragment in two WHERE clauses (the
+  // CTE and the outer query), which corrupts Prisma's parameter
+  // accounting and surfaces as "syntax error at or near $1". The
+  // single-filter shape below collapses to one CTE that already
+  // pre-filters to canonical+ACTIVE programs at the requested scope.
+  const scopePredicate =
+    scope === 'faculty'
+      ? Prisma.sql`AND p.faculty_id = ${scopeId}`
+      : scope === 'department'
+        ? Prisma.sql`AND p.department_id = ${scopeId}`
+        : Prisma.empty;
 
   const rows = await prisma.$queryRaw<
     Array<{ applicants: bigint | null; admitted: bigint | null; quota: bigint | null }>
   >`
-    WITH latest AS (
-      SELECT MAX(entry_year_be) AS y FROM tcas_admission_stats t
+    WITH eligible AS (
+      SELECT t.entry_year_be, t.applicants, t.admitted_pass1, t.admitted_pass2, t.quota
+      FROM tcas_admission_stats t
       JOIN programs p ON p.id = t.program_id
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        ${facultyFilter}
-        ${deptFilter}
-    )
+        ${scopePredicate}
+    ),
+    latest AS (SELECT MAX(entry_year_be) AS y FROM eligible)
     SELECT
-      COALESCE(SUM(t.applicants), 0)::bigint AS applicants,
-      COALESCE(SUM(t.admitted_pass1 + t.admitted_pass2), 0)::bigint AS admitted,
-      COALESCE(SUM(t.quota), 0)::bigint AS quota
-    FROM tcas_admission_stats t
-    JOIN programs p ON p.id = t.program_id
-    JOIN latest l ON t.entry_year_be = l.y
-    WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-      ${facultyFilter}
-      ${deptFilter};
+      COALESCE(SUM(e.applicants), 0)::bigint AS applicants,
+      COALESCE(SUM(e.admitted_pass1 + e.admitted_pass2), 0)::bigint AS admitted,
+      COALESCE(SUM(e.quota), 0)::bigint AS quota
+    FROM eligible e
+    JOIN latest l ON e.entry_year_be = l.y;
   `;
 
   const r = rows[0];
