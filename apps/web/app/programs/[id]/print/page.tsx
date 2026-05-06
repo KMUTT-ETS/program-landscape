@@ -15,6 +15,7 @@ import type {
   DeepDiveOutcomes,
   DeepDiveOverview,
   DeepDivePeers,
+  DeepDiveRecruitment,
   DeepDiveSkills,
   DeepDiveStrategicNarrative,
   DeepDiveStudentCohorts,
@@ -57,6 +58,7 @@ export default async function ProgramPrintPage({
     demandFunnel,
     studentCohorts,
     tcasStats,
+    recruitment,
     demographicOutlook,
     outcomes,
     skills,
@@ -74,6 +76,7 @@ export default async function ProgramPrintPage({
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
     apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
     apiFetch<DeepDiveTcasStats>(`/programs/${id}/tcas-stats`).catch(() => null),
+    apiFetch<DeepDiveRecruitment>(`/programs/${id}/recruitment`).catch(() => null),
     apiFetch<DeepDiveDemographicOutlook>(`/programs/${id}/demographic-outlook`).catch(() => null),
     apiFetch<DeepDiveOutcomes>(`/programs/${id}/outcomes`).catch(() => null),
     apiFetch<DeepDiveSkills>(`/programs/${id}/skills`).catch(() => null),
@@ -109,31 +112,45 @@ export default async function ProgramPrintPage({
       <ToolbarStrip />
 
       <div className="mx-auto flex max-w-[186mm] flex-col gap-5 px-4 pb-8 print:max-w-none print:gap-4 print:px-0">
-        {/* PAGE 1 — strategic snapshot ------------------------------------ */}
+        {/* MACRO 1 · Executive snapshot ----------------------------------- */}
+        <MacroBand title="Executive snapshot" />
         <HealthDimensionsBlock overview={overview} />
         {lifecycle && <LifecycleVerdictBlock data={lifecycle} />}
         {strategicNarrative && <StrategicNarrativeBlock data={strategicNarrative} />}
-
-        {/* PAGE 2 — AI readiness + student lifecycle ---------------------- */}
         {aiReadiness && <AiReadinessBlock data={aiReadiness} />}
-        {demandFunnel && <DemandFunnelBlock data={demandFunnel} />}
+
+        {/* MACRO 2 · Admissions ------------------------------------------- */}
+        <MacroBand title="Admissions" pageBreakBefore />
+        {recruitment && recruitment.byYear.length > 0 && (
+          <RecruitmentBlock data={recruitment} />
+        )}
         {tcasStats && tcasStats.history.length > 0 && <TcasBlock data={tcasStats} />}
 
-        {/* PAGE 3 — cohorts + demographics + outcomes --------------------- */}
+        {/* MACRO 3 · Students --------------------------------------------- */}
+        <MacroBand title="Students" pageBreakBefore />
         {studentCohorts && studentCohorts.cohorts.length > 0 && (
           <CohortsBlock data={studentCohorts} />
         )}
+        {demandFunnel && <DemandFunnelBlock data={demandFunnel} />}
         {demographicOutlook && <DemographicBlock data={demographicOutlook} />}
+
+        {/* MACRO 4 · Outcomes --------------------------------------------- */}
+        <MacroBand title="Outcomes" pageBreakBefore />
         {outcomes && outcomes.latest && <OutcomesBlock data={outcomes} />}
 
-        {/* PAGE 4 — curriculum + team + economics ------------------------- */}
+        {/* MACRO 5 · Curriculum & Faculty --------------------------------- */}
+        <MacroBand title="Curriculum & Faculty" pageBreakBefore />
         {skills && <SkillsBlock data={skills} />}
         {faculty && <FacultyBlock data={faculty} />}
+
+        {/* MACRO 6 · Financials ------------------------------------------- */}
+        <MacroBand title="Financials" pageBreakBefore />
         {financials && financials.waterfall.length > 0 && (
           <FinancialsBlock data={financials} />
         )}
 
-        {/* PAGE 5 — external context + decisions -------------------------- */}
+        {/* MACRO 7 · External context ------------------------------------- */}
+        <MacroBand title="External context" pageBreakBefore />
         {(aiPeers || (peers && peers.peers.length > 0)) && (
           <PeersBlock peers={peers} aiPeers={aiPeers} />
         )}
@@ -452,6 +469,34 @@ function ToolbarStrip() {
 // ---------------------------------------------------------------------------
 // Section shell.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// MacroBand — section divider that separates the seven macro-groups in the
+// printed report. Forces a page-break-before for groups 2–7 so each
+// macro-group starts on a fresh page when printed; appears as a thin
+// uppercase eyebrow between blocks on screen.
+// ---------------------------------------------------------------------------
+
+function MacroBand({
+  title,
+  pageBreakBefore = false,
+}: {
+  title: string;
+  pageBreakBefore?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-baseline gap-3 ${
+        pageBreakBefore ? 'print-page-break' : ''
+      }`}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+        {title}
+      </span>
+      <span className="h-px flex-1 bg-border-strong" />
+    </div>
+  );
+}
 
 function SectionCard({
   title,
@@ -1212,6 +1257,170 @@ function DemandFunnelBlock({ data }: { data: DeepDiveDemandFunnel }) {
 // Block: TCAS3 admissions.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Block: Recruitment funnel — TCAS rounds 1–4. Primary admissions view;
+// the TCAS3-only block beneath this carries the round-3 score detail and
+// peer comparison.
+// ---------------------------------------------------------------------------
+
+function RecruitmentBlock({ data }: { data: DeepDiveRecruitment }) {
+  const sortedYears = [...data.byYear].sort((a, b) => b.entryYearBE - a.entryYearBE);
+  const latestComplete = sortedYears.find((y) => y.isComplete);
+  const inProgress =
+    data.inProgressRounds && sortedYears.find((y) => y.entryYearBE === data.inProgressRounds!.entryYearBE);
+
+  // Headline KPIs from the latest complete year.
+  const head = latestComplete ?? sortedYears[0];
+  const yieldVsPlan =
+    head && head.planPerYear !== null && head.planPerYear > 0
+      ? head.regReported / head.planPerYear
+      : null;
+
+  return (
+    <SectionCard
+      title="Recruitment funnel — TCAS rounds 1–4"
+      subtitle={
+        head
+          ? `Latest complete cohort BE ${head.entryYearBE} · ${head.totalApplicants.toLocaleString('en-US')} applicants · ${head.regReported.toLocaleString('en-US')} reported in${
+              yieldVsPlan !== null ? ` (${(yieldVsPlan * 100).toFixed(0)}% of plan)` : ''
+            }${inProgress ? ` · BE ${inProgress.entryYearBE} in progress` : ''}`
+          : 'No recruitment data'
+      }
+      accent="border-l-chart-2"
+    >
+      {/* Year-over-year history */}
+      {sortedYears.length > 0 && (
+        <table className="w-full border-collapse text-xs">
+          <thead className="text-left text-text-tertiary">
+            <tr>
+              <th className="py-1 font-medium">Year</th>
+              <th className="py-1 text-right font-medium">Plan/yr</th>
+              <th className="py-1 text-right font-medium">Allocated</th>
+              <th className="py-1 text-right font-medium">Applicants</th>
+              <th className="py-1 text-right font-medium">Comp.</th>
+              <th className="py-1 text-right font-medium">Passed</th>
+              <th className="py-1 text-right font-medium">Confirm CH</th>
+              <th className="py-1 text-right font-medium">Reported</th>
+              <th className="py-1 text-right font-medium">vs Plan</th>
+              <th className="py-1 text-left font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedYears.map((y) => {
+              const fillVsPlan =
+                y.planPerYear !== null && y.planPerYear > 0
+                  ? y.regReported / y.planPerYear
+                  : null;
+              const fillCls =
+                fillVsPlan === null
+                  ? ''
+                  : fillVsPlan >= 1
+                    ? 'text-success'
+                    : fillVsPlan >= 0.85
+                      ? 'text-chart-3'
+                      : 'text-warning';
+              return (
+                <tr
+                  key={y.entryYearBE}
+                  className="border-t border-border-subtle"
+                >
+                  <td className="py-1 font-tabular">BE {y.entryYearBE}</td>
+                  <td className="py-1 text-right font-tabular">
+                    {y.planPerYear !== null ? y.planPerYear.toLocaleString('en-US') : '—'}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {y.enrollSeats.toLocaleString('en-US')}
+                    {y.overAllocationFactor !== null && y.overAllocationFactor > 1.05 && (
+                      <span className="ml-1 text-[0.65rem] text-text-tertiary">
+                        ({y.overAllocationFactor.toFixed(2)}×)
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {y.totalApplicants.toLocaleString('en-US')}
+                  </td>
+                  <td className="py-1 text-right font-tabular text-text-secondary">
+                    {y.competitionRatio !== null
+                      ? `${y.competitionRatio.toFixed(2)}×`
+                      : '—'}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {y.totalPassed.toLocaleString('en-US')}
+                  </td>
+                  <td className="py-1 text-right font-tabular text-text-secondary">
+                    {y.confirmClearinghouse.toLocaleString('en-US')}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {y.regReported.toLocaleString('en-US')}
+                  </td>
+                  <td className={`py-1 text-right font-tabular font-semibold ${fillCls}`}>
+                    {fillVsPlan !== null ? `${(fillVsPlan * 100).toFixed(0)}%` : '—'}
+                  </td>
+                  <td className="py-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+                    {y.isComplete ? 'complete' : 'in progress'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {/* Per-round breakdown for latest complete year */}
+      {data.latestRounds && data.latestRounds.rounds.length > 0 && (
+        <div className="mt-3 border-t border-border-subtle pt-2">
+          <h4 className="mb-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+            Per-round breakdown · BE {data.latestRounds.entryYearBE}
+          </h4>
+          <table className="w-full border-collapse text-xs">
+            <thead className="text-left text-text-tertiary">
+              <tr>
+                <th className="py-1 font-medium">Round</th>
+                <th className="py-1 text-right font-medium">Allocated</th>
+                <th className="py-1 text-right font-medium">Applicants</th>
+                <th className="py-1 text-right font-medium">Passed</th>
+                <th className="py-1 text-right font-medium">Confirm CH</th>
+                <th className="py-1 text-right font-medium">Reported</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.latestRounds.rounds.map((r) => (
+                <tr key={r.round} className="border-t border-border-subtle">
+                  <td className="py-1 font-tabular">{r.round}</td>
+                  <td className="py-1 text-right font-tabular">
+                    {r.enrollSeats !== null ? r.enrollSeats.toLocaleString('en-US') : '—'}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {r.totalApplicants !== null ? r.totalApplicants.toLocaleString('en-US') : '—'}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {r.totalPassed !== null ? r.totalPassed.toLocaleString('en-US') : '—'}
+                  </td>
+                  <td className="py-1 text-right font-tabular text-text-secondary">
+                    {r.confirmClearinghouse !== null
+                      ? r.confirmClearinghouse.toLocaleString('en-US')
+                      : '—'}
+                  </td>
+                  <td className="py-1 text-right font-tabular">
+                    {r.regReported !== null ? r.regReported.toLocaleString('en-US') : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="mt-2 text-[0.65rem] text-text-tertiary">
+        Source: <span className="font-tabular">POWERBI.ADMISSION_STAT_CURRID</span> via the
+        kku-tcas-funnel connector. Plan/yr is the annual seat target;
+        Allocated is total seats opened across rounds; vs Plan = reg-reported ÷
+        Plan. {data.methodologyVersion}.
+      </p>
+    </SectionCard>
+  );
+}
+
 function TcasBlock({ data }: { data: DeepDiveTcasStats }) {
   const sortedHistory = [...data.history].sort(
     (a, b) => b.entryYearBE - a.entryYearBE || b.round.localeCompare(a.round),
@@ -1223,7 +1432,7 @@ function TcasBlock({ data }: { data: DeepDiveTcasStats }) {
       : null;
   return (
     <SectionCard
-      title="TCAS3 admissions"
+      title="TCAS3 round-3 score detail & peer competition"
       subtitle={
         latest
           ? `Latest BE ${latest.entryYearBE} R${latest.round} · ${latest.applicants.toLocaleString('en-US')} applicants for ${latest.quota.toLocaleString('en-US')} seats (${latest.competitionRatio.toFixed(2)}× competition${peerCompetitionAvg !== null ? ` · peer avg ${peerCompetitionAvg.toFixed(2)}×` : ''})`

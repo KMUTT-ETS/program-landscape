@@ -1115,11 +1115,11 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 6. Demand funnel */}
+      {/* 6. Demand funnel — cohort lifecycle */}
       {data.demandFunnel && (
         <DetailSection
           num={6}
-          title="Demand funnel"
+          title="Demand funnel — cohort lifecycle (admit → graduate → exit)"
           subtitle={`Anchor cohort: ${data.demandFunnel.anchorEntryYearLabel} · ${data.demandFunnel.cohortStatus} · ${data.demandFunnel.programDurationYears}-year program · methodology ${data.demandFunnel.methodologyVersion}`}
         >
           <h3>6.1 Funnel stages</h3>
@@ -1234,18 +1234,95 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 7. TCAS3 admissions */}
-      {data.tcas && (
+      {/* 7. Recruitment funnel — TCAS rounds 1–4 */}
+      {data.recruitment && data.recruitment.byYear.length > 0 && (
         <DetailSection
           num={7}
-          title="TCAS3 admissions"
+          title="Recruitment funnel — TCAS rounds 1–4"
+          subtitle={`POWERBI.ADMISSION_STAT_CURRID via kku-tcas-funnel · ${data.recruitment.methodologyVersion}${
+            data.recruitment.inProgressNote ? ` · ${data.recruitment.inProgressNote}` : ''
+          }`}
+        >
+          <h3>7.1 Year-over-year intake</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Status</th>
+                <th className="numeric">Plan/yr</th>
+                <th className="numeric">Allocated</th>
+                <th className="numeric">Over-alloc</th>
+                <th className="numeric">Applicants</th>
+                <th className="numeric">Comp.</th>
+                <th className="numeric">Passed</th>
+                <th className="numeric">Confirm CH</th>
+                <th className="numeric">Reported</th>
+                <th className="numeric">vs Plan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.recruitment.byYear.map((y, i) => (
+                <tr key={i}>
+                  <td>{y.yearBE}</td>
+                  <td>{y.status}</td>
+                  <td className="numeric">{y.planPerYear}</td>
+                  <td className="numeric">{y.seats}</td>
+                  <td className="numeric">{y.overAllocation}</td>
+                  <td className="numeric">{y.applicants}</td>
+                  <td className="numeric">{y.competition}</td>
+                  <td className="numeric">{y.passed}</td>
+                  <td className="numeric">{y.confirmCh}</td>
+                  <td className="numeric">{y.reported}</td>
+                  <td className="numeric">{y.vsPlan}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {data.recruitment.latestRounds.length > 0 && (
+            <>
+              <h3>7.2 Per-round breakdown · {data.recruitment.latestRoundsYear}</h3>
+              <table className="compact">
+                <thead>
+                  <tr>
+                    <th>Round</th>
+                    <th className="numeric">Allocated</th>
+                    <th className="numeric">Applicants</th>
+                    <th className="numeric">Passed</th>
+                    <th className="numeric">Confirm CH</th>
+                    <th className="numeric">Reported</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recruitment.latestRounds.map((r, i) => (
+                    <tr key={i}>
+                      <td>{r.round}</td>
+                      <td className="numeric">{r.seats}</td>
+                      <td className="numeric">{r.applicants}</td>
+                      <td className="numeric">{r.passed}</td>
+                      <td className="numeric">{r.confirmCh}</td>
+                      <td className="numeric">{r.reported}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </DetailSection>
+      )}
+
+      {/* 8. TCAS3 round-3 score detail & peer comparison */}
+      {data.tcas && (
+        <DetailSection
+          num={8}
+          title="TCAS3 round-3 score detail & peer comparison"
           subtitle={
             data.tcas.peerMatchKey
               ? `Peer match key: ${data.tcas.peerMatchKey}`
               : undefined
           }
         >
-          <h3>7.1 Year-over-year history</h3>
+          <h3>8.1 Year-over-year history</h3>
           <table>
             <thead>
               <tr>
@@ -1277,7 +1354,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
 
           {data.tcas.peers.length > 0 && (
             <>
-              <h3>7.2 Peer programs · same subject</h3>
+              <h3>8.2 Peer programs · same subject</h3>
               <table className="compact">
                 <thead>
                   <tr>
@@ -1317,23 +1394,23 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 8. Cohort distribution */}
+      {/* 9. Cohort distribution */}
       {data.cohortDistribution && (
         <DetailSection
-          num={8}
+          num={9}
           title="Cohort distribution"
           subtitle={`${data.cohortDistribution.totalActive} active students · anchored to BE ${data.cohortDistribution.currentAcademicYearBE} · ${data.cohortDistribution.programDurationYears}-year program`}
         >
           {data.cohortDistribution.summary.length > 0 && (
             <>
-              <h3>8.1 Status summary</h3>
+              <h3>9.1 Status summary</h3>
               <KvTable
                 headers={['Status', 'Students', 'Notes']}
                 rows={data.cohortDistribution.summary}
               />
             </>
           )}
-          <h3>8.2 By entry cohort</h3>
+          <h3>9.2 By entry cohort</h3>
           {(() => {
             const sorted = [...data.cohortDistribution.rows].sort((a, b) =>
               a.cohort.localeCompare(b.cohort),
@@ -1395,10 +1472,10 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 9. Demographic outlook */}
+      {/* 10. Demographic outlook */}
       {data.demographic && (
         <DetailSection
-          num={9}
+          num={10}
           title="Demographic outlook"
           subtitle={`Catchment ${data.demographic.catchment} · age cohort ${data.demographic.ageCohort} · source ${data.demographic.source}`}
         >
@@ -1423,7 +1500,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
             ]}
           />
 
-          <h3>9.1 Cohort projection — share to maintain today&apos;s intake</h3>
+          <h3>10.1 Cohort projection — share to maintain today&apos;s intake</h3>
           {(() => {
             const pops = data.demographic.projections.map(
               (p) => parseScoreLike(p.cohortPopulation) ?? 0,
@@ -1466,20 +1543,20 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 10. Outcomes */}
+      {/* 11. Outcomes */}
       {data.outcomes && (
         <DetailSection
-          num={10}
+          num={11}
           title="Outcomes"
           subtitle={`Survey year ${data.outcomes.surveyYear} · ${data.outcomes.sampleSize} graduates surveyed · methodology ${data.outcomes.methodologyVersion} · ${data.outcomes.freshnessDate}`}
           breakBefore
         >
-          <h3>10.1 Headline outcomes</h3>
+          <h3>11.1 Headline outcomes</h3>
           <KvTable rows={data.outcomes.summary} />
 
           {data.outcomes.salaryTrajectory.length > 0 && (
             <>
-              <h3>10.2 Average starting salary by graduation year</h3>
+              <h3>11.2 Average starting salary by graduation year</h3>
               {(() => {
                 const sorted = [...data.outcomes.salaryTrajectory].sort(
                   (a, b) => Number(a.year) - Number(b.year),
@@ -1518,7 +1595,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
 
           {data.outcomes.topEmployers.length > 0 && (
             <>
-              <h3>10.3 Top employers</h3>
+              <h3>11.3 Top employers</h3>
               <table className="compact">
                 <thead>
                   <tr>
@@ -1542,14 +1619,14 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 11. Skills coverage */}
+      {/* 12. Skills coverage */}
       {data.skills && (
         <DetailSection
-          num={11}
+          num={12}
           title="Skills coverage"
           subtitle={`${data.skills.totalTaught} skills taught (${data.skills.ploCount} from PLOs) · demand match ${data.skills.matchScore} · source ${data.skills.demandSource} (${data.skills.demandTier}) · ${data.skills.careerFilterCount} careers in scope`}
         >
-          <h3>11.1 Major contributors (PLO and/or compulsory)</h3>
+          <h3>12.1 Major contributors (PLO and/or compulsory)</h3>
           <table className="compact">
             <thead>
               <tr>
@@ -1575,7 +1652,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
             </tbody>
           </table>
 
-          <h3>11.2 Minor contributors (elective only)</h3>
+          <h3>12.2 Minor contributors (elective only)</h3>
           <table className="compact">
             <thead>
               <tr>
@@ -1595,7 +1672,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
             </tbody>
           </table>
 
-          <h3>11.3 Top demanded skills (labour market)</h3>
+          <h3>12.3 Top demanded skills (labour market)</h3>
           <table className="compact">
             <thead>
               <tr>
@@ -1621,7 +1698,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
 
           {data.skills.gaps.length > 0 && (
             <>
-              <h3>11.4 Top gap candidates (demanded but not taught)</h3>
+              <h3>12.4 Top gap candidates (demanded but not taught)</h3>
               <table className="compact">
                 <thead>
                   <tr>
@@ -1645,17 +1722,17 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 12. Faculty capability */}
+      {/* 13. Faculty capability */}
       {data.faculty && (
         <DetailSection
-          num={12}
+          num={13}
           title="Faculty capability"
           subtitle={`Source: ${data.faculty.rosterScope} · ${data.faculty.visibility}`}
         >
-          <h3>12.1 Headline numbers</h3>
+          <h3>13.1 Headline numbers</h3>
           <KvTable rows={data.faculty.kpis} />
 
-          <h3>12.2 Academic rank distribution</h3>
+          <h3>13.2 Academic rank distribution</h3>
           {(() => {
             const counts = data.faculty.rankDistribution.map(
               (r) => parseScoreLike(r.count) ?? 0,
@@ -1696,7 +1773,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
 
           {data.faculty.roster.length > 0 && (
             <>
-              <h3>12.3 Roster</h3>
+              <h3>13.3 Roster</h3>
               <table className="compact">
                 <thead>
                   <tr>
@@ -1722,17 +1799,17 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 13. Financials */}
+      {/* 14. Financials */}
       {data.financials && (
         <DetailSection
-          num={13}
+          num={14}
           title="Financials"
           subtitle={`Cost methodology ${data.financials.methodologyVersion} · headline FY ${data.financials.headlineFiscalYear}${data.financials.partialCurrentYearNote ? ` · ${data.financials.partialCurrentYearNote}` : ''}`}
         >
-          <h3>13.1 Headline numbers</h3>
+          <h3>14.1 Headline numbers</h3>
           <KvTable rows={data.financials.kpis} />
 
-          <h3>13.2 Tuition flow waterfall</h3>
+          <h3>14.2 Tuition flow waterfall</h3>
           {(() => {
             const abs = data.financials.waterfall.map(
               (s) => Math.abs(parseScoreLike(s.value) ?? 0),
@@ -1793,7 +1870,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
 
           {data.financials.trend.length > 0 && (
             <>
-              <h3>13.3 Year-over-year trend</h3>
+              <h3>14.3 Year-over-year trend</h3>
               <table>
                 <thead>
                   <tr>
@@ -1819,10 +1896,10 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 14. Peer comparison */}
+      {/* 15. Peer comparison */}
       {data.peers && (
         <DetailSection
-          num={14}
+          num={15}
           title="Peer comparison"
           subtitle={
             data.peers.subjectSignature
@@ -1957,10 +2034,10 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 15. Trend exposure */}
+      {/* 16. Trend exposure */}
       {data.trends.length > 0 && (
         <DetailSection
-          num={15}
+          num={16}
           title="Trend exposure"
           subtitle={`${data.trends.length} signal${data.trends.length === 1 ? '' : 's'} surfaced — sorted by detection date.`}
         >
@@ -1993,7 +2070,7 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
             </tbody>
           </table>
 
-          <h3>15.1 Why each signal matters</h3>
+          <h3>16.1 Why each signal matters</h3>
           <table>
             <thead>
               <tr>
@@ -2023,10 +2100,10 @@ function ProgramDetailDoc({ data }: { data: ProgramDetailData }) {
         </DetailSection>
       )}
 
-      {/* 16. Decisions */}
+      {/* 17. Decisions */}
       {data.decisions.length > 0 && (
         <DetailSection
-          num={16}
+          num={17}
           title="Council decision history"
           subtitle={`${data.decisions.length} decision${data.decisions.length === 1 ? '' : 's'} on file`}
         >

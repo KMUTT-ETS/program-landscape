@@ -18,6 +18,7 @@ import {
   programOutcomes,
   programOverview,
   programPeers,
+  programRecruitment,
   programSkills,
   programStrategicNarrative,
   programStudentCohorts,
@@ -189,6 +190,7 @@ export async function buildProgramDetailData(
     demandFunnel,
     studentCohorts,
     tcasStats,
+    recruitment,
     demographic,
     outcomes,
     skills,
@@ -205,6 +207,7 @@ export async function buildProgramDetailData(
     programDemandFunnel(programId).catch(() => null),
     programStudentCohorts(programId).catch(() => null),
     programTcasStats(programId).catch(() => null),
+    programRecruitment(programId).catch(() => null),
     programDemographicOutlook(programId).catch(() => null),
     programOutcomes(programId).catch(() => null),
     programSkills(programId).catch(() => null),
@@ -526,6 +529,67 @@ export async function buildProgramDetailData(
         })),
       }
     : null;
+
+  // ── Recruitment funnel (TCAS rounds 1–4) ────────────────────────
+  const recruitmentData: ProgramDetailData['recruitment'] =
+    recruitment && recruitment.byYear.length > 0
+      ? {
+          methodologyVersion: recruitment.methodologyVersion,
+          inProgressNote:
+            recruitment.inProgressRounds !== null
+              ? `BE ${recruitment.inProgressRounds.entryYearBE} cycle is in progress — figures partial.`
+              : '',
+          byYear: [...recruitment.byYear]
+            .sort((a, b) => b.entryYearBE - a.entryYearBE)
+            .map((y) => {
+              const fillVsPlan =
+                y.planPerYear !== null && y.planPerYear > 0
+                  ? y.regReported / y.planPerYear
+                  : null;
+              return {
+                yearBE: `BE ${y.entryYearBE}`,
+                status: y.isComplete ? 'complete' : 'in progress',
+                planPerYear:
+                  y.planPerYear !== null ? fmtNum(y.planPerYear) : '—',
+                seats: fmtNum(y.enrollSeats),
+                overAllocation:
+                  y.overAllocationFactor !== null && y.overAllocationFactor > 1.05
+                    ? `${y.overAllocationFactor.toFixed(2)}×`
+                    : '',
+                applicants: fmtNum(y.totalApplicants),
+                competition:
+                  y.competitionRatio !== null
+                    ? `${y.competitionRatio.toFixed(2)}×`
+                    : '—',
+                passed: fmtNum(y.totalPassed),
+                confirmCh: fmtNum(y.confirmClearinghouse),
+                reported: fmtNum(y.regReported),
+                vsPlan: fillVsPlan !== null ? fmtPct(fillVsPlan * 100, 0) : '—',
+              };
+            }),
+          latestRoundsYear:
+            recruitment.latestRounds !== null
+              ? `BE ${recruitment.latestRounds.entryYearBE}`
+              : '',
+          latestRounds:
+            recruitment.latestRounds !== null
+              ? recruitment.latestRounds.rounds.map((r) => ({
+                  round: r.round,
+                  seats: r.enrollSeats !== null ? fmtNum(r.enrollSeats) : '—',
+                  applicants:
+                    r.totalApplicants !== null ? fmtNum(r.totalApplicants) : '—',
+                  passed:
+                    r.totalPassed !== null ? fmtNum(r.totalPassed) : '—',
+                  confirmCh:
+                    r.confirmClearinghouse !== null
+                      ? fmtNum(r.confirmClearinghouse)
+                      : '—',
+                  reported:
+                    r.regReported !== null ? fmtNum(r.regReported) : '—',
+                }))
+              : [],
+        }
+      : null;
 
   // ── TCAS3 ───────────────────────────────────────────────────────
   const tcasData: ProgramDetailData['tcas'] =
@@ -976,6 +1040,7 @@ export async function buildProgramDetailData(
     strategicNarrative: strategicNarrativeData,
     aiReadiness: aiReadinessData,
     demandFunnel: demandFunnelData,
+    recruitment: recruitmentData,
     tcas: tcasData,
     cohortDistribution: cohortDistributionData,
     demographic: demographicData,

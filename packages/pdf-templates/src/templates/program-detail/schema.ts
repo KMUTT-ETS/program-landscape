@@ -132,6 +132,41 @@ const DemandFunnelSchema = z.object({
     .default([]),
 });
 
+const RecruitmentSchema = z.object({
+  methodologyVersion: z.string(),
+  inProgressNote: z.string().default(''),
+  byYear: z
+    .array(
+      z.object({
+        yearBE: z.string(),
+        status: z.string(),
+        planPerYear: z.string(),
+        seats: z.string(),
+        overAllocation: z.string(),
+        applicants: z.string(),
+        competition: z.string(),
+        passed: z.string(),
+        confirmCh: z.string(),
+        reported: z.string(),
+        vsPlan: z.string(),
+      }),
+    )
+    .default([]),
+  latestRoundsYear: z.string().default(''),
+  latestRounds: z
+    .array(
+      z.object({
+        round: z.string(),
+        seats: z.string(),
+        applicants: z.string(),
+        passed: z.string(),
+        confirmCh: z.string(),
+        reported: z.string(),
+      }),
+    )
+    .default([]),
+});
+
 const TcasSchema = z.object({
   history: z
     .array(
@@ -407,6 +442,7 @@ export const ProgramDetailDataSchema = z.object({
   strategicNarrative: StrategicNarrativeSchema.nullable().default(null),
   aiReadiness: AiReadinessSchema.nullable().default(null),
   demandFunnel: DemandFunnelSchema.nullable().default(null),
+  recruitment: RecruitmentSchema.nullable().default(null),
   tcas: TcasSchema.nullable().default(null),
   cohortDistribution: CohortDistributionSchema.nullable().default(null),
   demographic: DemographicSchema.nullable().default(null),

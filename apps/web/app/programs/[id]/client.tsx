@@ -97,20 +97,22 @@ function formatDate(value: string | Date | null | undefined): string {
 // (left column, below the identity card), so it does not get its own
 // side-nav entry — that would point at the same scroll position. The
 // `id="verdict"` anchor remains for deep-linking.
+// Seven macro-sections, designed for a program-manager audience that
+// reads top-down. Each macro contains 1-3 sub-blocks; the side-nav
+// anchors to the macro IDs only so navigation stays scannable.
+//
+// Sub-block IDs (header, narrative, ai-readiness, demand, tcas,
+// recruitment, cohorts, demographic, outcomes, skills, faculty,
+// financials, peers, trends) remain in the DOM as deep-link anchors,
+// but the side-nav doesn't list them.
 const SECTIONS = [
-  { id: 'header', label: 'Snapshot' },
-  { id: 'narrative', label: 'Strategic narrative' },
-  { id: 'ai-readiness', label: 'AI readiness' },
-  { id: 'demand', label: 'Demand funnel' },
-  { id: 'tcas', label: 'TCAS3 admissions' },
-  { id: 'cohorts', label: 'Cohort distribution' },
-  { id: 'demographic', label: 'Demographic outlook' },
+  { id: 'snapshot', label: 'Executive snapshot' },
+  { id: 'admissions', label: 'Admissions' },
+  { id: 'students', label: 'Students' },
   { id: 'outcomes', label: 'Outcomes' },
-  { id: 'skills', label: 'Skills coverage' },
-  { id: 'faculty', label: 'Faculty capability' },
+  { id: 'curriculum', label: 'Curriculum & Faculty' },
   { id: 'financials', label: 'Financials' },
-  { id: 'peers', label: 'Peer comparison' },
-  { id: 'trends', label: 'Trend exposure' },
+  { id: 'context', label: 'External context' },
 ];
 
 export function DeepDiveClient(props: Props) {
@@ -170,28 +172,76 @@ export function DeepDiveClient(props: Props) {
         </ul>
       </aside>
 
-      <div className="flex flex-col gap-8">
-        <HeaderSection overview={props.overview} lifecycle={props.lifecycle} />
-        <NarrativeSection
-          programId={props.programId}
-          narrative={narrative}
-          busy={narrativeBusy}
-          onRegenerate={onRegenerateNarrative}
-          aiInferenceId={narrativeAiId}
-          preComputed={props.strategicNarrative}
-        />
-        <AiReadinessSection data={props.aiReadiness} />
-        <DemandFunnelSection data={props.demandFunnel} />
-        <TcasStatsSection data={props.tcasStats} />
-        <RecruitmentSection data={props.recruitment} />
-        <StudentCohortsSection data={props.studentCohorts} />
-        <DemographicOutlookSection data={props.demographicOutlook} />
-        <OutcomesSection data={props.outcomes} />
-        <SkillsSection data={props.skills} programId={props.programId} />
-        <FacultySection data={props.faculty} />
-        <FinancialsSection data={props.financials} />
-        <PeersSection data={props.peers} aiPeers={props.aiPeers} />
-        <TrendsSection data={props.trends} />
+      <div className="flex flex-col gap-10">
+        <MacroGroup
+          id="snapshot"
+          title="Executive snapshot"
+          subtitle="Health verdict, strategic narrative, and AI readiness — the one-page brief."
+        >
+          <HeaderSection overview={props.overview} lifecycle={props.lifecycle} />
+          <NarrativeSection
+            programId={props.programId}
+            narrative={narrative}
+            busy={narrativeBusy}
+            onRegenerate={onRegenerateNarrative}
+            aiInferenceId={narrativeAiId}
+            preComputed={props.strategicNarrative}
+          />
+          <AiReadinessSection data={props.aiReadiness} />
+        </MacroGroup>
+
+        <MacroGroup
+          id="admissions"
+          title="Admissions"
+          subtitle="TCAS rounds 1–4 funnel for the latest entry cohort + round-3 score detail and competitive landscape."
+        >
+          <RecruitmentSection data={props.recruitment} />
+          <TcasStatsSection data={props.tcasStats} />
+        </MacroGroup>
+
+        <MacroGroup
+          id="students"
+          title="Students"
+          subtitle="Past cohort distribution, full lifecycle, and the demographic outlook for future intake."
+        >
+          <StudentCohortsSection data={props.studentCohorts} />
+          <DemandFunnelSection data={props.demandFunnel} />
+          <DemographicOutlookSection data={props.demographicOutlook} />
+        </MacroGroup>
+
+        <MacroGroup
+          id="outcomes"
+          title="Outcomes"
+          subtitle="Where graduates land — employment, salary, sector and first-job destinations."
+        >
+          <OutcomesSection data={props.outcomes} />
+        </MacroGroup>
+
+        <MacroGroup
+          id="curriculum"
+          title="Curriculum & Faculty"
+          subtitle="What we teach (skill coverage) and who teaches it (faculty capability + succession risk)."
+        >
+          <SkillsSection data={props.skills} programId={props.programId} />
+          <FacultySection data={props.faculty} />
+        </MacroGroup>
+
+        <MacroGroup
+          id="financials"
+          title="Financials"
+          subtitle="Revenue, cost, and per-student economics — methodology v0; treat as preview."
+        >
+          <FinancialsSection data={props.financials} />
+        </MacroGroup>
+
+        <MacroGroup
+          id="context"
+          title="External context"
+          subtitle="Peer institutions and the trend signals shaping demand for this program over 1–10 years."
+        >
+          <PeersSection data={props.peers} aiPeers={props.aiPeers} />
+          <TrendsSection data={props.trends} />
+        </MacroGroup>
       </div>
     </div>
   );
@@ -200,6 +250,36 @@ export function DeepDiveClient(props: Props) {
 // ──────────────────────────────────────────────────────────────────────────
 // Sections
 // ──────────────────────────────────────────────────────────────────────────
+
+// Macro-group wrapper. Renders a small eyebrow heading + subtitle and
+// stacks the sub-blocks under it. The macro `id` is what the side-nav
+// + IntersectionObserver track. Sub-blocks keep their own `id="..."`
+// for deep-link compatibility.
+function MacroGroup({
+  id,
+  title,
+  subtitle,
+  children,
+}: {
+  id: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-16">
+      <header className="mb-4 border-b border-border-subtle pb-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+          {title}
+        </h3>
+        {subtitle && (
+          <p className="mt-0.5 text-xs text-text-tertiary">{subtitle}</p>
+        )}
+      </header>
+      <div className="flex flex-col gap-4">{children}</div>
+    </section>
+  );
+}
 
 function HeaderSection({
   overview,
@@ -1364,7 +1444,7 @@ function competitionVerdict(
 function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
   if (!data || data.history.length === 0) {
     return (
-      <Section id="tcas" title="TCAS3 admissions">
+      <Section id="tcas" title="TCAS3 round-3 score detail & peer comparison">
         <EmptyCard
           title="No TCAS3 data"
           note="Run `pnpm connector:run tcas` (with CONNECTOR_TCAS_MODE=real) to ingest mytcas.com TCAS62–TCAS68 maxmin xlsx files. Round 1 / Round 2 connectors land later."
@@ -1381,7 +1461,7 @@ function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
       ? data.peers.reduce((s, p) => s + p.competitionRatio, 0) / data.peers.length
       : null;
   return (
-    <Section id="tcas" title="TCAS3 admissions">
+    <Section id="tcas" title="TCAS3 round-3 score detail & peer comparison">
       {/* ── KPI strip ─────────────────────────────────────────────── */}
       <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
