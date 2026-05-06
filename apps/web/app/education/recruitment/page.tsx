@@ -1,0 +1,72 @@
+import { redirect } from 'next/navigation';
+import type { SessionUser } from '@kku/shared';
+import { auth } from '@/lib/auth';
+import { apiFetch } from '@/lib/api-client';
+import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { PageHeader } from '@kku/ui';
+import { RecruitmentClient, type RecruitmentDashboardPayload } from './client';
+import { EducationBackLink } from '../back-link';
+
+export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Undergraduate Recruitment — Education dashboard' };
+
+interface SearchParams {
+  entryYearBE?: string;
+  facultyId?: string;
+  level?: string;
+}
+
+interface Faculty {
+  id: string;
+  code: string;
+  nameEn: string;
+  nameTh: string;
+}
+
+export default async function RecruitmentPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const session = await auth();
+  const user = session?.user as SessionUser | undefined;
+  if (!user?.userId) redirect('/signin');
+
+  const sp = await searchParams;
+  const params = new URLSearchParams();
+  if (sp.entryYearBE) params.set('entryYearBE', sp.entryYearBE);
+  if (sp.facultyId) params.set('facultyId', sp.facultyId);
+  if (sp.level) params.set('level', sp.level);
+
+  const [data, faculties] = await Promise.all([
+    apiFetch<RecruitmentDashboardPayload>(
+      `/education/recruitment${params.toString() ? '?' + params.toString() : ''}`,
+    ).catch((e) => {
+      console.error('recruitment fetch failed', e);
+      return null;
+    }),
+    apiFetch<Faculty[]>('/faculties').catch(() => [] as Faculty[]),
+  ]);
+
+  if (!data) {
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader
+          title="Undergraduate Recruitment"
+          subtitle="Failed to load recruitment data."
+        />
+      </AuthedAppShell>
+    );
+  }
+
+  return (
+    <AuthedAppShell user={user}>
+      <EducationBackLink />
+      <PageHeader
+        title="Undergraduate Recruitment"
+        subtitle="Full TCAS round 1–4 funnel — quota, applicants, passed, Clearinghouse send + confirm, and registrar reporting per program × round × year. Source: KKU Registry POWERBI.ADMISSION_STAT_CURRID. The current cycle (BE 2569 / CE 2026) stays informational only; all aggregate metrics use the latest completed cohort."
+      />
+      <RecruitmentClient data={data} faculties={faculties} />
+    </AuthedAppShell>
+  );
+}

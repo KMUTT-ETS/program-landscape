@@ -372,3 +372,47 @@ export function TuitionThumb() {
     </Frame>
   );
 }
+
+// Dashboard 7 — Recruitment funnel: stylised funnel narrowing from
+// applicants down to reported-in.
+export function RecruitmentThumb() {
+  return (
+    <Frame>
+      {/* Funnel trapezoids — 4 stages narrowing left to right */}
+      {[
+        { x: 18, w: 60, h: 80, y: 20, c: COLORS.primary },
+        { x: 84, w: 50, h: 64, y: 28, c: COLORS.warm },
+        { x: 140, w: 38, h: 48, y: 36, c: COLORS.green },
+        { x: 184, w: 26, h: 32, y: 44, c: COLORS.accent },
+      ].map((s, i) => (
+        <rect
+          key={i}
+          x={s.x}
+          y={s.y}
+          width={s.w}
+          height={s.h}
+          fill={s.c}
+          opacity="0.85"
+          rx="2"
+        />
+      ))}
+      {/* Tiny labels on top */}
+      <text x={48} y={14} textAnchor="middle" fontSize="8" fill={COLORS.ink} opacity="0.7">
+        applicants
+      </text>
+      <text x={109} y={14} textAnchor="middle" fontSize="8" fill={COLORS.ink} opacity="0.7">
+        passed
+      </text>
+      <text x={159} y={14} textAnchor="middle" fontSize="8" fill={COLORS.ink} opacity="0.7">
+        confirm
+      </text>
+      <text x={197} y={14} textAnchor="middle" fontSize="8" fill={COLORS.ink} opacity="0.7">
+        reg
+      </text>
+      {/* Drop indicator at the bottom */}
+      <text x={120} y={112} textAnchor="middle" fontSize="9" fontWeight="600" fill={COLORS.ink} opacity="0.55">
+        TCAS round 1–4 funnel
+      </text>
+    </Frame>
+  );
+}

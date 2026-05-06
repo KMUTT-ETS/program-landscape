@@ -8,11 +8,18 @@ import {
   ZodValidationPipe,
 } from '../common';
 import { EducationService } from './education.service';
+import { RecruitmentService } from './recruitment.service';
 import {
   EducationRefreshService,
   REFRESHABLE_CUBES,
   type RefreshableCube,
 } from './education-refresh.service';
+
+const RecruitmentQuerySchema = z.object({
+  entryYearBE: z.coerce.number().int().min(2400).max(2700).optional(),
+  facultyId: z.string().min(1).optional(),
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).optional(),
+});
 
 // Express coerces a query param that appears once into a string and
 // twice or more into a string[]. We normalise both to string[] at the
@@ -116,7 +123,21 @@ export class EducationController {
   constructor(
     private readonly education: EducationService,
     private readonly refresher: EducationRefreshService,
+    private readonly recruitment: RecruitmentService,
   ) {}
+
+  @Get('recruitment')
+  @Authorized('programs:read:all')
+  async recruitmentDashboard(
+    @Query(new ZodValidationPipe(RecruitmentQuerySchema))
+    q: z.infer<typeof RecruitmentQuerySchema>,
+  ) {
+    return this.recruitment.getDashboard({
+      entryYearBE: q.entryYearBE ?? null,
+      facultyId: q.facultyId ?? null,
+      level: q.level ?? null,
+    });
+  }
 
   @Post('refresh')
   @Authorized('programs:read:all')

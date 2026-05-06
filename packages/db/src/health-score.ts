@@ -406,41 +406,21 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     select: { level: true, nameTh: true },
   });
 
-  // Find the latest COMPLETE year — every round in that year has
-  // reg_reported NOT NULL AND > 0. Years where ANY round has 0 / null
-  // reg_reported are still in-progress (e.g. round 2 done with
-  // reg_reported populated but rounds 3/4 not run yet). Such years
-  // stay in the DB as informational data — not used for scoring.
-  let latestCompleteYear: number | null = null;
-  let latestYearOverall: number | null = null;
-  const yearStatusRows = await prisma.$queryRaw<
-    Array<{
-      entry_year_be: number;
-      rows: bigint;
-      with_reg: bigint;
-      min_reg: number | null;
-    }>
-  >`
-    SELECT
-      entry_year_be,
-      COUNT(*)::bigint AS rows,
-      COUNT(reg_reported)::bigint AS with_reg,
-      MIN(reg_reported) AS min_reg
-    FROM tcas_admission_funnels
+  // Latest COMPLETE year — calendar-based: a BE year is complete when
+  // (BE - 543) < currentCEYear. Thai TCAS finishes registration by
+  // ~Oct of the cohort year, so by Jan 1 of the following CE year
+  // every round is done. The in-progress current cohort stays in the
+  // DB as informational data; scoring uses the latest COMPLETE year.
+  const currentCEYear = new Date().getUTCFullYear();
+  const yearRows = await prisma.$queryRaw<Array<{ entry_year_be: number }>>`
+    SELECT DISTINCT entry_year_be FROM tcas_admission_funnels
     WHERE program_id = ${programId}
-    GROUP BY entry_year_be ORDER BY entry_year_be DESC
+    ORDER BY entry_year_be DESC
   `;
-  for (const r of yearStatusRows) {
-    if (latestYearOverall === null) latestYearOverall = r.entry_year_be;
-    const allRoundsReported =
-      Number(r.rows) === Number(r.with_reg) &&
-      r.min_reg !== null &&
-      Number(r.min_reg) > 0;
-    if (allRoundsReported) {
-      latestCompleteYear = r.entry_year_be;
-      break;
-    }
-  }
+  const availableYears = yearRows.map((r) => r.entry_year_be);
+  const latestYearOverall = availableYears[0] ?? null;
+  const latestCompleteYear =
+    availableYears.find((y) => y - 543 < currentCEYear) ?? null;
 
   let funnelTotals: {
     enrollSeats: number;
@@ -662,10 +642,11 @@ async function scoreAttractivenessScope(
         ? Prisma.sql`AND p.department_id = ${scopeId}`
         : Prisma.empty;
 
-  // Pivot to the latest COMPLETE recruitment year — i.e. the latest
-  // year where any row at the scope has reg_reported > 0. Excluding
-  // the in-progress current cycle keeps the registration-yield
-  // driver from collapsing the score every spring.
+  // Pivot to the latest COMPLETE recruitment year — calendar-based:
+  // a BE year is complete when (BE - 543) < currentCEYear. The
+  // in-progress current cohort stays in the DB but isn't used for
+  // scoring.
+  const currentCEYear = new Date().getUTCFullYear();
   const rows = await prisma.$queryRaw<
     Array<{
       applicants: bigint | null;
@@ -683,26 +664,10 @@ async function scoreAttractivenessScope(
       FROM tcas_admission_funnels t
       JOIN programs p ON p.id = t.program_id
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+        AND (t.entry_year_be - 543) < ${currentCEYear}
         ${scopePredicate}
     ),
-    -- A year is COMPLETE at scope-level when EVERY row in it (across
-    -- programs × rounds) has reg_reported NOT NULL AND > 0. Any
-    -- in-progress round (reg_reported = 0 / null) drops the year out.
-    -- Excluding in-progress years keeps the registration-yield driver
-    -- from collapsing the score every spring while the new cohort is
-    -- mid-recruitment.
-    year_status AS (
-      SELECT
-        entry_year_be,
-        COUNT(*) AS row_count,
-        COUNT(reg_reported) AS reg_count,
-        MIN(reg_reported) AS min_reg
-      FROM eligible GROUP BY entry_year_be
-    ),
-    latest_complete AS (
-      SELECT MAX(entry_year_be) AS y FROM year_status
-      WHERE row_count = reg_count AND min_reg > 0
-    )
+    latest_complete AS (SELECT MAX(entry_year_be) AS y FROM eligible)
     SELECT
       COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
       COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,

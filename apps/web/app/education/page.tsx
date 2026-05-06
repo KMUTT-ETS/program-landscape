@@ -12,6 +12,7 @@ import {
   Globe2,
   Coins,
   TrendingUp,
+  Filter,
 } from 'lucide-react';
 import type { RefreshStatus } from './types';
 import { EducationRefreshBar } from './refresh-bar';
@@ -20,6 +21,7 @@ import {
   InternationalThumb,
   LocationThumb,
   PerformanceThumb,
+  RecruitmentThumb,
   StudentInfoThumb,
   TuitionThumb,
 } from './thumbnails';
@@ -28,6 +30,14 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Education dashboard' };
 
 const TILES = [
+  {
+    href: '/education/recruitment',
+    icon: Filter,
+    title: 'Undergraduate recruitment',
+    blurb:
+      'Full TCAS round 1–4 funnel — quota, applicants, passed, Clearinghouse send + confirm, registrar reporting. KPIs, year-over-year trend, faculty rollup, round-by-round, and a program × round drill-down table. Source: POWERBI.ADMISSION_STAT_CURRID.',
+    Thumb: RecruitmentThumb,
+  },
   {
     href: '/education/student-info',
     icon: GraduationCap,
