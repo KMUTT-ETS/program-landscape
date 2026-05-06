@@ -32,12 +32,17 @@ export function ImdUploadWidget() {
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
-      // 1. Upload PDF(s) via the standard route — pre-tagged with
-      //    sourceCategoryHint=REPORT and sourceOrg=IMD so the row
-      //    is identifiable in /admin/pdf-review.
+      // 1. Upload PDF(s) via the standard route. We tag with
+      //    sourceCategoryHint=OTHER so the pdf-intake pipeline matches
+      //    NO stub extractor — the StubStatisticalReportExtractor
+      //    (REPORT category) would otherwise write an empty LABOR_STAT
+      //    PdfExtraction and surface this PDF in /admin/pdf-review,
+      //    confusing the IMD flow which lives entirely in
+      //    /admin/extraction-review (via the AiExtraction the ai-job
+      //    writes). sourceOrg + filename keep the row identifiable.
       const form = new FormData();
       for (const f of Array.from(files)) form.append('files', f);
-      form.append('sourceCategoryHint', 'REPORT');
+      form.append('sourceCategoryHint', 'OTHER');
       form.append('sourceOrg', 'IMD World Competitiveness Center, Lausanne');
       form.append('language', 'EN');
 
