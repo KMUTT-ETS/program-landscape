@@ -378,41 +378,64 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
 // ──────────────────────────────────────────────────────────────────────────
 
 async function scoreAttractivenessProgram(programId: string): Promise<HealthScore> {
-  // Pull the program's level + latest TCAS row in parallel — level
-  // drives the KKU intake-floor policy (bachelor=30, postgrad=8).
-  const [tcasRow, programRow] = await Promise.all([
-    prisma.tcasAdmissionStat.findFirst({
-      where: { programId },
-      orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
-    }),
-    prisma.program.findUnique({
-      where: { id: programId },
-      select: { level: true },
-    }),
-  ]);
+  // Latest-year TCAS funnel — sums ACROSS rounds 1–4 (and any
+  // sub-rounds) for the program's most recent entry year.
+  // POWERBI.ADMISSION_STAT_CURRID gives us the full funnel: quota,
+  // applicants, passed, Clearinghouse send + confirm, and the
+  // registrar's reg_reported tail.
+  //
+  // Three drivers:
+  //   - tcas_competition_ratio  (applicants / enrollSeats)
+  //   - tcas_fill_rate          (totalPassed / enrollSeats)
+  //   - tcas_registration_yield (regReported / sendClearinghouse)
+  //       — the actual conversion from "got accepted, sent to CH" to
+  //       "showed up at registrar". Strong attractiveness signal —
+  //       a program that admits 100 and ends with 30 reporting in is
+  //       NOT as attractive as one that ends with 80.
+  //
+  // Plus enrollment-trend + KKU intake-floor compliance drivers
+  // (unchanged).
+  const programRow = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { level: true },
+  });
 
-  // Peer median competition ratio for the same (year, round) and same
-  // programmeName / subject signature. We approximate by matching on
-  // the same `programmeName` substring of any open word.
-  let peerMedianRatio: number | null = null;
-  if (tcasRow) {
-    const subjectKey = extractSubjectSignature(tcasRow.programmeName);
-    const peerRows = await prisma.tcasAdmissionStat.findMany({
-      where: {
-        entryYearBE: tcasRow.entryYearBE,
-        round: tcasRow.round,
-        institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
-        programmeName: { contains: subjectKey, mode: 'insensitive' },
+  // Find the program's latest entry year in the funnel.
+  const latestRow = await prisma.tcasAdmissionFunnel.findFirst({
+    where: { programId },
+    orderBy: [{ entryYearBE: 'desc' }],
+    select: { entryYearBE: true },
+  });
+  let funnelTotals: {
+    enrollSeats: number;
+    applicants: number;
+    passed: number;
+    sendCh: number;
+    regReported: number;
+    rounds: number;
+  } | null = null;
+  if (latestRow) {
+    const rows = await prisma.tcasAdmissionFunnel.findMany({
+      where: { programId, entryYearBE: latestRow.entryYearBE },
+      select: {
+        enrollSeats: true,
+        totalApplicants: true,
+        totalPassed: true,
+        sendClearinghouse: true,
+        regReported: true,
       },
-      select: { quota: true, applicants: true, programmeName: true },
     });
-    const peerRatios = peerRows
-      .filter((r) => r.quota > 0 && extractSubjectSignature(r.programmeName) === subjectKey)
-      .map((r) => r.applicants / r.quota)
-      .sort((a, b) => a - b);
-    if (peerRatios.length > 0) {
-      peerMedianRatio = peerRatios[Math.floor(peerRatios.length / 2)] ?? null;
-    }
+    funnelTotals = rows.reduce(
+      (acc, r) => ({
+        enrollSeats: acc.enrollSeats + (r.enrollSeats ?? 0),
+        applicants: acc.applicants + (r.totalApplicants ?? 0),
+        passed: acc.passed + (r.totalPassed ?? 0),
+        sendCh: acc.sendCh + (r.sendClearinghouse ?? 0),
+        regReported: acc.regReported + (r.regReported ?? 0),
+        rounds: acc.rounds + 1,
+      }),
+      { enrollSeats: 0, applicants: 0, passed: 0, sendCh: 0, regReported: 0, rounds: 0 },
+    );
   }
 
   // Enrollment series for the trend driver.
@@ -424,24 +447,52 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
 
   const drivers = [
     {
-      label: 'tcas_competition_vs_peers',
+      label: 'tcas_competition_ratio',
       value: (() => {
-        if (!tcasRow || tcasRow.quota <= 0) return null;
-        const kkuRatio = tcasRow.applicants / tcasRow.quota;
-        if (peerMedianRatio === null || peerMedianRatio <= 0) return null;
-        // Score 50 = parity with peer median; 100 = 2× peer median.
-        return clamp((kkuRatio / peerMedianRatio) * 50);
+        if (!funnelTotals || funnelTotals.enrollSeats <= 0) return null;
+        const ratio = funnelTotals.applicants / funnelTotals.enrollSeats;
+        return ratio >= 10
+          ? 100
+          : ratio >= 5
+            ? 70 + ((ratio - 5) / 5) * 30
+            : ratio >= 2
+              ? 40 + ((ratio - 2) / 3) * 30
+              : ratio >= 1
+                ? 20 + (ratio - 1) * 20
+                : Math.max(0, ratio * 20);
       })(),
-      raw: tcasRow ? { applicants: tcasRow.applicants, quota: tcasRow.quota, peerMedianRatio } : null,
+      raw: funnelTotals,
     },
     {
       label: 'tcas_fill_rate',
       value: (() => {
-        if (!tcasRow || tcasRow.quota <= 0) return null;
-        const admitted = tcasRow.admittedPass1 + tcasRow.admittedPass2;
-        return clamp((admitted / tcasRow.quota) * 100);
+        if (!funnelTotals || funnelTotals.enrollSeats <= 0) return null;
+        // passed/seats ≥ 0.5 → 100, linear below.
+        const fill = funnelTotals.passed / funnelTotals.enrollSeats;
+        return fill >= 0.5 ? 100 : clamp((fill / 0.5) * 100);
       })(),
-      raw: tcasRow ? { admitted: tcasRow.admittedPass1 + tcasRow.admittedPass2, quota: tcasRow.quota } : null,
+      raw: funnelTotals
+        ? { passed: funnelTotals.passed, seats: funnelTotals.enrollSeats }
+        : null,
+    },
+    {
+      label: 'tcas_registration_yield',
+      value: (() => {
+        // Yield = reg_reported / send_clearinghouse. Programs that lose
+        // most accepted students between Clearinghouse and registration
+        // are bleeding attractiveness. ≥0.85 = excellent; 0.5 = mid;
+        // <0.3 = serious leakage.
+        if (!funnelTotals || funnelTotals.sendCh <= 0) return null;
+        const yieldRate = funnelTotals.regReported / funnelTotals.sendCh;
+        return yieldRate >= 0.85
+          ? 100
+          : yieldRate >= 0.5
+            ? 50 + ((yieldRate - 0.5) / 0.35) * 50
+            : Math.max(0, yieldRate * 100);
+      })(),
+      raw: funnelTotals
+        ? { regReported: funnelTotals.regReported, sendCh: funnelTotals.sendCh }
+        : null,
     },
     {
       label: 'enrollment_trend_slope',
@@ -493,33 +544,18 @@ async function scoreAttractivenessScope(
   scope: ScopeLevel,
   scopeId: string,
 ): Promise<HealthScore> {
-  // Faculty/dept/uni attractiveness = TCAS funnel aggregated over
+  // Faculty/dept/uni attractiveness — aggregate the TCAS funnel across
   // canonical+ACTIVE programs at the scope, latest entry year only.
+  // Source: tcas_admission_funnels (POWERBI.ADMISSION_STAT_CURRID).
+  // Replaces the legacy tcas_admission_stats reads (TCAS3-only).
   //
-  // The MV-funnel columns (applications_total, admitted_total,
-  // retained_year2_total) are kept sentinel-zero by the kku-registry
-  // connector — registrar views can't fill upstream funnel data, so
-  // the previous MV-based scoring returned null for every faculty.
-  // TCAS data IS rich (~600 rows across canonical programs after the
-  // tcas-stat connector lands), so we aggregate it directly here.
-  //
-  // Two drivers (equal-weighted in summariseDrivers):
-  //   - tcas_competition_ratio = applicants / quota
-  //       → ≥10× : 100  (highly competitive)
-  //       → 5×   : 70
-  //       → 2×   : 40
-  //       → 1×   : 20
-  //       → <1×  : 0    (more seats than applicants)
-  //   - tcas_fill_rate = admitted_total / quota
-  //       → 0.5+ : 100  (typical for selective programs that
-  //                       deliberately admit only top candidates)
-  //       → linear-from-0 below that
-  // The scope predicate is interpolated EXACTLY ONCE here. A previous
-  // version reused the Prisma.sql fragment in two WHERE clauses (the
-  // CTE and the outer query), which corrupts Prisma's parameter
-  // accounting and surfaces as "syntax error at or near $1". The
-  // single-filter shape below collapses to one CTE that already
-  // pre-filters to canonical+ACTIVE programs at the requested scope.
+  // Three drivers (equal-weighted in summariseDrivers):
+  //   - tcas_competition_ratio = applicants / enrollSeats
+  //       → ≥10× : 100   ≥5× : 70   ≥2× : 40   ≥1× : 20   <1× : 0
+  //   - tcas_fill_rate = totalPassed / enrollSeats
+  //       → 0.5+ : 100; linear below
+  //   - tcas_registration_yield = regReported / sendClearinghouse
+  //       → 0.85+ : 100; 0.5 = mid (50); linear below
   const scopePredicate =
     scope === 'faculty'
       ? Prisma.sql`AND p.faculty_id = ${scopeId}`
@@ -528,31 +564,45 @@ async function scoreAttractivenessScope(
         : Prisma.empty;
 
   const rows = await prisma.$queryRaw<
-    Array<{ applicants: bigint | null; admitted: bigint | null; quota: bigint | null }>
+    Array<{
+      applicants: bigint | null;
+      seats: bigint | null;
+      passed: bigint | null;
+      send_ch: bigint | null;
+      reg_reported: bigint | null;
+    }>
   >`
     WITH eligible AS (
-      SELECT t.entry_year_be, t.applicants, t.admitted_pass1, t.admitted_pass2, t.quota
-      FROM tcas_admission_stats t
+      SELECT
+        t.entry_year_be,
+        t.total_applicants, t.enroll_seats, t.total_passed,
+        t.send_clearinghouse, t.reg_reported
+      FROM tcas_admission_funnels t
       JOIN programs p ON p.id = t.program_id
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
         ${scopePredicate}
     ),
     latest AS (SELECT MAX(entry_year_be) AS y FROM eligible)
     SELECT
-      COALESCE(SUM(e.applicants), 0)::bigint AS applicants,
-      COALESCE(SUM(e.admitted_pass1 + e.admitted_pass2), 0)::bigint AS admitted,
-      COALESCE(SUM(e.quota), 0)::bigint AS quota
+      COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
+      COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
+      COALESCE(SUM(e.total_passed), 0)::bigint AS passed,
+      COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
+      COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported
     FROM eligible e
     JOIN latest l ON e.entry_year_be = l.y;
   `;
 
   const r = rows[0];
   const applicants = Number(r?.applicants ?? 0n);
-  const admitted = Number(r?.admitted ?? 0n);
-  const quota = Number(r?.quota ?? 0n);
+  const seats = Number(r?.seats ?? 0n);
+  const passed = Number(r?.passed ?? 0n);
+  const sendCh = Number(r?.send_ch ?? 0n);
+  const regReported = Number(r?.reg_reported ?? 0n);
 
-  const competitionRatio = quota > 0 ? applicants / quota : null;
-  const fillRate = quota > 0 ? admitted / quota : null;
+  const competitionRatio = seats > 0 ? applicants / seats : null;
+  const fillRate = seats > 0 ? passed / seats : null;
+  const yieldRate = sendCh > 0 ? regReported / sendCh : null;
 
   const drivers = [
     {
@@ -568,7 +618,7 @@ async function scoreAttractivenessScope(
               : competitionRatio >= 1
                 ? 20 + (competitionRatio - 1) * 20
                 : Math.max(0, competitionRatio * 20),
-      raw: { applicants, quota, competitionRatio },
+      raw: { applicants, seats, competitionRatio },
     },
     {
       label: 'tcas_fill_rate',
@@ -577,7 +627,18 @@ async function scoreAttractivenessScope(
         : fillRate >= 0.5
           ? 100
           : clamp((fillRate / 0.5) * 100),
-      raw: { admitted, quota, fillRate },
+      raw: { passed, seats, fillRate },
+    },
+    {
+      label: 'tcas_registration_yield',
+      value: yieldRate === null
+        ? null
+        : yieldRate >= 0.85
+          ? 100
+          : yieldRate >= 0.5
+            ? 50 + ((yieldRate - 0.5) / 0.35) * 50
+            : Math.max(0, yieldRate * 100),
+      raw: { regReported, sendCh, yieldRate },
     },
   ];
   return summariseDrivers(drivers);

@@ -21,6 +21,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: true,
   },
   {
+    slug: 'kku-tcas-funnel',
+    name: 'KKU TCAS Admission Funnel',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 4 * * *', // daily at 04:00 — after kku-registry
+    ownerContact: 'KKU Registrar — Academic Office',
+    notes:
+      'Full TCAS round 1–4 admission funnel from POWERBI.ADMISSION_STAT_CURRID — quota / applicants / passed / Clearinghouse send + confirm / registration reporting per program × round × year. Replaces the previous TCAS3-only data ingested into TcasAdmissionStat (KKU rows there are obsolete; peer-institution rows kept for benchmarking).',
+    mocked: false,
+  },
+  {
     slug: 'kku-finance',
     name: 'KKU Finance',
     kind: 'API',

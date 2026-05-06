@@ -409,6 +409,7 @@ model Program {
   cohortDistributions   StudentCohortDistribution[]
   alumniCohortStatuses  AlumniCohortStatus[]
   tcasAdmissionStats    TcasAdmissionStat[]
+  tcasAdmissionFunnels  TcasAdmissionFunnel[]
   peerSelections        ProgramPeerSelection[]
   peerReview            ProgramPeerReview?
   strategicNarrative    ProgramStrategicNarrative?
@@ -3377,4 +3378,65 @@ model ImdRanking {
   @@index([dataset, year])
   @@index([economyId])
   @@map("imd_rankings")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// KKU TCAS admission funnel — full round 1–4 data per program × year.
+//
+// Source: registry Oracle view POWERBI.ADMISSION_STAT_CURRID. Replaces
+// the TCAS3-only rows that previously lived in TcasAdmissionStat. The
+// peer-institution rows in TcasAdmissionStat stay (for benchmarking);
+// only the KKU rows are migrated here.
+//
+// One row per (mhesi_curr_id × round × entry_year_be). MHESI's CURR_ID
+// joins back to Program via Program.mhesiCode ∪ ProgramMhesiAlias.
+//
+// All count columns are nullable because the upstream view sometimes
+// reports NULL for rounds where a program didn't run (e.g. round 4
+// for selective programs that closed at round 3).
+// ══════════════════════════════════════════════════════════════════════════
+
+model TcasAdmissionFunnel {
+  id                   String   @id @default(cuid())
+  /// Resolved through Program.mhesiCode ∪ ProgramMhesiAlias. Nullable
+  /// when the CURR_ID couldn't be mapped (surfaces in the run summary
+  /// for analyst follow-up).
+  programId            String?  @map("program_id")
+  /// MHESI curriculum ID — the natural primary join key from the Oracle
+  /// view. Always present.
+  mhesiCurrId          String   @map("mhesi_curr_id")
+  /// TCAS round — stored as String because the source view uses both
+  /// integer rounds (1, 2, 3, 4) AND fractional sub-rounds (1.2, 2.2,
+  /// 4.2) when a round is split across phases. Numeric stringification
+  /// preserves the source representation exactly. Sort
+  /// lexicographically when displaying — that orders 1, 1.2, 1.3, 2,
+  /// 2.2, 3, 4, 4.2 correctly.
+  round                String
+  /// Buddhist Era entry year (e.g. 2568 for the 2025 cohort).
+  entryYearBE          Int      @map("entry_year_be")
+  /// จำนวนรับ — admission seats / quota.
+  enrollSeats          Int?     @map("enroll_seats")
+  /// จำนวนผู้สมัคร — total applicants.
+  totalApplicants      Int?     @map("total_applicants")
+  /// TOTAL_PASS — total who passed the round.
+  totalPassed          Int?     @map("total_passed")
+  /// จำนวนส่ง Clearinghouse.
+  sendClearinghouse    Int?     @map("send_clearinghouse")
+  /// จำนวนยืนยัน Clearinghouse.
+  confirmClearinghouse Int?     @map("confirm_clearinghouse")
+  /// จำนวนส่งออกรหัส นศ reg เพื่อรายงานตัว.
+  sendRegReported      Int?     @map("send_reg_reported")
+  /// จำนวนผู้ที่รายงานตัว — actually reported / enrolled.
+  regReported          Int?     @map("reg_reported")
+  freshnessDate        DateTime @map("freshness_date") @db.Date
+  source               String   @default("kku-tcas-funnel")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  program Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+
+  @@unique([mhesiCurrId, round, entryYearBE])
+  @@index([programId])
+  @@index([entryYearBE])
+  @@map("tcas_admission_funnels")
 }

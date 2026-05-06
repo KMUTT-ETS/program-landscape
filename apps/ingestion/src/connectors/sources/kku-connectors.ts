@@ -515,3 +515,15 @@ export class KkuHrProcessedConnector extends ApiConnector {
     return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
   }
 }
+
+export class KkuTcasFunnelConnector extends ApiConnector {
+  readonly slug = 'kku-tcas-funnel';
+  readonly mocked = true;
+  async fetch(): Promise<RawRecord[]> { return []; }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'tcas_admission_funnels', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}

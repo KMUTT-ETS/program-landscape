@@ -11,6 +11,7 @@ import {
   KkuHrConnector,
   KkuRegistryConnector,
   KkuResearchConnector,
+  KkuTcasFunnelConnector,
   KmitlSkillMappingConnector,
   MhesiCisaConnector,
   OpenAlexConnector,
@@ -25,6 +26,7 @@ import {
 import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
+import { KkuTcasFunnelRealConnector } from './sources/kku-tcas-funnel';
 import { KkuResearchRealConnector } from './sources/kku-research';
 import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
 import { KkuHrProcessedRealConnector } from './sources/kku-hr-processed';
@@ -98,6 +100,11 @@ const ENTRIES: readonly ConnectorEntry[] = [
     slug: 'kku-registry',
     mock: () => new KkuRegistryConnector(),
     real: () => new KkuRegistryRealConnector(),
+  },
+  {
+    slug: 'kku-tcas-funnel',
+    mock: () => new KkuTcasFunnelConnector(),
+    real: () => new KkuTcasFunnelRealConnector(),
   },
   {
     slug: 'kku-finance',
