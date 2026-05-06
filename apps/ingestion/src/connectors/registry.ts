@@ -92,6 +92,13 @@ interface ConnectorEntry {
   mock: ConnectorFactory;
   // Populated during the corresponding prompt-14 mini-session.
   real?: ConnectorFactory;
+  // For catalog slugs that are advertised as "active" because their
+  // upstream is already pulled by another connector. The registry
+  // skips real-mode resolution + mock-fallback warning for these and
+  // logs an info-level "covered by X" message instead. Standalone
+  // runs of the slug still execute the mock (placeholder data) but
+  // operators are expected to run the canonical connector.
+  coveredBy?: string;
 }
 
 const ENTRIES: readonly ConnectorEntry[] = [
@@ -191,8 +198,22 @@ const ENTRIES: readonly ConnectorEntry[] = [
     mock: () => new AdbGmsConnector(),
     real: () => new AdbGmsRealConnector(),
   },
-  { slug: 'scopus',             mock: () => new ScopusConnector() },
-  { slug: 'openalex',           mock: () => new OpenAlexConnector() },
+  // Scopus + OpenAlex live in the catalog as advertised upstream
+  // sources, but the actual reads happen inside the kku-research
+  // connector (institution-scoped fetches via OpenAlex; Scopus
+  // enrichment when KKU_SCOPUS_API_KEY is set). Marked `coveredBy` so
+  // the registry surfaces "covered by kku-research" instead of a
+  // misleading "mode=real but no real implementation" warning.
+  {
+    slug: 'scopus',
+    mock: () => new ScopusConnector(),
+    coveredBy: 'kku-research',
+  },
+  {
+    slug: 'openalex',
+    mock: () => new OpenAlexConnector(),
+    coveredBy: 'kku-research',
+  },
 
   // Scrape ───────────────────────────────────────────────────────────
   { slug: 'imd-rankings',          mock: () => new ImdRankingsConnector() },
@@ -234,13 +255,23 @@ export function buildRegistry(): Map<string, Connector> {
   const map = new Map<string, Connector>();
   let chosenReal = 0;
   let chosenMock = 0;
+  let covered = 0;
   let fellBack = 0;
 
   for (const entry of ENTRIES) {
     const resolution = resolveConnectorMode(entry.slug);
 
     let connector: Connector;
-    if (resolution.mode === 'real' && entry.real) {
+    if (entry.coveredBy) {
+      // Aliased slug — advertised as active but upstream is pulled by
+      // the canonical connector. Skip real-mode resolution warning;
+      // standalone runs use the mock placeholder.
+      logger.log(
+        `Connector ${entry.slug}: covered by ${entry.coveredBy} — standalone runs use the mock placeholder. Run \`pnpm connector:run ${entry.coveredBy}\` for real data.`,
+      );
+      connector = entry.mock();
+      covered++;
+    } else if (resolution.mode === 'real' && entry.real) {
       connector = entry.real();
       chosenReal++;
     } else {
@@ -268,7 +299,7 @@ export function buildRegistry(): Map<string, Connector> {
   }
 
   logger.log(
-    `Connector registry built — real=${chosenReal} mock=${chosenMock} fell-back-to-mock=${fellBack}`,
+    `Connector registry built — real=${chosenReal} mock=${chosenMock} covered=${covered} fell-back-to-mock=${fellBack}`,
   );
   return map;
 }
