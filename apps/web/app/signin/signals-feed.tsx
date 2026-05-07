@@ -60,12 +60,20 @@ export function SignalsFeed({ items }: { items: FeedItem[] }) {
             )}
           </>
         );
+        // Resting state intentionally opacity-1 — the entrance animation
+        // applies opacity:0→1 via `from`/`to` keyframes with fill-mode:
+        // both, which respects prefers-reduced-motion gracefully (the
+        // element starts at opacity 1 if animations are disabled). An
+        // earlier version had `opacity-0` as the static class with the
+        // animation flipping it to 1 via `forwards`; that left users
+        // with reduced-motion or delay-quirk browsers staring at
+        // permanently invisible cards.
         const baseClass =
-          'block rounded-xl border border-white/25 bg-white/12 backdrop-blur-md px-4 py-3 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.20)] opacity-0 transition-colors';
+          'block rounded-xl border border-white/30 bg-white/15 backdrop-blur-md px-4 py-3 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.20)] transition-colors';
         return (
           <li
             key={s.id}
-            style={{ animation: `signalIn 600ms ease-out ${i * 100}ms forwards` }}
+            style={{ animation: `signalIn 600ms ease-out ${i * 100}ms both` }}
           >
             {s.url ? (
               <a
