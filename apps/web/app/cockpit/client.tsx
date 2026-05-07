@@ -543,33 +543,43 @@ function ScopeBreadcrumb({ crumbs }: { crumbs: ScopeBreadcrumbCrumb[] }) {
     router.push(`/cockpit?${u.toString()}`);
   };
   return (
-    <nav aria-label="Cockpit scope breadcrumb" className="flex items-center gap-1 text-sm flex-wrap">
-      {crumbs.map((c, i) => {
-        const isLast = i === crumbs.length - 1;
-        const Tag = isLast ? 'span' : 'button';
-        const cls = isLast
-          ? 'flex items-center gap-1.5 text-text-primary font-medium'
-          : 'flex items-center gap-1.5 text-text-secondary hover:text-accent';
-        return (
-          <React.Fragment key={`${c.scope}-${c.scopeId ?? 'root'}`}>
-            <Tag
-              type={Tag === 'button' ? 'button' : undefined}
-              className={cls}
-              onClick={Tag === 'button' ? () => goTo(c) : undefined}
-            >
-              {i === 0 ? <Home className="h-3.5 w-3.5" aria-hidden /> : null}
+    <Card padding="sm">
+      <nav
+        aria-label="Cockpit scope breadcrumb"
+        className="flex items-center gap-2 text-sm flex-wrap"
+      >
+        {crumbs.map((c, i) => {
+          const isLast = i === crumbs.length - 1;
+          const inner = (
+            <span className="flex items-center gap-1.5">
+              {i === 0 ? <Home className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               <span className="flex flex-col leading-tight">
                 <span lang="th">{c.labelTh}</span>
                 {c.labelEn && c.labelEn !== c.labelTh && (
                   <span className="text-[10px] text-text-tertiary">{c.labelEn}</span>
                 )}
               </span>
-            </Tag>
-            {!isLast && <ChevronRight className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />}
-          </React.Fragment>
-        );
-      })}
-    </nav>
+            </span>
+          );
+          return (
+            <React.Fragment key={`${c.scope}-${c.scopeId ?? 'root'}`}>
+              {isLast ? (
+                <span className="text-text-primary font-medium">{inner}</span>
+              ) : (
+                <button
+                  type="button"
+                  className="rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
+                  onClick={() => goTo(c)}
+                >
+                  {inner}
+                </button>
+              )}
+              {!isLast && <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />}
+            </React.Fragment>
+          );
+        })}
+      </nav>
+    </Card>
   );
 }
 

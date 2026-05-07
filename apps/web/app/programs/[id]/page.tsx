@@ -4,8 +4,8 @@ import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Button, PageHeader } from '@kku/ui';
-import { FileText, Printer } from 'lucide-react';
+import { Button, Card, PageHeader } from '@kku/ui';
+import { ChevronRight, FileText, Home, Printer } from 'lucide-react';
 import { DeepDiveClient } from './client';
 import type {
   DeepDiveOverview,
@@ -80,8 +80,64 @@ export default async function ProgramDeepDivePage({
 
   if (!overview) notFound();
 
+  // Cockpit-style breadcrumb so users can navigate back from the
+  // deepest level (program → department → faculty → KKU root) without
+  // hunting for the browser back button.
+  const facultyHref = `/cockpit?scope=faculty&scopeId=${overview.program.faculty.id}`;
+  const deptHref = overview.program.department
+    ? `/cockpit?scope=department&scopeId=${overview.program.department.id}`
+    : null;
+
   return (
     <AuthedAppShell user={user}>
+      <Card padding="sm" className="mb-3">
+        <nav
+          aria-label="Program breadcrumb"
+          className="flex items-center gap-2 text-sm flex-wrap"
+        >
+          <Link
+            href="/cockpit"
+            className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
+          >
+            <Home className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="flex flex-col leading-tight">
+              <span lang="th">มข. (ภาพรวม)</span>
+              <span className="text-[10px] text-text-tertiary">KKU University</span>
+            </span>
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
+          <Link
+            href={facultyHref}
+            className="rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
+          >
+            <span className="flex flex-col leading-tight">
+              <span lang="th">{overview.program.faculty.nameTh}</span>
+              <span className="text-[10px] text-text-tertiary">{overview.program.faculty.nameEn}</span>
+            </span>
+          </Link>
+          {deptHref && overview.program.department && (
+            <>
+              <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
+              <Link
+                href={deptHref}
+                className="rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
+              >
+                <span className="flex flex-col leading-tight">
+                  <span lang="th">{overview.program.department.nameTh}</span>
+                  <span className="text-[10px] text-text-tertiary">{overview.program.department.nameEn}</span>
+                </span>
+              </Link>
+            </>
+          )}
+          <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
+          <span className="px-1.5 py-0.5 text-text-primary font-medium">
+            <span className="flex flex-col leading-tight">
+              <span lang="th">{overview.program.nameTh}</span>
+              <span className="text-[10px] text-text-tertiary">{overview.program.nameEn}</span>
+            </span>
+          </span>
+        </nav>
+      </Card>
       <PageHeader
         title={overview.program.nameEn}
         subtitle={`${overview.program.code} · ${overview.program.nameTh} · ${overview.program.faculty.nameEn}${overview.program.department ? ` · ${overview.program.department.nameEn}` : ''}`}
