@@ -811,12 +811,15 @@ export class StaffService {
     yearFrom: number,
   ) {
 
-    // FacultyMember snapshot — always filter to active employees only.
-    // The program-landscape application is a "current portfolio" tool;
-    // retired/historical authors get filtered upstream. For kku-hr rows,
-    // isActive comes from KKU HR; for kkupub_-backfilled rows it's
-    // heuristic (paper in last 2 years).
-    const facultyWhere: Prisma.FacultyMemberWhereInput = { isActive: true };
+    // FacultyMember snapshot — count EVERYONE who has authored on KKU's
+    // behalf, including inactive/retired staff. Rationale (clarified
+    // 2026-05-07): the staff dashboard is historical-output-measurement
+    // ("what has KKU produced?") whereas program-scoring (health score,
+    // lifecycle verdict) is forward-capability-projection ("what can
+    // KKU produce going forward?"). Those latter paths in
+    // packages/db/src/{health-score,program-deep-dive}.ts continue to
+    // filter on isActive=true; this dashboard does NOT.
+    const facultyWhere: Prisma.FacultyMemberWhereInput = {};
     if (filter.facultyName && filter.facultyName.length > 0) {
       facultyWhere.faculty = { OR: [{ nameTh: { in: filter.facultyName } }, { nameEn: { in: filter.facultyName } }] };
     }
@@ -1169,9 +1172,9 @@ export class StaffService {
         other: authorList.filter((a) => a.employeeSource === 'other').length,
       },
       caveats: [
+        'This dashboard counts ALL staff (employed, retired, formerly-affiliated) — the framing is historical research-output measurement. Forward-looking program scoring (health score, lifecycle verdict) uses only active staff and runs in a separate code path.',
         'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard within 5-10% across both Scopus and PubMed.',
         'Scopus author resolution path (per KKU Library IT 2026-05-07): scopus_documents → scopus_author_documents → scopus_authors → scopus_author_people → people. The denormalised scopus_author_documents.person_id column is a stale cache (~3y backlog) and is no longer used.',
-        'Active employees only. For kku-hr rows isActive comes from KKU HR; for kkupub_-backfilled rows it is heuristic (paper in last 2 years).',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
       ],

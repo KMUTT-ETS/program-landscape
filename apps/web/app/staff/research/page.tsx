@@ -53,7 +53,7 @@ export default async function ResearchPage({
       <StaffBackLink />
       <PageHeader
         title="Research and publications"
-        subtitle="Active KKU staff's publications from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. Productivity-by-rank breakdown for kku-hr-sourced staff."
+        subtitle="All KKU staff publications (incl. retired) from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. This is historical-output measurement; program-scoring views (health score, lifecycle) use only active staff and live elsewhere."
       />
       {data && options ? (
         <ResearchClient

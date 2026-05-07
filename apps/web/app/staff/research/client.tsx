@@ -172,7 +172,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
             </button>
           )}
           <span className="ml-auto text-xs text-text-tertiary">
-            Active staff only · window {data.yearFrom}–{data.yearTo} · {data.totalStaff.toLocaleString('en-US')} staff (
+            All staff (incl. retired) · window {data.yearFrom}–{data.yearTo} · {data.totalStaff.toLocaleString('en-US')} staff (
             {data.publishingStaff.toLocaleString('en-US')} publishing)
           </span>
         </div>
@@ -180,9 +180,9 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Papers" value={data.totalPapers.toLocaleString('en-US')} sub={`${pct(data.publishingStaff, data.totalStaff)} of active staff publishing`} />
+        <Kpi label="Papers" value={data.totalPapers.toLocaleString('en-US')} sub={`${pct(data.publishingStaff, data.totalStaff)} of staff have published`} />
         <Kpi label="Citations (Scopus)" value={data.totalCitations.toLocaleString('en-US')} sub="PubMed citations not in mirror" />
-        <Kpi label="Active staff" value={data.totalStaff.toLocaleString('en-US')} sub={`${data.publishingStaff.toLocaleString('en-US')} have published`} />
+        <Kpi label="All staff (incl. retired)" value={data.totalStaff.toLocaleString('en-US')} sub={`${data.publishingStaff.toLocaleString('en-US')} have published`} />
         <Kpi
           label="Avg papers per publishing author"
           value={data.publishingStaff > 0 ? (data.totalPapers / data.publishingStaff).toFixed(1) : '—'}
@@ -238,7 +238,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Faculty output by year</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Cell = papers in that (faculty × year) for active employees. Last 10 years shown. Click a faculty row to filter the page.
+          Cell = papers in that (faculty × year) — all staff including retired. Last 10 years shown. Click a faculty row to filter the page.
         </p>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
@@ -308,7 +308,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Top 30 authors by paper count</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Active employees only. h-index computed across the {data.yearFrom}–{data.yearTo} window only.
+          All staff including retired/formerly-affiliated. h-index computed across the {data.yearFrom}–{data.yearTo} window only.
         </p>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs">

@@ -40,7 +40,7 @@ const TILES = [
     icon: Microscope,
     title: 'Research and publications',
     blurb:
-      "Active KKU staff publications (Scopus + PubMed) from the internal kku-publications mirror. Year-trend, faculty heatmap, source / output-type breakdowns, top venues, top-30 authors, productivity-by-rank, and Faculty → Author drill-down.",
+      "All KKU staff publications (Scopus + PubMed, incl. retired) from the internal kku-publications mirror. Year-trend, faculty heatmap, source / output-type breakdowns, top venues, top-30 authors, productivity-by-rank, and Faculty → Author drill-down.",
     Thumb: ResearchThumb,
   },
   {
