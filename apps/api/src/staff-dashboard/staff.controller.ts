@@ -47,6 +47,27 @@ const StaffFilterSchema = z.object({
   nationalityId: StringArray,
 });
 
+// Publications view has its own narrower filter set — we drive it off
+// FacultyMember + ResearchOutput (not staff_master_records), so we don't
+// need staffType/track/budget/nationality. We DO need source + activeOnly
+// + yearFrom because the kku-publications corpus has multiple sources
+// (Scopus / PubMed / legacy OpenAlex) and a configurable time window.
+const PublicationsFilterSchema = z.object({
+  facultyName: StringArray,
+  sources: StringArray,
+  activeOnly: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
+  yearFrom: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : Number(v)))
+    .refine((v) => v === undefined || (Number.isInteger(v) && v >= 1900 && v <= 2100), {
+      message: 'yearFrom must be an integer between 1900 and 2100',
+    }),
+});
+
 @Controller('/staff-dashboard')
 export class StaffController {
   constructor(
@@ -140,5 +161,11 @@ export class StaffController {
   @Authorized('programs:read:all')
   compensation(@Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>) {
     return this.staff.compensation(q);
+  }
+
+  @Get('publications')
+  @Authorized('programs:read:all')
+  publications(@Query(new ZodValidationPipe(PublicationsFilterSchema)) q: z.infer<typeof PublicationsFilterSchema>) {
+    return this.staff.publications(q);
   }
 }

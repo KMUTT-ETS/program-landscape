@@ -120,6 +120,61 @@ export interface ResearchResponse {
   perAuthor: ResearchAuthor[];
 }
 
+// Publications view — driven by FacultyMember + ResearchOutput directly
+// (not staff_master_records). Surfaces the kku-publications mirror corpus
+// including kkupub_-backfilled FacultyMember rows. Distinct from the
+// /research view which is bound to currently-employed kku-hr staff.
+export interface PublicationsAuthor {
+  fmId: string;
+  nameTh: string | null;
+  nameEn: string | null;
+  rank: string;
+  isActive: boolean;
+  employeeSource: 'kku-hr' | 'kku-publications' | 'other';
+  facultyName: string | null;
+  departmentName: string | null;
+  papers: number;
+  citations: number;
+  hIndex: number;
+  mostRecentYear: number | null;
+  bySource: Record<string, number>;
+}
+
+export interface PublicationsFacultyRow {
+  facultyName: string;
+  staffCount: number;
+  publishingStaff: number;
+  papers: number;
+  citations: number;
+  bySource: Record<string, number>;
+  byType: Record<string, number>;
+}
+
+export interface PublicationsHeatmapRow {
+  facultyName: string;
+  years: Array<{ year: number; papers: number }>;
+}
+
+export interface PublicationsResponse {
+  yearFrom: number;
+  yearTo: number;
+  totalStaff: number;
+  publishingStaff: number;
+  totalPapers: number;
+  totalCitations: number;
+  bySource: Record<string, number>;
+  byType: Record<string, number>;
+  byYear: Array<{ year: number; papers: number }>;
+  byFaculty: PublicationsFacultyRow[];
+  heatmap: PublicationsHeatmapRow[];
+  topVenues: Array<{ venue: string; papers: number }>;
+  topAuthors: PublicationsAuthor[];
+  perAuthor: PublicationsAuthor[];
+  employeeSourceMix: { kkuHr: number; kkuPublications: number; other: number };
+  activeStaffSplit: { active: number; inactive: number };
+  caveats: string[];
+}
+
 export interface CompensationResponse {
   budgetByTrack: Array<{ source: string; academic: number; support: number; total: number }>;
   incomeByTrack: Array<{ bandId: string; bandLabel: string; academic: number; support: number }>;

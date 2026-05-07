@@ -1,0 +1,511 @@
+'use client';
+
+import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { Card } from '@kku/ui';
+import { MultiSelectField } from '../multi-select';
+import { DrillDownPivot, type DrillRow } from '../drill-down-pivot';
+import type {
+  FilterOptions,
+  PublicationsAuthor,
+  PublicationsResponse,
+} from '../types';
+
+interface Props {
+  data: PublicationsResponse;
+  options: FilterOptions;
+  initialFilters: {
+    facultyName: string[];
+    sources: string[];
+    activeOnly: boolean;
+    yearFrom?: number;
+  };
+}
+
+const SOURCE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'kku-publications:scopus', label: 'Scopus' },
+  { value: 'kku-publications:pubmed', label: 'PubMed' },
+];
+
+const TYPE_LABELS: Record<string, string> = {
+  JOURNAL: 'Journal article',
+  CONFERENCE: 'Conference paper',
+  BOOK: 'Book chapter',
+  PATENT: 'Patent',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  'kku-publications:scopus': 'Scopus',
+  'kku-publications:pubmed': 'PubMed',
+  openalex: 'OpenAlex (legacy)',
+};
+
+export function PublicationsClient({ data, options, initialFilters }: Props) {
+  const router = useRouter();
+  const [faculty, setFaculty] = React.useState<string[]>(initialFilters.facultyName);
+  const [sources, setSources] = React.useState<string[]>(initialFilters.sources);
+  const [activeOnly, setActiveOnly] = React.useState<boolean>(initialFilters.activeOnly);
+  const [yearFrom, setYearFrom] = React.useState<number | undefined>(initialFilters.yearFrom);
+
+  const apply = (next: Partial<typeof initialFilters>) => {
+    const params = new URLSearchParams();
+    (next.facultyName ?? faculty).forEach((v) => params.append('facultyName', v));
+    (next.sources ?? sources).forEach((v) => params.append('sources', v));
+    const ao = next.activeOnly ?? activeOnly;
+    if (ao) params.set('activeOnly', 'true');
+    const yf = next.yearFrom ?? yearFrom;
+    if (yf) params.set('yearFrom', String(yf));
+    router.push(`/staff/publications${params.toString() ? `?${params}` : ''}`);
+  };
+
+  // Drill rows: Faculty → Department → Author
+  const facultyDeptAuthor = React.useMemo(() => {
+    const facMap = new Map<string, Map<string, PublicationsAuthor[]>>();
+    for (const a of data.perAuthor) {
+      const fname = a.facultyName ?? '(unmapped)';
+      const dname = a.departmentName ?? '(no department)';
+      const facDepts = facMap.get(fname) ?? new Map<string, PublicationsAuthor[]>();
+      const list = facDepts.get(dname) ?? [];
+      list.push(a);
+      facDepts.set(dname, list);
+      facMap.set(fname, facDepts);
+    }
+    const rows: DrillRow[] = [...facMap.entries()].map(([fname, depts]) => {
+      const allAuthors = [...depts.values()].flat();
+      const totalPapers = allAuthors.reduce((a, b) => a + b.papers, 0);
+      const totalCites = allAuthors.reduce((a, b) => a + b.citations, 0);
+      const maxH = allAuthors.reduce((a, b) => Math.max(a, b.hIndex), 0);
+      return {
+        label: fname,
+        metrics: {
+          authors: allAuthors.length,
+          papers: totalPapers,
+          citations: totalCites,
+          hIndex: maxH,
+        },
+        children: [...depts.entries()]
+          .sort((a, b) => {
+            const aP = a[1].reduce((s, x) => s + x.papers, 0);
+            const bP = b[1].reduce((s, x) => s + x.papers, 0);
+            return bP - aP;
+          })
+          .map(([dname, authors]) => ({
+            label: dname,
+            metrics: {
+              authors: authors.length,
+              papers: authors.reduce((a, b) => a + b.papers, 0),
+              citations: authors.reduce((a, b) => a + b.citations, 0),
+              hIndex: authors.reduce((a, b) => Math.max(a, b.hIndex), 0),
+            },
+            children: authors
+              .sort((a, b) => b.papers - a.papers)
+              .map((a) => ({
+                label: `${authorDisplay(a)} ${a.isActive ? '' : '· inactive'}`,
+                emphasis: a.isActive ? undefined : ('muted' as const),
+                metrics: {
+                  authors: 1,
+                  papers: a.papers,
+                  citations: a.citations,
+                  hIndex: a.hIndex,
+                },
+              })),
+          })),
+      };
+    });
+    return rows.sort((a, b) => (b.metrics.papers ?? 0) - (a.metrics.papers ?? 0));
+  }, [data.perAuthor]);
+
+  // Heatmap viewport — last 10 years for legibility
+  const yearAxis = React.useMemo(() => {
+    const all = new Set<number>();
+    for (const f of data.heatmap) for (const y of f.years) all.add(y.year);
+    const sorted = [...all].sort((a, b) => b - a).slice(0, 10).reverse();
+    return sorted;
+  }, [data.heatmap]);
+
+  // Per-cell max for heatmap intensity
+  const heatmapMax = React.useMemo(() => {
+    let m = 1;
+    for (const r of data.heatmap)
+      for (const y of r.years) if (yearAxis.includes(y.year) && y.papers > m) m = y.papers;
+    return m;
+  }, [data.heatmap, yearAxis]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Filter rail */}
+      <Card>
+        <div className="flex flex-wrap items-end gap-3">
+          <MultiSelectField
+            label="Faculty"
+            options={options.faculties.map((f) => ({ value: f, label: f }))}
+            selected={faculty}
+            onChange={(vs) => {
+              setFaculty(vs);
+              apply({ facultyName: vs });
+            }}
+          />
+          <MultiSelectField
+            label="Source"
+            options={SOURCE_OPTIONS}
+            selected={sources}
+            onChange={(vs) => {
+              setSources(vs);
+              apply({ sources: vs });
+            }}
+          />
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <input
+              type="checkbox"
+              checked={activeOnly}
+              onChange={(e) => {
+                setActiveOnly(e.target.checked);
+                apply({ activeOnly: e.target.checked });
+              }}
+            />
+            Active staff only
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+            From year:
+            <input
+              type="number"
+              className="w-20 rounded border border-border-subtle bg-surface-1 px-2 py-1 text-xs"
+              defaultValue={yearFrom ?? data.yearFrom}
+              onBlur={(e) => {
+                const v = e.target.value ? Number(e.target.value) : undefined;
+                if (v !== yearFrom) {
+                  setYearFrom(v);
+                  apply({ yearFrom: v });
+                }
+              }}
+            />
+          </label>
+          {(faculty.length > 0 || sources.length > 0 || activeOnly || yearFrom) && (
+            <button
+              className="rounded border border-border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
+              onClick={() => {
+                setFaculty([]);
+                setSources([]);
+                setActiveOnly(false);
+                setYearFrom(undefined);
+                router.push('/staff/publications');
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+          <span className="ml-auto text-xs text-text-tertiary">
+            Window {data.yearFrom}–{data.yearTo} · {data.totalStaff.toLocaleString('en-US')} staff (
+            {data.publishingStaff.toLocaleString('en-US')} publishing)
+          </span>
+        </div>
+      </Card>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Papers" value={data.totalPapers.toLocaleString('en-US')} sub={`${pct(data.publishingStaff, data.totalStaff)} of staff publishing`} />
+        <Kpi label="Citations (Scopus)" value={data.totalCitations.toLocaleString('en-US')} sub="PubMed citations not in mirror" />
+        <Kpi label="Distinct authors" value={data.publishingStaff.toLocaleString('en-US')} />
+        <Kpi
+          label="Active vs inactive"
+          value={`${data.activeStaffSplit.active.toLocaleString('en-US')} / ${data.activeStaffSplit.inactive.toLocaleString('en-US')}`}
+          sub="published in last 2 years"
+        />
+      </div>
+
+      {/* Year trend + Source/Type donuts row */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Year trend */}
+        <Card>
+          <h3 className="text-sm font-semibold">Papers per year</h3>
+          <p className="mt-1 text-xs text-text-tertiary">
+            Window {data.yearFrom}–{data.yearTo}. {data.byYear.length} years observed.
+          </p>
+          <YearTrend data={data.byYear} />
+        </Card>
+
+        {/* Source + Type breakdowns */}
+        <div className="flex flex-col gap-3">
+          <Card>
+            <h3 className="text-sm font-semibold">Sources</h3>
+            <BreakdownBars
+              data={Object.entries(data.bySource)
+                .map(([k, v]) => ({ label: SOURCE_LABELS[k] ?? k, count: v }))
+                .sort((a, b) => b.count - a.count)}
+              total={data.totalPapers}
+            />
+          </Card>
+          <Card>
+            <h3 className="text-sm font-semibold">Output types</h3>
+            <BreakdownBars
+              data={Object.entries(data.byType)
+                .map(([k, v]) => ({ label: TYPE_LABELS[k] ?? k, count: v }))
+                .sort((a, b) => b.count - a.count)}
+              total={data.totalPapers}
+            />
+          </Card>
+        </div>
+      </div>
+
+      {/* Faculty × Year heatmap */}
+      <Card>
+        <h3 className="text-sm font-semibold">Faculty output by year</h3>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Cell = papers in that (faculty × year). Last 10 years shown. Click a faculty to filter.
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="text-xs">
+            <thead>
+              <tr>
+                <th className="px-2 py-1 text-left text-[0.65rem] uppercase tracking-wide text-text-tertiary font-medium">Faculty</th>
+                {yearAxis.map((y) => (
+                  <th key={y} className="px-1 py-1 text-right text-[0.65rem] uppercase tracking-wide text-text-tertiary font-medium">
+                    {String(y).slice(2)}
+                  </th>
+                ))}
+                <th className="px-2 py-1 text-right text-[0.65rem] uppercase tracking-wide text-text-tertiary font-medium">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.heatmap.slice(0, 20).map((r) => {
+                const total = r.years.reduce((s, y) => s + y.papers, 0);
+                const yearMap = new Map(r.years.map((y) => [y.year, y.papers]));
+                return (
+                  <tr
+                    key={r.facultyName}
+                    className="cursor-pointer hover:bg-surface-2"
+                    onClick={() => {
+                      setFaculty([r.facultyName]);
+                      apply({ facultyName: [r.facultyName] });
+                    }}
+                  >
+                    <td className="px-2 py-1 max-w-[16rem] truncate" title={r.facultyName}>{r.facultyName}</td>
+                    {yearAxis.map((y) => {
+                      const n = yearMap.get(y) ?? 0;
+                      const intensity = n > 0 ? Math.max(0.1, n / heatmapMax) : 0;
+                      return (
+                        <td key={y} className="px-1 py-1 text-right font-tabular tabular-nums" style={{ background: n > 0 ? `rgba(14, 165, 233, ${intensity})` : 'transparent' }}>
+                          {n > 0 ? n : '·'}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1 text-right font-tabular font-semibold">{total.toLocaleString('en-US')}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Top 30 authors */}
+      <Card>
+        <h3 className="text-sm font-semibold">Top 30 authors by paper count</h3>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Active = paper in last 2 years. h-index computed across the {data.yearFrom}–{data.yearTo} window only.
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+                <th className="px-2 py-1 text-left font-medium">#</th>
+                <th className="px-2 py-1 text-left font-medium">Author</th>
+                <th className="px-2 py-1 text-left font-medium">Faculty / Department</th>
+                <th className="px-2 py-1 text-right font-medium">Papers</th>
+                <th className="px-2 py-1 text-right font-medium">Citations</th>
+                <th className="px-2 py-1 text-right font-medium">h-index</th>
+                <th className="px-2 py-1 text-left font-medium">Source</th>
+                <th className="px-2 py-1 text-left font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.topAuthors.map((a, i) => (
+                <tr key={a.fmId} className="border-t border-border-subtle">
+                  <td className="px-2 py-1 text-text-tertiary">{i + 1}</td>
+                  <td className="px-2 py-1">{authorDisplay(a)}</td>
+                  <td className="px-2 py-1 text-text-secondary">
+                    {a.facultyName ?? '—'}
+                    {a.departmentName ? <span className="text-text-tertiary"> · {a.departmentName}</span> : null}
+                  </td>
+                  <td className="px-2 py-1 text-right font-tabular font-semibold">{a.papers.toLocaleString('en-US')}</td>
+                  <td className="px-2 py-1 text-right font-tabular">{a.citations.toLocaleString('en-US')}</td>
+                  <td className="px-2 py-1 text-right font-tabular">{a.hIndex}</td>
+                  <td className="px-2 py-1 text-text-tertiary">
+                    {a.employeeSource === 'kku-hr' ? 'HR' : a.employeeSource === 'kku-publications' ? 'Publications' : '—'}
+                  </td>
+                  <td className="px-2 py-1">
+                    <span className={a.isActive ? 'text-success' : 'text-text-tertiary'}>
+                      {a.isActive ? 'active' : 'inactive'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Top 15 venues */}
+      <Card>
+        <h3 className="text-sm font-semibold">Top venues</h3>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Top 15 journals / conferences by KKU paper count.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs">
+          {data.topVenues.map((v) => {
+            const max = data.topVenues[0]?.papers ?? 1;
+            const w = (v.papers / max) * 100;
+            return (
+              <div key={v.venue} className="grid grid-cols-[1fr_5rem] gap-3 items-center">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate" title={v.venue}>{v.venue}</span>
+                  <div className="flex-1 h-2 rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
+                    <div className="h-full rounded-sm" style={{ width: `${w}%`, background: '#0ea5e9' }} />
+                  </div>
+                </div>
+                <span className="text-right font-tabular font-semibold">{v.papers.toLocaleString('en-US')}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Drill-down: Faculty → Department → Author */}
+      <Card>
+        <h3 className="text-sm font-semibold">Faculty → Department → Author drill-down</h3>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Click a row to expand. Author rows tagged with "inactive" haven't published in the last 2 years.
+        </p>
+        <div className="mt-3">
+          <DrillDownPivot
+            rowHeaderLabel="Faculty / Department / Author"
+            maxDepth={3}
+            rows={facultyDeptAuthor}
+            columns={[
+              { key: 'authors', label: 'Authors', format: 'int' },
+              { key: 'papers', label: 'Papers', format: 'int' },
+              { key: 'citations', label: 'Citations', format: 'int' },
+              { key: 'hIndex', label: 'h-index', format: 'int' },
+            ]}
+          />
+        </div>
+      </Card>
+
+      {/* Provenance / caveats */}
+      <Card>
+        <div className="text-xs text-text-secondary space-y-1">
+          <div>
+            <strong className="text-text-primary">Source:</strong> internal kku-publications mirror at 10.130.2.151 (<code>kku-research</code> connector v2). Curator-grade KKU author resolution via <code>{'<source>_authors.person_id'}</code> → <code>people.id</code> → <code>faculty_id</code>.
+          </div>
+          <div>
+            <strong className="text-text-primary">Staff coverage:</strong> {data.employeeSourceMix.kkuHr.toLocaleString('en-US')} from kku-hr (employed staff with citizen-id-hash) + {data.employeeSourceMix.kkuPublications.toLocaleString('en-US')} backfilled from kku-publications.people (employee_code prefix `kkupub_`). The `/research` view shows kku-hr-only.
+          </div>
+          {data.caveats.map((c, i) => (
+            <div key={i}>
+              <strong className="text-text-primary">Caveat:</strong> {c}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function authorDisplay(a: PublicationsAuthor): string {
+  return a.nameEn?.trim() || a.nameTh?.trim() || '(unnamed)';
+}
+
+function pct(part: number, total: number): string {
+  if (!total) return '—';
+  return ((part / total) * 100).toFixed(1) + '%';
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <Card>
+      <div className="text-xs text-text-tertiary">{label}</div>
+      <div className="mt-1 font-tabular text-2xl font-semibold">{value}</div>
+      {sub && <div className="mt-1 text-xs text-text-tertiary">{sub}</div>}
+    </Card>
+  );
+}
+
+function BreakdownBars({ data, total }: { data: Array<{ label: string; count: number }>; total: number }) {
+  if (data.length === 0) return <div className="mt-2 text-xs text-text-tertiary">No data.</div>;
+  return (
+    <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs">
+      {data.map((d) => {
+        const w = (d.count / total) * 100;
+        return (
+          <div key={d.label} className="grid grid-cols-[10rem_1fr_4rem_3rem] gap-2 items-center">
+            <span className="truncate text-text-secondary" title={d.label}>{d.label}</span>
+            <div className="h-2.5 rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
+              <div className="h-full rounded-sm" style={{ width: `${w}%`, background: '#0ea5e9' }} />
+            </div>
+            <span className="text-right font-tabular font-semibold">{d.count.toLocaleString('en-US')}</span>
+            <span className="text-right text-text-tertiary">{w.toFixed(1)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Lightweight inline-SVG year-trend chart. Y-axis = paper count, X-axis = year.
+function YearTrend({ data }: { data: Array<{ year: number; papers: number }> }) {
+  if (data.length === 0) return <div className="mt-2 text-xs text-text-tertiary">No data.</div>;
+  const w = 600;
+  const h = 160;
+  const pad = { left: 35, right: 8, top: 12, bottom: 24 };
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+  const xs = data.map((d) => d.year);
+  const ys = data.map((d) => d.papers);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys, 1);
+  const x = (year: number): number =>
+    pad.left + ((year - minX) / Math.max(1, maxX - minX)) * innerW;
+  const y = (papers: number): number => pad.top + innerH - (papers / maxY) * innerH;
+  const points = data.map((d) => `${x(d.year)},${y(d.papers)}`).join(' ');
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 w-full h-auto" role="img" aria-label="Papers per year">
+      {yTicks.map((t) => (
+        <g key={t}>
+          <line
+            x1={pad.left}
+            y1={y(t)}
+            x2={w - pad.right}
+            y2={y(t)}
+            stroke="rgba(120,120,120,0.2)"
+            strokeDasharray={t === 0 ? '0' : '2,2'}
+          />
+          <text x={pad.left - 4} y={y(t) + 3} fontSize="9" fill="rgb(120,120,120)" textAnchor="end">
+            {t.toLocaleString('en-US')}
+          </text>
+        </g>
+      ))}
+      <polyline points={points} fill="none" stroke="#0ea5e9" strokeWidth="2" />
+      {data.map((d) => (
+        <g key={d.year}>
+          <circle cx={x(d.year)} cy={y(d.papers)} r="2.5" fill="#0ea5e9" />
+          <title>{`${d.year}: ${d.papers}`}</title>
+        </g>
+      ))}
+      {data.map((d, i) => (
+        <text
+          key={d.year}
+          x={x(d.year)}
+          y={h - 8}
+          fontSize="9"
+          fill="rgb(120,120,120)"
+          textAnchor="middle"
+          style={{ display: i % Math.max(1, Math.floor(data.length / 8)) === 0 ? undefined : 'none' }}
+        >
+          {String(d.year).slice(2)}
+        </text>
+      ))}
+    </svg>
+  );
+}

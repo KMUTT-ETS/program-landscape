@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { prisma, type Prisma } from '@kku/db';
+import { CacheService } from '../common/cache.service';
 import {
   ACADEMIC_STANDING,
   ACADEMIC_STANDING_RANK,
@@ -37,6 +38,11 @@ interface FacetCount {
 
 @Injectable()
 export class StaffService {
+  // Optional so the publications.smoke.ts standalone runner can
+  // instantiate this class without spinning up the full Nest DI stack.
+  // In production, Nest injects the singleton from app.module.ts.
+  constructor(@Optional() private readonly cache?: CacheService) {}
+
   /** Build a Prisma where clause from the cross-dashboard filter. */
   private whereFromFilter(f: StaffFilter): Prisma.StaffMasterRecordWhereInput {
     const where: Prisma.StaffMasterRecordWhereInput = {};
@@ -902,6 +908,283 @@ export class StaffService {
         notice:
           'อัปเดตจาก processed-HR (HAVING n≥5 บังคับ server-side). กอง* รวมเข้า สำนักงานอธิการบดี; ∅ sal_type → เงินรายได้.',
       },
+    };
+  }
+
+  // ── 6. Publications (kku-publications mirror) ────────────────────
+  // Grounded in FacultyMember + ResearchOutput directly, NOT in
+  // staff_master_records like /research is. This view surfaces the full
+  // publications corpus including kkupub_-prefixed FacultyMember rows
+  // backfilled from the kku-publications mirror — covering 99.6% of the
+  // 65,717 paper×author authorships from Scopus + PubMed in the kku-research
+  // window (default 2015+).
+  //
+  // Differs from /research:
+  //   /research      → kku-hr-employed staff only (joined via citizen_id_hash); 5y window
+  //   /publications  → all FacultyMember (employed + kku-publications-backfilled); year-from configurable
+  async publications(filter: { facultyName?: string[]; sources?: string[]; activeOnly?: boolean; yearFrom?: number }) {
+    const yearFrom = filter.yearFrom ?? Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
+    const sourceFilter = filter.sources && filter.sources.length > 0
+      ? filter.sources
+      : ['kku-publications:scopus', 'kku-publications:pubmed'];
+
+    // 5-minute cache. Publications data refreshes weekly via the
+    // kku-research connector; 5 minutes is fresh enough for Council prep.
+    // Fails open — Redis outage falls through to direct compute.
+    const cacheKey = CacheService.keyOf('staff:publications', {
+      facultyName: filter.facultyName?.sort() ?? [],
+      sources: sourceFilter.slice().sort(),
+      activeOnly: filter.activeOnly ?? false,
+      yearFrom,
+    });
+    const cached = await this.cache?.get<unknown>(cacheKey);
+    if (cached) return cached;
+    const result = await this.computePublications(filter, sourceFilter, yearFrom);
+    await this.cache?.set(cacheKey, result, 60 * 5);
+    return result;
+  }
+
+  private async computePublications(
+    filter: { facultyName?: string[]; sources?: string[]; activeOnly?: boolean; yearFrom?: number },
+    sourceFilter: string[],
+    yearFrom: number,
+  ) {
+
+    // FacultyMember snapshot — filtered if facultyName supplied
+    const facultyWhere: Prisma.FacultyMemberWhereInput = {};
+    if (filter.activeOnly) facultyWhere.isActive = true;
+    if (filter.facultyName && filter.facultyName.length > 0) {
+      facultyWhere.faculty = { OR: [{ nameTh: { in: filter.facultyName } }, { nameEn: { in: filter.facultyName } }] };
+    }
+    const fmRows = await prisma.facultyMember.findMany({
+      where: facultyWhere,
+      select: {
+        id: true,
+        nameTh: true,
+        nameEn: true,
+        rank: true,
+        isActive: true,
+        employeeCode: true,
+        facultyId: true,
+        faculty: { select: { nameTh: true, nameEn: true } },
+        department: { select: { nameTh: true, nameEn: true } },
+      },
+    });
+    const fmIds = fmRows.map((r) => r.id);
+
+    // Research output — filtered to FM IDs + source + year window
+    const papers =
+      fmIds.length === 0
+        ? []
+        : await prisma.researchOutput.findMany({
+            where: {
+              facultyMemberId: { in: fmIds },
+              source: { in: sourceFilter },
+              year: { gte: yearFrom },
+            },
+            select: {
+              facultyMemberId: true,
+              year: true,
+              type: true,
+              source: true,
+              venue: true,
+              citations: true,
+              doi: true,
+            },
+          });
+
+    const fmById = new Map(fmRows.map((r) => [r.id, r]));
+
+    // Per-author roll-up
+    interface AuthorAgg {
+      fmId: string;
+      nameTh: string | null;
+      nameEn: string | null;
+      rank: string;
+      isActive: boolean;
+      employeeSource: 'kku-hr' | 'kku-publications' | 'other';
+      facultyName: string | null;
+      departmentName: string | null;
+      papers: number;
+      citations: number;
+      hIndex: number;
+      mostRecentYear: number | null;
+      bySource: Record<string, number>;
+    }
+    const perAuthor = new Map<string, AuthorAgg>();
+    const authorCitations = new Map<string, number[]>();
+
+    for (const p of papers) {
+      if (!p.facultyMemberId) continue;
+      const cites = authorCitations.get(p.facultyMemberId) ?? [];
+      cites.push(p.citations ?? 0);
+      authorCitations.set(p.facultyMemberId, cites);
+    }
+
+    function hIndex(citations: number[]): number {
+      const sorted = [...citations].sort((a, b) => b - a);
+      let h = 0;
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i]! >= i + 1) h = i + 1;
+        else break;
+      }
+      return h;
+    }
+
+    function classifyEmployeeSource(code: string): 'kku-hr' | 'kku-publications' | 'other' {
+      if (code.startsWith('hr_')) return 'kku-hr';
+      if (code.startsWith('kkupub_')) return 'kku-publications';
+      return 'other';
+    }
+
+    for (const fm of fmRows) {
+      const cites = authorCitations.get(fm.id) ?? [];
+      const sourceCounts: Record<string, number> = {};
+      const yearsSeen: number[] = [];
+      for (const p of papers) {
+        if (p.facultyMemberId !== fm.id) continue;
+        const src = p.source ?? 'unknown';
+        sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+        yearsSeen.push(p.year);
+      }
+      const totalCitations = cites.reduce((a, b) => a + b, 0);
+      perAuthor.set(fm.id, {
+        fmId: fm.id,
+        nameTh: fm.nameTh,
+        nameEn: fm.nameEn,
+        rank: fm.rank,
+        isActive: fm.isActive,
+        employeeSource: classifyEmployeeSource(fm.employeeCode),
+        facultyName: fm.faculty?.nameEn ?? fm.faculty?.nameTh ?? null,
+        departmentName: fm.department?.nameEn ?? fm.department?.nameTh ?? null,
+        papers: cites.length,
+        citations: totalCitations,
+        hIndex: hIndex(cites),
+        mostRecentYear: yearsSeen.length > 0 ? Math.max(...yearsSeen) : null,
+        bySource: sourceCounts,
+      });
+    }
+
+    // Per-faculty rollup
+    const byFaculty = new Map<
+      string,
+      {
+        facultyName: string;
+        staffCount: number;
+        publishingStaff: number;
+        papers: number;
+        citations: number;
+        bySource: Record<string, number>;
+        byType: Record<string, number>;
+      }
+    >();
+    for (const fm of fmRows) {
+      const fname = fm.faculty?.nameEn ?? fm.faculty?.nameTh ?? '(unmapped)';
+      const cell = byFaculty.get(fname) ?? {
+        facultyName: fname,
+        staffCount: 0,
+        publishingStaff: 0,
+        papers: 0,
+        citations: 0,
+        bySource: {},
+        byType: {},
+      };
+      cell.staffCount += 1;
+      const myPapers = papers.filter((p) => p.facultyMemberId === fm.id);
+      if (myPapers.length > 0) cell.publishingStaff += 1;
+      cell.papers += myPapers.length;
+      for (const p of myPapers) {
+        cell.citations += p.citations ?? 0;
+        const src = p.source ?? 'unknown';
+        cell.bySource[src] = (cell.bySource[src] ?? 0) + 1;
+        const t = p.type ?? 'JOURNAL';
+        cell.byType[t] = (cell.byType[t] ?? 0) + 1;
+      }
+      byFaculty.set(fname, cell);
+    }
+
+    // Year × Faculty heatmap
+    const heatmap = new Map<string, Map<number, number>>();
+    for (const p of papers) {
+      const fm = fmById.get(p.facultyMemberId ?? '');
+      if (!fm) continue;
+      const fname = fm.faculty?.nameEn ?? fm.faculty?.nameTh ?? '(unmapped)';
+      const facMap = heatmap.get(fname) ?? new Map<number, number>();
+      facMap.set(p.year, (facMap.get(p.year) ?? 0) + 1);
+      heatmap.set(fname, facMap);
+    }
+
+    // Year totals (for trend line)
+    const byYear = new Map<number, number>();
+    for (const p of papers) byYear.set(p.year, (byYear.get(p.year) ?? 0) + 1);
+
+    // Type breakdown (Journal / Conference / Book / Patent)
+    const byType: Record<string, number> = {};
+    for (const p of papers) {
+      const t = p.type ?? 'JOURNAL';
+      byType[t] = (byType[t] ?? 0) + 1;
+    }
+
+    // Source breakdown
+    const bySource: Record<string, number> = {};
+    for (const p of papers) {
+      const s = p.source ?? 'unknown';
+      bySource[s] = (bySource[s] ?? 0) + 1;
+    }
+
+    // Top venues (journals/conferences) by paper count
+    const venueCounts = new Map<string, number>();
+    for (const p of papers) {
+      if (!p.venue) continue;
+      venueCounts.set(p.venue, (venueCounts.get(p.venue) ?? 0) + 1);
+    }
+    const topVenues = [...venueCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([venue, papers]) => ({ venue, papers }));
+
+    // Top authors leaderboard (top 30 by paper count)
+    const authorList = [...perAuthor.values()].filter((a) => a.papers > 0);
+    const topAuthors = [...authorList].sort((a, b) => b.papers - a.papers).slice(0, 30);
+
+    return {
+      yearFrom,
+      yearTo: new Date().getFullYear(),
+      totalStaff: fmRows.length,
+      publishingStaff: authorList.length,
+      totalPapers: papers.length,
+      totalCitations: papers.reduce((a, b) => a + (b.citations ?? 0), 0),
+      bySource,
+      byType,
+      byYear: [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([year, papers]) => ({ year, papers })),
+      byFaculty: [...byFaculty.values()].sort((a, b) => b.papers - a.papers),
+      heatmap: [...heatmap.entries()]
+        .sort((a, b) => {
+          const aTotal = [...a[1].values()].reduce((s, v) => s + v, 0);
+          const bTotal = [...b[1].values()].reduce((s, v) => s + v, 0);
+          return bTotal - aTotal;
+        })
+        .map(([facultyName, yearMap]) => ({
+          facultyName,
+          years: [...yearMap.entries()].sort((a, b) => a[0] - b[0]).map(([year, papers]) => ({ year, papers })),
+        })),
+      topVenues,
+      topAuthors,
+      perAuthor: authorList,
+      employeeSourceMix: {
+        kkuHr: authorList.filter((a) => a.employeeSource === 'kku-hr').length,
+        kkuPublications: authorList.filter((a) => a.employeeSource === 'kku-publications').length,
+        other: authorList.filter((a) => a.employeeSource === 'other').length,
+      },
+      activeStaffSplit: {
+        active: authorList.filter((a) => a.isActive).length,
+        inactive: authorList.filter((a) => !a.isActive).length,
+      },
+      caveats: [
+        'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
+        'Authors backfilled from kku-publications.people (employee_code prefix kkupub_) carry rank=LECTURER as a placeholder — the publications mirror does not record academic rank.',
+        'isActive=true is heuristic for kkupub_-prefixed staff: paper in last 2 years. kku-hr-prefixed staff (hr_*) get isActive from KKU HR.',
+      ],
     };
   }
 }
