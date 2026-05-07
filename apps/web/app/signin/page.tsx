@@ -68,13 +68,13 @@ export default async function SignInPage() {
         }));
 
   return (
-    <main className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2">
+    <main className="min-h-screen w-full grid grid-cols-1 md:grid-cols-2">
       {/* ── Left pane: form ─────────────────────────────────────── */}
       {/* Header + footer are full-width (left-justified flush to the
           pane padding) so single-line text never wraps. The form in
           the middle stays horizontally centred at max-w-[340px]. */}
-      <section className="relative bg-surface-1 flex flex-col lg:min-h-screen">
-        <header className="w-full px-6 pt-8 sm:px-10 sm:pt-10 lg:px-16 lg:pt-12">
+      <section className="relative bg-surface-1 flex flex-col md:min-h-screen">
+        <header className="w-full px-6 pt-8 sm:px-10 sm:pt-10 md:px-16 md:pt-12">
           <div className="flex items-center gap-2.5">
             <BrandMark />
             <span className="text-[14px] font-medium tracking-tight text-text-primary">
@@ -83,7 +83,7 @@ export default async function SignInPage() {
           </div>
         </header>
 
-        <div className="flex-1 flex flex-col justify-center items-center px-6 sm:px-10 lg:px-16 py-12">
+        <div className="flex-1 flex flex-col justify-center items-center px-6 sm:px-10 md:px-16 py-12">
           <div className="w-full max-w-[340px]">
             <h1 className="text-[26px] font-medium tracking-tight text-text-primary leading-tight">
               Sign in
@@ -101,7 +101,7 @@ export default async function SignInPage() {
           </div>
         </div>
 
-        <footer className="w-full px-6 pb-8 sm:px-10 sm:pb-10 lg:px-16">
+        <footer className="w-full px-6 pb-8 sm:px-10 sm:pb-10 md:px-16">
           <div className="text-[12px] text-text-tertiary leading-relaxed border-t border-border-subtle pt-5">
             Need access? Contact the{' '}
             <a
@@ -131,7 +131,7 @@ export default async function SignInPage() {
           The brand identity travels with the form pane regardless,
           so the page never feels stripped on a phone. */}
       <section
-        className="relative hidden lg:flex overflow-hidden"
+        className="relative hidden md:flex overflow-hidden"
         aria-label="Live news feed"
       >
         {/* Layered radial blooms in the warm accent palette. */}
