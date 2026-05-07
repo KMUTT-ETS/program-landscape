@@ -213,6 +213,7 @@ export async function findEmployeeByEmail(email: string): Promise<KkuEmployee | 
   const employeePathPrefix =
     process.env.KKU_API_EMPLOYEE_PATH ?? '/v3/hr/employee/filter/email';
   const url = `${base.replace(/\/$/, '')}${employeePathPrefix}/${encodeURIComponent(email)}`;
+  console.log(`[kku-api] employee lookup → ${url}`);
 
   const doFetch = async (bearer: string) =>
     fetch(url, {
@@ -235,14 +236,19 @@ export async function findEmployeeByEmail(email: string): Promise<KkuEmployee | 
     res = await doFetch(retryToken);
   }
 
-  if (res.status === 404) return null;
+  if (res.status === 404) {
+    console.log(`[kku-api] employee lookup → 404 (no record)`);
+    return null;
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    console.log(`[kku-api] employee lookup → ${res.status}: ${text.slice(0, 200)}`);
     throw new KkuApiError(
       `KKU API employee endpoint ${res.status}: ${text.slice(0, 200)}`,
       res.status,
     );
   }
+  console.log(`[kku-api] employee lookup → 200 (record returned)`);
 
   const json = await res.json().catch((err) => {
     throw new KkuApiError(`KKU API employee response not JSON`, res.status, err);
