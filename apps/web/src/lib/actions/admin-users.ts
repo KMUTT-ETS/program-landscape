@@ -16,6 +16,7 @@
 //      the existing provisionFromOidcClaims() finds the email match and
 //      links the subject.
 
+import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@kku/db';
 import {
@@ -83,19 +84,16 @@ interface ProvisionInput {
   programId: string | null;
 }
 
-const ProvisionInputSchema = (() => {
-  const z = require('zod') as typeof import('zod');
-  return z.object({
-    email: z.string().email().transform((s: string) => s.trim().toLowerCase()),
-    name: z.string().nullable(),
-    role: RoleSchema.refine((r: Role) => (SSO_ROLES as readonly Role[]).includes(r), {
-      message: 'role must be one of the SSO_ROLES',
-    }),
-    facultyId: z.string().nullable(),
-    departmentId: z.string().nullable(),
-    programId: z.string().nullable(),
-  });
-})();
+const ProvisionInputSchema = z.object({
+  email: z.string().email().transform((s: string) => s.trim().toLowerCase()),
+  name: z.string().nullable(),
+  role: RoleSchema.refine((r: Role) => (SSO_ROLES as readonly Role[]).includes(r), {
+    message: 'role must be one of the SSO_ROLES',
+  }),
+  facultyId: z.string().nullable(),
+  departmentId: z.string().nullable(),
+  programId: z.string().nullable(),
+});
 
 function validateScope(input: ProvisionInput): string | null {
   if (input.role === 'FACULTY_USER' && !input.facultyId) return 'FACULTY_USER requires facultyId';
