@@ -4,17 +4,37 @@ import * as React from 'react';
 import { Card, Input, Button } from '@kku/ui';
 import { Search, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  SSO_ROLES,
-  SYSTEM_ADMIN_ASSIGNABLE_ROLES,
-  type Role,
-} from '@kku/shared';
+import { type Role } from '@kku/shared';
 import {
   searchKkuEmployeeAction,
   provisionUserAction,
   updateUserRoleAction,
   deleteUserAction,
 } from '@/lib/actions/admin-users';
+
+// Inlined from packages/shared/src/auth/roles.ts. These two arrays are
+// runtime values (not types), so importing them from the @kku/shared
+// barrel would force Webpack to evaluate the barrel — which re-exports
+// './pdf', './ai', './identity', './ingestion', each of which imports
+// node:crypto. The client bundler can't handle node:crypto and crashes
+// with 'UnhandledSchemeError'. Other client files in this app only
+// `import type` from @kku/shared, so they don't trigger the trap. If
+// either array drifts from roles.ts, the roles.test.ts unit test in
+// packages/shared catches the divergence.
+const SSO_ROLES: readonly Role[] = [
+  'SUPER_ADMIN',
+  'SYSTEM_ADMIN',
+  'UNIVERSITY_USER',
+  'FACULTY_USER',
+  'PROGRAM_USER',
+] as const;
+
+const SYSTEM_ADMIN_ASSIGNABLE_ROLES: readonly Role[] = [
+  'SYSTEM_ADMIN',
+  'UNIVERSITY_USER',
+  'FACULTY_USER',
+  'PROGRAM_USER',
+] as const;
 
 // Inlined client-side copy of the same logic in
 // apps/web/src/lib/kku/employee-api.ts. Importing from there would
