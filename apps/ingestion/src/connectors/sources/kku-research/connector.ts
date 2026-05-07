@@ -179,6 +179,17 @@ export class KkuResearchRealConnector extends ApiConnector {
       // Scopus
       try {
         ctx.log.info(`fetching Scopus authorships from kku-publications (year >= ${yearFrom})…`);
+        // Resolution path confirmed by KKU Library IT (2026-05-07):
+        //   scopus_documents
+        //     → scopus_author_documents       (paper × author appearance)
+        //     → scopus_authors                (Scopus author entity that appeared on a paper)
+        //     → scopus_author_people          (curator-validated bridge to KKU person)
+        //     → people                        (KKU researcher master)
+        // We previously joined people via `scopus_author_documents.person_id`,
+        // but that column is a denormalised cache that lags ~3 years behind
+        // the curator workflow. The canonical chain via scopus_author_people
+        // recovers ~10x more 2022+ papers and reconciles to the library's
+        // dashboard within 5-10%.
         const scopusRows = await query<KkuPubScopusRow>(
           client,
           `SELECT
@@ -190,8 +201,8 @@ export class KkuResearchRealConnector extends ApiConnector {
              d.cited_by_count,
              d.doi,
              d.aggregation_type,
-             ad.author_id        AS scopus_author_id,
-             ad.person_id        AS person_id,
+             sa.author_id        AS scopus_author_id,
+             sap.person_id       AS person_id,
              ad.seq              AS author_seq,
              p.firstname_en      AS person_firstname_en,
              p.lastname_en       AS person_lastname_en,
@@ -199,13 +210,12 @@ export class KkuResearchRealConnector extends ApiConnector {
              p.lastname          AS person_lastname,
              p.faculty_id        AS person_faculty_id
            FROM scopus_documents d
-           JOIN scopus_author_documents ad
-             ON ad.document_id = d.document_id
-           JOIN people p
-             ON p.id = ad.person_id
+           JOIN scopus_author_documents ad ON ad.document_id  = d.document_id
+           JOIN scopus_authors          sa ON sa.author_id    = ad.author_id
+           JOIN scopus_author_people   sap ON sap.scopus_author_id = sa.id
+           JOIN people                  p  ON p.id            = sap.person_id
            WHERE d.workflow_state = 'enabled'
-             AND ad.person_id IS NOT NULL
-             AND p.university_id = 1
+             AND p.university_id  = 1
              AND d.cover_date IS NOT NULL
              AND d.cover_date >= make_date($1::int, 1, 1)`,
           [yearFrom],

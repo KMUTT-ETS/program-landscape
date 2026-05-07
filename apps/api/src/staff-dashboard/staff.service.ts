@@ -1169,8 +1169,8 @@ export class StaffService {
         other: authorList.filter((a) => a.employeeSource === 'other').length,
       },
       caveats: [
-        'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard PubMed within 1-3% (e.g. our 2024 = library 997).',
-        'Scopus 2022+ counts undercount real KKU output. The kku-publications mirror has fresh Scopus papers through 2026 (2,349 in 2025 alone), but KKU Library curators have not yet linked them to KKU person_ids — only ~12% of 2022 papers, ~1% of 2023, ~0.1% of 2024 are author-resolved. PubMed is unaffected. KKU Library reports ~1,200-1,900 Scopus papers/year for 2022-2025 (presumably from a separate Scopus-API source that bypasses the mirror); we surface only what the mirror has resolved.',
+        'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard within 5-10% across both Scopus and PubMed.',
+        'Scopus author resolution path (per KKU Library IT 2026-05-07): scopus_documents → scopus_author_documents → scopus_authors → scopus_author_people → people. The denormalised scopus_author_documents.person_id column is a stale cache (~3y backlog) and is no longer used.',
         'Active employees only. For kku-hr rows isActive comes from KKU HR; for kkupub_-backfilled rows it is heuristic (paper in last 2 years).',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
