@@ -488,6 +488,13 @@ model User {
   // primary program here so the deep-dive + recruitment surfaces can
   // scope-filter to "my program" without guessing.
   programId       String?         @map("program_id")
+  // Per-user dev-credentials password. NULL means the user falls back
+  // to the shared DEV_AUTH_PASSWORD (default 'kku-dev'). Set during
+  // pre-provisioning via /admin/users when SSO isn't yet wired and the
+  // admin needs to hand a unique credential to a teammate. Format:
+  // 'scrypt:<salt-hex>:<hash-hex>'. Field is dev-only; never read in
+  // production code paths (KKU SSO is the only auth in prod).
+  passwordHash    String?         @map("password_hash")
   themePreference ThemePreference @default(SYSTEM) @map("theme_preference")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")

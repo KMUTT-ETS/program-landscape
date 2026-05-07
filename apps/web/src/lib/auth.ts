@@ -7,6 +7,7 @@ import { SessionUserSchema, type SessionUser } from '@kku/shared';
 import { decodeJwt, encodeJwt } from './auth/jwt-codec';
 import { assertLocalAuthSafe, isLocalAuthEnabled } from './auth/env-guard';
 import { provisionFromOidcClaims } from './auth/provisioning';
+import { verifyPassword } from './auth/password-hash';
 
 assertLocalAuthSafe();
 
@@ -49,11 +50,18 @@ if (isLocalAuthEnabled()) {
         const password = credentials?.password;
         if (typeof email !== 'string' || typeof password !== 'string') return null;
 
-        if (password !== (process.env.DEV_AUTH_PASSWORD ?? 'kku-dev')) {
-          return null;
-        }
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
+        // Auth precedence:
+        //  - If user has a per-user passwordHash (set during admin
+        //    pre-provisioning), ONLY that password is accepted —
+        //    sharing a global default would defeat the credential.
+        //  - Otherwise the shared DEV_AUTH_PASSWORD covers seeded
+        //    users and anyone provisioned without a custom password.
+        const ok = user.passwordHash
+          ? verifyPassword(password, user.passwordHash)
+          : password === (process.env.DEV_AUTH_PASSWORD ?? 'kku-dev');
+        if (!ok) return null;
         return { id: user.id, email: user.email, name: user.name ?? user.email };
       },
     }),

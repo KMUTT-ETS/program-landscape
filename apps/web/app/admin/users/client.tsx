@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Card, Input, Button } from '@kku/ui';
-import { Search, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Trash2, RefreshCw, Key, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Role } from '@kku/shared';
 import {
@@ -10,6 +10,7 @@ import {
   provisionUserAction,
   updateUserRoleAction,
   deleteUserAction,
+  setUserPasswordAction,
 } from '@/lib/actions/admin-users';
 
 // Inlined from packages/shared/src/auth/roles.ts. These two arrays are
@@ -154,6 +155,8 @@ function PreProvisionPanel({
   const [facultyId, setFacultyId] = React.useState<string>('');
   const [programId, setProgramId] = React.useState<string>('');
   const [name, setName] = React.useState<string>('');
+  const [password, setPassword] = React.useState<string>('');
+  const [showPassword, setShowPassword] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
   const onSearch = async () => {
@@ -193,18 +196,34 @@ function PreProvisionPanel({
       facultyId: role === 'FACULTY_USER' ? facultyId || null : null,
       departmentId: null,
       programId: role === 'PROGRAM_USER' ? programId || null : null,
+      password: password.trim() ? password : null,
     });
     setSubmitting(false);
     if (r.ok) {
-      toast.success(`Provisioned ${email}`);
+      const credLine = password.trim()
+        ? ` · password set`
+        : ` · uses shared dev password`;
+      toast.success(`Provisioned ${email}${credLine}`);
       setEmail('');
       setName('');
+      setPassword('');
+      setShowPassword(false);
       setResult(null);
       setFacultyId('');
       setProgramId('');
     } else {
       toast.error(r.message);
     }
+  };
+
+  const generatePassword = () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let out = '';
+    const buf = new Uint32Array(12);
+    crypto.getRandomValues(buf);
+    for (let i = 0; i < 12; i++) out += chars[buf[i]! % chars.length];
+    setPassword(out);
+    setShowPassword(true);
   };
 
   const filteredPrograms = React.useMemo(
@@ -262,7 +281,8 @@ function PreProvisionPanel({
           )}
           {result.kind === 'not-found' && (
             <div className="text-xs text-warning">
-              Not found in KKU directory. You can still pre-provision by typing a display name manually below.
+              KKU directory lookup returned no match (or the KKU Employee API isn&apos;t configured in this environment).
+              You can still pre-provision by typing a display name manually below.
             </div>
           )}
 
@@ -341,13 +361,73 @@ function PreProvisionPanel({
             )}
           </div>
 
+          <div className="rounded-md border border-border-subtle bg-surface-2 p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs text-text-tertiary">
+                Password (optional)
+              </label>
+              <button
+                type="button"
+                onClick={generatePassword}
+                className="text-[11px] text-accent hover:underline"
+              >
+                Generate
+              </button>
+            </div>
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave blank to use the shared dev password"
+                  autoComplete="new-password"
+                  className="pr-9 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {password && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(password);
+                    toast.success('Password copied');
+                  }}
+                >
+                  Copy
+                </Button>
+              )}
+            </div>
+            <p className="mt-1.5 text-[10px] text-text-tertiary leading-relaxed">
+              When set, this user signs in via{' '}
+              <code className="font-mono">/signin → Developer credentials</code>{' '}
+              with their email + this password. Leave blank and the user uses
+              the shared <code className="font-mono">DEV_AUTH_PASSWORD</code>.
+              Once KKU SSO is wired up, SSO supersedes this on first login.
+            </p>
+          </div>
+
           <div className="flex justify-end">
             <Button
               onClick={onSubmit}
               disabled={
                 submitting ||
                 (role === 'FACULTY_USER' && !facultyId) ||
-                (role === 'PROGRAM_USER' && !programId)
+                (role === 'PROGRAM_USER' && !programId) ||
+                (password.trim().length > 0 && password.trim().length < 4)
               }
               size="sm"
               variant="primary"
@@ -453,6 +533,23 @@ function UserRowEditor({
     else toast.error(r.message);
   };
 
+  const setOrClearPassword = async () => {
+    const next = prompt(
+      `Set dev password for ${user.email}?\n\nLeave blank and click OK to clear (user falls back to shared DEV_AUTH_PASSWORD).\nClick Cancel to abort.`,
+      '',
+    );
+    if (next === null) return; // cancelled
+    setBusy(true);
+    const r = await setUserPasswordAction({
+      userId: user.id,
+      password: next.trim() ? next : null,
+    });
+    setBusy(false);
+    if (r.ok) {
+      toast.success(next.trim() ? 'Password set' : 'Password cleared');
+    } else toast.error(r.message);
+  };
+
   const filteredPrograms = facultyId
     ? programs.filter((p) => p.facultyId === facultyId)
     : programs;
@@ -556,6 +653,9 @@ function UserRowEditor({
             <>
               <Button size="xs" variant="ghost" onClick={() => setEditing(true)}>
                 <RefreshCw className="h-3 w-3" /> Edit
+              </Button>
+              <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>
+                <Key className="h-3 w-3" /> Pwd
               </Button>
               {actorIsSuper && (
                 <Button size="xs" variant="ghost" onClick={remove} disabled={busy}>

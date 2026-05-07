@@ -28,6 +28,7 @@ import {
 } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { findEmployeeByEmail, type KkuEmployee, KkuApiError } from '@/lib/kku/employee-api';
+import { hashPassword } from '@/lib/auth/password-hash';
 
 async function requireAdmin(): Promise<{ user: SessionUser; isSuper: boolean }> {
   const session = await auth();
@@ -82,6 +83,11 @@ interface ProvisionInput {
   facultyId: string | null;
   departmentId: string | null;
   programId: string | null;
+  // Optional dev-credentials password. When supplied, hashed with
+  // scrypt and stored on User.passwordHash so the user can log in via
+  // the dev-credentials provider before SSO is wired. NULL = falls
+  // back to the shared DEV_AUTH_PASSWORD env (default 'kku-dev').
+  password?: string | null;
 }
 
 const ProvisionInputSchema = z.object({
@@ -93,6 +99,12 @@ const ProvisionInputSchema = z.object({
   facultyId: z.string().nullable(),
   departmentId: z.string().nullable(),
   programId: z.string().nullable(),
+  password: z
+    .string()
+    .min(4, 'password must be at least 4 characters')
+    .max(128)
+    .nullable()
+    .optional(),
 });
 
 function validateScope(input: ProvisionInput): string | null {
@@ -131,6 +143,7 @@ export async function provisionUserAction(
         facultyId: input.facultyId,
         departmentId: input.departmentId,
         programId: input.programId,
+        passwordHash: input.password ? hashPassword(input.password) : null,
         // ssoSubject left null — set automatically on first SSO login
         // by provisionFromOidcClaims when it sees the matching email.
       },
@@ -177,6 +190,28 @@ export async function updateUserRoleAction(input: {
         departmentId: input.departmentId,
         programId: input.programId,
       },
+    });
+    revalidatePath('/admin/users');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+export async function setUserPasswordAction(input: {
+  userId: string;
+  password: string | null; // null clears the per-user password (falls back to shared)
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await requireAdmin();
+    if (input.password !== null && input.password.length < 4) {
+      return { ok: false, message: 'password must be at least 4 characters' };
+    }
+    const target = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (!target) return { ok: false, message: 'User not found' };
+    await prisma.user.update({
+      where: { id: input.userId },
+      data: { passwordHash: input.password ? hashPassword(input.password) : null },
     });
     revalidatePath('/admin/users');
     return { ok: true };
