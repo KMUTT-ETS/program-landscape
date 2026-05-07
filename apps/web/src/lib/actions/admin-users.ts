@@ -27,7 +27,7 @@ import {
   type SessionUser,
 } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { findEmployeeByEmail, deriveDisplayName, type KkuEmployee, KkuApiError } from '@/lib/kku/employee-api';
+import { findEmployeeByEmail, type KkuEmployee, KkuApiError } from '@/lib/kku/employee-api';
 
 async function requireAdmin(): Promise<{ user: SessionUser; isSuper: boolean }> {
   const session = await auth();
@@ -205,5 +205,6 @@ export async function deleteUserAction(userId: string): Promise<{ ok: true } | {
   }
 }
 
-// Re-export for the client form so it knows what to send
-export { deriveDisplayName };
+// (Re-exports removed — Next.js requires `'use server'` modules to
+// export ONLY async functions. Any non-async helper a client wants
+// goes either inline in the client or in a separate non-server file.)

@@ -14,8 +14,25 @@ import {
   provisionUserAction,
   updateUserRoleAction,
   deleteUserAction,
-  deriveDisplayName,
 } from '@/lib/actions/admin-users';
+
+// Inlined client-side copy of the same logic in
+// apps/web/src/lib/kku/employee-api.ts. Importing from there would
+// pull a server-only module + its env reads into the client bundle;
+// keeping it here is simpler and the function is 4 lines anyway.
+function deriveDisplayName(emp: Record<string, unknown>): string {
+  const s = (k: string): string | null => {
+    const v = emp[k];
+    return typeof v === 'string' && v.trim() ? v : null;
+  };
+  if (s('name_th')) return s('name_th')!;
+  if (s('name_en')) return s('name_en')!;
+  const thaiPair = [s('first_name_th'), s('last_name_th')].filter(Boolean).join(' ');
+  if (thaiPair) return thaiPair;
+  const enPair = [s('first_name'), s('last_name')].filter(Boolean).join(' ');
+  if (enPair) return enPair;
+  return s('email') ?? '(unnamed)';
+}
 
 interface UserRow {
   id: string;
