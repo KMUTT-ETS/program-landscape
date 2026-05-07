@@ -2,6 +2,7 @@ import type { NavSection } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import {
   Activity,
+  BookOpen,
   BrainCircuit,
   Building2,
   ClipboardCheck,
@@ -10,6 +11,7 @@ import {
   FileSearch,
   GitCompare,
   GraduationCap,
+  History,
   Home,
   LayoutDashboard,
   Layers,
@@ -96,6 +98,26 @@ const adminSystemSection: NavSection = {
   ],
 };
 
+// Visible to every user — the public methodology paper + changelog are
+// reference material for everyone, not just admins.
+const referenceSection: NavSection = {
+  label: 'Reference',
+  items: [
+    {
+      href: '/docs/methodology',
+      label: 'Methodology',
+      icon: createElement(BookOpen),
+      moduleKey: 'neutral',
+    },
+    {
+      href: '/changelog',
+      label: "What's new",
+      icon: createElement(History),
+      moduleKey: 'neutral',
+    },
+  ],
+};
+
 /**
  * Build the nav sections for a given user. Hides admin sections from
  * non-admin users so the sidebar stays focused on what they can do.
@@ -105,6 +127,7 @@ export function appNavSectionsFor(user: SessionUser | undefined): NavSection[] {
   if (user?.role === 'ADMIN' || user?.role === 'ANALYST') {
     sections.push(adminDataSetupSection, adminReviewSection, adminSystemSection);
   }
+  sections.push(referenceSection);
   return sections;
 }
 

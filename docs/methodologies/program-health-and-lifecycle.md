@@ -28,7 +28,7 @@ The methodology itself was authored by the KKU Data Office. This document explai
 
 ## Abstract
 
-The Curriculum Landscape application produces two quantitative outputs to inform decisions on the 297 academic programs at Khon Kaen University: a **Program Health Score** (a 0–100 composite across five operational dimensions) and a **Program Lifecycle Verdict** (a four-band classifier — Sunset / Stable / Rising / Frontier — that integrates the health score with content-modernity and AI-readiness signals). This paper specifies the inputs, formulas, aggregation rules, null-handling conventions, and governance guardrails of both outputs. The intended audience is decision-makers (University Council, executive officers, deans) and program coordinators who must interpret these scores when reviewing the program portfolio. The paper is deliberately conservative in its claims: every score informs, none decides, and program closure / merger / launch decisions remain a human-in-the-loop process requiring two-reviewer Council approval regardless of the computed values. Limitations and known data gaps are documented in §6.
+The Curriculum Landscape application produces two quantitative outputs to inform decisions on the 297 academic programs at Khon Kaen University: a **Program Health Score** (a 0–100 composite across five operational dimensions) and a **Program Lifecycle Verdict** (a four-band classifier — Sunset / Stable / Rising / Frontier — that integrates the health score with content-modernity and AI-readiness signals). This paper specifies the inputs, formulas, aggregation rules, null-handling conventions, and governance guardrails of both outputs. The intended audience is decision-makers (University Council, executive officers, deans) and program coordinators who must interpret these scores when reviewing the program portfolio. The paper is deliberately conservative in its claims: every score informs, none decides, and program closure / merger / launch decisions remain a human-in-the-loop process requiring two-reviewer Council approval regardless of the computed values. Limitations and known data gaps are documented in §7.
 
 ---
 
@@ -154,7 +154,7 @@ The Relevance dimension answers: *Does what we teach match what the labour marke
 |---|---|---|
 | `labour_market_alignment` | Share of `program_skills` that intersect the demanded-skill set in the labour-market data table. A four-quadrant fallback (Thailand × Job postings → Global × Job postings → Thailand × Profiles → Global × Profiles) selects the most local signal available; the quadrant used is recorded in the score's raw payload. | `program_skills` ⨯ aggregated LinkedIn skill-demand data (data: **LinkedIn**; subscriber and licence holder: **MHESI**; API endpoint hosted by KMITL on behalf of MHESI). |
 | `demand_match_filled` | `100 × (matchedDemanded / relevantDemanded)` — share of *demanded* skills the curriculum already teaches, restricted to the careers a curriculum is plausibly relevant to. | `program_demand_matches` (computed pre-analytics). |
-| `demographic_resilience` | `100 − clamp(requiredShareAt+10y × 100 000 × 100)`. The required share is the fraction of Thailand's 18–22 cohort the programme would need to recruit from, ten years out, to maintain its current intake. < 0.05% → ≈ 100; > 0.2% → ≈ 0. | `programDemographicOutlook` (driven by Thailand cohort projections; see §4 and `docs/methodologies/forecasting.md`). |
+| `demographic_resilience` | `100 − clamp(requiredShareAt+10y × 100 000 × 100)`. The required share is the fraction of Thailand's 18–22 cohort the programme would need to recruit from, ten years out, to maintain its current intake. < 0.05% → ≈ 100; > 0.2% → ≈ 0. | `programDemographicOutlook` (driven by Thailand cohort projections; see §4.3 for the calculation, §5 for the data source, and `docs/methodologies/forecasting.md`). |
 | `strategic_sector_alignment` | 100 if any career mapped to the programme (via the labour-market career taxonomy used by the LinkedIn-derived data) intersects a Thai BCG (Bio / Circular / Green) or S-curve target sector; otherwise 50. | Career taxonomy from the labour-market data source × `Program` career mappings × strategic-sector heuristic. |
 
 The `_kmitl` suffix on the internal driver name is a **stable code identifier** referencing the API endpoint and **must not be read as an attribution claim**. The data subject — LinkedIn-derived skill demand — is owned by LinkedIn. **MHESI** (the Ministry of Higher Education, Science, Research and Innovation) holds the licence/subscription that makes the data accessible to Thai universities. **KMITL hosts the API endpoint on behalf of MHESI** but is neither the data owner nor the data curator. KKU consumes the data under MHESI's institutional partner programme. This attribution is reproduced in the provenance drawer of every chart that depends on the driver.
@@ -280,7 +280,132 @@ Every lifecycle computation is upserted to a `program_lifecycle_snapshots` table
 
 ---
 
-## 4. Data sources and provenance
+## 4. Program Deep-Dive sectional methodology
+
+The Program Deep-Dive page (`/programs/<id>`) is the per-program audit view used by deans, department heads, and program coordinators. It surfaces every signal the health score and lifecycle verdict consume, plus several presentation-only sections (faculty roster, peer set, Council decisions). This section documents the calculations specific to the Deep-Dive — those not already specified in §2 (health score) or §3 (lifecycle). Reference implementation: `packages/db/src/program-deep-dive.ts`.
+
+### 4.1 Demand funnel — cohort lifecycle
+
+The demand funnel reconstructs a single cohort's journey through the program: applied → admitted → enrolled → graduated → other terminal states (renounced, no-report, dropped, transferred). Inputs:
+
+- TCAS rows (`tcas_admission_stats`) for the applied / admitted counts.
+- `student_cohort_distributions` for currently-enrolled students.
+- `alumni_cohort_status` (`AlumniCohortStatus`) for graduated and dropped/renounced/transferred buckets.
+
+The funnel anchors on the **most recent completed cohort**: `currentBE − durationYears − 1`. This is the last entry-year that should already have produced on-time graduates; including more recent cohorts would make graduation rates look lower than they really are.
+
+**Status buckets shown to readers** (alumni-side):
+
+| Bucket | Meaning |
+|---|---|
+| Graduated | Conferred a degree. |
+| Renounced | Voluntary cancellation by the student. |
+| No-report | Registrar has no current status; cohort stale. |
+| Dropped — financial | Removed for non-payment. |
+| Dropped — academic | Removed for academic standing. |
+| Dropped — voluntary | Other voluntary exit not classified above. |
+| Transferred | Moved to another program. |
+| Still enrolled | Active in the cohort distribution table. |
+
+The funnel exposes raw counts only; conversion rates (e.g. % graduated of admitted) are computed in the Deep-Dive UI from the same anchor cohort. When TCAS rows exist for the same year at multiple rounds, the *highest* round is used (round 3.2 supersedes 3.1, etc.).
+
+### 4.2 Cohort distribution — currently active students
+
+The Cohort Distribution panel partitions today's active students by **entry year** and assigns each a **year-in-programme** and a **status** of `incoming`, `on-track`, or `delayed`. It reads from `StudentCohortDistribution` (one row per program × entry year).
+
+The current academic year (BE) is computed from the system clock: months ≥ June use `currentCE + 543`; January–May use `currentCE + 543 − 1` (the Thai academic year starts in June). Year-in-programme = `currentAcademicYearBE − entryYearBE + 1`. Status:
+
+- `incoming` if year-in-programme ≤ 0 (cohort hasn't started classes yet);
+- `delayed` if year-in-programme > program duration;
+- `on-track` otherwise.
+
+The `delayed` count feeds the Lifecycle Verdict's `delayed_graduation_share` driver (§3.2). The status field never has a "graduated" value because a graduated cohort has been removed from the active distribution by the registrar's data pipeline.
+
+### 4.3 Demographic outlook — required-share-of-cohort projection
+
+The demographic outlook projects the **share of Thailand's catchment cohort** the program would need to recruit from at +0, +5, +10, and +15 years to maintain today's first-year intake. Bachelor's programmes use the **18–22 cohort**; postgraduate programmes use the **23–29 cohort**. The catchment is **Northeast Thailand** by default for KKU programmes (an institutional choice — the cohort projection table also carries national figures for cross-checks).
+
+Pseudocode for the required-share at horizon `h`:
+
+```
+requiredShare(h) = baselineYearOneIntake / cohortPopulation(now + h)
+```
+
+`baselineYearOneIntake` is the most recent **non-partial** Year-1 enrolment (the partial-year drop heuristic from §2.2.2 applies). The risk verdict is taken from the +10y required-share, calibrated for KKU's typical programme size:
+
+| Required share at +10y (Northeast 18–22) | Risk verdict |
+|---|---|
+| < 0.05% | `low` |
+| 0.05%–0.20% | `medium` |
+| > 0.20% | `high` |
+
+These thresholds are **per-programme** — at the institutional aggregate (sum across all KKU bachelor programmes), the same calculation produces the institutional demographic ceiling, surfaced separately at the Cockpit / portfolio level. The projection source is pinned to `NESDC-PopProj-2010-2040` so older synthetic seed rows do not dilute the read.
+
+### 4.4 Skill-match score — curriculum vs labour-market demand
+
+The Deep-Dive's Skills section shows three lists side by side: **taught** (program skills, ranked PLO-tagged first), **demanded** (labour-market signal), and **gaps** (demanded but not taught). It also reports a single composite **match score** in `[0, 100]`.
+
+**Demand resolution** uses a four-tier fallback chain, recorded transparently in the response so analysts know which scope produced the read:
+
+1. Thailand × Job postings (percentage ≥ 5%);
+2. Thailand × Profiles (percentage ≥ 5%);
+3. Global × Job postings (percentage ≥ 0%);
+4. Global × Profiles (percentage ≥ 0%).
+
+Engineering and specialty careers often have no Thailand × Job postings rows because the Thai job-postings sample is thin and skewed toward digital/service careers; the global fallbacks ensure the panel always has signal. The label of the tier that succeeded is shown in the UI so readers apply the right caveat.
+
+**Career filtering.** When a programme has `kmitlCareerIds` set, demand rows are restricted to those careers — a Mechanical Engineering programme sees Mechanical Engineer / Mechanical Design Engineer / Mechanical Project Engineer demand, not generic top-skills across all 401 careers. Programmes without a career mapping fall back to all careers with a UI banner noting the looser scope.
+
+**Match score formula.** When `program_demand_matches` (the AI-computed demand-match table) has rows for the program, the score uses **only relevant** demanded skills as the denominator, so the score reflects whether the curriculum covers what its graduates would actually need:
+
+```
+matchScore = 100 × (matchedRelevant / totalRelevant)
+```
+
+Without AI matches, the score falls back to a taxonomy-only intersection: `100 × (taughtIds ∩ demandIds) / |demandIds|`. The fallback is conservative and the UI flags it so the analyst knows to run `pnpm programs:match-demand`.
+
+The data source attribution chain for the demand side is the same as in §2.2.5: **LinkedIn data, subscribed by MHESI, hosted at KMITL on behalf of MHESI.**
+
+### 4.5 AI peer review — content-modernity verdict and content gaps
+
+The AI peer review is generated by a separate prompt-and-tool agent (`packages/shared/src/ai/prompts/program-peer-review.ts`) and persisted on the `ProgramPeerReview` table. The Deep-Dive consumes:
+
+- **Strengths and weaknesses** — bullet list (claim + evidence);
+- **Tier verdicts** (WORLD / ASIA / SOUTHEAST_ASIA / THAILAND_PEER) — one-line positioning per tier;
+- **Content modernity** — `OLD_SCHOOL` | `IN_BETWEEN` | `FRONTIER` plus a narrative;
+- **Content gaps** — list of topics where KKU lags peers, each with severity (`major` | `moderate` | `minor`), KKU status, peer examples, and a recommendation;
+- **Recommendations** — prioritised actions (`high` | `medium` | `low`) with effort horizons (`short` | `medium` | `long`);
+- **Confidence** — model's self-rated `[0, 1]`;
+- **Subject benchmark summary** — narrative paragraph.
+
+The Lifecycle Verdict (§3) consumes only `contentModernity.verdict` and the count of `severity = major` content gaps. The richer fields are presentation-only on the Deep-Dive. AI peer-review outputs below the auto-approve confidence threshold (currently 0.85, configurable) sit in an analyst review queue and are never silently materialised — see §6 (Governance).
+
+### 4.6 Faculty roster — visibility and role-gating
+
+The Faculty section's roster fallback chain:
+
+1. `ProgramFaculty` — curated per-program links (analyst-driven; not populated by any connector today);
+2. Department-scoped — all `FacultyMember` rows where `departmentId = program.departmentId`;
+3. Faculty-scoped — all `FacultyMember` rows where `facultyId = program.facultyId`.
+
+In practice most programmes today land at the faculty scope until an analyst attaches a department or per-program roster.
+
+**Visibility** is role-gated and enforced at the database query layer (not just filtered post-fetch):
+
+| Visibility | Who sees it | Fields exposed |
+|---|---|---|
+| `full` | DEAN / DEPT_HEAD / ANALYST / ADMIN / EXECUTIVE | All fields including `nameEn`, `nameTh`, `employeeCode`, `specialization`, `hireDate`. |
+| `aggregates-only` | COUNCIL | Rank distribution, retirement horizon, qualification, research-output count, active flag. **No** identifying personal fields. |
+
+The `aggregates-only` mode lets Council members read the program-level capability signal without seeing individuals — an explicit PDPA posture choice. The same gating extends to any future personal-data fields (e.g., compensation): adding such a field selects `false` in the aggregates-only `select` block so the wrong data never leaves the database.
+
+### 4.7 Persistence and freshness
+
+Deep-Dive sections have no per-program-snapshot table (unlike the Lifecycle Verdict at §3.7); each section reads from its source tables on demand. The **freshness timestamp** displayed at the top of every Deep-Dive section is the most recent `IngestionRun.completedAt` across the underlying sources for that section. `<ProvenanceButton>` opens the canonical Provenance drawer.
+
+---
+
+## 5. Data sources and provenance
 
 This section lists every external and internal data source consumed by the health score and lifecycle verdict, with attribution. Each source has a per-source specification at `docs/data-sources/<slug>.md` describing the integration, refresh cadence, and PDPA posture.
 
@@ -315,9 +440,9 @@ The application records, on every metric write, the `IngestionRun` ID that produ
 
 ---
 
-## 5. Governance, audit, and versioning
+## 6. Governance, audit, and versioning
 
-### 5.1 Versioning policy
+### 6.1 Versioning policy
 
 The methodology version constants are:
 
@@ -328,7 +453,7 @@ Every score row emitted by the application carries the version that produced it.
 
 A version is bumped when, and only when, a substantive change occurs to the formula, the data sources, the null-handling rules, the completeness thresholds, or the verdict bands. Cosmetic changes (rephrasing labels, fixing typos in narrative templates) do not bump the version. The companion document at `docs/methodologies/health-score.md` records every bump and the reasoning behind it.
 
-### 5.2 Audit and reproducibility
+### 6.2 Audit and reproducibility
 
 Every score and verdict is reproducible from:
 
@@ -338,7 +463,7 @@ Every score and verdict is reproducible from:
 
 Council Pack PDFs include a methodology-version footer on every page. A score cited in a Council brief can be traced — value, formula, and inputs — to its commit.
 
-### 5.3 Human-in-the-loop requirement
+### 6.3 Human-in-the-loop requirement
 
 No score, verdict, or AI-generated narrative authorises an institutional decision. Per `docs/ai-governance.md`:
 
@@ -346,7 +471,7 @@ No score, verdict, or AI-generated narrative authorises an institutional decisio
 - AI-generated extractions (skills, course descriptions, narratives) below a configurable confidence threshold (currently `0.85`) sit in an analyst review queue and are never silently materialised.
 - Disagreements raised by deans or program coordinators are persisted as `Annotation` rows linked to the specific AI inference, enabling subsequent recalibration.
 
-### 5.4 Guardrails enforced at compute time
+### 6.4 Guardrails enforced at compute time
 
 The scoring service enforces, at every computation:
 
@@ -359,15 +484,15 @@ These are coded invariants, not policy aspirations.
 
 ---
 
-## 6. Limitations and known caveats
+## 7. Limitations and known caveats
 
 This section is deliberately exhaustive. Decision-makers should read it with care.
 
-### 6.1 Equal-weighting is a deliberate, conservative default
+### 7.1 Equal-weighting is a deliberate, conservative default
 
 The composite score weighs all five dimensions equally. This is a least-arguable default: any weighted formulation encodes a value judgement, and the application errs toward making the unweighted reading available so decision-makers form their own bias rather than inherit ours. Should a future revision adopt weights, those weights will be visible in chart tooltips, in the Council Pack methodology footer, and in this document.
 
-### 6.2 Data completeness varies sharply across programs
+### 7.2 Data completeness varies sharply across programs
 
 A non-trivial number of KKU programs lack complete data for one or more dimensions:
 
@@ -377,31 +502,31 @@ A non-trivial number of KKU programs lack complete data for one or more dimensio
 
 Where completeness is low, the user interface flags it explicitly. Council briefs that cite scores must report completeness alongside the score.
 
-### 6.3 Cross-scope consistency is not asserted
+### 7.3 Cross-scope consistency is not asserted
 
 A faculty's overall health score is computed independently from its own scope's metric rollups, not as an average of its programs' scores. The two are typically close but not identical. A future version may enforce bottom-up consistency by construction; the current version trades that property for compute simplicity and per-scope auditability.
 
-### 6.4 Some signals are still synthetic or proxied
+### 7.4 Some signals are still synthetic or proxied
 
 - The labour-market alignment driver pulls from the LinkedIn-derived data feed (subscribed by MHESI; API hosted at KMITL) and is, until 2026-05-31, in a 30-day green-history readiness window. Council-facing surfaces should mark it as preview-quality.
 - The `pedagogicalReadiness` sub-score in AI readiness is reserved (null) pending classroom and survey instrumentation; its weight is currently redistributed across the other three sub-scores.
 - The `delayed_graduation_share` driver assumes the program's `durationYears` field is set correctly; programs with an incorrect duration will produce a misleading delayed-share signal.
 
-### 6.5 The lifecycle verdict's modifier gates are an institutional position, not an empirical fact
+### 7.5 The lifecycle verdict's modifier gates are an institutional position, not an empirical fact
 
 The two AI-readiness floors (§3.5) and the OLD_SCHOOL content cap (§3.5) are explicit institutional positions, not findings. Decision-makers may disagree with those positions; the gates are documented openly so disagreement is about substance.
 
-### 6.6 The verdict bands are calibration choices
+### 7.6 The verdict bands are calibration choices
 
 The trajectory cut-offs (45 / 65 / 80) and the health bands (40 / 65) were chosen to produce a roughly even distribution of programs across bands at KKU's current state. They are not derived from external benchmark data. As more peer-comparison data lands, future revisions may recalibrate; this paper will be re-issued accordingly.
 
-### 6.7 Score volatility under data refreshes
+### 7.7 Score volatility under data refreshes
 
 A single ingestion run can move a program's overall score by several points if it lands a previously-missing driver. This is by design (we want fresh data to register). Users of the cockpit are advised to compare scores across **versioned methodology stamps**, not across raw timestamps, when assessing trend.
 
 ---
 
-## 7. Glossary
+## 8. Glossary
 
 - **CUPT** — Council of University Presidents of Thailand (สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย); administers TCAS.
 - **TCAS** — Thai University Central Admission System; the four-round national admission process for Thai universities. KKU participates in rounds 1–4.
@@ -420,22 +545,22 @@ A single ingestion run can move a program's overall score by several points if i
 
 ---
 
-## 8. References
+## 9. References
 
 The following are the actual source materials this paper draws from. References are split into (a) institutional source code and documentation that defines the methodology, and (b) external public references for the data sources cited.
 
-### 8.1 Internal — methodology canon
+### 9.1 Internal — methodology canon
 
 - `packages/db/src/health-score.ts`. Primary implementation of the five-dimension health score scorers. Methodology version constant `HEALTH_SCORE_VERSION`.
 - `packages/db/src/program-deep-dive.ts`. Primary implementation of `programLifecycleVerdict` and `programAiReadiness`. Methodology version constant `LIFECYCLE_VERSION`.
 - `docs/methodologies/health-score.md`. Internal-facing methodology notes; version history and review log.
 - `docs/methodologies/cost-allocation.md`. Cost-allocation methodology (v0 draft) feeding the Financial dimension.
 - `docs/methodologies/forecasting.md`. Forecasting methodology feeding demographic-resilience and trend drivers.
-- `docs/data-sources/<slug>.md`. Per-source specifications; one file per data source listed in §4.
-- `docs/ai-governance.md`. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §5.
+- `docs/data-sources/<slug>.md`. Per-source specifications; one file per data source listed in §5.
+- `docs/ai-governance.md`. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §6.
 - `CLAUDE.md`. Project charter and the eight strategic questions referenced in §2.1.
 
-### 8.2 External — data source operators (publicly available references)
+### 9.2 External — data source operators (publicly available references)
 
 - **OurResearch / OpenAlex.** Public scholarly-works catalogue. <https://openalex.org>. Documentation: <https://docs.openalex.org>.
 - **CUPT (Council of University Presidents of Thailand).** Administers TCAS. <https://www.mytcas.com>. The TCAS3 statistics this paper cites are published annually on the CUPT TCAS portal.
@@ -447,7 +572,7 @@ The following are the actual source materials this paper draws from. References 
 - **LinkedIn-derived labour-market skill demand.** The dataset's contents are aggregated **LinkedIn** profile and Thai job-posting data. The institutional subscription is held by **MHESI**, which exposes the data to partner universities (KKU among them). **KMITL** operates the technical API endpoint (`https://skill.kmitl.ac.th/api/v1`) on behalf of MHESI; it is a technical host, not the data owner.
 - **Royal Thai Government — Personal Data Protection Act, B.E. 2562 (2019).** Available via the Office of the Council of State (กฤษฎีกา).
 
-### 8.3 External — referenced policy frameworks
+### 9.3 External — referenced policy frameworks
 
 - The **Bio-Circular-Green (BCG) economic model** is a Thai national-strategy framework articulated by the Royal Thai Government and operationalised through MHESI and NXPO. Public materials are available on the NXPO website.
 - The **S-curve target industries** are likewise defined in Thai government strategy documentation.
