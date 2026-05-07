@@ -317,6 +317,7 @@ model Faculty {
   departments         Department[]
   programs            Program[]
   users               User[]
+  userScopes          UserScope[]
   facultyMembers      FacultyMember[]
   facultySkills       FacultySkill[]
   hrOrgMappings       HrOrgMapping[]
@@ -422,6 +423,7 @@ model Program {
   programSkills         ProgramSkill[]
   programFaculties      ProgramFaculty[]
   programUsers          User[]                      @relation("ProgramUserScope")
+  userScopes            UserScope[]
   enrollmentMetrics     EnrollmentMetric[]
   studentDemographics   StudentDemographic[]
   cohortDistributions   StudentCohortDistribution[]
@@ -523,11 +525,46 @@ model User {
   milestonesOwned        DecisionMilestone[]   @relation("MilestoneOwner")
   approvedDecisions      DecisionApprover[]    @relation("ApproverUser")
   attachedProgramDocs    ProgramDocument[]     @relation("ProgramDocAttacher")
+  // Multi-scope assignments — additive to the (role, facultyId, programId)
+  // single-primary columns above. A user can own multiple (role, scope)
+  // tuples: e.g. FACULTY_USER for two faculties + PROGRAM_USER for three
+  // programs across other faculties. Phase 1 (added 2026-05-07): admin UI
+  // manages these; runtime can() still consults the primary fields above.
+  // Phase 2 will rewrite can() + SessionUser to consume scopes[] directly.
+  scopes                 UserScope[]
 
   @@index([email])
   @@index([ssoSubject])
   @@index([role])
   @@map("users")
+}
+
+// Multi-scope assignments per user. Each row = one (role, scope) tuple.
+// Non-spatial roles (SUPER_ADMIN, SYSTEM_ADMIN, UNIVERSITY_USER) carry
+// facultyId=null + programId=null (one row total per user). Spatial roles:
+//   - FACULTY_USER: facultyId required, programId=null
+//   - PROGRAM_USER: programId required (facultyId derivable from program)
+// Unique on (userId, role, facultyId, programId) prevents duplicate
+// assignments. ON DELETE CASCADE on user means scopes evaporate when a
+// user is deleted; SET NULL on faculty/program preserves audit while a
+// faculty/program row is being moved.
+model UserScope {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  role      UserRole
+  facultyId String?  @map("faculty_id")
+  programId String?  @map("program_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  faculty Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  program Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, role, facultyId, programId], map: "user_scopes_unique")
+  @@index([userId], map: "user_scopes_user_idx")
+  @@index([facultyId], map: "user_scopes_faculty_idx")
+  @@index([programId], map: "user_scopes_program_idx")
+  @@map("user_scopes")
 }
 
 model AuditLog {

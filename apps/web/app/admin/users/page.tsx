@@ -35,6 +35,17 @@ export default async function AdminUsersPage() {
         createdAt: true,
         faculty: { select: { id: true, nameEn: true, nameTh: true } },
         program: { select: { id: true, code: true, nameEn: true, nameTh: true } },
+        scopes: {
+          orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            role: true,
+            facultyId: true,
+            programId: true,
+            faculty: { select: { id: true, nameEn: true, nameTh: true } },
+            program: { select: { id: true, code: true, nameEn: true } },
+          },
+        },
       },
     }),
     prisma.faculty.findMany({
@@ -73,6 +84,18 @@ export default async function AdminUsersPage() {
             ? `${u.program.code} ${u.program.nameEn}`
             : null,
           createdAtIso: u.createdAt.toISOString(),
+          scopes: u.scopes.map((s) => ({
+            id: s.id,
+            role: s.role,
+            facultyId: s.facultyId,
+            programId: s.programId,
+            facultyLabel: s.faculty
+              ? `${s.faculty.nameTh} · ${s.faculty.nameEn}`
+              : null,
+            programLabel: s.program
+              ? `${s.program.code} ${s.program.nameEn}`
+              : null,
+          })),
         }))}
         faculties={faculties}
         programs={programs}

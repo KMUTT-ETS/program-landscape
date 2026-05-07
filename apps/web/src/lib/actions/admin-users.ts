@@ -135,18 +135,33 @@ export async function provisionUserAction(
       return { ok: false, message: 'A user with this email already exists. Use Update Role instead.' };
     }
 
-    const created = await prisma.user.create({
-      data: {
-        email: input.email,
-        name: input.name,
-        role: input.role,
-        facultyId: input.facultyId,
-        departmentId: input.departmentId,
-        programId: input.programId,
-        passwordHash: input.password ? hashPassword(input.password) : null,
-        // ssoSubject left null — set automatically on first SSO login
-        // by provisionFromOidcClaims when it sees the matching email.
-      },
+    // Create the User row + matching primary UserScope in a transaction
+    // so a new user always starts with ≥1 scope assignment in the multi-
+    // scope table (admins can add additional scopes via addUserScopeAction
+    // afterwards).
+    const created = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          name: input.name,
+          role: input.role,
+          facultyId: input.facultyId,
+          departmentId: input.departmentId,
+          programId: input.programId,
+          passwordHash: input.password ? hashPassword(input.password) : null,
+          // ssoSubject left null — set automatically on first SSO login
+          // by provisionFromOidcClaims when it sees the matching email.
+        },
+      });
+      await tx.userScope.create({
+        data: {
+          userId: user.id,
+          role: input.role,
+          facultyId: input.role === 'FACULTY_USER' ? input.facultyId : null,
+          programId: input.role === 'PROGRAM_USER' ? input.programId : null,
+        },
+      });
+      return user;
     });
     revalidatePath('/admin/users');
     return { ok: true, userId: created.id };
@@ -191,6 +206,114 @@ export async function updateUserRoleAction(input: {
         programId: input.programId,
       },
     });
+    revalidatePath('/admin/users');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+// ── Multi-scope assignments ───────────────────────────────────────────
+//
+// A user can hold multiple (role, scope) tuples — e.g. FACULTY_USER for
+// two faculties + PROGRAM_USER for three programs across other faculties.
+// These actions manage UserScope rows independently of the User's primary
+// role/facultyId/programId columns. Phase 2 will fold the primary into
+// the scope list; for now both coexist.
+
+interface AddScopeInput {
+  userId: string;
+  role: Role;
+  facultyId: string | null;
+  programId: string | null;
+}
+
+function validateScopeAssignment(input: { role: Role; facultyId: string | null; programId: string | null }): string | null {
+  switch (input.role) {
+    case 'FACULTY_USER':
+      if (!input.facultyId) return 'FACULTY_USER requires facultyId';
+      if (input.programId) return 'FACULTY_USER must not carry a programId';
+      return null;
+    case 'PROGRAM_USER':
+      if (!input.programId) return 'PROGRAM_USER requires programId';
+      return null;
+    case 'SUPER_ADMIN':
+    case 'SYSTEM_ADMIN':
+    case 'UNIVERSITY_USER':
+      if (input.facultyId || input.programId) {
+        return `${input.role} is non-spatial; do not pass facultyId or programId`;
+      }
+      return null;
+    default:
+      return 'role is not in the SSO_ROLES set';
+  }
+}
+
+export async function addUserScopeAction(
+  input: AddScopeInput,
+): Promise<{ ok: true; scopeId: string } | { ok: false; message: string }> {
+  try {
+    const actor = await requireAdmin();
+    const target = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (!target) return { ok: false, message: 'User not found' };
+    if (!(SSO_ROLES as readonly Role[]).includes(input.role)) {
+      return { ok: false, message: 'role must be one of the SSO_ROLES' };
+    }
+    assertCanAssignRole(actor, input.role);
+    const err = validateScopeAssignment(input);
+    if (err) return { ok: false, message: err };
+
+    // PROGRAM_USER: derive faculty from program for cross-table consistency.
+    let facultyId = input.facultyId;
+    if (input.role === 'PROGRAM_USER' && input.programId) {
+      const prog = await prisma.program.findUnique({
+        where: { id: input.programId },
+        select: { facultyId: true },
+      });
+      if (!prog) return { ok: false, message: 'Program not found' };
+      facultyId = prog.facultyId;
+    }
+
+    try {
+      const created = await prisma.userScope.create({
+        data: {
+          userId: input.userId,
+          role: input.role,
+          facultyId: facultyId,
+          programId: input.programId,
+        },
+      });
+      revalidatePath('/admin/users');
+      return { ok: true, scopeId: created.id };
+    } catch (dbErr) {
+      // Unique constraint violation = duplicate scope assignment.
+      const msg = (dbErr as { code?: string; message?: string }).code === 'P2002'
+        ? 'This scope is already assigned to the user'
+        : (dbErr as Error).message;
+      return { ok: false, message: msg };
+    }
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+export async function removeUserScopeAction(
+  scopeId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await requireAdmin();
+    const scope = await prisma.userScope.findUnique({ where: { id: scopeId } });
+    if (!scope) return { ok: false, message: 'Scope not found' };
+    // Refuse to remove the last scope — every user must hold at least one
+    // assignment so they have a defined permission posture.
+    const count = await prisma.userScope.count({ where: { userId: scope.userId } });
+    if (count <= 1) {
+      return {
+        ok: false,
+        message: 'Cannot remove the last scope. Add another scope first, or delete the user instead.',
+      };
+    }
+    await prisma.userScope.delete({ where: { id: scopeId } });
     revalidatePath('/admin/users');
     return { ok: true };
   } catch (e) {

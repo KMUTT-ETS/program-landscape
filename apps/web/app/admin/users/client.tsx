@@ -2,15 +2,16 @@
 
 import * as React from 'react';
 import { Card, Input, Button } from '@kku/ui';
-import { Search, Plus, Trash2, RefreshCw, Key, Check, Pencil } from 'lucide-react';
+import { Search, Plus, Trash2, Key, Check, Pencil, X, Layers, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Role } from '@kku/shared';
 import {
   searchKkuEmployeeAction,
   provisionUserAction,
-  updateUserRoleAction,
   deleteUserAction,
   setUserPasswordAction,
+  addUserScopeAction,
+  removeUserScopeAction,
 } from '@/lib/actions/admin-users';
 
 // Inlined from packages/shared/src/auth/roles.ts. These two arrays are
@@ -60,6 +61,15 @@ function deriveDisplayName(emp: Record<string, unknown>): string {
   return t('email') ?? '(unnamed)';
 }
 
+interface ScopeRow {
+  id: string;
+  role: Role;
+  facultyId: string | null;
+  programId: string | null;
+  facultyLabel: string | null;
+  programLabel: string | null;
+}
+
 interface UserRow {
   id: string;
   email: string;
@@ -72,6 +82,7 @@ interface UserRow {
   facultyLabel: string | null;
   programLabel: string | null;
   createdAtIso: string;
+  scopes: ScopeRow[];
 }
 
 interface FacultyOption {
@@ -543,10 +554,10 @@ function ExistingUsersPanel({
         <table className="w-full text-xs">
           <thead>
             <tr className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+              <th className="px-2 py-1 w-6"></th>
               <th className="px-2 py-1 text-left">Email</th>
               <th className="px-2 py-1 text-left">Name</th>
-              <th className="px-2 py-1 text-left">Role</th>
-              <th className="px-2 py-1 text-left">Scope</th>
+              <th className="px-2 py-1 text-left">Roles &amp; scopes</th>
               <th className="px-2 py-1 text-left">SSO</th>
               <th className="px-2 py-1"></th>
             </tr>
@@ -582,29 +593,8 @@ function UserRowEditor({
   assignable: readonly Role[];
   actorIsSuper: boolean;
 }) {
-  const [editing, setEditing] = React.useState(false);
-  const [role, setRole] = React.useState<Role>(user.role);
-  const [facultyId, setFacultyId] = React.useState(user.facultyId ?? '');
-  const [programId, setProgramId] = React.useState(user.programId ?? '');
+  const [expanded, setExpanded] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
-
-  const save = async () => {
-    setBusy(true);
-    const r = await updateUserRoleAction({
-      userId: user.id,
-      role,
-      facultyId: role === 'FACULTY_USER' ? facultyId || null : null,
-      departmentId: null,
-      programId: role === 'PROGRAM_USER' ? programId || null : null,
-    });
-    setBusy(false);
-    if (r.ok) {
-      toast.success('Updated');
-      setEditing(false);
-    } else {
-      toast.error(r.message);
-    }
-  };
 
   const remove = async () => {
     if (!confirm(`Delete user ${user.email}? This cannot be undone.`)) return;
@@ -620,7 +610,7 @@ function UserRowEditor({
       `Set dev password for ${user.email}?\n\nLeave blank and click OK to clear (user falls back to shared DEV_AUTH_PASSWORD).\nClick Cancel to abort.`,
       '',
     );
-    if (next === null) return; // cancelled
+    if (next === null) return;
     setBusy(true);
     const r = await setUserPasswordAction({
       userId: user.id,
@@ -632,122 +622,362 @@ function UserRowEditor({
     } else toast.error(r.message);
   };
 
-  const filteredPrograms = facultyId
-    ? programs.filter((p) => p.facultyId === facultyId)
+  return (
+    <>
+      <tr className="border-t border-border-subtle">
+        <td className="px-2 py-1.5 align-top">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-text-tertiary hover:text-text-primary"
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+          >
+            {expanded ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+          </button>
+        </td>
+        <td className="px-2 py-1.5 align-top font-mono text-[11px]">{user.email}</td>
+        <td className="px-2 py-1.5 align-top">{user.name ?? '—'}</td>
+        <td className="px-2 py-1.5 align-top">
+          <ScopePillStack scopes={user.scopes} />
+        </td>
+        <td className="px-2 py-1.5 align-top">
+          {user.linkedToSso ? (
+            <span className="text-success">linked</span>
+          ) : (
+            <span className="text-text-tertiary">awaiting first login</span>
+          )}
+        </td>
+        <td className="px-2 py-1.5 align-top">
+          <div className="flex justify-end gap-1">
+            <Button size="xs" variant="ghost" onClick={() => setExpanded(true)}>
+              <Layers className="h-3 w-3" /> Scopes
+            </Button>
+            <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>
+              <Key className="h-3 w-3" /> Pwd
+            </Button>
+            {actorIsSuper && (
+              <Button size="xs" variant="ghost" onClick={remove} disabled={busy}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={6} className="border-t border-border-subtle bg-surface-1 px-2 py-3">
+            <ScopeManager
+              user={user}
+              faculties={faculties}
+              programs={programs}
+              assignable={assignable}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// Compact pill stack — shows up to 3 scope rows in the table, with a
+// "+N more" affordance for the rest. Click any pill to expand the row
+// (handled by the parent's expander). Non-spatial roles (SUPER_ADMIN,
+// SYSTEM_ADMIN, UNIVERSITY_USER) render with no scope suffix.
+function ScopePillStack({ scopes }: { scopes: ScopeRow[] }) {
+  if (scopes.length === 0) {
+    return <span className="text-text-tertiary">—</span>;
+  }
+  const head = scopes.slice(0, 3);
+  const rest = scopes.length - head.length;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {head.map((s) => (
+        <ScopePill key={s.id} scope={s} />
+      ))}
+      {rest > 0 && (
+        <span className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-[10px] text-text-secondary">
+          +{rest} more
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ScopePill({ scope }: { scope: ScopeRow }) {
+  const isAdmin =
+    scope.role === 'SUPER_ADMIN' || scope.role === 'SYSTEM_ADMIN' || scope.role === 'ADMIN';
+  const target = scope.programLabel ?? scope.facultyLabel ?? null;
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+        isAdmin
+          ? 'border-accent/30 bg-accent/10 text-accent'
+          : 'border-border-subtle bg-surface-2 text-text-secondary'
+      }`}
+      title={target ?? ROLE_LABEL[scope.role]}
+    >
+      <span className="font-semibold">{ROLE_LABEL[scope.role]}</span>
+      {target && <span className="ml-1 opacity-80">· {target}</span>}
+    </span>
+  );
+}
+
+// Inline scope-management panel that expands below a user row. Shows
+// the existing scope rows with remove buttons + an "add scope" form.
+// Refuses to remove the last scope (server-side enforced + UI hint).
+function ScopeManager({
+  user,
+  faculties,
+  programs,
+  assignable,
+}: {
+  user: UserRow;
+  faculties: FacultyOption[];
+  programs: ProgramOption[];
+  assignable: readonly Role[];
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const [newRole, setNewRole] = React.useState<Role>('FACULTY_USER');
+  const [newFacultyId, setNewFacultyId] = React.useState('');
+  const [newProgramId, setNewProgramId] = React.useState('');
+  // Local optimistic copy so removes/adds reflect immediately without
+  // waiting for the server-side revalidatePath round-trip.
+  const [localScopes, setLocalScopes] = React.useState(user.scopes);
+  React.useEffect(() => setLocalScopes(user.scopes), [user.scopes]);
+
+  const onRemove = async (scope: ScopeRow) => {
+    if (localScopes.length <= 1) {
+      toast.error('Cannot remove the last scope. Add another scope first.');
+      return;
+    }
+    setBusy(true);
+    const r = await removeUserScopeAction(scope.id);
+    setBusy(false);
+    if (r.ok) {
+      toast.success('Scope removed');
+      setLocalScopes(localScopes.filter((s) => s.id !== scope.id));
+    } else {
+      toast.error(r.message);
+    }
+  };
+
+  const onAdd = async () => {
+    if (newRole === 'FACULTY_USER' && !newFacultyId) {
+      toast.error('Pick a faculty');
+      return;
+    }
+    if (newRole === 'PROGRAM_USER' && !newProgramId) {
+      toast.error('Pick a program');
+      return;
+    }
+    setBusy(true);
+    const r = await addUserScopeAction({
+      userId: user.id,
+      role: newRole,
+      facultyId: newRole === 'FACULTY_USER' ? newFacultyId || null : null,
+      programId: newRole === 'PROGRAM_USER' ? newProgramId || null : null,
+    });
+    setBusy(false);
+    if (!r.ok) {
+      toast.error(r.message);
+      return;
+    }
+    toast.success('Scope added');
+    // Optimistic insert — the server-side revalidatePath will refresh
+    // the prop on next render, so we'll get the canonical row in shortly.
+    const facLabel =
+      newRole === 'FACULTY_USER'
+        ? faculties.find((f) => f.id === newFacultyId)?.nameTh ?? null
+        : null;
+    const progFromId = programs.find((p) => p.id === newProgramId);
+    const facLabelFromProgram = progFromId
+      ? faculties.find((f) => f.id === progFromId.facultyId)?.nameTh ?? null
+      : null;
+    setLocalScopes([
+      ...localScopes,
+      {
+        id: r.scopeId,
+        role: newRole,
+        facultyId:
+          newRole === 'FACULTY_USER'
+            ? newFacultyId || null
+            : progFromId?.facultyId ?? null,
+        programId: newRole === 'PROGRAM_USER' ? newProgramId || null : null,
+        facultyLabel:
+          facLabel ??
+          (facLabelFromProgram
+            ? `${facLabelFromProgram} · ${
+                faculties.find((f) => f.id === progFromId?.facultyId)?.nameEn ?? ''
+              }`
+            : null),
+        programLabel: progFromId
+          ? `${progFromId.code} ${progFromId.nameEn}`
+          : null,
+      },
+    ]);
+    setNewFacultyId('');
+    setNewProgramId('');
+  };
+
+  const filteredPrograms = newFacultyId
+    ? programs.filter((p) => p.facultyId === newFacultyId)
     : programs;
 
   return (
-    <tr className="border-t border-border-subtle">
-      <td className="px-2 py-1 font-mono text-[11px]">{user.email}</td>
-      <td className="px-2 py-1">{user.name ?? '—'}</td>
-      <td className="px-2 py-1">
-        {editing ? (
-          <select
-            className="kku-select"
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
+    <div className="flex flex-col gap-3 rounded-md border border-border-subtle bg-surface-0 p-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-text-primary">
+          Scopes for {user.email}
+        </h4>
+        <span className="text-[10px] text-text-tertiary">
+          {localScopes.length} {localScopes.length === 1 ? 'scope' : 'scopes'}
+        </span>
+      </div>
+
+      {/* Existing scopes — list with remove buttons */}
+      <ul className="flex flex-col gap-1.5">
+        {localScopes.map((s) => (
+          <li
+            key={s.id}
+            className="flex items-center justify-between gap-2 rounded border border-border-subtle bg-surface-1 px-2.5 py-1.5"
           >
-            {assignable.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span
-            className={
-              user.role.startsWith('SUPER') || user.role.startsWith('SYSTEM') || user.role === 'ADMIN'
-                ? 'font-semibold text-accent'
-                : ''
-            }
-          >
-            {ROLE_LABEL[user.role] ?? user.role}
-          </span>
-        )}
-      </td>
-      <td className="px-2 py-1 text-text-secondary">
-        {editing && role === 'FACULTY_USER' && (
-          <select
-            className="kku-select"
-            value={facultyId}
-            onChange={(e) => setFacultyId(e.target.value)}
-          >
-            <option value="">— faculty —</option>
-            {faculties.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.code}
-              </option>
-            ))}
-          </select>
-        )}
-        {editing && role === 'PROGRAM_USER' && (
-          <div className="flex flex-col gap-1">
+            <div className="flex flex-1 items-center gap-2 min-w-0">
+              <ScopePill scope={s} />
+              {s.programLabel && (
+                <span className="truncate text-[11px] text-text-tertiary">
+                  {s.facultyLabel}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemove(s)}
+              disabled={busy || localScopes.length <= 1}
+              title={
+                localScopes.length <= 1
+                  ? 'Cannot remove the last scope'
+                  : 'Remove this scope'
+              }
+              className="text-text-tertiary hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Remove scope"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {/* Add scope form */}
+      <div className="flex flex-col gap-2 rounded border border-dashed border-border-subtle bg-surface-1 p-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+          Add scope
+        </div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] text-text-tertiary">Role</label>
             <select
-              className="kku-select"
-              value={facultyId}
+              className="kku-select w-full"
+              value={newRole}
               onChange={(e) => {
-                setFacultyId(e.target.value);
-                setProgramId('');
+                setNewRole(e.target.value as Role);
+                setNewFacultyId('');
+                setNewProgramId('');
               }}
             >
-              <option value="">all faculties</option>
-              {faculties.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.code}
-                </option>
-              ))}
-            </select>
-            <select
-              className="kku-select"
-              value={programId}
-              onChange={(e) => setProgramId(e.target.value)}
-            >
-              <option value="">— program —</option>
-              {filteredPrograms.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code}
+              {assignable.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
                 </option>
               ))}
             </select>
           </div>
-        )}
-        {!editing && (user.programLabel ?? user.facultyLabel ?? '—')}
-      </td>
-      <td className="px-2 py-1">
-        {user.linkedToSso ? (
-          <span className="text-success">linked</span>
-        ) : (
-          <span className="text-text-tertiary">awaiting first login</span>
-        )}
-      </td>
-      <td className="px-2 py-1">
-        <div className="flex justify-end gap-1">
-          {editing ? (
+
+          {newRole === 'FACULTY_USER' && (
+            <div>
+              <label className="mb-1 block text-[10px] text-text-tertiary">Faculty</label>
+              <select
+                className="kku-select w-full"
+                value={newFacultyId}
+                onChange={(e) => setNewFacultyId(e.target.value)}
+              >
+                <option value="">— select —</option>
+                {faculties.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nameTh} · {f.nameEn}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {newRole === 'PROGRAM_USER' && (
             <>
-              <Button size="xs" variant="primary" onClick={save} disabled={busy}>
-                Save
-              </Button>
-              <Button size="xs" variant="ghost" onClick={() => setEditing(false)}>
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button size="xs" variant="ghost" onClick={() => setEditing(true)}>
-                <RefreshCw className="h-3 w-3" /> Edit
-              </Button>
-              <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>
-                <Key className="h-3 w-3" /> Pwd
-              </Button>
-              {actorIsSuper && (
-                <Button size="xs" variant="ghost" onClick={remove} disabled={busy}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
+              <div>
+                <label className="mb-1 block text-[10px] text-text-tertiary">
+                  Faculty (filter)
+                </label>
+                <select
+                  className="kku-select w-full"
+                  value={newFacultyId}
+                  onChange={(e) => {
+                    setNewFacultyId(e.target.value);
+                    setNewProgramId('');
+                  }}
+                >
+                  <option value="">all faculties</option>
+                  {faculties.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nameTh} · {f.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-[10px] text-text-tertiary">Program</label>
+                <select
+                  className="kku-select w-full"
+                  value={newProgramId}
+                  onChange={(e) => setNewProgramId(e.target.value)}
+                >
+                  <option value="">— select —</option>
+                  {filteredPrograms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} · {p.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
         </div>
-      </td>
-    </tr>
+
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size="xs"
+            variant="primary"
+            onClick={onAdd}
+            disabled={
+              busy ||
+              (newRole === 'FACULTY_USER' && !newFacultyId) ||
+              (newRole === 'PROGRAM_USER' && !newProgramId)
+            }
+          >
+            <Plus className="h-3 w-3" /> Add scope
+          </Button>
+        </div>
+      </div>
+
+      <div className="border-t border-border-subtle pt-2 text-[10px] text-text-tertiary leading-relaxed">
+        Multi-scope assignments. A user can hold any number of (role,
+        faculty/program) tuples. Permission decisions today still consult
+        the user&apos;s primary role + scope; the runtime will fold the full
+        list in once Phase 2 lands.
+      </div>
+    </div>
   );
 }
