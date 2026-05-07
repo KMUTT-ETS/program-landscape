@@ -5,7 +5,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
-import { Users, BookOpen, Microscope, Wallet, Library } from 'lucide-react';
+import { Users, BookOpen, Microscope, Wallet } from 'lucide-react';
 import type { RefreshStatus } from './types';
 import { StaffRefreshBar } from './refresh-bar';
 import {
@@ -13,7 +13,6 @@ import {
   FacultyByProgramThumb,
   ResearchThumb,
   CompensationThumb,
-  PublicationsThumb,
 } from './thumbnails';
 
 export const dynamic = 'force-dynamic';
@@ -41,16 +40,8 @@ const TILES = [
     icon: Microscope,
     title: 'Research and publications',
     blurb:
-      "Last 5 years' publications and citations per faculty. Drill in to see each author's track record and h-index. Filter by faculty or rank.",
+      "Active KKU staff publications (Scopus + PubMed) from the internal kku-publications mirror. Year-trend, faculty heatmap, source / output-type breakdowns, top venues, top-30 authors, productivity-by-rank, and Faculty → Author drill-down.",
     Thumb: ResearchThumb,
-  },
-  {
-    href: '/staff/publications',
-    icon: Library,
-    title: 'Publications corpus (kku-publications)',
-    blurb:
-      'Active KKU staff publications (Scopus + PubMed) from the internal kku-publications mirror, drilled by faculty / author / year / type / venue. Includes year-trend, top venues, faculty heatmap, and source / output-type breakdowns.',
-    Thumb: PublicationsThumb,
   },
   {
     href: '/staff/compensation',

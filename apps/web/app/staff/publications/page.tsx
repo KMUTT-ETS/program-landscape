@@ -1,71 +1,25 @@
+// Permanent redirect — /staff/publications was consolidated into
+// /staff/research on 2026-05-07. Anyone with a bookmarked link gets
+// forwarded to the unified view automatically.
+
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
-import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
-import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Card, PageHeader } from '@kku/ui';
-import { StaffBackLink } from '../back-link';
-import { PublicationsClient } from './client';
-import type { FilterOptions, PublicationsResponse } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Publications — Staff' };
 
 type SP = Record<string, string | string[] | undefined>;
-function arr(v: string | string[] | undefined): string[] {
-  if (!v) return [];
-  return Array.isArray(v) ? v : [v];
-}
-function one(v: string | string[] | undefined): string | undefined {
-  if (!v) return undefined;
-  return Array.isArray(v) ? v[0] : v;
-}
 
-export default async function PublicationsPage({
+export default async function PublicationsRedirect({
   searchParams,
 }: {
   searchParams: Promise<SP>;
 }) {
-  const session = await auth();
-  const user = session?.user as SessionUser | undefined;
-  if (!user?.userId) redirect('/signin');
-
   const sp = await searchParams;
-  const facultyName = arr(sp.facultyName);
-  const sources = arr(sp.sources);
-  const yearFromRaw = one(sp.yearFrom);
-  const yearFrom = yearFromRaw && /^\d+$/.test(yearFromRaw) ? Number(yearFromRaw) : undefined;
-
-  const qs = new URLSearchParams();
-  facultyName.forEach((v) => qs.append('facultyName', v));
-  sources.forEach((v) => qs.append('sources', v));
-  if (yearFrom) qs.set('yearFrom', String(yearFrom));
-
-  const [data, options] = await Promise.all([
-    apiFetch<PublicationsResponse>(`/staff-dashboard/publications${qs.toString() ? `?${qs}` : ''}`).catch(
-      () => null,
-    ),
-    apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null),
-  ]);
-
-  return (
-    <AuthedAppShell user={user}>
-      <StaffBackLink />
-      <PageHeader
-        title="Publications"
-        subtitle="Active KKU staff's publications from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue."
-      />
-      {data && options ? (
-        <PublicationsClient
-          data={data}
-          options={options}
-          initialFilters={{ facultyName, sources, yearFrom }}
-        />
-      ) : (
-        <Card>
-          <p className="text-sm text-text-secondary">No data yet.</p>
-        </Card>
-      )}
-    </AuthedAppShell>
-  );
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (v === undefined) continue;
+    const values = Array.isArray(v) ? v : [v];
+    for (const item of values) params.append(k, item);
+  }
+  const target = `/staff/research${params.toString() ? `?${params.toString()}` : ''}`;
+  redirect(target);
 }

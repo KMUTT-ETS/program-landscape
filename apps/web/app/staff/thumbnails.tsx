@@ -110,41 +110,6 @@ export function ResearchThumb() {
   );
 }
 
-export function PublicationsThumb() {
-  return (
-    <Frame>
-      {/* Heatmap-style year × faculty grid */}
-      <g transform="translate(20,30)">
-        {Array.from({ length: 5 }).map((_, row) =>
-          Array.from({ length: 10 }).map((_, col) => {
-            const intensity = ((row * 7 + col * 3 + 11) % 13) / 13;
-            return (
-              <rect
-                key={`${row}-${col}`}
-                x={col * 17}
-                y={row * 11}
-                width={15}
-                height={9}
-                fill={PALETTE.accent}
-                opacity={Math.max(0.1, intensity)}
-              />
-            );
-          }),
-        )}
-      </g>
-      {/* Y-axis label */}
-      <text x={6} y={45} fontSize="6" fill={PALETTE.ink} opacity={0.5} transform="rotate(-90, 6, 45)">FACULTY</text>
-      {/* Year axis */}
-      <text x={20} y={94} fontSize="6" fill={PALETTE.ink} opacity={0.5}>YEAR →</text>
-      {/* Total label */}
-      <g transform="translate(195,50)">
-        <text fontSize="8" fill={PALETTE.ink} opacity={0.5} textAnchor="middle">PAPERS</text>
-        <text y={14} fontSize="14" fontWeight="700" fill={PALETTE.ink} textAnchor="middle">81k</text>
-      </g>
-    </Frame>
-  );
-}
-
 export function CompensationThumb() {
   return (
     <Frame>

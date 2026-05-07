@@ -81,50 +81,12 @@ export interface FacultyByProgramResponse {
   }>;
 }
 
+// Research view — consolidated 2026-05-07. Driven by FacultyMember +
+// ResearchOutput directly from the kku-publications mirror, scoped to
+// active employees. Replaces the older staff_master_records-based
+// Research view AND the standalone Publications view (the prior two
+// were redundant); now there's one canonical view at /staff/research.
 export interface ResearchAuthor {
-  citizenIdHash: string;
-  nameTh: string | null;
-  rank: string;
-  rankRank: number;
-  facultyName: string | null;
-  publications: number;
-  citations: number;
-  hIndex: number;
-}
-
-export interface ResearchResponse {
-  windowYears: number;
-  facultyTotal: number;
-  authorsWithPubs: number;
-  totalPubs: number;
-  totalCitations: number;
-  orcidCoverage: { withOrcid: number; total: number };
-  byFaculty: Array<{
-    facultyName: string;
-    staffCount: number;
-    staffWithPubs: number;
-    pubsLast5y: number;
-    citations: number;
-    intensity: number;
-  }>;
-  byRank: Array<{
-    rank: string;
-    rankRank: number;
-    staffCount: number;
-    pubsLast5y: number;
-    citations: number;
-    avgPubsPerStaff: number;
-    avgCitesPerStaff: number;
-    maxHIndex: number;
-  }>;
-  perAuthor: ResearchAuthor[];
-}
-
-// Publications view — driven by FacultyMember + ResearchOutput directly
-// (not staff_master_records). Surfaces the kku-publications mirror corpus
-// including kkupub_-backfilled FacultyMember rows. Distinct from the
-// /research view which is bound to currently-employed kku-hr staff.
-export interface PublicationsAuthor {
   fmId: string;
   nameTh: string | null;
   nameEn: string | null;
@@ -140,7 +102,7 @@ export interface PublicationsAuthor {
   bySource: Record<string, number>;
 }
 
-export interface PublicationsFacultyRow {
+export interface ResearchFacultyRow {
   facultyName: string;
   staffCount: number;
   publishingStaff: number;
@@ -150,12 +112,28 @@ export interface PublicationsFacultyRow {
   byType: Record<string, number>;
 }
 
-export interface PublicationsHeatmapRow {
+export interface ResearchHeatmapRow {
   facultyName: string;
   years: Array<{ year: number; papers: number }>;
 }
 
-export interface PublicationsResponse {
+// Productivity-by-rank breakdown, scoped to kku-hr-sourced staff
+// (kkupub_-backfilled rows carry rank=LECTURER as a placeholder and
+// would skew the averages if included).
+export interface ResearchByRankRow {
+  rank: string;       // 'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER'
+  rankLabel: string;  // human-readable label
+  rankRank: number;   // ordering: PROF=4 → LECTURER=1
+  staffCount: number;
+  publishingStaff: number;
+  papers: number;
+  citations: number;
+  avgPapersPerStaff: number;
+  avgCitesPerStaff: number;
+  maxHIndex: number;
+}
+
+export interface ResearchResponse {
   yearFrom: number;
   yearTo: number;
   totalStaff: number;
@@ -165,11 +143,12 @@ export interface PublicationsResponse {
   bySource: Record<string, number>;
   byType: Record<string, number>;
   byYear: Array<{ year: number; papers: number }>;
-  byFaculty: PublicationsFacultyRow[];
-  heatmap: PublicationsHeatmapRow[];
+  byFaculty: ResearchFacultyRow[];
+  heatmap: ResearchHeatmapRow[];
   topVenues: Array<{ venue: string; papers: number }>;
-  topAuthors: PublicationsAuthor[];
-  perAuthor: PublicationsAuthor[];
+  topAuthors: ResearchAuthor[];
+  perAuthor: ResearchAuthor[];
+  byRank: ResearchByRankRow[];
   employeeSourceMix: { kkuHr: number; kkuPublications: number; other: number };
   caveats: string[];
 }

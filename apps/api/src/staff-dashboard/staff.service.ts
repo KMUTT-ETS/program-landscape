@@ -586,141 +586,13 @@ export class StaffService {
     };
   }
 
-  // ── 5. Research Output (academic only) ───────────────────────────
-  async researchOutput(filter: StaffFilter) {
-    const fiveYearsAgo = new Date().getFullYear() - 5;
-    const where = this.whereFromFilter(filter);
-    const academicStaff = await prisma.staffMasterRecord.findMany({
-      where: { ...where, subStaffTypeId: { in: ['1', '4'] } },
-      select: {
-        citizenIdHash: true,
-        firstName: true,
-        lastName: true,
-        academicStandingId: true,
-        faculty: { select: { nameTh: true } },
-      },
-    });
-    const hashToStaff = new Map(academicStaff.map((s) => [s.citizenIdHash, s]));
-    const allHashes = [...hashToStaff.keys()];
-
-    // Pull every paper-citation row matched to one of our academic staff,
-    // 5-year window. Need per-paper citations to compute h-index.
-    const papers =
-      allHashes.length === 0
-        ? []
-        : await prisma.$queryRaw<Array<{ citizen_id_hash: string; citations: number }>>`
-            SELECT fm.citizen_id_hash, ro.citations
-              FROM research_outputs ro
-              JOIN faculty_members fm ON fm.id = ro.faculty_member_id
-             WHERE fm.citizen_id_hash = ANY(${allHashes})
-               AND ro.year >= ${fiveYearsAgo}
-          `;
-
-    // Group papers by author hash
-    const papersByAuthor = new Map<string, number[]>();
-    for (const p of papers) {
-      const list = papersByAuthor.get(p.citizen_id_hash) ?? [];
-      list.push(Number(p.citations));
-      papersByAuthor.set(p.citizen_id_hash, list);
-    }
-    function hIndex(citations: number[]): number {
-      const sorted = [...citations].sort((a, b) => b - a);
-      let h = 0;
-      for (let i = 0; i < sorted.length; i++) {
-        if (sorted[i]! >= i + 1) h = i + 1;
-        else break;
-      }
-      return h;
-    }
-
-    // Per-author summary
-    const perAuthor = academicStaff
-      .map((s) => {
-        const cites = papersByAuthor.get(s.citizenIdHash) ?? [];
-        const totalCitations = cites.reduce((a, b) => a + b, 0);
-        const fullName = [s.firstName, s.lastName].filter(Boolean).join(' ') || null;
-        return {
-          citizenIdHash: s.citizenIdHash,
-          nameTh: fullName,
-          rank: lookupOrCode(ACADEMIC_STANDING, s.academicStandingId),
-          rankRank: ACADEMIC_STANDING_RANK[(s.academicStandingId ?? '').padStart(2, '0')] ?? 0,
-          facultyName: s.faculty?.nameTh ?? null,
-          publications: cites.length,
-          citations: totalCitations,
-          hIndex: hIndex(cites),
-        };
-      })
-      // Top producers list — anyone with at least 1 publication
-      .filter((p) => p.publications > 0);
-
-    // Per-faculty rollup
-    const byFaculty = new Map<string, { staffCount: number; staffWithPubs: number; pubsLast5y: number; citations: number }>();
-    for (const s of academicStaff) {
-      const fac = s.faculty?.nameTh;
-      if (!fac) continue;
-      const cites = papersByAuthor.get(s.citizenIdHash) ?? [];
-      const cell = byFaculty.get(fac) ?? { staffCount: 0, staffWithPubs: 0, pubsLast5y: 0, citations: 0 };
-      cell.staffCount += 1;
-      if (cites.length > 0) cell.staffWithPubs += 1;
-      cell.pubsLast5y += cites.length;
-      cell.citations += cites.reduce((a, b) => a + b, 0);
-      byFaculty.set(fac, cell);
-    }
-
-    // Per-rank rollup (with rankRank for chart ordering)
-    const byRank = new Map<string, { rank: string; rankRank: number; staffCount: number; pubsLast5y: number; citations: number; hIndexMax: number }>();
-    for (const s of academicStaff) {
-      const code = (s.academicStandingId ?? '').padStart(2, '0');
-      const rank = lookupOrCode(ACADEMIC_STANDING, code) || 'ไม่มีตำแหน่งทางวิชาการ';
-      const rankRank = ACADEMIC_STANDING_RANK[code] ?? 0;
-      const cites = papersByAuthor.get(s.citizenIdHash) ?? [];
-      const cell = byRank.get(rank) ?? { rank, rankRank, staffCount: 0, pubsLast5y: 0, citations: 0, hIndexMax: 0 };
-      cell.staffCount += 1;
-      cell.pubsLast5y += cites.length;
-      cell.citations += cites.reduce((a, b) => a + b, 0);
-      cell.hIndexMax = Math.max(cell.hIndexMax, hIndex(cites));
-      byRank.set(rank, cell);
-    }
-
-    // ORCID coverage
-    const orcid = await prisma.$queryRaw<Array<{ n: number }>>`
-      SELECT COUNT(*)::int AS n FROM faculty_members WHERE orcid IS NOT NULL
-    `;
-    const staffWithOrcid = Number(orcid[0]?.n ?? 0);
-
-    return {
-      windowYears: 5,
-      facultyTotal: academicStaff.length,
-      authorsWithPubs: perAuthor.length,
-      totalPubs: perAuthor.reduce((a, b) => a + b.publications, 0),
-      totalCitations: perAuthor.reduce((a, b) => a + b.citations, 0),
-      orcidCoverage: { withOrcid: staffWithOrcid, total: academicStaff.length },
-      byFaculty: [...byFaculty.entries()]
-        .map(([name, cell]) => ({
-          facultyName: name,
-          staffCount: cell.staffCount,
-          staffWithPubs: cell.staffWithPubs,
-          pubsLast5y: cell.pubsLast5y,
-          citations: cell.citations,
-          intensity: cell.staffCount > 0 ? cell.pubsLast5y / cell.staffCount / 5 : 0,
-        }))
-        .sort((a, b) => b.pubsLast5y - a.pubsLast5y),
-      byRank: [...byRank.values()]
-        .map((cell) => ({
-          rank: cell.rank,
-          rankRank: cell.rankRank,
-          staffCount: cell.staffCount,
-          pubsLast5y: cell.pubsLast5y,
-          citations: cell.citations,
-          avgPubsPerStaff: cell.staffCount > 0 ? cell.pubsLast5y / cell.staffCount : 0,
-          avgCitesPerStaff: cell.staffCount > 0 ? cell.citations / cell.staffCount : 0,
-          maxHIndex: cell.hIndexMax,
-        }))
-        .sort((a, b) => a.rankRank - b.rankRank),
-      // For the drill-down: Faculty → Author rows, with sortable metrics
-      perAuthor,
-    };
-  }
+  // ── 5. Research Output ───────────────────────────────────────────
+  // Consolidated 2026-05-07: was the old staff_master_records-based view.
+  // Now grounded in FacultyMember + ResearchOutput directly, surfacing
+  // the kku-publications mirror corpus including kkupub_-backfilled
+  // active staff (covers 99.6% of authorships). Replaces the previous
+  // /staff/publications view; backend method renamed accordingly.
+  // Lives at /staff-dashboard/research.
 
   // ── 6. Compensation & Funding ────────────────────────────────────
   async compensation(filter: StaffFilter) {
@@ -911,18 +783,8 @@ export class StaffService {
     };
   }
 
-  // ── 6. Publications (kku-publications mirror) ────────────────────
-  // Grounded in FacultyMember + ResearchOutput directly, NOT in
-  // staff_master_records like /research is. This view surfaces the
-  // publications corpus for **currently-active** FacultyMember rows
-  // (employed staff + kkupub_-backfilled with a paper in the last 2y) —
-  // historical/retired authors are excluded by design to fit the
-  // program-landscape application's "current portfolio" framing.
-  //
-  // Differs from /research:
-  //   /research      → kku-hr-employed staff only (joined via citizen_id_hash); 5y window
-  //   /publications  → all *active* FacultyMember (employed + kkupub_-backfilled); window from KKU_RESEARCH_YEAR_FROM
-  async publications(filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number }) {
+  // ── 6. (consolidated entry point — see comment block at §5 above) ──
+  async researchOutput(filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number }) {
     const yearFrom = filter.yearFrom ?? Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
     const sourceFilter = filter.sources && filter.sources.length > 0
       ? filter.sources
@@ -931,19 +793,19 @@ export class StaffService {
     // 5-minute cache. Publications data refreshes weekly via the
     // kku-research connector; 5 minutes is fresh enough for Council prep.
     // Fails open — Redis outage falls through to direct compute.
-    const cacheKey = CacheService.keyOf('staff:publications', {
+    const cacheKey = CacheService.keyOf('staff:research-v2', {
       facultyName: filter.facultyName?.sort() ?? [],
       sources: sourceFilter.slice().sort(),
       yearFrom,
     });
     const cached = await this.cache?.get<unknown>(cacheKey);
     if (cached) return cached;
-    const result = await this.computePublications(filter, sourceFilter, yearFrom);
+    const result = await this.computeResearchOutput(filter, sourceFilter, yearFrom);
     await this.cache?.set(cacheKey, result, 60 * 5);
     return result;
   }
 
-  private async computePublications(
+  private async computeResearchOutput(
     filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number },
     sourceFilter: string[],
     yearFrom: number,
@@ -1149,6 +1011,69 @@ export class StaffService {
     const authorList = [...perAuthor.values()].filter((a) => a.papers > 0);
     const topAuthors = [...authorList].sort((a, b) => b.papers - a.papers).slice(0, 30);
 
+    // Productivity by academic rank — kku-hr-sourced staff only.
+    // The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder
+    // (the publications mirror doesn't record rank) and would skew the
+    // averages. We exclude them here and surface "rank rollup ⊆ HR-sourced
+    // staff only" as an explicit caveat.
+    type RankCell = {
+      rank: string;
+      rankRank: number; // ordering: PROF=4, ASSOC_PROF=3, ASST_PROF=2, LECTURER=1
+      staffCount: number;
+      publishingStaff: number;
+      papers: number;
+      citations: number;
+      maxHIndex: number;
+    };
+    const RANK_ORDER: Record<string, number> = {
+      PROF: 4,
+      ASSOC_PROF: 3,
+      ASST_PROF: 2,
+      LECTURER: 1,
+    };
+    const RANK_LABEL: Record<string, string> = {
+      PROF: 'Professor',
+      ASSOC_PROF: 'Associate Professor',
+      ASST_PROF: 'Assistant Professor',
+      LECTURER: 'Lecturer',
+    };
+    const byRankMap = new Map<string, RankCell>();
+    for (const fm of fmRows) {
+      if (!fm.employeeCode.startsWith('hr_')) continue; // exclude kkupub_ placeholders
+      const cell = byRankMap.get(fm.rank) ?? {
+        rank: fm.rank,
+        rankRank: RANK_ORDER[fm.rank] ?? 0,
+        staffCount: 0,
+        publishingStaff: 0,
+        papers: 0,
+        citations: 0,
+        maxHIndex: 0,
+      };
+      cell.staffCount += 1;
+      const author = perAuthor.get(fm.id);
+      if (author && author.papers > 0) {
+        cell.publishingStaff += 1;
+        cell.papers += author.papers;
+        cell.citations += author.citations;
+        if (author.hIndex > cell.maxHIndex) cell.maxHIndex = author.hIndex;
+      }
+      byRankMap.set(fm.rank, cell);
+    }
+    const byRank = [...byRankMap.values()]
+      .map((cell) => ({
+        rank: cell.rank,
+        rankLabel: RANK_LABEL[cell.rank] ?? cell.rank,
+        rankRank: cell.rankRank,
+        staffCount: cell.staffCount,
+        publishingStaff: cell.publishingStaff,
+        papers: cell.papers,
+        citations: cell.citations,
+        avgPapersPerStaff: cell.staffCount > 0 ? cell.papers / cell.staffCount : 0,
+        avgCitesPerStaff: cell.staffCount > 0 ? cell.citations / cell.staffCount : 0,
+        maxHIndex: cell.maxHIndex,
+      }))
+      .sort((a, b) => b.rankRank - a.rankRank); // most senior first
+
     return {
       yearFrom,
       yearTo: new Date().getFullYear(),
@@ -1173,6 +1098,7 @@ export class StaffService {
       topVenues,
       topAuthors,
       perAuthor: authorList,
+      byRank,
       employeeSourceMix: {
         kkuHr: authorList.filter((a) => a.employeeSource === 'kku-hr').length,
         kkuPublications: authorList.filter((a) => a.employeeSource === 'kku-publications').length,
@@ -1181,7 +1107,7 @@ export class StaffService {
       caveats: [
         'Active employees only. For kku-hr rows isActive comes from KKU HR; for kkupub_-backfilled rows it is heuristic (paper in last 2 years).',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
-        'Authors backfilled from kku-publications.people (employee_code prefix kkupub_) carry rank=LECTURER as a placeholder — the publications mirror does not record academic rank.',
+        'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
       ],
     };
   }

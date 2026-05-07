@@ -47,14 +47,14 @@ const StaffFilterSchema = z.object({
   nationalityId: StringArray,
 });
 
-// Publications view has its own narrower filter set — we drive it off
+// Research view has its own narrower filter set — we drive it off
 // FacultyMember + ResearchOutput (not staff_master_records), so we don't
 // need staffType/track/budget/nationality. We DO need source + yearFrom
 // because the kku-publications corpus has multiple sources
 // (Scopus / PubMed / legacy OpenAlex) and a configurable time window.
-// activeOnly is hardcoded true at the service layer — this view shows
+// Active-only is hardcoded at the service layer — this view shows
 // active employees only by design.
-const PublicationsFilterSchema = z.object({
+const ResearchFilterSchema = z.object({
   facultyName: StringArray,
   sources: StringArray,
   yearFrom: z
@@ -151,7 +151,7 @@ export class StaffController {
 
   @Get('research')
   @Authorized('programs:read:all')
-  research(@Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>) {
+  research(@Query(new ZodValidationPipe(ResearchFilterSchema)) q: z.infer<typeof ResearchFilterSchema>) {
     return this.staff.researchOutput(q);
   }
 
@@ -159,11 +159,5 @@ export class StaffController {
   @Authorized('programs:read:all')
   compensation(@Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>) {
     return this.staff.compensation(q);
-  }
-
-  @Get('publications')
-  @Authorized('programs:read:all')
-  publications(@Query(new ZodValidationPipe(PublicationsFilterSchema)) q: z.infer<typeof PublicationsFilterSchema>) {
-    return this.staff.publications(q);
   }
 }

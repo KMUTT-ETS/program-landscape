@@ -9,12 +9,16 @@ import { ResearchClient } from './client';
 import type { FilterOptions, ResearchResponse } from '../types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Research output — Staff' };
+export const metadata = { title: 'Research and publications — Staff' };
 
 type SP = Record<string, string | string[] | undefined>;
 function arr(v: string | string[] | undefined): string[] {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
+}
+function one(v: string | string[] | undefined): string | undefined {
+  if (!v) return undefined;
+  return Array.isArray(v) ? v[0] : v;
 }
 
 export default async function ResearchPage({
@@ -28,11 +32,14 @@ export default async function ResearchPage({
 
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);
-  const academicStandingId = arr(sp.academicStandingId);
+  const sources = arr(sp.sources);
+  const yearFromRaw = one(sp.yearFrom);
+  const yearFrom = yearFromRaw && /^\d+$/.test(yearFromRaw) ? Number(yearFromRaw) : undefined;
 
   const qs = new URLSearchParams();
   facultyName.forEach((v) => qs.append('facultyName', v));
-  academicStandingId.forEach((v) => qs.append('academicStandingId', v));
+  sources.forEach((v) => qs.append('sources', v));
+  if (yearFrom) qs.set('yearFrom', String(yearFrom));
 
   const [data, options] = await Promise.all([
     apiFetch<ResearchResponse>(`/staff-dashboard/research${qs.toString() ? `?${qs}` : ''}`).catch(
@@ -46,10 +53,14 @@ export default async function ResearchPage({
       <StaffBackLink />
       <PageHeader
         title="Research and publications"
-        subtitle={`Papers and citations from the last ${data?.windowYears ?? 5} years, matched to KKU staff. Drill in to see each author's track record.`}
+        subtitle="Active KKU staff's publications from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. Productivity-by-rank breakdown for kku-hr-sourced staff."
       />
       {data && options ? (
-        <ResearchClient data={data} options={options} initialFilters={{ facultyName, academicStandingId }} />
+        <ResearchClient
+          data={data}
+          options={options}
+          initialFilters={{ facultyName, sources, yearFrom }}
+        />
       ) : (
         <Card>
           <p className="text-sm text-text-secondary">No data yet.</p>
