@@ -2,15 +2,20 @@ import { SignInForm } from './sign-in-form';
 
 export const dynamic = 'force-dynamic';
 
-// Sign-in page — atmospheric centred-card layout (Lovable-inspired,
-// 2026-05-07).
+// Sign-in page — two-pane split (Lovable-inspired, 2026-05-07).
 //
-// Single-column, page is the canvas. Soft accent-coloured gradient orbs
-// blurred behind a refined card. The card carries the form and the
-// wordmark; everything else (page chrome, environment cue, credits)
-// sits at low opacity around it.
+// Left pane: calm, near-monochrome surface holding the wordmark, form,
+// and contact line. The working surface.
 //
-// All colour from design tokens. Light + dark mode track automatically.
+// Right pane: a vivid atmospheric gradient — the visual moment of the
+// page. It's not decoration; it carries the brand identity that the
+// rest of the application (warm cream + amber accent palette) draws
+// from. A small floating tile teases what the application looks like
+// inside without committing to a literal screenshot.
+//
+// English-only on this surface per direction. All colour from design
+// tokens; gradient stops use oklch(var(token) / alpha) so they invert
+// cleanly under dark mode.
 export default function SignInPage() {
   const ssoConfigured = Boolean(
     process.env.KKU_SSO_ISSUER && process.env.KKU_SSO_CLIENT_ID,
@@ -18,95 +23,155 @@ export default function SignInPage() {
   const localAuthEnabled = process.env.ENABLE_LOCAL_AUTH === 'true';
 
   return (
-    <main className="relative min-h-screen w-full overflow-hidden bg-surface-0">
-      {/* Atmospheric gradient orbs — soft, blurred, low-opacity. The
-          accent token gives them a warm cream-to-amber glow against
-          the page canvas. They're decorative only, no semantic role. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 -left-32 h-[520px] w-[520px] rounded-full blur-[120px] opacity-30"
-        style={{ background: 'oklch(var(--color-accent-default) / 0.55)' }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-40 -right-40 h-[640px] w-[640px] rounded-full blur-[140px] opacity-25"
-        style={{ background: 'oklch(var(--color-accent-hover) / 0.50)' }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-1/3 right-1/4 h-[360px] w-[360px] rounded-full blur-[100px] opacity-15"
-        style={{ background: 'oklch(var(--color-glossy-tint) / 0.80)' }}
-      />
-
-      {/* Page content — vertically centred, modest top/bottom safety
-          padding so it never crashes into the viewport edges. */}
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12">
-        {/* Wordmark — sits ABOVE the card, not inside. Establishes
-            identity before the user looks at the form. */}
-        <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-tertiary">
-            KKU Curriculum Intelligence Platform
+    <main className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2">
+      {/* ── Left pane: form ─────────────────────────────────────── */}
+      <section className="relative bg-surface-1 flex flex-col lg:min-h-screen">
+        {/* Top: brand mark + wordmark */}
+        <header className="px-8 py-8 lg:px-16 lg:py-10">
+          <div className="flex items-center gap-2.5">
+            <BrandMark />
+            <span className="text-[14px] font-medium tracking-tight text-text-primary">
+              Program Landscape
+            </span>
           </div>
-          <h1 className="text-3xl font-light tracking-tight text-text-primary">
-            Program Landscape<span className="text-accent-default">.</span>
-          </h1>
-        </div>
+        </header>
 
-        {/* The card — refined container with soft shadow + subtle
-            border. Surface-1 sits slightly above the page canvas,
-            reading as "the working surface". */}
-        <div
-          className="relative w-full max-w-[440px] rounded-2xl border border-border-subtle bg-surface-1 p-8 shadow-[0_2px_24px_-8px_rgba(0,0,0,0.08),0_8px_56px_-12px_rgba(0,0,0,0.06)]"
-        >
-          <div className="flex flex-col gap-1.5 mb-8">
-            <h2 className="text-xl font-medium text-text-primary">Welcome back</h2>
-            <p className="text-[13px] text-text-secondary leading-relaxed">
-              Sign in with your KKU institutional account. Access is scoped to your role.
+        {/* Centre: form. Sized to ~400px so the inputs don't sprawl. */}
+        <div className="flex-1 flex flex-col justify-center px-8 lg:px-16">
+          <div className="w-full max-w-[400px]">
+            <h1 className="text-[28px] font-medium tracking-tight text-text-primary leading-tight">
+              Sign in
+            </h1>
+            <p className="mt-2 text-[14px] text-text-secondary leading-relaxed">
+              Use your KKU institutional account. Access is scoped to your role.
             </p>
-          </div>
 
-          <SignInForm
-            ssoConfigured={ssoConfigured}
-            localAuthEnabled={localAuthEnabled}
-          />
+            <div className="mt-8">
+              <SignInForm
+                ssoConfigured={ssoConfigured}
+                localAuthEnabled={localAuthEnabled}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Below the card: tagline + credits. Quiet, low contrast. */}
-        <p className="mt-8 max-w-md text-center text-[12px] leading-relaxed text-text-tertiary">
-          Strategic decision-support for the University Council at Khon Kaen
-          University — programs read against future trends, financial
-          sustainability, and labour-market demand.
-        </p>
-
-        <div className="mt-10 flex flex-col items-center gap-1 text-[11px] text-text-tertiary">
-          <span>
+        {/* Bottom: contact + credit. Quiet, low-contrast. */}
+        <footer className="px-8 lg:px-16 pb-8 lg:pb-10">
+          <div className="text-[12px] text-text-tertiary leading-relaxed border-t border-border-subtle pt-5">
             Need access? Contact the{' '}
             <a
-              href="mailto:dto@kku.ac.th"
+              href="mailto:denpong@kku.ac.th"
               className="text-text-secondary underline-offset-4 hover:underline hover:text-accent-default transition-colors"
             >
-              KKU Digital Transformation Office
+              Office of the Vice President for Education and Digital
             </a>
             .
-          </span>
-        </div>
+          </div>
+          <div className="mt-5 text-[11px] leading-relaxed text-text-tertiary">
+            <div className="text-text-secondary font-medium">
+              Conceived by Dr. Denpong Soodphakdee
+            </div>
+            <div>Vice President for Education and Digital, Khon Kaen University</div>
+            <div className="mt-1 opacity-80">
+              Built in collaboration with Claude (Anthropic)
+            </div>
+          </div>
+        </footer>
+      </section>
 
-        {/* Credit line — sits at the very bottom of the viewport on
-            tall screens, otherwise scrolls with the rest. Refined and
-            understated; this is the signature, not a banner. */}
-        <div className="mt-12 flex flex-col items-center gap-0.5 text-[10px] uppercase tracking-[0.16em] text-text-tertiary">
-          <span aria-hidden className="h-px w-12 bg-border-subtle mb-3" />
-          <span className="text-text-secondary">
-            Conceived by Dr. Denpong Soodphakdee
-          </span>
-          <span className="font-normal normal-case text-[10px] tracking-normal text-text-tertiary mt-0.5">
-            Vice President for Education and Digital, Khon Kaen University
-          </span>
-          <span className="mt-1.5 normal-case tracking-normal text-text-tertiary/80">
-            Built in collaboration with Claude (Anthropic)
-          </span>
+      {/* ── Right pane: vivid atmospheric gradient ─────────────── */}
+      <section
+        aria-hidden
+        className="relative hidden lg:block overflow-hidden"
+      >
+        {/* Base canvas for the gradient. Layered radial blooms in the
+            warm accent palette give it volumetric depth — the page's
+            visual moment, on-brand, without imagery. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(135deg, oklch(var(--color-accent-default) / 0.95) 0%, oklch(var(--color-accent-hover) / 0.85) 35%, oklch(var(--color-glossy-tint) / 0.95) 100%)',
+          }}
+        />
+        <div
+          className="absolute -top-32 -right-24 h-[640px] w-[640px] rounded-full blur-[120px] opacity-70"
+          style={{ background: 'oklch(98% 0.04 70 / 0.85)' }}
+        />
+        <div
+          className="absolute top-1/3 -left-32 h-[520px] w-[520px] rounded-full blur-[140px] opacity-50"
+          style={{ background: 'oklch(78% 0.18 50 / 0.85)' }}
+        />
+        <div
+          className="absolute -bottom-32 right-1/4 h-[480px] w-[480px] rounded-full blur-[120px] opacity-60"
+          style={{ background: 'oklch(60% 0.14 35 / 0.65)' }}
+        />
+
+        {/* A subtle dot field overlaid on the gradient — same BCG-matrix
+            visual the application uses internally, but at low opacity so
+            it reads as texture, not chart. Carries the institutional
+            "this is a portfolio analytics tool" cue without being literal. */}
+        <DotOverlay />
+
+        {/* Floating teaser tile — bottom-right, miniature card. Hints at
+            what the product is without showing a literal screenshot. */}
+        <div className="absolute bottom-10 right-10 max-w-[320px]">
+          <div className="rounded-xl border border-white/30 bg-white/12 backdrop-blur-md px-5 py-4 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.30)]">
+            <div className="flex items-baseline gap-3 mb-3">
+              <span
+                className="text-[34px] font-light tracking-tight leading-none text-white"
+                style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}
+              >
+                297
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.16em] text-white/85">
+                programs
+              </span>
+            </div>
+            <div className="text-[12px] text-white/90 leading-relaxed">
+              Read against future trends, financial sustainability, and labour-market demand.
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
     </main>
+  );
+}
+
+// Compact brand mark — four-bubble BCG-matrix nod. Identifies the
+// product (analytics for a portfolio of 297 programs) without being
+// literal or noisy.
+function BrandMark() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 22 22"
+      aria-hidden
+      className="shrink-0"
+    >
+      {/* Four bubbles arranged 2×2; top-right (Stars) is the largest +
+          most saturated to give the mark a clear focal point. */}
+      <circle cx="6" cy="6" r="2.6" className="fill-accent-default" opacity="0.6" />
+      <circle cx="16" cy="6" r="3.6" className="fill-accent-default" />
+      <circle cx="6" cy="16" r="2.0" className="fill-accent-default" opacity="0.4" />
+      <circle cx="16" cy="16" r="2.6" className="fill-accent-default" opacity="0.7" />
+    </svg>
+  );
+}
+
+// Faint dot grid as overlay on the gradient. Uses radial-gradient on a
+// small repeating tile so it's static (no SVG child elements).
+function DotOverlay() {
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0 opacity-25"
+      style={{
+        backgroundImage:
+          'radial-gradient(circle at 1px 1px, oklch(99% 0 0 / 0.55) 1.2px, transparent 1.2px)',
+        backgroundSize: '28px 28px',
+      }}
+    />
   );
 }
