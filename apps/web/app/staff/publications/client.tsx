@@ -132,11 +132,15 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
               apply({ sources: vs });
             }}
           />
-          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-            From year:
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[0.65rem] font-medium uppercase tracking-wide text-text-tertiary whitespace-nowrap">
+              From year
+            </label>
             <input
               type="number"
-              className="w-20 rounded border border-border-subtle bg-surface-1 px-2 py-1 text-xs"
+              min={1900}
+              max={2100}
+              className="w-28 rounded border border-border-subtle bg-surface-1 px-2 py-1.5 text-sm font-tabular tabular-nums"
               defaultValue={yearFrom ?? data.yearFrom}
               onBlur={(e) => {
                 const v = e.target.value ? Number(e.target.value) : undefined;
@@ -146,7 +150,7 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
                 }
               }}
             />
-          </label>
+          </div>
           {(faculty.length > 0 || sources.length > 0 || yearFrom) && (
             <button
               className="rounded border border-border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
@@ -217,19 +221,26 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Faculty output by year</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Cell = papers in that (faculty × year). Last 10 years shown. Click a faculty to filter.
+          Cell = papers in that (faculty × year) for active employees. Last 10 years shown. Click a faculty row to filter the page.
         </p>
-        <div className="mt-3 overflow-x-auto">
-          <table className="text-xs">
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
             <thead>
               <tr>
-                <th className="px-2 py-1 text-left text-[0.65rem] uppercase tracking-wide text-text-tertiary font-medium">Faculty</th>
+                <th className="px-3 py-2.5 text-left text-[0.7rem] uppercase tracking-wide text-text-tertiary font-medium border-b border-border-subtle min-w-[18rem]">
+                  Faculty
+                </th>
                 {yearAxis.map((y) => (
-                  <th key={y} className="px-1 py-1 text-right text-[0.65rem] uppercase tracking-wide text-text-tertiary font-medium">
-                    {String(y).slice(2)}
+                  <th
+                    key={y}
+                    className="px-2 py-2.5 text-center text-[0.7rem] uppercase tracking-wide text-text-tertiary font-medium border-b border-border-subtle min-w-[3.5rem]"
+                  >
+                    {y}
                   </th>
                 ))}
-                <th className="px-2 py-1 text-right text-[0.65rem] uppercase tracking-wide text-text-tertiary font-medium">Total</th>
+                <th className="px-3 py-2.5 text-right text-[0.7rem] uppercase tracking-wide text-text-tertiary font-medium border-b border-border-subtle min-w-[5rem]">
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -239,23 +250,35 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
                 return (
                   <tr
                     key={r.facultyName}
-                    className="cursor-pointer hover:bg-surface-2"
+                    className="cursor-pointer hover:bg-surface-2 transition-colors"
                     onClick={() => {
                       setFaculty([r.facultyName]);
                       apply({ facultyName: [r.facultyName] });
                     }}
                   >
-                    <td className="px-2 py-1 max-w-[16rem] truncate" title={r.facultyName}>{r.facultyName}</td>
+                    <td
+                      className="px-3 py-2.5 truncate border-b border-border-subtle"
+                      style={{ maxWidth: '20rem' }}
+                      title={r.facultyName}
+                    >
+                      {r.facultyName}
+                    </td>
                     {yearAxis.map((y) => {
                       const n = yearMap.get(y) ?? 0;
-                      const intensity = n > 0 ? Math.max(0.1, n / heatmapMax) : 0;
+                      const intensity = n > 0 ? Math.max(0.12, n / heatmapMax) : 0;
                       return (
-                        <td key={y} className="px-1 py-1 text-right font-tabular tabular-nums" style={{ background: n > 0 ? `rgba(14, 165, 233, ${intensity})` : 'transparent' }}>
-                          {n > 0 ? n : '·'}
+                        <td
+                          key={y}
+                          className="px-2 py-2.5 text-center font-tabular tabular-nums border-b border-border-subtle"
+                          style={{ background: n > 0 ? `rgba(14, 165, 233, ${intensity})` : 'transparent' }}
+                        >
+                          {n > 0 ? n.toLocaleString('en-US') : <span className="text-text-tertiary">·</span>}
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1 text-right font-tabular font-semibold">{total.toLocaleString('en-US')}</td>
+                    <td className="px-3 py-2.5 text-right font-tabular font-semibold border-b border-border-subtle">
+                      {total.toLocaleString('en-US')}
+                    </td>
                   </tr>
                 );
               })}
