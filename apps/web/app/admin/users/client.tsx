@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Card, Input, Button } from '@kku/ui';
-import { Search, Plus, Trash2, RefreshCw, Key, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, Trash2, RefreshCw, Key, Check, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Role } from '@kku/shared';
 import {
@@ -160,9 +160,12 @@ function PreProvisionPanel({
   const [facultyId, setFacultyId] = React.useState<string>('');
   const [programId, setProgramId] = React.useState<string>('');
   const [name, setName] = React.useState<string>('');
-  const [password, setPassword] = React.useState<string>('');
-  const [showPassword, setShowPassword] = React.useState(false);
+  const [overrideName, setOverrideName] = React.useState(false);
+  const [overrideFaculty, setOverrideFaculty] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  // Whether the faculty was auto-matched from the KKU directory hit.
+  // Drives the "✓ matched" indicator + the "change" affordance.
+  const [autoMatchedFacultyId, setAutoMatchedFacultyId] = React.useState<string | null>(null);
 
   const onSearch = async () => {
     if (!email.trim()) return;
@@ -186,37 +189,27 @@ function PreProvisionPanel({
       const empRecord = r.employee as unknown as Record<string, unknown>;
       const display = deriveDisplayName(empRecord);
       setName(display);
+      setOverrideName(false);
 
       // Auto-match faculty by Thai name (exact). KKU API returns
-      // faculty as e.g. 'คณะวิศวกรรมศาสตร์' which matches our
-      // Faculty.nameTh exactly for the seeded faculties. Falls
-      // through silently if no match — admin picks manually.
+      // e.g. 'คณะวิศวกรรมศาสตร์' which matches Faculty.nameTh exactly
+      // for seeded faculties.
       const empFacultyTh =
         typeof empRecord.faculty === 'string' ? empRecord.faculty.trim() : '';
       const matchedFaculty = empFacultyTh
         ? faculties.find((f) => f.nameTh.trim() === empFacultyTh) ?? null
         : null;
-      if (matchedFaculty) setFacultyId(matchedFaculty.id);
-      else setFacultyId('');
+      setFacultyId(matchedFaculty ? matchedFaculty.id : '');
+      setAutoMatchedFacultyId(matchedFaculty ? matchedFaculty.id : null);
+      setOverrideFaculty(false);
 
-      // Default role inference from KKU's `workline`:
-      //  - 'วิชาการ ระดับอุดมศึกษา'  → academic / faculty member → FACULTY_USER
-      //  - 'สนับสนุน'                → support staff → leave as default
-      // We only auto-pick FACULTY_USER when the matched faculty is in
-      // our DB; otherwise FACULTY_USER would be unsubmittable (the
-      // 'Provision user' button stays disabled until a faculty is
-      // chosen).
+      // Role inference from `workline`: 'วิชาการ' = academic line.
+      // Auto-pick FACULTY_USER only when both academic AND a matched
+      // faculty exist; otherwise the form is unsubmittable.
       const workline =
         typeof empRecord.workline === 'string' ? empRecord.workline : '';
       const isAcademic = workline.includes('วิชาการ');
-      if (matchedFaculty && isAcademic) {
-        setRole('FACULTY_USER');
-      } else {
-        setRole('PROGRAM_USER');
-      }
-      // Always clear program — even academic staff need an explicit
-      // program pick if PROGRAM_USER ends up the chosen role; KKU
-      // employee API doesn't give us program-level granularity.
+      setRole(matchedFaculty && isAcademic ? 'FACULTY_USER' : 'PROGRAM_USER');
       setProgramId('');
 
       setResult({
@@ -227,6 +220,12 @@ function PreProvisionPanel({
     }
     setResult({ kind: 'not-found' });
     setName(email.split('@')[0] ?? '');
+    setFacultyId('');
+    setAutoMatchedFacultyId(null);
+    setOverrideName(true);
+    setOverrideFaculty(true);
+    setRole('PROGRAM_USER');
+    setProgramId('');
   };
 
   const onSubmit = async () => {
@@ -238,34 +237,21 @@ function PreProvisionPanel({
       facultyId: role === 'FACULTY_USER' ? facultyId || null : null,
       departmentId: null,
       programId: role === 'PROGRAM_USER' ? programId || null : null,
-      password: password.trim() ? password : null,
     });
     setSubmitting(false);
     if (r.ok) {
-      const credLine = password.trim()
-        ? ` · password set`
-        : ` · uses shared dev password`;
-      toast.success(`Provisioned ${email}${credLine}`);
+      toast.success(`Provisioned ${email} — sign-in via KKU SSO`);
       setEmail('');
       setName('');
-      setPassword('');
-      setShowPassword(false);
+      setOverrideName(false);
+      setOverrideFaculty(false);
+      setAutoMatchedFacultyId(null);
       setResult(null);
       setFacultyId('');
       setProgramId('');
     } else {
       toast.error(r.message);
     }
-  };
-
-  const generatePassword = () => {
-    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    let out = '';
-    const buf = new Uint32Array(12);
-    crypto.getRandomValues(buf);
-    for (let i = 0; i < 12; i++) out += chars[buf[i]! % chars.length];
-    setPassword(out);
-    setShowPassword(true);
   };
 
   const filteredPrograms = React.useMemo(
@@ -311,173 +297,195 @@ function PreProvisionPanel({
       )}
 
       {(result?.kind === 'found-employee' || result?.kind === 'not-found') && (
-        <div className="flex flex-col gap-3 rounded-md border border-border-subtle bg-surface-1 p-3">
+        <div className="flex flex-col gap-4">
+
+          {/* ── KKU directory snapshot (read-only) ───────────────── */}
           {result.kind === 'found-employee' && result.employee && (
-            <div className="text-xs">
-              <div className="text-text-tertiary mb-1">Found in KKU directory:</div>
-              <div className="font-medium text-sm">{result.employee.name}</div>
+            <section className="rounded-md border border-border-subtle bg-surface-1 p-3">
+              <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-tertiary">
+                <Check className="h-3 w-3 text-success" />
+                From KKU directory
+              </div>
+              <DirectoryNamePair emp={result.employee.emp} />
               <DirectoryFacts emp={result.employee.emp} />
-            </div>
+            </section>
           )}
           {result.kind === 'not-found' && (
-            <div className="text-xs text-warning">
-              KKU directory lookup returned no match (or the KKU Employee API isn&apos;t configured in this environment).
-              You can still pre-provision by typing a display name manually below.
+            <div className="rounded-md bg-warning-subtle p-2 text-xs text-warning">
+              No match in the KKU directory (or the KKU Employee API isn&apos;t
+              reachable from this environment). You can still pre-provision
+              this user manually.
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs text-text-tertiary">Display name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+          {/* ── App-side decisions (editable) ───────────────────── */}
+          <section className="rounded-md border border-border-subtle bg-surface-1 p-3">
+            <div className="mb-2 text-[11px] uppercase tracking-wide text-text-tertiary">
+              Provision in this app
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-text-tertiary">Role</label>
-              <select
-                className="kku-select w-full"
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-              >
-                {assignable.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABEL[r]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {role === 'FACULTY_USER' && (
+            <p className="mb-3 text-[11px] text-text-tertiary leading-relaxed">
+              Sign-in is via KKU SSO; the directory link binds on first SSO
+              login by email. Pick the in-app role + scope below.
+            </p>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {/* Display name — auto-derived, override on click */}
               <div>
-                <label className="mb-1 block text-xs text-text-tertiary">Faculty</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs text-text-tertiary">Display name</label>
+                  {!overrideName && result.kind === 'found-employee' && (
+                    <button
+                      type="button"
+                      onClick={() => setOverrideName(true)}
+                      className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
+                    >
+                      <Pencil className="h-3 w-3" /> override
+                    </button>
+                  )}
+                </div>
+                {overrideName || result.kind === 'not-found' ? (
+                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                ) : (
+                  <div className="rounded-md border border-border-subtle bg-surface-2 px-3 py-1.5 text-sm">
+                    {name}
+                  </div>
+                )}
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="mb-1 block text-xs text-text-tertiary">Role</label>
                 <select
                   className="kku-select w-full"
-                  value={facultyId}
-                  onChange={(e) => setFacultyId(e.target.value)}
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as Role)}
                 >
-                  <option value="">— select —</option>
-                  {faculties.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.code} · {f.nameEn} · {f.nameTh}
+                  {assignable.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
-            {role === 'PROGRAM_USER' && (
-              <>
-                <div>
-                  <label className="mb-1 block text-xs text-text-tertiary">Faculty (filter)</label>
-                  <select
-                    className="kku-select w-full"
-                    value={facultyId}
-                    onChange={(e) => {
-                      setFacultyId(e.target.value);
-                      setProgramId('');
-                    }}
-                  >
-                    <option value="">all</option>
-                    {faculties.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.code} · {f.nameEn}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-text-tertiary">Program</label>
-                  <select
-                    className="kku-select w-full"
-                    value={programId}
-                    onChange={(e) => setProgramId(e.target.value)}
-                  >
-                    <option value="">— select —</option>
-                    {filteredPrograms.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.code} · {p.nameEn}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </div>
 
-          <div className="rounded-md border border-border-subtle bg-surface-2 p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs text-text-tertiary">
-                Password (optional)
-              </label>
-              <button
-                type="button"
-                onClick={generatePassword}
-                className="text-[11px] text-accent hover:underline"
-              >
-                Generate
-              </button>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="relative flex-1">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Leave blank to use the shared dev password"
-                  autoComplete="new-password"
-                  className="pr-9 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+              {/* Faculty — auto-matched indicator + change affordance */}
+              {role === 'FACULTY_USER' && (
+                <div className="md:col-span-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-xs text-text-tertiary">Faculty</label>
+                    {!overrideFaculty && autoMatchedFacultyId && (
+                      <button
+                        type="button"
+                        onClick={() => setOverrideFaculty(true)}
+                        className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
+                      >
+                        <Pencil className="h-3 w-3" /> change
+                      </button>
+                    )}
+                  </div>
+                  {!overrideFaculty && autoMatchedFacultyId ? (
+                    <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-2 px-3 py-1.5 text-sm">
+                      <Check className="h-3.5 w-3.5 text-success shrink-0" />
+                      {(() => {
+                        const f = faculties.find((x) => x.id === autoMatchedFacultyId);
+                        return f ? `${f.nameTh} · ${f.nameEn}` : '(matched)';
+                      })()}
+                    </div>
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <select
+                      className="kku-select w-full"
+                      value={facultyId}
+                      onChange={(e) => setFacultyId(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {faculties.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.nameTh} · {f.nameEn}
+                        </option>
+                      ))}
+                    </select>
                   )}
-                </button>
-              </div>
-              {password && (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(password);
-                    toast.success('Password copied');
-                  }}
-                >
-                  Copy
-                </Button>
+                </div>
+              )}
+
+              {/* Program — only for PROGRAM_USER */}
+              {role === 'PROGRAM_USER' && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs text-text-tertiary">
+                      Faculty (filter)
+                    </label>
+                    <select
+                      className="kku-select w-full"
+                      value={facultyId}
+                      onChange={(e) => {
+                        setFacultyId(e.target.value);
+                        setProgramId('');
+                      }}
+                    >
+                      <option value="">all faculties</option>
+                      {faculties.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.nameTh} · {f.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-text-tertiary">Program</label>
+                    <select
+                      className="kku-select w-full"
+                      value={programId}
+                      onChange={(e) => setProgramId(e.target.value)}
+                    >
+                      <option value="">— select —</option>
+                      {filteredPrograms.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.code} · {p.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
               )}
             </div>
-            <p className="mt-1.5 text-[10px] text-text-tertiary leading-relaxed">
-              When set, this user signs in via{' '}
-              <code className="font-mono">/signin → Developer credentials</code>{' '}
-              with their email + this password. Leave blank and the user uses
-              the shared <code className="font-mono">DEV_AUTH_PASSWORD</code>.
-              Once KKU SSO is wired up, SSO supersedes this on first login.
-            </p>
-          </div>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={onSubmit}
-              disabled={
-                submitting ||
-                (role === 'FACULTY_USER' && !facultyId) ||
-                (role === 'PROGRAM_USER' && !programId) ||
-                (password.trim().length > 0 && password.trim().length < 4)
-              }
-              size="sm"
-              variant="primary"
-            >
-              <Plus className="h-4 w-4" /> {submitting ? 'Creating…' : 'Provision user'}
-            </Button>
-          </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={onSubmit}
+                disabled={
+                  submitting ||
+                  (role === 'FACULTY_USER' && !facultyId) ||
+                  (role === 'PROGRAM_USER' && !programId)
+                }
+                size="sm"
+                variant="primary"
+              >
+                <Plus className="h-4 w-4" /> {submitting ? 'Creating…' : 'Provision user'}
+              </Button>
+            </div>
+          </section>
         </div>
       )}
     </Card>
+  );
+}
+
+// Big TH + EN names side-by-side at the top of the directory snapshot.
+// Reads `title + firstname + lastname` and the `_eng` triplet directly
+// from the KKU API response shape.
+function DirectoryNamePair({ emp }: { emp: Record<string, unknown> }) {
+  const s = (k: string): string => {
+    const v = emp[k];
+    return typeof v === 'string' ? v.trim() : '';
+  };
+  const thai = [s('title'), s('firstname'), s('lastname')].filter(Boolean).join(' ');
+  const eng = [s('title_eng'), s('firstname_eng'), s('lastname_eng')].filter(Boolean).join(' ');
+  return (
+    <div className="mb-2 flex flex-col">
+      {thai && <div className="text-base font-medium text-text-primary">{thai}</div>}
+      {eng && <div className="text-sm text-text-secondary">{eng}</div>}
+    </div>
   );
 }
 
@@ -504,7 +512,7 @@ function DirectoryFacts({ emp }: { emp: Record<string, unknown> }) {
   push('Subunit', 'subunit');
   if (fields.length === 0) return null;
   return (
-    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded bg-surface-2 p-2 text-[11px] text-text-secondary">
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded bg-surface-2 p-2 text-[11px] text-text-secondary">
       {fields.map(([label, value]) => (
         <React.Fragment key={label}>
           <dt className="text-text-tertiary">{label}</dt>
