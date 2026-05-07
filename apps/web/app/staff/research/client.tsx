@@ -348,31 +348,54 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
         <p className="mt-1 text-xs text-text-tertiary">
           Top 15 journals / conferences by KKU paper count. Bar length is proportional to the leader.
         </p>
-        <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs">
+        <div className="mt-3 flex flex-col gap-1.5 text-xs">
           {data.topVenues.map((v) => {
             const max = data.topVenues[0]?.papers ?? 1;
-            const w = (v.papers / max) * 100;
+            const w = Math.max(2, (v.papers / max) * 100);
             return (
-              <div key={v.venue} className="flex items-center gap-3">
+              <div
+                key={v.venue}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}
+              >
                 <span
-                  className="truncate text-text-secondary shrink-0"
-                  style={{ width: '20rem' }}
+                  className="text-text-secondary"
+                  style={{
+                    width: '20rem',
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
                   title={v.venue}
                 >
                   {v.venue}
                 </span>
                 <div
-                  className="h-2.5 rounded-sm flex-1 min-w-0"
-                  style={{ background: 'rgba(120,120,120,0.18)' }}
+                  style={{
+                    flex: '1 1 0%',
+                    minWidth: 0,
+                    height: '10px',
+                    borderRadius: '2px',
+                    background: 'rgba(120,120,120,0.18)',
+                  }}
                 >
                   <div
-                    className="h-full rounded-sm"
-                    style={{ width: `${w}%`, background: '#0ea5e9' }}
+                    style={{
+                      width: `${w}%`,
+                      height: '100%',
+                      borderRadius: '2px',
+                      background: '#0ea5e9',
+                    }}
                   />
                 </div>
                 <span
-                  className="text-right font-tabular font-semibold shrink-0"
-                  style={{ width: '4rem' }}
+                  style={{
+                    width: '4rem',
+                    flexShrink: 0,
+                    textAlign: 'right',
+                    fontWeight: 600,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
                 >
                   {v.papers.toLocaleString('en-US')}
                 </span>
