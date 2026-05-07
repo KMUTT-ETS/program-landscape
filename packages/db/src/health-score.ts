@@ -121,7 +121,9 @@ export type HealthDimensionScores = z.infer<typeof HealthDimensionScoresSchema>;
 export const HealthScoreRowSchema = z.object({
   scope: z.string(),
   scopeId: z.string(),
-  scopeLabel: z.string(),
+  scopeLabel: z.string(),     // legacy "EN · TH" — kept for AI prompt + log paths
+  scopeLabelTh: z.string(),   // Thai-primary, used by UI two-line cells
+  scopeLabelEn: z.string(),   // English secondary
   parentScopeId: z.string().nullable(),
   methodologyVersion: z.string(),
   dimensions: HealthDimensionScoresSchema,
@@ -215,6 +217,8 @@ export async function computeHealthScores(
       scope: childScope,
       scopeId: child.id,
       scopeLabel: child.label,
+      scopeLabelTh: child.labelTh,
+      scopeLabelEn: child.labelEn,
       parentScopeId: child.parentId,
       methodologyVersion: HEALTH_SCORE_VERSION,
       dimensions,
@@ -247,7 +251,10 @@ function latestWith<T>(rows: T[], predicate: (r: T) => boolean): T | null {
 
 interface ChildNode {
   id: string;
-  label: string;
+  label: string; // legacy single-line "EN · TH" form, retained for any
+                 //  surface that renders one string (logs, AI prompts).
+  labelTh: string;
+  labelEn: string;
   parentId: string | null;
 }
 
@@ -282,7 +289,13 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
     });
     return {
       scope: 'faculty',
-      nodes: rows.map((r) => ({ id: r.id, label: `${r.nameEn} · ${r.nameTh}`, parentId: null })),
+      nodes: rows.map((r) => ({
+        id: r.id,
+        label: `${r.nameEn} · ${r.nameTh}`,
+        labelTh: r.nameTh ?? '',
+        labelEn: r.nameEn ?? '',
+        parentId: null,
+      })),
     };
   }
   if (scope === 'faculty') {
@@ -311,6 +324,8 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
         nodes: deptRows.map((r) => ({
           id: r.id,
           label: `${r.nameEn} · ${r.nameTh}`,
+          labelTh: r.nameTh ?? '',
+          labelEn: r.nameEn ?? '',
           parentId: r.facultyId,
         })),
       };
@@ -336,6 +351,8 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
       nodes: progRows.map((r) => ({
         id: r.id,
         label: `${r.nameEn} · ${r.nameTh}`,
+        labelTh: r.nameTh ?? '',
+        labelEn: r.nameEn ?? '',
         parentId: r.facultyId,
       })),
     };
@@ -356,6 +373,8 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
       nodes: rows.map((r) => ({
         id: r.id,
         label: `${r.nameEn} · ${r.nameTh}`,
+        labelTh: r.nameTh ?? '',
+        labelEn: r.nameEn ?? '',
         parentId: r.departmentId,
       })),
     };
@@ -368,7 +387,13 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
   return {
     scope: 'program',
     nodes: row
-      ? [{ id: row.id, label: `${row.nameEn} · ${row.nameTh}`, parentId: row.departmentId }]
+      ? [{
+          id: row.id,
+          label: `${row.nameEn} · ${row.nameTh}`,
+          labelTh: row.nameTh ?? '',
+          labelEn: row.nameEn ?? '',
+          parentId: row.departmentId,
+        }]
       : [],
   };
 }

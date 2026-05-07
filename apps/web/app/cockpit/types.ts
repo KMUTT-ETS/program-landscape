@@ -31,6 +31,8 @@ export interface HealthScoreRow {
   scope: string;
   scopeId: string;
   scopeLabel: string;
+  scopeLabelTh: string;
+  scopeLabelEn: string;
   parentScopeId: string | null;
   methodologyVersion: string;
   dimensions: {
@@ -78,6 +80,17 @@ export interface RollupNode extends HealthScoreRow {
 export interface CockpitRollup {
   methodologyVersion: string;
   nodes: RollupNode[];
+}
+
+// One step in the cockpit's scope breadcrumb. Rendered as a clickable
+// link; clicking navigates to /cockpit?scope=...&scopeId=... The root
+// ('university') has scopeId=null. Used to give explicit back/forward
+// navigation between drill levels.
+export interface ScopeBreadcrumbCrumb {
+  scope: string;
+  scopeId: string | null;
+  labelTh: string;
+  labelEn: string;
 }
 
 export interface SavedView {

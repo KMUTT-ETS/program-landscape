@@ -24,11 +24,14 @@ import {
 import {
   AlertTriangle,
   BookOpen,
+  ChevronRight,
   CircleDot,
   ExternalLink,
   FileText,
   Filter,
   GraduationCap,
+  Home,
+  Info,
   Save,
   Sparkles,
   Wallet,
@@ -50,6 +53,7 @@ import type {
   CockpitRollup,
   RollupNode,
   SavedView,
+  ScopeBreadcrumbCrumb,
 } from './types';
 
 // Cockpit page client. Three view modes + a left rail + top KPI strip
@@ -71,6 +75,7 @@ interface Props {
   rollup: CockpitRollup | null;
   recruitment: RecruitmentDashboardPayload | null;
   savedViews: SavedView[];
+  breadcrumb: ScopeBreadcrumbCrumb[];
 }
 
 export function CockpitClient(props: Props) {
@@ -92,6 +97,13 @@ export function CockpitClient(props: Props) {
   };
 
   const onRowDrill = (scope: string, scopeId: string | null) => {
+    // Short-circuit program scope to skip the /cockpit?scope=program
+    // bounce — the page-level handler would redirect there anyway, but
+    // doing it client-side is one network round-trip faster.
+    if (scope === 'program' && scopeId) {
+      router.push(`/programs/${scopeId}`);
+      return;
+    }
     const u = new URLSearchParams(window.location.search);
     u.set('scope', scope);
     if (scopeId) u.set('scopeId', scopeId);
@@ -219,6 +231,7 @@ export function CockpitClient(props: Props) {
       </aside>
 
       <div className="flex flex-col gap-4">
+        <ScopeBreadcrumb crumbs={props.breadcrumb} />
         <KpiStrip kpis={props.kpis} />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -264,6 +277,17 @@ export function CockpitClient(props: Props) {
           </div>
         </div>
 
+        {props.scope === 'department' && (view === 'heatmap' || view === 'rollup') && (
+          <Card padding="sm">
+            <div className="flex items-start gap-2 text-xs text-text-secondary">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+              <span>
+                You are at the department level. Each row below is a program; clicking it opens that program&apos;s full deep-dive
+                (health, faculty roster, recruitment funnel, demand match, AI peer review). Use the breadcrumb above to step back to the faculty or university view.
+              </span>
+            </div>
+          </Card>
+        )}
         {view === 'heatmap' && props.heatmap && (
           <Card accent="cockpit" padding="md">
             <Heatmap
@@ -483,6 +507,8 @@ function toHeatmapRows(hm: CockpitHeatmap): HeatmapRow[] {
   return hm.rows.map((r) => ({
     id: r.scopeId,
     label: r.scopeLabel,
+    labelTh: r.scopeLabelTh,
+    labelEn: r.scopeLabelEn,
     parentId: r.parentScopeId,
     cells: [
       toCell(r.dimensions.attractiveness),
@@ -504,6 +530,50 @@ function toCell(s: CockpitHeatmap['rows'][number]['dimensions']['attractiveness'
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Scope breadcrumb — KKU › Faculty › Department, click to navigate up.
+// At university scope it renders just "KKU University" (no parent links).
+// ──────────────────────────────────────────────────────────────────────────
+
+function ScopeBreadcrumb({ crumbs }: { crumbs: ScopeBreadcrumbCrumb[] }) {
+  const router = useRouter();
+  const goTo = (c: ScopeBreadcrumbCrumb) => {
+    const u = new URLSearchParams();
+    u.set('scope', c.scope);
+    if (c.scopeId) u.set('scopeId', c.scopeId);
+    router.push(`/cockpit?${u.toString()}`);
+  };
+  return (
+    <nav aria-label="Cockpit scope breadcrumb" className="flex items-center gap-1 text-sm flex-wrap">
+      {crumbs.map((c, i) => {
+        const isLast = i === crumbs.length - 1;
+        const Tag = isLast ? 'span' : 'button';
+        const cls = isLast
+          ? 'flex items-center gap-1.5 text-text-primary font-medium'
+          : 'flex items-center gap-1.5 text-text-secondary hover:text-accent';
+        return (
+          <React.Fragment key={`${c.scope}-${c.scopeId ?? 'root'}`}>
+            <Tag
+              type={Tag === 'button' ? 'button' : undefined}
+              className={cls}
+              onClick={Tag === 'button' ? () => goTo(c) : undefined}
+            >
+              {i === 0 ? <Home className="h-3.5 w-3.5" aria-hidden /> : null}
+              <span className="flex flex-col leading-tight">
+                <span lang="th">{c.labelTh}</span>
+                {c.labelEn && c.labelEn !== c.labelTh && (
+                  <span className="text-[10px] text-text-tertiary">{c.labelEn}</span>
+                )}
+              </span>
+            </Tag>
+            {!isLast && <ChevronRight className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />}
+          </React.Fragment>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Rollup table
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -515,7 +585,23 @@ function RollupTable({
   onRowClick: (node: RollupNode) => void;
 }) {
   const columns: ColumnDef<RollupNode>[] = [
-    { accessorKey: 'scopeLabel', header: 'Unit' },
+    {
+      accessorKey: 'scopeLabelTh',
+      header: 'Unit',
+      cell: ({ row }) => {
+        const th = row.original.scopeLabelTh?.trim();
+        const en = row.original.scopeLabelEn?.trim();
+        if (th && en) {
+          return (
+            <div className="flex flex-col leading-tight">
+              <span className="font-medium" lang="th">{th}</span>
+              <span className="text-[11px] text-text-tertiary">{en}</span>
+            </div>
+          );
+        }
+        return <span className="font-medium">{th || en || row.original.scopeLabel}</span>;
+      },
+    },
     {
       accessorKey: 'programCount',
       header: 'Programs',

@@ -30,6 +30,13 @@ export interface HeatmapCell {
 export interface HeatmapRow {
   id: string;
   label: string;
+  // Optional Thai-primary / English-secondary labels — when both are
+  // present the Unit cell renders two lines (Thai top, EN small grey
+  // below). Falls back to `label` if not provided. Used by the cockpit
+  // rollup so faculty/department/program rows show both names without
+  // the "EN · TH" concatenation in a single line.
+  labelTh?: string;
+  labelEn?: string;
   // Required — caller picks e.g. [demand, financial, quality, relevance, capability].
   cells: HeatmapCell[];
   overall: HeatmapCell;
@@ -84,8 +91,15 @@ export function Heatmap({
                 )}
                 onClick={() => onRowClick?.(row)}
               >
-                <td className="sticky left-0 bg-surface-1 px-3 py-2 font-medium">
-                  {row.label}
+                <td className="sticky left-0 bg-surface-1 px-3 py-2">
+                  {row.labelTh && row.labelEn ? (
+                    <div className="flex flex-col leading-tight">
+                      <span className="font-medium" lang="th">{row.labelTh}</span>
+                      <span className="text-[11px] text-text-tertiary">{row.labelEn}</span>
+                    </div>
+                  ) : (
+                    <span className="font-medium">{row.label}</span>
+                  )}
                 </td>
                 {row.cells.map((cell, i) => (
                   <Cell key={i} cell={cell} />

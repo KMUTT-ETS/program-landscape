@@ -4,8 +4,16 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader, FreshnessBadge } from '@kku/ui';
+import { prisma } from '@kku/db';
 import { CockpitClient } from './client';
-import type { CockpitKpis, CockpitHeatmap, CockpitMatrix, CockpitRollup, SavedView } from './types';
+import type {
+  CockpitKpis,
+  CockpitHeatmap,
+  CockpitMatrix,
+  CockpitRollup,
+  SavedView,
+  ScopeBreadcrumbCrumb,
+} from './types';
 import type { RecruitmentDashboardPayload } from '../education/recruitment/client';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +55,32 @@ export default async function CockpitPage({
       : 'heatmap'
   ) as 'heatmap' | 'matrix' | 'rollup' | 'recruitment';
 
+  // Breadcrumb path — root is always present; faculty/department add
+  // themselves with names looked up from Prisma so the breadcrumb shows
+  // Thai-primary labels with EN below.
+  const breadcrumb: ScopeBreadcrumbCrumb[] = [
+    { scope: 'university', scopeId: null, labelTh: 'มข. (ภาพรวม)', labelEn: 'KKU University' },
+  ];
+  if (scope === 'faculty' && scopeId) {
+    const fac = await prisma.faculty.findUnique({
+      where: { id: scopeId },
+      select: { id: true, nameEn: true, nameTh: true },
+    });
+    if (fac) breadcrumb.push({ scope: 'faculty', scopeId: fac.id, labelTh: fac.nameTh, labelEn: fac.nameEn });
+  } else if (scope === 'department' && scopeId) {
+    const dept = await prisma.department.findUnique({
+      where: { id: scopeId },
+      select: {
+        id: true, nameEn: true, nameTh: true,
+        faculty: { select: { id: true, nameEn: true, nameTh: true } },
+      },
+    });
+    if (dept?.faculty) {
+      breadcrumb.push({ scope: 'faculty', scopeId: dept.faculty.id, labelTh: dept.faculty.nameTh, labelEn: dept.faculty.nameEn });
+      breadcrumb.push({ scope: 'department', scopeId: dept.id, labelTh: dept.nameTh, labelEn: dept.nameEn });
+    }
+  }
+
   return (
     <AuthedAppShell user={user}>
       <PageHeader
@@ -71,6 +105,7 @@ export default async function CockpitPage({
         rollup={rollup}
         recruitment={recruitment}
         savedViews={savedViews}
+        breadcrumb={breadcrumb}
       />
     </AuthedAppShell>
   );
