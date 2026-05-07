@@ -70,11 +70,11 @@ export default async function SignInPage() {
   return (
     <main className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2">
       {/* ── Left pane: form ─────────────────────────────────────── */}
+      {/* Header + footer are full-width (left-justified flush to the
+          pane padding) so single-line text never wraps. The form in
+          the middle stays horizontally centred at max-w-[340px]. */}
       <section className="relative bg-surface-1 flex flex-col lg:min-h-screen">
-        {/* Top: brand mark + wordmark, left-aligned to match the form
-            column below. Padding scales: tight on phone, generous on
-            desktop. */}
-        <header className="px-6 pt-8 sm:px-10 sm:pt-10 lg:px-16 lg:pt-12">
+        <header className="w-full px-6 pt-8 sm:px-10 sm:pt-10 lg:px-16 lg:pt-12">
           <div className="flex items-center gap-2.5">
             <BrandMark />
             <span className="text-[14px] font-medium tracking-tight text-text-primary">
@@ -83,9 +83,7 @@ export default async function SignInPage() {
           </div>
         </header>
 
-        {/* Centre: form. Left-justified. max-w keeps long buttons +
-            inputs from sprawling. */}
-        <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 lg:px-16 py-12">
+        <div className="flex-1 flex flex-col justify-center items-center px-6 sm:px-10 lg:px-16 py-12">
           <div className="w-full max-w-[340px]">
             <h1 className="text-[26px] font-medium tracking-tight text-text-primary leading-tight">
               Sign in
@@ -103,29 +101,27 @@ export default async function SignInPage() {
           </div>
         </div>
 
-        {/* Bottom: contact + credit stack. Same column alignment as
-            header + form. */}
-        <footer className="px-6 pb-8 sm:px-10 sm:pb-10 lg:px-16">
-          <div className="w-full max-w-[340px]">
-            <div className="text-[12px] text-text-tertiary leading-relaxed border-t border-border-subtle pt-5">
-              Need access? Contact the{' '}
-              <a
-                href="mailto:denpong@kku.ac.th"
-                className="text-text-secondary underline-offset-4 hover:underline hover:text-accent-default transition-colors"
-              >
-                Office of the Vice President for Education and Digital
-              </a>
-              .
-            </div>
-            <div className="mt-5 text-[11px] leading-relaxed text-text-tertiary">
-              <div className="text-text-secondary font-medium">
-                Conceived by Dr. Denpong Soodphakdee
-              </div>
-              <div>Vice President for Education and Digital, Khon Kaen University</div>
-              <div className="mt-1 opacity-80">
-                Built in collaboration with Claude (Anthropic)
-              </div>
-            </div>
+        <footer className="w-full px-6 pb-8 sm:px-10 sm:pb-10 lg:px-16">
+          <div className="text-[12px] text-text-tertiary leading-relaxed border-t border-border-subtle pt-5">
+            Need access? Contact the{' '}
+            <a
+              href="mailto:denpong@kku.ac.th"
+              className="text-text-secondary underline-offset-4 hover:underline hover:text-accent-default transition-colors"
+            >
+              Office of the Vice President for Education and Digital
+            </a>
+            .
+          </div>
+          <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px] leading-relaxed text-text-tertiary">
+            <span className="text-text-secondary font-medium whitespace-nowrap">
+              Conceived by Dr. Denpong Soodphakdee
+            </span>
+            <span className="whitespace-nowrap">
+              · Vice President for Education and Digital, Khon Kaen University
+            </span>
+            <span className="opacity-80 whitespace-nowrap">
+              · Built in collaboration with Claude (Anthropic)
+            </span>
           </div>
         </footer>
       </section>

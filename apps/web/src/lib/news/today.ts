@@ -100,17 +100,30 @@ async function fetchOne(url: string, category: NewsCategory): Promise<NewsItem[]
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     const res = await fetch(url, {
       signal: ctrl.signal,
+      // Default: follow redirects. Google News will return a 302 to /dev/null
+      // for custom / bot User-Agents, so we masquerade as Chrome — the only
+      // shape that reliably yields the RSS body. Tested 2026-05-07 from the
+      // KKU dev box.
+      redirect: 'follow',
       headers: {
-        // Google News blocks no-User-Agent calls.
-        'User-Agent': 'KKU-Curriculum-Landscape/1.0 (+https://program-landscape.kku.ac.th)',
-        accept: 'application/rss+xml, application/xml',
+        'User-Agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.5',
       },
     });
     clearTimeout(timer);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[news/today] ${url} → HTTP ${res.status}`);
+      return [];
+    }
     const xml = await res.text();
-    return parseRssItems(xml, category);
-  } catch {
+    const items = parseRssItems(xml, category);
+    if (items.length === 0) {
+      console.warn(`[news/today] ${url} → 0 items parsed (xml ${xml.length}B)`);
+    }
+    return items;
+  } catch (err) {
+    console.warn(`[news/today] ${url} fetch failed:`, (err as Error).message);
     return [];
   }
 }
