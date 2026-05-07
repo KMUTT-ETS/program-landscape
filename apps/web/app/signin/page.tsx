@@ -148,16 +148,28 @@ export default async function SignInPage() {
           }}
         />
         {/* Subtle warm bloom in the upper-right — keeps the gradient from
-            looking flat without lightening it enough to break contrast. */}
+            looking flat without lightening it enough to break contrast.
+            Toned down from 50%/40% → 35%/28% to soften the overall
+            brightness per design feedback. */}
         <div
           aria-hidden
-          className="absolute -top-32 -right-24 h-[640px] w-[640px] rounded-full blur-[120px] opacity-50"
+          className="absolute -top-32 -right-24 h-[640px] w-[640px] rounded-full blur-[120px] opacity-35"
           style={{ background: 'oklch(var(--color-warning-default))' }}
         />
         <div
           aria-hidden
-          className="absolute -bottom-32 right-1/4 h-[480px] w-[480px] rounded-full blur-[120px] opacity-40"
+          className="absolute -bottom-32 right-1/4 h-[480px] w-[480px] rounded-full blur-[120px] opacity-30"
           style={{ background: 'oklch(var(--color-brand-cardinal))' }}
+        />
+
+        {/* Soft dimming veil — knocks the whole vivid stack back to
+            ~80% perceived intensity. Sits above the gradient + blooms
+            but below the dot grid + content so texture + text stay
+            crisp. */}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{ background: 'oklch(20% 0.020 30 / 0.20)' }}
         />
 
         {/* Faint dot grid — same BCG-matrix texture from inside the app. */}
