@@ -24,7 +24,7 @@ export const KNOWN_QUEUES = [
     name: 'ingestion',
     label: 'Ingestion connectors',
     description:
-      'External-source connectors (KKU registry / HR / finance / research, KMITL, …) that pull data into the local DB.',
+      'External-source connectors (KKU registry / HR / finance / research, LinkedIn labour-market data via MHESI, …) that pull data into the local DB.',
   },
   {
     name: 'pdf-intake',

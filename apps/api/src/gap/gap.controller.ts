@@ -111,7 +111,7 @@ export class GapController {
   @Provenance({
     sources: [
       { id: 'program-demand-match', name: 'AI demand-match per program' },
-      { id: 'kmitl-skill-mapping', name: 'KMITL skill demand' },
+      { id: 'kmitl-skill-mapping', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
     ],
   })
   async programDemandGaps(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {

@@ -442,10 +442,10 @@ const DATASETS: Record<string, DatasetFetcher> = {
       prisma.kmitlCareer.count({ where }),
     ]);
     return {
-      title: 'KMITL career taxonomy',
-      description: 'Source: LinkedIn data via MHESI subscription, KMITL-hosted API. KMITL\'s 14 groups → 77 sub-groups → 401 careers hierarchy. iscoCode populated by hand-mapping pass (analyst).',
+      title: 'Labour-market career taxonomy',
+      description: 'Career taxonomy used by the LinkedIn-derived labour-market dataset. **Data: LinkedIn. Subscriber: MHESI** (institutional licence). API hosted by KMITL on behalf of MHESI — KMITL is not the data owner. The taxonomy structure (14 groups → 77 sub-groups → 401 careers) is curated by KMITL for the API; iscoCode is populated by an analyst hand-mapping pass.',
       columns: [
-        { key: 'kmitlCareerId', label: 'KMITL ID', numeric: true },
+        { key: 'kmitlCareerId', label: 'API career ID', numeric: true },
         { key: 'groupName', label: 'Group' },
         { key: 'subGroupName', label: 'Sub-group' },
         { key: 'careerName', label: 'Career' },
@@ -489,8 +489,8 @@ const DATASETS: Record<string, DatasetFetcher> = {
       prisma.kmitlCareerSkillDemand.count({ where }),
     ]);
     return {
-      title: 'Labour-market skills demand (LinkedIn via MHESI/KMITL)',
-      description: 'Source: LinkedIn data subscribed by MHESI, served via KMITL API. Aggregated per (career, skill, dataScope, dataSource). Percentages — not per-posting rows. THAILAND × JOB_POSTINGS rows with percentage ≥ 5% drive the health-score labour-market alignment driver.',
+      title: 'Labour-market skills demand — LinkedIn (subscribed by MHESI)',
+      description: '**Data: LinkedIn** (profile-level + job-posting prevalence, aggregated). **Subscriber / data licence holder: MHESI** (Ministry of Higher Education, Science, Research and Innovation). The API endpoint is hosted by KMITL on behalf of MHESI — KMITL is not the data owner and is not the data curator. Aggregated per (career, skill, dataScope, dataSource). Percentages — not per-posting rows. THAILAND × JOB_POSTINGS rows with percentage ≥ 5% drive the health-score labour-market alignment driver.',
       columns: [
         { key: 'group', label: 'Group' },
         { key: 'careerName', label: 'Career' },
@@ -539,8 +539,8 @@ const DATASETS: Record<string, DatasetFetcher> = {
       prisma.kmitlSkillGrowth.count({ where }),
     ]);
     return {
-      title: 'Labour-market skill growth (LinkedIn via MHESI/KMITL)',
-      description: 'Source: LinkedIn skill-growth percentages aggregated at three levels — group, sub-group, career. Positive growth = rising demand year-over-year per LinkedIn signal.',
+      title: 'Labour-market skill growth — LinkedIn (subscribed by MHESI)',
+      description: '**Data: LinkedIn** skill-growth percentages aggregated at three levels — group, sub-group, career. **Subscriber: MHESI** (institutional licence). API hosted by KMITL on behalf of MHESI; KMITL is not the data owner. Positive growth = rising demand year-over-year per LinkedIn signal.',
       columns: [
         { key: 'contextLevel', label: 'Level' },
         { key: 'contextName', label: 'Context' },

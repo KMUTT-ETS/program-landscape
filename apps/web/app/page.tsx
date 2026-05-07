@@ -169,7 +169,7 @@ export default async function HomePage() {
                 { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
                 { id: 'financial_metrics', name: 'KKU Finance · revenue + cost' },
                 { id: 'graduate_outcomes', name: 'KKU Alumni · outcomes' },
-                { id: 'kmitl_demand', name: 'KMITL skill mapping · labour market' },
+                { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
               ],
               methodologyVersion: 'health-score.v1',
               scope: { level: 'university', id: null },

@@ -290,7 +290,7 @@ export default async function AdminDataSetupPage() {
             tone="glossy"
             icon={<TrendingUp />}
             title="Labour-market skills demand (LinkedIn via MHESI)"
-            description="Aggregated skill demand from LinkedIn — profiles, Thai job postings, and university grad data. Subscribed by MHESI under a national agreement; KMITL operates the API endpoint that aggregates and serves the data. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
+            description="Aggregated skill demand from LinkedIn — profiles, Thai job postings, and university graduate data. The data is owned by LinkedIn; the institutional subscription / licence is held by MHESI. KMITL hosts the API endpoint on behalf of MHESI and is not the data owner. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
             primary={{
               label: `${stats.laborMarketSkills.kmitlSkillDemandRows.toLocaleString()} demand rows`,
               tone: stats.laborMarketSkills.kmitlSkillDemandRows > 0 ? 'success' : 'neutral',
@@ -363,7 +363,7 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="faculty-budgets" label="Faculty budgets" />
             <RawDatasetLink slug="faculty-members" label="Academic staff" />
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
-            <RawDatasetLink slug="kmitl-careers" label="KMITL career taxonomy" />
+            <RawDatasetLink slug="kmitl-careers" label="Labour-market career taxonomy" />
             <RawDatasetLink slug="kmitl-skill-demands" label="LinkedIn skill demand (15.8k)" />
             <RawDatasetLink slug="kmitl-skill-growths" label="LinkedIn skill growth (7.4k)" />
             <RawDatasetLink slug="research-outputs" label="Research outputs" />

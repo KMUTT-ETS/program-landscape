@@ -42,7 +42,7 @@ export default async function GapAnalysisPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="Demand-Supply Gap Analyzer"
-        subtitle="Where labour-market demand and KKU graduate supply diverge — KMITL skill demand × KKU alumni cohort outcomes."
+        subtitle="Where labour-market demand and KKU graduate supply diverge — LinkedIn-derived skill demand (subscribed by MHESI) × KKU alumni cohort outcomes."
       />
       <GapAnalysisClient
         initialFilters={{ scope, scopeId }}

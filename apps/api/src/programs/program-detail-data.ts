@@ -63,7 +63,7 @@ const DRIVER_LABELS: Record<string, string> = {
   curriculum_modernity: 'Curriculum modernity',
   skill_resilience_vs_ai: 'Skill resilience vs AI',
   ai_research_intensity: 'AI research intensity',
-  labour_market_alignment_kmitl: 'Labour-market alignment (KMITL)',
+  labour_market_alignment_kmitl: 'Labour-market alignment (LinkedIn · MHESI)',
 };
 
 const DRIVER_PHRASES: Record<string, string> = {

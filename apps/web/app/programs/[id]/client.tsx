@@ -3076,7 +3076,7 @@ const DRIVER_LABEL_LOOKUP: Record<string, string> = {
   further_study_rate: 'Further-study rate',
   // Relevance
   labour_market_alignment: 'Labour-market alignment',
-  labour_market_alignment_kmitl: 'Labour-market alignment (KMITL)',
+  labour_market_alignment_kmitl: 'Labour-market alignment (LinkedIn · MHESI)',
   curriculum_modernity: 'Curriculum modernity (peer review)',
 };
 
@@ -3231,7 +3231,7 @@ const RAW_KEY_LOOKUP: Record<string, string> = {
   costPerStudent: 'Cost / student',
   fiscalYear: 'Fiscal year',
   // Relevance
-  kmitlAlignmentPct: 'KMITL alignment %',
+  kmitlAlignmentPct: 'LinkedIn labour-market alignment %',
   // Generic
   lower: 'Lower',
   upper: 'Upper',

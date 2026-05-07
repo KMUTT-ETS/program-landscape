@@ -85,7 +85,7 @@ export function GapAnalysisClient({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary">
           <span className="inline-flex items-center gap-1.5">
             <Database className="h-3.5 w-3.5" aria-hidden />
-            <strong className="text-text-secondary">Demand</strong> · KMITL skill mapping (LinkedIn × Thai job postings)
+            <strong className="text-text-secondary">Demand</strong> · LinkedIn skill data (subscribed by MHESI; LinkedIn profiles × Thai job postings)
           </span>
           <span>·</span>
           <span>
@@ -163,7 +163,7 @@ export function GapAnalysisClient({
       {/* Growth signal */}
       <Panel
         title="Fastest-growing skills (Thailand · LinkedIn job postings)"
-        subtitle="From KMITL skill-mapping growth signal. Green dot = at least one KKU program teaches it."
+        subtitle="From the LinkedIn-derived labour-market growth signal (subscribed by MHESI). Green dot = at least one KKU program teaches it."
         icon={<Sparkles className="text-accent" />}
       >
         <GrowthList rows={(opps?.rows ?? []).filter((r) => r.demandGrowthPct > 0).sort((a, b) => b.demandGrowthPct - a.demandGrowthPct).slice(0, 10)} />
@@ -189,7 +189,7 @@ export function GapAnalysisClient({
           and forecast horizon views are intentionally omitted because their underlying data
           sources are not yet wired (OccupationDemand 0 rows; per-province alumni tracking
           deferred; ForecastRun 0 rows). Soft / transferable / language skills are also
-          excluded — KMITL and other job-posting taxonomies under-list them, so including
+          excluded — LinkedIn and other job-posting taxonomies under-list them, so including
           them would create artificial "oversupply" rows (every program teaches teamwork;
           no posting demands it by name).
         </p>
