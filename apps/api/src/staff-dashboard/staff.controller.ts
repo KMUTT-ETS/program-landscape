@@ -49,16 +49,14 @@ const StaffFilterSchema = z.object({
 
 // Publications view has its own narrower filter set — we drive it off
 // FacultyMember + ResearchOutput (not staff_master_records), so we don't
-// need staffType/track/budget/nationality. We DO need source + activeOnly
-// + yearFrom because the kku-publications corpus has multiple sources
+// need staffType/track/budget/nationality. We DO need source + yearFrom
+// because the kku-publications corpus has multiple sources
 // (Scopus / PubMed / legacy OpenAlex) and a configurable time window.
+// activeOnly is hardcoded true at the service layer — this view shows
+// active employees only by design.
 const PublicationsFilterSchema = z.object({
   facultyName: StringArray,
   sources: StringArray,
-  activeOnly: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((v) => v === true || v === 'true' || v === '1'),
   yearFrom: z
     .union([z.string(), z.number()])
     .optional()

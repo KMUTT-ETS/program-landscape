@@ -49,7 +49,7 @@ const TILES = [
     icon: Library,
     title: 'Publications corpus (kku-publications)',
     blurb:
-      'The full Scopus + PubMed corpus from the internal kku-publications mirror — 81k+ papers across 36 faculties. Drill faculty → department → author. Year-trend, top venues, source/type breakdown.',
+      'Active KKU staff publications (Scopus + PubMed) from the internal kku-publications mirror, drilled by faculty / author / year / type / venue. Includes year-trend, top venues, faculty heatmap, and source / output-type breakdowns.',
     Thumb: PublicationsThumb,
   },
   {

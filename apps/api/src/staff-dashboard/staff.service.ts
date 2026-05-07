@@ -913,16 +913,16 @@ export class StaffService {
 
   // ── 6. Publications (kku-publications mirror) ────────────────────
   // Grounded in FacultyMember + ResearchOutput directly, NOT in
-  // staff_master_records like /research is. This view surfaces the full
-  // publications corpus including kkupub_-prefixed FacultyMember rows
-  // backfilled from the kku-publications mirror — covering 99.6% of the
-  // 65,717 paper×author authorships from Scopus + PubMed in the kku-research
-  // window (default 2015+).
+  // staff_master_records like /research is. This view surfaces the
+  // publications corpus for **currently-active** FacultyMember rows
+  // (employed staff + kkupub_-backfilled with a paper in the last 2y) —
+  // historical/retired authors are excluded by design to fit the
+  // program-landscape application's "current portfolio" framing.
   //
   // Differs from /research:
   //   /research      → kku-hr-employed staff only (joined via citizen_id_hash); 5y window
-  //   /publications  → all FacultyMember (employed + kku-publications-backfilled); year-from configurable
-  async publications(filter: { facultyName?: string[]; sources?: string[]; activeOnly?: boolean; yearFrom?: number }) {
+  //   /publications  → all *active* FacultyMember (employed + kkupub_-backfilled); window from KKU_RESEARCH_YEAR_FROM
+  async publications(filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number }) {
     const yearFrom = filter.yearFrom ?? Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
     const sourceFilter = filter.sources && filter.sources.length > 0
       ? filter.sources
@@ -934,7 +934,6 @@ export class StaffService {
     const cacheKey = CacheService.keyOf('staff:publications', {
       facultyName: filter.facultyName?.sort() ?? [],
       sources: sourceFilter.slice().sort(),
-      activeOnly: filter.activeOnly ?? false,
       yearFrom,
     });
     const cached = await this.cache?.get<unknown>(cacheKey);
@@ -945,14 +944,17 @@ export class StaffService {
   }
 
   private async computePublications(
-    filter: { facultyName?: string[]; sources?: string[]; activeOnly?: boolean; yearFrom?: number },
+    filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number },
     sourceFilter: string[],
     yearFrom: number,
   ) {
 
-    // FacultyMember snapshot — filtered if facultyName supplied
-    const facultyWhere: Prisma.FacultyMemberWhereInput = {};
-    if (filter.activeOnly) facultyWhere.isActive = true;
+    // FacultyMember snapshot — always filter to active employees only.
+    // The program-landscape application is a "current portfolio" tool;
+    // retired/historical authors get filtered upstream. For kku-hr rows,
+    // isActive comes from KKU HR; for kkupub_-backfilled rows it's
+    // heuristic (paper in last 2 years).
+    const facultyWhere: Prisma.FacultyMemberWhereInput = { isActive: true };
     if (filter.facultyName && filter.facultyName.length > 0) {
       facultyWhere.faculty = { OR: [{ nameTh: { in: filter.facultyName } }, { nameEn: { in: filter.facultyName } }] };
     }
@@ -1176,14 +1178,10 @@ export class StaffService {
         kkuPublications: authorList.filter((a) => a.employeeSource === 'kku-publications').length,
         other: authorList.filter((a) => a.employeeSource === 'other').length,
       },
-      activeStaffSplit: {
-        active: authorList.filter((a) => a.isActive).length,
-        inactive: authorList.filter((a) => !a.isActive).length,
-      },
       caveats: [
+        'Active employees only. For kku-hr rows isActive comes from KKU HR; for kkupub_-backfilled rows it is heuristic (paper in last 2 years).',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Authors backfilled from kku-publications.people (employee_code prefix kkupub_) carry rank=LECTURER as a placeholder — the publications mirror does not record academic rank.',
-        'isActive=true is heuristic for kkupub_-prefixed staff: paper in last 2 years. kku-hr-prefixed staff (hr_*) get isActive from KKU HR.',
       ],
     };
   }

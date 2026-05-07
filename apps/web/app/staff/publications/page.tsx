@@ -33,14 +33,12 @@ export default async function PublicationsPage({
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);
   const sources = arr(sp.sources);
-  const activeOnly = one(sp.activeOnly) === 'true';
   const yearFromRaw = one(sp.yearFrom);
   const yearFrom = yearFromRaw && /^\d+$/.test(yearFromRaw) ? Number(yearFromRaw) : undefined;
 
   const qs = new URLSearchParams();
   facultyName.forEach((v) => qs.append('facultyName', v));
   sources.forEach((v) => qs.append('sources', v));
-  if (activeOnly) qs.set('activeOnly', 'true');
   if (yearFrom) qs.set('yearFrom', String(yearFrom));
 
   const [data, options] = await Promise.all([
@@ -55,13 +53,13 @@ export default async function PublicationsPage({
       <StaffBackLink />
       <PageHeader
         title="Publications"
-        subtitle="The full KKU publications corpus from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / department / author / year / type / venue."
+        subtitle="Active KKU staff's publications from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue."
       />
       {data && options ? (
         <PublicationsClient
           data={data}
           options={options}
-          initialFilters={{ facultyName, sources, activeOnly, yearFrom }}
+          initialFilters={{ facultyName, sources, yearFrom }}
         />
       ) : (
         <Card>

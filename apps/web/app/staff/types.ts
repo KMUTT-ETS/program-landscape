@@ -171,7 +171,6 @@ export interface PublicationsResponse {
   topAuthors: PublicationsAuthor[];
   perAuthor: PublicationsAuthor[];
   employeeSourceMix: { kkuHr: number; kkuPublications: number; other: number };
-  activeStaffSplit: { active: number; inactive: number };
   caveats: string[];
 }
 

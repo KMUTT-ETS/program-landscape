@@ -17,7 +17,6 @@ interface Props {
   initialFilters: {
     facultyName: string[];
     sources: string[];
-    activeOnly: boolean;
     yearFrom?: number;
   };
 }
@@ -44,71 +43,50 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
   const router = useRouter();
   const [faculty, setFaculty] = React.useState<string[]>(initialFilters.facultyName);
   const [sources, setSources] = React.useState<string[]>(initialFilters.sources);
-  const [activeOnly, setActiveOnly] = React.useState<boolean>(initialFilters.activeOnly);
   const [yearFrom, setYearFrom] = React.useState<number | undefined>(initialFilters.yearFrom);
 
   const apply = (next: Partial<typeof initialFilters>) => {
     const params = new URLSearchParams();
     (next.facultyName ?? faculty).forEach((v) => params.append('facultyName', v));
     (next.sources ?? sources).forEach((v) => params.append('sources', v));
-    const ao = next.activeOnly ?? activeOnly;
-    if (ao) params.set('activeOnly', 'true');
     const yf = next.yearFrom ?? yearFrom;
     if (yf) params.set('yearFrom', String(yf));
     router.push(`/staff/publications${params.toString() ? `?${params}` : ''}`);
   };
 
-  // Drill rows: Faculty → Department → Author
-  const facultyDeptAuthor = React.useMemo(() => {
-    const facMap = new Map<string, Map<string, PublicationsAuthor[]>>();
+  // Drill rows: Faculty → Author. Department removed by design — this
+  // application is a current-portfolio tool and the existing /staff/research
+  // view also uses Faculty → Author, so we stay aligned.
+  const facultyAuthor = React.useMemo(() => {
+    const facMap = new Map<string, PublicationsAuthor[]>();
     for (const a of data.perAuthor) {
       const fname = a.facultyName ?? '(unmapped)';
-      const dname = a.departmentName ?? '(no department)';
-      const facDepts = facMap.get(fname) ?? new Map<string, PublicationsAuthor[]>();
-      const list = facDepts.get(dname) ?? [];
+      const list = facMap.get(fname) ?? [];
       list.push(a);
-      facDepts.set(dname, list);
-      facMap.set(fname, facDepts);
+      facMap.set(fname, list);
     }
-    const rows: DrillRow[] = [...facMap.entries()].map(([fname, depts]) => {
-      const allAuthors = [...depts.values()].flat();
-      const totalPapers = allAuthors.reduce((a, b) => a + b.papers, 0);
-      const totalCites = allAuthors.reduce((a, b) => a + b.citations, 0);
-      const maxH = allAuthors.reduce((a, b) => Math.max(a, b.hIndex), 0);
+    const rows: DrillRow[] = [...facMap.entries()].map(([fname, authors]) => {
+      const totalPapers = authors.reduce((a, b) => a + b.papers, 0);
+      const totalCites = authors.reduce((a, b) => a + b.citations, 0);
+      const maxH = authors.reduce((a, b) => Math.max(a, b.hIndex), 0);
       return {
         label: fname,
         metrics: {
-          authors: allAuthors.length,
+          authors: authors.length,
           papers: totalPapers,
           citations: totalCites,
           hIndex: maxH,
         },
-        children: [...depts.entries()]
-          .sort((a, b) => {
-            const aP = a[1].reduce((s, x) => s + x.papers, 0);
-            const bP = b[1].reduce((s, x) => s + x.papers, 0);
-            return bP - aP;
-          })
-          .map(([dname, authors]) => ({
-            label: dname,
+        children: authors
+          .sort((a, b) => b.papers - a.papers)
+          .map((a) => ({
+            label: authorDisplay(a),
             metrics: {
-              authors: authors.length,
-              papers: authors.reduce((a, b) => a + b.papers, 0),
-              citations: authors.reduce((a, b) => a + b.citations, 0),
-              hIndex: authors.reduce((a, b) => Math.max(a, b.hIndex), 0),
+              authors: 1,
+              papers: a.papers,
+              citations: a.citations,
+              hIndex: a.hIndex,
             },
-            children: authors
-              .sort((a, b) => b.papers - a.papers)
-              .map((a) => ({
-                label: `${authorDisplay(a)} ${a.isActive ? '' : '· inactive'}`,
-                emphasis: a.isActive ? undefined : ('muted' as const),
-                metrics: {
-                  authors: 1,
-                  papers: a.papers,
-                  citations: a.citations,
-                  hIndex: a.hIndex,
-                },
-              })),
           })),
       };
     });
@@ -155,17 +133,6 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
             }}
           />
           <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-            <input
-              type="checkbox"
-              checked={activeOnly}
-              onChange={(e) => {
-                setActiveOnly(e.target.checked);
-                apply({ activeOnly: e.target.checked });
-              }}
-            />
-            Active staff only
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
             From year:
             <input
               type="number"
@@ -180,13 +147,12 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
               }}
             />
           </label>
-          {(faculty.length > 0 || sources.length > 0 || activeOnly || yearFrom) && (
+          {(faculty.length > 0 || sources.length > 0 || yearFrom) && (
             <button
               className="rounded border border-border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
               onClick={() => {
                 setFaculty([]);
                 setSources([]);
-                setActiveOnly(false);
                 setYearFrom(undefined);
                 router.push('/staff/publications');
               }}
@@ -195,7 +161,7 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
             </button>
           )}
           <span className="ml-auto text-xs text-text-tertiary">
-            Window {data.yearFrom}–{data.yearTo} · {data.totalStaff.toLocaleString('en-US')} staff (
+            Active staff only · window {data.yearFrom}–{data.yearTo} · {data.totalStaff.toLocaleString('en-US')} staff (
             {data.publishingStaff.toLocaleString('en-US')} publishing)
           </span>
         </div>
@@ -203,13 +169,13 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Papers" value={data.totalPapers.toLocaleString('en-US')} sub={`${pct(data.publishingStaff, data.totalStaff)} of staff publishing`} />
+        <Kpi label="Papers" value={data.totalPapers.toLocaleString('en-US')} sub={`${pct(data.publishingStaff, data.totalStaff)} of active staff publishing`} />
         <Kpi label="Citations (Scopus)" value={data.totalCitations.toLocaleString('en-US')} sub="PubMed citations not in mirror" />
-        <Kpi label="Distinct authors" value={data.publishingStaff.toLocaleString('en-US')} />
+        <Kpi label="Active staff" value={data.totalStaff.toLocaleString('en-US')} sub={`${data.publishingStaff.toLocaleString('en-US')} have published`} />
         <Kpi
-          label="Active vs inactive"
-          value={`${data.activeStaffSplit.active.toLocaleString('en-US')} / ${data.activeStaffSplit.inactive.toLocaleString('en-US')}`}
-          sub="published in last 2 years"
+          label="Avg papers per publishing author"
+          value={data.publishingStaff > 0 ? (data.totalPapers / data.publishingStaff).toFixed(1) : '—'}
+          sub={`window ${data.yearFrom}–${data.yearTo}`}
         />
       </div>
 
@@ -302,7 +268,7 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Top 30 authors by paper count</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Active = paper in last 2 years. h-index computed across the {data.yearFrom}–{data.yearTo} window only.
+          Active employees only. h-index computed across the {data.yearFrom}–{data.yearTo} window only.
         </p>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs">
@@ -310,12 +276,11 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
               <tr className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">
                 <th className="px-2 py-1 text-left font-medium">#</th>
                 <th className="px-2 py-1 text-left font-medium">Author</th>
-                <th className="px-2 py-1 text-left font-medium">Faculty / Department</th>
+                <th className="px-2 py-1 text-left font-medium">Faculty</th>
                 <th className="px-2 py-1 text-right font-medium">Papers</th>
                 <th className="px-2 py-1 text-right font-medium">Citations</th>
                 <th className="px-2 py-1 text-right font-medium">h-index</th>
                 <th className="px-2 py-1 text-left font-medium">Source</th>
-                <th className="px-2 py-1 text-left font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -323,20 +288,12 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
                 <tr key={a.fmId} className="border-t border-border-subtle">
                   <td className="px-2 py-1 text-text-tertiary">{i + 1}</td>
                   <td className="px-2 py-1">{authorDisplay(a)}</td>
-                  <td className="px-2 py-1 text-text-secondary">
-                    {a.facultyName ?? '—'}
-                    {a.departmentName ? <span className="text-text-tertiary"> · {a.departmentName}</span> : null}
-                  </td>
+                  <td className="px-2 py-1 text-text-secondary">{a.facultyName ?? '—'}</td>
                   <td className="px-2 py-1 text-right font-tabular font-semibold">{a.papers.toLocaleString('en-US')}</td>
                   <td className="px-2 py-1 text-right font-tabular">{a.citations.toLocaleString('en-US')}</td>
                   <td className="px-2 py-1 text-right font-tabular">{a.hIndex}</td>
                   <td className="px-2 py-1 text-text-tertiary">
                     {a.employeeSource === 'kku-hr' ? 'HR' : a.employeeSource === 'kku-publications' ? 'Publications' : '—'}
-                  </td>
-                  <td className="px-2 py-1">
-                    <span className={a.isActive ? 'text-success' : 'text-text-tertiary'}>
-                      {a.isActive ? 'active' : 'inactive'}
-                    </span>
                   </td>
                 </tr>
               ))}
@@ -370,17 +327,17 @@ export function PublicationsClient({ data, options, initialFilters }: Props) {
         </div>
       </Card>
 
-      {/* Drill-down: Faculty → Department → Author */}
+      {/* Drill-down: Faculty → Author */}
       <Card>
-        <h3 className="text-sm font-semibold">Faculty → Department → Author drill-down</h3>
+        <h3 className="text-sm font-semibold">Faculty → Author drill-down</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Click a row to expand. Author rows tagged with "inactive" haven't published in the last 2 years.
+          Click a faculty row to expand to its authors. Click any column header to sort.
         </p>
         <div className="mt-3">
           <DrillDownPivot
-            rowHeaderLabel="Faculty / Department / Author"
-            maxDepth={3}
-            rows={facultyDeptAuthor}
+            rowHeaderLabel="Faculty / Author"
+            maxDepth={2}
+            rows={facultyAuthor}
             columns={[
               { key: 'authors', label: 'Authors', format: 'int' },
               { key: 'papers', label: 'Papers', format: 'int' },
