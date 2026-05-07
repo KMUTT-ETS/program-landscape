@@ -81,7 +81,14 @@ async function fetchToken(): Promise<string> {
   const clientId = envOrThrow('KKU_API_CLIENT_ID');
   const clientSecret = envOrThrow('KKU_API_CLIENT_SECRET');
 
-  const url = `${base.replace(/\/$/, '')}/v3/token`;
+  // Token path (v3): defaults to /v3/auth/token (verified by probe
+  // 2026-05-07: GET /v3/token → 404 'Cannot POST:/token'; the
+  // discoverable variant is /v3/auth/token, which returns 422 with
+  // field-validation errors when called without a body — the standard
+  // Adonis.js validation shape that KKU's API uses). Override via
+  // KKU_API_TOKEN_PATH if KKU IT confirms a different path.
+  const tokenPath = process.env.KKU_API_TOKEN_PATH ?? '/v3/auth/token';
+  const url = `${base.replace(/\/$/, '')}${tokenPath}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -118,7 +125,12 @@ export async function findEmployeeByEmail(email: string): Promise<KkuEmployee | 
   const base = envOrThrow('KKU_API_BASE_URL');
   const token = await fetchToken();
 
-  const url = `${base.replace(/\/$/, '')}/v3/employee-by-email?email=${encodeURIComponent(email)}`;
+  // Employee lookup path: /v3/employee-by-email is the documented shape
+  // per the KKU API spec we have. Override via KKU_API_EMPLOYEE_PATH if
+  // KKU IT publishes a different route. The path is appended with
+  // ?email=<urlencoded>.
+  const employeePath = process.env.KKU_API_EMPLOYEE_PATH ?? '/v3/employee-by-email';
+  const url = `${base.replace(/\/$/, '')}${employeePath}?email=${encodeURIComponent(email)}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
