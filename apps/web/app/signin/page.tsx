@@ -134,38 +134,39 @@ export default async function SignInPage() {
         className="relative hidden md:flex overflow-hidden"
         aria-label="Live news feed"
       >
-        {/* Layered radial blooms in the warm accent palette. */}
+        {/* Sunset gradient — KKU cardinal red bottom-left to warm orange
+            top-right. All stops sit in the 44-62% lightness band so white
+            text reads cleanly across the full pane. The previous version
+            used --color-glossy-tint (96% L) at the end stop which washed
+            the right edge to near-white and made the news invisible. */}
         <div
           aria-hidden
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(135deg, oklch(var(--color-accent-default) / 0.95) 0%, oklch(var(--color-accent-hover) / 0.85) 35%, oklch(var(--color-glossy-tint) / 0.95) 100%)',
+              'linear-gradient(135deg, oklch(var(--color-accent-active)) 0%, oklch(var(--color-accent-default)) 45%, oklch(var(--color-brand-cardinal)) 100%)',
           }}
         />
+        {/* Subtle warm bloom in the upper-right — keeps the gradient from
+            looking flat without lightening it enough to break contrast. */}
         <div
           aria-hidden
-          className="absolute -top-32 -right-24 h-[640px] w-[640px] rounded-full blur-[120px] opacity-70"
-          style={{ background: 'oklch(98% 0.04 70 / 0.85)' }}
+          className="absolute -top-32 -right-24 h-[640px] w-[640px] rounded-full blur-[120px] opacity-50"
+          style={{ background: 'oklch(var(--color-warning-default))' }}
         />
         <div
           aria-hidden
-          className="absolute top-1/3 -left-32 h-[520px] w-[520px] rounded-full blur-[140px] opacity-50"
-          style={{ background: 'oklch(78% 0.18 50 / 0.85)' }}
-        />
-        <div
-          aria-hidden
-          className="absolute -bottom-32 right-1/4 h-[480px] w-[480px] rounded-full blur-[120px] opacity-60"
-          style={{ background: 'oklch(60% 0.14 35 / 0.65)' }}
+          className="absolute -bottom-32 right-1/4 h-[480px] w-[480px] rounded-full blur-[120px] opacity-40"
+          style={{ background: 'oklch(var(--color-brand-cardinal))' }}
         />
 
         {/* Faint dot grid — same BCG-matrix texture from inside the app. */}
         <div
           aria-hidden
-          className="absolute inset-0 opacity-25"
+          className="absolute inset-0 opacity-15"
           style={{
             backgroundImage:
-              'radial-gradient(circle at 1px 1px, oklch(99% 0 0 / 0.55) 1.2px, transparent 1.2px)',
+              'radial-gradient(circle at 1px 1px, oklch(99% 0 0 / 0.4) 1.2px, transparent 1.2px)',
             backgroundSize: '28px 28px',
           }}
         />
