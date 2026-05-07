@@ -1,0 +1,540 @@
+{
+  "capturedAt": "2026-05-07T06:21:35.094Z",
+  "scopusKkuAffiliations": [
+    {
+      "affiliation_id": "109688793",
+      "name": "123/979 Department of Pediatrics",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "129144104",
+      "name": "26684Khon Kaen University",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114979826",
+      "name": "3Future Institute for Sport Sciences",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "105426871",
+      "name": "Academic and Research Services Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "108250596",
+      "name": "Academic Office for Pharmaceutical Sciences",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114466411",
+      "name": "Advanced Smart Computing Laboratory",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "111905081",
+      "name": "Agricultural Biotechnology Research Center for Sustainable Economy",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113453882",
+      "name": "Agricultural Machinery and Postharvest Technology Center",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888170",
+      "name": "Applied Taxonomic Research Center",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "125125512",
+      "name": "At Khon Kaen University",
+      "city": "Chicago",
+      "country": "United States"
+    },
+    {
+      "affiliation_id": "115422634",
+      "name": "Biofilm Research Group",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "107041386",
+      "name": "Biomedical Science Program",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113750685",
+      "name": "Blood Bank Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888132",
+      "name": "Cancer Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113419576",
+      "name": "Cancer Unit",
+      "city": "Tokyo",
+      "country": "Japan"
+    },
+    {
+      "affiliation_id": "113996757",
+      "name": "Cancer Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888168",
+      "name": "Cancer Unit and Department of Otolaryngology",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888164",
+      "name": "Cardiology Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103681399",
+      "name": "Cardiovascular Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114546234",
+      "name": "Cellular and Molecular Immunology Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114748132",
+      "name": "Center for Asia-Pacific Tourism Research",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888140",
+      "name": "Center for Research and Development of Herbal Health Products",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "105678849",
+      "name": "Center for Research on Plurality in the Mekong Region",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113842871",
+      "name": "Center of Cleft lip-Cleft Palate and Craniofacial Deformities",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "112069569",
+      "name": "Center of Excellence for Environmental and Hazardous Waste Management",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113413053",
+      "name": "Center of Excellence on Agricultural Biotechnology (AG-BIO/PERDO-CHE)",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113804464",
+      "name": "Center of Excellence on Hazardous Substance Management (HSM)",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114068985",
+      "name": "Center of Geoinformatics for the Development of Northeast Thailand",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113343771",
+      "name": "Centers for Alternative Energy Research and Development (AERD)",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888171",
+      "name": "Central Research Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "104325081",
+      "name": "Central Research Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888120",
+      "name": "Centre for Research and Development of Medical Diagnostic Laboratories",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "110428881",
+      "name": "Centre for Research and Training on Gender and Women's Health",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114174463",
+      "name": "Chemical Kinetics and Applied Catalysis Laboratory (CKCL)",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888195",
+      "name": "Cholangiocarcinoma Research Center",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "114970216",
+      "name": "Cholangiocarcinoma Screening and Care Program (CASCAP)",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113728481",
+      "name": "Chronic Inflammatory and Systemic Diseases Associated with Oral Health Research Group",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888188",
+      "name": "Chumpae Hospital",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "132760079",
+      "name": "Chum-Phae hospital Khon Kaen",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888153",
+      "name": "Clinical Epidemiology Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888182",
+      "name": "Clinical Immunology Department",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113786147",
+      "name": "Clinical Microbiology Laboratory",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888148",
+      "name": "Clinical Microbiology Unit",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888189",
+      "name": "Clinical Pharmacy Department",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "123991499",
+      "name": "College Local Administration Khon Kaen",
+      "city": null,
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "106928156",
+      "name": "College of Dentistry",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "110317301",
+      "name": "College of Graduate Study in Management",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113608758",
+      "name": "College of Local Administration",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "113701693",
+      "name": "College of Pharmacotherapy",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    },
+    {
+      "affiliation_id": "103888202",
+      "name": "Community Medicine",
+      "city": "Khon Kaen",
+      "country": "Thailand"
+    }
+  ],
+  "peopleCount": 5459,
+  "peopleByUniversity": [
+    {
+      "universityId": 1,
+      "count": 5440
+    },
+    {
+      "universityId": null,
+      "count": 19
+    }
+  ],
+  "distinctFaculties": 36,
+  "distinctDepartments": 213,
+  "students": 65536,
+  "cachedAuthorshipTotals": {
+    "scopus": 55675,
+    "pubmed": 60066,
+    "isi": 39277,
+    "tci": 4642
+  },
+  "scopusDistinctPapers": 18900,
+  "pubmedDistinctPapers": 0,
+  "scopusYearlyAuthorships": [
+    {
+      "year": 2026,
+      "count": 928
+    },
+    {
+      "year": 2025,
+      "count": 2621
+    },
+    {
+      "year": 2024,
+      "count": 2254
+    },
+    {
+      "year": 2023,
+      "count": 2785
+    },
+    {
+      "year": 2022,
+      "count": 4582
+    },
+    {
+      "year": 2021,
+      "count": 4529
+    },
+    {
+      "year": 2020,
+      "count": 3523
+    },
+    {
+      "year": 2019,
+      "count": 3161
+    },
+    {
+      "year": 2018,
+      "count": 3088
+    },
+    {
+      "year": 2017,
+      "count": 2607
+    },
+    {
+      "year": 2016,
+      "count": 1718
+    },
+    {
+      "year": 2015,
+      "count": 1662
+    },
+    {
+      "year": 2014,
+      "count": 2290
+    },
+    {
+      "year": 2013,
+      "count": 1870
+    },
+    {
+      "year": 2012,
+      "count": 2027
+    },
+    {
+      "year": 2011,
+      "count": 1240
+    },
+    {
+      "year": 2010,
+      "count": 1026
+    },
+    {
+      "year": 2009,
+      "count": 937
+    },
+    {
+      "year": 2008,
+      "count": 828
+    },
+    {
+      "year": 2007,
+      "count": 773
+    }
+  ],
+  "topFacultiesByScopusOutput": [
+    {
+      "facultyId": 5,
+      "count": 4853
+    },
+    {
+      "facultyId": 12,
+      "count": 3829
+    },
+    {
+      "facultyId": 14,
+      "count": 1995
+    },
+    {
+      "facultyId": 1,
+      "count": 1288
+    },
+    {
+      "facultyId": 4,
+      "count": 901
+    },
+    {
+      "facultyId": 3,
+      "count": 749
+    },
+    {
+      "facultyId": 20,
+      "count": 600
+    },
+    {
+      "facultyId": 2,
+      "count": 546
+    },
+    {
+      "facultyId": 16,
+      "count": 503
+    },
+    {
+      "facultyId": 35,
+      "count": 431
+    },
+    {
+      "facultyId": 19,
+      "count": 404
+    },
+    {
+      "facultyId": 37,
+      "count": 386
+    },
+    {
+      "facultyId": 33,
+      "count": 354
+    },
+    {
+      "facultyId": 6,
+      "count": 323
+    },
+    {
+      "facultyId": 10,
+      "count": 308
+    }
+  ],
+  "scopusWorkflowStates": [
+    {
+      "state": "terminated",
+      "count": 6
+    },
+    {
+      "state": "duplicated",
+      "count": 56
+    },
+    {
+      "state": "enabled",
+      "count": 158846
+    }
+  ],
+  "lastUpdatedPerSource": [
+    {
+      "source": "scopus",
+      "latest": "2026-05-03 19:29:40.289832",
+      "rows": 158908
+    },
+    {
+      "source": "pubmed",
+      "latest": "2026-05-05 18:07:47.693733",
+      "rows": 921403
+    },
+    {
+      "source": "isi",
+      "latest": "2022-02-03 17:40:30.404098",
+      "rows": 274233
+    },
+    {
+      "source": "tci",
+      "latest": "2019-01-07 18:18:47.310662",
+      "rows": 49131
+    }
+  ],
+  "scopusDocumentIdDensity": {
+    "total": 158908,
+    "withDoi": 110746,
+    "withEid": 158908
+  },
+  "peopleResolution": {
+    "total": 5459,
+    "withFaculty": 5412,
+    "withDept": 3993,
+    "withPid": 650
+  },
+  "peoplePidLengthDistribution": [
+    {
+      "length": 12,
+      "count": 66
+    },
+    {
+      "length": 13,
+      "count": 6
+    },
+    {
+      "length": 6,
+      "count": 52
+    },
+    {
+      "length": 24,
+      "count": 5
+    },
+    {
+      "length": 15,
+      "count": 5
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "capturedAt": "2026-05-07T06:22:50.799Z",
+  "tables": [
+    {
+      "table_name": "api_keys"
+    },
+    {
+      "table_name": "compare_departments"
+    },
+    {
+      "table_name": "compare_department_values"
+    },
+    {
+      "table_name": "compare_faculties"
+    },
+    {
+      "table_name": "compare_faculty_values"
+    },
+    {
+      "table_name": "compare_groups"
+    },
+    {
+      "table_name": "countries"
+    },
+    {
+      "table_name": "delayed_jobs"
+    },
+    {
+      "table_name": "departments"
+    },
+    {
+      "table_name": "department_uniques"
+    },
+    {
+      "table_name": "education_levels"
+    },
+    {
+      "table_name": "faculties"
+    },
+    {
+      "table_name": "faculty_uniques"
+    },
+    {
+      "table_name": "generations"
+    },
+    {
+      "table_name": "generation_types"
+    },
+    {
+      "table_name": "google_scholar_article_cited_bies"
+    },
+    {
+      "table_name": "google_scholar_articles"
+    },
+    {
+      "table_name": "google_scholar_interests"
+    },
+    {
+      "table_name": "google_scholar_profiles"
+    },
+    {
+      "table_name": "gsmis_theses"
+    },
+    {
+      "table_name": "impact_factors"
+    },
+    {
+      "table_name": "ipmos"
+    },
+    {
+      "table_name": "isi_authors"
+    },
+    {
+      "table_name": "isi_citation_per_years"
+    },
+    {
+      "table_name": "isi_documents"
+    },
+    {
+      "table_name": "isi_document_with_authors"
+    },
+    {
+      "table_name": "isi_excels"
+    },
+    {
+      "table_name": "keyword_name_departments"
+    },
+    {
+      "table_name": "keyword_name_faculties"
+    },
+    {
+      "table_name": "keyword_name_people"
+    },
+    {
+      "table_name": "keyword_names"
+    },
+    {
+      "table_name": "keyword_name_scopus_documents"
+    },
+    {
+      "table_name": "keyword_name_universities"
+    },
+    {
+      "table_name": "keyword_name_years"
+    },
+    {
+      "table_name": "keyword_reports"
+    },
+    {
+      "table_name": "keywords"
+    },
+    {
+      "table_name": "levels"
+    },
+    {
+      "table_name": "notifications"
+    },
+    {
+      "table_name": "nriis_authors"
+    },
+    {
+      "table_name": "nriis_documents"
+    },
+    {
+      "table_name": "nriis_scholarships"
+    },
+    {
+      "table_name": "nriis_types"
+    },
+    {
+      "table_name": "people"
+    },
+    {
+      "table_name": "person_document_counts"
+    },
+    {
+      "table_name": "person_education_levels"
+    },
+    {
+      "table_name": "person_experts"
+    },
+    {
+      "table_name": "person_quartile_years"
+    },
+    {
+      "table_name": "person_uniques"
+    },
+    {
+      "table_name": "person_variants"
+    },
+    {
+      "table_name": "person_years"
+    },
+    {
+      "table_name": "pubmed_authors"
+    },
+    {
+      "table_name": "pubmed_citedbies"
+    },
+    {
+      "table_name": "pubmed_documents"
+    },
+    {
+      "table_name": "qs_world_ranking_names"
+    },
+    {
+      "table_name": "qs_world_rankings"
+    },
+    {
+      "table_name": "running_numbers"
+    },
+    {
+      "table_name": "schema_migrations"
+    },
+    {
+      "table_name": "scopus_affiliation_departments"
+    },
+    {
+      "table_name": "scopus_affiliation_documents"
+    },
+    {
+      "table_name": "scopus_affiliation_faculties"
+    },
+    {
+      "table_name": "scopus_affiliations"
+    },
+    {
+      "table_name": "scopus_affiliation_universities"
+    },
+    {
+      "table_name": "scopus_author_affiliations"
+    },
+    {
+      "table_name": "scopus_author_asjcs"
+    },
+    {
+      "table_name": "scopus_author_documents"
+    },
+    {
+      "table_name": "scopus_author_people"
+    },
+    {
+      "table_name": "scopus_authors"
+    },
+    {
+      "table_name": "scopus_author_students"
+    },
+    {
+      "table_name": "scopus_citation_counts"
+    },
+    {
+      "table_name": "scopus_citation_per_years"
+    },
+    {
+      "table_name": "scopus_citation_years"
+    },
+    {
+      "table_name": "scopus_citedbies"
+    },
+    {
+      "table_name": "scopus_citescores"
+    },
+    {
+      "table_name": "scopus_correspondence_documents"
+    },
+    {
+      "table_name": "scopus_document_department_counts"
+    },
+    {
+      "table_name": "scopus_document_faculty_counts"
+    },
+    {
+      "table_name": "scopus_document_person_counts"
+    },
+    {
+      "table_name": "scopus_documents"
+    },
+    {
+      "table_name": "scopus_document_university_counts"
+    },
+    {
+      "table_name": "scopus_document_with_authors"
+    },
+    {
+      "table_name": "scopus_excels"
+    },
+    {
+      "table_name": "scopus_journal_ipps"
+    },
+    {
+      "table_name": "scopus_journals"
+    },
+    {
+      "table_name": "scopus_journal_sjrs"
+    },
+    {
+      "table_name": "scopus_journal_snips"
+    },
+    {
+      "table_name": "scopus_journal_yearly_infos"
+    },
+    {
+      "table_name": "students"
+    },
+    {
+      "table_name": "student_variants"
+    },
+    {
+      "table_name": "tci_authors"
+    },
+    {
+      "table_name": "tci_documents"
+    },
+    {
+      "table_name": "tci_kmutt_authors"
+    },
+    {
+      "table_name": "tci_kmutt_documents"
+    },
+    {
+      "table_name": "ticket_attachments"
+    },
+    {
+      "table_name": "ticket_comment_attachments"
+    },
+    {
+      "table_name": "ticket_comments"
+    },
+    {
+      "table_name": "tickets"
+    },
+    {
+      "table_name": "tickets_users"
+    },
+    {
+      "table_name": "universities"
+    },
+    {
+      "table_name": "university_uniques"
+    },
+    {
+      "table_name": "user_access_logs"
+    },
+    {
+      "table_name": "user_groups"
+    },
+    {
+      "table_name": "users"
+    },
+    {
+      "table_name": "vos_files"
+    },
+    {
+      "table_name": "workflow_state_logs"
+    }
+  ]
+}

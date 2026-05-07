@@ -1,0 +1,629 @@
+{
+  "capturedAt": "2026-05-07T06:15:51.529Z",
+  "tables": [
+    {
+      "table_schema": "public",
+      "table_name": "user_access_logs",
+      "table_type": "BASE TABLE",
+      "approx_rows": "12656424"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "pubmed_authors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "9181242"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "isi_authors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "6542347"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_author_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "2004725"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "pubmed_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "868494"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_citedbies",
+      "table_type": "BASE TABLE",
+      "approx_rows": "710643"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "isi_citation_per_years",
+      "table_type": "BASE TABLE",
+      "approx_rows": "687811"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_citescores",
+      "table_type": "BASE TABLE",
+      "approx_rows": "512652"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_name_scopus_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "403201"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_affiliation_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "369904"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "isi_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "274233"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_uniques",
+      "table_type": "BASE TABLE",
+      "approx_rows": "167681"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_names",
+      "table_type": "BASE TABLE",
+      "approx_rows": "159919"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "158012"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_name_people",
+      "table_type": "BASE TABLE",
+      "approx_rows": "134409"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tci_authors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "108413"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "student_variants",
+      "table_type": "BASE TABLE",
+      "approx_rows": "102774"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_citation_years",
+      "table_type": "BASE TABLE",
+      "approx_rows": "100808"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_citation_counts",
+      "table_type": "BASE TABLE",
+      "approx_rows": "97439"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_name_departments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "73885"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_years",
+      "table_type": "BASE TABLE",
+      "approx_rows": "62481"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_authors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "62023"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "students",
+      "table_type": "BASE TABLE",
+      "approx_rows": "60865"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_name_faculties",
+      "table_type": "BASE TABLE",
+      "approx_rows": "56910"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tci_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "49131"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_name_universities",
+      "table_type": "BASE TABLE",
+      "approx_rows": "40060"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_quartile_years",
+      "table_type": "BASE TABLE",
+      "approx_rows": "29129"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_affiliations",
+      "table_type": "BASE TABLE",
+      "approx_rows": "24147"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "gsmis_theses",
+      "table_type": "BASE TABLE",
+      "approx_rows": "23168"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_author_affiliations",
+      "table_type": "BASE TABLE",
+      "approx_rows": "21943"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "workflow_state_logs",
+      "table_type": "BASE TABLE",
+      "approx_rows": "14759"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "google_scholar_article_cited_bies",
+      "table_type": "BASE TABLE",
+      "approx_rows": "13245"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "google_scholar_articles",
+      "table_type": "BASE TABLE",
+      "approx_rows": "13245"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "isi_excels",
+      "table_type": "BASE TABLE",
+      "approx_rows": "9460"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "department_uniques",
+      "table_type": "BASE TABLE",
+      "approx_rows": "9269"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_variants",
+      "table_type": "BASE TABLE",
+      "approx_rows": "9249"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_journals",
+      "table_type": "BASE TABLE",
+      "approx_rows": "9190"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "impact_factors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "8659"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "pubmed_citedbies",
+      "table_type": "BASE TABLE",
+      "approx_rows": "7644"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keywords",
+      "table_type": "BASE TABLE",
+      "approx_rows": "5796"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "people",
+      "table_type": "BASE TABLE",
+      "approx_rows": "5459"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_author_students",
+      "table_type": "BASE TABLE",
+      "approx_rows": "4236"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "nriis_authors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "3213"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_author_people",
+      "table_type": "BASE TABLE",
+      "approx_rows": "3111"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "qs_world_rankings",
+      "table_type": "BASE TABLE",
+      "approx_rows": "3002"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "qs_world_ranking_names",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1946"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_correspondence_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1862"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "google_scholar_interests",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1171"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "faculty_uniques",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1147"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "nriis_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1107"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compare_department_values",
+      "table_type": "BASE TABLE",
+      "approx_rows": "999"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "table_type": "BASE TABLE",
+      "approx_rows": "896"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "google_scholar_profiles",
+      "table_type": "BASE TABLE",
+      "approx_rows": "563"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tci_kmutt_authors",
+      "table_type": "BASE TABLE",
+      "approx_rows": "343"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "departments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "299"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "countries",
+      "table_type": "BASE TABLE",
+      "approx_rows": "264"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tci_kmutt_documents",
+      "table_type": "BASE TABLE",
+      "approx_rows": "129"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_experts",
+      "table_type": "BASE TABLE",
+      "approx_rows": "105"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_education_levels",
+      "table_type": "BASE TABLE",
+      "approx_rows": "102"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "schema_migrations",
+      "table_type": "BASE TABLE",
+      "approx_rows": "96"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compare_departments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "66"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compare_faculty_values",
+      "table_type": "BASE TABLE",
+      "approx_rows": "44"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "faculties",
+      "table_type": "BASE TABLE",
+      "approx_rows": "37"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_journal_yearly_infos",
+      "table_type": "BASE TABLE",
+      "approx_rows": "21"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_journal_ipps",
+      "table_type": "BASE TABLE",
+      "approx_rows": "17"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_journal_sjrs",
+      "table_type": "BASE TABLE",
+      "approx_rows": "17"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_journal_snips",
+      "table_type": "BASE TABLE",
+      "approx_rows": "17"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "api_keys",
+      "table_type": "BASE TABLE",
+      "approx_rows": "15"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "vos_files",
+      "table_type": "BASE TABLE",
+      "approx_rows": "9"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compare_faculties",
+      "table_type": "BASE TABLE",
+      "approx_rows": "3"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "ticket_comments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "3"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "ticket_attachments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "2"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tickets",
+      "table_type": "BASE TABLE",
+      "approx_rows": "2"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tickets_users",
+      "table_type": "BASE TABLE",
+      "approx_rows": "2"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compare_groups",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "running_numbers",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "ticket_comment_attachments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "universities",
+      "table_type": "BASE TABLE",
+      "approx_rows": "1"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "delayed_jobs",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "education_levels",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "generations",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "generation_types",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "ipmos",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "isi_document_with_authors",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_name_years",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "keyword_reports",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "levels",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "notifications",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "nriis_scholarships",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "nriis_types",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "person_document_counts",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_affiliation_departments",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_affiliation_faculties",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_affiliation_universities",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_author_asjcs",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_citation_per_years",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_document_department_counts",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_document_faculty_counts",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_document_person_counts",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_document_university_counts",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_document_with_authors",
+      "table_type": "VIEW",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scopus_excels",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "university_uniques",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "user_groups",
+      "table_type": "BASE TABLE",
+      "approx_rows": "0"
+    }
+  ]
+}

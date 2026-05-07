@@ -68,7 +68,14 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'JSON',
     cadenceCron: '0 6 * * 0', // weekly on Sunday
     ownerContact: 'KKU Research & Graduate School',
-    notes: 'Publications, patents, grants. Real wiring crosswalks to Scopus + OpenAlex in prompt 14.',
+    // v2 (2026-05-07): pivoted from OpenAlex+Scopus public APIs to the
+    // internal kku-publications mirror at 10.130.2.151. The mirror is a
+    // curator-grade research data warehouse maintained by KKU Library —
+    // 5 sources (Scopus, PubMed, ISI/WoS, TCI, NRIIS) with KKU author
+    // resolution already done via people.id. v2 wires Scopus + PubMed;
+    // ISI + TCI are stale (last updated 2022 / 2019) and deferred.
+    notes:
+      'Publications via the internal kku-publications mirror (Scopus + PubMed authorships, KKU author resolution by person_id). ISI + TCI deferred — stale upstream.',
     mocked: true,
   },
   {
@@ -286,26 +293,33 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: true,
   },
   {
+    // SUPERSEDED 2026-05-07 — kku-research pivoted from public APIs
+    // (Scopus + OpenAlex) to the internal kku-publications mirror.
+    // Catalog row retained so historical IngestionRun rows don't orphan;
+    // schedule disabled in seed (DataSource.scheduleEnabled=false).
     slug: 'scopus',
-    name: 'Scopus',
+    name: 'Scopus (superseded)',
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 12 * * 0', // weekly Sunday
     ownerContact: 'KKU Library (existing subscription)',
     notes:
-      'Elsevier Scopus — research output with citation counts. Active via the kku-research connector (Q2 enrichment lane); set `KKU_SCOPUS_API_KEY` to enable.',
+      'SUPERSEDED — Scopus content is now sourced via the internal kku-publications mirror (10.130.2.151), which carries 18,900 distinct KKU papers with curator-grade author resolution. The Elsevier API pathway is no longer wired.',
     mocked: false,
+    deprecated: true,
   },
   {
+    // SUPERSEDED 2026-05-07 — see kku-research notes.
     slug: 'openalex',
-    name: 'OpenAlex',
+    name: 'OpenAlex (superseded)',
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 13 * * 0', // weekly Sunday
     ownerContact: 'KKU Data Office (public API, no agreement needed)',
     notes:
-      'Open scholarly metadata. Active via the kku-research connector (institution I179193067). Free polite-pool API; set `OPENALEX_MAILTO` for the higher rate tier.',
+      'SUPERSEDED — KKU publication metadata is now sourced via the internal kku-publications mirror, which adds PubMed coverage and replaces fuzzy name-matching with curator-grade person_id resolution.',
     mocked: false,
+    deprecated: true,
   },
   {
     slug: 'imd-rankings',

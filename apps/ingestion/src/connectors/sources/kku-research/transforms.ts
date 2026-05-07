@@ -1,226 +1,181 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Pure transforms for the kku-research connector. Side-effect-free; tests
-// run without a live network.
+// kku-research transforms — pure functions, used by both the connector and
+// the per-source unit tests.
+//
+// Source: kku-publications mirror (PostgreSQL @ 10.130.2.151). The mirror
+// is curator-grade — KKU author resolution is already done via
+// `<source>_authors.person_id → people.id`. Our connector just maps each
+// already-resolved authorship to a ResearchOutput row.
+//
+// We DO NOT do name-matching; that's the kku-publications upstream's job.
+// We DO match its `people.id` to our `FacultyMember.id` once per run via
+// nameEn + nameTh exact match, so cross-system FKs land cleanly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { z } from 'zod';
 import type { ResearchOutputType } from '@kku/db';
 
-// ── OpenAlex Work schema ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// Row shapes from kkuscholar (only fields we read; trimmed for clarity)
+// ─────────────────────────────────────────────────────────────────────
 
-export const OpenAlexAuthorshipSchema = z.object({
-  author: z
-    .object({
-      id: z.string().nullish(),
-      display_name: z.string().nullish(),
-      orcid: z.string().nullish(),
-    })
-    .nullish(),
-  institutions: z
-    .array(
-      z.object({
-        id: z.string().nullish(),
-        display_name: z.string().nullish(),
-      }),
-    )
-    .nullish(),
-});
+export interface KkuPubScopusRow {
+  // From scopus_documents
+  document_id: string;
+  eid: string;
+  title: string | null;
+  publication_name: string | null;
+  cover_date: Date | null;
+  cited_by_count: number | null;
+  doi: string | null;
+  aggregation_type: string | null;
+  // From scopus_author_documents
+  scopus_author_id: string | null;
+  person_id: number | null;
+  author_seq: number | null;
+  // From people (joined)
+  person_firstname_en: string | null;
+  person_lastname_en: string | null;
+  person_firstname: string | null;
+  person_lastname: string | null;
+  person_faculty_id: number | null;
+}
 
-export const OpenAlexWorkSchema = z.object({
-  id: z.string(),
-  doi: z.string().nullish(),
-  title: z.string().nullish(),
-  display_name: z.string().nullish(),
-  publication_year: z.number().int().nullish(),
-  type: z.string().nullish(),
-  cited_by_count: z.number().int().nullish(),
-  authorships: z.array(OpenAlexAuthorshipSchema).nullish(),
-  primary_location: z
-    .object({
-      source: z
-        .object({
-          display_name: z.string().nullish(),
-          type: z.string().nullish(),
-        })
-        .nullish(),
-    })
-    .nullish(),
-});
-export type OpenAlexWork = z.infer<typeof OpenAlexWorkSchema>;
+export interface KkuPubPubMedRow {
+  // From pubmed_documents
+  pubmed_document_id: number;
+  pmid: string;
+  title: string | null;
+  journal_title: string | null;
+  year: number;
+  doi: string | null;
+  // From pubmed_authors
+  person_id: number | null;
+  author_seq: number | null;
+  person_firstname_en: string | null;
+  person_lastname_en: string | null;
+  person_firstname: string | null;
+  person_lastname: string | null;
+  person_faculty_id: number | null;
+}
 
-export const OpenAlexWorksResponseSchema = z.object({
-  results: z.array(OpenAlexWorkSchema),
-  meta: z.object({
-    count: z.number().int().nonnegative(),
-    next_cursor: z.string().nullish(),
-  }),
-});
+// ─────────────────────────────────────────────────────────────────────
+// Faculty-member lookup (built once at fetch start, used in transform).
+// ─────────────────────────────────────────────────────────────────────
 
-// ── Type mapping (OpenAlex → our enum) ─────────────────────────────────────
-//
-// Our ResearchOutputType has 4 values: JOURNAL / CONFERENCE / PATENT /
-// BOOK. OpenAlex has ~25 type values; collapse to our enum and keep the
-// raw type in run metadata for analysts who care.
+export interface FacultyMemberLookup {
+  byNameEn: Map<string, string>; // lowercased "first last" → FacultyMember.id
+  byNameTh: Map<string, string>; // exact "first last" → FacultyMember.id
+}
 
-export function openAlexTypeToOurs(type: string | null | undefined): ResearchOutputType {
-  if (!type) return 'JOURNAL';
-  // OpenAlex shipped a controlled vocabulary in 2024; values may
-  // appear as bare strings (`article`, `book-chapter`) or as URLs
-  // (`https://openalex.org/types/article`). Normalise both.
-  const tail = type.includes('/') ? type.split('/').pop() ?? type : type;
-  switch (tail) {
-    case 'article':
-    case 'review':
-    case 'letter':
-    case 'editorial':
-    case 'erratum':
-    case 'preprint':
-      return 'JOURNAL';
-    case 'conference-paper':
-    case 'proceedings-article':
-      return 'CONFERENCE';
-    case 'book':
-    case 'book-chapter':
-    case 'reference-entry':
-    case 'monograph':
-      return 'BOOK';
-    default:
-      // Patents are rare in OpenAlex. Datasets / supplementary
-      // materials / grants land in JOURNAL bucket — analyst triages
-      // via run metadata if needed.
-      return 'JOURNAL';
+export interface FacultyMemberSnapshot {
+  id: string;
+  nameEn: string;
+  nameTh: string;
+}
+
+export function buildFacultyMemberLookup(
+  members: readonly FacultyMemberSnapshot[],
+): FacultyMemberLookup {
+  const byNameEn = new Map<string, string>();
+  const byNameTh = new Map<string, string>();
+  for (const m of members) {
+    const en = m.nameEn.trim().toLowerCase();
+    if (en && !byNameEn.has(en)) byNameEn.set(en, m.id);
+    const th = m.nameTh.trim();
+    if (th && !byNameTh.has(th)) byNameTh.set(th, m.id);
   }
+  return { byNameEn, byNameTh };
 }
 
-// ── ID extractors ──────────────────────────────────────────────────────────
-//
-// OpenAlex IDs come as full URLs; we store the bare identifier for
-// compactness. e.g. `https://openalex.org/W4231015464` → `W4231015464`.
+// ─────────────────────────────────────────────────────────────────────
+// Author resolution
+// ─────────────────────────────────────────────────────────────────────
 
-export function tailOf(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const trimmed = url.trim();
-  if (!trimmed) return null;
-  const idx = trimmed.lastIndexOf('/');
-  return idx === -1 ? trimmed : trimmed.slice(idx + 1);
+export type ResolutionMatch = 'name_en' | 'name_th' | 'unmatched';
+
+export interface AuthorResolution {
+  facultyMemberId: string | null;
+  matchedBy: ResolutionMatch;
+  authorDisplayName: string | null;
 }
+
+export function resolveAuthor(
+  parts: {
+    firstname_en: string | null;
+    lastname_en: string | null;
+    firstname: string | null;
+    lastname: string | null;
+  },
+  lookup: FacultyMemberLookup,
+): AuthorResolution {
+  const fnEn = (parts.firstname_en ?? '').trim();
+  const lnEn = (parts.lastname_en ?? '').trim();
+  const fnTh = (parts.firstname ?? '').trim();
+  const lnTh = (parts.lastname ?? '').trim();
+
+  const displayEn = (fnEn && lnEn) ? `${fnEn} ${lnEn}` : null;
+  const displayTh = (fnTh && lnTh) ? `${fnTh} ${lnTh}` : null;
+  const display = displayEn ?? displayTh;
+
+  if (displayEn) {
+    const id = lookup.byNameEn.get(displayEn.toLowerCase());
+    if (id) return { facultyMemberId: id, matchedBy: 'name_en', authorDisplayName: display };
+  }
+  if (displayTh) {
+    const id = lookup.byNameTh.get(displayTh);
+    if (id) return { facultyMemberId: id, matchedBy: 'name_th', authorDisplayName: display };
+  }
+  return { facultyMemberId: null, matchedBy: 'unmatched', authorDisplayName: display };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Type mapping — source aggregation type → ResearchOutputType
+// ─────────────────────────────────────────────────────────────────────
+
+// Scopus uses ~6 aggregation_type values; we collapse to our 4-value enum
+// (JOURNAL / CONFERENCE / PATENT / BOOK). When in doubt, fall back to
+// JOURNAL — it's the modal type and the safest "indexed publication"
+// catch-all for analyst review.
+export function scopusAggregationToOurs(
+  aggregationType: string | null,
+): ResearchOutputType {
+  const t = (aggregationType ?? '').toLowerCase();
+  if (t.includes('conference')) return 'CONFERENCE';
+  if (t.includes('book')) return 'BOOK';
+  // 'journal', 'trade journal', 'report', 'series' → JOURNAL fallback.
+  return 'JOURNAL';
+}
+
+// PubMed papers are journal-published by definition. publication_type can
+// further distinguish (Review, Letter, Editorial) but those are sub-types
+// of journal publications and ResearchOutputType doesn't model them.
+export function pubmedPublicationTypeToOurs(
+  _publicationType: string | null,
+): ResearchOutputType {
+  return 'JOURNAL';
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// DOI normalisation — same posture as the OpenAlex pathway. Strip the
+// https://doi.org/ prefix and lowercase. Empty → null.
+// ─────────────────────────────────────────────────────────────────────
 
 export function normaliseDoi(doi: string | null | undefined): string | null {
   if (!doi) return null;
   const trimmed = doi.trim();
   if (!trimmed) return null;
-  // OpenAlex returns DOIs as full URLs (`https://doi.org/10.…`); our
-  // schema field carries the bare DOI.
-  const lower = trimmed.toLowerCase();
-  if (lower.startsWith('https://doi.org/')) return trimmed.slice('https://doi.org/'.length);
-  if (lower.startsWith('http://doi.org/')) return trimmed.slice('http://doi.org/'.length);
-  if (lower.startsWith('doi:')) return trimmed.slice(4);
-  return trimmed;
+  return trimmed.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').toLowerCase();
 }
 
-export function normaliseOrcid(orcid: string | null | undefined): string | null {
-  if (!orcid) return null;
-  const trimmed = orcid.trim();
-  if (!trimmed) return null;
-  // OpenAlex returns ORCIDs as full URLs. Our column stores the bare
-  // 19-char identifier (e.g. `0000-0001-2345-6789`).
-  const lower = trimmed.toLowerCase();
-  if (lower.startsWith('https://orcid.org/')) return trimmed.slice('https://orcid.org/'.length);
-  if (lower.startsWith('http://orcid.org/')) return trimmed.slice('http://orcid.org/'.length);
-  return trimmed;
-}
+// ─────────────────────────────────────────────────────────────────────
+// Year extraction — Scopus papers carry cover_date (DATE); we want the
+// year only. Returns null when the date is missing — caller skips.
+// ─────────────────────────────────────────────────────────────────────
 
-// ── Author resolution helpers ──────────────────────────────────────────────
-//
-// Returns an authorship object filtered to KKU-affiliated authors only.
-// Multi-institution papers commonly list 30+ authors; we only care about
-// the 1-3 KKU authors per paper.
-
-export function kkuAffiliatedAuthors(
-  work: OpenAlexWork,
-  kkuInstitutionId: string,
-): Array<{
-  authorId: string | null;
-  displayName: string | null;
-  orcid: string | null;
-}> {
-  const out: Array<{ authorId: string | null; displayName: string | null; orcid: string | null }> = [];
-  for (const a of work.authorships ?? []) {
-    const isKku = (a.institutions ?? []).some(
-      (inst) => tailOf(inst.id) === kkuInstitutionId,
-    );
-    if (!isKku) continue;
-    out.push({
-      authorId: tailOf(a.author?.id),
-      displayName: a.author?.display_name?.trim() || null,
-      orcid: normaliseOrcid(a.author?.orcid),
-    });
-  }
-  return out;
-}
-
-// ── Faculty-member matching ────────────────────────────────────────────────
-//
-// Two-step lookup, using indexed columns on FacultyMember:
-//   1. ORCID exact match
-//   2. openalexAuthorId exact match (if previously stamped)
-//   3. nameEn exact match (case-insensitive)
-//   4. nameTh exact match
-// No fuzzy / Levenshtein — common Thai given names ("Somchai", "Suriya")
-// would mis-attribute. Exact match only; everything else queues for
-// human triage.
-
-export interface FacultyMemberLookup {
-  byOrcid: Map<string, string>; // orcid → facultyMemberId
-  byOpenalexAuthorId: Map<string, string>; // openalexAuthorId → facultyMemberId
-  byNameEn: Map<string, string>; // lowercase nameEn → facultyMemberId
-  byNameTh: Map<string, string>; // nameTh → facultyMemberId
-}
-
-export function buildFacultyMemberLookup(
-  rows: Array<{
-    id: string;
-    orcid: string | null;
-    openalexAuthorId: string | null;
-    nameEn: string;
-    nameTh: string;
-  }>,
-): FacultyMemberLookup {
-  const byOrcid = new Map<string, string>();
-  const byOpenalexAuthorId = new Map<string, string>();
-  const byNameEn = new Map<string, string>();
-  const byNameTh = new Map<string, string>();
-  for (const r of rows) {
-    if (r.orcid) byOrcid.set(r.orcid, r.id);
-    if (r.openalexAuthorId) byOpenalexAuthorId.set(r.openalexAuthorId, r.id);
-    const en = r.nameEn?.trim().toLowerCase();
-    if (en) byNameEn.set(en, r.id);
-    const th = r.nameTh?.trim();
-    if (th) byNameTh.set(th, r.id);
-  }
-  return { byOrcid, byOpenalexAuthorId, byNameEn, byNameTh };
-}
-
-export function resolveFacultyMember(
-  author: { authorId: string | null; displayName: string | null; orcid: string | null },
-  lookup: FacultyMemberLookup,
-): {
-  facultyMemberId: string | null;
-  matchedBy: 'orcid' | 'openalex_author_id' | 'name_en' | 'name_th' | 'unmatched';
-} {
-  if (author.orcid) {
-    const id = lookup.byOrcid.get(author.orcid);
-    if (id) return { facultyMemberId: id, matchedBy: 'orcid' };
-  }
-  if (author.authorId) {
-    const id = lookup.byOpenalexAuthorId.get(author.authorId);
-    if (id) return { facultyMemberId: id, matchedBy: 'openalex_author_id' };
-  }
-  if (author.displayName) {
-    const en = lookup.byNameEn.get(author.displayName.toLowerCase());
-    if (en) return { facultyMemberId: en, matchedBy: 'name_en' };
-    const th = lookup.byNameTh.get(author.displayName);
-    if (th) return { facultyMemberId: th, matchedBy: 'name_th' };
-  }
-  return { facultyMemberId: null, matchedBy: 'unmatched' };
+export function yearOf(date: Date | null): number | null {
+  if (!date) return null;
+  const y = date.getUTCFullYear();
+  // Sanity: KKU hasn't existed pre-1964; anything before 1900 is corrupt.
+  if (y < 1900 || y > 2100) return null;
+  return y;
 }

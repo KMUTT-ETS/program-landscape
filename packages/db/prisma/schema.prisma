@@ -1278,6 +1278,9 @@ model ResearchOutput {
   citations       Int                @default(0)
   scopusId        String?            @map("scopus_id")
   openalexId      String?            @map("openalex_id")
+  // PubMed ID — populated by the kku-research connector when sourcing
+  // medical / life-science papers from the kku-publications mirror.
+  pmid            String?            @map("pmid")
   doi             String?
   // The connector that wrote / last updated this row.
   source          String?
@@ -1296,6 +1299,7 @@ model ResearchOutput {
   @@index([year])
   @@index([scopusId])
   @@index([openalexId])
+  @@index([pmid])
   @@index([doi])
   @@map("research_outputs")
 }

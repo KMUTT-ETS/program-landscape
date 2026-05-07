@@ -1,0 +1,290 @@
+{
+  "capturedAt": "2026-05-07T06:18:50.245Z",
+  "schema": "public",
+  "table": "people",
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "ordinal_position": 1,
+      "column_default": "nextval('people_id_seq'::regclass)",
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "prefix",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 4,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "firstname",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 5,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "lastname",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 6,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "prefix_en",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 7,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "firstname_en",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 8,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "lastname_en",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 9,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "pid",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 10,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "university_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 11,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "faculty_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 12,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "department_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 13,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "image_file_name",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 14,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "image_content_type",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 15,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "image_file_size",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 16,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "image_updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 17,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 18,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 19,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 20,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 21,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "scopus_document_count_tmp",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 22,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "pubmed_document_count_tmp",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 23,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "isi_document_count_tmp",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 24,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "tci_document_count_tmp",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 25,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "user_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 26,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "scopus_country_text",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 27,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "pubmed_country_text",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 28,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "isi_country_text",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 29,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "tci_country_text",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 30,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "is_foreigner",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "ordinal_position": 31,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "email",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 32,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "date_of_birth",
+      "data_type": "date",
+      "is_nullable": "YES",
+      "ordinal_position": 33,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "date_of_job",
+      "data_type": "date",
+      "is_nullable": "YES",
+      "ordinal_position": 34,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "person_type",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 35,
+      "column_default": null,
+      "character_maximum_length": 255
+    }
+  ],
+  "piiColumns": [
+    "email"
+  ]
+}

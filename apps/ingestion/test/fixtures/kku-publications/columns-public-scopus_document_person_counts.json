@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-05-07T06:18:59.186Z",
+  "schema": "public",
+  "table": "scopus_document_person_counts",
+  "columns": [
+    {
+      "column_name": "person_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 1,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "year",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "document_count",
+      "data_type": "bigint",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    }
+  ],
+  "piiColumns": []
+}

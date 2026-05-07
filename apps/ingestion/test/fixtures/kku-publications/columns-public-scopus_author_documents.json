@@ -1,0 +1,160 @@
+{
+  "capturedAt": "2026-05-07T06:18:49.328Z",
+  "schema": "public",
+  "table": "scopus_author_documents",
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "ordinal_position": 1,
+      "column_default": "nextval('scopus_author_documents_id_seq'::regclass)",
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "author_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 4,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "document_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 5,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "seq",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 6,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 7,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 8,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 9,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 10,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "person_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 11,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "student_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 12,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "affiliation_name",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 13,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "affiliation_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 14,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "affiliation_id1",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 15,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "affiliation_id2",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 16,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "affiliation_id3",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 17,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "affiliation_id4",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 18,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "affiliation_id5",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 19,
+      "column_default": null,
+      "character_maximum_length": 255
+    }
+  ],
+  "piiColumns": []
+}

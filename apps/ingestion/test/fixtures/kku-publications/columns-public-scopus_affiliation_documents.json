@@ -1,0 +1,80 @@
+{
+  "capturedAt": "2026-05-07T06:18:47.445Z",
+  "schema": "public",
+  "table": "scopus_affiliation_documents",
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "ordinal_position": 1,
+      "column_default": "nextval('scopus_affiliation_documents_id_seq'::regclass)",
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "affiliation_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 4,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "document_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 5,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 6,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 7,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 8,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 9,
+      "column_default": null,
+      "character_maximum_length": null
+    }
+  ],
+  "piiColumns": []
+}

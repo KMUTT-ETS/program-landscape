@@ -1,0 +1,320 @@
+{
+  "capturedAt": "2026-05-07T06:18:45.537Z",
+  "schema": "public",
+  "table": "scopus_documents",
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "ordinal_position": 1,
+      "column_default": "nextval('scopus_documents_id_seq'::regclass)",
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "document_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 4,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "url",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 5,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "eid",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 6,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 7,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "publication_name",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 8,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "issue",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 9,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "volume",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 10,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "page_range",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 11,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "cover_date",
+      "data_type": "date",
+      "is_nullable": "YES",
+      "ordinal_position": 12,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "doi",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 13,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 14,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "cited_by_count",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 15,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "aggregation_type",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 16,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "sub_type",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 17,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "sub_type_description",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 18,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "keyword",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 19,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "initid",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 20,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "source_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 21,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 22,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 23,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 24,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 25,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "title_search",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 26,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "duplication_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 27,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "isbn",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 28,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "issn",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 29,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "report_author_names",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 30,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "university_ids",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 31,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "faculty_ids",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 32,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "department_ids",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 33,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "person_ids",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 34,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "author_names_with_link",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 35,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "countries_text",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 36,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "scopus_citescore_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 37,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "universities_text",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 38,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "affiliation_id",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 39,
+      "column_default": null,
+      "character_maximum_length": null
+    }
+  ],
+  "piiColumns": []
+}

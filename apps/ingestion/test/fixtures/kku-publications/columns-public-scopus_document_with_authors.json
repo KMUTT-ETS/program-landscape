@@ -1,0 +1,120 @@
+{
+  "capturedAt": "2026-05-07T06:18:58.312Z",
+  "schema": "public",
+  "table": "scopus_document_with_authors",
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 1,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "document_id",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "url",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 4,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "publication_name",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 5,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "issue",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 6,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "volume",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 7,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "page_range",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 8,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "cover_date",
+      "data_type": "date",
+      "is_nullable": "YES",
+      "ordinal_position": 9,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "year",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 10,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "title_search",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 11,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "author_names",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 12,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "author_names_with_link",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 13,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 14,
+      "column_default": null,
+      "character_maximum_length": 255
+    }
+  ],
+  "piiColumns": []
+}

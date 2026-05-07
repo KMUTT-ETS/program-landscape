@@ -1,0 +1,209 @@
+{
+  "capturedAt": "2026-05-07T06:23:08.265Z",
+  "pubmedAuthorsColumns": [
+    {
+      "column_name": "id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "pubmed_document_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "pmid",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "firstname",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "lastname",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "initials",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "affiliation",
+      "data_type": "text"
+    },
+    {
+      "column_name": "sorting",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "person_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "student_id",
+      "data_type": "integer"
+    }
+  ],
+  "isiAuthorsColumns": [
+    {
+      "column_name": "id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "isi_document_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "firstname",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "lastname",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "firstname_en",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "lastname_en",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "affiliation",
+      "data_type": "text"
+    },
+    {
+      "column_name": "affiliation_en",
+      "data_type": "text"
+    },
+    {
+      "column_name": "sorting",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "person_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "student_id",
+      "data_type": "integer"
+    }
+  ],
+  "tciAuthorsColumns": [
+    {
+      "column_name": "id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "workflow_state",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "workflow_state_updater_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "tci_document_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "firstname",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "lastname",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "firstname_en",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "lastname_en",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "affiliation",
+      "data_type": "text"
+    },
+    {
+      "column_name": "affiliation_en",
+      "data_type": "text"
+    },
+    {
+      "column_name": "sorting",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "person_id",
+      "data_type": "integer"
+    },
+    {
+      "column_name": "student_id",
+      "data_type": "integer"
+    }
+  ]
+}

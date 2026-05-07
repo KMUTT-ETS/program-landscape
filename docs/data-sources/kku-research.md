@@ -1,6 +1,8 @@
 # KKU Research Outputs
 
-**Slug:** `kku-research` · **Phase:** A · **Kind:** Two-source: OpenAlex (free) + Scopus (Elsevier API, KKU institutional license) · **Cadence:** quarterly · **Status:** 🚧 wiring in progress (prompt 14, session opened 2026-04-28)
+**Slug:** `kku-research` · **Phase:** A · **Kind:** Internal Postgres mirror (`kku-publications` @ 10.130.2.151), curated by KKU Library / Research Office · **Cadence:** quarterly · **Status:** ✅ live since 2026-05-07 (v2)
+
+> **History:** v1 (live 2026-04-28 → 2026-05-07) sourced from public OpenAlex + Scopus APIs. v2 pivoted to the internal kku-publications mirror once it became available — far richer coverage (5 sources: Scopus, PubMed, ISI, TCI, NRIIS), curator-grade KKU author resolution, and on-network access. The OpenAlex pathway is preserved at `apps/ingestion/src/connectors/sources/kku-research/connector.openalex.ts` for the 30-day green-history evaluation window; deletion lands after 2026-06-06 if v2 is stable.
 
 ---
 

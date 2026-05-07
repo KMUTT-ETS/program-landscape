@@ -1,0 +1,144 @@
+{
+  "capturedAt": "2026-05-07T06:19:01.827Z",
+  "schema": "public",
+  "table": "impact_factors",
+  "columns": [
+    {
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "ordinal_position": 1,
+      "column_default": "nextval('impact_factors_id_seq'::regclass)",
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "year",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 2,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "journal_title",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "ordinal_position": 3,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "issn",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "ordinal_position": 4,
+      "column_default": null,
+      "character_maximum_length": 255
+    },
+    {
+      "column_name": "total_cites",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 5,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "impact_factor",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 6,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "impact_factor_5_year",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 7,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "immediacy_index",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 8,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "items",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 9,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "cited_half_life",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 10,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "is_greater_than_cited_half_life",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "ordinal_position": 11,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "eigenfactor_score",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 12,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "article_influence_score",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "ordinal_position": 13,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "creator_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 14,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updater_id",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "ordinal_position": 15,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 16,
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "ordinal_position": 17,
+      "column_default": null,
+      "character_maximum_length": null
+    }
+  ],
+  "piiColumns": []
+}
