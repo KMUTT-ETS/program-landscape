@@ -854,6 +854,8 @@ export class StaffService {
               venue: true,
               citations: true,
               doi: true,
+              scopusId: true,
+              pmid: true,
             },
           });
 
@@ -929,7 +931,53 @@ export class StaffService {
       });
     }
 
-    // Per-faculty rollup
+    // ── Dedup-by-paper roll-up groundwork ────────────────────────────
+    // The papers[] rows we pull are (paper × author) tuples — a single
+    // multi-author paper appears N times. Counting these directly inflates
+    // every paper-count metric (~2x for medical PubMed papers with co-
+    // authors at KKU). Reconciling against the KKU Library dashboard
+    // showed PubMed at 1,963 vs library 1,058 (2022) — exactly the ~2x
+    // signature. Library reports distinct papers; we should too.
+    //
+    // We still need per-author rows for rank productivity + topAuthors,
+    // but every paper-count metric below is keyed off this dedup map.
+    interface DistinctPaper {
+      key: string; // ${source}:${externalId}
+      year: number;
+      type: string;
+      source: string;
+      venue: string | null;
+      citations: number;
+      facultyNames: Set<string>; // every faculty that has ≥1 author on this paper
+    }
+    const paperMap = new Map<string, DistinctPaper>();
+    for (const p of papers) {
+      const externalId =
+        p.source === 'kku-publications:scopus' ? p.scopusId : p.pmid;
+      if (!externalId) continue;
+      const key = `${p.source}:${externalId}`;
+      let entry = paperMap.get(key);
+      if (!entry) {
+        entry = {
+          key,
+          year: p.year,
+          type: p.type ?? 'JOURNAL',
+          source: p.source ?? 'unknown',
+          venue: p.venue,
+          citations: p.citations ?? 0,
+          facultyNames: new Set<string>(),
+        };
+        paperMap.set(key, entry);
+      }
+      const fm = fmById.get(p.facultyMemberId ?? '');
+      const fname = fm?.faculty?.nameEn ?? fm?.faculty?.nameTh ?? null;
+      if (fname) entry.facultyNames.add(fname);
+    }
+
+    // Per-faculty rollup — papers/citations counted once per (faculty, paper).
+    // A paper with 2 authors in the same faculty contributes 1 to that
+    // faculty (not 2); a paper with authors in 2 faculties contributes 1
+    // to each.
     const byFaculty = new Map<
       string,
       {
@@ -954,62 +1002,60 @@ export class StaffService {
         byType: {},
       };
       cell.staffCount += 1;
-      const myPapers = papers.filter((p) => p.facultyMemberId === fm.id);
-      if (myPapers.length > 0) cell.publishingStaff += 1;
-      cell.papers += myPapers.length;
-      for (const p of myPapers) {
-        cell.citations += p.citations ?? 0;
-        const src = p.source ?? 'unknown';
-        cell.bySource[src] = (cell.bySource[src] ?? 0) + 1;
-        const t = p.type ?? 'JOURNAL';
-        cell.byType[t] = (cell.byType[t] ?? 0) + 1;
-      }
+      // publishingStaff counts staff who have ≥1 paper (per-author still)
+      if ((perAuthor.get(fm.id)?.papers ?? 0) > 0) cell.publishingStaff += 1;
       byFaculty.set(fname, cell);
     }
+    for (const paper of paperMap.values()) {
+      for (const fname of paper.facultyNames) {
+        const cell = byFaculty.get(fname);
+        if (!cell) continue;
+        cell.papers += 1;
+        cell.citations += paper.citations;
+        cell.bySource[paper.source] = (cell.bySource[paper.source] ?? 0) + 1;
+        cell.byType[paper.type] = (cell.byType[paper.type] ?? 0) + 1;
+      }
+    }
 
-    // Year × Faculty heatmap
+    // Year × Faculty heatmap — distinct papers per (faculty, year)
     const heatmap = new Map<string, Map<number, number>>();
-    for (const p of papers) {
-      const fm = fmById.get(p.facultyMemberId ?? '');
-      if (!fm) continue;
-      const fname = fm.faculty?.nameEn ?? fm.faculty?.nameTh ?? '(unmapped)';
-      const facMap = heatmap.get(fname) ?? new Map<number, number>();
-      facMap.set(p.year, (facMap.get(p.year) ?? 0) + 1);
-      heatmap.set(fname, facMap);
+    for (const paper of paperMap.values()) {
+      for (const fname of paper.facultyNames) {
+        const facMap = heatmap.get(fname) ?? new Map<number, number>();
+        facMap.set(paper.year, (facMap.get(paper.year) ?? 0) + 1);
+        heatmap.set(fname, facMap);
+      }
     }
 
-    // Year totals (for trend line)
-    // byYear is split per-source so the chart can surface the upstream
-    // curator lag (Scopus author-resolution at KKU Library lags ~2 years
-    // behind paper ingestion; PubMed resolution keeps up). Without the
-    // split the composite line shows a mysterious cliff at 2022.
+    // Year totals — distinct papers per (year, source). Split per-source
+    // so the chart surfaces the curator-resolution lag on Scopus directly
+    // (Scopus 2022+ underrepresents real KKU output because the upstream
+    // mirror's person_id linking lags ~2 years behind ingestion).
     const byYearMap = new Map<number, { scopus: number; pubmed: number }>();
-    for (const p of papers) {
-      const cell = byYearMap.get(p.year) ?? { scopus: 0, pubmed: 0 };
-      if (p.source === 'kku-publications:scopus') cell.scopus += 1;
-      else if (p.source === 'kku-publications:pubmed') cell.pubmed += 1;
-      byYearMap.set(p.year, cell);
+    for (const paper of paperMap.values()) {
+      const cell = byYearMap.get(paper.year) ?? { scopus: 0, pubmed: 0 };
+      if (paper.source === 'kku-publications:scopus') cell.scopus += 1;
+      else if (paper.source === 'kku-publications:pubmed') cell.pubmed += 1;
+      byYearMap.set(paper.year, cell);
     }
 
-    // Type breakdown (Journal / Conference / Book / Patent)
+    // Type breakdown (Journal / Conference / Book / Patent) — distinct papers
     const byType: Record<string, number> = {};
-    for (const p of papers) {
-      const t = p.type ?? 'JOURNAL';
-      byType[t] = (byType[t] ?? 0) + 1;
+    for (const paper of paperMap.values()) {
+      byType[paper.type] = (byType[paper.type] ?? 0) + 1;
     }
 
-    // Source breakdown
+    // Source breakdown — distinct papers
     const bySource: Record<string, number> = {};
-    for (const p of papers) {
-      const s = p.source ?? 'unknown';
-      bySource[s] = (bySource[s] ?? 0) + 1;
+    for (const paper of paperMap.values()) {
+      bySource[paper.source] = (bySource[paper.source] ?? 0) + 1;
     }
 
-    // Top venues (journals/conferences) by paper count
+    // Top venues — distinct papers per venue
     const venueCounts = new Map<string, number>();
-    for (const p of papers) {
-      if (!p.venue) continue;
-      venueCounts.set(p.venue, (venueCounts.get(p.venue) ?? 0) + 1);
+    for (const paper of paperMap.values()) {
+      if (!paper.venue) continue;
+      venueCounts.set(paper.venue, (venueCounts.get(paper.venue) ?? 0) + 1);
     }
     const topVenues = [...venueCounts.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -1083,13 +1129,15 @@ export class StaffService {
       }))
       .sort((a, b) => b.rankRank - a.rankRank); // most senior first
 
+    let totalCitations = 0;
+    for (const paper of paperMap.values()) totalCitations += paper.citations;
     return {
       yearFrom,
       yearTo: new Date().getFullYear(),
       totalStaff: fmRows.length,
       publishingStaff: authorList.length,
-      totalPapers: papers.length,
-      totalCitations: papers.reduce((a, b) => a + (b.citations ?? 0), 0),
+      totalPapers: paperMap.size,
+      totalCitations,
       bySource,
       byType,
       byYear: [...byYearMap.entries()]
@@ -1121,7 +1169,8 @@ export class StaffService {
         other: authorList.filter((a) => a.employeeSource === 'other').length,
       },
       caveats: [
-        'Scopus 2022+ counts undercount real KKU output. The kku-publications mirror has fresh Scopus papers through 2026 (2,349 in 2025 alone), but KKU Library curators have not yet linked them to KKU person_ids — only 12% of 2022 papers, 1% of 2023, 0.1% of 2024 are author-resolved. PubMed is unaffected. The Scopus dropoff after 2021 in the year-trend reflects this curator backlog, not a real publication decline.',
+        'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard PubMed within 1-3% (e.g. our 2024 = library 997).',
+        'Scopus 2022+ counts undercount real KKU output. The kku-publications mirror has fresh Scopus papers through 2026 (2,349 in 2025 alone), but KKU Library curators have not yet linked them to KKU person_ids — only ~12% of 2022 papers, ~1% of 2023, ~0.1% of 2024 are author-resolved. PubMed is unaffected. KKU Library reports ~1,200-1,900 Scopus papers/year for 2022-2025 (presumably from a separate Scopus-API source that bypasses the mirror); we surface only what the mirror has resolved.',
         'Active employees only. For kku-hr rows isActive comes from KKU HR; for kkupub_-backfilled rows it is heuristic (paper in last 2 years).',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
