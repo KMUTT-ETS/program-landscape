@@ -105,6 +105,11 @@ async function fetchOne(url: string, category: NewsCategory): Promise<NewsItem[]
       // shape that reliably yields the RSS body. Tested 2026-05-07 from the
       // KKU dev box.
       redirect: 'follow',
+      // Opt out of Next.js fetch caching. Without this, Next stores the
+      // response (including a previous bad 302) and reuses it on every
+      // subsequent render — which silently broke the feed even after the
+      // UA fix. We do our own 1h cache in module scope above.
+      cache: 'no-store',
       headers: {
         'User-Agent':
           'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
@@ -118,9 +123,9 @@ async function fetchOne(url: string, category: NewsCategory): Promise<NewsItem[]
     }
     const xml = await res.text();
     const items = parseRssItems(xml, category);
-    if (items.length === 0) {
-      console.warn(`[news/today] ${url} → 0 items parsed (xml ${xml.length}B)`);
-    }
+    console.log(
+      `[news/today] ${category}: ${items.length} items (xml ${xml.length}B, status ${res.status})`,
+    );
     return items;
   } catch (err) {
     console.warn(`[news/today] ${url} fetch failed:`, (err as Error).message);
