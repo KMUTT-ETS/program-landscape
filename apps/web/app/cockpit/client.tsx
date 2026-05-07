@@ -277,13 +277,25 @@ export function CockpitClient(props: Props) {
           </div>
         </div>
 
+        {props.scope === 'faculty' && (view === 'heatmap' || view === 'rollup') && (
+          <Card padding="sm">
+            <div className="flex items-start gap-2 text-xs text-text-secondary">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+              <span>
+                Each row below is a program in this faculty. Click it to open the program&apos;s full deep-dive
+                (health, faculty roster, recruitment funnel, demand match, AI peer review). Use the breadcrumb above to step back to the university view.
+              </span>
+            </div>
+          </Card>
+        )}
         {props.scope === 'department' && (view === 'heatmap' || view === 'rollup') && (
           <Card padding="sm">
             <div className="flex items-start gap-2 text-xs text-text-secondary">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
               <span>
-                You are at the department level. Each row below is a program; clicking it opens that program&apos;s full deep-dive
-                (health, faculty roster, recruitment funnel, demand match, AI peer review). Use the breadcrumb above to step back to the faculty or university view.
+                Department-scope view (reached via direct link or saved view). The cockpit now drills
+                university → faculty → program directly; the department middle level is no longer auto-navigated.
+                Each row below is a program in this department; clicking opens its deep-dive.
               </span>
             </div>
           </Card>
@@ -294,12 +306,12 @@ export function CockpitClient(props: Props) {
               rows={toHeatmapRows(props.heatmap)}
               columnLabels={['Attractiveness', 'Financial', 'Capability', 'Outcomes', 'Relevance']}
               onRowClick={(r) => {
+                // Two-level drill: university → faculty → program.
+                // Department auto-nav was removed 2026-05-07 (still
+                // accessible by direct URL for back-compat with saved
+                // views and deep links).
                 const nextScope =
-                  props.scope === 'university'
-                    ? 'faculty'
-                    : props.scope === 'faculty'
-                      ? 'department'
-                      : 'program';
+                  props.scope === 'university' ? 'faculty' : 'program';
                 onRowDrill(nextScope, r.id);
               }}
             />
@@ -341,12 +353,9 @@ export function CockpitClient(props: Props) {
             <RollupTable
               rollup={props.rollup}
               onRowClick={(node) => {
+                // Two-level drill: university → faculty → program.
                 const nextScope =
-                  props.scope === 'university'
-                    ? 'faculty'
-                    : props.scope === 'faculty'
-                      ? 'department'
-                      : 'program';
+                  props.scope === 'university' ? 'faculty' : 'program';
                 onRowDrill(nextScope, node.scopeId);
               }}
             />

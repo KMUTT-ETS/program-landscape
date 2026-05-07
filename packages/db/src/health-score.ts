@@ -299,44 +299,15 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
     };
   }
   if (scope === 'faculty') {
-    if (!scopeId) return { scope: 'department', nodes: [] };
-    // Departments that host canonical+ACTIVE programs. When none exist
-    // (KKU master sheet seeds many programs with departmentId=NULL —
-    // 19 of 19 Engineering programs, for example), fall through to the
-    // faculty's programs directly so the cockpit drill-down still
-    // shows something instead of an empty heatmap.
-    const deptRows = await prisma.department.findMany({
-      where: {
-        facultyId: scopeId,
-        programs: {
-          some: {
-            status: 'ACTIVE',
-            sequenceNoFromSheet: { not: null },
-          },
-        },
-      },
-      select: { id: true, nameEn: true, nameTh: true, facultyId: true },
-      orderBy: { code: 'asc' },
-    });
-    if (deptRows.length > 0) {
-      return {
-        scope: 'department',
-        nodes: deptRows.map((r) => ({
-          id: r.id,
-          label: `${r.nameEn} · ${r.nameTh}`,
-          labelTh: r.nameTh ?? '',
-          labelEn: r.nameEn ?? '',
-          parentId: r.facultyId,
-        })),
-      };
-    }
-    // No departments host canonical programs — list the faculty's
-    // programs directly. The childScope is normally 'department' here;
-    // but since we're returning Program nodes, the caller will treat
-    // them as program-scope. We mark this by returning Programs and
-    // the caller's childScope continues to be 'department' which means
-    // nothing tries to drill INTO these — they're terminal nodes in
-    // the rollup at this level.
+    if (!scopeId) return { scope: 'program', nodes: [] };
+    // Two-level drill (university → faculty → program) — the
+    // department middle tier was removed 2026-05-07. Departments
+    // didn't add useful aggregation in many faculties (some had every
+    // program with departmentId=NULL anyway, e.g., Engineering's 19/19),
+    // and the extra click without much information confused users.
+    // The department scope still works if hit by direct URL (the
+    // 'department' branch below stays intact), but the cockpit no
+    // longer auto-navigates through it.
     const progRows = await prisma.program.findMany({
       where: {
         facultyId: scopeId,
