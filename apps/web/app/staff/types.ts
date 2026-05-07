@@ -142,7 +142,7 @@ export interface ResearchResponse {
   totalCitations: number;
   bySource: Record<string, number>;
   byType: Record<string, number>;
-  byYear: Array<{ year: number; papers: number }>;
+  byYear: Array<{ year: number; scopus: number; pubmed: number; total: number }>;
   byFaculty: ResearchFacultyRow[];
   heatmap: ResearchHeatmapRow[];
   topVenues: Array<{ venue: string; papers: number }>;

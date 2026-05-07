@@ -193,9 +193,9 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       {/* Year trend + Source/Type breakdowns */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="text-sm font-semibold">Papers per year</h3>
+          <h3 className="text-sm font-semibold">Papers per year, by source</h3>
           <p className="mt-1 text-xs text-text-tertiary">
-            Window {data.yearFrom}–{data.yearTo}. {data.byYear.length} years observed.
+            Window {data.yearFrom}–{data.yearTo}. {data.byYear.length} years observed. The Scopus line drops sharply after 2021 — that's a KKU Library curator backlog, not a publication-rate decline (see Caveats below).
           </p>
           <YearTrend data={data.byYear} />
         </Card>
@@ -537,25 +537,34 @@ function RankProductivityChart({ rows }: { rows: ResearchByRankRow[] }) {
 }
 
 // Lightweight inline-SVG year-trend chart. Y-axis = paper count, X-axis = year.
-function YearTrend({ data }: { data: Array<{ year: number; papers: number }> }) {
+// Two-line year trend — Scopus + PubMed plotted separately so the
+// curator-resolution lag on Scopus 2022+ is visible by-source rather
+// than mysteriously suppressing the composite count.
+function YearTrend({
+  data,
+}: {
+  data: Array<{ year: number; scopus: number; pubmed: number; total: number }>;
+}) {
   if (data.length === 0) return <div className="mt-2 text-xs text-text-tertiary">No data.</div>;
   const w = 600;
-  const h = 160;
-  const pad = { left: 35, right: 8, top: 12, bottom: 24 };
+  const h = 180;
+  const pad = { left: 35, right: 8, top: 12, bottom: 36 };
   const innerW = w - pad.left - pad.right;
   const innerH = h - pad.top - pad.bottom;
   const xs = data.map((d) => d.year);
-  const ys = data.map((d) => d.papers);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
-  const maxY = Math.max(...ys, 1);
+  const maxY = Math.max(...data.map((d) => Math.max(d.scopus, d.pubmed)), 1);
   const x = (year: number): number =>
     pad.left + ((year - minX) / Math.max(1, maxX - minX)) * innerW;
   const y = (papers: number): number => pad.top + innerH - (papers / maxY) * innerH;
-  const points = data.map((d) => `${x(d.year)},${y(d.papers)}`).join(' ');
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
+  const SCOPUS_COLOR = '#0ea5e9'; // sky-500
+  const PUBMED_COLOR = '#8b5cf6'; // violet-500
+  const scopusPoints = data.map((d) => `${x(d.year)},${y(d.scopus)}`).join(' ');
+  const pubmedPoints = data.map((d) => `${x(d.year)},${y(d.pubmed)}`).join(' ');
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 w-full h-auto" role="img" aria-label="Papers per year">
+    <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 w-full h-auto" role="img" aria-label="Papers per year, by source">
       {yTicks.map((t) => (
         <g key={t}>
           <line
@@ -571,18 +580,31 @@ function YearTrend({ data }: { data: Array<{ year: number; papers: number }> }) 
           </text>
         </g>
       ))}
-      <polyline points={points} fill="none" stroke="#0ea5e9" strokeWidth="2" />
+
+      {/* PubMed line (drawn first so Scopus sits on top) */}
+      <polyline points={pubmedPoints} fill="none" stroke={PUBMED_COLOR} strokeWidth="2" />
       {data.map((d) => (
-        <g key={d.year}>
-          <circle cx={x(d.year)} cy={y(d.papers)} r="2.5" fill="#0ea5e9" />
-          <title>{`${d.year}: ${d.papers}`}</title>
+        <g key={`pm-${d.year}`}>
+          <circle cx={x(d.year)} cy={y(d.pubmed)} r="2.5" fill={PUBMED_COLOR} />
+          <title>{`${d.year} PubMed: ${d.pubmed.toLocaleString('en-US')}`}</title>
         </g>
       ))}
+
+      {/* Scopus line */}
+      <polyline points={scopusPoints} fill="none" stroke={SCOPUS_COLOR} strokeWidth="2" />
+      {data.map((d) => (
+        <g key={`sc-${d.year}`}>
+          <circle cx={x(d.year)} cy={y(d.scopus)} r="2.5" fill={SCOPUS_COLOR} />
+          <title>{`${d.year} Scopus: ${d.scopus.toLocaleString('en-US')}`}</title>
+        </g>
+      ))}
+
+      {/* Year labels */}
       {data.map((d, i) => (
         <text
           key={d.year}
           x={x(d.year)}
-          y={h - 8}
+          y={h - 22}
           fontSize="9"
           fill="rgb(120,120,120)"
           textAnchor="middle"
@@ -591,6 +613,14 @@ function YearTrend({ data }: { data: Array<{ year: number; papers: number }> }) 
           {String(d.year).slice(2)}
         </text>
       ))}
+
+      {/* Legend */}
+      <g transform={`translate(${pad.left}, ${h - 8})`}>
+        <rect x={0} y={-7} width={10} height={3} fill={SCOPUS_COLOR} />
+        <text x={14} y={-3} fontSize="9" fill="rgb(120,120,120)">Scopus</text>
+        <rect x={66} y={-7} width={10} height={3} fill={PUBMED_COLOR} />
+        <text x={80} y={-3} fontSize="9" fill="rgb(120,120,120)">PubMed</text>
+      </g>
     </svg>
   );
 }

@@ -979,8 +979,17 @@ export class StaffService {
     }
 
     // Year totals (for trend line)
-    const byYear = new Map<number, number>();
-    for (const p of papers) byYear.set(p.year, (byYear.get(p.year) ?? 0) + 1);
+    // byYear is split per-source so the chart can surface the upstream
+    // curator lag (Scopus author-resolution at KKU Library lags ~2 years
+    // behind paper ingestion; PubMed resolution keeps up). Without the
+    // split the composite line shows a mysterious cliff at 2022.
+    const byYearMap = new Map<number, { scopus: number; pubmed: number }>();
+    for (const p of papers) {
+      const cell = byYearMap.get(p.year) ?? { scopus: 0, pubmed: 0 };
+      if (p.source === 'kku-publications:scopus') cell.scopus += 1;
+      else if (p.source === 'kku-publications:pubmed') cell.pubmed += 1;
+      byYearMap.set(p.year, cell);
+    }
 
     // Type breakdown (Journal / Conference / Book / Patent)
     const byType: Record<string, number> = {};
@@ -1083,7 +1092,14 @@ export class StaffService {
       totalCitations: papers.reduce((a, b) => a + (b.citations ?? 0), 0),
       bySource,
       byType,
-      byYear: [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([year, papers]) => ({ year, papers })),
+      byYear: [...byYearMap.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([year, cell]) => ({
+          year,
+          scopus: cell.scopus,
+          pubmed: cell.pubmed,
+          total: cell.scopus + cell.pubmed,
+        })),
       byFaculty: [...byFaculty.values()].sort((a, b) => b.papers - a.papers),
       heatmap: [...heatmap.entries()]
         .sort((a, b) => {
@@ -1105,6 +1121,7 @@ export class StaffService {
         other: authorList.filter((a) => a.employeeSource === 'other').length,
       },
       caveats: [
+        'Scopus 2022+ counts undercount real KKU output. The kku-publications mirror has fresh Scopus papers through 2026 (2,349 in 2025 alone), but KKU Library curators have not yet linked them to KKU person_ids — only 12% of 2022 papers, 1% of 2023, 0.1% of 2024 are author-resolved. PubMed is unaffected. The Scopus dropoff after 2021 in the year-trend reflects this curator backlog, not a real publication decline.',
         'Active employees only. For kku-hr rows isActive comes from KKU HR; for kkupub_-backfilled rows it is heuristic (paper in last 2 years).',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
