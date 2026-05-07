@@ -1,8 +1,18 @@
 // KKU Employee API client (api.kku.ac.th/docs/v3).
 //
-// Two endpoints used:
-//   POST   /v3/token                            — exchange client creds for bearer
-//   GET    /v3/employee-by-email?email=...      — lookup KKU staff by email
+// Two endpoints used (verified against KKU IT example code 2026-05-07):
+//   POST /v3/auth/token
+//        Content-Type: application/x-www-form-urlencoded
+//        body: client_id, secret_key
+//        → { token, type, expiresIn?, ... }
+//   GET  /v3/hr/employee/filter/email/{email}
+//        Authorization: Bearer <token>
+//        → flat employee record (firstname, lastname, faculty, etc.)
+//
+// The employee response includes Thai citizen ID (`identification`) and
+// passport (`pass`) — both restricted PDPA personal data. The client
+// here SCRUBS those fields before returning. Callers (server actions,
+// UI) never see them; logs never see them.
 //
 // Token is cached in-memory (per Node process) for the duration of its
 // expires_in to keep latency on the admin pre-provision UI fast. Failure
@@ -10,46 +20,82 @@
 // KkuApiError; callers handle the unhappy path explicitly.
 //
 // IMPORTANT — server-only. Never import this module from a 'use client'
-// boundary; the client_secret would leak to the browser bundle.
+// boundary; the secret_key would leak to the browser bundle.
 
 import { z } from 'zod';
 
-// Response schemas — kept minimal; spec may include more fields, but we
-// only need a stable surface for the admin UI.
-const TokenResponseSchema = z.object({
-  access_token: z.string(),
-  token_type: z.string().optional(),
-  expires_in: z.number().int().positive().optional(),
-});
-
-// Per the spec at api.kku.ac.th/docs/v3/employee-by-email — the exact
-// shape isn't published outside the (gated) docs portal, so we keep
-// this intentionally permissive: required fields (email + a name)
-// are validated; everything else passes through as `extra` for the UI
-// to render verbatim. When KKU IT publishes the v3 contract publicly
-// we tighten this schema.
-const EmployeeResponseSchema = z
+// Token response — KKU's API may return either OAuth-shape
+// `access_token` or Adonis-shape `token`. Schema accepts both;
+// the read code prefers `token` then falls back to `access_token`.
+const TokenResponseSchema = z
   .object({
-    email: z.string().email().optional().nullable(),
-    employee_id: z.string().optional().nullable(),
-    employee_code: z.string().optional().nullable(),
-    name_th: z.string().optional().nullable(),
-    name_en: z.string().optional().nullable(),
-    first_name: z.string().optional().nullable(),
-    last_name: z.string().optional().nullable(),
-    first_name_th: z.string().optional().nullable(),
-    last_name_th: z.string().optional().nullable(),
-    faculty: z.string().optional().nullable(),
-    faculty_code: z.string().optional().nullable(),
-    department: z.string().optional().nullable(),
-    department_code: z.string().optional().nullable(),
-    position: z.string().optional().nullable(),
-    rank: z.string().optional().nullable(),
-    status: z.string().optional().nullable(),
+    token: z.string().optional(),
+    access_token: z.string().optional(),
+    type: z.string().optional(),
+    token_type: z.string().optional(),
+    expiresIn: z.number().int().positive().optional(),
+    expires_in: z.number().int().positive().optional(),
+    expiresAt: z.string().optional(),
   })
   .passthrough();
 
-export type KkuEmployee = z.infer<typeof EmployeeResponseSchema>;
+// Raw response from /v3/hr/employee/filter/email/{email}. Captures
+// every field the live API returns (sample obtained from KKU IT
+// 2026-05-07). `identification` and `pass` are intentionally NOT
+// re-exported via the public KkuEmployee type — they're scrubbed
+// during the read path.
+const EmployeeResponseRawSchema = z
+  .object({
+    id: z.union([z.number(), z.string()]).optional().nullable(),
+    title: z.string().optional().nullable(),
+    firstname: z.string().optional().nullable(),
+    lastname: z.string().optional().nullable(),
+    title_eng: z.string().optional().nullable(),
+    firstname_eng: z.string().optional().nullable(),
+    lastname_eng: z.string().optional().nullable(),
+    statuslist: z.string().optional().nullable(),
+    positype: z.string().optional().nullable(),
+    workline: z.string().optional().nullable(),
+    posi: z.string().optional().nullable(),
+    level: z.string().optional().nullable(),
+    faculty: z.string().optional().nullable(),
+    division: z.string().optional().nullable(),
+    job: z.string().optional().nullable(),
+    unit: z.string().optional().nullable(),
+    subunit: z.string().optional().nullable(),
+    location: z.string().optional().nullable(),
+    email: z.string().optional().nullable(),
+    // PII — scrubbed before leaving this module:
+    identification: z.string().optional().nullable(),
+    pass: z.string().optional().nullable(),
+  })
+  .passthrough();
+
+// Public-safe type. PII fields are stripped. This is what server
+// actions return to the client.
+export interface KkuEmployee {
+  id?: number | string | null;
+  title?: string | null;
+  firstname?: string | null;
+  lastname?: string | null;
+  title_eng?: string | null;
+  firstname_eng?: string | null;
+  lastname_eng?: string | null;
+  statuslist?: string | null;
+  positype?: string | null;
+  workline?: string | null;
+  posi?: string | null;
+  level?: string | null;
+  faculty?: string | null;
+  division?: string | null;
+  job?: string | null;
+  unit?: string | null;
+  subunit?: string | null;
+  location?: string | null;
+  email?: string | null;
+}
+
+const PII_FIELDS = ['identification', 'pass'] as const;
 
 export class KkuApiError extends Error {
   public readonly httpStatus?: number;
@@ -81,25 +127,40 @@ async function fetchToken(): Promise<string> {
   const clientId = envOrThrow('KKU_API_CLIENT_ID');
   const clientSecret = envOrThrow('KKU_API_CLIENT_SECRET');
 
-  // Token path (v3): defaults to /v3/auth/token (verified by probe
-  // 2026-05-07: GET /v3/token → 404 'Cannot POST:/token'; the
-  // discoverable variant is /v3/auth/token, which returns 422 with
-  // field-validation errors when called without a body — the standard
-  // Adonis.js validation shape that KKU's API uses). Override via
-  // KKU_API_TOKEN_PATH if KKU IT confirms a different path.
+  // Verified shape (KKU IT example, 2026-05-07):
+  //   POST /v3/auth/token
+  //   Content-Type: application/x-www-form-urlencoded
+  //   body: client_id=…&secret_key=…
+  // NOTE: KKU's field is `secret_key`, not the OAuth-standard
+  // `client_secret`. Don't change this without checking the spec.
   const tokenPath = process.env.KKU_API_TOKEN_PATH ?? '/v3/auth/token';
   const url = `${base.replace(/\/$/, '')}${tokenPath}`;
+  const body = new URLSearchParams({
+    client_id: clientId,
+    secret_key: clientSecret,
+  }).toString();
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      accept: 'application/json',
+    },
+    body,
   }).catch((err) => {
-    throw new KkuApiError(`KKU API token fetch failed: ${err instanceof Error ? err.message : String(err)}`, undefined, err);
+    throw new KkuApiError(
+      `KKU API token fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      undefined,
+      err,
+    );
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new KkuApiError(`KKU API token endpoint ${res.status}: ${text.slice(0, 200)}`, res.status);
+    throw new KkuApiError(
+      `KKU API token endpoint ${res.status}: ${text.slice(0, 200)}`,
+      res.status,
+    );
   }
 
   const json = await res.json().catch((err) => {
@@ -110,9 +171,27 @@ async function fetchToken(): Promise<string> {
     throw new KkuApiError(`KKU API token schema mismatch: ${parsed.error.message}`, res.status);
   }
 
-  const ttlMs = (parsed.data.expires_in ?? 3600) * 1000;
-  cached = { token: parsed.data.access_token, expiresAt: now + ttlMs };
+  // KKU returns the token under `token` (Adonis OAT shape); some
+  // alternate gateways return `access_token`. Accept either.
+  const tokenStr = parsed.data.token ?? parsed.data.access_token;
+  if (!tokenStr) {
+    throw new KkuApiError(`KKU API token response missing token field`, res.status);
+  }
+  const ttlSec = parsed.data.expiresIn ?? parsed.data.expires_in ?? 3600;
+  cached = { token: tokenStr, expiresAt: now + ttlSec * 1000 };
   return cached.token;
+}
+
+// Strip Thai citizen ID + passport before letting an employee
+// record leave this module. Returns a fresh object so the caller
+// can never accidentally pass through the raw response.
+function scrubPii(raw: Record<string, unknown>): KkuEmployee {
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if ((PII_FIELDS as readonly string[]).includes(k)) continue;
+    cleaned[k] = v;
+  }
+  return cleaned as KkuEmployee;
 }
 
 // Lookup a KKU employee by email. Returns null when the API responds
@@ -125,59 +204,69 @@ export async function findEmployeeByEmail(email: string): Promise<KkuEmployee | 
   const base = envOrThrow('KKU_API_BASE_URL');
   const token = await fetchToken();
 
-  // Employee lookup path: /v3/employee-by-email is the documented shape
-  // per the KKU API spec we have. Override via KKU_API_EMPLOYEE_PATH if
-  // KKU IT publishes a different route. The path is appended with
-  // ?email=<urlencoded>.
-  const employeePath = process.env.KKU_API_EMPLOYEE_PATH ?? '/v3/employee-by-email';
-  const url = `${base.replace(/\/$/, '')}${employeePath}?email=${encodeURIComponent(email)}`;
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
-  }).catch((err) => {
-    throw new KkuApiError(`KKU API employee fetch failed: ${err instanceof Error ? err.message : String(err)}`, undefined, err);
+  // Verified shape (KKU IT example, 2026-05-07):
+  //   GET /v3/hr/employee/filter/email/{email}
+  //   Authorization: Bearer <token>
+  // Email travels as a URL path segment, NOT a query parameter.
+  // KKU_API_EMPLOYEE_PATH is the path PREFIX; the email is appended
+  // with `/${encodeURIComponent(email)}`.
+  const employeePathPrefix =
+    process.env.KKU_API_EMPLOYEE_PATH ?? '/v3/hr/employee/filter/email';
+  const url = `${base.replace(/\/$/, '')}${employeePathPrefix}/${encodeURIComponent(email)}`;
+
+  const doFetch = async (bearer: string) =>
+    fetch(url, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${bearer}`, accept: 'application/json' },
+    });
+
+  let res = await doFetch(token).catch((err) => {
+    throw new KkuApiError(
+      `KKU API employee fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      undefined,
+      err,
+    );
   });
 
-  if (res.status === 404) return null;
+  // Token may have been revoked early. Drop cache + retry once.
   if (res.status === 401) {
-    // Token may have been revoked early. Drop cache and retry once.
     cached = null;
     const retryToken = await fetchToken();
-    const retry = await fetch(url, {
-      method: 'GET',
-      headers: { authorization: `Bearer ${retryToken}`, accept: 'application/json' },
-    });
-    if (retry.status === 404) return null;
-    if (!retry.ok) {
-      const text = await retry.text().catch(() => '');
-      throw new KkuApiError(`KKU API employee endpoint ${retry.status} (after token refresh): ${text.slice(0, 200)}`, retry.status);
-    }
-    const j = await retry.json();
-    const parsed = EmployeeResponseSchema.safeParse(j);
-    if (!parsed.success) throw new KkuApiError(`KKU API employee schema mismatch: ${parsed.error.message}`);
-    return parsed.data;
+    res = await doFetch(retryToken);
   }
+
+  if (res.status === 404) return null;
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new KkuApiError(`KKU API employee endpoint ${res.status}: ${text.slice(0, 200)}`, res.status);
+    throw new KkuApiError(
+      `KKU API employee endpoint ${res.status}: ${text.slice(0, 200)}`,
+      res.status,
+    );
   }
 
   const json = await res.json().catch((err) => {
     throw new KkuApiError(`KKU API employee response not JSON`, res.status, err);
   });
-  const parsed = EmployeeResponseSchema.safeParse(json);
+  const parsed = EmployeeResponseRawSchema.safeParse(json);
   if (!parsed.success) {
     throw new KkuApiError(`KKU API employee schema mismatch: ${parsed.error.message}`);
   }
-  return parsed.data;
+  return scrubPii(parsed.data as Record<string, unknown>);
 }
 
 // Convenience: derive a display name from whichever fields the API
-// returned. Prefer Thai then English then composed.
+// returned. Prefer Thai then English. Falls back to email when the
+// record is unusually sparse.
 export function deriveDisplayName(emp: KkuEmployee): string {
-  if (emp.name_th) return emp.name_th;
-  if (emp.name_en) return emp.name_en;
-  if (emp.first_name_th && emp.last_name_th) return `${emp.first_name_th} ${emp.last_name_th}`;
-  if (emp.first_name && emp.last_name) return `${emp.first_name} ${emp.last_name}`;
-  return emp.email ?? '(unnamed)';
+  const t = (s: string | null | undefined): string | null =>
+    typeof s === 'string' && s.trim() ? s.trim() : null;
+  const titleTh = t(emp.title);
+  const fnTh = t(emp.firstname);
+  const lnTh = t(emp.lastname);
+  if (fnTh && lnTh) return [titleTh, fnTh, lnTh].filter(Boolean).join(' ');
+  const titleEn = t(emp.title_eng);
+  const fnEn = t(emp.firstname_eng);
+  const lnEn = t(emp.lastname_eng);
+  if (fnEn && lnEn) return [titleEn, fnEn, lnEn].filter(Boolean).join(' ');
+  return t(emp.email) ?? '(unnamed)';
 }

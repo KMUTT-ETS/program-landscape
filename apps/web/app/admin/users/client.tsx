@@ -37,22 +37,27 @@ const SYSTEM_ADMIN_ASSIGNABLE_ROLES: readonly Role[] = [
   'PROGRAM_USER',
 ] as const;
 
-// Inlined client-side copy of the same logic in
-// apps/web/src/lib/kku/employee-api.ts. Importing from there would
-// pull a server-only module + its env reads into the client bundle;
-// keeping it here is simpler and the function is 4 lines anyway.
+// Inlined client-side copy of deriveDisplayName from the server-only
+// kku/employee-api.ts. Keeping it here avoids pulling the API client
+// (with its env reads + secret_key handling) into the client bundle.
+// Field names mirror the live KKU /v3/hr/employee/filter/email/{email}
+// response — Thai title + firstname + lastname preferred, English
+// fallback. PII fields (`identification`, `pass`) are scrubbed
+// server-side before this function ever sees the record.
 function deriveDisplayName(emp: Record<string, unknown>): string {
-  const s = (k: string): string | null => {
+  const t = (k: string): string | null => {
     const v = emp[k];
-    return typeof v === 'string' && v.trim() ? v : null;
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
   };
-  if (s('name_th')) return s('name_th')!;
-  if (s('name_en')) return s('name_en')!;
-  const thaiPair = [s('first_name_th'), s('last_name_th')].filter(Boolean).join(' ');
-  if (thaiPair) return thaiPair;
-  const enPair = [s('first_name'), s('last_name')].filter(Boolean).join(' ');
-  if (enPair) return enPair;
-  return s('email') ?? '(unnamed)';
+  const titleTh = t('title');
+  const fnTh = t('firstname');
+  const lnTh = t('lastname');
+  if (fnTh && lnTh) return [titleTh, fnTh, lnTh].filter(Boolean).join(' ');
+  const titleEn = t('title_eng');
+  const fnEn = t('firstname_eng');
+  const lnEn = t('lastname_eng');
+  if (fnEn && lnEn) return [titleEn, fnEn, lnEn].filter(Boolean).join(' ');
+  return t('email') ?? '(unnamed)';
 }
 
 interface UserRow {
@@ -178,7 +183,7 @@ function PreProvisionPanel({
       return;
     }
     if (r.employee) {
-      const display = deriveDisplayName(r.employee);
+      const display = deriveDisplayName(r.employee as unknown as Record<string, unknown>);
       setName(display);
       setResult({ kind: 'found-employee', employee: { name: display, emp: r.employee as Record<string, unknown> } });
       return;
