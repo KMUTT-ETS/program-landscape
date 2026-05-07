@@ -355,10 +355,11 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
             return (
               <div
                 key={v.venue}
-                className="grid grid-cols-[minmax(0,22rem)_1fr_4rem] gap-3 items-center"
+                className="grid items-center gap-3"
+                style={{ gridTemplateColumns: 'minmax(0, 22rem) minmax(8rem, 1fr) 4rem' }}
               >
                 <span className="truncate text-text-secondary" title={v.venue}>{v.venue}</span>
-                <div className="h-2.5 rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
+                <div className="h-2.5 rounded-sm overflow-hidden" style={{ background: 'rgba(120,120,120,0.18)' }}>
                   <div className="h-full rounded-sm" style={{ width: `${w}%`, background: '#0ea5e9' }} />
                 </div>
                 <span className="text-right font-tabular font-semibold">{v.papers.toLocaleString('en-US')}</span>
