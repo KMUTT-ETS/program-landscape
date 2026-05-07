@@ -346,19 +346,20 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Top venues</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Top 15 journals / conferences by KKU paper count.
+          Top 15 journals / conferences by KKU paper count. Bar length is proportional to the leader.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-1.5 text-xs">
           {data.topVenues.map((v) => {
             const max = data.topVenues[0]?.papers ?? 1;
             const w = (v.papers / max) * 100;
             return (
-              <div key={v.venue} className="grid grid-cols-[1fr_5rem] gap-3 items-center">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="truncate" title={v.venue}>{v.venue}</span>
-                  <div className="flex-1 h-2 rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
-                    <div className="h-full rounded-sm" style={{ width: `${w}%`, background: '#0ea5e9' }} />
-                  </div>
+              <div
+                key={v.venue}
+                className="grid grid-cols-[minmax(0,22rem)_1fr_4rem] gap-3 items-center"
+              >
+                <span className="truncate text-text-secondary" title={v.venue}>{v.venue}</span>
+                <div className="h-2.5 rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
+                  <div className="h-full rounded-sm" style={{ width: `${w}%`, background: '#0ea5e9' }} />
                 </div>
                 <span className="text-right font-tabular font-semibold">{v.papers.toLocaleString('en-US')}</span>
               </div>
