@@ -241,6 +241,15 @@ export class RecruitmentService {
     const programFilter = this.programFilter(filters);
     // Two-stage aggregation: roll PLAN_PER_YEAR up by MAX-per-program,
     // then SUM into the faculty bucket alongside the per-row funnel sums.
+    // Start from `faculties` (LEFT JOIN funnel data) so every academic
+    // faculty with at least one canonical-active program appears in
+    // the dashboard — even faculties with no admissions activity for
+    // the selected year (graduate-only faculties, faculties with no
+    // current cohort) show up with zero-count rows. Sorted by Thai
+    // name to match the rollup tree.
+    const facultyFilterScope: Prisma.Sql = filters.facultyId
+      ? Prisma.sql`AND fac.id = ${filters.facultyId}`
+      : Prisma.empty;
     const rows = await prisma.$queryRaw<
       Array<{
         faculty_id: string;
@@ -295,13 +304,28 @@ export class RecruitmentService {
         fac.code AS faculty_code,
         fac.name_th AS faculty_name_th,
         fac.name_en AS faculty_name_en,
-        fb.program_count, fb.seats, fb.applicants, fb.passed, fb.send_ch,
-        fb.confirm_ch, fb.send_reg, fb.reg_reported, fb.rounds,
+        COALESCE(fb.program_count, 0)::bigint AS program_count,
+        COALESCE(fb.seats, 0)::bigint AS seats,
+        COALESCE(fb.applicants, 0)::bigint AS applicants,
+        COALESCE(fb.passed, 0)::bigint AS passed,
+        COALESCE(fb.send_ch, 0)::bigint AS send_ch,
+        COALESCE(fb.confirm_ch, 0)::bigint AS confirm_ch,
+        COALESCE(fb.send_reg, 0)::bigint AS send_reg,
+        COALESCE(fb.reg_reported, 0)::bigint AS reg_reported,
+        COALESCE(fb.rounds, 0)::bigint AS rounds,
         COALESCE(pf.plan_per_year, 0)::bigint AS plan_per_year
-      FROM funnel_by_fac fb
-      JOIN faculties fac ON fac.id = fb.faculty_id
-      LEFT JOIN plan_by_fac pf ON pf.faculty_id = fb.faculty_id
-      ORDER BY fb.applicants DESC;
+      FROM faculties fac
+      LEFT JOIN funnel_by_fac fb ON fb.faculty_id = fac.id
+      LEFT JOIN plan_by_fac pf ON pf.faculty_id = fac.id
+      WHERE fac.kind = 'ACADEMIC'
+        AND EXISTS (
+          SELECT 1 FROM programs p
+          WHERE p.faculty_id = fac.id
+            AND p.status = 'ACTIVE'
+            AND p.sequence_no_from_sheet IS NOT NULL
+        )
+        ${facultyFilterScope}
+      ORDER BY fac.name_th ASC;
     `;
     return rows.map((r) => ({
       facultyId: r.faculty_id,

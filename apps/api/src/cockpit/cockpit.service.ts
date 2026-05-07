@@ -455,11 +455,16 @@ interface Bubble {
 }
 
 async function bubblesForScope(scope: ScopeLevel, scopeId: string | null): Promise<Bubble[]> {
-  // We always show programs as bubbles. The bubble matrix is scoped to
-  // canonical-297 programs (sequenceNoFromSheet IS NOT NULL — same
-  // scoping rule as the headline KPI count). All canonical programs
-  // are returned; client-side BubbleMatrix handles ~300 points fine.
-  const where: Prisma.ProgramWhereInput = { sequenceNoFromSheet: { not: null } };
+  // The bubble matrix is scoped to canonical-active programs only —
+  // sequenceNoFromSheet IS NOT NULL AND status = 'ACTIVE'. Same scoping
+  // rule as the headline KPI count (297). Without the ACTIVE filter the
+  // matrix was including 4 SUNSET rows, surfacing 301 — those are
+  // programs in wind-down and shouldn't influence the strategic
+  // landscape view.
+  const where: Prisma.ProgramWhereInput = {
+    sequenceNoFromSheet: { not: null },
+    status: 'ACTIVE',
+  };
   if (scope === 'faculty' && scopeId) where.facultyId = scopeId;
   if (scope === 'department' && scopeId) where.departmentId = scopeId;
   if (scope === 'program' && scopeId) where.id = scopeId;

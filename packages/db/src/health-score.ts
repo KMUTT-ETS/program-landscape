@@ -285,7 +285,10 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
         },
       },
       select: { id: true, nameEn: true, nameTh: true },
-      orderBy: { code: 'asc' },
+      // Thai-dictionary order. Postgres en_US.utf8 honours libc's Thai
+      // collation rules including leading-vowel reorder — verified
+      // against the canonical 26 academic faculties on 2026-05-07.
+      orderBy: { nameTh: 'asc' },
     });
     return {
       scope: 'faculty',
