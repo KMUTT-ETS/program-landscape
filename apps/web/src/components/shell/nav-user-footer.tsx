@@ -62,7 +62,7 @@ export function NavUserFooter({ user }: { user: SessionUser }) {
           <ChevronUp className="h-4 w-4 shrink-0 text-nav-fg-muted transition-transform duration-fast group-data-[state=open]:rotate-180" aria-hidden />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-[220px]">
+      <DropdownMenuContent side="top" align="start" className="w-[260px]">
         <DropdownMenuLabel>Account</DropdownMenuLabel>
         <DropdownMenuItem disabled>
           <span className="truncate text-xs text-text-tertiary">{user.email}</span>
@@ -85,6 +85,18 @@ export function NavUserFooter({ user }: { user: SessionUser }) {
           <LogOut className="h-4 w-4 text-text-tertiary" aria-hidden />
           Sign out
         </DropdownMenuItem>
+        {/* Credits — sits at the very bottom of the menu, low contrast.
+            Always-on signature without imposing on the working surface. */}
+        <DropdownMenuSeparator />
+        <div className="px-2 py-2 text-[10px] leading-relaxed text-text-tertiary">
+          <div className="text-text-secondary font-medium">
+            Conceived by Dr. Denpong Soodphakdee
+          </div>
+          <div>Vice President for Education and Digital, KKU</div>
+          <div className="mt-1 opacity-80">
+            Built in collaboration with Claude (Anthropic)
+          </div>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

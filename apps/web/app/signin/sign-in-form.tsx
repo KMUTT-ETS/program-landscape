@@ -10,16 +10,9 @@ interface Props {
   localAuthEnabled: boolean;
 }
 
-// Sign-in form — minimal: one primary action (KKU SSO), a clear divider,
-// then an optional dev-credentials section. Real bordered inputs (the
-// bottom-border style read as "search box" rather than "form field").
-//
-// Hierarchy:
-//   1. SSO button — accent-default, owns the page's only saturated colour.
-//   2. Divider — single hairline with inline "or" label.
-//   3. Email + password — standard bordered fields, generous padding.
-//   4. Sign-in button — outline style; never competes with the SSO CTA.
-//   5. Disclosure for seeded users — collapsed by default.
+// Card-style sign-in form. Lives inside the rounded-2xl container in
+// page.tsx — typography here is sized to the card width (440px), not
+// the viewport, so weights/sizes feel calm and contained.
 
 export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
   const router = useRouter();
@@ -58,13 +51,13 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Primary CTA — the single saturated colour on the page */}
+    <div className="flex flex-col gap-5">
+      {/* Primary CTA — full-width, accent-coloured */}
       <button
         type="button"
         onClick={onKkuSso}
         disabled={!ssoConfigured || ssoBusy}
-        className="group flex w-full items-center justify-center gap-2 rounded-md bg-accent-default px-5 py-3 text-[14px] font-medium text-accent-fg shadow-sm transition-all hover:bg-accent-hover hover:shadow active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+        className="group relative flex w-full items-center justify-center gap-2 rounded-xl bg-accent-default px-5 py-3 text-[14px] font-medium text-accent-fg shadow-sm transition-all hover:bg-accent-hover hover:shadow active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
       >
         <span>{ssoBusy ? 'Redirecting…' : 'Continue with KKU SSO'}</span>
         <ArrowRight
@@ -73,28 +66,26 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
         />
       </button>
       {!ssoConfigured && (
-        <p className="-mt-3 text-[12px] leading-relaxed text-text-tertiary">
+        <p className="-mt-2 text-[11px] leading-relaxed text-text-tertiary">
           KKU SSO is not configured for this environment. Set{' '}
-          <code className="font-mono text-[11px] text-text-secondary">KKU_SSO_ISSUER</code>{' '}
-          and the client credentials in <code className="font-mono text-[11px] text-text-secondary">.env</code>, then restart.
+          <code className="font-mono text-[10px] text-text-secondary">KKU_SSO_ISSUER</code>{' '}
+          and the client credentials in{' '}
+          <code className="font-mono text-[10px] text-text-secondary">.env</code>
+          , then restart.
         </p>
       )}
 
       {localAuthEnabled && (
         <>
-          {/* Hairline divider with inline label */}
-          <div
-            role="separator"
-            className="relative flex items-center gap-3 my-1"
-          >
+          <div className="relative flex items-center gap-3 my-1" role="separator">
             <span aria-hidden className="h-px flex-1 bg-border-subtle" />
-            <span className="text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
+            <span className="text-[10px] uppercase tracking-[0.16em] text-text-tertiary">
               Or
             </span>
             <span aria-hidden className="h-px flex-1 bg-border-subtle" />
           </div>
 
-          <form onSubmit={onDevSubmit} className="flex flex-col gap-4">
+          <form onSubmit={onDevSubmit} className="flex flex-col gap-3">
             <Field
               id="email"
               label="Email"
@@ -102,6 +93,7 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
               value={email}
               autoComplete="username"
               onChange={setEmail}
+              placeholder="firstname.l@kku.ac.th"
             />
             <Field
               id="password"
@@ -110,12 +102,13 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
               value={password}
               autoComplete="current-password"
               onChange={setPassword}
+              placeholder="••••••••"
             />
 
             {error && (
               <p
                 role="alert"
-                className="text-[12px] text-danger"
+                className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-[12px] text-danger"
               >
                 {error}
               </p>
@@ -124,13 +117,13 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-1 inline-flex items-center justify-center gap-2 rounded-md border border-border-strong bg-surface-1 px-5 py-2.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2 hover:border-text-primary disabled:opacity-50"
+              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-default bg-surface-0 px-5 py-2.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2 hover:border-border-strong disabled:opacity-50"
             >
               {submitting ? 'Signing in…' : 'Sign in with developer credentials'}
             </button>
 
-            <details className="group mt-1">
-              <summary className="cursor-pointer list-none text-[11px] uppercase tracking-[0.14em] text-text-tertiary transition-colors hover:text-text-secondary select-none">
+            <details className="group mt-2">
+              <summary className="cursor-pointer list-none text-[10px] uppercase tracking-[0.14em] text-text-tertiary transition-colors hover:text-text-secondary select-none">
                 <span className="inline-block transition-transform group-open:rotate-90">▸</span>{' '}
                 Show seeded developer accounts
               </summary>
@@ -154,8 +147,8 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
   );
 }
 
-// Standard bordered input. Label sits above. Soft border that strengthens
-// on hover and switches to accent-default on focus.
+// Card-style input — soft border, rounded-lg, generous padding,
+// subtle ring on focus.
 function Field({
   id,
   label,
@@ -163,6 +156,7 @@ function Field({
   value,
   autoComplete,
   onChange,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -170,6 +164,7 @@ function Field({
   value: string;
   autoComplete: string;
   onChange: (v: string) => void;
+  placeholder?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -182,7 +177,8 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        className="w-full rounded-md border border-border-default bg-surface-0 px-3.5 py-2.5 text-[14px] text-text-primary outline-none transition-all hover:border-border-strong focus:border-accent-default focus:ring-2 focus:ring-accent-default/20"
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-border-default bg-surface-0 px-3.5 py-2.5 text-[14px] text-text-primary placeholder:text-text-tertiary outline-none transition-all hover:border-border-strong focus:border-accent-default focus:ring-2 focus:ring-accent-default/20"
       />
     </div>
   );
