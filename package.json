@@ -31,6 +31,7 @@
     "research:capture": "tsx apps/ingestion/src/scripts/capture-research-sample.ts",
     "publications:probe": "tsx apps/ingestion/src/scripts/probe-kku-publications.ts",
     "research:backfill-people": "tsx apps/ingestion/src/scripts/backfill-faculty-from-publications.ts",
+    "research:backfill-departments": "tsx apps/ingestion/src/scripts/backfill-department-from-publications.ts",
     "kmitl:capture": "tsx apps/ingestion/src/scripts/capture-kmitl-skill-mapping.ts",
     "programs:seed-from-sheet": "tsx apps/ingestion/src/scripts/seed-programs-from-sheet.ts",
     "programs:digest": "tsx apps/ingestion/src/scripts/digest-program.ts",

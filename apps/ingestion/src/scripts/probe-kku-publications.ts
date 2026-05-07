@@ -577,6 +577,101 @@ async function pubmedLink(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// find-author — diagnose a single unmatched author, no PII exposure
+// ─────────────────────────────────────────────────────────────────────
+
+async function findAuthor(arg: string | undefined): Promise<void> {
+  if (!arg) {
+    console.log('Usage: pnpm publications:probe find-author "Firstname Lastname"');
+    process.exit(1);
+  }
+  const tokens = arg.trim().split(/\s+/);
+  if (tokens.length < 2) {
+    console.log('Provide both first + last name (e.g. "Chariya Chomvarin")');
+    process.exit(1);
+  }
+  const firstName = tokens.slice(0, -1).join(' ');
+  const lastName = tokens[tokens.length - 1];
+  if (!firstName || !lastName) {
+    console.log('Could not parse name');
+    process.exit(1);
+  }
+  console.log(`[find-author] looking up "${firstName}" "${lastName}" in kku-publications.people…`);
+  const cfg = loadConfig();
+  await withConnection(cfg, async (client) => {
+    // Aggregate-only: count, faculty_id, paper counts. NEVER pid / email.
+    const rows = await query<{
+      count: string;
+      with_faculty: string;
+      faculty_ids: string;
+      total_scopus: string;
+      total_pubmed: string;
+      most_recent_scopus: number | null;
+      most_recent_pubmed: number | null;
+    }>(
+      client,
+      `SELECT
+         COUNT(*)::text                                 AS count,
+         COUNT(*) FILTER (WHERE faculty_id IS NOT NULL)::text AS with_faculty,
+         array_to_string(array_agg(DISTINCT faculty_id ORDER BY faculty_id), ',') AS faculty_ids,
+         SUM(COALESCE(scopus_document_count_tmp, 0))::text   AS total_scopus,
+         SUM(COALESCE(pubmed_document_count_tmp,  0))::text  AS total_pubmed,
+         MAX(scopus_recent.recent_year)                       AS most_recent_scopus,
+         MAX(pubmed_recent.recent_year)                       AS most_recent_pubmed
+       FROM people p
+       LEFT JOIN LATERAL (
+         SELECT MAX(EXTRACT(YEAR FROM d.cover_date))::int AS recent_year
+         FROM scopus_author_documents ad
+         JOIN scopus_documents d ON d.document_id = ad.document_id
+         WHERE ad.person_id = p.id AND d.workflow_state = 'enabled'
+       ) scopus_recent ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT MAX(d.year) AS recent_year
+         FROM pubmed_authors pa
+         JOIN pubmed_documents d ON d.id = pa.pubmed_document_id
+         WHERE pa.person_id = p.id
+       ) pubmed_recent ON TRUE
+       WHERE p.university_id = 1
+         AND LOWER(p.firstname_en) = LOWER($1)
+         AND LOWER(p.lastname_en)  = LOWER($2)`,
+      [firstName, lastName],
+    );
+    if (rows.length === 0 || Number(rows[0]?.count ?? 0) === 0) {
+      console.log(`  no exact match in kku-publications.people for ${firstName} ${lastName}`);
+      // Fuzzy fallback: surname contains
+      const fuzzy = await query<{
+        firstname_en: string;
+        lastname_en: string;
+        n: string;
+      }>(
+        client,
+        `SELECT firstname_en, lastname_en, COUNT(*)::text AS n
+         FROM people
+         WHERE university_id = 1
+           AND LOWER(lastname_en) LIKE LOWER($1)
+         GROUP BY firstname_en, lastname_en
+         ORDER BY firstname_en, lastname_en
+         LIMIT 20`,
+        [`%${lastName}%`],
+      );
+      if (fuzzy.length > 0) {
+        console.log(`  fuzzy candidates (lastname contains "${lastName}"):`);
+        for (const r of fuzzy) console.log(`    ${r.firstname_en} ${r.lastname_en}  (${r.n} row${r.n === '1' ? '' : 's'})`);
+      }
+      return;
+    }
+    const r = rows[0]!;
+    console.log(`  found ${Number(r.count).toLocaleString()} kku-publications.people row(s) matching exactly`);
+    console.log(`  with faculty_id non-null:    ${Number(r.with_faculty).toLocaleString()}`);
+    console.log(`  faculty_id values seen:      ${r.faculty_ids || '(none)'}`);
+    console.log(`  scopus_document_count_tmp:   ${Number(r.total_scopus).toLocaleString()}`);
+    console.log(`  pubmed_document_count_tmp:   ${Number(r.total_pubmed).toLocaleString()}`);
+    console.log(`  most recent Scopus paper:    ${r.most_recent_scopus ?? '(none)'}`);
+    console.log(`  most recent PubMed paper:    ${r.most_recent_pubmed ?? '(none)'}`);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // faculty-rollup — translate faculty_id → KKU faculty name + per-source counts
 // ─────────────────────────────────────────────────────────────────────
 
@@ -869,6 +964,9 @@ async function main(): Promise<void> {
         break;
       case 'faculty-rollup':
         await facultyRollup();
+        break;
+      case 'find-author':
+        await findAuthor(rest[0]);
         break;
       case 'all':
         await ping();

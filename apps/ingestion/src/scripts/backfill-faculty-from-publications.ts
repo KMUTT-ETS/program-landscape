@@ -76,7 +76,12 @@ function loadDotEnv(envPath: string): void {
 }
 
 const apply = process.argv.includes('--apply');
-const RECENCY_YEARS_FOR_FILTER = 5; // include people with paper in last 5y
+// Filter: include any person with a paper in the kku-research window. Default
+// KKU_RESEARCH_YEAR_FROM=2015. This matches the connector's coverage so every
+// paper that lands in ResearchOutput has a corresponding FacultyMember row
+// to resolve to (modulo name-format mismatches the connector handles via
+// nameEn-lowercased / nameTh-exact matching).
+const FILTER_YEAR_FROM = Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
 const RECENCY_YEARS_FOR_ACTIVE = 2; // mark isActive=true if paper in last 2y
 
 interface KkuPubPerson {
@@ -98,7 +103,7 @@ async function main(): Promise<void> {
 
   const cfg: PostgresConfig = configFromEnv('KKU_PUBLICATIONS_DB');
   const currentYear = new Date().getUTCFullYear();
-  const yearFilter = currentYear - RECENCY_YEARS_FOR_FILTER;
+  const yearFilter = FILTER_YEAR_FROM;
   const yearActive = currentYear - RECENCY_YEARS_FOR_ACTIVE;
   console.log(`  candidate filter: papers >= ${yearFilter}; isActive=true if papers >= ${yearActive}`);
 
