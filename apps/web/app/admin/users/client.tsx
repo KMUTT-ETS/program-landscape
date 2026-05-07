@@ -183,9 +183,46 @@ function PreProvisionPanel({
       return;
     }
     if (r.employee) {
-      const display = deriveDisplayName(r.employee as unknown as Record<string, unknown>);
+      const empRecord = r.employee as unknown as Record<string, unknown>;
+      const display = deriveDisplayName(empRecord);
       setName(display);
-      setResult({ kind: 'found-employee', employee: { name: display, emp: r.employee as Record<string, unknown> } });
+
+      // Auto-match faculty by Thai name (exact). KKU API returns
+      // faculty as e.g. 'คณะวิศวกรรมศาสตร์' which matches our
+      // Faculty.nameTh exactly for the seeded faculties. Falls
+      // through silently if no match — admin picks manually.
+      const empFacultyTh =
+        typeof empRecord.faculty === 'string' ? empRecord.faculty.trim() : '';
+      const matchedFaculty = empFacultyTh
+        ? faculties.find((f) => f.nameTh.trim() === empFacultyTh) ?? null
+        : null;
+      if (matchedFaculty) setFacultyId(matchedFaculty.id);
+      else setFacultyId('');
+
+      // Default role inference from KKU's `workline`:
+      //  - 'วิชาการ ระดับอุดมศึกษา'  → academic / faculty member → FACULTY_USER
+      //  - 'สนับสนุน'                → support staff → leave as default
+      // We only auto-pick FACULTY_USER when the matched faculty is in
+      // our DB; otherwise FACULTY_USER would be unsubmittable (the
+      // 'Provision user' button stays disabled until a faculty is
+      // chosen).
+      const workline =
+        typeof empRecord.workline === 'string' ? empRecord.workline : '';
+      const isAcademic = workline.includes('วิชาการ');
+      if (matchedFaculty && isAcademic) {
+        setRole('FACULTY_USER');
+      } else {
+        setRole('PROGRAM_USER');
+      }
+      // Always clear program — even academic staff need an explicit
+      // program pick if PROGRAM_USER ends up the chosen role; KKU
+      // employee API doesn't give us program-level granularity.
+      setProgramId('');
+
+      setResult({
+        kind: 'found-employee',
+        employee: { name: display, emp: empRecord },
+      });
       return;
     }
     setResult({ kind: 'not-found' });
@@ -278,10 +315,8 @@ function PreProvisionPanel({
           {result.kind === 'found-employee' && result.employee && (
             <div className="text-xs">
               <div className="text-text-tertiary mb-1">Found in KKU directory:</div>
-              <div className="font-medium">{result.employee.name}</div>
-              <pre className="mt-1 rounded bg-surface-2 p-2 text-[11px] text-text-secondary overflow-x-auto">
-                {JSON.stringify(result.employee.emp, null, 2)}
-              </pre>
+              <div className="font-medium text-sm">{result.employee.name}</div>
+              <DirectoryFacts emp={result.employee.emp} />
             </div>
           )}
           {result.kind === 'not-found' && (
@@ -443,6 +478,40 @@ function PreProvisionPanel({
         </div>
       )}
     </Card>
+  );
+}
+
+// Compact directory snapshot — shows only the public-safe fields
+// from the KKU API response that are meaningful for provisioning.
+// PII fields (`identification`, `pass`) are stripped server-side
+// before this component ever receives the record.
+function DirectoryFacts({ emp }: { emp: Record<string, unknown> }) {
+  const fields: Array<[string, string]> = [];
+  const push = (label: string, key: string) => {
+    const v = emp[key];
+    if (typeof v === 'string' && v.trim()) fields.push([label, v]);
+    else if (typeof v === 'number') fields.push([label, String(v)]);
+  };
+  push('Email', 'email');
+  push('Faculty', 'faculty');
+  push('Division', 'division');
+  push('Position', 'posi');
+  push('Position type', 'positype');
+  push('Level', 'level');
+  push('Workline', 'workline');
+  push('Status', 'statuslist');
+  push('Unit', 'unit');
+  push('Subunit', 'subunit');
+  if (fields.length === 0) return null;
+  return (
+    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded bg-surface-2 p-2 text-[11px] text-text-secondary">
+      {fields.map(([label, value]) => (
+        <React.Fragment key={label}>
+          <dt className="text-text-tertiary">{label}</dt>
+          <dd className="font-medium text-text-primary">{value}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
   );
 }
 
