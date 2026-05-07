@@ -28,7 +28,7 @@ async function main() {
        )`);
     console.log(`(CURR_ID, ACADYEAR) tuples where PLAN_PER_YEAR varies across rounds: ${variation[0]?.N}`);
     // NULL-coverage per year
-    const nulls = await query<{ ACADYEAR: number; ROWS: number; NULLS: number; DISTINCT_PROGS_NULL: number; DISTINCT_PROGS: number }>(conn,
+    const nulls = await query<{ ACADYEAR: number; ROW_CNT: number; NULL_CNT: number; DISTINCT_PROGS_NULL: number; DISTINCT_PROGS: number }>(conn,
       `SELECT
          ACADYEAR,
          COUNT(*) AS ROW_CNT,
@@ -39,7 +39,7 @@ async function main() {
        GROUP BY ACADYEAR ORDER BY ACADYEAR DESC`);
     console.log('PLAN_PER_YEAR NULL coverage by ACADYEAR:');
     for (const r of nulls) {
-      console.log(`  BE ${r.ACADYEAR}: rows=${r.ROW_CNT}, NULL_rows=${r.NULL_CNT} (${(r.NULL_CNT/r.ROWS*100).toFixed(0)}%); programs_with_NULL=${r.DISTINCT_PROGS_NULL}/${r.DISTINCT_PROGS}`);
+      console.log(`  BE ${r.ACADYEAR}: rows=${r.ROW_CNT}, NULL_rows=${r.NULL_CNT} (${(r.NULL_CNT/r.ROW_CNT*100).toFixed(0)}%); programs_with_NULL=${r.DISTINCT_PROGS_NULL}/${r.DISTINCT_PROGS}`);
     }
     // Sample over-allocation: SUM(ENROLLSEAT) vs MAX(PLAN_PER_YEAR) per (program, year)
     const ratio = await query<{ ACADYEAR: number; PROGS: number; SUM_SEAT: number; SUM_PLAN: number; AVG_RATIO: number }>(conn,
