@@ -455,12 +455,10 @@ interface Bubble {
 }
 
 async function bubblesForScope(scope: ScopeLevel, scopeId: string | null): Promise<Bubble[]> {
-  // We always show programs as bubbles. At university scope this could
-  // be a LOT — the client-side BubbleMatrix handles ~300 points fine
-  // but we still cap at 200 for the first render; users zoom/filter
-  // to see more.
-  // Bubble matrix shows only the canonical 297 — same scoping rule as
-  // the headline KPI count.
+  // We always show programs as bubbles. The bubble matrix is scoped to
+  // canonical-297 programs (sequenceNoFromSheet IS NOT NULL — same
+  // scoping rule as the headline KPI count). All canonical programs
+  // are returned; client-side BubbleMatrix handles ~300 points fine.
   const where: Prisma.ProgramWhereInput = { sequenceNoFromSheet: { not: null } };
   if (scope === 'faculty' && scopeId) where.facultyId = scopeId;
   if (scope === 'department' && scopeId) where.departmentId = scopeId;
@@ -468,7 +466,6 @@ async function bubblesForScope(scope: ScopeLevel, scopeId: string | null): Promi
 
   const programs = await prisma.program.findMany({
     where,
-    take: 200,
     select: { id: true, code: true, nameEn: true, nameTh: true, level: true },
   });
 
