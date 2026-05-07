@@ -320,7 +320,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
                 <th className="px-2 py-1 text-right font-medium">Papers</th>
                 <th className="px-2 py-1 text-right font-medium">Citations</th>
                 <th className="px-2 py-1 text-right font-medium">h-index</th>
-                <th className="px-2 py-1 text-left font-medium">Source</th>
+                <th className="px-2 py-1 text-left font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -332,8 +332,10 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
                   <td className="px-2 py-1 text-right font-tabular font-semibold">{a.papers.toLocaleString('en-US')}</td>
                   <td className="px-2 py-1 text-right font-tabular">{a.citations.toLocaleString('en-US')}</td>
                   <td className="px-2 py-1 text-right font-tabular">{a.hIndex}</td>
-                  <td className="px-2 py-1 text-text-tertiary">
-                    {a.employeeSource === 'kku-hr' ? 'HR' : a.employeeSource === 'kku-publications' ? 'Publications' : '—'}
+                  <td className="px-2 py-1">
+                    <span className={a.isActive ? 'text-success' : 'text-text-tertiary'}>
+                      {a.isActive ? 'Active' : 'Former'}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -433,7 +435,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
             <strong className="text-text-primary">Source:</strong> internal kku-publications mirror at 10.130.2.151 (<code>kku-research</code> connector v2). Curator-grade KKU author resolution via <code>{'<source>_authors.person_id'}</code> → <code>people.id</code> → <code>faculty_id</code>.
           </div>
           <div>
-            <strong className="text-text-primary">Staff coverage:</strong> {data.employeeSourceMix.kkuHr.toLocaleString('en-US')} from kku-hr (employed staff with citizen-id-hash) + {data.employeeSourceMix.kkuPublications.toLocaleString('en-US')} backfilled from kku-publications.people (employee_code prefix <code>kkupub_</code>).
+            <strong className="text-text-primary">Staff coverage:</strong> {data.activeFormerSplit.active.toLocaleString('en-US')} active + {data.activeFormerSplit.former.toLocaleString('en-US')} former staff. Of publishing authors: {data.activeFormerSplit.activePublishing.toLocaleString('en-US')} active, {data.activeFormerSplit.formerPublishing.toLocaleString('en-US')} former. "Former" means not currently employed at KKU per HR records (or no paper in last 2 years for publication-only entries).
           </div>
           {data.caveats.map((c, i) => (
             <div key={i}>

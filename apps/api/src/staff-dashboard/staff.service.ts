@@ -1171,6 +1171,17 @@ export class StaffService {
         kkuPublications: authorList.filter((a) => a.employeeSource === 'kku-publications').length,
         other: authorList.filter((a) => a.employeeSource === 'other').length,
       },
+      // Active vs former — used in the dashboard provenance card and the
+      // top-authors Status column. The "former" count here is the dashboard-
+      // honest term for "no longer at KKU" / "retired" / "stopped publishing
+      // recently". For kku-hr-prefixed rows isActive comes from KKU HR;
+      // for kkupub_-prefixed rows it's heuristic (paper in last 2 years).
+      activeFormerSplit: {
+        active: fmRows.filter((fm) => fm.isActive).length,
+        former: fmRows.filter((fm) => !fm.isActive).length,
+        activePublishing: authorList.filter((a) => a.isActive).length,
+        formerPublishing: authorList.filter((a) => !a.isActive).length,
+      },
       caveats: [
         'This dashboard counts ALL staff (employed, retired, formerly-affiliated) — the framing is historical research-output measurement. Forward-looking program scoring (health score, lifecycle verdict) uses only active staff and runs in a separate code path.',
         'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard within 5-10% across both Scopus and PubMed.',

@@ -150,6 +150,12 @@ export interface ResearchResponse {
   perAuthor: ResearchAuthor[];
   byRank: ResearchByRankRow[];
   employeeSourceMix: { kkuHr: number; kkuPublications: number; other: number };
+  activeFormerSplit: {
+    active: number;
+    former: number;
+    activePublishing: number;
+    formerPublishing: number;
+  };
   caveats: string[];
 }
 
