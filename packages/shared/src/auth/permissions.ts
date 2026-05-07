@@ -178,8 +178,68 @@ const ADMIN_PERMS: Permission[] = [
   ...PERMISSIONS, // everything
 ];
 
+// ── KKU SSO v2 taxonomy (added 2026-05-07) ─────────────────────────────
+// SUPER_ADMIN — same surface as ADMIN: everything.
+const SUPER_ADMIN_PERMS: Permission[] = [...PERMISSIONS];
+
+// SYSTEM_ADMIN — admin-grade; can manage users + sources + ingestion +
+// PDF + queues. The "can-only-promote-up-to-SYSTEM_ADMIN" guard lives in
+// the admin-users service layer (role assignment validation), not here.
+const SYSTEM_ADMIN_PERMS: Permission[] = [
+  ...PERMISSIONS.filter((p) => p !== 'queues:manage'), // queue mgmt → super only
+];
+
+// UNIVERSITY_USER — read-all at university scope. Mirrors COUNCIL's
+// posture: see everything, mutate nothing.
+const UNIVERSITY_USER_PERMS: Permission[] = [
+  'faculties:read:all',
+  'departments:read:all',
+  'programs:read:all',
+  'financials:read:all',
+  'faculty_members:read:all',
+  'outcomes:read:all',
+  'scenarios:read:all',
+  'decisions:read:all',
+  'pdf:generate',
+];
+
+// FACULTY_USER — read-only scoped to user's own faculty.
+const FACULTY_USER_PERMS: Permission[] = [
+  'faculties:read:all',
+  'departments:read:all',
+  'programs:read:all',
+  'programs:read:own_faculty',
+  'financials:read:own_faculty',
+  'financials:read:aggregated_only',
+  'faculty_members:read:own_faculty',
+  'outcomes:read:own_faculty',
+  'outcomes:read:all',
+  'scenarios:read:all',
+  'decisions:read:all',
+  'pdf:generate',
+];
+
+// PROGRAM_USER — read-only at the user's specific program. Coarse
+// university-aggregate visibility for context, but everything detailed
+// is scoped to own_department (which is the program's department).
+const PROGRAM_USER_PERMS: Permission[] = [
+  'faculties:read:all',
+  'departments:read:all',
+  'programs:read:all',
+  'programs:read:own_department',
+  'financials:read:own_department',
+  'financials:read:aggregated_only',
+  'faculty_members:read:own_department',
+  'outcomes:read:own_department',
+  'outcomes:read:all',
+  'scenarios:read:all',
+  'decisions:read:all',
+  'pdf:generate',
+];
+
 // Copy the arrays into readonly sets so callers can't mutate them.
 export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
+  // Legacy
   VIEWER: new Set(VIEWER_PERMS),
   COUNCIL: new Set(COUNCIL_PERMS),
   EXECUTIVE: new Set(EXECUTIVE_PERMS),
@@ -187,4 +247,10 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   DEPT_HEAD: new Set(DEPT_HEAD_PERMS),
   ANALYST: new Set(ANALYST_PERMS),
   ADMIN: new Set(ADMIN_PERMS),
+  // KKU SSO v2
+  SUPER_ADMIN: new Set(SUPER_ADMIN_PERMS),
+  SYSTEM_ADMIN: new Set(SYSTEM_ADMIN_PERMS),
+  UNIVERSITY_USER: new Set(UNIVERSITY_USER_PERMS),
+  FACULTY_USER: new Set(FACULTY_USER_PERMS),
+  PROGRAM_USER: new Set(PROGRAM_USER_PERMS),
 };

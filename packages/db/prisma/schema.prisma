@@ -52,6 +52,9 @@ enum ProgramDocumentRole {
 }
 
 enum UserRole {
+  // Legacy roles — kept for backward compatibility with seed data and
+  // any scenarios/decisions/etc still referencing them. New
+  // provisioning uses the role taxonomy below.
   VIEWER
   COUNCIL
   EXECUTIVE
@@ -59,6 +62,20 @@ enum UserRole {
   DEPT_HEAD
   ANALYST
   ADMIN
+  // KKU SSO role taxonomy (added 2026-05-07):
+  //   SUPER_ADMIN     — full access; can promote SYSTEM_ADMINs.
+  //   SYSTEM_ADMIN    — admin-grade. Can assign roles up to and
+  //                     including SYSTEM_ADMIN, but never SUPER_ADMIN.
+  //   UNIVERSITY_USER — read-all at university scope.
+  //   FACULTY_USER    — read access scoped to user's facultyId.
+  //   PROGRAM_USER    — read access scoped to user's programId.
+  //                     Academic staff land here by default with
+  //                     programId set to their primary program.
+  SUPER_ADMIN
+  SYSTEM_ADMIN
+  UNIVERSITY_USER
+  FACULTY_USER
+  PROGRAM_USER
 }
 
 enum ThemePreference {
@@ -404,6 +421,7 @@ model Program {
   courses               Course[]
   programSkills         ProgramSkill[]
   programFaculties      ProgramFaculty[]
+  programUsers          User[]                      @relation("ProgramUserScope")
   enrollmentMetrics     EnrollmentMetric[]
   studentDemographics   StudentDemographic[]
   cohortDistributions   StudentCohortDistribution[]
@@ -466,12 +484,17 @@ model User {
   role            UserRole        @default(VIEWER)
   facultyId       String?         @map("faculty_id")
   departmentId    String?         @map("department_id")
+  // Set when role = PROGRAM_USER. Academic staff default to their
+  // primary program here so the deep-dive + recruitment surfaces can
+  // scope-filter to "my program" without guessing.
+  programId       String?         @map("program_id")
   themePreference ThemePreference @default(SYSTEM) @map("theme_preference")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   faculty    Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  program    Program?    @relation("ProgramUserScope", fields: [programId], references: [id], onDelete: SetNull)
 
   auditLogs              AuditLog[]
   aiInferences           AiInference[]
