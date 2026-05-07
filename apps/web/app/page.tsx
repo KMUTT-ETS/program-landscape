@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
+import { apiFetch } from '@/lib/api-client';
 import { getDashboardOverview } from '@kku/db';
 import {
   Card,
@@ -13,7 +14,8 @@ import {
 } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { LifecycleBcgMatrix } from '@/components/dashboard/lifecycle-bcg-matrix';
+import { StrategicMatrixHero } from '@/components/dashboard/strategic-matrix-hero';
+import type { CockpitMatrix } from './cockpit/types';
 import { AlertColumn } from '@/components/dashboard/alert-card';
 import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
@@ -30,19 +32,13 @@ export default async function HomePage() {
   }
   const user = session.user as SessionUser;
 
-  const overview = await getDashboardOverview();
+  const [overview, strategicMatrix] = await Promise.all([
+    getDashboardOverview(),
+    apiFetch<CockpitMatrix>('/cockpit/matrix?scope=university').catch(() => null),
+  ]);
   const k = overview.kpis;
   const bulkRunning = k.bulkPipelineProgress.done < k.bulkPipelineProgress.total;
   const generatedAtIso = overview.generatedAt.toISOString();
-
-  // Caveat for the hero quadrant: every program shows positive net
-  // contribution today because cost-allocation methodology is still
-  // pending Finance Committee approval (see CLAUDE.md). Be honest about
-  // it on the chart.
-  const quadrantCaveat =
-    overview.quadrant.points.filter((p) => p.quadrant === 'dog' || p.quadrant === 'question').length === 0
-      ? 'Cost-allocation methodology pending — every program shows positive net contribution because allocated costs are zero. True "Dog" / "Question" quadrants will appear once cost methodology is approved.'
-      : undefined;
 
   return (
     <AuthedAppShell user={user}>
@@ -109,27 +105,28 @@ export default async function HomePage() {
           />
         )}
 
-        {/* HERO QUADRANT */}
-        <PanelFrame
-          title="Lifecycle × Revenue · BCG matrix"
-          description="Each dot is one program. X = 3-year enrolment change · Y = net contribution · size = current enrolment · click a dot for the program's deep-dive. Quadrant captions follow the BCG portfolio convention."
-          freshnessDate={generatedAtIso}
-          provenanceMeta={{
-            freshnessDate: generatedAtIso,
-            sources: [
-              { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
-              { id: 'financial_metrics', name: 'KKU Finance · tuition revenue' },
-            ],
-            methodologyVersion: overview.methodologyVersion,
-            scope: { level: 'university', id: null },
-          }}
-        >
-          <LifecycleBcgMatrix
-            points={overview.quadrant.points}
-            excludedCount={overview.quadrant.excludedCount}
-            caveat={quadrantCaveat}
-          />
-        </PanelFrame>
+        {/* HERO — BCG-style Strategic Matrix at university scope.
+            Re-uses the cockpit's matrix view as the home-page anchor.
+            Same data, click-to-deep-dive, matches what users see when
+            they navigate to /cockpit/matrix. */}
+        {strategicMatrix && (
+          <PanelFrame
+            title="BCG-style Strategic Matrix"
+            description={`X = ${strategicMatrix.axisX.label} · Y = ${strategicMatrix.axisY.label}. Each dot is one program. Click any dot to open the program's deep-dive. Same view as the cockpit's Strategic Matrix at university scope.`}
+            freshnessDate={generatedAtIso}
+            provenanceMeta={{
+              freshnessDate: generatedAtIso,
+              sources: [
+                { id: 'health_score', name: 'KKU health score (drives axes)' },
+                { id: 'financial_metrics', name: 'KKU Finance · revenue & contribution' },
+              ],
+              methodologyVersion: strategicMatrix.methodologyVersion,
+              scope: { level: 'university', id: null },
+            }}
+          >
+            <StrategicMatrixHero matrix={strategicMatrix} />
+          </PanelFrame>
+        )}
 
         {/* ROW: LIFECYCLE VERDICT + FACULTY HEALTH */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -223,8 +220,8 @@ export default async function HomePage() {
           </CardHeader>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Stat
-              label="Quadrant coverage"
-              value={`${overview.quadrant.points.length}/${k.programCount}`}
+              label="Matrix coverage"
+              value={`${strategicMatrix?.bubbles.length ?? 0}/${k.programCount}`}
             />
             <Stat label="Surging programs" value={k.surgingCount} />
             <Stat label="Crashing programs" value={k.crashingCount} />
