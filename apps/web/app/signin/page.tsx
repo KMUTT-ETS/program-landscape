@@ -1,60 +1,81 @@
 import { SignInForm } from './sign-in-form';
 import { prisma } from '@kku/db';
-import { SignalsFeed } from './signals-feed';
+import { SignalsFeed, type FeedItem } from './signals-feed';
+import { fetchTodaysHeadlines, type NewsItem } from '@/lib/news/today';
 
 export const dynamic = 'force-dynamic';
 
 // Sign-in page — two-pane split (Lovable-inspired, 2026-05-07).
 //
-// Left pane: calm warm-cream surface holding a centred, narrow form
-// (~320px) with the wordmark above it and the contact + credit
-// stack below. Mirrors Lovable's layout proportion — generous
-// breathing room, form is a column of items, not a sprawling box.
+// Left pane (form): warm cream surface, form left-justified to a
+// stable column ~340px wide with consistent left padding from the
+// pane edge. Header (brand mark) and footer (contact + credit) line
+// up to the same left margin.
 //
-// Right pane: vivid layered gradient as the visual moment, with a
-// LIVE feed of TrendSignal headlines stacked on glassmorphic cards.
-// These are the same signals the application surfaces internally for
-// Council briefings — showing them on the sign-in page is honest
-// branding ("this is what's inside") and gives the page genuine
-// content rather than a static teaser.
+// Right pane (lg+ only): vivid layered gradient + a LIVE feed of
+// today's headlines. Pulls from Google News RSS (Thailand top stories,
+// higher-education, technology, policy keywords) — primary; falls
+// back to TrendSignal seed data when offline. Picks 5 at random per
+// render so repeat visits show different stories. Content vertically
+// centred in the pane.
+//
+// Responsive: at <lg the right pane drops out entirely and the left
+// pane fills the viewport; the form column stays the same width
+// (~340px) so it doesn't feel narrower on a phone — just better
+// breathing room above and below.
 export default async function SignInPage() {
   const ssoConfigured = Boolean(
     process.env.KKU_SSO_ISSUER && process.env.KKU_SSO_CLIENT_ID,
   );
   const localAuthEnabled = process.env.ENABLE_LOCAL_AUTH === 'true';
 
-  // Pull the 5 most recent signals. Pre-auth so we limit to title +
-  // English summary + signalType + detectedDate — no source URLs, no
-  // affected-program IDs, no impact scores. Fail open: if the query
-  // errors the right pane just falls back to an evergreen tagline.
-  const signals = await prisma.trendSignal
-    .findMany({
-      orderBy: { detectedDate: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        signalType: true,
-        title: true,
-        summaryEn: true,
-        detectedDate: true,
-      },
-    })
-    .catch(() => [] as Array<{
-      id: string;
-      signalType: string;
-      title: string;
-      summaryEn: string | null;
-      detectedDate: Date;
-    }>);
+  // News fetch (parallel), with TrendSignal fallback so the right pane
+  // is always populated during dev / offline.
+  const [news, trendSignals] = await Promise.all([
+    fetchTodaysHeadlines().catch(() => [] as NewsItem[]),
+    prisma.trendSignal
+      .findMany({
+        orderBy: { detectedDate: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          signalType: true,
+          title: true,
+          summaryEn: true,
+          detectedDate: true,
+        },
+      })
+      .catch(() => []),
+  ]);
+
+  const feedItems: FeedItem[] =
+    news.length > 0
+      ? shuffle(news).slice(0, 5).map((n) => ({
+          id: n.id,
+          source: n.source ?? n.category.toUpperCase(),
+          title: n.title,
+          summary: null,
+          publishedAtIso: n.publishedAtIso,
+          url: n.url,
+        }))
+      : trendSignals.map((s) => ({
+          id: s.id,
+          source: s.signalType,
+          title: s.title,
+          summary: s.summaryEn,
+          publishedAtIso: s.detectedDate.toISOString(),
+          url: null,
+        }));
 
   return (
     <main className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-2">
       {/* ── Left pane: form ─────────────────────────────────────── */}
       <section className="relative bg-surface-1 flex flex-col lg:min-h-screen">
-        {/* Top: brand mark + wordmark, anchored to the same horizontal
-            axis as the form below for a clean column. */}
-        <header className="px-8 pt-8 lg:pt-10">
-          <div className="mx-auto flex w-full max-w-[320px] items-center gap-2.5">
+        {/* Top: brand mark + wordmark, left-aligned to match the form
+            column below. Padding scales: tight on phone, generous on
+            desktop. */}
+        <header className="px-6 pt-8 sm:px-10 sm:pt-10 lg:px-16 lg:pt-12">
+          <div className="flex items-center gap-2.5">
             <BrandMark />
             <span className="text-[14px] font-medium tracking-tight text-text-primary">
               Program Landscape
@@ -62,9 +83,10 @@ export default async function SignInPage() {
           </div>
         </header>
 
-        {/* Centre: form. max-w-[320px] mirrors Lovable's tight column. */}
-        <div className="flex-1 flex flex-col justify-center px-8 py-12">
-          <div className="mx-auto w-full max-w-[320px]">
+        {/* Centre: form. Left-justified. max-w keeps long buttons +
+            inputs from sprawling. */}
+        <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 lg:px-16 py-12">
+          <div className="w-full max-w-[340px]">
             <h1 className="text-[26px] font-medium tracking-tight text-text-primary leading-tight">
               Sign in
             </h1>
@@ -81,10 +103,10 @@ export default async function SignInPage() {
           </div>
         </div>
 
-        {/* Bottom: contact + credit stack, same column width as the
-            form. */}
-        <footer className="px-8 pb-8 lg:pb-10">
-          <div className="mx-auto w-full max-w-[320px]">
+        {/* Bottom: contact + credit stack. Same column alignment as
+            header + form. */}
+        <footer className="px-6 pb-8 sm:px-10 sm:pb-10 lg:px-16">
+          <div className="w-full max-w-[340px]">
             <div className="text-[12px] text-text-tertiary leading-relaxed border-t border-border-subtle pt-5">
               Need access? Contact the{' '}
               <a
@@ -108,10 +130,13 @@ export default async function SignInPage() {
         </footer>
       </section>
 
-      {/* ── Right pane: vivid gradient + live signals feed ─────── */}
+      {/* ── Right pane: vivid gradient + live news feed ────────── */}
+      {/* Hidden on mobile (<lg): the form pane fills the viewport.
+          The brand identity travels with the form pane regardless,
+          so the page never feels stripped on a phone. */}
       <section
-        className="relative hidden lg:block overflow-hidden"
-        aria-label="Live signals feed"
+        className="relative hidden lg:flex overflow-hidden"
+        aria-label="Live news feed"
       >
         {/* Layered radial blooms in the warm accent palette. */}
         <div
@@ -149,38 +174,42 @@ export default async function SignInPage() {
           }}
         />
 
-        {/* Live signals stack — server-rendered cards, gentle entrance
-            animation handled in the SignalsFeed client wrapper. */}
-        <div className="relative z-10 flex h-full flex-col justify-center px-12 xl:px-16 py-16">
-          <div className="mb-6 flex items-center gap-3 text-white/85">
+        {/* News stack — vertically + horizontally centred. */}
+        <div className="relative z-10 m-auto w-full max-w-[480px] px-12 py-16">
+          <div className="mb-5 flex items-center gap-3 text-white/85">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">
-              Live · today&apos;s signals
+              {news.length > 0 ? "Today's headlines" : 'Curated signals'}
             </span>
           </div>
-          <p className="text-[13px] text-white/80 max-w-md mb-6 leading-relaxed">
-            Curated signals on changes in the world and Thailand — education, technology, policy, demographics — that move the strategic outlook for KKU programs.
+          <p className="text-[13px] text-white/80 mb-6 leading-relaxed">
+            {news.length > 0
+              ? 'A live pull from world + Thailand news on education, technology, and policy — randomised on each visit.'
+              : 'Curated signals on changes shaping the strategic outlook for KKU programs.'}
           </p>
-          <SignalsFeed
-            signals={signals.map((s) => ({
-              id: s.id,
-              type: s.signalType,
-              title: s.title,
-              summary: s.summaryEn ?? '',
-              detectedDateIso: s.detectedDate.toISOString(),
-            }))}
-          />
+          <SignalsFeed items={feedItems} />
         </div>
       </section>
     </main>
   );
 }
 
-// Compact brand mark — four bubbles in 2×2 (BCG-matrix nod). Top-right
-// largest gives the mark a clear focal point.
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const ai = a[i] as T;
+    const aj = a[j] as T;
+    a[i] = aj;
+    a[j] = ai;
+  }
+  return a;
+}
+
+// Compact brand mark — four bubbles in 2×2 (BCG-matrix nod).
 function BrandMark() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden className="shrink-0">
