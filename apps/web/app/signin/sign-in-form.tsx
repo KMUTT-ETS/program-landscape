@@ -3,16 +3,23 @@
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Lock } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 interface Props {
   ssoConfigured: boolean;
   localAuthEnabled: boolean;
 }
 
-// Sign-in form — editorial redesign companion to page.tsx. Bottom-border
-// inputs (no boxed widgets), one accent CTA, dev-credentials list
-// hidden behind a disclosure to keep the form quiet for real users.
+// Sign-in form — minimal: one primary action (KKU SSO), a clear divider,
+// then an optional dev-credentials section. Real bordered inputs (the
+// bottom-border style read as "search box" rather than "form field").
+//
+// Hierarchy:
+//   1. SSO button — accent-default, owns the page's only saturated colour.
+//   2. Divider — single hairline with inline "or" label.
+//   3. Email + password — standard bordered fields, generous padding.
+//   4. Sign-in button — outline style; never competes with the SSO CTA.
+//   5. Disclosure for seeded users — collapsed by default.
 
 export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
   const router = useRouter();
@@ -52,64 +59,63 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Primary action — KKU SSO. Single deliberate button. */}
+      {/* Primary CTA — the single saturated colour on the page */}
       <button
         type="button"
         onClick={onKkuSso}
         disabled={!ssoConfigured || ssoBusy}
-        className="group relative flex w-full items-center justify-between gap-3 rounded-md bg-accent-default px-5 py-3.5 text-sm font-medium text-accent-fg shadow-sm transition-all hover:bg-accent-hover hover:shadow-md active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+        className="group flex w-full items-center justify-center gap-2 rounded-md bg-accent-default px-5 py-3 text-[14px] font-medium text-accent-fg shadow-sm transition-all hover:bg-accent-hover hover:shadow active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
       >
-        <span className="flex items-center gap-2.5">
-          <Lock className="h-4 w-4 opacity-80" aria-hidden />
-          {ssoBusy ? 'Redirecting to KKU SSO…' : 'Continue with KKU SSO'}
-        </span>
+        <span>{ssoBusy ? 'Redirecting…' : 'Continue with KKU SSO'}</span>
         <ArrowRight
-          className="h-4 w-4 opacity-70 transition-transform group-hover:translate-x-0.5"
+          className="h-4 w-4 opacity-80 transition-transform group-hover:translate-x-0.5"
           aria-hidden
         />
       </button>
       {!ssoConfigured && (
-        <p className="-mt-3 text-[11px] text-text-tertiary leading-relaxed">
-          KKU SSO is not yet configured for this environment. Set{' '}
-          <code className="font-mono text-[10px] text-text-secondary">KKU_SSO_ISSUER</code>{' '}
-          and the client credentials, then restart the dev server.
+        <p className="-mt-3 text-[12px] leading-relaxed text-text-tertiary">
+          KKU SSO is not configured for this environment. Set{' '}
+          <code className="font-mono text-[11px] text-text-secondary">KKU_SSO_ISSUER</code>{' '}
+          and the client credentials in <code className="font-mono text-[11px] text-text-secondary">.env</code>, then restart.
         </p>
       )}
 
       {localAuthEnabled && (
         <>
-          {/* Hairline divider with inline label — quieter than the
-              two-rule "Or (dev only)" pattern. */}
+          {/* Hairline divider with inline label */}
           <div
-            className="relative h-px bg-border-subtle my-2"
             role="separator"
-            aria-label="Developer-only sign-in below"
+            className="relative flex items-center gap-3 my-1"
           >
-            <span className="absolute left-1/2 -translate-x-1/2 -top-2 bg-surface-1 px-3 text-[10px] uppercase tracking-[0.18em] font-semibold text-text-tertiary">
-              Developer access
+            <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+            <span className="text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
+              Or
             </span>
+            <span aria-hidden className="h-px flex-1 bg-border-subtle" />
           </div>
 
-          <form onSubmit={onDevSubmit} className="flex flex-col gap-5">
+          <form onSubmit={onDevSubmit} className="flex flex-col gap-4">
             <Field
+              id="email"
               label="Email"
               type="email"
               value={email}
               autoComplete="username"
-              onChange={(v) => setEmail(v)}
+              onChange={setEmail}
             />
             <Field
+              id="password"
               label="Password"
               type="password"
               value={password}
               autoComplete="current-password"
-              onChange={(v) => setPassword(v)}
+              onChange={setPassword}
             />
 
             {error && (
               <p
                 role="alert"
-                className="rounded-sm border-l-2 border-danger bg-danger/5 px-3 py-2 text-[12px] text-danger"
+                className="text-[12px] text-danger"
               >
                 {error}
               </p>
@@ -118,24 +124,24 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
             <button
               type="submit"
               disabled={submitting}
-              className="self-start rounded-md border border-border-strong bg-surface-1 px-4 py-2 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2 hover:border-text-primary disabled:opacity-50"
+              className="mt-1 inline-flex items-center justify-center gap-2 rounded-md border border-border-strong bg-surface-1 px-5 py-2.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2 hover:border-text-primary disabled:opacity-50"
             >
-              {submitting ? 'Signing in…' : 'Sign in (dev)'}
+              {submitting ? 'Signing in…' : 'Sign in with developer credentials'}
             </button>
 
-            <details className="group rounded-sm">
-              <summary className="cursor-pointer list-none text-[11px] uppercase tracking-[0.14em] font-semibold text-text-tertiary transition-colors hover:text-text-secondary">
+            <details className="group mt-1">
+              <summary className="cursor-pointer list-none text-[11px] uppercase tracking-[0.14em] text-text-tertiary transition-colors hover:text-text-secondary select-none">
                 <span className="inline-block transition-transform group-open:rotate-90">▸</span>{' '}
-                Show seeded dev users
+                Show seeded developer accounts
               </summary>
-              <div className="mt-3 space-y-1 font-mono text-[11px] text-text-secondary leading-relaxed">
-                <code className="block">admin@kku.ac.th</code>
-                <code className="block">council@kku.ac.th</code>
-                <code className="block">exec@kku.ac.th</code>
-                <code className="block">dean.en@kku.ac.th</code>
-                <code className="block">dh.cpe@kku.ac.th</code>
-                <code className="block">analyst@kku.ac.th</code>
-                <code className="block">viewer@kku.ac.th</code>
+              <div className="mt-3 grid grid-cols-1 gap-1 font-mono text-[11px] text-text-secondary leading-relaxed">
+                <code>admin@kku.ac.th</code>
+                <code>council@kku.ac.th</code>
+                <code>exec@kku.ac.th</code>
+                <code>dean.en@kku.ac.th</code>
+                <code>dh.cpe@kku.ac.th</code>
+                <code>analyst@kku.ac.th</code>
+                <code>viewer@kku.ac.th</code>
                 <p className="pt-2 text-text-tertiary">
                   Password: <code>kku-dev</code>
                 </p>
@@ -148,15 +154,17 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
   );
 }
 
-// Editorial bottom-border input. Label sits above as a small caption,
-// border lifts from subtle to default on hover and to accent on focus.
+// Standard bordered input. Label sits above. Soft border that strengthens
+// on hover and switches to accent-default on focus.
 function Field({
+  id,
   label,
   type,
   value,
   autoComplete,
   onChange,
 }: {
+  id: string;
   label: string;
   type: 'email' | 'password';
   value: string;
@@ -164,17 +172,18 @@ function Field({
   onChange: (v: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[12px] font-medium text-text-secondary">
         {label}
-      </span>
+      </label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        className="w-full bg-transparent text-[15px] text-text-primary placeholder:text-text-tertiary border-0 border-b border-border-default px-0 py-2 outline-none transition-colors hover:border-border-strong focus:border-accent-default"
+        className="w-full rounded-md border border-border-default bg-surface-0 px-3.5 py-2.5 text-[14px] text-text-primary outline-none transition-all hover:border-border-strong focus:border-accent-default focus:ring-2 focus:ring-accent-default/20"
       />
-    </label>
+    </div>
   );
 }
