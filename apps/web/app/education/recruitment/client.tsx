@@ -607,8 +607,10 @@ function FacultyRollupTable({ rows }: { rows: FacultyRow[] }) {
             return (
               <tr key={r.facultyId} className="hover:bg-surface-1">
                 <td className="px-4 py-2">
-                  <div className="font-medium">{r.facultyNameTh}</div>
-                  <div className="text-xs text-text-secondary">{r.facultyNameEn}</div>
+                  <div className="font-medium" lang="th">
+                    {r.facultyNameTh}
+                  </div>
+                  <div className="text-xs text-text-tertiary">{r.facultyNameEn}</div>
                 </td>
                 <td className="px-4 py-2 text-right font-tabular">{r.programCount}</td>
                 <td className="px-4 py-2 text-right font-tabular">{r.totals.planPerYear.toLocaleString()}</td>

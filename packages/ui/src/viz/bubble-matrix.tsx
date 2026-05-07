@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useChartPalette } from './chart-theme';
 
@@ -11,7 +12,18 @@ import { useChartPalette } from './chart-theme';
 //   - crisp export to PDF (the prompt-02c council pack expects SVG)
 //   - colour-token driven (reads palette via useChartPalette so the
 //     theme switch updates the fill on dark mode without remount)
-//   - 300-bubble performance is fine; we cap at ~200 in the controller
+//
+// Interactivity:
+//   - Wheel scroll over plot area → zoom around cursor.
+//   - Drag plot area → pan (any zoom level).
+//   - Toolbar: zoom-in / zoom-out / reset / maximize.
+//   - Maximize → browser-area fullscreen (fixed-positioned overlay
+//     filling the viewport); ESC exits. Distinct from the
+//     element.requestFullscreen() API which goes full monitor.
+//
+// Bubble positions are recomputed manually per render so bubble
+// radii do NOT scale with zoom — keeps the dot density readable
+// when zoomed in. Position transform is identity at zoom=1 / pan=0.
 //
 // Accessibility: each bubble has a visible text label + aria-label with
 // the metric read-back. Hover = tooltip overlay with Thai description.
@@ -50,6 +62,10 @@ export interface BubbleMatrixProps {
   };
 }
 
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 8;
+const ZOOM_STEP = 1.4; // multiplicative step for the toolbar buttons
+
 export function BubbleMatrix({
   bubbles,
   axisXLabel,
@@ -66,16 +82,41 @@ export function BubbleMatrix({
 }: BubbleMatrixProps) {
   const palette = useChartPalette();
   const [hovered, setHovered] = React.useState<Bubble | null>(null);
+  const [zoom, setZoom] = React.useState(1);
+  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const [maxed, setMaxed] = React.useState(false);
+  const [maxSize, setMaxSize] = React.useState<{ w: number; h: number } | null>(null);
+  const svgRef = React.useRef<SVGSVGElement | null>(null);
+  const dragRef = React.useRef<{
+    startX: number;
+    startY: number;
+    startPanX: number;
+    startPanY: number;
+  } | null>(null);
+  // Track whether a drag actually moved — used to suppress click-through
+  // (we don't want a pan to also fire onBubbleClick on the bubble we
+  // happened to mouse-up on).
+  const dragMovedRef = React.useRef(false);
 
-  // Layout constants.
+  // Clip-path id has to be unique per instance so two charts on the same
+  // page don't share the same defs. Generate a stable random suffix.
+  const clipId = React.useId();
+
+  // Effective width/height for the SVG. In maximized mode we measure
+  // window dimensions and subtract chrome (toolbar + caption + padding).
+  const effectiveWidth = maxed && maxSize ? maxSize.w : width;
+  const effectiveHeight = maxed && maxSize ? maxSize.h : height;
+
+  // Layout constants. Recomputed per render with effective dimensions
+  // so the chart adapts cleanly when maximize toggles.
   const M = { top: 24, right: 40, bottom: 48, left: 60 };
-  const W = width - M.left - M.right;
-  const H = height - M.top - M.bottom;
+  const W = effectiveWidth - M.left - M.right;
+  const H = effectiveHeight - M.top - M.bottom;
 
   // Normalise size: bubbles scale quadratic-area with size, cap at r=32.
-  const maxSize = Math.max(1, ...bubbles.map((b) => Math.abs(b.size)));
+  const maxBubbleSize = Math.max(1, ...bubbles.map((b) => Math.abs(b.size)));
   const radius = (b: Bubble) => {
-    const t = maxSize === 0 ? 0 : Math.abs(b.size) / maxSize;
+    const t = maxBubbleSize === 0 ? 0 : Math.abs(b.size) / maxBubbleSize;
     return 6 + Math.sqrt(t) * 26;
   };
 
@@ -91,14 +132,174 @@ export function BubbleMatrix({
   const quadrantX = M.left + W / 2;
   const quadrantY = M.top + H / 2;
 
+  // ── Pan + zoom maths ─────────────────────────────────────────────
+  // We apply: screen = pan + base * zoom. Inverse: base = (screen - pan) / zoom.
+  const reset = React.useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  const zoomAtPoint = React.useCallback(
+    (mx: number, my: number, factor: number) => {
+      setZoom((prevZoom) => {
+        const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prevZoom * factor));
+        if (newZoom === prevZoom) return prevZoom;
+        const actualFactor = newZoom / prevZoom;
+        setPan((prevPan) => ({
+          x: mx - (mx - prevPan.x) * actualFactor,
+          y: my - (my - prevPan.y) * actualFactor,
+        }));
+        return newZoom;
+      });
+    },
+    [],
+  );
+
+  const onWheel = (e: React.WheelEvent<SVGRectElement>) => {
+    e.preventDefault();
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    zoomAtPoint(mx, my, factor);
+  };
+
+  const onMouseDown = (e: React.MouseEvent<SVGRectElement>) => {
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startPanX: pan.x,
+      startPanY: pan.y,
+    };
+    dragMovedRef.current = false;
+  };
+
+  const onMouseMove = (e: React.MouseEvent<SVGRectElement>) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMovedRef.current = true;
+    setPan({
+      x: dragRef.current.startPanX + dx,
+      y: dragRef.current.startPanY + dy,
+    });
+  };
+
+  const endDrag = () => {
+    dragRef.current = null;
+  };
+
+  // ── Maximize (browser-area fullscreen) ───────────────────────────
+  // Fixed-positioned overlay covering the viewport. ESC exits.
+  React.useEffect(() => {
+    if (!maxed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMaxed(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [maxed]);
+
+  React.useEffect(() => {
+    if (!maxed) {
+      setMaxSize(null);
+      return;
+    }
+    const update = () => {
+      // Leave room for chrome: 96px horizontal padding (48 each side)
+      // + 220px vertical (toolbar + axis labels + caption + breathing).
+      setMaxSize({
+        w: Math.max(640, window.innerWidth - 96),
+        h: Math.max(420, window.innerHeight - 220),
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [maxed]);
+
+  // Bubble screen positions — manually computed so radius doesn't scale.
+  const bubblePositions = bubbles.map((b) => {
+    const baseX = M.left + (b.x / 100) * W;
+    const baseY = M.top + H - (b.y / 100) * H;
+    return {
+      bubble: b,
+      cx: pan.x + baseX * zoom + M.left * (1 - zoom),
+      cy: pan.y + baseY * zoom + M.top * (1 - zoom),
+      r: radius(b),
+    };
+  });
+  // The `+ M.left * (1 - zoom)` (and same for y) shifts the zoom origin
+  // from (0,0) to (M.left, M.top), so the plot's top-left corner stays
+  // pinned when zoom changes from 1 with pan=0. Otherwise zooming would
+  // shoot bubbles off into the bottom-right quadrant.
+
   return (
-    <div className={cn('overflow-hidden', className)}>
+    <div
+      className={cn(
+        'relative',
+        maxed ? 'fixed inset-0 z-50 flex flex-col bg-surface-0 p-6' : 'overflow-hidden',
+        className,
+      )}
+    >
+      {/* Toolbar — top-right of the plot area */}
+      <div className="absolute right-2 top-2 z-10 flex gap-1">
+        <ToolbarButton
+          label="Zoom in"
+          onClick={() => {
+            const rect = svgRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            zoomAtPoint(rect.width / 2, rect.height / 2, ZOOM_STEP);
+          }}
+          disabled={zoom >= ZOOM_MAX - 0.01}
+        >
+          <ZoomIn className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Zoom out"
+          onClick={() => {
+            const rect = svgRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            zoomAtPoint(rect.width / 2, rect.height / 2, 1 / ZOOM_STEP);
+          }}
+          disabled={zoom <= ZOOM_MIN + 0.01}
+        >
+          <ZoomOut className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Reset view"
+          onClick={reset}
+          disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          label={maxed ? 'Exit fullscreen' : 'Fullscreen'}
+          onClick={() => setMaxed((m) => !m)}
+        >
+          {maxed ? (
+            <Minimize2 className="h-3.5 w-3.5" />
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
+        </ToolbarButton>
+      </div>
+
       <svg
-        width={width}
-        height={height}
+        ref={svgRef}
+        width={effectiveWidth}
+        height={effectiveHeight}
         role="img"
         aria-label={`BCG-style strategic matrix: ${axisXLabel} on X, ${axisYLabel} on Y. ${bubbles.length} items.`}
+        style={{ display: 'block' }}
       >
+        <defs>
+          <clipPath id={clipId}>
+            <rect x={M.left} y={M.top} width={W} height={H} />
+          </clipPath>
+        </defs>
+
         {/* plot area background */}
         <rect x={M.left} y={M.top} width={W} height={H} fill="transparent" stroke={palette.grid} />
 
@@ -120,10 +321,10 @@ export function BubbleMatrix({
           strokeDasharray="3 3"
         />
 
-        {/* Axis labels */}
+        {/* Axis labels — outside the clipPath so they always show */}
         <text
           x={M.left + W / 2}
-          y={height - 12}
+          y={effectiveHeight - 12}
           textAnchor="middle"
           fontSize={12}
           fill={palette.text}
@@ -142,12 +343,12 @@ export function BubbleMatrix({
         </text>
 
         {xMinLabel && (
-          <text x={M.left} y={height - 28} textAnchor="start" fontSize={10} fill={palette.axis}>
+          <text x={M.left} y={effectiveHeight - 28} textAnchor="start" fontSize={10} fill={palette.axis}>
             {xMinLabel}
           </text>
         )}
         {xMaxLabel && (
-          <text x={M.left + W} y={height - 28} textAnchor="end" fontSize={10} fill={palette.axis}>
+          <text x={M.left + W} y={effectiveHeight - 28} textAnchor="end" fontSize={10} fill={palette.axis}>
             {xMaxLabel}
           </text>
         )}
@@ -176,9 +377,7 @@ export function BubbleMatrix({
           </text>
         )}
 
-        {/* Optional quadrant captions — corner-anchored, single line each.
-            Rendered before bubbles so a stray bubble never sits on top of
-            the label legibly. */}
+        {/* Optional quadrant captions — outside clipPath */}
         {quadrantLabels && (
           <g pointerEvents="none">
             {(() => {
@@ -218,15 +417,15 @@ export function BubbleMatrix({
           </g>
         )}
 
-        {/* Bubbles */}
-        {bubbles.map((b) => {
-          const cx = M.left + (b.x / 100) * W;
-          const cy = M.top + H - (b.y / 100) * H;
-          const r = radius(b);
-          const lowData = (b.dataCompletenessPct ?? 100) < 50;
-          return (
-            <g key={b.id} style={{ cursor: onBubbleClick ? 'pointer' : 'default' }}>
+        {/* Bubble layer — clipped to plot area so pan/zoom doesn't bleed
+            over axis labels. Positions are pre-computed manually so the
+            radius doesn't scale with zoom (cleaner data-viz feel). */}
+        <g clipPath={`url(#${clipId})`}>
+          {bubblePositions.map(({ bubble: b, cx, cy, r }) => {
+            const lowData = (b.dataCompletenessPct ?? 100) < 50;
+            return (
               <circle
+                key={b.id}
                 cx={cx}
                 cy={cy}
                 r={r}
@@ -236,19 +435,54 @@ export function BubbleMatrix({
                 strokeOpacity={0.9}
                 strokeWidth={lowData ? 1 : 1.5}
                 strokeDasharray={lowData ? '2 2' : undefined}
+                style={{ cursor: onBubbleClick ? 'pointer' : 'default' }}
                 onMouseEnter={() => setHovered(b)}
                 onMouseLeave={() => setHovered((prev) => (prev?.id === b.id ? null : prev))}
-                onClick={() => onBubbleClick?.(b)}
+                onClick={() => {
+                  // Suppress clicks that came from a pan-drag.
+                  if (dragMovedRef.current) return;
+                  onBubbleClick?.(b);
+                }}
               >
                 <title>{`${b.label}${lowData ? ' (low data completeness)' : ''}`}</title>
               </circle>
-            </g>
-          );
-        })}
+            );
+          })}
+        </g>
+
+        {/* Pan/zoom interaction overlay — transparent rect covering the
+            plot area, ABOVE bubbles in z-order so wheel always hits us
+            but bubbles still receive hover/click via pointerEvents. We
+            keep this rect's pointerEvents on so it captures wheel +
+            drag, and let the bubble layer above (rendered after this
+            rect in source order ⇒ above it visually) get hover/click.
+            The bubble click handler checks dragMovedRef to suppress
+            click-after-pan. */}
+        <rect
+          x={M.left}
+          y={M.top}
+          width={W}
+          height={H}
+          fill="transparent"
+          style={{
+            cursor: dragRef.current
+              ? 'grabbing'
+              : zoom > 1 || pan.x !== 0 || pan.y !== 0
+                ? 'grab'
+                : 'crosshair',
+          }}
+          onWheel={onWheel}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={endDrag}
+          onMouseLeave={endDrag}
+        />
       </svg>
 
-      {/* Hover details. Fixed position below the SVG keeps layout stable. */}
-      <div className="mt-2 min-h-[2rem] text-sm text-text-secondary">
+      {/* Hover details. Fixed position below the SVG keeps layout stable.
+          In maximized mode the caption sits at the bottom of the overlay
+          so it doesn't reflow above the chart. */}
+      <div className={cn('mt-2 min-h-[2rem] text-sm text-text-secondary', maxed && 'mt-auto')}>
         {hovered ? (
           <span>
             <strong className="text-text-primary">{hovered.label}</strong>
@@ -268,9 +502,43 @@ export function BubbleMatrix({
             )}
           </span>
         ) : (
-          <span className="text-text-tertiary">Hover a bubble to see details.</span>
+          <span className="text-text-tertiary">
+            Hover a bubble for details · scroll to zoom · drag to pan · ESC to exit fullscreen
+          </span>
         )}
       </div>
     </div>
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function ToolbarButton({
+  children,
+  label,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'inline-flex h-7 w-7 items-center justify-center rounded border transition-colors',
+        'border-border-subtle bg-surface-0/90 text-text-secondary backdrop-blur-sm',
+        'hover:bg-surface-2 hover:text-text-primary',
+        'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-surface-0/90 disabled:hover:text-text-secondary',
+      )}
+    >
+      {children}
+    </button>
   );
 }

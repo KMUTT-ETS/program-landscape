@@ -827,8 +827,10 @@ function RecruitmentPanel({ data }: { data: RecruitmentDashboardPayload | null }
                   return (
                     <tr key={f.facultyId}>
                       <td className="px-4 py-2">
-                        <div className="font-medium">{f.facultyCode}</div>
-                        <div className="text-xs text-text-secondary">{f.facultyNameEn}</div>
+                        <div className="font-medium" lang="th">
+                          {f.facultyNameTh}
+                        </div>
+                        <div className="text-xs text-text-tertiary">{f.facultyNameEn}</div>
                       </td>
                       <td className="px-4 py-2 text-right font-tabular">
                         {f.totals.planPerYear.toLocaleString()}
