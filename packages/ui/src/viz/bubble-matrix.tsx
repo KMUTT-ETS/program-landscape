@@ -38,6 +38,16 @@ export interface BubbleMatrixProps {
   height?: number;
   onBubbleClick?: (b: Bubble) => void;
   className?: string;
+  // Optional named labels for the 4 quadrants. When supplied, renders a
+  // small caption in each corner (e.g. STARS top-right, DOGS bottom-left)
+  // — useful for BCG-style portfolio views where the quadrant name is
+  // more meaningful than the axis values alone. Omit to hide.
+  quadrantLabels?: {
+    topRight?: { label: string; tone?: 'positive' | 'negative' | 'neutral' };
+    topLeft?: { label: string; tone?: 'positive' | 'negative' | 'neutral' };
+    bottomRight?: { label: string; tone?: 'positive' | 'negative' | 'neutral' };
+    bottomLeft?: { label: string; tone?: 'positive' | 'negative' | 'neutral' };
+  };
 }
 
 export function BubbleMatrix({
@@ -52,6 +62,7 @@ export function BubbleMatrix({
   height = 480,
   onBubbleClick,
   className,
+  quadrantLabels,
 }: BubbleMatrixProps) {
   const palette = useChartPalette();
   const [hovered, setHovered] = React.useState<Bubble | null>(null);
@@ -163,6 +174,48 @@ export function BubbleMatrix({
           >
             {yMaxLabel}
           </text>
+        )}
+
+        {/* Optional quadrant captions — corner-anchored, single line each.
+            Rendered before bubbles so a stray bubble never sits on top of
+            the label legibly. */}
+        {quadrantLabels && (
+          <g pointerEvents="none">
+            {(() => {
+              const toneFill = (t?: 'positive' | 'negative' | 'neutral') =>
+                t === 'positive' ? palette.positive
+                : t === 'negative' ? palette.negative
+                : palette.text;
+              const corners: Array<{
+                k: 'topRight' | 'topLeft' | 'bottomRight' | 'bottomLeft';
+                x: number; y: number; anchor: 'start' | 'end';
+              }> = [
+                { k: 'topRight',    x: M.left + W - 8, y: M.top + 16,         anchor: 'end' },
+                { k: 'topLeft',     x: M.left + 8,     y: M.top + 16,         anchor: 'start' },
+                { k: 'bottomRight', x: M.left + W - 8, y: M.top + H - 8,      anchor: 'end' },
+                { k: 'bottomLeft',  x: M.left + 8,     y: M.top + H - 8,      anchor: 'start' },
+              ];
+              return corners.map((c) => {
+                const cfg = quadrantLabels[c.k];
+                if (!cfg) return null;
+                return (
+                  <text
+                    key={c.k}
+                    x={c.x}
+                    y={c.y}
+                    textAnchor={c.anchor}
+                    fontSize={11}
+                    fontWeight={600}
+                    fill={toneFill(cfg.tone)}
+                    style={{ letterSpacing: '0.06em' }}
+                    opacity={0.85}
+                  >
+                    {cfg.label}
+                  </text>
+                );
+              });
+            })()}
+          </g>
         )}
 
         {/* Bubbles */}

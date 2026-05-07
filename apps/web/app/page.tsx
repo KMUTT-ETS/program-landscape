@@ -13,7 +13,7 @@ import {
 } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { HeroQuadrant } from '@/components/dashboard/hero-quadrant';
+import { LifecycleBcgMatrix } from '@/components/dashboard/lifecycle-bcg-matrix';
 import { AlertColumn } from '@/components/dashboard/alert-card';
 import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
@@ -111,8 +111,8 @@ export default async function HomePage() {
 
         {/* HERO QUADRANT */}
         <PanelFrame
-          title="Lifecycle × Revenue Quadrant"
-          description="Each dot is one program. X = 3-year enrolment change. Y = net contribution. Click any dot to drill into the program."
+          title="Lifecycle × Revenue · BCG matrix"
+          description="Each dot is one program. X = 3-year enrolment change · Y = net contribution · size = current enrolment · click a dot for the program's deep-dive. Quadrant captions follow the BCG portfolio convention."
           freshnessDate={generatedAtIso}
           provenanceMeta={{
             freshnessDate: generatedAtIso,
@@ -124,7 +124,7 @@ export default async function HomePage() {
             scope: { level: 'university', id: null },
           }}
         >
-          <HeroQuadrant
+          <LifecycleBcgMatrix
             points={overview.quadrant.points}
             excludedCount={overview.quadrant.excludedCount}
             caveat={quadrantCaveat}
