@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, isSuperGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
@@ -12,9 +12,12 @@ export default async function QueuesPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  // Read-only is open to ANALYST + any admin-grade. Manage actions
+  // (pause/resume/clean/retry) are super-grade only — SYSTEM_ADMIN
+  // doesn't carry queues:manage per ROLE_PERMISSIONS.
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
-  const canManage = user.role === 'ADMIN';
+  const canManage = isSuperGrade(user.role);
 
   return (
     <AuthedAppShell user={user}>

@@ -1,27 +1,32 @@
 import type { NavSection } from '@kku/ui';
+// IMPORTANT: client components transit this file (top-bar-breadcrumb).
+// Importing runtime values from `@kku/shared` pulls the barrel —
+// which re-exports `pdf/hash` (uses `node:crypto`) — and crashes the
+// client webpack build. So we only `import type` from @kku/shared here
+// and inline any runtime helper we need.
 import type { SessionUser } from '@kku/shared';
+
+// Mirrors @kku/shared/auth/roles.ts ADMIN_GRADE_ROLES. Inlined to keep
+// this file client-safe — see the import comment above.
+function isAdminGrade(role: string | undefined | null): boolean {
+  return role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SYSTEM_ADMIN';
+}
 import {
-  Activity,
   BookOpen,
-  BrainCircuit,
   Building2,
-  ClipboardCheck,
   ClipboardList,
-  Database,
-  FileSearch,
   GitCompare,
   GraduationCap,
   History,
   Home,
-  LayoutDashboard,
-  Layers,
   LineChart,
   Microscope,
-  Palette,
   PieChart,
+  ShieldAlert,
   Sparkles,
   SplitSquareVertical,
   Users,
+  Wrench,
 } from 'lucide-react';
 import { createElement } from 'react';
 
@@ -41,6 +46,7 @@ const moduleSection: NavSection = {
     { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles), moduleKey: 'trends' },
     { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
     { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
+    { href: '/risks', label: 'Risk Management', icon: createElement(ShieldAlert), moduleKey: 'neutral' },
     { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
     { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
     { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList), moduleKey: 'decisions' },
@@ -66,36 +72,18 @@ const workSection: NavSection = {
   ],
 };
 
-// Admin-only — populated only when the viewer is ADMIN or ANALYST.
-// Three groups so the nav doesn't become a flat 10-item dump:
-//   - Data setup → upload + organise the inputs the AI analyses
-//   - Review     → human-in-the-loop queues
-//   - System     → operations + observability
-const adminDataSetupSection: NavSection = {
-  label: 'Data setup',
+// Admin — single entry collapsing what used to be 11 items in three
+// groups (Data setup / Review queues / System) into one console page.
+// The /admin landing route renders the full grid of admin tools.
+const adminSection: NavSection = {
+  label: 'Admin',
   items: [
-    { href: '/admin/data-setup', label: 'Setup hub', icon: createElement(LayoutDashboard), moduleKey: 'neutral' },
-    { href: '/admin/programs', label: 'Programs', icon: createElement(Building2), moduleKey: 'neutral' },
-    { href: '/admin/data-sources', label: 'Connectors / feeds', icon: createElement(Database), moduleKey: 'neutral' },
-  ],
-};
-
-const adminReviewSection: NavSection = {
-  label: 'Review queues',
-  items: [
-    { href: '/admin/pdf-review', label: 'PDF intake review', icon: createElement(FileSearch), moduleKey: 'neutral' },
-    { href: '/admin/extraction-review', label: 'AI extraction review', icon: createElement(BrainCircuit), moduleKey: 'neutral' },
-    { href: '/admin/data-quality', label: 'Data quality', icon: createElement(ClipboardCheck), moduleKey: 'neutral' },
-  ],
-};
-
-const adminSystemSection: NavSection = {
-  label: 'System',
-  items: [
-    { href: '/admin/users', label: 'Users & access', icon: createElement(Users), moduleKey: 'neutral' },
-    { href: '/admin/system-status', label: 'System status', icon: createElement(Activity), moduleKey: 'neutral' },
-    { href: '/admin/queues', label: 'Job queues', icon: createElement(Layers), moduleKey: 'neutral' },
-    { href: '/styleguide', label: 'Styleguide', icon: createElement(Palette), moduleKey: 'neutral' },
+    {
+      href: '/admin',
+      label: 'Admin console',
+      icon: createElement(Wrench),
+      moduleKey: 'neutral',
+    },
   ],
 };
 
@@ -125,8 +113,8 @@ const referenceSection: NavSection = {
  */
 export function appNavSectionsFor(user: SessionUser | undefined): NavSection[] {
   const sections: NavSection[] = [workSection, moduleSection];
-  if (user?.role === 'ADMIN' || user?.role === 'ANALYST') {
-    sections.push(adminDataSetupSection, adminReviewSection, adminSystemSection);
+  if (isAdminGrade(user?.role) || user?.role === 'ANALYST') {
+    sections.push(adminSection);
   }
   sections.push(referenceSection);
   return sections;

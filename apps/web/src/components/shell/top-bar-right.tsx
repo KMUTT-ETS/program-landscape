@@ -9,11 +9,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Bell, LogOut, Monitor, Moon, Sun, User } from 'lucide-react';
+import { Bell, LogOut, Monitor, Moon, Sun, User, UserCog } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
 import { setThemePreferenceAction } from '@/lib/actions/theme';
+import { RoleSwitcherDialog } from './role-switcher';
+
+// Mirrors @kku/shared/auth/impersonation.canImpersonate. Inlined to keep
+// this file client-safe — see the same pattern in app-nav.tsx.
+function canImpersonate(role: string): boolean {
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+}
 
 // Top-bar right cluster — bell · theme · user.
 //
@@ -21,7 +28,19 @@ import { setThemePreferenceAction } from '@/lib/actions/theme';
 // into its own icon button (the standard Linear/Vercel pattern).
 // The user dropdown is now strictly account info + sign out.
 
-export function TopBarRight({ user }: { user: SessionUser }) {
+export function TopBarRight({
+  user,
+  impersonating = false,
+}: {
+  user: SessionUser;
+  impersonating?: boolean;
+}) {
+  const [switcherOpen, setSwitcherOpen] = React.useState(false);
+  // The viewer can switch role if they're either super-grade right now
+  // or already impersonating (which proves their underlying role was
+  // super-grade — the override gate in auth.ts wouldn't have fired
+  // otherwise).
+  const canSwitch = canImpersonate(user.role) || impersonating;
   const initials = (user.name ?? user.email)
     .split(/[\s.@]+/)
     .filter(Boolean)
@@ -75,6 +94,23 @@ export function TopBarRight({ user }: { user: SessionUser }) {
             <User className="h-4 w-4 text-text-tertiary" aria-hidden />
             <span className="truncate">{user.email}</span>
           </DropdownMenuItem>
+
+          {canSwitch && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Role &amp; scope</DropdownMenuLabel>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setSwitcherOpen(true);
+                }}
+              >
+                <UserCog className="h-4 w-4 text-text-tertiary" aria-hidden />
+                {impersonating ? 'Switch to a different role…' : 'Switch role…'}
+              </DropdownMenuItem>
+            </>
+          )}
+
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void signOut({ callbackUrl: '/signin' })}>
             <LogOut className="h-4 w-4 text-text-tertiary" aria-hidden />
@@ -82,6 +118,14 @@ export function TopBarRight({ user }: { user: SessionUser }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {canSwitch && (
+        <RoleSwitcherDialog
+          open={switcherOpen}
+          onOpenChange={setSwitcherOpen}
+          currentRole={user.role}
+        />
+      )}
     </>
   );
 }

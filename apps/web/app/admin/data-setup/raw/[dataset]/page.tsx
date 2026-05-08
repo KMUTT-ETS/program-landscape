@@ -2,7 +2,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -56,7 +56,7 @@ export default async function RawDatasetPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
   const { dataset } = await params;
   if (!(dataset in DATASET_TITLES)) notFound();

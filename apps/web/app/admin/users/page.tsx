@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
@@ -15,9 +15,9 @@ export default async function AdminUsersPage() {
   if (!user?.userId) redirect('/signin');
   // Admin gate — accept SUPER_ADMIN, SYSTEM_ADMIN, or legacy ADMIN.
   const isAdmin =
-    user.role === 'SUPER_ADMIN' || user.role === 'SYSTEM_ADMIN' || user.role === 'ADMIN';
+    user.role === 'SUPER_ADMIN' || user.role === 'SYSTEM_ADMIN' || isAdminGrade(user.role);
   if (!isAdmin) redirect('/');
-  const isSuper = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
+  const isSuper = user.role === 'SUPER_ADMIN' || isAdminGrade(user.role);
 
   // Fetch existing users + faculty/program lists for the role-scope dropdowns.
   const [users, faculties, programs] = await Promise.all([

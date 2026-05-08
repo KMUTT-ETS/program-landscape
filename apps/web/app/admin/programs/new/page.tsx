@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -27,7 +27,7 @@ export default async function NewProgramPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
   const [faculties, departments] = await Promise.all([
     apiFetch<Faculty[]>('/faculties').catch(() => [] as Faculty[]),

@@ -187,17 +187,21 @@ describe('can() — non-spatial suffixes', () => {
     ).toBe(true);
   });
 
-  it('decisions:approve is admin-only', () => {
+  it('decisions:approve is admin-grade', () => {
+    // ADMIN (legacy) + SUPER_ADMIN + SYSTEM_ADMIN all hold decisions:approve
+    // by design (v2 role taxonomy, 2026-05-07).
+    const adminGrade = new Set(['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ADMIN']);
     for (const role of ALL_ROLES) {
       const user = userFor(role);
-      const expected = role === 'ADMIN';
+      const expected = adminGrade.has(role);
       expect(can(user, 'decisions:approve')).toBe(expected);
     }
   });
 
-  it('users:manage is admin-only', () => {
+  it('users:manage is admin-grade', () => {
+    const adminGrade = new Set(['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ADMIN']);
     for (const role of ALL_ROLES) {
-      const expected = role === 'ADMIN';
+      const expected = adminGrade.has(role);
       expect(can(userFor(role), 'users:manage')).toBe(expected);
     }
   });

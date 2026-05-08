@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@kku/db';
 import {
+  isAdminGrade,
   RoleSchema,
   SSO_ROLES,
   SYSTEM_ADMIN_ASSIGNABLE_ROLES,
@@ -34,7 +35,7 @@ async function requireAdmin(): Promise<{ user: SessionUser; isSuper: boolean }> 
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) throw new Error('Not authenticated');
-  const isSuper = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN'; // legacy ADMIN = super
+  const isSuper = user.role === 'SUPER_ADMIN' || isAdminGrade(user.role); // legacy ADMIN = super
   const isSystem = user.role === 'SYSTEM_ADMIN';
   if (!isSuper && !isSystem) throw new Error('Forbidden — admin role required');
   return { user, isSuper };

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { prisma } from '@kku/db';
 import {
+  isAdminGrade,
   ROLE_PERMISSIONS,
   UpdateThemeBodySchema,
   type MeResponse,
@@ -27,11 +28,12 @@ export class UsersController {
       scopeAccess: {
         universityRead: true,
         allFacultiesRead:
-          user.role === 'ADMIN' ||
+          isAdminGrade(user.role) ||
           user.role === 'COUNCIL' ||
           user.role === 'EXECUTIVE' ||
           user.role === 'ANALYST' ||
-          user.role === 'VIEWER',
+          user.role === 'VIEWER' ||
+          user.role === 'UNIVERSITY_USER',
         ownFacultyId: user.facultyId,
         ownDepartmentId: user.departmentId,
       },

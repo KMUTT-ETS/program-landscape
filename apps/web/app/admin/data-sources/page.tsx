@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -40,8 +40,8 @@ export default async function AdminDataSourcesPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // ANALYST + ADMIN have data_sources:read; everyone else redirected.
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  // ANALYST + admin-grade have data_sources:read; everyone else redirected.
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
   const [sources, overview] = await Promise.all([
     apiFetch<DataSourceRow[]>('/data-sources').catch(() => [] as DataSourceRow[]),
@@ -56,7 +56,7 @@ export default async function AdminDataSourcesPage() {
       />
       {overview && <OverviewStrip overview={overview} />}
       <Section title="Connectors">
-        <DataSourcesClient rows={sources} canConfigure={user.role === 'ADMIN'} />
+        <DataSourcesClient rows={sources} canConfigure={isAdminGrade(user.role)} />
       </Section>
     </AuthedAppShell>
   );

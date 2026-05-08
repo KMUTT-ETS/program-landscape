@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { cookies } from 'next/headers';
 import { AppShell, LeftNav, TopBar } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { appNavSectionsFor } from '@/lib/app-nav';
@@ -9,6 +10,11 @@ import { AppShellClientChrome } from './client-chrome';
 import { TopBarRight } from './top-bar-right';
 import { NavUserFooter } from './nav-user-footer';
 import { TopBarBreadcrumb } from './top-bar-breadcrumb';
+import { ImpersonationBanner } from './impersonation-banner';
+import {
+  IMPERSONATION_COOKIE,
+  tryDecodeImpersonation,
+} from '@/lib/auth/impersonation';
 
 // Server component. 2026-04-24 redesign — the sidebar is now the
 // brand-home: KKU monogram + wordmark at the top, module tiles in the
@@ -22,10 +28,14 @@ export async function AuthedAppShell({
   user: SessionUser;
   children: React.ReactNode;
 }) {
-  const [entities, me] = await Promise.all([
+  const [entities, me, cookieStore] = await Promise.all([
     fetchScopeEntities(),
     apiFetch<MeResponse>('/me').catch(() => null),
+    cookies(),
   ]);
+  const impersonation = tryDecodeImpersonation(
+    cookieStore.get(IMPERSONATION_COOKIE)?.value,
+  );
   const access = me
     ? me.scopeAccess
     : {
@@ -64,7 +74,12 @@ export async function AuthedAppShell({
         <TopBar
           breadcrumb={<TopBarBreadcrumb />}
           center={<AppShellClientChrome entities={entities} access={access} />}
-          right={<TopBarRight user={user} />}
+          right={
+            <TopBarRight
+              user={user}
+              impersonating={Boolean(impersonation)}
+            />
+          }
         />
       }
       leftNav={
@@ -75,6 +90,14 @@ export async function AuthedAppShell({
         />
       }
     >
+      {impersonation && (
+        <ImpersonationBanner
+          role={impersonation.role}
+          facultyId={impersonation.facultyId ?? null}
+          departmentId={impersonation.departmentId ?? null}
+          entities={entities}
+        />
+      )}
       {children}
     </AppShell>
   );

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -47,7 +47,7 @@ export default async function AdminAiExtractionDetailPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
   const { id } = await params;
   const extraction = await apiFetch<AiExtractionDetail | null>(`/ai/extractions/${id}`).catch(

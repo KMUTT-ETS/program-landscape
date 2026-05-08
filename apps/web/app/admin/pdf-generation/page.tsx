@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -40,7 +40,7 @@ export default async function AdminPdfGenerationPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (user.role !== 'ADMIN') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/');
 
   const [recent, templates] = await Promise.all([
     apiFetch<PdfGenerationRow[]>('/pdf/admin/recent').catch(() => [] as PdfGenerationRow[]),

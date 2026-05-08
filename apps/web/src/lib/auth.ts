@@ -6,31 +6,25 @@ import { SessionUserSchema, type SessionUser } from '@kku/shared';
 
 import { decodeJwt, encodeJwt } from './auth/jwt-codec';
 import { assertLocalAuthSafe, isLocalAuthEnabled } from './auth/env-guard';
-import { provisionFromOidcClaims } from './auth/provisioning';
 import { verifyPassword } from './auth/password-hash';
+import {
+  IMPERSONATION_COOKIE,
+  canImpersonate,
+  tryDecodeImpersonation,
+} from './auth/impersonation';
 
 assertLocalAuthSafe();
 
 const providers: Provider[] = [];
 
-// ── KKU SSO (OIDC) ────────────────────────────────────────────────────────
-// Structured so we can swap to SAML/CAS later by replacing the object below.
-if (process.env.KKU_SSO_ISSUER && process.env.KKU_SSO_CLIENT_ID) {
-  providers.push({
-    id: 'kku-sso',
-    name: 'KKU SSO',
-    type: 'oidc',
-    issuer: process.env.KKU_SSO_ISSUER,
-    clientId: process.env.KKU_SSO_CLIENT_ID,
-    clientSecret: process.env.KKU_SSO_CLIENT_SECRET,
-    authorization: {
-      params: { scope: process.env.KKU_SSO_SCOPES ?? 'openid profile email' },
-    },
-    // client.token_endpoint_auth_method falls back to 'client_secret_basic'
-    // which is the default for most OIDC servers. Override via config file
-    // if KKU's IdP requires 'client_secret_post'.
-  });
-}
+// ── KKU SSONext ───────────────────────────────────────────────────────────
+// SSONext is a custom KKU protocol (not OIDC) and bypasses NextAuth's
+// provider machinery entirely. The browser flow is:
+//   /api/auth/kku-sso/start  →  KKU login page
+//   /api/auth/callback/kku-sso?code=...  →  exchange + provision + cookie
+// The callback route mints the session JWT via the custom codec below and
+// writes the same cookie name NextAuth uses, so auth() sees the session
+// transparently. See docs/auth/kku-sso.md.
 
 // ── Credentials (dev only) ───────────────────────────────────────────────
 if (isLocalAuthEnabled()) {
@@ -43,8 +37,6 @@ if (isLocalAuthEnabled()) {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        // Defense in depth — authorize() is never invoked if the provider
-        // didn't load, but check again.
         if (process.env.NODE_ENV === 'production') return null;
         const email = credentials?.email;
         const password = credentials?.password;
@@ -52,12 +44,6 @@ if (isLocalAuthEnabled()) {
 
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
-        // Auth precedence:
-        //  - If user has a per-user passwordHash (set during admin
-        //    pre-provisioning), ONLY that password is accepted —
-        //    sharing a global default would defeat the credential.
-        //  - Otherwise the shared DEV_AUTH_PASSWORD covers seeded
-        //    users and anyone provisioned without a custom password.
         const ok = user.passwordHash
           ? verifyPassword(password, user.passwordHash)
           : password === (process.env.DEV_AUTH_PASSWORD ?? 'kku-dev');
@@ -68,11 +54,6 @@ if (isLocalAuthEnabled()) {
   );
 }
 
-// Prod: honour secure-cookie defaults even when the terminating TLS is
-// at KKU's reverse proxy. next-auth's heuristic looks at NEXTAUTH_URL
-// so this is usually fine, but we set it explicitly to avoid surprise
-// if someone runs the app behind a different proxy that strips the
-// X-Forwarded-Proto header.
 const useSecureCookies = process.env.NODE_ENV === 'production';
 
 export const authConfig: NextAuthConfig = {
@@ -131,25 +112,14 @@ export const authConfig: NextAuthConfig = {
     signIn: '/signin',
   },
   callbacks: {
-    async jwt({ token, user, account, profile, trigger }) {
-      // Initial login — bridge provider user to our DB.
+    async jwt({ token, user, account, trigger }) {
+      // Initial login — both 'kku-sso' and 'dev-credentials' come through
+      // the Credentials path; authorize() has already provisioned + returned
+      // the User id, so we just hydrate the session from DB.
       if (user && account) {
-        let dbUser;
-        if (account.provider === 'dev-credentials') {
-          dbUser = await prisma.user.findUniqueOrThrow({
-            where: { id: user.id as string },
-          });
-        } else {
-          // OIDC (KKU SSO).
-          dbUser = await provisionFromOidcClaims({
-            sub: account.providerAccountId,
-            email: (profile?.email as string | undefined) ?? (user.email ?? undefined),
-            name: (profile?.name as string | undefined) ?? (user.name ?? undefined),
-            employee_id: profile?.employee_id as string | undefined,
-            faculty_code: profile?.faculty_code as string | undefined,
-            department_code: profile?.department_code as string | undefined,
-          });
-        }
+        const dbUser = await prisma.user.findUniqueOrThrow({
+          where: { id: user.id as string },
+        });
         return {
           ...token,
           userId: dbUser.id,
@@ -162,8 +132,6 @@ export const authConfig: NextAuthConfig = {
         };
       }
 
-      // Session.update() triggered — refresh mutable fields from DB so a
-      // theme change (or role promotion) reflects without sign-out.
       if (trigger === 'update' && token.userId) {
         const fresh = await prisma.user.findUnique({
           where: { id: token.userId as string },
@@ -190,9 +158,36 @@ export const authConfig: NextAuthConfig = {
 
     async session({ session, token }) {
       const parsed = SessionUserSchema.safeParse(token);
-      if (parsed.success) {
-        (session as unknown as { user: SessionUser }).user = parsed.data;
+      if (!parsed.success) return session;
+      let user: SessionUser = parsed.data;
+
+      // ── Impersonation override ─────────────────────────────────────
+      // Super-grade users can preview the app as a different role+scope.
+      // The cookie is consulted ONLY when the underlying JWT role is
+      // super-grade — a regular user setting the cookie sees no effect.
+      // The session's underlying identity (email, themePreference) is
+      // preserved; only the access-control fields change.
+      if (canImpersonate(user.role)) {
+        try {
+          const { cookies } = await import('next/headers');
+          const store = await cookies();
+          const raw = store.get(IMPERSONATION_COOKIE)?.value;
+          const imp = tryDecodeImpersonation(raw);
+          if (imp) {
+            user = {
+              ...user,
+              role: imp.role,
+              facultyId: imp.facultyId ?? null,
+              departmentId: imp.departmentId ?? null,
+            };
+          }
+        } catch {
+          // Cookies API only available in route/server-component context
+          // — silently ignore in other contexts (tests, build-time).
+        }
       }
+
+      (session as unknown as { user: SessionUser }).user = user;
       return session;
     },
   },

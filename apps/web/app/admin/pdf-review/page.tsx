@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -28,8 +28,8 @@ export default async function AdminPdfReviewPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // pdf:approve_extraction is ANALYST + ADMIN.
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  // pdf:approve_extraction is ANALYST + admin-grade.
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
   const pending = await apiFetch<PdfRow[]>('/pdfs/pending?status=PENDING_REVIEW').catch(
     () => [] as PdfRow[],
@@ -40,7 +40,7 @@ export default async function AdminPdfReviewPage() {
       <PageHeader
         title="PDF review queue"
         subtitle="PDFs whose extractions landed below the auto-approve threshold. Open one to inspect the source + verify the extracted structured data before it affects downstream analytics."
-        actions={user.role === 'ADMIN' ? <FixFilenamesButton /> : null}
+        actions={isAdminGrade(user.role) ? <FixFilenamesButton /> : null}
       />
       <Section title={`Pending review (${pending.length})`}>
         {pending.length === 0 ? (

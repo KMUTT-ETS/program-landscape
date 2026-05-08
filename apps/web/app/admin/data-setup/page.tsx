@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -93,7 +93,7 @@ export default async function AdminDataSetupPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (user.role !== 'ADMIN' && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
 
   const stats = await apiFetch<DataSetupStats>('/admin/data-setup/stats').catch(
     () => EMPTY_STATS,

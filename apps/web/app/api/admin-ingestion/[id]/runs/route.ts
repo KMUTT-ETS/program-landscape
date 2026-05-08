@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { apiFetch } from '@/lib/api-client';
 import { auth } from '@/lib/auth';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 
 // Small Next.js route handler used by the /admin/data-sources client
 // component to lazy-load the runs table for a selected source. Exists
@@ -17,7 +17,7 @@ export async function GET(
 ) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'ANALYST')) {
+  if (!user || (!isAdminGrade(user.role) && user.role !== 'ANALYST')) {
     return NextResponse.json({ data: null, error: { code: 'FORBIDDEN' } }, { status: 403 });
   }
   const { id } = await params;

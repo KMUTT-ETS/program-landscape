@@ -54,3 +54,28 @@ export const SYSTEM_ADMIN_ASSIGNABLE_ROLES: readonly Role[] = [
   'FACULTY_USER',
   'PROGRAM_USER',
 ] as const;
+
+// Admin-grade roles — full or near-full mutation surface. Use for UI
+// gates that previously checked `role === 'ADMIN'`. Legacy ADMIN is
+// retained for back-compat; SUPER_ADMIN is the canonical SSO equivalent;
+// SYSTEM_ADMIN is admin-grade for everything except queue management.
+export const ADMIN_GRADE_ROLES: readonly Role[] = [
+  'ADMIN',
+  'SUPER_ADMIN',
+  'SYSTEM_ADMIN',
+] as const;
+
+export function isAdminGrade(role: Role | undefined | null): boolean {
+  if (!role) return false;
+  return (ADMIN_GRADE_ROLES as readonly string[]).includes(role);
+}
+
+// Super-grade roles — only SUPER_ADMIN (canonical) and legacy ADMIN
+// (treated as super for back-compat). Used for queue management and
+// other actions that SYSTEM_ADMIN should NOT have.
+export const SUPER_GRADE_ROLES: readonly Role[] = ['ADMIN', 'SUPER_ADMIN'] as const;
+
+export function isSuperGrade(role: Role | undefined | null): boolean {
+  if (!role) return false;
+  return (SUPER_GRADE_ROLES as readonly string[]).includes(role);
+}

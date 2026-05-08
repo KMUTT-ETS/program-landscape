@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { StyleguideCatalog } from './catalog';
 
@@ -14,7 +14,7 @@ export default async function StyleguidePage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (process.env.NODE_ENV === 'production' && user.role !== 'ADMIN') {
+  if (process.env.NODE_ENV === 'production' && !isAdminGrade(user.role)) {
     redirect('/');
   }
 

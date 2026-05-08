@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader, Section } from '@kku/ui';
@@ -12,9 +12,9 @@ export default async function UploadPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // pdf:upload is held by DEAN / DEPT_HEAD / ANALYST / ADMIN.
+  // pdf:upload is held by DEAN / DEPT_HEAD / ANALYST / admin-grade.
   const allowed =
-    user.role === 'ADMIN' ||
+    isAdminGrade(user.role) ||
     user.role === 'ANALYST' ||
     user.role === 'DEAN' ||
     user.role === 'DEPT_HEAD';

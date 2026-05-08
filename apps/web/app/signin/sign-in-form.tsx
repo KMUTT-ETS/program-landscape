@@ -23,12 +23,19 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
   const [password, setPassword] = useState('kku-dev');
   const [submitting, setSubmitting] = useState(false);
   const [ssoBusy, setSsoBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Surface SSO errors propagated from /api/auth/callback/kku-sso.
+  const ssoError = params.get('error');
+  const initialError = ssoError ? mapSsoError(ssoError) : null;
+  const [error, setError] = useState<string | null>(initialError);
 
+  // SSONext bypasses NextAuth — the browser navigates to /api/auth/kku-sso/start,
+  // which 302s to KKU's login page and stashes the original destination so the
+  // callback route can return the user there.
   const onKkuSso = () => {
     setError(null);
     setSsoBusy(true);
-    void signIn('kku-sso', { callbackUrl });
+    const target = `/api/auth/kku-sso/start?from=${encodeURIComponent(callbackUrl)}`;
+    window.location.assign(target);
   };
 
   const onDevSubmit = async (e: React.FormEvent) => {
@@ -68,8 +75,9 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
       {!ssoConfigured && (
         <p className="-mt-2 text-[11px] leading-relaxed text-text-tertiary">
           KKU SSO is not configured for this environment. Set{' '}
-          <code className="font-mono text-[10px] text-text-secondary">KKU_SSO_ISSUER</code>{' '}
-          and the client credentials in{' '}
+          <code className="font-mono text-[10px] text-text-secondary">KKU_SSO_WEB_BASE</code>,{' '}
+          <code className="font-mono text-[10px] text-text-secondary">KKU_SSO_APP_ID</code>{' '}
+          and client credentials in{' '}
           <code className="font-mono text-[10px] text-text-secondary">.env</code>
           , then restart.
         </p>
@@ -145,6 +153,27 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
       )}
     </div>
   );
+}
+
+// Map SSO error codes from /api/auth/callback/kku-sso into human messages.
+function mapSsoError(code: string): string {
+  switch (code) {
+    case 'no_code':
+      return 'KKU SSO returned no code. Try signing in again.';
+    case 'sso_not_configured':
+      return 'KKU SSO is not configured. Contact the administrator.';
+    case 'server_misconfigured':
+      return 'Server is missing the session secret. Contact the administrator.';
+    case 'sso_unauthorized':
+      return 'KKU SSO rejected the access token. Try signing in again.';
+    case 'sso_failed':
+      return 'KKU SSO sign-in failed. Try again or use developer credentials.';
+    default:
+      if (code.startsWith('sso_auth')) {
+        return `KKU SSO rejected the request (${code.toUpperCase()}). Try again.`;
+      }
+      return `KKU SSO error (${code}).`;
+  }
 }
 
 // Card-style input — soft border, rounded-lg, generous padding,

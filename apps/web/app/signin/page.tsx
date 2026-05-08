@@ -25,7 +25,12 @@ export const dynamic = 'force-dynamic';
 // breathing room above and below.
 export default async function SignInPage() {
   const ssoConfigured = Boolean(
-    process.env.KKU_SSO_ISSUER && process.env.KKU_SSO_CLIENT_ID,
+    process.env.KKU_SSO_WEB_BASE &&
+      process.env.KKU_SSO_API_BASE &&
+      process.env.KKU_SSO_APP_ID &&
+      process.env.KKU_SSO_CLIENT_ID &&
+      process.env.KKU_SSO_CLIENT_SECRET &&
+      process.env.KKU_SSO_REDIRECT_URI,
   );
   const localAuthEnabled = process.env.ENABLE_LOCAL_AUTH === 'true';
 
