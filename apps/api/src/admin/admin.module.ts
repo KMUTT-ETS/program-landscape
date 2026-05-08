@@ -5,6 +5,7 @@ import { DataQualityController } from './data-quality.controller';
 import { ImdController } from './imd.controller';
 import { QueuesController } from './queues.controller';
 import { QueuesService } from './queues.service';
+import { RegistryMappingController } from './registry-mapping.controller';
 import { SystemStatusController } from './system-status.controller';
 
 @Module({
@@ -15,6 +16,7 @@ import { SystemStatusController } from './system-status.controller';
     AiCostController,
     ImdController,
     QueuesController,
+    RegistryMappingController,
   ],
   providers: [QueuesService],
   exports: [QueuesService],
