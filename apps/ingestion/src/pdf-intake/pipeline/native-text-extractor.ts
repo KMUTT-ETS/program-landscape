@@ -44,7 +44,23 @@ export async function extractNativeText(buffer: Buffer): Promise<NativeExtractio
 
   // pdfjs wants a Uint8Array, not a Node Buffer.
   const data = new Uint8Array(buffer);
-  const doc = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+  // verbosity: ERRORS (0) silences the cosmetic font-related warnings
+  // that pdfjs emits on most real-world Thai curricula:
+  //   - "Ensure that the standardFontDataUrl API parameter is provided"
+  //   - "TT: undefined function: 32"  (TrueType opcode in embedded fonts)
+  //   - "Unable to load font data at: ..."
+  // These do NOT affect text extraction — pdfjs falls back to its glyph
+  // tables and getTextContent() still returns clean strings. We tried
+  // pointing standardFontDataUrl/cMapUrl at the on-disk pdfjs package
+  // dir, but pdfjs's internal fetcher doesn't support file:// URLs in
+  // Node (would need a custom fetcher or HTTP server for the assets).
+  // Suppressing the warnings is the pragmatic call — operators were
+  // mis-reading them as errors and pausing the bulk digest runs.
+  const doc = await pdfjs.getDocument({
+    data,
+    isEvalSupported: false,
+    verbosity: 0,
+  }).promise;
 
   const pages: PdfPageText[] = [];
   let fullText = '';
