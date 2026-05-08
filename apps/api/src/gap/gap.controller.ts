@@ -26,6 +26,8 @@ import {
   Provenance,
   ZodValidationPipe,
   AiQuota,
+  assertProgramAccessible,
+  clampScopeForUser,
 } from '../common';
 import { GapInsightsService } from './gap-insights.service';
 
@@ -61,49 +63,75 @@ type InsightBody = z.infer<typeof InsightBodySchema>;
 export class GapController {
   constructor(private readonly insights: GapInsightsService) {}
 
+  // Helper — clamp the scope/scopeId pair to whatever the caller is
+  // allowed to see, then merge back into the FilterQuery shape that
+  // each compute* function expects. Refuses cross-scope queries (403)
+  // for FACULTY_USER / PROGRAM_USER.
+  private async clampFilter(q: FilterQuery, user: SessionUser): Promise<FilterQuery> {
+    const eff = await clampScopeForUser(q.scope, q.scopeId ?? null, user);
+    return { ...q, scope: eff.scope, scopeId: eff.scopeId ?? undefined };
+  }
+
   @Get('skills')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'job-postings', name: 'Job postings' }, { id: 'program-skills', name: 'Program skills' }] })
-  async skills(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
-    return computeSkillGap(q);
+  async skills(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    return computeSkillGap(await this.clampFilter(q, user));
   }
 
   @Get('occupations')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'occupation-demand', name: 'Occupation demand' }] })
-  async occupations(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
-    return computeOccupationGap(q);
+  async occupations(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    return computeOccupationGap(await this.clampFilter(q, user));
   }
 
   @Get('sectors')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'sectors', name: 'BCG + S-curve sectors' }] })
-  async sectors(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
-    return computeSectorGap(q);
+  async sectors(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    return computeSectorGap(await this.clampFilter(q, user));
   }
 
   @Get('regional/:province')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'occupation-demand', name: 'Occupation demand' }] })
   async regional(
+    @AuthSession() user: SessionUser,
     @Param('province') province: string,
     @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
   ) {
-    return computeRegionalGap({ ...q, region: province });
+    const clamped = await this.clampFilter(q, user);
+    return computeRegionalGap({ ...clamped, region: province });
   }
 
   @Get('opportunities')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'job-postings', name: 'Job postings' }, { id: 'program-skills', name: 'Program skills' }] })
-  async opportunities(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
-    return computeOpportunities(q);
+  async opportunities(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    return computeOpportunities(await this.clampFilter(q, user));
   }
 
   @Get('risks')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'enrollment-metrics', name: 'Enrollment metrics' }, { id: 'demographic-projections', name: 'Demographic projections' }] })
-  async risks(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
-    return computeRisks(q);
+  async risks(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    return computeRisks(await this.clampFilter(q, user));
   }
 
   @Get('program-demand-gaps')
@@ -114,8 +142,11 @@ export class GapController {
       { id: 'kmitl-skill-mapping', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
     ],
   })
-  async programDemandGaps(@Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery) {
-    return computeProgramDemandGaps(q);
+  async programDemandGaps(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    return computeProgramDemandGaps(await this.clampFilter(q, user));
   }
 
   @Get('forecast-accuracy')
@@ -135,14 +166,16 @@ export class GapController {
     @Body(new ZodValidationPipe(InsightBodySchema)) body: InsightBody,
   ) {
     if (body.mode === 'strategic-top-5') {
+      const eff = await clampScopeForUser(body.scope, body.scopeId ?? null, user);
       return this.insights.generateStrategicTop5({
-        scope: body.scope,
-        scopeId: body.scopeId ?? null,
+        scope: eff.scope,
+        scopeId: eff.scopeId,
         userId: user.userId,
       });
     }
     if (body.mode === 'program-skills-to-add') {
       if (!body.programId) throw new Error('programId required for program-skills-to-add');
+      await assertProgramAccessible(body.programId, user);
       return this.insights.generateProgramSkillsToAdd({
         programId: body.programId,
         userId: user.userId,

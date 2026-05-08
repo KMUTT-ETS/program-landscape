@@ -8,62 +8,16 @@ import {
   Authorized,
   Provenance,
   ZodValidationPipe,
+  assertProgramAccessible,
+  seesAllScopes,
 } from '../common';
 import { RisksService } from './risks.service';
 
 // Risk reads are gated with `risks:read:all` (every role has it). The
 // scope clamp here is what stops a FACULTY_USER from seeing other
-// faculties' risk profiles, the same way deep-dive + cockpit clamp.
-function seesAllRisks(role: SessionUser['role']): boolean {
-  return (
-    role === 'SUPER_ADMIN' ||
-    role === 'SYSTEM_ADMIN' ||
-    role === 'UNIVERSITY_USER'
-  );
-}
-
-// Refuse access to a per-program risk endpoint when the program lies
-// outside the user's faculty / program. Mirrors deep-dive's
-// assertProgramAccessible exactly — kept inline here so risks doesn't
-// reach into the programs module.
-async function assertProgramAccessibleForRisks(
-  programId: string,
-  user: SessionUser,
-): Promise<void> {
-  if (seesAllRisks(user.role)) return;
-  if (user.role !== 'FACULTY_USER' && user.role !== 'PROGRAM_USER') {
-    throw new ForbiddenException('Your role cannot view program risk profiles.');
-  }
-  if (user.role === 'PROGRAM_USER') {
-    if (!user.programId) {
-      throw new ForbiddenException(
-        'Your account has no program assignment. Contact an admin.',
-      );
-    }
-    if (user.programId !== programId) {
-      throw new ForbiddenException(
-        "This is not the program assigned to your account.",
-      );
-    }
-    return;
-  }
-  // FACULTY_USER
-  if (!user.facultyId) {
-    throw new ForbiddenException(
-      'Your account has no faculty assignment. Contact an admin.',
-    );
-  }
-  const program = await prisma.program.findUnique({
-    where: { id: programId },
-    select: { facultyId: true },
-  });
-  if (!program) throw new NotFoundException();
-  if (program.facultyId !== user.facultyId) {
-    throw new ForbiddenException(
-      'This program is outside the faculty assigned to your account.',
-    );
-  }
-}
+// faculties' risk profiles. Aliased for readability in this module.
+const seesAllRisks = seesAllScopes;
+const assertProgramAccessibleForRisks = assertProgramAccessible;
 
 const PortfolioQuerySchema = z.object({
   level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).default('BACHELOR'),

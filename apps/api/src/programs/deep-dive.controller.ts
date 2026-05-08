@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
@@ -36,6 +35,8 @@ import {
   Authorized,
   Provenance,
   ZodValidationPipe,
+  assertProgramAccessible,
+  seesAllScopes,
 } from '../common';
 import { CockpitService } from '../cockpit/cockpit.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -73,58 +74,10 @@ async function resolveFacultyVisibility(
   return user.facultyId === program.facultyId ? 'full' : 'aggregates-only';
 }
 
-// Gate program-deep-dive access: FACULTY_USER can only deep-dive into
-// programs in their own faculty; PROGRAM_USER only into the single
-// program assigned to their account. Admin-grade + UNIVERSITY_USER pass
-// through.
-//
-// Throws 403 (preferred over silently returning empty) so the front-end
-// can show the polite no-access page instead of rendering an empty
-// shell that looks like a bug.
-async function assertProgramAccessible(
-  programId: string,
-  user: SessionUser,
-): Promise<void> {
-  if (
-    user.role === 'SUPER_ADMIN' ||
-    user.role === 'SYSTEM_ADMIN' ||
-    user.role === 'UNIVERSITY_USER'
-  ) {
-    return;
-  }
-  if (user.role !== 'FACULTY_USER' && user.role !== 'PROGRAM_USER') {
-    throw new ForbiddenException('Your role cannot view program deep-dives.');
-  }
-  if (user.role === 'PROGRAM_USER') {
-    if (!user.programId) {
-      throw new ForbiddenException(
-        'Your account has no program assignment. Contact an admin.',
-      );
-    }
-    if (user.programId !== programId) {
-      throw new ForbiddenException(
-        "This is not the program assigned to your account.",
-      );
-    }
-    return;
-  }
-  // FACULTY_USER
-  if (!user.facultyId) {
-    throw new ForbiddenException(
-      'Your account has no faculty assignment. Contact an admin.',
-    );
-  }
-  const program = await prisma.program.findUnique({
-    where: { id: programId },
-    select: { id: true, facultyId: true },
-  });
-  if (!program) throw new NotFoundException();
-  if (program.facultyId !== user.facultyId) {
-    throw new ForbiddenException(
-      'This program is outside the faculty assigned to your account.',
-    );
-  }
-}
+// Per-program access gate is now in apps/api/src/common/scope-guards.ts
+// — assertProgramAccessible() — and shared with /risks, /trends,
+// /benchmarking. Imported above.
+void seesAllScopes; // re-export usage placeholder
 
 const DisagreementBodySchema = z.object({
   sectionKey: z.string().min(1).max(60),

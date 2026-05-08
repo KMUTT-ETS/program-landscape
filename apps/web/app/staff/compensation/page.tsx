@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -25,6 +25,7 @@ export default async function CompensationPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  if (!isUniversityWide(user.role)) redirect('/no-access');
 
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);

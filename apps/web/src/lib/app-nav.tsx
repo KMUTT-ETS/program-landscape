@@ -11,6 +11,15 @@ import type { SessionUser } from '@kku/shared';
 function isAdminGrade(role: string | undefined | null): boolean {
   return role === 'SUPER_ADMIN' || role === 'SYSTEM_ADMIN';
 }
+
+// Mirrors @kku/shared/auth/roles.ts UNIVERSITY_WIDE_ROLES.
+function isUniversityWide(role: string | undefined | null): boolean {
+  return (
+    role === 'SUPER_ADMIN' ||
+    role === 'SYSTEM_ADMIN' ||
+    role === 'UNIVERSITY_USER'
+  );
+}
 import {
   BookOpen,
   Building2,
@@ -53,24 +62,37 @@ const moduleSection: NavSection = {
   ],
 };
 
-const workSection: NavSection = {
-  label: 'Work',
-  items: [
-    { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' },
-    {
-      href: '/education',
-      label: 'Education dashboard',
-      icon: createElement(GraduationCap),
-      moduleKey: 'neutral',
-    },
-    {
-      href: '/staff',
-      label: 'Staff dashboard',
-      icon: createElement(Users),
-      moduleKey: 'neutral',
-    },
-  ],
-};
+// Always-visible part of the Work section.
+const workHomeItem = { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' as const };
+
+// University-wide-only items in the Work section. Education + Staff
+// dashboards aggregate across every faculty by design — there's no
+// faculty-scoped variant — so FACULTY_USER and PROGRAM_USER don't see
+// them in the nav. The /education and /staff routes also gate at the
+// page level (redirect to /no-access).
+const workUniversityWideItems = [
+  {
+    href: '/education',
+    label: 'Education dashboard',
+    icon: createElement(GraduationCap),
+    moduleKey: 'neutral' as const,
+  },
+  {
+    href: '/staff',
+    label: 'Staff dashboard',
+    icon: createElement(Users),
+    moduleKey: 'neutral' as const,
+  },
+];
+
+function workSectionFor(user: SessionUser | undefined): NavSection {
+  return {
+    label: 'Work',
+    items: isUniversityWide(user?.role)
+      ? [workHomeItem, ...workUniversityWideItems]
+      : [workHomeItem],
+  };
+}
 
 // Admin — single entry collapsing what used to be 11 items in three
 // groups (Data setup / Review queues / System) into one console page.
@@ -112,7 +134,7 @@ const referenceSection: NavSection = {
  * non-admin users so the sidebar stays focused on what they can do.
  */
 export function appNavSectionsFor(user: SessionUser | undefined): NavSection[] {
-  const sections: NavSection[] = [workSection, moduleSection];
+  const sections: NavSection[] = [workSectionFor(user), moduleSection];
   if (isAdminGrade(user?.role)) {
     sections.push(adminSection);
   }

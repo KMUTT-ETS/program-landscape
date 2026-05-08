@@ -6,6 +6,7 @@ import {
   AuthSession,
   Authorized,
   ZodValidationPipe,
+  assertUniversityWide,
 } from '../common';
 import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
@@ -129,9 +130,11 @@ export class EducationController {
   @Get('recruitment')
   @Authorized('programs:read:all')
   async recruitmentDashboard(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(RecruitmentQuerySchema))
     q: z.infer<typeof RecruitmentQuerySchema>,
   ) {
+    assertUniversityWide(user);
     return this.recruitment.getDashboard({
       entryYearBE: q.entryYearBE ?? null,
       facultyId: q.facultyId ?? null,
@@ -168,6 +171,7 @@ export class EducationController {
     )
     body: { cubes?: RefreshableCube[] },
   ) {
+    assertUniversityWide(user);
     // Validate cube list — null / empty array means refresh everything.
     const cubes =
       body.cubes && body.cubes.length > 0
@@ -187,7 +191,8 @@ export class EducationController {
 
   @Get('refresh/status')
   @Authorized('programs:read:all')
-  async refreshStatus() {
+  async refreshStatus(@AuthSession() user: SessionUser) {
+    assertUniversityWide(user);
     const latest = await this.refresher.latestPerCube();
     return {
       isRunning: this.refresher.isRunning(),
@@ -206,52 +211,45 @@ export class EducationController {
   @Get('student-info')
   @Authorized('programs:read:all')
   async studentInfo(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StudentInfoQuerySchema)) q: StudentInfoQuery,
   ) {
-    return this.education.studentInfo({
-      facultyName: q.facultyName,
-      programLevel: q.programLevel,
-      programName: q.programName,
-      statusCode: q.statusCode,
-      statusGroup: q.statusGroup,
-    });
+    assertUniversityWide(user);
+    return this.education.studentInfo(q);
   }
 
   @Get('by-location')
   @Authorized('programs:read:all')
   async byLocation(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(LocationQuerySchema)) q: LocationQuery,
   ) {
-    return this.education.byLocation({
-      cohortYearBe: q.cohortYearBe,
-      region: q.region,
-      facultyName: q.facultyName,
-      programLevel: q.programLevel,
-      programName: q.programName,
-    });
+    assertUniversityWide(user);
+    return this.education.byLocation(q);
   }
 
   @Get('active-pivot')
   @Authorized('programs:read:all')
-  async activePivot() {
+  async activePivot(@AuthSession() user: SessionUser) {
+    assertUniversityWide(user);
     return this.education.activePivot();
   }
 
   @Get('international')
   @Authorized('programs:read:all')
-  async international() {
+  async international(@AuthSession() user: SessionUser) {
+    assertUniversityWide(user);
     return this.education.international();
   }
 
   @Get('tuition')
   @Authorized('programs:read:all')
   async tuition(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(TuitionQuerySchema)) q: TuitionQuery,
   ) {
-    return this.education.tuition({
-      semester: q.semester,
-      facultyName: q.facultyName,
-    });
+    assertUniversityWide(user);
+    return this.education.tuition(q);
   }
 
   // ── Performance dashboard endpoints ──────────────────────────────
@@ -259,52 +257,40 @@ export class EducationController {
   @Get('performance/overall')
   @Authorized('programs:read:all')
   async performanceOverall(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    return this.education.performanceOverall({
-      facultyName: q.facultyName,
-      programLevel: q.programLevel,
-      programName: q.programName,
-      region: q.region,
-    });
+    assertUniversityWide(user);
+    return this.education.performanceOverall(q);
   }
 
   @Get('performance/by-program')
   @Authorized('programs:read:all')
   async performanceByProgram(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    return this.education.performanceByProgram({
-      facultyName: q.facultyName,
-      programLevel: q.programLevel,
-      programName: q.programName,
-      region: q.region,
-    });
+    assertUniversityWide(user);
+    return this.education.performanceByProgram(q);
   }
 
   @Get('performance/by-location')
   @Authorized('programs:read:all')
   async performanceByLocation(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    return this.education.performanceByLocation({
-      facultyName: q.facultyName,
-      programLevel: q.programLevel,
-      programName: q.programName,
-      region: q.region,
-    });
+    assertUniversityWide(user);
+    return this.education.performanceByLocation(q);
   }
 
   @Get('entry-scores')
   @Authorized('programs:read:all')
   async entryScores(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    return this.education.entryScores({
-      facultyName: q.facultyName,
-      programLevel: q.programLevel,
-      programName: q.programName,
-      region: q.region,
-    });
+    assertUniversityWide(user);
+    return this.education.entryScores(q);
   }
 }

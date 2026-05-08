@@ -1,8 +1,14 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { Prisma, prisma } from '@kku/db';
-import { ScopeLevelSchema, type ScopeLevel } from '@kku/shared';
+import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
 import { z } from 'zod';
-import { Authorized, Provenance, ZodValidationPipe } from '../common';
+import {
+  AuthSession,
+  Authorized,
+  Provenance,
+  ZodValidationPipe,
+  clampScopeForUser,
+} from '../common';
 
 // Skills API. Endpoints:
 //   GET /skills              — flat list (search + scope filter)
@@ -34,11 +40,15 @@ export class SkillsController {
   @Get()
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'skills', name: 'KKU Skill Taxonomy' }] })
-  async list(@Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery) {
+  async list(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery,
+  ) {
     // Skills that appear at the current scope, optionally filtered by
     // name/category/source. The scope filter is a `skill IN (covered at
     // scope)` EXISTS subquery; when scope = UNIVERSITY we skip it.
-    const programsAtScope = scopeProgramFilter(q.scope, q.scopeId);
+    const eff = await clampScopeForUser(q.scope, q.scopeId ?? null, user);
+    const programsAtScope = scopeProgramFilter(eff.scope, eff.scopeId ?? undefined);
 
     const where: Prisma.SkillWhereInput = {};
     if (q.search) {
@@ -74,8 +84,12 @@ export class SkillsController {
   @Get('tree')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'skills', name: 'KKU Skill Taxonomy' }] })
-  async tree(@Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery) {
-    const programsAtScope = scopeProgramFilter(q.scope, q.scopeId);
+  async tree(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery,
+  ) {
+    const eff = await clampScopeForUser(q.scope, q.scopeId ?? null, user);
+    const programsAtScope = scopeProgramFilter(eff.scope, eff.scopeId ?? undefined);
 
     // Scope-covered leaves.
     const leaves = await prisma.skill.findMany({
@@ -124,10 +138,12 @@ export class SkillsController {
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'skills', name: 'KKU Skill Taxonomy' }] })
   async detail(
+    @AuthSession() user: SessionUser,
     @Param('id') id: string,
     @Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery,
   ) {
-    const programsAtScope = scopeProgramFilter(q.scope, q.scopeId);
+    const eff = await clampScopeForUser(q.scope, q.scopeId ?? null, user);
+    const programsAtScope = scopeProgramFilter(eff.scope, eff.scopeId ?? undefined);
 
     const [skill, programs, jobPostings] = await Promise.all([
       prisma.skill.findUnique({

@@ -9,3 +9,4 @@ export * from './jwt-auth.guard';
 export * from './response.interceptor';
 export * from './user-aware-throttler.guard';
 export * from './zod-validation.pipe';
+export * from './scope-guards';

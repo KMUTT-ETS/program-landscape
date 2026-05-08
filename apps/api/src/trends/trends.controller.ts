@@ -16,6 +16,7 @@ import {
   Authorized,
   Provenance,
   ZodValidationPipe,
+  assertProgramAccessible,
 } from '../common';
 
 // Trends Radar API — feed, detail, by-program, by-skill, annotate,
@@ -94,7 +95,11 @@ export class TrendsController {
   @Get('by-program/:programId')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'trend-signals', name: 'Trend Signals' }] })
-  async byProgram(@Param('programId') programId: string) {
+  async byProgram(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+  ) {
+    await assertProgramAccessible(programId, user);
     const rows = await prisma.trendSignal.findMany({
       where: { affectedProgramIds: { has: programId } },
       orderBy: { detectedDate: 'desc' },

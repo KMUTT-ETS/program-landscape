@@ -2,7 +2,12 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import { prisma } from '@kku/db';
-import { AuthSession, Authorized, ZodValidationPipe } from '../common';
+import {
+  AuthSession,
+  Authorized,
+  ZodValidationPipe,
+  assertUniversityWide,
+} from '../common';
 import { StaffService } from './staff.service';
 import { IngestionQueueService } from '../data-sources/ingestion-queue.service';
 
@@ -66,36 +71,11 @@ const ResearchFilterSchema = z.object({
     }),
 });
 
-// Roles that see the whole university unfiltered. Everyone else
-// (FACULTY_USER, PROGRAM_USER) is clamped to their own faculty so
-// staff PII for other faculties never crosses the wire.
-function seesAllFaculties(role: SessionUser['role']): boolean {
-  return (
-    role === 'SUPER_ADMIN' ||
-    role === 'SYSTEM_ADMIN' ||
-    role === 'UNIVERSITY_USER'
-  );
-}
-
-// Resolves the user's own facultyName (Thai) once per request and
-// rewrites any incoming facultyName filter to that single value.
-// Returns the rewritten filter — or null if the user can't see
-// anything (FACULTY_USER without an assigned facultyId).
-async function clampFacultyFilter<F extends { facultyName: string[] }>(
-  filter: F,
-  user: SessionUser,
-): Promise<F | null> {
-  if (seesAllFaculties(user.role)) return filter;
-  if (!user.facultyId) return null;
-  const faculty = await prisma.faculty.findUnique({
-    where: { id: user.facultyId },
-    select: { nameTh: true, nameEn: true },
-  });
-  if (!faculty) return null;
-  // Staff data is keyed off Thai faculty name (matches the StaffMasterRecord
-  // import format from KKU HR). Replace whatever the client sent.
-  return { ...filter, facultyName: [faculty.nameTh] };
-}
+// Staff dashboard is restricted to university-wide roles
+// (admin-grade + UNIVERSITY_USER) per Council decision 2026-05-09.
+// FACULTY_USER + PROGRAM_USER do NOT have access — there's no
+// faculty-scoped variant of this dashboard. Use assertUniversityWide()
+// at the top of every method as a single gate.
 
 @Controller('/staff-dashboard')
 export class StaffController {
@@ -106,7 +86,8 @@ export class StaffController {
 
   @Get('filter-options')
   @Authorized('programs:read:all')
-  filterOptions() {
+  filterOptions(@AuthSession() user: SessionUser) {
+    assertUniversityWide(user);
     return this.staff.filterOptions();
   }
 
@@ -116,6 +97,7 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(RefreshBodySchema)) body: { slugs?: StaffSlug[] },
   ) {
+    assertUniversityWide(user);
     const slugs = (body.slugs && body.slugs.length > 0 ? body.slugs : STAFF_REFRESH_SLUGS) as StaffSlug[];
     const queued: Array<{ slug: string; jobId: string }> = [];
     for (const slug of slugs) {
@@ -127,7 +109,8 @@ export class StaffController {
 
   @Get('refresh/status')
   @Authorized('programs:read:all')
-  async refreshStatus() {
+  async refreshStatus(@AuthSession() user: SessionUser) {
+    assertUniversityWide(user);
     const slugs = [...STAFF_REFRESH_SLUGS];
     const sources = await prisma.dataSource.findMany({
       where: { slug: { in: slugs } },
@@ -174,18 +157,15 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
   ) {
-    const clamped = await clampFacultyFilter(q, user);
-    if (!clamped) return this.staff.workforce({ ...q, facultyName: ['__none__'] });
-    return this.staff.workforce(clamped);
+    assertUniversityWide(user);
+    return this.staff.workforce(q);
   }
 
   @Get('faculty-by-program')
   @Authorized('programs:read:all')
   async facultyByProgram(@AuthSession() user: SessionUser) {
-    // FACULTY_USER + PROGRAM_USER see only programs in their own faculty.
-    if (seesAllFaculties(user.role)) return this.staff.facultyByProgram();
-    if (!user.facultyId) return [];
-    return this.staff.facultyByProgram({ facultyId: user.facultyId });
+    assertUniversityWide(user);
+    return this.staff.facultyByProgram();
   }
 
   @Get('research')
@@ -194,9 +174,8 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ResearchFilterSchema)) q: z.infer<typeof ResearchFilterSchema>,
   ) {
-    const clamped = await clampFacultyFilter(q, user);
-    if (!clamped) return this.staff.researchOutput({ ...q, facultyName: ['__none__'] });
-    return this.staff.researchOutput(clamped);
+    assertUniversityWide(user);
+    return this.staff.researchOutput(q);
   }
 
   @Get('compensation')
@@ -205,8 +184,7 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
   ) {
-    const clamped = await clampFacultyFilter(q, user);
-    if (!clamped) return this.staff.compensation({ ...q, facultyName: ['__none__'] });
-    return this.staff.compensation(clamped);
+    assertUniversityWide(user);
+    return this.staff.compensation(q);
   }
 }

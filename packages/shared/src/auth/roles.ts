@@ -51,3 +51,18 @@ export function isSuperGrade(role: Role | undefined | null): boolean {
   if (!role) return false;
   return (SUPER_GRADE_ROLES as readonly string[]).includes(role);
 }
+
+// University-wide roles — admin-grade plus UNIVERSITY_USER. These see
+// data spanning every faculty (Education + Staff dashboards, Cockpit at
+// university scope). FACULTY_USER and PROGRAM_USER are explicitly
+// excluded — those users get bounced to /no-access.
+export const UNIVERSITY_WIDE_ROLES: readonly Role[] = [
+  'SUPER_ADMIN',
+  'SYSTEM_ADMIN',
+  'UNIVERSITY_USER',
+] as const;
+
+export function isUniversityWide(role: Role | undefined | null): boolean {
+  if (!role) return false;
+  return (UNIVERSITY_WIDE_ROLES as readonly string[]).includes(role);
+}

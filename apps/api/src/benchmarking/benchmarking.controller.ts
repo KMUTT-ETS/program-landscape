@@ -28,6 +28,7 @@ import {
   Provenance,
   ZodValidationPipe,
   AiQuota,
+  assertProgramAccessible,
 } from '../common';
 import { BenchmarkingInsightsService } from './benchmarking-insights.service';
 
@@ -144,9 +145,11 @@ export class BenchmarkingController {
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'peer-programs', name: 'Peer programs' }] })
   async programPeers(
+    @AuthSession() user: SessionUser,
     @Param('id') id: string,
     @Query(new ZodValidationPipe(ProgramPeersQuerySchema)) q: ProgramPeersQuery,
   ) {
+    await assertProgramAccessible(id, user);
     const program = await prisma.program.findUnique({ where: { id }, select: { id: true } });
     if (!program) throw new NotFoundException();
     const result = await computeProgramPeers(id, q.peerSetId ?? null, q.limit);
@@ -176,6 +179,7 @@ export class BenchmarkingController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(SuggestPeersBodySchema)) body: SuggestPeersBody,
   ) {
+    await assertProgramAccessible(id, user);
     const program = await prisma.program.findUnique({
       where: { id },
       include: { department: { select: { nameEn: true } } },
