@@ -32,3 +32,4 @@ export * from './student-status';
 export * from './imd-rankings';
 export * from './imd-materialize';
 export * from './program-recruitment';
+export * from './risk-scoring';

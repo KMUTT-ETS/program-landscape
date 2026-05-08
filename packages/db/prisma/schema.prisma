@@ -444,6 +444,8 @@ model Program {
   staffAssignments      StaffProgramAssignment[]
   mhesiAliases          ProgramMhesiAlias[]
   studentRecords        StudentProgramRecord[]
+  riskAssessments       RiskAssessment[]
+  riskIndicatorBreaches RiskIndicatorBreach[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -746,6 +748,10 @@ model Skill {
   category       String?
   parentSkillId  String?                      @map("parent_skill_id")
   embedding      Unsupported("vector(1536)")?
+  // Automation risk tier for the Risk Management module's L2 driver
+  // (AI-disruption likelihood). Heuristically seeded by name/category;
+  // refined by the per-skill AI sweep in the risk pipeline.
+  automationRisk AutomationRisk               @default(UNKNOWN) @map("automation_risk")
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @updatedAt @map("updated_at")
 
@@ -2005,6 +2011,7 @@ model CouncilDecision {
   approvers      DecisionApprover[]
   outcomeReviews DecisionOutcomeReview[]
   resolutionPdf  PdfDocument?            @relation("DecisionResolution", fields: [resolutionPdfId], references: [id], onDelete: SetNull)
+  riskMeasures   RiskMeasure[]
 
   @@index([userId])
   @@index([decisionType])
@@ -3520,4 +3527,251 @@ model TcasAdmissionFunnel {
   @@index([programId])
   @@index([entryYearBE])
   @@map("tcas_admission_funnels")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Risk Management module (risk-scoring.v1)
+//
+// Per-program risk profile with three Likelihood drivers and two Impact
+// dimensions. Composite uses max(L) so a single critical driver isn't
+// diluted by lower-scoring ones. Impact is carried in raw THB (the unit
+// Council asks about) AND a 0-100 normalised score for portfolio-level
+// matrix plotting.
+//
+// Scope: undergraduate only (Program.level = BACHELOR). Master/PhD risk
+// has different drivers and is a v2 module.
+//
+// Null handling: missing inputs return null (data gap), never imputed
+// zeros. Confidence on each driver = data completeness.
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum AutomationRisk {
+  LOW       // requires judgement / dexterity / interpersonal — safe near-term
+  MEDIUM    // partial automation likely 5-10y horizon
+  HIGH      // routine cognitive / structured — automation already underway
+  UNKNOWN   // not yet classified
+}
+
+// KKU 5×5 institutional risk matrix level — matrix score = likelihood (1-5)
+// × impact (1-5) → 1-25 → bucketed per KKU's standard ERM colour rule:
+//   1-4   → ต่ำ (Low)        / Green
+//   5-9   → ปานกลาง (Moderate) / Yellow
+//   10-15 → สูง (High)        / Orange
+//   16-25 → สูงมาก (Very High) / Red
+// NEEDS_DATA covers programs whose composite likelihood OR impact is null.
+enum KkuRiskLevel {
+  NEEDS_DATA
+  LOW
+  MODERATE
+  HIGH
+  VERY_HIGH
+}
+
+enum RiskTier {
+  // Program-specific data is too thin to issue a verdict (recruitment funnel
+  // missing AND skill-automation tagging absent). Surfaces as a separate
+  // bucket so analysts can prioritise the data-acquisition worklist
+  // instead of receiving a misleading "low risk" verdict.
+  NEEDS_DATA
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum RiskMeasureKind {
+  // Narrow, specific recommendations per user. The AI prompt fills in
+  // the SPECIFIC course / channel / peer / cohort — these enum values
+  // are coarse buckets for filtering and dashboard rollup only.
+  CURRICULUM_MODERNIZE     // add/swap specific courses to address L2 (AI disruption)
+  CURRICULUM_DIFFERENTIATE // add a niche track to occupy a peer white-space
+  RECRUITMENT_CHANNEL      // open or invest in a specific marketing channel
+  RECRUITMENT_TARGETING    // shift target school / region / cohort segment
+  COHORT_REDUCTION         // reduce planned intake to match realistic demand
+  PROGRAM_MERGE            // merge with a specific named program
+  PROGRAM_PHASE_OUT        // staged sunset over N years
+  PARTNERSHIP_INDUSTRY     // specific industry partner for placements / curriculum input
+  FACULTY_HIRE             // hire faculty in a specific gap area
+  TUITION_ADJUST           // reprice (up or down) to match positioning
+}
+
+enum RiskMeasureStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Time-to-effect horizon for a recommended measure. Lets Council scan a
+// program profile by what's actionable now vs what requires longer
+// commitment. Aligned with KKU strategic-plan cadences.
+//   SHORT_TERM  — 0-12 months. Curriculum tweaks, marketing, partnerships
+//                 that don't need new positions/facilities.
+//   MEDIUM_TERM — 1-3 years. Faculty hires, new electives, channel buildout,
+//                 cohort-size adjustments.
+//   LONG_TERM   — 3-5 years. Curriculum redesign, mergers, phase-out plans,
+//                 new specialisation tracks.
+enum RiskMeasureHorizon {
+  SHORT_TERM
+  MEDIUM_TERM
+  LONG_TERM
+}
+
+enum RiskIndicatorSeverity {
+  OK
+  WARN
+  CRITICAL
+}
+
+model RiskAssessment {
+  id                       String   @id @default(cuid())
+  programId                String   @map("program_id")
+  assessedAt               DateTime @default(now()) @map("assessed_at")
+  // Three likelihood drivers, each 0-100 or null (data gap).
+  // L1 = recruitment / TCAS competition decay
+  // L2 = AI-disruption (share of taught skills tagged HIGH automationRisk)
+  // L3 = demographic ceiling (competitiveness percentile × cohort projection)
+  l1RecruitmentScore       Float?   @map("l1_recruitment_score")
+  l1RecruitmentConfidence  Float?   @map("l1_recruitment_confidence")
+  l2AiDisruptionScore      Float?   @map("l2_ai_disruption_score")
+  l2AiDisruptionConfidence Float?   @map("l2_ai_disruption_confidence")
+  l3DemographicScore       Float?   @map("l3_demographic_score")
+  l3DemographicConfidence  Float?   @map("l3_demographic_confidence")
+  // Composite score: max(L1, L2, L3) over non-null drivers. 0-100.
+  compositeScore           Float?   @map("composite_score")
+  tier                     RiskTier @map("tier")
+  // KKU 5×5 institutional matrix view — alongside the composite tier for
+  // alignment with the university's ERM templates. Equal-width 0-100 → 1-5
+  // bins; score = L × I (1-25); colour level per KKU criteria.
+  likelihoodBin            Int?         @map("likelihood_bin")
+  impactBin                Int?         @map("impact_bin")
+  kkuMatrixScore           Int?         @map("kku_matrix_score")
+  kkuRiskLevel             KkuRiskLevel @default(NEEDS_DATA) @map("kku_risk_level")
+  // Impact dimensions in raw THB (Council-readable) plus 0-100 normalised
+  // score for matrix plotting (normalised against the at-risk-revenue
+  // distribution at portfolio level — recomputed on each pipeline run).
+  directRevenueAtRiskThb   Decimal? @map("direct_revenue_at_risk_thb") @db.Decimal(16, 2)
+  strandedCostThb          Decimal? @map("stranded_cost_thb") @db.Decimal(16, 2)
+  impactScore              Float?   @map("impact_score")
+  // Methodology + AI provenance.
+  methodologyVersion       String   @default("risk-scoring.v1") @map("methodology_version")
+  aiInferenceId            String?  @map("ai_inference_id")
+  confidence               Float?
+  narrativeTh              String?  @map("narrative_th") @db.Text
+  narrativeEn              String?  @map("narrative_en") @db.Text
+  // Data gaps surfaced to the UI ("no TCAS funnel for 2024", "no automationRisk
+  // tag on 12 of 24 program skills", etc.). Array of `{ field, reason }`.
+  dataGapsJson             Json?    @map("data_gaps_json")
+  // Full raw AI payload (echoes the typed fields above plus anything the
+  // model added that didn't fit the schema). Audit trail.
+  payloadJson              Json?    @map("payload_json")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  program  Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  measures RiskMeasure[]
+
+  @@index([programId, assessedAt(sort: Desc)])
+  @@index([tier])
+  @@index([assessedAt])
+  @@map("risk_assessments")
+}
+
+// Catalog of KRIs — slug, label, formula description, thresholds.
+// Seeded with the v1 indicator set; analyst-tunable via /admin in v2.
+model RiskIndicator {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  labelTh            String   @map("label_th")
+  labelEn            String   @map("label_en")
+  descriptionTh      String   @map("description_th") @db.Text
+  descriptionEn      String   @map("description_en") @db.Text
+  // Free-text formula description (rendered in the indicator drawer's
+  // "How calculated" section). The actual computation lives in
+  // packages/db/src/risk-scoring.ts.
+  formula            String   @db.Text
+  // Thresholds — semantic varies per indicator. For a ratio indicator
+  // these are absolute; for a CAGR indicator they're percentages.
+  warnThreshold      Float    @map("warn_threshold")
+  criticalThreshold  Float    @map("critical_threshold")
+  // Direction: when to ALARM. 'low' = alarm when value <= threshold;
+  // 'high' = alarm when value >= threshold.
+  alarmDirection     String   @default("low") @map("alarm_direction")
+  methodologyVersion String   @default("risk-scoring.v1") @map("methodology_version")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  breaches RiskIndicatorBreach[]
+
+  @@map("risk_indicators")
+}
+
+// One row per (program × indicator × evaluation moment). Lets the UI
+// show breach history as a series — KRI dashboards plot this.
+model RiskIndicatorBreach {
+  id                 String                @id @default(cuid())
+  programId          String                @map("program_id")
+  indicatorSlug      String                @map("indicator_slug")
+  value              Float?
+  severity           RiskIndicatorSeverity
+  // The evaluation moment (when this breach was computed by the pipeline).
+  observedAt         DateTime              @default(now()) @map("observed_at")
+  // The data freshness — i.e. what cohort year / fiscal year was being
+  // evaluated. Distinct from observedAt because we may evaluate FY2025
+  // numbers in FY2026.
+  freshnessDate      DateTime              @map("freshness_date") @db.Date
+  methodologyVersion String                @default("risk-scoring.v1") @map("methodology_version")
+  createdAt          DateTime              @default(now()) @map("created_at")
+
+  program   Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  indicator RiskIndicator @relation(fields: [indicatorSlug], references: [slug], onDelete: Cascade)
+
+  @@index([programId, observedAt(sort: Desc)])
+  @@index([indicatorSlug, observedAt(sort: Desc)])
+  @@index([severity])
+  @@map("risk_indicator_breaches")
+}
+
+model RiskMeasure {
+  id                String            @id @default(cuid())
+  assessmentId      String            @map("assessment_id")
+  kind              RiskMeasureKind
+  // The SPECIFIC recommendation. titleEn = short label (used in tables),
+  // rationaleTh = the analyst-facing "why" (200-400 chars). The AI fills
+  // both with concrete program-level context — not a generic "modernize
+  // curriculum" but "add CS-301 Applied Generative AI; drop CS-220 SOAP
+  // Web Services."
+  titleTh           String            @map("title_th")
+  titleEn           String            @map("title_en")
+  rationaleTh       String            @map("rationale_th") @db.Text
+  rationaleEn       String?           @map("rationale_en") @db.Text
+  // Coarse cost class — 'LOW' (process / curriculum tweak),
+  // 'MEDIUM' (hire / channel investment), 'HIGH' (program restructure /
+  // facility build).
+  costClass         String?           @map("cost_class")
+  // Time horizon to effect (Council strategic-plan cadence).
+  horizon           RiskMeasureHorizon @default(MEDIUM_TERM)
+  // Expected revenue delta over a 5y window (positive = revenue saved/added,
+  // negative = cost). Often null for low-confidence measures.
+  expectedDeltaThb  Decimal?          @map("expected_delta_thb") @db.Decimal(16, 2)
+  // 1 = highest priority within the assessment.
+  priority          Int               @default(99)
+  status            RiskMeasureStatus @default(PROPOSED)
+  // Optional link to the Decision Workspace if the measure has been
+  // raised to a formal decision.
+  decisionId        String?           @map("decision_id")
+  // Specific evidence references the AI cited — peer programs, demand
+  // signals, automation-risk tagged skills, etc. Free-shape JSON.
+  evidenceJson      Json?             @map("evidence_json")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  assessment RiskAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  decision   CouncilDecision? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+
+  @@index([assessmentId])
+  @@index([status])
+  @@index([decisionId])
+  @@map("risk_measures")
 }

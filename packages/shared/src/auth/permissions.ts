@@ -86,6 +86,14 @@ export const PERMISSIONS = [
   // retry / remove / clean / pause / resume.
   'queues:read',
   'queues:manage',
+
+  // Risk Management module — read = view assessments + indicators;
+  // assess = trigger AI per-program assessment (idempotent within rate
+  // limits); measures:edit = accept/reject/in_progress/completed status
+  // transitions on a recommended measure.
+  'risks:read:all',
+  'risks:assess:any',
+  'risks:measures:edit',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -108,6 +116,8 @@ const COUNCIL_PERMS: Permission[] = [
   'scenarios:read:all',
   'decisions:read:all',
   'pdf:generate',
+  'risks:read:all',
+  'risks:measures:edit',
 ];
 
 const EXECUTIVE_PERMS: Permission[] = [
@@ -133,6 +143,8 @@ const DEAN_PERMS: Permission[] = [
   'decisions:read:all',
   'pdf:upload',
   'pdf:generate',
+  'risks:read:all',
+  'risks:measures:edit',
 ];
 
 const DEPT_HEAD_PERMS: Permission[] = [
@@ -149,6 +161,7 @@ const DEPT_HEAD_PERMS: Permission[] = [
   'scenarios:read:all',
   'pdf:upload',
   'pdf:generate',
+  'risks:read:all',
 ];
 
 const ANALYST_PERMS: Permission[] = [
@@ -172,6 +185,9 @@ const ANALYST_PERMS: Permission[] = [
   // Analyst can see what's in the queues (job payloads, counts, failures)
   // but mutation actions stay with ADMIN.
   'queues:read',
+  'risks:read:all',
+  'risks:assess:any',
+  'risks:measures:edit',
 ];
 
 const ADMIN_PERMS: Permission[] = [
@@ -201,6 +217,7 @@ const UNIVERSITY_USER_PERMS: Permission[] = [
   'scenarios:read:all',
   'decisions:read:all',
   'pdf:generate',
+  'risks:read:all',
 ];
 
 // FACULTY_USER — read-only scoped to user's own faculty.
@@ -217,6 +234,7 @@ const FACULTY_USER_PERMS: Permission[] = [
   'scenarios:read:all',
   'decisions:read:all',
   'pdf:generate',
+  'risks:read:all',
 ];
 
 // PROGRAM_USER — read-only at the user's specific program. Coarse
@@ -235,6 +253,7 @@ const PROGRAM_USER_PERMS: Permission[] = [
   'scenarios:read:all',
   'decisions:read:all',
   'pdf:generate',
+  'risks:read:all',
 ];
 
 // Copy the arrays into readonly sets so callers can't mutate them.

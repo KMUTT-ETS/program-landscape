@@ -50,6 +50,7 @@ import { AdminModule } from './admin/admin.module';
 import { AdminDataSetupModule } from './admin-data-setup/admin-data-setup.module';
 import { EducationModule } from './education/education.module';
 import { StaffDashboardModule } from './staff-dashboard/staff.module';
+import { RisksModule } from './risks/risks.module';
 
 import {
   AccessControlGuard,
@@ -115,6 +116,7 @@ import {
     AdminDataSetupModule,
     EducationModule,
     StaffDashboardModule,
+    RisksModule,
   ],
   exports: [CacheService],
   controllers: [
