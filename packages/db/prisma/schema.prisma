@@ -51,26 +51,18 @@ enum ProgramDocumentRole {
   SUPPLEMENTARY
 }
 
+// KKU SSO role taxonomy (legacy roles removed 2026-05-09 — see
+// migration 20260509100000_remove_legacy_user_roles for the data
+// migration mapping):
+//   SUPER_ADMIN     — full access; can promote SYSTEM_ADMINs.
+//   SYSTEM_ADMIN    — admin-grade. Can assign roles up to and
+//                     including SYSTEM_ADMIN, but never SUPER_ADMIN.
+//   UNIVERSITY_USER — read-all at university scope.
+//   FACULTY_USER    — read access scoped to user's facultyId.
+//   PROGRAM_USER    — read access scoped to user's programId.
+//                     Academic staff land here by default with
+//                     programId set to their primary program.
 enum UserRole {
-  // Legacy roles — kept for backward compatibility with seed data and
-  // any scenarios/decisions/etc still referencing them. New
-  // provisioning uses the role taxonomy below.
-  VIEWER
-  COUNCIL
-  EXECUTIVE
-  DEAN
-  DEPT_HEAD
-  ANALYST
-  ADMIN
-  // KKU SSO role taxonomy (added 2026-05-07):
-  //   SUPER_ADMIN     — full access; can promote SYSTEM_ADMINs.
-  //   SYSTEM_ADMIN    — admin-grade. Can assign roles up to and
-  //                     including SYSTEM_ADMIN, but never SUPER_ADMIN.
-  //   UNIVERSITY_USER — read-all at university scope.
-  //   FACULTY_USER    — read access scoped to user's facultyId.
-  //   PROGRAM_USER    — read access scoped to user's programId.
-  //                     Academic staff land here by default with
-  //                     programId set to their primary program.
   SUPER_ADMIN
   SYSTEM_ADMIN
   UNIVERSITY_USER
@@ -485,7 +477,7 @@ model User {
   email           String          @unique
   ssoSubject      String?         @unique @map("sso_subject")
   name            String?
-  role            UserRole        @default(VIEWER)
+  role            UserRole        @default(UNIVERSITY_USER)
   facultyId       String?         @map("faculty_id")
   departmentId    String?         @map("department_id")
   // Set when role = PROGRAM_USER. Academic staff default to their
@@ -551,12 +543,13 @@ model User {
 // user is deleted; SET NULL on faculty/program preserves audit while a
 // faculty/program row is being moved.
 model UserScope {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
+  id        String          @id @default(cuid())
+  userId    String          @map("user_id")
   role      UserRole
-  facultyId String?  @map("faculty_id")
-  programId String?  @map("program_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  facultyId String?         @map("faculty_id")
+  programId String?         @map("program_id")
+  source    UserScopeSource @default(MANUAL)
+  createdAt DateTime        @default(now()) @map("created_at")
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   faculty Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
@@ -566,7 +559,17 @@ model UserScope {
   @@index([userId], map: "user_scopes_user_idx")
   @@index([facultyId], map: "user_scopes_faculty_idx")
   @@index([programId], map: "user_scopes_program_idx")
+  @@index([source], map: "user_scopes_source_idx")
   @@map("user_scopes")
+}
+
+// MANUAL — set by an admin via /admin/users. Survives SSO logins.
+// ACADEMIC_STAFF — auto-synced from FacultyMember ↔ ProgramFaculty on
+// every SSO login. Pruned when the staffer is removed from a program
+// upstream. Never touched by manual admin edits.
+enum UserScopeSource {
+  MANUAL
+  ACADEMIC_STAFF
 }
 
 model AuditLog {

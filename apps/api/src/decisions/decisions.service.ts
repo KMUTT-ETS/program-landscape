@@ -24,6 +24,25 @@ import type {
 // @kku/db helpers. Role-gating happens here; Prisma writes happen
 // inline because the mutations are simple.
 
+// Privilege tiers, post legacy-removal (2026-05-09):
+//   COUNCIL_TIER = roles in the approval/amendment loop. Maps the legacy
+//                  COUNCIL/EXECUTIVE/ADMIN trio onto v2: admin-grade +
+//                  UNIVERSITY_USER (which absorbed legacy
+//                  COUNCIL/EXECUTIVE).
+//   ARCHIVE_TIER = SUPER_ADMIN only. ARCHIVED decisions are immutable
+//                  except via super-admin override (matches the legacy
+//                  ADMIN gate; SYSTEM_ADMIN intentionally excluded
+//                  because archival is a record-of-truth concern).
+const COUNCIL_TIER_ROLES = new Set(['SUPER_ADMIN', 'SYSTEM_ADMIN', 'UNIVERSITY_USER']);
+const ARCHIVE_TIER_ROLES = new Set(['SUPER_ADMIN']);
+
+function isCouncilTier(role: string): boolean {
+  return COUNCIL_TIER_ROLES.has(role);
+}
+function isArchiveTier(role: string): boolean {
+  return ARCHIVE_TIER_ROLES.has(role);
+}
+
 @Injectable()
 export class DecisionsService {
   // ── List + get ───────────────────────────────────────────────────
@@ -116,14 +135,14 @@ export class DecisionsService {
       select: { id: true, status: true, userId: true },
     });
     if (!existing) throw new NotFoundException();
-    if (existing.status === 'ARCHIVED' && params.userRole !== 'ADMIN') {
-      throw new ForbiddenException('Archived decisions can only be edited by ADMIN');
+    if (existing.status === 'ARCHIVED' && !isArchiveTier(params.userRole)) {
+      throw new ForbiddenException('Archived decisions can only be edited by SUPER_ADMIN');
     }
-    // Owners + ADMIN can always edit; COUNCIL / EXECUTIVE can edit post-
-    // COUNCIL_REVIEWED (they're part of the approval loop).
+    // Owners can always edit. Council-tier (admin-grade + UNIVERSITY_USER)
+    // can edit post-COUNCIL_REVIEWED — they're part of the approval loop.
     if (
       existing.userId !== params.userId &&
-      !['ADMIN', 'COUNCIL', 'EXECUTIVE'].includes(params.userRole)
+      !isCouncilTier(params.userRole)
     ) {
       throw new ForbiddenException('Not authorised to edit this decision');
     }
@@ -148,8 +167,10 @@ export class DecisionsService {
       where: { id: params.decisionId },
     });
     if (!original) throw new NotFoundException();
-    if (!['COUNCIL', 'EXECUTIVE', 'ADMIN'].includes(params.userRole)) {
-      throw new ForbiddenException('Only COUNCIL/EXECUTIVE/ADMIN can amend decisions');
+    if (!isCouncilTier(params.userRole)) {
+      throw new ForbiddenException(
+        'Only admin-grade or University-level users can amend decisions',
+      );
     }
     const [newDecision] = await prisma.$transaction([
       prisma.councilDecision.create({
@@ -239,8 +260,10 @@ export class DecisionsService {
     role?: string;
     noteTh?: string;
   }) {
-    if (!['COUNCIL', 'EXECUTIVE', 'ADMIN'].includes(params.actingUserRole)) {
-      throw new ForbiddenException('Only COUNCIL/EXECUTIVE/ADMIN can record approvers');
+    if (!isCouncilTier(params.actingUserRole)) {
+      throw new ForbiddenException(
+        'Only admin-grade or University-level users can record approvers',
+      );
     }
     return addApprover(params.decisionId, params.targetUserId, params.role, params.noteTh);
   }
@@ -272,8 +295,8 @@ export class DecisionsService {
     kind?: string;
   }) {
     // PRIVATE → only author; TEAM → author + collaborators (approximated
-    // as COUNCIL+ roles); COUNCIL → COUNCIL+ roles.
-    const isPrivileged = ['COUNCIL', 'EXECUTIVE', 'ADMIN'].includes(params.userRole);
+    // as council-tier roles); COUNCIL → council-tier roles.
+    const isPrivileged = isCouncilTier(params.userRole);
     return prisma.annotation.findMany({
       where: {
         entityType: params.entityType,
@@ -319,7 +342,7 @@ export class DecisionsService {
 
   // ── Internal auth helper ─────────────────────────────────────────
   private async assertOwnerOrCouncil(decisionId: string, userId: string, role: string) {
-    if (['COUNCIL', 'EXECUTIVE', 'ADMIN'].includes(role)) return;
+    if (isCouncilTier(role)) return;
     const d = await prisma.councilDecision.findUnique({
       where: { id: decisionId },
       select: { userId: true },

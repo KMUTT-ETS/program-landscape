@@ -49,13 +49,10 @@ export default async function SystemStatusPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (
-    !isAdminGrade(user.role) &&
-    user.role !== 'ANALYST' &&
-    user.role !== 'EXECUTIVE' &&
-    user.role !== 'COUNCIL'
-  ) {
-    redirect('/');
+  // System status is exec-readable: admin-grade + UNIVERSITY_USER (which
+  // absorbs the legacy COUNCIL/EXECUTIVE/VIEWER population).
+  if (!isAdminGrade(user.role) && user.role !== 'UNIVERSITY_USER') {
+    redirect('/no-access');
   }
 
   const status = await apiFetch<SystemStatus>('/admin/system-status').catch(

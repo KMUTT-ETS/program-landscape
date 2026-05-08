@@ -41,7 +41,7 @@ export default async function AdminDataSourcesPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
   // ANALYST + admin-grade have data_sources:read; everyone else redirected.
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const [sources, overview] = await Promise.all([
     apiFetch<DataSourceRow[]>('/data-sources').catch(() => [] as DataSourceRow[]),

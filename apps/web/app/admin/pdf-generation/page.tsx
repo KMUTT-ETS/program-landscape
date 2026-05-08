@@ -40,7 +40,7 @@ export default async function AdminPdfGenerationPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const [recent, templates] = await Promise.all([
     apiFetch<PdfGenerationRow[]>('/pdf/admin/recent').catch(() => [] as PdfGenerationRow[]),

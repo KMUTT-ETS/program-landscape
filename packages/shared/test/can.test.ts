@@ -9,8 +9,9 @@ import {
 } from '../src';
 
 // ──────────────────────────────────────────────────────────────────────────
-// Role × scope authorisation matrix — kept close to English in the test
-// names so regressions are obvious.
+// Role × scope authorisation matrix — KKU SSO v2 taxonomy.
+// (Legacy VIEWER/COUNCIL/EXECUTIVE/DEAN/DEPT_HEAD/ANALYST/ADMIN removed
+// 2026-05-09 per migration 20260509100000_remove_legacy_user_roles.)
 // ──────────────────────────────────────────────────────────────────────────
 
 const FACULTY_A = 'fac-a';
@@ -48,36 +49,37 @@ describe('ROLE_PERMISSIONS matrix', () => {
     }
   });
 
-  it('ADMIN has every permission', () => {
+  it('SUPER_ADMIN has every permission', () => {
     for (const p of PERMISSIONS) {
-      expect(ROLE_PERMISSIONS.ADMIN.has(p)).toBe(true);
+      expect(ROLE_PERMISSIONS.SUPER_ADMIN.has(p)).toBe(true);
     }
   });
 
-  it('VIEWER cannot see detailed financials or make scenarios', () => {
-    expect(ROLE_PERMISSIONS.VIEWER.has('financials:read:all')).toBe(false);
-    expect(ROLE_PERMISSIONS.VIEWER.has('scenarios:create:any')).toBe(false);
-    expect(ROLE_PERMISSIONS.VIEWER.has('financials:read:aggregated_only')).toBe(
-      true,
-    );
+  it('SYSTEM_ADMIN has every permission except queues:manage', () => {
+    expect(ROLE_PERMISSIONS.SYSTEM_ADMIN.has('queues:manage')).toBe(false);
+    // Spot-check: SYSTEM_ADMIN should still hold the everyday admin perms.
+    expect(ROLE_PERMISSIONS.SYSTEM_ADMIN.has('users:manage')).toBe(true);
+    expect(ROLE_PERMISSIONS.SYSTEM_ADMIN.has('decisions:approve')).toBe(true);
+    expect(ROLE_PERMISSIONS.SYSTEM_ADMIN.has('ingestion:configure')).toBe(true);
   });
 
-  it('COUNCIL cannot edit or make decisions (read-only at rollups)', () => {
-    expect(ROLE_PERMISSIONS.COUNCIL.has('scenarios:create:any')).toBe(false);
-    expect(ROLE_PERMISSIONS.COUNCIL.has('decisions:approve')).toBe(false);
-    expect(ROLE_PERMISSIONS.COUNCIL.has('financials:read:all')).toBe(true);
+  it('UNIVERSITY_USER reads everything but cannot create scenarios', () => {
+    expect(ROLE_PERMISSIONS.UNIVERSITY_USER.has('financials:read:all')).toBe(true);
+    expect(ROLE_PERMISSIONS.UNIVERSITY_USER.has('scenarios:create:any')).toBe(false);
+    // Inherited from legacy COUNCIL — measure-edit on risks stays.
+    expect(ROLE_PERMISSIONS.UNIVERSITY_USER.has('risks:measures:edit')).toBe(true);
   });
 
-  it('ANALYST cannot approve decisions', () => {
-    expect(ROLE_PERMISSIONS.ANALYST.has('decisions:approve')).toBe(false);
-    expect(ROLE_PERMISSIONS.ANALYST.has('scenarios:create:any')).toBe(true);
-    expect(ROLE_PERMISSIONS.ANALYST.has('ingestion:configure')).toBe(true);
+  it('PROGRAM_USER is restricted to its own program', () => {
+    expect(ROLE_PERMISSIONS.PROGRAM_USER.has('financials:read:own_program')).toBe(true);
+    expect(ROLE_PERMISSIONS.PROGRAM_USER.has('financials:read:all')).toBe(false);
+    expect(ROLE_PERMISSIONS.PROGRAM_USER.has('decisions:approve')).toBe(false);
   });
 });
 
 describe('can() — :all permissions', () => {
   it('grants when role has the permission, ignores scopeContext', () => {
-    const u = userFor('COUNCIL');
+    const u = userFor('UNIVERSITY_USER');
     expect(can(u, 'programs:read:all')).toBe(true);
     expect(
       can(u, 'programs:read:all', { level: 'department', id: DEPT_B1 }),
@@ -85,17 +87,17 @@ describe('can() — :all permissions', () => {
   });
 
   it('denies when role does not have the permission', () => {
-    const u = userFor('VIEWER');
+    const u = userFor('PROGRAM_USER');
     expect(can(u, 'financials:read:all')).toBe(false);
   });
 });
 
 describe('can() — :own_faculty permissions', () => {
-  const dean = userFor('DEAN', { facultyId: FACULTY_A });
+  const facultyUser = userFor('FACULTY_USER', { facultyId: FACULTY_A });
 
-  it('grants when scope is the dean\'s own faculty', () => {
+  it('grants when scope is the user\'s own faculty', () => {
     expect(
-      can(dean, 'financials:read:own_faculty', {
+      can(facultyUser, 'financials:read:own_faculty', {
         level: 'faculty',
         id: FACULTY_A,
       }),
@@ -104,7 +106,7 @@ describe('can() — :own_faculty permissions', () => {
 
   it('denies when scope is a different faculty', () => {
     expect(
-      can(dean, 'financials:read:own_faculty', {
+      can(facultyUser, 'financials:read:own_faculty', {
         level: 'faculty',
         id: FACULTY_B,
       }),
@@ -112,9 +114,9 @@ describe('can() — :own_faculty permissions', () => {
   });
 
   it('denies when user has no faculty set', () => {
-    const floatingDean = userFor('DEAN', { facultyId: null });
+    const floating = userFor('FACULTY_USER', { facultyId: null });
     expect(
-      can(floatingDean, 'financials:read:own_faculty', {
+      can(floating, 'financials:read:own_faculty', {
         level: 'faculty',
         id: FACULTY_A,
       }),
@@ -122,54 +124,66 @@ describe('can() — :own_faculty permissions', () => {
   });
 
   it('denies when scopeContext is missing entirely', () => {
-    expect(can(dean, 'financials:read:own_faculty')).toBe(false);
+    expect(can(facultyUser, 'financials:read:own_faculty')).toBe(false);
   });
 
   it('denies at university scope (no faculty to match)', () => {
     expect(
-      can(dean, 'financials:read:own_faculty', { level: 'university' }),
+      can(facultyUser, 'financials:read:own_faculty', { level: 'university' }),
     ).toBe(false);
   });
 });
 
-describe('can() — :own_department permissions', () => {
-  const dh = userFor('DEPT_HEAD', {
+describe('can() — :own_program permissions', () => {
+  const PROG_A = 'prog-a';
+  const PROG_B = 'prog-b';
+  const programUser = userFor('PROGRAM_USER', {
     facultyId: FACULTY_A,
-    departmentId: DEPT_A1,
+    programId: PROG_A,
   });
 
-  it('grants when scope is the head\'s own department', () => {
+  it("grants when scope is the user's own program", () => {
     expect(
-      can(dh, 'financials:read:own_department', {
-        level: 'department',
-        id: DEPT_A1,
+      can(programUser, 'financials:read:own_program', {
+        level: 'program',
+        id: PROG_A,
       }),
     ).toBe(true);
   });
 
-  it('denies for a sibling department in the same faculty', () => {
+  it('denies for a different program', () => {
     expect(
-      can(dh, 'financials:read:own_department', {
-        level: 'department',
-        id: DEPT_A2,
+      can(programUser, 'financials:read:own_program', {
+        level: 'program',
+        id: PROG_B,
       }),
     ).toBe(false);
   });
 
-  it('denies for a department in another faculty', () => {
+  it('denies at department scope (program user is narrower)', () => {
     expect(
-      can(dh, 'financials:read:own_department', {
+      can(programUser, 'financials:read:own_program', {
         level: 'department',
-        id: DEPT_B1,
+        id: DEPT_A1,
       }),
     ).toBe(false);
   });
 
-  it('denies at faculty scope (department head is narrower)', () => {
+  it('denies at faculty scope (program user is narrower)', () => {
     expect(
-      can(dh, 'financials:read:own_department', {
+      can(programUser, 'financials:read:own_program', {
         level: 'faculty',
         id: FACULTY_A,
+      }),
+    ).toBe(false);
+  });
+
+  it('denies when user has no programId set', () => {
+    const floating = userFor('PROGRAM_USER', { facultyId: FACULTY_A, programId: null });
+    expect(
+      can(floating, 'financials:read:own_program', {
+        level: 'program',
+        id: PROG_A,
       }),
     ).toBe(false);
   });
@@ -177,7 +191,9 @@ describe('can() — :own_department permissions', () => {
 
 describe('can() — non-spatial suffixes', () => {
   it('aggregated_only has no spatial constraint', () => {
-    const u = userFor('VIEWER');
+    // PROGRAM_USER carries `financials:read:aggregated_only` for the
+    // contextual coarse-roll-up read alongside the strict own_program check.
+    const u = userFor('PROGRAM_USER');
     expect(can(u, 'financials:read:aggregated_only')).toBe(true);
     expect(
       can(u, 'financials:read:aggregated_only', {
@@ -188,9 +204,7 @@ describe('can() — non-spatial suffixes', () => {
   });
 
   it('decisions:approve is admin-grade', () => {
-    // ADMIN (legacy) + SUPER_ADMIN + SYSTEM_ADMIN all hold decisions:approve
-    // by design (v2 role taxonomy, 2026-05-07).
-    const adminGrade = new Set(['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ADMIN']);
+    const adminGrade = new Set<Role>(['SUPER_ADMIN', 'SYSTEM_ADMIN']);
     for (const role of ALL_ROLES) {
       const user = userFor(role);
       const expected = adminGrade.has(role);
@@ -199,7 +213,7 @@ describe('can() — non-spatial suffixes', () => {
   });
 
   it('users:manage is admin-grade', () => {
-    const adminGrade = new Set(['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ADMIN']);
+    const adminGrade = new Set<Role>(['SUPER_ADMIN', 'SYSTEM_ADMIN']);
     for (const role of ALL_ROLES) {
       const expected = adminGrade.has(role);
       expect(can(userFor(role), 'users:manage')).toBe(expected);
@@ -208,7 +222,7 @@ describe('can() — non-spatial suffixes', () => {
 });
 
 describe('can() — scope drill-through safety', () => {
-  const dean = userFor('DEAN', { facultyId: FACULTY_A });
+  const facultyUser = userFor('FACULTY_USER', { facultyId: FACULTY_A });
 
   it('at program/department level without resolved parent, trusts upstream', () => {
     // Per can.ts comments: if scope is narrower than the permission's unit,
@@ -216,7 +230,7 @@ describe('can() — scope drill-through safety', () => {
     // that we never over-deny; the integration layer enforces the narrow
     // check.
     expect(
-      can(dean, 'financials:read:own_faculty', {
+      can(facultyUser, 'financials:read:own_faculty', {
         level: 'department',
         id: 'unknown-dept',
       }),

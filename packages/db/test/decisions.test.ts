@@ -49,28 +49,32 @@ describe('assertTransitionAllowed — invalid graph', () => {
 });
 
 describe('assertTransitionAllowedForRole — role gating', () => {
-  it('COUNCIL_REVIEWED requires EXECUTIVE or ADMIN', () => {
-    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'COUNCIL')).toThrow(/EXECUTIVE, ADMIN/);
-    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'VIEWER')).toThrow(/EXECUTIVE, ADMIN/);
-    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'EXECUTIVE')).not.toThrow();
-    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'ADMIN')).not.toThrow();
+  // v2 taxonomy (legacy roles removed 2026-05-09). Council-tier =
+  // admin-grade + UNIVERSITY_USER; archive-tier = SUPER_ADMIN only.
+
+  it('COUNCIL_REVIEWED is council-tier (admin-grade + UNIVERSITY_USER)', () => {
+    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'FACULTY_USER')).toThrow();
+    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'PROGRAM_USER')).toThrow();
+    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'UNIVERSITY_USER')).not.toThrow();
+    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'SYSTEM_ADMIN')).not.toThrow();
+    expect(() => assertTransitionAllowedForRole('COUNCIL_REVIEWED', 'SUPER_ADMIN')).not.toThrow();
   });
 
-  it('APPROVED requires COUNCIL/EXECUTIVE/ADMIN', () => {
-    expect(() => assertTransitionAllowedForRole('APPROVED', 'VIEWER')).toThrow();
-    expect(() => assertTransitionAllowedForRole('APPROVED', 'ANALYST')).toThrow();
-    expect(() => assertTransitionAllowedForRole('APPROVED', 'COUNCIL')).not.toThrow();
+  it('APPROVED is council-tier', () => {
+    expect(() => assertTransitionAllowedForRole('APPROVED', 'FACULTY_USER')).toThrow();
+    expect(() => assertTransitionAllowedForRole('APPROVED', 'PROGRAM_USER')).toThrow();
+    expect(() => assertTransitionAllowedForRole('APPROVED', 'UNIVERSITY_USER')).not.toThrow();
   });
 
-  it('ARCHIVED is ADMIN-only', () => {
-    expect(() => assertTransitionAllowedForRole('ARCHIVED', 'COUNCIL')).toThrow();
-    expect(() => assertTransitionAllowedForRole('ARCHIVED', 'EXECUTIVE')).toThrow();
-    expect(() => assertTransitionAllowedForRole('ARCHIVED', 'ADMIN')).not.toThrow();
+  it('ARCHIVED is SUPER_ADMIN only', () => {
+    expect(() => assertTransitionAllowedForRole('ARCHIVED', 'UNIVERSITY_USER')).toThrow();
+    expect(() => assertTransitionAllowedForRole('ARCHIVED', 'SYSTEM_ADMIN')).toThrow();
+    expect(() => assertTransitionAllowedForRole('ARCHIVED', 'SUPER_ADMIN')).not.toThrow();
   });
 
   it('ungated transitions (IN_IMPLEMENTATION / COMPLETED / IMPLEMENTED) accept any role', () => {
-    expect(() => assertTransitionAllowedForRole('IN_IMPLEMENTATION', 'ANALYST')).not.toThrow();
-    expect(() => assertTransitionAllowedForRole('COMPLETED', 'VIEWER')).not.toThrow();
+    expect(() => assertTransitionAllowedForRole('IN_IMPLEMENTATION', 'PROGRAM_USER')).not.toThrow();
+    expect(() => assertTransitionAllowedForRole('COMPLETED', 'FACULTY_USER')).not.toThrow();
   });
 });
 

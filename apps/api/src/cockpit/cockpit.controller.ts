@@ -2,13 +2,15 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { ScopeLevelSchema, type SessionUser } from '@kku/shared';
+import { prisma } from '@kku/db';
+import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
 import {
   AuditLog,
   AuthSession,
@@ -52,6 +54,99 @@ const SaveViewBodySchema = z.object({
 });
 type SaveViewBody = z.infer<typeof SaveViewBodySchema>;
 
+// Scope guard for cockpit reads. Admin-grade + UNIVERSITY_USER pass
+// through with whatever scope they ask for.
+//
+// FACULTY_USER:
+//   - scope=university    → downgrade to (faculty, ownFacultyId)
+//   - scope=faculty       → must match ownFacultyId, else 403
+//   - scope=department    → must belong to ownFacultyId, else 403
+//   - scope=program       → must belong to ownFacultyId, else 403
+//
+// PROGRAM_USER (narrowest):
+//   - any scope wider than program → downgrade directly to
+//     (program, ownProgramId). The cockpit's faculty/university-level
+//     KPIs aggregate across programs they can't see; showing those
+//     numbers would leak signal about other programs in their faculty.
+//   - scope=program → must match ownProgramId, else 403
+//
+// The clamp is preferred over a 403 for the "broader-than-allowed"
+// case so the user always lands on something useful (their own slice)
+// instead of a hard stop. Narrower-but-elsewhere requests are refused.
+async function clampCockpitScope(
+  scope: ScopeLevel,
+  scopeId: string | null,
+  user: SessionUser,
+): Promise<{ scope: ScopeLevel; scopeId: string | null }> {
+  if (
+    user.role === 'SUPER_ADMIN' ||
+    user.role === 'SYSTEM_ADMIN' ||
+    user.role === 'UNIVERSITY_USER'
+  ) {
+    return { scope, scopeId };
+  }
+
+  // ── PROGRAM_USER ─ narrowest scope ────────────────────────────
+  if (user.role === 'PROGRAM_USER') {
+    if (!user.programId) {
+      throw new ForbiddenException(
+        'Your account has no program assignment. Contact an admin.',
+      );
+    }
+    // Anything wider than program → drop to program-level view of
+    // their own program. The cockpit-as-PROGRAM_USER is essentially a
+    // "my single program" dashboard.
+    if (scope !== 'program') {
+      return { scope: 'program', scopeId: user.programId };
+    }
+    if (scopeId !== user.programId) {
+      throw new ForbiddenException("This is not the program assigned to your account.");
+    }
+    return { scope, scopeId };
+  }
+
+  // ── FACULTY_USER ─ faculty-wide ───────────────────────────────
+  if (!user.facultyId) {
+    throw new ForbiddenException(
+      'Your account has no faculty assignment. Contact an admin to set your scope.',
+    );
+  }
+  if (scope === 'university') {
+    return { scope: 'faculty', scopeId: user.facultyId };
+  }
+  if (scope === 'faculty') {
+    if (scopeId !== user.facultyId) {
+      throw new ForbiddenException("You can only view your own faculty's data.");
+    }
+    return { scope, scopeId };
+  }
+  if (scope === 'department') {
+    if (!scopeId) throw new ForbiddenException('scopeId required for department scope.');
+    const dept = await prisma.department.findUnique({
+      where: { id: scopeId },
+      select: { facultyId: true },
+    });
+    if (!dept) throw new ForbiddenException('Department not found.');
+    if (dept.facultyId !== user.facultyId) {
+      throw new ForbiddenException('Department is outside your faculty.');
+    }
+    return { scope, scopeId };
+  }
+  if (scope === 'program') {
+    if (!scopeId) throw new ForbiddenException('scopeId required for program scope.');
+    const prog = await prisma.program.findUnique({
+      where: { id: scopeId },
+      select: { facultyId: true },
+    });
+    if (!prog) throw new ForbiddenException('Program not found.');
+    if (prog.facultyId !== user.facultyId) {
+      throw new ForbiddenException('Program is outside your faculty.');
+    }
+    return { scope, scopeId };
+  }
+  return { scope, scopeId };
+}
+
 @Controller('/cockpit')
 export class CockpitController {
   constructor(
@@ -69,15 +164,17 @@ export class CockpitController {
     methodologyVersion: 'recruitment-rollup.v1',
   })
   async recruitmentRollup(
+    @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
   ) {
+    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
     // Reuse the RecruitmentService — it already supports a facultyId
     // filter. University scope leaves filters empty; faculty scope
     // narrows to that faculty. Department scope falls through to
     // university (the recruitment data is per-program, not
     // per-department, since CURR_ID maps to programs not departments).
     return this.recruitment.getDashboard({
-      facultyId: q.scope === 'faculty' ? (q.scopeId ?? null) : null,
+      facultyId: eff.scope === 'faculty' ? (eff.scopeId ?? null) : null,
     });
   }
 
@@ -90,8 +187,12 @@ export class CockpitController {
     ],
     methodologyVersion: 'health-score.v2.1',
   })
-  async kpis(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
-    return this.cockpit.kpis(q.scope, q.scopeId ?? null);
+  async kpis(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
+  ) {
+    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
+    return this.cockpit.kpis(eff.scope, eff.scopeId);
   }
 
   @Get('heatmap')
@@ -100,8 +201,12 @@ export class CockpitController {
     sources: [{ id: 'health-score', name: 'Health score methodology v2.1' }],
     methodologyVersion: 'health-score.v2.1',
   })
-  async heatmap(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
-    return this.cockpit.heatmap(q.scope, q.scopeId ?? null);
+  async heatmap(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
+  ) {
+    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
+    return this.cockpit.heatmap(eff.scope, eff.scopeId);
   }
 
   @Get('matrix')
@@ -110,8 +215,12 @@ export class CockpitController {
     sources: [{ id: 'health-score', name: 'Health score methodology v2.1' }],
     methodologyVersion: 'health-score.v2.1',
   })
-  async matrix(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
-    return this.cockpit.matrix(q.scope, q.scopeId ?? null);
+  async matrix(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
+  ) {
+    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
+    return this.cockpit.matrix(eff.scope, eff.scopeId);
   }
 
   @Get('rollup')
@@ -123,8 +232,12 @@ export class CockpitController {
     ],
     methodologyVersion: 'health-score.v2.1',
   })
-  async rollup(@Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery) {
-    return this.cockpit.rollup(q.scope, q.scopeId ?? null);
+  async rollup(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
+  ) {
+    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
+    return this.cockpit.rollup(eff.scope, eff.scopeId);
   }
 
   @Post('brief')
@@ -134,9 +247,10 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(BriefBodySchema)) body: BriefBody,
   ) {
+    const eff = await clampCockpitScope(body.scope, body.scopeId ?? null, user);
     return this.cockpit.generateBrief({
-      scope: body.scope,
-      scopeId: body.scopeId ?? null,
+      scope: eff.scope,
+      scopeId: eff.scopeId,
       style: body.style,
       userId: user.userId,
     });
@@ -149,14 +263,15 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(ExportBodySchema)) body: ExportBody,
   ) {
+    const eff = await clampCockpitScope(body.scope, body.scopeId ?? null, user);
     // Build the Council Pack body from the cockpit's own data.
     const [kpis, heatmap, brief] = await Promise.all([
-      this.cockpit.kpis(body.scope, body.scopeId ?? null),
-      this.cockpit.heatmap(body.scope, body.scopeId ?? null),
+      this.cockpit.kpis(eff.scope, eff.scopeId),
+      this.cockpit.heatmap(eff.scope, eff.scopeId),
       body.includeBrief
         ? this.cockpit.generateBrief({
-            scope: body.scope,
-            scopeId: body.scopeId ?? null,
+            scope: eff.scope,
+            scopeId: eff.scopeId,
             style: body.briefStyle,
             userId: user.userId,
           })
@@ -171,7 +286,7 @@ export class CockpitController {
           titleTh: body.titleTh,
           titleEn: body.titleEn,
           dateLabel: formatThaiDate(new Date()),
-          scopeLabel: body.scope,
+          scopeLabel: eff.scope,
           author: user.name ?? user.email,
           executiveSummary: {
             paragraphs: brief?.text
@@ -199,7 +314,7 @@ export class CockpitController {
             },
           ],
         },
-        scope: { level: body.scope, id: body.scopeId ?? null },
+        scope: { level: eff.scope, id: eff.scopeId },
       },
       user.userId,
     );
@@ -228,11 +343,14 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(SaveViewBodySchema)) body: SaveViewBody,
   ) {
+    // Refuse to save a view pointing at a scope the user can't access —
+    // otherwise the view would 403 every time it loads anyway.
+    const eff = await clampCockpitScope(body.scope, body.scopeId ?? null, user);
     return this.cockpit.saveView(user.userId, {
       name: body.name,
       viewMode: body.viewMode,
-      scope: body.scope,
-      scopeId: body.scopeId ?? null,
+      scope: eff.scope,
+      scopeId: eff.scopeId,
       filters: body.filters,
     });
   }

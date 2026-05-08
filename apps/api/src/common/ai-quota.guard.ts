@@ -56,12 +56,17 @@ function capForRole(role: SessionUser['role']): number {
     const v = Number(process.env[k]);
     return Number.isFinite(v) && v > 0 ? v : undefined;
   };
+  // v2 taxonomy (legacy roles removed 2026-05-09). Mapping rationale:
+  //   SUPER_ADMIN  — highest cap; uses ADMIN env var for back-compat.
+  //   SYSTEM_ADMIN — admin-grade; same cap as the legacy ANALYST tier.
+  //   UNIVERSITY_USER — exec-readable; legacy EXECUTIVE-tier cap.
+  //   FACULTY_USER / PROGRAM_USER — fall through to DEFAULT.
   switch (role) {
-    case 'ADMIN':
+    case 'SUPER_ADMIN':
       return envCap('AI_QUOTA_ADMIN_USD') ?? 10;
-    case 'ANALYST':
+    case 'SYSTEM_ADMIN':
       return envCap('AI_QUOTA_ANALYST_USD') ?? 10;
-    case 'EXECUTIVE':
+    case 'UNIVERSITY_USER':
       return envCap('AI_QUOTA_EXECUTIVE_USD') ?? 3;
     default:
       return envCap('AI_QUOTA_DEFAULT_USD') ?? 1;

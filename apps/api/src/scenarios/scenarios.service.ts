@@ -23,6 +23,27 @@ import {
 // the DB, and handles workflow transitions (DRAFT → SHARED → ... → DECIDED).
 // ═════════════════════════════════════════════════════════════════════
 
+// Privilege tiers, post legacy-removal (2026-05-09):
+//   COUNCIL_TIER = roles allowed to see every scenario across the
+//                  university and to drive the workflow forward
+//                  (mark Council-reviewed, finalise a decision).
+//                  Maps the legacy COUNCIL/EXECUTIVE/ADMIN trio onto
+//                  the v2 taxonomy: admin-grade + UNIVERSITY_USER
+//                  (UNIVERSITY_USER absorbed legacy COUNCIL/EXECUTIVE).
+//   SYSTEM_TIER  = SUPER_ADMIN only — owns global content (templates)
+//                  and can override any scenario edit. SYSTEM_ADMIN
+//                  is intentionally excluded so that day-to-day
+//                  operators can't rewrite template fixtures.
+const COUNCIL_TIER_ROLES = new Set(['SUPER_ADMIN', 'SYSTEM_ADMIN', 'UNIVERSITY_USER']);
+const SYSTEM_TIER_ROLES = new Set(['SUPER_ADMIN']);
+
+function isCouncilTier(role: string): boolean {
+  return COUNCIL_TIER_ROLES.has(role);
+}
+function isSystemTier(role: string): boolean {
+  return SYSTEM_TIER_ROLES.has(role);
+}
+
 export interface ScenarioListFilter {
   userId: string;
   userRole: string;
@@ -46,8 +67,10 @@ export class ScenariosService {
     if (f.affectedProgramId) where.affectedProgramIds = { has: f.affectedProgramId };
     // Default: hide archived + only show templates OR what the user owns / is shared with.
     if (!f.includeTemplates) where.isTemplate = false;
-    // Visibility: user sees their own + scenarios shared with them + COUNCIL_REVIEWED + DECIDED (once shared).
-    if (!['ADMIN', 'EXECUTIVE', 'COUNCIL'].includes(f.userRole)) {
+    // Visibility: council-tier roles see everything. Anyone else sees
+    // their own + scenarios shared with them + SHARED/COUNCIL_REVIEWED/
+    // DECIDED snapshots. FACULTY_USER + PROGRAM_USER fall here.
+    if (!isCouncilTier(f.userRole)) {
       where.OR = [
         { userId: f.userId },
         { collaboratorIds: { has: f.userId } },
@@ -302,9 +325,13 @@ export class ScenariosService {
   }
 
   async markCouncilReviewed(id: string, userId: string, userRole: string) {
-    // Only EXECUTIVE + ADMIN can mark a scenario as COUNCIL_REVIEWED. Per prompt 09 spec.
-    if (!['EXECUTIVE', 'ADMIN'].includes(userRole)) {
-      throw new ForbiddenException('Only EXECUTIVE or ADMIN can mark scenarios as Council-reviewed');
+    // Council-tier only — admin-grade + UNIVERSITY_USER per the v2
+    // taxonomy. UNIVERSITY_USER absorbs the legacy COUNCIL/EXECUTIVE
+    // population that used to drive this transition.
+    if (!isCouncilTier(userRole)) {
+      throw new ForbiddenException(
+        'Only admin-grade or University-level users can mark scenarios as Council-reviewed',
+      );
     }
     const s = await prisma.scenario.findUnique({ where: { id } });
     if (!s) throw new NotFoundException();
@@ -320,9 +347,12 @@ export class ScenariosService {
     userRole: string,
     body: { decisionType: 'CLOSE' | 'MERGE' | 'LAUNCH' | 'RESTRUCTURE' | 'KEEP_AS_IS' | 'OTHER'; rationaleTh?: string; rationaleEn?: string; effectiveDate?: Date },
   ) {
-    // Must be EXECUTIVE / COUNCIL / ADMIN. Creates a CouncilDecision record linked to this scenario.
-    if (!['EXECUTIVE', 'COUNCIL', 'ADMIN'].includes(userRole)) {
-      throw new ForbiddenException('Only EXECUTIVE, COUNCIL, or ADMIN can finalise a decision');
+    // Council-tier only finalises a decision (creates a CouncilDecision
+    // record linked to the scenario).
+    if (!isCouncilTier(userRole)) {
+      throw new ForbiddenException(
+        'Only admin-grade or University-level users can finalise a Council decision',
+      );
     }
     const s = await prisma.scenario.findUnique({ where: { id } });
     if (!s) throw new NotFoundException();
@@ -447,21 +477,25 @@ export class ScenariosService {
     if (s.isTemplate) return;
     if (s.userId === userId) return;
     if (s.collaboratorIds.includes(userId)) return;
-    if (['ADMIN', 'EXECUTIVE', 'COUNCIL'].includes(userRole)) return;
+    if (isCouncilTier(userRole)) return;
     if (['SHARED', 'COUNCIL_REVIEWED', 'DECIDED'].includes(s.workflowStatus)) return;
     throw new ForbiddenException('Not visible to this user');
   }
 
   private assertEditable(s: { userId: string; collaboratorIds: string[]; workflowStatus: ScenarioWorkflowStatus; isTemplate: boolean }, userId: string, userRole: string) {
-    if (s.isTemplate && userRole !== 'ADMIN') {
-      throw new ForbiddenException('Templates can only be edited by ADMIN');
+    // Templates are global content — only SUPER_ADMIN may edit them.
+    // SYSTEM_ADMIN is intentionally excluded so day-to-day operators
+    // can't rewrite the canonical scenario fixtures.
+    if (s.isTemplate && !isSystemTier(userRole)) {
+      throw new ForbiddenException('Templates can only be edited by SUPER_ADMIN');
     }
     if (s.workflowStatus === 'DECIDED' || s.workflowStatus === 'ARCHIVED') {
       throw new ForbiddenException('DECIDED / ARCHIVED scenarios are immutable');
     }
     if (s.userId === userId) return;
     if (s.collaboratorIds.includes(userId)) return;
-    if (userRole === 'ADMIN') return;
+    // SUPER_ADMIN can override any scenario edit.
+    if (isSystemTier(userRole)) return;
     throw new ForbiddenException('Not editable by this user');
   }
 }

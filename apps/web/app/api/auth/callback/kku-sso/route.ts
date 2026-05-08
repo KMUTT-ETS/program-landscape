@@ -10,6 +10,7 @@ import {
 import {
   provisionFromSsonext,
   ssonextClaimsFromProfile,
+  syncAcademicStaffScopes,
 } from '@/lib/auth/provisioning';
 
 export const runtime = 'nodejs';
@@ -86,7 +87,31 @@ export async function GET(req: Request) {
     const claims = ssonextClaimsFromProfile(token, profile);
     const user = await provisionFromSsonext(claims);
 
+    // Sync auto-managed PROGRAM_USER scopes from the FacultyMember
+    // ↔ ProgramFaculty join. One academic staffer can sit on multiple
+    // programs across faculties; we add scopes for each, prune ones
+    // that no longer apply. Failures are logged but never block login —
+    // the user's primary role still stands without auto-scopes.
+    if (claims.employeeId) {
+      try {
+        const sync = await syncAcademicStaffScopes(user.id, claims.employeeId);
+        if (sync.added || sync.removed) {
+          console.log(
+            `[sso] academic-staff scopes synced for ${user.email}: +${sync.added} -${sync.removed} (${sync.unchanged} unchanged)`,
+          );
+        }
+      } catch (err) {
+        console.warn(
+          'syncAcademicStaffScopes failed (non-blocking):',
+          (err as Error).message,
+        );
+      }
+    }
+
     // Build the SessionUser shape that next-auth's session callback expects.
+    // MUST include every field declared in SessionUserSchema or the JWT
+    // verify on the next request will reject the cookie and auth() will
+    // return null — no session, no login.
     const sessionUser = {
       userId: user.id,
       email: user.email,
@@ -94,6 +119,7 @@ export async function GET(req: Request) {
       role: user.role,
       facultyId: user.facultyId,
       departmentId: user.departmentId,
+      programId: user.programId,
       themePreference: user.themePreference,
     };
 

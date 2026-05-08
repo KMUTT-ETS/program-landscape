@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
@@ -42,8 +43,88 @@ import { buildProgramDetailData } from './program-detail-data';
 
 // Per-program deep-dive endpoints. Endpoint fan-out is explicit (one
 // per section) so the UI can parallelise and prioritise above-the-fold
-// sections. Role sensitivity (COUNCIL faculty anonymisation) is
-// applied in the service based on the caller's role.
+// sections. Faculty PII visibility is decided per-request based on the
+// caller's role + scope match against the program's faculty/department.
+
+// `aggregates-only` redacts names + employeeCode + specialisation from
+// FacultyMember rows. `full` returns everything. Decision rule:
+//   admin-grade (SUPER_ADMIN/SYSTEM_ADMIN)        → full
+//   FACULTY_USER + program is in user's faculty   → full
+//   PROGRAM_USER + program is the user's program  → full
+//   everyone else (incl. UNIVERSITY_USER for any
+//   program, FACULTY_USER cross-faculty, etc.)    → aggregates-only
+async function resolveFacultyVisibility(
+  programId: string,
+  user: SessionUser,
+): Promise<'full' | 'aggregates-only'> {
+  if (user.role === 'SUPER_ADMIN' || user.role === 'SYSTEM_ADMIN') return 'full';
+  if (user.role !== 'FACULTY_USER' && user.role !== 'PROGRAM_USER') {
+    return 'aggregates-only';
+  }
+  if (user.role === 'PROGRAM_USER') {
+    return user.programId && user.programId === programId ? 'full' : 'aggregates-only';
+  }
+  // FACULTY_USER — verify the program belongs to user's faculty.
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { facultyId: true },
+  });
+  if (!program) return 'aggregates-only';
+  return user.facultyId === program.facultyId ? 'full' : 'aggregates-only';
+}
+
+// Gate program-deep-dive access: FACULTY_USER can only deep-dive into
+// programs in their own faculty; PROGRAM_USER only into the single
+// program assigned to their account. Admin-grade + UNIVERSITY_USER pass
+// through.
+//
+// Throws 403 (preferred over silently returning empty) so the front-end
+// can show the polite no-access page instead of rendering an empty
+// shell that looks like a bug.
+async function assertProgramAccessible(
+  programId: string,
+  user: SessionUser,
+): Promise<void> {
+  if (
+    user.role === 'SUPER_ADMIN' ||
+    user.role === 'SYSTEM_ADMIN' ||
+    user.role === 'UNIVERSITY_USER'
+  ) {
+    return;
+  }
+  if (user.role !== 'FACULTY_USER' && user.role !== 'PROGRAM_USER') {
+    throw new ForbiddenException('Your role cannot view program deep-dives.');
+  }
+  if (user.role === 'PROGRAM_USER') {
+    if (!user.programId) {
+      throw new ForbiddenException(
+        'Your account has no program assignment. Contact an admin.',
+      );
+    }
+    if (user.programId !== programId) {
+      throw new ForbiddenException(
+        "This is not the program assigned to your account.",
+      );
+    }
+    return;
+  }
+  // FACULTY_USER
+  if (!user.facultyId) {
+    throw new ForbiddenException(
+      'Your account has no faculty assignment. Contact an admin.',
+    );
+  }
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { id: true, facultyId: true },
+  });
+  if (!program) throw new NotFoundException();
+  if (program.facultyId !== user.facultyId) {
+    throw new ForbiddenException(
+      'This program is outside the faculty assigned to your account.',
+    );
+  }
+}
 
 const DisagreementBodySchema = z.object({
   sectionKey: z.string().min(1).max(60),
@@ -73,7 +154,8 @@ export class DeepDiveController {
     sources: [{ id: 'health-score', name: 'Health score v2.1' }],
     methodologyVersion: 'health-score.v2.1',
   })
-  async overview(@Param('programId') programId: string) {
+  async overview(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     const r = await programOverview(programId);
     if (!r) throw new NotFoundException();
     return r;
@@ -82,7 +164,8 @@ export class DeepDiveController {
   @Get('demand-funnel')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'mv_metrics', name: 'Metric rollups' }] })
-  async demandFunnel(@Param('programId') programId: string) {
+  async demandFunnel(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programDemandFunnel(programId);
   }
 
@@ -91,7 +174,8 @@ export class DeepDiveController {
   @Provenance({
     sources: [{ id: 'kku-registry', name: 'KKU Registrar (Oracle)' }],
   })
-  async studentCohorts(@Param('programId') programId: string) {
+  async studentCohorts(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programStudentCohorts(programId);
   }
 
@@ -101,7 +185,8 @@ export class DeepDiveController {
     sources: [{ id: 'tcas', name: 'TCAS3 Admission (mytcas.com / CUPT)' }],
     methodologyVersion: 'tcas-stat.v1',
   })
-  async tcasStats(@Param('programId') programId: string) {
+  async tcasStats(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programTcasStats(programId);
   }
 
@@ -116,7 +201,8 @@ export class DeepDiveController {
     ],
     methodologyVersion: 'program-recruitment.v1',
   })
-  async recruitment(@Param('programId') programId: string) {
+  async recruitment(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programRecruitment(programId);
   }
 
@@ -126,7 +212,8 @@ export class DeepDiveController {
     sources: [{ id: 'strategic-narrative', name: 'Strategic narrative v1' }],
     methodologyVersion: 'program-strategic-narrative.v1',
   })
-  async strategicNarrative(@Param('programId') programId: string) {
+  async strategicNarrative(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programStrategicNarrative(programId);
   }
 
@@ -136,7 +223,8 @@ export class DeepDiveController {
     sources: [{ id: 'ai-readiness', name: 'AI Readiness scorer v1' }],
     methodologyVersion: 'ai-readiness.v1',
   })
-  async aiReadiness(@Param('programId') programId: string) {
+  async aiReadiness(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programAiReadiness(programId);
   }
 
@@ -146,7 +234,8 @@ export class DeepDiveController {
     sources: [{ id: 'health-score', name: 'Health score v3.0' }],
     methodologyVersion: 'lifecycle.v1',
   })
-  async lifecycle(@Param('programId') programId: string) {
+  async lifecycle(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programLifecycleVerdict(programId);
   }
 
@@ -159,7 +248,8 @@ export class DeepDiveController {
     ],
     methodologyVersion: 'program-peer-selection.v1',
   })
-  async aiPeers(@Param('programId') programId: string) {
+  async aiPeers(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programAiPeers(programId);
   }
 
@@ -170,7 +260,8 @@ export class DeepDiveController {
       { id: 'thailand-demographics', name: 'NESDC Population Projections (republished by BOI)' },
     ],
   })
-  async demographicOutlook(@Param('programId') programId: string) {
+  async demographicOutlook(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programDemographicOutlook(programId);
   }
 
@@ -180,7 +271,8 @@ export class DeepDiveController {
     sources: [{ id: 'mv_metrics', name: 'Metric rollups' }],
     methodologyVersion: 'cost-allocation.v1',
   })
-  async financials(@Param('programId') programId: string) {
+  async financials(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programFinancials(programId);
   }
 
@@ -192,14 +284,16 @@ export class DeepDiveController {
       { id: 'job-posting-skill', name: 'Labor market skill extraction' },
     ],
   })
-  async skills(@Param('programId') programId: string) {
+  async skills(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programSkills(programId);
   }
 
   @Get('outcomes')
   @Authorized('outcomes:read:all')
   @Provenance({ sources: [{ id: 'kku-alumni', name: 'KKU Alumni Outcomes' }] })
-  async outcomes(@Param('programId') programId: string) {
+  async outcomes(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programOutcomes(programId);
   }
 
@@ -207,33 +301,32 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'kku-hr', name: 'KKU HR' }] })
   async faculty(@Param('programId') programId: string, @AuthSession() user: SessionUser) {
-    // COUNCIL role sees aggregates only (no names, no salaries — we
-    // don't persist salary on FacultyMember today but the redaction
-    // shape is in place for when prompt 14 adds it). ADMIN / ANALYST /
-    // DEAN / DEPT_HEAD / EXECUTIVE see full detail.
-    const visibility: 'full' | 'aggregates-only' =
-      user.role === 'COUNCIL' ? 'aggregates-only' : 'full';
+    await assertProgramAccessible(programId, user);
+    const visibility = await resolveFacultyVisibility(programId, user);
     return programFaculty(programId, visibility);
   }
 
   @Get('peers')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'peer-programs-scraper', name: 'Peer Programs' }] })
-  async peers(@Param('programId') programId: string) {
+  async peers(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programPeers(programId);
   }
 
   @Get('trends')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'trend-signals', name: 'Trend Signals' }] })
-  async trends(@Param('programId') programId: string) {
+  async trends(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programTrends(programId);
   }
 
   @Get('decisions')
   @Authorized('decisions:read:all')
   @Provenance({ sources: [{ id: 'council-decisions', name: 'Council Decisions' }] })
-  async decisions(@Param('programId') programId: string) {
+  async decisions(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
     return programDecisions(programId);
   }
 
@@ -251,6 +344,7 @@ export class DeepDiveController {
     @Param('programId') programId: string,
     @Body(new ZodValidationPipe(NarrativeBodySchema)) body: NarrativeBody,
   ) {
+    await assertProgramAccessible(programId, user);
     const r = await this.cockpit.generateBrief({
       scope: 'program',
       scopeId: programId,
@@ -273,8 +367,8 @@ export class DeepDiveController {
     @AuthSession() user: SessionUser,
     @Param('programId') programId: string,
   ) {
-    const facultyVisibility: 'full' | 'aggregates-only' =
-      user.role === 'COUNCIL' ? 'aggregates-only' : 'full';
+    await assertProgramAccessible(programId, user);
+    const facultyVisibility = await resolveFacultyVisibility(programId, user);
     const data = await buildProgramDetailData(programId, facultyVisibility);
     if (!data) throw new NotFoundException();
     const result = await this.pdf.generateAndPersist(
@@ -308,6 +402,7 @@ export class DeepDiveController {
     @Param('programId') programId: string,
     @Body(new ZodValidationPipe(DisagreementBodySchema)) body: DisagreementBody,
   ) {
+    await assertProgramAccessible(programId, user);
     const data: Prisma.AnnotationUncheckedCreateInput = {
       userId: user.userId,
       entityType: 'program',

@@ -14,12 +14,12 @@ import { clearImpersonationAction } from '@/lib/actions/impersonation';
 export function ImpersonationBanner({
   role,
   facultyId,
-  departmentId,
+  programId,
   entities,
 }: {
   role: string;
   facultyId: string | null;
-  departmentId: string | null;
+  programId: string | null;
   entities: ScopeSelectorEntities;
 }) {
   const router = useRouter();
@@ -28,12 +28,12 @@ export function ImpersonationBanner({
   const facultyName = facultyId
     ? entities.faculties.find((f) => f.id === facultyId)?.nameEn ?? facultyId
     : null;
-  const departmentName = departmentId
-    ? entities.departments.find((d) => d.id === departmentId)?.nameEn ?? departmentId
+  const programLabel = programId
+    ? entities.programs.find((p) => p.id === programId)?.nameEn ?? programId
     : null;
 
-  const scopeLabel = departmentName
-    ? `${departmentName} (${facultyName ?? 'unknown faculty'})`
+  const scopeLabel = programLabel
+    ? `${programLabel} (${facultyName ?? 'unknown faculty'})`
     : facultyName
       ? facultyName
       : 'university-wide';

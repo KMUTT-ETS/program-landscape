@@ -39,7 +39,7 @@ export default async function AiCostPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const params = await searchParams;
   const days = params.days ?? '30';

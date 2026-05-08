@@ -21,7 +21,10 @@ interface ActionResult {
 export async function setImpersonationAction(input: {
   role: string;
   facultyId?: string | null;
-  departmentId?: string | null;
+  /** PROGRAM_USER scope — the program the impersonator wants to be
+   * scoped to. Resolves Program.facultyId server-side so the cookie
+   * carries a self-consistent (faculty + program) tuple. */
+  programId?: string | null;
 }): Promise<ActionResult> {
   const session = await auth();
   // The session may already be impersonated (if the operator switches
@@ -38,10 +41,24 @@ export async function setImpersonationAction(input: {
     return { ok: false, error: 'Only super-grade users can impersonate.' };
   }
 
+  // For PROGRAM_USER scope, derive facultyId from the chosen program so
+  // the (faculty + program) tuple stays consistent regardless of what
+  // the picker passed in.
+  let facultyId = input.facultyId ?? null;
+  if (input.programId) {
+    const prog = await prisma.program.findUnique({
+      where: { id: input.programId },
+      select: { facultyId: true },
+    });
+    if (!prog) return { ok: false, error: 'Program not found.' };
+    facultyId = prog.facultyId;
+  }
+
   const candidate: ImpersonationPayload = {
     role: input.role as ImpersonationPayload['role'],
-    facultyId: input.facultyId ?? null,
-    departmentId: input.departmentId ?? null,
+    facultyId,
+    departmentId: null,
+    programId: input.programId ?? null,
     setBy: realUser.id,
     setAt: new Date().toISOString(),
   };
@@ -71,7 +88,7 @@ export async function setImpersonationAction(input: {
         payloadJson: {
           role: parsed.data.role,
           facultyId: parsed.data.facultyId,
-          departmentId: parsed.data.departmentId,
+          programId: parsed.data.programId,
         },
       },
     })
@@ -110,13 +127,61 @@ export async function clearImpersonationAction(): Promise<ActionResult> {
   return { ok: true };
 }
 
+// Server action: list the impersonator's OWN UserScope rows. The role-
+// switcher uses this so a SUPER_ADMIN whose UserScope already binds them
+// to "FACULTY_USER · Faculty of Engineering" can switch with one click —
+// no second-step picker.
+export async function getOwnScopesForImpersonationAction(): Promise<
+  Array<{
+    id: string;
+    role: string;
+    facultyId: string | null;
+    programId: string | null;
+    facultyLabel: string | null;
+    programLabel: string | null;
+  }>
+> {
+  const session = await auth();
+  const sessionUser = session?.user as SessionUser | undefined;
+  if (!sessionUser?.userId) return [];
+  const realUser = await prisma.user.findUnique({
+    where: { id: sessionUser.userId },
+    select: { id: true, role: true },
+  });
+  if (!realUser || !canImpersonate(realUser.role)) return [];
+
+  const scopes = await prisma.userScope.findMany({
+    where: { userId: realUser.id },
+    select: {
+      id: true,
+      role: true,
+      facultyId: true,
+      programId: true,
+      faculty: { select: { nameEn: true, nameTh: true } },
+      program: { select: { code: true, nameEn: true } },
+    },
+    orderBy: [{ role: 'asc' }, { id: 'asc' }],
+  });
+
+  return scopes.map((s) => ({
+    id: s.id,
+    role: s.role,
+    facultyId: s.facultyId,
+    programId: s.programId,
+    facultyLabel: s.faculty ? `${s.faculty.nameTh} · ${s.faculty.nameEn}` : null,
+    programLabel: s.program ? `${s.program.code} · ${s.program.nameEn}` : null,
+  }));
+}
+
 // Server action used by the dropdown to fetch the lists of faculties +
-// departments needed by the scope picker. Lightweight, runs once when
-// the dropdown opens.
+// programs needed by the scope picker. Lightweight, runs once when
+// the dropdown opens. Department list dropped 2026-05-09 — PROGRAM_USER
+// scope is keyed off programId directly now.
 export async function listScopesForImpersonationAction(): Promise<{
   faculties: Array<{ id: string; nameEn: string; nameTh: string }>;
-  departments: Array<{
+  programs: Array<{
     id: string;
+    code: string;
     nameEn: string;
     nameTh: string;
     facultyId: string;
@@ -125,40 +190,43 @@ export async function listScopesForImpersonationAction(): Promise<{
 }> {
   const session = await auth();
   const sessionUser = session?.user as SessionUser | undefined;
-  if (!sessionUser?.userId) return { faculties: [], departments: [] };
+  if (!sessionUser?.userId) return { faculties: [], programs: [] };
   const realUser = await prisma.user.findUnique({
     where: { id: sessionUser.userId },
     select: { role: true },
   });
   if (!realUser || !canImpersonate(realUser.role)) {
-    return { faculties: [], departments: [] };
+    return { faculties: [], programs: [] };
   }
 
-  const [faculties, departments] = await Promise.all([
+  const [faculties, programs] = await Promise.all([
     prisma.faculty.findMany({
       select: { id: true, nameEn: true, nameTh: true },
       orderBy: { nameEn: 'asc' },
     }),
-    prisma.department.findMany({
+    prisma.program.findMany({
+      where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
       select: {
         id: true,
+        code: true,
         nameEn: true,
         nameTh: true,
         facultyId: true,
         faculty: { select: { nameEn: true } },
       },
-      orderBy: [{ faculty: { nameEn: 'asc' } }, { nameEn: 'asc' }],
+      orderBy: [{ faculty: { nameEn: 'asc' } }, { code: 'asc' }],
     }),
   ]);
 
   return {
     faculties,
-    departments: departments.map((d) => ({
-      id: d.id,
-      nameEn: d.nameEn,
-      nameTh: d.nameTh,
-      facultyId: d.facultyId,
-      facultyNameEn: d.faculty.nameEn,
+    programs: programs.map((p) => ({
+      id: p.id,
+      code: p.code,
+      nameEn: p.nameEn,
+      nameTh: p.nameTh,
+      facultyId: p.facultyId,
+      facultyNameEn: p.faculty.nameEn,
     })),
   };
 }

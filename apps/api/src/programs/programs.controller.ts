@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import { prisma, withCanonical } from '@kku/db';
 import {
   ApiError,
@@ -13,6 +13,18 @@ import {
   ZodValidationPipe,
 } from '../common';
 import type { SessionUser } from '@kku/shared';
+
+// Roles that see the entire university unfiltered. FACULTY_USER and
+// PROGRAM_USER get clamped to their own faculty/department on every
+// program-list call so they never see another faculty's programs in
+// the listing — even before they try to deep-dive.
+function seesAllPrograms(role: SessionUser['role']): boolean {
+  return (
+    role === 'SUPER_ADMIN' ||
+    role === 'SYSTEM_ADMIN' ||
+    role === 'UNIVERSITY_USER'
+  );
+}
 
 @Controller('/programs')
 export class ProgramsController {
@@ -41,6 +53,37 @@ export class ProgramsController {
     } else if (q.scope === 'program') {
       if (!q.scopeId) throw new ApiError('VALIDATION_FAILED', 'scopeId required');
       where.id = q.scopeId;
+    }
+
+    // Hard scope clamp for FACULTY_USER + PROGRAM_USER — overrides any
+    // wider scope the client passed. Honours impersonation since
+    // user.facultyId reflects the impersonated session.
+    if (!seesAllPrograms(user.role)) {
+      if (!user.facultyId) {
+        throw new ForbiddenException(
+          'Your account has no faculty assignment. Contact an admin.',
+        );
+      }
+      // If the request asked for a specific faculty/dept/program that
+      // isn't mine, it's a 403. If it asked for university or nothing,
+      // we silently clamp.
+      if (where.facultyId && where.facultyId !== user.facultyId) {
+        throw new ForbiddenException(
+          "You can only view your own faculty's programs.",
+        );
+      }
+      where.facultyId = user.facultyId;
+      if (user.role === 'PROGRAM_USER') {
+        if (!user.programId) {
+          throw new ForbiddenException(
+            'Your account has no program assignment. Contact an admin.',
+          );
+        }
+        if (where.id && where.id !== user.programId) {
+          throw new ForbiddenException('You can only view your own program.');
+        }
+        where.id = user.programId;
+      }
     }
 
     // The curriculum landscape is the canonical 297 KKU programs (those
@@ -73,9 +116,28 @@ export class ProgramsController {
   @Get(':id')
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
-  async getOne(@Param('id') id: string) {
+  async getOne(@AuthSession() user: SessionUser, @Param('id') id: string) {
     const program = await prisma.program.findUnique({ where: { id } });
     if (!program) throw new NotFoundException();
+    // FACULTY_USER + PROGRAM_USER: refuse if the program is outside
+    // their assigned scope. This is the single-program counterpart to
+    // the list-clamp above.
+    if (!seesAllPrograms(user.role)) {
+      if (!user.facultyId || program.facultyId !== user.facultyId) {
+        throw new ForbiddenException(
+          "This program is outside the faculty assigned to your account.",
+        );
+      }
+      if (
+        user.role === 'PROGRAM_USER' &&
+        user.programId &&
+        program.id !== user.programId
+      ) {
+        throw new ForbiddenException(
+          "This is not the program assigned to your account.",
+        );
+      }
+    }
     return program;
   }
 }

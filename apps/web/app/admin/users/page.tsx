@@ -13,11 +13,14 @@ export default async function AdminUsersPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // Admin gate — accept SUPER_ADMIN, SYSTEM_ADMIN, or legacy ADMIN.
-  const isAdmin =
-    user.role === 'SUPER_ADMIN' || user.role === 'SYSTEM_ADMIN' || isAdminGrade(user.role);
-  if (!isAdmin) redirect('/');
-  const isSuper = user.role === 'SUPER_ADMIN' || isAdminGrade(user.role);
+  // Admin gate — both SUPER_ADMIN and SYSTEM_ADMIN can manage users.
+  if (!isAdminGrade(user.role)) redirect('/no-access');
+  // Critical: do NOT use isAdminGrade() for the super check — it
+  // returns true for SYSTEM_ADMIN too. Match SUPER_ADMIN strictly so
+  // the UI hides SUPER_ADMIN from the assignable-roles dropdown for
+  // SYSTEM_ADMIN actors. Server-side guard in admin-users.ts is the
+  // authoritative refusal; this just keeps the UI honest.
+  const isSuper = user.role === 'SUPER_ADMIN';
 
   // Fetch existing users + faculty/program lists for the role-scope dropdowns.
   const [users, faculties, programs] = await Promise.all([
@@ -42,6 +45,7 @@ export default async function AdminUsersPage() {
             role: true,
             facultyId: true,
             programId: true,
+            source: true,
             faculty: { select: { id: true, nameEn: true, nameTh: true } },
             program: { select: { id: true, code: true, nameEn: true } },
           },
@@ -89,6 +93,7 @@ export default async function AdminUsersPage() {
             role: s.role,
             facultyId: s.facultyId,
             programId: s.programId,
+            source: s.source,
             facultyLabel: s.faculty
               ? `${s.faculty.nameTh} · ${s.faculty.nameEn}`
               : null,

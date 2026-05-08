@@ -17,7 +17,7 @@ export async function GET(
 ) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
-  if (!user || (!isAdminGrade(user.role) && user.role !== 'ANALYST')) {
+  if (!user || (!isAdminGrade(user.role))) {
     return NextResponse.json({ data: null, error: { code: 'FORBIDDEN' } }, { status: 403 });
   }
   const { id } = await params;

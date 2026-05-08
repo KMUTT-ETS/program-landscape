@@ -44,7 +44,7 @@ export default async function AdminExtractionReviewPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const [pending, stats] = await Promise.all([
     apiFetch<AiExtractionRow[]>('/ai/extractions?status=PENDING_REVIEW&limit=100').catch(

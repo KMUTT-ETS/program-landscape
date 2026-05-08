@@ -7,7 +7,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import * as jose from 'jose';
-import { ApiError, SessionUserSchema } from '@kku/shared';
+import {
+  ApiError,
+  IMPERSONATION_COOKIE,
+  SessionUserSchema,
+  canImpersonate,
+  tryDecodeImpersonation,
+  type SessionUser,
+} from '@kku/shared';
 import type { Request } from 'express';
 import { PUBLIC_META } from './decorators';
 
@@ -18,6 +25,17 @@ import { PUBLIC_META } from './decorators';
 //
 // On success, sets req.user to a SessionUser. Routes read via
 // @AuthSession().
+//
+// Impersonation override: when the JWT-derived role is super-grade and
+// the request carries a `kku-impersonate` cookie with a valid payload,
+// the guard substitutes the cookie's role + scope before exposing
+// req.user. This mirrors the override the web's session() callback
+// applies for SSR — without it the API would silently grant the
+// SUPER_ADMIN's actual access surface even while the UI shows the
+// impersonated role's view, defeating the whole point of role
+// switching. The (unsigned) cookie is only honoured when the JWT's
+// real role passes `canImpersonate`, so a regular user forging the
+// cookie sees no effect.
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name);
@@ -48,7 +66,23 @@ export class JwtAuthGuard implements CanActivate {
       const { payload } = await jose.jwtVerify(token, this.secret, {
         algorithms: ['HS256'],
       });
-      const user = SessionUserSchema.parse(payload);
+      let user: SessionUser = SessionUserSchema.parse(payload);
+
+      // Apply the impersonation override last — only when the
+      // underlying JWT role permits it.
+      if (canImpersonate(user.role)) {
+        const imp = readImpersonation(req);
+        if (imp) {
+          user = {
+            ...user,
+            role: imp.role,
+            facultyId: imp.facultyId ?? null,
+            departmentId: imp.departmentId ?? null,
+            programId: imp.programId ?? null,
+          };
+        }
+      }
+
       (req as unknown as { user: unknown }).user = user;
       return true;
     } catch (e) {
@@ -73,4 +107,16 @@ function readToken(req: Request): string | null {
     );
   }
   return null;
+}
+
+// The web's apiFetch() carries the impersonation payload to the API as
+// an `x-kku-impersonate` header — the request only contains an
+// Authorization: Bearer JWT, NOT the original cookie jar. We accept
+// either source so the override works for both same-origin browser
+// traffic (cookie) and BFF-style server fetches (header).
+function readImpersonation(req: Request) {
+  const headerRaw = req.header('x-kku-impersonate');
+  const cookies = (req as unknown as { cookies?: Record<string, string> }).cookies;
+  const cookieRaw = cookies?.[IMPERSONATION_COOKIE];
+  return tryDecodeImpersonation(headerRaw ?? cookieRaw);
 }

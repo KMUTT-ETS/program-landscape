@@ -35,6 +35,8 @@ export class RisksService {
   async portfolio(opts: {
     level?: ProgramLevel;
     facultyId?: string;
+    /** PROGRAM_USER scope clamp — narrows to a single program. */
+    programId?: string;
     tier?: RiskTier;
   }): Promise<{
     rows: PortfolioRiskRow[];
@@ -301,7 +303,7 @@ export class RisksService {
 
   // ── Drivers transparency page ────────────────────────────────────────
 
-  async drivers(): Promise<{
+  async drivers(opts: { facultyId?: string; programId?: string } = {}): Promise<{
     methodology: { version: string; docPath: string };
     cohort: {
       yearlyDeclinePct: number;
@@ -361,11 +363,20 @@ export class RisksService {
     }
 
     // Competitiveness — programs that have a TCAS funnel for the latest year.
+    // Optional facultyId clamp for FACULTY_USER / PROGRAM_USER.
+    const facultyClause = opts.facultyId
+      ? Prisma.sql`AND p.faculty_id = ${opts.facultyId}`
+      : Prisma.empty;
+    const programClause = opts.programId
+      ? Prisma.sql`AND p.id = ${opts.programId}`
+      : Prisma.empty;
     const competRows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
       SELECT COUNT(DISTINCT p.id) AS count
       FROM programs p
       JOIN tcas_admission_funnels t ON t.program_id = p.id
       WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+      ${facultyClause}
+      ${programClause}
     `);
     const programsRankedCount = competRows.length > 0 ? Number(competRows[0]!.count) : 0;
 
@@ -397,6 +408,8 @@ export class RisksService {
       JOIN latest l ON l.program_id = p.id
       JOIN tcas_admission_funnels t ON t.program_id = p.id AND t.entry_year_be = l.year_be
       WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+      ${facultyClause}
+      ${programClause}
       GROUP BY p.id
     `);
     const ratioBuckets = [
@@ -423,6 +436,8 @@ export class RisksService {
       FROM program_ai_readiness_assessments r
       JOIN programs p ON p.id = r.program_id
       WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+      ${facultyClause}
+      ${programClause}
     `).catch(() => [] as Array<{ score: number; gaps: string[] }>);
     const readinessBucketDefs = [
       { range: '<30 (low)', lo: 0, hi: 30 },

@@ -325,14 +325,19 @@ export function assertTransitionAllowed(from: DecisionStatus, to: DecisionStatus
 }
 
 // Which roles can perform which transitions. Enforced in the service.
+//
+// Mapping post legacy-removal (2026-05-09):
+//   ADMIN/EXECUTIVE/COUNCIL  →  council-tier in the v2 taxonomy:
+//     SUPER_ADMIN + SYSTEM_ADMIN (admin-grade) + UNIVERSITY_USER
+//     (which absorbed legacy COUNCIL/EXECUTIVE).
+//   ARCHIVED was ADMIN-only; now SUPER_ADMIN-only — SYSTEM_ADMIN is
+//   admin-grade for everything operational but archival is a record-
+//   of-truth concern reserved for the highest privilege tier.
 export const TRANSITION_ROLE_GATE: Partial<Record<DecisionStatus, Array<string>>> = {
-  // Moving from PROPOSED → COUNCIL_REVIEWED is EXECUTIVE/ADMIN only.
-  COUNCIL_REVIEWED: ['EXECUTIVE', 'ADMIN'],
-  // Approving or rejecting is Council/Executive/Admin territory.
-  APPROVED: ['COUNCIL', 'EXECUTIVE', 'ADMIN'],
-  REJECTED: ['COUNCIL', 'EXECUTIVE', 'ADMIN'],
-  // Archival can only be done by ADMIN.
-  ARCHIVED: ['ADMIN'],
+  COUNCIL_REVIEWED: ['SUPER_ADMIN', 'SYSTEM_ADMIN', 'UNIVERSITY_USER'],
+  APPROVED: ['SUPER_ADMIN', 'SYSTEM_ADMIN', 'UNIVERSITY_USER'],
+  REJECTED: ['SUPER_ADMIN', 'SYSTEM_ADMIN', 'UNIVERSITY_USER'],
+  ARCHIVED: ['SUPER_ADMIN'],
 };
 
 export function assertTransitionAllowedForRole(to: DecisionStatus, role: string): void {

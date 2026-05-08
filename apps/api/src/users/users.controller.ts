@@ -27,13 +27,11 @@ export class UsersController {
       permissions: Array.from(ROLE_PERMISSIONS[user.role]),
       scopeAccess: {
         universityRead: true,
+        // Roles with read-all visibility: admin-grade + UNIVERSITY_USER.
+        // FACULTY_USER + PROGRAM_USER are spatially scoped — they only
+        // see their own faculty/department in detail.
         allFacultiesRead:
-          isAdminGrade(user.role) ||
-          user.role === 'COUNCIL' ||
-          user.role === 'EXECUTIVE' ||
-          user.role === 'ANALYST' ||
-          user.role === 'VIEWER' ||
-          user.role === 'UNIVERSITY_USER',
+          isAdminGrade(user.role) || user.role === 'UNIVERSITY_USER',
         ownFacultyId: user.facultyId,
         ownDepartmentId: user.departmentId,
       },

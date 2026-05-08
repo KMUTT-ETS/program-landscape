@@ -15,7 +15,7 @@ export default async function QueuesPage() {
   // Read-only is open to ANALYST + any admin-grade. Manage actions
   // (pause/resume/clean/retry) are super-grade only — SYSTEM_ADMIN
   // doesn't carry queues:manage per ROLE_PERMISSIONS.
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const canManage = isSuperGrade(user.role);
 

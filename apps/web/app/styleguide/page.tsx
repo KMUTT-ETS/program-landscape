@@ -15,7 +15,7 @@ export default async function StyleguidePage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
   if (process.env.NODE_ENV === 'production' && !isAdminGrade(user.role)) {
-    redirect('/');
+    redirect('/no-access');
   }
 
   return (

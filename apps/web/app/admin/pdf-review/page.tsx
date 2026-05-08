@@ -29,7 +29,7 @@ export default async function AdminPdfReviewPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
   // pdf:approve_extraction is ANALYST + admin-grade.
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const pending = await apiFetch<PdfRow[]>('/pdfs/pending?status=PENDING_REVIEW').catch(
     () => [] as PdfRow[],

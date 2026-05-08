@@ -12,13 +12,10 @@ export default async function UploadPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // pdf:upload is held by DEAN / DEPT_HEAD / ANALYST / admin-grade.
-  const allowed =
-    isAdminGrade(user.role) ||
-    user.role === 'ANALYST' ||
-    user.role === 'DEAN' ||
-    user.role === 'DEPT_HEAD';
-  if (!allowed) redirect('/');
+  // pdf:upload — admin-grade + FACULTY_USER (absorbs the legacy
+  // DEAN/DEPT_HEAD population that owned faculty-scope upload rights).
+  const allowed = isAdminGrade(user.role) || user.role === 'FACULTY_USER';
+  if (!allowed) redirect('/no-access');
 
   return (
     <AuthedAppShell user={user}>

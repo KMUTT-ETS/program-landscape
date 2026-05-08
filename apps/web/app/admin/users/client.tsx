@@ -61,11 +61,21 @@ function deriveDisplayName(emp: Record<string, unknown>): string {
   return t('email') ?? '(unnamed)';
 }
 
+// Mirrors the role-scope axis declared in the impersonation helper.
+// Inlined here because client.tsx is `'use client'` and pulling
+// `roleNeedsFaculty` from @/lib/auth/impersonation drags an unrelated
+// barrel (and node:crypto via the @kku/shared barrel).
+const FACULTY_SCOPED_ROLES = new Set<Role>(['FACULTY_USER']);
+const DEPARTMENT_SCOPED_ROLES = new Set<Role>(['PROGRAM_USER']);
+
 interface ScopeRow {
   id: string;
   role: Role;
   facultyId: string | null;
   programId: string | null;
+  /** MANUAL = admin-assigned (this UI's writes). ACADEMIC_STAFF =
+   *  auto-synced on every SSO login from FacultyMember ↔ ProgramFaculty. */
+  source: 'MANUAL' | 'ACADEMIC_STAFF';
   facultyLabel: string | null;
   programLabel: string | null;
 }
@@ -106,14 +116,6 @@ const ROLE_LABEL: Record<Role, string> = {
   UNIVERSITY_USER: 'University User',
   FACULTY_USER: 'Faculty User',
   PROGRAM_USER: 'Program User',
-  // legacy
-  ADMIN: '(legacy) ADMIN',
-  ANALYST: '(legacy) ANALYST',
-  VIEWER: '(legacy) VIEWER',
-  COUNCIL: '(legacy) COUNCIL',
-  EXECUTIVE: '(legacy) EXECUTIVE',
-  DEAN: '(legacy) DEAN',
-  DEPT_HEAD: '(legacy) DEPT_HEAD',
 };
 
 interface Props {
@@ -656,9 +658,14 @@ function UserRowEditor({
             <Button size="xs" variant="ghost" onClick={() => setExpanded(true)}>
               <Layers className="h-3 w-3" /> Scopes
             </Button>
-            <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>
-              <Key className="h-3 w-3" /> Pwd
-            </Button>
+            {/* Password reset only applies to local credentials. SSO-linked
+                users authenticate via KKU SSO and have no local passwordHash —
+                hide the affordance to avoid operator confusion. */}
+            {!user.linkedToSso && (
+              <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>
+                <Key className="h-3 w-3" /> Pwd
+              </Button>
+            )}
             {actorIsSuper && (
               <Button size="xs" variant="ghost" onClick={remove} disabled={busy}>
                 <Trash2 className="h-3 w-3" />
@@ -675,6 +682,7 @@ function UserRowEditor({
               faculties={faculties}
               programs={programs}
               assignable={assignable}
+              onClose={() => setExpanded(false)}
             />
           </td>
         </tr>
@@ -708,20 +716,30 @@ function ScopePillStack({ scopes }: { scopes: ScopeRow[] }) {
 }
 
 function ScopePill({ scope }: { scope: ScopeRow }) {
-  const isAdmin =
-    scope.role === 'SUPER_ADMIN' || scope.role === 'SYSTEM_ADMIN' || scope.role === 'ADMIN';
+  const isAdmin = scope.role === 'SUPER_ADMIN' || scope.role === 'SYSTEM_ADMIN';
+  const isAuto = scope.source === 'ACADEMIC_STAFF';
   const target = scope.programLabel ?? scope.facultyLabel ?? null;
+  const tooltip = isAuto
+    ? `${ROLE_LABEL[scope.role]} · auto-synced from FacultyMember ↔ ProgramFaculty on every SSO login. Manual changes are reverted next login.`
+    : target ?? ROLE_LABEL[scope.role];
   return (
     <span
-      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
         isAdmin
           ? 'border-accent/30 bg-accent/10 text-accent'
-          : 'border-border-subtle bg-surface-2 text-text-secondary'
+          : isAuto
+            ? 'border-info/30 bg-info-subtle text-info'
+            : 'border-border-subtle bg-surface-2 text-text-secondary'
       }`}
-      title={target ?? ROLE_LABEL[scope.role]}
+      title={tooltip}
     >
       <span className="font-semibold">{ROLE_LABEL[scope.role]}</span>
-      {target && <span className="ml-1 opacity-80">· {target}</span>}
+      {target && <span className="opacity-80">· {target}</span>}
+      {isAuto && (
+        <span className="rounded bg-info/15 px-1 py-0 text-[8.5px] font-semibold uppercase tracking-wider text-info">
+          auto
+        </span>
+      )}
     </span>
   );
 }
@@ -734,11 +752,13 @@ function ScopeManager({
   faculties,
   programs,
   assignable,
+  onClose,
 }: {
   user: UserRow;
   faculties: FacultyOption[];
   programs: ProgramOption[];
   assignable: readonly Role[];
+  onClose: () => void;
 }) {
   const [busy, setBusy] = React.useState(false);
   const [newRole, setNewRole] = React.useState<Role>('FACULTY_USER');
@@ -750,6 +770,12 @@ function ScopeManager({
   React.useEffect(() => setLocalScopes(user.scopes), [user.scopes]);
 
   const onRemove = async (scope: ScopeRow) => {
+    if (scope.source === 'ACADEMIC_STAFF') {
+      toast.error(
+        'This scope is auto-synced from the academic-staff register. To remove it, drop the staffer from the program in HR — the next login will prune it automatically.',
+      );
+      return;
+    }
     if (localScopes.length <= 1) {
       toast.error('Cannot remove the last scope. Add another scope first.');
       return;
@@ -772,6 +798,31 @@ function ScopeManager({
     }
     if (newRole === 'PROGRAM_USER' && !newProgramId) {
       toast.error('Pick a program');
+      return;
+    }
+    // Pre-validate: server enforces uniqueness too, but a clean toast
+    // beats a 500 round-trip. Non-spatial roles (SUPER_ADMIN /
+    // SYSTEM_ADMIN / UNIVERSITY_USER) are duplicates if the role
+    // appears at all; spatial roles match on the (role, faculty/
+    // program) tuple.
+    const duplicate = localScopes.some((s) => {
+      if (s.role !== newRole) return false;
+      if (newRole === 'FACULTY_USER') return s.facultyId === newFacultyId;
+      if (newRole === 'PROGRAM_USER') return s.programId === newProgramId;
+      return true; // SUPER_ADMIN / SYSTEM_ADMIN / UNIVERSITY_USER — one per user
+    });
+    if (duplicate) {
+      const target =
+        newRole === 'FACULTY_USER'
+          ? faculties.find((f) => f.id === newFacultyId)?.nameTh
+          : newRole === 'PROGRAM_USER'
+            ? programs.find((p) => p.id === newProgramId)?.code
+            : null;
+      toast.error(
+        target
+          ? `${ROLE_LABEL[newRole]} for ${target} is already assigned.`
+          : `${ROLE_LABEL[newRole]} is already assigned.`,
+      );
       return;
     }
     setBusy(true);
@@ -802,6 +853,9 @@ function ScopeManager({
       {
         id: r.scopeId,
         role: newRole,
+        // Manually-added rows are MANUAL by definition; the SSO sync
+        // never reclaims them.
+        source: 'MANUAL',
         facultyId:
           newRole === 'FACULTY_USER'
             ? newFacultyId || null
@@ -827,15 +881,46 @@ function ScopeManager({
     ? programs.filter((p) => p.facultyId === newFacultyId)
     : programs;
 
+  // Roles already at the user-wide cap (SUPER_ADMIN / SYSTEM_ADMIN /
+  // UNIVERSITY_USER are limited to one row per user). Used to grey out
+  // the Add scope button + selectable options.
+  const exhaustedNonSpatial = new Set(
+    localScopes
+      .filter((s) => !FACULTY_SCOPED_ROLES.has(s.role) && !DEPARTMENT_SCOPED_ROLES.has(s.role))
+      .map((s) => s.role),
+  );
+  const wouldDuplicate =
+    (exhaustedNonSpatial.has(newRole)) ||
+    (newRole === 'FACULTY_USER' &&
+      !!newFacultyId &&
+      localScopes.some(
+        (s) => s.role === 'FACULTY_USER' && s.facultyId === newFacultyId,
+      )) ||
+    (newRole === 'PROGRAM_USER' &&
+      !!newProgramId &&
+      localScopes.some(
+        (s) => s.role === 'PROGRAM_USER' && s.programId === newProgramId,
+      ));
+
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border-subtle bg-surface-0 p-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h4 className="text-xs font-semibold text-text-primary">
           Scopes for {user.email}
         </h4>
-        <span className="text-[10px] text-text-tertiary">
-          {localScopes.length} {localScopes.length === 1 ? 'scope' : 'scopes'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-text-tertiary">
+            {localScopes.length} {localScopes.length === 1 ? 'scope' : 'scopes'}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-text-tertiary transition-colors hover:bg-surface-2 hover:text-text-primary"
+            aria-label="Close scope manager"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Existing scopes — list with remove buttons */}
@@ -856,11 +941,13 @@ function ScopeManager({
             <button
               type="button"
               onClick={() => onRemove(s)}
-              disabled={busy || localScopes.length <= 1}
+              disabled={busy || localScopes.length <= 1 || s.source === 'ACADEMIC_STAFF'}
               title={
-                localScopes.length <= 1
-                  ? 'Cannot remove the last scope'
-                  : 'Remove this scope'
+                s.source === 'ACADEMIC_STAFF'
+                  ? 'Auto-synced from FacultyMember ↔ ProgramFaculty — remove the staffer from the program in HR to clear this scope'
+                  : localScopes.length <= 1
+                    ? 'Cannot remove the last scope'
+                    : 'Remove this scope'
               }
               className="text-text-tertiary hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
               aria-label="Remove scope"
@@ -963,9 +1050,11 @@ function ScopeManager({
             onClick={onAdd}
             disabled={
               busy ||
+              wouldDuplicate ||
               (newRole === 'FACULTY_USER' && !newFacultyId) ||
               (newRole === 'PROGRAM_USER' && !newProgramId)
             }
+            title={wouldDuplicate ? 'Already assigned' : undefined}
           >
             <Plus className="h-3 w-3" /> Add scope
           </Button>

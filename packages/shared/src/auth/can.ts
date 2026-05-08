@@ -13,7 +13,7 @@ import type { ScopeLevel } from './scope-level';
 // Design:
 //   - Any `:all` permission is scope-unrestricted — returns true if the
 //     role owns the permission.
-//   - `:own_faculty` and `:own_department` permissions require a
+//   - `:own_faculty` and `:own_program` permissions require a
 //     scopeContext AND require the target to be inside the user's own org.
 //   - The caller chooses the permission carefully. This function does not
 //     infer "intent" — the route's `@RequirePermission(...)` specifies
@@ -40,10 +40,10 @@ export function hasPermission(user: SessionUser, permission: Permission): boolea
  *
  * - `:all` permissions → scopeContext is ignored.
  * - `:own_faculty` → target scope must be the user's own faculty or a
- *   department/program inside it (scopeContext.id must match or the caller
- *   is responsible for resolving program→faculty first).
- * - `:own_department` → target scope must be the user's own department or
- *   a program inside it.
+ *   program inside it (scopeContext.id must match or the caller is
+ *   responsible for resolving program→faculty first).
+ * - `:own_program` → target scope must be the user's own program (the
+ *   single program assigned to them via User.programId).
  */
 export function can(
   user: SessionUser,
@@ -60,10 +60,10 @@ export function can(
     return scopeContextMatchesFaculty(scopeContext, user.facultyId);
   }
 
-  if (permission.endsWith(':own_department')) {
-    if (!user.departmentId) return false;
+  if (permission.endsWith(':own_program')) {
+    if (!user.programId) return false;
     if (!scopeContext) return false;
-    return scopeContextMatchesDepartment(scopeContext, user.departmentId);
+    return scopeContextMatchesProgram(scopeContext, user.programId);
   }
 
   // :aggregated_only and any other suffix aren't spatial — permission
@@ -89,13 +89,14 @@ function scopeContextMatchesFaculty(
   return true;
 }
 
-function scopeContextMatchesDepartment(
+function scopeContextMatchesProgram(
   scope: ScopeContext,
-  userDepartmentId: string,
+  userProgramId: string,
 ): boolean {
-  if (scope.level === 'university' || scope.level === 'faculty') return false;
-  if (scope.level === 'department') return scope.id === userDepartmentId;
-  // Program-level: parent-dept must match, delegated to upstream
-  // middleware (see comment above).
-  return true;
+  // PROGRAM_USER scope is the narrowest — only matches an exact program.
+  // Any wider scope (university / faculty / department) is refused; if a
+  // caller wants to grant aggregate visibility on top, use the
+  // `:aggregated_only` permission instead of `:own_program`.
+  if (scope.level === 'program') return scope.id === userProgramId;
+  return false;
 }

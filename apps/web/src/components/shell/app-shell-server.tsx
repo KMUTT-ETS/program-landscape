@@ -94,7 +94,7 @@ export async function AuthedAppShell({
         <ImpersonationBanner
           role={impersonation.role}
           facultyId={impersonation.facultyId ?? null}
-          departmentId={impersonation.departmentId ?? null}
+          programId={impersonation.programId ?? null}
           entities={entities}
         />
       )}

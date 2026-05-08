@@ -9,7 +9,7 @@ import type { SessionUser } from '@kku/shared';
 // Mirrors @kku/shared/auth/roles.ts ADMIN_GRADE_ROLES. Inlined to keep
 // this file client-safe — see the import comment above.
 function isAdminGrade(role: string | undefined | null): boolean {
-  return role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SYSTEM_ADMIN';
+  return role === 'SUPER_ADMIN' || role === 'SYSTEM_ADMIN';
 }
 import {
   BookOpen,
@@ -113,7 +113,7 @@ const referenceSection: NavSection = {
  */
 export function appNavSectionsFor(user: SessionUser | undefined): NavSection[] {
   const sections: NavSection[] = [workSection, moduleSection];
-  if (isAdminGrade(user?.role) || user?.role === 'ANALYST') {
+  if (isAdminGrade(user?.role)) {
     sections.push(adminSection);
   }
   sections.push(referenceSection);

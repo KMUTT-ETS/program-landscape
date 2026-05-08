@@ -1037,10 +1037,16 @@ export interface PortfolioRiskRow {
 export async function listPortfolioRisk(opts?: {
   level?: ProgramLevel;
   facultyId?: string;
+  /** Optional program clamp — used by PROGRAM_USER scope to narrow
+   * the portfolio to a single program. Ignored when null. */
+  programId?: string;
   tier?: RiskTier;
 }): Promise<PortfolioRiskRow[]> {
   const level = opts?.level ?? 'BACHELOR';
   const facultyClause = opts?.facultyId ? Prisma.sql`AND p.faculty_id = ${opts.facultyId}` : Prisma.empty;
+  const programClause = opts?.programId
+    ? Prisma.sql`AND p.id = ${opts.programId}`
+    : Prisma.empty;
   const tierClause = opts?.tier ? Prisma.sql`AND ra.tier = ${opts.tier}::"RiskTier"` : Prisma.empty;
 
   const rows = await prisma.$queryRaw<
@@ -1103,6 +1109,7 @@ export async function listPortfolioRisk(opts?: {
     WHERE p.level = ${level}::"ProgramLevel"
       AND p.status = 'ACTIVE'
       ${facultyClause}
+      ${programClause}
       ${tierClause}
     ORDER BY ra.composite_score DESC NULLS LAST, p.name_th ASC
   `);

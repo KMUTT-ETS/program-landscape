@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { prisma, type Prisma } from '@kku/db';
+import { prisma, Prisma } from '@kku/db';
 import { CacheService } from '../common/cache.service';
 import {
   ACADEMIC_STANDING,
@@ -388,7 +388,10 @@ export class StaffService {
   // Type 1 (อาจารย์ประจำ — any faculty teaching in the program) is omitted —
   // it overlaps heavily with type 2/3 and isn't load-bearing for the
   // MHESI 5-responsible-faculty rule.
-  async facultyByProgram() {
+  async facultyByProgram(opts: { facultyId?: string } = {}) {
+    // Optional facultyId scope clamp — set by the controller for
+    // FACULTY_USER / PROGRAM_USER so they only see programs in their
+    // own faculty. Admin-grade + UNIVERSITY_USER pass through (no opts).
     const rows = await prisma.$queryRaw<
       Array<{
         program_id: string;
@@ -410,6 +413,7 @@ export class StaffService {
         FROM staff_program_assignment spa
         JOIN programs p ON p.id = spa.program_id
         JOIN faculties f ON f.id = p.faculty_id
+       WHERE ${opts.facultyId ? Prisma.sql`p.faculty_id = ${opts.facultyId}` : Prisma.sql`TRUE`}
        GROUP BY p.id, p.name_th, f.name_th, p.level
     `;
 

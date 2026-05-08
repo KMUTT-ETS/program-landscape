@@ -41,18 +41,11 @@ import {
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Admin console' };
 
-const ADMIN_OR_ANALYST: ReadonlyArray<SessionUser['role']> = [
-  'ADMIN',
-  'SUPER_ADMIN',
-  'SYSTEM_ADMIN',
-  'ANALYST',
-];
-const ADMIN_GRADE: ReadonlyArray<SessionUser['role']> = [
-  'ADMIN',
-  'SUPER_ADMIN',
-  'SYSTEM_ADMIN',
-];
-const SUPER_GRADE: ReadonlyArray<SessionUser['role']> = ['ADMIN', 'SUPER_ADMIN'];
+// Console viewer-roles. Post legacy-removal there's no separate
+// ANALYST role — admin-grade is the read+write surface, super-grade is
+// admin-grade plus queue management.
+const ADMIN_GRADE: ReadonlyArray<SessionUser['role']> = ['SUPER_ADMIN', 'SYSTEM_ADMIN'];
+const SUPER_GRADE: ReadonlyArray<SessionUser['role']> = ['SUPER_ADMIN'];
 
 interface DataSetupStats {
   programs: { total: number; withCurriculumPdf: number; missingCurriculumPdf: number };
@@ -79,7 +72,7 @@ export default async function AdminConsolePage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   // Pull live numbers in parallel; degrade gracefully if either endpoint
   // is reachable. The console renders fine without them — the badges
@@ -265,7 +258,7 @@ function Hero({
 
 function RoleChip({ role }: { role: SessionUser['role'] }) {
   const tone =
-    role === 'SUPER_ADMIN' || role === 'ADMIN'
+    role === 'SUPER_ADMIN'
       ? 'danger'
       : role === 'SYSTEM_ADMIN'
         ? 'warning'
@@ -275,11 +268,11 @@ function RoleChip({ role }: { role: SessionUser['role'] }) {
       ? 'Super admin'
       : role === 'SYSTEM_ADMIN'
         ? 'System admin'
-        : role === 'ADMIN'
-          ? 'Admin'
-          : role === 'ANALYST'
-            ? 'Analyst'
-            : role;
+        : role === 'UNIVERSITY_USER'
+          ? 'University user'
+          : role === 'FACULTY_USER'
+            ? 'Faculty user'
+            : 'Program user';
   return (
     <Badge tone={tone} className="hidden items-center gap-1 sm:inline-flex">
       <ShieldCheck className="h-3 w-3" aria-hidden />
@@ -523,7 +516,7 @@ function buildGroups({
       label: 'Upload PDFs',
       description: 'Drop policy documents, curricula (มคอ.2), surveys, peer brochures.',
       icon: <Upload className="h-5 w-5" />,
-      roles: [...ADMIN_OR_ANALYST, 'DEAN', 'DEPT_HEAD'],
+      roles: [...ADMIN_GRADE, 'FACULTY_USER'],
     },
   ];
 
@@ -598,7 +591,7 @@ function buildGroups({
       description:
         'Live BullMQ state — what is running, waiting, failed. Pause, resume, retry, clean.',
       icon: <Layers className="h-5 w-5" />,
-      roles: ADMIN_OR_ANALYST,
+      roles: ADMIN_GRADE,
       meta: sysStatus
         ? (() => {
             const failed =
@@ -636,7 +629,7 @@ function buildGroups({
   // Per-tile role gate: visibility tracks the viewer's permissions so a
   // SYSTEM_ADMIN doesn't see "AI cost" greyed out — it just disappears.
   const filterByRole = (t: ConsoleTile) =>
-    t.roles ? t.roles.includes(role) : ADMIN_OR_ANALYST.includes(role);
+    t.roles ? t.roles.includes(role) : ADMIN_GRADE.includes(role);
 
   return [
     {

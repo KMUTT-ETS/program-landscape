@@ -54,7 +54,7 @@ export default async function AdminPdfReviewDetailPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const { id } = await params;
   const pdf = await apiFetch<PdfDetail | null>(`/pdfs/${id}`).catch(() => null);

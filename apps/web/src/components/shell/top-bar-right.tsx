@@ -19,7 +19,7 @@ import { RoleSwitcherDialog } from './role-switcher';
 // Mirrors @kku/shared/auth/impersonation.canImpersonate. Inlined to keep
 // this file client-safe — see the same pattern in app-nav.tsx.
 function canImpersonate(role: string): boolean {
-  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+  return role === 'SUPER_ADMIN';
 }
 
 // Top-bar right cluster — bell · theme · user.

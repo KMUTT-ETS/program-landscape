@@ -54,7 +54,7 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const stats = await apiFetch<SourceStats>(
     `/data-sources/by-slug/${encodeURIComponent(params.slug)}/stats`,

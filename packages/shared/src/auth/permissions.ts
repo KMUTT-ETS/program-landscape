@@ -6,11 +6,12 @@ import type { Role } from './roles';
 // Format: "<resource>:<action>:<scope-suffix>"
 //
 // Scope suffix semantics:
-//   :all                 — across every faculty/department/program
+//   :all                 — across every faculty/program
 //   :own_faculty         — only within the user's own faculty (+ its
-//                          departments/programs)
-//   :own_department      — only within the user's own department
-//                          (+ its programs)
+//                          programs)
+//   :own_program         — only within the user's specific assigned
+//                          program (PROGRAM_USER scope; departmentId
+//                          axis dropped 2026-05-09)
 //   :aggregated_only     — can see rolled-up numbers but not per-faculty-
 //                          member or per-individual drill-in (e.g. salary
 //                          line items)
@@ -25,7 +26,7 @@ export const PERMISSIONS = [
   'departments:read:all',
   'programs:read:all',
   'programs:read:own_faculty',
-  'programs:read:own_department',
+  'programs:read:own_program',
 
   // Program management (admin-facing CRUD + curriculum-PDF attachment).
   // Separate from :read because mutation risk is much higher — every Program
@@ -37,19 +38,19 @@ export const PERMISSIONS = [
   // the most sensitive resource in the system.
   'financials:read:all',
   'financials:read:own_faculty',
-  'financials:read:own_department',
+  'financials:read:own_program',
   'financials:read:aggregated_only',
 
   // Individual faculty-member detail (salary line items, retirement dates).
   // COUNCIL cannot see individual salaries but CAN see aggregated cost.
   'faculty_members:read:all',
   'faculty_members:read:own_faculty',
-  'faculty_members:read:own_department',
+  'faculty_members:read:own_program',
 
   // Outcomes — GraduateOutcome, EmployerFeedback
   'outcomes:read:all',
   'outcomes:read:own_faculty',
-  'outcomes:read:own_department',
+  'outcomes:read:own_program',
 
   // Scenarios
   'scenarios:read:all',
@@ -99,114 +100,23 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 // ──────────────────────────────────────────────────────────────────────────
-// Role → permissions
+// Role → permissions (KKU SSO v2 — legacy roles removed 2026-05-09)
 // ──────────────────────────────────────────────────────────────────────────
 
-const VIEWER_PERMS: Permission[] = [
-  'faculties:read:all',
-  'departments:read:all',
-  'programs:read:all',
-  'financials:read:aggregated_only',
-  'outcomes:read:all',
-];
-
-const COUNCIL_PERMS: Permission[] = [
-  ...VIEWER_PERMS,
-  'financials:read:all',
-  'scenarios:read:all',
-  'decisions:read:all',
-  'pdf:generate',
-  'risks:read:all',
-  'risks:measures:edit',
-];
-
-const EXECUTIVE_PERMS: Permission[] = [
-  ...COUNCIL_PERMS,
-  'scenarios:create:any',
-  'scenarios:edit:any',
-  'decisions:edit',
-];
-
-const DEAN_PERMS: Permission[] = [
-  'faculties:read:all',
-  'departments:read:all',
-  'programs:read:all',
-  'programs:read:own_faculty',
-  'programs:manage:own_faculty',
-  'financials:read:own_faculty',
-  'financials:read:aggregated_only', // other faculties
-  'faculty_members:read:own_faculty',
-  'outcomes:read:own_faculty',
-  'outcomes:read:all',
-  'scenarios:read:all',
-  'scenarios:create:own_faculty',
-  'decisions:read:all',
-  'pdf:upload',
-  'pdf:generate',
-  'risks:read:all',
-  'risks:measures:edit',
-];
-
-const DEPT_HEAD_PERMS: Permission[] = [
-  'faculties:read:all',
-  'departments:read:all',
-  'programs:read:all',
-  'programs:read:own_department',
-  'programs:manage:own_faculty',
-  'financials:read:own_department',
-  'financials:read:aggregated_only',
-  'faculty_members:read:own_department',
-  'outcomes:read:own_department',
-  'outcomes:read:all',
-  'scenarios:read:all',
-  'pdf:upload',
-  'pdf:generate',
-  'risks:read:all',
-];
-
-const ANALYST_PERMS: Permission[] = [
-  'faculties:read:all',
-  'departments:read:all',
-  'programs:read:all',
-  'programs:manage:all',
-  'financials:read:all',
-  'faculty_members:read:all',
-  'outcomes:read:all',
-  'scenarios:read:all',
-  'scenarios:create:any',
-  'scenarios:edit:any',
-  'decisions:read:all',
-  'pdf:upload',
-  'pdf:approve_extraction',
-  'pdf:generate',
-  'ingestion:configure',
-  'ingestion:trigger',
-  'data_sources:read',
-  // Analyst can see what's in the queues (job payloads, counts, failures)
-  // but mutation actions stay with ADMIN.
-  'queues:read',
-  'risks:read:all',
-  'risks:assess:any',
-  'risks:measures:edit',
-];
-
-const ADMIN_PERMS: Permission[] = [
-  ...PERMISSIONS, // everything
-];
-
-// ── KKU SSO v2 taxonomy (added 2026-05-07) ─────────────────────────────
-// SUPER_ADMIN — same surface as ADMIN: everything.
+// SUPER_ADMIN — full access surface (everything including queue mgmt).
 const SUPER_ADMIN_PERMS: Permission[] = [...PERMISSIONS];
 
 // SYSTEM_ADMIN — admin-grade; can manage users + sources + ingestion +
-// PDF + queues. The "can-only-promote-up-to-SYSTEM_ADMIN" guard lives in
-// the admin-users service layer (role assignment validation), not here.
+// PDF + extractions. The "can-only-promote-up-to-SYSTEM_ADMIN" guard
+// lives in the admin-users service layer (role assignment validation),
+// not here. Queue management is super-only.
 const SYSTEM_ADMIN_PERMS: Permission[] = [
-  ...PERMISSIONS.filter((p) => p !== 'queues:manage'), // queue mgmt → super only
+  ...PERMISSIONS.filter((p) => p !== 'queues:manage'),
 ];
 
-// UNIVERSITY_USER — read-all at university scope. Mirrors COUNCIL's
-// posture: see everything, mutate nothing.
+// UNIVERSITY_USER — read-all at university scope. Inherits the legacy
+// COUNCIL signal value (risks:measures:edit) so council-level users
+// migrated from COUNCIL keep their measures-approval surface.
 const UNIVERSITY_USER_PERMS: Permission[] = [
   'faculties:read:all',
   'departments:read:all',
@@ -218,6 +128,7 @@ const UNIVERSITY_USER_PERMS: Permission[] = [
   'decisions:read:all',
   'pdf:generate',
   'risks:read:all',
+  'risks:measures:edit',
 ];
 
 // FACULTY_USER — read-only scoped to user's own faculty.
@@ -239,16 +150,16 @@ const FACULTY_USER_PERMS: Permission[] = [
 
 // PROGRAM_USER — read-only at the user's specific program. Coarse
 // university-aggregate visibility for context, but everything detailed
-// is scoped to own_department (which is the program's department).
+// is scoped to own_program (which is the program's department).
 const PROGRAM_USER_PERMS: Permission[] = [
   'faculties:read:all',
   'departments:read:all',
   'programs:read:all',
-  'programs:read:own_department',
-  'financials:read:own_department',
+  'programs:read:own_program',
+  'financials:read:own_program',
   'financials:read:aggregated_only',
-  'faculty_members:read:own_department',
-  'outcomes:read:own_department',
+  'faculty_members:read:own_program',
+  'outcomes:read:own_program',
   'outcomes:read:all',
   'scenarios:read:all',
   'decisions:read:all',
@@ -258,15 +169,6 @@ const PROGRAM_USER_PERMS: Permission[] = [
 
 // Copy the arrays into readonly sets so callers can't mutate them.
 export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
-  // Legacy
-  VIEWER: new Set(VIEWER_PERMS),
-  COUNCIL: new Set(COUNCIL_PERMS),
-  EXECUTIVE: new Set(EXECUTIVE_PERMS),
-  DEAN: new Set(DEAN_PERMS),
-  DEPT_HEAD: new Set(DEPT_HEAD_PERMS),
-  ANALYST: new Set(ANALYST_PERMS),
-  ADMIN: new Set(ADMIN_PERMS),
-  // KKU SSO v2
   SUPER_ADMIN: new Set(SUPER_ADMIN_PERMS),
   SYSTEM_ADMIN: new Set(SYSTEM_ADMIN_PERMS),
   UNIVERSITY_USER: new Set(UNIVERSITY_USER_PERMS),

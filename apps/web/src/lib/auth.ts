@@ -128,6 +128,7 @@ export const authConfig: NextAuthConfig = {
           role: dbUser.role,
           facultyId: dbUser.facultyId,
           departmentId: dbUser.departmentId,
+          programId: dbUser.programId,
           themePreference: dbUser.themePreference,
         };
       }
@@ -139,6 +140,7 @@ export const authConfig: NextAuthConfig = {
             role: true,
             facultyId: true,
             departmentId: true,
+            programId: true,
             themePreference: true,
           },
         });
@@ -148,6 +150,7 @@ export const authConfig: NextAuthConfig = {
             role: fresh.role,
             facultyId: fresh.facultyId,
             departmentId: fresh.departmentId,
+            programId: fresh.programId,
             themePreference: fresh.themePreference,
           };
         }
@@ -179,6 +182,7 @@ export const authConfig: NextAuthConfig = {
               role: imp.role,
               facultyId: imp.facultyId ?? null,
               departmentId: imp.departmentId ?? null,
+              programId: imp.programId ?? null,
             };
           }
         } catch {

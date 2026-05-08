@@ -56,7 +56,7 @@ export default async function RawDatasetPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role) && user.role !== 'ANALYST') redirect('/');
+  if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const { dataset } = await params;
   if (!(dataset in DATASET_TITLES)) notFound();

@@ -42,9 +42,11 @@ import { prisma } from '@kku/db';
 async function main() {
   console.log('━━━ Seeding 4 data-driven scenario templates ━━━\n');
 
-  // Pick an owner — any ADMIN, fall back to first user.
+  // Pick an owner — any SUPER_ADMIN, fall back to first user.
+  // (Templates are global content owned by the system; super-admins
+  // are the only role permitted to edit them post-legacy-removal.)
   const owner = await prisma.user.findFirst({
-    where: { role: 'ADMIN' },
+    where: { role: 'SUPER_ADMIN' },
     orderBy: { createdAt: 'asc' },
   }) ?? await prisma.user.findFirst({ orderBy: { createdAt: 'asc' } });
   if (!owner) throw new Error('No user in DB to own templates');

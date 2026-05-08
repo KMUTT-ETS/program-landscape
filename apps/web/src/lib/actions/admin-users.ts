@@ -20,7 +20,6 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@kku/db';
 import {
-  isAdminGrade,
   RoleSchema,
   SSO_ROLES,
   SYSTEM_ADMIN_ASSIGNABLE_ROLES,
@@ -35,7 +34,13 @@ async function requireAdmin(): Promise<{ user: SessionUser; isSuper: boolean }> 
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) throw new Error('Not authenticated');
-  const isSuper = user.role === 'SUPER_ADMIN' || isAdminGrade(user.role); // legacy ADMIN = super
+  // SUPER_ADMIN can assign any role. SYSTEM_ADMIN can assign roles up to
+  // and including SYSTEM_ADMIN, but never SUPER_ADMIN — see
+  // SYSTEM_ADMIN_ASSIGNABLE_ROLES + assertCanAssignRole below.
+  // (Critical: do NOT use isAdminGrade() here — it returns true for both
+  // SUPER_ADMIN and SYSTEM_ADMIN, which would silently elevate a system
+  // admin to "can assign any role". Match SUPER_ADMIN strictly.)
+  const isSuper = user.role === 'SUPER_ADMIN';
   const isSystem = user.role === 'SYSTEM_ADMIN';
   if (!isSuper && !isSystem) throw new Error('Forbidden — admin role required');
   return { user, isSuper };
@@ -45,6 +50,19 @@ function assertCanAssignRole(actor: { isSuper: boolean }, target: Role): void {
   if (actor.isSuper) return; // any role
   if ((SYSTEM_ADMIN_ASSIGNABLE_ROLES as readonly Role[]).includes(target)) return;
   throw new Error(`SYSTEM_ADMIN cannot assign role ${target}`);
+}
+
+// SYSTEM_ADMIN must not be able to MUTATE a SUPER_ADMIN account in any
+// way — not demote, not set a password (account-takeover via dev creds),
+// not add/remove scopes. Only SUPER_ADMIN can touch SUPER_ADMIN.
+function assertActorCanMutateTarget(
+  actor: { isSuper: boolean },
+  target: { role: Role | string },
+): void {
+  if (actor.isSuper) return;
+  if (target.role === 'SUPER_ADMIN') {
+    throw new Error('SYSTEM_ADMIN cannot mutate a SUPER_ADMIN account');
+  }
 }
 
 export async function searchKkuEmployeeAction(email: string): Promise<
@@ -188,9 +206,12 @@ export async function updateUserRoleAction(input: {
     const scopeErr = validateScope({ ...input, name: null, email: '' } as ProvisionInput);
     if (scopeErr) return { ok: false, message: scopeErr };
 
-    // Don't allow demoting the last SUPER_ADMIN.
     const target = await prisma.user.findUnique({ where: { id: input.userId } });
     if (!target) return { ok: false, message: 'User not found' };
+    // SYSTEM_ADMIN cannot demote a SUPER_ADMIN — closes the privilege
+    // gap that would otherwise let them strip a peer of admin powers.
+    assertActorCanMutateTarget(actor, target);
+    // Don't allow demoting the last SUPER_ADMIN.
     if (target.role === 'SUPER_ADMIN' && role !== 'SUPER_ADMIN') {
       const otherSupers = await prisma.user.count({
         where: { role: 'SUPER_ADMIN', NOT: { id: input.userId } },
@@ -257,6 +278,7 @@ export async function addUserScopeAction(
     const actor = await requireAdmin();
     const target = await prisma.user.findUnique({ where: { id: input.userId } });
     if (!target) return { ok: false, message: 'User not found' };
+    assertActorCanMutateTarget(actor, target);
     if (!(SSO_ROLES as readonly Role[]).includes(input.role)) {
       return { ok: false, message: 'role must be one of the SSO_ROLES' };
     }
@@ -302,9 +324,15 @@ export async function removeUserScopeAction(
   scopeId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    const actor = await requireAdmin();
     const scope = await prisma.userScope.findUnique({ where: { id: scopeId } });
     if (!scope) return { ok: false, message: 'Scope not found' };
+    // SYSTEM_ADMIN cannot strip scopes from a SUPER_ADMIN.
+    const owner = await prisma.user.findUnique({
+      where: { id: scope.userId },
+      select: { role: true },
+    });
+    if (owner) assertActorCanMutateTarget(actor, owner);
     // Refuse to remove the last scope — every user must hold at least one
     // assignment so they have a defined permission posture.
     const count = await prisma.userScope.count({ where: { userId: scope.userId } });
@@ -327,12 +355,16 @@ export async function setUserPasswordAction(input: {
   password: string | null; // null clears the per-user password (falls back to shared)
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
-    await requireAdmin();
+    const actor = await requireAdmin();
     if (input.password !== null && input.password.length < 4) {
       return { ok: false, message: 'password must be at least 4 characters' };
     }
     const target = await prisma.user.findUnique({ where: { id: input.userId } });
     if (!target) return { ok: false, message: 'User not found' };
+    // CRITICAL: SYSTEM_ADMIN setting a dev password on a SUPER_ADMIN
+    // account would let them sign in as that super-admin via dev creds
+    // and bypass every other guard. Block at the source.
+    assertActorCanMutateTarget(actor, target);
     await prisma.user.update({
       where: { id: input.userId },
       data: { passwordHash: input.password ? hashPassword(input.password) : null },

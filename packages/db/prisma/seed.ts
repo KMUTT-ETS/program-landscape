@@ -252,13 +252,15 @@ const USERS: Array<{
   facultyCode?: string;
   departmentCode?: string;
 }> = [
-  { email: 'viewer@kku.ac.th',    name: 'Viewer User',                  role: 'VIEWER' },
-  { email: 'council@kku.ac.th',   name: 'Council Member',               role: 'COUNCIL' },
-  { email: 'exec@kku.ac.th',      name: 'Executive Officer',            role: 'EXECUTIVE' },
-  { email: 'dean.en@kku.ac.th',   name: 'Dean of Engineering',          role: 'DEAN',     facultyCode: 'EN' },
-  { email: 'dh.cpe@kku.ac.th',    name: 'Head of Computer Engineering', role: 'DEPT_HEAD', facultyCode: 'EN', departmentCode: 'EN-CPE' },
-  { email: 'analyst@kku.ac.th',   name: 'Institutional Analyst',        role: 'ANALYST' },
-  { email: 'admin@kku.ac.th',     name: 'Admin',                        role: 'ADMIN' },
+  // Legacy seed users mapped to v2 taxonomy (2026-05-09 — see migration
+  // 20260509100000_remove_legacy_user_roles for the full mapping rationale).
+  { email: 'viewer@kku.ac.th',    name: 'University User',              role: 'UNIVERSITY_USER' },
+  { email: 'council@kku.ac.th',   name: 'Council Member',               role: 'UNIVERSITY_USER' },
+  { email: 'exec@kku.ac.th',      name: 'Executive Officer',            role: 'SYSTEM_ADMIN' },
+  { email: 'dean.en@kku.ac.th',   name: 'Dean of Engineering',          role: 'FACULTY_USER', facultyCode: 'EN' },
+  { email: 'dh.cpe@kku.ac.th',    name: 'Head of Computer Engineering', role: 'FACULTY_USER', facultyCode: 'EN', departmentCode: 'EN-CPE' },
+  { email: 'analyst@kku.ac.th',   name: 'Institutional Analyst',        role: 'SYSTEM_ADMIN' },
+  { email: 'admin@kku.ac.th',     name: 'Admin',                        role: 'SUPER_ADMIN' },
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1433,12 +1435,12 @@ async function seedGapAnalyzerData() {
 async function seedScenarioTemplates() {
   const { SCENARIO_TEMPLATES } = await import('@kku/shared');
   const adminUser = await prisma.user.findFirst({
-    where: { role: 'ADMIN' },
+    where: { role: 'SUPER_ADMIN' },
     select: { id: true },
   });
   if (!adminUser) {
     // eslint-disable-next-line no-console
-    console.warn('seedScenarioTemplates: no ADMIN user — skipping');
+    console.warn('seedScenarioTemplates: no SUPER_ADMIN user — skipping');
     return;
   }
   for (const template of SCENARIO_TEMPLATES) {
@@ -1653,12 +1655,15 @@ async function seedDecisionSamples() {
     console.log('seedDecisionSamples: already seeded, skipping');
     return;
   }
-  const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } });
-  const council = await prisma.user.findFirst({ where: { role: 'COUNCIL' }, select: { id: true } });
-  const executive = await prisma.user.findFirst({ where: { role: 'EXECUTIVE' }, select: { id: true } });
+  // Decisions used to be authored by ADMIN/COUNCIL/EXECUTIVE seed users.
+  // Post legacy-removal: SUPER_ADMIN authors, UNIVERSITY_USER acts as the
+  // council reviewer, SYSTEM_ADMIN as the executive sponsor.
+  const admin = await prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' }, select: { id: true } });
+  const council = await prisma.user.findFirst({ where: { role: 'UNIVERSITY_USER' }, select: { id: true } });
+  const executive = await prisma.user.findFirst({ where: { role: 'SYSTEM_ADMIN' }, select: { id: true } });
   if (!admin || !council || !executive) {
     // eslint-disable-next-line no-console
-    console.warn('seedDecisionSamples: need ADMIN + COUNCIL + EXECUTIVE users — skipping');
+    console.warn('seedDecisionSamples: need SUPER_ADMIN + UNIVERSITY_USER + SYSTEM_ADMIN users — skipping');
     return;
   }
   const programs = await prisma.program.findMany({ take: 6, select: { id: true, code: true, facultyId: true } });
