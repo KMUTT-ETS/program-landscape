@@ -11,11 +11,28 @@
 // because curated demand data isn't usable yet.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { Prisma } from '@prisma/client';
 import { prisma } from './index';
 import { computeHealthScores, getKkuIntakePolicyVerdict, type HealthScoreRow } from './health-score';
 import { currentlyEnrolledStudents } from './currently-enrolled';
 
 export const DASHBOARD_OVERVIEW_VERSION = 'dashboard-overview.v1';
+
+/**
+ * Optional caller-supplied scope. When set, the dashboard rolls up
+ * only the slice that the user is allowed to see:
+ *
+ *   { facultyId } — restrict to programs in one faculty (FACULTY_USER)
+ *   { programId } — restrict to a single program (PROGRAM_USER)
+ *
+ * Both unset → the canonical 297 university-wide view (admin-grade +
+ * UNIVERSITY_USER). The two are mutually exclusive — `programId` wins
+ * if both are passed (a program implies its faculty).
+ */
+export interface DashboardOverviewScope {
+  facultyId?: string | null;
+  programId?: string | null;
+}
 
 export interface DashboardKpis {
   programCount: number;
@@ -117,7 +134,14 @@ export interface LifecycleDistribution {
 }
 
 export interface FacultyHealthRow {
+  /** Renamed-for-back-compat: this is actually `scopeId` now —
+   *  faculty.id at university scope, department.id at faculty scope,
+   *  program.id at program scope. The viz uses `scopeLevel` to build
+   *  the right drill-in URL. */
   facultyId: string;
+  /** What kind of entity each row represents — drives the drill-in
+   *  href inside `<HealthByFaculty>`. */
+  scopeLevel: 'faculty' | 'department' | 'program';
   scopeLabel: string;
   /** Overall 0-100 score; null when every dimension was null. */
   overallScore: number | null;
@@ -153,7 +177,27 @@ export interface DashboardOverview {
   facultyHealth: FacultyHealthRow[];
 }
 
-export async function getDashboardOverview(): Promise<DashboardOverview> {
+export async function getDashboardOverview(
+  scope: DashboardOverviewScope = {},
+): Promise<DashboardOverview> {
+  // Build the SQL clause that narrows ACTIVE+canonical programs to the
+  // caller's scope. Single source of truth for every $queryRaw branch
+  // below — keeps the WHERE bodies consistent.
+  const programScopeSql = scope.programId
+    ? Prisma.sql`AND p.id = ${scope.programId}`
+    : scope.facultyId
+      ? Prisma.sql`AND p.faculty_id = ${scope.facultyId}`
+      : Prisma.empty;
+
+  // Same predicate on a Prisma `where` for typed `findMany`/`count`/
+  // `aggregate` calls. Resolves to {} when no scope so the typed query
+  // matches everything.
+  const programWhereExtra: Prisma.ProgramWhereInput = scope.programId
+    ? { id: scope.programId }
+    : scope.facultyId
+      ? { facultyId: scope.facultyId }
+      : {};
+
   const [
     programCount,
     facultyCountRow,
@@ -174,7 +218,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // number — the curriculum landscape is the canonical 297, not
     // every Program row that ever existed.
     prisma.program.count({
-      where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+      where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null }, ...programWhereExtra },
     }),
     // Faculty count for the curriculum landscape = academic faculties
     // only. Non-academic units (ADMIN / RESEARCH_CENTER / INSTITUTE)
@@ -193,11 +237,21 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
       JOIN programs p ON p.id = em.program_id
         AND p.status = 'ACTIVE'
-        AND p.sequence_no_from_sheet IS NOT NULL;
+        AND p.sequence_no_from_sheet IS NOT NULL
+        ${programScopeSql};
     `,
     prisma.financialMetric.aggregate({
       _sum: { netContribution: true },
-      where: { fiscalYear: { gte: 2024 } },
+      where: {
+        fiscalYear: { gte: 2024 },
+        // Funnel through Program so the scope clamp piggy-backs on the
+        // same predicate the rest of the dashboard uses.
+        ...(scope.programId
+          ? { programId: scope.programId }
+          : scope.facultyId
+            ? { program: { facultyId: scope.facultyId } }
+            : {}),
+      },
     }),
     prisma.$queryRaw<
       Array<{
@@ -236,7 +290,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       ) latest_fm ON true
       WHERE old_em.enrolled IS NOT NULL AND old_em.enrolled > 0
         AND p.status = 'ACTIVE'
-        AND p.sequence_no_from_sheet IS NOT NULL;
+        AND p.sequence_no_from_sheet IS NOT NULL
+        ${programScopeSql};
     `,
     prisma.$queryRaw<
       Array<{
@@ -261,6 +316,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       LEFT JOIN programs p ON p.faculty_id = f.id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
+        ${programScopeSql}
       LEFT JOIN LATERAL (
         SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
@@ -283,6 +339,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       ) latest_em ON true
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
+        ${programScopeSql}
       GROUP BY p.level
       ORDER BY MIN(
         CASE p.level::text
@@ -295,6 +352,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       );
     `,
     prisma.programStrategicNarrative.findMany({
+      where: Object.keys(programWhereExtra).length > 0 ? { program: programWhereExtra } : undefined,
       take: 5,
       orderBy: { generatedAt: 'desc' },
       select: {
@@ -305,7 +363,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       },
     }),
     prisma.programStrategicNarrative.count({
-      where: { program: { sequenceNoFromSheet: { not: null } } },
+      where: { program: { sequenceNoFromSheet: { not: null }, ...programWhereExtra } },
     }),
     // KKU intake-floor compliance — pull every active program with its
     // latest-year intake, then bucket via the canonical helper.
@@ -321,14 +379,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       LEFT JOIN latest l ON l.program_id = p.id
       LEFT JOIN enrollment_metrics em ON em.program_id = p.id AND em.academic_year = l.max_year
       WHERE p.status = 'ACTIVE'
-        AND p.sequence_no_from_sheet IS NOT NULL;
+        AND p.sequence_no_from_sheet IS NOT NULL
+        ${programScopeSql};
     `,
     // Lifecycle verdict distribution. Reads from the write-through
     // snapshot table populated by `programLifecycleVerdict()`. Filter to
     // canonical-297 programs so legacy mock-seed rows can't inflate the
     // distribution. Pulls program + faculty metadata for the drill-down.
     prisma.programLifecycleSnapshot.findMany({
-      where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } },
+      where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null }, ...programWhereExtra } },
       select: {
         verdict: true,
         methodologyVersion: true,
@@ -345,10 +404,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         },
       },
     }),
-    // Faculty-level health rollup. The university scope returns one
-    // HealthScoreRow per faculty (24 rows) — fast enough to inline in
-    // the dashboard payload.
-    computeHealthScores('university', null),
+    // Faculty-level health rollup.
+    //   University scope → one HealthScoreRow per faculty (24 rows).
+    //   Faculty scope    → one row for that faculty.
+    //   Program scope    → one row for that program (single-row card).
+    scope.programId
+      ? computeHealthScores('program', scope.programId)
+      : scope.facultyId
+        ? computeHealthScores('faculty', scope.facultyId)
+        : computeHealthScores('university', null),
   ]);
 
   // `latestEnrolled` is now total currently-enrolled headcount across all
@@ -357,8 +421,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   // only its result is no longer used for this KPI — the variable is now
   // ignored in favour of the cube-backed helper.
   void latestEnrolledRow;
-  const latestEnrolled = (await currentlyEnrolledStudents('university', null)) ?? 0;
-  const facultyCount = Number(facultyCountRow[0]?.count ?? 0);
+  const latestEnrolled = scope.programId
+    ? ((await currentlyEnrolledStudents('program', scope.programId)) ?? 0)
+    : scope.facultyId
+      ? ((await currentlyEnrolledStudents('faculty', scope.facultyId)) ?? 0)
+      : ((await currentlyEnrolledStudents('university', null)) ?? 0);
+  // Faculty count: 1 when scoped, full academic count otherwise.
+  const facultyCount = scope.programId || scope.facultyId
+    ? 1
+    : Number(facultyCountRow[0]?.count ?? 0);
   const netContributionThb = Number(financialSum._sum.netContribution ?? 0);
 
   // Bucket programs by KKU intake-floor policy (bachelor=30, postgrad=8).
@@ -420,6 +491,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
     JOIN programs p ON p.id = em.program_id
       AND p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+      ${programScopeSql}
     WHERE em.enrolled = 0;
   `;
   const zeroEnrollmentCount = Number(zeroEnrolRow[0]?.count ?? 0n);
@@ -534,15 +606,28 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   };
 
   // ── Faculty health rollup ───────────────────────────────────────────
-  // computeHealthScores('university', null) returns one row per
-  // faculty across all 24 — including non-academic ones. Filter to
-  // faculties that appear in `facultyTiles` (academic + has programs)
-  // so the home page card matches the rest of the dashboard.
+  //   University scope → rows are faculties; filter to academic ones
+  //                      with programs (matches the rest of the page).
+  //   Faculty scope    → rows are departments inside the user's faculty;
+  //                      render as-is.
+  //   Program scope    → rows are the single program (or its sub-units);
+  //                      render as-is.
   const academicFacultyIds = new Set(facultyTiles.map((t) => t.facultyId));
+  const healthScopeLevel: 'faculty' | 'department' | 'program' = scope.programId
+    ? 'program'
+    : scope.facultyId
+      ? 'department'
+      : 'faculty';
   const facultyHealth: FacultyHealthRow[] = (facultyHealthRows as HealthScoreRow[])
-    .filter((row) => academicFacultyIds.has(row.scopeId))
+    .filter((row) => {
+      // Only filter at university scope — every other scope returns
+      // children of a single parent and we want them all.
+      if (scope.facultyId || scope.programId) return true;
+      return academicFacultyIds.has(row.scopeId);
+    })
     .map((row) => ({
       facultyId: row.scopeId,
+      scopeLevel: healthScopeLevel,
       scopeLabel: row.scopeLabel,
       overallScore: row.overall.score,
       dataCompletenessPct: row.overall.dataCompletenessPct,

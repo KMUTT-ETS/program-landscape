@@ -32,10 +32,43 @@ export default async function HomePage() {
   }
   const user = session.user as SessionUser;
 
+  // Scope-aware home page. Admin-grade + UNIVERSITY_USER see the full
+  // 297-program rollup; FACULTY_USER sees only their faculty's slice;
+  // PROGRAM_USER sees only their single assigned program. Both
+  // surfaces (dashboard overview + cockpit matrix) honour the same
+  // scope so the page feels consistent end-to-end.
+  const isUniversityWide =
+    user.role === 'SUPER_ADMIN' ||
+    user.role === 'SYSTEM_ADMIN' ||
+    user.role === 'UNIVERSITY_USER';
+  const overviewScope = isUniversityWide
+    ? {}
+    : user.role === 'PROGRAM_USER' && user.programId
+      ? { programId: user.programId }
+      : user.role === 'FACULTY_USER' && user.facultyId
+        ? { facultyId: user.facultyId }
+        : {};
+  const matrixQuery = isUniversityWide
+    ? 'scope=university'
+    : user.role === 'PROGRAM_USER' && user.programId
+      ? `scope=program&scopeId=${encodeURIComponent(user.programId)}`
+      : user.role === 'FACULTY_USER' && user.facultyId
+        ? `scope=faculty&scopeId=${encodeURIComponent(user.facultyId)}`
+        : 'scope=university';
+
   const [overview, strategicMatrix] = await Promise.all([
-    getDashboardOverview(),
-    apiFetch<CockpitMatrix>('/cockpit/matrix?scope=university').catch(() => null),
+    getDashboardOverview(overviewScope),
+    apiFetch<CockpitMatrix>(`/cockpit/matrix?${matrixQuery}`).catch(() => null),
   ]);
+
+  // Scope label injected into every PanelFrame's provenance drawer so
+  // the user can see which slice they're looking at.
+  const provenanceScope: { level: 'university' | 'faculty' | 'program'; id: string | null } =
+    isUniversityWide
+      ? { level: 'university', id: null }
+      : user.role === 'PROGRAM_USER' && user.programId
+        ? { level: 'program', id: user.programId }
+        : { level: 'faculty', id: user.facultyId };
   const k = overview.kpis;
   const bulkRunning = k.bulkPipelineProgress.done < k.bulkPipelineProgress.total;
   const generatedAtIso = overview.generatedAt.toISOString();
@@ -47,7 +80,13 @@ export default async function HomePage() {
         <PageHeader
           eyebrow="Module 00 · Executive Landscape"
           title="Curriculum Landscape"
-          subtitle={`Strategic snapshot of all ${k.programCount} KKU programs across ${k.facultyCount} faculties.`}
+          subtitle={
+            isUniversityWide
+              ? `Strategic snapshot of all ${k.programCount} KKU programs across ${k.facultyCount} faculties.`
+              : user.role === 'PROGRAM_USER'
+                ? `Strategic snapshot of the program assigned to your account.`
+                : `Strategic snapshot of ${k.programCount} programs in your faculty.`
+          }
           actions={<FreshnessBadge freshnessDate={generatedAtIso} label="dashboard sync" />}
         />
 
@@ -121,7 +160,7 @@ export default async function HomePage() {
                 { id: 'financial_metrics', name: 'KKU Finance · revenue & contribution' },
               ],
               methodologyVersion: strategicMatrix.methodologyVersion,
-              scope: { level: 'university', id: null },
+              scope: provenanceScope,
             }}
           >
             <StrategicMatrixHero matrix={strategicMatrix} />
@@ -143,7 +182,7 @@ export default async function HomePage() {
               ],
               methodologyVersion:
                 overview.lifecycle.methodologyVersions[0] ?? overview.methodologyVersion,
-              scope: { level: 'university', id: null },
+              scope: provenanceScope,
             }}
           >
             <LifecycleVerdictViz
@@ -157,8 +196,14 @@ export default async function HomePage() {
           </PanelFrame>
 
           <PanelFrame
-            title="Health score · by faculty"
-            description="Equal-weighted across 5 dimensions: attractiveness, financial, capability, outcomes, relevance. Click any row to drill into the cockpit."
+            title={
+              isUniversityWide
+                ? 'Health score · by faculty'
+                : user.role === 'PROGRAM_USER'
+                  ? 'Health score · your program'
+                  : 'Health score · by department'
+            }
+            description="Equal-weighted across 5 dimensions: attractiveness, financial, capability, outcomes, relevance. Click any row to drill in."
             freshnessDate={generatedAtIso}
             provenanceMeta={{
               freshnessDate: generatedAtIso,
@@ -169,7 +214,7 @@ export default async function HomePage() {
                 { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
               ],
               methodologyVersion: 'health-score.v1',
-              scope: { level: 'university', id: null },
+              scope: provenanceScope,
             }}
           >
             <HealthByFaculty
@@ -233,7 +278,12 @@ export default async function HomePage() {
           <p className="mt-3 text-[11px] text-text-tertiary">
             Methodology version: <span className="font-tabular text-text-secondary">{overview.methodologyVersion}</span>
             <span className="mx-2 opacity-60">·</span>
-            Scope: university · all 24 faculties
+            Scope:{' '}
+            {isUniversityWide
+              ? 'university · all 24 faculties'
+              : user.role === 'PROGRAM_USER'
+                ? 'program · your assigned program'
+                : 'faculty · your assigned faculty'}
             <span className="mx-2 opacity-60">·</span>
             <Link href="/cockpit" className="text-accent-default hover:underline">
               Drill into the cockpit →

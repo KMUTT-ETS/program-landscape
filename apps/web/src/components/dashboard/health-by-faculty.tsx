@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useChartPalette } from '@kku/ui';
 
 interface FacultyHealthRow {
+  /** Stable id for the row's drill-in target; meaning depends on
+   *  `scopeLevel` — faculty.id, department.id, or program.id. */
   facultyId: string;
+  /** What kind of entity this row represents — drives the link href. */
+  scopeLevel: 'faculty' | 'department' | 'program';
   scopeLabel: string;
   overallScore: number | null;
   dataCompletenessPct: number;
@@ -87,7 +91,11 @@ export function HealthByFaculty({ rows, methodologyVersion }: Props) {
               className="grid grid-cols-1 gap-2 border-t border-border-subtle py-2 first:border-t-0 md:grid-cols-[minmax(0,1.6fr)_56px_minmax(0,1.4fr)_64px] md:items-center"
             >
               <Link
-                href={`/cockpit?scope=faculty&scopeId=${row.facultyId}`}
+                href={
+                  row.scopeLevel === 'program'
+                    ? `/programs/${row.facultyId}`
+                    : `/cockpit?scope=${row.scopeLevel}&scopeId=${row.facultyId}`
+                }
                 className="truncate text-[12px] text-text-primary hover:text-accent-default hover:underline"
                 title={row.scopeLabel}
               >
