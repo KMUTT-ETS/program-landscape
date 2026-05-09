@@ -35,7 +35,11 @@ export function LevelMix({ rows }: Props) {
     programs: r.programCount,
     students: r.enrollmentLatest,
     perProgram: r.programCount > 0 ? r.enrollmentLatest / r.programCount : 0,
-    color: palette.series[i % palette.series.length],
+    // Fallback to a neutral chart token when palette.series[i] is somehow
+    // undefined. Resolved at runtime via useChartPalette so it tracks
+    // theme; the wrapping `oklch(var(...))` is an allowed design-token
+    // form (see packages/design ESLint rule).
+    color: palette.series[i % palette.series.length] ?? 'oklch(var(--color-text-tertiary))',
   }));
 
   return (

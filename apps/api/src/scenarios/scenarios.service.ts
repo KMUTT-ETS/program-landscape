@@ -270,11 +270,16 @@ export class ScenariosService {
       { metric: 'monteCarloCi80Low', value: result.monteCarlo.totalNetContributionCi80[0] },
       { metric: 'monteCarloCi80High', value: result.monteCarlo.totalNetContributionCi80[1] },
     ];
-    for (const { metric, value } of scalarMetrics) {
-      await prisma.scenarioResult.create({
-        data: { scenarioId: id, metric, value },
-      });
-    }
+    // Bulk insert — was 9 sequential create() calls (~9× round-trips).
+    // createMany batches into one INSERT and is the BullMQ-job hot path
+    // for every scenario run. Prompt-15 N+1 fix.
+    await prisma.scenarioResult.createMany({
+      data: scalarMetrics.map(({ metric, value }) => ({
+        scenarioId: id,
+        metric,
+        value,
+      })),
+    });
 
     return { runId: run.id, result, durationMs };
   }

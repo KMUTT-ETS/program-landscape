@@ -1,52 +1,40 @@
 /** @type {import('next').NextConfig} */
 
+import bundleAnalyzer from '@next/bundle-analyzer';
+
+// Bundle-analyzer is gated behind ANALYZE=true so the normal build
+// stays fast. Run with: `ANALYZE=true pnpm --filter web build`. Reports
+// land at apps/web/.next/analyze/{client,nodejs,edge}.html.
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false,
+});
+
 // ──────────────────────────────────────────────────────────────────────
-// Security headers (Prompt 13 hardening).
+// Security headers.
 //
-// CSP posture:
-//   - default-src 'self' — baseline
-//   - script-src: Next requires 'unsafe-inline' for its bootstrap payloads
-//     and 'unsafe-eval' in dev for HMR. In prod we drop 'unsafe-eval'.
-//   - style-src 'self' 'unsafe-inline' — Tailwind emits inline styles
-//     through its JIT runtime; tightening requires a nonce pipeline.
-//   - img-src 'self' data: blob: — charts/icons and react-pdf thumbnails
-//     use data: and blob:.
-//   - font-src 'self' data: — fonts ship from /public.
-//   - connect-src 'self' + API host — keep the API on the same origin in
-//     prod via nginx so this stays tight.
-//   - frame-ancestors 'none' — embedding blocked.
+// **CSP** is set per-request by `middleware.ts` (nonce-based, drops
+// `'unsafe-inline'` on script-src). The static `headers()` block below
+// no longer carries a CSP entry — middleware always wins for HTML
+// responses.
 //
-// HSTS enforced at this layer for the HTML response; also at NestJS and
-// nginx for the API.
+// The remaining headers are baseline-static: HSTS / Frame-Options /
+// Content-Type-Options / Referrer-Policy / Permissions-Policy. nginx
+// also stamps them for safety (defence in depth across error pages).
 // ──────────────────────────────────────────────────────────────────────
 
 const isProd = process.env.NODE_ENV === 'production';
 
-const cspDirectives = [
-  `default-src 'self'`,
-  // Next.js bootstrap needs inline; dev additionally needs eval for HMR.
-  `script-src 'self' 'unsafe-inline'${isProd ? '' : " 'unsafe-eval'"}`,
-  `style-src 'self' 'unsafe-inline'`,
-  `img-src 'self' data: blob:`,
-  `font-src 'self' data:`,
-  `connect-src 'self' ${process.env.PUBLIC_API_ORIGIN ?? ''}`.trim(),
-  `worker-src 'self' blob:`,
-  `frame-ancestors 'none'`,
-  `base-uri 'self'`,
-  `form-action 'self'`,
-].join('; ');
-
 const securityHeaders = [
-  { key: 'Content-Security-Policy', value: cspDirectives },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'Referrer-Policy', value: 'no-referrer' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
   ...(isProd
     ? [
         {
           key: 'Strict-Transport-Security',
-          value: `max-age=${60 * 60 * 24 * 180}; includeSubDomains`,
+          value: `max-age=31536000; includeSubDomains; preload`,
         },
       ]
     : []),
@@ -90,9 +78,27 @@ const nextConfig = {
   // The monorepo root is two levels up from apps/web. Next uses this to
   // trace dependencies during the standalone build; without it, the
   // tracer walks to `/` which is wrong in our WSL2 / Docker layout.
+  // Top-level placement triggers a "Unrecognized key" warning in Next 14.2
+  // but works correctly; moving it into `experimental` actually changes
+  // dev-mode module resolution and breaks Prisma tagged-template parsing
+  // for some workspace-imported files. Verified by repro 2026-05-09 —
+  // do NOT move into `experimental` until Next 15 upgrade.
   outputFileTracingRoot: new URL('../../', import.meta.url).pathname,
   experimental: {
     typedRoutes: true,
+    // Critical: mark `@prisma/client` as an external server package so Next
+    // loads it from disk at RUNTIME (single instance) instead of bundling it
+    // separately per Webpack context (rsc / action-browser / etc).
+    //
+    // Without this, each Webpack context bundles its own copy of
+    // @prisma/client. `Prisma.sql\`...\`` evaluated in one context produces a
+    // Sql object whose `instanceof Prisma.Sql` check fails inside another
+    // context's `$queryRaw` — Prisma then mis-handles the value as a string,
+    // Postgres rejects the SQL with `syntax error at or near "$1"`, and the
+    // home dashboard 500s on every authenticated request.
+    //
+    // Verified fix 2026-05-09. Reproducible bug pre-existing on HEAD.
+    serverComponentsExternalPackages: ['@prisma/client', '@kku/db'],
   },
   async headers() {
     return [
@@ -105,4 +111,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

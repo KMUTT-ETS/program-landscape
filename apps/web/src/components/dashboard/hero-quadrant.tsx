@@ -206,7 +206,7 @@ export function HeroQuadrant({ points, excludedCount, caveat }: Props) {
     const placed: Array<{ p: QuadrantPoint; labelY: number }> = [];
     for (const p of sorted) {
       const desiredY = yPx(p.netContributionThb);
-      const lastY = placed.length > 0 ? placed[placed.length - 1].labelY : -Infinity;
+      const lastY = placed.length > 0 ? placed[placed.length - 1]!.labelY : -Infinity;
       const labelY = Math.max(desiredY, lastY + RAIL_LINE_HEIGHT);
       placed.push({ p, labelY });
     }

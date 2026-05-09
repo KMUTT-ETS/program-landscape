@@ -1,0 +1,142 @@
+
+> web@0.0.0 prebuild /home/denpong/projects/program-landscape/apps/web
+> node scripts/copy-pdf-worker.mjs
+
+copy-pdf-worker: /public/pdf.worker.4.8.69.mjs
+
+> web@0.0.0 build /home/denpong/projects/program-landscape/apps/web
+> next build
+
+ ⚠ Invalid next.config.mjs options detected: 
+ ⚠     Unrecognized key(s) in object: 'outputFileTracingRoot'
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+  ▲ Next.js 14.2.32
+  - Environments: .env
+  - Experiments (use with caution):
+    · typedRoutes
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/61) ...
+   Generating static pages (15/61) 
+   Generating static pages (30/61) 
+   Generating static pages (45/61) 
+ ✓ Generating static pages (61/61)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                             Size     First Load JS
+┌ ƒ /                                                   7.39 kB         305 kB
+├ ○ /_not-found                                         878 B          88.3 kB
+├ ƒ /admin                                              155 B           300 kB
+├ ƒ /admin/ai-cost                                      157 B           300 kB
+├ ƒ /admin/data-quality                                 157 B           300 kB
+├ ƒ /admin/data-setup                                   4.9 kB          312 kB
+├ ƒ /admin/data-setup/raw/[dataset]                     157 B           300 kB
+├ ƒ /admin/data-sources                                 5.08 kB         312 kB
+├ ƒ /admin/data-sources/[slug]                          4.52 kB         312 kB
+├ ƒ /admin/extraction-review                            157 B           300 kB
+├ ƒ /admin/extraction-review/[id]                       4.09 kB         311 kB
+├ ƒ /admin/pdf-generation                               157 B           300 kB
+├ ƒ /admin/pdf-review                                   3.65 kB         311 kB
+├ ƒ /admin/pdf-review/[id]                              113 kB          420 kB
+├ ƒ /admin/programs                                     6.12 kB         316 kB
+├ ƒ /admin/programs/[id]                                6.97 kB         316 kB
+├ ƒ /admin/programs/from-pdf                            5.72 kB         315 kB
+├ ƒ /admin/programs/new                                 3.94 kB         311 kB
+├ ƒ /admin/programs/pipeline                            151 B          87.6 kB
+├ ƒ /admin/queues                                       6.95 kB         314 kB
+├ ƒ /admin/registry-mapping                             5.06 kB         303 kB
+├ ƒ /admin/system-status                                156 B           300 kB
+├ ƒ /admin/users                                        8.81 kB         316 kB
+├ ƒ /analyst                                            4.19 kB         338 kB
+├ ƒ /api/admin-data-setup-raw/[...path]                 0 B                0 B
+├ ƒ /api/admin-education/[...path]                      0 B                0 B
+├ ƒ /api/admin-imd/extract/[pdfId]                      0 B                0 B
+├ ƒ /api/admin-ingestion/[id]/runs                      0 B                0 B
+├ ƒ /api/admin-pdfs-detail/[id]                         0 B                0 B
+├ ƒ /api/admin-pdfs-re-extract/[id]                     0 B                0 B
+├ ƒ /api/admin-pdfs/fix-filenames                       0 B                0 B
+├ ƒ /api/admin-pdfs/upload                              0 B                0 B
+├ ƒ /api/admin-program-export/[id]                      0 B                0 B
+├ ƒ /api/admin-programs                                 0 B                0 B
+├ ƒ /api/admin-programs/[...path]                       0 B                0 B
+├ ƒ /api/admin-queues/[[...path]]                       0 B                0 B
+├ ƒ /api/admin-registry-mapping                         0 B                0 B
+├ ƒ /api/admin-skills/[id]                              0 B                0 B
+├ ƒ /api/admin-staff-dashboard/[...path]                0 B                0 B
+├ ƒ /api/auth/[...nextauth]                             0 B                0 B
+├ ƒ /api/auth/callback/kku-sso                          0 B                0 B
+├ ƒ /api/auth/kku-sso/start                             0 B                0 B
+├ ƒ /api/profile-narrative                              0 B                0 B
+├ ƒ /api/profile/avatar                                 0 B                0 B
+├ ƒ /api/profile/avatar/[userId]                        0 B                0 B
+├ ƒ /api/proxy/analyst/chat                             0 B                0 B
+├ ƒ /api/proxy/decisions/[id]/milestones                0 B                0 B
+├ ƒ /api/proxy/decisions/[id]/milestones/[milestoneId]  0 B                0 B
+├ ƒ /api/proxy/decisions/[id]/outcome-review            0 B                0 B
+├ ƒ /api/proxy/decisions/[id]/status                    0 B                0 B
+├ ƒ /api/proxy/scenarios                                0 B                0 B
+├ ƒ /api/proxy/scenarios/[id]                           0 B                0 B
+├ ƒ /api/proxy/scenarios/[id]/run                       0 B                0 B
+├ ƒ /benchmarking                                       4.23 kB         304 kB
+├ ƒ /benchmarking/programs/[id]                         157 B           300 kB
+├ ƒ /benchmarking/white-spaces                          156 B           300 kB
+├ ƒ /changelog                                          157 B           300 kB
+├ ƒ /cockpit                                            8.57 kB         316 kB
+├ ƒ /decisions                                          2.77 kB         303 kB
+├ ƒ /decisions/[id]                                     6.58 kB         304 kB
+├ ƒ /decisions/lessons-learned                          157 B           300 kB
+├ ƒ /docs/methodology                                   51.2 kB         349 kB
+├ ƒ /education                                          2.38 kB         312 kB
+├ ƒ /education/active-pivot                             631 B           303 kB
+├ ƒ /education/international                            4.66 kB         341 kB
+├ ƒ /education/location                                 6.29 kB         342 kB
+├ ƒ /education/performance                              7.54 kB         305 kB
+├ ƒ /education/recruitment                              8.63 kB         307 kB
+├ ƒ /education/student-info                             6.88 kB         305 kB
+├ ƒ /education/tuition                                  3.19 kB         305 kB
+├ ƒ /gap-analysis                                       4.08 kB         304 kB
+├ ƒ /gap-analysis/opportunities                         156 B           300 kB
+├ ƒ /gap-analysis/risks                                 157 B           300 kB
+├ ○ /icon.png                                           0 B                0 B
+├ ƒ /inbox                                              1.13 kB         311 kB
+├ ƒ /no-access                                          179 B          96.3 kB
+├ ƒ /profile                                            19.1 kB         317 kB
+├ ƒ /programs                                           157 B           300 kB
+├ ƒ /programs/[id]                                      23.4 kB         367 kB
+├ ƒ /programs/[id]/print                                482 B          87.9 kB
+├ ƒ /risks                                              6.17 kB         314 kB
+├ ƒ /risks/[id]                                         2.53 kB         308 kB
+├ ƒ /risks/drivers                                      2.53 kB         308 kB
+├ ƒ /risks/indicators                                   2.53 kB         308 kB
+├ ƒ /risks/matrix                                       5.64 kB         311 kB
+├ ƒ /scenarios                                          4.7 kB          303 kB
+├ ƒ /scenarios/[id]                                     6.57 kB         304 kB
+├ ƒ /signin                                             2.99 kB        94.6 kB
+├ ƒ /skills                                             4.48 kB         302 kB
+├ ƒ /staff                                              2.11 kB         311 kB
+├ ƒ /staff/compensation                                 3.42 kB         305 kB
+├ ƒ /staff/faculty-by-program                           4.82 kB         303 kB
+├ ƒ /staff/publications                                 151 B          87.6 kB
+├ ƒ /staff/research                                     6.42 kB         308 kB
+├ ƒ /staff/workforce                                    2.87 kB         305 kB
+├ ƒ /styleguide                                         7.08 kB         305 kB
+├ ƒ /trends                                             157 B           302 kB
+├ ƒ /trends/[id]                                        751 B           310 kB
+├ ƒ /trends/regions/[region]                            157 B           302 kB
+├ ƒ /trends/sectors                                     157 B           300 kB
+└ ƒ /upload                                             4.92 kB         312 kB
++ First Load JS shared by all                           87.4 kB
+  ├ chunks/16e94406-16c67836a5ed3551.js                 53.6 kB
+  ├ chunks/8006-8b08dcce47a1103e.js                     31.7 kB
+  └ other shared chunks (total)                         2.04 kB
+
+
+ƒ Middleware                                            32.5 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

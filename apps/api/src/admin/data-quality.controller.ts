@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { prisma } from '@kku/db';
+import { getMvRefreshSnapshots, prisma } from '@kku/db';
 import { Authorized, Provenance } from '../common';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ export class DataQualityController {
       outcomesPresent,
       extractionFailures,
       extractionsTotal,
+      mvSnapshots,
     ] = await Promise.all([
       prisma.program.count({
         where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
@@ -49,6 +50,13 @@ export class DataQualityController {
       }),
       prisma.pdfExtraction.count({ where: { reviewStatus: 'REJECTED' } }),
       prisma.pdfExtraction.count(),
+      // MV refresh-log snapshot — surfaces when each rollup MV was
+      // last rebuilt + how long it took + how many rows it contains.
+      // ageMinutes >= 60 + trigger='never' indicates MV is stale or
+      // never refreshed (the wiring of refreshMetricViews on a
+      // post-ingestion hook is a deferred deliverable — see prompt-15
+      // report §5).
+      getMvRefreshSnapshots(),
     ]);
 
     const programsWithEnrollment = enrollmentPresent.length;
@@ -214,6 +222,19 @@ export class DataQualityController {
         extractionFailures,
         failurePct: pct(extractionFailures, extractionsTotal),
       },
+      // Materialized-view freshness — operator early-warning when the
+      // rollups (cockpit, gap, benchmarking) are stale. ageMinutes
+      // ≥ 1440 + trigger='never' → MV has never been refreshed since
+      // the last seed. Refresh manually with `pnpm outcomes:refresh-derived`.
+      mvFreshness: mvSnapshots.map((s) => ({
+        view: s.viewName,
+        refreshedAt: s.refreshedAt.toISOString(),
+        ageMinutes: s.ageMinutes,
+        durationMs: s.durationMs,
+        rowCount: s.rowCount,
+        trigger: s.trigger,
+        stale: s.ageMinutes >= 1440 || s.trigger === 'never',
+      })),
       anomalies,
     };
   }

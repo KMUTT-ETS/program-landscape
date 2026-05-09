@@ -667,6 +667,10 @@ model AuditLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  // Composite for the sign-in lockout hot path
+  // (where: { userId, action: 'auth.signin.fail', createdAt: { gte } }).
+  // Migration: 20260509120000_perf_composite_indexes.
+  @@index([userId, action, createdAt])
   @@map("audit_logs")
 }
 
@@ -706,6 +710,10 @@ model AiInference {
   @@index([module])
   @@index([kind])
   @@index([createdAt])
+  // Composite for the AiQuotaGuard hot path
+  // (where: { userId, createdAt: { gte } }). Migration:
+  // 20260509120000_perf_composite_indexes.
+  @@index([userId, createdAt])
   @@map("ai_inferences")
 }
 

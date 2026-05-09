@@ -1,11 +1,9 @@
 'use client';
 
 import * as React from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
 import {
   Badge,
   Button,
@@ -21,18 +19,22 @@ import {
 } from '@/lib/actions/pdf-review';
 import type { PdfDetail } from './page';
 
-// Point react-pdf at the worker file served from /public. `scripts/
-// copy-pdf-worker.mjs` copies it there during `pnpm dev`/`pnpm build`,
-// versioned so cache-bust happens when pdfjs-dist bumps. Referencing
-// via `new URL(..., import.meta.url)` would trigger Next's asset
-// bundling + Terser minification, which chokes on the already-minified
-// ES-module worker.
-pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.${pdfjs.version}.mjs`;
+// Lazy-load react-pdf + pdfjs (~110 kB) on the client only. Drops the
+// initial-load cost of every other page that imports from this file's
+// neighbours — react-pdf no longer ships in the route's first chunk.
+const PdfViewer = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewer), {
+  ssr: false,
+  loading: () => (
+    <Card padding="none" className="overflow-hidden">
+      <div className="flex h-[78vh] items-center justify-center text-text-tertiary">
+        Loading PDF viewer…
+      </div>
+    </Card>
+  ),
+});
 
 export function ReviewClient({ pdf, fileUrl }: { pdf: PdfDetail; fileUrl: string }) {
   const router = useRouter();
-  const [page, setPage] = React.useState(1);
-  const [numPages, setNumPages] = React.useState<number | null>(null);
   const [selectedExtractionId, setSelectedExtractionId] = React.useState<string | null>(
     pdf.extractions[0]?.id ?? null,
   );
@@ -74,51 +76,8 @@ export function ReviewClient({ pdf, fileUrl }: { pdf: PdfDetail; fileUrl: string
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)]">
-      {/* Left: PDF viewer */}
-      <Card padding="none" className="overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border-default bg-surface-2 px-3 py-2 text-sm">
-          <div className="flex items-center gap-2">
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              ← Prev
-            </Button>
-            <span className="font-tabular text-text-secondary">
-              Page {page}
-              {numPages ? ` / ${numPages}` : ''}
-            </span>
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => setPage((p) => (numPages ? Math.min(numPages, p + 1) : p + 1))}
-              disabled={numPages !== null && page >= numPages}
-            >
-              Next →
-            </Button>
-          </div>
-          <a
-            href={fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-accent underline"
-          >
-            Open raw
-          </a>
-        </div>
-        <div className="flex max-h-[78vh] justify-center overflow-auto bg-surface-0 p-4">
-          <Document
-            file={fileUrl}
-            onLoadSuccess={(info) => setNumPages(info.numPages)}
-            loading={<div className="p-6 text-text-tertiary">Loading PDF…</div>}
-            error={<div className="p-6 text-danger">Failed to load PDF</div>}
-          >
-            <Page pageNumber={page} width={720} renderAnnotationLayer renderTextLayer />
-          </Document>
-        </div>
-      </Card>
+      {/* Left: PDF viewer (lazy chunk — react-pdf + pdfjs) */}
+      <PdfViewer fileUrl={fileUrl} />
 
       {/* Right: extractions + actions */}
       <div className="flex flex-col gap-4">
