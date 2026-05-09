@@ -52,9 +52,37 @@ const securityHeaders = [
     : []),
 ];
 
+// Dev-server LAN access — KKU staff often hit the dev server from
+// other machines on the internal network. Next 14.2+ warns / blocks
+// cross-origin /_next/* requests unless they're explicitly
+// allow-listed.
+//
+// Only EXACT hostnames and `*.subdomain` patterns work — IP wildcards
+// like `10.101.*` are silently rejected by Next's matcher (verified
+// against next/dist/server/app-render/csrf-protection.js). So we
+// either list IPs by hand or accept a comma-separated env override.
+//
+// In prod this field is ignored — the upstream KKU proxy handles
+// cross-origin posture. To allow a new dev machine without a code
+// change, set `NEXT_DEV_ALLOWED_ORIGINS=10.101.x.y,10.101.x.z` in
+// `.env`.
+const allowedDevOrigins = [
+  'localhost',
+  '127.0.0.1',
+  '*.localhost',
+  // Known KKU LAN dev clients. Add more IPs here, or use the env
+  // override (NEXT_DEV_ALLOWED_ORIGINS) for ad-hoc additions.
+  '10.101.111.233',
+  ...(process.env.NEXT_DEV_ALLOWED_ORIGINS?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean) ?? []),
+];
+
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@kku/ui', '@kku/design', '@kku/shared'],
+  // Suppress the "Cross origin request detected" dev warning.
+  allowedDevOrigins,
   // Emit a self-contained server bundle at `.next/standalone` so the
   // production Dockerfile can copy it without shipping `node_modules`.
   // Static assets live at `.next/static` and are copied alongside.

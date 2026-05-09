@@ -9,7 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@kku/ui';
-import { Bell, LogOut, Monitor, Moon, Sun, User, UserCog } from 'lucide-react';
+import { Bell, LogOut, Monitor, Moon, Sun, User, UserCircle, UserCog } from 'lucide-react';
+import Link from 'next/link';
 import { signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import type { SessionUser } from '@kku/shared';
@@ -22,26 +23,44 @@ function canImpersonate(role: string): boolean {
   return role === 'SUPER_ADMIN';
 }
 
-// Top-bar right cluster — bell · theme · user.
+// Top-bar right cluster — bell · theme · user dropdown.
 //
-// 2026-05-02 cleanup: theme picker promoted out of the user dropdown
-// into its own icon button (the standard Linear/Vercel pattern).
-// The user dropdown is now strictly account info + sign out.
+// 2026-05-09: consolidated. Previously user info was duplicated
+// between this top-bar trigger and a footer chip in the left nav.
+// The user dropdown is now the single home for account info,
+// profile link, role switching, and sign-out. Theme stays as its
+// own cycling icon button (Sun / Moon / Monitor) — quicker UX
+// than burying it in a dropdown.
 
 export function TopBarRight({
   user,
+  displayName = null,
+  avatarUrl = null,
   impersonating = false,
 }: {
   user: SessionUser;
+  /** Rank-prefixed Thai/English name (e.g. "ผศ. ดร. เด่นพงษ์ สุดภักดี").
+   *  Resolved server-side via FacultyMember + DS2003. Null when the
+   *  user isn't on the HR roster — falls back to bare `user.name`. */
+  displayName?: { th: string; en: string } | null;
+  /** URL to the user's uploaded profile photo. Null = render
+   *  initials over the coral gradient. */
+  avatarUrl?: string | null;
   impersonating?: boolean;
 }) {
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
-  // The viewer can switch role if they're either super-grade right now
-  // or already impersonating (which proves their underlying role was
-  // super-grade — the override gate in auth.ts wouldn't have fired
-  // otherwise).
   const canSwitch = canImpersonate(user.role) || impersonating;
-  const initials = (user.name ?? user.email)
+
+  // Use the rank-prefixed Thai name when available; otherwise fall
+  // back to the bare SSO display name.
+  const headerName = displayName?.th ?? user.name ?? user.email.split('@')[0];
+  // For initials, strip Thai + English honorifics first so the avatar
+  // shows the person's actual initials, not "ผศ" or "AP".
+  const initialsSource =
+    displayName?.en ?? displayName?.th ?? user.name ?? user.email;
+  const initials = initialsSource
+    .replace(/^(ผศ\.|รศ\.|ศ\.|ดร\.|อ\.|Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi, '')
+    .replace(/^(ผศ\.|รศ\.|ศ\.|ดร\.|อ\.|Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi, '')
     .split(/[\s.@]+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -67,20 +86,33 @@ export function TopBarRight({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="group flex h-12 items-center gap-3.5 rounded-full pl-1.5 pr-5 ring-1 ring-inset ring-border-subtle bg-surface-1/70 backdrop-blur-sm transition-[background-color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:ring-accent/40 hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+            className="group flex h-14 items-center gap-4 rounded-full px-1 transition-opacity duration-fast hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
           >
-            {/* Avatar — solid coral disk with bold initials. Simplified
-                from the previous gradient + ring + shadow stack which
-                read as "distorted" at small sizes. */}
+            {/* Avatar — uploaded photo when present; otherwise solid
+                coral disk with initials. Same image source as the
+                profile-page hero (served via /api/profile/avatar). */}
             <div
               aria-hidden
-              className="grid h-9 w-9 place-items-center rounded-full bg-accent-default text-[13px] font-bold uppercase tracking-wider text-accent-fg shadow-[0_2px_10px_-2px_rgb(255_140_70/0.55)]"
+              className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-accent-default shadow-[0_2px_10px_-2px_rgb(255_140_70/0.55)]"
             >
-              {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  width={48}
+                  height={48}
+                  className="block h-12 w-12 object-cover"
+                />
+              ) : (
+                <span className="flex h-12 w-12 items-center justify-center text-[14px] font-bold uppercase tracking-wider text-accent-fg">
+                  {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
+                </span>
+              )}
             </div>
             <div className="hidden flex-col items-start leading-none md:flex relative top-[-0.5px]">
               <span className="text-[15px] font-semibold tracking-tight text-text-primary">
-                {user.name ?? user.email.split('@')[0]}
+                {headerName}
               </span>
               <span className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-accent-default">
                 {user.role.replaceAll('_', ' ')}
@@ -88,11 +120,19 @@ export function TopBarRight({
             </div>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="w-[260px]">
           <DropdownMenuLabel>Account</DropdownMenuLabel>
           <DropdownMenuItem disabled>
             <User className="h-4 w-4 text-text-tertiary" aria-hidden />
-            <span className="truncate">{user.email}</span>
+            <span className="truncate text-xs text-text-tertiary">
+              {user.email}
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/profile">
+              <UserCircle className="h-4 w-4 text-text-tertiary" aria-hidden />
+              View profile
+            </Link>
           </DropdownMenuItem>
 
           {canSwitch && (

@@ -95,14 +95,13 @@ export async function provisionFromSsonext(claims: SsonextClaims): Promise<User>
     : null;
 
   if (existing) {
-    // Bind ssoSubject if the user was pre-provisioned (admin) and hadn't
-    // logged in via SSO yet. Don't touch role / facultyId on existing users
-    // — those are admin-managed.
-    if (!existing.ssoSubject && claims.immutableId) {
-      return prisma.user.update({
-        where: { id: existing.id },
-        data: { ssoSubject: claims.immutableId },
-      });
+    // Bind ssoSubject + employeeId if missing. Don't touch role /
+    // facultyId on existing users — those are admin-managed.
+    const patch: { ssoSubject?: string; employeeId?: string } = {};
+    if (!existing.ssoSubject && claims.immutableId) patch.ssoSubject = claims.immutableId;
+    if (!existing.employeeId && claims.employeeId) patch.employeeId = claims.employeeId;
+    if (Object.keys(patch).length > 0) {
+      return prisma.user.update({ where: { id: existing.id }, data: patch });
     }
     return existing;
   }
@@ -111,6 +110,7 @@ export async function provisionFromSsonext(claims: SsonextClaims): Promise<User>
     data: {
       email: claims.email,
       ssoSubject: claims.immutableId || null,
+      employeeId: claims.employeeId || null,
       name: pickDisplayName(claims),
       role: 'UNIVERSITY_USER',
       facultyId,

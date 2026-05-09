@@ -18,3 +18,4 @@ export * from './program-ai-readiness';
 export * from './graduate-employment-survey';
 export * from './imd-rankings-extract';
 export * from './risk-assessment';
+export * from './expertise-narrative';

@@ -8,13 +8,14 @@ import { apiFetch } from '@/lib/api-client';
 import type { MeResponse } from '@kku/shared';
 import { AppShellClientChrome } from './client-chrome';
 import { TopBarRight } from './top-bar-right';
-import { NavUserFooter } from './nav-user-footer';
+import { NavCredits } from './nav-user-footer';
 import { TopBarBreadcrumb } from './top-bar-breadcrumb';
 import { ImpersonationBanner } from './impersonation-banner';
 import {
   IMPERSONATION_COOKIE,
   tryDecodeImpersonation,
 } from '@/lib/auth/impersonation';
+import { resolveUserChrome } from '@/lib/display-name';
 
 // Server component. 2026-04-24 redesign — the sidebar is now the
 // brand-home: KKU monogram + wordmark at the top, module tiles in the
@@ -28,10 +29,16 @@ export async function AuthedAppShell({
   user: SessionUser;
   children: React.ReactNode;
 }) {
-  const [entities, me, cookieStore] = await Promise.all([
+  const [entities, me, cookieStore, chrome] = await Promise.all([
     fetchScopeEntities(),
     apiFetch<MeResponse>('/me').catch(() => null),
     cookies(),
+    // Avatar URL + rank-prefixed Thai/English name. `chrome.name` is
+    // null for admin-only accounts not on the HR roster — TopBarRight
+    // falls back to the bare `user.name` from SSO claims.
+    // `chrome.avatarUrl` is null when no photo uploaded — initials
+    // render instead.
+    resolveUserChrome(user.userId).catch(() => ({ name: null, avatarUrl: null })),
   ]);
   const impersonation = tryDecodeImpersonation(
     cookieStore.get(IMPERSONATION_COOKIE)?.value,
@@ -77,6 +84,8 @@ export async function AuthedAppShell({
           right={
             <TopBarRight
               user={user}
+              displayName={chrome.name}
+              avatarUrl={chrome.avatarUrl}
               impersonating={Boolean(impersonation)}
             />
           }
@@ -86,7 +95,7 @@ export async function AuthedAppShell({
         <LeftNav
           sections={appNavSectionsFor(user)}
           brand={brand}
-          footer={<NavUserFooter user={user} />}
+          footer={<NavCredits />}
         />
       }
     >

@@ -1,103 +1,18 @@
-'use client';
+// Sidebar footer credits. After the 2026-05-09 chrome consolidation
+// (account/theme/sign-out moved into the top-bar dropdown) the only
+// thing left in the sidebar footer is this signature block — kept
+// intentionally always-visible at the bottom of the nav.
 
-import * as React from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@kku/ui';
-import { ChevronUp, LogOut, Monitor, Moon, Sun } from 'lucide-react';
-import { signOut } from 'next-auth/react';
-import { useTheme } from 'next-themes';
-import type { SessionUser } from '@kku/shared';
-import { setThemePreferenceAction } from '@/lib/actions/theme';
-
-// User chip rendered in the LeftNav footer slot. The sidebar is on the
-// nav-surface (near-black) so the chip uses alpha layers on top of
-// nav-fg to stay legible without competing with the brand at top.
-
-export function NavUserFooter({ user }: { user: SessionUser }) {
-  const { theme, setTheme } = useTheme();
-
-  const onTheme = (value: string) => {
-    setTheme(value);
-    void setThemePreferenceAction(
-      value === 'light' ? 'LIGHT' : value === 'dark' ? 'DARK' : 'SYSTEM',
-    );
-  };
-
-  const initials = (user.name ?? user.email)
-    .split(/[\s.@]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
-    .join('');
-
+export function NavCredits() {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="group flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors duration-fast hover:bg-nav-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-fg/20"
-        >
-          <div
-            aria-hidden
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-nav-fg/10 text-[11px] font-bold uppercase text-nav-fg ring-1 ring-nav-fg/20"
-          >
-            {initials || (user.name ?? user.email).slice(0, 1).toUpperCase()}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="truncate text-[13px] font-semibold text-nav-fg">
-              {user.name ?? user.email.split('@')[0]}
-            </span>
-            <span className="truncate text-[10px] font-medium uppercase tracking-[0.08em] text-nav-fg-muted">
-              {user.role.replaceAll('_', ' ')}
-            </span>
-          </div>
-          <ChevronUp className="h-4 w-4 shrink-0 text-nav-fg-muted transition-transform duration-fast group-data-[state=open]:rotate-180" aria-hidden />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-[260px]">
-        <DropdownMenuLabel>Account</DropdownMenuLabel>
-        <DropdownMenuItem disabled>
-          <span className="truncate text-xs text-text-tertiary">{user.email}</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={onTheme}>
-          <DropdownMenuRadioItem value="light">
-            <Sun className="h-4 w-4 text-text-tertiary" aria-hidden /> Light
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <Moon className="h-4 w-4 text-text-tertiary" aria-hidden /> Dark
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            <Monitor className="h-4 w-4 text-text-tertiary" aria-hidden /> System
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void signOut({ callbackUrl: '/signin' })}>
-          <LogOut className="h-4 w-4 text-text-tertiary" aria-hidden />
-          Sign out
-        </DropdownMenuItem>
-        {/* Credits — sits at the very bottom of the menu, low contrast.
-            Always-on signature without imposing on the working surface. */}
-        <DropdownMenuSeparator />
-        <div className="px-2 py-2 text-[10px] leading-relaxed text-text-tertiary">
-          <div className="text-text-secondary font-medium">
-            Conceived by Dr. Denpong Soodphakdee
-          </div>
-          <div>Vice President for Education and Digital, KKU</div>
-          <div className="mt-1 opacity-80">
-            Built in collaboration with Claude (Anthropic)
-          </div>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="px-1 py-0.5 text-[10px] leading-relaxed text-nav-fg-muted">
+      <div className="font-medium text-nav-fg/80">
+        Conceived by Dr. Denpong Soodphakdee
+      </div>
+      <div>Vice President for Education and Digital, KKU</div>
+      <div className="mt-1 opacity-80">
+        Built in collaboration with Claude (Anthropic)
+      </div>
+    </div>
   );
 }

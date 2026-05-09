@@ -484,6 +484,13 @@ model User {
   // primary program here so the deep-dive + recruitment surfaces can
   // scope-filter to "my program" without guessing.
   programId       String?         @map("program_id")
+  // KKU HR cleartext employment number — captured from the SSONext
+  // /auth.token employeeId claim on every login. Bridges User →
+  // FacultyMember (which carries the same employeeId from kku-hr) so
+  // the profile page can resolve the staffer's HR record + research
+  // + curriculum without a fragile name match. Confirmed not PII
+  // per KKU 2026-05-02 (distinct from ID_PEOPLE / Thai citizen ID).
+  employeeId      String?         @map("employee_id")
   // Per-user dev-credentials password. NULL means the user falls back
   // to the shared DEV_AUTH_PASSWORD (default 'kku-dev'). Set during
   // pre-provisioning via /admin/users when SSO isn't yet wired and the
@@ -491,6 +498,13 @@ model User {
   // 'scrypt:<salt-hex>:<hash-hex>'. Field is dev-only; never read in
   // production code paths (KKU SSO is the only auth in prod).
   passwordHash    String?         @map("password_hash")
+  // User-uploaded profile photo. `avatarStorageKey` is the MinIO
+  // object key (e.g. "avatars/<userId>.jpg"); the actual bytes live
+  // in the `avatars` bucket. `avatarUpdatedAt` is used for cache-
+  // busting the served URL — clients append `?v=<ts>` so they pick
+  // up the new image after upload without manual reload.
+  avatarStorageKey String?        @map("avatar_storage_key")
+  avatarUpdatedAt  DateTime?      @map("avatar_updated_at")
   themePreference ThemePreference @default(SYSTEM) @map("theme_preference")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
@@ -526,11 +540,77 @@ model User {
   // manages these; runtime can() still consults the primary fields above.
   // Phase 2 will rewrite can() + SessionUser to consume scopes[] directly.
   scopes                 UserScope[]
+  expertiseNarratives    UserExpertiseNarrative[]
+  publicationsCache      UserPublicationsCache?
 
   @@index([email])
   @@index([ssoSubject])
   @@index([role])
+  @@index([employeeId], map: "users_employee_id_idx")
   @@map("users")
+}
+
+// AI-synthesised expertise summary for the user's profile page.
+// Computed from education + publication titles via the
+// `expertise-narrative.<v>` prompt; one row per (user × method
+// version). Persisted so subsequent profile views serve from cache
+// instead of re-running the LLM call.
+//
+// Methodology version is part of the unique key so a prompt-template
+// upgrade (v2 → v3) writes a NEW row alongside the older one — old
+// users keep seeing v2 until their page next refreshes, then the new
+// row materialises and shadows the old.
+model UserExpertiseNarrative {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  methodVersion       String   @map("method_version")
+  narrativeTh         String   @map("narrative_th") @db.Text
+  narrativeEn         String   @map("narrative_en") @db.Text
+  expertiseKeywordsTh String[] @map("expertise_keywords_th")
+  expertiseKeywordsEn String[] @map("expertise_keywords_en")
+  confidence          Float
+  // Loose link to the AiInference row that produced this narrative —
+  // useful for the audit trail and for cost-rollup dashboards.
+  aiInferenceId       String?  @map("ai_inference_id")
+  generatedAt         DateTime @default(now()) @map("generated_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, methodVersion])
+  @@index([userId])
+  @@map("user_expertise_narratives")
+}
+
+// Local cache of kkuscholar publication lookups, keyed by user.
+//
+// The kku-publications mirror at 10.130.2.151 is on KKU's internal
+// network and a profile-page query against `scopus_document_with_authors`
+// + ISI/TCI/PubMed authors costs ~3-8s per page load. We cache the
+// fetched payload here so subsequent loads serve from local Postgres
+// in ~50ms.
+//
+// `payloadJson` carries the deserialised KkuScholarPublication[]
+// returned by `fetchKkuScholarPublicationsByPerson()`. The shape
+// includes paper metadata + full author lists.
+//
+// Refresh policy (stale-while-revalidate):
+//   - If `fetchedAt` is older than CACHE_TTL_MS, the page renders
+//     immediately from the stale cache AND fires a fire-and-forget
+//     background refresh.
+//   - First-ever load (no row) blocks on the live fetch, then writes
+//     a row.
+model UserPublicationsCache {
+  id            String   @id @default(cuid())
+  userId        String   @unique @map("user_id")
+  payloadJson   Json     @map("payload_json")
+  paperCount    Int      @map("paper_count")
+  fetchedAt     DateTime @default(now()) @map("fetched_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_publications_cache")
 }
 
 // Multi-scope assignments per user. Each row = one (role, scope) tuple.

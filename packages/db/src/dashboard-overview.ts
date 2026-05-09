@@ -180,14 +180,18 @@ export interface DashboardOverview {
 export async function getDashboardOverview(
   scope: DashboardOverviewScope = {},
 ): Promise<DashboardOverview> {
-  // Build the SQL clause that narrows ACTIVE+canonical programs to the
-  // caller's scope. Single source of truth for every $queryRaw branch
-  // below — keeps the WHERE bodies consistent.
-  const programScopeSql = scope.programId
-    ? Prisma.sql`AND p.id = ${scope.programId}`
-    : scope.facultyId
-      ? Prisma.sql`AND p.faculty_id = ${scope.facultyId}`
-      : Prisma.empty;
+  // Builder for the SQL fragment that narrows ACTIVE+canonical programs
+  // to the caller's scope. We rebuild a fresh `Prisma.Sql` instance per
+  // call rather than sharing one — multiple parallel `$queryRaw`s
+  // referencing the same instance was producing intermittent
+  // `syntax error at or near "$1"` failures (parameter-index drift in
+  // Prisma's SQL builder under concurrency).
+  const buildScopeClause = (): Prisma.Sql =>
+    scope.programId
+      ? Prisma.sql`AND p.id = ${scope.programId}`
+      : scope.facultyId
+        ? Prisma.sql`AND p.faculty_id = ${scope.facultyId}`
+        : Prisma.sql``;
 
   // Same predicate on a Prisma `where` for typed `findMany`/`count`/
   // `aggregate` calls. Resolves to {} when no scope so the typed query
@@ -238,7 +242,7 @@ export async function getDashboardOverview(
       JOIN programs p ON p.id = em.program_id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${programScopeSql};
+        ${buildScopeClause()};
     `,
     prisma.financialMetric.aggregate({
       _sum: { netContribution: true },
@@ -291,7 +295,7 @@ export async function getDashboardOverview(
       WHERE old_em.enrolled IS NOT NULL AND old_em.enrolled > 0
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${programScopeSql};
+        ${buildScopeClause()};
     `,
     prisma.$queryRaw<
       Array<{
@@ -316,7 +320,7 @@ export async function getDashboardOverview(
       LEFT JOIN programs p ON p.faculty_id = f.id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${programScopeSql}
+        ${buildScopeClause()}
       LEFT JOIN LATERAL (
         SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
@@ -339,7 +343,7 @@ export async function getDashboardOverview(
       ) latest_em ON true
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${programScopeSql}
+        ${buildScopeClause()}
       GROUP BY p.level
       ORDER BY MIN(
         CASE p.level::text
@@ -380,7 +384,7 @@ export async function getDashboardOverview(
       LEFT JOIN enrollment_metrics em ON em.program_id = p.id AND em.academic_year = l.max_year
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${programScopeSql};
+        ${buildScopeClause()};
     `,
     // Lifecycle verdict distribution. Reads from the write-through
     // snapshot table populated by `programLifecycleVerdict()`. Filter to
@@ -491,7 +495,7 @@ export async function getDashboardOverview(
     JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
     JOIN programs p ON p.id = em.program_id
       AND p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-      ${programScopeSql}
+      ${buildScopeClause()}
     WHERE em.enrolled = 0;
   `;
   const zeroEnrollmentCount = Number(zeroEnrolRow[0]?.count ?? 0n);
