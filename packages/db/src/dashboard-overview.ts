@@ -186,12 +186,23 @@ export async function getDashboardOverview(
   // referencing the same instance was producing intermittent
   // `syntax error at or near "$1"` failures (parameter-index drift in
   // Prisma's SQL builder under concurrency).
-  const buildScopeClause = (): Prisma.Sql =>
-    scope.programId
-      ? Prisma.sql`AND p.id = ${scope.programId}`
-      : scope.facultyId
-        ? Prisma.sql`AND p.faculty_id = ${scope.facultyId}`
-        : Prisma.sql``;
+  // Scope predicate as plain SQL string + values array, NOT a Prisma.Sql.
+  //
+  // Why $queryRawUnsafe instead of tagged-template + Prisma.sql: Next.js
+  // dev mode compiles each RSC bundle context separately, producing
+  // multiple `@prisma/client` module instances. A `Prisma.Sql` object
+  // built in one context fails the `instanceof Prisma.Sql` check inside
+  // `prisma.$queryRaw` from another context — Prisma then mis-binds the
+  // value and Postgres rejects with `syntax error at or near "$1"`.
+  // $queryRawUnsafe + plain string + positional params bypasses the
+  // Sql-object machinery entirely. Verified fix 2026-05-09. CUID values
+  // come from session.user (validated upstream), but parameterized for
+  // SQL-injection safety.
+  const scopePredicate: { sql: string; params: unknown[] } = scope.programId
+    ? { sql: 'AND p.id = $1', params: [scope.programId] }
+    : scope.facultyId
+      ? { sql: 'AND p.faculty_id = $1', params: [scope.facultyId] }
+      : { sql: '', params: [] };
 
   // Same predicate on a Prisma `where` for typed `findMany`/`count`/
   // `aggregate` calls. Resolves to {} when no scope so the typed query
@@ -232,7 +243,8 @@ export async function getDashboardOverview(
     prisma.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*)::bigint AS count FROM faculties WHERE kind = 'ACADEMIC';
     `,
-    prisma.$queryRaw<Array<{ total: bigint }>>`
+    prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
+      `
       WITH latest AS (
         SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
       )
@@ -242,8 +254,10 @@ export async function getDashboardOverview(
       JOIN programs p ON p.id = em.program_id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${buildScopeClause()};
+        ${scopePredicate.sql};
     `,
+      ...scopePredicate.params,
+    ),
     prisma.financialMetric.aggregate({
       _sum: { netContribution: true },
       where: {
@@ -257,7 +271,7 @@ export async function getDashboardOverview(
             : {}),
       },
     }),
-    prisma.$queryRaw<
+    prisma.$queryRawUnsafe<
       Array<{
         programId: string;
         code: string;
@@ -268,7 +282,8 @@ export async function getDashboardOverview(
         netContributionThb: number;
         enrolledLatest: number;
       }>
-    >`
+    >(
+      `
       WITH latest_em AS (
         SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
       )
@@ -295,9 +310,11 @@ export async function getDashboardOverview(
       WHERE old_em.enrolled IS NOT NULL AND old_em.enrolled > 0
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${buildScopeClause()};
+        ${scopePredicate.sql};
     `,
-    prisma.$queryRaw<
+      ...scopePredicate.params,
+    ),
+    prisma.$queryRawUnsafe<
       Array<{
         facultyId: string;
         code: string;
@@ -307,7 +324,8 @@ export async function getDashboardOverview(
         enrollmentLatest: number;
         netContributionThb: number;
       }>
-    >`
+    >(
+      `
       SELECT
         f.id as "facultyId",
         f.code,
@@ -320,7 +338,7 @@ export async function getDashboardOverview(
       LEFT JOIN programs p ON p.faculty_id = f.id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${buildScopeClause()}
+        ${scopePredicate.sql}
       LEFT JOIN LATERAL (
         SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
@@ -332,7 +350,10 @@ export async function getDashboardOverview(
       HAVING COUNT(DISTINCT p.id) > 0
       ORDER BY "enrollmentLatest" DESC;
     `,
-    prisma.$queryRaw<Array<{ level: string; programCount: number; enrollmentLatest: number }>>`
+      ...scopePredicate.params,
+    ),
+    prisma.$queryRawUnsafe<Array<{ level: string; programCount: number; enrollmentLatest: number }>>(
+      `
       SELECT
         p.level::text as level,
         COUNT(DISTINCT p.id)::int as "programCount",
@@ -343,7 +364,7 @@ export async function getDashboardOverview(
       ) latest_em ON true
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${buildScopeClause()}
+        ${scopePredicate.sql}
       GROUP BY p.level
       ORDER BY MIN(
         CASE p.level::text
@@ -355,6 +376,8 @@ export async function getDashboardOverview(
         END
       );
     `,
+      ...scopePredicate.params,
+    ),
     prisma.programStrategicNarrative.findMany({
       where: Object.keys(programWhereExtra).length > 0 ? { program: programWhereExtra } : undefined,
       take: 5,
@@ -371,7 +394,8 @@ export async function getDashboardOverview(
     }),
     // KKU intake-floor compliance — pull every active program with its
     // latest-year intake, then bucket via the canonical helper.
-    prisma.$queryRaw<Array<{ id: string; level: string; intake: number | null }>>`
+    prisma.$queryRawUnsafe<Array<{ id: string; level: string; intake: number | null }>>(
+      `
       WITH latest AS (
         SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
       )
@@ -384,8 +408,10 @@ export async function getDashboardOverview(
       LEFT JOIN enrollment_metrics em ON em.program_id = p.id AND em.academic_year = l.max_year
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${buildScopeClause()};
+        ${scopePredicate.sql};
     `,
+      ...scopePredicate.params,
+    ),
     // Lifecycle verdict distribution. Reads from the write-through
     // snapshot table populated by `programLifecycleVerdict()`. Filter to
     // canonical-297 programs so legacy mock-seed rows can't inflate the
@@ -485,7 +511,8 @@ export async function getDashboardOverview(
   // enrolment, so a program that has been at 0 for years won't appear
   // there at all. Count from ALL canonical+ACTIVE programs at their
   // own latest year, matching cockpit's `at risk` semantics.
-  const zeroEnrolRow = await prisma.$queryRaw<Array<{ count: bigint }>>`
+  const zeroEnrolRow = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+    `
     WITH latest AS (
       SELECT program_id, MAX(academic_year) AS max_year
       FROM enrollment_metrics GROUP BY program_id
@@ -495,9 +522,11 @@ export async function getDashboardOverview(
     JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
     JOIN programs p ON p.id = em.program_id
       AND p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-      ${buildScopeClause()}
+      ${scopePredicate.sql}
     WHERE em.enrolled = 0;
-  `;
+  `,
+    ...scopePredicate.params,
+  );
   const zeroEnrollmentCount = Number(zeroEnrolRow[0]?.count ?? 0n);
   const crashingCount = points.filter((p) => p.enrolledLatest > 0 && p.enrollmentDeltaPct <= -50).length;
   const surgingCount = points.filter((p) => p.enrollmentDeltaPct >= 50).length;
