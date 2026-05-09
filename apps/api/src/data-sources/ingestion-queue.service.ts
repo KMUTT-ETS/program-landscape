@@ -17,6 +17,9 @@ export interface IngestionJobData {
   dataSourceSlug: string;
   trigger: 'SCHEDULED' | 'MANUAL' | 'BACKFILL';
   triggeredByUserId?: string | null;
+  /** X-Request-Id of the HTTP call that enqueued this job. Workers
+   * log it as `traceId` for cross-tier correlation. Omit for cron. */
+  parentTraceId?: string;
 }
 
 @Injectable()
@@ -43,11 +46,15 @@ export class IngestionQueueService implements OnModuleInit, OnModuleDestroy {
     await this.queue?.close();
   }
 
-  async enqueueManual(dataSourceSlug: string, triggeredByUserId: string): Promise<string> {
+  async enqueueManual(
+    dataSourceSlug: string,
+    triggeredByUserId: string,
+    parentTraceId?: string,
+  ): Promise<string> {
     if (!this.queue) throw new Error('IngestionQueueService not initialised');
     const job = await this.queue.add(
       `manual:${dataSourceSlug}`,
-      { dataSourceSlug, trigger: 'MANUAL', triggeredByUserId },
+      { dataSourceSlug, trigger: 'MANUAL', triggeredByUserId, parentTraceId },
       { attempts: 1 },
     );
     return job.id ?? '';

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { scrubMessages } from '../scrub-messages';
 import type {
   AiInferenceRecorder,
   AiService,
@@ -431,18 +432,25 @@ function toolUseMessagesToString(msgs: ToolUseMessage[]): string {
     .join('\n\n');
 }
 
+// Scrub-aware split. Mirrors GoogleAiService — every caller goes
+// through here, so the PII scrubber lands centrally and no caller
+// can forget to scrub. System messages are server-controlled and
+// pass through untouched.
 function splitSystem(messages: CompletionRequest['messages']): {
   system: string | undefined;
   userMessages: CompletionRequest['messages'];
 } {
+  const scrubbed = scrubMessages(messages).messages;
   return {
-    system: messages.find((m) => m.role === 'system')?.content,
-    userMessages: messages.filter((m) => m.role !== 'system'),
+    system: scrubbed.find((m) => m.role === 'system')?.content,
+    userMessages: scrubbed.filter((m) => m.role !== 'system'),
   };
 }
 
 function messagesToString(messages: CompletionRequest['messages']): string {
-  return messages.map((m) => `[${m.role}]\n${m.content}`).join('\n\n');
+  // Audit log gets the SCRUBBED text — keep PII out of our DB too.
+  const scrubbed = scrubMessages(messages).messages;
+  return scrubbed.map((m) => `[${m.role}]\n${m.content}`).join('\n\n');
 }
 
 function estimateCost(model: string, tokens: { input: number; output: number }) {

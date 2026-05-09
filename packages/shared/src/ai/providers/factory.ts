@@ -4,6 +4,11 @@ import { AnthropicAiService } from './anthropic-ai';
 import { OpenrouterAiService } from './openrouter-ai';
 import { IntelSphereAiService } from './intel-sphere-ai';
 import { StubAiService } from './stub-ai';
+import {
+  CircuitBreaker,
+  CircuitOpenError,
+  registerBreaker,
+} from '../../resilience/circuit-breaker';
 
 // Provider factory.
 //
@@ -159,27 +164,82 @@ function isTransientError(err: unknown): boolean {
   return TRANSIENT_ERROR_PATTERNS.some((re) => re.test(msg));
 }
 
+// Process-wide breakers per AI provider. Registered on first call to
+// `wrapWithTransientFallback` so /api/v1/ready can surface them.
+const _aiBreakers = new Map<string, CircuitBreaker>();
+function aiBreakerFor(providerId: string): CircuitBreaker {
+  let cb = _aiBreakers.get(providerId);
+  if (!cb) {
+    cb = registerBreaker(
+      new CircuitBreaker({
+        name: `ai:${providerId}`,
+        // Threshold + cooldown tuned for AI vendors: brief outages are
+        // common; we want the breaker to open quickly enough to switch
+        // to the secondary, then re-probe within a minute.
+        threshold: Number(process.env.AI_BREAKER_THRESHOLD) || 5,
+        cooldownMs: Number(process.env.AI_BREAKER_COOLDOWN_MS) || 30_000,
+        // Only count INFRA failures (transient errors) toward opening.
+        // Validation/refusal errors from the model are caller-fault.
+        isFailure: isTransientError,
+      }),
+    );
+    _aiBreakers.set(providerId, cb);
+  }
+  return cb;
+}
+
 export function wrapWithTransientFallback(
   primary: AiService,
   secondary: AiService | undefined,
 ): AiService {
-  if (!secondary) return primary;
+  if (!secondary) {
+    // Even with no fallback, register the primary breaker so /ready
+    // sees it. The fallback chain is what executes the breaker; if
+    // there's no secondary, calls flow naked but we still benefit from
+    // observation. Skip the breaker.execute wrapper entirely in this
+    // branch — opening the breaker would just turn outages into hard
+    // 503s with no recovery path.
+    aiBreakerFor(primary.providerId);
+    return primary;
+  }
+  const primaryBreaker = aiBreakerFor(primary.providerId);
+  const secondaryBreaker = aiBreakerFor(secondary.providerId);
+
   const withFallback = async <T>(
     label: string,
     primaryCall: () => Promise<T>,
     secondaryCall: () => Promise<T>,
   ): Promise<T> => {
+    // 1. If the primary breaker is OPEN, skip primary entirely.
     try {
-      return await primaryCall();
+      return await primaryBreaker.execute(primaryCall);
     } catch (err) {
-      if (!isTransientError(err)) throw err;
+      // CircuitOpenError → primary unavailable; try secondary.
+      // Otherwise: only fall back on transient errors (existing rule).
+      if (!(err instanceof CircuitOpenError) && !isTransientError(err)) {
+        throw err;
+      }
       // eslint-disable-next-line no-console
       console.warn(
-        `[ai/fallback] ${label}: primary=${primary.providerId} failed with transient error, retrying on secondary=${secondary.providerId}: ${
+        `[ai/fallback] ${label}: primary=${primary.providerId} ${
+          err instanceof CircuitOpenError ? 'circuit OPEN' : 'transient failure'
+        }, switching to secondary=${secondary.providerId}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      return secondaryCall();
+      // 2. Secondary call also goes through its own breaker. If it too
+      // is OPEN, the original error bubbles up so the caller sees a real
+      // failure rather than a synthetic CircuitOpenError on the fallback.
+      try {
+        return await secondaryBreaker.execute(secondaryCall);
+      } catch (secErr) {
+        if (secErr instanceof CircuitOpenError) {
+          // Both breakers open. Throw the ORIGINAL primary error so
+          // the upstream caller sees a representative failure shape.
+          throw err;
+        }
+        throw secErr;
+      }
     }
   };
 

@@ -1,6 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
+import { assertLogLevelSafe, markDraining } from '@kku/shared';
 import { AppModule } from './app.module';
+
+// Refuse to boot prod with LOG_LEVEL=debug/trace. See
+// packages/shared/src/observability/log-level-guard.ts.
+assertLogLevelSafe();
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -11,9 +16,16 @@ async function bootstrap() {
 
   // Hold the process open until SIGTERM/SIGINT. IngestionService's
   // onModuleInit has already wired the BullMQ worker + registered
-  // schedules; there's nothing else the entrypoint needs to do.
+  // schedules. On shutdown:
+  //   1. markDraining() — signals to any in-process consumers (none
+  //      today on the ingestion side; future-proofing for an admin HTTP
+  //      surface).
+  //   2. app.close() — invokes IngestionService.onModuleDestroy which
+  //      closes BullMQ workers FIRST (waits for active jobs to finish
+  //      naturally) before closing queues + events.
   const shutdown = async (signal: string) => {
-    logger.log(`${signal} received — shutting down`);
+    markDraining();
+    logger.log(`${signal} received — draining (BullMQ workers will finish active jobs)`);
     await app.close();
     process.exit(0);
   };

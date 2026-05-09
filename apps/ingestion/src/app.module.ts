@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
+import { stdTimeFunctions } from 'pino';
 import path from 'node:path';
+import { REDACT_PATHS, scrubLogObject } from '@kku/shared';
 
 import { IngestionService } from './ingestion.service';
 
@@ -35,6 +37,19 @@ const isProd = process.env.NODE_ENV === 'production';
                 ignore: 'pid,hostname',
               },
             },
+        // ISO 8601 timestamps. Default `Date.now()` 13-digit epoch trips
+        // the PDPA acceptance grep `[0-9]{13}` for raw Thai IDs.
+        timestamp: stdTimeFunctions.isoTime,
+        // PDPA log-redaction — same shape as apps/api. Catches passwords,
+        // secrets, tokens, citizen IDs, phones, DOBs across arbitrary
+        // depth, plus raw 13-digit Thai IDs in bare string values. See
+        // packages/shared/src/observability/log-redaction.ts.
+        redact: { paths: [...REDACT_PATHS], remove: true },
+        formatters: {
+          log(object) {
+            return scrubLogObject(object);
+          },
+        },
       },
     }),
   ],

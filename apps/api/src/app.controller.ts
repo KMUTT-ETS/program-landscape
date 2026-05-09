@@ -1,7 +1,19 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  Logger,
+  Res,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { prisma } from '@kku/db';
+import type { Response } from 'express';
 import IORedis from 'ioredis';
+import {
+  drainStartedAt,
+  isDraining,
+  snapshotAllBreakers,
+} from '@kku/shared';
 import { Public } from './common';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -27,6 +39,17 @@ interface DepCheck {
   detail?: string;
 }
 
+// `/ready` is publicly probeable (KKU upstream proxy gates traffic on
+// it). Returning raw error messages would leak hostnames, ports, and
+// occasionally usernames (Postgres "password authentication failed for
+// user '<role>'", Redis ECONNREFUSED with host:port, etc.). In prod we
+// return only `{ name, ok, latencyMs }`. Dev keeps `detail` so ops can
+// still diagnose locally. See docs/hardening/04-authz-matrix.report.md
+// V3.
+function sanitiseDetail(detail: string | undefined): string | undefined {
+  return process.env.NODE_ENV === 'production' ? undefined : detail;
+}
+
 @Controller()
 export class AppController {
   private readonly logger = new Logger(AppController.name);
@@ -41,11 +64,29 @@ export class AppController {
 
   @Get('/ready')
   @Public()
-  async ready(): Promise<{
-    status: 'ok' | 'degraded';
+  async ready(@Res({ passthrough: true }) res: Response): Promise<{
+    status: 'ok' | 'degraded' | 'draining';
     checks: DepCheck[];
+    breakers: ReturnType<typeof snapshotAllBreakers>;
+    drainStartedAt?: string | null;
     timestamp: string;
   }> {
+    // Drain mode short-circuit. SIGTERM flips the in-process flag in
+    // packages/shared/src/observability/drain-state.ts; we return 503
+    // immediately so the KKU upstream proxy stops sending NEW requests
+    // within its polling window. In-flight requests continue to drain
+    // via Nest's `app.close()` deadline.
+    if (isDraining()) {
+      res.status(HttpStatus.SERVICE_UNAVAILABLE);
+      return {
+        status: 'draining',
+        checks: [],
+        breakers: snapshotAllBreakers(),
+        drainStartedAt: drainStartedAt()?.toISOString() ?? null,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     const checks = await Promise.all([
       this.checkPostgres(),
       this.checkRedis(),
@@ -53,10 +94,22 @@ export class AppController {
       this.checkGotenberg(),
       this.checkAiProvider(),
     ]);
-    const allOk = checks.every((c) => c.ok);
+    // Live circuit-breaker snapshot — any OPEN breaker degrades /ready
+    // so nginx can soft-degrade upstream traffic. The KKU upstream
+    // proxy poller catches the 503 within its 30s polling window.
+    const breakers = snapshotAllBreakers();
+    const anyBreakerOpen = breakers.some((b) => b.state === 'OPEN');
+    const allOk = checks.every((c) => c.ok) && !anyBreakerOpen;
+    if (!allOk) {
+      // 503 Service Unavailable so nginx + the KKU upstream poller can
+      // gate traffic. The body still carries the per-dep verdict + the
+      // breaker snapshot so ops can diagnose the failing dep.
+      res.status(HttpStatus.SERVICE_UNAVAILABLE);
+    }
     return {
       status: allOk ? 'ok' : 'degraded',
       checks,
+      breakers,
       timestamp: new Date().toISOString(),
     };
   }
@@ -71,7 +124,9 @@ export class AppController {
         name: 'postgres',
         ok: false,
         latencyMs: Date.now() - started,
-        detail: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        detail: sanitiseDetail(
+          err instanceof Error ? err.message.slice(0, 120) : String(err),
+        ),
       };
     }
   }
@@ -92,7 +147,9 @@ export class AppController {
         name: 'redis',
         ok: false,
         latencyMs: Date.now() - started,
-        detail: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        detail: sanitiseDetail(
+          err instanceof Error ? err.message.slice(0, 120) : String(err),
+        ),
       };
     } finally {
       client.disconnect();
@@ -117,14 +174,16 @@ export class AppController {
         name: 'minio',
         ok: res.ok,
         latencyMs: Date.now() - started,
-        ...(res.ok ? {} : { detail: `HTTP ${res.status}` }),
+        ...(res.ok ? {} : { detail: sanitiseDetail(`HTTP ${res.status}`) }),
       };
     } catch (err) {
       return {
         name: 'minio',
         ok: false,
         latencyMs: Date.now() - started,
-        detail: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        detail: sanitiseDetail(
+          err instanceof Error ? err.message.slice(0, 120) : String(err),
+        ),
       };
     }
   }
@@ -143,14 +202,16 @@ export class AppController {
         name: 'gotenberg',
         ok: res.ok,
         latencyMs: Date.now() - started,
-        ...(res.ok ? {} : { detail: `HTTP ${res.status}` }),
+        ...(res.ok ? {} : { detail: sanitiseDetail(`HTTP ${res.status}`) }),
       };
     } catch (err) {
       return {
         name: 'gotenberg',
         ok: false,
         latencyMs: Date.now() - started,
-        detail: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        detail: sanitiseDetail(
+          err instanceof Error ? err.message.slice(0, 120) : String(err),
+        ),
       };
     }
   }

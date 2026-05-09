@@ -1,3 +1,5 @@
+-- migration-linter: allow-destructive (reason: SET NOT NULL on data_sources.slug is paired with a same-migration UPDATE backfill — see lines 14-16 below; safe by construction.)
+
 -- CreateEnum
 CREATE TYPE "DataSourceInputFormat" AS ENUM ('JSON', 'CSV', 'XML', 'HTML', 'PDF', 'XLSX', 'MIXED');
 

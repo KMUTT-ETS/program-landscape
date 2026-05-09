@@ -16,6 +16,7 @@ import type {
   VisionRequest,
   VisionResponse,
 } from '../types';
+import { scrubMessages } from '../scrub-messages';
 
 // Google/Gemini provider. Default because:
 //   - Thai handling is strong on Gemini's top-tier models; Claude is
@@ -98,7 +99,11 @@ export class GoogleAiService implements AiService {
   async complete(req: CompletionRequest): Promise<CompletionResponse> {
     const model = req.model ?? this.config.defaultCompletionModel ?? DEFAULT_COMPLETION_MODEL;
     const started = Date.now();
-    const { system, userText } = splitSystemFromMessages(req.messages);
+    // Pre-flight PII scrub — strips Thai citizen IDs, phones, non-KKU
+    // emails, and HR salary lines from the OUTBOUND prompt before any
+    // network call. Audit log captures the scrubbed text only.
+    const scrubbed = scrubMessages(req.messages);
+    const { system, userText } = splitSystemFromMessages(scrubbed.messages);
 
     const result = await this.client.models.generateContent({
       model,
@@ -119,13 +124,17 @@ export class GoogleAiService implements AiService {
       userId: req.ctx.userId ?? null,
       module: req.ctx.module,
       kind: req.ctx.kind,
-      prompt: messagesToString(req.messages),
+      // Audit-log the SCRUBBED prompt — keeps PII out of our DB too.
+      prompt: messagesToString(scrubbed.messages),
       model,
       response: text,
       tokensInput: tokens.input,
       tokensOutput: tokens.output,
       latencyMs,
       costEstimateUsd: cost.usd,
+      sourcesJson: scrubbed.didScrub
+        ? { inputRedactions: scrubbed.redactions }
+        : undefined,
     });
 
     return { text, tokens, model, latencyMs, cost, aiInferenceId };
@@ -712,12 +721,17 @@ function toolUseMessagesToString(msgs: import('../types').ToolUseMessage[]): str
     .join('\n\n');
 }
 
+// Scrub-aware message split. Every caller goes through this helper, so
+// applying the PII scrubber here means EVERY outbound prompt + every
+// audit-log entry contains scrubbed text — no caller can forget to
+// scrub. System messages are server-controlled and pass through.
 function splitSystemFromMessages(messages: CompletionRequest['messages']): {
   system: string | undefined;
   userText: string;
 } {
-  const system = messages.find((m) => m.role === 'system')?.content;
-  const userText = messages
+  const scrubbed = scrubMessages(messages).messages;
+  const system = scrubbed.find((m) => m.role === 'system')?.content;
+  const userText = scrubbed
     .filter((m) => m.role !== 'system')
     .map((m) => m.content)
     .join('\n\n');
@@ -725,7 +739,10 @@ function splitSystemFromMessages(messages: CompletionRequest['messages']): {
 }
 
 function messagesToString(messages: CompletionRequest['messages']): string {
-  return messages.map((m) => `[${m.role}]\n${m.content}`).join('\n\n');
+  // Audit log gets the SCRUBBED text — the prompt-04 audit confirmed
+  // PII must not land in our DB any more than it does on the wire.
+  const scrubbed = scrubMessages(messages).messages;
+  return scrubbed.map((m) => `[${m.role}]\n${m.content}`).join('\n\n');
 }
 
 function extractUsage(usage: unknown): { input: number; output: number } {

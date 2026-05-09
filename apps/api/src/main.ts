@@ -3,7 +3,12 @@ import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
+import { assertLogLevelSafe, markDraining } from '@kku/shared';
 import { AppModule } from './app.module';
+
+// Refuse to boot prod with LOG_LEVEL=debug/trace. See
+// packages/shared/src/observability/log-level-guard.ts.
+assertLogLevelSafe();
 
 // Prisma returns BigInt for @db.BigInt columns (e.g. ScenarioRun.seed).
 // Express's res.json() uses JSON.stringify which can't serialize BigInt.
@@ -53,6 +58,21 @@ async function bootstrap() {
     }),
   );
 
+  // SIGTERM/SIGINT — flip the drain flag FIRST, then trigger Nest's
+  // shutdown hooks (which await in-flight requests). The drain flip
+  // makes /api/v1/ready return 503 immediately so the KKU upstream
+  // proxy stops sending NEW requests within its 30s polling window.
+  // Nest's enableShutdownHooks() registers its own listeners that
+  // call app.close() — they run AFTER ours because ours are appended
+  // to the same `process` event list later (Node fires listeners in
+  // registration order).
+  for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(sig, () => {
+      markDraining();
+      // eslint-disable-next-line no-console
+      console.log(`[shutdown] ${sig} received — draining; /ready returns 503 to new traffic.`);
+    });
+  }
   app.enableShutdownHooks();
 
   // Dev CORS — in prod, nginx routes /api/* on the same host so CORS is

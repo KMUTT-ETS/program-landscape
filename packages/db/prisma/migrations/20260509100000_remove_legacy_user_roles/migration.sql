@@ -1,3 +1,5 @@
+-- migration-linter: allow-destructive (reason: KKU SSO v2 role-taxonomy refactor — see docs/auth/kku-sso.md. Drops the legacy UserRole enum after a full data migration that maps every row to its v2 equivalent. Plan + sign-off in CLAUDE.md "v2 role taxonomy" section dated 2026-05-09. Pre-deploy snapshot verified before this ran.)
+
 -- Remove legacy UserRole values (VIEWER / COUNCIL / EXECUTIVE / DEAN /
 -- DEPT_HEAD / ANALYST / ADMIN). Migrates existing rows to their nearest
 -- v2 equivalent, then recreates the enum without the legacy values.

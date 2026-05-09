@@ -15,6 +15,14 @@ export interface IngestionJobData {
   dataSourceSlug: string;
   trigger: IngestionRunTrigger;
   triggeredByUserId?: string | null;
+  /**
+   * Optional trace id propagated from the HTTP request that enqueued
+   * this job (X-Request-Id from nginx → api → BullMQ data). Workers
+   * emit log lines with this id as `traceId` so you can recover the
+   * full HTTP→worker chain. Background-only jobs (cron-driven) leave
+   * it undefined; the worker will mint a fresh trace.
+   */
+  parentTraceId?: string;
 }
 
 // BullMQ exports this type but doesn't re-export it cleanly under all
@@ -59,8 +67,15 @@ export function createIngestionWorker(
   return new Worker<IngestionJobData, IngestionJobResult>(
     INGESTION_QUEUE_NAME,
     async (job) => {
-      const { dataSourceSlug, trigger, triggeredByUserId } = job.data;
-      logger.log(`Running ${dataSourceSlug} (trigger=${trigger}, attempt=${job.attemptsMade + 1})`);
+      const { dataSourceSlug, trigger, triggeredByUserId, parentTraceId } = job.data;
+      // traceId is the cross-tier correlation id. Workers re-use the
+      // HTTP request's id when the job was enqueued by a request, or
+      // mint a fresh `bg_<jobId>` for cron-driven jobs.
+      const traceId = parentTraceId ?? `bg_${job.id ?? Date.now().toString(36)}`;
+      logger.log(
+        `[traceId=${traceId}] Running ${dataSourceSlug} ` +
+          `(trigger=${trigger}, attempt=${job.attemptsMade + 1})`,
+      );
       const outcome = await runner.run({
         dataSourceSlug,
         trigger,
