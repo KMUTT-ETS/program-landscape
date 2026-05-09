@@ -243,6 +243,17 @@ Full recovery drill runs quarterly — see `docs/backup-dr.md`.
 | `AI_PROVIDER` | `google` (and set both `GOOGLE_AI_API_KEY` + `ANTHROPIC_API_KEY` so fallback works) |
 | `KKU_SSO_*` | coordinated with KKU IT — see `docs/auth/kku-sso.md` |
 | `ENABLE_LOCAL_AUTH` | **must be `false`** (prod guard aborts startup otherwise) |
+| `MINIO_BUCKET_AVATARS` | `avatars` (auto-created on first upload — used by `/profile`) |
+| `KKU_SCOPUS_API_KEY` | Elsevier institutional key — primary publication source for `/profile`. Without it the profile page falls back to kkuscholar (slow). Profile-page-only; bulk modules continue using kkuscholar. |
+| `OPENALEX_MAILTO` | Email address — enables OpenAlex's polite pool (10 req/s) for the profile page co-author DOI / metadata fallback. |
+
+**Bulk vs profile-page outbound posture.** The profile page (`/profile`)
+calls Scopus + OpenAlex per-user on cold cache loads. The cockpit /
+gap-analyzer / benchmarking modules **never** touch Scopus or OpenAlex —
+they read from the kkuscholar mirror at `10.130.2.151:5432` to stay
+under Scopus's 20 k req/week institutional rate limit. If your firewall
+blocks `api.elsevier.com` and `api.openalex.org`, only the profile page
+degrades; everything else is unaffected.
 
 ---
 

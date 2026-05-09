@@ -61,6 +61,7 @@ point for rollups — `queryMetricByScope` in `@kku/db` — and modules
 | PDF | `PdfDocument`, `PdfPage`, `PdfExtraction`, `PdfTable` | First-class external input pipeline |
 | Decisions | `Scenario`, `ScenarioResult`, `CouncilDecision`, `Annotation` | Decision Workspace |
 | Governance | `User`, `AuditLog`, `AiInference`, `DataSource` | RBAC, audit trail, AI traces, source inventory |
+| Profile page (per-user) | `UserExpertiseNarrative`, `UserPublicationsCache`, `User.avatarStorageKey`, `User.employeeId` | AI expertise blurb cache, kkuscholar+Scopus publication cache, MinIO avatar pointer, HR employment-number bridge to FacultyMember |
 
 ### Materialized views for scope rollup
 
@@ -107,6 +108,18 @@ in `schema.prisma`'s datasource block (with
 `previewFeatures = ["postgresqlExtensions"]`). The
 `infra/postgres/init/01-extensions.sql` file is a belt-and-braces
 fallback that runs only once at volume creation — both are idempotent.
+
+## Per-user `/profile` page (added 2026-05-09)
+
+Sits aside the main bulk pipelines. Per-user surface only — bridges
+`User → FacultyMember` via HR `employeeId`, then aggregates education,
+research, curriculum, and publications. **Profile-page-only paths
+call Scopus + OpenAlex live**; the bulk modules (cockpit, gap,
+benchmarking) keep reading the kkuscholar mirror nightly to stay
+under Scopus's 20k req/week institutional limit.
+
+See [`docs/profile-page.md`](./profile-page.md) for the pipeline
+diagram, cache strategy, and file layout.
 
 ## Non-negotiables (see CLAUDE.md for the full list)
 

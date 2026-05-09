@@ -88,8 +88,8 @@ modules can be built against them.
 | `oecd-reports` | OECD Sectoral Reports | PDF | PDF | KKU Data Office | Thailand-specific reports preferred. |
 | `world-bank` | World Bank Data | API | MIXED | KKU Data Office | Labor indicators + demographic projections. Free API + long-form PDFs. |
 | `adb-gms` | ADB Greater Mekong Subregion | PDF | PDF | KKU Data Office | Laos/Myanmar/Cambodia peer context for some KKU programs. |
-| `scopus` | Scopus | API | JSON | KKU Library (existing subscription) | Requires `ELSEVIER_API_KEY`. |
-| `openalex` | OpenAlex | API | JSON | KKU Data Office | Public API; backup + cross-check for Scopus. |
+| `scopus` | Scopus | API | JSON | KKU Library (existing subscription) | Live (profile-page only). Requires `KKU_SCOPUS_API_KEY`. Reads via the Search API (`AU-ID(...)`, `query=TITLE("...")`, abstract retrieval by DOI). Bulk research metrics still come from kkuscholar to stay under the 20k req/week limit. |
+| `openalex` | OpenAlex | API | JSON | KKU Data Office | Live (profile-page co-author fallback). `OPENALEX_MAILTO` enables the polite pool (10 req/s vs 1). |
 
 ### Scrape
 
