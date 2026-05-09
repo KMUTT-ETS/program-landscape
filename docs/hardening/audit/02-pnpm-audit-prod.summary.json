@@ -1,0 +1,282 @@
+[
+  {
+    "module": "lodash",
+    "sev": "high",
+    "cvss": 8.1,
+    "title": "lodash vulnerable to Code Injection via `_.template` imports key names",
+    "vulnerable": ">=4.0.0 <=4.17.23",
+    "patched": ">=4.18.0",
+    "sample_path": "apps__api>@nestjs/config>lodash",
+    "cves": "CVE-2026-4800"
+  },
+  {
+    "module": "xlsx",
+    "sev": "high",
+    "cvss": 7.8,
+    "title": "Prototype Pollution in sheetJS",
+    "vulnerable": "<0.19.3",
+    "patched": "<0.0.0",
+    "sample_path": "apps__api>xlsx",
+    "cves": "CVE-2023-30533"
+  },
+  {
+    "module": "multer",
+    "sev": "high",
+    "cvss": 7.5,
+    "title": "Multer vulnerable to Denial of Service via unhandled exception from malformed re",
+    "vulnerable": ">=1.4.4-lts.1 <2.0.2",
+    "patched": ">=2.0.2",
+    "sample_path": "apps__api>multer",
+    "cves": "CVE-2025-7338"
+  },
+  {
+    "module": "next",
+    "sev": "high",
+    "cvss": 7.5,
+    "title": "Next Vulnerable to Denial of Service with Server Components",
+    "vulnerable": ">=13.3.0 <14.2.34",
+    "patched": ">=14.2.34",
+    "sample_path": "apps__web>next",
+    "cves": ""
+  },
+  {
+    "module": "next",
+    "sev": "high",
+    "cvss": 7.5,
+    "title": "Next has a Denial of Service with Server Components - Incomplete Fix Follow-Up",
+    "vulnerable": ">=13.3.1-canary.0 <14.2.35",
+    "patched": ">=14.2.35",
+    "sample_path": "apps__web>next",
+    "cves": ""
+  },
+  {
+    "module": "next",
+    "sev": "high",
+    "cvss": 7.5,
+    "title": "Next.js HTTP request deserialization can lead to DoS when using insecure React S",
+    "vulnerable": ">=13.0.0 <15.0.8",
+    "patched": ">=15.0.8",
+    "sample_path": "apps__web>next",
+    "cves": ""
+  },
+  {
+    "module": "next",
+    "sev": "high",
+    "cvss": 7.5,
+    "title": "Next.js has a Denial of Service with Server Components",
+    "vulnerable": ">=13.0.0 <15.5.15",
+    "patched": ">=15.5.15",
+    "sample_path": "apps__web>next",
+    "cves": ""
+  },
+  {
+    "module": "xlsx",
+    "sev": "high",
+    "cvss": 7.5,
+    "title": "SheetJS Regular Expression Denial of Service (ReDoS)",
+    "vulnerable": "<0.20.2",
+    "patched": "<0.0.0",
+    "sample_path": "apps__api>xlsx",
+    "cves": "CVE-2024-22363"
+  },
+  {
+    "module": "lodash",
+    "sev": "moderate",
+    "cvss": 6.5,
+    "title": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+    "vulnerable": ">=4.0.0 <=4.17.22",
+    "patched": ">=4.17.23",
+    "sample_path": "apps__api>@nestjs/config>lodash",
+    "cves": "CVE-2025-13465"
+  },
+  {
+    "module": "lodash",
+    "sev": "moderate",
+    "cvss": 6.5,
+    "title": "lodash vulnerable to Prototype Pollution via array path bypass in `_.unset` and ",
+    "vulnerable": "<=4.17.23",
+    "patched": ">=4.18.0",
+    "sample_path": "apps__api>@nestjs/config>lodash",
+    "cves": "CVE-2026-2950"
+  },
+  {
+    "module": "@nestjs/core",
+    "sev": "moderate",
+    "cvss": 6.1,
+    "title": "@nestjs/core Improperly Neutralizes Special Elements in Output Used by a Downstr",
+    "vulnerable": "<=11.1.17",
+    "patched": ">=11.1.18",
+    "sample_path": "apps__api>@nestjs/core",
+    "cves": "CVE-2026-35515"
+  },
+  {
+    "module": "fast-xml-builder",
+    "sev": "moderate",
+    "cvss": 6.1,
+    "title": "fast-xml-builder Comment Value regex can be bypassed",
+    "vulnerable": "=1.1.5",
+    "patched": ">=1.1.6",
+    "sample_path": "apps__web>@aws-sdk/client-s3>@aws-sdk/core>@aws-sdk/xml-builder>fast-xml-parser>fast-xml-builder",
+    "cves": "CVE-2026-44664"
+  },
+  {
+    "module": "fast-xml-parser",
+    "sev": "moderate",
+    "cvss": 6.1,
+    "title": "fast-xml-parser XMLBuilder: XML Comment and CDATA Injection via Unescaped Delimi",
+    "vulnerable": "<5.7.0",
+    "patched": ">=5.7.0",
+    "sample_path": "apps__web>@aws-sdk/client-s3>@aws-sdk/core>@aws-sdk/xml-builder>fast-xml-parser",
+    "cves": "CVE-2026-41650"
+  },
+  {
+    "module": "postcss",
+    "sev": "moderate",
+    "cvss": 6.1,
+    "title": "PostCSS has XSS via Unescaped </style> in its CSS Stringify Output",
+    "vulnerable": "<8.5.10",
+    "patched": ">=8.5.10",
+    "sample_path": "apps__web>next>postcss",
+    "cves": "CVE-2026-41305"
+  },
+  {
+    "module": "next",
+    "sev": "moderate",
+    "cvss": 5.9,
+    "title": "Next.js self-hosted applications vulnerable to DoS via Image Optimizer remotePat",
+    "vulnerable": ">=10.0.0 <15.5.10",
+    "patched": ">=15.5.10",
+    "sample_path": "apps__web>next",
+    "cves": "CVE-2025-59471"
+  },
+  {
+    "module": "file-type",
+    "sev": "moderate",
+    "cvss": 5.3,
+    "title": "file-type affected by infinite loop in ASF parser on malformed input with zero-s",
+    "vulnerable": ">=13.0.0 <21.3.1",
+    "patched": ">=21.3.1",
+    "sample_path": "apps__api>@nestjs/common>file-type",
+    "cves": "CVE-2026-31808"
+  },
+  {
+    "module": "file-type",
+    "sev": "moderate",
+    "cvss": 5.3,
+    "title": "file-type: ZIP Decompression Bomb DoS via [Content_Types].xml entry",
+    "vulnerable": ">=20.0.0 <=21.3.1",
+    "patched": ">=21.3.2",
+    "sample_path": "apps__api>@nestjs/common>file-type",
+    "cves": "CVE-2026-32630"
+  },
+  {
+    "module": "next-intl",
+    "sev": "moderate",
+    "cvss": 4.2,
+    "title": "next-intl has prototype pollution with `experimental.messages.precompile` via at",
+    "vulnerable": "<=4.9.1",
+    "patched": ">=4.9.2",
+    "sample_path": "apps__web>next-intl",
+    "cves": ""
+  },
+  {
+    "module": "d3-color",
+    "sev": "high",
+    "cvss": 0,
+    "title": "d3-color vulnerable to ReDoS",
+    "vulnerable": "<3.1.0",
+    "patched": ">=3.1.0",
+    "sample_path": "apps__web>react-simple-maps>d3-zoom>d3-interpolate>d3-color",
+    "cves": ""
+  },
+  {
+    "module": "fast-xml-builder",
+    "sev": "high",
+    "cvss": 0,
+    "title": "fast-xml-builder allows attribute values with unwanted quotes to bypass maliciou",
+    "vulnerable": "<=1.1.6",
+    "patched": ">=1.1.7",
+    "sample_path": "apps__web>@aws-sdk/client-s3>@aws-sdk/core>@aws-sdk/xml-builder>fast-xml-parser>fast-xml-builder",
+    "cves": "CVE-2026-44665"
+  },
+  {
+    "module": "multer",
+    "sev": "high",
+    "cvss": 0,
+    "title": "Multer vulnerable to Denial of Service via incomplete cleanup",
+    "vulnerable": "<2.1.0",
+    "patched": ">=2.1.0",
+    "sample_path": "apps__api>@nestjs/platform-express>multer",
+    "cves": "CVE-2026-3304"
+  },
+  {
+    "module": "multer",
+    "sev": "high",
+    "cvss": 0,
+    "title": "Multer vulnerable to Denial of Service via resource exhaustion",
+    "vulnerable": "<2.1.0",
+    "patched": ">=2.1.0",
+    "sample_path": "apps__api>@nestjs/platform-express>multer",
+    "cves": "CVE-2026-2359"
+  },
+  {
+    "module": "multer",
+    "sev": "high",
+    "cvss": 0,
+    "title": "Multer Vulnerable to Denial of Service via Uncontrolled Recursion",
+    "vulnerable": "<2.1.1",
+    "patched": ">=2.1.1",
+    "sample_path": "apps__api>@nestjs/platform-express>multer",
+    "cves": "CVE-2026-3520"
+  },
+  {
+    "module": "next",
+    "sev": "moderate",
+    "cvss": 0,
+    "title": "Next.js: HTTP request smuggling in rewrites",
+    "vulnerable": ">=9.5.0 <15.5.13",
+    "patched": ">=15.5.13",
+    "sample_path": "apps__web>next",
+    "cves": "CVE-2026-29057"
+  },
+  {
+    "module": "next",
+    "sev": "moderate",
+    "cvss": 0,
+    "title": "Next.js: Unbounded next/image disk cache growth can exhaust storage",
+    "vulnerable": ">=10.0.0 <15.5.14",
+    "patched": ">=15.5.14",
+    "sample_path": "apps__web>next",
+    "cves": "CVE-2026-27980"
+  },
+  {
+    "module": "next-auth",
+    "sev": "moderate",
+    "cvss": 0,
+    "title": "NextAuthjs Email misdelivery Vulnerability",
+    "vulnerable": ">=5.0.0-beta.0 <5.0.0-beta.30",
+    "patched": ">=5.0.0-beta.30",
+    "sample_path": "apps__web>next-auth",
+    "cves": ""
+  },
+  {
+    "module": "next-intl",
+    "sev": "moderate",
+    "cvss": 0,
+    "title": "next-intl has an open redirect vulnerability",
+    "vulnerable": "<4.9.1",
+    "patched": ">=4.9.1",
+    "sample_path": "apps__web>next-intl",
+    "cves": "CVE-2026-40299"
+  },
+  {
+    "module": "uuid",
+    "sev": "moderate",
+    "cvss": 0,
+    "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+    "vulnerable": ">=11.0.0 <11.1.1",
+    "patched": ">=11.1.1",
+    "sample_path": "apps__api>bullmq>uuid",
+    "cves": "CVE-2026-41907"
+  }
+]
