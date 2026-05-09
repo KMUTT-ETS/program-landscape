@@ -1,0 +1,31 @@
+[Unit]
+Description=Program Landscape — verify nightly backup (restore-into-throwaway + assert)
+Documentation=file:///opt/program-landscape/current/docs/hardening/19-backup-dr.report.md
+After=docker.service program-landscape-backup.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/program-landscape
+# Run all four verifiers — pg restore, MinIO mirror integrity, off-server
+# mirror freshness, retention enforcement. Each script writes its own
+# verdict to /var/lib/program-landscape/*-verification.json which the
+# api reads via BackupVerificationService.
+#
+# We chain with `; true` between scripts so a single failure doesn't
+# abort the rest — each leaves its own state file with the failure
+# detail, which is exactly the surface /admin/system-status needs.
+ExecStart=/bin/bash -lc " \
+  /opt/program-landscape/current/scripts/dr/verify-backup.sh; \
+  /opt/program-landscape/current/scripts/dr/verify-minio.sh; \
+  /opt/program-landscape/current/scripts/dr/check-mirror.sh; \
+  /opt/program-landscape/current/scripts/dr/retention-check.sh; \
+  true \
+"
+# Verifier scripts use exit 2 for "verification failed" — that's a
+# legitimate outcome, NOT a unit failure (the unit's job is to RUN
+# the verifiers; the verdict goes to /admin/system-status).
+SuccessExitStatus=0 1 2
+Nice=10
+IOSchedulingClass=idle

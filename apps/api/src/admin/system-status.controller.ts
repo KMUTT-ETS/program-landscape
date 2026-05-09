@@ -1,6 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { prisma } from '@kku/db';
-import { Authorized, Provenance } from '../common';
+import { Authorized, Provenance, gotenbergSemaphore } from '../common';
+import { aggregateCapForRole } from '../common/ai-quota.guard';
+import type { Role } from '@kku/shared';
+import { BackupVerificationService } from './backup-verification.service';
 
 // ─────────────────────────────────────────────────────────────────────────
 // GET /admin/system-status — executive-facing operational dashboard.
@@ -20,8 +23,10 @@ import { Authorized, Provenance } from '../common';
 
 @Controller('/admin/system-status')
 export class SystemStatusController {
+  constructor(private readonly backupVerification: BackupVerificationService) {}
+
   @Get()
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   @Provenance({ sources: [{ id: 'platform', name: 'Platform runtime' }] })
   async getStatus() {
     const now = new Date();
@@ -37,8 +42,10 @@ export class SystemStatusController {
       ingestion7d,
       ai24hTotal,
       ai24hByModule,
+      ai24hByRole,
       pendingExtractions,
       recentDecisions,
+      backupTile,
     ] = await Promise.all([
       maxOr(prisma.enrollmentMetric.aggregate({ _max: { updatedAt: true } })),
       maxOr(prisma.financialMetric.aggregate({ _max: { updatedAt: true } })),
@@ -66,6 +73,46 @@ export class SystemStatusController {
         take: 5,
       }),
 
+      // Per-role 24h spend rollup. Joins via the User table so the
+      // role tier is current (not the role at time of inference). The
+      // role-aggregate cap (apps/api/src/common/ai-quota.guard.ts)
+      // enforces these numbers; this surface lets ops see how close
+      // each tier is to its ceiling.
+      prisma.aiInference.groupBy({
+        by: ['userId'],
+        where: { createdAt: { gte: last24h } },
+        _sum: { costEstimateUsd: true },
+        _count: { _all: true },
+      }).then(async (rows) => {
+        const userIds = rows.map((r) => r.userId).filter((u): u is string => !!u);
+        if (userIds.length === 0) return [] as { role: Role; calls: number; spentUsd: number; capUsd: number; pctUsed: number }[];
+        const users = await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, role: true },
+        });
+        const roleByUser = new Map(users.map((u) => [u.id, u.role]));
+        const byRole = new Map<Role, { calls: number; spentUsd: number }>();
+        for (const r of rows) {
+          if (!r.userId) continue;
+          const role = roleByUser.get(r.userId);
+          if (!role) continue;
+          const cell = byRole.get(role) ?? { calls: 0, spentUsd: 0 };
+          cell.calls += r._count._all;
+          cell.spentUsd += Number(r._sum.costEstimateUsd ?? 0);
+          byRole.set(role, cell);
+        }
+        return Array.from(byRole.entries()).map(([role, c]) => {
+          const capUsd = aggregateCapForRole(role);
+          return {
+            role,
+            calls: c.calls,
+            spentUsd: c.spentUsd,
+            capUsd,
+            pctUsed: capUsd > 0 ? Math.round((c.spentUsd / capUsd) * 1000) / 10 : 0,
+          };
+        }).sort((a, b) => b.pctUsed - a.pctUsed);
+      }),
+
       prisma.pdfExtraction.count({
         where: { reviewStatus: 'PENDING_REVIEW' },
       }),
@@ -81,6 +128,12 @@ export class SystemStatusController {
           decisionType: true,
         },
       }),
+
+      // Backup-verification tile — reads /var/lib/program-landscape/
+      // verdict files written by scripts/dr/{verify-backup, verify-minio,
+      // check-mirror, retention-check}.sh. See
+      // docs/hardening/19-backup-dr.report.md.
+      this.backupVerification.getTile(),
     ]);
 
     return {
@@ -107,7 +160,16 @@ export class SystemStatusController {
           calls: row._count._all,
           costUsd: Number(row._sum.costEstimateUsd ?? 0),
         })),
+        // Per-role 24h burn vs the role-aggregate cap. `pctUsed` ≥ 80
+        // is the ops red-flag signal — past 100 the AiQuotaGuard starts
+        // 429-ing role-tier requests.
+        byRole: ai24hByRole,
       },
+      // Live PDF-rendering queue depth — Council Pack export + per-
+      // program detail PDFs are FIFO-queued by the in-process semaphore
+      // so a single ops pane shows whether the rendering tier is keeping
+      // up.
+      gotenbergQueue: gotenbergSemaphore().stats(),
       pendingExtractions,
       recentDecisions: recentDecisions.map((d) => ({
         id: d.id,
@@ -116,6 +178,10 @@ export class SystemStatusController {
         decisionType: d.decisionType,
         updatedAt: d.updatedAt.toISOString(),
       })),
+      // Backup posture — surface the four verifier verdicts at the
+      // top level so the admin UI can render the red/amber/green tile
+      // without traversing nested objects.
+      backup: backupTile,
     };
   }
 }

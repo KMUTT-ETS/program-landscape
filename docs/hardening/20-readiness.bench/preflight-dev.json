@@ -1,0 +1,13 @@
+{
+  "summary": { "pass": 4, "warn": 4, "fail": 0 },
+  "gates": [
+    { "name": "reports_present", "verdict": "PASS", "detail": "all 19 prompts have a *.report.md" },
+    { "name": "no_unowned_deferrals", "verdict": "PASS", "detail": "every DEFERRED tagged to operator gate or named follow-up" },
+    { "name": "deps_audit", "verdict": "PASS", "detail": "audit clean as of 0 h ago" },
+    { "name": "no_secrets_in_head", "verdict": "PASS", "detail": "no tracked secret-shaped files or in-tree key patterns" },
+    { "name": "tests", "verdict": "WARN", "detail": "no marker — run: pnpm test && touch .preflight/tests-ok" },
+    { "name": "backup_verification", "verdict": "WARN", "detail": "no /var/lib/program-landscape/backup-verification.json — has the verifier timer run yet?" },
+    { "name": "restore_drill", "verdict": "WARN", "detail": "no /opt/program-landscape/dr-drills/index.tsv — run scripts/dr/restore-drill.sh once" },
+    { "name": "e2e_k6_staging", "verdict": "WARN", "detail": "missing markers: e2e-staging-ok k6-baseline-ok" }
+  ]
+}

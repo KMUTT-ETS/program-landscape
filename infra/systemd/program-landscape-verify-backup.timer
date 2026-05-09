@@ -1,0 +1,16 @@
+[Unit]
+Description=Program Landscape — trigger nightly backup verification
+Documentation=file:///opt/program-landscape/current/docs/hardening/19-backup-dr.report.md
+
+[Timer]
+# 03:00 Asia/Bangkok — exactly 1 h after the backup timer fires at
+# 02:00. Gives backup.sh time to finish dumping + mirroring. The
+# RandomizedDelaySec is small so the verification window is
+# predictable for monitoring.
+OnCalendar=*-*-* 03:00:00 Asia/Bangkok
+RandomizedDelaySec=300
+Persistent=true
+Unit=program-landscape-verify-backup.service
+
+[Install]
+WantedBy=timers.target

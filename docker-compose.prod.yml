@@ -4,20 +4,45 @@
 # bundle. See DEPLOYMENT.md for the end-to-end flow.
 #
 # Conventions:
-#   - All images are pinned to ${RELEASE_VERSION}. The deploy script
+#   - Our own images are pinned to ${RELEASE_VERSION}. The deploy script
 #     `export`s this from /opt/program-landscape/current/VERSION.
+#   - Upstream images (nginx, postgis, redis, minio, gotenberg) carry
+#     a `tag@sha256:digest` pin. Rotate via scripts/pin-image-digests.sh
+#     when the upstream rebuilds — see docs/hardening/07-containers.report.md.
 #   - Services that hold persistent data (postgres, redis, minio) use
 #     named volumes — never bind mounts.
 #   - Only nginx exposes a port to the host. Everything else lives on
 #     the internal `kku-internal` bridge.
 #   - Every service has a healthcheck. deploy.sh polls them before
 #     declaring the release healthy.
+#
+# Container hardening (prompt 07):
+#   - Every service: cap_drop:[ALL], no-new-privileges, mem_limit, cpus,
+#     log size cap.
+#   - read_only: true on stateless services with explicit tmpfs mounts;
+#     postgres + minio keep writable root because their entrypoints
+#     mutate config / lock files outside the data volume on first boot.
 
 name: program-landscape
 
+# ──────────────────────────────────────────────────────────────────────
+# YAML anchors — common security blocks.
+# ──────────────────────────────────────────────────────────────────────
+x-common-security: &common-security
+  security_opt:
+    - "no-new-privileges:true"
+  cap_drop:
+    - ALL
+
+x-common-logging: &common-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.27-alpine@sha256:62223d644fa234c3a1cc785ee14242ec47a77364226f1c811d2f669f96dc2ac8
     container_name: program-landscape-nginx
     restart: unless-stopped
     ports:
@@ -34,6 +59,14 @@ services:
       - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./infra/nginx/certs:/etc/nginx/certs:ro
       - nginx-logs:/var/log/nginx
+    # nginx writes the master pid file + cache + worker temp dirs at
+    # runtime. With read_only:true these have to land on tmpfs.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    <<: *common-security
     depends_on:
       web:
         condition: service_healthy
@@ -50,11 +83,7 @@ services:
         limits:
           memory: 256M
           cpus: "0.5"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 
@@ -63,6 +92,15 @@ services:
     container_name: program-landscape-web
     restart: unless-stopped
     env_file: .env.prod
+    # Next.js writes telemetry / build-trace lookups to /tmp during dev;
+    # in prod (standalone server) it's tmp-free except for the .next
+    # cache which is baked in at build time. Mount /tmp on tmpfs as a
+    # safety net.
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "1001:1001"   # matches `app` user in apps/web/Dockerfile.prod
+    <<: *common-security
     depends_on:
       api:
         condition: service_healthy
@@ -77,11 +115,7 @@ services:
         limits:
           memory: 1G
           cpus: "1.0"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 
@@ -90,6 +124,14 @@ services:
     container_name: program-landscape-api
     restart: unless-stopped
     env_file: .env.prod
+    # Multer streams multipart uploads into /tmp by default; pino /
+    # nestjs-pino don't write files. /tmp on tmpfs handles the upload
+    # buffer in memory (capped by tmpfs default size).
+    read_only: true
+    tmpfs:
+      - /tmp:size=200M
+    user: "1001:1001"   # matches `app` user in apps/api/Dockerfile.prod
+    <<: *common-security
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,11 +142,16 @@ services:
       gotenberg:
         condition: service_healthy
     healthcheck:
-      # /api/v1/ready returns 200 when Postgres + Redis + MinIO +
-      # Gotenberg + AI provider key are all present. 503 on any failure.
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/v1/ready | grep -q '\"status\":\"ok\"'"]
+      # LIVENESS only — `/healthz` checks that the api process is
+      # responsive. Compose uses this to decide whether to RESTART the
+      # container; a transient Postgres / Gotenberg blip should NOT
+      # restart the api (defeats the circuit breaker from prompt 11).
+      # The READINESS check at `/api/v1/ready` is for nginx + the KKU
+      # upstream proxy — they gate TRAFFIC on it, which is the right
+      # level for "deps are slow / draining" flags.
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4000/api/v1/healthz"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
       start_period: 30s
     deploy:
@@ -112,11 +159,7 @@ services:
         limits:
           memory: 2G
           cpus: "2.0"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 
@@ -125,6 +168,13 @@ services:
     container_name: program-landscape-ingestion
     restart: unless-stopped
     env_file: .env.prod
+    # BullMQ workers use /tmp for AI-prompt scratch + PDF buffer space.
+    # 500M tmpfs accommodates a 50 MB-PDF intake job + headroom.
+    read_only: true
+    tmpfs:
+      - /tmp:size=500M
+    user: "1001:1001"   # matches `app` user in apps/ingestion/Dockerfile.prod
+    <<: *common-security
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,16 +193,12 @@ services:
         limits:
           memory: 3G
           cpus: "2.0"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 
   postgres:
-    image: postgis/postgis:16-3.4
+    image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
     container_name: program-landscape-postgres
     restart: unless-stopped
     environment:
@@ -165,6 +211,12 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    # postgres entrypoint runs as root briefly to chown the data dir,
+    # then drops privileges via gosu. Read-only root would block the
+    # chown step on first boot. Capability drop + no-new-privileges
+    # apply regardless — the running postgres process is unprivileged.
+    # Verify in prod with `docker exec program-landscape-postgres ps -u postgres`.
+    <<: *common-security
     secrets:
       - postgres_user
       - postgres_password
@@ -178,16 +230,12 @@ services:
         limits:
           memory: 4G
           cpus: "2.0"
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7
     container_name: program-landscape-redis
     restart: unless-stopped
     command:
@@ -200,6 +248,11 @@ services:
       - "allkeys-lru"
     volumes:
       - redis-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "redis:redis"
+    <<: *common-security
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -210,16 +263,12 @@ services:
         limits:
           memory: 1.5G
           cpus: "0.5"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: *common-logging
     networks:
       - kku-internal
 
   minio:
-    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z@sha256:e62f840f755f9d07524ce9801ffbb347086ba41e4081c28d45132d106981c448
     container_name: program-landscape-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -228,6 +277,11 @@ services:
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
     volumes:
       - minio-data:/data
+    # MinIO writes its server config under $HOME/.minio at startup
+    # (read root-creds from secret files first). Read-only root would
+    # block that. Capability drop still applies; the server runs as
+    # the unprivileged `minio` user inside the container.
+    <<: *common-security
     secrets:
       - minio_user
       - minio_password
@@ -242,11 +296,7 @@ services:
         limits:
           memory: 2G
           cpus: "1.0"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 
@@ -257,6 +307,13 @@ services:
     environment:
       API_TIMEOUT: "60s"
       LOG_LEVEL: "info"
+    # Headless Chromium spawns scratch dirs under /tmp during PDF
+    # rendering. 1G tmpfs is generous; Council Pack rendering peaks at
+    # ~200 MB simultaneous spawns.
+    read_only: true
+    tmpfs:
+      - /tmp:size=1G
+    <<: *common-security
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/health"]
       interval: 30s
@@ -268,11 +325,7 @@ services:
         limits:
           memory: 2G
           cpus: "1.5"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *common-logging
     networks:
       - kku-internal
 

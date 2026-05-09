@@ -46,7 +46,38 @@ log "=== Deploying Program Landscape v${VERSION} ==="
 log "Bundle dir : $RELEASE_DIR"
 log "Deploy root: $DEPLOY_ROOT"
 
-# ── 1. Preflight ──────────────────────────────────────────────────────
+# ── 0. Release-readiness gate (prompt 20) ─────────────────────────────
+#
+# Refuse to proceed unless preflight.sh runs green. Override is allowed
+# but audited: --skip-preflight requires OVERRIDE_REASON=... and writes
+# a row to /var/log/program-landscape/preflight-overrides.log.
+SKIP_PREFLIGHT=0
+for arg in "${@:-}"; do
+  case "${arg:-}" in --skip-preflight) SKIP_PREFLIGHT=1 ;; esac
+done
+
+PREFLIGHT_LOG="/var/log/program-landscape"
+sudo mkdir -p "$PREFLIGHT_LOG" 2>/dev/null || true
+
+if [ "$SKIP_PREFLIGHT" = "1" ]; then
+  if [ -z "${OVERRIDE_REASON:-}" ]; then
+    fail "--skip-preflight requires OVERRIDE_REASON=... env var (audited)"
+  fi
+  log "WARNING: --skip-preflight set; reason: $OVERRIDE_REASON"
+  sudo tee -a "$PREFLIGHT_LOG/preflight-overrides.log" >/dev/null <<EOF
+$(date -u +%Y-%m-%dT%H:%M:%SZ)	v${VERSION}	$(hostname)	$(whoami)	$OVERRIDE_REASON
+EOF
+else
+  if [ -x "$RELEASE_DIR/scripts/preflight.sh" ]; then
+    log "Running preflight gate"
+    "$RELEASE_DIR/scripts/preflight.sh" \
+      || fail "preflight.sh failed — re-run for details. To override (audited): OVERRIDE_REASON='...' ./scripts/deploy.sh --skip-preflight"
+  else
+    log "WARNING: scripts/preflight.sh missing from bundle — skipping release-readiness gate"
+  fi
+fi
+
+# ── 1. Preflight (host-side: docker, secrets, certs) ─────────────────
 command -v docker >/dev/null 2>&1 || fail "docker not installed"
 docker compose version >/dev/null 2>&1 || fail "docker compose v2 not installed (use 'docker compose', not 'docker-compose')"
 command -v sudo >/dev/null 2>&1 || fail "sudo required"
@@ -86,11 +117,21 @@ sudo rm -rf "$STAGED_RELEASE/infra/nginx/certs"
 sudo ln -sfn "$CERTS_DIR"              "$STAGED_RELEASE/infra/nginx/certs"
 
 # ── 5. Pre-deploy DB snapshot ─────────────────────────────────────────
+# The snapshot is the only restore-point if a forward-only migration
+# turns out to be destructive. Refusing-to-deploy-on-failed-snapshot
+# is the policy from docs/migration-policy.md and prompt 12 (db
+# safety). Operator override: `SKIP_PRE_DEPLOY_SNAPSHOT=1 ./deploy.sh`
+# (use ONLY for the very first deploy when there's no DB yet).
 if [ -L "$CURRENT_LINK" ] || [ -e "$CURRENT_LINK" ]; then
-  log "Taking pre-deploy DB snapshot"
-  if [ -x "$RELEASE_DIR/scripts/backup.sh" ]; then
+  if [ "${SKIP_PRE_DEPLOY_SNAPSHOT:-0}" = "1" ]; then
+    log "WARNING: SKIP_PRE_DEPLOY_SNAPSHOT=1 — skipping snapshot. NO RESTORE POINT IF MIGRATION FAILS."
+  else
+    log "Taking pre-deploy DB snapshot (refuses to deploy on failure)"
+    if [ ! -x "$RELEASE_DIR/scripts/backup.sh" ]; then
+      fail "snapshot script $RELEASE_DIR/scripts/backup.sh not executable — cannot deploy without a restore point"
+    fi
     sudo DEPLOY_ROOT="$DEPLOY_ROOT" "$RELEASE_DIR/scripts/backup.sh" "pre-deploy-$VERSION" || \
-      log "WARNING: pre-deploy snapshot failed — continuing"
+      fail "pre-deploy snapshot FAILED — refusing to deploy. Re-run after the DB is reachable, or set SKIP_PRE_DEPLOY_SNAPSHOT=1 (NOT RECOMMENDED)."
   fi
 fi
 
@@ -114,6 +155,22 @@ log "Applying database migrations"
 sudo -E docker compose run --rm --entrypoint "" api \
   sh -c "node node_modules/.bin/prisma migrate deploy --schema=packages/db/prisma/schema.prisma" \
   || fail "prisma migrate deploy failed — rollback recommended"
+
+# ── 6.5. Drain the old release ───────────────────────────────────────
+# Before swapping the `current` symlink, ask the running containers to
+# drain. SIGTERM → flips the api/ingestion drain flag → `/api/v1/ready`
+# returns 503 → KKU upstream proxy stops forwarding NEW traffic within
+# its 30s polling window. In-flight requests get up to STOP_TIMEOUT
+# seconds to finish via Nest's `app.close()` deadline.
+#
+# Skipped on first deploy (no `current` symlink yet → no live stack).
+STOP_TIMEOUT="${DEPLOY_STOP_TIMEOUT:-30}"
+if [ -L "$CURRENT_LINK" ] || [ -e "$CURRENT_LINK" ]; then
+  log "Draining current release (SIGTERM, ${STOP_TIMEOUT}s deadline)"
+  cd "$CURRENT_LINK"
+  sudo -E docker compose stop --timeout "$STOP_TIMEOUT" || \
+    log "WARNING: drain stop returned non-zero — proceeding with swap"
+fi
 
 # ── 7. Atomic symlink swap ────────────────────────────────────────────
 log "Swapping current → $VERSION"

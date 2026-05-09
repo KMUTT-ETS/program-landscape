@@ -67,3 +67,4 @@ apps/web/public/pdf.worker.*.mjs
 
 # Bulk-digest run logs (per-run artifacts, not source-of-truth)
 logs/
+.preflight/

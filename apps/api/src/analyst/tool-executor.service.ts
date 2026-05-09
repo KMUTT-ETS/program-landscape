@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
   BENCHMARKING_VERSION,
   computeDistinctiveness,
@@ -20,6 +20,8 @@ import {
   programFaculty,
   type ProgramOverviewResult,
 } from '@kku/db';
+import type { SessionUser } from '@kku/shared';
+import { clampScopeForUser, seesAllScopes } from '../common/scope-guards';
 import {
   CiteSourceInputSchema,
   ComparePeersInputSchema,
@@ -53,21 +55,53 @@ import {
 //   3. Cap its own result size (~8 KB) so the LLM context stays sane.
 // ═════════════════════════════════════════════════════════════════════
 
+// Tools whose `scope`/`scopeId` arguments need server-side clamping
+// against the caller's actual scope. Listed explicitly so a new tool
+// doesn't accidentally inherit (or skip) the clamp.
+const SPATIAL_TOOLS = new Set(['query_programs', 'get_program', 'query_gaps']);
+
 @Injectable()
 export class AnalystToolExecutor {
   private readonly logger = new Logger(AnalystToolExecutor.name);
 
-  async execute(call: ToolCall): Promise<string> {
+  /**
+   * Execute a tool call.
+   *
+   * The optional `caller` enables server-side scope authorisation —
+   * for spatial tools we clamp the model-supplied `scope`/`scopeId`
+   * (or `programId`) against the caller's actual reach. The model
+   * doesn't get to escape its caller's scope by passing wider args.
+   *
+   * `caller` is left optional for backward compatibility with the
+   * existing test surface; production call sites in
+   * `analyst.service.ts` always pass it.
+   */
+  async execute(call: ToolCall, caller?: SessionUser): Promise<string> {
     const t0 = Date.now();
     const handler = this.handlers[call.name];
     if (!handler) {
       return JSON.stringify({ error: `Unknown tool: ${call.name}` });
     }
     try {
-      const result = await handler(call.input);
+      // ── Server-side scope clamp (prompt 10) ────────────────────────
+      // Apply BEFORE the handler runs so the clamped values are what
+      // hit Prisma. The model never sees the clamp — it gets results
+      // for whatever it asked, restricted to what the caller is allowed
+      // to see. For wider-than-allowed asks, the helper either narrows
+      // (FACULTY_USER asking 'university' → narrows to their faculty)
+      // or 403s (PROGRAM_USER asking another program's id).
+      let clampedInput: unknown = call.input;
+      if (caller && SPATIAL_TOOLS.has(call.name)) {
+        clampedInput = await clampSpatialInput(call.name, call.input, caller);
+      }
+      const result = await handler(clampedInput);
       this.logger.debug(`tool ${call.name} ok in ${Date.now() - t0}ms`);
       return JSON.stringify(clip(result));
     } catch (err) {
+      if (err instanceof ForbiddenException) {
+        this.logger.warn(`tool ${call.name} refused by scope guard: ${err.message}`);
+        return JSON.stringify({ error: `forbidden: ${err.message}` });
+      }
       this.logger.warn(`tool ${call.name} failed: ${(err as Error).message}`);
       return JSON.stringify({ error: (err as Error).message });
     }
@@ -389,6 +423,13 @@ export class AnalystToolExecutor {
       // pg_trgm similarity query. Falls back to ILIKE when the extension
       // isn't installed — testing envs without Postgres can't run this,
       // so we also handle the empty-index case gracefully.
+      //
+      // SAFETY: $queryRawUnsafe is acceptable here because the SQL string
+      // is a constant template — only $1..$4 placeholders are filled, and
+      // every value is supplied via Postgres positional parameter binding
+      // (q.query, since, `%${q.query}%`, q.limit). No user input is
+      // concatenated into the SQL string itself. q.query is also Zod-
+      // validated upstream by SearchPolicyDocsInputSchema.
       const rows = await prisma.$queryRawUnsafe<
         Array<{ id: string; title: string; source: string; published_date: Date; url: string | null; summary_th: string | null; score: number }>
       >(
@@ -504,4 +545,42 @@ function clipRecursive(v: unknown, budget: number): unknown {
     return out;
   }
   return v;
+}
+
+// ── Spatial clamp for tool inputs ────────────────────────────────────
+// Mirrors the HTTP-route clamp in apps/api/src/common/scope-guards.ts.
+// Refuses to expand the model's reach past the caller's actual scope.
+async function clampSpatialInput(
+  toolName: string,
+  rawInput: unknown,
+  caller: SessionUser,
+): Promise<unknown> {
+  // Admin-grade + UNIVERSITY_USER pass through untouched.
+  if (seesAllScopes(caller.role)) return rawInput;
+  if (!rawInput || typeof rawInput !== 'object') return rawInput;
+  const input = { ...(rawInput as Record<string, unknown>) };
+
+  switch (toolName) {
+    case 'query_programs':
+    case 'query_gaps': {
+      const scope = (input.scope as 'university' | 'faculty' | 'department' | 'program' | undefined) ?? 'university';
+      const scopeId = (input.scopeId as string | null | undefined) ?? null;
+      const eff = await clampScopeForUser(scope, scopeId, caller);
+      input.scope = eff.scope;
+      input.scopeId = eff.scopeId;
+      return input;
+    }
+    case 'get_program': {
+      const programId = input.programId as string | undefined;
+      if (!programId) return input;
+      // For PROGRAM_USER, only their own program; for FACULTY_USER,
+      // any program inside their faculty. Resolve via the same helper
+      // — it 403s on out-of-scope.
+      const eff = await clampScopeForUser('program', programId, caller);
+      input.programId = eff.scopeId;
+      return input;
+    }
+    default:
+      return input;
+  }
 }
