@@ -54,12 +54,32 @@ ${SUDO} openssl req -x509 -newkey rsa:4096 -sha256 \
 ${SUDO} chmod 600 "${CERT_DIR}/privkey.pem"
 ${SUDO} chmod 644 "${CERT_DIR}/fullchain.pem"
 
+# ── Fingerprint capture ──────────────────────────────────────────────
+# Write a stable, parseable fingerprint file alongside the cert. KKU
+# network team reads this file out-of-band to configure cert pinning
+# on the upstream proxy (`proxy_ssl_trusted_certificate` +
+# `proxy_ssl_verify on`). Format is intentionally machine-readable.
+FINGERPRINT_FILE="${CERT_DIR}/fingerprint.txt"
+{
+  echo "# Program Landscape self-signed cert fingerprint"
+  echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "# Subject:   CN=${DOMAIN}"
+  echo "# Validity:  ${DAYS} days"
+  echo "# Algorithm: RSA-4096, SHA-256"
+  echo
+  ${SUDO} openssl x509 -in "${CERT_DIR}/fullchain.pem" -noout -fingerprint -sha256 \
+    | sed 's/SHA256 Fingerprint=/SHA256 Fingerprint = /'
+  ${SUDO} openssl x509 -in "${CERT_DIR}/fullchain.pem" -noout -fingerprint -sha1 \
+    | sed 's/SHA1 Fingerprint=/SHA1 Fingerprint = /'
+  echo
+  echo "# Subject + expiry:"
+  ${SUDO} openssl x509 -in "${CERT_DIR}/fullchain.pem" -noout -subject -enddate
+} | ${SUDO} tee "${FINGERPRINT_FILE}" >/dev/null
+${SUDO} chmod 644 "${FINGERPRINT_FILE}"
+
 echo
 echo "Cert generated:"
 ${SUDO} ls -l "${CERT_DIR}"
 echo
-echo "SHA-256 fingerprint (share with KKU network team if pinning):"
-${SUDO} openssl x509 -in "${CERT_DIR}/fullchain.pem" -noout -fingerprint -sha256
-echo
-echo "Subject + expiry:"
-${SUDO} openssl x509 -in "${CERT_DIR}/fullchain.pem" -noout -subject -enddate
+echo "Fingerprint summary written to ${FINGERPRINT_FILE}:"
+${SUDO} cat "${FINGERPRINT_FILE}"

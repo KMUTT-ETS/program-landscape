@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ApiError } from '@kku/shared';
 import {
   addApprover,
   assertTransitionAllowed,
@@ -90,27 +91,52 @@ export class DecisionsService {
   }
 
   // ── Status transitions ───────────────────────────────────────────
+  // Read-modify-write — wrapped in $transaction + a compare-and-swap
+  // on the status column to defeat lost-update under concurrent
+  // requests. Without this, two simultaneous "PROPOSED → APPROVED"
+  // calls (or one APPROVED + one ARCHIVED) could both pass the
+  // in-memory `assertTransitionAllowed` check against the same stale
+  // PROPOSED snapshot, then both write — second write wins, audit
+  // trail loses the intermediate state.
   async updateStatus(params: {
     decisionId: string;
     userId: string;
     userRole: string;
     toStatus: DecisionStatus;
   }) {
-    const existing = await prisma.councilDecision.findUnique({
-      where: { id: params.decisionId },
-      select: { id: true, status: true, userId: true },
-    });
-    if (!existing) throw new NotFoundException();
-    assertTransitionAllowed(existing.status, params.toStatus);
-    assertTransitionAllowedForRole(params.toStatus, params.userRole);
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.councilDecision.findUnique({
+        where: { id: params.decisionId },
+        select: { id: true, status: true, userId: true },
+      });
+      if (!existing) throw new NotFoundException();
+      assertTransitionAllowed(existing.status, params.toStatus);
+      assertTransitionAllowedForRole(params.toStatus, params.userRole);
 
-    // Auto-capture snapshot on COUNCIL_REVIEWED (once).
-    if (params.toStatus === 'COUNCIL_REVIEWED') {
-      await captureSnapshot(params.decisionId, /* force */ false);
-    }
-    return prisma.councilDecision.update({
-      where: { id: params.decisionId },
-      data: { status: params.toStatus },
+      // Auto-capture snapshot on COUNCIL_REVIEWED (once). Idempotent —
+      // captureSnapshot is a no-op if a snapshot already exists.
+      if (params.toStatus === 'COUNCIL_REVIEWED') {
+        await captureSnapshot(params.decisionId, /* force */ false);
+      }
+
+      // Compare-and-swap: only update if status STILL matches the
+      // snapshot we read. updateMany returns count=0 when the where
+      // clause didn't match → another transaction got there first;
+      // surface a 409-equivalent so the caller can retry.
+      const result = await tx.councilDecision.updateMany({
+        where: { id: params.decisionId, status: existing.status },
+        data: { status: params.toStatus },
+      });
+      if (result.count === 0) {
+        throw new ApiError(
+          'VALIDATION_FAILED',
+          'Decision status changed concurrently — retry the request.',
+          { decisionId: params.decisionId, expectedStatus: existing.status },
+        );
+      }
+      return tx.councilDecision.findUniqueOrThrow({
+        where: { id: params.decisionId },
+      });
     });
   }
 

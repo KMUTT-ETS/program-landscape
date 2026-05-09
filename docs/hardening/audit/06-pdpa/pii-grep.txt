@@ -1,0 +1,240 @@
+=== citizenId / nationalId / ID_PEOPLE / id_card / pid references ===
+.env.example:158:# CITIZEN_ID joins the processed-HR mart via SHA-256(citizen_id).
+.env.example:194:# `people.pid` (sparse 13-digit Thai citizen IDs in some rows) is
+.env.example:196:# guard refuses to sample any table whose column name matches `pid` too.
+CLAUDE.md:302:- **Discovery probe lives at `apps/ingestion/src/scripts/probe-kku-publications.ts` (`pnpm publications:probe {ping|tables|columns|sample|coverage|kku-summary|list-tables|pubmed-link|faculty-rollup|all}`).** Read-only. PII guard refuses to sample any table whose column names match `email|phone|address|citizen|passport|tax_id|salary|password|ssn|national_id|id_card|pid` — `pid` was added defensively after sampling showed sparse 13-digit values that look like Thai citizen IDs in some `people` rows. Probe outputs land in `apps/ingestion/test/fixtures/kku-publications/` (8 fixtures, no PII, safe in git).
+CLAUDE.md:304:- **PDPA posture.** Mirror is publication metadata only — titles, authors, venues, citations, DOI, year. Author names + affiliations are public per the data subject's act of publishing (legal basis §24(1)/§24(4), same as the OpenAlex pathway). `people.pid` (sparse Thai citizen IDs) is **deliberately not read** by the connector — projection list omits it. Read-only login (NOT a superuser).
+CLAUDE.md:425:- **PII-aggregate-at-source posture.** Q1 SELECT projection deliberately omits citizen ID raw, passport, tax ID, social security ID, email, phone, and per-row salary. `ID_PEOPLE` (Thai citizen ID) is hashed server-side via `HASHBYTES('SHA2_256', CAST(ID_PEOPLE AS varbinary(500)))` so the connector receives a 64-char hex value only — same posture as `EMPLOYEEID`. Per user 2026-04-28, `ID_PEOPLE` is the canonical cross-system join key (KKU's other systems also reference Thai citizen ID); hashing both sides means downstream joins work without anyone holding raw PII. Q2 server-side `GROUP BY ... HAVING COUNT(*) >= 5` ensures no per-person salary ever crosses the wire — single-individual cells are suppressed before they leave SQL Server.
+apps/api/src/benchmarking/benchmarking.controller.ts:116:          create: body.peerProgramIds.map((pid) => ({ peerProgramId: pid })),
+apps/api/src/common/logger.module.ts:37:              ignore: 'pid,hostname,req,res,responseTime',
+apps/api/src/staff-dashboard/staff.service.ts:144:        citizenIdHash: true,
+apps/api/src/staff-dashboard/staff.service.ts:160:      where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
+apps/api/src/staff-dashboard/staff.service.ts:161:      select: { citizenIdHash: true, birthYearAd: true },
+apps/api/src/staff-dashboard/staff.service.ts:163:    const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l.birthYearAd]));
+apps/api/src/staff-dashboard/staff.service.ts:184:      const ad = lifeByHash.get(r.citizenIdHash) ??
+apps/api/src/staff-dashboard/staff.service.ts:237:        citizenIdHash: true,
+apps/api/src/staff-dashboard/staff.service.ts:252:    // joined here via citizenIdHash. Falls back to DS2001 birth_year
+apps/api/src/staff-dashboard/staff.service.ts:255:      where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
+apps/api/src/staff-dashboard/staff.service.ts:256:      select: { citizenIdHash: true, birthYearAd: true, retireYearAd: true },
+apps/api/src/staff-dashboard/staff.service.ts:258:    const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l]));
+apps/api/src/staff-dashboard/staff.service.ts:306:      const life = lifeByHash.get(r.citizenIdHash);
+apps/api/src/staff-dashboard/staff.service.ts:343:      const life = lifeByHash.get(r.citizenIdHash);
+apps/api/src/staff-dashboard/staff.service.ts:384:  //   * distinctStaff — unique humans by citizen_id_hash, regardless of
+apps/api/src/staff-dashboard/staff.service.ts:412:             COUNT(DISTINCT spa.citizen_id_hash)::int AS distinct_staff
+apps/ingestion/src/app.module.ts:35:                ignore: 'pid,hostname',
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:141:      externalId: `life|${r.citizen_id_hash}`,
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:155:      const citizenIdHash = hashCitizenId(r.identification);
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:156:      if (!citizenIdHash) return [];
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:166:          externalId: `life|${citizenIdHash}`,
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:168:            citizenIdHash,
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:260:    // insert fresh. citizen_id_hash is the PK so we can't naively
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:270:          citizenIdHash: string;
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:276:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:78:  -- ID_PEOPLE is NVARCHAR in HCM. CAST'ing to varbinary(500) of an
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:83:  CASE WHEN e.ID_PEOPLE IS NULL OR e.ID_PEOPLE = ''
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:85:       ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CAST(e.ID_PEOPLE AS varchar(50)) AS varbinary(500))), 2)
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:410:          // PERSON_HASH = SHA-256(ID_PEOPLE) computed server-side. This
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:414:          // processed-HR. Null when ID_PEOPLE was blank in HCM.
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:415:          citizenIdHash: q1.PERSON_HASH,
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:490:            citizenIdHash: string | null;
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:510:              citizenIdHash: p.citizenIdHash?.toLowerCase() ?? undefined,
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:523:              citizenIdHash: p.citizenIdHash?.toLowerCase() ?? null,
+apps/ingestion/src/connectors/sources/kku-hr/transforms.ts:24:  PERSON_HASH: z.string().min(1).nullable(), // SHA256(ID_PEOPLE) — null if ID_PEOPLE blank
+apps/ingestion/src/connectors/sources/kku-research/connector.ts:30://   - Read kku-publications `people.pid` (partial PII — sparse 13-digit
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:17://     CITIZEN_ID → citizenIdHash (canonical cross-system join key)
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:73:  citizenIdHash: string;
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:207:    const citizenIdHash = hashCitizenId(r.CITIZEN_ID);
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:208:    if (!citizenIdHash) {
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:223:      citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:323:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:12://   HASHED:   CITIZEN_ID → citizenIdHash
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:203:    const citizenIdHash = hashCitizenId(r.CITIZEN_ID);
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:204:    if (!citizenIdHash) {
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:214:          citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:49:  citizenIdHash: string;
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:163:      citizenIdHash: hash,
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:207:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:228:      normalized.map((n) => (n.payload as unknown as NormalizedPayload).citizenIdHash),
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:49:  citizenIdHash: string;
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:173:      citizenIdHash: hash,
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:261:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:280:      normalized.map((n) => (n.payload as unknown as NormalizedPayload).citizenIdHash),
+apps/ingestion/src/program-faculty/run.ts:138:  // citizenIdHash, no name-matching guesswork. The PDF extraction
+apps/ingestion/src/program-system-context/load.ts:5://             FacultyMember by citizenIdHash; rank from FacultyMember
+apps/ingestion/src/program-system-context/load.ts:24:  citizenIdHash: string;
+apps/ingestion/src/program-system-context/load.ts:81:      citizen_id_hash: string;
+apps/ingestion/src/program-system-context/load.ts:89:    SELECT spa.citizen_id_hash,
+apps/ingestion/src/program-system-context/load.ts:96:      LEFT JOIN faculty_members fm ON fm.citizen_id_hash = spa.citizen_id_hash
+apps/ingestion/src/program-system-context/load.ts:102:  const allHashes = [...new Set(staffRows.map((r) => r.citizen_id_hash))];
+apps/ingestion/src/program-system-context/load.ts:108:            citizen_id_hash: string;
+apps/ingestion/src/program-system-context/load.ts:114:          SELECT citizen_id_hash, grad_country_id, grad_level_name, grad_year
+apps/ingestion/src/program-system-context/load.ts:116:           WHERE citizen_id_hash = ANY(${allHashes})
+apps/ingestion/src/program-system-context/load.ts:123:    const existing = highestByHash.get(r.citizen_id_hash);
+apps/ingestion/src/program-system-context/load.ts:126:      highestByHash.set(r.citizen_id_hash, { country: r.grad_country_id, level: r.grad_level_name });
+apps/ingestion/src/program-system-context/load.ts:129:      const prevYr = Number(eduRows.find((x) => x.citizen_id_hash === r.citizen_id_hash)?.grad_year ?? 0);
+apps/ingestion/src/program-system-context/load.ts:131:        highestByHash.set(r.citizen_id_hash, { country: r.grad_country_id, level: r.grad_level_name });
+apps/ingestion/src/program-system-context/load.ts:141:    const edu = highestByHash.get(r.citizen_id_hash);
+apps/ingestion/src/program-system-context/load.ts:143:      citizenIdHash: r.citizen_id_hash,
+apps/ingestion/src/program-system-context/load.ts:152:    const existing = byPerson.get(r.citizen_id_hash);
+apps/ingestion/src/program-system-context/load.ts:154:      byPerson.set(r.citizen_id_hash, rec);
+apps/ingestion/src/scripts/capture-kmitl-skill-mapping.ts:84:// citizen_id/i aborts the capture. The `name` field is allowed only on
+apps/ingestion/src/scripts/link-program-financials.ts:286:      (sum, pid) => sum + (enrollmentByProgram.get(pid) ?? 0),
+apps/ingestion/src/scripts/probe-kku-publications.ts:73:  /^(email|phone|address|citizen|passport|tax_id|salary|password|ssn|national_id|id_card|pid)$/i;
+apps/ingestion/src/scripts/probe-kku-publications.ts:602:    // Aggregate-only: count, faculty_id, paper counts. NEVER pid / email.
+apps/ingestion/src/scripts/probe-kku-publications.ts:900:         COUNT(*) FILTER (WHERE pid IS NOT NULL AND pid <> '')::text AS with_pid,
+apps/ingestion/src/scripts/probe-kku-publications.ts:914:    console.log('  → people.pid length distribution (values not displayed) …');
+apps/ingestion/src/scripts/probe-kku-publications.ts:917:      `SELECT length(pid) AS len, COUNT(*)::text AS n FROM people WHERE pid IS NOT NULL GROUP BY length(pid) ORDER BY n DESC LIMIT 5`,
+apps/ingestion/test/fixtures/kku-hr/schema.json:23:    "COLUMN_NAME": "ID_PEOPLE",
+apps/ingestion/test/fixtures/kku-publications/columns-public-people.json:79:      "column_name": "pid",
+apps/ingestion/test/fixtures/kku-publications/full-schema.json:4029:    "column_name": "pid",
+apps/ingestion/test/fixtures/kku-publications/full-schema.json:8719:    "column_name": "pid",
+apps/web/src/lib/auth/kku-sso-client.ts:76:    citizenId: z.string().optional(),
+apps/web/src/lib/auth/kku-sso-client.ts:77:    citizen_id: z.string().optional(),
+apps/web/src/lib/auth/kku-sso-client.ts:92:  citizenId: string;
+apps/web/src/lib/auth/kku-sso-client.ts:195:    citizenId: pick(data.citizenId, data.citizen_id),
+apps/web/src/lib/auth/kku-sso-client.ts:214:  citizenId: string;
+apps/web/src/lib/auth/kku-sso-client.ts:265:      citizenId: asString(p.citizenId ?? p.citizen_id),
+apps/web/src/lib/display-name.ts:69:      citizenIdHash: true,
+apps/web/src/lib/display-name.ts:77:  if (!hasDoctorate && member.citizenIdHash) {
+apps/web/src/lib/display-name.ts:79:      where: { citizenIdHash: member.citizenIdHash },
+apps/web/src/lib/profile-data.ts:174:    // citizenIdHash that kku-hr stamped on FacultyMember. May be
+apps/web/src/lib/profile-data.ts:177:    member.citizenIdHash
+apps/web/src/lib/profile-data.ts:179:          where: { citizenIdHash: member.citizenIdHash },
+docs/auth/kku-sso.md:68:  "citizenId": "...",
+docs/data-sources/kku-hr.md:51:| `ID_PEOPLE` | Thai citizen ID (13 digits) | text | **NEVER pulled.** |
+docs/data-sources/kku-hr.md:82:| Person hash for cross-system join | `SHA256(ID_PEOPLE)` — Thai citizen ID, hashed server-side via `HASHBYTES` so raw never crosses the wire | per user confirmation 2026-04-28 |
+docs/data-sources/kku-hr.md:108:  CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(e.ID_PEOPLE  AS varbinary(500))), 2) AS PERSON_HASH,
+docs/data-sources/kku-hr.md:255:**Personal data categories carried by `dbo.EmployeeDetail`:** Thai citizen ID (`ID_PEOPLE`), passport (`PASSPORT_NO`), tax ID (`IDTAX`), social security (`IDSOC`), full names (Thai + English), full date of birth, contact phone, personal email, full salary history, marital status, parental info, current employment status, full employment timeline.
+docs/data-sources/kku-hr.md:282:- **2026-04-28 (Phase 2 discovery — Claude)** — Endpoint changed to `10.101.104.192`. Read-only credential delivered, ran `pnpm hr:capture all` clean (5 fixtures: schema/counts/org-tree/positions/date-ranges). Discovered `Assignment_Category` and `Budget_Type` are 100% NULL in this DB — the spec's proposed academic-staff filter doesn't work here. Added 4 more discovery subcommands: `sibling-dbs` (metadata scan across 7 visible DBs — `epm_report` revealed as a goldmine of 122 lookup tables), `lookups` (pulled `Personnel_Type` 10 rows / `all_position_type` 6 rows / `job_families` 19 rows / `positions` 512 rows / `Faculty` 2,787 rows / distinct workforce.FACULTY 397 / Recruiting_Position.BU_NAME 130 — all reference data, no PII). User confirmed `BU_CODE` related to `epm_report.dbo.Faculty` table. Verified 100% BU1 coverage in Faculty table (30 of 30 KKU faculties). Added `bridge-probe` subcommand — first attempt JOINed to `workforce_current_position_request_Final` and only matched 23% (it's a budget-planning table, not full HR snapshot). Added `job-lookup` subcommand listing all 128 epm_report tables with row counts + JOB/POSITION column hits — found `workforce_hcm_actual` (18,176 rows ≈ HCMEmployee's 18,296). Added `hcm-actual` subcommand which confirmed: **99.75% JOIN coverage** (11,362 / 11,390 active employees match on raw `EMP_POSITION = POSITION_NUMBER`, no prefix needed); `All_Position_Types` filter gives 2,535 วิชาการ + 34 วิจัย + 37 บริหาร = 2,606 active academics; `POSITION_LEVEL` parses cleanly as `<rank>-<personnel_type>`; comprehensive 807 (JOB_CODE, POSITION) pairs covering all 548 distinct JOB codes. **Q1/Q2 SQL design locked.** All 9 fixtures committed to `apps/ingestion/test/fixtures/kku-hr/` (aggregate-only, suppression applied, safe in git). Cross-database queries require `COLLATE Thai_CI_AS` clause (HCMEmployee=Thai_CS_AI, epm_report=Thai_CI_AS — different collations). User confirmed `ID_PEOPLE` is the Thai citizen ID, the canonical cross-system join key — connector hashes server-side via `HASHBYTES('SHA2_256', CAST(ID_PEOPLE AS varbinary(500)))` so raw value never leaves the wire. **Phase 3 = Prisma migration (FacultyCompensation + HrFacultyMapping bridge) + connector + 3 green runs + DPO sign-off.**
+docs/production-infrastructure.md:364:    ├── prisma.staffEducationHistory (DS2003 by citizenIdHash)
+docs/profile-page.md:17:| Education | UNICON DS2003 (`StaffEducationHistory`) | Bridged via `FacultyMember.citizenIdHash`. Falls back to `FacultyMember.academicQualification` parser. |
+packages/db/prisma/schema.prisma:492:  // per KKU 2026-05-02 (distinct from ID_PEOPLE / Thai citizen ID).
+packages/db/prisma/schema.prisma:1128:  // Confirmed not PII per KKU 2026-05-02 — distinct from ID_PEOPLE
+packages/db/prisma/schema.prisma:1151:  citizenIdHash         String?     @unique @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3169:// by `citizenIdHash` — SHA-256 of the digit-stripped Thai citizen ID
+packages/db/prisma/schema.prisma:3176:// citizenIdHash on a FacultyMember row. Service-layer queries can join
+packages/db/prisma/schema.prisma:3177:// directly on citizenIdHash for unmatched rows.
+packages/db/prisma/schema.prisma:3182:  citizenIdHash   String   @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3200:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3209:  citizenIdHash  String   @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3223:  @@unique([academicYear, semester, citizenIdHash, mhesiCurrId, teachTypeId], map: "uq_staff_prog_natural")
+packages/db/prisma/schema.prisma:3224:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3258://     citizenIdHash is the canonical cross-system join key (matches
+packages/db/prisma/schema.prisma:3268:  citizenIdHash      String   @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3311:  @@unique([academicYear, semester, citizenIdHash], map: "uq_student_record_natural")
+packages/db/prisma/schema.prisma:3312:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3327://   HASHED:   CITIZEN_ID → citizenIdHash (canonical cross-system join key)
+packages/db/prisma/schema.prisma:3335:  citizenIdHash                 String    @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3395:  @@unique([academicYear, semester, citizenIdHash], map: "uq_staff_master_natural")
+packages/db/prisma/schema.prisma:3396:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3439:// PII-narrow projection: just SHA-256(citizen_id) + the four year ints.
+packages/db/prisma/schema.prisma:3442:  citizenIdHash String   @id @map("citizen_id_hash")
+packages/db/src/health-score.ts:1412:    for (const pid of remaining) {
+packages/db/src/health-score.ts:1413:      const skills = skillsByProgram.get(pid)!;
+packages/db/src/health-score.ts:1416:      if (matched > 0 && skills.size > 0) out.set(pid, (matched / skills.size) * 100);
+packages/shared/src/identity/hash-citizen-id.ts:4://   - kku-hr connector (server-side HASHBYTES on `ID_PEOPLE`)
+
+=== citizenIdHash references ===
+apps/api/src/staff-dashboard/staff.service.ts:144:        citizenIdHash: true,
+apps/api/src/staff-dashboard/staff.service.ts:160:      where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
+apps/api/src/staff-dashboard/staff.service.ts:161:      select: { citizenIdHash: true, birthYearAd: true },
+apps/api/src/staff-dashboard/staff.service.ts:163:    const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l.birthYearAd]));
+apps/api/src/staff-dashboard/staff.service.ts:184:      const ad = lifeByHash.get(r.citizenIdHash) ??
+apps/api/src/staff-dashboard/staff.service.ts:237:        citizenIdHash: true,
+apps/api/src/staff-dashboard/staff.service.ts:252:    // joined here via citizenIdHash. Falls back to DS2001 birth_year
+apps/api/src/staff-dashboard/staff.service.ts:255:      where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
+apps/api/src/staff-dashboard/staff.service.ts:256:      select: { citizenIdHash: true, birthYearAd: true, retireYearAd: true },
+apps/api/src/staff-dashboard/staff.service.ts:258:    const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l]));
+apps/api/src/staff-dashboard/staff.service.ts:306:      const life = lifeByHash.get(r.citizenIdHash);
+apps/api/src/staff-dashboard/staff.service.ts:343:      const life = lifeByHash.get(r.citizenIdHash);
+apps/api/src/staff-dashboard/staff.service.ts:384:  //   * distinctStaff — unique humans by citizen_id_hash, regardless of
+apps/api/src/staff-dashboard/staff.service.ts:412:             COUNT(DISTINCT spa.citizen_id_hash)::int AS distinct_staff
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:141:      externalId: `life|${r.citizen_id_hash}`,
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:155:      const citizenIdHash = hashCitizenId(r.identification);
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:156:      if (!citizenIdHash) return [];
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:166:          externalId: `life|${citizenIdHash}`,
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:168:            citizenIdHash,
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:260:    // insert fresh. citizen_id_hash is the PK so we can't naively
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:270:          citizenIdHash: string;
+apps/ingestion/src/connectors/sources/kku-hr-processed/connector.ts:276:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:415:          citizenIdHash: q1.PERSON_HASH,
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:490:            citizenIdHash: string | null;
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:510:              citizenIdHash: p.citizenIdHash?.toLowerCase() ?? undefined,
+apps/ingestion/src/connectors/sources/kku-hr/connector.ts:523:              citizenIdHash: p.citizenIdHash?.toLowerCase() ?? null,
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:17://     CITIZEN_ID → citizenIdHash (canonical cross-system join key)
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:73:  citizenIdHash: string;
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:207:    const citizenIdHash = hashCitizenId(r.CITIZEN_ID);
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:208:    if (!citizenIdHash) {
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:223:      citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds1001/connector.ts:323:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:12://   HASHED:   CITIZEN_ID → citizenIdHash
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:203:    const citizenIdHash = hashCitizenId(r.CITIZEN_ID);
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:204:    if (!citizenIdHash) {
+apps/ingestion/src/connectors/sources/unicon-ds2001/connector.ts:214:          citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:49:  citizenIdHash: string;
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:163:      citizenIdHash: hash,
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:207:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2003/connector.ts:228:      normalized.map((n) => (n.payload as unknown as NormalizedPayload).citizenIdHash),
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:49:  citizenIdHash: string;
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:173:      citizenIdHash: hash,
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:261:          citizenIdHash: p.citizenIdHash,
+apps/ingestion/src/connectors/sources/unicon-ds2004/connector.ts:280:      normalized.map((n) => (n.payload as unknown as NormalizedPayload).citizenIdHash),
+apps/ingestion/src/program-faculty/run.ts:138:  // citizenIdHash, no name-matching guesswork. The PDF extraction
+apps/ingestion/src/program-system-context/load.ts:5://             FacultyMember by citizenIdHash; rank from FacultyMember
+apps/ingestion/src/program-system-context/load.ts:24:  citizenIdHash: string;
+apps/ingestion/src/program-system-context/load.ts:81:      citizen_id_hash: string;
+apps/ingestion/src/program-system-context/load.ts:89:    SELECT spa.citizen_id_hash,
+apps/ingestion/src/program-system-context/load.ts:96:      LEFT JOIN faculty_members fm ON fm.citizen_id_hash = spa.citizen_id_hash
+apps/ingestion/src/program-system-context/load.ts:102:  const allHashes = [...new Set(staffRows.map((r) => r.citizen_id_hash))];
+apps/ingestion/src/program-system-context/load.ts:108:            citizen_id_hash: string;
+apps/ingestion/src/program-system-context/load.ts:114:          SELECT citizen_id_hash, grad_country_id, grad_level_name, grad_year
+apps/ingestion/src/program-system-context/load.ts:116:           WHERE citizen_id_hash = ANY(${allHashes})
+apps/ingestion/src/program-system-context/load.ts:123:    const existing = highestByHash.get(r.citizen_id_hash);
+apps/ingestion/src/program-system-context/load.ts:126:      highestByHash.set(r.citizen_id_hash, { country: r.grad_country_id, level: r.grad_level_name });
+apps/ingestion/src/program-system-context/load.ts:129:      const prevYr = Number(eduRows.find((x) => x.citizen_id_hash === r.citizen_id_hash)?.grad_year ?? 0);
+apps/ingestion/src/program-system-context/load.ts:131:        highestByHash.set(r.citizen_id_hash, { country: r.grad_country_id, level: r.grad_level_name });
+apps/ingestion/src/program-system-context/load.ts:141:    const edu = highestByHash.get(r.citizen_id_hash);
+apps/ingestion/src/program-system-context/load.ts:143:      citizenIdHash: r.citizen_id_hash,
+apps/ingestion/src/program-system-context/load.ts:152:    const existing = byPerson.get(r.citizen_id_hash);
+apps/ingestion/src/program-system-context/load.ts:154:      byPerson.set(r.citizen_id_hash, rec);
+apps/web/src/lib/display-name.ts:69:      citizenIdHash: true,
+apps/web/src/lib/display-name.ts:77:  if (!hasDoctorate && member.citizenIdHash) {
+apps/web/src/lib/display-name.ts:79:      where: { citizenIdHash: member.citizenIdHash },
+apps/web/src/lib/profile-data.ts:174:    // citizenIdHash that kku-hr stamped on FacultyMember. May be
+apps/web/src/lib/profile-data.ts:177:    member.citizenIdHash
+apps/web/src/lib/profile-data.ts:179:          where: { citizenIdHash: member.citizenIdHash },
+docs/production-infrastructure.md:364:    ├── prisma.staffEducationHistory (DS2003 by citizenIdHash)
+docs/profile-page.md:17:| Education | UNICON DS2003 (`StaffEducationHistory`) | Bridged via `FacultyMember.citizenIdHash`. Falls back to `FacultyMember.academicQualification` parser. |
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:3:ALTER TABLE "faculty_members" ADD COLUMN "citizen_id_hash" TEXT;
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:4:CREATE UNIQUE INDEX "faculty_members_citizen_id_hash_key" ON "faculty_members"("citizen_id_hash");
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:9:    "citizen_id_hash" TEXT NOT NULL,
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:28:CREATE INDEX "staff_education_history_citizen_id_hash_idx" ON "staff_education_history"("citizen_id_hash");
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:40:    "citizen_id_hash" TEXT NOT NULL,
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:54:CREATE INDEX "staff_program_assignment_citizen_id_hash_idx" ON "staff_program_assignment"("citizen_id_hash");
+packages/db/prisma/migrations/20260504170000_staff_identity_tables/migration.sql:57:CREATE UNIQUE INDEX "uq_staff_prog_natural" ON "staff_program_assignment"("academic_year", "semester", "citizen_id_hash", "mhesi_curr_id", "teach_type_id");
+packages/db/prisma/migrations/20260504190000_student_program_record/migration.sql:6:    "citizen_id_hash" TEXT NOT NULL,
+packages/db/prisma/migrations/20260504190000_student_program_record/migration.sql:45:CREATE UNIQUE INDEX "uq_student_record_natural" ON "student_program_record"("academic_year", "semester", "citizen_id_hash");
+packages/db/prisma/migrations/20260504190000_student_program_record/migration.sql:46:CREATE INDEX "student_program_record_citizen_id_hash_idx" ON "student_program_record"("citizen_id_hash");
+packages/db/prisma/migrations/20260504200000_staff_master_record/migration.sql:3:    "citizen_id_hash" TEXT NOT NULL,
+packages/db/prisma/migrations/20260504200000_staff_master_record/migration.sql:45:CREATE UNIQUE INDEX "uq_staff_master_natural" ON "staff_master_record"("academic_year", "semester", "citizen_id_hash");
+packages/db/prisma/migrations/20260504200000_staff_master_record/migration.sql:46:CREATE INDEX "staff_master_record_citizen_id_hash_idx" ON "staff_master_record"("citizen_id_hash");
+packages/db/prisma/migrations/20260504210000_staff_lifecycle_dates/migration.sql:2:    "citizen_id_hash" TEXT NOT NULL,
+packages/db/prisma/migrations/20260504210000_staff_lifecycle_dates/migration.sql:9:    CONSTRAINT "staff_lifecycle_dates_pkey" PRIMARY KEY ("citizen_id_hash")
+packages/db/prisma/schema.prisma:1151:  citizenIdHash         String?     @unique @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3169:// by `citizenIdHash` — SHA-256 of the digit-stripped Thai citizen ID
+packages/db/prisma/schema.prisma:3176:// citizenIdHash on a FacultyMember row. Service-layer queries can join
+packages/db/prisma/schema.prisma:3177:// directly on citizenIdHash for unmatched rows.
+packages/db/prisma/schema.prisma:3182:  citizenIdHash   String   @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3200:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3209:  citizenIdHash  String   @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3223:  @@unique([academicYear, semester, citizenIdHash, mhesiCurrId, teachTypeId], map: "uq_staff_prog_natural")
+packages/db/prisma/schema.prisma:3224:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3258://     citizenIdHash is the canonical cross-system join key (matches
+packages/db/prisma/schema.prisma:3268:  citizenIdHash      String   @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3311:  @@unique([academicYear, semester, citizenIdHash], map: "uq_student_record_natural")
+packages/db/prisma/schema.prisma:3312:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3327://   HASHED:   CITIZEN_ID → citizenIdHash (canonical cross-system join key)
+packages/db/prisma/schema.prisma:3335:  citizenIdHash                 String    @map("citizen_id_hash")
+packages/db/prisma/schema.prisma:3395:  @@unique([academicYear, semester, citizenIdHash], map: "uq_staff_master_natural")
+packages/db/prisma/schema.prisma:3396:  @@index([citizenIdHash])
+packages/db/prisma/schema.prisma:3442:  citizenIdHash String   @id @map("citizen_id_hash")

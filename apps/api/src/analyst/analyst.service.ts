@@ -9,6 +9,7 @@ import {
   createAiService,
   detectLanguage,
   ToolUseNotSupportedError,
+  wrapUserContent,
   type AiProviderId,
   type AiService,
   type ToolCall,
@@ -134,6 +135,32 @@ export class AnalystService implements OnModuleInit {
     const trimmed = params.userMessage.trim();
     if (!trimmed) throw new Error('Empty message');
 
+    // 0. Resolve the caller — needed by the tool executor to clamp
+    // spatial tool inputs (prompt 10 server-side scope authz).
+    const callerRow = await prisma.user.findUniqueOrThrow({
+      where: { id: params.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        facultyId: true,
+        departmentId: true,
+        programId: true,
+        themePreference: true,
+      },
+    });
+    const caller = {
+      userId: callerRow.id,
+      email: callerRow.email,
+      name: callerRow.name,
+      role: callerRow.role,
+      facultyId: callerRow.facultyId,
+      departmentId: callerRow.departmentId,
+      programId: callerRow.programId,
+      themePreference: callerRow.themePreference,
+    };
+
     // 1. Safety gate.
     const verdict = checkAnalystSafety(trimmed);
 
@@ -242,6 +269,11 @@ export class AnalystService implements OnModuleInit {
     // traces from the history — we keep only the user+assistant TEXT
     // turns, so the LLM re-asks for tool calls when it needs current
     // data. This avoids pushing stale tool results back in.
+    // Wrap historical + current user content in a <USER_DOC> envelope.
+    // The system prompt already instructs the model to treat content
+    // inside the envelope as DATA, not instructions — closes the
+    // prompt-injection vector where a user's own message tries to
+    // override the system prompt.
     const messages: ToolUseMessage[] = [
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
       ...history
@@ -249,7 +281,7 @@ export class AnalystService implements OnModuleInit {
         .slice(-10) // sliding window of 10 turns
         .map<ToolUseMessage>((m) =>
           m.role === 'USER'
-            ? { role: 'user', content: m.content }
+            ? { role: 'user', content: wrapUserContent(m.content) }
             : { role: 'assistant', content: [{ type: 'text', text: m.content }] },
         ),
     ];
@@ -257,8 +289,9 @@ export class AnalystService implements OnModuleInit {
     // BEFORE its persistence if the above `find` raced; rather than rely
     // on ordering guarantees, append the turn explicitly so the agent
     // always sees it.
-    if (messages[messages.length - 1]?.role !== 'user' || (messages[messages.length - 1] as { content?: string }).content !== trimmed) {
-      messages.push({ role: 'user', content: trimmed });
+    const wrappedTrimmed = wrapUserContent(trimmed);
+    if (messages[messages.length - 1]?.role !== 'user' || (messages[messages.length - 1] as { content?: string }).content !== wrappedTrimmed) {
+      messages.push({ role: 'user', content: wrappedTrimmed });
     }
 
     // 6. Run the tool-use loop.
@@ -283,7 +316,7 @@ export class AnalystService implements OnModuleInit {
 
     const toolCallsForEvidence: Array<{ name: string; input: Record<string, unknown>; result?: string }> = [];
     const executeTool = async (call: ToolCall): Promise<string> => {
-      const result = await this.toolExecutor.execute(call);
+      const result = await this.toolExecutor.execute(call, caller);
       toolCallsForEvidence.push({ name: call.name, input: call.input, result: result.slice(0, 2000) });
       return result;
     };

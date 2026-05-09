@@ -51,11 +51,12 @@ export const AiQuota = (config: AiQuotaConfig = {}) => (
   return descriptor;
 };
 
-function capForRole(role: SessionUser['role']): number {
-  const envCap = (k: string) => {
-    const v = Number(process.env[k]);
-    return Number.isFinite(v) && v > 0 ? v : undefined;
-  };
+function envCap(k: string): number | undefined {
+  const v = Number(process.env[k]);
+  return Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+export function capForRole(role: SessionUser['role']): number {
   // v2 taxonomy (legacy roles removed 2026-05-09). Mapping rationale:
   //   SUPER_ADMIN  — highest cap; uses ADMIN env var for back-compat.
   //   SYSTEM_ADMIN — admin-grade; same cap as the legacy ANALYST tier.
@@ -70,6 +71,29 @@ function capForRole(role: SessionUser['role']): number {
       return envCap('AI_QUOTA_EXECUTIVE_USD') ?? 3;
     default:
       return envCap('AI_QUOTA_DEFAULT_USD') ?? 1;
+  }
+}
+
+// Per-role aggregate cap — the second wall on top of the per-user cap.
+// Stops a noisy role tier from sustaining the per-user cap × N users
+// concurrently and overshooting what KKU IT budgeted.
+//
+// Defaults are 20× the per-user cap (rule of thumb: ~20 concurrent
+// users per tier). Operator overrides via env:
+//   AI_QUOTA_ROLE_AGG_DEFAULT_USD     — FACULTY_USER + PROGRAM_USER tier (~$20/day)
+//   AI_QUOTA_ROLE_AGG_EXECUTIVE_USD   — UNIVERSITY_USER (~$60/day)
+//   AI_QUOTA_ROLE_AGG_ANALYST_USD     — SYSTEM_ADMIN (~$200/day)
+//   AI_QUOTA_ROLE_AGG_ADMIN_USD       — SUPER_ADMIN (~$200/day)
+export function aggregateCapForRole(role: SessionUser['role']): number {
+  switch (role) {
+    case 'SUPER_ADMIN':
+      return envCap('AI_QUOTA_ROLE_AGG_ADMIN_USD') ?? 200;
+    case 'SYSTEM_ADMIN':
+      return envCap('AI_QUOTA_ROLE_AGG_ANALYST_USD') ?? 200;
+    case 'UNIVERSITY_USER':
+      return envCap('AI_QUOTA_ROLE_AGG_EXECUTIVE_USD') ?? 60;
+    default:
+      return envCap('AI_QUOTA_ROLE_AGG_DEFAULT_USD') ?? 20;
   }
 }
 
@@ -92,23 +116,60 @@ export class AiQuotaGuard implements CanActivate {
     const cap = config.dailyUsdCap ?? capForRole(user.role);
     const module = config.module;
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const moduleClause = module ? { module } : {};
 
     try {
-      const agg = await prisma.aiInference.aggregate({
-        where: {
-          userId: user.userId,
-          createdAt: { gte: since },
-          ...(module ? { module } : {}),
-        },
-        _sum: { costEstimateUsd: true },
-      });
-      const spent = Number(agg._sum.costEstimateUsd ?? 0);
-      if (spent >= cap) {
+      // Two queries in parallel — per-user spend + per-role spend.
+      // Both are 24h rolling windows. Postgres can answer either in
+      // single-digit ms (AiInference is small + indexed on createdAt).
+      const [userAgg, roleAgg] = await Promise.all([
+        prisma.aiInference.aggregate({
+          where: {
+            userId: user.userId,
+            createdAt: { gte: since },
+            ...moduleClause,
+          },
+          _sum: { costEstimateUsd: true },
+        }),
+        prisma.aiInference.aggregate({
+          where: {
+            user: { role: user.role },
+            createdAt: { gte: since },
+            ...moduleClause,
+          },
+          _sum: { costEstimateUsd: true },
+        }),
+      ]);
+
+      const userSpent = Number(userAgg._sum.costEstimateUsd ?? 0);
+      const roleSpent = Number(roleAgg._sum.costEstimateUsd ?? 0);
+      const roleCap = aggregateCapForRole(user.role);
+
+      if (userSpent >= cap) {
         throw new ApiError(
           'RATE_LIMITED',
-          `Daily AI budget reached ($${spent.toFixed(4)} / $${cap} USD). ` +
+          `Daily AI budget reached ($${userSpent.toFixed(4)} / $${cap} USD). ` +
             `Quota resets 24h after first call — see /admin/ai-cost.`,
-          { spentUsd: spent, capUsd: cap, resetSeconds: 24 * 3600 },
+          { spentUsd: userSpent, capUsd: cap, scope: 'user', resetSeconds: 24 * 3600 },
+        );
+      }
+      if (roleSpent >= roleCap) {
+        // Role-tier exhausted — different from per-user. Tell the caller
+        // the wall is collective so they don't think their own cap reset
+        // would help.
+        throw new ApiError(
+          'RATE_LIMITED',
+          `Role tier (${user.role}) daily AI budget reached ` +
+            `($${roleSpent.toFixed(2)} / $${roleCap} USD). ` +
+            `This is a tier-wide cap shared across every ${user.role} on the platform. ` +
+            `Cap resets 24h after first call — contact an admin if a higher ceiling is justified.`,
+          {
+            spentUsd: roleSpent,
+            capUsd: roleCap,
+            scope: 'role',
+            role: user.role,
+            resetSeconds: 24 * 3600,
+          },
         );
       }
       return true;

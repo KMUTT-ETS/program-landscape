@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { auth } from '@/lib/auth';
-import type { SessionUser } from '@kku/shared';
+import { requireSession } from '@/lib/auth/role-gate';
 
 // Proxy for /staff-dashboard/* on the NestJS API. The browser hits
-// /api/admin-education/<anything>; we forward with the session bearer.
+// /api/admin-staff-dashboard/<anything>; we forward with the session
+// bearer. /staff-dashboard/* is gated server-side on
+// `institution:read:university` — university-wide roles only.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,14 +16,8 @@ async function forward(
   req: Request,
   pathSegments: string[],
 ): Promise<NextResponse> {
-  const session = await auth();
-  const user = session?.user as SessionUser | undefined;
-  if (!user?.userId) {
-    return NextResponse.json(
-      { data: null, error: { code: 'UNAUTHORIZED', message: 'Sign in required' } },
-      { status: 401 },
-    );
-  }
+  const guard = await requireSession({ minRole: 'university' });
+  if (guard.kind === 'deny') return guard.response;
 
   const cookieName =
     process.env.NODE_ENV === 'production'

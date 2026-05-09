@@ -1,7 +1,12 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { Provider } from 'next-auth/providers';
-import { prisma } from '@kku/db';
+import {
+  prisma,
+  getSignInLockoutStatus,
+  recordSignInFailure,
+  recordSignInSuccess,
+} from '@kku/db';
 import { SessionUserSchema, type SessionUser } from '@kku/shared';
 
 import { decodeJwt, encodeJwt } from './auth/jwt-codec';
@@ -43,11 +48,28 @@ if (isLocalAuthEnabled()) {
         if (typeof email !== 'string' || typeof password !== 'string') return null;
 
         const user = await prisma.user.findUnique({ where: { email } });
+        // Don't lock on unknown emails — that would let an attacker
+        // enumerate the user table by watching which emails trigger the
+        // lockout signal.
         if (!user) return null;
+
+        // Soft-lockout check before verification.
+        const lockout = await getSignInLockoutStatus(user.id);
+        if (lockout.locked) return null;
+
         const ok = user.passwordHash
           ? verifyPassword(password, user.passwordHash)
           : password === (process.env.DEV_AUTH_PASSWORD ?? 'kku-dev');
-        if (!ok) return null;
+        if (!ok) {
+          // Record the failure (audit-log row). The window-based query
+          // above will pick this up on the next attempt.
+          await recordSignInFailure({
+            userId: user.id,
+            reason: 'bad_password',
+          }).catch(() => undefined);
+          return null;
+        }
+        await recordSignInSuccess({ userId: user.id }).catch(() => undefined);
         return { id: user.id, email: user.email, name: user.name ?? user.email };
       },
     }),

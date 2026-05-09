@@ -87,6 +87,9 @@ describe('computeSkillGap', () => {
       { id: 'sk-2', code: 'SK2', nameEn: 'Two',   nameTh: 'สอง',   category: null },
       { id: 'sk-3', code: 'SK3', nameEn: 'Three', nameTh: 'สาม',   category: null },
     ]);
+    // programIdsForScope('university') needs a non-empty result;
+    // exact ids don't matter to the demand/supply sort assertion.
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1' }]);
 
     const result = await computeSkillGap({
       scope: 'university', region: 'TH', horizon: 0, comparison: 'absolute', limit: 30,
@@ -107,6 +110,7 @@ describe('computeSkillGap', () => {
     mocks.skillFindMany.mockResolvedValue([
       { id: 'sk-1', code: 'SK1', nameEn: 'One', nameTh: 'หนึ่ง', category: null },
     ]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1' }]);
 
     const result = await computeSkillGap({
       scope: 'university', region: 'TH', horizon: 0, comparison: 'absolute', limit: 30,

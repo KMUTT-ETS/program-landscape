@@ -150,15 +150,22 @@ import {
 
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
 
-    // Built-in validation pipe — handles class-validator-decorated DTOs.
-    // ZodValidationPipe is used per-route for the Zod schemas in
-    // @kku/shared.
+    // Built-in validation pipe — handles class-validator-decorated DTOs
+    // (currently zero in our codebase; ZodValidationPipe handles every
+    // route). Kept mounted as defence-in-depth for future class-validator
+    // DTOs, but configured to never echo offending values back to the
+    // client (PDPA defence — error messages must not become a PII
+    // exfiltration channel via crafted-input replay).
     {
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
         transform: true,
+        // Strip the original target object (which carries the user's input)
+        // from validation errors. Without this, a failed `IsEmail` on a
+        // field named `email` echoes the attempted email value back.
+        validationError: { target: false, value: false },
       }),
     },
   ],

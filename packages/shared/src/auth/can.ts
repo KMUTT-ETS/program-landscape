@@ -27,6 +27,13 @@ import type { ScopeLevel } from './scope-level';
 export interface ScopeContext {
   level: ScopeLevel;
   id?: string;
+  /**
+   * When `level` is `department` or `program`, callers SHOULD resolve the
+   * parent faculty id and pass it here. Without it, `can()` fails closed
+   * for `:own_faculty` permissions — there is no way to verify the
+   * department/program belongs to the user's own faculty.
+   */
+  resolvedFacultyId?: string;
 }
 
 /** Did the user explicitly receive the named permission? */
@@ -79,14 +86,16 @@ function scopeContextMatchesFaculty(
   if (scope.level === 'university') return false;
   // Faculty level: ids must match.
   if (scope.level === 'faculty') return scope.id === userFacultyId;
-  // Department / program: caller must have resolved to the parent faculty
-  // via Prisma before calling (we keep `can` pure and DB-free). The
-  // convention: scope.id is still the department/program id, but callers
-  // should ALSO pass a resolved facultyId when possible. For safety, if
-  // scope is dept/program and we can't tell, require an upstream pass.
-  // Rather than reach for the DB, return true here and rely on upstream
-  // scope-resolution middleware to block mismatched traversal.
-  return true;
+  // Department / program: caller MUST resolve to the parent faculty before
+  // invoking can(). We keep `can` pure (DB-free), so the contract is:
+  // pass `scope.resolvedFacultyId` when level is `department` or `program`.
+  // If the parent faculty is missing, fail closed — silently returning
+  // `true` here was the V1 (Prompt 04) critical scope-bypass.
+  if (scope.level === 'department' || scope.level === 'program') {
+    if (!scope.resolvedFacultyId) return false;
+    return scope.resolvedFacultyId === userFacultyId;
+  }
+  return false;
 }
 
 function scopeContextMatchesProgram(

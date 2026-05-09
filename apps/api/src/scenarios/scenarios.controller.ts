@@ -209,14 +209,14 @@ export class ScenariosController {
   }
 
   @Post(':id/council-review')
-  @Authorized('programs:read:all')
+  @Authorized('scenarios:edit:any')
   @AuditLog({ action: 'scenario.council_review', entityType: 'Scenario' })
   async councilReview(@AuthSession() user: SessionUser, @Param('id') id: string) {
     return this.scenarios.markCouncilReviewed(id, user.userId, user.role);
   }
 
   @Post(':id/decide')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:approve')
   @AuditLog({ action: 'scenario.decide', entityType: 'Scenario' })
   async decide(
     @AuthSession() user: SessionUser,

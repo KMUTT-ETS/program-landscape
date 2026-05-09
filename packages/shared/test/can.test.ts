@@ -224,15 +224,53 @@ describe('can() — non-spatial suffixes', () => {
 describe('can() — scope drill-through safety', () => {
   const facultyUser = userFor('FACULTY_USER', { facultyId: FACULTY_A });
 
-  it('at program/department level without resolved parent, trusts upstream', () => {
-    // Per can.ts comments: if scope is narrower than the permission's unit,
-    // upstream middleware must resolve parent IDs. We return true here so
-    // that we never over-deny; the integration layer enforces the narrow
-    // check.
+  // V1 (Prompt 04 — critical) regression: previously returned `true` to
+  // "trust upstream"; now fails closed unless the caller resolves the
+  // parent faculty id and passes it via `resolvedFacultyId`.
+  it("fails closed at department level without resolvedFacultyId", () => {
     expect(
       can(facultyUser, 'financials:read:own_faculty', {
         level: 'department',
         id: 'unknown-dept',
+      }),
+    ).toBe(false);
+  });
+
+  it('fails closed at program level without resolvedFacultyId', () => {
+    expect(
+      can(facultyUser, 'financials:read:own_faculty', {
+        level: 'program',
+        id: 'unknown-prog',
+      }),
+    ).toBe(false);
+  });
+
+  it('passes at department level when resolvedFacultyId matches', () => {
+    expect(
+      can(facultyUser, 'financials:read:own_faculty', {
+        level: 'department',
+        id: DEPT_A1,
+        resolvedFacultyId: FACULTY_A,
+      }),
+    ).toBe(true);
+  });
+
+  it('fails at department level when resolvedFacultyId belongs to another faculty', () => {
+    expect(
+      can(facultyUser, 'financials:read:own_faculty', {
+        level: 'department',
+        id: DEPT_B1,
+        resolvedFacultyId: FACULTY_B,
+      }),
+    ).toBe(false);
+  });
+
+  it('passes at program level when resolvedFacultyId matches', () => {
+    expect(
+      can(facultyUser, 'financials:read:own_faculty', {
+        level: 'program',
+        id: 'prog-x',
+        resolvedFacultyId: FACULTY_A,
       }),
     ).toBe(true);
   });

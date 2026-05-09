@@ -10,3 +10,4 @@ export * from './response.interceptor';
 export * from './user-aware-throttler.guard';
 export * from './zod-validation.pipe';
 export * from './scope-guards';
+export * from './semaphore';

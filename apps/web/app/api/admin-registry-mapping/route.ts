@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { auth } from '@/lib/auth';
-import type { SessionUser } from '@kku/shared';
+import { requireSession } from '@/lib/auth/role-gate';
 
 // BFF proxy for the registry-mapping triage page. The browser-side fetch
 // hits this Next.js route handler, which forwards to the NestJS API on
@@ -14,14 +13,8 @@ export const dynamic = 'force-dynamic';
 const API_BASE = process.env.API_URL ?? 'http://localhost:4000';
 
 async function forward(req: Request): Promise<NextResponse> {
-  const session = await auth();
-  const user = session?.user as SessionUser | undefined;
-  if (!user?.userId) {
-    return NextResponse.json(
-      { data: null, error: { code: 'UNAUTHORIZED', message: 'Sign in required' } },
-      { status: 401 },
-    );
-  }
+  const guard = await requireSession({ minRole: 'admin' });
+  if (guard.kind === 'deny') return guard.response;
 
   const cookieName =
     process.env.NODE_ENV === 'production'

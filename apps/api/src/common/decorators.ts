@@ -78,7 +78,8 @@ export function Authorized(permission: Permission): MethodDecorator {
   const decorators: MethodDecorator[] = [RequirePermission(permission)];
   if (
     permission.endsWith(':own_faculty') ||
-    permission.endsWith(':own_department')
+    permission.endsWith(':own_department') ||
+    permission.endsWith(':own_program')
   ) {
     decorators.push(RequireScope());
   }

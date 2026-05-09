@@ -388,9 +388,14 @@ export interface WhiteSpaceResult {
 
 export async function computeWhiteSpaces(peerThreshold = 3, limit = 30): Promise<WhiteSpaceResult> {
   // Peer-program skills grouped by skill, count of distinct institutions.
-  const rows = await prisma.$queryRawUnsafe<
+  // peerThreshold is Zod-validated `int().min(1).max(50)` at the controller
+  // boundary (BenchmarkingController WhiteSpacesQuerySchema). We use the
+  // tagged-template `$queryRaw` so the threshold is parameter-bound rather
+  // than string-interpolated — eliminates the class of SQL-injection risk
+  // even with the type guarantee from Zod.
+  const rows = await prisma.$queryRaw<
     { skill_id: string; peer_count: number; peer_institutions: string[]; total_weight: number }[]
-  >(`
+  >`
     SELECT
       pps.skill_id,
       COUNT(DISTINCT pp.institution)::int                    AS peer_count,
@@ -400,7 +405,7 @@ export async function computeWhiteSpaces(peerThreshold = 3, limit = 30): Promise
     JOIN peer_programs pp ON pp.id = pps.peer_program_id
     GROUP BY pps.skill_id
     HAVING COUNT(DISTINCT pp.institution) >= ${peerThreshold}
-  `);
+  `;
 
   // Exclude skills KKU already teaches (via any ProgramSkill row).
   const kkuSkills = await prisma.programSkill.findMany({ select: { skillId: true }, distinct: ['skillId'] });

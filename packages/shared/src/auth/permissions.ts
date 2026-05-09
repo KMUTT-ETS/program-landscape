@@ -95,6 +95,13 @@ export const PERMISSIONS = [
   'risks:read:all',
   'risks:assess:any',
   'risks:measures:edit',
+
+  // University-wide dashboards (Education, Staff, System status). These
+  // surfaces read every faculty's data by design — they're for Council
+  // and university-management roles, not for FACULTY_USER / PROGRAM_USER
+  // who must stay scoped to their own faculty/program. See
+  // docs/hardening/04-authz-matrix.report.md V8 + V10.
+  'institution:read:university',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -129,6 +136,7 @@ const UNIVERSITY_USER_PERMS: Permission[] = [
   'pdf:generate',
   'risks:read:all',
   'risks:measures:edit',
+  'institution:read:university',
 ];
 
 // FACULTY_USER — read-only scoped to user's own faculty.

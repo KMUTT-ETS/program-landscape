@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { auth } from '@/lib/auth';
-import type { SessionUser } from '@kku/shared';
+import { requireSession } from '@/lib/auth/role-gate';
 
 // Catch-all proxy for /admin/queues/* on the NestJS API. Mirrors the
 // admin-programs proxy line-for-line; same auth + header-forwarding
@@ -16,14 +15,8 @@ async function forward(
   req: Request,
   pathSegments: string[],
 ): Promise<NextResponse> {
-  const session = await auth();
-  const user = session?.user as SessionUser | undefined;
-  if (!user?.userId) {
-    return NextResponse.json(
-      { data: null, error: { code: 'UNAUTHORIZED', message: 'Sign in required' } },
-      { status: 401 },
-    );
-  }
+  const guard = await requireSession({ minRole: 'admin' });
+  if (guard.kind === 'deny') return guard.response;
 
   const cookieName =
     process.env.NODE_ENV === 'production'

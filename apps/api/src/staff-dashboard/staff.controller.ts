@@ -85,14 +85,14 @@ export class StaffController {
   ) {}
 
   @Get('filter-options')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   filterOptions(@AuthSession() user: SessionUser) {
     assertUniversityWide(user);
     return this.staff.filterOptions();
   }
 
   @Post('refresh')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async refresh(
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(RefreshBodySchema)) body: { slugs?: StaffSlug[] },
@@ -108,7 +108,7 @@ export class StaffController {
   }
 
   @Get('refresh/status')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async refreshStatus(@AuthSession() user: SessionUser) {
     assertUniversityWide(user);
     const slugs = [...STAFF_REFRESH_SLUGS];
@@ -152,7 +152,7 @@ export class StaffController {
   }
 
   @Get('workforce')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async workforce(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
@@ -162,14 +162,14 @@ export class StaffController {
   }
 
   @Get('faculty-by-program')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async facultyByProgram(@AuthSession() user: SessionUser) {
     assertUniversityWide(user);
     return this.staff.facultyByProgram();
   }
 
   @Get('research')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async research(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ResearchFilterSchema)) q: z.infer<typeof ResearchFilterSchema>,
@@ -179,7 +179,7 @@ export class StaffController {
   }
 
   @Get('compensation')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async compensation(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,

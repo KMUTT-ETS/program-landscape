@@ -14,6 +14,27 @@ export const dynamic = 'force-dynamic';
 const MAX_BYTES = 4 * 1024 * 1024; // 4 MB — generous; cropped JPEGs are typically <300 KB
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+// Magic-byte sniff. Header `file.type` is browser-set and trivially
+// spoofable, so we also inspect the first few bytes to confirm the
+// content actually matches a supported image format. Returns the
+// detected MIME or null when no signature matches.
+function sniffImageType(bytes: Buffer): string | null {
+  if (bytes.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return 'image/png';
+  // WebP: RIFF .... WEBP
+  if (
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return 'image/webp';
+  return null;
+}
+
 export async function POST(req: Request): Promise<NextResponse> {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
@@ -66,7 +87,24 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  await uploadAvatar(user.userId, bytes, contentType);
+
+  // Magic-byte sniff is the trust boundary, not the header. A spoofed
+  // header can still get past `ALLOWED_TYPES` (browser-set on `file.type`).
+  const sniffed = sniffImageType(bytes);
+  if (!sniffed || !ALLOWED_TYPES.has(sniffed)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          message: 'File contents do not match a supported image format (JPEG, PNG, WebP).',
+        },
+      },
+      { status: 415 },
+    );
+  }
+
+  // Persist with the sniffed MIME, never the browser-supplied header.
+  await uploadAvatar(user.userId, bytes, sniffed);
 
   // Persist the storage key + bump avatarUpdatedAt so cache-busting
   // URLs (`?v=<ts>`) resolve to the new image immediately.

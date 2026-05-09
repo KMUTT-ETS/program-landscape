@@ -13,6 +13,7 @@ import {
   type PdfResult,
 } from '@kku/shared';
 import { registerBuiltinTemplates } from '@kku/pdf-templates';
+import { gotenbergSemaphore } from '../common/semaphore';
 
 // NestJS wrapper around the core @kku/shared PdfGenerationService. This
 // layer:
@@ -86,6 +87,13 @@ export class PdfService implements OnModuleInit {
       },
     });
 
+    // Cap concurrent Gotenberg renders across the whole instance.
+    // Headless Chromium peaks at ~200 MB per render; 4 parallel is the
+    // ceiling on a 32 GB / 8-core box without crowding out other
+    // services. Excess requests queue here (FIFO). Surfaces depth at
+    // /admin/system-status so a Council session that goes deep into the
+    // queue is visible to ops.
+    const release = await gotenbergSemaphore().acquire();
     try {
       const result = await this.core.renderHtml(req);
 
@@ -135,6 +143,8 @@ export class PdfService implements OnModuleInit {
         this.logger.error(`Failed to update pdf_generations: ${e?.message}`),
       );
       throw toApiError(err);
+    } finally {
+      release();
     }
   }
 

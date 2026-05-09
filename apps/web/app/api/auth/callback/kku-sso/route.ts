@@ -12,6 +12,11 @@ import {
   ssonextClaimsFromProfile,
   syncAcademicStaffScopes,
 } from '@/lib/auth/provisioning';
+import {
+  getSignInLockoutStatus,
+  recordSignInFailure,
+  recordSignInSuccess,
+} from '@kku/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -87,6 +92,19 @@ export async function GET(req: Request) {
     const claims = ssonextClaimsFromProfile(token, profile);
     const user = await provisionFromSsonext(claims);
 
+    // Soft-lockout check (per-account, audit-log-backed). Tied to the
+    // KKU IdP success — only fires for an authenticated email whose
+    // recent post-exchange attempts have crashed (provisioning DB error,
+    // missing claims, etc.). nginx already rate-limits per-IP for
+    // unauthenticated traffic.
+    const lockout = await getSignInLockoutStatus(user.id);
+    if (lockout.locked) {
+      const minsLeft = lockout.unlockAt
+        ? Math.max(0, Math.ceil((lockout.unlockAt.getTime() - Date.now()) / 60000))
+        : lockout.cooldownMinutes;
+      return redirectError(req, `locked_${minsLeft}m`);
+    }
+
     // Sync auto-managed PROGRAM_USER scopes from the FacultyMember
     // ↔ ProgramFaculty join. One academic staffer can sit on multiple
     // programs across faculties; we add scopes for each, prune ones
@@ -146,6 +164,13 @@ export async function GET(req: Request) {
       maxAge,
     });
     res.cookies.delete('kku-sso-from');
+    // Record successful sign-in for the audit trail. Doesn't reset the
+    // failure counter — the window-based lockout query ages prior
+    // failures out automatically.
+    recordSignInSuccess({
+      userId: user.id,
+      ipAddress: req.headers.get('x-forwarded-for') ?? null,
+    }).catch((e) => console.warn('recordSignInSuccess non-blocking:', e));
     return res;
   } catch (err) {
     if (err instanceof SsonextProtocolError) {

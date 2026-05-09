@@ -182,18 +182,76 @@ export async function queryMetricByScope(q: ScopeQuery): Promise<MetricRow[]> {
  * Concurrently refresh all four rollup MVs. Call after ingestion commits new
  * metric rows. Safe to call from a BullMQ worker; Postgres serialises
  * concurrent REFRESH CONCURRENTLY calls against the same view.
+ *
+ * Logs each refresh into `mv_refresh_log` (migration
+ * 20260509110000_mv_refresh_log) so /admin/data-quality can surface
+ * staleness. `trigger` defaults to 'manual'; pass 'cron' / 'on-ingestion'
+ * from the call site for richer ops attribution.
  */
-export async function refreshMetricViews(): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_program_metrics',
-  );
-  await prisma.$executeRawUnsafe(
-    'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_department_metrics',
-  );
-  await prisma.$executeRawUnsafe(
-    'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_faculty_metrics',
-  );
-  await prisma.$executeRawUnsafe(
-    'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_university_metrics',
-  );
+export async function refreshMetricViews(opts: { trigger?: string } = {}): Promise<void> {
+  const trigger = opts.trigger ?? 'manual';
+  const views = [
+    'mv_program_metrics',
+    'mv_department_metrics',
+    'mv_faculty_metrics',
+    'mv_university_metrics',
+  ];
+  for (const v of views) {
+    const t0 = Date.now();
+    await prisma.$executeRawUnsafe(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${v}`);
+    const durationMs = Date.now() - t0;
+    // Best-effort row-count + log; log failure must never abort the
+    // refresh chain (the refresh itself succeeded). Falls through
+    // silently if the log table is absent (legacy snapshot pre-migration).
+    try {
+      const rows = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count FROM ${v}`,
+      );
+      const rowCount = Number(rows[0]?.count ?? 0n);
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO mv_refresh_log (view_name, refreshed_at, duration_ms, row_count, trigger)
+         VALUES ($1, now(), $2, $3, $4)
+         ON CONFLICT (view_name) DO UPDATE
+           SET refreshed_at = EXCLUDED.refreshed_at,
+               duration_ms  = EXCLUDED.duration_ms,
+               row_count    = EXCLUDED.row_count,
+               trigger      = EXCLUDED.trigger`,
+        v, durationMs, BigInt(rowCount), trigger,
+      );
+    } catch {
+      // log table not present — ignore.
+    }
+  }
+}
+
+/** Read the current MV refresh-log snapshot. Surfaced at /admin/data-quality. */
+export interface MvRefreshSnapshot {
+  viewName: string;
+  refreshedAt: Date;
+  durationMs: number;
+  rowCount: number | null;
+  trigger: string;
+  /** Minutes since last refresh — useful for staleness alarms. */
+  ageMinutes: number;
+}
+
+export async function getMvRefreshSnapshots(): Promise<MvRefreshSnapshot[]> {
+  const rows = await prisma.$queryRawUnsafe<
+    Array<{
+      view_name: string;
+      refreshed_at: Date;
+      duration_ms: number;
+      row_count: bigint | null;
+      trigger: string;
+    }>
+  >('SELECT view_name, refreshed_at, duration_ms, row_count, trigger FROM mv_refresh_log ORDER BY view_name');
+  const now = Date.now();
+  return rows.map((r) => ({
+    viewName: r.view_name,
+    refreshedAt: r.refreshed_at,
+    durationMs: r.duration_ms,
+    rowCount: r.row_count === null ? null : Number(r.row_count),
+    trigger: r.trigger,
+    ageMinutes: Math.round((now - r.refreshed_at.getTime()) / 60_000),
+  }));
 }

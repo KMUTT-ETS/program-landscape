@@ -44,27 +44,37 @@ beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
 });
 
+// KKU SSO v2 role taxonomy (legacy COUNCIL/VIEWER/EXECUTIVE/DEAN/DEPT_HEAD/
+// ANALYST/ADMIN removed 2026-05-09): "Council tier" = SUPER_ADMIN +
+// SYSTEM_ADMIN + UNIVERSITY_USER. PROGRAM_USER + FACULTY_USER are below.
+
 describe('ScenariosService.markCouncilReviewed — role gating', () => {
   const svc = new ScenariosService();
 
-  it('rejects COUNCIL / VIEWER / ANALYST', async () => {
+  it('rejects PROGRAM_USER and FACULTY_USER', async () => {
     mocks.scenarioFindUnique.mockResolvedValue({ id: 's1', userId: 'u1', collaboratorIds: [], workflowStatus: 'SHARED', isTemplate: false });
-    await expect(svc.markCouncilReviewed('s1', 'u2', 'COUNCIL')).rejects.toThrow(/EXECUTIVE or ADMIN/i);
-    await expect(svc.markCouncilReviewed('s1', 'u2', 'VIEWER')).rejects.toThrow(/EXECUTIVE or ADMIN/i);
-    await expect(svc.markCouncilReviewed('s1', 'u2', 'ANALYST')).rejects.toThrow(/EXECUTIVE or ADMIN/i);
+    await expect(svc.markCouncilReviewed('s1', 'u2', 'PROGRAM_USER')).rejects.toThrow(/admin-grade|University-level/i);
+    await expect(svc.markCouncilReviewed('s1', 'u2', 'FACULTY_USER')).rejects.toThrow(/admin-grade|University-level/i);
   });
 
-  it('allows EXECUTIVE', async () => {
+  it('allows UNIVERSITY_USER', async () => {
     mocks.scenarioFindUnique.mockResolvedValue({ id: 's1', userId: 'u1', collaboratorIds: [], workflowStatus: 'SHARED', isTemplate: false });
     mocks.scenarioUpdate.mockResolvedValue({ id: 's1', workflowStatus: 'COUNCIL_REVIEWED' });
-    const r = await svc.markCouncilReviewed('s1', 'u2', 'EXECUTIVE');
+    const r = await svc.markCouncilReviewed('s1', 'u2', 'UNIVERSITY_USER');
     expect(r.workflowStatus).toBe('COUNCIL_REVIEWED');
   });
 
-  it('allows ADMIN', async () => {
+  it('allows SYSTEM_ADMIN', async () => {
     mocks.scenarioFindUnique.mockResolvedValue({ id: 's1', userId: 'u1', collaboratorIds: [], workflowStatus: 'SHARED', isTemplate: false });
     mocks.scenarioUpdate.mockResolvedValue({ id: 's1', workflowStatus: 'COUNCIL_REVIEWED' });
-    const r = await svc.markCouncilReviewed('s1', 'u2', 'ADMIN');
+    const r = await svc.markCouncilReviewed('s1', 'u2', 'SYSTEM_ADMIN');
+    expect(r.workflowStatus).toBe('COUNCIL_REVIEWED');
+  });
+
+  it('allows SUPER_ADMIN', async () => {
+    mocks.scenarioFindUnique.mockResolvedValue({ id: 's1', userId: 'u1', collaboratorIds: [], workflowStatus: 'SHARED', isTemplate: false });
+    mocks.scenarioUpdate.mockResolvedValue({ id: 's1', workflowStatus: 'COUNCIL_REVIEWED' });
+    const r = await svc.markCouncilReviewed('s1', 'u2', 'SUPER_ADMIN');
     expect(r.workflowStatus).toBe('COUNCIL_REVIEWED');
   });
 });
@@ -72,7 +82,7 @@ describe('ScenariosService.markCouncilReviewed — role gating', () => {
 describe('ScenariosService.decide — creates CouncilDecision record', () => {
   const svc = new ScenariosService();
 
-  it('creates CouncilDecision when role is COUNCIL', async () => {
+  it('creates CouncilDecision when role is UNIVERSITY_USER', async () => {
     mocks.scenarioFindUnique.mockResolvedValue({
       id: 's1',
       userId: 'u1',
@@ -86,7 +96,7 @@ describe('ScenariosService.decide — creates CouncilDecision record', () => {
     mocks.scenarioUpdate.mockResolvedValue({ id: 's1', workflowStatus: 'DECIDED' });
     mocks.councilDecisionCreate.mockResolvedValue({ id: 'd1', decisionType: 'CLOSE' });
 
-    const r = await svc.decide('s1', 'u2', 'COUNCIL', { decisionType: 'CLOSE', rationaleTh: 'เหตุผล' });
+    const r = await svc.decide('s1', 'u2', 'UNIVERSITY_USER', { decisionType: 'CLOSE', rationaleTh: 'เหตุผล' });
     expect(r.scenario.workflowStatus).toBe('DECIDED');
     expect(r.decision.id).toBe('d1');
     expect(mocks.councilDecisionCreate).toHaveBeenCalledOnce();
@@ -95,7 +105,7 @@ describe('ScenariosService.decide — creates CouncilDecision record', () => {
     expect(call.data.affectedProgramIds).toEqual(['p1']);
   });
 
-  it('rejects VIEWER / DEAN / ANALYST', async () => {
+  it('rejects FACULTY_USER and PROGRAM_USER', async () => {
     mocks.scenarioFindUnique.mockResolvedValue({
       id: 's1',
       userId: 'u1',
@@ -104,9 +114,8 @@ describe('ScenariosService.decide — creates CouncilDecision record', () => {
       isTemplate: false,
       affectedProgramIds: [],
     });
-    await expect(svc.decide('s1', 'u2', 'VIEWER', { decisionType: 'CLOSE' })).rejects.toThrow();
-    await expect(svc.decide('s1', 'u2', 'DEAN', { decisionType: 'CLOSE' })).rejects.toThrow();
-    await expect(svc.decide('s1', 'u2', 'ANALYST', { decisionType: 'CLOSE' })).rejects.toThrow();
+    await expect(svc.decide('s1', 'u2', 'FACULTY_USER', { decisionType: 'CLOSE' })).rejects.toThrow();
+    await expect(svc.decide('s1', 'u2', 'PROGRAM_USER', { decisionType: 'CLOSE' })).rejects.toThrow();
   });
 });
 
@@ -122,10 +131,10 @@ describe('ScenariosService.patch — editability', () => {
       isTemplate: false,
       assumptionsJson: {},
     });
-    await expect(svc.patch('s1', 'u1', 'ADMIN', { name: 'blocked' })).rejects.toThrow(/DECIDED/i);
+    await expect(svc.patch('s1', 'u1', 'SUPER_ADMIN', { name: 'blocked' })).rejects.toThrow(/DECIDED/i);
   });
 
-  it('refuses to patch a template as non-ADMIN', async () => {
+  it('refuses to patch a template as non-admin-grade', async () => {
     mocks.scenarioFindUnique.mockResolvedValue({
       id: 's1',
       userId: 'u1',
@@ -134,6 +143,6 @@ describe('ScenariosService.patch — editability', () => {
       isTemplate: true,
       assumptionsJson: {},
     });
-    await expect(svc.patch('s1', 'u1', 'EXECUTIVE', { name: 'blocked' })).rejects.toThrow(/ADMIN/i);
+    await expect(svc.patch('s1', 'u1', 'UNIVERSITY_USER', { name: 'blocked' })).rejects.toThrow(/admin/i);
   });
 });

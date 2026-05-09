@@ -42,6 +42,9 @@ vi.mock('../src/index', async () => {
       },
       skill: { findMany: mocks.skillFindMany },
       $queryRawUnsafe: mocks.queryRawUnsafe,
+      // computeWhiteSpaces switched from $queryRawUnsafe → $queryRaw
+      // (tagged-template, parameter-bound) per the input-validation pass.
+      $queryRaw: mocks.queryRawUnsafe,
     },
   };
 });

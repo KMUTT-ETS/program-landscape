@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { auth } from '@/lib/auth';
-import type { SessionUser } from '@kku/shared';
+import { requireSession } from '@/lib/auth/role-gate';
 
 // Thin proxy for `GET /pdfs/:id` on the NestJS API — used by the
 // create-from-PDF wizard to poll for extraction readiness after upload.
@@ -17,14 +16,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  const user = session?.user as SessionUser | undefined;
-  if (!user?.userId) {
-    return NextResponse.json(
-      { data: null, error: { code: 'UNAUTHORIZED' } },
-      { status: 401 },
-    );
-  }
+  const guard = await requireSession({ minRole: 'admin' });
+  if (guard.kind === 'deny') return guard.response;
   const cookieName =
     process.env.NODE_ENV === 'production'
       ? '__Secure-authjs.session-token'

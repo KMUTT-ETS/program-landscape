@@ -128,7 +128,7 @@ export class EducationController {
   ) {}
 
   @Get('recruitment')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async recruitmentDashboard(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(RecruitmentQuerySchema))
@@ -143,7 +143,7 @@ export class EducationController {
   }
 
   @Post('refresh')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   @AuditLog({
     action: 'education.refresh_cubes',
     entityType: 'EducationCubeRefresh',
@@ -190,7 +190,7 @@ export class EducationController {
   }
 
   @Get('refresh/status')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async refreshStatus(@AuthSession() user: SessionUser) {
     assertUniversityWide(user);
     const latest = await this.refresher.latestPerCube();
@@ -209,7 +209,7 @@ export class EducationController {
   }
 
   @Get('student-info')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async studentInfo(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StudentInfoQuerySchema)) q: StudentInfoQuery,
@@ -219,7 +219,7 @@ export class EducationController {
   }
 
   @Get('by-location')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async byLocation(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(LocationQuerySchema)) q: LocationQuery,
@@ -229,21 +229,21 @@ export class EducationController {
   }
 
   @Get('active-pivot')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async activePivot(@AuthSession() user: SessionUser) {
     assertUniversityWide(user);
     return this.education.activePivot();
   }
 
   @Get('international')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async international(@AuthSession() user: SessionUser) {
     assertUniversityWide(user);
     return this.education.international();
   }
 
   @Get('tuition')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async tuition(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(TuitionQuerySchema)) q: TuitionQuery,
@@ -255,7 +255,7 @@ export class EducationController {
   // ── Performance dashboard endpoints ──────────────────────────────
 
   @Get('performance/overall')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async performanceOverall(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
@@ -265,7 +265,7 @@ export class EducationController {
   }
 
   @Get('performance/by-program')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async performanceByProgram(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
@@ -275,7 +275,7 @@ export class EducationController {
   }
 
   @Get('performance/by-location')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async performanceByLocation(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
@@ -285,7 +285,7 @@ export class EducationController {
   }
 
   @Get('entry-scores')
-  @Authorized('programs:read:all')
+  @Authorized('institution:read:university')
   async entryScores(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,

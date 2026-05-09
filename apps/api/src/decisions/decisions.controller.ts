@@ -198,7 +198,7 @@ export class DecisionsController {
   }
 
   @Patch('/decisions/:id')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:edit')
   @AuditLog({ action: 'decision.patch', entityType: 'CouncilDecision' })
   async patch(
     @AuthSession() user: SessionUser,
@@ -214,7 +214,7 @@ export class DecisionsController {
   }
 
   @Post('/decisions/:id/status')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:edit')
   @AuditLog({ action: 'decision.status', entityType: 'CouncilDecision' })
   async updateStatus(
     @AuthSession() user: SessionUser,
@@ -230,7 +230,7 @@ export class DecisionsController {
   }
 
   @Post('/decisions/:id/amend')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:edit')
   @AuditLog({ action: 'decision.amend', entityType: 'CouncilDecision' })
   async amend(
     @AuthSession() user: SessionUser,
@@ -247,7 +247,7 @@ export class DecisionsController {
 
   // ── Milestones ────────────────────────────────────────────────────
   @Post('/decisions/:id/milestones')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:edit')
   @AuditLog({ action: 'milestone.create', entityType: 'DecisionMilestone' })
   async createMilestone(
     @AuthSession() user: SessionUser,
@@ -263,7 +263,7 @@ export class DecisionsController {
   }
 
   @Patch('/decisions/:id/milestones/:milestoneId')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:edit')
   @AuditLog({ action: 'milestone.patch', entityType: 'DecisionMilestone' })
   async patchMilestone(
     @AuthSession() user: SessionUser,
@@ -280,7 +280,7 @@ export class DecisionsController {
 
   // ── Approvers ─────────────────────────────────────────────────────
   @Post('/decisions/:id/approvers')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:approve')
   @AuditLog({ action: 'decision.approver', entityType: 'DecisionApprover' })
   async addApprover(
     @AuthSession() user: SessionUser,
@@ -299,7 +299,7 @@ export class DecisionsController {
 
   // ── Outcome review ────────────────────────────────────────────────
   @Post('/decisions/:id/outcome-review')
-  @Authorized('programs:read:all')
+  @Authorized('decisions:edit')
   @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
   @AiQuota({ module: 'decisions' })
   @AiCall({ module: 'decisions' })

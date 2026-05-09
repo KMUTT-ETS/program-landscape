@@ -1,0 +1,37 @@
+==========================================
+curl -I https://localhost:18443/healthz
+==========================================
+HTTP/2 200 
+server: nginx/1.27.5
+date: Sat, 09 May 2026 08:42:26 GMT
+content-type: text/plain
+content-length: 3
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: strict-origin-when-cross-origin
+permissions-policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+
+ok
+
+==========================================
+curl -I http://localhost:18080/anything (HTTP→HTTPS)
+==========================================
+HTTP/1.1 301 Moved Permanently
+Server: nginx/1.27.5
+Date: Sat, 09 May 2026 08:42:26 GMT
+Content-Type: text/html
+Content-Length: 169
+Connection: keep-alive
+Location: https://localhost/anything
+
+
+==========================================
+Unknown Host (444 close)
+==========================================
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (92) HTTP/2 stream 1 was not closed cleanly: PROTOCOL_ERROR (err 1)

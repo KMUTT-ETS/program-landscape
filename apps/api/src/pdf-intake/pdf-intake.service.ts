@@ -52,6 +52,23 @@ export class PdfIntakeService implements OnModuleInit {
     language?: PdfLanguage;
     notes?: string;
   }): Promise<{ pdfDocumentId: string; deduplicated: boolean; enqueued: boolean }> {
+    // Magic-byte sniff: every legitimate PDF starts with `%PDF-` (the
+    // header signature defined by ISO 32000-2 §7.5.2). Reject anything
+    // else regardless of the multipart Content-Type the browser sent —
+    // the browser header is not the trust boundary.
+    if (
+      input.bytes.length < 5 ||
+      input.bytes[0] !== 0x25 || // '%'
+      input.bytes[1] !== 0x50 || // 'P'
+      input.bytes[2] !== 0x44 || // 'D'
+      input.bytes[3] !== 0x46 || // 'F'
+      input.bytes[4] !== 0x2d // '-'
+    ) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        'Uploaded file is not a PDF (missing %PDF- header signature).',
+      );
+    }
     const contentHash = createHash('sha256').update(input.bytes).digest('hex');
     const existing = await prisma.pdfDocument.findUnique({
       where: { contentHash },

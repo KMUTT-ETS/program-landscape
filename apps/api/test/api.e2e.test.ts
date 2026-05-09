@@ -39,10 +39,23 @@ let app: INestApplication;
 const secretKey = () => new TextEncoder().encode(process.env.NEXTAUTH_SECRET!);
 
 async function signFor(role: UserRole, facultyId: string | null = null, departmentId: string | null = null) {
-  const user = await prisma.user.findFirstOrThrow({
+  // Look up a real seeded user for this role; fall back to a synthetic
+  // payload when no row exists (dev seeds historically only carried the
+  // 3 SUPER_ADMINs). Synthetic users cannot exercise routes that hit
+  // prisma.user — but the auth-only routes (e.g. /me, /faculties) work.
+  const realUser = await prisma.user.findFirst({
     where: { role },
     select: { id: true, email: true, name: true, role: true, facultyId: true, departmentId: true, themePreference: true },
   });
+  const user = realUser ?? {
+    id: `synthetic-${role}`,
+    email: `${role.toLowerCase()}@kku.ac.th`,
+    name: `Synthetic ${role}`,
+    role,
+    facultyId: null as string | null,
+    departmentId: null as string | null,
+    themePreference: 'SYSTEM' as const,
+  };
   const payload = {
     userId: user.id,
     email: user.email,
@@ -145,22 +158,27 @@ describeIfDb('Authenticated endpoints — missing token', () => {
   });
 });
 
+// Role names migrated from legacy 7-role taxonomy to v2 (2026-05-09):
+//   ADMIN  → SYSTEM_ADMIN
+//   COUNCIL → UNIVERSITY_USER  (council tier — read-everywhere)
+//   VIEWER → PROGRAM_USER      (narrowest — own-program only)
+
 describeIfDb('/me', () => {
-  it('returns identity + permissions for ADMIN', async () => {
-    const { jwt } = await signFor('ADMIN');
+  it('returns identity + permissions for SYSTEM_ADMIN', async () => {
+    const { jwt } = await signFor('SYSTEM_ADMIN');
     const res = await request(app.getHttpServer())
       .get('/api/v1/me')
       .set('authorization', `Bearer ${jwt}`);
     expect(res.status).toBe(200);
-    expect(res.body.data.role).toBe('ADMIN');
+    expect(res.body.data.role).toBe('SYSTEM_ADMIN');
     expect(res.body.data.permissions.length).toBeGreaterThan(20);
     expect(res.body.meta).toBeDefined();
   });
 });
 
 describeIfDb('/data-sources — admin only', () => {
-  it('ADMIN can list', async () => {
-    const { jwt } = await signFor('ADMIN');
+  it('SYSTEM_ADMIN can list', async () => {
+    const { jwt } = await signFor('SYSTEM_ADMIN');
     const res = await request(app.getHttpServer())
       .get('/api/v1/data-sources')
       .set('authorization', `Bearer ${jwt}`);
@@ -169,8 +187,8 @@ describeIfDb('/data-sources — admin only', () => {
     expect(res.body.data.length).toBeGreaterThan(0);
   });
 
-  it('COUNCIL is forbidden', async () => {
-    const { jwt } = await signFor('COUNCIL');
+  it('UNIVERSITY_USER is forbidden', async () => {
+    const { jwt } = await signFor('UNIVERSITY_USER');
     const res = await request(app.getHttpServer())
       .get('/api/v1/data-sources')
       .set('authorization', `Bearer ${jwt}`);
@@ -178,8 +196,8 @@ describeIfDb('/data-sources — admin only', () => {
     expect(res.body.error?.code).toBe('FORBIDDEN');
   });
 
-  it('VIEWER is forbidden', async () => {
-    const { jwt } = await signFor('VIEWER');
+  it('PROGRAM_USER is forbidden', async () => {
+    const { jwt } = await signFor('PROGRAM_USER');
     const res = await request(app.getHttpServer())
       .get('/api/v1/data-sources')
       .set('authorization', `Bearer ${jwt}`);
@@ -188,8 +206,8 @@ describeIfDb('/data-sources — admin only', () => {
 });
 
 describeIfDb('/programs', () => {
-  it('returns programs at university scope for COUNCIL', async () => {
-    const { jwt } = await signFor('COUNCIL');
+  it('returns programs at university scope for UNIVERSITY_USER', async () => {
+    const { jwt } = await signFor('UNIVERSITY_USER');
     const res = await request(app.getHttpServer())
       .get('/api/v1/programs?scope=university')
       .set('authorization', `Bearer ${jwt}`);
@@ -199,7 +217,7 @@ describeIfDb('/programs', () => {
   });
 
   it('validates scope parameter (VALIDATION_FAILED for invalid)', async () => {
-    const { jwt } = await signFor('COUNCIL');
+    const { jwt } = await signFor('UNIVERSITY_USER');
     const res = await request(app.getHttpServer())
       .get('/api/v1/programs?scope=galaxy')
       .set('authorization', `Bearer ${jwt}`);
@@ -209,8 +227,8 @@ describeIfDb('/programs', () => {
 });
 
 describeIfDb('/faculties', () => {
-  it('COUNCIL can list', async () => {
-    const { jwt } = await signFor('COUNCIL');
+  it('UNIVERSITY_USER can list', async () => {
+    const { jwt } = await signFor('UNIVERSITY_USER');
     const res = await request(app.getHttpServer())
       .get('/api/v1/faculties')
       .set('authorization', `Bearer ${jwt}`);
