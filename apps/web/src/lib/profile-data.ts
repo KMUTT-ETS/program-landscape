@@ -30,6 +30,14 @@ import {
   type KkuScholarPublication,
   type PaperLookupKey,
 } from './kku-publications';
+import {
+  fetchPublicationsByScopusAuthor,
+  resolveScopusAuthorId,
+} from './scopus-publications';
+import {
+  fetchExternalAuthors,
+  fetchExternalAuthorsByMetadata,
+} from './external-publications';
 
 // Re-export the client-safe types so existing server-side callers
 // continue to import them from here.
@@ -214,15 +222,66 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
   // cache turns over; that's an acceptable freshness tradeoff for
   // a 24h window.
   const dedupedLocal = dedupePublications(papers);
+  const ownerSurname = lastTokenOf(member.nameEn);
+  const ownerGiven = firstTokenOf(member.nameEn);
   const publications = await loadPublicationsWithCache(user.id, async () => {
-    const kkuScholarPapers = await fetchKkuScholarPublicationsByPerson({
-      kkuScholarPersonId: scholarPersonIdFromEmployeeCode(member.employeeCode),
-      surnameEn: lastTokenOf(member.nameEn),
-      givenNameEn: firstTokenOf(member.nameEn),
-      surnameTh: lastTokenOf(member.nameTh),
-      givenNameTh: firstTokenOf(member.nameTh),
-    });
-    return mergeAndEnrichPublications(kkuScholarPapers, dedupedLocal);
+    // Primary path: pull every paper from Scopus by AU-ID. ~2-3s
+    // with full per-paper author lists, vs the kkuscholar mirror's
+    // 30-45s.
+    //
+    // Profile-page-only — bulk modules (cockpit, gap-analyzer,
+    // benchmarking) continue reading from kkuscholar to stay under
+    // Scopus's 20k-req/week institutional rate limit.
+    //
+    // Resolution order for the Scopus author id:
+    //   1. FacultyMember.scopusAuthorId (cached from a prior visit
+    //      or seeded by the kku-research connector).
+    //   2. Live Scopus author search by name + KKU affiliation —
+    //      cached back to the FacultyMember row so subsequent
+    //      cold-cache loads skip resolution.
+    let scopusAuthorId = member.scopusAuthorId;
+    if (!scopusAuthorId && ownerSurname && ownerGiven) {
+      const resolved = await resolveScopusAuthorId({
+        surnameEn: ownerSurname,
+        givenEn: ownerGiven,
+      }).catch(() => null);
+      if (resolved) {
+        scopusAuthorId = resolved.authorId;
+        // Fire-and-forget cache write so the next cold load skips
+        // the resolution. Failures are not actionable.
+        void prisma.facultyMember
+          .update({
+            where: { id: member.id },
+            data: { scopusAuthorId: resolved.authorId },
+          })
+          .catch(() => undefined);
+      }
+    }
+
+    const scopusPapers = scopusAuthorId
+      ? await fetchPublicationsByScopusAuthor(scopusAuthorId)
+      : [];
+
+    // kkuscholar fallback — only fire when Scopus came up empty.
+    // Covers Thai-only researchers + medical faculty whose primary
+    // footprint is in TCI / PubMed rather than Scopus.
+    const fallbackPapers =
+      scopusPapers.length === 0
+        ? await fetchKkuScholarPublicationsByPerson({
+            kkuScholarPersonId: scholarPersonIdFromEmployeeCode(member.employeeCode),
+            surnameEn: ownerSurname,
+            givenNameEn: ownerGiven,
+            surnameTh: lastTokenOf(member.nameTh),
+            givenNameTh: firstTokenOf(member.nameTh),
+          })
+        : [];
+
+    return mergeAndEnrichPublications(
+      [...scopusPapers, ...fallbackPapers],
+      dedupedLocal,
+      ownerSurname,
+      ownerGiven,
+    );
   });
 
   const research = summariseResearch(publications);
@@ -280,6 +339,8 @@ function ds2003ToEducationEntry(row: {
 async function mergeAndEnrichPublications(
   scholarPapers: KkuScholarPublication[],
   localPapers: PublicationEntry[],
+  ownerSurname: string | null,
+  ownerGiven: string | null,
 ): Promise<PublicationEntry[]> {
   // Index scholarPapers by every external-id flavour they carry.
   const byDoi = new Map<string, KkuScholarPublication>();
@@ -374,8 +435,68 @@ async function mergeAndEnrichPublications(
     });
   }
 
-  // Final order — by year desc, citations desc within year.
   const all = [...enrichedLocal, ...scholarOnly];
+
+  // Pass 4 — external-API fallback. Any paper STILL without authors
+  // gets a chained set of attempts:
+  //
+  //   (a) DOI lookup on OpenAlex → Scopus (when paper has a DOI).
+  //   (b) Metadata search on OpenAlex → Scopus by title + owner
+  //       surname (verified: result must contain the owner). Used
+  //       when DOI is missing OR (a) returned nothing.
+  //
+  // Sequential per paper, short per-call timeouts. Successful
+  // resolutions bake into the per-user cache so the next 24h of
+  // loads serve instantly without hitting these APIs again.
+  for (const p of all) {
+    if (p.authorsAreComplete || p.authors.length > 0) continue;
+    let resolved: { surname: string; givenName: string | null; initials: string | null }[] | null = null;
+
+    // (a) DOI lookup
+    if (p.doi) {
+      try {
+        const ext = await fetchExternalAuthors(p.doi);
+        if (ext && ext.authors.length > 0) resolved = ext.authors;
+      } catch (err) {
+        console.warn(
+          `[profile-data] DOI author fetch failed for doi=${p.doi}:`,
+          (err as Error).message,
+        );
+      }
+    }
+
+    // (b) Metadata search — only when DOI didn't resolve AND we have
+    // a usable surname to verify the match. Title is required for the
+    // search query.
+    if (!resolved && ownerSurname && p.title.trim()) {
+      try {
+        const ext = await fetchExternalAuthorsByMetadata({
+          title: p.title,
+          ownerSurname,
+          ownerGiven,
+          year: p.year,
+          venue: p.venue,
+        });
+        if (ext && ext.authors.length > 0) resolved = ext.authors;
+      } catch (err) {
+        console.warn(
+          `[profile-data] metadata-search author fetch failed for "${p.title.slice(0, 50)}":`,
+          (err as Error).message,
+        );
+      }
+    }
+
+    if (resolved) {
+      p.authors = resolved.map((a) => ({
+        family: a.surname,
+        given: a.givenName,
+        initials: a.initials,
+      }));
+      p.authorsAreComplete = true;
+    }
+  }
+
+  // Final order — by year desc, citations desc within year.
   all.sort((a, b) => b.year - a.year || b.citations - a.citations);
   return all;
 }
@@ -522,6 +643,7 @@ function emptyResearchSummary(): ResearchSummary {
   return {
     totalPapers: 0,
     totalCitations: 0,
+    hIndex: 0,
     peakYear: null,
     peakYearCount: 0,
     topVenues: [],
@@ -562,6 +684,7 @@ function summariseResearch(publications: PublicationEntry[]): ResearchSummary {
   return {
     totalPapers: publications.length,
     totalCitations,
+    hIndex: computeHIndex(publications.map((p) => p.citations)),
     peakYear,
     peakYearCount,
     topVenues,
@@ -569,6 +692,23 @@ function summariseResearch(publications: PublicationEntry[]): ResearchSummary {
     latestYear,
     yearsActive,
   };
+}
+
+/**
+ * h-index = the largest h such that h papers have each been cited at
+ * least h times. Computed from a list of citation counts.
+ *
+ *   citations = [10, 8, 5, 4, 3, 2] → h = 4
+ *     (4 papers cited >= 4 times: 10, 8, 5, 4)
+ */
+function computeHIndex(citations: number[]): number {
+  const sorted = [...citations].sort((a, b) => b - a);
+  let h = 0;
+  for (let i = 0; i < sorted.length; i += 1) {
+    if (sorted[i]! >= i + 1) h = i + 1;
+    else break;
+  }
+  return h;
 }
 
 interface ResearchOutputRow {

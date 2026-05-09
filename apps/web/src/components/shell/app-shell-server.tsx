@@ -54,15 +54,32 @@ export async function AuthedAppShell({
 
   const brand = (
     <>
-      {/* KKU monogram — bold coral with layered glow. 2026-05-02c:
-          larger tile, gradient fill, multi-layer shadow so it reads
-          as a hero spot, not a badge. */}
+      {/* KKU logo — theme-aware. Both variants are rendered; CSS
+          shows the right one based on `data-theme="dark"` on <html>.
+          Source: /home/denpong/KKULogo (Cabinet-mandated official
+          logo set). Hard-locked to fit the 50×30 placeholder:
+          explicit h/w on both placeholder AND image, plus
+          object-contain + overflow-hidden so nothing escapes. */}
       <div
-        aria-hidden
-        className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-default to-accent-hover text-lg font-bold text-accent-fg shadow-[0_4px_16px_-4px_rgb(255_140_70/0.55),inset_0_1px_0_0_rgba(255,255,255,0.25)] ring-1 ring-accent-default/20"
+        className="relative flex h-[50px] w-[30px] shrink-0 items-center justify-center overflow-hidden"
         title="KKU Curriculum Intelligence Platform · Program Landscape"
       >
-        K
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/kku-logo-light.png"
+          alt="KKU"
+          width={30}
+          height={50}
+          className="block h-[50px] w-[30px] object-contain dark:hidden"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/kku-logo-dark.png"
+          alt="KKU"
+          width={30}
+          height={50}
+          className="hidden h-[50px] w-[30px] object-contain dark:block"
+        />
       </div>
       <div className="flex min-w-0 flex-col leading-none">
         <span className="truncate text-base font-semibold tracking-tight text-text-primary">

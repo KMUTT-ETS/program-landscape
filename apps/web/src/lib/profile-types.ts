@@ -54,6 +54,11 @@ export interface EducationEntry {
 export interface ResearchSummary {
   totalPapers: number;
   totalCitations: number;
+  /** h-index — the largest h such that the author has h papers each
+   *  cited at least h times. Computed from per-paper citation counts
+   *  in the deduped publications list (Scopus citation counts where
+   *  available, 0 for unindexed papers). */
+  hIndex: number;
   peakYear: number | null;
   peakYearCount: number;
   topVenues: Array<{ venue: string; count: number }>;
@@ -187,8 +192,10 @@ export function formatApa(p: PublicationEntry): string {
 }
 
 /** Convert legacy `kkuAuthors` (display strings) to the AuthorName
- *  shape so the formatter has a single code path. */
-function kkuAuthorsAsAuthorNames(p: PublicationEntry): AuthorName[] {
+ *  shape so the formatter has a single code path. Exported because
+ *  the JSX-rendering profile-view needs the same fallback semantics
+ *  to bold the owner's name in the citation. */
+export function kkuAuthorsAsAuthorNames(p: PublicationEntry): AuthorName[] {
   return p.kkuAuthors.map((display) => {
     // Heuristic: assume "Surname, F. M." or "Family Given" — try comma split first.
     if (display.includes(',')) {

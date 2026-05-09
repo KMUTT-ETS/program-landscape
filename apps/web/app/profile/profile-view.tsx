@@ -10,8 +10,8 @@ import {
   Skeleton,
 } from '@kku/ui';
 import { BookOpen, Camera, GraduationCap, Sparkles, Globe2, Award } from 'lucide-react';
-import type { ProfileData, PublicationEntry } from '@/lib/profile-types';
-import { formatApa } from '@/lib/profile-types';
+import type { AuthorName, ProfileData, PublicationEntry } from '@/lib/profile-types';
+import { formatAuthorApa, kkuAuthorsAsAuthorNames } from '@/lib/profile-types';
 import { AvatarUploader } from './avatar-uploader';
 
 // Profile-page client component. Owns:
@@ -48,8 +48,10 @@ const T = {
     publicationsHelp: 'รูปแบบ APA · เรียงจากใหม่ไปเก่า',
     statPapers: 'ผลงาน',
     statCitations: 'การอ้างอิง',
+    statHIndex: 'h-index',
     statYearsActive: 'ปีที่ผลิตผลงาน',
     statPeakYear: 'ปีที่ผลิตมากที่สุด',
+    statFirstYear: 'ปีแรกที่ตีพิมพ์',
     rolesGroup: 'บทบาท',
     role_COORDINATOR: 'อาจารย์ผู้รับผิดชอบหลักสูตร',
     role_CORE: 'อาจารย์ประจำหลักสูตร',
@@ -84,8 +86,10 @@ const T = {
     publicationsHelp: 'APA format · most recent first',
     statPapers: 'Papers',
     statCitations: 'Citations',
+    statHIndex: 'h-index',
     statYearsActive: 'Years active',
     statPeakYear: 'Peak year',
+    statFirstYear: 'First publication',
     rolesGroup: 'Role',
     role_COORDINATOR: 'Program coordinator',
     role_CORE: 'Core faculty',
@@ -144,6 +148,24 @@ export function ProfileView({
 
   const fullName =
     lang === 'th' ? profile.basic.fullNameTh : profile.basic.fullNameEn;
+  // Owner surname for highlighting in the publication list — derived
+  // from the English name (Latin surname is what shows up in
+  // citations from Scopus / OpenAlex / PubMed). Strip honorifics
+  // first, then take the last token.
+  const ownerSurname = React.useMemo(() => {
+    const stripped = profile.basic.fullNameEn.replace(
+      /^(Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi,
+      '',
+    );
+    const stripped2 = stripped.replace(
+      /^(Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi,
+      '',
+    );
+    const tokens = stripped2.trim().split(/\s+/).filter(Boolean);
+    return tokens.length > 0
+      ? tokens[tokens.length - 1]!.toLocaleLowerCase()
+      : null;
+  }, [profile.basic.fullNameEn]);
   const rankLabel =
     lang === 'th' ? profile.basic.rankLabelTh : profile.basic.rankLabelEn;
   const facultyName =
@@ -171,6 +193,7 @@ export function ProfileView({
         email={userEmail}
         orcid={profile.basic.orcid}
         scopusAuthorId={profile.basic.scopusAuthorId}
+        openalexAuthorId={profile.basic.openalexAuthorId}
         avatarUrl={profile.basic.avatarUrl}
         t={t}
       />
@@ -194,7 +217,11 @@ export function ProfileView({
 
         <div className="space-y-6 lg:col-span-2">
           <CurriculumSection curriculum={profile.curriculum} lang={lang} t={t} />
-          <PublicationsSection publications={profile.publications} t={t} />
+          <PublicationsSection
+            publications={profile.publications}
+            ownerSurname={ownerSurname}
+            t={t}
+          />
         </div>
       </div>
     </>
@@ -211,6 +238,7 @@ function ProfileHero({
   email,
   orcid,
   scopusAuthorId,
+  openalexAuthorId,
   avatarUrl,
   t,
 }: {
@@ -221,6 +249,7 @@ function ProfileHero({
   email: string;
   orcid: string | null;
   scopusAuthorId: string | null;
+  openalexAuthorId: string | null;
   avatarUrl: string | null;
   t: (typeof T)[Lang];
 }) {
@@ -247,6 +276,32 @@ function ProfileHero({
         aria-hidden
         className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-accent-default/10 blur-3xl"
       />
+      {/* KKU logo — top-right corner, theme-aware. Both image
+          variants are rendered; CSS shows the right one based on
+          the active theme. The dark variant uses Tailwind's `dark:`
+          modifier which resolves against `data-theme="dark"` on
+          <html> (configured in tailwind preset). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-5 top-5 z-10 flex items-start"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/kku-logo-light.png"
+          alt=""
+          width={42}
+          height={75}
+          className="block h-20 w-auto opacity-90 dark:hidden"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/kku-logo-dark.png"
+          alt=""
+          width={42}
+          height={75}
+          className="hidden h-20 w-auto opacity-90 dark:block"
+        />
+      </div>
       <div className="relative flex flex-col gap-7 p-7 md:flex-row md:items-start">
         {/* Avatar — 216×216 (240 × 0.9). Hero anchor sized to feel
             substantial without crowding the text. Both parent and
@@ -307,7 +362,7 @@ function ProfileHero({
 
           {/* Detail grid — uniform alignment via `grid` columns rather
               than per-row flex (which was breaking the email row). */}
-          <dl className="mt-5 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm sm:grid-cols-[max-content_1fr_max-content_1fr] sm:gap-x-6">
+          <dl className="mt-5 grid grid-cols-[max-content_1fr] items-baseline gap-x-4 gap-y-2 text-sm sm:grid-cols-[max-content_1fr_max-content_1fr] sm:gap-x-6">
             {facultyName && (
               <>
                 <dt className="text-text-tertiary">{t.facultyLabel}</dt>
@@ -348,7 +403,29 @@ function ProfileHero({
               <>
                 <dt className="text-text-tertiary">Scopus ID</dt>
                 <dd className="font-mono text-xs text-text-primary">
-                  {scopusAuthorId}
+                  <a
+                    href={`https://www.scopus.com/authid/detail.uri?authorId=${scopusAuthorId}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-accent-default hover:underline"
+                  >
+                    {scopusAuthorId}
+                  </a>
+                </dd>
+              </>
+            )}
+            {openalexAuthorId && (
+              <>
+                <dt className="text-text-tertiary">OpenAlex ID</dt>
+                <dd className="font-mono text-xs text-text-primary">
+                  <a
+                    href={`https://openalex.org/${openalexAuthorId}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-accent-default hover:underline"
+                  >
+                    {openalexAuthorId}
+                  </a>
                 </dd>
               </>
             )}
@@ -418,7 +495,7 @@ function ExpertiseNarrativeSection({
     <Section
       title={
         <span className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-accent-default" aria-hidden />
+          <Sparkles className="h-12 w-12 text-accent-default" aria-hidden />
           {t.sectionAbout}
         </span>
       }
@@ -544,7 +621,7 @@ function EducationSection({
     <Section
       title={
         <span className="flex items-center gap-2">
-          <GraduationCap className="h-4 w-4 text-text-tertiary" aria-hidden />
+          <GraduationCap className="h-12 w-12 text-text-tertiary" aria-hidden />
           {t.sectionEducation}
         </span>
       }
@@ -602,7 +679,7 @@ function ResearchSummarySection({
     <Section
       title={
         <span className="flex items-center gap-2">
-          <Award className="h-4 w-4 text-text-tertiary" aria-hidden />
+          <Award className="h-12 w-12 text-text-tertiary" aria-hidden />
           {t.sectionResearch}
         </span>
       }
@@ -623,6 +700,11 @@ function ResearchSummarySection({
                 value={research.totalCitations.toLocaleString()}
               />
               <StatTile
+                label={t.statHIndex}
+                value={research.hIndex.toLocaleString()}
+                accent
+              />
+              <StatTile
                 label={t.statYearsActive}
                 value={
                   research.yearsActive
@@ -638,6 +720,14 @@ function ResearchSummarySection({
                   research.peakYear
                     ? `${research.peakYearCount} papers`
                     : undefined
+                }
+              />
+              <StatTile
+                label={t.statFirstYear}
+                value={
+                  research.earliestYear
+                    ? `${research.earliestYear}`
+                    : '—'
                 }
               />
             </dl>
@@ -740,7 +830,7 @@ function CurriculumSection({
     <Section
       title={
         <span className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-text-tertiary" aria-hidden />
+          <BookOpen className="h-12 w-12 text-text-tertiary" aria-hidden />
           {t.sectionCurriculum}
         </span>
       }
@@ -811,21 +901,36 @@ function prettyLevel(level: string): string {
 
 function PublicationsSection({
   publications,
+  ownerSurname,
   t,
 }: {
   publications: PublicationEntry[];
+  ownerSurname: string | null;
   t: (typeof T)[Lang];
 }) {
-  // Show first 25 on initial render; "show all" reveals the rest. Keeps
-  // the page snappy for prolific authors (some KKU faculty have 200+).
-  const [showAll, setShowAll] = React.useState(false);
-  const displayed = showAll ? publications : publications.slice(0, 25);
+  // Paginated 20 per page. Authors with 100+ papers get a clean
+  // page-by-page view instead of one giant scroll. Page index resets
+  // to 0 when the publications array reference changes (e.g. after
+  // a cache refresh).
+  const PAGE_SIZE = 20;
+  const totalPages = Math.max(1, Math.ceil(publications.length / PAGE_SIZE));
+  const [page, setPage] = React.useState(0);
+  React.useEffect(() => {
+    setPage(0);
+  }, [publications]);
+  // Clamp the page index — if a refresh shrinks the list, snap back
+  // into range without crashing.
+  const safePage = Math.min(page, totalPages - 1);
+  const startIdx = safePage * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, publications.length);
+  const displayed = publications.slice(startIdx, endIdx);
 
   return (
     <Section
+      data-pubs-section=""
       title={
         <span className="flex items-center gap-2">
-          <Globe2 className="h-4 w-4 text-text-tertiary" aria-hidden />
+          <Globe2 className="h-12 w-12 text-text-tertiary" aria-hidden />
           {t.sectionPublications} ({publications.length})
         </span>
       }
@@ -843,10 +948,10 @@ function PublicationsSection({
                   className="flex gap-3 border-b border-border-subtle pb-3 last:border-b-0"
                 >
                   <span className="shrink-0 select-none pt-0.5 text-xs tabular-nums text-text-tertiary">
-                    [{i + 1}]
+                    [{startIdx + i + 1}]
                   </span>
                   <div className="min-w-0 flex-1">
-                    <PublicationApaLine pub={p} />
+                    <PublicationApaLine pub={p} ownerSurname={ownerSurname} />
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
                       <span className="tabular-nums">{p.year}</span>
                       {p.citations > 0 && (
@@ -863,8 +968,11 @@ function PublicationsSection({
                         </span>
                       )}
                       {!p.authorsAreComplete && (
-                        <span className="italic" title="Co-authors not yet linked from kkuscholar mirror.">
-                          (KKU authors only)
+                        <span
+                          className="italic"
+                          title="Tried kkuscholar, OpenAlex, and Scopus — none returned a co-author list for this paper."
+                        >
+                          (co-authors could not be fetched)
                         </span>
                       )}
                       {p.scopusId && (
@@ -885,18 +993,15 @@ function PublicationsSection({
                 </li>
               ))}
             </ol>
-            {publications.length > 25 && (
-              <div className="mt-4 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowAll((s) => !s)}
-                  className="text-sm text-accent-default hover:underline"
-                >
-                  {showAll
-                    ? `Show first 25`
-                    : `Show all ${publications.length} publications`}
-                </button>
-              </div>
+            {totalPages > 1 && (
+              <PublicationPager
+                page={safePage}
+                totalPages={totalPages}
+                startIdx={startIdx}
+                endIdx={endIdx}
+                total={publications.length}
+                onPageChange={setPage}
+              />
             )}
           </>
         )}
@@ -905,49 +1010,217 @@ function PublicationsSection({
   );
 }
 
-function PublicationApaLine({ pub }: { pub: PublicationEntry }) {
-  // formatApa returns a string like:
-  //   "Author. (Year). Title. *Venue*. https://doi.org/..."
-  // Render it with the venue italicised + DOI as a link.
-  const apa = formatApa(pub);
-  // Split on the first occurrence of "*" pair to recover the venue span.
-  const venueMatch = apa.match(/\*([^*]+)\*/);
-  const doiMatch = apa.match(/(https:\/\/doi\.org\/\S+)/);
-  let head = apa;
-  let venue: string | null = null;
-  let tail = '';
-  if (venueMatch) {
-    head = apa.slice(0, venueMatch.index);
-    venue = venueMatch[1] ?? null;
-    tail = apa.slice((venueMatch.index ?? 0) + venueMatch[0].length);
-  }
-  let tailText = tail;
-  let doiHref: string | null = null;
-  if (doiMatch && tail.includes(doiMatch[0])) {
-    doiHref = doiMatch[0];
-    tailText = tail.replace(doiMatch[0], '').trim();
-  }
+function PublicationPager({
+  page,
+  totalPages,
+  startIdx,
+  endIdx,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  startIdx: number;
+  endIdx: number;
+  total: number;
+  onPageChange: (next: number) => void;
+}) {
+  // Build a compact page-number row with ellipses for large counts.
+  // Strategy: always show first + last; show ±1 around current; "…"
+  // bridges the gaps. For ≤7 pages we just list them all.
+  const pages: Array<number | 'gap'> = React.useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i);
+    }
+    const out: Array<number | 'gap'> = [];
+    const around = new Set<number>([
+      0,
+      totalPages - 1,
+      page - 1,
+      page,
+      page + 1,
+    ]);
+    let last = -2;
+    for (let i = 0; i < totalPages; i += 1) {
+      if (!around.has(i)) continue;
+      if (i - last > 1) out.push('gap');
+      out.push(i);
+      last = i;
+    }
+    return out;
+  }, [page, totalPages]);
+
+  // Scroll the publication list into view on page change so the
+  // user lands at the top of the new page rather than mid-scroll.
+  const onPick = (next: number) => {
+    if (next === page) return;
+    onPageChange(next);
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector('[data-pubs-section]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  };
+
+  const btn =
+    'inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-border-subtle px-2 text-xs font-medium text-text-secondary hover:bg-accent-subtle hover:text-accent-default disabled:cursor-not-allowed disabled:opacity-40';
+  const btnActive =
+    'inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-accent-default bg-accent-subtle px-2 text-xs font-semibold text-accent-default';
+
+  return (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-xs text-text-tertiary tabular-nums">
+        Showing <span className="font-medium text-text-secondary">
+          {startIdx + 1}–{endIdx}
+        </span>{' '}
+        of <span className="font-medium text-text-secondary">{total}</span>
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPick(page - 1)}
+          disabled={page === 0}
+          aria-label="Previous page"
+          className={btn}
+        >
+          ‹
+        </button>
+        {pages.map((p, i) =>
+          p === 'gap' ? (
+            <span
+              key={`gap-${i}`}
+              className="px-1 text-xs text-text-tertiary"
+              aria-hidden
+            >
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPick(p)}
+              aria-current={p === page ? 'page' : undefined}
+              aria-label={`Page ${p + 1}`}
+              className={p === page ? btnActive : btn}
+            >
+              {p + 1}
+            </button>
+          ),
+        )}
+        <button
+          type="button"
+          onClick={() => onPick(page + 1)}
+          disabled={page >= totalPages - 1}
+          aria-label="Next page"
+          className={btn}
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PublicationApaLine({
+  pub,
+  ownerSurname,
+}: {
+  pub: PublicationEntry;
+  /** Lowercased surname of the profile owner — when an author's
+   *  family name matches, that author is rendered in <strong> so
+   *  readers can spot the owner's position in the byline at a glance. */
+  ownerSurname: string | null;
+}) {
+  // Build the citation directly from the structured author array,
+  // bolding the owner. Fall back to legacy `kkuAuthors` strings when
+  // the per-paper enrichment didn't populate `authors`.
+  const authors: AuthorName[] =
+    pub.authors.length > 0 ? pub.authors : kkuAuthorsAsAuthorNames(pub);
+  const authorJsx = buildAuthorListJsx(authors, ownerSurname);
+  const trailingDot = /[.!?]$/.test(pub.title) ? '' : '.';
+
   return (
     <p className="text-sm leading-relaxed text-text-primary">
-      {head}
-      {venue && <em className="not-italic font-medium">{venue}</em>}
-      {venue && '.'}
-      {tailText && ' ' + tailText}
-      {doiHref && (
+      {authorJsx}
+      {`(${pub.year}). ${pub.title}${trailingDot}`}
+      {pub.venue && (
+        <>
+          {' '}
+          <em className="not-italic font-medium">{pub.venue}</em>.
+        </>
+      )}
+      {pub.doi && (
         <>
           {' '}
           <a
-            href={doiHref}
+            href={`https://doi.org/${pub.doi}`}
             target="_blank"
             rel="noreferrer noopener"
             className="break-all text-accent-default hover:underline"
           >
-            {doiHref}
+            {`https://doi.org/${pub.doi}`}
           </a>
         </>
       )}
     </p>
   );
+}
+
+/**
+ * Render an APA-7 author block as JSX with the owner's name bolded.
+ * Mirrors `formatApaAuthorList` from profile-types.ts (commas, &,
+ * 21+ ellipsis truncation) but emits React nodes so we can wrap
+ * the matching author in <strong>.
+ */
+function buildAuthorListJsx(
+  authors: AuthorName[],
+  ownerSurname: string | null,
+): React.ReactNode {
+  if (authors.length === 0) return null;
+  const items = authors
+    .map((a) => ({
+      text: formatAuthorApa(a),
+      isOwner: isOwnerAuthor(a, ownerSurname),
+    }))
+    .filter((it) => it.text.length > 0);
+  if (items.length === 0) return null;
+
+  // APA 7 §9.8: 21+ authors → first 19, ..., last.
+  const useEllipsis = items.length > 20;
+  const display = useEllipsis ? [...items.slice(0, 19), items[items.length - 1]!] : items;
+
+  const parts: React.ReactNode[] = [];
+  display.forEach((item, i) => {
+    parts.push(
+      item.isOwner ? (
+        <strong key={`a${i}`} className="font-semibold">
+          {item.text}
+        </strong>
+      ) : (
+        <React.Fragment key={`a${i}`}>{item.text}</React.Fragment>
+      ),
+    );
+    if (i < display.length - 1) {
+      const isSecondToLast = i === display.length - 2;
+      const sep = isSecondToLast
+        ? useEllipsis
+          ? ', ... '
+          : ', & ' /* serial-Oxford comma + ampersand */
+        : ', ';
+      parts.push(<React.Fragment key={`s${i}`}>{sep}</React.Fragment>);
+    }
+  });
+  // Trailing period before "(Year)".
+  parts.push(<React.Fragment key="trail">. </React.Fragment>);
+  return parts;
+}
+
+function isOwnerAuthor(a: AuthorName, ownerSurname: string | null): boolean {
+  if (!ownerSurname) return false;
+  const normalised = (a.family ?? '').trim().toLocaleLowerCase();
+  return normalised.length > 0 && normalised === ownerSurname;
 }
 
 // ─── TH/EN toggle ────────────────────────────────────────────────────────
