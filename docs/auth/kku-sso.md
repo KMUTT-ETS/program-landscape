@@ -202,14 +202,15 @@ credentials path (NextAuth Credentials provider) and the SSONext path
 
 ## Production URL context
 
-Public URL: `https://program-landscape.kku.ac.th`
+Public URL: `https://program-landscape.kku.ac.th/`
+Server IP (KKU internal): `10.101.118.80:8443`
 
 ```
 browser ──TLS (KKU public cert)──▶ KKU reverse proxy
                                      │
                                      ├── proxy_ssl_verify off (or SHA-256 pinned)
                                      ▼
-         TLS (self-signed) ──▶ our nginx  :8443
+         TLS (self-signed) ──▶ our nginx  10.101.118.80:8443
                                      │
                                      ▼
          HTTP ──▶ next.js (web) :3000  /  nestjs (api) :4000
@@ -250,11 +251,21 @@ correctly when it rejects a fabricated session id. The probe knows.
 Keep two sets of credentials. KKU IT registers two clients at the
 SSONext IdP — one per environment, each with its own redirect URI.
 
-Redirect URIs to register:
+**Production uses different SSONext host bases from UAT-Stage.** Both
+hosts are env-driven (`KKU_SSO_WEB_BASE` + `KKU_SSO_API_BASE`) so the
+same code path serves dev / staging / prod — only the env values
+change.
 
-- Dev:     `http://localhost:3000/api/auth/callback/kku-sso`
-- Staging: `https://staging.program-landscape.kku.ac.th/api/auth/callback/kku-sso`
-- Prod:    `https://program-landscape.kku.ac.th/api/auth/callback/kku-sso`
+| Env | `KKU_SSO_WEB_BASE` | `KKU_SSO_API_BASE` | Redirect URI |
+|---|---|---|---|
+| Dev (UAT-Stage) | `https://sso-uat-web.kku.ac.th` | `https://sso-uat-api.kku.ac.th` | `http://localhost:3000/api/auth/callback/kku-sso` |
+| Staging | TBC with KKU IT | TBC with KKU IT | `https://staging.program-landscape.kku.ac.th/api/auth/callback/kku-sso` |
+| **Prod** | **TBC** (likely `https://sso.kku.ac.th`) | **TBC** (likely `https://api-sso.kku.ac.th`) | `https://program-landscape.kku.ac.th/api/auth/callback/kku-sso` |
+
+For each environment KKU IT issues a separate App ID + Client ID +
+Client Secret triple, and registers the redirect URI against that
+client. Ask before the first prod deploy — both bases AND the
+credentials are required.
 
 Note KKU's UAT-Stage IdP does accept `http://10.101.111.233:3000/...`
 (LAN IP, no TLS) for our dev environment — most external IdPs would

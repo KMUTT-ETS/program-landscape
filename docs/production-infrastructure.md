@@ -9,6 +9,17 @@
 
 ---
 
+## Production deployment specifics
+
+| What | Value |
+|---|---|
+| Public URL | `https://program-landscape.kku.ac.th/` |
+| Server IP (KKU internal network) | `10.101.118.80` |
+| Listening port | `8443` (HTTPS, self-signed) |
+| Public TLS termination | KKU university reverse proxy (managed by KKU IT) |
+| Self-signed cert on our nginx | required (KKU proxy re-encrypts to us) |
+| Outbound DB / API egress | unrestricted within KKU internal network |
+
 ## Hosting model at a glance
 
 ```
@@ -25,7 +36,8 @@
                           │  proxy_ssl_verify off  (or SHA-256 pin)
                           ▼
               ┌──────────────────────────┐
-              │  Our Ubuntu server :8443 │
+              │  Our Ubuntu server       │
+              │  10.101.118.80 :8443     │
               │  (single VM / bare-metal)│
               └──────────────────────────┘
                           │
@@ -118,7 +130,7 @@ at deploy time.
 
 ## Network requirements
 
-### Inbound (from KKU campus network)
+### Inbound (from KKU campus network) — host `10.101.118.80`
 
 | Port | Protocol | From | Purpose |
 |---|---|---|---|
@@ -154,7 +166,7 @@ in `.env.prod`).
 | Hostname | Resolves to | Notes |
 |---|---|---|
 | `program-landscape.kku.ac.th` | KKU upstream proxy | The public URL users hit. |
-| (server's hostname) | Internal IP | For ops SSH / internal monitoring. |
+| (our server) | `10.101.118.80` | Reachable from KKU internal network only — KKU proxy → us at `:8443`. |
 | `10.130.2.151` | kkuscholar | Hardcoded IP — KKU Library asset. |
 | `10.101.104.192` | KKU HCM (HR) MS SQL | Hardcoded IP — KKU HR-IT moves it occasionally; verify before deploys. |
 
@@ -214,8 +226,15 @@ bundle. Sensitive subset:
 | `NEXTAUTH_URL` | `https://program-landscape.kku.ac.th` (public URL, not `:8443`) |
 | `AUTH_TRUST_HOST` | `true` (TLS terminates upstream) |
 | `NEXTAUTH_SECRET` | `openssl rand -hex 64` |
-| `KKU_SSO_*` | Per `docs/auth/kku-sso.md` (client id, secret, callback URL) |
+| `KKU_SSO_WEB_BASE` | **Production SSONext WEB host** (KKU IT issues; differs from UAT-Stage `https://sso-uat-web.kku.ac.th`). Likely `https://sso.kku.ac.th`. |
+| `KKU_SSO_API_BASE` | **Production SSONext API host** (likely `https://api-sso.kku.ac.th`). |
+| `KKU_SSO_APP_ID` / `KKU_SSO_CLIENT_ID` / `KKU_SSO_CLIENT_SECRET` | KKU IT issues a separate set per environment. |
+| `KKU_SSO_REDIRECT_URI` | `https://program-landscape.kku.ac.th/api/auth/callback/kku-sso` (must be byte-exact match to what KKU IT registers). |
+| `KKU_SSO_LOGOUT_REDIRECT_URI` | `https://program-landscape.kku.ac.th/signin?signout=1` |
 | `ENABLE_LOCAL_AUTH` | **`false`** — startup guard aborts in prod otherwise |
+
+> See `docs/auth/kku-sso.md` for the full SSONext wire protocol + claim mapping.
+> The dev UAT-Stage uses different host bases — both env vars are environment-driven so the same code path serves dev / staging / prod.
 
 ### Database + queue
 
@@ -408,16 +427,22 @@ embedded.
 
 For the network/IT team to fulfil before the server arrives:
 
-- [ ] Ubuntu 22.04/24.04 LTS x86_64 VM or bare-metal, 8 cores / 32 GB / 1 TB SSD
-- [ ] Hostname registered in KKU DNS (e.g. `program-landscape-app.kku.ac.th` for ops)
-- [ ] Public DNS `program-landscape.kku.ac.th` provisioned with public TLS cert at the upstream KKU reverse proxy
-- [ ] KKU upstream proxy configured to forward `program-landscape.kku.ac.th` → `<our-server>:8443` over HTTPS
+- [x] Server provisioned at `10.101.118.80` on the KKU internal network (Ubuntu 22.04/24.04 LTS x86_64, 8 cores / 32 GB / 1 TB SSD)
+- [x] Public URL agreed: `https://program-landscape.kku.ac.th/`
+- [x] TLS terminated by KKU university reverse proxy (handled by KKU IT) — re-encrypts to our `:8443`
+- [ ] Hostname registered in KKU DNS (e.g. `program-landscape-app.kku.ac.th` for ops SSH)
+- [ ] KKU upstream proxy configured to forward `program-landscape.kku.ac.th` → `https://10.101.118.80:8443`
 - [ ] Self-signed cert fingerprint exchanged with KKU network team (pinning) OR they confirm `proxy_ssl_verify off` is acceptable
 - [ ] Firewall: inbound `:8443` from KKU proxy only; SSH `:22` from KKU bastion/admin VLAN only
 - [ ] Outbound HTTPS allowed to: `generativelanguage.googleapis.com`, `api.anthropic.com`, `api.openalex.org`, `api.elsevier.com`, `skill.kmitl.ac.th`, `fonts.gstatic.com`
 - [ ] Outbound to internal DBs allowed: `10.130.2.151:5432`, `10.101.104.192:1433`, `10.101.106.44:3310`, `10.130.2.156:3306`, KKU Oracle warehouse
 - [ ] Off-server backup target reachable (rclone-able S3 or KKU central archive mount)
 - [ ] Operator SSH keys ready for the `deploy` user
+- [ ] **KKU SSO production credentials** issued by KKU IT and the prod redirect URI registered:
+  - [ ] `KKU_SSO_WEB_BASE` (production SSONext WEB host)
+  - [ ] `KKU_SSO_API_BASE` (production SSONext API host)
+  - [ ] `KKU_SSO_APP_ID` + `KKU_SSO_CLIENT_ID` + `KKU_SSO_CLIENT_SECRET` for production
+  - [ ] Redirect URI registered at IdP: `https://program-landscape.kku.ac.th/api/auth/callback/kku-sso`
 - [ ] All third-party API credentials in hand:
   - [ ] Google Generative Language API key
   - [ ] Anthropic API key
