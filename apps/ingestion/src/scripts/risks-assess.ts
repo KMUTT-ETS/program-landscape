@@ -103,6 +103,8 @@ async function resolveTargets(): Promise<Array<{ id: string; code: string; nameT
     if (skipAiDone) {
       // Resume mode: only programs whose latest assessment lacks an
       // ai_inference_id. Useful for chunked AI sweeps.
+      // SAFETY: $queryRawUnsafe with a fully hardcoded SQL string (no
+      // user input). Operator-only one-shot script.
       const rows = await prisma.$queryRawUnsafe<
         Array<{ id: string; code: string; name_th: string }>
       >(`

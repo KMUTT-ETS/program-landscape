@@ -48,6 +48,12 @@ vi.mock('../src/index', async () => {
       },
       demographicProjection: { findFirst: mocks.demographicFindFirst },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
+      // health-score.ts uses $queryRaw for the year-window probe
+      // (line ~414) and the attractiveness-driver fetch (line ~649).
+      // The tests don't exercise the actual SQL — returning [] from the
+      // mock is the "no data → null score" baseline that matches the
+      // null-handling assertions.
+      $queryRaw: vi.fn().mockResolvedValue([]),
     },
   };
 });

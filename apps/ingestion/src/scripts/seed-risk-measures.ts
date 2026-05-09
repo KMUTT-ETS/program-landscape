@@ -216,6 +216,8 @@ function buildMeasures(row: AssessmentRow): Measure[] {
 async function main(): Promise<void> {
   console.log(`[seed-measures] mode=${dryRun ? 'DRY-RUN' : 'APPLY'}${replace ? ' (replacing existing)' : ''}${onlyEmpty ? ' (only-empty)' : ''}`);
 
+  // SAFETY: $queryRawUnsafe with a fully hardcoded SQL string (no user
+  // input). Operator-only one-shot script.
   const latestRows = await prisma.$queryRawUnsafe<
     Array<{
       id: string;

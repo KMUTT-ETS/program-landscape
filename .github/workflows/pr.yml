@@ -11,6 +11,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Cheap, fast pre-flight gate. Fails the PR before the heavy
+  # lint-typecheck-test job spins up Postgres if a migration carries
+  # destructive DDL without an explicit allow-annotation.
+  migration-linter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies (root only)
+        run: pnpm install --frozen-lockfile
+      - name: Lint migrations for destructive DDL
+        run: pnpm tsx scripts/migration-linter.ts
+
   lint-typecheck-test:
     runs-on: ubuntu-latest
     timeout-minutes: 25

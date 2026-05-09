@@ -7,7 +7,7 @@ declare global {
 }
 
 export const prisma: PrismaClient =
-  globalThis.__kku_prisma__ ?? new PrismaClient({ log: ['warn', 'error'] });
+  globalThis.__kku_prisma__ ?? new PrismaClient({ log: process.env.PRISMA_LOG_QUERY === '1' ? ['query', 'warn', 'error'] : ['warn', 'error'] });
 
 if (process.env.NODE_ENV !== 'production') {
   globalThis.__kku_prisma__ = prisma;
@@ -33,3 +33,5 @@ export * from './imd-rankings';
 export * from './imd-materialize';
 export * from './program-recruitment';
 export * from './risk-scoring';
+export * from './retention';
+export * from './sign-in-lockout';

@@ -1,0 +1,67 @@
+name: load (k6)
+
+# On-demand k6 run against a target URL. Operator triggers with a
+# target_url + scenario picker. Pass thresholds are encoded in the k6
+# script itself; non-zero exit = breach.
+#
+# Why workflow_dispatch only?
+#   - k6 against staging is destructive (consumes throughput, generates
+#     audit-log entries, may trip rate limits).
+#   - Threshold breaches need operator interpretation, not auto-revert.
+#   - Per docs/hardening/18-e2e-load.report.md §"How to run", the
+#     operator obtains a session JWT from a manual sign-in first.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Base URL to load (e.g. https://staging.program-landscape.kku.ac.th)'
+        required: true
+        type: string
+      scenario:
+        description: 'Scenario'
+        required: true
+        type: choice
+        default: 'council-day'
+        options:
+          - council-day
+          - ingestion-overlap
+
+permissions:
+  contents: read
+
+jobs:
+  k6:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run scenario
+        env:
+          K6_BASE_URL: ${{ inputs.target_url }}
+          # Cookies must be supplied via repository secret. The secret
+          # value is the raw cookie token (everything after `=`).
+          K6_JWT: ${{ secrets.LOAD_TEST_USER_JWT }}
+          K6_ADMIN_JWT: ${{ secrets.LOAD_TEST_ADMIN_JWT }}
+        run: |
+          k6 run --summary-export=summary.json \
+            tests/load/${{ inputs.scenario }}.js
+
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary-${{ inputs.scenario }}
+          path: summary.json
+          retention-days: 30

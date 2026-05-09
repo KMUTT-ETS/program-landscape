@@ -1,0 +1,98 @@
+name: e2e (Playwright smoke)
+
+# Runs the apps/web/e2e/*.spec.ts suite against the dev compose stack.
+# Manual trigger only — boots Postgres + Redis + MinIO + Gotenberg +
+# api + web, seeds the fixture DB, runs Playwright. ~5 min wall-clock.
+#
+# Why workflow_dispatch and not on every PR?
+#   - The full stack boot is ~90 s of CI minutes.
+#   - The behaviour-tests (prompt 17) catch most regressions cheaper.
+#   - On-demand keeps merges fast; ops triggers e2e before tagging a
+#     release.
+#
+# Acceptance criterion (per docs/hardening/18-e2e-load.report.md):
+#   All Playwright tests pass on the dev compose stack.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      NODE_ENV: development
+      ENABLE_LOCAL_AUTH: 'true'
+      NEXTAUTH_SECRET: ci-only-not-a-real-secret-32-bytes-long
+      NEXTAUTH_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/landscape?schema=public
+      REDIS_URL: redis://localhost:6379
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_PDF_RAW: pdf-raw
+      MINIO_BUCKET_PDF_GENERATED: pdf-generated
+      MINIO_BUCKET_AVATARS: avatars
+      GOTENBERG_URL: http://localhost:3001
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start dev stack (postgres + redis + minio + gotenberg)
+        run: pnpm db:up
+
+      - name: Wait for postgres
+        run: |
+          for i in $(seq 1 60); do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            sleep 1
+          done
+
+      - name: Apply migrations + seed
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+
+      - name: Install Playwright browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      # Start api + web in the background. Both must be healthy before
+      # the smoke spec runs.
+      - name: Start api
+        run: pnpm --filter api dev &
+      - name: Start web
+        run: pnpm --filter web dev &
+
+      - name: Wait for app readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sSf http://localhost:3000/signin > /dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sSf http://localhost:4000/api/v1/healthz
+
+      - name: Run Playwright smoke
+        run: pnpm --filter web test:e2e
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7
