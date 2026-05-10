@@ -142,7 +142,7 @@ cd "$STAGED_RELEASE"
 export RELEASE_VERSION="$VERSION"
 
 log "Starting infrastructure services (postgres/redis/minio/gotenberg)"
-sudo -E docker compose up -d postgres redis minio gotenberg
+docker compose up -d postgres redis minio gotenberg
 
 log "Waiting for postgres to be healthy"
 timeout 120 bash -c '
@@ -151,10 +151,14 @@ timeout 120 bash -c '
   done
 ' || fail "postgres failed to become healthy within 120s"
 
-log "Applying database migrations"
-sudo -E docker compose run --rm --entrypoint "" api \
-  sh -c "node node_modules/.bin/prisma migrate deploy --schema=packages/db/prisma/schema.prisma" \
-  || fail "prisma migrate deploy failed — rollback recommended"
+if [ "${SKIP_MIGRATE:-0}" = "1" ]; then
+  log "SKIP_MIGRATE=1 — skipping prisma migrate deploy (schema arrives via pg_restore in Phase 9 / first-deploy migration)"
+else
+  log "Applying database migrations"
+  docker compose run --rm --entrypoint "" api \
+    sh -c "node node_modules/.bin/prisma migrate deploy --schema=packages/db/prisma/schema.prisma" \
+    || fail "prisma migrate deploy failed — rollback recommended"
+fi
 
 # ── 6.5. Drain the old release ───────────────────────────────────────
 # Before swapping the `current` symlink, ask the running containers to
@@ -168,7 +172,7 @@ STOP_TIMEOUT="${DEPLOY_STOP_TIMEOUT:-30}"
 if [ -L "$CURRENT_LINK" ] || [ -e "$CURRENT_LINK" ]; then
   log "Draining current release (SIGTERM, ${STOP_TIMEOUT}s deadline)"
   cd "$CURRENT_LINK"
-  sudo -E docker compose stop --timeout "$STOP_TIMEOUT" || \
+  docker compose stop --timeout "$STOP_TIMEOUT" || \
     log "WARNING: drain stop returned non-zero — proceeding with swap"
 fi
 
@@ -180,7 +184,7 @@ sudo mv -Tf "$CURRENT_LINK.new" "$CURRENT_LINK"
 # ── 8. Start the full stack ───────────────────────────────────────────
 cd "$CURRENT_LINK"
 log "Starting all services with release v${VERSION}"
-sudo -E docker compose up -d --remove-orphans
+docker compose up -d --remove-orphans
 
 # ── 9. Wait for health ────────────────────────────────────────────────
 log "Waiting up to 180s for services to become healthy"

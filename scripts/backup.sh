@@ -29,7 +29,8 @@ log() { printf '\033[1;34m[backup]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[backup FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ -L "$CURRENT_LINK" ] || fail "$CURRENT_LINK not set — has deploy.sh run?"
-sudo mkdir -p "$BACKUPS_DIR"
+# nested-sudo dropped (we run as root via deploy.sh): 
+mkdir -p "$BACKUPS_DIR"
 
 # ── Postgres dump ─────────────────────────────────────────────────────
 DUMP="$BACKUPS_DIR/$LABEL.sql.gz"
@@ -40,11 +41,12 @@ cd "$CURRENT_LINK"
 # Read the canonical DB name + user from the .env.prod secrets. We run
 # pg_dump inside the postgres container (local socket auth) to avoid
 # needing a second password flow.
-PG_USER="$(sudo cat "$DEPLOY_ROOT/secrets/postgres_user" | tr -d '[:space:]')"
+PG_USER="$(cat "$DEPLOY_ROOT/secrets/postgres_user" | tr -d '[:space:]')"
 PG_DB="$(grep -E '^POSTGRES_DB=' "$DEPLOY_ROOT/.env.prod" | cut -d= -f2 | tr -d '[:space:]')"
 PG_DB="${PG_DB:-program_landscape}"
 
-sudo docker compose exec -T postgres \
+# nested-sudo dropped (we run as root via deploy.sh): 
+docker compose exec -T postgres \
   pg_dump --format=custom --compress=9 --no-owner --no-acl \
     -U "$PG_USER" "$PG_DB" \
   | gzip > "$DUMP.tmp"
@@ -59,7 +61,8 @@ log "MinIO mirror → $MINIO_TAR"
 # Use `mc mirror` inside the minio container. The `local` alias is set
 # at container start (the image's standard behaviour). We tar + gzip
 # the resulting tree for a single transportable artefact.
-sudo docker compose exec -T minio sh -lc '
+# nested-sudo dropped (we run as root via deploy.sh): 
+docker compose exec -T minio sh -lc '
   mc alias set local http://localhost:9000 \
     "$(cat /run/secrets/minio_user)" \
     "$(cat /run/secrets/minio_password)" >/dev/null &&
