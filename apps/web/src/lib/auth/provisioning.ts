@@ -106,13 +106,25 @@ export async function provisionFromSsonext(claims: SsonextClaims): Promise<User>
     return existing;
   }
 
+  // Default role is PROGRAM_USER with no primary programId — least-
+  // privilege. The user's effective access is then driven by:
+  //   1. UserScope rows added by syncAcademicStaffScopes() below (program
+  //      scopes derived from FacultyMember × ProgramFaculty)
+  //   2. Manual UserScope rows / role promotion from /admin/users
+  //
+  // Previously defaulted to UNIVERSITY_USER which was a mass scope
+  // bypass — every newly-provisioned user could see every program in
+  // the entire university until an admin demoted them. Verified prod
+  // 2026-05-10. Existing UNIVERSITY_USER rows are NOT touched here
+  // (provisioning only sets role on FIRST create); see the data-fix
+  // SQL in the v1.0.7 commit message for the one-shot demotion query.
   return prisma.user.create({
     data: {
       email: claims.email,
       ssoSubject: claims.immutableId || null,
       employeeId: claims.employeeId || null,
       name: pickDisplayName(claims),
-      role: 'UNIVERSITY_USER',
+      role: 'PROGRAM_USER',
       facultyId,
       departmentId: null,
     },

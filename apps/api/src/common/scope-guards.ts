@@ -43,43 +43,62 @@ export function assertUniversityWide(user: SessionUser): void {
 // the caller's scope. Throws 403 (or 404 for unknown program) so the
 // front-end can land on the polite no-access page instead of an empty
 // shell.
+//
+// Allow rules (any one is sufficient):
+//   1. Role is admin-grade (SUPER_ADMIN / SYSTEM_ADMIN / UNIVERSITY_USER).
+//   2. Primary scope on SessionUser matches:
+//      - FACULTY_USER + user.facultyId === program.facultyId
+//      - PROGRAM_USER + user.programId === program.id
+//   3. Any of the user's UserScope rows grants this program:
+//      - UNIVERSITY_USER scope (rare but valid as additional grant)
+//      - FACULTY_USER scope with facultyId === program.facultyId
+//      - PROGRAM_USER scope with programId === program.id
+//
+// Rule 3 is what makes multi-scope work for users who get N programs via
+// the academic-staff sync (UserScope rows with source=ACADEMIC_STAFF),
+// or admin-assigned scopes beyond their primary. Without it, a user with
+// 6 PROGRAM_USER UserScope rows but a FACULTY_USER primary role could
+// see ALL programs in their faculty (rule 2 too permissive); a user with
+// 6 PROGRAM_USER UserScope rows but PROGRAM_USER primary role would see
+// only their primary (rule 2 too narrow). Verified prod 2026-05-10.
 export async function assertProgramAccessible(
   programId: string,
   user: SessionUser,
 ): Promise<void> {
   if (seesAllScopes(user.role)) return;
-  if (user.role !== 'FACULTY_USER' && user.role !== 'PROGRAM_USER') {
-    throw new ForbiddenException('Your role cannot view per-program data.');
-  }
-  if (user.role === 'PROGRAM_USER') {
-    if (!user.programId) {
-      throw new ForbiddenException(
-        'Your account has no program assignment. Contact an admin.',
-      );
-    }
-    if (user.programId !== programId) {
-      throw new ForbiddenException(
-        'This is not the program assigned to your account.',
-      );
-    }
-    return;
-  }
-  // FACULTY_USER
-  if (!user.facultyId) {
-    throw new ForbiddenException(
-      'Your account has no faculty assignment. Contact an admin.',
-    );
-  }
+
   const program = await prisma.program.findUnique({
     where: { id: programId },
     select: { facultyId: true },
   });
   if (!program) throw new NotFoundException();
-  if (program.facultyId !== user.facultyId) {
-    throw new ForbiddenException(
-      'This program is outside the faculty assigned to your account.',
-    );
+
+  // Rule 2 — primary scope on SessionUser.
+  if (user.role === 'FACULTY_USER' && user.facultyId === program.facultyId) return;
+  if (
+    user.role === 'PROGRAM_USER' &&
+    user.programId &&
+    user.programId === programId
+  ) {
+    return;
   }
+
+  // Rule 3 — multi-scope via UserScope rows. One DB hit per access
+  // check. Cheap enough at deep-dive request rates; if this becomes
+  // a hot path we can cache scopes in the JWT (Phase 2 work).
+  const scopes = await prisma.userScope.findMany({
+    where: { userId: user.userId },
+    select: { role: true, facultyId: true, programId: true },
+  });
+  for (const s of scopes) {
+    if (s.role === 'UNIVERSITY_USER') return;
+    if (s.role === 'FACULTY_USER' && s.facultyId === program.facultyId) return;
+    if (s.role === 'PROGRAM_USER' && s.programId === programId) return;
+  }
+
+  throw new ForbiddenException(
+    'This program is outside the scopes assigned to your account.',
+  );
 }
 
 // Clamp a `?facultyName=...` filter array (Thai faculty name) to the
