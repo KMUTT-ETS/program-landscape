@@ -20,7 +20,14 @@ import { decodeJwt } from '@/lib/auth/jwt-codec';
 // The middleware now sets the CSP for HTML responses; the `headers()`
 // block in next.config.mjs no longer carries a CSP entry.
 
-const PUBLIC_PATHS = [/^\/signin(\/|$)/, /^\/api\/auth(\/|$)/];
+const PUBLIC_PATHS = [
+  /^\/signin(\/|$)/,
+  /^\/api\/auth(\/|$)/,
+  // Public profile pages (per-user opt-in). The page itself enforces
+  // the "is this slug public?" check against the DB; the middleware
+  // just needs to NOT bounce anonymous viewers to /signin.
+  /^\/p\/[^/]+(\/|$)/,
+];
 const isProd = process.env.NODE_ENV === 'production';
 
 // Build the CSP string for a given nonce. Kept inline so the Edge

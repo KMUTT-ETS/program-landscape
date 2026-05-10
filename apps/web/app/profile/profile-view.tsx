@@ -121,9 +121,13 @@ const ROLE_ORDER: Array<'COORDINATOR' | 'CORE' | 'SUPPORT'> = [
 export function ProfileView({
   profile,
   userEmail,
+  publicMode = false,
 }: {
   profile: ProfileData | null;
   userEmail: string;
+  // When true, render in public-share mode: no email row, no avatar
+  // editor, no AI regenerate trigger. Used by /p/[slug].
+  publicMode?: boolean;
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -196,6 +200,7 @@ export function ProfileView({
         openalexAuthorId={profile.basic.openalexAuthorId}
         avatarUrl={profile.basic.avatarUrl}
         t={t}
+        publicMode={publicMode}
       />
 
       <ExpertiseNarrativeSection
@@ -203,6 +208,7 @@ export function ProfileView({
         t={t}
         hasFacultyMember={profile.hasFacultyMemberRecord}
         initial={profile.cachedNarrative}
+        publicMode={publicMode}
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -241,6 +247,7 @@ function ProfileHero({
   openalexAuthorId,
   avatarUrl,
   t,
+  publicMode = false,
 }: {
   fullName: string;
   rankLabel: string;
@@ -252,6 +259,7 @@ function ProfileHero({
   openalexAuthorId: string | null;
   avatarUrl: string | null;
   t: (typeof T)[Lang];
+  publicMode?: boolean;
 }) {
   const initials = fullName
     .replace(/^(ผศ\.|รศ\.|ศ\.|ดร\.|อ\.|Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi, '')
@@ -308,17 +316,25 @@ function ProfileHero({
             image carry the same explicit Tailwind size (no
             `h-full w-full` percentage). */}
         <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setEditorOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setEditorOpen(true);
-            }
-          }}
-          aria-label="Change profile photo"
-          className="group relative block h-[216px] w-[216px] shrink-0 cursor-pointer overflow-hidden rounded-full ring-4 ring-surface-1 shadow-[0_8px_24px_-6px_rgb(255_140_70/0.55)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent-default/60"
+          {...(publicMode
+            ? {}
+            : {
+                role: 'button',
+                tabIndex: 0,
+                onClick: () => setEditorOpen(true),
+                onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setEditorOpen(true);
+                  }
+                },
+                'aria-label': 'Change profile photo',
+              })}
+          className={`group relative block h-[216px] w-[216px] shrink-0 overflow-hidden rounded-full ring-4 ring-surface-1 shadow-[0_8px_24px_-6px_rgb(255_140_70/0.55)] ${
+            publicMode
+              ? ''
+              : 'cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent-default/60'
+          }`}
         >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -337,20 +353,25 @@ function ProfileHero({
               {initials || fullName.slice(0, 1).toUpperCase()}
             </span>
           )}
-          {/* Hover/focus overlay — gentle dim + Camera icon. */}
-          <span
-            aria-hidden
-            className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-fast group-hover:bg-black/40 group-hover:opacity-100 group-focus-visible:bg-black/40 group-focus-visible:opacity-100"
-          >
-            <Camera className="h-11 w-11" strokeWidth={1.6} />
-          </span>
+          {/* Hover/focus overlay — gentle dim + Camera icon. Hidden in
+              publicMode (no upload affordance for public viewers). */}
+          {!publicMode && (
+            <span
+              aria-hidden
+              className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all duration-fast group-hover:bg-black/40 group-hover:opacity-100 group-focus-visible:bg-black/40 group-focus-visible:opacity-100"
+            >
+              <Camera className="h-11 w-11" strokeWidth={1.6} />
+            </span>
+          )}
         </div>
 
-        <AvatarUploader
-          currentAvatarUrl={avatarUrl}
-          open={editorOpen}
-          onClose={() => setEditorOpen(false)}
-        />
+        {!publicMode && (
+          <AvatarUploader
+            currentAvatarUrl={avatarUrl}
+            open={editorOpen}
+            onClose={() => setEditorOpen(false)}
+          />
+        )}
 
         <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-text-primary md:text-[2rem] md:leading-tight">
@@ -375,15 +396,19 @@ function ProfileHero({
                 <dd className="font-medium text-text-primary">{departmentName}</dd>
               </>
             )}
-            <dt className="text-text-tertiary">Email</dt>
-            <dd className="truncate font-medium text-text-primary">
-              <a
-                href={`mailto:${email}`}
-                className="hover:text-accent-default hover:underline"
-              >
-                {email}
-              </a>
-            </dd>
+            {!publicMode && (
+              <>
+                <dt className="text-text-tertiary">Email</dt>
+                <dd className="truncate font-medium text-text-primary">
+                  <a
+                    href={`mailto:${email}`}
+                    className="hover:text-accent-default hover:underline"
+                  >
+                    {email}
+                  </a>
+                </dd>
+              </>
+            )}
             {orcid && (
               <>
                 <dt className="text-text-tertiary">ORCID</dt>
@@ -443,11 +468,13 @@ function ExpertiseNarrativeSection({
   t,
   hasFacultyMember,
   initial,
+  publicMode = false,
 }: {
   lang: Lang;
   t: (typeof T)[Lang];
   hasFacultyMember: boolean;
   initial: ProfileData['cachedNarrative'];
+  publicMode?: boolean;
 }) {
   const [data, setData] = React.useState<NarrativeResponse['narrative'] | null>(
     initial
@@ -480,16 +507,24 @@ function ExpertiseNarrativeSection({
 
   // Auto-fire on first mount when no cached narrative exists. Guard
   // against React StrictMode double-mount in dev with a ref so we
-  // don't burn a duplicate AI call.
+  // don't burn a duplicate AI call. Skipped in publicMode — public
+  // viewers can't authenticate, and we don't burn AI cycles for them.
   const autoFiredRef = React.useRef(false);
   React.useEffect(() => {
+    if (publicMode) return;
     if (autoFiredRef.current) return;
     if (data || !hasFacultyMember) return;
     autoFiredRef.current = true;
     void generate();
-  }, [data, hasFacultyMember, generate]);
+  }, [data, hasFacultyMember, generate, publicMode]);
 
   const showInitialState = !data && !loading && !error;
+
+  // In publicMode, hide the entire section if there's no cached
+  // narrative — public viewers shouldn't see a "generating…"
+  // skeleton or an empty placeholder for content the owner never
+  // generated.
+  if (publicMode && !data) return null;
 
   return (
     <Section
@@ -578,13 +613,15 @@ function ExpertiseNarrativeSection({
                   {formatRelativeTime(initial.generatedAt, lang)}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={generate}
-                className="ml-auto text-text-tertiary underline hover:text-accent-default"
-              >
-                {t.regenerate}
-              </button>
+              {!publicMode && (
+                <button
+                  type="button"
+                  onClick={generate}
+                  className="ml-auto text-text-tertiary underline hover:text-accent-default"
+                >
+                  {t.regenerate}
+                </button>
+              )}
             </div>
           </div>
         )}

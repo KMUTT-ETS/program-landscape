@@ -505,6 +505,17 @@ model User {
   // up the new image after upload without manual reload.
   avatarStorageKey String?        @map("avatar_storage_key")
   avatarUpdatedAt  DateTime?      @map("avatar_updated_at")
+  // Public profile sharing. Off by default (PDPA opt-in). When the
+  // user enables sharing, a 12-char nanoid `publicProfileSlug` is
+  // generated and the page becomes accessible at /p/<slug> with
+  // sidebar + topbar suppressed. Slug is preserved across enable→
+  // disable→re-enable cycles; replaced only on explicit regenerate.
+  // `publicProfileIndexable=false` emits <meta name="robots"
+  // content="noindex"> so the page stays sharable but uncrawled.
+  publicProfileEnabled    Boolean   @default(false) @map("public_profile_enabled")
+  publicProfileSlug       String?   @unique @map("public_profile_slug")
+  publicProfileIndexable  Boolean   @default(true)  @map("public_profile_indexable")
+  publicProfileUpdatedAt  DateTime? @map("public_profile_updated_at")
   themePreference ThemePreference @default(SYSTEM) @map("theme_preference")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")

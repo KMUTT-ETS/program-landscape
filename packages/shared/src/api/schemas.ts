@@ -115,6 +115,31 @@ export const UpdateThemeBodySchema = z.object({
 export type UpdateThemeBody = z.infer<typeof UpdateThemeBodySchema>;
 
 // ──────────────────────────────────────────────────────────────────────────
+// Public profile sharing
+// ──────────────────────────────────────────────────────────────────────────
+
+export const UpdatePublicProfileBodySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    indexable: z.boolean().optional(),
+  })
+  .refine(
+    (b) => b.enabled !== undefined || b.indexable !== undefined,
+    { message: 'At least one of enabled / indexable must be provided' },
+  );
+export type UpdatePublicProfileBody = z.infer<typeof UpdatePublicProfileBodySchema>;
+
+export const PublicProfileStateSchema = z.object({
+  enabled: z.boolean(),
+  // null while disabled-and-never-enabled. Once a slug is generated
+  // it survives enable→disable→re-enable; only POST /regenerate burns it.
+  slug: z.string().nullable(),
+  indexable: z.boolean(),
+  updatedAt: IsoDateSchema.nullable(),
+});
+export type PublicProfileState = z.infer<typeof PublicProfileStateSchema>;
+
+// ──────────────────────────────────────────────────────────────────────────
 // Data sources (admin)
 // ──────────────────────────────────────────────────────────────────────────
 
