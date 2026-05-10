@@ -85,11 +85,40 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
 
   async function copyUrl() {
     if (!url) return;
+    // navigator.clipboard.writeText is gated to "secure contexts" —
+    // localhost OR https. The KKU dev box is reached over plain HTTP
+    // at 10.101.x.x, so the modern API is unavailable. Try it first,
+    // then fall back to the legacy textarea+execCommand path which
+    // works on http origins.
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        return;
+      } catch {
+        // fall through
+      }
+    }
+    // Legacy fallback. Create an offscreen textarea, select, exec.
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, url.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) {
+        setCopied(true);
+      } else {
+        setError('Copy failed — please select the URL manually.');
+      }
     } catch {
-      // Fallback: focus + select would go here. Most browsers ≥ 2020 support clipboard.
+      setError('Copy failed — please select the URL manually.');
     }
   }
 

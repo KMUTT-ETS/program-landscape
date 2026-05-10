@@ -37,6 +37,8 @@ const T = {
   th: {
     pageTitle: 'โปรไฟล์ของฉัน',
     pageSubtitle: 'ประวัติและผลงานทางวิชาการ',
+    publicHeaderTitle: 'ประวัติและผลงานทางวิชาการ',
+    publicHeaderSubtitle: 'มหาวิทยาลัยขอนแก่น',
     notProvisioned:
       'ยังไม่พบบันทึกบุคลากรของคุณในระบบ — ระบบจะเชื่อมโยงข้อมูลจากฝ่ายทรัพยากรบุคคลในการเข้าใช้งานครั้งถัดไป หากปัญหายังคงอยู่กรุณาติดต่อผู้ดูแลระบบ',
     sectionAbout: 'สรุปความเชี่ยวชาญ',
@@ -75,6 +77,8 @@ const T = {
   en: {
     pageTitle: 'My profile',
     pageSubtitle: 'Academic resume and research record',
+    publicHeaderTitle: 'Academic Resume and Research Record',
+    publicHeaderSubtitle: 'Khon Kaen University',
     notProvisioned:
       'Your staff record is not yet linked in the system — it will be reconciled from HR on your next sign-in. Contact your administrator if the issue persists.',
     sectionAbout: 'Expertise summary',
@@ -136,8 +140,8 @@ export function ProfileView({
     return (
       <>
         <PageHeader
-          title={t.pageTitle}
-          subtitle={t.pageSubtitle}
+          title={publicMode ? t.publicHeaderTitle : t.pageTitle}
+          subtitle={publicMode ? t.publicHeaderSubtitle : t.pageSubtitle}
           actions={<LangToggle lang={lang} onChange={setLang} />}
         />
         <Section>
@@ -184,8 +188,8 @@ export function ProfileView({
   return (
     <>
       <PageHeader
-        title={t.pageTitle}
-        subtitle={t.pageSubtitle}
+        title={publicMode ? t.publicHeaderTitle : t.pageTitle}
+        subtitle={publicMode ? t.publicHeaderSubtitle : t.pageSubtitle}
         actions={<LangToggle lang={lang} onChange={setLang} />}
       />
 
@@ -424,33 +428,38 @@ function ProfileHero({
                 </dd>
               </>
             )}
-            {scopusAuthorId && (
+            {(scopusAuthorId || openalexAuthorId) && (
               <>
-                <dt className="text-text-tertiary">Scopus ID</dt>
-                <dd className="font-mono text-xs text-text-primary">
-                  <a
-                    href={`https://www.scopus.com/authid/detail.uri?authorId=${scopusAuthorId}`}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-accent-default hover:underline"
-                  >
-                    {scopusAuthorId}
-                  </a>
-                </dd>
-              </>
-            )}
-            {openalexAuthorId && (
-              <>
-                <dt className="text-text-tertiary">OpenAlex ID</dt>
-                <dd className="font-mono text-xs text-text-primary">
-                  <a
-                    href={`https://openalex.org/${openalexAuthorId}`}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-accent-default hover:underline"
-                  >
-                    {openalexAuthorId}
-                  </a>
+                <dt className="text-text-tertiary">Author IDs</dt>
+                <dd className="font-mono text-xs text-text-primary sm:col-span-3">
+                  <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    {scopusAuthorId && (
+                      <span>
+                        <span className="text-text-tertiary">Scopus </span>
+                        <a
+                          href={`https://www.scopus.com/authid/detail.uri?authorId=${scopusAuthorId}`}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-accent-default hover:underline"
+                        >
+                          {scopusAuthorId}
+                        </a>
+                      </span>
+                    )}
+                    {openalexAuthorId && (
+                      <span>
+                        <span className="text-text-tertiary">OpenAlex </span>
+                        <a
+                          href={`https://openalex.org/${openalexAuthorId}`}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-accent-default hover:underline"
+                        >
+                          {openalexAuthorId}
+                        </a>
+                      </span>
+                    )}
+                  </span>
                 </dd>
               </>
             )}

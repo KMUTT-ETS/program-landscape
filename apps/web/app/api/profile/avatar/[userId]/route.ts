@@ -5,14 +5,13 @@ import { getAvatarBytes } from '@/lib/avatar-storage';
 
 // Streams the user's profile photo from MinIO. Accessed via
 // `<img src="/api/profile/avatar/<userId>?v=<ts>" />` from the
-// profile hero + top-bar avatar.
+// profile hero + top-bar avatar AND from /p/<slug> public pages.
 //
-// Requires a valid session (V7 fix from prompt-04 audit). Avatar
-// content itself is not high-sensitivity — but iterating arbitrary
-// userIds against an unauthenticated endpoint also leaks "this user
-// has uploaded a photo" via the 200/404 distinction. Gating on auth()
-// closes the enumeration vector while still allowing every signed-in
-// KKU user to see colleagues' photos.
+// Authorization: signed-in callers always pass; anonymous callers
+// pass only when the target user's publicProfileEnabled=true. The
+// 200/404 distinction still leaks "this user has uploaded a photo,"
+// but the leak is intentional for opted-in users (their public
+// profile already discloses the same fact).
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,18 +21,17 @@ export async function GET(
   context: { params: Promise<{ userId: string }> },
 ): Promise<NextResponse | Response> {
   const session = await auth();
-  if (!session?.user) {
-    return new NextResponse(null, { status: 401 });
-  }
   const { userId } = await context.params;
-  // Sanity-check that the user actually has an uploaded avatar before
-  // hitting MinIO — saves a round trip on the (common) no-photo case.
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { avatarStorageKey: true },
+    select: { avatarStorageKey: true, publicProfileEnabled: true },
   });
   if (!user?.avatarStorageKey) {
     return new NextResponse(null, { status: 404 });
+  }
+  // Anonymous: only allow if the target user opted in.
+  if (!session?.user && !user.publicProfileEnabled) {
+    return new NextResponse(null, { status: 401 });
   }
 
   const blob = await getAvatarBytes(userId);

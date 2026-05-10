@@ -27,6 +27,11 @@ const PUBLIC_PATHS = [
   // the "is this slug public?" check against the DB; the middleware
   // just needs to NOT bounce anonymous viewers to /signin.
   /^\/p\/[^/]+(\/|$)/,
+  // Avatar bytes — the route handler permits anonymous fetch only for
+  // users whose publicProfileEnabled=true. Signed-in callers always
+  // see their colleagues' avatars; anonymous callers only see avatars
+  // for users who opted in.
+  /^\/api\/profile\/avatar\/[^/]+(\/|$)/,
 ];
 const isProd = process.env.NODE_ENV === 'production';
 
