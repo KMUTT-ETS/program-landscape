@@ -119,14 +119,27 @@ export default async function SignInPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px] leading-relaxed text-text-tertiary">
             <span className="text-text-secondary font-medium whitespace-nowrap">
-              Conceived by Dr. Denpong Soodphakdee
+              © {new Date().getFullYear()} Khon Kaen University · Conceived by Dr. Denpong Soodphakdee
             </span>
             <span className="whitespace-nowrap">
-              · Vice President for Education and Digital, Khon Kaen University
+              · Vice President for Education and Digital
             </span>
             <span className="opacity-80 whitespace-nowrap">
               · Built in collaboration with Claude (Anthropic)
             </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-tertiary">
+            <a href="/copyright" className="hover:text-accent-default hover:underline">
+              Copyright
+            </a>
+            <span aria-hidden>·</span>
+            <a href="/terms" className="hover:text-accent-default hover:underline">
+              Terms
+            </a>
+            <span aria-hidden>·</span>
+            <a href="/disclaimer" className="hover:text-accent-default hover:underline">
+              Disclaimer
+            </a>
           </div>
         </footer>
       </section>

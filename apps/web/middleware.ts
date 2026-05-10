@@ -32,6 +32,13 @@ const PUBLIC_PATHS = [
   // see their colleagues' avatars; anonymous callers only see avatars
   // for users who opted in.
   /^\/api\/profile\/avatar\/[^/]+(\/|$)/,
+  // Legal pages — copyright / terms / disclaimer. Linked from the
+  // copyright footer rendered on signin, the welcome home, public
+  // profiles, and the app shell. Visitors must be able to read them
+  // before they sign in.
+  /^\/copyright(\/|$)/,
+  /^\/terms(\/|$)/,
+  /^\/disclaimer(\/|$)/,
 ];
 const isProd = process.env.NODE_ENV === 'production';
 

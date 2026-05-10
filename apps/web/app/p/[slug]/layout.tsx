@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { CopyrightFooter } from '@/components/copyright-footer';
 
 // No-chrome layout for public profile pages. The root layout
 // (apps/web/app/layout.tsx) already supplies <html> + <body> +
@@ -15,16 +16,19 @@ export default function PublicProfileLayout({
       <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8 md:py-12">
         {children}
       </main>
-      <footer className="border-t border-border-subtle bg-surface-1/40 py-6 text-center text-xs text-text-tertiary">
-        <span>
-          Powered by{' '}
-          <a
-            href="/"
-            className="font-medium text-text-secondary hover:text-accent-default hover:underline"
-          >
-            KKU Curriculum Landscape
-          </a>
-        </span>
+      <footer className="border-t border-border-subtle bg-surface-1/40 py-6">
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-xs text-text-tertiary">
+            Powered by{' '}
+            <a
+              href="/"
+              className="font-medium text-text-secondary hover:text-accent-default hover:underline"
+            >
+              KKU Curriculum Landscape
+            </a>
+          </span>
+          <CopyrightFooter />
+        </div>
       </footer>
     </div>
   );

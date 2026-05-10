@@ -21,6 +21,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { apiFetchAsUniversityUser } from '@/lib/api-client';
 import { resolveUserChrome } from '@/lib/display-name';
 import { PublicationsSparkline } from '@/components/dashboard/publications-sparkline';
+import { CopyrightFooter } from '@/components/copyright-footer';
 import type { PublicationEntry } from '@/lib/profile-types';
 
 // Lightweight welcome home. ~75% of the page is content shared across
@@ -417,12 +418,15 @@ export default async function HomePage() {
         </div>
 
         {/* FOOTER ──────────────────────────────────────────────────────── */}
-        <p className="text-center text-[11px] text-text-tertiary">
-          Looking for the strategic dashboard?{' '}
-          <Link href="/dashboards/executive-landscape" className="text-accent-default hover:underline">
-            Open Executive Landscape →
-          </Link>
-        </p>
+        <div className="space-y-3">
+          <p className="text-center text-[11px] text-text-tertiary">
+            Looking for the strategic dashboard?{' '}
+            <Link href="/dashboards/executive-landscape" className="text-accent-default hover:underline">
+              Open Executive Landscape →
+            </Link>
+          </p>
+          <CopyrightFooter />
+        </div>
       </div>
     </AuthedAppShell>
   );
