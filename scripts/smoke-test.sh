@@ -31,26 +31,26 @@ log "Base HTTPS: $BASE_HTTPS"
 
 # ── nginx health ──────────────────────────────────────────────────────
 check "GET $BASE_HTTPS/healthz → 200" \
-  "curl -fsS -k -m 5 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/healthz' | grep -qx 200"
+  "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 5 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/healthz' | grep -qx 200"
 
 # ── HTTP → HTTPS redirect ─────────────────────────────────────────────
 check "GET $BASE_HTTP/ → 301" \
-  "curl -fsS -k -m 5 -o /dev/null -w '%{http_code}' '$BASE_HTTP/' | grep -qx 301"
+  "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 5 -o /dev/null -w '%{http_code}' '$BASE_HTTP/' | grep -qx 301"
 
 # ── API readiness ─────────────────────────────────────────────────────
 check "GET $BASE_HTTPS/api/v1/ready → status=ok" \
-  "curl -fsS -k -m 15 '$BASE_HTTPS/api/v1/ready' | grep -q '\"status\":\"ok\"'"
+  "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 15 '$BASE_HTTPS/api/v1/ready' | grep -q '\"status\":\"ok\"'"
 
 # ── API public auth route ─────────────────────────────────────────────
 check "GET $BASE_HTTPS/api/auth/providers → 200" \
-  "curl -fsS -k -m 10 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/api/auth/providers' | grep -qx 200"
+  "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 10 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/api/auth/providers' | grep -qx 200"
 
 # ── SPA shell ─────────────────────────────────────────────────────────
 check "GET $BASE_HTTPS/signin → 200" \
-  "curl -fsS -k -m 10 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/signin' | grep -qx 200"
+  "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 10 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/signin' | grep -qx 200"
 
 # ── Security headers ──────────────────────────────────────────────────
-HEADERS="$(curl -fsSI -k -m 5 "$BASE_HTTPS/signin" 2>/dev/null || true)"
+HEADERS="$(curl -fsSI -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 5 "$BASE_HTTPS/signin" 2>/dev/null || true)"
 for h in \
   "strict-transport-security" \
   "x-content-type-options" \
@@ -71,10 +71,22 @@ else
 fi
 
 # ── Docker compose health ─────────────────────────────────────────────
+# Accept anything that's currently `Up ...` AND has either `healthy` or
+# `health: starting`. ingestion takes ~60s for BullMQ workers to settle
+# and nginx ~10-30s; flagging them as "unhealthy" during that window
+# was the recurring smoke false-positive.
 if command -v docker >/dev/null 2>&1; then
-  UNHEALTHY="$(sudo docker compose ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep -v healthy | grep -v 'State\|^$' || true)"
+  STATUSES="$(docker compose ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep -v '^$' || true)"
+  UNHEALTHY=""
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    case "$line" in
+      *"(healthy)"*|*"(health: starting)"*) : ;;  # OK
+      *) UNHEALTHY="${UNHEALTHY:+$UNHEALTHY$'\n'}$line" ;;
+    esac
+  done <<< "$STATUSES"
   if [ -z "$UNHEALTHY" ]; then
-    ok "all containers healthy"
+    ok "all containers up (healthy or still warming)"
   else
     bad "unhealthy containers:"
     echo "$UNHEALTHY" | sed 's/^/    /'

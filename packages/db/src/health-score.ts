@@ -1381,7 +1381,29 @@ const KMITL_QUADRANT_FALLBACK = [
   { dataScope: 'GLOBAL' as const,   dataSource: 'PROFILES' as const },
 ] as const;
 
+// Per-process memo with 60s TTL. The map is the same for every program
+// + scope (it's a global program-skill ↔ KMITL-demand alignment), so
+// when computeHealthScores runs in a fan-out (cockpit/matrix calls it
+// once per program, ~297 times) we don't redo this expensive scan-of-
+// all-programSkills 297 times. 60s window: long enough to coalesce a
+// request burst, short enough to pick up new ProgramSkill rows from the
+// AI extraction queue. Reset implicitly on Prisma client recreation
+// (dev hot reload). Verified prod 2026-05-10: cockpit/matrix was
+// hitting Postgres connection limit due to the per-program fan-out.
+let _kmitlAlignmentCache: { at: number; map: Map<string, number> } | null = null;
+const KMITL_ALIGNMENT_TTL_MS = 60_000;
+
 async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
+  const now = Date.now();
+  if (_kmitlAlignmentCache && now - _kmitlAlignmentCache.at < KMITL_ALIGNMENT_TTL_MS) {
+    return _kmitlAlignmentCache.map;
+  }
+  const map = await _computeKmitlProgramAlignmentImpl();
+  _kmitlAlignmentCache = { at: now, map };
+  return map;
+}
+
+async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>> {
   const programSkills = await prisma.programSkill.findMany({
     select: { programId: true, skillId: true },
   });

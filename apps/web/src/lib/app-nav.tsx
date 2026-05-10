@@ -41,58 +41,71 @@ import { createElement } from 'react';
 
 // Left-nav layout.
 //
-// 2026-05-02 reorganisation: admin items moved out of the top-bar
-// dropdown into a dedicated sidebar group visible only to ADMIN/ANALYST.
-// Groups are ordered Work → Modules → Data setup → Review → System so
-// the cognitive flow matches "what is the user doing": casual nav, then
-// analytical work, then content management, then queues, then ops.
+// 2026-05-10 reorganisation: split the old "Modules" section into
+// "Dashboards" (heavy ready-to-read overview surfaces) and "Analysis"
+// (ad-hoc / drill-in tools). Home is now a lightweight welcome page;
+// the old executive dashboard moved to /dashboards/executive-landscape
+// so first-page-after-sign-in renders in <300ms instead of 1-2s.
+// Sections: Home → Dashboards → Analysis → Admin → Reference.
 
-const moduleSection: NavSection = {
-  label: 'Modules',
+const homeSection: NavSection = {
+  label: 'Home',
   items: [
-    { href: '/cockpit', label: 'Portfolio Cockpit', icon: createElement(PieChart), moduleKey: 'cockpit' },
-    { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), moduleKey: 'programs' },
-    { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles), moduleKey: 'trends' },
-    { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
-    { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
-    { href: '/risks', label: 'Risk Management', icon: createElement(ShieldAlert), moduleKey: 'neutral' },
-    { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
-    { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
-    { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList), moduleKey: 'decisions' },
+    { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' },
   ],
 };
 
-// Always-visible part of the Work section.
-const workHomeItem = { href: '/', label: 'Home', icon: createElement(Home), moduleKey: 'neutral' as const };
+const dashboardItemsBase = [
+  {
+    href: '/dashboards/executive-landscape',
+    label: 'Executive Landscape',
+    icon: createElement(GraduationCap),
+    moduleKey: 'neutral' as const,
+  },
+  { href: '/cockpit', label: 'Portfolio Cockpit', icon: createElement(PieChart), moduleKey: 'cockpit' as const },
+];
 
-// University-wide-only items in the Work section. Education + Staff
-// dashboards aggregate across every faculty by design — there's no
-// faculty-scoped variant — so FACULTY_USER and PROGRAM_USER don't see
-// them in the nav. The /education and /staff routes also gate at the
-// page level (redirect to /no-access).
-const workUniversityWideItems = [
+// Education + Staff dashboards aggregate across EVERY faculty by
+// design — there's no faculty-scoped variant — so FACULTY_USER and
+// PROGRAM_USER don't see them in the nav. The /education and /staff
+// routes also gate at the page level (redirect to /no-access).
+const dashboardItemsUniversityWide = [
   {
     href: '/education',
-    label: 'Education dashboard',
+    label: 'Education',
     icon: createElement(GraduationCap),
     moduleKey: 'neutral' as const,
   },
   {
     href: '/staff',
-    label: 'Staff dashboard',
+    label: 'Staff',
     icon: createElement(Users),
     moduleKey: 'neutral' as const,
   },
 ];
 
-function workSectionFor(user: SessionUser | undefined): NavSection {
+function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
   return {
-    label: 'Work',
+    label: 'Dashboards',
     items: isUniversityWide(user?.role)
-      ? [workHomeItem, ...workUniversityWideItems]
-      : [workHomeItem],
+      ? [...dashboardItemsBase, ...dashboardItemsUniversityWide]
+      : dashboardItemsBase,
   };
 }
+
+const analysisSection: NavSection = {
+  label: 'Analysis',
+  items: [
+    { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), moduleKey: 'programs' },
+    { href: '/risks', label: 'Risk Management', icon: createElement(ShieldAlert), moduleKey: 'neutral' },
+    { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles), moduleKey: 'trends' },
+    { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
+    { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
+    { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
+    { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList), moduleKey: 'decisions' },
+    { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
+  ],
+};
 
 // Admin — single entry collapsing what used to be 11 items in three
 // groups (Data setup / Review queues / System) into one console page.
@@ -134,7 +147,11 @@ const referenceSection: NavSection = {
  * non-admin users so the sidebar stays focused on what they can do.
  */
 export function appNavSectionsFor(user: SessionUser | undefined): NavSection[] {
-  const sections: NavSection[] = [workSectionFor(user), moduleSection];
+  const sections: NavSection[] = [
+    homeSection,
+    dashboardsSectionFor(user),
+    analysisSection,
+  ];
   if (isAdminGrade(user?.role)) {
     sections.push(adminSection);
   }

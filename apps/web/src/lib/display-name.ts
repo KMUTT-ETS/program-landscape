@@ -37,6 +37,25 @@ const RANK_PREFIX_EN: Record<'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER', s
 
 const DOCTORATE_RX = /ph\.?\s*d|doctor|doctoral|ปริญญาเอก|ดุษฎีบัณฑิต|ดร\./i;
 
+// Honorifics emitted by SSONext's firstName/lastName claims. Stripped
+// before a name-based FacultyMember lookup so e.g. "นาย เด่นพงษ์
+// สุดภักดี" (User.name from SSO) matches FacultyMember.nameTh =
+// "เด่นพงษ์ สุดภักดี". Mirrors the table in apps/web/src/lib/profile-data.ts.
+const TITLE_PREFIXES = new Set([
+  'นาย', 'นาง', 'นางสาว', 'น.ส.', 'ดร.', 'ดร', 'อ.', 'อาจารย์',
+  'ผศ.', 'รศ.', 'ศ.', 'ผศ', 'รศ', 'ศ',
+  'Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Dr',
+  'Prof.', 'Asst.', 'Assoc.',
+]);
+
+function stripTitlePrefixes(name: string): string {
+  const tokens = name.trim().split(/\s+/).filter(Boolean);
+  while (tokens.length > 1 && TITLE_PREFIXES.has(tokens[0]!)) {
+    tokens.shift();
+  }
+  return tokens.join(' ');
+}
+
 /**
  * Returns the avatar URL + rank-prefixed display name for a User.
  * Both fields are nullable — every user can have an avatar; only
@@ -57,18 +76,46 @@ export async function resolveUserChrome(userId: string): Promise<UserChrome> {
     ? `/api/profile/avatar/${userId}?v=${user.avatarUpdatedAt?.getTime() ?? 0}`
     : null;
 
-  if (!user.employeeId) return { name: null, avatarUrl };
-
-  const member = await prisma.facultyMember.findFirst({
-    where: { employeeId: user.employeeId, isActive: true },
-    select: {
-      rank: true,
-      nameTh: true,
-      nameEn: true,
-      academicQualification: true,
-      citizenIdHash: true,
-    },
-  });
+  // Try employeeId first (the canonical bridge — set by the SSO callback
+  // from the SSONext /auth.token claim). When it doesn't match (e.g.,
+  // FM.employee_id is a SHA256 hash from kku-hr while User.employee_id
+  // is the cleartext from SSO; or admin-created users with no
+  // employeeId), fall back to a Thai-name match — mirrors the same
+  // chain used by /profile (apps/web/src/lib/profile-data.ts).
+  let member = user.employeeId
+    ? await prisma.facultyMember.findFirst({
+        where: { employeeId: user.employeeId, isActive: true },
+        select: {
+          rank: true,
+          nameTh: true,
+          nameEn: true,
+          academicQualification: true,
+          citizenIdHash: true,
+        },
+      })
+    : null;
+  if (!member) {
+    // Look up the User's `name` (set on first SSO login from the
+    // firstName + lastName claims) and try a Thai-name match after
+    // stripping common honorifics ("นาย", "นาง", "ดร.", etc.).
+    const nameRow = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const stripped = nameRow?.name ? stripTitlePrefixes(nameRow.name) : '';
+    if (stripped) {
+      member = await prisma.facultyMember.findFirst({
+        where: { nameTh: stripped, isActive: true },
+        select: {
+          rank: true,
+          nameTh: true,
+          nameEn: true,
+          academicQualification: true,
+          citizenIdHash: true,
+        },
+      });
+    }
+  }
   if (!member) return { name: null, avatarUrl };
 
   // Doctorate detection: prefer DS2003 records (authoritative); fall

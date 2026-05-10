@@ -474,46 +474,50 @@ async function bubblesForScope(scope: ScopeLevel, scopeId: string | null): Promi
     select: { id: true, code: true, nameEn: true, nameTh: true, level: true },
   });
 
-  // Parallel per-program fetch of (financial latest, health score). The
-  // earlier sequential `for` loop ran ~594 serial DB calls (297 programs ×
-  // 2 calls) and made the matrix endpoint take 11s+ end-to-end on prod.
-  // Promise.all pipelines them through Prisma's connection pool and
-  // drops it to ~1-2s. Verified prod 2026-05-10 via api responseTime
-  // logs (avg=11321ms before fix, ~1500ms after). Demand growth +
-  // competitive position need real signals — for now we derive
-  // placeholders from quality + financial trajectory. This is NOT a BCG
-  // matrix on real data — it's a scaffolded one that the prompt-14
-  // wiring slots into.
-  const enriched = await Promise.all(
-    programs.map(async (p) => {
-      const [financial, scores] = await Promise.all([
-        queryMetricByScope({ scope: 'program', scopeId: p.id, family: 'financial' }),
-        computeHealthScores('program', p.id),
-      ]);
-      const lf = financial.at(-1);
-      const sc = scores[0];
-      if (!sc) return null;
-      const competitive = sc.dimensions.outcomes.score ?? 50;
-      const demandGrowth = sc.dimensions.attractiveness.score ?? 50;
-      const revenue = lf?.tuitionRevenueTotal ?? 0;
-      const netContrib = lf?.netContributionTotal ?? 0;
-      const completeness =
-        ((sc.dimensions.outcomes.dataCompletenessPct ?? 0) +
-          (sc.dimensions.attractiveness.dataCompletenessPct ?? 0)) /
-        2;
-      const bubble: Bubble = {
-        id: p.id,
-        label: `${p.code} ${p.nameEn}`,
-        level: p.level as string,
-        x: demandGrowth,
-        y: competitive,
-        size: revenue,
-        color: netContrib,
-        dataCompletenessPct: completeness,
-      };
-      return bubble;
-    }),
-  );
+  // Per-program fetch of (financial latest, health score). Originally
+  // sequential (11s+ on prod). Naive Promise.all over all 297 programs
+  // opened ~3000 simultaneous connections and tripped Postgres'
+  // max_connections ceiling. Sweet spot: chunked Promise.all at
+  // CHUNK_SIZE in parallel, sequential across chunks. With Prisma's
+  // pool of ~17 (dev) / 10 (prod), 8-at-a-time runs warm without
+  // queuing. Verified prod 2026-05-10. Demand growth + competitive
+  // position are placeholders derived from quality + financial
+  // trajectory — prompt-14 wiring will replace.
+  const CHUNK_SIZE = 8;
+  const enriched: Array<Bubble | null> = [];
+  for (let i = 0; i < programs.length; i += CHUNK_SIZE) {
+    const chunk = programs.slice(i, i + CHUNK_SIZE);
+    const chunkResults = await Promise.all(
+      chunk.map(async (p): Promise<Bubble | null> => {
+        const [financial, scores] = await Promise.all([
+          queryMetricByScope({ scope: 'program', scopeId: p.id, family: 'financial' }),
+          computeHealthScores('program', p.id),
+        ]);
+        const lf = financial.at(-1);
+        const sc = scores[0];
+        if (!sc) return null;
+        const competitive = sc.dimensions.outcomes.score ?? 50;
+        const demandGrowth = sc.dimensions.attractiveness.score ?? 50;
+        const revenue = lf?.tuitionRevenueTotal ?? 0;
+        const netContrib = lf?.netContributionTotal ?? 0;
+        const completeness =
+          ((sc.dimensions.outcomes.dataCompletenessPct ?? 0) +
+            (sc.dimensions.attractiveness.dataCompletenessPct ?? 0)) /
+          2;
+        return {
+          id: p.id,
+          label: `${p.code} ${p.nameEn}`,
+          level: p.level as string,
+          x: demandGrowth,
+          y: competitive,
+          size: revenue,
+          color: netContrib,
+          dataCompletenessPct: completeness,
+        };
+      }),
+    );
+    enriched.push(...chunkResults);
+  }
 
   return enriched.filter((b): b is Bubble => b !== null);
 }

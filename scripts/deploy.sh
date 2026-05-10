@@ -181,6 +181,12 @@ log "Swapping current → $VERSION"
 sudo ln -sfn "$STAGED_RELEASE" "$CURRENT_LINK.new"
 sudo mv -Tf "$CURRENT_LINK.new" "$CURRENT_LINK"
 
+# Operator-convenience: write `.env` next to the staged compose so every
+# subsequent `docker compose ...` from /opt/program-landscape/current/
+# inherits RELEASE_VERSION and stops emitting the
+# "WARN[0000] The "RELEASE_VERSION" variable is not set." spam.
+echo "RELEASE_VERSION=${VERSION}" | sudo tee "$STAGED_RELEASE/.env" >/dev/null
+
 # ── 8. Start the full stack ───────────────────────────────────────────
 cd "$CURRENT_LINK"
 log "Starting all services with release v${VERSION}"
