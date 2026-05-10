@@ -58,19 +58,16 @@ log "pg dump size: $(du -h "$DUMP" | cut -f1)"
 MINIO_TAR="$BACKUPS_DIR/$LABEL-minio.tar.gz"
 log "MinIO mirror → $MINIO_TAR"
 
-# Use `mc mirror` inside the minio container. The `local` alias is set
-# at container start (the image's standard behaviour). We tar + gzip
-# the resulting tree for a single transportable artefact.
-# nested-sudo dropped (we run as root via deploy.sh): 
-docker compose exec -T minio sh -lc '
-  mc alias set local http://localhost:9000 \
-    "$(cat /run/secrets/minio_user)" \
-    "$(cat /run/secrets/minio_password)" >/dev/null &&
-  rm -rf /tmp/minio-backup &&
-  mkdir -p /tmp/minio-backup &&
-  mc mirror --quiet local /tmp/minio-backup >/dev/null &&
-  cd /tmp/minio-backup && tar czf - .
-' > "$MINIO_TAR.tmp" || { rm -f "$MINIO_TAR.tmp"; fail "MinIO mirror failed"; }
+# MinIO's official image is a stripped Alpine without `tar`, so we
+# can't tar from inside it. Use a busybox sidecar that mounts the
+# minio container's volumes (notably /data) and tars its `data/`
+# tree to stdout, which we redirect to the host file. Same pattern
+# used by the initial dev → prod MinIO snapshot during first deploy.
+# Note: this captures /data directly (the minio data dir on disk),
+# not via the S3 API. Cleaner + faster than mc mirror, no auth needed.
+docker run --rm --volumes-from program-landscape-minio busybox \
+  tar czf - -C / data > "$MINIO_TAR.tmp" \
+  || { rm -f "$MINIO_TAR.tmp"; fail "MinIO mirror failed"; }
 mv "$MINIO_TAR.tmp" "$MINIO_TAR"
 log "minio mirror size: $(du -h "$MINIO_TAR" | cut -f1)"
 

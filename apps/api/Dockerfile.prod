@@ -79,6 +79,14 @@ COPY --from=build --chown=app:app /app/packages/db/prisma ./packages/db/prisma
 COPY --from=build --chown=app:app /app/packages/db/package.json ./packages/db/
 COPY --from=build --chown=app:app /app/apps/api/package.json ./
 
+# /admin/registry-mapping reads this aggregated fixture to render the
+# unmapped tuples worklist. The fixture lives under apps/ingestion/test/
+# in the repo (which `.dockerignore` excludes via **/test/**), so we
+# explicitly COPY just this one file. Verified missing in prod 2026-05-10.
+COPY --from=build --chown=app:app \
+  /app/apps/ingestion/test/fixtures/kku-registry/aggregated.json \
+  ./apps/ingestion/test/fixtures/kku-registry/aggregated.json
+
 USER app
 EXPOSE 4000
 

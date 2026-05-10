@@ -92,12 +92,14 @@ services:
     restart: unless-stopped
     env_file: .env.prod
     # Next.js writes telemetry / build-trace lookups to /tmp during dev;
-    # in prod (standalone server) it's tmp-free except for the .next
-    # cache which is baked in at build time. Mount /tmp on tmpfs as a
-    # safety net.
+    # in prod standalone it ALSO writes incremental cache files to
+    # `.next/cache/` at runtime — without a writable tmpfs at that
+    # exact path, every cache write fails ENOENT (verified 2026-05-09).
+    # /tmp is older safety net.
     read_only: true
     tmpfs:
       - /tmp
+      - /app/apps/web/.next/cache
     user: "1001:1001"   # matches `app` user in apps/web/Dockerfile.prod
     <<: *common-security
     depends_on:
@@ -197,7 +199,11 @@ services:
       - kku-internal
 
   postgres:
-    image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
+    # Custom-built image (infra/postgres/Dockerfile) — postgis + pgvector
+    # + pg_trgm + btree_gin. Upstream postgis/postgis:16-3.4 lacks
+    # pgvector and silently breaks every vector-column CREATE TABLE
+    # during pg_restore. Verified prod 2026-05-10. Built via build-release.ts.
+    image: ghcr.io/khon-kaen-university/program-landscape-postgres:${RELEASE_VERSION}
     container_name: program-landscape-postgres
     restart: unless-stopped
     environment:

@@ -102,31 +102,43 @@ const images: ImageBuild[] = [
     dockerfile: 'infra/gotenberg/Dockerfile',
     context: 'infra/gotenberg',
   },
+  {
+    // Custom postgres image: postgis + pgvector + pg_trgm + btree_gin.
+    // The upstream postgis/postgis:16-3.4 image lacks pgvector, which
+    // breaks every CREATE TABLE that references vector(N) columns
+    // (skills, pdf_documents, policy_documents, peer_programs, etc.).
+    // pg_restore silently --clean --if-exists's past those failures.
+    // Verified missing in prod 2026-05-10.
+    service: 'postgres',
+    name: `${REPO}-postgres`,
+    dockerfile: 'infra/postgres/Dockerfile',
+    context: 'infra/postgres',
+  },
 ];
 
 const tags = images.map((i) => `ghcr.io/${ORG}/${i.name}:${version}`);
 
-// Use legacy docker builder (DOCKER_BUILDKIT=0) instead of buildx.
-// Reason: buildkit v0.29.0 + the dev box's Ceph-RBD-backed
-// /var/lib/docker fails the OCI exporter snapshot commit on the api
-// + ingestion runner stages with `failed to commit ... snapshot does
-// not exist` — same snapshot ID across full prunes, so it's a stuck
-// content-store state, not transient. Legacy builder uses dockerd's
-// own builder + bypasses the broken exporter completely.
-// Verified working 2026-05-09. Revert to buildx once buildkit ships
-// a fix or we move /var/lib/docker off RBD.
+// Use buildx with `--load`. The dev box's Docker daemon must NOT have
+// containerd-snapshotter enabled — Docker 29's default-on
+// `containerd-snapshotter` mode (Storage Driver: overlayfs +
+// driver-type: io.containerd.snapshotter.v1) breaks buildkit's OCI
+// exporter on our filesystem with `failed to commit ... snapshot does
+// not exist` on runner-stage COPY. The fix is `/etc/docker/daemon.json`
+// → `{"features":{"containerd-snapshotter":false}}` + restart docker.
+// Verified bug + fix on dev 2026-05-10. After this, `Storage Driver`
+// reports `overlay2` and buildkit works reliably.
 //
-// Trade-offs: (a) no `--platform linux/amd64` flag — dev is native
-// linux/amd64 so this is a no-op. (b) no parallel multi-stage cache
-// reuse — slightly slower but correctness wins.
-const buildEnv = { ...process.env, DOCKER_BUILDKIT: '0' };
+// If we ever need to build on a host where overlay2 isn't an option
+// (e.g., CI with the new defaults), set DOCKER_BUILDKIT=0 + drop
+// --platform/--load to fall back to the legacy builder. ~30% slower
+// because no shared deps-stage cache across images.
 for (const [idx, img] of images.entries()) {
   const tag = tags[idx]!;
-  console.log(`\n--- [${idx + 1}/${images.length}] docker build ${tag} ---`);
+  console.log(`\n--- [${idx + 1}/${images.length}] docker buildx build ${tag} ---`);
   try {
     execSync(
-      `docker build -t "${tag}" -f "${img.dockerfile}" "${img.context}"`,
-      { cwd: REPO_ROOT, stdio: 'inherit', env: buildEnv },
+      `docker buildx build --platform linux/amd64 --load -t "${tag}" -f "${img.dockerfile}" "${img.context}"`,
+      { cwd: REPO_ROOT, stdio: 'inherit' },
     );
   } catch (err) {
     console.error(`[build-release] docker build failed for ${tag}`);

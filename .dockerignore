@@ -59,6 +59,10 @@ Thumbs.db
 **/*.test.ts
 **/*.test.tsx
 **/*.spec.ts
+# EXCEPTION: the kku-registry aggregated fixture is read at runtime by
+# /admin/registry-mapping (apps/api/src/admin/registry-mapping.controller.ts).
+# Re-include this one file so the api container can find it.
+!apps/ingestion/test/fixtures/kku-registry/aggregated.json
 
 # Docs + repo metadata (runtime doesn't need these either)
 docs

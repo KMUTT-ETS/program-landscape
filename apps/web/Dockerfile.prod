@@ -59,7 +59,14 @@ RUN pnpm --filter web build
 # ── Stage 3: runner ──────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
-RUN apk add --no-cache tini \
+# `openssl` is required so Prisma can detect the OS's OpenSSL version
+# at runtime — otherwise it falls back to "openssl-1.1.x" mode and
+# tries to load `libquery_engine-linux-musl.so.node` (the legacy
+# binary), which we don't ship. With openssl present, Prisma detects
+# 3.x and uses `libquery_engine-linux-musl-openssl-3.0.x.so.node`
+# (the binary we COPY in below). Mirrors the api + ingestion runner
+# stages.
+RUN apk add --no-cache tini openssl \
   && addgroup -S app -g 1001 \
   && adduser -S app -G app -u 1001
 
@@ -73,6 +80,16 @@ ENV NODE_ENV=production \
 COPY --from=build --chown=app:app /app/apps/web/.next/standalone/ ./
 COPY --from=build --chown=app:app /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=app:app /app/apps/web/public ./apps/web/public
+
+# Force-copy Prisma's generated client + linux-musl query engine to the
+# pnpm path Prisma searches at runtime. Next's standalone tracer
+# silently misses .node files reached via dynamic require — even with
+# experimental.outputFileTracingIncludes glob the engine can be left
+# behind. Belt-and-suspenders: always ship the binaries explicitly.
+# Path is deterministic given pinned @prisma/client@5.22.0 + prisma@5.22.0.
+COPY --from=build --chown=app:app \
+  /app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma \
+  /app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma
 
 USER app
 EXPOSE 3000
