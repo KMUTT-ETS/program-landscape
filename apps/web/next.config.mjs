@@ -99,6 +99,18 @@ const nextConfig = {
     //
     // Verified fix 2026-05-09. Reproducible bug pre-existing on HEAD.
     serverComponentsExternalPackages: ['@prisma/client', '@kku/db'],
+    // Force the Next standalone tracer to bundle Prisma's generated query
+    // engine binaries — by default it misses .node files reached via
+    // dynamic require, and the runtime crashes with
+    // `PrismaClientInitializationError: could not locate the Query Engine`.
+    // The schema declares binaryTargets = ["native", "linux-musl-openssl-3.0.x", "windows"]
+    // so we need at least the linux-musl one in the prod image.
+    outputFileTracingIncludes: {
+      '*': [
+        './node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/*.node',
+        './node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/schema.prisma',
+      ],
+    },
   },
   async headers() {
     return [

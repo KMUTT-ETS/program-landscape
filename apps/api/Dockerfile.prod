@@ -23,6 +23,9 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/design/package.json ./packages/design/
 COPY packages/pdf-templates/package.json ./packages/pdf-templates/
+# patches/ is referenced by package.json's pnpm.patchedDependencies — must
+# exist before `pnpm fetch` or it fails with ERR_PNPM_PATCH_NOT_FOUND.
+COPY patches ./patches
 RUN pnpm fetch --prod=false
 
 COPY . .
@@ -41,10 +44,21 @@ RUN pnpm --filter @kku/db exec prisma generate
 RUN pnpm --filter api build
 
 # Prune dev deps for a leaner runtime.
-RUN pnpm deploy --filter api --prod /tmp/api \
+# --legacy: pnpm v10 requires inject-workspace-packages=true to deploy
+# without --legacy. Our workspace doesn't use injected deps, so opt into
+# the v9 behaviour explicitly.
+RUN pnpm deploy --filter api --prod --legacy /tmp/api \
   # Copy the Prisma generated client + schema into the deployed tree so
   # the runtime can reach it.
   && cp -r /app/node_modules/.pnpm/@prisma+client@* /tmp/api/node_modules/.pnpm/ 2>/dev/null || true
+# NOTE: prisma CLI is intentionally NOT installed here — the
+# `pnpm deploy --prod` step prunes it as a devDependency, and a
+# straight `npm install prisma` here fails because the deployed
+# package.json still has `workspace:*` refs npm can't resolve. For
+# now, deploy.sh supports SKIP_MIGRATE=1 (set on first prod deploy
+# where pg_restore from dev brings the schema). A clean
+# migration-via-prod fix lands in v1.1.0 — likely a dedicated
+# migration sidecar image, not the api runtime.
 
 # ── Stage 3: runner ──────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner
@@ -72,4 +86,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=15s \
   CMD wget -qO- http://127.0.0.1:4000/api/v1/ready 2>&1 | grep -q '"status":"ok"' || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["node", "--import", "tsx", "dist/main.js"]

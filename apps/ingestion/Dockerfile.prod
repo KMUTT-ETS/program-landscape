@@ -23,6 +23,9 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/design/package.json ./packages/design/
 COPY packages/pdf-templates/package.json ./packages/pdf-templates/
+# patches/ is referenced by package.json's pnpm.patchedDependencies — must
+# exist before `pnpm fetch` or it fails with ERR_PNPM_PATCH_NOT_FOUND.
+COPY patches ./patches
 RUN pnpm fetch --prod=false
 
 COPY . .
@@ -38,7 +41,15 @@ COPY --from=deps /app /app
 
 RUN pnpm --filter @kku/db exec prisma generate
 RUN pnpm --filter ingestion build
-RUN pnpm deploy --filter ingestion --prod /tmp/ingestion
+# --legacy: pnpm v10 requires inject-workspace-packages=true to deploy
+# without --legacy. Our workspace doesn't use injected deps, so opt into
+# the v9 behaviour explicitly.
+RUN pnpm deploy --filter ingestion --prod --legacy /tmp/ingestion \
+  # Copy the generated Prisma client (ingestion's @kku/db imports
+  # PrismaClient at boot; without `.prisma/client/` the runtime errors
+  # with "@prisma/client did not initialize yet"). Same fix as the api
+  # Dockerfile.
+  && cp -r /app/node_modules/.pnpm/@prisma+client@* /tmp/ingestion/node_modules/.pnpm/ 2>/dev/null || true
 
 # ── Stage 3: runner ──────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner
@@ -59,7 +70,7 @@ USER app
 
 # No HTTP port — Docker healthcheck probes the process.
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 --start-period=30s \
-  CMD pgrep -f 'node dist/main.js' >/dev/null || exit 1
+  CMD pgrep -f 'dist/main.js' >/dev/null || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["node", "--import", "tsx", "dist/main.js"]

@@ -106,13 +106,27 @@ const images: ImageBuild[] = [
 
 const tags = images.map((i) => `ghcr.io/${ORG}/${i.name}:${version}`);
 
+// Use legacy docker builder (DOCKER_BUILDKIT=0) instead of buildx.
+// Reason: buildkit v0.29.0 + the dev box's Ceph-RBD-backed
+// /var/lib/docker fails the OCI exporter snapshot commit on the api
+// + ingestion runner stages with `failed to commit ... snapshot does
+// not exist` — same snapshot ID across full prunes, so it's a stuck
+// content-store state, not transient. Legacy builder uses dockerd's
+// own builder + bypasses the broken exporter completely.
+// Verified working 2026-05-09. Revert to buildx once buildkit ships
+// a fix or we move /var/lib/docker off RBD.
+//
+// Trade-offs: (a) no `--platform linux/amd64` flag — dev is native
+// linux/amd64 so this is a no-op. (b) no parallel multi-stage cache
+// reuse — slightly slower but correctness wins.
+const buildEnv = { ...process.env, DOCKER_BUILDKIT: '0' };
 for (const [idx, img] of images.entries()) {
   const tag = tags[idx]!;
   console.log(`\n--- [${idx + 1}/${images.length}] docker build ${tag} ---`);
   try {
     execSync(
-      `docker buildx build --platform linux/amd64 --load -t "${tag}" -f "${img.dockerfile}" "${img.context}"`,
-      { cwd: REPO_ROOT, stdio: 'inherit' },
+      `docker build -t "${tag}" -f "${img.dockerfile}" "${img.context}"`,
+      { cwd: REPO_ROOT, stdio: 'inherit', env: buildEnv },
     );
   } catch (err) {
     console.error(`[build-release] docker build failed for ${tag}`);

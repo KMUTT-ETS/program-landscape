@@ -31,6 +31,9 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/design/package.json ./packages/design/
 COPY packages/pdf-templates/package.json ./packages/pdf-templates/
+# patches/ is referenced by package.json's pnpm.patchedDependencies — must
+# exist before `pnpm fetch` or it fails with ERR_PNPM_PATCH_NOT_FOUND.
+COPY patches ./patches
 RUN pnpm fetch --prod=false
 
 COPY . .

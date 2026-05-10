@@ -14,11 +14,16 @@
 **/out
 **/.turbo
 
-# Env / secrets — never ship these
-.env
-.env.*
-!.env.example
-!.env.prod.example
+# Env / secrets — never ship these.
+# `**/.env` catches the symlinks created by scripts/link-env.mjs at
+# apps/web/.env, apps/api/.env, apps/ingestion/.env. Without them
+# excluded, the symlinks land in the build context but their target
+# (root .env) is gitignored — Next.js then fails on `stat .env` with
+# ENOENT. Repro 2026-05-09.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.prod.example
 
 # Secrets directory (mounted at deploy time, never in the build)
 secrets/
