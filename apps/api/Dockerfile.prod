@@ -51,21 +51,21 @@ RUN pnpm deploy --filter api --prod --legacy /tmp/api \
   # Copy the Prisma generated client + schema into the deployed tree so
   # the runtime can reach it.
   && cp -r /app/node_modules/.pnpm/@prisma+client@* /tmp/api/node_modules/.pnpm/ 2>/dev/null || true
-# NOTE: prisma CLI is intentionally NOT installed here — the
-# `pnpm deploy --prod` step prunes it as a devDependency, and a
-# straight `npm install prisma` here fails because the deployed
-# package.json still has `workspace:*` refs npm can't resolve. For
-# now, deploy.sh supports SKIP_MIGRATE=1 (set on first prod deploy
-# where pg_restore from dev brings the schema). A clean
-# migration-via-prod fix lands in v1.1.0 — likely a dedicated
-# migration sidecar image, not the api runtime.
+# prisma CLI is restored in the runner stage via `npm install -g`
+# because pnpm-deploy --prod prunes it. See the runner stage below.
 
 # ── Stage 3: runner ──────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
+# `prisma` CLI is installed via npm (not pnpm) at the global location.
+# pnpm-deploy --prod prunes prisma as a devDependency, and re-installing
+# it via pnpm fails because the deployed package.json still has
+# `workspace:*` refs. npm with --no-save sidesteps both. The version
+# is pinned to match `packages/db/package.json` — bump them together.
 RUN apk add --no-cache tini openssl \
   && addgroup -S app -g 1001 \
-  && adduser -S app -G app -u 1001
+  && adduser -S app -G app -u 1001 \
+  && npm install -g prisma@5.22.0 --no-save
 
 ENV NODE_ENV=production \
     PORT=4000
@@ -73,6 +73,10 @@ ENV NODE_ENV=production \
 # Compiled JS + trimmed node_modules.
 COPY --from=build --chown=app:app /tmp/api/dist ./dist
 COPY --from=build --chown=app:app /tmp/api/node_modules ./node_modules
+# Symlink prisma into node_modules/.bin so deploy.sh's
+# `node node_modules/.bin/prisma migrate deploy` works.
+RUN ln -sf /usr/local/bin/prisma /app/node_modules/.bin/prisma \
+  && chown -h app:app /app/node_modules/.bin/prisma
 # Prisma schema + migrations — runtime Prisma client reads them when
 # calling $queryRaw with prepared statements.
 COPY --from=build --chown=app:app /app/packages/db/prisma ./packages/db/prisma
