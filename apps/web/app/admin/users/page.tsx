@@ -1,31 +1,97 @@
 import { redirect } from 'next/navigation';
-import { isAdminGrade, type SessionUser } from '@kku/shared';
+import { isAdminGrade, type Role, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
-import { prisma } from '@kku/db';
+import { prisma, type Prisma } from '@kku/db';
 import { UsersClient } from './client';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Users — Admin' };
 
-export default async function AdminUsersPage() {
+const PAGE_SIZE = 25;
+
+const ROLE_FILTER_VALUES: ReadonlyArray<Role> = [
+  'SUPER_ADMIN',
+  'SYSTEM_ADMIN',
+  'UNIVERSITY_USER',
+  'FACULTY_USER',
+  'PROGRAM_USER',
+] as const;
+
+function parseRole(raw: string | undefined): Role | undefined {
+  if (!raw) return undefined;
+  return (ROLE_FILTER_VALUES as readonly string[]).includes(raw)
+    ? (raw as Role)
+    : undefined;
+}
+
+function parsePage(raw: string | undefined): number {
+  if (!raw) return 1;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+interface SearchParams {
+  q?: string;
+  role?: string;
+  facultyId?: string;
+  page?: string;
+}
+
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // Admin gate — both SUPER_ADMIN and SYSTEM_ADMIN can manage users.
   if (!isAdminGrade(user.role)) redirect('/no-access');
-  // Critical: do NOT use isAdminGrade() for the super check — it
-  // returns true for SYSTEM_ADMIN too. Match SUPER_ADMIN strictly so
-  // the UI hides SUPER_ADMIN from the assignable-roles dropdown for
-  // SYSTEM_ADMIN actors. Server-side guard in admin-users.ts is the
-  // authoritative refusal; this just keeps the UI honest.
   const isSuper = user.role === 'SUPER_ADMIN';
 
-  // Fetch existing users + faculty/program lists for the role-scope dropdowns.
-  const [users, faculties, programs] = await Promise.all([
+  const params = await searchParams;
+  const q = (params.q ?? '').trim();
+  const roleFilter = parseRole(params.role);
+  const facultyFilter = (params.facultyId ?? '').trim() || undefined;
+  const page = parsePage(params.page);
+  const skip = (page - 1) * PAGE_SIZE;
+
+  // Build the WHERE clause from URL params. Search matches BOTH email
+  // and name (case-insensitive); the index on `email` covers email
+  // lookups, name uses a sequential scan but it's bounded by the
+  // role + facultyId filters above.
+  const where: Prisma.UserWhereInput = {};
+  if (q) {
+    where.OR = [
+      { email: { contains: q, mode: 'insensitive' } },
+      { name: { contains: q, mode: 'insensitive' } },
+    ];
+  }
+  if (roleFilter) where.role = roleFilter;
+  if (facultyFilter) {
+    // Match either the User's primary facultyId OR any of their
+    // UserScope rows targeting that faculty (a PROGRAM_USER assigned
+    // to a program in faculty X should appear when filtering "X").
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      {
+        OR: [
+          { facultyId: facultyFilter },
+          { scopes: { some: { facultyId: facultyFilter } } },
+        ],
+      },
+    ];
+  }
+
+  // Two queries in parallel: paginated rows + total count for the
+  // current filter set.
+  const [users, total, faculties, programs] = await Promise.all([
     prisma.user.findMany({
+      where,
       orderBy: [{ role: 'asc' }, { email: 'asc' }],
+      skip,
+      take: PAGE_SIZE,
       select: {
         id: true,
         email: true,
@@ -52,6 +118,7 @@ export default async function AdminUsersPage() {
         },
       },
     }),
+    prisma.user.count({ where }),
     prisma.faculty.findMany({
       where: { kind: 'ACADEMIC' },
       select: { id: true, nameEn: true, nameTh: true, code: true },
@@ -105,6 +172,14 @@ export default async function AdminUsersPage() {
         faculties={faculties}
         programs={programs}
         actorIsSuper={isSuper}
+        filters={{
+          q,
+          role: roleFilter ?? '',
+          facultyId: facultyFilter ?? '',
+          page,
+          pageSize: PAGE_SIZE,
+          total,
+        }}
       />
     </AuthedAppShell>
   );

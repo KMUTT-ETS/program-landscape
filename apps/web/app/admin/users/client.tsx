@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, Input, Button } from '@kku/ui';
-import { Search, Plus, Trash2, Key, Check, Pencil, X, Layers, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, Trash2, Key, Check, Pencil, X, Layers, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { type Role } from '@kku/shared';
 import {
@@ -118,14 +119,24 @@ const ROLE_LABEL: Record<Role, string> = {
   PROGRAM_USER: 'Program User',
 };
 
+interface FilterState {
+  q: string;
+  role: string;
+  facultyId: string;
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 interface Props {
   users: UserRow[];
   faculties: FacultyOption[];
   programs: ProgramOption[];
   actorIsSuper: boolean;
+  filters: FilterState;
 }
 
-export function UsersClient({ users, faculties, programs, actorIsSuper }: Props) {
+export function UsersClient({ users, faculties, programs, actorIsSuper, filters }: Props) {
   const assignable = (
     actorIsSuper ? SSO_ROLES : SYSTEM_ADMIN_ASSIGNABLE_ROLES
   ) as readonly Role[];
@@ -143,7 +154,177 @@ export function UsersClient({ users, faculties, programs, actorIsSuper }: Props)
         programs={programs}
         assignable={assignable}
         actorIsSuper={actorIsSuper}
+        filters={filters}
       />
+    </div>
+  );
+}
+
+// URL-driven filter bar — search + role + faculty.
+// Each control updates `?q=&role=&facultyId=&page=1` via router.push,
+// so the page server-renders the filtered slice. Search is debounced
+// 300ms to avoid hammering the server on every keystroke.
+function FilterBar({
+  filters,
+  faculties,
+}: {
+  filters: FilterState;
+  faculties: FacultyOption[];
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [localQ, setLocalQ] = React.useState(filters.q);
+  React.useEffect(() => setLocalQ(filters.q), [filters.q]);
+
+  // Debounced URL push for the search box. Each control resets page to 1.
+  const push = React.useCallback(
+    (next: Partial<{ q: string; role: string; facultyId: string; page: number }>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next.q !== undefined) {
+        if (next.q) params.set('q', next.q);
+        else params.delete('q');
+      }
+      if (next.role !== undefined) {
+        if (next.role) params.set('role', next.role);
+        else params.delete('role');
+      }
+      if (next.facultyId !== undefined) {
+        if (next.facultyId) params.set('facultyId', next.facultyId);
+        else params.delete('facultyId');
+      }
+      if (next.page !== undefined) {
+        if (next.page > 1) params.set('page', String(next.page));
+        else params.delete('page');
+      } else {
+        // Filter changes always reset pagination — surfacing page 1
+        // results for the new filter set.
+        params.delete('page');
+      }
+      router.push(`/admin/users?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  React.useEffect(() => {
+    if (localQ === filters.q) return;
+    const id = setTimeout(() => push({ q: localQ }), 300);
+    return () => clearTimeout(id);
+  }, [localQ, filters.q, push]);
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="relative flex-1 min-w-[240px]">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
+        <Input
+          value={localQ}
+          onChange={(e) => setLocalQ(e.currentTarget.value)}
+          placeholder="Search by email or name…"
+          className="pl-8"
+        />
+      </div>
+      <select
+        value={filters.role}
+        onChange={(e) => push({ role: e.currentTarget.value })}
+        className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs"
+      >
+        <option value="">All roles</option>
+        <option value="SUPER_ADMIN">Super Admin</option>
+        <option value="SYSTEM_ADMIN">System Admin</option>
+        <option value="UNIVERSITY_USER">University User</option>
+        <option value="FACULTY_USER">Faculty User</option>
+        <option value="PROGRAM_USER">Program User</option>
+      </select>
+      <select
+        value={filters.facultyId}
+        onChange={(e) => push({ facultyId: e.currentTarget.value })}
+        className="max-w-[260px] rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs"
+      >
+        <option value="">All faculties</option>
+        {faculties.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.code} · {f.nameEn}
+          </option>
+        ))}
+      </select>
+      {(filters.q || filters.role || filters.facultyId) && (
+        <button
+          type="button"
+          onClick={() => {
+            setLocalQ('');
+            router.push('/admin/users');
+          }}
+          className="text-[11px] text-text-tertiary underline hover:text-text-primary"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Pagination({ filters }: { filters: FilterState }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const totalPages = Math.max(1, Math.ceil(filters.total / filters.pageSize));
+  if (totalPages <= 1) return null;
+
+  const goto = (next: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next > 1) params.set('page', String(next));
+    else params.delete('page');
+    router.push(`/admin/users?${params.toString()}`);
+  };
+
+  const start = (filters.page - 1) * filters.pageSize + 1;
+  const end = Math.min(filters.total, filters.page * filters.pageSize);
+
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 text-xs text-text-secondary">
+      <span>
+        Showing {start.toLocaleString()}–{end.toLocaleString()} of{' '}
+        {filters.total.toLocaleString()}
+      </span>
+      <div className="flex items-center gap-1">
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => goto(1)}
+          disabled={filters.page === 1}
+          aria-label="First page"
+        >
+          <ChevronsLeft className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => goto(filters.page - 1)}
+          disabled={filters.page === 1}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </Button>
+        <span className="px-2 font-mono">
+          {filters.page} / {totalPages}
+        </span>
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => goto(filters.page + 1)}
+          disabled={filters.page >= totalPages}
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => goto(totalPages)}
+          disabled={filters.page >= totalPages}
+          aria-label="Last page"
+        >
+          <ChevronsRight className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -542,16 +723,26 @@ function ExistingUsersPanel({
   programs,
   assignable,
   actorIsSuper,
+  filters,
 }: {
   users: UserRow[];
   faculties: FacultyOption[];
   programs: ProgramOption[];
   assignable: readonly Role[];
   actorIsSuper: boolean;
+  filters: FilterState;
 }) {
   return (
     <Card padding="md">
-      <h3 className="mb-2 text-sm font-semibold">Existing users · {users.length}</h3>
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-sm font-semibold">
+          Existing users · {filters.total.toLocaleString()}
+        </h3>
+        {(filters.q || filters.role || filters.facultyId) && (
+          <span className="text-[11px] text-text-tertiary">filtered</span>
+        )}
+      </div>
+      <FilterBar filters={filters} faculties={faculties} />
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
@@ -565,6 +756,13 @@ function ExistingUsersPanel({
             </tr>
           </thead>
           <tbody>
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-2 py-6 text-center text-text-tertiary">
+                  No users match the current filter.
+                </td>
+              </tr>
+            )}
             {users.map((u) => (
               <UserRowEditor
                 key={u.id}
@@ -578,6 +776,7 @@ function ExistingUsersPanel({
           </tbody>
         </table>
       </div>
+      <Pagination filters={filters} />
     </Card>
   );
 }
@@ -691,27 +890,59 @@ function UserRowEditor({
   );
 }
 
-// Compact pill stack — shows up to 3 scope rows in the table, with a
-// "+N more" affordance for the rest. Click any pill to expand the row
-// (handled by the parent's expander). Non-spatial roles (SUPER_ADMIN,
-// SYSTEM_ADMIN, UNIVERSITY_USER) render with no scope suffix.
+// Compact pill stack. Strategy:
+//   - PROGRAM_USER scopes (the noisy case for academic staff with many
+//     programs) collapse into a single "Program User (N)" pill with
+//     the program list in a hover tooltip — readable at a glance.
+//   - Other scope kinds (FACULTY_USER · <faculty>, SYSTEM_ADMIN, etc.)
+//     render individually — they're always low-cardinality.
+//   - Click any pill to expand the row (parent's expander).
 function ScopePillStack({ scopes }: { scopes: ScopeRow[] }) {
   if (scopes.length === 0) {
     return <span className="text-text-tertiary">—</span>;
   }
-  const head = scopes.slice(0, 3);
-  const rest = scopes.length - head.length;
+  const programScopes = scopes.filter((s) => s.role === 'PROGRAM_USER');
+  const otherScopes = scopes.filter((s) => s.role !== 'PROGRAM_USER');
   return (
     <div className="flex flex-wrap gap-1">
-      {head.map((s) => (
+      {otherScopes.map((s) => (
         <ScopePill key={s.id} scope={s} />
       ))}
-      {rest > 0 && (
-        <span className="rounded-full border border-border-subtle bg-surface-2 px-2 py-0.5 text-[10px] text-text-secondary">
-          +{rest} more
-        </span>
+      {programScopes.length > 0 && (
+        <ProgramScopeGroupPill scopes={programScopes} />
       )}
     </div>
+  );
+}
+
+function ProgramScopeGroupPill({ scopes }: { scopes: ScopeRow[] }) {
+  // Tooltip lists every program label, one per line. `title` attribute
+  // wraps on \n in modern browsers; readable inside KKU's Chrome/Edge.
+  // ACADEMIC_STAFF rows (auto-synced) are flagged inline so admins
+  // know which assignments were derived vs manually granted.
+  const lines = scopes.map((s) => {
+    const label = s.programLabel ?? s.facultyLabel ?? '(unscoped)';
+    return s.source === 'ACADEMIC_STAFF' ? `${label}  · auto` : label;
+  });
+  const hasAuto = scopes.some((s) => s.source === 'ACADEMIC_STAFF');
+  const tooltip = `Program User · ${scopes.length} program${scopes.length === 1 ? '' : 's'}\n────────────\n${lines.join('\n')}`;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+        hasAuto
+          ? 'border-info/30 bg-info-subtle text-info'
+          : 'border-border-subtle bg-surface-2 text-text-secondary'
+      }`}
+      title={tooltip}
+    >
+      <span className="font-semibold">Program User</span>
+      <span className="opacity-80">({scopes.length})</span>
+      {hasAuto && (
+        <span className="rounded bg-info/15 px-1 py-0 text-[8.5px] font-semibold uppercase tracking-wider text-info">
+          auto
+        </span>
+      )}
+    </span>
   );
 }
 

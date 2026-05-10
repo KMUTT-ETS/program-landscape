@@ -58,12 +58,31 @@ export function ssonextClaimsFromProfile(
   };
 }
 
+// Prefer Thai with title prefix — matches the "Title Firstname Lastname"
+// format pre-provisioned users get from the KKU employee API
+// (see deriveDisplayName() in lib/kku/employee-api.ts). English is the
+// fallback when Thai claims are missing.
 function pickDisplayName(claims: SsonextClaims): string {
-  const en = [claims.firstnameEn, claims.lastnameEn].filter(Boolean).join(' ').trim();
-  if (en) return en;
-  const th = [claims.firstName, claims.lastName].filter(Boolean).join(' ').trim();
-  if (th) return th;
+  const t = (s: string | null | undefined): string | null =>
+    typeof s === 'string' && s.trim() ? s.trim() : null;
+  const titleTh = t(claims.titleTh);
+  const fnTh = t(claims.firstName);
+  const lnTh = t(claims.lastName);
+  if (fnTh && lnTh) return [titleTh, fnTh, lnTh].filter(Boolean).join(' ');
+  const titleEn = t(claims.titleEn);
+  const fnEn = t(claims.firstnameEn);
+  const lnEn = t(claims.lastnameEn);
+  if (fnEn && lnEn) return [titleEn, fnEn, lnEn].filter(Boolean).join(' ');
   return claims.email || claims.immutableId;
+}
+
+// Looks Thai? Heuristic: any character in the Thai Unicode block.
+// Used to refresh a user's stored name when their existing row was
+// written before we preferred Thai (the row carries an English name
+// like "Denpong Soodphakdee", but we now have Thai claims to use).
+function looksThai(s: string | null | undefined): boolean {
+  if (!s) return false;
+  return /[฀-๿]/.test(s);
 }
 
 export async function provisionFromSsonext(claims: SsonextClaims): Promise<User> {
@@ -97,9 +116,18 @@ export async function provisionFromSsonext(claims: SsonextClaims): Promise<User>
   if (existing) {
     // Bind ssoSubject + employeeId if missing. Don't touch role /
     // facultyId on existing users — those are admin-managed.
-    const patch: { ssoSubject?: string; employeeId?: string } = {};
+    const patch: { ssoSubject?: string; employeeId?: string; name?: string } = {};
     if (!existing.ssoSubject && claims.immutableId) patch.ssoSubject = claims.immutableId;
     if (!existing.employeeId && claims.employeeId) patch.employeeId = claims.employeeId;
+    // Refresh display name when the stored value isn't Thai but we now
+    // have Thai claims. Catches the cohort of users provisioned before
+    // we preferred Thai-with-title (the row had "Denpong Soodphakdee";
+    // SSO claim now carries "ผศ. ดร. เด่นพงษ์ สุดภักดี"). Doesn't
+    // touch already-Thai names so admin-edited values are preserved.
+    if (!looksThai(existing.name)) {
+      const next = pickDisplayName(claims);
+      if (looksThai(next) && next !== existing.name) patch.name = next;
+    }
     if (Object.keys(patch).length > 0) {
       return prisma.user.update({ where: { id: existing.id }, data: patch });
     }
