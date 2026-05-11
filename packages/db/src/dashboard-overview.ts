@@ -15,6 +15,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from './index';
 import { computeHealthScores, getKkuIntakePolicyVerdict, type HealthScoreRow } from './health-score';
 import { currentlyEnrolledStudents } from './currently-enrolled';
+import { realDataWhere, realDataSqlUnsafe } from './data-quality';
 
 export const DASHBOARD_OVERVIEW_VERSION = 'dashboard-overview.v1';
 
@@ -246,7 +247,9 @@ export async function getDashboardOverview(
     prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
       `
       WITH latest AS (
-        SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
+        SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics em0
+        WHERE ${realDataSqlUnsafe('em0')}
+        GROUP BY program_id
       )
       SELECT COALESCE(SUM(em.enrolled), 0)::bigint as total
       FROM enrollment_metrics em
@@ -254,7 +257,8 @@ export async function getDashboardOverview(
       JOIN programs p ON p.id = em.program_id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        ${scopePredicate.sql};
+        ${scopePredicate.sql}
+      WHERE ${realDataSqlUnsafe('em')};
     `,
       ...scopePredicate.params,
     ),
@@ -262,6 +266,7 @@ export async function getDashboardOverview(
       _sum: { netContribution: true },
       where: {
         fiscalYear: { gte: 2024 },
+        ...realDataWhere(),
         // Funnel through Program so the scope clamp piggy-backs on the
         // same predicate the rest of the dashboard uses.
         ...(scope.programId
@@ -285,7 +290,9 @@ export async function getDashboardOverview(
     >(
       `
       WITH latest_em AS (
-        SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
+        SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics em0
+        WHERE ${realDataSqlUnsafe('em0')}
+        GROUP BY program_id
       )
       SELECT
         p.id as "programId",
@@ -305,11 +312,15 @@ export async function getDashboardOverview(
       JOIN enrollment_metrics now_em ON now_em.program_id = p.id AND now_em.academic_year = l.max_year
       LEFT JOIN enrollment_metrics old_em ON old_em.program_id = p.id AND old_em.academic_year = l.max_year - 3
       LEFT JOIN LATERAL (
-        SELECT net_contribution FROM financial_metrics WHERE program_id = p.id ORDER BY fiscal_year DESC LIMIT 1
+        SELECT net_contribution FROM financial_metrics fm1
+        WHERE fm1.program_id = p.id AND ${realDataSqlUnsafe('fm1')}
+        ORDER BY fiscal_year DESC LIMIT 1
       ) latest_fm ON true
       WHERE old_em.enrolled IS NOT NULL AND old_em.enrolled > 0
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
+        AND ${realDataSqlUnsafe('now_em')}
+        AND ${realDataSqlUnsafe('old_em')}
         ${scopePredicate.sql};
     `,
       ...scopePredicate.params,
@@ -340,10 +351,14 @@ export async function getDashboardOverview(
         AND p.sequence_no_from_sheet IS NOT NULL
         ${scopePredicate.sql}
       LEFT JOIN LATERAL (
-        SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
+        SELECT enrolled FROM enrollment_metrics em1
+        WHERE em1.program_id = p.id AND ${realDataSqlUnsafe('em1')}
+        ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
       LEFT JOIN LATERAL (
-        SELECT net_contribution FROM financial_metrics WHERE program_id = p.id ORDER BY fiscal_year DESC LIMIT 1
+        SELECT net_contribution FROM financial_metrics fm1
+        WHERE fm1.program_id = p.id AND ${realDataSqlUnsafe('fm1')}
+        ORDER BY fiscal_year DESC LIMIT 1
       ) latest_fm ON true
       WHERE f.kind = 'ACADEMIC'
       GROUP BY f.id, f.code, f.name_en, f.name_th
@@ -360,7 +375,9 @@ export async function getDashboardOverview(
         COALESCE(SUM(latest_em.enrolled), 0)::int as "enrollmentLatest"
       FROM programs p
       LEFT JOIN LATERAL (
-        SELECT enrolled FROM enrollment_metrics WHERE program_id = p.id ORDER BY academic_year DESC LIMIT 1
+        SELECT enrolled FROM enrollment_metrics em1
+        WHERE em1.program_id = p.id AND ${realDataSqlUnsafe('em1')}
+        ORDER BY academic_year DESC LIMIT 1
       ) latest_em ON true
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
@@ -397,7 +414,9 @@ export async function getDashboardOverview(
     prisma.$queryRawUnsafe<Array<{ id: string; level: string; intake: number | null }>>(
       `
       WITH latest AS (
-        SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
+        SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics em0
+        WHERE ${realDataSqlUnsafe('em0')}
+        GROUP BY program_id
       )
       SELECT
         p.id,
@@ -406,6 +425,7 @@ export async function getDashboardOverview(
       FROM programs p
       LEFT JOIN latest l ON l.program_id = p.id
       LEFT JOIN enrollment_metrics em ON em.program_id = p.id AND em.academic_year = l.max_year
+        AND ${realDataSqlUnsafe('em')}
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
         ${scopePredicate.sql};
@@ -515,7 +535,9 @@ export async function getDashboardOverview(
     `
     WITH latest AS (
       SELECT program_id, MAX(academic_year) AS max_year
-      FROM enrollment_metrics GROUP BY program_id
+      FROM enrollment_metrics em0
+      WHERE ${realDataSqlUnsafe('em0')}
+      GROUP BY program_id
     )
     SELECT COUNT(*)::bigint AS count
     FROM enrollment_metrics em
@@ -523,7 +545,8 @@ export async function getDashboardOverview(
     JOIN programs p ON p.id = em.program_id
       AND p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
       ${scopePredicate.sql}
-    WHERE em.enrolled = 0;
+    WHERE em.enrolled = 0
+      AND ${realDataSqlUnsafe('em')};
   `,
     ...scopePredicate.params,
   );

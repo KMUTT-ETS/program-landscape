@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, prisma } from '@kku/db';
+import { Prisma, prisma, realDataSql } from '@kku/db';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Undergraduate recruitment dashboard — read-side helpers backed by
@@ -141,6 +141,7 @@ export class RecruitmentService {
       FROM tcas_admission_funnels f
       JOIN programs p ON p.id = f.program_id
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+        AND ${realDataSql('f')}
         ${programFilter}
       ORDER BY f.entry_year_be DESC
     `;
@@ -196,6 +197,7 @@ export class RecruitmentService {
         JOIN programs p ON p.id = f.program_id
         WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
           AND f.entry_year_be = ${year}
+          AND ${realDataSql('f')}
           ${programFilter}
       ),
       per_program AS (
@@ -274,6 +276,7 @@ export class RecruitmentService {
         JOIN programs p ON p.id = f.program_id
         WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
           AND f.entry_year_be = ${year}
+          AND ${realDataSql('f')}
           ${programFilter}
       ),
       per_program AS (
@@ -382,6 +385,7 @@ export class RecruitmentService {
       JOIN programs p ON p.id = f.program_id
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
         AND f.entry_year_be = ${year}
+        AND ${realDataSql('f')}
         ${programFilter}
       GROUP BY f.round
       ORDER BY f.round;
@@ -429,6 +433,7 @@ export class RecruitmentService {
         FROM tcas_admission_funnels f
         JOIN programs p ON p.id = f.program_id
         WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+          AND ${realDataSql('f')}
           ${programFilter}
       ),
       per_program_year AS (

@@ -39,6 +39,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
+import { withScriptRun } from '../lib/script-run';
 import {
   buildGraduateEmploymentSurveyMessages,
   GraduateEmploymentSurveySchema,
@@ -86,6 +87,17 @@ async function main() {
   const args = process.argv.slice(2);
   const pdfs = pickPdfs(args);
   console.log(`━━━ Ingesting ${pdfs.length} employment-survey PDF(s) ━━━\n`);
+
+  // Wrap the whole run in a tracked IngestionRun on kku-alumni. PDF survey
+  // ingestion writes real graduate-outcome data; the run tags every row so
+  // they survive the data-quality.v2 STRICT filter.
+  await withScriptRun('kku-alumni', async ({ runId, setRecordsLoaded }) => {
+    const rowsWritten = await mainInner(args, pdfs, runId);
+    setRecordsLoaded(rowsWritten);
+  });
+}
+
+async function mainInner(_args: string[], pdfs: string[], runId: string): Promise<number> {
 
   const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
   const ai = createAiService({
@@ -229,6 +241,7 @@ async function main() {
               sampleSize: row.sampleSize,
               freshnessDate: freshness,
               methodologyVersion: methodTag,
+              ingestionRunId: runId,
             },
             update: {
               employmentRate: row.employmentRate ?? 0,
@@ -238,6 +251,7 @@ async function main() {
               sampleSize: row.sampleSize,
               freshnessDate: freshness,
               methodologyVersion: methodTag,
+              ingestionRunId: runId,
             },
           });
           stats.matchedProgramIds.add(program.id);
@@ -275,6 +289,7 @@ async function main() {
     extracted: acc.extracted + s.programsExtracted,
   }), { rows: 0, cost: 0, extracted: 0 });
   console.log(`\nTOTAL: ${total.rows} GraduateOutcome rows upserted (${total.extracted} extracted) · cost $${total.cost.toFixed(2)}`);
+  return total.rows;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

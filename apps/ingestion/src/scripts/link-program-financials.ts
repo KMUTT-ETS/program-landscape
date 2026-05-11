@@ -46,6 +46,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { prisma, refreshMetricViews, type ProgramLevel, Prisma } from '@kku/db';
+import { withScriptRun } from '../lib/script-run';
 import {
   withConnection as oracleWithConnection,
   configFromEnv as oracleConfigFromEnv,
@@ -190,8 +191,7 @@ async function fetchPerStaffSalaries(
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+async function mainInner(args: ReturnType<typeof parseArgs>, runId: string): Promise<number> {
   console.log(`Mode: ${args.apply ? 'APPLY (writes FinancialMetric)' : 'DRY RUN'}`);
 
   const program = await resolveProgram(args.programArg);
@@ -308,7 +308,7 @@ async function main(): Promise<void> {
 
   if (!args.apply) {
     console.log('\n(dry-run; pass without --dry-run to write FinancialMetric)');
-    return;
+    return 0;
   }
 
   // ── Persist ───────────────────────────────────────────────────────────────
@@ -355,6 +355,7 @@ async function main(): Promise<void> {
           : null,
         freshnessDate: new Date(),
         methodologyVersion: 'per-program-link.v1',
+        ingestionRunId: runId,
       },
       update: {
         tuitionRevenue: tuition,
@@ -366,6 +367,7 @@ async function main(): Promise<void> {
           : {}),
         freshnessDate: new Date(),
         methodologyVersion: 'per-program-link.v1',
+        ingestionRunId: runId,
       },
     });
     written++;
@@ -389,6 +391,18 @@ async function main(): Promise<void> {
       `  FY ${f.fiscalYear}: tuition ${Number(f.tuitionRevenue).toLocaleString()} · faculty cost ${Number(f.allocatedFacultyCost).toLocaleString()}`,
     );
   }
+  return written;
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  // Per-program financials derive from kku-finance (tuition Oracle view) +
+  // kku-hr (per-staff salary MSSQL view). Attribute the synthetic run to
+  // kku-finance — financials is the primary destination.
+  await withScriptRun('kku-finance', async ({ runId, setRecordsLoaded }) => {
+    const written = await mainInner(args, runId);
+    setRecordsLoaded(written);
+  });
 }
 
 main()

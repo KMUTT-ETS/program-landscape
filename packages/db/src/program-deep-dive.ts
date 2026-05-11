@@ -8,6 +8,7 @@ import {
   type HealthScoreRow,
 } from './health-score';
 import { queryMetricByScope } from './scope';
+import { realDataWhere } from './data-quality';
 
 // Deep-dive aggregator — all reads a single program's page needs.
 // Each method corresponds to one section of the UI. Role-sensitive
@@ -183,15 +184,15 @@ export async function programDemandFunnel(programId: string) {
   // Pull all the per-cohort data in parallel.
   const [alumniRows, cohortRows, tcasRows] = await Promise.all([
     prisma.alumniCohortStatus.findMany({
-      where: { programId },
+      where: { programId, ...realDataWhere() },
       orderBy: [{ entryYearBE: 'asc' }, { statusBucket: 'asc' }],
     }),
     prisma.studentCohortDistribution.findMany({
-      where: { programId },
+      where: { programId, ...realDataWhere() },
       orderBy: { entryYearBE: 'asc' },
     }),
     prisma.tcasAdmissionStat.findMany({
-      where: { programId },
+      where: { programId, ...realDataWhere() },
       orderBy: [{ entryYearBE: 'asc' }, { round: 'desc' }],
     }),
   ]);
@@ -373,7 +374,7 @@ export async function programDemandFunnel(programId: string) {
 
   // Latest freshness — alumni rows are timestamped in `refreshedAt`.
   const latestRefresh = await prisma.alumniCohortStatus.findFirst({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { refreshedAt: 'desc' },
     select: { refreshedAt: true },
   });
@@ -501,7 +502,7 @@ export async function programStudentCohorts(
       select: { durationYears: true },
     }),
     prisma.studentCohortDistribution.findMany({
-      where: { programId },
+      where: { programId, ...realDataWhere() },
       orderBy: { entryYearBE: 'asc' },
     }),
   ]);
@@ -746,6 +747,7 @@ export async function programAiReadiness(programId: string): Promise<ProgramAiRe
       where: {
         facultyMemberId: { in: memberIds },
         year: { gte: currentYear - 3 },
+        ...realDataWhere(),
       },
       select: { title: true },
     });
@@ -1568,7 +1570,7 @@ export async function programTcasStats(
   programId: string,
 ): Promise<ProgramTcasStats> {
   const rows = await prisma.tcasAdmissionStat.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'asc' }, { round: 'asc' }],
   });
 
@@ -1618,6 +1620,7 @@ export async function programTcasStats(
         entryYearBE: latestEntryYearBE,
         round: latestRound,
         institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        ...realDataWhere(),
       },
       orderBy: [{ applicants: 'desc' }],
       take: 100,
@@ -1632,6 +1635,7 @@ export async function programTcasStats(
         entryYearBE: latestEntryYearBE,
         round: latestRound,
         institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        ...realDataWhere(),
         // Crude pre-filter to keep the row volume sane — anything
         // whose programmeName contains the signature substring.
         programmeName: { contains: subjectKey, mode: 'insensitive' },
@@ -1762,7 +1766,7 @@ export async function facultyTcasStats(
 
   // Latest year present in the dataset for THIS faculty.
   const latestRow = await prisma.tcasAdmissionStat.findFirst({
-    where: { facultyName: facultyNameTh, institutionName: KKU_INSTITUTION_NAME_TH },
+    where: { facultyName: facultyNameTh, institutionName: KKU_INSTITUTION_NAME_TH, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
     select: { entryYearBE: true },
   });
@@ -1778,7 +1782,7 @@ export async function facultyTcasStats(
   }
 
   const allRows = await prisma.tcasAdmissionStat.findMany({
-    where: { facultyName: facultyNameTh, entryYearBE: latestEntryYearBE },
+    where: { facultyName: facultyNameTh, entryYearBE: latestEntryYearBE, ...realDataWhere() },
     select: {
       institutionName: true,
       quota: true,
@@ -1814,7 +1818,7 @@ export async function facultyTcasStats(
 
 export async function universityTcasStats(): Promise<UniversityTcasStats | null> {
   const latestRow = await prisma.tcasAdmissionStat.findFirst({
-    where: { institutionName: KKU_INSTITUTION_NAME_TH },
+    where: { institutionName: KKU_INSTITUTION_NAME_TH, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
     select: { entryYearBE: true },
   });
@@ -1828,7 +1832,7 @@ export async function universityTcasStats(): Promise<UniversityTcasStats | null>
     };
   }
   const allRows = await prisma.tcasAdmissionStat.findMany({
-    where: { entryYearBE: latestEntryYearBE },
+    where: { entryYearBE: latestEntryYearBE, ...realDataWhere() },
     select: {
       institutionName: true,
       quota: true,
@@ -1930,7 +1934,7 @@ export async function programDemographicOutlook(
   // year's (drops in-progress partial years — same heuristic as the
   // financials module).
   const enrollments = await prisma.enrollmentMetric.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { academicYear: 'desc' },
     take: 5,
     select: { academicYear: true, enrolled: true },
@@ -2023,7 +2027,7 @@ export async function programFinancials(programId: string) {
   // funded salary subsidy, NOT netted from tuition), netContribution
   // (revenue − direct costs only).
   const rawRows = await prisma.financialMetric.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { fiscalYear: 'asc' },
   });
 
@@ -2183,6 +2187,7 @@ export async function programSkills(programId: string) {
         percentage: { gte: tier.minPct },
         skillId: { not: null },
         ...careerFilter,
+        ...realDataWhere(),
       },
       _max: { percentage: true },
       _count: { skillId: true },
@@ -2209,7 +2214,7 @@ export async function programSkills(programId: string) {
   // search). Falls back to taxonomy-only intersection when no AI matches
   // exist yet — UI banner prompts to run `pnpm programs:match-demand`.
   const demandMatches = await prisma.programDemandMatch.findMany({
-    where: { programId, skillId: { in: demandIds.length > 0 ? demandIds : ['__none__'] } },
+    where: { programId, skillId: { in: demandIds.length > 0 ? demandIds : ['__none__'] }, ...realDataWhere() },
   });
   const matchById = new Map(demandMatches.map((m) => [m.skillId, m]));
 
@@ -2336,7 +2341,7 @@ export async function programSkills(programId: string) {
 // ── Outcomes ──────────────────────────────────────────────────────────
 export async function programOutcomes(programId: string) {
   const outcomes = await prisma.graduateOutcome.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: [{ surveyYear: 'desc' }, { graduationYear: 'desc' }],
     take: 20,
   });

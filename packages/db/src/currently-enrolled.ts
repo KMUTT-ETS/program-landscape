@@ -22,9 +22,11 @@
 //     EnrollmentMetric per-program-latest (intake proxy).
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { Prisma } from '@prisma/client';
 import { prisma } from './index';
 import type { ScopeLevel } from './scope';
 import { STUDENT_STATUS_GROUP_RANGES } from './student-status';
+import { realDataSql } from './data-quality';
 
 /** Inclusive status-code bounds for "currently enrolled" — pulled from the
  *  canonical CURRENT range so this helper and the Education dashboard's
@@ -71,10 +73,12 @@ export async function currentlyEnrolledStudents(
   // EnrollmentMetric per-program-latest sum. This is a different number
   // (intake, not headcount), but at this scope it's the best signal we have.
   if (scope === 'department' && scopeId) {
-    const rows = await prisma.$queryRaw<Array<{ total: bigint }>>`
+    const rows = await prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
       WITH latest AS (
         SELECT program_id, MAX(academic_year) AS max_year
-        FROM enrollment_metrics GROUP BY program_id
+        FROM enrollment_metrics em0
+        WHERE ${realDataSql('em0')}
+        GROUP BY program_id
       )
       SELECT COALESCE(SUM(em.enrolled), 0)::bigint AS total
       FROM enrollment_metrics em
@@ -82,18 +86,20 @@ export async function currentlyEnrolledStudents(
       JOIN programs p ON p.id = em.program_id
         AND p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
-        AND p.department_id = ${scopeId};
-    `;
+        AND p.department_id = ${scopeId}
+      WHERE ${realDataSql('em')};
+    `);
     return Number(rows[0]?.total ?? 0n);
   }
   if (scope === 'program' && scopeId) {
-    const rows = await prisma.$queryRaw<Array<{ enrolled: number | null }>>`
+    const rows = await prisma.$queryRaw<Array<{ enrolled: number | null }>>(Prisma.sql`
       SELECT em.enrolled::int AS enrolled
       FROM enrollment_metrics em
       WHERE em.program_id = ${scopeId}
+        AND ${realDataSql('em')}
       ORDER BY em.academic_year DESC
       LIMIT 1;
-    `;
+    `);
     return rows[0]?.enrolled ?? null;
   }
   return null;

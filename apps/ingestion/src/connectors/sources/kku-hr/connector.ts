@@ -569,6 +569,7 @@ export class KkuHrRealConnector extends ApiConnector {
                 maxSalary: p.maxSalary,
                 freshnessDate: rec.freshnessDate,
                 methodologyVersion: 'kku-hr.v1',
+                ingestionRunId: ctx.runId,
               },
             });
           } else {
@@ -585,6 +586,7 @@ export class KkuHrRealConnector extends ApiConnector {
                 maxSalary: p.maxSalary,
                 freshnessDate: rec.freshnessDate,
                 methodologyVersion: 'kku-hr.v1',
+                ingestionRunId: ctx.runId,
               },
             });
           }

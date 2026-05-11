@@ -391,7 +391,7 @@ export class KkuResearchRealConnector extends ApiConnector {
     for (let i = 0; i < normalized.length; i += CHUNK_SIZE) {
       const chunk = normalized.slice(i, i + CHUNK_SIZE);
       const results = await Promise.allSettled(
-        chunk.map((rec) => this.upsertOne(rec)),
+        chunk.map((rec) => this.upsertOne(rec, ctx.runId)),
       );
       for (const r of results) {
         if (r.status === 'fulfilled') loaded++;
@@ -433,7 +433,7 @@ export class KkuResearchRealConnector extends ApiConnector {
   // handling on facultyMemberId means unmatched-author rows are
   // distinguished per call; that's the analyst-triage posture from the
   // OpenAlex pathway and we keep it.
-  private async upsertOne(rec: NormalizedRecord): Promise<void> {
+  private async upsertOne(rec: NormalizedRecord, runId: string): Promise<void> {
     if (rec.target !== 'research_outputs') {
       throw new Error(`unknown target "${rec.target}"`);
     }
@@ -467,6 +467,7 @@ export class KkuResearchRealConnector extends ApiConnector {
       doi: p.doi,
       source: p.source,
       kkuAuthorName: p.kkuAuthorName,
+      ingestionRunId: runId,
       ...(p.source === SOURCE_SCOPUS
         ? { scopusId: p.scopusEid ?? null }
         : { pmid: p.pmid ?? null }),

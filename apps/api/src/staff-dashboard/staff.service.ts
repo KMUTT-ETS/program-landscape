@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { prisma, Prisma } from '@kku/db';
+import { prisma, Prisma, realDataWhere } from '@kku/db';
 import { CacheService } from '../common/cache.service';
 import {
   ACADEMIC_STANDING,
@@ -852,6 +852,7 @@ export class StaffService {
               facultyMemberId: { in: fmIds },
               source: { in: sourceFilter },
               year: { gte: yearFrom },
+              ...realDataWhere(),
             },
             select: {
               facultyMemberId: true,

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Prisma, type ForecastKind, type SectorFamily } from '@prisma/client';
 import { prisma } from './index';
 import type { ScopeLevel } from './scope';
+import { realDataWhere, realDataSql } from './data-quality';
 import {
   forecastHoltLinear,
   forecastLinear,
@@ -116,20 +117,23 @@ export async function computeSkillGap(filter: GapFilterInput): Promise<SkillGapR
     }[]
   >(Prisma.sql`
     WITH latest_be AS (
-      SELECT MAX(entry_year_be) AS max_be FROM alumni_cohort_statuses
+      SELECT MAX(entry_year_be) AS max_be FROM alumni_cohort_statuses acs0
+      WHERE ${realDataSql('acs0')}
     ),
     alumni_per_program AS (
       SELECT
         program_id,
         SUM(count)::float / 5.0 AS graduates_per_year
-      FROM alumni_cohort_statuses, latest_be
+      FROM alumni_cohort_statuses acs, latest_be
       WHERE status_bucket = 'GRADUATED'
         AND entry_year_be >= latest_be.max_be - 5
+        AND ${realDataSql('acs')}
       GROUP BY program_id
     ),
     latest_grad AS (
       SELECT DISTINCT ON (program_id) program_id, graduated_on_time
-      FROM enrollment_metrics
+      FROM enrollment_metrics em
+      WHERE ${realDataSql('em')}
       ORDER BY program_id, academic_year DESC
     ),
     per_program_supply AS (
@@ -231,7 +235,7 @@ async function resolveDemandSource(
 
 async function kmitlDemandHasRows(): Promise<boolean> {
   const n = await prisma.kmitlCareerSkillDemand.count({
-    where: { dataScope: 'THAILAND', dataSource: 'JOB_POSTINGS' },
+    where: { dataScope: 'THAILAND', dataSource: 'JOB_POSTINGS', ...realDataWhere() },
     take: 1,
   });
   return n > 0;
@@ -281,6 +285,8 @@ async function fetchDemandRows(
     WHERE d.skill_id IS NOT NULL
       AND d.data_scope = 'THAILAND'
       AND d.data_source = 'JOB_POSTINGS'
+      AND ${realDataSql('d')}
+      AND ${realDataSql('c')}
     GROUP BY d.skill_id
   `);
 
@@ -444,7 +450,8 @@ export async function computeSectorGap(filter: GapFilterInput): Promise<SectorGa
     { program_id: string; graduated_on_time: number }[]
   >(Prisma.sql`
     SELECT DISTINCT ON (program_id) program_id, graduated_on_time
-    FROM enrollment_metrics
+    FROM enrollment_metrics em
+    WHERE ${realDataSql('em')}
     ORDER BY program_id, academic_year DESC
   `);
   const gradMap = new Map(latestGrad.map((r) => [r.program_id, r.graduated_on_time ?? 0]));
@@ -594,7 +601,7 @@ export async function computeOpportunities(filter: GapFilterInput): Promise<Oppo
   const skillIds = underserved.slice(0, f.limit).map((r) => r.skillId);
   const growthRows = skillIds.length === 0 ? [] : await prisma.kmitlSkillGrowth.groupBy({
     by: ['skillId'],
-    where: { skillId: { in: skillIds }, contextLevel: 'group' },
+    where: { skillId: { in: skillIds }, contextLevel: 'group', ...realDataWhere() },
     _avg: { growthPct: true },
   });
   const growthMap = new Map<string, number>();
@@ -655,7 +662,9 @@ export async function computeRisks(filter: GapFilterInput): Promise<RiskResult> 
     select: { id: true, code: true, nameTh: true, nameEn: true },
   });
   const enrollments = await prisma.enrollmentMetric.findMany({
-    where: programIds.length > 0 ? { programId: { in: programIds } } : undefined,
+    where: programIds.length > 0
+      ? { programId: { in: programIds }, ...realDataWhere() }
+      : { ...realDataWhere() },
     orderBy: [{ programId: 'asc' }, { academicYear: 'asc' }],
     select: { programId: true, academicYear: true, graduatedOnTime: true },
   });
@@ -771,6 +780,7 @@ export async function computeProgramDemandGaps(
     where: {
       ...(programIds.length > 0 ? { programId: { in: programIds } } : {}),
       relevant: true,
+      ...realDataWhere(),
     },
     include: {
       program: {
@@ -962,7 +972,9 @@ async function programIdsForScope(scope: ScopeLevel, scopeId: string | undefined
 async function totalStudentsInScope(scope: ScopeLevel, scopeId: string | undefined): Promise<number> {
   const ids = await programIdsForScope(scope, scopeId);
   const agg = await prisma.enrollmentMetric.aggregate({
-    where: ids.length > 0 ? { programId: { in: ids } } : undefined,
+    where: ids.length > 0
+      ? { programId: { in: ids }, ...realDataWhere() }
+      : { ...realDataWhere() },
     _sum: { enrolled: true },
   });
   return agg._sum?.enrolled ?? 0;
@@ -1010,7 +1022,8 @@ async function approximateOccupationSupply(occupationCode: string): Promise<numb
   const rows = await prisma.$queryRaw<{ total: number }[]>(Prisma.sql`
     WITH latest_grad AS (
       SELECT DISTINCT ON (program_id) program_id, graduated_on_time
-      FROM enrollment_metrics
+      FROM enrollment_metrics em
+      WHERE ${realDataSql('em')}
       ORDER BY program_id, academic_year DESC
     )
     SELECT COALESCE(SUM(lg.graduated_on_time), 0)::float AS total

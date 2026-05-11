@@ -18,6 +18,7 @@ import {
   programDemandFunnel,
   programSkills,
   programFaculty,
+  realDataWhere,
   type ProgramOverviewResult,
 } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
@@ -126,7 +127,7 @@ export class AnalystToolExecutor {
         include: {
           faculty: { select: { id: true, code: true, nameEn: true } },
           department: { select: { id: true, nameEn: true } },
-          enrollmentMetrics: { orderBy: { academicYear: 'desc' }, take: 1, select: { academicYear: true, enrolled: true, graduatedOnTime: true } },
+          enrollmentMetrics: { where: realDataWhere(), orderBy: { academicYear: 'desc' }, take: 1, select: { academicYear: true, enrolled: true, graduatedOnTime: true } },
         },
       });
       return {
@@ -272,8 +273,8 @@ export class AnalystToolExecutor {
             : { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
         take: 30, // cap
         include: {
-          enrollmentMetrics: { orderBy: { academicYear: 'desc' }, take: 1 },
-          financialMetrics: { orderBy: { fiscalYear: 'desc' }, take: 1 },
+          enrollmentMetrics: { where: realDataWhere(), orderBy: { academicYear: 'desc' }, take: 1 },
+          financialMetrics: { where: realDataWhere(), orderBy: { fiscalYear: 'desc' }, take: 1 },
           programSkills: { select: { skillId: true } },
         },
       });

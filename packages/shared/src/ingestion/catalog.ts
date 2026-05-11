@@ -58,8 +58,13 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     cadenceCron: '0 5 1 */3 *', // quarterly on the 1st
     ownerContact: 'KKU Alumni & Career Services',
-    notes: 'Graduate employment survey + Student Loan Fund repayments. Some cohort summaries arrive as PDF.',
-    mocked: true,
+    notes:
+      'Graduate employment survey + Student Loan Fund repayments. Some cohort summaries arrive as PDF. ' +
+      'API connector remains a stub, but real data lands via the script-based PDF/XLSX intake at ' +
+      '`pnpm outcomes:ingest` / `pnpm outcomes:ingest-xlsx`. Catalog flag flipped to mocked=false on ' +
+      '2026-05-11 because the data flowing through this DataSource is real (PDF intake), even though ' +
+      'the API connector itself never runs.',
+    mocked: false,
   },
   {
     slug: 'kku-research',
@@ -140,8 +145,12 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     acceptsPdfUploads: true,
     cadenceCron: '0 9 15 5 *', // annual — results published mid-May
     ownerContact: 'KKU Admissions Office',
-    notes: 'Annual national admission test scores + programme-level cutoffs. Mixture of PDF summaries and a partial API.',
-    mocked: true,
+    notes:
+      'Annual national admission test scores + programme-level cutoffs. Mixture of PDF summaries and a partial API. ' +
+      'The connector class is still a mocked stub but the DataSource row holds 25,705 real CUPT peer rows ingested ' +
+      'via a one-time historical xlsx import. Catalog flag flipped to mocked=false on 2026-05-11 — the data IS real, ' +
+      'just imported pre-connector-framework.',
+    mocked: false,
   },
   {
     slug: 'tpqi',

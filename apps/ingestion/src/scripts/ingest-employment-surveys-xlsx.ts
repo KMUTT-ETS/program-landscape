@@ -61,6 +61,7 @@ function loadDotEnv(envPath: string): void {
 
 import * as XLSX from 'xlsx';
 import { prisma, type ProgramLevel } from '@kku/db';
+import { withScriptRun } from '../lib/script-run';
 
 // ── Constants ────────────────────────────────────────────────────────────
 const SOURCE_DIR = '/home/denpong/employment';
@@ -593,7 +594,7 @@ async function processFile(
 }
 
 // ── Upsert ───────────────────────────────────────────────────────────────
-async function upsertBucket(b: Bucket, freshness: Date, commit: boolean): Promise<void> {
+async function upsertBucket(b: Bucket, freshness: Date, commit: boolean, runId: string): Promise<void> {
   if (b.total === 0) return;
   const employmentRate = b.employed / b.total;
   const furtherStudyRate = b.furtherStudy / b.total;
@@ -621,6 +622,7 @@ async function upsertBucket(b: Bucket, freshness: Date, commit: boolean): Promis
       sampleSize: b.total,
       freshnessDate: freshness,
       methodologyVersion: METHODOLOGY_VERSION,
+      ingestionRunId: runId,
     },
     create: {
       programId: b.programId,
@@ -633,6 +635,7 @@ async function upsertBucket(b: Bucket, freshness: Date, commit: boolean): Promis
       sampleSize: b.total,
       freshnessDate: freshness,
       methodologyVersion: METHODOLOGY_VERSION,
+      ingestionRunId: runId,
     },
   });
 }
@@ -679,14 +682,20 @@ async function main(): Promise<void> {
 
   console.log(`\nBuckets to upsert: ${buckets.size}`);
 
-  // Upsert / dry-run
+  // Upsert / dry-run — wrap in a tracked IngestionRun on kku-alumni so every
+  // GraduateOutcome row this script writes is provenanced. Without this the
+  // rows would carry NULL ingestion_run_id and be filtered out under
+  // data-quality.v2 STRICT mode.
   let upserted = 0;
-  for (const b of buckets.values()) {
-    const f = filtered.find((fp) => beToCe(fileSurveyYearBE(fp)) === b.surveyYear);
-    const freshness = f ? statSync(f).mtime : new Date();
-    await upsertBucket(b, freshness, args.commit);
-    upserted++;
-  }
+  await withScriptRun('kku-alumni', async ({ runId, setRecordsLoaded }) => {
+    for (const b of buckets.values()) {
+      const f = filtered.find((fp) => beToCe(fileSurveyYearBE(fp)) === b.surveyYear);
+      const freshness = f ? statSync(f).mtime : new Date();
+      await upsertBucket(b, freshness, args.commit, runId);
+      upserted++;
+    }
+    setRecordsLoaded(upserted);
+  });
   console.log(`${args.commit ? 'Upserted' : 'Would upsert'} ${upserted} GraduateOutcome rows`);
 
   // Per-bucket totals (sanity check)

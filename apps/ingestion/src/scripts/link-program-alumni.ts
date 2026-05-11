@@ -39,6 +39,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { prisma, type ProgramLevel } from '@kku/db';
+import { withScriptRun } from '../lib/script-run';
 import {
   withConnection,
   configFromEnv,
@@ -162,6 +163,7 @@ async function fetchAlumniCounts(
 async function processProgram(
   program: ProgramRow,
   apply: boolean,
+  runId: string,
 ): Promise<{ rows: number; total: number }> {
   const major = program.majors[0] ?? '';
   if (!major) return { rows: 0, total: 0 };
@@ -215,6 +217,7 @@ async function processProgram(
         entryYearBE: e.entryYearBE,
         statusBucket: e.bucket,
         count: e.count,
+        ingestionRunId: runId,
       })),
     }),
   ]);
@@ -228,28 +231,36 @@ async function main(): Promise<void> {
   const programs = await resolveProgramIds(args);
   console.log(`Programs to process: ${programs.length}\n`);
 
-  let succeeded = 0;
-  let failed = 0;
-  let totalRows = 0;
-  let totalRecords = 0;
+  // Wrap the work in a tracked IngestionRun on kku-registry — alumni cohort
+  // data is derived from the registrar's VIEW_STUDENT_DETAIL_ALUMNI view, so
+  // its provenance maps to the kku-registry DataSource. The synthetic run
+  // tags every alumni_cohort_statuses row this script writes so they survive
+  // the data-quality.v2 STRICT-mode filter (see docs/evaluation-pipeline.md §13).
+  await withScriptRun('kku-registry', async ({ runId, setRecordsLoaded }) => {
+    let succeeded = 0;
+    let failed = 0;
+    let totalRows = 0;
+    let totalRecords = 0;
 
-  for (const p of programs) {
-    try {
-      const { rows, total } = await processProgram(p, args.apply);
-      if (rows > 0) succeeded++;
-      totalRows += rows;
-      totalRecords += total;
-    } catch (err) {
-      failed++;
-      console.error(`  ✗ ${p.code} failed:`, err instanceof Error ? err.message : err);
+    for (const p of programs) {
+      try {
+        const { rows, total } = await processProgram(p, args.apply, runId);
+        if (rows > 0) succeeded++;
+        totalRows += rows;
+        totalRecords += total;
+      } catch (err) {
+        failed++;
+        console.error(`  ✗ ${p.code} failed:`, err instanceof Error ? err.message : err);
+      }
     }
-  }
 
-  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`Programs with alumni data: ${succeeded} / ${programs.length}`);
-  console.log(`Failed:                    ${failed}`);
-  console.log(`Total (year × bucket) cells: ${totalRows}`);
-  console.log(`Total alumni records:        ${totalRecords.toLocaleString()}`);
+    setRecordsLoaded(totalRows);
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`Programs with alumni data: ${succeeded} / ${programs.length}`);
+    console.log(`Failed:                    ${failed}`);
+    console.log(`Total (year × bucket) cells: ${totalRows}`);
+    console.log(`Total alumni records:        ${totalRecords.toLocaleString()}`);
+  });
 }
 
 main()

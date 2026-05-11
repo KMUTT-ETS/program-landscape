@@ -421,10 +421,12 @@ export class KkuFinanceRealConnector extends ApiConnector {
               netContribution: p.tuitionRevenue,
               freshnessDate: rec.freshnessDate,
               methodologyVersion: 'kku-finance.v1',
+              ingestionRunId: ctx.runId,
             },
             update: {
               tuitionRevenue: p.tuitionRevenue,
               freshnessDate: rec.freshnessDate,
+              ingestionRunId: ctx.runId,
               // methodologyVersion intentionally not updated on partial
               // upsert — the existing value reflects whatever the
               // cost-allocation methodology stamped, and we don't want
@@ -466,6 +468,7 @@ export class KkuFinanceRealConnector extends ApiConnector {
               fundsAvailable: p.fundsAvailable,
               freshnessDate: rec.freshnessDate,
               methodologyVersion: 'kku-finance.v1',
+              ingestionRunId: ctx.runId,
             },
             update: {
               facultyId: p.facultyId,
@@ -477,6 +480,7 @@ export class KkuFinanceRealConnector extends ApiConnector {
               fundsAvailable: p.fundsAvailable,
               freshnessDate: rec.freshnessDate,
               methodologyVersion: 'kku-finance.v1',
+              ingestionRunId: ctx.runId,
             },
           });
           loaded++;

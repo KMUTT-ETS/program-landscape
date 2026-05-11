@@ -22,6 +22,7 @@
     "db:seed": "pnpm --filter @kku/db seed",
     "ai:eval": "tsx scripts/ai-eval.mjs",
     "pdf:bulk-load": "tsx apps/ingestion/src/scripts/bulk-pdf-load.ts",
+    "provenance:backfill": "tsx apps/ingestion/src/scripts/backfill-provenance.ts",
     "registry:capture": "tsx apps/ingestion/src/scripts/capture-registry-sample.ts",
     "education:probe-scores": "tsx apps/ingestion/src/scripts/probe-entry-scores.ts",
     "registry:seed-mappings": "tsx apps/ingestion/src/scripts/seed-registry-mappings.ts",

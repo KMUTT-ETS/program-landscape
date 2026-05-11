@@ -431,6 +431,7 @@ export class KkuResearchRealConnector extends ApiConnector {
               doi: p.doi,
               source: p.source,
               kkuAuthorName: p.kkuAuthorName,
+              ingestionRunId: ctx.runId,
             },
           });
         } else {
@@ -446,6 +447,7 @@ export class KkuResearchRealConnector extends ApiConnector {
               doi: p.doi,
               source: p.source,
               kkuAuthorName: p.kkuAuthorName,
+              ingestionRunId: ctx.runId,
             },
           });
         }

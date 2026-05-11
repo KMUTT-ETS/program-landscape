@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { prisma, type Prisma } from '@kku/db';
+import { prisma, realDataWhere, type Prisma } from '@kku/db';
 import {
   buildBaselineSnapshot,
   DEFAULT_ASSUMPTIONS,
@@ -419,8 +419,8 @@ export class ScenariosService {
     const programs = await prisma.program.findMany({
       where,
       include: {
-        enrollmentMetrics: { orderBy: { academicYear: 'desc' }, take: 1 },
-        financialMetrics: { orderBy: { fiscalYear: 'desc' }, take: 1 },
+        enrollmentMetrics: { where: realDataWhere(), orderBy: { academicYear: 'desc' }, take: 1 },
+        financialMetrics: { where: realDataWhere(), orderBy: { fiscalYear: 'desc' }, take: 1 },
         programSkills: { select: { skillId: true } },
       },
     });

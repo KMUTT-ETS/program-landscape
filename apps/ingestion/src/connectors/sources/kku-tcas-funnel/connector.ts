@@ -219,6 +219,7 @@ export class KkuTcasFunnelRealConnector extends ApiConnector {
             // @db.Date.
             freshnessDate: row.UPDATED_AT ?? fetchTimestamp,
             source: 'kku-tcas-funnel',
+            ingestionRunId: ctx.runId,
           };
           await this.db.tcasAdmissionFunnel.upsert({
             where: {

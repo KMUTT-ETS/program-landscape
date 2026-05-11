@@ -410,6 +410,7 @@ export class KkuRegistryRealConnector extends ApiConnector {
               dropouts: p.dropouts,
               freshnessDate: rec.freshnessDate,
               methodologyVersion: 'kku-registry.v1',
+              ingestionRunId: ctx.runId,
             },
             update: {
               // Partial — applications/admitted/retainedYear2/graduatedLate
@@ -420,6 +421,7 @@ export class KkuRegistryRealConnector extends ApiConnector {
               dropouts: p.dropouts,
               freshnessDate: rec.freshnessDate,
               methodologyVersion: 'kku-registry.v1',
+              ingestionRunId: ctx.runId,
             },
           });
           loaded++;
@@ -441,10 +443,12 @@ export class KkuRegistryRealConnector extends ApiConnector {
               academicYear: p.academicYear,
               breakdownJson: p.breakdownJson as unknown as object,
               freshnessDate: rec.freshnessDate,
+              ingestionRunId: ctx.runId,
             },
             update: {
               breakdownJson: p.breakdownJson as unknown as object,
               freshnessDate: rec.freshnessDate,
+              ingestionRunId: ctx.runId,
             },
           });
           loaded++;

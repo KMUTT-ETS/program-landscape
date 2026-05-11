@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { realDataSql, realDataWhere } from '@kku/db';
 import {
   prisma,
   RISK_INDICATOR_CATALOG,
@@ -375,6 +376,7 @@ export class RisksService {
       FROM programs p
       JOIN tcas_admission_funnels t ON t.program_id = p.id
       WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+        AND ${realDataSql('t')}
       ${facultyClause}
       ${programClause}
     `);
@@ -400,6 +402,7 @@ export class RisksService {
         JOIN tcas_admission_funnels t ON t.program_id = p.id
         WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
           AND t.entry_year_be < (EXTRACT(YEAR FROM CURRENT_DATE)::int + 543)
+          AND ${realDataSql('t')}
         GROUP BY p.id
       )
       SELECT
@@ -408,6 +411,7 @@ export class RisksService {
       JOIN latest l ON l.program_id = p.id
       JOIN tcas_admission_funnels t ON t.program_id = p.id AND t.entry_year_be = l.year_be
       WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+        AND ${realDataSql('t')}
       ${facultyClause}
       ${programClause}
       GROUP BY p.id
@@ -694,7 +698,7 @@ export class RisksService {
 
     // TCAS funnel rolled up per year for the sparkline.
     const tcasRaw = await prisma.tcasAdmissionFunnel.findMany({
-      where: { programId },
+      where: { programId, ...realDataWhere() },
       select: { entryYearBE: true, planPerYear: true, totalApplicants: true, regReported: true },
     });
     const yearMap = new Map<number, { plan: number | null; applicants: number; reported: number }>();

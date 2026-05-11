@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ScopeLevel } from './scope';
 import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
+import { realDataWhere, realDataSql } from './data-quality';
 
 // Health scores for the Portfolio Overview Cockpit + Deep-Dive radar.
 // Five dimensions + overall composite. Scores 0-100 where 100 is healthy.
@@ -411,11 +412,12 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   // every round is done. The in-progress current cohort stays in the
   // DB as informational data; scoring uses the latest COMPLETE year.
   const currentCEYear = new Date().getUTCFullYear();
-  const yearRows = await prisma.$queryRaw<Array<{ entry_year_be: number }>>`
-    SELECT DISTINCT entry_year_be FROM tcas_admission_funnels
+  const yearRows = await prisma.$queryRaw<Array<{ entry_year_be: number }>>(Prisma.sql`
+    SELECT DISTINCT entry_year_be FROM tcas_admission_funnels t
     WHERE program_id = ${programId}
+      AND ${realDataSql('t')}
     ORDER BY entry_year_be DESC
-  `;
+  `);
   const availableYears = yearRows.map((r) => r.entry_year_be);
   const latestYearOverall = availableYears[0] ?? null;
   const latestCompleteYear =
@@ -433,7 +435,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   } | null = null;
   if (latestCompleteYear !== null) {
     const rows = await prisma.tcasAdmissionFunnel.findMany({
-      where: { programId, entryYearBE: latestCompleteYear },
+      where: { programId, entryYearBE: latestCompleteYear, ...realDataWhere() },
       select: {
         enrollSeats: true,
         totalApplicants: true,
@@ -478,6 +480,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
           institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
           programmeName: { contains: subjectKey, mode: 'insensitive' },
           quota: { gt: 0 },
+          ...realDataWhere(),
         },
         select: { quota: true, applicants: true, programmeName: true },
       });
@@ -494,7 +497,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
 
   // Enrollment series for the trend driver.
   const enrollment = await prisma.enrollmentMetric.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { academicYear: 'asc' },
     select: { academicYear: true, enrolled: true },
   });
@@ -664,6 +667,7 @@ async function scoreAttractivenessScope(
       JOIN programs p ON p.id = t.program_id
       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
         AND (t.entry_year_be - 543) < ${currentCEYear}
+        AND ${realDataSql('t')}
         ${scopePredicate}
     ),
     latest_complete AS (SELECT MAX(entry_year_be) AS y FROM eligible)
@@ -737,7 +741,7 @@ async function scoreFinancialProgram(
   enrollment: MetricRow[],
 ): Promise<HealthScore> {
   const rows = await prisma.financialMetric.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { fiscalYear: 'asc' },
   });
   if (rows.length === 0) {
@@ -865,7 +869,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   // right band.
   const [latestEnrollment, programRow] = await Promise.all([
     prisma.enrollmentMetric.findFirst({
-      where: { programId },
+      where: { programId, ...realDataWhere() },
       orderBy: { academicYear: 'desc' },
       select: { enrolled: true },
     }),
@@ -886,6 +890,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
         where: {
           facultyMemberId: { in: memberIds },
           year: { gte: currentYear - 3 },
+          ...realDataWhere(),
         },
       })
     : 0;
@@ -1066,7 +1071,7 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
   const memberIds = active.map((m) => m.id);
   const currentYear = new Date().getUTCFullYear();
   const pubCount = await prisma.researchOutput.count({
-    where: { facultyMemberId: { in: memberIds }, year: { gte: currentYear - 3 } },
+    where: { facultyMemberId: { in: memberIds }, year: { gte: currentYear - 3 }, ...realDataWhere() },
   });
   const seniorCount = active.filter((m) => m.rank === 'PROF' || m.rank === 'ASSOC_PROF').length;
   const fiveYearHorizon = new Date();
@@ -1076,17 +1081,19 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
   ).length;
 
   // Aggregate enrolment across all programs in scope (sum of latest year per program).
-  const latestEnrolByProgram = await prisma.$queryRaw<Array<{ enrolled: bigint }>>`
+  const latestEnrolByProgram = await prisma.$queryRaw<Array<{ enrolled: bigint }>>(Prisma.sql`
     WITH latest AS (
       SELECT program_id, MAX(academic_year) as max_year
-      FROM enrollment_metrics
+      FROM enrollment_metrics em0
       WHERE program_id = ANY(${programIds})
+        AND ${realDataSql('em0')}
       GROUP BY program_id
     )
     SELECT em.enrolled::bigint as enrolled
     FROM enrollment_metrics em
-    JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year;
-  `;
+    JOIN latest l ON l.program_id = em.program_id AND em.academic_year = l.max_year
+    WHERE ${realDataSql('em')};
+  `);
   const totalEnrolled = latestEnrolByProgram.reduce((s, r) => s + Number(r.enrolled), 0);
   const drivers = [
     { label: 'senior_rank_share', value: clamp((seniorCount / active.length) * 200), raw: { seniorCount, total: active.length } },
@@ -1117,7 +1124,7 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
   // TCAS min-score percentile: KKU's min score's percentile among
   // peer programs in the same subject + (year, round).
   const kkuTcas = await prisma.tcasAdmissionStat.findFirst({
-    where: { programId, minScorePass1: { not: null } },
+    where: { programId, minScorePass1: { not: null }, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
   });
   let percentile: number | null = null;
@@ -1130,6 +1137,7 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
         minScorePass1: { not: null },
         institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
         programmeName: { contains: subjectKey, mode: 'insensitive' },
+        ...realDataWhere(),
       },
       select: { minScorePass1: true, programmeName: true },
     });
@@ -1150,7 +1158,7 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
   // this program (postgrad programs aren't surveyed; older cohorts
   // may not yet be ingested).
   const grad = await prisma.graduateOutcome.findFirst({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: [{ surveyYear: 'desc' }, { graduationYear: 'desc' }],
   });
 
@@ -1274,7 +1282,7 @@ async function scoreRelevanceProgram(
   // Demand-match: share of *relevant* demanded skills the curriculum
   // already teaches. Only counts rows where relevant=true.
   const matchRows = await prisma.programDemandMatch.findMany({
-    where: { programId, relevant: true },
+    where: { programId, relevant: true, ...realDataWhere() },
     select: { matched: true },
   });
   let demandMatchValue: number | null = null;
@@ -1300,7 +1308,7 @@ async function scoreRelevanceProgram(
   let sectorValue: number | null = null;
   if (program && program.kmitlCareerIds.length > 0) {
     const careers = await prisma.kmitlCareer.findMany({
-      where: { kmitlCareerId: { in: program.kmitlCareerIds } },
+      where: { kmitlCareerId: { in: program.kmitlCareerIds }, ...realDataWhere() },
       select: { groupName: true },
     });
     const inStrategic = careers.some((c) => STRATEGIC_KMITL_GROUPS.has(c.groupName));
@@ -1343,7 +1351,7 @@ async function scoreRelevanceScope(
       : null;
 
   const matchRows = await prisma.programDemandMatch.findMany({
-    where: { programId: { in: programIds }, relevant: true },
+    where: { programId: { in: programIds }, relevant: true, ...realDataWhere() },
     select: { matched: true, programId: true },
   });
   const byProgram = new Map<string, { m: number; t: number }>();
@@ -1425,6 +1433,7 @@ async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>>
         dataSource: quadrant.dataSource,
         percentage: { gte: KMITL_DEMAND_THRESHOLD_PCT },
         skillId: { not: null },
+        ...realDataWhere(),
       },
       select: { skillId: true },
       distinct: ['skillId'],
@@ -1458,7 +1467,7 @@ async function computeRequiredShareAt10Y(
   });
   if (!projection || projection.population <= 0) return null;
   const enrollment = await prisma.enrollmentMetric.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { academicYear: 'desc' },
     take: 2,
     select: { enrolled: true },

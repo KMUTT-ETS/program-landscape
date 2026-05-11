@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { prisma } from './index';
+import { realDataWhere } from './data-quality';
 
 export interface ProgramRecruitmentRoundRow {
   round: string;
@@ -78,7 +79,7 @@ export async function programRecruitment(
   programId: string,
 ): Promise<ProgramRecruitmentResult> {
   const allRows = await prisma.tcasAdmissionFunnel.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'desc' }, { round: 'asc' }],
   });
 

@@ -279,6 +279,7 @@ export class TcasRealConnector extends ApiConnector {
             maxScorePass2: p.maxScorePass2 as number | null,
             minScorePass2: p.minScorePass2 as number | null,
             sourceUrl: String(p.sourceUrl),
+            ingestionRunId: ctx.runId,
           },
           update: {
             programId,
@@ -291,6 +292,7 @@ export class TcasRealConnector extends ApiConnector {
             maxScorePass2: p.maxScorePass2 as number | null,
             minScorePass2: p.minScorePass2 as number | null,
             sourceUrl: String(p.sourceUrl),
+            ingestionRunId: ctx.runId,
           },
         });
         loaded++;

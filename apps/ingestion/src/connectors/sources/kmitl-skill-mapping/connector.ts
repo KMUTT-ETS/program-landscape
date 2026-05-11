@@ -360,7 +360,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
       try {
         if (rec.target === 'kmitl_career') {
           const p = rec.payload as unknown as NormalizedCareer;
-          const career = await this.upsertCareer(p, snapshotAt, freshnessDate);
+          const career = await this.upsertCareer(p, snapshotAt, freshnessDate, ctx.runId);
           careerCuidByKmitlId.set(p.detail.id, career.id);
           careersUpserted++;
           for (const d of p.demandDrafts) {
@@ -397,7 +397,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
       const chunk = allDemandDrafts.slice(i, i + BATCH_SIZE);
       const results = await Promise.allSettled(
         chunk.map(({ careerCuid, draft, metadata }) =>
-          this.upsertDemand(careerCuid, draft, snapshotAt, freshnessDate, metadata),
+          this.upsertDemand(careerCuid, draft, snapshotAt, freshnessDate, metadata, ctx.runId),
         ),
       );
       for (const r of results) {
@@ -417,7 +417,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     let growthsUpserted = 0;
     for (let i = 0; i < allGrowthDrafts.length; i += BATCH_SIZE) {
       const chunk = allGrowthDrafts.slice(i, i + BATCH_SIZE);
-      const results = await Promise.allSettled(chunk.map((g) => this.upsertGrowth(g, snapshotAt)));
+      const results = await Promise.allSettled(chunk.map((g) => this.upsertGrowth(g, snapshotAt, ctx.runId)));
       for (const r of results) {
         if (r.status === 'fulfilled') growthsUpserted++;
         else {
@@ -457,6 +457,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     p: NormalizedCareer,
     _snapshotAt: Date,
     freshnessDate: Date,
+    runId: string,
   ): Promise<{ id: string }> {
     return this.db.kmitlCareer.upsert({
       where: { kmitlCareerId: p.detail.id },
@@ -467,6 +468,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         subGroupName: p.subGroupName,
         careerName: p.detail.name,
         freshnessDate,
+        ingestionRunId: runId,
         // Preserve any analyst-set isco_code on update
       },
       create: {
@@ -477,6 +479,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         subGroupName: p.subGroupName,
         careerName: p.detail.name,
         freshnessDate,
+        ingestionRunId: runId,
       },
       select: { id: true },
     });
@@ -488,6 +491,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     snapshotAt: Date,
     freshnessDate: Date,
     metadata: Record<string, unknown>,
+    runId: string,
   ): Promise<void> {
     await this.db.kmitlCareerSkillDemand.upsert({
       where: {
@@ -505,6 +509,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         snapshotAt,
         freshnessDate,
         metadata: metadata as object,
+        ingestionRunId: runId,
       },
       create: {
         careerId: careerCuid,
@@ -518,11 +523,12 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         snapshotAt,
         freshnessDate,
         metadata: metadata as object,
+        ingestionRunId: runId,
       },
     });
   }
 
-  private async upsertGrowth(g: SkillGrowthRowDraft, snapshotAt: Date): Promise<void> {
+  private async upsertGrowth(g: SkillGrowthRowDraft, snapshotAt: Date, runId: string): Promise<void> {
     await this.db.kmitlSkillGrowth.upsert({
       where: {
         contextLevel_contextId_skillNameRaw_dataScope: {
@@ -537,6 +543,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         contextName: g.contextName,
         growthPct: g.growthPct,
         snapshotAt,
+        ingestionRunId: runId,
       },
       create: {
         skillId: g.skillId,
@@ -547,6 +554,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         dataScope: g.dataScope,
         growthPct: g.growthPct,
         snapshotAt,
+        ingestionRunId: runId,
       },
     });
   }

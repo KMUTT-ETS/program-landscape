@@ -7,6 +7,7 @@ import {
   currentlyEnrolledStudents,
   queryMetricByScope,
   HEALTH_SCORE_VERSION,
+  realDataSql,
   type HealthScoreRow,
 } from '@kku/db';
 import {
@@ -338,7 +339,9 @@ async function enrolmentTrendCountsAtScope(
     Array<{ zero_enrolment: bigint; crashing: bigint; surging: bigint; total_with_trend: bigint }>
   >`
     WITH latest AS (
-      SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics GROUP BY program_id
+      SELECT program_id, MAX(academic_year) as max_year FROM enrollment_metrics em0
+      WHERE ${realDataSql('em0')}
+      GROUP BY program_id
     ),
     trends AS (
       SELECT
@@ -356,6 +359,8 @@ async function enrolmentTrendCountsAtScope(
       LEFT JOIN enrollment_metrics old_em ON old_em.program_id = p.id AND old_em.academic_year = l.max_year - 3
       WHERE p.status = 'ACTIVE'
         AND p.sequence_no_from_sheet IS NOT NULL
+        AND ${realDataSql('now_em')}
+        AND (old_em.id IS NULL OR ${realDataSql('old_em')})
       ${facultyFilter}
       ${deptFilter}
     )
