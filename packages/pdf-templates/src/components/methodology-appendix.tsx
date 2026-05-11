@@ -4,10 +4,16 @@ import { z } from 'zod';
 // template can opt into. Mirrors `LandscapeMethodologyBundle` from
 // @kku/db; redeclared here so pdf-templates doesn't take a @kku/db
 // dependency.
+//
+// `previewMethodologies` lists methodology slugs whose outputs flow into
+// the brief but have not yet been signed off by their governance body
+// (gap #5). The appendix renders a PREVIEW badge for any manifest entry
+// in this list. Optional + defaults to `[]` for back-compat.
 export const MethodologyBundleSchema = z.object({
   tag: z.string(),                                // "landscape-2026-05.v1"
   fingerprint: z.string(),                        // 8-char SHA-256 prefix
   manifest: z.record(z.string(), z.string()),     // { 'health-score': 'v3.4', ... }
+  previewMethodologies: z.array(z.string()).optional().default([]),
 });
 export type MethodologyBundle = z.infer<typeof MethodologyBundleSchema>;
 
@@ -36,9 +42,11 @@ export interface MethodologyAppendixProps {
 }
 
 export function MethodologyAppendix({ bundle }: MethodologyAppendixProps) {
+  const previewSet = new Set(bundle.previewMethodologies ?? []);
   const entries = Object.entries(bundle.manifest)
-    .map(([key, version]) => ({ key, version }))
+    .map(([key, version]) => ({ key, version, isPreview: previewSet.has(key) }))
     .sort((a, b) => a.key.localeCompare(b.key));
+  const previewCount = entries.filter((e) => e.isPreview).length;
   return (
     <section className="appendix methodology-appendix" style={{ pageBreakBefore: 'always' }}>
       <h2>เวอร์ชันระเบียบวิธี · Methodology bundle</h2>
@@ -50,6 +58,31 @@ export function MethodologyAppendix({ bundle }: MethodologyAppendixProps) {
           เวอร์ชันใดในการคำนวณตัวเลขทั้งหมดในรายงาน
         </small>
       </p>
+      {previewCount > 0 && (
+        <div
+          style={{
+            marginTop: '4pt',
+            marginBottom: '12pt',
+            padding: '8pt 10pt',
+            border: '0.5pt solid #c87f00',
+            background: '#fff7e8',
+            fontSize: '9pt',
+            color: '#5a3a00',
+          }}
+        >
+          <strong>⚠ ระเบียบวิธีที่อยู่ระหว่างทดลองใช้ (PREVIEW)</strong>: {previewCount} รายการ
+          <br />
+          เอกสารนี้อ้างอิงระเบียบวิธีที่ยังไม่ได้รับการอนุมัติอย่างเป็นทางการ — ตัวเลขที่คำนวณจาก
+          ระเบียบวิธีเหล่านี้ควรถือเป็น <em>preview-quality</em> จนกว่าหน่วยงานที่รับผิดชอบจะให้
+          ความเห็นชอบ. รายการที่มีเครื่องหมาย <strong>PREVIEW</strong> ในตารางด้านล่างคือรายการที่อยู่
+          ระหว่างทดลอง.
+          <br />
+          <em style={{ fontSize: '8.5pt' }}>
+            This brief depends on {previewCount} methodologies pending governance sign-off.
+            Numbers derived from them should be treated as preview-quality.
+          </em>
+        </div>
+      )}
       <table
         style={{
           width: '100%',
@@ -69,7 +102,27 @@ export function MethodologyAppendix({ bundle }: MethodologyAppendixProps) {
         <tbody>
           {entries.map((e) => (
             <tr key={e.key} style={{ borderBottom: '0.25pt dotted #ccc' }}>
-              <td style={{ padding: '3pt 8pt 3pt 0', fontVariantNumeric: 'tabular-nums' }}>{e.key}</td>
+              <td style={{ padding: '3pt 8pt 3pt 0', fontVariantNumeric: 'tabular-nums' }}>
+                {e.key}
+                {e.isPreview && (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      marginLeft: '6pt',
+                      padding: '0pt 4pt',
+                      border: '0.5pt solid #c87f00',
+                      background: '#fff7e8',
+                      color: '#5a3a00',
+                      fontSize: '7.5pt',
+                      fontWeight: 'bold',
+                      letterSpacing: '0.5pt',
+                      verticalAlign: 'middle',
+                    }}
+                  >
+                    PREVIEW
+                  </span>
+                )}
+              </td>
               <td style={{ padding: '3pt 0', fontFamily: 'IBM Plex Mono, monospace', fontSize: '8.5pt' }}>
                 {e.version}
               </td>
@@ -79,6 +132,7 @@ export function MethodologyAppendix({ bundle }: MethodologyAppendixProps) {
       </table>
       <p className="muted" style={{ marginTop: '12pt', fontSize: '8.5pt' }}>
         ระเบียบวิธีทั้งหมด: {entries.length} รายการ
+        {previewCount > 0 && <> · ระหว่างทดลองใช้: {previewCount}</>}
         &nbsp;·&nbsp;
         Documented at <code>docs/methodologies/</code>
         &nbsp;·&nbsp;

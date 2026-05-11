@@ -31,7 +31,7 @@
 import { createHash } from 'node:crypto';
 
 // ── Imports from @kku/db ────────────────────────────────────────────────
-import { HEALTH_SCORE_VERSION } from './health-score';
+import { HEALTH_SCORE_VERSION, COST_ALLOCATION_VERSION } from './health-score';
 import { RISK_SCORING_VERSION } from './risk-scoring';
 import { BENCHMARKING_VERSION } from './benchmarking';
 import { BENCHMARKING_OVERVIEW_VERSION } from './benchmarking-overview';
@@ -110,6 +110,7 @@ export const METHODOLOGY_MANIFEST = {
   'benchmarking-insights':     BENCHMARKING_INSIGHTS_VERSION,
   'benchmarking-overview':     BENCHMARKING_OVERVIEW_VERSION,
   'career-kmitl-mapping':      CAREER_KMITL_MAPPING_VERSION,
+  'cost-allocation':           COST_ALLOCATION_VERSION,
   'dashboard-overview':        DASHBOARD_OVERVIEW_VERSION,
   'data-quality':              DATA_QUALITY_VERSION,
   'decision-workspace':        DECISION_WORKSPACE_VERSION,
@@ -150,6 +151,31 @@ function computeFingerprint(manifest: Record<string, string>): string {
 
 export const BUNDLE_FINGERPRINT = computeFingerprint(METHODOLOGY_MANIFEST);
 
+// ── Preview-quality methodologies (gap #5) ──────────────────────────────
+//
+// Methodologies whose outputs flow into Council-facing surfaces but
+// have NOT yet been signed off by their respective governance body.
+// Council Pack PDFs render a PREVIEW badge next to these entries in the
+// methodology appendix so readers know to treat the derived numbers as
+// indicative rather than authoritative.
+//
+// Lifecycle:
+//   - Enter PREVIEW_METHODOLOGIES when the methodology is implemented
+//     but pending sign-off (e.g., Finance Committee for cost-allocation).
+//   - Remove when sign-off lands AND the version bumps to a non-draft
+//     identity (v0 → v1.0).
+//
+// Currently:
+//   - cost-allocation.v0 — pending Finance Committee approval. The
+//     methodology drives FinancialMetric.{directCost,
+//     allocatedFacultyCost, allocatedFacilityCost, allocatedOverhead},
+//     which in turn power Health Score's net_contribution_per_student
+//     + revenue_coverage_program_direct drivers and Risk Score's I2
+//     stranded-structural-cost dimension.
+export const PREVIEW_METHODOLOGIES: readonly MethodologyKey[] = [
+  'cost-allocation',
+] as const;
+
 /**
  * The release bundle. Use this when stamping any Council-facing surface
  * (PDF, brief, export, snapshot) with the methodology version snapshot.
@@ -161,9 +187,32 @@ export const LANDSCAPE_METHODOLOGY_BUNDLE = {
   tag: BUNDLE_CALENDAR_TAG,
   fingerprint: BUNDLE_FINGERPRINT,
   manifest: METHODOLOGY_MANIFEST,
+  // Gap #5 — methodology slugs that are in preview / pending governance
+  // sign-off. PDF appendix renders a PREVIEW badge for each.
+  previewMethodologies: PREVIEW_METHODOLOGIES,
 } as const;
 
 export type LandscapeMethodologyBundle = typeof LANDSCAPE_METHODOLOGY_BUNDLE;
+
+
+/**
+ * Returns true if the given methodology slug is currently in preview
+ * (pending governance sign-off).
+ */
+export function isPreviewMethodology(slug: string): boolean {
+  return (PREVIEW_METHODOLOGIES as readonly string[]).includes(slug);
+}
+
+/**
+ * The subset of bundle entries whose methodology is in preview. Useful
+ * for surfaces that want to show "this brief depends on N preview-quality
+ * methodologies".
+ */
+export function listPreviewBundleEntries(
+  bundle: LandscapeMethodologyBundle = LANDSCAPE_METHODOLOGY_BUNDLE,
+): Array<{ key: string; version: string }> {
+  return listBundleEntries(bundle).filter((e) => isPreviewMethodology(e.key));
+}
 
 /**
  * Render the bundle as a single stamp suitable for footers + cover lines.

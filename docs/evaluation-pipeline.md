@@ -4,7 +4,7 @@
 >
 > **Audience.** Engineers + analysts working across modules. Read this before making cross-cutting changes; otherwise consult the per-methodology doc.
 >
-> **Last updated.** 2026-05-11 (gaps #1 + #2 + #4 closed; gap #3 infrastructure landed. Bundle stamp `landscape-2026-05.v1+<fingerprint>` now ships on every Council Pack cover + footer + as an appendix listing all 30 sub-methodology versions).
+> **Last updated.** 2026-05-11 (gaps #1 + #2 + #4 closed; gap #3 infrastructure + gap #5 PDF path landed. Bundle stamp `landscape-2026-05.v1+<fingerprint>` ships on 6 Council-affecting PDF templates. Methodology appendix renders PREVIEW badges for slugs pending governance sign-off — `cost-allocation.v0` is the inaugural entry).
 >
 > **When to update.** Bump the "Last updated" line and the affected section whenever any of: methodology version constant, scoring formula, AI prompt version, data-source flip (mocked→real), or status-transition rule changes. Drift between this doc and the code is high-cost — Council readers cite this file.
 

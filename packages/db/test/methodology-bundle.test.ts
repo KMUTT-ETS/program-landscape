@@ -13,11 +13,14 @@ import {
   LANDSCAPE_METHODOLOGY_BUNDLE,
   METHODOLOGY_MANIFEST,
   BUNDLE_FINGERPRINT,
+  PREVIEW_METHODOLOGIES,
   formatBundleStamp,
   listBundleEntries,
+  listPreviewBundleEntries,
+  isPreviewMethodology,
 } from '../src/methodology-bundle';
 
-import { HEALTH_SCORE_VERSION } from '../src/health-score';
+import { HEALTH_SCORE_VERSION, COST_ALLOCATION_VERSION } from '../src/health-score';
 import { RISK_SCORING_VERSION } from '../src/risk-scoring';
 import { BENCHMARKING_VERSION } from '../src/benchmarking';
 import { BENCHMARKING_OVERVIEW_VERSION } from '../src/benchmarking-overview';
@@ -113,5 +116,33 @@ describe('LANDSCAPE_METHODOLOGY_BUNDLE', () => {
       expect(typeof value).toBe('string');
       expect(value.length, `${key} version should be non-empty`).toBeGreaterThan(0);
     }
+  });
+
+  // ── Preview methodologies (gap #5) ───────────────────────────────────
+  it('cost-allocation is registered as preview', () => {
+    expect(METHODOLOGY_MANIFEST['cost-allocation']).toBe(COST_ALLOCATION_VERSION);
+    expect(isPreviewMethodology('cost-allocation')).toBe(true);
+    expect(PREVIEW_METHODOLOGIES).toContain('cost-allocation');
+  });
+
+  it('preview methodologies appear in the bundle', () => {
+    expect(LANDSCAPE_METHODOLOGY_BUNDLE.previewMethodologies).toContain('cost-allocation');
+    const previewEntries = listPreviewBundleEntries();
+    expect(previewEntries.find((e) => e.key === 'cost-allocation')).toBeTruthy();
+  });
+
+  it('every preview methodology has a manifest entry — no orphan preview tags', () => {
+    for (const slug of PREVIEW_METHODOLOGIES) {
+      expect(
+        METHODOLOGY_MANIFEST[slug],
+        `${slug} is in PREVIEW_METHODOLOGIES but missing from manifest`,
+      ).toBeTruthy();
+    }
+  });
+
+  it('non-preview methodologies are not flagged', () => {
+    expect(isPreviewMethodology('health-score')).toBe(false);
+    expect(isPreviewMethodology('lifecycle')).toBe(false);
+    expect(isPreviewMethodology('risk-scoring')).toBe(false);
   });
 });

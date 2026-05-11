@@ -36,6 +36,22 @@ import { realDataWhere, realDataSql } from './data-quality';
 // rows retained for audit; new rows stamp v3.0.
 export const HEALTH_SCORE_VERSION = 'health-score.v3.4';
 
+// ── Cost-allocation methodology (gap #5) ────────────────────────────
+// The Financial dimension's `net_contribution_per_student` +
+// `revenue_coverage_program_direct` drivers depend on
+// `FinancialMetric.{directCost, allocatedFacultyCost, allocatedFacilityCost,
+// allocatedOverhead}`. The methodology that computes those values
+// (activity-based allocation across faculty/facility/overhead pools) is
+// documented at docs/methodologies/cost-allocation.md and is **v0
+// draft — pending Finance Committee approval**.
+//
+// Surface this prominently. The methodology-bundle (see
+// packages/db/src/methodology-bundle.ts) marks `cost-allocation` as a
+// preview methodology so Council-facing PDFs render a PREVIEW badge in
+// the methodology appendix. When v1 lands, bump the constant + remove
+// from PREVIEW_METHODOLOGIES.
+export const COST_ALLOCATION_VERSION = 'cost-allocation.v0';
+
 // ── KKU intake-floor policy ─────────────────────────────────────────
 // Council policy (2026): every program must hit a minimum new-intake
 // floor each academic year. Failing the floor is a structural risk

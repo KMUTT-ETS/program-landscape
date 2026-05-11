@@ -1,9 +1,18 @@
 # Cost Allocation Methodology (v0 — proposal, NOT implemented)
 
 > **Status:** Draft / proposal. **Not yet implemented.** No metric in the running
-> system carries `cost-allocation.v0`. Flipped to `v1` only when KKU-Finance +
-> KKU-HR real connectors land (prompt 14) and the Finance stakeholder has
-> counter-signed the approach.
+> system carries `cost-allocation.v0` as its row stamp. Flipped to `v1` only when
+> KKU-Finance + KKU-HR real connectors land (prompt 14) and the Finance
+> stakeholder has counter-signed the approach.
+>
+> **Preview-quality marker (gap #5, 2026-05-11):** `cost-allocation` is now
+> registered in `packages/db/src/methodology-bundle.ts` as `cost-allocation.v0`
+> and listed in `PREVIEW_METHODOLOGIES`. The methodology-bundle PDF appendix
+> renders a visible PREVIEW badge next to the entry so Council readers see at
+> a glance that any cost-derived number in the brief is preview-quality. When
+> Finance Committee signs off, bump the version to `cost-allocation.v1.0` and
+> remove the slug from `PREVIEW_METHODOLOGIES`; the badge disappears
+> automatically.
 >
 > This doc exists so the team has something concrete to critique before a
 > single row of allocated cost is shown to Council. The financial-sustainability
