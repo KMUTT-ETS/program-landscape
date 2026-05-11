@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma } from '@kku/db';
+import { prisma, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
 import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -295,6 +295,10 @@ export class CockpitController {
             keyTakeaways: summariseKeyTakeaways(kpis, heatmap.rows),
             confidence: brief?.confidence,
           },
+          // Gap #4 closure: every Council Pack now carries the full
+          // methodology bundle (tag + fingerprint + manifest) so any
+          // number cited can be traced back to specific sub-versions.
+          methodologyBundle: LANDSCAPE_METHODOLOGY_BUNDLE,
           sections,
           provenance: [
             {

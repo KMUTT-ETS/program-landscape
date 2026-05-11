@@ -3,6 +3,7 @@ import type { TemplateDefinition, TemplateRenderContext } from '@kku/shared';
 import { Cover } from '../../components/cover';
 import { Section } from '../../components/section';
 import { ProvenanceAppendix } from '../../components/provenance-appendix';
+import { MethodologyAppendix } from '../../components/methodology-appendix';
 import { buildFooterHtml } from '../../components/footer-template';
 import { baseCss } from '../../styles/base-css';
 import { renderTemplateToHtml } from '../../render';
@@ -12,6 +13,15 @@ const VERSION = '1.0.0';
 
 function CouncilPackDoc(props: { data: CouncilPackData; ctx: TemplateRenderContext }) {
   const { data } = props;
+  // Compose the cover-line version: caller-supplied label takes priority,
+  // otherwise fall back to the methodology-bundle stamp so the cover never
+  // ships without a citable identity. Gap #4 closure: every Council brief
+  // carries a single readable string that pins all methodology versions
+  // used in its numbers.
+  const bundleStamp = data.methodologyBundle
+    ? `${data.methodologyBundle.tag}+${data.methodologyBundle.fingerprint}`
+    : undefined;
+  const coverVersion = data.version ?? bundleStamp;
   return (
     <>
       <Cover
@@ -20,7 +30,7 @@ function CouncilPackDoc(props: { data: CouncilPackData; ctx: TemplateRenderConte
         scope={data.scopeLabel}
         dateLabel={data.dateLabel}
         author={data.author}
-        version={data.version}
+        version={coverVersion}
         confidentialityLabel={data.confidentialityLabel}
       />
 
@@ -54,6 +64,9 @@ function CouncilPackDoc(props: { data: CouncilPackData; ctx: TemplateRenderConte
       {data.provenance.length > 0 && (
         <ProvenanceAppendix entries={data.provenance} />
       )}
+      {data.methodologyBundle && (
+        <MethodologyAppendix bundle={data.methodologyBundle} />
+      )}
     </>
   );
 }
@@ -69,11 +82,19 @@ export const councilPackTemplate: TemplateDefinition<CouncilPackData> = {
   },
   render(data, ctx) {
     const bodyHtml = renderTemplateToHtml(<CouncilPackDoc data={data} ctx={ctx} />);
+    const bundleStamp = data.methodologyBundle
+      ? `${data.methodologyBundle.tag}+${data.methodologyBundle.fingerprint}`
+      : null;
+    // Footer carries the bundle stamp on every page so any extracted page
+    // (screenshot, photo, scan) retains the methodology-version identity.
+    const footerLeft = bundleStamp
+      ? `KKU Curriculum Intelligence · ${data.titleTh} · ${bundleStamp}`
+      : `KKU Curriculum Intelligence · Program Landscape · ${data.titleTh}`;
     return {
       html: bodyHtml,
       css: baseCss,
       footerHtml: buildFooterHtml({
-        leftLabel: `KKU Curriculum Intelligence · Program Landscape · ${data.titleTh}`,
+        leftLabel: footerLeft,
         rightLabel: data.confidentialityLabel,
       }),
     };

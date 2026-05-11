@@ -35,6 +35,18 @@ export const CouncilPackProvenanceSchema = z.object({
 });
 export type CouncilPackProvenance = z.infer<typeof CouncilPackProvenanceSchema>;
 
+// Methodology bundle — gap #4 closure. When the caller supplies this,
+// it renders on the cover, in the footer, and as an appendix listing
+// every sub-methodology version that contributed to the brief. The
+// shape mirrors `LandscapeMethodologyBundle` from @kku/db; we duplicate
+// the type here so pdf-templates stays free of the @kku/db dependency.
+export const CouncilPackMethodologyBundleSchema = z.object({
+  tag: z.string(),                                // "landscape-2026-05.v1"
+  fingerprint: z.string(),                        // 8-char SHA-256 prefix
+  manifest: z.record(z.string(), z.string()),     // { 'health-score': 'v3.4', ... }
+});
+export type CouncilPackMethodologyBundle = z.infer<typeof CouncilPackMethodologyBundleSchema>;
+
 export const CouncilPackDataSchema = z.object({
   titleTh: z.string(),
   titleEn: z.string().optional(),
@@ -42,6 +54,11 @@ export const CouncilPackDataSchema = z.object({
   dateLabel: z.string(),                // "22 เมษายน 2569"
   author: z.string().optional(),
   version: z.string().optional(),
+  /** Release-bundle stamp identifying all methodology sub-versions used
+   *  in this brief. Optional today (legacy PDFs without it still render);
+   *  callers should populate from `LANDSCAPE_METHODOLOGY_BUNDLE` in
+   *  `@kku/db`. */
+  methodologyBundle: CouncilPackMethodologyBundleSchema.optional(),
   executiveSummary: z.object({
     paragraphs: z.array(z.string()).min(1),
     keyTakeaways: z.array(z.string()).default([]),

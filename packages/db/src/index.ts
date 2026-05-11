@@ -36,3 +36,4 @@ export * from './risk-scoring';
 export * from './retention';
 export * from './sign-in-lockout';
 export * from './data-quality';
+export * from './methodology-bundle';
