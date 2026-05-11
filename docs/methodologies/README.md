@@ -24,6 +24,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `analyst-system` | AI Analyst | `analyst-system.v1` | `packages/shared/src/analyst/tools.ts` |
 | `ai-extraction-accuracy` | AI extraction governance | `ai-extraction-accuracy.v1` | [ai-extraction-accuracy.md](./ai-extraction-accuracy.md) |
 | `methodology-bundle` | Cross-cutting (release stamp) | `landscape-2026-05.v1` (tag) + 8-char fingerprint | `packages/db/src/methodology-bundle.ts` |
+| `verdict-stability` | Verdict back-test loop | `verdict-stability.v1` | [verdict-stability.md](./verdict-stability.md) |
 
 ## Council-readiness contract
 
