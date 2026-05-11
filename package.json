@@ -24,6 +24,7 @@
     "pdf:bulk-load": "tsx apps/ingestion/src/scripts/bulk-pdf-load.ts",
     "provenance:backfill": "tsx apps/ingestion/src/scripts/backfill-provenance.ts",
     "ai:gold-pick": "tsx apps/ingestion/src/scripts/ai-gold-pick.ts",
+    "ai:gold-label": "tsx apps/ingestion/src/scripts/ai-gold-label.ts",
     "ai:eval-accuracy": "tsx apps/ingestion/src/scripts/ai-eval-accuracy.ts",
     "registry:capture": "tsx apps/ingestion/src/scripts/capture-registry-sample.ts",
     "education:probe-scores": "tsx apps/ingestion/src/scripts/probe-entry-scores.ts",

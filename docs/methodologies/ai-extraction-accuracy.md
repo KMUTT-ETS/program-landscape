@@ -36,25 +36,32 @@ Walks the `AiExtraction` table, picks `N` rows (default 50) stratified across `e
 
 Output: flips `is_gold_sample = true` on the selected rows.
 
-### Phase 2 — Hand-label
+### Phase 2 — Hand-label (CLI workflow)
 
-For each row with `is_gold_sample=true AND gold_label IS NULL`, an analyst:
+For each row with `is_gold_sample=true AND gold_label IS NULL`, the analyst:
 
-1. Reads the source artefact (the PDF / course description / job posting / etc. referenced by `source_entity_type` + `source_entity_id`).
-2. Writes the *correct* payload shape into `gold_label` — same structure as `payload_json`, but the right values.
-3. Sets `gold_labelled_by_user_id` (their own user id) + `gold_labelled_at` (now).
+```bash
+# 1. List pending candidates (top 20 by default, ordered by kind + confidence)
+pnpm ai:gold-label --list
+# or filter by kind:
+pnpm ai:gold-label --list --kind PROGRAM_DIGEST
 
-Today this is a SQL operation; a `/admin/ai-accuracy` UI is deferred (the loop is functional via CLI for v0).
+# 2. Pick one and export the AI's payload as a starting template:
+pnpm ai:gold-label cmowg7ih30003li6vh3h9fabc
+# → writes gold-labels/cmowg7ih30003li6vh3h9fabc.json with the AI's
+#   payload pre-filled as the seed. The file has a `_meta` header for
+#   context + a `goldLabel` field for editing.
 
-Discovery query for the worklist:
+# 3. Edit the file in your editor (the only field that matters is `goldLabel`)
+$EDITOR gold-labels/cmowg7ih30003li6vh3h9fabc.json
 
-```sql
-SELECT id, extraction_kind, method_version, source_entity_type, source_entity_id,
-       confidence, payload_json
-FROM ai_extractions
-WHERE is_gold_sample = true AND gold_label IS NULL
-ORDER BY extraction_kind, confidence;
+# 4. Commit the corrected label to the DB
+pnpm ai:gold-label cmowg7ih30003li6vh3h9fabc --commit --by analyst@kku.ac.th
 ```
+
+The `gold-labels/` directory is gitignored — files there are scratch space, not source-of-truth. Setting `GOLD_LABELLER=<userId-or-email>` in your shell saves typing `--by` on every commit.
+
+**Labelling discipline:**
 
 **Labelling discipline:**
 
@@ -63,6 +70,8 @@ ORDER BY extraction_kind, confidence;
 - Re-labelling a row replaces the previous label. Each row carries one gold label at a time.
 
 **Sample-size guidance:** §13's recommendation is a minimum of 50 across the three most consequential prompts (`PROGRAM_DIGEST`, `COURSE_SKILLS`, `PROGRAM_PEER_REVIEW`). Below 50, the F1 numbers are directional, not statistically firm; the eval runner prints a banner reminding you of this.
+
+A `/admin/ai-accuracy` in-browser labelling UI is deferred. The CLI flow above is functional for v0.
 
 ### Phase 3 — Measure
 
