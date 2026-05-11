@@ -1,6 +1,7 @@
 import type { TemplateDefinition } from '@kku/shared';
 
 import { Section } from '../../components/section';
+import { MethodologyAppendix, formatMethodologyStamp } from '../../components/methodology-appendix';
 import { buildFooterHtml } from '../../components/footer-template';
 import { baseCss } from '../../styles/base-css';
 import { renderTemplateToHtml } from '../../render';
@@ -16,12 +17,19 @@ const LEVEL_LABEL: Record<ProgramBriefData['level'], string> = {
 };
 
 function ProgramBriefDoc({ data }: { data: ProgramBriefData }) {
+  const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : null;
   return (
     <>
       <Section title={data.programNameTh} subtitle={`${data.programNameEn} · ${data.programCode} · ${LEVEL_LABEL[data.level]}`}>
         <p className="muted">
           {data.facultyNameTh}
           {data.departmentNameTh ? ` · ${data.departmentNameTh}` : ''} · ข้อมูล ณ {data.dateLabel}
+          {stamp && (
+            <>
+              {' · '}
+              <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '0.9em' }}>{stamp}</span>
+            </>
+          )}
         </p>
         <p>{data.summary}</p>
       </Section>
@@ -73,6 +81,7 @@ function ProgramBriefDoc({ data }: { data: ProgramBriefData }) {
           </ul>
         </Section>
       )}
+      {data.methodologyBundle && <MethodologyAppendix bundle={data.methodologyBundle} />}
     </>
   );
 }
@@ -82,11 +91,15 @@ export const programBriefTemplate: TemplateDefinition<ProgramBriefData> = {
   version: VERSION,
   schema: ProgramBriefDataSchema,
   render(data) {
+    const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : null;
+    const footerLeft = stamp
+      ? `KKU Curriculum Intelligence · ${data.programNameTh} · ${stamp}`
+      : `KKU Curriculum Intelligence · Program Landscape · ${data.programNameTh}`;
     return {
       html: renderTemplateToHtml(<ProgramBriefDoc data={data} />),
       css: baseCss,
       footerHtml: buildFooterHtml({
-        leftLabel: `KKU Curriculum Intelligence · Program Landscape · ${data.programNameTh}`,
+        leftLabel: footerLeft,
       }),
     };
   },

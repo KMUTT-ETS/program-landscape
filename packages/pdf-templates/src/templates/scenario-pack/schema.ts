@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MethodologyBundleSchema } from '../../components/methodology-appendix';
 
 // Scenario Pack — output of the Scenario Planner (prompt 09). Each
 // scenario captures an assumption set, simulated outcomes, and the
@@ -8,6 +9,8 @@ export const ScenarioPackDataSchema = z.object({
   dateLabel: z.string(),
   scopeLabel: z.string().optional(),
   author: z.string().optional(),
+  /** Methodology bundle stamp (gap #4) — optional for legacy callers. */
+  methodologyBundle: MethodologyBundleSchema.optional(),
   scenarios: z.array(
     z.object({
       id: z.string(),

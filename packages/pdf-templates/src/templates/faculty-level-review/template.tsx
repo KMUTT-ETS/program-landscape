@@ -1,6 +1,7 @@
 import type { TemplateDefinition } from '@kku/shared';
 import { Cover } from '../../components/cover';
 import { Section } from '../../components/section';
+import { MethodologyAppendix, formatMethodologyStamp } from '../../components/methodology-appendix';
 import { buildFooterHtml } from '../../components/footer-template';
 import { baseCss } from '../../styles/base-css';
 import { renderTemplateToHtml } from '../../render';
@@ -9,6 +10,7 @@ import { FacultyLevelReviewDataSchema, type FacultyLevelReviewData } from './sch
 const VERSION = '0.1.0';
 
 function FacultyLevelReviewDoc({ data }: { data: FacultyLevelReviewData }) {
+  const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : undefined;
   return (
     <>
       <Cover
@@ -16,6 +18,7 @@ function FacultyLevelReviewDoc({ data }: { data: FacultyLevelReviewData }) {
         scope={data.facultyNameEn}
         dateLabel={data.dateLabel}
         author={data.author}
+        version={stamp}
       />
 
       <Section title="สรุป">
@@ -95,6 +98,7 @@ function FacultyLevelReviewDoc({ data }: { data: FacultyLevelReviewData }) {
           <ul>{data.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul>
         </Section>
       ) : null}
+      {data.methodologyBundle && <MethodologyAppendix bundle={data.methodologyBundle} />}
     </>
   );
 }
@@ -104,10 +108,14 @@ export const facultyLevelReviewTemplate: TemplateDefinition<FacultyLevelReviewDa
   version: VERSION,
   schema: FacultyLevelReviewDataSchema,
   render(data) {
+    const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : null;
+    const footerLeft = stamp
+      ? `KKU · ${data.facultyNameEn} · Faculty Review · ${data.dateLabel} · ${stamp}`
+      : `KKU · ${data.facultyNameEn} · Faculty Review · ${data.dateLabel}`;
     return {
       html: renderTemplateToHtml(<FacultyLevelReviewDoc data={data} />),
       css: baseCss,
-      footerHtml: buildFooterHtml({ leftLabel: `KKU · ${data.facultyNameEn} · Faculty Review · ${data.dateLabel}` }),
+      footerHtml: buildFooterHtml({ leftLabel: footerLeft }),
     };
   },
 };

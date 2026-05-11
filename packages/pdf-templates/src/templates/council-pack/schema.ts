@@ -35,17 +35,15 @@ export const CouncilPackProvenanceSchema = z.object({
 });
 export type CouncilPackProvenance = z.infer<typeof CouncilPackProvenanceSchema>;
 
-// Methodology bundle — gap #4 closure. When the caller supplies this,
-// it renders on the cover, in the footer, and as an appendix listing
-// every sub-methodology version that contributed to the brief. The
-// shape mirrors `LandscapeMethodologyBundle` from @kku/db; we duplicate
-// the type here so pdf-templates stays free of the @kku/db dependency.
-export const CouncilPackMethodologyBundleSchema = z.object({
-  tag: z.string(),                                // "landscape-2026-05.v1"
-  fingerprint: z.string(),                        // 8-char SHA-256 prefix
-  manifest: z.record(z.string(), z.string()),     // { 'health-score': 'v3.4', ... }
-});
-export type CouncilPackMethodologyBundle = z.infer<typeof CouncilPackMethodologyBundleSchema>;
+// Methodology bundle — gap #4 closure. Shared schema lives at
+// `components/methodology-appendix.tsx` (canonical) — re-exported here
+// for back-compat with existing imports.
+import {
+  MethodologyBundleSchema as CouncilPackMethodologyBundleSchema,
+  type MethodologyBundle as CouncilPackMethodologyBundle,
+} from '../../components/methodology-appendix';
+export { CouncilPackMethodologyBundleSchema };
+export type { CouncilPackMethodologyBundle };
 
 export const CouncilPackDataSchema = z.object({
   titleTh: z.string(),

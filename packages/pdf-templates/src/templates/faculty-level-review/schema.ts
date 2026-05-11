@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MethodologyBundleSchema } from '../../components/methodology-appendix';
 
 // Faculty-Level Review — scoped Council Pack for a single faculty.
 // Used for deans + faculty councils. Narrower than the university-wide
@@ -9,6 +10,8 @@ export const FacultyLevelReviewDataSchema = z.object({
   facultyNameTh: z.string(),
   dateLabel: z.string(),
   author: z.string().optional(),
+  /** Methodology bundle stamp (gap #4) — optional for legacy callers. */
+  methodologyBundle: MethodologyBundleSchema.optional(),
   summaryTh: z.string(),
   programSnapshot: z.array(
     z.object({

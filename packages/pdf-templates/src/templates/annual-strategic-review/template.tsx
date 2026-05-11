@@ -1,6 +1,7 @@
 import type { TemplateDefinition } from '@kku/shared';
 import { Cover } from '../../components/cover';
 import { Section } from '../../components/section';
+import { MethodologyAppendix, formatMethodologyStamp } from '../../components/methodology-appendix';
 import { buildFooterHtml } from '../../components/footer-template';
 import { baseCss } from '../../styles/base-css';
 import { renderTemplateToHtml } from '../../render';
@@ -9,9 +10,10 @@ import { AnnualStrategicReviewDataSchema, type AnnualStrategicReviewData } from 
 const VERSION = '0.1.0';
 
 function AnnualStrategicReviewDoc({ data }: { data: AnnualStrategicReviewData }) {
+  const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : undefined;
   return (
     <>
-      <Cover titleTh={`การทบทวนเชิงกลยุทธ์ประจำปี · ${data.yearLabel}`} dateLabel={data.dateLabel} author={data.author} />
+      <Cover titleTh={`การทบทวนเชิงกลยุทธ์ประจำปี · ${data.yearLabel}`} dateLabel={data.dateLabel} author={data.author} version={stamp} />
 
       <Section title="บทสรุปผู้บริหาร">
         <p style={{ whiteSpace: 'pre-line' }}>{data.executiveSummaryTh}</p>
@@ -127,6 +129,7 @@ function AnnualStrategicReviewDoc({ data }: { data: AnnualStrategicReviewData })
           <ul>{data.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul>
         </Section>
       ) : null}
+      {data.methodologyBundle && <MethodologyAppendix bundle={data.methodologyBundle} />}
     </>
   );
 }
@@ -136,10 +139,14 @@ export const annualStrategicReviewTemplate: TemplateDefinition<AnnualStrategicRe
   version: VERSION,
   schema: AnnualStrategicReviewDataSchema,
   render(data) {
+    const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : null;
+    const footerLeft = stamp
+      ? `KKU · Annual Strategic Review · ${data.yearLabel} · ${stamp}`
+      : `KKU · Annual Strategic Review · ${data.yearLabel}`;
     return {
       html: renderTemplateToHtml(<AnnualStrategicReviewDoc data={data} />),
       css: baseCss,
-      footerHtml: buildFooterHtml({ leftLabel: `KKU · Annual Strategic Review · ${data.yearLabel}` }),
+      footerHtml: buildFooterHtml({ leftLabel: footerLeft }),
     };
   },
 };

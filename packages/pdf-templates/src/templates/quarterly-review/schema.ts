@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MethodologyBundleSchema } from '../../components/methodology-appendix';
 
 // Quarterly Review Council Pack — a standing agenda item for Council
 // sessions. Portfolio health + key trends + scenario pipeline + decision
@@ -7,6 +8,8 @@ export const QuarterlyReviewDataSchema = z.object({
   quarterLabel: z.string(), // e.g. "Q2 2569"
   dateLabel: z.string(),
   author: z.string().optional(),
+  /** Methodology bundle stamp (gap #4) — optional for legacy callers. */
+  methodologyBundle: MethodologyBundleSchema.optional(),
   // 3-5 headline stats for the cover strip.
   headlineMetrics: z.array(
     z.object({ labelTh: z.string(), value: z.string(), changeFromLastQuarter: z.string().optional() }),

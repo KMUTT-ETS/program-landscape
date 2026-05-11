@@ -1,4 +1,26 @@
-import type { CouncilPackMethodologyBundle } from '../templates/council-pack/schema';
+import { z } from 'zod';
+
+// Shared bundle schema — the same shape every Council-affecting PDF
+// template can opt into. Mirrors `LandscapeMethodologyBundle` from
+// @kku/db; redeclared here so pdf-templates doesn't take a @kku/db
+// dependency.
+export const MethodologyBundleSchema = z.object({
+  tag: z.string(),                                // "landscape-2026-05.v1"
+  fingerprint: z.string(),                        // 8-char SHA-256 prefix
+  manifest: z.record(z.string(), z.string()),     // { 'health-score': 'v3.4', ... }
+});
+export type MethodologyBundle = z.infer<typeof MethodologyBundleSchema>;
+
+/**
+ * Format a bundle into its cover/footer stamp: `tag+fingerprint`.
+ * Pure helper — templates can inline this if they need just the string.
+ */
+export function formatMethodologyStamp(bundle: MethodologyBundle): string {
+  return `${bundle.tag}+${bundle.fingerprint}`;
+}
+
+// Back-compat alias for the original Council Pack consumer.
+export type CouncilPackMethodologyBundle = MethodologyBundle;
 
 // Renders the methodology bundle as an appendix at the end of a Council
 // Pack. Closes evaluation-pipeline.md §13 gap #4 — readers see the exact

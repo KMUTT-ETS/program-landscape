@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MethodologyBundleSchema } from '../../components/methodology-appendix';
 
 // Annual Strategic Review Council Pack — once a year. Longer form; covers
 // BCG + S-curve alignment, major decisions concluded this year, outcome
@@ -7,6 +8,8 @@ export const AnnualStrategicReviewDataSchema = z.object({
   yearLabel: z.string(), // e.g. "2569"
   dateLabel: z.string(),
   author: z.string().optional(),
+  /** Methodology bundle stamp (gap #4) — optional for legacy callers. */
+  methodologyBundle: MethodologyBundleSchema.optional(),
   executiveSummaryTh: z.string(),
   sectorAlignment: z.array(
     z.object({

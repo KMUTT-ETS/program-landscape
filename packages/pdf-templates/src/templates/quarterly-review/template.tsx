@@ -1,6 +1,7 @@
 import type { TemplateDefinition } from '@kku/shared';
 import { Cover } from '../../components/cover';
 import { Section } from '../../components/section';
+import { MethodologyAppendix, formatMethodologyStamp } from '../../components/methodology-appendix';
 import { buildFooterHtml } from '../../components/footer-template';
 import { baseCss } from '../../styles/base-css';
 import { renderTemplateToHtml } from '../../render';
@@ -9,9 +10,10 @@ import { QuarterlyReviewDataSchema, type QuarterlyReviewData } from './schema';
 const VERSION = '0.1.0';
 
 function QuarterlyReviewDoc({ data }: { data: QuarterlyReviewData }) {
+  const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : undefined;
   return (
     <>
-      <Cover titleTh={`การทบทวนรายไตรมาส · ${data.quarterLabel}`} dateLabel={data.dateLabel} author={data.author} />
+      <Cover titleTh={`การทบทวนรายไตรมาส · ${data.quarterLabel}`} dateLabel={data.dateLabel} author={data.author} version={stamp} />
 
       <Section title="ตัวเลขสำคัญ (Headline Metrics)">
         <div style={{ display: 'flex', gap: '12pt', flexWrap: 'wrap', marginTop: '6pt' }}>
@@ -168,6 +170,7 @@ function QuarterlyReviewDoc({ data }: { data: QuarterlyReviewData }) {
           </ul>
         </Section>
       ) : null}
+      {data.methodologyBundle && <MethodologyAppendix bundle={data.methodologyBundle} />}
     </>
   );
 }
@@ -177,10 +180,14 @@ export const quarterlyReviewTemplate: TemplateDefinition<QuarterlyReviewData> = 
   version: VERSION,
   schema: QuarterlyReviewDataSchema,
   render(data) {
+    const stamp = data.methodologyBundle ? formatMethodologyStamp(data.methodologyBundle) : null;
+    const footerLeft = stamp
+      ? `KKU · Quarterly Review · ${data.quarterLabel} · ${stamp}`
+      : `KKU · Quarterly Review · ${data.quarterLabel}`;
     return {
       html: renderTemplateToHtml(<QuarterlyReviewDoc data={data} />),
       css: baseCss,
-      footerHtml: buildFooterHtml({ leftLabel: `KKU · Quarterly Review · ${data.quarterLabel}` }),
+      footerHtml: buildFooterHtml({ leftLabel: footerLeft }),
     };
   },
 };
