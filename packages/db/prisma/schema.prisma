@@ -524,35 +524,36 @@ model User {
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   program    Program?    @relation("ProgramUserScope", fields: [programId], references: [id], onDelete: SetNull)
 
-  auditLogs              AuditLog[]
-  aiInferences           AiInference[]
-  uploadedPdfs           PdfDocument[]            @relation("PdfUploader")
-  reviewedExtractions    PdfExtraction[]          @relation("ExtractionReviewer")
-  reviewedAiExtractions  AiExtraction[]           @relation("AiExtractionReviewer")
-  reviewedSkillAliases   SkillAlias[]             @relation("SkillAliasReviewer")
-  scenarios              Scenario[]
-  councilDecisions       CouncilDecision[]
-  annotations            Annotation[]
-  pdfGenerations         PdfGeneration[]
-  triggeredIngestionRuns IngestionRun[]           @relation("IngestionTriggeredBy")
-  savedCockpitViews      SavedCockpitView[]
-  notifications          Notification[]
-  signalSubscriptions    SignalSubscription[]
-  peerSets               PeerSet[]
-  analystConversations   AnalystConversation[]
-  analystFeedback        AnalystFeedback[]
-  milestonesOwned        DecisionMilestone[]      @relation("MilestoneOwner")
-  approvedDecisions      DecisionApprover[]       @relation("ApproverUser")
-  attachedProgramDocs    ProgramDocument[]        @relation("ProgramDocAttacher")
+  auditLogs               AuditLog[]
+  aiInferences            AiInference[]
+  uploadedPdfs            PdfDocument[]            @relation("PdfUploader")
+  reviewedExtractions     PdfExtraction[]          @relation("ExtractionReviewer")
+  reviewedAiExtractions   AiExtraction[]           @relation("AiExtractionReviewer")
+  goldLabelledExtractions AiExtraction[]           @relation("AiExtractionGoldLabeller")
+  reviewedSkillAliases    SkillAlias[]             @relation("SkillAliasReviewer")
+  scenarios               Scenario[]
+  councilDecisions        CouncilDecision[]
+  annotations             Annotation[]
+  pdfGenerations          PdfGeneration[]
+  triggeredIngestionRuns  IngestionRun[]           @relation("IngestionTriggeredBy")
+  savedCockpitViews       SavedCockpitView[]
+  notifications           Notification[]
+  signalSubscriptions     SignalSubscription[]
+  peerSets                PeerSet[]
+  analystConversations    AnalystConversation[]
+  analystFeedback         AnalystFeedback[]
+  milestonesOwned         DecisionMilestone[]      @relation("MilestoneOwner")
+  approvedDecisions       DecisionApprover[]       @relation("ApproverUser")
+  attachedProgramDocs     ProgramDocument[]        @relation("ProgramDocAttacher")
   // Multi-scope assignments — additive to the (role, facultyId, programId)
   // single-primary columns above. A user can own multiple (role, scope)
   // tuples: e.g. FACULTY_USER for two faculties + PROGRAM_USER for three
   // programs across other faculties. Phase 1 (added 2026-05-07): admin UI
   // manages these; runtime can() still consults the primary fields above.
   // Phase 2 will rewrite can() + SessionUser to consume scopes[] directly.
-  scopes                 UserScope[]
-  expertiseNarratives    UserExpertiseNarrative[]
-  publicationsCache      UserPublicationsCache?
+  scopes                  UserScope[]
+  expertiseNarratives     UserExpertiseNarrative[]
+  publicationsCache       UserPublicationsCache?
 
   @@index([email])
   @@index([ssoSubject])
@@ -742,33 +743,45 @@ model AiInference {
 //   3. On APPROVED, a post-approval handler materialises the payload into
 //      the real domain table (CourseSkill / JobPostingSkill / etc.).
 model AiExtraction {
-  id               String       @id @default(cuid())
+  id                   String       @id @default(cuid())
   // Source anchor — one of 'course', 'job_posting', 'policy_document',
   // 'curriculum', … Keyed as text so new kinds land without enum churn.
-  sourceEntityType String       @map("source_entity_type")
-  sourceEntityId   String       @map("source_entity_id")
+  sourceEntityType     String       @map("source_entity_type")
+  sourceEntityId       String       @map("source_entity_id")
   // Which extraction this row represents — 'COURSE_SKILLS',
   // 'JOB_POSTING_SKILLS', 'POLICY_DOC_ANALYSIS', etc. Maps 1:1 to a
   // prompt template in @kku/shared/ai/prompts.
-  extractionKind   String       @map("extraction_kind")
-  payloadJson      Json         @map("payload_json")
-  confidence       Float
-  methodVersion    String       @map("method_version")
-  aiInferenceId    String?      @map("ai_inference_id")
-  reviewStatus     ReviewStatus @default(PENDING_REVIEW) @map("review_status")
-  reviewedByUserId String?      @map("reviewed_by_user_id")
-  reviewedAt       DateTime?    @map("reviewed_at")
-  reviewNotes      String?      @map("review_notes") @db.Text
-  reasoning        String?      @db.Text
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  extractionKind       String       @map("extraction_kind")
+  payloadJson          Json         @map("payload_json")
+  confidence           Float
+  methodVersion        String       @map("method_version")
+  aiInferenceId        String?      @map("ai_inference_id")
+  reviewStatus         ReviewStatus @default(PENDING_REVIEW) @map("review_status")
+  reviewedByUserId     String?      @map("reviewed_by_user_id")
+  reviewedAt           DateTime?    @map("reviewed_at")
+  reviewNotes          String?      @map("review_notes") @db.Text
+  reasoning            String?      @db.Text
+  // ── Gold-set fields (added 2026-05-11 — gap #3 closure) ────────────
+  // Hand-curated ground truth for the AI accuracy measurement loop. Set
+  // `isGoldSample=true` to nominate a row as a labelling candidate, then
+  // an analyst fills `goldLabel` via `pnpm ai:gold-label`. The eval
+  // runner (`pnpm ai:eval-accuracy`) compares (payloadJson, goldLabel)
+  // to compute per-prompt precision/recall/F1.
+  isGoldSample         Boolean      @default(false) @map("is_gold_sample")
+  goldLabel            Json?        @map("gold_label")
+  goldLabelledAt       DateTime?    @map("gold_labelled_at")
+  goldLabelledByUserId String?      @map("gold_labelled_by_user_id")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
 
-  aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
-  reviewedBy  User?        @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  aiInference    AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+  reviewedBy     User?        @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  goldLabelledBy User?        @relation("AiExtractionGoldLabeller", fields: [goldLabelledByUserId], references: [id], onDelete: SetNull)
 
   @@index([sourceEntityType, sourceEntityId])
   @@index([extractionKind])
   @@index([reviewStatus])
+  @@index([isGoldSample])
   @@map("ai_extractions")
 }
 

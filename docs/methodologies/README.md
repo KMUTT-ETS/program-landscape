@@ -22,6 +22,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `outcome-review` | Decision Workspace | `outcome-review.v1` | See `apps/api/src/decisions/decision-review.service.ts` |
 | `analyst-safety` | AI Analyst | `analyst-safety.v1` | `packages/shared/src/analyst/safety.ts` |
 | `analyst-system` | AI Analyst | `analyst-system.v1` | `packages/shared/src/analyst/tools.ts` |
+| `ai-extraction-accuracy` | AI extraction governance | `ai-extraction-accuracy.v1` | [ai-extraction-accuracy.md](./ai-extraction-accuracy.md) |
 
 ## Council-readiness contract
 
@@ -50,4 +51,3 @@ A methodology version bump is a **behaviour change** and triggers:
 | `bcg-position` | Market-share heuristic needs real peer enrolment data |
 | `demographic-ceiling` | Province-level admissions projections from NESDC |
 | `employer-feedback-synthesis` | Live survey ingestion pipeline |
-| `ai-extraction-accuracy` | Hand-labeled corpus needs building |
