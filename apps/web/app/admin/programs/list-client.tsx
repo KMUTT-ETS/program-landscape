@@ -24,6 +24,7 @@ import {
   FileText,
   Layers,
   Loader2,
+  Pencil,
   Play,
   Search,
   Square,
@@ -181,6 +182,8 @@ export function ProgramsListClient({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [batchBusy, setBatchBusy] = React.useState(false);
+  // Edit-drawer state — null when closed.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
 
   const applyFilters = (next: Partial<typeof initialFilters>) => {
     const params = new URLSearchParams();
@@ -559,9 +562,20 @@ export function ProgramsListClient({
                         )}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/admin/programs/${r.id}`}>Open</Link>
-                        </Button>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingId(r.id)}
+                            title="Edit metadata"
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden />
+                            Edit
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/admin/programs/${r.id}`}>Open</Link>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -577,6 +591,16 @@ export function ProgramsListClient({
         onOpenChange={setPickerOpen}
         selectedCount={selected.size}
         onSubmit={runPipelineBatch}
+      />
+
+      <EditProgramDrawer
+        programId={editingId}
+        faculties={faculties}
+        onClose={() => setEditingId(null)}
+        onSaved={() => {
+          setEditingId(null);
+          router.refresh();
+        }}
       />
     </div>
   );
@@ -733,6 +757,341 @@ function PipelinePickerDialog({
             <Play className="h-3.5 w-3.5" aria-hidden />
             Enqueue {selectedCount} program(s)
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit-program drawer ───────────────────────────────────────────────
+// Opens with the program ID, fetches full detail on open, lets the
+// operator patch the editable subset (per Q3): nameTh / nameEn / level /
+// faculty / language / mhesiCode / yearEstablished / durationYears /
+// totalCredits + status (Active ↔ Inactive 2-state toggle). Mark Sunset
+// is a separate destructive action so terminal lifecycle changes need
+// explicit intent (per Q4). AI-generated + read-only fields stay
+// read-only; kmitlCareerIds shown as informational chips.
+
+interface ProgramDetail {
+  id: string;
+  code: string;
+  mhesiCode: string | null;
+  nameTh: string;
+  nameEn: string;
+  level: ProgramListRow['level'];
+  status: ProgramListRow['status'];
+  yearEstablished: number | null;
+  totalCredits: number | null;
+  durationYears: number | null;
+  language: 'TH' | 'EN' | 'MIXED' | null;
+  facultyId: string | null;
+  kmitlCareerIds: number[];
+}
+
+function EditProgramDrawer({
+  programId,
+  faculties,
+  onClose,
+  onSaved,
+}: {
+  programId: string | null;
+  faculties: Array<{ id: string; code: string; nameEn: string; nameTh: string }>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const open = programId !== null;
+  const [detail, setDetail] = React.useState<ProgramDetail | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+
+  // Form state (separate from `detail` so cancel discards cleanly).
+  const [nameTh, setNameTh] = React.useState('');
+  const [nameEn, setNameEn] = React.useState('');
+  const [level, setLevel] = React.useState<ProgramListRow['level']>('BACHELOR');
+  const [facultyId, setFacultyId] = React.useState<string>('');
+  const [language, setLanguage] = React.useState<'TH' | 'EN' | 'MIXED' | ''>('');
+  const [mhesiCode, setMhesiCode] = React.useState('');
+  const [yearEstablished, setYearEstablished] = React.useState<string>('');
+  const [durationYears, setDurationYears] = React.useState<string>('');
+  const [totalCredits, setTotalCredits] = React.useState<string>('');
+  const [statusValue, setStatusValue] = React.useState<ProgramListRow['status']>('ACTIVE');
+
+  React.useEffect(() => {
+    if (!programId) {
+      setDetail(null);
+      return;
+    }
+    setLoading(true);
+    fetch(`/api/admin-programs/${programId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const p = j.data as ProgramDetail;
+        setDetail(p);
+        setNameTh(p.nameTh);
+        setNameEn(p.nameEn);
+        setLevel(p.level);
+        setFacultyId(p.facultyId ?? '');
+        setLanguage(p.language ?? '');
+        setMhesiCode(p.mhesiCode ?? '');
+        setYearEstablished(p.yearEstablished?.toString() ?? '');
+        setDurationYears(p.durationYears?.toString() ?? '');
+        setTotalCredits(p.totalCredits?.toString() ?? '');
+        setStatusValue(p.status);
+      })
+      .catch((err) => {
+        toast.error(`Failed to load program: ${err.message}`);
+        onClose();
+      })
+      .finally(() => setLoading(false));
+  }, [programId, onClose]);
+
+  const handleSave = async () => {
+    if (!programId) return;
+    // Build the patch payload — only send fields the operator can edit.
+    // Empty strings → null on optional fields; integers parsed safely.
+    const payload: Record<string, unknown> = {
+      nameTh,
+      nameEn,
+      level,
+      status: statusValue,
+      mhesiCode: mhesiCode.trim() || null,
+      yearEstablished: yearEstablished.trim() === '' ? null : Number(yearEstablished),
+      durationYears: durationYears.trim() === '' ? null : Number(durationYears),
+      totalCredits: totalCredits.trim() === '' ? null : Number(totalCredits),
+      language: language === '' ? null : language,
+    };
+    if (facultyId) payload.facultyId = facultyId;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin-programs/${programId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+      }
+      toast.success(`Saved ${detail?.code ?? 'program'}`);
+      onSaved();
+    } catch (err) {
+      toast.error(`Save failed: ${(err as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMarkSunset = async () => {
+    if (!programId || !detail) return;
+    if (
+      !confirm(
+        `Mark ${detail.code} as SUNSET? It will stop appearing in analysis + statistics. This is reversible (you can flip back to Active later).`,
+      )
+    )
+      return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin-programs/${programId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'SUNSET' }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success(`${detail.code} marked SUNSET`);
+      onSaved();
+    } catch (err) {
+      toast.error(`Mark Sunset failed: ${(err as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-accent-default" aria-hidden />
+            Edit program {detail?.code ?? ''}
+          </DialogTitle>
+          <DialogDescription>
+            Editable metadata only — AI-generated fields (narrative, peer review, AI readiness, …) refresh via pipeline.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading || !detail ? (
+          <div className="flex items-center justify-center py-12 text-text-tertiary">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 py-2">
+            {/* Two-column form */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label>Name (Thai)</Label>
+                <Input value={nameTh} onChange={(e) => setNameTh(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label>Name (English)</Label>
+                <Input value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>Level</Label>
+                <select
+                  value={level}
+                  onChange={(e) => setLevel(e.target.value as ProgramListRow['level'])}
+                  className="kku-select"
+                >
+                  <option value="BACHELOR">Bachelor</option>
+                  <option value="MASTER">Master</option>
+                  <option value="DOCTORAL">Doctoral</option>
+                  <option value="HIGHER_GRAD_DIPLOMA">Higher Grad. Diploma</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>Faculty</Label>
+                <select
+                  value={facultyId}
+                  onChange={(e) => setFacultyId(e.target.value)}
+                  className="kku-select"
+                >
+                  <option value="">(unassigned)</option>
+                  {faculties.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>Language</Label>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as typeof language)}
+                  className="kku-select"
+                >
+                  <option value="">(not set)</option>
+                  <option value="TH">TH · Thai</option>
+                  <option value="EN">EN · English</option>
+                  <option value="MIXED">MIXED · Bilingual</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>UNICON / MHESI code (CURR_ID)</Label>
+                <Input
+                  value={mhesiCode}
+                  onChange={(e) => setMhesiCode(e.target.value)}
+                  placeholder="14-digit curriculum ID"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>Year established (CE)</Label>
+                <Input
+                  type="number"
+                  value={yearEstablished}
+                  onChange={(e) => setYearEstablished(e.target.value)}
+                  min={1900}
+                  max={3000}
+                  placeholder="e.g. 2002"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>Duration (years)</Label>
+                <Input
+                  type="number"
+                  value={durationYears}
+                  onChange={(e) => setDurationYears(e.target.value)}
+                  min={1}
+                  max={10}
+                  placeholder="e.g. 4"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label>Total credits</Label>
+                <Input
+                  type="number"
+                  value={totalCredits}
+                  onChange={(e) => setTotalCredits(e.target.value)}
+                  min={0}
+                  max={500}
+                  placeholder="e.g. 140"
+                />
+              </div>
+            </div>
+
+            {/* Status — 2-state toggle. Active = ACTIVE; Inactive = PAUSED.
+              * SUNSET is the separate destructive action below. */}
+            <div className="flex flex-col gap-2 rounded-md border border-border-subtle p-3">
+              <Label>Status</Label>
+              <div className="flex items-center gap-2 text-xs text-text-tertiary">
+                <span>
+                  Inactive (PAUSED) and Sunset both exclude the program from analysis + statistics, but Sunset signals permanent retirement.
+                </span>
+              </div>
+              <div className="mt-1 flex gap-2">
+                <Button
+                  size="sm"
+                  variant={statusValue === 'ACTIVE' ? 'primary' : 'outline'}
+                  onClick={() => setStatusValue('ACTIVE')}
+                >
+                  Active
+                </Button>
+                <Button
+                  size="sm"
+                  variant={statusValue === 'PAUSED' ? 'primary' : 'outline'}
+                  onClick={() => setStatusValue('PAUSED')}
+                >
+                  Inactive (PAUSED)
+                </Button>
+                {statusValue === 'SUNSET' && (
+                  <Badge tone="neutral">Currently SUNSET</Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Read-only chips for kmitlCareerIds — informational; the AI
+              * pipeline owns this field via the career-mapping phase. */}
+            {detail.kmitlCareerIds.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-2">
+                  KMITL career IDs
+                  <Badge tone="neutral" size="sm">read-only</Badge>
+                </Label>
+                <div className="flex flex-wrap gap-1">
+                  {detail.kmitlCareerIds.map((id) => (
+                    <Badge key={id} tone="info" size="sm" className="font-tabular">
+                      {id}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-[11px] text-text-tertiary">
+                  Managed by the AI pipeline's career-mapping phase. Re-run "AI-only refresh" or "Quick narrative refresh" to update.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-3">
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={saving || loading || !detail}
+            onClick={handleMarkSunset}
+          >
+            Mark Sunset
+          </Button>
+          <div className="flex items-center gap-2">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm" disabled={saving}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button size="sm" disabled={saving || loading || !detail} onClick={handleSave}>
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+              Save changes
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
