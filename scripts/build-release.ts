@@ -159,13 +159,44 @@ const copyPairs: Array<[string, string]> = [
   ['docker-compose.prod.yml', 'docker-compose.yml'],
   ['infra/nginx', 'infra/nginx'],
   ['infra/postgres', 'infra/postgres'],
+  // systemd unit files for nightly backup + weekly backup-verify +
+  // kku-skills-normalise. The deploy script installs them under
+  // /etc/systemd/system/ — without this directory in the bundle the
+  // operator can't enable the nightly backup timer on a fresh box.
+  ['infra/systemd', 'infra/systemd'],
   ['.env.prod.example', '.env.prod.example'],
+  // Core deploy / rollback / backup / restore / smoke-test scripts.
   ['scripts/generate-self-signed-cert.sh', 'scripts/generate-self-signed-cert.sh'],
   ['scripts/deploy.sh', 'scripts/deploy.sh'],
   ['scripts/rollback.sh', 'scripts/rollback.sh'],
   ['scripts/backup.sh', 'scripts/backup.sh'],
   ['scripts/restore.sh', 'scripts/restore.sh'],
   ['scripts/smoke-test.sh', 'scripts/smoke-test.sh'],
+  // Bootstrap + ops scripts the operator runs on a fresh box or
+  // during a deploy:
+  //   - preflight.sh: pre-deploy environment + connectivity check
+  //   - ensure-minio-buckets.mjs: bootstraps required MinIO buckets
+  //   - pre-deploy-snapshot.mjs: writes a pg_dump snapshot before
+  //     destructive migrations (db:migrate:safe chains this)
+  //   - pin-image-digests.sh: locks compose tags to SHA-256 digests
+  //     post-deploy so a re-pull can't drift the image
+  //   - skills-normalise.sh: runner for the weekly kku-skills-
+  //     normalise timer in infra/systemd/
+  //   - migration-linter.ts: pre-flight check for destructive
+  //     migrations; reads packages/db/prisma/migrations/
+  //   - dr/: disaster-recovery scripts (verify-backup, restore-drill,
+  //     retention-check, check-mirror, verify-minio)
+  //   - pdpa/: DSAR + retention sweep + redaction smoke
+  //   - load/: ai-cap-probe (load test for AI quota cap)
+  ['scripts/preflight.sh', 'scripts/preflight.sh'],
+  ['scripts/ensure-minio-buckets.mjs', 'scripts/ensure-minio-buckets.mjs'],
+  ['scripts/pre-deploy-snapshot.mjs', 'scripts/pre-deploy-snapshot.mjs'],
+  ['scripts/pin-image-digests.sh', 'scripts/pin-image-digests.sh'],
+  ['scripts/skills-normalise.sh', 'scripts/skills-normalise.sh'],
+  ['scripts/migration-linter.ts', 'scripts/migration-linter.ts'],
+  ['scripts/dr', 'scripts/dr'],
+  ['scripts/pdpa', 'scripts/pdpa'],
+  ['scripts/load', 'scripts/load'],
   ['DEPLOYMENT.md', 'DEPLOYMENT.md'],
 ];
 
