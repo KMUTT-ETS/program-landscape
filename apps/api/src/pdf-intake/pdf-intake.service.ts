@@ -1,6 +1,13 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, prisma, type PdfSourceCategory, type PdfLanguage } from '@kku/db';
+import {
+  Prisma,
+  prisma,
+  type PdfLanguage,
+  type PdfLifecycleStatus,
+  type PdfProcessingStatus,
+  type PdfSourceCategory,
+} from '@kku/db';
 import { S3Storage, ApiError } from '@kku/shared';
 import { createHash } from 'node:crypto';
 import { PdfIntakeQueueService } from './pdf-intake-queue.service';
@@ -195,6 +202,177 @@ export class PdfIntakeService implements OnModuleInit {
         },
       },
     });
+  }
+
+  // ── PDF library (Phase 4) ─────────────────────────────────────────────
+  // Listing surface for the full library — used by /admin/pdf-review's
+  // operator-facing table. Returns paginated rows + a total count for
+  // pager rendering. CURRICULUM is excluded by default because the
+  // Programs admin owns curriculum PDFs end-to-end; pass
+  // `includeCurriculum=true` to include them explicitly.
+  async listLibrary(opts: {
+    sourceCategory?: PdfSourceCategory;
+    processingStatus?: PdfProcessingStatus;
+    lifecycleStatus?: PdfLifecycleStatus;
+    q?: string;
+    includeCurriculum?: boolean;
+    page: number;
+    pageSize: number;
+  }): Promise<{
+    rows: Array<{
+      id: string;
+      originalFilename: string;
+      sourceCategory: PdfSourceCategory;
+      sourceOrg: string | null;
+      pageCount: number;
+      fileSize: number;
+      uploadedAt: Date;
+      processingStatus: PdfProcessingStatus;
+      processingError: string | null;
+      classificationConfidence: number | null;
+      lifecycleStatus: PdfLifecycleStatus;
+      lifecycleNote: string | null;
+      lifecycleChangedAt: Date | null;
+      extractionCount: number;
+      pendingReviewCount: number;
+    }>;
+    total: number;
+  }> {
+    const where: Prisma.PdfDocumentWhereInput = {};
+    if (opts.sourceCategory) where.sourceCategory = opts.sourceCategory;
+    else if (!opts.includeCurriculum) where.sourceCategory = { not: 'CURRICULUM' };
+    if (opts.processingStatus) where.processingStatus = opts.processingStatus;
+    if (opts.lifecycleStatus) where.lifecycleStatus = opts.lifecycleStatus;
+    if (opts.q && opts.q.trim().length > 0) {
+      const term = opts.q.trim();
+      where.OR = [
+        { originalFilename: { contains: term, mode: 'insensitive' } },
+        { sourceOrg: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      prisma.pdfDocument.findMany({
+        where,
+        orderBy: { uploadedAt: 'desc' },
+        skip: (opts.page - 1) * opts.pageSize,
+        take: opts.pageSize,
+        select: {
+          id: true,
+          originalFilename: true,
+          sourceCategory: true,
+          sourceOrg: true,
+          pageCount: true,
+          fileSize: true,
+          uploadedAt: true,
+          processingStatus: true,
+          processingError: true,
+          classificationConfidence: true,
+          lifecycleStatus: true,
+          lifecycleNote: true,
+          lifecycleChangedAt: true,
+          _count: { select: { extractions: true } },
+          extractions: {
+            where: { reviewStatus: 'PENDING_REVIEW' },
+            select: { id: true },
+          },
+        },
+      }),
+      prisma.pdfDocument.count({ where }),
+    ]);
+
+    return {
+      rows: rows.map((r) => ({
+        id: r.id,
+        originalFilename: r.originalFilename,
+        sourceCategory: r.sourceCategory,
+        sourceOrg: r.sourceOrg,
+        pageCount: r.pageCount,
+        fileSize: r.fileSize,
+        uploadedAt: r.uploadedAt,
+        processingStatus: r.processingStatus,
+        processingError: r.processingError,
+        classificationConfidence: r.classificationConfidence,
+        lifecycleStatus: r.lifecycleStatus,
+        lifecycleNote: r.lifecycleNote,
+        lifecycleChangedAt: r.lifecycleChangedAt,
+        extractionCount: r._count.extractions,
+        pendingReviewCount: r.extractions.length,
+      })),
+      total,
+    };
+  }
+
+  // Operator action — flip lifecycle status. Never destructive; the row
+  // and its extractions remain. ARCHIVED hides from default views;
+  // DEPRECATED additionally signals "do not read by downstream
+  // analytics" (consumers should filter on lifecycleStatus = ACTIVE).
+  async setLifecycle(input: {
+    pdfDocumentId: string;
+    lifecycleStatus: PdfLifecycleStatus;
+    note?: string;
+    actingUserId: string;
+  }) {
+    const doc = await prisma.pdfDocument.findUnique({ where: { id: input.pdfDocumentId } });
+    if (!doc) throw new ApiError('NOT_FOUND', 'PdfDocument not found');
+    return prisma.pdfDocument.update({
+      where: { id: input.pdfDocumentId },
+      data: {
+        lifecycleStatus: input.lifecycleStatus,
+        lifecycleNote: input.note ?? null,
+        lifecycleChangedAt: new Date(),
+        lifecycleChangedById: input.actingUserId,
+      },
+      select: {
+        id: true,
+        lifecycleStatus: true,
+        lifecycleNote: true,
+        lifecycleChangedAt: true,
+      },
+    });
+  }
+
+  // Hard delete — removes Prisma rows + the MinIO object. Cascading
+  // deletes handle PdfPage / PdfExtraction / PdfTable via schema-level
+  // onDelete. Curriculum PDFs are NOT deletable here — they belong to
+  // the Programs admin, and orphaning Curriculum / ProgramDocument FKs
+  // would corrupt the program graph. The operator must remove the
+  // program first.
+  async deletePdf(input: { pdfDocumentId: string }) {
+    const doc = await prisma.pdfDocument.findUnique({
+      where: { id: input.pdfDocumentId },
+      include: {
+        programDocuments: { select: { id: true } },
+      },
+    });
+    if (!doc) throw new ApiError('NOT_FOUND', 'PdfDocument not found');
+    if (doc.sourceCategory === 'CURRICULUM' || doc.programDocuments.length > 0) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        'This PDF is linked to one or more programs and cannot be deleted from the library. Remove the program-document attachment first.',
+      );
+    }
+
+    // Strip the storage object first. If MinIO is unreachable we leave
+    // the row in place so the operator can retry — better to have an
+    // orphaned MinIO key than a dangling DB row missing its file.
+    const match = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.storageUrl);
+    if (match) {
+      const [, bucket, key] = match;
+      if (bucket && key) {
+        try {
+          await this.storage.deleteObject(bucket, key);
+        } catch (err) {
+          this.logger.warn(
+            `MinIO delete failed for pdf ${input.pdfDocumentId}: ${(err as Error).message}`,
+          );
+          throw new ApiError('INTERNAL', 'Could not delete the PDF object from storage. Try again.');
+        }
+      }
+    }
+
+    await prisma.pdfDocument.delete({ where: { id: input.pdfDocumentId } });
+    return { deleted: true };
   }
 
   async getOne(pdfDocumentId: string) {

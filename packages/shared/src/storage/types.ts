@@ -31,4 +31,5 @@ export interface ObjectStorage {
   putObject(req: PutObjectRequest): Promise<PutObjectResult>;
   getSignedDownloadUrl(req: SignedUrlRequest): Promise<string>;
   headObject(bucket: string, key: string): Promise<{ byteSize: number } | null>;
+  deleteObject(bucket: string, key: string): Promise<void>;
 }

@@ -4,90 +4,81 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Badge, Card, EmptyState, PageHeader, Section } from '@kku/ui';
+import { Badge, Button, PageHeader } from '@kku/ui';
+import { ArrowLeft, FileSearch } from 'lucide-react';
 import { FixFilenamesButton } from './fix-filenames-button';
+import { LibraryClient, type LibraryRow, type LibraryResponse } from './library-client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'PDF Review — Admin' };
+export const metadata = { title: 'PDF library — Admin' };
 
-interface PdfRow {
-  id: string;
-  originalFilename: string;
-  sourceCategory: string;
-  sourceOrg: string | null;
-  pageCount: number;
-  uploadedAt: string;
-  processingStatus: string;
-  processingError: string | null;
-  classificationConfidence: number | null;
-  _count: { extractions: number };
-  extractions: Array<{ id: string; extractionType: string; confidence: number }>;
+interface SearchParams {
+  category?: string;
+  status?: string;
+  lifecycle?: string;
+  q?: string;
+  page?: string;
 }
 
-export default async function AdminPdfReviewPage() {
+export default async function AdminPdfLibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  // pdf:approve_extraction is ANALYST + admin-grade.
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const pending = await apiFetch<PdfRow[]>('/pdfs/pending?status=PENDING_REVIEW').catch(
-    () => [] as PdfRow[],
+  const sp = await searchParams;
+  const params = new URLSearchParams();
+  if (sp.category) params.set('sourceCategory', sp.category);
+  if (sp.status) params.set('processingStatus', sp.status);
+  if (sp.lifecycle) params.set('lifecycleStatus', sp.lifecycle);
+  if (sp.q) params.set('q', sp.q);
+  if (sp.page) params.set('page', sp.page);
+  params.set('pageSize', '25');
+
+  const data = await apiFetch<LibraryResponse>(`/pdfs/library?${params.toString()}`).catch(
+    () => ({ rows: [] as LibraryRow[], total: 0 }),
   );
+
+  const isSuper = user.role === 'SUPER_ADMIN';
 
   return (
     <AuthedAppShell user={user}>
+      <div className="flex items-baseline gap-3 mb-2">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/admin">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Admin
+          </Link>
+        </Button>
+        <span className="text-xs uppercase tracking-wide text-text-tertiary">
+          External data · PDF library
+        </span>
+      </div>
       <PageHeader
-        title="PDF review queue"
-        subtitle="PDFs whose extractions landed below the auto-approve threshold. Open one to inspect the source + verify the extracted structured data before it affects downstream analytics."
-        actions={isAdminGrade(user.role) ? <FixFilenamesButton /> : null}
-      />
-      <Section title={`Pending review (${pending.length})`}>
-        {pending.length === 0 ? (
-          <EmptyState
-            title="No PDFs awaiting review"
-            description="The worker auto-approves extractions above the configured confidence threshold. Anything below it surfaces here."
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {pending.map((pdf) => (
-              <Link key={pdf.id} href={`/admin/pdf-review/${pdf.id}`} className="block">
-                <Card className="h-full transition-shadow hover:shadow-elevation-3">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">
-                          {pdf.originalFilename}
-                        </div>
-                        <div className="truncate text-xs text-text-tertiary">
-                          {pdf.sourceOrg ?? 'Unknown source'}
-                        </div>
-                      </div>
-                      <Badge tone="neutral">{pdf.sourceCategory}</Badge>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-text-secondary">
-                      <span className="font-tabular">{pdf.pageCount} pages</span>
-                      <span>·</span>
-                      <span>{pdf._count.extractions} extraction{pdf._count.extractions === 1 ? '' : 's'}</span>
-                      {pdf.classificationConfidence !== null && (
-                        <>
-                          <span>·</span>
-                          <span className="font-tabular">
-                            cls {Math.round(pdf.classificationConfidence * 100)}%
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {pdf.processingError && (
-                      <div className="text-xs text-warning">{pdf.processingError}</div>
-                    )}
-                  </div>
-                </Card>
-              </Link>
-            ))}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-accent-default/30 bg-accent-default/10 text-accent-default">
+              <FileSearch className="h-5 w-5" aria-hidden />
+            </div>
+            <span>PDF library</span>
           </div>
-        )}
-      </Section>
+        }
+        subtitle="Non-curriculum PDFs — government, MHESI, KKU, faculty policy + reports. Re-extract on failure, archive when stale, deprecate when superseded, delete when no longer relevant."
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge tone="neutral">{data.total.toLocaleString()} total</Badge>
+            {isSuper ? <FixFilenamesButton /> : null}
+          </div>
+        }
+      />
+      <LibraryClient
+        initial={data}
+        searchParams={sp}
+        canDelete={isSuper}
+      />
     </AuthedAppShell>
   );
 }

@@ -168,6 +168,18 @@ enum PdfProcessingStatus {
   FAILED
 }
 
+// Library-side lifecycle, orthogonal to processingStatus (which tracks
+// the extraction pipeline). ACTIVE — visible everywhere; ARCHIVED —
+// hidden from default views but extractions remain readable; DEPRECATED
+// — superseded by a newer doc, kept for audit but never read by
+// downstream analytics. DELETE is a destructive operation handled
+// separately (cascades to extractions + MinIO).
+enum PdfLifecycleStatus {
+  ACTIVE
+  ARCHIVED
+  DEPRECATED
+}
+
 enum PdfExtractionType {
   POLICY_DOC
   JOB_POSTING_BATCH
@@ -2083,6 +2095,13 @@ model PdfDocument {
   classificationConfidence Float?                       @map("classification_confidence")
   contentHash              String                       @unique @map("content_hash")
   embedding                Unsupported("vector(1536)")?
+  // Library lifecycle — orthogonal to processingStatus.
+  // ACTIVE is the default for every new PDF; ARCHIVED + DEPRECATED are
+  // operator-driven, persisted via PATCH /pdfs/:id/lifecycle.
+  lifecycleStatus          PdfLifecycleStatus           @default(ACTIVE) @map("lifecycle_status")
+  lifecycleNote            String?                      @map("lifecycle_note") @db.Text
+  lifecycleChangedAt       DateTime?                    @map("lifecycle_changed_at")
+  lifecycleChangedById     String?                      @map("lifecycle_changed_by_id")
   createdAt                DateTime                     @default(now()) @map("created_at")
   updatedAt                DateTime                     @updatedAt @map("updated_at")
 
@@ -2101,6 +2120,7 @@ model PdfDocument {
   @@index([sourceCategory])
   @@index([processingStatus])
   @@index([uploadedAt])
+  @@index([lifecycleStatus])
   @@map("pdf_documents")
 }
 

@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -49,6 +51,24 @@ const RejectBodySchema = z.object({
   reviewNotes: z.string().min(1, 'Rejection reason is required'),
 });
 type RejectBody = z.infer<typeof RejectBodySchema>;
+
+const LibraryQuerySchema = z.object({
+  sourceCategory: z
+    .enum(['POLICY', 'REPORT', 'CURRICULUM', 'PEER_PROGRAM', 'SURVEY', 'COMMITTEE_MINUTES', 'JOB_POSTINGS_BATCH', 'OTHER'])
+    .optional(),
+  processingStatus: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']).optional(),
+  lifecycleStatus: z.enum(['ACTIVE', 'ARCHIVED', 'DEPRECATED']).optional(),
+  q: z.string().optional(),
+  includeCurriculum: z.coerce.boolean().default(false),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+const LifecycleBodySchema = z.object({
+  lifecycleStatus: z.enum(['ACTIVE', 'ARCHIVED', 'DEPRECATED']),
+  note: z.string().max(2000).optional(),
+});
+type LifecycleBody = z.infer<typeof LifecycleBodySchema>;
 
 const BulkReprocessBodySchema = z.object({
   sourceCategory: z
@@ -114,6 +134,24 @@ export class PdfIntakeController {
     return this.service.listQueue({ status: q.status, limit: q.limit });
   }
 
+  // PDF library — paginated, filterable. Non-curriculum by default.
+  @Get('library')
+  @Authorized('pdf:upload')
+  @Provenance({ sources: [{ id: 'pdf-intake', name: 'PDF Intake' }] })
+  async library(
+    @Query(new ZodValidationPipe(LibraryQuerySchema)) q: z.infer<typeof LibraryQuerySchema>,
+  ) {
+    return this.service.listLibrary({
+      sourceCategory: q.sourceCategory,
+      processingStatus: q.processingStatus,
+      lifecycleStatus: q.lifecycleStatus,
+      q: q.q,
+      includeCurriculum: q.includeCurriculum,
+      page: q.page,
+      pageSize: q.pageSize,
+    });
+  }
+
   @Get(':id')
   @Authorized('pdf:upload')
   @Provenance({ sources: [{ id: 'pdf-intake', name: 'PDF Intake' }] })
@@ -133,6 +171,29 @@ export class PdfIntakeController {
   async reExtract(@Param('id') id: string) {
     await this.service.requeueIntake(id);
     return { queued: true, pdfDocumentId: id };
+  }
+
+  @Patch(':id/lifecycle')
+  @Authorized('pdf:approve_extraction')
+  @AuditLog({ action: 'pdf.lifecycle.change', entityType: 'PdfDocument' })
+  async setLifecycle(
+    @AuthSession() user: SessionUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(LifecycleBodySchema)) body: LifecycleBody,
+  ) {
+    return this.service.setLifecycle({
+      pdfDocumentId: id,
+      lifecycleStatus: body.lifecycleStatus,
+      note: body.note,
+      actingUserId: user.userId,
+    });
+  }
+
+  @Delete(':id')
+  @Authorized('pdf:admin')
+  @AuditLog({ action: 'pdf.delete', entityType: 'PdfDocument' })
+  async deletePdf(@Param('id') id: string) {
+    return this.service.deletePdf({ pdfDocumentId: id });
   }
 
   @Post('extractions/:extractionId/approve')
