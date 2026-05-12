@@ -317,6 +317,7 @@ model Faculty {
   facultyBudgets         FacultyBudget[]
   staffMasterRecords     StaffMasterRecord[]
   staffCompensationCubes StaffCompensationCube[]
+  staffSeparations       StaffSeparation[]
   divergenceSnapshots    CrossScopeDivergenceSnapshot[]
 
   @@index([code])
@@ -3679,6 +3680,47 @@ model StaffCompensationCube {
   @@index([fiscalYear])
   @@index([isAcademic])
   @@map("staff_compensation_cube")
+}
+
+// Per-separation snapshot from HCMEmployee.EmployeeDetail. Captures
+// every academic / research staff member who has left KKU
+// (ENDWORKDATE filled) within the last 10 years. Drives the turnover
+// signal on /staff/workforce — denominator-correct because the
+// numerator includes staff who are no longer in the active-only Q1
+// projection (and therefore not in FacultyMember-active).
+//
+// One row per separation event, keyed on HCM's EMPLOYEEID hash so
+// re-ingestion is idempotent. Snapshot-replaced by the kku-hr
+// connector on each run.
+model StaffSeparation {
+  /// SHA-256 of HCMEmployee.EMPLOYEEID — canonical join key.
+  employeeHash  String   @id @map("employee_hash")
+  /// HR-internal employment number — non-PII per KKU 2026-05-02.
+  employeeId    String?  @map("employee_id")
+  /// SHA-256 of citizen ID when present — cross-system join to
+  /// FacultyMember, StaffMasterRecord, StaffLifecycleDates.
+  citizenIdHash String?  @map("citizen_id_hash")
+  /// HCMEmployee.ENDWORKDATE — date the staff stopped working at KKU.
+  endWorkDate   DateTime @map("end_work_date") @db.Date
+  /// HCM STATUS code at time of pull (e.g. 'R' retired, 'S' resigned).
+  /// Free-text — meaning is documented in docs/data-sources/kku-hr.md.
+  status        String?
+  /// BU1 (faculty code) at time of separation.
+  facultyKey    String?  @map("faculty_key")
+  /// workforce_hcm_actual.All_Position_Types — 'วิชาการ' / 'วิจัย' /
+  /// 'สนับสนุน' / etc. Null when the workforce position record was
+  /// already cleared by the time we ran.
+  positionType  String?  @map("position_type")
+  /// Resolved Faculty row from the kku-hr connector's facultyMappings
+  /// (BU1 → Faculty.id). Null when unmapped.
+  facultyId     String?  @map("faculty_id")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  faculty Faculty? @relation(fields: [facultyId], references: [id])
+
+  @@index([endWorkDate])
+  @@index([positionType])
+  @@map("staff_separations")
 }
 
 // Per-person lifecycle dates from processed-HR vw_history.

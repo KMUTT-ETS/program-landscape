@@ -46,17 +46,25 @@ export interface OverviewBlock {
     medianYears: number;
     buckets: Array<{ label: string; academic: number; support: number; total: number }>;
   };
-  /** Faculty turnover — pre-retirement separations from
-   *  HCMEmployee.ENDWORKDATE. Scope: academic faculty only (the
-   *  FacultyMember population). All-staff turnover is captured by the
-   *  DS2001-based `flow12m.separations` above. */
+  /** Turnover — pre-retirement separations from HCMEmployee.ENDWORKDATE
+   *  (full table snapshot, no STATUS filter). Surfaces both
+   *  academic-only and all-staff rates because the same data source
+   *  cleanly covers both populations. */
   facultyTurnover: {
+    /** Active academic faculty (FacultyMember.isActive=true). */
     activeFacultyCount: number;
-    separations12m: number;
-    /** 12-month rolling turnover rate = sep12m / active × 100 */
-    turnoverRate12mPct: number;
-    /** Last 5 calendar years of separation counts. */
-    yearly: Array<{ year: number; separations: number }>;
+    /** Total active staff (StaffMasterRecord scope). */
+    activeAllCount: number;
+    /** Academic faculty separations in last 12 months. */
+    separations12mAcademic: number;
+    /** All-staff separations in last 12 months. */
+    separations12mAll: number;
+    /** Academic 12m turnover rate (×100). */
+    turnoverRate12mAcademicPct: number;
+    /** All-staff 12m turnover rate (×100). */
+    turnoverRate12mAllPct: number;
+    /** Last 5 calendar years of separation counts — both scopes. */
+    yearly: Array<{ year: number; separationsAcademic: number; separationsAll: number }>;
   };
 }
 

@@ -62,6 +62,8 @@ import {
   type Q2Row,
   Q3RowSchema,
   type Q3Row,
+  Q4RowSchema,
+  type Q4Row,
 } from './transforms';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -144,6 +146,40 @@ FROM [epm_report].[dbo].[Faculty]
 ORDER BY Faculty
 `;
 
+// Q4 — separations snapshot (10-year window).
+//
+// Pulls EVERY EmployeeDetail row that has ENDWORKDATE filled —
+// regardless of current STATUS — so the turnover-rate numerator
+// includes staff who have already separated (and therefore left
+// the active-only Q1 projection). LEFT JOIN to workforce_hcm_actual
+// because separated staff often have their position record cleared;
+// All_Position_Types may be null for them.
+//
+// 10-year window is plenty for the 5-year-trend bars + 12-month
+// rolling turnover; older history isn't policy-actionable.
+//
+// PII gate: same projection as Q1 — EMPLOYEEID + ID_PEOPLE are
+// hashed server-side, EMP_PREFIX / FNAME / LNAME are NOT in the
+// SELECT (we don't need names for an aggregate count).
+const Q4_SEPARATIONS = `
+SELECT
+  CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CAST(e.EMPLOYEEID AS varchar(50)) AS varbinary(500))), 2) AS EMPLOYEE_HASH,
+  CAST(e.EMPLOYEEID AS varchar(50)) AS EMPLOYEE_ID,
+  CASE WHEN e.ID_PEOPLE IS NULL OR e.ID_PEOPLE = ''
+       THEN NULL
+       ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CAST(e.ID_PEOPLE AS varchar(50)) AS varbinary(500))), 2)
+  END                          AS PERSON_HASH,
+  e.STATUS,
+  e.ENDWORKDATE,
+  e.BU1                        AS FACULTY_KEY,
+  w.All_Position_Types         AS POSITION_TYPE
+FROM dbo.EmployeeDetail e
+LEFT JOIN [epm_report].[dbo].[workforce_hcm_actual] w
+  ON e.EMP_POSITION COLLATE Thai_CI_AS = w.POSITION_NUMBER COLLATE Thai_CI_AS
+WHERE e.ENDWORKDATE IS NOT NULL
+  AND e.ENDWORKDATE >= DATEADD(year, -10, GETDATE())
+`;
+
 // ─────────────────────────────────────────────────────────────────────────
 // Per-run state — built up during fetch + transform, surfaced via
 // load metadata. Lives on the instance because the runner calls fetch
@@ -185,7 +221,12 @@ interface HrRawDataCompensation {
   q2: Q2Row;
 }
 
-type HrRawPayload = HrRawData | HrRawDataCompensation;
+interface HrRawDataSeparation {
+  kind: 'separation';
+  q4: Q4Row;
+}
+
+type HrRawPayload = HrRawData | HrRawDataCompensation | HrRawDataSeparation;
 
 export class KkuHrRealConnector extends ApiConnector {
   readonly slug = 'kku-hr';
@@ -249,11 +290,12 @@ export class KkuHrRealConnector extends ApiConnector {
       );
     }
 
-    // 2. Run all three queries in one connection.
+    // 2. Run all four queries in one connection.
     const cfg = this.mssqlConfig();
     let q1Raw: unknown[] = [];
     let q2Raw: unknown[] = [];
     let q3Raw: unknown[] = [];
+    let q4Raw: unknown[] = [];
     await withConnection(cfg, async (pool) => {
       ctx.log.info('running Q3 Faculty lookup');
       q3Raw = await query(pool, Q3_FACULTY_LOOKUP);
@@ -266,6 +308,10 @@ export class KkuHrRealConnector extends ApiConnector {
       ctx.log.info('running Q2 compensation aggregate');
       q2Raw = await query(pool, Q2_COMPENSATION_AGGREGATE);
       ctx.log.info(`Q2 returned ${q2Raw.length.toLocaleString()} rows`);
+
+      ctx.log.info('running Q4 separations (10y window)');
+      q4Raw = await query(pool, Q4_SEPARATIONS);
+      ctx.log.info(`Q4 returned ${q4Raw.length.toLocaleString()} rows`);
     });
 
     // 3. Validate via Zod. Failure = connector bug; throw NonRetryable.
@@ -299,6 +345,16 @@ export class KkuHrRealConnector extends ApiConnector {
       }
       return parsed.data;
     });
+    const q4Rows = q4Raw.map((r, i): Q4Row => {
+      const parsed = Q4RowSchema.safeParse(r);
+      if (!parsed.success) {
+        throw new NonRetryableError(
+          'Q4_VALIDATION',
+          `Q4 row ${i} failed validation: ${parsed.error.message}`,
+        );
+      }
+      return parsed.data;
+    });
     const buLabelLookup = new Map<string, string>();
     for (const r of q3Rows) {
       if (r.LABEL_TH) buLabelLookup.set(r.BU_CODE, r.LABEL_TH);
@@ -317,7 +373,8 @@ export class KkuHrRealConnector extends ApiConnector {
       buLabelLookup,
     };
 
-    // 5. Emit one RawRecord per Q1 row + one per Q2 row.
+    // 5. Emit one RawRecord per Q1 row + one per Q2 row + one per Q4
+    // (separation) row.
     const records: RawRecord[] = [];
     for (const q1 of q1Rows) {
       records.push({
@@ -332,6 +389,13 @@ export class KkuHrRealConnector extends ApiConnector {
         externalId: `kku-hr:comp:${key}`,
         sourceTimestamp: fetchTimestamp,
         data: { kind: 'compensation', q2 } satisfies HrRawPayload,
+      });
+    }
+    for (const q4 of q4Rows) {
+      records.push({
+        externalId: `kku-hr:sep:${q4.EMPLOYEE_HASH}`,
+        sourceTimestamp: fetchTimestamp,
+        data: { kind: 'separation', q4 } satisfies HrRawPayload,
       });
     }
     return records;
@@ -349,6 +413,9 @@ export class KkuHrRealConnector extends ApiConnector {
 
     if (data.kind === 'faculty_member') {
       return this.transformFacultyMember(state, data.q1, raw.sourceTimestamp);
+    }
+    if (data.kind === 'separation') {
+      return this.transformSeparation(state, data.q4, raw.sourceTimestamp);
     }
     return this.transformCompensation(state, data.q2, raw.sourceTimestamp);
   }
@@ -447,6 +514,47 @@ export class KkuHrRealConnector extends ApiConnector {
           retirementDate,
           endEmploymentDate,
           isActive: deriveIsActive(q1.STATUS),
+        },
+        freshnessDate,
+      },
+    ];
+  }
+
+  private transformSeparation(
+    state: RunState,
+    q4: Q4Row,
+    freshnessDate: Date,
+  ): NormalizedRecord[] {
+    // Normalise ENDWORKDATE — mssql-client returns Date for DATETIME
+    // columns, but rare rows can come back as text. Drop rows where
+    // the value won't parse or is out of bounds.
+    let endDate: Date | null = null;
+    if (q4.ENDWORKDATE instanceof Date) {
+      const y = q4.ENDWORKDATE.getUTCFullYear();
+      if (y >= 1900 && y <= 2100) endDate = q4.ENDWORKDATE;
+    } else if (typeof q4.ENDWORKDATE === 'string') {
+      endDate = parseHcmDate(q4.ENDWORKDATE);
+    }
+    if (!endDate) return [];
+
+    // Faculty resolution — non-fatal: BU1 not mapped → facultyId null.
+    const facultyId = q4.FACULTY_KEY
+      ? state.facultyMappings.get(q4.FACULTY_KEY) ?? null
+      : null;
+
+    return [
+      {
+        target: 'staff_separations',
+        externalId: `kku-hr:sep:${q4.EMPLOYEE_HASH}`,
+        payload: {
+          employeeHash: q4.EMPLOYEE_HASH,
+          employeeId: q4.EMPLOYEE_ID,
+          citizenIdHash: q4.PERSON_HASH?.toLowerCase() ?? null,
+          endWorkDate: endDate,
+          status: q4.STATUS,
+          facultyKey: q4.FACULTY_KEY,
+          positionType: q4.POSITION_TYPE,
+          facultyId,
         },
         freshnessDate,
       },
@@ -620,6 +728,40 @@ export class KkuHrRealConnector extends ApiConnector {
               },
             });
           }
+          loaded++;
+        } else if (rec.target === 'staff_separations') {
+          const p = rec.payload as {
+            employeeHash: string;
+            employeeId: string | null;
+            citizenIdHash: string | null;
+            endWorkDate: Date;
+            status: string | null;
+            facultyKey: string | null;
+            positionType: string | null;
+            facultyId: string | null;
+          };
+          await this.db.staffSeparation.upsert({
+            where: { employeeHash: p.employeeHash },
+            create: {
+              employeeHash: p.employeeHash,
+              employeeId: p.employeeId,
+              citizenIdHash: p.citizenIdHash,
+              endWorkDate: p.endWorkDate,
+              status: p.status,
+              facultyKey: p.facultyKey,
+              positionType: p.positionType,
+              facultyId: p.facultyId,
+            },
+            update: {
+              employeeId: p.employeeId,
+              citizenIdHash: p.citizenIdHash,
+              endWorkDate: p.endWorkDate,
+              status: p.status,
+              facultyKey: p.facultyKey,
+              positionType: p.positionType,
+              facultyId: p.facultyId,
+            },
+          });
           loaded++;
         } else {
           ctx.log.warn(`unknown target "${rec.target}", skipping`);

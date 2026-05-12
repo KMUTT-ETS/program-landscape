@@ -302,39 +302,64 @@ export class StaffService {
     }
 
     // ── Faculty turnover — HCM ENDWORKDATE-based ───────────────────
-    // Academic-faculty separations from the now-populated
-    // FacultyMember.endEmploymentDate (HCMEmployee.ENDWORKDATE, the
-    // user-noted authoritative source — only filled for staff who left
-    // before mandatory retirement). Yearly buckets for the last 5
-    // years + a 12-month rolling turnover-rate KPI:
+    // Numerator: counted from `staff_separations` (snapshot of the
+    // FULL EmployeeDetail with ENDWORKDATE filled, no STATUS filter).
+    // Previous version used FacultyMember.endEmploymentDate which is
+    // structurally wrong: FacultyMember rows only land for staff that
+    // pass the kku-hr connector's active-only filter (STATUS='A' +
+    // workforce_hcm_actual INNER JOIN), so separated staff never had
+    // an endEmploymentDate written — numerator was systematically too
+    // low.
     //
-    //     turnover12m = sep12m / current_active_faculty_count
+    // Now correctly counts everyone who left HCM regardless of whether
+    // they still appear in our active projection.
     //
-    // Conceptually complements the DS2001-based flow12m above (which
-    // covers all staff including support). When kku-hr is mocked or
-    // hasn't ingested yet, all numbers are zero — harmless.
-    const facultyMembers = await prisma.facultyMember.findMany({
-      select: { isActive: true, endEmploymentDate: true, rank: true },
-    });
+    //     turnover12m = sep12m / current_active_count
+    //
+    // Position-type filter: 'วิชาการ' (academic) + 'วิจัย' (research).
+    // Rows where workforce_hcm_actual had already been cleared at
+    // pull time (positionType null) are included in the "all staff"
+    // count but excluded from the academic-only numerator.
+    const ACADEMIC_POSITION_TYPES = new Set(['วิชาการ', 'วิจัย']);
     const fiveYearsAgo = new Date(Date.UTC(nowFy - 5, 0, 1));
-    const twelveMonthsAgo = new Date(Date.UTC(new Date().getUTCFullYear() - 1, new Date().getUTCMonth(), new Date().getUTCDate()));
-    const turnoverByYear = new Map<number, number>();
-    let separations12mFaculty = 0;
-    let activeFacultyCount = 0;
-    for (const fm of facultyMembers) {
-      if (fm.isActive) activeFacultyCount += 1;
-      const ed = fm.endEmploymentDate;
-      if (!ed || ed < fiveYearsAgo) continue;
-      const y = ed.getUTCFullYear();
-      turnoverByYear.set(y, (turnoverByYear.get(y) ?? 0) + 1);
-      if (ed >= twelveMonthsAgo) separations12mFaculty += 1;
+    const nowDate = new Date();
+    const twelveMonthsAgo = new Date(
+      Date.UTC(nowDate.getUTCFullYear() - 1, nowDate.getUTCMonth(), nowDate.getUTCDate()),
+    );
+    const separations = await prisma.staffSeparation.findMany({
+      where: { endWorkDate: { gte: fiveYearsAgo } },
+      select: { endWorkDate: true, positionType: true },
+    });
+    const academicByYear = new Map<number, number>();
+    const allByYear = new Map<number, number>();
+    let academicSep12m = 0;
+    let allSep12m = 0;
+    for (const s of separations) {
+      const isAcademic = s.positionType !== null && ACADEMIC_POSITION_TYPES.has(s.positionType);
+      const y = s.endWorkDate.getUTCFullYear();
+      allByYear.set(y, (allByYear.get(y) ?? 0) + 1);
+      if (s.endWorkDate >= twelveMonthsAgo) allSep12m += 1;
+      if (isAcademic) {
+        academicByYear.set(y, (academicByYear.get(y) ?? 0) + 1);
+        if (s.endWorkDate >= twelveMonthsAgo) academicSep12m += 1;
+      }
     }
-    const turnoverYears: Array<{ year: number; separations: number }> = [];
+    const turnoverYears: Array<{ year: number; separationsAcademic: number; separationsAll: number }> = [];
     for (let y = nowFy - 4; y <= nowFy; y += 1) {
-      turnoverYears.push({ year: y, separations: turnoverByYear.get(y) ?? 0 });
+      turnoverYears.push({
+        year: y,
+        separationsAcademic: academicByYear.get(y) ?? 0,
+        separationsAll: allByYear.get(y) ?? 0,
+      });
     }
-    const turnoverRate12m =
-      activeFacultyCount > 0 ? (separations12mFaculty / activeFacultyCount) * 100 : 0;
+    // Denominator: active staff count for the academic rate uses
+    // FacultyMember.isActive (matches the academic numerator's scope).
+    const activeFacultyCount = await prisma.facultyMember.count({ where: { isActive: true } });
+    const turnoverRate12mAcademic =
+      activeFacultyCount > 0 ? (academicSep12m / activeFacultyCount) * 100 : 0;
+    // All-staff rate uses total master-record count (includes support).
+    const activeAllCount = total;
+    const turnoverRate12mAll = activeAllCount > 0 ? (allSep12m / activeAllCount) * 100 : 0;
 
     return {
       headcount: { total, academic, support, executives, unknownTrack },
@@ -350,8 +375,11 @@ export class StaffService {
       },
       facultyTurnover: {
         activeFacultyCount,
-        separations12m: separations12mFaculty,
-        turnoverRate12mPct: turnoverRate12m,
+        activeAllCount,
+        separations12mAcademic: academicSep12m,
+        separations12mAll: allSep12m,
+        turnoverRate12mAcademicPct: turnoverRate12mAcademic,
+        turnoverRate12mAllPct: turnoverRate12mAll,
         yearly: turnoverYears,
       },
     };

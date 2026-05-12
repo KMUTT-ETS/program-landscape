@@ -437,55 +437,84 @@ function TenureDistributionCard({
   );
 }
 
-// ── Faculty turnover (HCMEmployee.ENDWORKDATE) ────────────────────────
-// Pre-retirement separation tracking for academic faculty. Last 12
-// months KPI + 5-year trend bars. ENDWORKDATE = actual termination
-// date (resignation, contract end, dismissal, death). Note the scope
-// limit — this counts only academic faculty in the FacultyMember
-// population. All-staff (academic + support) flow is in the existing
-// "Departures (last 12 months)" KPI above, sourced from DS2001.
+// ── Turnover (HCMEmployee.ENDWORKDATE — full EmployeeDetail) ──────────
+// Sourced from the new `staff_separations` snapshot, which captures
+// EVERY separation regardless of current STATUS (fixes the numerator
+// undercount caused by FacultyMember.endEmploymentDate only filling
+// for staff still passing the active-only Q1 filter).
+// Two parallel rates: academic-only + all-staff.
 function FacultyTurnoverCard({
   turnover,
 }: {
   turnover: WorkforceResponse['facultyTurnover'];
 }) {
-  const max = Math.max(...turnover.yearly.map((y) => y.separations), 1);
-  const rateText = turnover.turnoverRate12mPct.toFixed(2) + '%';
-  const tone =
-    turnover.turnoverRate12mPct >= 5
-      ? 'text-warning'
-      : turnover.turnoverRate12mPct >= 2
-        ? 'text-text-primary'
-        : 'text-success';
+  const maxBar = Math.max(...turnover.yearly.map((y) => y.separationsAll), 1);
+  const fmtRate = (p: number, denom: number) =>
+    denom === 0 ? '—' : p.toFixed(2) + '%';
+  const tone = (p: number) =>
+    p >= 5 ? 'text-warning' : p >= 2 ? 'text-text-primary' : 'text-success';
   return (
     <Card>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold">Academic-faculty turnover</h3>
-        <span className={`font-tabular text-2xl font-semibold ${tone}`}>{rateText}</span>
+        <h3 className="text-sm font-semibold">Staff turnover</h3>
+        <span className="text-xs text-text-tertiary">12-month rolling</span>
       </div>
       <p className="mt-1 text-xs text-text-tertiary">
-        Pre-retirement separations only · {turnover.separations12m.toLocaleString('en-US')} faculty left in last 12 months · denominator {turnover.activeFacultyCount.toLocaleString('en-US')} active faculty · source: <span className="font-mono text-text-secondary">HCMEmployee.ENDWORKDATE</span>
+        Pre-retirement separations only · source: <span className="font-mono text-text-secondary">HCMEmployee.ENDWORKDATE</span> (full table snapshot — counts all separations regardless of current STATUS)
       </p>
-      <p className="mt-1 text-[11px] text-text-tertiary">
-        Scope note: this is the <span className="text-text-secondary">academic faculty</span> turnover signal (FacultyMember population). The &quot;Departures (last 12 months)&quot; KPI above uses DS2001 movement codes and covers all staff types.
-      </p>
-      <ul className="mt-3 flex flex-col gap-1.5">
+      <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+        <div className="rounded-md border border-border-subtle p-3">
+          <div className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+            Academic faculty
+          </div>
+          <div className={`mt-1 font-tabular text-2xl font-semibold ${tone(turnover.turnoverRate12mAcademicPct)}`}>
+            {fmtRate(turnover.turnoverRate12mAcademicPct, turnover.activeFacultyCount)}
+          </div>
+          <div className="mt-0.5 text-text-tertiary">
+            {turnover.separations12mAcademic.toLocaleString('en-US')} left / {turnover.activeFacultyCount.toLocaleString('en-US')} active
+          </div>
+        </div>
+        <div className="rounded-md border border-border-subtle p-3">
+          <div className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+            All staff (incl. support)
+          </div>
+          <div className={`mt-1 font-tabular text-2xl font-semibold ${tone(turnover.turnoverRate12mAllPct)}`}>
+            {fmtRate(turnover.turnoverRate12mAllPct, turnover.activeAllCount)}
+          </div>
+          <div className="mt-0.5 text-text-tertiary">
+            {turnover.separations12mAll.toLocaleString('en-US')} left / {turnover.activeAllCount.toLocaleString('en-US')} active
+          </div>
+        </div>
+      </div>
+      <h4 className="mt-4 text-[0.7rem] uppercase tracking-wide text-text-tertiary">
+        5-year separation trend (orange = academic, grey = support)
+      </h4>
+      <ul className="mt-2 flex flex-col gap-1.5">
         {turnover.yearly.map((y) => {
-          const wPct = (y.separations / max) * 100;
+          const allW = (y.separationsAll / maxBar) * 100;
+          const acaPct = y.separationsAll > 0 ? (y.separationsAcademic / y.separationsAll) * 100 : 0;
           return (
-            <li key={y.year} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-x-3 text-xs">
+            <li key={y.year} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem_3rem] items-center gap-x-3 text-xs">
               <span className="font-tabular text-text-tertiary">{y.year}</span>
               <div className="relative h-4 overflow-hidden rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
-                <div className="h-full" style={{ width: `${Math.max(wPct, 0.5)}%`, background: '#f97316' }} />
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${Math.max(allW, 0.5)}%`,
+                    background: `linear-gradient(90deg, #f97316 ${acaPct}%, #94a3b8 ${acaPct}%)`,
+                  }}
+                />
               </div>
-              <span className="text-right font-tabular font-semibold">{y.separations.toLocaleString('en-US')}</span>
+              <span className="text-right font-tabular text-warning">{y.separationsAcademic.toLocaleString('en-US')}</span>
+              <span className="text-right font-tabular font-semibold">{y.separationsAll.toLocaleString('en-US')}</span>
             </li>
           );
         })}
-        <li className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] gap-x-3 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+        <li className="grid grid-cols-[3rem_minmax(0,1fr)_3rem_3rem] gap-x-3 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
           <span></span>
           <span></span>
-          <span className="text-right">separations</span>
+          <span className="text-right">academic</span>
+          <span className="text-right">total</span>
         </li>
       </ul>
     </Card>
