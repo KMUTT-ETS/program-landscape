@@ -76,6 +76,14 @@ interface SystemStatus {
   dataFreshness: Array<{ metric: string; stale: boolean }>;
 }
 
+// Trimmed shape of ExternalAiSourceRow — we only need status + the
+// recent-signal count to surface a meaningful tile badge. See
+// apps/api/src/admin/external-ai/external-ai.service.ts.
+interface ExternalAiSourceLite {
+  status: 'ACTIVE' | 'PAUSED' | 'DISABLED';
+  recentSignalCount: number;
+}
+
 export default async function AdminConsolePage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
@@ -85,13 +93,19 @@ export default async function AdminConsolePage() {
   // Pull live numbers in parallel; degrade gracefully if either endpoint
   // is reachable. The console renders fine without them — the badges
   // just disappear and the stat strip falls back to "—".
-  const [dataStats, sysStatus] = await Promise.all([
+  const [dataStats, sysStatus, externalAi] = await Promise.all([
     apiFetch<DataSetupStats>('/admin/data-setup/stats').catch(() => null),
     apiFetch<SystemStatus>('/admin/system-status').catch(() => null),
+    // External-AI source list — used to surface "X feeds active" on the
+    // AI search & synthesis tile. Gated on pdf:admin so only the admin
+    // grades that already see this console can read it.
+    apiFetch<ExternalAiSourceLite[]>('/admin/external-ai-sources').catch(
+      () => null as ExternalAiSourceLite[] | null,
+    ),
   ]);
 
   const heroStats = buildHeroStats(dataStats, sysStatus);
-  const groups = buildGroups({ dataStats, sysStatus, role: user.role });
+  const groups = buildGroups({ dataStats, sysStatus, externalAi, role: user.role });
 
   return (
     <AuthedAppShell user={user}>
@@ -477,10 +491,12 @@ function buildHeroStats(
 function buildGroups({
   dataStats,
   sysStatus,
+  externalAi,
   role,
 }: {
   dataStats: DataSetupStats | null;
   sysStatus: SystemStatus | null;
+  externalAi: ExternalAiSourceLite[] | null;
   role: SessionUser['role'];
 }): ConsoleGroup[] {
   // ── 1) Programs ────────────────────────────────────────────────────
@@ -529,7 +545,20 @@ function buildGroups({
       description:
         'External intelligence feeds — WEF, IMD, BOI, World Bank, Google News. URL-list + web-search sources, AI-summarised into trend_signals.',
       icon: <Globe2 className="h-6 w-6" />,
-      badge: { label: 'Phase 5', tone: 'info' },
+      badge: externalAi
+        ? (() => {
+            const active = externalAi.filter((s) => s.status === 'ACTIVE').length;
+            return active > 0
+              ? { label: `${active} active`, tone: 'success' as const }
+              : { label: 'all paused', tone: 'neutral' as const };
+          })()
+        : undefined,
+      meta: externalAi
+        ? (() => {
+            const signals = externalAi.reduce((sum, s) => sum + (s.recentSignalCount ?? 0), 0);
+            return `${signals} signal${signals === 1 ? '' : 's'} from ${externalAi.length} feeds · 30d`;
+          })()
+        : undefined,
     },
     {
       href: '/admin/pdf-review',
@@ -551,12 +580,24 @@ function buildGroups({
       description:
         'Completeness + year-on-year drift detection across enrollment, financials, outcome series. Surfaces when an external feed turns flaky.',
       icon: <ClipboardCheck className="h-6 w-6" />,
+      // Badge only when there's something to act on. When everything
+      // is fresh, no badge — the tile reads as "all good" by default,
+      // and only lights up when an operator needs to attend.
       badge: sysStatus
         ? (() => {
             const stale = sysStatus.dataFreshness.filter((f) => f.stale).length;
             return stale > 0
-              ? { label: `${stale} stale`, tone: 'warning' as const }
-              : { label: 'fresh', tone: 'success' as const };
+              ? { label: `${stale} need attention`, tone: 'warning' as const }
+              : undefined;
+          })()
+        : undefined,
+      meta: sysStatus
+        ? (() => {
+            const stale = sysStatus.dataFreshness.filter((f) => f.stale).length;
+            const total = sysStatus.dataFreshness.length;
+            return stale === 0
+              ? `All ${total} feeds up to date`
+              : `${total - stale} of ${total} feeds up to date`;
           })()
         : undefined,
     },
@@ -583,7 +624,9 @@ function buildGroups({
       icon: <Settings2 className="h-6 w-6" />,
       roles: SUPER_GRADE,
       tone: 'super',
-      badge: { label: 'Phase 3', tone: 'info' },
+      // No badge — the meta line below carries the operator-useful
+      // signal (today's AI spend + call count). "Phase 3" was a dev
+      // tag that shouldn't reach the live UI.
       meta: sysStatus
         ? `Today $ ${sysStatus.ai24h.costUsd.toFixed(2)} · ${sysStatus.ai24h.calls} calls`
         : undefined,
