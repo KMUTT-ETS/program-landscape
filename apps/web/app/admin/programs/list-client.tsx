@@ -3,15 +3,32 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Badge,
   Button,
   Card,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   EmptyState,
   Input,
   Label,
 } from '@kku/ui';
-import { Search, FileText, FilePlus2 } from 'lucide-react';
+import {
+  CheckSquare,
+  FilePlus2,
+  FileText,
+  Layers,
+  Loader2,
+  Play,
+  Search,
+  Square,
+  X,
+} from 'lucide-react';
 
 export interface ProgramListRow {
   id: string;
@@ -68,6 +85,86 @@ const STATUS_TONE: Record<
   SUNSET: 'neutral',
 };
 
+// ── Pipeline-picker presets ───────────────────────────────────────────
+// Pre-defined phase sets surfaced as radio options in the picker. The
+// operator can always switch to "Custom" and tick individual phases.
+//
+// Pipeline reference (from apps/ingestion/src/scripts/programs-pipeline.ts):
+//   phase1  PDF extraction (digest + faculty + skills + pedagogy)
+//   phase2  approve + materialise
+//   phase3  career mapping + demand match
+//   phase4  Oracle/MSSQL data linkage (cohorts, alumni, financials)
+//   phase5  peer select + peer review
+//   phase6  AI readiness
+//   phase7  strategic narrative
+//   phase8  risk analysis
+
+type Phase =
+  | 'phase1'
+  | 'phase2'
+  | 'phase3'
+  | 'phase4'
+  | 'phase5'
+  | 'phase6'
+  | 'phase7'
+  | 'phase8';
+
+const ALL_PHASES: Phase[] = ['phase1', 'phase2', 'phase3', 'phase4', 'phase5', 'phase6', 'phase7', 'phase8'];
+
+const PHASE_LABEL: Record<Phase, string> = {
+  phase1: 'Phase 1 · PDF extraction (digest / faculty / skills / pedagogy)',
+  phase2: 'Phase 2 · Approve + materialise',
+  phase3: 'Phase 3 · Careers + demand match',
+  phase4: 'Phase 4 · Oracle / MSSQL data linkage',
+  phase5: 'Phase 5 · Peer select + peer review',
+  phase6: 'Phase 6 · AI readiness',
+  phase7: 'Phase 7 · Strategic narrative',
+  phase8: 'Phase 8 · Risk analysis',
+};
+
+interface PipelinePreset {
+  key: string;
+  label: string;
+  description: string;
+  phases: Phase[] | null; // null = all phases (full run)
+}
+
+const PIPELINE_PRESETS: PipelinePreset[] = [
+  {
+    key: 'full',
+    label: 'Full pipeline',
+    description: 'All 8 phases · ~5–10 min · ~$0.60 per program in LLM cost',
+    phases: null,
+  },
+  {
+    key: 'ai-only',
+    label: 'AI-only refresh',
+    description:
+      'Re-run every LLM phase: PDF extraction · careers + demand · peers · AI readiness · narrative · risk. Skips Oracle/MSSQL.',
+    phases: ['phase1', 'phase2', 'phase3', 'phase5', 'phase6', 'phase7', 'phase8'],
+  },
+  {
+    key: 'oracle-only',
+    label: 'Oracle / MSSQL only',
+    description:
+      'Re-link cohorts + alumni + financials only. No AI cost. Useful after a registrar / finance refresh.',
+    phases: ['phase4'],
+  },
+  {
+    key: 'quick-refresh',
+    label: 'Quick narrative refresh',
+    description:
+      'AI readiness · narrative · risk only. Use after metadata edits when the underlying skills + cohort data are still valid.',
+    phases: ['phase6', 'phase7', 'phase8'],
+  },
+  {
+    key: 'custom',
+    label: 'Custom',
+    description: 'Pick phases individually.',
+    phases: [], // sentinel — actual phases come from the checkbox state
+  },
+];
+
 export function ProgramsListClient({
   rows,
   total,
@@ -80,6 +177,11 @@ export function ProgramsListClient({
   const [level, setLevel] = React.useState(initialFilters.level ?? '');
   const [status, setStatus] = React.useState(initialFilters.status ?? '');
 
+  // Row-selection state. Keyed by Program.id (stable across re-renders).
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [batchBusy, setBatchBusy] = React.useState(false);
+
   const applyFilters = (next: Partial<typeof initialFilters>) => {
     const params = new URLSearchParams();
     const merged = { q, facultyId, level, status, ...next };
@@ -88,6 +190,111 @@ export function ProgramsListClient({
     if (merged.level) params.set('level', merged.level);
     if (merged.status) params.set('status', merged.status);
     router.push(`/admin/programs?${params.toString()}`);
+  };
+
+  const toggleRow = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allOnPageSelected =
+    rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const someSelected = selected.size > 0;
+
+  const toggleAllOnPage = () => {
+    if (allOnPageSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const r of rows) next.delete(r.id);
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const r of rows) next.add(r.id);
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelected(new Set());
+
+  // ── Batch actions ──────────────────────────────────────────────────
+  const setStatusBatch = async (
+    newStatus: ProgramListRow['status'],
+    actionLabel: string,
+  ) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    const confirmMsg =
+      newStatus === 'SUNSET'
+        ? `Mark ${ids.length} program(s) as SUNSET? They will stop appearing in analysis + statistics. This is reversible.`
+        : `Set ${ids.length} program(s) to ${newStatus.toLowerCase()}?`;
+    if (!confirm(confirmMsg)) return;
+    setBatchBusy(true);
+    try {
+      // No bulk-status endpoint server-side; loop client-side. At ≤297
+      // programs the round-trips are fine; if this ever needs to scale
+      // we'll add a single PATCH /admin/programs/status-batch endpoint.
+      let ok = 0;
+      let failed = 0;
+      for (const id of ids) {
+        const res = await fetch(`/api/admin-programs/${id}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        if (res.ok) ok += 1;
+        else failed += 1;
+      }
+      if (failed === 0) toast.success(`${actionLabel} · ${ok} program(s)`);
+      else toast.warning(`${actionLabel} · ${ok} ok · ${failed} failed`);
+      clearSelection();
+      router.refresh();
+    } catch (err) {
+      toast.error(`${actionLabel} failed: ${(err as Error).message}`);
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const runPipelineBatch = async (phases: Phase[] | null, force: boolean) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBatchBusy(true);
+    setPickerOpen(false);
+    try {
+      const res = await fetch(`/api/admin-programs/pipeline/run-pipeline-bulk`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          programIds: ids,
+          phases: phases ?? undefined, // omit = all phases
+          force,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+      }
+      const j = await res.json();
+      const queued = (j.data as { jobs?: unknown[] })?.jobs?.length ?? ids.length;
+      toast.success(
+        `Pipeline enqueued · ${queued} program(s) · ${
+          phases ? `${phases.length} phase(s)` : 'full run'
+        }${force ? ' · force' : ''}`,
+      );
+      clearSelection();
+      router.refresh();
+    } catch (err) {
+      toast.error(`Pipeline enqueue failed: ${(err as Error).message}`);
+    } finally {
+      setBatchBusy(false);
+    }
   };
 
   return (
@@ -144,6 +351,7 @@ export function ProgramsListClient({
               <option value="BACHELOR">Bachelor</option>
               <option value="MASTER">Master</option>
               <option value="DOCTORAL">Doctoral</option>
+              <option value="HIGHER_GRAD_DIPLOMA">Higher Grad. Diploma</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -165,13 +373,76 @@ export function ProgramsListClient({
         </form>
       </Card>
 
-      <div className="flex items-center justify-between text-sm text-text-secondary">
-        <span>
-          <span className="font-tabular text-text-primary">{rows.length}</span>
-          {' '}
-          showing of{' '}
-          <span className="font-tabular text-text-primary">{total}</span> programs
-        </span>
+      {/* Toolbar — swaps between "showing N of M + Add new program" and
+        * the batch-action strip depending on whether any rows are
+        * selected. Single height + flow stays consistent. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        {someSelected ? (
+          <>
+            <div className="flex items-center gap-3">
+              <Badge tone="accent">
+                <CheckSquare className="h-3 w-3" aria-hidden />
+                {selected.size} selected
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                <X className="h-3.5 w-3.5" aria-hidden /> Clear
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                disabled={batchBusy}
+                onClick={() => setPickerOpen(true)}
+              >
+                {batchBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Play className="h-3.5 w-3.5" aria-hidden />
+                )}
+                Run pipeline
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={batchBusy}
+                onClick={() => setStatusBatch('ACTIVE', 'Set Active')}
+              >
+                Set Active
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={batchBusy}
+                onClick={() => setStatusBatch('PAUSED', 'Set Inactive')}
+              >
+                Set Inactive
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={batchBusy}
+                onClick={() => setStatusBatch('SUNSET', 'Mark Sunset')}
+              >
+                Mark Sunset
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="text-text-secondary">
+              <span className="font-tabular text-text-primary">{rows.length}</span>
+              {' '}
+              showing of{' '}
+              <span className="font-tabular text-text-primary">{total}</span> programs
+            </span>
+            <Button asChild size="sm">
+              <Link href="/admin/programs/new">
+                <FilePlus2 className="h-3.5 w-3.5" aria-hidden />
+                Add new program
+              </Link>
+            </Button>
+          </>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -193,9 +464,23 @@ export function ProgramsListClient({
             <table className="w-full text-sm">
               <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
                 <tr>
+                  <th className="px-3 py-2 text-left">
+                    <button
+                      type="button"
+                      onClick={toggleAllOnPage}
+                      className="flex items-center text-text-secondary hover:text-text-primary"
+                      title={allOnPageSelected ? 'Deselect all on this page' : 'Select all on this page'}
+                    >
+                      {allOnPageSelected ? (
+                        <CheckSquare className="h-4 w-4" aria-hidden />
+                      ) : (
+                        <Square className="h-4 w-4" aria-hidden />
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-2 text-left">Code · CURR_ID</th>
                   <th className="px-4 py-2 text-left">Program</th>
-                  <th className="px-4 py-2 text-left">Faculty · Dept</th>
+                  <th className="px-4 py-2 text-left">Faculty</th>
                   <th className="px-4 py-2 text-left">Level</th>
                   <th className="px-4 py-2 text-left">Status</th>
                   <th className="px-4 py-2 text-left">Curric. year</th>
@@ -207,8 +492,26 @@ export function ProgramsListClient({
                 {rows.map((r) => {
                   const current = r.documents.find((d) => d.role === 'CURRENT_CURRICULUM');
                   const pending = r.pendingExtractions.length;
+                  const isSelected = selected.has(r.id);
                   return (
-                    <tr key={r.id} className="hover:bg-surface-1">
+                    <tr
+                      key={r.id}
+                      className={`hover:bg-surface-1 ${isSelected ? 'bg-accent-default/[0.04]' : ''}`}
+                    >
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleRow(r.id)}
+                          className="flex items-center text-text-secondary hover:text-text-primary"
+                          aria-label={isSelected ? 'Deselect row' : 'Select row'}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="h-4 w-4 text-accent-default" aria-hidden />
+                          ) : (
+                            <Square className="h-4 w-4" aria-hidden />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-2 font-tabular font-medium text-text-primary">
                         <div className="flex flex-col leading-tight">
                           <span>{r.code}</span>
@@ -232,12 +535,7 @@ export function ProgramsListClient({
                         </div>
                       </td>
                       <td className="px-4 py-2 text-text-secondary">
-                        <div className="flex flex-col">
-                          <span>{r.faculty?.nameEn ?? '—'}</span>
-                          {r.department && (
-                            <span className="text-xs text-text-tertiary">{r.department.nameEn}</span>
-                          )}
-                        </div>
+                        {r.faculty?.nameEn ?? '—'}
                       </td>
                       <td className="px-4 py-2">{LEVEL_LABEL[r.level]}</td>
                       <td className="px-4 py-2">
@@ -273,6 +571,170 @@ export function ProgramsListClient({
           </div>
         </Card>
       )}
+
+      <PipelinePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        selectedCount={selected.size}
+        onSubmit={runPipelineBatch}
+      />
     </div>
+  );
+}
+
+// ── Pipeline picker ───────────────────────────────────────────────────
+// Pre-defined preset (radio) → fills the per-phase checkboxes. "Custom"
+// lets the operator pick phases individually. "Force" re-runs even if
+// existing results would be reused.
+function PipelinePickerDialog({
+  open,
+  onOpenChange,
+  selectedCount,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedCount: number;
+  onSubmit: (phases: Phase[] | null, force: boolean) => void;
+}) {
+  const [presetKey, setPresetKey] = React.useState<string>('full');
+  const [customPhases, setCustomPhases] = React.useState<Set<Phase>>(
+    new Set(ALL_PHASES),
+  );
+  const [force, setForce] = React.useState(false);
+
+  const preset = PIPELINE_PRESETS.find((p) => p.key === presetKey) ?? PIPELINE_PRESETS[0]!;
+  const isCustom = presetKey === 'custom';
+  // Effective phase set the operator will submit. Null = full run
+  // (passed to API as `phases: undefined`).
+  const effectivePhases: Phase[] | null = (() => {
+    if (preset.phases === null) return null; // Full
+    if (isCustom) return [...customPhases].sort();
+    return preset.phases;
+  })();
+
+  const togglePhase = (p: Phase) => {
+    setCustomPhases((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
+
+  const handleSubmit = () => {
+    if (effectivePhases !== null && effectivePhases.length === 0) {
+      toast.error('Pick at least one phase to run.');
+      return;
+    }
+    onSubmit(effectivePhases, force);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-accent-default" aria-hidden />
+            Run pipeline · {selectedCount} program(s)
+          </DialogTitle>
+          <DialogDescription>
+            Pipeline jobs run in the background. Check the Job queues page (or refresh this list) for progress.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-5 py-2">
+          {/* Preset radio */}
+          <div className="flex flex-col gap-2">
+            <Label>Preset</Label>
+            <div className="flex flex-col gap-1.5">
+              {PIPELINE_PRESETS.map((p) => (
+                <label
+                  key={p.key}
+                  className={`flex cursor-pointer gap-3 rounded-md border p-2.5 transition-colors ${
+                    presetKey === p.key
+                      ? 'border-accent-default/40 bg-accent-default/[0.04]'
+                      : 'border-border-subtle hover:bg-surface-1'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="preset"
+                    checked={presetKey === p.key}
+                    onChange={() => setPresetKey(p.key)}
+                    className="mt-1"
+                  />
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-sm font-medium">{p.label}</span>
+                    <span className="text-xs text-text-tertiary">{p.description}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Per-phase picker — enabled when Custom is selected; read-only
+            * preview otherwise so the operator sees what will run. */}
+          <div className="flex flex-col gap-2">
+            <Label>
+              Phases ({effectivePhases === null ? 'all 8' : effectivePhases.length})
+              {!isCustom && <span className="ml-2 text-xs text-text-tertiary">(preview — pick Custom to edit)</span>}
+            </Label>
+            <div className="grid grid-cols-1 gap-1 rounded-md border border-border-subtle bg-surface-1 p-2 sm:grid-cols-2">
+              {ALL_PHASES.map((p) => {
+                const checked =
+                  effectivePhases === null || effectivePhases.includes(p);
+                return (
+                  <label
+                    key={p}
+                    className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${
+                      isCustom ? 'cursor-pointer hover:bg-surface-2' : 'cursor-default opacity-80'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={!isCustom}
+                      onChange={() => togglePhase(p)}
+                    />
+                    <span className={checked ? 'text-text-primary' : 'text-text-tertiary'}>
+                      {PHASE_LABEL[p]}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Force toggle */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border-subtle p-2.5 hover:bg-surface-1">
+            <input
+              type="checkbox"
+              checked={force}
+              onChange={(e) => setForce(e.target.checked)}
+              className="mt-1"
+            />
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-medium">Force re-run</span>
+              <span className="text-xs text-text-tertiary">
+                Re-run even if a phase already has up-to-date results. Costs LLM credits.
+              </span>
+            </div>
+          </label>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-border-subtle pt-3">
+          <DialogClose asChild>
+            <Button variant="ghost" size="sm">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button size="sm" onClick={handleSubmit}>
+            <Play className="h-3.5 w-3.5" aria-hidden />
+            Enqueue {selectedCount} program(s)
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
