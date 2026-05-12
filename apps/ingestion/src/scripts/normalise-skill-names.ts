@@ -183,14 +183,12 @@ async function processBatch(
         },
         messages,
         methodVersion: SKILL_NAME_NORMALISER_VERSION,
-        // Use the stable 2.5-flash model rather than the preview default.
-        // gemini-3-flash-preview has been observed truncating output at
-        // ~600 tokens regardless of maxOutputTokens — a known preview-
-        // model cap. 2.5-flash respects the budget reliably.
-        model: 'gemini-2.5-flash',
-        // Each decision ≈ 100-200 tokens. For batch_size=25 worst-case
-        // ~5000 output tokens. 16000 gives headroom for AMBIGUOUS verbose
-        // reasoning. Matches the program-digest budget.
+        // All-Pro posture (2026-05-12). Each decision ≈ 100-200 tokens.
+        // For batch_size=25 worst-case ~5000 output tokens. 16000 gives
+        // headroom for AMBIGUOUS verbose reasoning. (Was 2.5-flash to
+        // dodge 3-flash-preview's ~600-token truncation; Pro
+        // supersedes both.)
+        model: 'gemini-3.1-pro-preview',
         maxOutputTokens: 16000,
       },
       SkillNormaliserBatchSchema,

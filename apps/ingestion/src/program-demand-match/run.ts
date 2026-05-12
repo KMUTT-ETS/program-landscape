@@ -182,7 +182,8 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       },
       messages,
       methodVersion: DEMAND_MATCH_VERSION,
-      // Model history:
+      // Pin (now redundant with the all-Pro default in google-ai.ts,
+      // kept as documentation). Model history:
       //   gemini-3-flash-preview  — truncated at ~470 output tokens once
       //     the v2 schema (relevantToCurriculum) + discipline-relevance
       //     prompt rules grew the expected response shape.
@@ -191,10 +192,9 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       //     KKU-SEQ-0062, 2026-05-12 — two consecutive retries lost the
       //     same way; both responses ended mid-JSON, conf=0).
       //   gemini-3.1-pro-preview  — CURRENT DEFAULT. Long structured
-      //     output is in Pro's wheelhouse. Adds ~$0.04/program vs flash's
-      //     ~$0.002, but reliability >> cost at this volume (≤297 progs).
-      //     Verified end-to-end on KKU-SEQ-0062: 3,774 output tokens,
-      //     conf 0.90, 30/30 demanded skills matched cleanly.
+      //     output is in Pro's wheelhouse. Verified end-to-end on
+      //     KKU-SEQ-0062: 3,774 output tokens, conf 0.90, 30/30
+      //     demanded skills matched cleanly.
       model: params.modelOverride ?? 'gemini-3.1-pro-preview',
       maxOutputTokens: 12000,
     },

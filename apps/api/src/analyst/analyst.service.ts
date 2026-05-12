@@ -296,14 +296,16 @@ export class AnalystService implements OnModuleInit {
 
     // 6. Run the tool-use loop.
     //
-    // Force model = `gemini-2.5-flash` (Anthropic provider ignores this
+    // Force model = `gemini-2.5-pro` (Anthropic provider ignores this
     // string). Reason: Gemini 3.x preview models mandate echoing a
     // `thoughtSignature` field that the @google/genai v0.3.1 SDK
     // doesn't expose on its Part type → multi-turn agent loops fail
-    // with HTTP 400. 2.5-flash uses the same function-calling
+    // with HTTP 400. The 2.5 family uses the same function-calling
     // protocol but doesn't require signatures, so the agent works
-    // without an SDK upgrade. Anthropic users get their default
-    // Sonnet/Haiku via the provider's own routing.
+    // without an SDK upgrade. 2.5-pro (vs the previous 2.5-flash) is
+    // part of the 2026-05-12 all-Pro posture — Pro reasoning helps
+    // multi-tool plans land in fewer iterations. Anthropic users get
+    // their default Sonnet/Haiku via the provider's own routing.
     const req: ToolUseRequest = {
       ctx: { module: 'analyst', kind: 'chat', userId: params.userId },
       messages,
@@ -311,7 +313,7 @@ export class AnalystService implements OnModuleInit {
       maxIterations: 6,
       maxOutputTokens: 2500,
       temperature: 0.3,
-      model: this.ai.providerId === 'google' ? 'gemini-2.5-flash' : undefined,
+      model: this.ai.providerId === 'google' ? 'gemini-2.5-pro' : undefined,
     };
 
     const toolCallsForEvidence: Array<{ name: string; input: Record<string, unknown>; result?: string }> = [];

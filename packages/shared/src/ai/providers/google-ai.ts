@@ -35,7 +35,18 @@ import { scrubMessages } from '../scrub-messages';
 // Note: 2.0-flash was deprecated in 2026; 2.5-flash is GA; 3-flash-preview
 // is the current best for Thai structured extraction.
 
-const DEFAULT_COMPLETION_MODEL = 'gemini-3-flash-preview';
+// All-Pro posture (2026-05-12). Flash defaults retired after observing:
+//   - gemini-3-flash-preview truncating program-digest at ~470 output
+//     tokens once the v2 schemas grew (mostly self-recovered on retry).
+//   - gemini-flash-latest truncating demand-match at ~463 output tokens
+//     deterministically (KKU-SEQ-0062, two consecutive retries lost).
+// Quality > cost at this volume (≤297 programs, single-tenant Council
+// app). ~5× per-token cost vs Flash but the bulk-run reliability tax
+// (manual operator retries on every truncation) is gone.
+// Flash escapes still exist on a per-call basis via `model:` overrides
+// — useful for cost-comparison experiments or if Pro itself hits a
+// regression and we need a quick fallback.
+const DEFAULT_COMPLETION_MODEL = 'gemini-3.1-pro-preview';
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
 
 // Per-1k-token prices in USD. Approximate + conservative — used for cost
@@ -59,6 +70,11 @@ const PRICING: Record<string, { input: number; output: number }> = {
 // Per-task model assignment — single source of truth so callers can
 // just pass `methodVersion` and we pick the right tier. Override per
 // call by passing an explicit `model` on the request.
+//
+// Since the 2026-05-12 all-Pro switch the default IS Pro, so every
+// entry below is currently a no-op (matches resolve to the same model
+// as the fallback). Kept as documentation of which methods we'd want
+// to stay on Pro first if we ever re-introduce a Flash default.
 const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [
   // Pro tier — frank comparative review + curriculum modernity verdict.
   { prefix: 'program-peer-review',          model: 'gemini-3.1-pro-preview' },
@@ -69,7 +85,6 @@ const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [
   // Pro tier — discipline-aware AI readiness reasoning (replaces the
   // generic v1 keyword classifier with grounded per-discipline guidance).
   { prefix: 'program-ai-readiness',         model: 'gemini-3.1-pro-preview' },
-  // Everything else is extraction → flash.
 ];
 
 function pickModelForMethod(methodVersion: string | undefined, fallback: string): string {

@@ -163,11 +163,11 @@ async function mainInner(_args: string[], pdfs: string[], runId: string): Promis
         {
           ctx: { module: 'outcomes', kind: 'graduate-employment-survey' },
           messages,
-          // 2.5-flash has a higher effective output budget than 3-flash-
-          // preview for structured-output calls and doesn't enforce
-          // thoughtSignature on subsequent turns. The report has 100+
-          // programs to emit; we need ~30k output tokens to be safe.
-          model: 'gemini-2.5-flash',
+          // All-Pro posture (2026-05-12). The report has 100+ programs
+          // to emit; ~30k output tokens. Pro handles this length cleanly.
+          // (Was previously gemini-2.5-flash for higher effective output
+          // budget vs flash-preview; Pro supersedes both.)
+          model: 'gemini-3.1-pro-preview',
           methodVersion: GRADUATE_EMPLOYMENT_SURVEY_VERSION,
           maxOutputTokens: 32_000,
           fileAttachment: { fileUri: uploaded.fileUri, mimeType: 'application/pdf' },
