@@ -8,7 +8,6 @@ import { Badge, Card, EdgeGlow, Stat } from '@kku/ui';
 import {
   Activity,
   ArrowUpRight,
-  BrainCircuit,
   Building2,
   CircleDollarSign,
   ClipboardCheck,
@@ -477,15 +476,16 @@ function buildGroups({
   role: SessionUser['role'];
 }): ConsoleGroup[] {
   // ── 1) Programs ────────────────────────────────────────────────────
-  // Curriculum-centric ops: the program list (table + batch actions),
-  // the new-program flow, and the curriculum-related review gates.
-  // Non-curriculum PDFs live under External data → PDF library.
+  // Curriculum-centric ops collapse to one tile — the program list.
+  // The list page owns the "Add new program" affordance (Phase 2)
+  // instead of a separate tile, and the AI-extraction review queue
+  // folds into Job queues under Application (Phase 6).
   const programs: ConsoleTile[] = [
     {
       href: '/admin/programs',
       label: 'Program list',
       description:
-        'Full table of the 297 KKU programs — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch).',
+        'Full table of the 297 KKU programs — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch), add new program via PDF upload.',
       icon: <Building2 className="h-5 w-5" />,
       badge: dataStats
         ? { label: dataStats.programs.total.toLocaleString(), tone: 'neutral' }
@@ -493,28 +493,6 @@ function buildGroups({
       meta: dataStats
         ? `${dataStats.programs.missingCurriculumPdf} missing curriculum`
         : undefined,
-    },
-    {
-      href: '/admin/programs/new',
-      label: 'New program',
-      description:
-        'Upload a curriculum PDF — the digest extractor auto-fills metadata, dup-check warns on collisions, full pipeline fires after analyst confirms.',
-      icon: <FileText className="h-5 w-5" />,
-    },
-    {
-      href: '/admin/extraction-review',
-      label: 'Review queue',
-      description:
-        'Curriculum AI extractions awaiting analyst sign-off — course-skill mappings, proposed taxonomy entries, low-confidence digests.',
-      icon: <BrainCircuit className="h-5 w-5" />,
-      badge:
-        sysStatus && sysStatus.pendingExtractions > 0
-          ? {
-              label: `${sysStatus.pendingExtractions} pending`,
-              tone: sysStatus.pendingExtractions > 50 ? 'warning' : 'info',
-            }
-          : undefined,
-      tone: sysStatus && sysStatus.pendingExtractions > 50 ? 'warn' : 'default',
     },
   ];
 
@@ -606,14 +584,26 @@ function buildGroups({
       href: '/admin/queues',
       label: 'Job queues',
       description:
-        'Live BullMQ state — what is running, waiting, failed. Pause, resume, retry, clean. (Phase 6 adds realtime processing status.)',
+        'Live BullMQ state — what is running, waiting, failed. Pause, resume, retry, clean. AI-extraction review queue (human sign-off on low-confidence outputs) folds in here in Phase 6.',
       icon: <Layers className="h-5 w-5" />,
       roles: ADMIN_GRADE,
+      // Two signals folded into this tile: BullMQ run failures (system
+      // health) + pending AI-extraction reviews (analyst-attention).
+      // The badge gets the human-review count when there's something
+      // to look at — it's the more frequently actionable signal.
+      badge:
+        sysStatus && sysStatus.pendingExtractions > 0
+          ? {
+              label: `${sysStatus.pendingExtractions} pending review`,
+              tone: sysStatus.pendingExtractions > 50 ? 'warning' : 'info',
+            }
+          : undefined,
+      tone: sysStatus && sysStatus.pendingExtractions > 50 ? 'warn' : 'default',
       meta: sysStatus
         ? (() => {
             const failed =
               sysStatus.ingestionRuns7d.find((r) => r.status === 'FAILED')?.count ?? 0;
-            return failed > 0 ? `${failed} failed in last 7d` : 'no failures · 7d';
+            return failed > 0 ? `${failed} run failures · 7d` : 'no run failures · 7d';
           })()
         : undefined,
     },
@@ -652,7 +642,7 @@ function buildGroups({
       eyebrow: 'Group 1',
       label: 'Programs',
       caption:
-        'Curriculum-centric operations — program list, new-program intake, review queue for AI extractions awaiting analyst sign-off.',
+        'Curriculum-centric operations. The program list owns the table, the new-program wizard, and per-row / batch pipeline actions — one tile, one destination.',
       tiles: programs.filter(filterByRole),
     },
     {
