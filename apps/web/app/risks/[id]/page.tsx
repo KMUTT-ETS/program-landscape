@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import {
   ShieldAlert,
@@ -65,19 +66,22 @@ export default async function ProgramRiskPage({ params }: { params: Promise<{ id
   if (!user?.userId) redirect('/signin');
   const { id } = await params;
 
-  const profile = await apiFetch<ProgramProfileResponse>(`/risks/programs/${id}`).catch(() => null);
+  const profileRes = await apiFetchSafe<ProgramProfileResponse>(`/risks/programs/${id}`);
+  const profile = profileRes.ok ? profileRes.data : null;
 
   if (!profile) {
     return (
       <AuthedAppShell user={user}>
         <PageHeader title="Risk profile" />
-        <div className="rounded-md border border-border-default bg-surface-1 p-6 text-text-secondary">
-          Program not found or no risk assessment available.
-          <div className="mt-2">
-            <Link href="/risks" className="text-accent-default hover:underline">
-              ← back to portfolio
-            </Link>
-          </div>
+        <DiagnosticEmptyState
+          surface="this program's risk profile"
+          error={profileRes.ok ? null : profileRes.error}
+          emptyMessage="No risk assessment has been computed for this program yet."
+        />
+        <div className="mt-3">
+          <Link href="/risks" className="text-xs text-accent-default hover:underline">
+            ← back to portfolio
+          </Link>
         </div>
       </AuthedAppShell>
     );

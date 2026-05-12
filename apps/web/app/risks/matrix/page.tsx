@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { RiskMatrixClient } from './client';
 import { RisksBackNav } from '../viz';
@@ -16,7 +17,7 @@ export default async function RiskMatrixPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const portfolio = await apiFetch<PortfolioResponse>('/risks/portfolio?level=BACHELOR').catch(() => null);
+  const portfolioRes = await apiFetchSafe<PortfolioResponse>('/risks/portfolio?level=BACHELOR');
 
   return (
     <AuthedAppShell user={user}>
@@ -25,17 +26,23 @@ export default async function RiskMatrixPage() {
         title="Likelihood × Impact matrix"
         subtitle="Two views of the same dataset: BCG-style bubble plot for analytic clarity (X = composite likelihood, Y = log-impact, bubble size = THB at risk) and the institutional ERM 5×5 heatmap."
       />
-      {portfolio ? (
-        <RiskMatrixClient
-          rows={portfolio.rows}
-          methodology={portfolio.methodologyVersion}
-          kkuMatrixCells={portfolio.summary.kkuMatrixCells}
-          kkuLevelCounts={portfolio.summary.byKkuLevel}
-        />
+      {portfolioRes.ok ? (
+        portfolioRes.data.rows.length === 0 ? (
+          <DiagnosticEmptyState
+            surface="risk matrix"
+            error={null}
+            emptyMessage="No program-level risk assessments have been computed yet."
+          />
+        ) : (
+          <RiskMatrixClient
+            rows={portfolioRes.data.rows}
+            methodology={portfolioRes.data.methodologyVersion}
+            kkuMatrixCells={portfolioRes.data.summary.kkuMatrixCells}
+            kkuLevelCounts={portfolioRes.data.summary.byKkuLevel}
+          />
+        )
       ) : (
-        <div className="rounded-md border border-border-default bg-surface-1 p-8 text-center text-text-secondary">
-          Unable to load risk data.
-        </div>
+        <DiagnosticEmptyState surface="risk matrix" error={portfolioRes.error} />
       )}
     </AuthedAppShell>
   );

@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { RisksBackNav } from '../viz';
@@ -18,7 +19,9 @@ export default async function IndicatorsPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const list = await apiFetch<IndicatorsResponse>('/risks/indicators').catch(() => null);
+  const listRes = await apiFetchSafe<IndicatorsResponse>('/risks/indicators');
+  const list = listRes.ok ? listRes.data : null;
+  const listError = listRes.ok ? null : listRes.error;
 
   // Pull breach detail for each indicator in parallel — gives us the value
   // histogram + per-program list for the redesigned cards.
@@ -44,18 +47,24 @@ export default async function IndicatorsPage() {
         subtitle="Each KRI evaluates one specific aspect of program risk. Hover the histogram to see counts; click a program in the breach list to drill in."
       />
       {list ? (
-        <div className="space-y-4">
-          {list.indicators.map((ind) => {
-            const detail = detailsBySlug[ind.slug];
-            return (
-              <IndicatorCard key={ind.slug} indicator={ind} detail={detail ?? null} />
-            );
-          })}
-        </div>
+        list.indicators.length === 0 ? (
+          <DiagnosticEmptyState
+            surface="risk indicators"
+            error={null}
+            emptyMessage="No KRI definitions have been seeded yet. Run the catalog-seed admin action."
+          />
+        ) : (
+          <div className="space-y-4">
+            {list.indicators.map((ind) => {
+              const detail = detailsBySlug[ind.slug];
+              return (
+                <IndicatorCard key={ind.slug} indicator={ind} detail={detail ?? null} />
+              );
+            })}
+          </div>
+        )
       ) : (
-        <div className="rounded-md border border-border-default bg-surface-1 p-6 text-text-secondary">
-          Unable to load KRI data.
-        </div>
+        <DiagnosticEmptyState surface="risk indicators" error={listError} />
       )}
     </AuthedAppShell>
   );

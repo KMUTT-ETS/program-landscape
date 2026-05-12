@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { RisksPortfolioClient } from './portfolio-client';
 import type { PortfolioResponse } from './types';
@@ -28,7 +29,9 @@ export default async function RisksPage({
   const qs = new URLSearchParams({ level: 'BACHELOR' });
   if (sp.faculty) qs.set('facultyId', sp.faculty);
 
-  const portfolio = await apiFetch<PortfolioResponse>(`/risks/portfolio?${qs}`).catch(() => null);
+  const portfolioRes = await apiFetchSafe<PortfolioResponse>(`/risks/portfolio?${qs}`);
+  const portfolio = portfolioRes.ok ? portfolioRes.data : null;
+  const portfolioError = portfolioRes.ok ? null : portfolioRes.error;
 
   // Parse L × I cell filter — bounded to 1..5; ignores invalid values.
   const lParsed = sp.l ? Number.parseInt(sp.l, 10) : null;
@@ -55,19 +58,25 @@ export default async function RisksPage({
         subtitle="Likelihood × impact scoring of every undergraduate program. Driven by recruitment data, AI-disruption exposure, and the demographic ceiling. Recommendations are program-specific, not categories."
       />
       {portfolio ? (
-        <RisksPortfolioClient
-          portfolio={portfolio}
-          initialFilters={{
-            erm: ermFilter,
-            faculty: sp.faculty ?? '',
-            cellL,
-            cellI,
-          }}
-        />
+        portfolio.rows.length === 0 ? (
+          <DiagnosticEmptyState
+            surface="risk portfolio"
+            error={null}
+            emptyMessage="No program-level risk assessments have been computed yet. Run pnpm risks:assess --all to populate the portfolio."
+          />
+        ) : (
+          <RisksPortfolioClient
+            portfolio={portfolio}
+            initialFilters={{
+              erm: ermFilter,
+              faculty: sp.faculty ?? '',
+              cellL,
+              cellI,
+            }}
+          />
+        )
       ) : (
-        <div className="rounded-md border border-border-default bg-surface-1 p-8 text-center text-text-secondary">
-          ไม่สามารถโหลดข้อมูลความเสี่ยงได้ — โปรดตรวจสอบสิทธิ์การเข้าถึง หรือเรียกใช้ <code>pnpm risks:assess --all --no-ai</code> เพื่อสร้างข้อมูลแรก
-        </div>
+        <DiagnosticEmptyState surface="risk portfolio" error={portfolioError} />
       )}
     </AuthedAppShell>
   );

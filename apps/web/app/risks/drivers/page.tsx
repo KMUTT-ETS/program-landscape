@@ -2,8 +2,9 @@ import * as React from 'react';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { RisksBackNav } from '../viz';
 import type { DriversResponseV2 } from '../types';
@@ -25,7 +26,9 @@ export default async function DriversPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const drivers = await apiFetch<DriversResponseV2>('/risks/drivers').catch(() => null);
+  const driversRes = await apiFetchSafe<DriversResponseV2>('/risks/drivers');
+  const drivers = driversRes.ok ? driversRes.data : null;
+  const driversError = driversRes.ok ? null : driversRes.error;
 
   return (
     <AuthedAppShell user={user}>
@@ -178,9 +181,7 @@ export default async function DriversPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-md border border-border-default bg-surface-1 p-6 text-text-secondary">
-          Unable to load drivers data.
-        </div>
+        <DiagnosticEmptyState surface="risk drivers" error={driversError} />
       )}
     </AuthedAppShell>
   );
