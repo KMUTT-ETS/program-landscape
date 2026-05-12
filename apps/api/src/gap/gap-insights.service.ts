@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   computeSectorGap,
   computeSkillGap,
+  getAiModelOverrideStore,
   prisma,
   PrismaAiInferenceRecorder,
   type SectorGapRow,
@@ -46,6 +47,7 @@ export class GapInsightsService implements OnModuleInit {
             ? { url: intelSphereUrl, apiKey: intelSphereKey }
             : undefined,
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

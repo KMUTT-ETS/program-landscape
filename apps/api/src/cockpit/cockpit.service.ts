@@ -17,7 +17,7 @@ import {
   type AiService,
   type ScopeLevel,
 } from '@kku/shared';
-import { PrismaAiInferenceRecorder } from '@kku/db';
+import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 
 // Cockpit service — scope-aware reads from the materialized views and
 // the health-score service. Also owns the AI brief pipeline (wraps
@@ -52,6 +52,7 @@ export class CockpitService implements OnModuleInit {
             ? { url: intelSphereUrl, apiKey: intelSphereKey }
             : undefined,
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

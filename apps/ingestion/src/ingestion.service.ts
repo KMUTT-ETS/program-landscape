@@ -8,7 +8,7 @@ import {
   type AiProviderId,
   type AiService,
 } from '@kku/shared';
-import { PrismaAiInferenceRecorder } from '@kku/db';
+import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 
 import { ConnectorRunner, buildRegistry } from './connectors';
 import {
@@ -206,6 +206,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
           completion: this.config.get<string>('AI_ANTHROPIC_COMPLETION_MODEL'),
         },
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

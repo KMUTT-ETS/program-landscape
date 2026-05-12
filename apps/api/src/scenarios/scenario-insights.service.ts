@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaAiInferenceRecorder } from '@kku/db';
+import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 import {
   buildScenarioInsightsMessages,
   createAiService,
@@ -44,6 +44,7 @@ export class ScenarioInsightsService implements OnModuleInit {
             ? { url: intelSphereUrl, apiKey: intelSphereKey }
             : undefined,
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

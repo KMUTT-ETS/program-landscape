@@ -44,10 +44,15 @@ export interface AiFactoryConfig {
     google?: { completion?: string; embedding?: string };
     anthropic?: { completion?: string };
   };
+  /** Runtime per-method-prefix model override resolver. Backed by the
+   *  ai_model_overrides table via @kku/db's AiModelOverrideStore.
+   *  Optional — when absent, only the static MODEL_BY_METHOD_PREFIX
+   *  table + provider defaults apply (the pre-Phase-3 behaviour). */
+  modelOverrideResolver?: import('../types').ModelOverrideResolver;
 }
 
 export function createAiService(config: AiFactoryConfig): AiService {
-  const { providerId, apiKeys, recorder, models } = config;
+  const { providerId, apiKeys, recorder, models, modelOverrideResolver } = config;
 
   switch (providerId) {
     case 'google': {
@@ -57,6 +62,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
         recorder,
         defaultCompletionModel: models?.google?.completion,
         defaultEmbeddingModel: models?.google?.embedding,
+        modelOverrideResolver,
       });
       // Optional secondary: if an Anthropic key is also configured,
       // build a claude provider and use it as the transient-error
@@ -66,6 +72,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
             apiKey: apiKeys.anthropic,
             recorder,
             defaultModel: models?.anthropic?.completion,
+            modelOverrideResolver,
           })
         : undefined;
       return wrapWithTransientFallback(google, secondary);
@@ -84,6 +91,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
         apiKey: apiKeys.anthropic,
         recorder,
         defaultModel: models?.anthropic?.completion,
+        modelOverrideResolver,
       });
       const googleSecondary = apiKeys.google
         ? new GoogleAiService({
@@ -91,6 +99,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
             recorder,
             defaultCompletionModel: models?.google?.completion,
             defaultEmbeddingModel: models?.google?.embedding,
+            modelOverrideResolver,
           })
         : undefined;
       // Embedding fallback first (Claude has no embed API), then layer

@@ -559,6 +559,7 @@ model User {
   scopes                  UserScope[]
   expertiseNarratives     UserExpertiseNarrative[]
   publicationsCache       UserPublicationsCache?
+  aiModelOverridesSet     AiModelOverride[]
 
   @@index([email])
   @@index([ssoSubject])
@@ -3681,6 +3682,39 @@ model StaffCompensationCube {
   @@index([fiscalYear])
   @@index([isAcademic])
   @@map("staff_compensation_cube")
+}
+
+// Per-method-prefix AI model override. Set via the admin AI-settings
+// page (Phase 3 of the admin redesign, 2026-05-12). The dispatch
+// chain in @kku/shared's GoogleAiService / AnthropicAiService now
+// reads this table before falling back to MODEL_BY_METHOD_PREFIX,
+// so operators can swap models per task at runtime without code
+// changes.
+//
+// `methodPrefix` matches the prefix of `methodVersion` strings passed
+// into AiService.extractStructured / complete — e.g. 'program-pedagogy'
+// covers both 'program-pedagogy.v1' and any future v2. Operators
+// don't worry about version bumps unless they explicitly want to.
+//
+// Per Q5: changing a model affects NEW runs only — existing
+// AiInference rows stamped with the old `model` value stay
+// untouched. UI surfaces a "stale" hint where applicable; no
+// auto-re-run.
+model AiModelOverride {
+  id            String   @id @default(cuid())
+  methodPrefix  String   @unique @map("method_prefix")
+  /// The model identifier (e.g. 'gemini-3.1-pro-preview',
+  /// 'claude-sonnet-4-6'). Validated against the catalog at the
+  /// admin-endpoint layer; stored verbatim here so even off-catalog
+  /// models work in a pinch.
+  modelId       String   @map("model_id")
+  /// Operator who last changed this override. Helpful for audit.
+  setByUserId   String?  @map("set_by_user_id")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  setBy User? @relation(fields: [setByUserId], references: [id])
+
+  @@map("ai_model_overrides")
 }
 
 // Per-hire snapshot from HCMEmployee.EmployeeDetail. Captures every

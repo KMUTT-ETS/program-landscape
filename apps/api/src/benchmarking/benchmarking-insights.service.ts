@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaAiInferenceRecorder } from '@kku/db';
+import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 import {
   BENCHMARKING_INSIGHTS_VERSION,
   BenchmarkingInsightsOutputSchema,
@@ -39,6 +39,7 @@ export class BenchmarkingInsightsService implements OnModuleInit {
             ? { url: intelSphereUrl, apiKey: intelSphereKey }
             : undefined,
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

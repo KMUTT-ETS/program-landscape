@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
+import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 import {
   ANALYST_SYSTEM_PROMPT,
   ANALYST_SYSTEM_PROMPT_VERSION,
@@ -80,6 +80,7 @@ export class AnalystService implements OnModuleInit {
             ? { url: intelSphereUrl, apiKey: intelSphereKey }
             : undefined,
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

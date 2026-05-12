@@ -4,6 +4,7 @@ import {
   computeHealthScores,
   computeRisks,
   computeSkillGap,
+  getAiModelOverrideStore,
   prisma,
   PrismaAiInferenceRecorder,
   type DecisionSnapshot,
@@ -47,6 +48,7 @@ export class DecisionReviewService implements OnModuleInit {
             ? { url: intelSphereUrl, apiKey: intelSphereKey }
             : undefined,
       },
+      modelOverrideResolver: getAiModelOverrideStore(),
     });
   }
 

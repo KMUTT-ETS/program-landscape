@@ -10,6 +10,7 @@ import type {
   EmbeddingResponse,
   ExtractionRequest,
   ExtractionResponse,
+  ModelOverrideResolver,
   ToolCall,
   ToolUseMessage,
   ToolUseRequest,
@@ -43,6 +44,12 @@ export interface AnthropicAiConfig {
   apiKey: string;
   recorder: AiInferenceRecorder;
   defaultModel?: string;
+  /** Runtime per-method-prefix model override (admin AI-settings page,
+   *  Phase 3). Consulted before the provider's default model.
+   *  Anthropic has no static MODEL_BY_METHOD_PREFIX table (every call
+   *  uses `defaultModel`), so the resolver is the only source of
+   *  per-task differentiation. */
+  modelOverrideResolver?: ModelOverrideResolver;
 }
 
 export class AnthropicAiService implements AiService {
@@ -102,7 +109,14 @@ export class AnthropicAiService implements AiService {
     // Claude doesn't have a strict JSON mode like Gemini; we prompt for
     // JSON explicitly in the system message. The caller's prompt
     // template should ALSO spell "return only JSON" — belt + braces.
-    const model = req.model ?? this.config.defaultModel ?? DEFAULT_MODEL;
+    //
+    // Resolution chain: explicit req.model → admin-set override (Phase
+    // 3 AI-settings page) → provider default. Unlike Google, Anthropic
+    // has no static MODEL_BY_METHOD_PREFIX table.
+    const override = req.methodVersion
+      ? this.config.modelOverrideResolver?.resolve(req.methodVersion)
+      : undefined;
+    const model = req.model ?? override ?? this.config.defaultModel ?? DEFAULT_MODEL;
     const started = Date.now();
     const { system, userMessages } = splitSystem(req.messages);
     const systemWithJsonGuard =

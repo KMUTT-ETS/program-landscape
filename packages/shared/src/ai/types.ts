@@ -120,6 +120,27 @@ export interface ExtractionRequest {
   thinking?: boolean;
 }
 
+/**
+ * Synchronous resolver for runtime model overrides.
+ *
+ * Implementations are expected to back this with a cached read of the
+ * `ai_model_overrides` table (see packages/db's ModelOverrideStore).
+ * Synchronous because the AiService dispatch path runs many times per
+ * second and can't afford an async DB hop per call — the cache is
+ * populated out-of-band (refreshed on TTL or on PUT/DELETE).
+ *
+ * Returning `undefined` means "no override; fall through to the
+ * provider's static MODEL_BY_METHOD_PREFIX → defaults".
+ *
+ * Phase 3 (admin redesign) of the curriculum-landscape app.
+ */
+export interface ModelOverrideResolver {
+  /** Resolve a per-method-prefix override for the given methodVersion.
+   *  Implementations prefix-match against `methodVersion` (e.g.
+   *  `program-pedagogy.v1` → `program-pedagogy`). */
+  resolve(methodVersion: string): string | undefined;
+}
+
 /** Result of uploading a file to Gemini's File API. URI valid for 48h. */
 export interface AiFileUpload {
   fileUri: string;

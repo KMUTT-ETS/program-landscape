@@ -11,6 +11,7 @@ import type {
   EmbeddingResponse,
   ExtractionRequest,
   ExtractionResponse,
+  ModelOverrideResolver,
   TranslateRequest,
   TranslateResponse,
   VisionRequest,
@@ -90,11 +91,22 @@ const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [
   { prefix: 'program-pedagogy',             model: 'gemini-3.1-pro-preview' },
 ];
 
-function pickModelForMethod(methodVersion: string | undefined, fallback: string): string {
+function pickModelForMethod(
+  methodVersion: string | undefined,
+  fallback: string,
+  resolver?: ModelOverrideResolver,
+): string {
   if (!methodVersion) return fallback;
+  // 1. Runtime override (admin AI-settings page) — highest priority.
+  if (resolver) {
+    const override = resolver.resolve(methodVersion);
+    if (override) return override;
+  }
+  // 2. Hardcoded prefix table (Pro-tier reasoning tasks).
   for (const r of MODEL_BY_METHOD_PREFIX) {
     if (methodVersion.startsWith(r.prefix)) return r.model;
   }
+  // 3. Provider-level default.
   return fallback;
 }
 
@@ -104,6 +116,9 @@ export interface GoogleAiConfig {
   // Optional model overrides per call type.
   defaultCompletionModel?: string;
   defaultEmbeddingModel?: string;
+  /** Runtime per-method-prefix model override (admin AI-settings page,
+   *  Phase 3). Consulted before the static MODEL_BY_METHOD_PREFIX table. */
+  modelOverrideResolver?: ModelOverrideResolver;
 }
 
 export class GoogleAiService implements AiService {
@@ -167,6 +182,7 @@ export class GoogleAiService implements AiService {
       pickModelForMethod(
         req.methodVersion,
         this.config.defaultCompletionModel ?? DEFAULT_COMPLETION_MODEL,
+        this.config.modelOverrideResolver,
       );
     const started = Date.now();
     const { system, userText } = splitSystemFromMessages(req.messages);
