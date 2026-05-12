@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { PageHeader, Section } from '@kku/ui';
 import { UploadClient } from './client';
 
@@ -19,9 +20,10 @@ export default async function UploadPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Upload PDF" group="PDF library" groupHref="/admin/pdf-review" />
       <PageHeader
         title="Upload PDFs"
-        subtitle="Policy documents, reports, curriculum specs (มคอ.2), peer brochures, surveys, minutes. Dedup is by content hash — the same PDF won't land twice."
+        subtitle="Policy documents, reports, research papers, curriculum specs (มคอ.2), peer brochures, surveys, minutes. Dedup is by content hash — the same PDF won't land twice."
       />
       <Section title="Drag & drop">
         <UploadClient />

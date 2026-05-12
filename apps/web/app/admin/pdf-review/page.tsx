@@ -4,8 +4,8 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Badge, Button, PageHeader } from '@kku/ui';
-import { ArrowLeft, FileSearch } from 'lucide-react';
+import { Badge, Button, EdgeGlow, PageHeader } from '@kku/ui';
+import { ArrowLeft, FileSearch, Upload } from 'lucide-react';
 import { FixFilenamesButton } from './fix-filenames-button';
 import { LibraryClient, type LibraryRow, type LibraryResponse } from './library-client';
 
@@ -70,6 +70,13 @@ export default async function AdminPdfLibraryPage({
         actions={
           <div className="flex items-center gap-2">
             <Badge tone="neutral">{data.total.toLocaleString()} total</Badge>
+            <EdgeGlow inline>
+              <Button variant="primary" asChild>
+                <Link href="/upload">
+                  <Upload className="h-4 w-4" aria-hidden /> Upload PDF
+                </Link>
+              </Button>
+            </EdgeGlow>
             {isSuper ? <FixFilenamesButton /> : null}
           </div>
         }
