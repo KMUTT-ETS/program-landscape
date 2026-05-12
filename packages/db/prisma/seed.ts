@@ -1817,57 +1817,62 @@ async function seedExternalAiSources() {
     {
       slug: 'imd-competitiveness',
       name: 'IMD World Competitiveness',
-      description: 'IMD World Competitiveness Center publications + digital + talent rankings.',
+      description: 'IMD World Competitiveness Center publications + news + research.',
       kind: 'URL_LIST' as const,
       signalType: 'POLICY' as const,
       defaultImpact: 0.65,
       cadenceCron: '0 8 1 * *',
       configJson: {
         urls: [
-          'https://www.imd.org/centers/world-competitiveness-center/rankings/',
-          'https://www.imd.org/centers/world-competitiveness-center/publications/',
+          'https://www.imd.org/centers/wcc/world-competitiveness-center/',
+          'https://www.imd.org/news/',
+          'https://www.imd.org/research-knowledge/',
         ],
       },
     },
     {
       slug: 'thailand-boi',
       name: 'Thailand BOI',
-      description: 'Thailand Board of Investment — promoted industries, investment statistics, S-curve announcements.',
+      description:
+        'Thailand Board of Investment — English-language news + research reports. PAUSED by default: BOI now serves an Incapsula bot challenge to non-browser clients; needs headless-browser fetcher to harvest.',
       kind: 'URL_LIST' as const,
       signalType: 'POLICY' as const,
       defaultImpact: 0.6,
       cadenceCron: '0 8 * * 2',
       configJson: {
         urls: [
-          'https://www.boi.go.th/index.php?page=news_business',
+          'https://www.boi.go.th/en/news_business',
+          'https://www.boi.go.th/index.php?page=research_report',
         ],
       },
     },
     {
       slug: 'world-bank-thailand',
       name: 'World Bank Thailand',
-      description: 'World Bank Thailand country page — economic monitor, sector briefs, policy notes.',
+      description: 'World Bank Thailand country page — overview + Thailand-specific news.',
       kind: 'URL_LIST' as const,
       signalType: 'POLICY' as const,
       defaultImpact: 0.55,
       cadenceCron: '0 9 1 * *',
       configJson: {
         urls: [
-          'https://www.worldbank.org/en/country/thailand/publication',
+          'https://www.worldbank.org/en/country/thailand/overview',
+          'https://www.worldbank.org/en/news/all?qterm=Thailand&displayconttype_exact=News',
         ],
       },
     },
     {
       slug: 'oecd-education',
       name: 'OECD Education',
-      description: 'OECD education skills, higher-education, and labour-market policy publications.',
+      description:
+        'OECD education skills, higher-education, and labour-market policy publications. PAUSED by default — OECD CDN aggressively blocks non-browser fetches (TLS fingerprinting); requires a headless-browser fetcher to harvest. Switch to ACTIVE after headless support lands.',
       kind: 'URL_LIST' as const,
       signalType: 'POLICY' as const,
       defaultImpact: 0.6,
       cadenceCron: '0 9 1 * *',
       configJson: {
         urls: [
-          'https://www.oecd.org/education/',
+          'https://www.oecd.org/en/topics/policy-areas/education-and-skills.html',
         ],
       },
     },
@@ -1881,7 +1886,8 @@ async function seedExternalAiSources() {
       cadenceCron: '0 9 1 * *',
       configJson: {
         urls: [
-          'https://www.iesalc.unesco.org/en/category/publications/',
+          'https://www.iesalc.unesco.org/en/publications/',
+          'https://en.unesco.org/news/higher-education',
         ],
       },
     },
@@ -1895,21 +1901,23 @@ async function seedExternalAiSources() {
       cadenceCron: '0 9 * * *',
       configJson: {
         urls: [
-          'https://www.mhesi.go.th/index.php/all-media/news.html',
+          'https://www.mhesi.go.th/index.php/news.html',
+          'https://www.mhesi.go.th/',
         ],
       },
     },
     {
       slug: 'asean-he',
-      name: 'ASEAN higher-ed statistics',
-      description: 'ASEAN University Network + ASEAN Secretariat publications on higher-education + skills.',
+      name: 'ASEAN University Network',
+      description: 'ASEAN University Network — secretariat news + higher-education programmes. (Switched from asean.org which returns 307 to bot fetchers.)',
       kind: 'URL_LIST' as const,
       signalType: 'POLICY' as const,
       defaultImpact: 0.5,
       cadenceCron: '0 9 1 * *',
       configJson: {
         urls: [
-          'https://asean.org/our-communities/asean-socio-cultural-community/education/',
+          'https://aunsec.org/news',
+          'https://aunsec.org/',
         ],
       },
     },
