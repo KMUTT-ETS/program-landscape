@@ -21,7 +21,6 @@ import {
   ChevronRight,
   ExternalLink,
   RefreshCw,
-  Search,
   Trash2,
   X,
 } from 'lucide-react';
@@ -31,6 +30,12 @@ import {
   setPdfLifecycleAction,
   type PdfLifecycleStatus,
 } from '@/lib/actions/pdf-library';
+import {
+  FilterField,
+  FilterRail,
+  FilterSearch,
+  FilterSelect,
+} from '@/components/filter-rail';
 
 // ─────────────────────────────────────────────────────────────────────────
 // PDF library — filter rail + paginated table + per-row lifecycle menu.
@@ -103,6 +108,9 @@ export function LibraryClient({
     | { kind: 'archive' | 'deprecate' | 'restore' | 'delete'; row: LibraryRow }
   >(null);
   const [confirmNote, setConfirmNote] = useState('');
+  // Local search box state — only commits to URL on form submit (Enter),
+  // matching the /admin/programs filter contract.
+  const [q, setQ] = useState(searchParams.q ?? '');
 
   const page = parseInt(searchParams.page ?? '1', 10);
   const totalPages = Math.max(1, Math.ceil(initial.total / PAGE_SIZE));
@@ -157,38 +165,71 @@ export function LibraryClient({
         </div>
       ) : null}
 
-      <Card padding="sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput value={searchParams.q ?? ''} onSubmit={(v) => pushFilter({ q: v || null })} />
-          <SelectFilter
-            label="Category"
+      <FilterRail onSubmit={() => pushFilter({ q: q || null })}>
+        <FilterField label="Search" span={2}>
+          <FilterSearch
+            value={q}
+            onChange={setQ}
+            placeholder="Filename / source org…"
+          />
+        </FilterField>
+        <FilterField label="Category">
+          <FilterSelect
             value={searchParams.category ?? ''}
-            options={CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, ' ') }))}
-            onChange={(v) => pushFilter({ category: v })}
-          />
-          <SelectFilter
-            label="Status"
+            onChange={(e) => pushFilter({ category: e.target.value || null })}
+          >
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Status">
+          <FilterSelect
             value={searchParams.status ?? ''}
-            options={PROCESSING_STATUSES.map((s) => ({ value: s, label: s }))}
-            onChange={(v) => pushFilter({ status: v })}
-          />
-          <SelectFilter
-            label="Lifecycle"
+            onChange={(e) => pushFilter({ status: e.target.value || null })}
+          >
+            <option value="">All statuses</option>
+            {PROCESSING_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Lifecycle">
+          <FilterSelect
             value={searchParams.lifecycle ?? 'ACTIVE'}
-            options={LIFECYCLES.map((s) => ({ value: s, label: s }))}
-            onChange={(v) => pushFilter({ lifecycle: v || null })}
-          />
-          {(searchParams.q || searchParams.category || searchParams.status || searchParams.lifecycle) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => pushFilter({ q: null, category: null, status: null, lifecycle: null })}
-            >
-              <X className="h-3.5 w-3.5" aria-hidden /> Clear filters
-            </Button>
-          )}
+            onChange={(e) => pushFilter({ lifecycle: e.target.value || null })}
+          >
+            {LIFECYCLES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterField>
+      </FilterRail>
+      {(q ||
+        searchParams.q ||
+        searchParams.category ||
+        searchParams.status ||
+        searchParams.lifecycle) && (
+        <div className="flex">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setQ('');
+              pushFilter({ q: null, category: null, status: null, lifecycle: null });
+            }}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden /> Clear filters
+          </Button>
         </div>
-      </Card>
+      )}
 
       {initial.rows.length === 0 ? (
         <Card>
@@ -442,61 +483,6 @@ export function LibraryClient({
   );
 }
 
-function SearchInput({ value, onSubmit }: { value: string; onSubmit: (v: string) => void }) {
-  const [text, setText] = useState(value);
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(text);
-      }}
-      className="flex items-center gap-1"
-    >
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" aria-hidden />
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Search filename / source org…"
-          className="h-8 w-64 rounded-md border border-border-default bg-surface-0 pl-7 pr-2 text-sm"
-        />
-      </div>
-      <Button type="submit" size="sm" variant="outline">
-        Search
-      </Button>
-    </form>
-  );
-}
-
-function SelectFilter({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1 text-xs text-text-tertiary">
-      <span>{label}:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 rounded-md border border-border-default bg-surface-0 px-2 text-sm text-text-primary"
-      >
-        <option value="">All</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 function processingTone(status: string): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
   if (status === 'COMPLETED') return 'success';

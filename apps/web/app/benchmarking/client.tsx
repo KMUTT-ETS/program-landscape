@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Card, useChartPalette } from '@kku/ui';
+import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
 import {
   AlertTriangle,
   Globe,
@@ -154,28 +155,23 @@ export function BenchmarkingClient({ overview }: { overview: BenchmarkingOvervie
         </ul>
       </Card>
 
-      <Card padding="md">
-        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-text-primary">Program-level benchmark</h3>
-            <p className="mt-0.5 text-xs text-text-tertiary">
-              All {overview.programs.length} benchmarked programs. Sorted by modernity verdict (OLD_SCHOOL first).
-              Click any program to drill in.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <select
-              className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1 text-text-primary"
+      <div className="flex flex-col gap-3">
+        <FilterRail cols={2}>
+          <FilterField label="Faculty">
+            <FilterSelect
               value={facultyFilter}
               onChange={(e) => setFacultyFilter(e.target.value)}
             >
               <option value="">All faculties</option>
               {facultyOptions.filter(Boolean).map((f) => (
-                <option key={f} value={f}>{f}</option>
+                <option key={f} value={f}>
+                  {f}
+                </option>
               ))}
-            </select>
-            <select
-              className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1 text-text-primary"
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Modernity">
+            <FilterSelect
               value={modernityFilter}
               onChange={(e) => setModernityFilter(e.target.value)}
             >
@@ -183,14 +179,25 @@ export function BenchmarkingClient({ overview }: { overview: BenchmarkingOvervie
               <option value="OLD_SCHOOL">OLD_SCHOOL</option>
               <option value="IN_BETWEEN">IN_BETWEEN</option>
               <option value="FRONTIER">FRONTIER</option>
-            </select>
-            <span className="text-text-tertiary">
+            </FilterSelect>
+          </FilterField>
+        </FilterRail>
+        <Card padding="md">
+          <header className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-text-primary">Program-level benchmark</h3>
+              <p className="mt-0.5 text-xs text-text-tertiary">
+                All {overview.programs.length} benchmarked programs. Sorted by modernity verdict (OLD_SCHOOL first).
+                Click any program to drill in.
+              </p>
+            </div>
+            <span className="text-xs text-text-tertiary">
               showing {filteredPrograms.length} / {overview.programs.length}
             </span>
-          </div>
-        </header>
-        <ProgramBenchmarkTable rows={filteredPrograms} />
-      </Card>
+          </header>
+          <ProgramBenchmarkTable rows={filteredPrograms} />
+        </Card>
+      </div>
 
       <Card padding="sm" className="text-[11px] text-text-tertiary">
         <p>

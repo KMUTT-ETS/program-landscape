@@ -6,11 +6,16 @@ import { useRouter } from 'next/navigation';
 import {
   Badge,
   Card,
-  Input,
   TrendsRadar,
   type TrendDot,
   type TrendSignalType,
 } from '@kku/ui';
+import {
+  FilterField,
+  FilterRail,
+  FilterSearch,
+  FilterSelect,
+} from '@/components/filter-rail';
 import type { TrendsFeedResponse } from './types';
 
 const TYPE_OPTIONS: Array<{ value: '' | TrendSignalType; label: string }> = [
@@ -75,69 +80,63 @@ export function TrendsClient({
   return (
     <div className="flex flex-col gap-4">
       {/* Filter + summary bar */}
-      <Card padding="sm">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <select
+      <FilterRail cols={5} onSubmit={() => applyFilters(filters)}>
+        <FilterField label="Search" span={2}>
+          <FilterSearch
+            value={filters.search}
+            onChange={(v) => setFilters({ ...filters, search: v })}
+            placeholder="Title / summary…"
+          />
+        </FilterField>
+        <FilterField label="Type">
+          <FilterSelect
             value={filters.signalType}
             onChange={(e) => {
               const next = { ...filters, signalType: e.target.value };
               setFilters(next);
               applyFilters(next);
             }}
-            className="kku-select"
           >
             {TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
-          <select
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Window">
+          <FilterSelect
             value={filters.windowDays}
             onChange={(e) => {
               const next = { ...filters, windowDays: e.target.value };
               setFilters(next);
               applyFilters(next);
             }}
-            className="kku-select"
           >
             {WINDOW_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-text-tertiary">Min impact</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={filters.minImpactScore}
-              onChange={(e) => setFilters({ ...filters, minImpactScore: e.target.value })}
-              onMouseUp={() => applyFilters(filters)}
-              className="w-24"
-            />
-            <span className="font-tabular text-xs">
-              {Math.round(Number(filters.minImpactScore) * 100)}
-            </span>
-          </div>
-          <Input
-            className="max-w-xs"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') applyFilters(filters);
-            }}
-            placeholder="Search title / summary…"
+          </FilterSelect>
+        </FilterField>
+        <FilterField label={`Min impact · ${Math.round(Number(filters.minImpactScore) * 100)}`}>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={filters.minImpactScore}
+            onChange={(e) => setFilters({ ...filters, minImpactScore: e.target.value })}
+            onMouseUp={() => applyFilters(filters)}
+            className="h-9 w-full"
           />
-          <div className="ml-auto text-xs text-text-secondary">
-            <strong className="font-tabular text-text-primary">{feed.total}</strong> signals in window
-            · <strong className="font-tabular text-text-primary">{feed.highImpactCount}</strong> high impact
-          </div>
-        </div>
-      </Card>
+        </FilterField>
+      </FilterRail>
+      <div className="text-xs text-text-secondary">
+        <strong className="font-tabular text-text-primary">{feed.total}</strong> signals in window
+        · <strong className="font-tabular text-text-primary">{feed.highImpactCount}</strong> high impact
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
         {/* Feed */}

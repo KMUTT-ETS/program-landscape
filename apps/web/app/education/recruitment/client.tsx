@@ -11,6 +11,11 @@ import {
 } from '@kku/ui';
 import { FunnelPipeline, useChartPalette, type FunnelStage } from '@kku/ui';
 import { ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
+import {
+  FilterField,
+  FilterRail,
+  FilterSelect as SharedFilterSelect,
+} from '@/components/filter-rail';
 
 // ─── Types (mirror apps/api/src/education/recruitment.service.ts) ──────────
 
@@ -143,43 +148,52 @@ export function RecruitmentClient({
   return (
     <div className="flex flex-col gap-5">
       {/* Filters */}
-      <Card padding="sm" tone="quiet">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <FilterSelect
-            label="Entry year (BE)"
+      <FilterRail cols={3}>
+        <FilterField label="Entry year (BE)">
+          <SharedFilterSelect
             value={String(data.meta.selectedYear ?? '')}
-            options={data.meta.availableYears.map((y) => ({
-              value: String(y),
-              label: `BE ${y} (CE ${y - 543})${
-                y === data.meta.latestCompleteYear
-                  ? ' · latest complete'
-                  : y === data.meta.inProgressYear
-                    ? ' · in progress'
-                    : ''
-              }`,
-            }))}
-            onChange={(v) => setFilter('entryYearBE', v)}
-          />
-          <FilterSelect
-            label="Faculty"
+            onChange={(e) => setFilter('entryYearBE', e.target.value)}
+          >
+            {data.meta.availableYears.map((y) => (
+              <option key={y} value={String(y)}>
+                {`BE ${y} (CE ${y - 543})${
+                  y === data.meta.latestCompleteYear
+                    ? ' · latest complete'
+                    : y === data.meta.inProgressYear
+                      ? ' · in progress'
+                      : ''
+                }`}
+              </option>
+            ))}
+          </SharedFilterSelect>
+        </FilterField>
+        <FilterField label="Faculty">
+          <SharedFilterSelect
             value={data.meta.appliedFilters.facultyId ?? ''}
-            options={[
-              { value: '', label: 'All faculties' },
-              ...faculties.map((f) => ({ value: f.id, label: `${f.code} · ${f.nameEn}` })),
-            ]}
-            onChange={(v) => setFilter('facultyId', v || null)}
-          />
-          <FilterSelect
-            label="Level"
+            onChange={(e) => setFilter('facultyId', e.target.value || null)}
+          >
+            <option value="">All faculties</option>
+            {faculties.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.code} · {f.nameEn}
+              </option>
+            ))}
+          </SharedFilterSelect>
+        </FilterField>
+        <FilterField label="Level">
+          <SharedFilterSelect
             value={data.meta.appliedFilters.level ?? ''}
-            options={[
-              { value: '', label: 'All levels' },
-              ...LEVELS.map((l) => ({ value: l.id, label: l.label })),
-            ]}
-            onChange={(v) => setFilter('level', v || null)}
-          />
-        </div>
-      </Card>
+            onChange={(e) => setFilter('level', e.target.value || null)}
+          >
+            <option value="">All levels</option>
+            {LEVELS.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </SharedFilterSelect>
+        </FilterField>
+      </FilterRail>
 
       {/* In-progress banner */}
       {data.inProgressInfo && data.meta.selectedYearIsComplete && (
@@ -257,37 +271,6 @@ export function RecruitmentClient({
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium uppercase tracking-wide text-text-tertiary">
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="kku-select"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
 
 function InProgressBanner({
   inProgress,

@@ -26,9 +26,14 @@ import {
   Loader2,
   Pencil,
   Play,
-  Search,
   X,
 } from 'lucide-react';
+import {
+  FilterField,
+  FilterRail,
+  FilterSearch,
+  FilterSelect,
+} from '@/components/filter-rail';
 
 export interface ProgramListRow {
   id: string;
@@ -301,79 +306,60 @@ export function ProgramsListClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card padding="sm" tone="quiet">
-        <form
-          className="grid grid-cols-1 gap-3 md:grid-cols-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            applyFilters({});
-          }}
-        >
-          <div className="flex flex-col gap-1 md:col-span-2">
-            <Label>Search</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-text-tertiary" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Code, name (TH or EN)"
-                className="pl-8"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label>Faculty</Label>
-            <select
-              value={facultyId}
-              onChange={(e) => {
-                setFacultyId(e.target.value);
-                applyFilters({ facultyId: e.target.value });
-              }}
-              className="kku-select"
-            >
-              <option value="">All faculties</option>
-              {faculties.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nameEn}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label>Level</Label>
-            <select
-              value={level}
-              onChange={(e) => {
-                setLevel(e.target.value);
-                applyFilters({ level: e.target.value });
-              }}
-              className="kku-select"
-            >
-              <option value="">All levels</option>
-              <option value="BACHELOR">Bachelor</option>
-              <option value="MASTER">Master</option>
-              <option value="DOCTORAL">Doctoral</option>
-              <option value="HIGHER_GRAD_DIPLOMA">Higher Grad. Diploma</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label>Status</Label>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                applyFilters({ status: e.target.value });
-              }}
-              className="kku-select"
-            >
-              <option value="">All statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="PAUSED">Paused</option>
-              <option value="SUNSET">Sunset</option>
-            </select>
-          </div>
-        </form>
-      </Card>
+      <FilterRail onSubmit={() => applyFilters({})}>
+        <FilterField label="Search" span={2}>
+          <FilterSearch
+            value={q}
+            onChange={setQ}
+            placeholder="Code, name (TH or EN)"
+          />
+        </FilterField>
+        <FilterField label="Faculty">
+          <FilterSelect
+            value={facultyId}
+            onChange={(e) => {
+              setFacultyId(e.target.value);
+              applyFilters({ facultyId: e.target.value });
+            }}
+          >
+            <option value="">All faculties</option>
+            {faculties.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nameEn}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Level">
+          <FilterSelect
+            value={level}
+            onChange={(e) => {
+              setLevel(e.target.value);
+              applyFilters({ level: e.target.value });
+            }}
+          >
+            <option value="">All levels</option>
+            <option value="BACHELOR">Bachelor</option>
+            <option value="MASTER">Master</option>
+            <option value="DOCTORAL">Doctoral</option>
+            <option value="HIGHER_GRAD_DIPLOMA">Higher Grad. Diploma</option>
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Status">
+          <FilterSelect
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              applyFilters({ status: e.target.value });
+            }}
+          >
+            <option value="">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="PAUSED">Paused</option>
+            <option value="SUNSET">Sunset</option>
+          </FilterSelect>
+        </FilterField>
+      </FilterRail>
 
       {/* Toolbar — swaps between "showing N of M + Add new program" and
         * the batch-action strip depending on whether any rows are

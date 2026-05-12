@@ -5,6 +5,12 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Card, PageHeader } from '@kku/ui';
+import {
+  FilterField,
+  FilterRail,
+  FilterSearch,
+  FilterSelect,
+} from '@/components/filter-rail';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Programs' };
@@ -85,47 +91,39 @@ export default async function ProgramsDirectoryPage({
         subtitle={`${total} of the 297 canonical KKU programs — click through for the full deep-dive on any program. Legacy and non-canonical programs are excluded from this view but remain joinable from staff and education dashboards.`}
       />
       <div className="flex flex-col gap-4">
-        <Card padding="sm">
-          <form action="/programs" className="flex flex-wrap items-center gap-3">
-            <Selector
-              name="status"
-              label="Status"
-              value={sp.status ?? ''}
-              options={[
-                { value: '', label: 'All' },
-                { value: 'ACTIVE', label: 'Active' },
-                { value: 'PAUSED', label: 'Paused' },
-                { value: 'SUNSET', label: 'Sunset' },
-              ]}
+        {/* Server-form filter rail — same chrome as the client-side
+            client-component rails (Card-wrapped grid, Label per field,
+            kku-select), but submits as a plain GET navigation so the
+            page can stay a server component. */}
+        <FilterRail cols={4} action="/programs" method="get">
+          <FilterField label="Search" span={2}>
+            <FilterSearch
+              name="q"
+              defaultValue={sp.q ?? ''}
+              placeholder="Code or name…"
             />
-            <Selector
-              name="level"
-              label="Level"
-              value={sp.level ?? ''}
-              options={[
-                { value: '', label: 'All' },
-                { value: 'BACHELOR', label: "Bachelor's" },
-                { value: 'MASTER', label: "Master's" },
-                { value: 'DOCTORAL', label: 'Doctoral' },
-              ]}
-            />
-            <div className="ml-auto flex items-center gap-2">
-              <input
-                type="search"
-                name="q"
-                defaultValue={sp.q ?? ''}
-                placeholder="Search code or name…"
-                className="rounded-md border border-default bg-surface-1 px-3 py-1.5 text-sm text-text-primary"
-              />
-              <button
-                type="submit"
-                className="rounded-md bg-accent-default px-3 py-1.5 text-xs font-medium text-accent-fg hover:bg-accent-hover"
-              >
-                Apply
-              </button>
-            </div>
-          </form>
-        </Card>
+          </FilterField>
+          <FilterField label="Status">
+            <FilterSelect name="status" defaultValue={sp.status ?? ''}>
+              <option value="">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="PAUSED">Paused</option>
+              <option value="SUNSET">Sunset</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Level">
+            <FilterSelect name="level" defaultValue={sp.level ?? ''}>
+              <option value="">All levels</option>
+              <option value="BACHELOR">Bachelor&rsquo;s</option>
+              <option value="MASTER">Master&rsquo;s</option>
+              <option value="DOCTORAL">Doctoral</option>
+            </FilterSelect>
+          </FilterField>
+          {/* Hidden submit so Enter on the search input commits the form */}
+          <button type="submit" className="sr-only">
+            Apply
+          </button>
+        </FilterRail>
 
         {filtered.length === 0 ? (
           <Card padding="lg">
@@ -191,31 +189,3 @@ export default async function ProgramsDirectoryPage({
   );
 }
 
-function Selector({
-  name,
-  label,
-  value,
-  options,
-}: {
-  name: string;
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-xs text-text-secondary">
-      <span className="uppercase tracking-wide">{label}</span>
-      <select
-        name={name}
-        defaultValue={value}
-        className="rounded-md border border-default bg-surface-1 px-2 py-1.5 text-sm text-text-primary"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}

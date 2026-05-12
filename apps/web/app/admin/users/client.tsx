@@ -4,6 +4,12 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, Input, Button } from '@kku/ui';
 import { Search, Plus, Trash2, Key, Check, Pencil, X, Layers, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import {
+  FilterField,
+  FilterRail,
+  FilterSearch,
+  FilterSelect,
+} from '@/components/filter-rail';
 import { toast } from 'sonner';
 import { type Role } from '@kku/shared';
 import {
@@ -212,51 +218,55 @@ function FilterBar({
   }, [localQ, filters.q, push]);
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-[240px]">
-        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
-        <Input
-          value={localQ}
-          onChange={(e) => setLocalQ(e.currentTarget.value)}
-          placeholder="Search by email or name…"
-          className="pl-8"
-        />
-      </div>
-      <select
-        value={filters.role}
-        onChange={(e) => push({ role: e.currentTarget.value })}
-        className="rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs"
-      >
-        <option value="">All roles</option>
-        <option value="SUPER_ADMIN">Super Admin</option>
-        <option value="SYSTEM_ADMIN">System Admin</option>
-        <option value="UNIVERSITY_USER">University User</option>
-        <option value="FACULTY_USER">Faculty User</option>
-        <option value="PROGRAM_USER">Program User</option>
-      </select>
-      <select
-        value={filters.facultyId}
-        onChange={(e) => push({ facultyId: e.currentTarget.value })}
-        className="max-w-[260px] rounded-md border border-border-subtle bg-surface-1 px-2 py-1.5 text-xs"
-      >
-        <option value="">All faculties</option>
-        {faculties.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.code} · {f.nameEn}
-          </option>
-        ))}
-      </select>
+    <div className="mb-3 flex flex-col gap-2">
+      <FilterRail cols={4}>
+        <FilterField label="Search" span={2}>
+          <FilterSearch
+            value={localQ}
+            onChange={setLocalQ}
+            placeholder="Email or name…"
+          />
+        </FilterField>
+        <FilterField label="Role">
+          <FilterSelect
+            value={filters.role}
+            onChange={(e) => push({ role: e.currentTarget.value })}
+          >
+            <option value="">All roles</option>
+            <option value="SUPER_ADMIN">Super Admin</option>
+            <option value="SYSTEM_ADMIN">System Admin</option>
+            <option value="UNIVERSITY_USER">University User</option>
+            <option value="FACULTY_USER">Faculty User</option>
+            <option value="PROGRAM_USER">Program User</option>
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Faculty">
+          <FilterSelect
+            value={filters.facultyId}
+            onChange={(e) => push({ facultyId: e.currentTarget.value })}
+          >
+            <option value="">All faculties</option>
+            {faculties.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.code} · {f.nameEn}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterField>
+      </FilterRail>
       {(filters.q || filters.role || filters.facultyId) && (
-        <button
-          type="button"
-          onClick={() => {
-            setLocalQ('');
-            router.push('/admin/users');
-          }}
-          className="text-[11px] text-text-tertiary underline hover:text-text-primary"
-        >
-          Clear
-        </button>
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setLocalQ('');
+              router.push('/admin/users');
+            }}
+            className="text-[11px] text-text-tertiary underline hover:text-text-primary"
+          >
+            Clear filters
+          </button>
+        </div>
       )}
     </div>
   );

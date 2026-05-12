@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge, Card, Stat, StatStrip } from '@kku/ui';
 import { Archive, CheckCircle2, Clock, Gavel, Play, Sparkles } from 'lucide-react';
+import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
 import type { DecisionListRow, DecisionStatus } from './types';
 
 const STATUS_OPTIONS: Array<{ value: '' | DecisionStatus; label: string }> = [
@@ -125,38 +126,52 @@ export function DecisionsLibraryClient({
         />
       </StatStrip>
 
-      <Card padding="sm">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Selector
-            label="Status"
-            value={filters.status}
-            options={STATUS_OPTIONS}
-            onChange={(v) => {
-              const next = { ...filters, status: v };
-              setFilters(next);
-              applyFilters(next);
-            }}
-          />
-          <Selector
-            label="Type"
-            value={filters.decisionType}
-            options={TYPE_OPTIONS}
-            onChange={(v) => {
-              const next = { ...filters, decisionType: v };
-              setFilters(next);
-              applyFilters(next);
-            }}
-          />
-          <div className="ml-auto flex items-center gap-2 text-xs">
-            <Link
-              href="/decisions/lessons-learned"
-              className="rounded-md px-2.5 py-1 font-medium text-module-decisions hover:bg-module-decisions/10"
-            >
-              Lessons learned →
-            </Link>
-          </div>
+      <div className="flex flex-col gap-2 md:flex-row md:items-end">
+        <div className="flex-1">
+          <FilterRail cols={2}>
+            <FilterField label="Status">
+              <FilterSelect
+                value={filters.status}
+                onChange={(e) => {
+                  const next = { ...filters, status: e.target.value };
+                  setFilters(next);
+                  applyFilters(next);
+                }}
+              >
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="Type">
+              <FilterSelect
+                value={filters.decisionType}
+                onChange={(e) => {
+                  const next = { ...filters, decisionType: e.target.value };
+                  setFilters(next);
+                  applyFilters(next);
+                }}
+              >
+                {TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          </FilterRail>
         </div>
-      </Card>
+        <div className="flex items-center gap-2 text-xs md:pb-2">
+          <Link
+            href="/decisions/lessons-learned"
+            className="rounded-md px-2.5 py-1 font-medium text-module-decisions hover:bg-module-decisions/10"
+          >
+            Lessons learned →
+          </Link>
+        </div>
+      </div>
 
       {decisions.length === 0 ? (
         <Card padding="lg">
@@ -206,35 +221,6 @@ export function DecisionsLibraryClient({
         </div>
       )}
     </div>
-  );
-}
-
-function Selector({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-xs text-text-secondary">
-      <span className="font-semibold uppercase tracking-[0.1em]">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-border-subtle bg-surface-1 px-2.5 py-1.5 text-sm text-text-primary transition-colors duration-fast hover:border-border-default focus:outline-none focus:ring-2 focus:ring-accent-default/30"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

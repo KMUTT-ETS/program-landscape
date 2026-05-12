@@ -11,7 +11,6 @@ import {
   DataTable,
   EdgeGlow,
   Heatmap,
-  Input,
   RightPanel,
   Segmented,
   SegmentedList,
@@ -38,6 +37,11 @@ import {
 } from 'lucide-react';
 import type { SessionUser } from '@kku/shared';
 import Link from 'next/link';
+import {
+  FilterField,
+  FilterSearch,
+  FilterSelect,
+} from '@/components/filter-rail';
 import type { RecruitmentDashboardPayload } from '../education/recruitment/client';
 import {
   deleteSavedViewAction,
@@ -118,41 +122,39 @@ export function CockpitClient(props: Props) {
             <Filter className="h-4 w-4 text-text-tertiary" aria-hidden />
             Filters
           </div>
-          <div className="flex flex-col gap-2 text-sm">
-            <div>
-              <label className="mb-1 block text-xs text-text-tertiary">Level</label>
-              <select
+          {/* Aside-rail filter — same FilterField/FilterSearch/FilterSelect
+              primitives as /admin/programs, just stacked instead of in a
+              grid because the cockpit's filter lives in a side rail. */}
+          <div className="flex flex-col gap-3 text-sm">
+            <FilterField label="Level">
+              <FilterSelect
                 value={levelFilter}
                 onChange={(e) => setLevelFilter(e.target.value)}
-                className="w-full kku-select"
               >
                 <option value="">All</option>
                 <option value="BACHELOR">Bachelor</option>
                 <option value="MASTER">Master</option>
                 <option value="DOCTORAL">Doctoral</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-text-tertiary">Status</label>
-              <select
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="Status">
+              <FilterSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full kku-select"
               >
                 <option value="">All</option>
                 <option value="ACTIVE">Active</option>
                 <option value="PAUSED">Paused</option>
                 <option value="SUNSET">Sunset</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-text-tertiary">Search</label>
-              <Input
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="Search">
+              <FilterSearch
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={setSearch}
                 placeholder="Program / dept (TH/EN)"
               />
-            </div>
+            </FilterField>
           </div>
         </Card>
 

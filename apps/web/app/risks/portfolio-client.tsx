@@ -23,6 +23,7 @@ import {
   type DriverMixSlice,
 } from './viz';
 import { Badge } from '@kku/ui';
+import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
 
 // Tier order kept for legacy references; the program-table grouping now
 // uses ERM_ORDER (KKU L × I band) for consistency with the rest of the
@@ -309,21 +310,45 @@ export function RisksPortfolioClient({
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-1 p-3 text-sm">
-        <span className="text-text-secondary">Filter</span>
-        <select
-          aria-label="Faculty filter"
-          value={initialFilters.faculty}
-          onChange={(e) => updateFilter('faculty', e.target.value)}
-          className="rounded-md border border-border-default bg-surface-2 px-2 py-1 text-sm"
-        >
-          <option value="">All faculties</option>
-          {facultyOptions.map(([id, nameTh]) => (
-            <option key={id} value={id}>
-              {nameTh}
-            </option>
-          ))}
-        </select>
+      <FilterRail cols={2}>
+        <FilterField label="Faculty">
+          <FilterSelect
+            aria-label="Faculty filter"
+            value={initialFilters.faculty}
+            onChange={(e) => updateFilter('faculty', e.target.value)}
+          >
+            <option value="">All faculties</option>
+            {facultyOptions.map(([id, nameTh]) => (
+              <option key={id} value={id}>
+                {nameTh}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterField>
+        <FilterField label="Cross-links">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/risks/matrix"
+              className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
+            >
+              Likelihood × impact matrix →
+            </Link>
+            <Link
+              href="/risks/indicators"
+              className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
+            >
+              Indicators →
+            </Link>
+            <Link
+              href="/risks/drivers"
+              className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
+            >
+              Drivers →
+            </Link>
+          </div>
+        </FilterField>
+      </FilterRail>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
         {cellFilterActive && (
           <span className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
             ERM cell · L{initialFilters.cellL} × I{initialFilters.cellI}
@@ -341,12 +366,12 @@ export function RisksPortfolioClient({
           <button
             type="button"
             onClick={() => router.replace('/risks')}
-            className="text-xs text-text-secondary underline-offset-2 hover:underline"
+            className="text-text-secondary underline-offset-2 hover:underline"
           >
             Clear filters
           </button>
         )}
-        <span className="ml-auto text-xs text-text-tertiary">
+        <span className="ml-auto">
           {cellFilterActive ? (
             <>
               <span className="font-semibold text-text-primary">{cellFilteredRows.length}</span>{' '}
@@ -359,24 +384,6 @@ export function RisksPortfolioClient({
             </>
           )}
         </span>
-        <Link
-          href="/risks/matrix"
-          className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
-        >
-          Likelihood × impact matrix →
-        </Link>
-        <Link
-          href="/risks/indicators"
-          className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
-        >
-          Indicators →
-        </Link>
-        <Link
-          href="/risks/drivers"
-          className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
-        >
-          Drivers →
-        </Link>
       </div>
 
       {portfolio.summary.programsWithoutAssessment > 0 && (

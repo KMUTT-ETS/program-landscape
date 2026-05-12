@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge, Card } from '@kku/ui';
+import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
 import type { ScenarioListRow, ScenarioTemplate, WorkflowStatus } from './types';
 
 const STATUS_OPTIONS: Array<{ value: '' | WorkflowStatus; label: string }> = [
@@ -101,40 +102,54 @@ export function ScenariosLibraryClient({
   return (
     <div className="flex flex-col gap-5">
       {/* Filter + create bar */}
-      <Card padding="sm">
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Selector
-            label="Status"
-            value={filters.status}
-            options={STATUS_OPTIONS}
-            onChange={(v) => {
-              const next = { ...filters, status: v };
-              setFilters(next);
-              applyFilters(next);
-            }}
-          />
-          <Selector
-            label="Type"
-            value={filters.scenarioType}
-            options={TYPE_OPTIONS}
-            onChange={(v) => {
-              const next = { ...filters, scenarioType: v };
-              setFilters(next);
-              applyFilters(next);
-            }}
-          />
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={createBlank}
-              disabled={creating}
-              className="rounded-md border border-default bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-surface-2 disabled:opacity-50"
-            >
-              + New blank scenario
-            </button>
-          </div>
+      <div className="flex flex-col gap-2 md:flex-row md:items-end">
+        <div className="flex-1">
+          <FilterRail cols={2}>
+            <FilterField label="Status">
+              <FilterSelect
+                value={filters.status}
+                onChange={(e) => {
+                  const next = { ...filters, status: e.target.value };
+                  setFilters(next);
+                  applyFilters(next);
+                }}
+              >
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="Type">
+              <FilterSelect
+                value={filters.scenarioType}
+                onChange={(e) => {
+                  const next = { ...filters, scenarioType: e.target.value };
+                  setFilters(next);
+                  applyFilters(next);
+                }}
+              >
+                {TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          </FilterRail>
         </div>
-      </Card>
+        <div className="md:pb-2">
+          <button
+            type="button"
+            onClick={createBlank}
+            disabled={creating}
+            className="rounded-md border border-default bg-surface-1 px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-surface-2 disabled:opacity-50"
+          >
+            + New blank scenario
+          </button>
+        </div>
+      </div>
 
       {/* Templates panel */}
       {templates.length > 0 && (
@@ -242,31 +257,3 @@ export function ScenariosLibraryClient({
   );
 }
 
-function Selector({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-xs text-text-secondary">
-      <span className="uppercase tracking-wide">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-default bg-surface-1 px-2 py-1.5 text-sm text-text-primary"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
