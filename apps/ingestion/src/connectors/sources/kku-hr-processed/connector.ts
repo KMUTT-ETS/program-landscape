@@ -37,9 +37,12 @@ interface RawLifecycleRow extends Record<string, unknown> {
   // so the raw identification briefly enters our process during fetch.
   // We immediately drop it in transform() and persist only the hash.
   identification: string;
-  birth_year_be: number | null;
-  retire_year_be: number | null;
-  sixty_year_be: number | null;
+  // Full dates from vw_history (added 2026-05-12). The connector
+  // computes year-AD locally for backward compat with the year columns.
+  birthday: Date | string | null;
+  putday: Date | string | null;
+  retireday: Date | string | null;
+  sixtyday: Date | string | null;
 }
 
 interface RunState {
@@ -94,17 +97,25 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
       );
 
       // Q2 — per-person lifecycle dates. SHA2() isn't available on this
-      // legacy MySQL build, so we pull raw identification + year-precision
-      // dates only. Hashing happens at the connector boundary in transform();
-      // raw identification never reaches the database. Names / salaries /
+      // legacy MySQL build, so we pull raw identification + dates only.
+      // Hashing happens at the connector boundary in transform(); raw
+      // identification never reaches the database. Names / salaries /
       // addresses are NEVER in this projection.
+      //
+      // 2026-05-12: full-date precision (was YEAR(...)). Powers
+      // FacultyMember.retirementDate / hireDate enrichment (deep-dive
+      // bug fix) + month-precision workforce viz.
+      //   putday    = date the person joined KKU (authoritative hire date)
+      //   retireday = scheduled mandatory-retirement date
+      //   sixtyday  = date the person turns 60 (= retireday for most)
       const lifecycleRows = await query<RawLifecycleRow>(
         conn,
         `SELECT
             identification,
-            YEAR(birthday)   AS birth_year_be,
-            YEAR(retireday)  AS retire_year_be,
-            YEAR(sixtyday)   AS sixty_year_be
+            birthday,
+            putday,
+            retireday,
+            sixtyday
            FROM ${SOURCE_TABLE}
           WHERE identification IS NOT NULL
             AND identification <> ''`,
@@ -154,21 +165,43 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
       // Hash at boundary; raw identification dropped from scope after this.
       const citizenIdHash = hashCitizenId(r.identification);
       if (!citizenIdHash) return [];
-      function toAd(beYear: number | null | undefined): number | null {
-        if (beYear === null || beYear === undefined) return null;
-        const n = Number(beYear);
-        if (!Number.isFinite(n) || n <= 0) return null;
-        return n > 2400 ? n - 543 : n;
+
+      // Normalise dates. vw_history stores dates in CE (Gregorian) by
+      // observation — older rows may also carry BE-era years. Detect
+      // and convert if the year ≥ 2400 (impossible for a real birth/
+      // hire date in CE).
+      function toAdDate(v: Date | string | null | undefined): Date | null {
+        if (v === null || v === undefined) return null;
+        const d = v instanceof Date ? v : new Date(v);
+        if (Number.isNaN(d.getTime())) return null;
+        const year = d.getUTCFullYear();
+        // Sanity: anything 2400+ must be BE — shift by 543 years.
+        if (year >= 2400) {
+          return new Date(Date.UTC(year - 543, d.getUTCMonth(), d.getUTCDate()));
+        }
+        // Anything < 1900 is corrupt (vw_history sometimes has 0001-01-01
+        // placeholders for missing dates).
+        if (year < 1900) return null;
+        return new Date(Date.UTC(year, d.getUTCMonth(), d.getUTCDate()));
       }
+      const birthDate = toAdDate(r.birthday);
+      const hireDate = toAdDate(r.putday);
+      const retireDate = toAdDate(r.retireday);
+      const sixtyDate = toAdDate(r.sixtyday);
+
       return [
         {
           target: 'staff_lifecycle_dates',
           externalId: `life|${citizenIdHash}`,
           payload: {
             citizenIdHash,
-            birthYearAd: toAd(r.birth_year_be),
-            retireYearAd: toAd(r.retire_year_be),
-            sixtyYearAd: toAd(r.sixty_year_be),
+            birthYearAd: birthDate?.getUTCFullYear() ?? null,
+            retireYearAd: retireDate?.getUTCFullYear() ?? null,
+            sixtyYearAd: sixtyDate?.getUTCFullYear() ?? null,
+            birthDate,
+            hireDate,
+            retireDate,
+            sixtyDate,
           },
           freshnessDate: raw.sourceTimestamp,
         },
@@ -271,18 +304,70 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
           birthYearAd: number | null;
           retireYearAd: number | null;
           sixtyYearAd: number | null;
+          birthDate: Date | null;
+          hireDate: Date | null;
+          retireDate: Date | null;
+          sixtyDate: Date | null;
         };
         return {
           citizenIdHash: p.citizenIdHash,
           birthYearAd: p.birthYearAd,
           retireYearAd: p.retireYearAd,
           sixtyYearAd: p.sixtyYearAd,
+          birthDate: p.birthDate,
+          hireDate: p.hireDate,
+          retireDate: p.retireDate,
+          sixtyDate: p.sixtyDate,
           source: 'kku-hr-processed',
         };
       });
       const result = await prisma.staffLifecycleDates.createMany({ data, skipDuplicates: true });
       lifeInserted += result.count;
     }
+
+    // ── FacultyMember enrichment (2026-05-12 bug fix) ────────────────
+    // MSSQL HCMEmployee.RESIGNDATE is null for active staff — only
+    // filled post-resignation. The processed-HR vw_history.retireday
+    // is the authoritative scheduled-retirement source. Sync it (plus
+    // hireDate from putday) back to FacultyMember via citizenIdHash
+    // match. Updates are NOT destructive: we ALWAYS update retirementDate
+    // (lifecycle is authoritative), but only fill hireDate when it's
+    // currently null (preserve the HR-connector's value when the
+    // processed-HR putday is missing or has the same date).
+    let enrichedRetirement = 0;
+    let enrichedHire = 0;
+    const lifecycleByHash = new Map<string, { retireDate: Date | null; hireDate: Date | null }>();
+    for (const n of lifecycleRecords) {
+      const p = n.payload as { citizenIdHash: string; retireDate: Date | null; hireDate: Date | null };
+      lifecycleByHash.set(p.citizenIdHash, { retireDate: p.retireDate, hireDate: p.hireDate });
+    }
+    // Only consider FacultyMembers that have a citizenIdHash (the link key).
+    const matchedMembers = await prisma.facultyMember.findMany({
+      where: { citizenIdHash: { in: [...lifecycleByHash.keys()] } },
+      select: { id: true, citizenIdHash: true, hireDate: true },
+    });
+    for (const fm of matchedMembers) {
+      const life = lifecycleByHash.get(fm.citizenIdHash!);
+      if (!life) continue;
+      const updates: { retirementDate?: Date | null; hireDate?: Date | null } = {};
+      if (life.retireDate) {
+        updates.retirementDate = life.retireDate;
+        enrichedRetirement += 1;
+      }
+      // Hire date: only fill when currently null. Don't overwrite — the
+      // MSSQL HCM STARTDATE has been observed reliable for most rows
+      // and we don't want a vw_history quirk to clobber it.
+      if (life.hireDate && !fm.hireDate) {
+        updates.hireDate = life.hireDate;
+        enrichedHire += 1;
+      }
+      if (Object.keys(updates).length > 0) {
+        await prisma.facultyMember.update({ where: { id: fm.id }, data: updates });
+      }
+    }
+    ctx.log.info(
+      `FacultyMember enrichment: ${enrichedRetirement} retirementDate, ${enrichedHire} hireDate (of ${matchedMembers.length} matched by citizenIdHash)`,
+    );
 
     return {
       recordsFetched: this.runState.fetchedCount + this.runState.lifecycleCount,

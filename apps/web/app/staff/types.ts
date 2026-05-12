@@ -28,6 +28,23 @@ export interface OverviewBlock {
   retirementCliff5y: { academic: number; support: number; total: number };
   flow12m: { hires: number; separations: number };
   facultyMosaic: Array<{ facultyName: string; academic: number; support: number; total: number }>;
+  /** 10-year forward retirement projection (year-grain, academic/support
+   *  split). Source: processed-HR vw_history.retireday — KKU mandatory
+   *  retirement is 1 Oct of the staff member's 60th-birthday fiscal year. */
+  retirementProjection: Array<{
+    fiscalYear: number;
+    academic: number;
+    support: number;
+    total: number;
+  }>;
+  /** Tenure distribution — years since hireDate for active workforce.
+   *  Source: vw_history.putday. Captures the "experience pyramid". */
+  tenure: {
+    withHireDate: number;
+    meanYears: number;
+    medianYears: number;
+    buckets: Array<{ label: string; academic: number; support: number; total: number }>;
+  };
 }
 
 export interface DemographicsBlock {

@@ -3672,19 +3672,47 @@ model StaffCompensationCube {
   @@map("staff_compensation_cube")
 }
 
-// Per-person year-precision lifecycle dates from processed-HR vw_history.
-// PII-narrow projection: just SHA-256(citizen_id) + the four year ints.
+// Per-person lifecycle dates from processed-HR vw_history.
+// PII-narrow projection: just SHA-256(citizen_id) + dates.
 // Snapshot replace by source on every refresh.
+//
+// Date columns added 2026-05-12 — `vw_history` carries full-precision
+// dates (`birthday`, `putday`=hire, `retireday`, `sixtyday`) but the
+// original load truncated to YEAR(). Full dates power:
+//   - FacultyMember.retirementDate enrichment (deep-dive bug fix —
+//     MSSQL HCMEmployee.RESIGNDATE is only filled post-resignation,
+//     so it's null for active staff)
+//   - FacultyMember.hireDate enrichment (more reliable than MSSQL
+//     STARTDATE which has bulk-stamp anomalies)
+//   - workforce dashboard month-precision retirement timeline
+// Year columns retained for legacy callers + indexes.
 model StaffLifecycleDates {
-  citizenIdHash String   @id @map("citizen_id_hash")
-  birthYearAd   Int?     @map("birth_year_ad")
-  retireYearAd  Int?     @map("retire_year_ad")
-  sixtyYearAd   Int?     @map("sixty_year_ad")
-  source        String   @default("kku-hr-processed")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  citizenIdHash String    @id @map("citizen_id_hash")
+  birthYearAd   Int?      @map("birth_year_ad")
+  retireYearAd  Int?      @map("retire_year_ad")
+  sixtyYearAd   Int?      @map("sixty_year_ad")
+  /// Full date of birth from `vw_history.birthday` (UTC midnight). Year
+  /// fields above are derived from these dates.
+  birthDate     DateTime? @map("birth_date") @db.Date
+  /// Hire date from `vw_history.putday` (joined KKU). Authoritative
+  /// source; supersedes HCMEmployee.STARTDATE (which has been observed
+  /// with 2025 bulk-stamp anomalies).
+  hireDate      DateTime? @map("hire_date") @db.Date
+  /// Mandatory retirement date from `vw_history.retireday`. Scheduled
+  /// retirement (computed from birthday + 60-year boundary); authoritative
+  /// for "when will this person retire" — HCMEmployee.RESIGNDATE is null
+  /// for active staff.
+  retireDate    DateTime? @map("retire_date") @db.Date
+  /// Date the person turns 60 (`vw_history.sixtyday`). For most academic
+  /// staff this equals retireDate; differs for support staff with
+  /// extended-contract paths.
+  sixtyDate     DateTime? @map("sixty_date") @db.Date
+  source        String    @default("kku-hr-processed")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   @@index([retireYearAd])
   @@index([birthYearAd])
+  @@index([retireDate])
   @@map("staff_lifecycle_dates")
 }
 

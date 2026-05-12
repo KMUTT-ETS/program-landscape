@@ -154,13 +154,26 @@ export class StaffService {
       },
     });
 
-    // Pull authoritative birth-year-AD from processed-HR (DS2001's BIRTHDAY
-    // is a placeholder).
+    // Pull authoritative dates from processed-HR (DS2001's BIRTHDAY is a
+    // placeholder; HCMEmployee.RESIGNDATE is null for active staff).
+    // Full-date precision (added 2026-05-12) lets us build month-grain
+    // retirement projections + tenure-distribution viz.
     const lifecycle = await prisma.staffLifecycleDates.findMany({
       where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
-      select: { citizenIdHash: true, birthYearAd: true },
+      select: {
+        citizenIdHash: true,
+        birthYearAd: true,
+        retireDate: true,
+        hireDate: true,
+      },
     });
     const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l.birthYearAd]));
+    const lifeFullByHash = new Map(
+      lifecycle.map((l) => [
+        l.citizenIdHash,
+        { retireDate: l.retireDate, hireDate: l.hireDate },
+      ]),
+    );
 
     const total = rows.length;
     let academic = 0;
@@ -220,11 +233,86 @@ export class StaffService {
       if (['06', '07', '08', '11', '12'].includes(code)) separations12m += 1;
     }
 
+    // ── Retirement projection — next 10 fiscal years, monthly grain ─
+    // KKU's mandatory retirement is the 1 Oct of the fiscal year in
+    // which the staff member turns 60 — so the timeline clusters
+    // sharply on Oct 1. Display a per-fiscal-year bar with academic /
+    // support breakdown for the next 10 years (2026 → 2035 inclusive).
+    const nowFy = new Date().getFullYear();
+    const projHorizon = 10;
+    const projection: Array<{
+      fiscalYear: number;
+      academic: number;
+      support: number;
+      total: number;
+    }> = [];
+    for (let i = 0; i < projHorizon; i += 1) {
+      projection.push({ fiscalYear: nowFy + i, academic: 0, support: 0, total: 0 });
+    }
+    for (const r of rows) {
+      const life = lifeFullByHash.get(r.citizenIdHash);
+      const rd = life?.retireDate;
+      if (!rd) continue;
+      const fy = rd.getUTCFullYear();
+      const idx = fy - nowFy;
+      if (idx < 0 || idx >= projHorizon) continue;
+      const slot = projection[idx]!;
+      if (staffTrack(r.subStaffTypeId) === 'ACADEMIC') slot.academic += 1;
+      else slot.support += 1;
+      slot.total += 1;
+    }
+
+    // ── Tenure distribution — years since hireDate ─────────────────
+    // Bucketed: 0-4 / 5-9 / 10-14 / 15-19 / 20-24 / 25-29 / 30-34 / 35+.
+    // Captures "experience pyramid" — heavy late-career counts signal
+    // succession risk; thin early-career counts signal recruitment gap.
+    const tenureBuckets = [
+      { label: '0-4',   academic: 0, support: 0, total: 0 },
+      { label: '5-9',   academic: 0, support: 0, total: 0 },
+      { label: '10-14', academic: 0, support: 0, total: 0 },
+      { label: '15-19', academic: 0, support: 0, total: 0 },
+      { label: '20-24', academic: 0, support: 0, total: 0 },
+      { label: '25-29', academic: 0, support: 0, total: 0 },
+      { label: '30-34', academic: 0, support: 0, total: 0 },
+      { label: '35+',   academic: 0, support: 0, total: 0 },
+    ];
+    let withTenure = 0;
+    let tenureSum = 0;
+    let medianYears = 0;
+    const tenures: number[] = [];
+    const todayUtc = Date.UTC(nowFy, new Date().getUTCMonth(), 1);
+    for (const r of rows) {
+      const life = lifeFullByHash.get(r.citizenIdHash);
+      const hd = life?.hireDate;
+      if (!hd) continue;
+      const years = (todayUtc - hd.getTime()) / (365.2425 * 24 * 3600 * 1000);
+      if (years < 0 || years > 80) continue;
+      tenures.push(years);
+      withTenure += 1;
+      tenureSum += years;
+      const idx = years < 5 ? 0 : years < 10 ? 1 : years < 15 ? 2 : years < 20 ? 3 : years < 25 ? 4 : years < 30 ? 5 : years < 35 ? 6 : 7;
+      const slot = tenureBuckets[idx]!;
+      if (staffTrack(r.subStaffTypeId) === 'ACADEMIC') slot.academic += 1;
+      else slot.support += 1;
+      slot.total += 1;
+    }
+    if (tenures.length > 0) {
+      tenures.sort((a, b) => a - b);
+      medianYears = tenures[Math.floor(tenures.length / 2)] ?? 0;
+    }
+
     return {
       headcount: { total, academic, support, executives, unknownTrack },
       retirementCliff5y: { academic: cliffAcademic, support: cliffSupport, total: cliffAcademic + cliffSupport },
       flow12m: { hires: hires12m, separations: separations12m },
       facultyMosaic,
+      retirementProjection: projection,
+      tenure: {
+        withHireDate: withTenure,
+        meanYears: withTenure > 0 ? tenureSum / withTenure : 0,
+        medianYears,
+        buckets: tenureBuckets,
+      },
     };
   }
 

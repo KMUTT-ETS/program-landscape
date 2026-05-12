@@ -176,6 +176,12 @@ export function WorkforceClient({ data, options, initialFilters }: Props) {
         </ul>
       </Card>
 
+      {/* ── Retirement timeline + Tenure distribution ─────── */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <RetirementProjectionCard rows={data.retirementProjection} />
+        <TenureDistributionCard tenure={data.tenure} />
+      </div>
+
       {/* ── Demographics: age pyramids + tenure ─────────── */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <TrackPanel title="สายวิชาการ — Academic" block={data.demographics.academic} />
@@ -309,6 +315,121 @@ function TrackPanel({ title, block }: { title: string; block: TrackBlock }) {
           })}
         </ul>
       </div>
+    </Card>
+  );
+}
+
+// ── 10-year retirement projection ─────────────────────────────────────
+// Stacked bars per fiscal year (academic = purple, support = teal).
+// Year-grain only — vw_history.retireday is computed from birthday +
+// 60-year boundary so the day-of-year is uniformly 1 Oct (KKU mandatory
+// retirement = start of next fiscal year), which makes month-grain
+// unhelpful.
+function RetirementProjectionCard({
+  rows,
+}: {
+  rows: WorkforceResponse['retirementProjection'];
+}) {
+  const max = Math.max(...rows.map((r) => r.total), 1);
+  const total = rows.reduce((s, r) => s + r.total, 0);
+  return (
+    <Card>
+      <h3 className="text-sm font-semibold">Retirement timeline — next 10 years</h3>
+      <p className="mt-1 text-xs text-text-tertiary">
+        {total.toLocaleString('en-US')} staff scheduled to retire over the next decade · per-fiscal-year academic/support split · source: <span className="font-mono text-text-secondary">vw_history.retireday</span>
+      </p>
+      <ul className="mt-3 flex flex-col gap-1.5">
+        {rows.map((row) => {
+          const wPct = (row.total / max) * 100;
+          const acPct = row.total > 0 ? (row.academic / row.total) * 100 : 0;
+          return (
+            <li
+              key={row.fiscalYear}
+              className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem] items-center gap-x-3 text-xs"
+            >
+              <span className="font-tabular text-text-tertiary">FY {row.fiscalYear}</span>
+              <div
+                className="relative h-4 overflow-hidden rounded-sm"
+                style={{ background: 'rgba(120,120,120,0.18)' }}
+              >
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${Math.max(wPct, 0.5)}%`,
+                    background: `linear-gradient(90deg, #6366f1 ${acPct}%, #14b8a6 ${acPct}%)`,
+                  }}
+                />
+              </div>
+              <span className="text-right font-tabular text-accent">{row.academic.toLocaleString('en-US')}</span>
+              <span className="text-right font-tabular text-text-secondary">{row.support.toLocaleString('en-US')}</span>
+              <span className="text-right font-tabular font-semibold">{row.total.toLocaleString('en-US')}</span>
+            </li>
+          );
+        })}
+        <li className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem] gap-x-3 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+          <span></span>
+          <span></span>
+          <span className="text-right">academic</span>
+          <span className="text-right">support</span>
+          <span className="text-right">total</span>
+        </li>
+      </ul>
+    </Card>
+  );
+}
+
+// ── Tenure distribution (years since hireDate) ────────────────────────
+// Stacked bars per 5-year bucket. Reveals the experience pyramid —
+// heavy late-career counts signal succession risk; thin early-career
+// counts signal a recruitment gap.
+function TenureDistributionCard({
+  tenure,
+}: {
+  tenure: WorkforceResponse['tenure'];
+}) {
+  const max = Math.max(...tenure.buckets.map((b) => b.total), 1);
+  return (
+    <Card>
+      <h3 className="text-sm font-semibold">Tenure distribution</h3>
+      <p className="mt-1 text-xs text-text-tertiary">
+        Years at KKU since hire date · {tenure.withHireDate.toLocaleString('en-US')} staff with known hire date · mean {tenure.meanYears.toFixed(1)}y · median {tenure.medianYears.toFixed(1)}y · source: <span className="font-mono text-text-secondary">vw_history.putday</span>
+      </p>
+      <ul className="mt-3 flex flex-col gap-1.5">
+        {tenure.buckets.map((b) => {
+          const wPct = (b.total / max) * 100;
+          const acPct = b.total > 0 ? (b.academic / b.total) * 100 : 0;
+          return (
+            <li
+              key={b.label}
+              className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem] items-center gap-x-3 text-xs"
+            >
+              <span className="font-tabular text-text-tertiary">{b.label}y</span>
+              <div
+                className="relative h-4 overflow-hidden rounded-sm"
+                style={{ background: 'rgba(120,120,120,0.18)' }}
+              >
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${Math.max(wPct, 0.5)}%`,
+                    background: `linear-gradient(90deg, #6366f1 ${acPct}%, #14b8a6 ${acPct}%)`,
+                  }}
+                />
+              </div>
+              <span className="text-right font-tabular text-accent">{b.academic.toLocaleString('en-US')}</span>
+              <span className="text-right font-tabular text-text-secondary">{b.support.toLocaleString('en-US')}</span>
+              <span className="text-right font-tabular font-semibold">{b.total.toLocaleString('en-US')}</span>
+            </li>
+          );
+        })}
+        <li className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem] gap-x-3 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+          <span></span>
+          <span></span>
+          <span className="text-right">academic</span>
+          <span className="text-right">support</span>
+          <span className="text-right">total</span>
+        </li>
+      </ul>
     </Card>
   );
 }
