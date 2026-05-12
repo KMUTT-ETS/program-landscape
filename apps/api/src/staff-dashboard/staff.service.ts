@@ -301,6 +301,41 @@ export class StaffService {
       medianYears = tenures[Math.floor(tenures.length / 2)] ?? 0;
     }
 
+    // ── Faculty turnover — HCM ENDWORKDATE-based ───────────────────
+    // Academic-faculty separations from the now-populated
+    // FacultyMember.endEmploymentDate (HCMEmployee.ENDWORKDATE, the
+    // user-noted authoritative source — only filled for staff who left
+    // before mandatory retirement). Yearly buckets for the last 5
+    // years + a 12-month rolling turnover-rate KPI:
+    //
+    //     turnover12m = sep12m / current_active_faculty_count
+    //
+    // Conceptually complements the DS2001-based flow12m above (which
+    // covers all staff including support). When kku-hr is mocked or
+    // hasn't ingested yet, all numbers are zero — harmless.
+    const facultyMembers = await prisma.facultyMember.findMany({
+      select: { isActive: true, endEmploymentDate: true, rank: true },
+    });
+    const fiveYearsAgo = new Date(Date.UTC(nowFy - 5, 0, 1));
+    const twelveMonthsAgo = new Date(Date.UTC(new Date().getUTCFullYear() - 1, new Date().getUTCMonth(), new Date().getUTCDate()));
+    const turnoverByYear = new Map<number, number>();
+    let separations12mFaculty = 0;
+    let activeFacultyCount = 0;
+    for (const fm of facultyMembers) {
+      if (fm.isActive) activeFacultyCount += 1;
+      const ed = fm.endEmploymentDate;
+      if (!ed || ed < fiveYearsAgo) continue;
+      const y = ed.getUTCFullYear();
+      turnoverByYear.set(y, (turnoverByYear.get(y) ?? 0) + 1);
+      if (ed >= twelveMonthsAgo) separations12mFaculty += 1;
+    }
+    const turnoverYears: Array<{ year: number; separations: number }> = [];
+    for (let y = nowFy - 4; y <= nowFy; y += 1) {
+      turnoverYears.push({ year: y, separations: turnoverByYear.get(y) ?? 0 });
+    }
+    const turnoverRate12m =
+      activeFacultyCount > 0 ? (separations12mFaculty / activeFacultyCount) * 100 : 0;
+
     return {
       headcount: { total, academic, support, executives, unknownTrack },
       retirementCliff5y: { academic: cliffAcademic, support: cliffSupport, total: cliffAcademic + cliffSupport },
@@ -312,6 +347,12 @@ export class StaffService {
         meanYears: withTenure > 0 ? tenureSum / withTenure : 0,
         medianYears,
         buckets: tenureBuckets,
+      },
+      facultyTurnover: {
+        activeFacultyCount,
+        separations12m: separations12mFaculty,
+        turnoverRate12mPct: turnoverRate12m,
+        yearly: turnoverYears,
       },
     };
   }

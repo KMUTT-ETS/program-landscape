@@ -1174,7 +1174,16 @@ model FacultyMember {
   specialization        String?
   dateOfBirth           DateTime?   @map("date_of_birth") @db.Date
   hireDate              DateTime?   @map("hire_date") @db.Date
+  /// Scheduled mandatory retirement date. KKU civil-service rule:
+  /// 1 Oct AFTER the staff member turns 60. Computed from dateOfBirth
+  /// by the kku-hr connector (was previously sourced from RESIGNDATE
+  /// which is only filled post-resignation → null for active staff).
   retirementDate        DateTime?   @map("retirement_date") @db.Date
+  /// Actual employment end date (HCMEmployee.ENDWORKDATE). Blank for
+  /// current staff. Non-null = pre-retirement separation (resignation,
+  /// contract end, dismissal, death). Drives turnover-rate analytics
+  /// on /staff/workforce.
+  endEmploymentDate     DateTime?   @map("end_employment_date") @db.Date
   isActive              Boolean     @default(true) @map("is_active")
   // Cross-system author identifiers — populated by the kku-research
   // connector as papers land. ORCID is the gold standard; OpenAlex

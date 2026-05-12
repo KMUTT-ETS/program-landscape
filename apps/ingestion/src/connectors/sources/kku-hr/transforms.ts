@@ -28,7 +28,13 @@ export const Q1RowSchema = z.object({
   EFNAME: z.string().nullable(),
   ELNAME: z.string().nullable(),
   STATUS: z.string().nullable(),
-  BIRTH_YEAR: z.string().nullable(), // LEFT(BIRTHDAY, 4) — year only
+  /** Full BIRTHDAY in 'YYYY-MM-DD' text (was previously LEFT-truncated
+   *  to year). Needed for the KKU civil-service retirement-date rule. */
+  BIRTH_DATE: z.string().nullable(),
+  /** FIRSTHIREDATE — original join date. Authoritative hire date;
+   *  supersedes STARTDATE (which can carry 2025 bulk-stamp anomalies
+   *  on re-contracted staff). */
+  FIRSTHIREDATE: z.string().nullable(),
   STARTDATE: z.string().nullable(), // 'YYYY-MM-DD' or '' (text)
   RESIGNDATE: z.string().nullable(),
   ENDWORKDATE: z.string().nullable(),
@@ -96,6 +102,10 @@ export function parseHcmDate(value: string | null): Date | null {
  * BIRTHDAY is captured as year-only (LEFT(BIRTHDAY, 4)). Returns Jan 1
  * of that year as a UTC date, or null on empty / unparseable input.
  * Year-precision intentional — we don't store full DOB.
+ *
+ * @deprecated Year-only birthdate is from the legacy LEFT(BIRTHDAY, 4)
+ * pull. The connector now reads full BIRTHDAY; keep this function for
+ * back-compat with any other caller, but prefer parseHcmDate().
  */
 export function parseBirthYear(value: string | null): Date | null {
   if (!value) return null;
@@ -104,6 +114,34 @@ export function parseBirthYear(value: string | null): Date | null {
   const year = Number(trimmed);
   if (year < 1900 || year > 2100) return null;
   return new Date(Date.UTC(year, 0, 1));
+}
+
+/**
+ * Compute the KKU mandatory retirement date from a birth date,
+ * following the Thai civil-service rule:
+ *
+ *   "Retirement is on 1 Oct after the staff member is fully 60 years
+ *    old. If they become fully 60 on or after 1 Oct of year X, they
+ *    retire on 1 Oct of year X+1; otherwise they retire on 1 Oct of
+ *    year X (= birthYear + 60)."
+ *
+ * Equivalent: retire on the first 1 Oct strictly AFTER the 60th
+ * birthday (so birthday = 1 Oct exactly falls into next year).
+ *
+ *   birth month <= Sep         → retire 1 Oct (birthYear + 60)
+ *   birth month >= Oct (incl. Oct 1) → retire 1 Oct (birthYear + 61)
+ *
+ * Returns null when birthDate is null or yields an out-of-bounds year.
+ * Operates in UTC to match the @db.Date storage convention.
+ */
+export function computeRetirementDateFromBirth(birthDate: Date | null): Date | null {
+  if (!birthDate) return null;
+  const birthY = birthDate.getUTCFullYear();
+  const birthM = birthDate.getUTCMonth(); // 0=Jan, 9=Oct, 11=Dec
+  if (birthY < 1900 || birthY > 2100) return null;
+  // birth month >= October (index 9, 10, 11) → push retirement to next year
+  const retireYear = birthM >= 9 ? birthY + 61 : birthY + 60;
+  return new Date(Date.UTC(retireYear, 9, 1)); // month index 9 = October
 }
 
 /**

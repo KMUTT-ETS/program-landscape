@@ -325,15 +325,15 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
       lifeInserted += result.count;
     }
 
-    // ── FacultyMember enrichment (2026-05-12 bug fix) ────────────────
-    // MSSQL HCMEmployee.RESIGNDATE is null for active staff — only
-    // filled post-resignation. The processed-HR vw_history.retireday
-    // is the authoritative scheduled-retirement source. Sync it (plus
-    // hireDate from putday) back to FacultyMember via citizenIdHash
-    // match. Updates are NOT destructive: we ALWAYS update retirementDate
-    // (lifecycle is authoritative), but only fill hireDate when it's
-    // currently null (preserve the HR-connector's value when the
-    // processed-HR putday is missing or has the same date).
+    // ── FacultyMember enrichment — FALLBACK source only ──────────────
+    // 2026-05-12 update: HCMEmployee (kku-hr connector) is now the
+    // authoritative source for retirementDate (computed from BIRTHDATE
+    // via the KKU civil-service rule) and hireDate (from FIRSTHIREDATE).
+    // The user noted that vw_history is not always fully updated, so
+    // we deprioritise it: this enrichment ONLY fills currently-null
+    // values, never overwrites authoritative HCM data.
+    // Use case preserved: staff who somehow exist in vw_history but
+    // not in HCM (rare; observed for some long-retired staff).
     let enrichedRetirement = 0;
     let enrichedHire = 0;
     const lifecycleByHash = new Map<string, { retireDate: Date | null; hireDate: Date | null }>();
@@ -341,22 +341,18 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
       const p = n.payload as { citizenIdHash: string; retireDate: Date | null; hireDate: Date | null };
       lifecycleByHash.set(p.citizenIdHash, { retireDate: p.retireDate, hireDate: p.hireDate });
     }
-    // Only consider FacultyMembers that have a citizenIdHash (the link key).
     const matchedMembers = await prisma.facultyMember.findMany({
       where: { citizenIdHash: { in: [...lifecycleByHash.keys()] } },
-      select: { id: true, citizenIdHash: true, hireDate: true },
+      select: { id: true, citizenIdHash: true, hireDate: true, retirementDate: true },
     });
     for (const fm of matchedMembers) {
       const life = lifecycleByHash.get(fm.citizenIdHash!);
       if (!life) continue;
       const updates: { retirementDate?: Date | null; hireDate?: Date | null } = {};
-      if (life.retireDate) {
+      if (life.retireDate && !fm.retirementDate) {
         updates.retirementDate = life.retireDate;
         enrichedRetirement += 1;
       }
-      // Hire date: only fill when currently null. Don't overwrite — the
-      // MSSQL HCM STARTDATE has been observed reliable for most rows
-      // and we don't want a vw_history quirk to clobber it.
       if (life.hireDate && !fm.hireDate) {
         updates.hireDate = life.hireDate;
         enrichedHire += 1;
@@ -366,7 +362,7 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
       }
     }
     ctx.log.info(
-      `FacultyMember enrichment: ${enrichedRetirement} retirementDate, ${enrichedHire} hireDate (of ${matchedMembers.length} matched by citizenIdHash)`,
+      `FacultyMember fallback enrichment: ${enrichedRetirement} retirementDate, ${enrichedHire} hireDate (only fills nulls; kku-hr/HCM is authoritative)`,
     );
 
     return {

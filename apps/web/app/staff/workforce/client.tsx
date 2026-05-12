@@ -182,6 +182,9 @@ export function WorkforceClient({ data, options, initialFilters }: Props) {
         <TenureDistributionCard tenure={data.tenure} />
       </div>
 
+      {/* ── Faculty turnover (HCM ENDWORKDATE) ───────────────── */}
+      <FacultyTurnoverCard turnover={data.facultyTurnover} />
+
       {/* ── Demographics: age pyramids + tenure ─────────── */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <TrackPanel title="สายวิชาการ — Academic" block={data.demographics.academic} />
@@ -428,6 +431,61 @@ function TenureDistributionCard({
           <span className="text-right">academic</span>
           <span className="text-right">support</span>
           <span className="text-right">total</span>
+        </li>
+      </ul>
+    </Card>
+  );
+}
+
+// ── Faculty turnover (HCMEmployee.ENDWORKDATE) ────────────────────────
+// Pre-retirement separation tracking for academic faculty. Last 12
+// months KPI + 5-year trend bars. ENDWORKDATE = actual termination
+// date (resignation, contract end, dismissal, death). Note the scope
+// limit — this counts only academic faculty in the FacultyMember
+// population. All-staff (academic + support) flow is in the existing
+// "Departures (last 12 months)" KPI above, sourced from DS2001.
+function FacultyTurnoverCard({
+  turnover,
+}: {
+  turnover: WorkforceResponse['facultyTurnover'];
+}) {
+  const max = Math.max(...turnover.yearly.map((y) => y.separations), 1);
+  const rateText = turnover.turnoverRate12mPct.toFixed(2) + '%';
+  const tone =
+    turnover.turnoverRate12mPct >= 5
+      ? 'text-warning'
+      : turnover.turnoverRate12mPct >= 2
+        ? 'text-text-primary'
+        : 'text-success';
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold">Academic-faculty turnover</h3>
+        <span className={`font-tabular text-2xl font-semibold ${tone}`}>{rateText}</span>
+      </div>
+      <p className="mt-1 text-xs text-text-tertiary">
+        Pre-retirement separations only · {turnover.separations12m.toLocaleString('en-US')} faculty left in last 12 months · denominator {turnover.activeFacultyCount.toLocaleString('en-US')} active faculty · source: <span className="font-mono text-text-secondary">HCMEmployee.ENDWORKDATE</span>
+      </p>
+      <p className="mt-1 text-[11px] text-text-tertiary">
+        Scope note: this is the <span className="text-text-secondary">academic faculty</span> turnover signal (FacultyMember population). The &quot;Departures (last 12 months)&quot; KPI above uses DS2001 movement codes and covers all staff types.
+      </p>
+      <ul className="mt-3 flex flex-col gap-1.5">
+        {turnover.yearly.map((y) => {
+          const wPct = (y.separations / max) * 100;
+          return (
+            <li key={y.year} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-x-3 text-xs">
+              <span className="font-tabular text-text-tertiary">{y.year}</span>
+              <div className="relative h-4 overflow-hidden rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
+                <div className="h-full" style={{ width: `${Math.max(wPct, 0.5)}%`, background: '#f97316' }} />
+              </div>
+              <span className="text-right font-tabular font-semibold">{y.separations.toLocaleString('en-US')}</span>
+            </li>
+          );
+        })}
+        <li className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] gap-x-3 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+          <span></span>
+          <span></span>
+          <span className="text-right">separations</span>
         </li>
       </ul>
     </Card>

@@ -38,12 +38,25 @@ export interface OverviewBlock {
     total: number;
   }>;
   /** Tenure distribution — years since hireDate for active workforce.
-   *  Source: vw_history.putday. Captures the "experience pyramid". */
+   *  Source: HCMEmployee.FIRSTHIREDATE (with vw_history.putday as
+   *  fallback). Captures the "experience pyramid". */
   tenure: {
     withHireDate: number;
     meanYears: number;
     medianYears: number;
     buckets: Array<{ label: string; academic: number; support: number; total: number }>;
+  };
+  /** Faculty turnover — pre-retirement separations from
+   *  HCMEmployee.ENDWORKDATE. Scope: academic faculty only (the
+   *  FacultyMember population). All-staff turnover is captured by the
+   *  DS2001-based `flow12m.separations` above. */
+  facultyTurnover: {
+    activeFacultyCount: number;
+    separations12m: number;
+    /** 12-month rolling turnover rate = sep12m / active × 100 */
+    turnoverRate12mPct: number;
+    /** Last 5 calendar years of separation counts. */
+    yearly: Array<{ year: number; separations: number }>;
   };
 }
 

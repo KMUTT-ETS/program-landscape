@@ -53,8 +53,8 @@ import {
   buildEmployeeCode,
   buildNameEn,
   buildNameTh,
+  computeRetirementDateFromBirth,
   deriveIsActive,
-  parseBirthYear,
   parseHcmDate,
   Q1RowSchema,
   type Q1Row,
@@ -86,7 +86,15 @@ SELECT
   END                          AS PERSON_HASH,
   e.EMP_PREFIX, e.FNAME, e.LNAME, e.EFNAME, e.ELNAME,
   e.STATUS,
-  LEFT(e.BIRTHDAY, 4)          AS BIRTH_YEAR,
+  -- Full BIRTHDAY (was previously truncated to year). Needed for both
+  -- accurate dateOfBirth + the retirementDate calculation (KKU civil-
+  -- service rule: retire on the 1 Oct *after* turning 60).
+  e.BIRTHDAY                   AS BIRTH_DATE,
+  -- FIRSTHIREDATE = authoritative original join date. Supersedes
+  -- STARTDATE (which has been observed with 2025 bulk-stamp anomalies
+  -- on re-contracted staff). STARTDATE retained as a fallback when
+  -- FIRSTHIREDATE is null (rare).
+  e.FIRSTHIREDATE,
   e.STARTDATE,
   e.RESIGNDATE,
   e.ENDWORKDATE,
@@ -398,6 +406,24 @@ export class KkuHrRealConnector extends ApiConnector {
     state.totals.employeesByFaculty[facultyId] =
       (state.totals.employeesByFaculty[facultyId] ?? 0) + 1;
 
+    // Date sources (2026-05-12 — full HCM precision):
+    //   dateOfBirth        ← e.BIRTHDAY (full date, was year-only)
+    //   hireDate           ← e.FIRSTHIREDATE (authoritative join date);
+    //                        STARTDATE is the fallback for the rare
+    //                        legacy row without a FIRSTHIREDATE.
+    //   retirementDate     ← COMPUTED from BIRTHDAY via the KKU civil-
+    //                        service rule (1 Oct after turning 60).
+    //                        Supersedes RESIGNDATE which is only
+    //                        populated post-resignation.
+    //   endEmploymentDate  ← e.ENDWORKDATE (was always queried but
+    //                        previously discarded). For STATUS='A' staff
+    //                        this is blank; for separated staff it's
+    //                        the actual termination date.
+    const dateOfBirth = parseHcmDate(q1.BIRTH_DATE);
+    const hireDate = parseHcmDate(q1.FIRSTHIREDATE) ?? parseHcmDate(q1.STARTDATE);
+    const retirementDate = computeRetirementDateFromBirth(dateOfBirth);
+    const endEmploymentDate = parseHcmDate(q1.ENDWORKDATE);
+
     return [
       {
         target: 'faculty_members',
@@ -416,9 +442,10 @@ export class KkuHrRealConnector extends ApiConnector {
           nameTh,
           nameEn,
           rank,
-          dateOfBirth: parseBirthYear(q1.BIRTH_YEAR),
-          hireDate: parseHcmDate(q1.STARTDATE),
-          retirementDate: parseHcmDate(q1.RESIGNDATE),
+          dateOfBirth,
+          hireDate,
+          retirementDate,
+          endEmploymentDate,
           isActive: deriveIsActive(q1.STATUS),
         },
         freshnessDate,
@@ -494,6 +521,7 @@ export class KkuHrRealConnector extends ApiConnector {
             dateOfBirth: Date | null;
             hireDate: Date | null;
             retirementDate: Date | null;
+            endEmploymentDate: Date | null;
             isActive: boolean;
           };
           await this.db.facultyMember.upsert({
@@ -514,6 +542,7 @@ export class KkuHrRealConnector extends ApiConnector {
               dateOfBirth: p.dateOfBirth ?? undefined,
               hireDate: p.hireDate ?? undefined,
               retirementDate: p.retirementDate ?? undefined,
+              endEmploymentDate: p.endEmploymentDate ?? undefined,
               isActive: p.isActive,
             },
             update: {
@@ -527,6 +556,7 @@ export class KkuHrRealConnector extends ApiConnector {
               dateOfBirth: p.dateOfBirth,
               hireDate: p.hireDate,
               retirementDate: p.retirementDate,
+              endEmploymentDate: p.endEmploymentDate,
               isActive: p.isActive,
             },
           });
