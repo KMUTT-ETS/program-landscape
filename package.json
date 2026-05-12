@@ -25,6 +25,7 @@
     "provenance:backfill": "tsx apps/ingestion/src/scripts/backfill-provenance.ts",
     "verdicts:snapshot": "tsx apps/ingestion/src/scripts/verdicts-snapshot.ts",
     "verdicts:diff": "tsx apps/ingestion/src/scripts/verdicts-diff.ts",
+    "consistency:check": "tsx apps/ingestion/src/scripts/consistency-check.ts",
     "ai:gold-pick": "tsx apps/ingestion/src/scripts/ai-gold-pick.ts",
     "ai:gold-label": "tsx apps/ingestion/src/scripts/ai-gold-label.ts",
     "ai:eval-accuracy": "tsx apps/ingestion/src/scripts/ai-eval-accuracy.ts",

@@ -317,6 +317,7 @@ model Faculty {
   facultyBudgets         FacultyBudget[]
   staffMasterRecords     StaffMasterRecord[]
   staffCompensationCubes StaffCompensationCube[]
+  divergenceSnapshots    CrossScopeDivergenceSnapshot[]
 
   @@index([code])
   @@map("faculties")
@@ -1804,6 +1805,46 @@ model ProgramLifecycleSnapshot {
 
   @@index([verdict])
   @@map("program_lifecycle_snapshots")
+}
+
+/// Cross-scope divergence snapshot — closes evaluation-pipeline.md §13
+/// gap #7. Records the difference between a faculty's directly-computed
+/// health overall (from `computeHealthScores('university')`) and the
+/// enrolment-weighted mean of its programs' overall scores. The two are
+/// computed independently (each scope reads its own MV) so divergence
+/// is mathematically possible. This snapshot makes it measurable.
+///
+/// `pnpm consistency:check` writes one row per faculty per run. Rows
+/// where `exceedsThreshold = true` (default >10 pts) feed an analyst
+/// worklist + the future /admin/data-quality surface.
+model CrossScopeDivergenceSnapshot {
+  id                String   @id @default(cuid())
+  computedAt        DateTime @default(now()) @map("computed_at") @db.Timestamptz
+  bundleTag         String   @map("bundle_tag")
+  bundleFingerprint String   @map("bundle_fingerprint")
+  facultyId         String   @map("faculty_id")
+  /// Faculty-scope overall (from computeHealthScores('university')).
+  /// NULL when no dimension could be computed at faculty scope.
+  facultyOverall    Float?   @map("faculty_overall")
+  /// Σ(programOverall × enrolled) / Σ(enrolled) across canonical-and-active
+  /// programs in this faculty whose overall is non-null.
+  bottomUpWeighted  Float?   @map("bottom_up_weighted")
+  programCount      Int      @default(0) @map("program_count")
+  programsWithScore Int      @default(0) @map("programs_with_score")
+  totalEnrolled     Int      @default(0) @map("total_enrolled")
+  /// abs(facultyOverall - bottomUpWeighted). NULL when either side is null.
+  divergence        Float?   @map("divergence")
+  exceedsThreshold  Boolean  @default(false) @map("exceeds_threshold")
+  /// Per-program contributions (programId, overall, enrolled, contribution).
+  payloadJson       Json     @map("payload_json")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@index([computedAt(sort: Desc)])
+  @@index([facultyId, computedAt(sort: Desc)])
+  @@index([exceedsThreshold])
+  @@map("cross_scope_divergence_snapshots")
 }
 
 /// Verdict-stability snapshot — the union of all three verdict axes
