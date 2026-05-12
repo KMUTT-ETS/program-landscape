@@ -2,44 +2,59 @@ import { z } from 'zod';
 import type { AiMessage } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// program-ai-readiness.v2
+// program-ai-readiness.v3
 //
-// REPLACES the deterministic v1 (keyword-classifier) AI readiness assessment.
-// v1 produced generic, discipline-blind output: it would tell a Music
-// program to "introduce MIT 6.036" and a Veterinary program to "embed
-// machine learning". Council found this irrelevant.
+// v3 (2026-05-12) layers the Shao et al. (2025) "Future of Work with AI
+// Agents" framework on top of v2's discipline-aware reasoning:
 //
-// v2 reasons over the program's actual discipline + curriculum + skills
-// + career paths and produces guidance that is grounded in the
-// discipline (e.g. "AI for music information retrieval" for music,
-// "AI-assisted livestock health monitoring" for vet, "generative
-// design with parametric modelling" for architecture).
+//   - Human Agency Scale (HAS) — 5-level taxonomy of how much human
+//     involvement is desired in a task family. H1 = fully automate;
+//     H3 = AI+human collaborate; H5 = human only.
+//   - Four-zone automation matrix — Green Light (workers want it +
+//     AI can do it), Red Light (low desire + high capability),
+//     R&D Opportunity (high desire + low capability), Low Priority.
+//
+// Why: v2's discipline-only lens missed the "what workers actually
+// want" dimension. A program graduating into a Red Light occupation
+// (e.g. clinical care, classroom teaching) shouldn't be marked AI-low
+// just because adjacent tasks aren't automated — Council needs to see
+// that the discipline DESIRES human-in-the-loop posture, not that the
+// program is lagging. Conversely, Green Light occupations make AI
+// readiness urgent regardless of how the curriculum feels about it.
+//
+// Citation in every output (`frameworkCitation` field) so Council can
+// trace the reasoning. v3 also asks the LLM to estimate task-family-
+// level HAS scores; we surface those alongside the relevance score.
+//
+// REPLACES the deterministic v1 (keyword-classifier) AI readiness
+// assessment from prompt-04 and v2's discipline-aware reasoning.
+// All v2 fields preserved; new fields are additive.
 //
 // Hard rules (system prompt):
 //   1. Every gap and recommendation must reference the program's
-//      discipline by name (e.g. "for music programs", "in veterinary
-//      practice", "in your architecture curriculum").
+//      discipline by name.
 //   2. NEVER cite generic CS courses (MIT 6.036, Stanford CS229) unless
 //      the program IS a CS program. Cite discipline-relevant
-//      institutions instead (Berklee Music Tech, RVC London for vet,
-//      MIT Design Lab for architecture, etc.).
+//      institutions instead.
 //   3. Recommendations must be concrete: name a course to add, a
-//      collaboration to start, a tool to introduce. NOT "consider
-//      embedding AI".
-//   4. AI applications listed must be specific to the discipline, not
-//      generic ML.
-//   5. Acknowledge when the program is genuinely AI-distant (some
-//      humanities, some performing arts) and recommend appropriate
-//      lighter-touch interventions.
+//      collaboration to start, a tool to introduce.
+//   4. AI applications listed must be specific to the discipline.
+//   5. Acknowledge when the program is genuinely AI-distant or in a
+//      Red Light zone (workers prefer human-led); recommend
+//      appropriate lighter-touch interventions.
+//   6. The taskFamilies analysis must reflect the LOCAL (Thai labour
+//      market) reality, not US-only generalisations from the source
+//      paper. Treat HAS as a transferable framework, not the
+//      paper's specific US scores.
 //
-// Output language: English (the existing UI renders these as labels +
-// detail text in English; Council bilingual rendering is downstream).
+// Output language: English (UI renders these as labels + detail text
+// in English; Council bilingual rendering is downstream).
 //
-// Pro thinking model is appropriate — this is reasoning + drafting, not
+// Pro thinking model is appropriate — reasoning + drafting, not
 // extraction.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_AI_READINESS_VERSION = 'program-ai-readiness.v2';
+export const PROGRAM_AI_READINESS_VERSION = 'program-ai-readiness.v3';
 
 export const ProgramAiReadinessGapSchema = z.object({
   topic: z.string().min(5).max(160),
@@ -60,6 +75,43 @@ export const ProgramAiReadinessRecommendationSchema = z.object({
 export type ProgramAiReadinessRecommendation = z.infer<
   typeof ProgramAiReadinessRecommendationSchema
 >;
+
+// Human Agency Scale (v3, from Shao et al. 2025, arXiv:2506.06576).
+// H1 = AI does everything autonomously; H5 = human does everything,
+// no AI involvement. Higher number = more preferred human agency.
+export const HumanAgencyLevelSchema = z.enum(['H1', 'H2', 'H3', 'H4', 'H5']);
+export type HumanAgencyLevel = z.infer<typeof HumanAgencyLevelSchema>;
+
+// Four-zone automation matrix (v3). Two axes: worker desire to
+// automate (high/low) × current AI capability (high/low).
+//   GREEN_LIGHT     — high desire + high capability → proceed
+//   RED_LIGHT       — low desire + high capability → caution
+//   RD_OPPORTUNITY  — high desire + low capability → invest in R&D
+//   LOW_PRIORITY    — low desire + low capability → leave alone
+export const AutomationZoneSchema = z.enum([
+  'GREEN_LIGHT',
+  'RED_LIGHT',
+  'RD_OPPORTUNITY',
+  'LOW_PRIORITY',
+]);
+export type AutomationZone = z.infer<typeof AutomationZoneSchema>;
+
+// One row per major task family the program's graduates produce.
+// 3-6 entries per program; the LLM should consolidate, not enumerate
+// every micro-task.
+export const TaskFamilyAssessmentSchema = z.object({
+  label: z.string().min(5).max(160),
+  /** Preferred human-agency level for this task family in the
+   *  local labour-market context. */
+  has: HumanAgencyLevelSchema,
+  /** Which of the four automation zones the family falls into
+   *  given current AI capability + worker preference. */
+  zone: AutomationZoneSchema,
+  /** 1-2 sentence justification grounded in the program's
+   *  discipline + likely graduate roles. */
+  rationale: z.string().min(20).max(500),
+});
+export type TaskFamilyAssessment = z.infer<typeof TaskFamilyAssessmentSchema>;
 
 export const ProgramAiReadinessAssessmentSchema = z.object({
   /** Discipline-aware readiness score, 0-100. Anchored relative to what AI
@@ -103,6 +155,20 @@ export const ProgramAiReadinessAssessmentSchema = z.object({
       }),
     )
     .max(4),
+  // ── v3 additions ──────────────────────────────────────────────────
+  /** Task families the program's graduates produce, with HAS + zone.
+   *  3-6 entries. Drives the "what posture does this program need"
+   *  discussion separately from "is this program AI-ready". */
+  taskFamilies: z.array(TaskFamilyAssessmentSchema).min(2).max(6).optional(),
+  /** 1-paragraph strategic posture: given the mix of HAS levels and
+   *  automation zones, what does AI readiness MEAN for this program?
+   *  e.g. "Clinical-care programs (Red Light) should focus on AI
+   *  literacy + supervised decision-support rather than automation
+   *  per se" vs "Data analytics (Green Light) should treat fluent AI
+   *  use as a core graduate competency". */
+  automationOutlook: z.string().min(40).max(1200).optional(),
+  /** Literal citation string — Council provenance. */
+  frameworkCitation: z.string().optional(),
   confidence: z.number().min(0).max(1),
 });
 export type ProgramAiReadinessAssessmentPayload = z.infer<
@@ -144,16 +210,33 @@ export interface ProgramAiReadinessInput {
 
 const SYSTEM_PROMPT = `You are an academic strategy advisor evaluating how well a university program is prepared for the AI shift in ITS specific discipline. You do NOT generate generic ML/CS guidance. You produce discipline-grounded, actionable assessment.
 
+FRAMEWORK (Shao, Brynjolfsson et al. 2025, "Future of Work with AI Agents", arXiv:2506.06576):
+
+Apply the Human Agency Scale (HAS) — a 5-level taxonomy of how much human involvement is DESIRED for each task family:
+  - H1: workers want AI to handle the task autonomously
+  - H2: AI does most of the work, human reviews
+  - H3: equal AI + human collaboration
+  - H4: human leads, AI augments
+  - H5: human does everything, no AI involvement
+
+Apply the four-zone automation matrix combining desire-to-automate with current AI capability:
+  - GREEN_LIGHT: workers want it + AI can do it → proceed
+  - RED_LIGHT:   workers DON'T want it + AI can do it → caution (ethical / workforce-trust concerns)
+  - RD_OPPORTUNITY: workers want it + AI can't yet → invest in tooling
+  - LOW_PRIORITY: workers don't want it + AI can't → leave alone
+
+The framework is universal; the SCORES in the source paper are US-only — for Thai labour-market judgments, apply the framework's logic to the local context (rural medicine, Thai SME accountancy, Mekong-region agriculture, etc.), not the paper's specific numbers.
+
 CRITICAL RULES:
 
-1. Discipline-relevance is the ONLY axis that matters.
-   - For a music program: AI = music information retrieval, generative composition, audio source separation, performance analytics, AI-assisted mixing.
-   - For a veterinary program: AI = computer vision for diagnostic imaging, livestock health monitoring, drug discovery, epidemiological modelling.
-   - For an architecture program: AI = generative design, parametric modelling, BIM with AI, sustainability simulation.
-   - For an agriculture program: AI = precision agriculture, crop disease vision systems, yield forecasting, soil analytics.
-   - For a law program: AI = legal NLP, contract analysis, e-discovery, legal research assistants.
-   - For a CS / data-science program: yes, AI = ML, deep learning, MLOps, etc.
-   - For a humanities program: AI = digital humanities, text-mining, computational linguistics, AI-augmented research.
+1. Discipline-relevance is the PRIMARY axis. AI readiness means different things in different fields:
+   - Music: music information retrieval, generative composition, audio source separation, performance analytics, AI-assisted mixing.
+   - Veterinary: computer vision for diagnostic imaging, livestock health monitoring, drug discovery, epidemiological modelling.
+   - Architecture: generative design, parametric modelling, BIM with AI, sustainability simulation.
+   - Agriculture: precision agriculture, crop disease vision systems, yield forecasting, soil analytics.
+   - Law: legal NLP, contract analysis, e-discovery, legal research assistants.
+   - CS / data-science: ML, deep learning, MLOps, etc.
+   - Humanities: digital humanities, text-mining, computational linguistics, AI-augmented research.
 
 2. NEVER cite generic CS course numbers (MIT 6.036, Stanford CS229, etc.) unless the program IS a CS program. For other disciplines, cite the relevant peer institutions for THAT discipline (Berklee for music tech, MIT Media Lab for design, ETH Zurich for architecture-AI, RVC London for vet-AI, etc.).
 
@@ -171,11 +254,15 @@ CRITICAL RULES:
    - 20-39: minimal exposure; significant catch-up needed.
    - 0-19: no measurable AI exposure relevant to the discipline.
 
-6. If the program is genuinely AI-distant (e.g. classical performance, traditional medicine), say so honestly and recommend lighter-touch interventions (one elective, awareness module). Do not force-fit aggressive AI integration where it would harm the discipline.
+6. HAS + zone analysis MODULATES the verdict — don't punish a program for low automation when its graduates work in Red Light territory. A nursing program landing mostly in H4-H5 / RED_LIGHT zones isn't AI-distant in a bad way; it's correctly aligned with worker preferences. Reflect that in the recommendations: AI literacy + supervised decision-support, not full automation.
 
-7. Do NOT cite numbers, courses, skills, or recommendations that are not justified by the input snapshot. Ground every observation in either the discipline's universal context or the snapshot data.
+7. If the program is genuinely AI-distant (e.g. classical performance, traditional medicine), say so honestly and recommend lighter-touch interventions. Don't force-fit aggressive AI integration where it would harm the discipline.
 
-8. Output language: English. Concise, specific, no hedging language.`;
+8. Do NOT cite numbers, courses, skills, or recommendations that are not justified by the input snapshot. Ground every observation in either the discipline's universal context or the snapshot data.
+
+9. Output language: English. Concise, specific, no hedging language.
+
+10. Always include "Shao et al. 2025 (arXiv:2506.06576)" in the frameworkCitation field so Council can trace the HAS / zone reasoning back to source.`;
 
 const USER_PROMPT_TEMPLATE = (input: ProgramAiReadinessInput) => {
   const skillLines = input.programSkills.length === 0
@@ -240,6 +327,11 @@ Produce the assessment as a SINGLE JSON object using EXACTLY the field names and
   "peerReferences": [
     { "institution": "<name>", "country": "<country>", "whatTheyDo": "<1-2 sentences>" }
   ],
+  "taskFamilies": [
+    { "label": "<3-6 word task-family name>", "has": "H1"|"H2"|"H3"|"H4"|"H5", "zone": "GREEN_LIGHT"|"RED_LIGHT"|"RD_OPPORTUNITY"|"LOW_PRIORITY", "rationale": "<1-2 sentences>" }
+  ],
+  "automationOutlook": "<1 paragraph: given this mix of HAS levels and zones, what does AI readiness MEAN for this program?>",
+  "frameworkCitation": "Shao et al. 2025 (arXiv:2506.06576)",
   "confidence": <number 0-1>
 }
 \`\`\`
@@ -249,8 +341,11 @@ Rules:
 - 0-6 entries in \`gaps\`. Each \`severity\` must be one of "major" | "moderate" | "minor".
 - 1-6 entries in \`recommendations\`. Each \`priority\` is "high" | "medium" | "low"; each \`effortHorizon\` is "short" | "medium" | "long".
 - 2-3 entries in \`peerReferences\`. Cite institutions that lead in AI for THIS discipline (NOT generic CS schools unless the program IS a CS program).
+- 3-6 entries in \`taskFamilies\`. Pick the major occupational task families graduates of this program enter in the THAI labour market — consolidate, don't enumerate every micro-task. Each \`has\` is one of "H1".."H5"; each \`zone\` is one of "GREEN_LIGHT" | "RED_LIGHT" | "RD_OPPORTUNITY" | "LOW_PRIORITY".
+- \`automationOutlook\` must connect the HAS/zone mix to a concrete strategic posture (e.g. "graduates land mostly in H4 + RED_LIGHT zones, so the program should invest in AI-literacy + supervised decision-support rather than autonomous-AI workflows").
+- \`frameworkCitation\` must be the literal string "Shao et al. 2025 (arXiv:2506.06576)".
 - Ground EVERY gap and recommendation in this specific discipline. Recommendations must name a course, tool, or partner.
-- The \`relevanceScore\` reflects readiness RELATIVE TO what AI looks like in this discipline.`;
+- The \`relevanceScore\` reflects readiness RELATIVE TO what AI looks like in this discipline AND the HAS/zone posture (a Red Light program lagging on automation isn't penalised the same as a Green Light program lagging).`;
 };
 
 export function buildProgramAiReadinessMessages(input: ProgramAiReadinessInput): AiMessage[] {

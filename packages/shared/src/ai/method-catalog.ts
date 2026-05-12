@@ -105,9 +105,9 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-ai-readiness',
-    currentVersion: 'program-ai-readiness.v2',
+    currentVersion: 'program-ai-readiness.v3',
     label: 'Program AI readiness',
-    description: 'Discipline-aware AI-readiness assessment (per-discipline rubric, not generic keyword count).',
+    description: 'Discipline-aware AI-readiness assessment + Shao et al. 2025 HAS / four-zone framework (per-discipline rubric grounded in worker preference + AI capability, not generic keyword count).',
     module: 'pipeline',
     tier: 'reasoning',
     defaultModel: 'gemini-3.1-pro-preview',
