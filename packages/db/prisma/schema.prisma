@@ -14,7 +14,12 @@
 
 generator client {
   provider        = "prisma-client-js"
-  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "windows"]
+  // Targets — `linux-musl-openssl-3.0.x` is for the alpine-based
+  // api + web images; `debian-openssl-3.0.x` is for the ingestion
+  // image whose runner stage switched to the Playwright base
+  // (Ubuntu/glibc) in May 2026 for headless-browser support;
+  // `windows` is for dev machines.
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x", "windows"]
   previewFeatures = ["postgresqlExtensions"]
 }
 

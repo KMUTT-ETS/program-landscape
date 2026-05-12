@@ -104,7 +104,7 @@ Every secret is env-driven. Canonical list in `.env.example` + `.env.prod.exampl
 
 ## 9. Database safety
 
-- Prisma client pinned to 5.22.0; binaryTargets include native/linux-musl-openssl-3.0.x/windows.
+- Prisma client pinned to 5.22.0; binaryTargets include native/linux-musl-openssl-3.0.x (api+web alpine images)/debian-openssl-3.0.x (ingestion Playwright-base image)/windows.
 - All migrations forward-only. The `pnpm db:migrate:deploy` script (added by task 180) takes a `pg_dump` snapshot to MinIO before running `prisma migrate deploy`.
 - `pgvector`, `postgis`, `pg_trgm`, `btree_gin`, `uuid-ossp` enabled. No user-controlled SQL.
 - Prisma soft-deletes where relevant (`ProgramStatus=SUNSET` instead of hard delete; CouncilDecision amendment creates new row).

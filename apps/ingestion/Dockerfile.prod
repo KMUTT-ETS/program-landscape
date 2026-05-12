@@ -1,16 +1,29 @@
 # syntax=docker/dockerfile:1.7
 # apps/ingestion — production image for the standalone BullMQ worker
-# + trend-monitors scheduler. No HTTP surface — runs until SIGTERM.
+# + trend-monitors scheduler + external-AI cron worker. No HTTP
+# surface — runs until SIGTERM.
 #
-# Shape parallels apps/api/Dockerfile.prod; the only runtime differences
-# are the entrypoint and the absence of an HTTP healthcheck.
+# Runner uses Microsoft's official Playwright image so the Phase-5
+# external-AI HEADLESS sources (OECD, BOI, future Akamai/Cloudflare-
+# protected feeds) have a real Chromium available. That forces the
+# runner to debian/glibc, so the build stages also run on debian-slim
+# — keeps native modules (oracledb / mssql / pg) + Prisma engines
+# binary-compatible from build → runner.
+#
+# apps/api and apps/web stay alpine; they don't need Playwright.
 
-ARG NODE_VERSION=20-alpine
+ARG NODE_VERSION_BUILDER=20-bookworm-slim
+# Keep this in lockstep with `playwright` in apps/ingestion/package.json.
+# Bump whenever Playwright is upgraded — the image bundles a matching
+# Chromium build, so a drift = silent runtime errors.
+ARG PLAYWRIGHT_VERSION=v1.60.0-noble
 
 # ── Stage 1: deps ────────────────────────────────────────────────────
-FROM node:${NODE_VERSION} AS deps
+FROM node:${NODE_VERSION_BUILDER} AS deps
 WORKDIR /app
-RUN apk add --no-cache libc6-compat openssl \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
   && corepack enable \
   && corepack prepare pnpm@10.33.1 --activate
 
@@ -26,18 +39,26 @@ COPY packages/pdf-templates/package.json ./packages/pdf-templates/
 # patches/ is referenced by package.json's pnpm.patchedDependencies — must
 # exist before `pnpm fetch` or it fails with ERR_PNPM_PATCH_NOT_FOUND.
 COPY patches ./patches
+# Skip Playwright's browser download — the runner uses the Microsoft
+# image which has Chromium + Firefox + WebKit pre-installed at
+# /ms-playwright. Downloading them again at build time would bloat
+# the build cache + double the build time.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN pnpm fetch --prod=false
 
 COPY . .
 RUN pnpm install --frozen-lockfile --offline --prefer-offline
 
 # ── Stage 2: build ───────────────────────────────────────────────────
-FROM node:${NODE_VERSION} AS build
+FROM node:${NODE_VERSION_BUILDER} AS build
 WORKDIR /app
-RUN apk add --no-cache libc6-compat openssl \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
   && corepack enable \
   && corepack prepare pnpm@10.33.1 --activate
 COPY --from=deps /app /app
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 RUN pnpm --filter @kku/db exec prisma generate
 RUN pnpm --filter ingestion build
@@ -52,13 +73,26 @@ RUN pnpm deploy --filter ingestion --prod --legacy /tmp/ingestion \
   && cp -r /app/node_modules/.pnpm/@prisma+client@* /tmp/ingestion/node_modules/.pnpm/ 2>/dev/null || true
 
 # ── Stage 3: runner ──────────────────────────────────────────────────
-FROM node:${NODE_VERSION} AS runner
+# Microsoft Playwright image — Ubuntu 24.04 (noble) with Chromium +
+# Firefox + WebKit + every system dep pre-installed at /ms-playwright.
+# Bundles Node 20. Image size is large (~1.2 GB) but self-contained.
+# Alternative (apt-installing 30+ deps in a vanilla Ubuntu image) drifts
+# every Chromium release; the Microsoft image is the canonical answer.
+FROM mcr.microsoft.com/playwright:${PLAYWRIGHT_VERSION} AS runner
 WORKDIR /app
-RUN apk add --no-cache tini openssl \
-  && addgroup -S app -g 1001 \
-  && adduser -S app -G app -u 1001
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tini procps \
+  && rm -rf /var/lib/apt/lists/* \
+  # UID/GID 1010 — the Microsoft Playwright image already ships a
+  # `pwuser` at 1000 + groups at 1001, so we pick a clear gap to avoid
+  # collisions with future image revisions. Match the docker-compose
+  # `user:` directive if/when it pins one.
+  && groupadd -r app --gid 1010 \
+  && useradd -r -g app -u 1010 -m -d /home/app -s /usr/sbin/nologin app
 
 ENV NODE_ENV=production
+# The Microsoft image sets PLAYWRIGHT_BROWSERS_PATH=/ms-playwright by
+# default; apps/ingestion's BrowserService picks it up automatically.
 
 COPY --from=build --chown=app:app /tmp/ingestion/dist ./dist
 COPY --from=build --chown=app:app /tmp/ingestion/node_modules ./node_modules
@@ -72,5 +106,5 @@ USER app
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 --start-period=30s \
   CMD pgrep -f 'dist/main.js' >/dev/null || exit 1
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "--import", "tsx", "dist/main.js"]
