@@ -15,9 +15,17 @@ import {
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Programs' };
 
+interface FacultyLite {
+  id: string;
+  code: string;
+  nameEn: string;
+  nameTh: string;
+}
+
 interface ProgramRow {
   id: string;
   code: string;
+  mhesiCode: string | null;
   nameEn: string;
   nameTh: string;
   level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
@@ -25,16 +33,20 @@ interface ProgramRow {
   facultyId: string;
   departmentId: string | null;
   yearEstablished: number | null;
+  curriculumYearBE: number | null;
+  totalCredits: number | null;
+  durationYears: number | null;
+  language: string | null;
+  degreeAbbrEn: string | null;
+  degreeAbbrTh: string | null;
+  faculty: FacultyLite | null;
 }
 
 // The API controller returns `{ data, meta }` which the envelope
-// interceptor FLATTENS — the outer envelope's `.meta` carries the
-// inner meta merged with provenance defaults. By the time `apiFetch`
-// unwraps the outer envelope, we're left with the inner data array
-// directly. Pagination would come through a separate accessor we
-// don't surface here; for v1 we just request a big page and count
-// what came back.
+// interceptor FLATTENS — by the time `apiFetch` unwraps the outer
+// envelope, we're left with the inner data array directly.
 type ProgramsListResponse = ProgramRow[];
+type FacultiesListResponse = FacultyLite[];
 
 const STATUS_TONE: Record<
   ProgramRow['status'],
@@ -46,16 +58,30 @@ const STATUS_TONE: Record<
 };
 
 const LEVEL_LABEL: Record<ProgramRow['level'], string> = {
-  BACHELOR: 'B.Sc.',
-  MASTER: 'M.Sc.',
-  DOCTORAL: 'Ph.D.',
-  HIGHER_GRAD_DIPLOMA: 'H.Grad.Dip.',
+  BACHELOR: "Bachelor's",
+  MASTER: "Master's",
+  DOCTORAL: 'Doctoral',
+  HIGHER_GRAD_DIPLOMA: 'Higher Grad. Dip.',
 };
+
+// Curriculum-year filter options — surfaced as a dropdown. Buddhist
+// Era; we list the recent 12 years (2557–2569 BE) which covers KKU's
+// canonical curriculum lineage. Years with no programs land as no-ops
+// since the DB filter returns an empty set.
+const CURRICULUM_YEAR_OPTIONS = Array.from({ length: 13 }, (_, i) => 2569 - i);
 
 export default async function ProgramsDirectoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; level?: string; q?: string; page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    level?: string;
+    q?: string;
+    page?: string;
+    facultyId?: string;
+    curriculumYearBE?: string;
+    language?: string;
+  }>;
 }) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
@@ -65,24 +91,39 @@ export default async function ProgramsDirectoryPage({
   const page = Math.max(1, parseInt(sp.page ?? '1', 10));
   // Request a large page so we can get everything in one shot — KKU
   // has 297 programs, so pageSize=500 covers the whole portfolio.
-  const qs = new URLSearchParams({ scope: 'university', pageSize: '500', page: String(page) });
+  const qs = new URLSearchParams({
+    scope: 'university',
+    pageSize: '500',
+    page: String(page),
+  });
   if (sp.status) qs.set('status', sp.status);
   if (sp.level) qs.set('level', sp.level);
+  if (sp.facultyId) qs.set('facultyId', sp.facultyId);
+  if (sp.curriculumYearBE) qs.set('curriculumYearBE', sp.curriculumYearBE);
+  if (sp.q) qs.set('q', sp.q);
 
-  const rows = (await apiFetch<ProgramsListResponse>(`/programs?${qs}`).catch(() => [])) ?? [];
+  // Fetch programs + faculties in parallel. Both endpoints reject
+  // unauthenticated requests; if either fails for an authenticated
+  // user the page still renders with a clear empty state.
+  const [rows, faculties] = await Promise.all([
+    apiFetch<ProgramsListResponse>(`/programs?${qs}`).catch(() => [] as ProgramRow[]),
+    apiFetch<FacultiesListResponse>('/faculties').catch(() => [] as FacultyLite[]),
+  ]);
+
   const total = rows.length;
 
-  // Client-side search filter (server filter wasn't in the API schema —
-  // this stays fast for the 297-program scale).
-  const search = (sp.q ?? '').trim().toLowerCase();
-  const filtered = search
-    ? rows.filter(
-        (r) =>
-          r.code.toLowerCase().includes(search) ||
-          r.nameEn.toLowerCase().includes(search) ||
-          r.nameTh.includes(search),
-      )
+  // Client-side language filter — the API doesn't accept this filter
+  // yet (the field is free-text); we narrow post-hoc at this scale (297
+  // programs) for free.
+  const filtered = sp.language
+    ? rows.filter((r) => (r.language ?? '').toLowerCase() === sp.language!.toLowerCase())
     : rows;
+
+  // Distinct language values present in the result set — used to
+  // populate the Language dropdown so we only offer values that exist.
+  const languageOptions = Array.from(
+    new Set(rows.map((r) => r.language).filter((l): l is string => Boolean(l))),
+  ).sort();
 
   return (
     <AuthedAppShell user={user}>
@@ -100,8 +141,27 @@ export default async function ProgramsDirectoryPage({
             <FilterSearch
               name="q"
               defaultValue={sp.q ?? ''}
-              placeholder="Code or name…"
+              placeholder="Code, MHESI code, or name…"
             />
+          </FilterField>
+          <FilterField label="Faculty">
+            <FilterSelect name="facultyId" defaultValue={sp.facultyId ?? ''}>
+              <option value="">All faculties</option>
+              {faculties.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nameEn}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Level">
+            <FilterSelect name="level" defaultValue={sp.level ?? ''}>
+              <option value="">All levels</option>
+              <option value="BACHELOR">Bachelor&rsquo;s</option>
+              <option value="MASTER">Master&rsquo;s</option>
+              <option value="DOCTORAL">Doctoral</option>
+              <option value="HIGHER_GRAD_DIPLOMA">Higher Grad. Dip.</option>
+            </FilterSelect>
           </FilterField>
           <FilterField label="Status">
             <FilterSelect name="status" defaultValue={sp.status ?? ''}>
@@ -111,14 +171,31 @@ export default async function ProgramsDirectoryPage({
               <option value="SUNSET">Sunset</option>
             </FilterSelect>
           </FilterField>
-          <FilterField label="Level">
-            <FilterSelect name="level" defaultValue={sp.level ?? ''}>
-              <option value="">All levels</option>
-              <option value="BACHELOR">Bachelor&rsquo;s</option>
-              <option value="MASTER">Master&rsquo;s</option>
-              <option value="DOCTORAL">Doctoral</option>
+          <FilterField label="Curriculum year (BE)">
+            <FilterSelect
+              name="curriculumYearBE"
+              defaultValue={sp.curriculumYearBE ?? ''}
+            >
+              <option value="">Any year</option>
+              {CURRICULUM_YEAR_OPTIONS.map((y) => (
+                <option key={y} value={String(y)}>
+                  BE {y} (CE {y - 543})
+                </option>
+              ))}
             </FilterSelect>
           </FilterField>
+          {languageOptions.length > 0 && (
+            <FilterField label="Language">
+              <FilterSelect name="language" defaultValue={sp.language ?? ''}>
+                <option value="">All languages</option>
+                {languageOptions.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          )}
           {/* Hidden submit so Enter on the search input commits the form */}
           <button type="submit" className="sr-only">
             Apply
@@ -128,7 +205,7 @@ export default async function ProgramsDirectoryPage({
         {filtered.length === 0 ? (
           <Card padding="lg">
             <p className="text-center text-sm text-text-tertiary">
-              {search
+              {sp.q
                 ? `No programs match "${sp.q}".`
                 : 'No programs match these filters.'}
             </p>
@@ -136,43 +213,61 @@ export default async function ProgramsDirectoryPage({
         ) : (
           <Card padding="none" className="overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="border-b border-subtle bg-surface-2 text-left text-xs uppercase tracking-wide text-text-tertiary">
+              <thead className="sticky top-0 z-10 border-b border-subtle bg-surface-2 text-left text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
                 <tr>
-                  <th className="px-4 py-3">Code</th>
+                  <th className="px-4 py-3">Code · CURR_ID</th>
                   <th className="py-3">Program</th>
                   <th className="py-3">Level</th>
+                  <th className="py-3">Degree</th>
                   <th className="py-3">Status</th>
-                  <th className="py-3 pr-4 text-right">Est.</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((p) => (
                   <tr
                     key={p.id}
-                    className="border-b border-subtle transition-colors last:border-0 hover:bg-surface-2"
+                    className="border-b border-subtle align-top transition-colors last:border-0 hover:bg-surface-2"
                   >
                     <td className="px-4 py-3">
+                      <div className="flex flex-col leading-tight">
+                        <Link
+                          href={`/programs/${p.id}`}
+                          className="font-mono text-xs font-semibold text-accent-default hover:underline"
+                        >
+                          {p.code}
+                        </Link>
+                        <span
+                          className="font-mono text-[10.5px] font-normal text-text-tertiary"
+                          title="UNICON / MHESI curriculum ID — Program.mhesiCode"
+                        >
+                          {p.mhesiCode ?? '— no CURR_ID —'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4">
                       <Link
                         href={`/programs/${p.id}`}
-                        className="font-mono text-xs font-semibold text-accent-default hover:underline"
+                        className="font-medium text-text-primary hover:underline"
                       >
-                        {p.code}
-                      </Link>
-                    </td>
-                    <td className="py-3">
-                      <Link href={`/programs/${p.id}`} className="font-medium text-text-primary hover:underline">
                         {p.nameEn}
                       </Link>
-                      <div className="text-xs text-text-tertiary">{p.nameTh}</div>
+                      <div className="text-xs text-text-secondary">{p.nameTh}</div>
+                      {p.faculty && (
+                        <div className="mt-0.5 text-[11px] text-text-tertiary">
+                          {p.faculty.nameEn}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 text-xs text-text-secondary">
+                      {LEVEL_LABEL[p.level]}
                     </td>
                     <td className="py-3">
-                      <Badge tone="outline">{LEVEL_LABEL[p.level]}</Badge>
+                      <Badge tone="outline">
+                        {p.degreeAbbrEn ?? defaultDegreeShort(p.level)}
+                      </Badge>
                     </td>
                     <td className="py-3">
                       <Badge tone={STATUS_TONE[p.status]}>{p.status}</Badge>
-                    </td>
-                    <td className="py-3 pr-4 text-right text-xs font-mono text-text-tertiary">
-                      {p.yearEstablished ?? '—'}
                     </td>
                   </tr>
                 ))}
@@ -182,10 +277,25 @@ export default async function ProgramsDirectoryPage({
         )}
 
         <p className="text-xs text-text-tertiary">
-          Showing {filtered.length} of {total} · scope-aware filters land in a follow-up pass.
+          Showing {filtered.length} of {total} programs.
         </p>
       </div>
     </AuthedAppShell>
   );
 }
 
+// Fallback degree short-name when Program.degreeAbbrEn is null (older
+// rows that pre-date the curriculum-doc import). Mirrors the previous
+// hand-picked defaults from the legacy LEVEL_LABEL map.
+function defaultDegreeShort(level: ProgramRow['level']): string {
+  switch (level) {
+    case 'BACHELOR':
+      return 'B.Sc.';
+    case 'MASTER':
+      return 'M.Sc.';
+    case 'DOCTORAL':
+      return 'Ph.D.';
+    case 'HIGHER_GRAD_DIPLOMA':
+      return 'H.Grad.Dip.';
+  }
+}

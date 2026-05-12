@@ -82,6 +82,16 @@ export const ProgramListQuerySchema = ScopeQueryParamsSchema.and(
   z.object({
     status: ProgramStatusSchema.optional(),
     level: ProgramLevelSchema.optional(),
+    // Optional metadata filters surfaced on the /programs directory.
+    // facultyId narrows to a single faculty (free-form CUID — not
+    // validated against Faculty.id here; controller catches misses
+    // via empty result set).
+    facultyId: CuidSchema.optional(),
+    // Curriculum-year filter — Buddhist Era. Plain string so the
+    // query string survives without a coercion step on the client.
+    curriculumYearBE: z.coerce.number().int().min(2400).max(2700).optional(),
+    // Free-text search (matches code, mhesiCode, nameEn, nameTh).
+    q: z.string().trim().min(1).max(120).optional(),
   }),
 ).and(PaginationQuerySchema);
 export type ProgramListQuery = z.infer<typeof ProgramListQuerySchema>;

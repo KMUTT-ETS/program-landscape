@@ -111,6 +111,27 @@ export class ProgramsController {
     const where: Prisma.ProgramWhereInput = {};
     if (q.status) where.status = q.status;
     if (q.level) where.level = q.level;
+    if (q.facultyId) where.facultyId = q.facultyId;
+    if (q.curriculumYearBE) where.curriculumYearBE = q.curriculumYearBE;
+    if (q.q) {
+      // Free-text matching across the four "identifier" fields a Council
+      // member or analyst would type. Case-insensitive on the EN strings,
+      // exact-substring on the TH (Prisma + Postgres handle Thai casing
+      // as identity — `mode: 'insensitive'` is a no-op on Thai code points).
+      // Wrapped in AND so the scope-clamp's `OR` (faculty-IN ∨ program-IN)
+      // below doesn't overwrite this clause.
+      const needle = q.q;
+      where.AND = [
+        {
+          OR: [
+            { code: { contains: needle, mode: 'insensitive' } },
+            { mhesiCode: { contains: needle, mode: 'insensitive' } },
+            { nameEn: { contains: needle, mode: 'insensitive' } },
+            { nameTh: { contains: needle } },
+          ],
+        },
+      ];
+    }
 
     // Narrow the result set by the requested scope. Access was already
     // checked by AccessControlGuard; this is a filter, not a check.
@@ -193,6 +214,11 @@ export class ProgramsController {
         orderBy: { code: 'asc' },
         skip: (q.page - 1) * q.pageSize,
         take: q.pageSize,
+        include: {
+          faculty: {
+            select: { id: true, code: true, nameEn: true, nameTh: true },
+          },
+        },
       }),
       prisma.program.count({ where: canonicalWhere }),
     ]);
