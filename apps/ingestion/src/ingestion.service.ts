@@ -26,7 +26,7 @@ import {
   createPdfIntakeEvents,
   type PdfIntakeJobData,
 } from './pdf-intake/pipeline';
-import { StubClassifier } from './pdf-intake/extractors';
+import { GeminiPdfClassifier } from './pdf-intake/extractors';
 import {
   buildHandlers as buildAiJobHandlers,
   createAiJobsQueue,
@@ -121,26 +121,9 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       secretAccessKey: this.required('MINIO_SECRET_KEY'),
       publicEndpoint: this.config.get<string>('MINIO_PUBLIC_ENDPOINT') || undefined,
     });
-    const pipeline = new PdfIntakePipeline({
-      classifier: new StubClassifier(),
-      storage,
-      rawBucket: this.required('MINIO_BUCKET_PDF_RAW'),
-      config: PipelineConfigSchema.parse({
-        classifierAutoApproveThreshold: Number(
-          this.config.get('PDF_INTAKE_CLASSIFIER_THRESHOLD') ?? 0.7,
-        ),
-        extractorAutoApproveThreshold: Number(
-          this.config.get('PDF_INTAKE_EXTRACTOR_THRESHOLD') ?? 0.8,
-        ),
-      }),
-      ai,
-    });
-
-    this.pdfIntakeQueue = createPdfIntakeQueue(pdfIntakeQueueConfig);
-    this.pdfIntakeWorker = createPdfIntakeWorker(pdfIntakeQueueConfig, pipeline);
-    this.pdfIntakeEvents = createPdfIntakeEvents(pdfIntakeQueueConfig);
-
     // ── AI-jobs queue ──────────────────────────────────────────────────
+    // Build the AI-jobs queue BEFORE the intake pipeline so the pipeline
+    // can chain-enqueue ANALYZE_POLICY_DOC jobs for POLICY/REPORT PDFs.
     const aiJobsQueueConfig = {
       redisUrl,
       maxAttempts: Number(this.config.get('AI_JOBS_MAX_ATTEMPTS') ?? 2),
@@ -157,6 +140,29 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.aiJobsQueue = createAiJobsQueue(aiJobsQueueConfig);
     this.aiJobsWorker = createAiJobsWorker(aiJobsQueueConfig, aiHandlers);
     this.aiJobsEvents = createAiJobsEvents(aiJobsQueueConfig);
+
+    const pipeline = new PdfIntakePipeline({
+      // Gemini-backed PDF classifier (pdf-classify.v1). Falls back to
+      // StubClassifier automatically when no AI provider is configured.
+      classifier: new GeminiPdfClassifier(),
+      storage,
+      rawBucket: this.required('MINIO_BUCKET_PDF_RAW'),
+      config: PipelineConfigSchema.parse({
+        classifierAutoApproveThreshold: Number(
+          this.config.get('PDF_INTAKE_CLASSIFIER_THRESHOLD') ?? 0.7,
+        ),
+        extractorAutoApproveThreshold: Number(
+          this.config.get('PDF_INTAKE_EXTRACTOR_THRESHOLD') ?? 0.8,
+        ),
+      }),
+      ai,
+      // Chain ANALYZE_POLICY_DOC jobs after intake for POLICY / REPORT.
+      aiJobsQueue: this.aiJobsQueue,
+    });
+
+    this.pdfIntakeQueue = createPdfIntakeQueue(pdfIntakeQueueConfig);
+    this.pdfIntakeWorker = createPdfIntakeWorker(pdfIntakeQueueConfig, pipeline);
+    this.pdfIntakeEvents = createPdfIntakeEvents(pdfIntakeQueueConfig);
 
     // ── Trend monitors (prompt 07) ────────────────────────────────────
     this.trendMonitorsQueue = createTrendMonitorsQueue({ redisUrl });

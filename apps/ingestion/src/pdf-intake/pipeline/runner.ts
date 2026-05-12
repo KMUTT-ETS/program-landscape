@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { Queue } from 'bullmq';
 import { Prisma, prisma } from '@kku/db';
 import {
   S3Storage,
@@ -11,6 +12,7 @@ import {
 } from '@kku/shared';
 import { extractNativeText } from './native-text-extractor';
 import { extractorsFor } from '../extractors';
+import type { AiJobData } from '../../ai-jobs/queue';
 
 // Orchestrates the intake pipeline for one PdfDocument.
 //
@@ -40,6 +42,12 @@ export interface PipelineDeps {
   // PdfContext.ai. Undefined when no provider is configured; extractors
   // fall back to heuristics.
   ai?: AiService;
+  // Optional ai-jobs queue handle — when present, the pipeline auto-
+  // enqueues an ANALYZE_POLICY_DOC job for any PDF that lands as
+  // POLICY or REPORT. This is what produces a real AI summary in the
+  // /admin/extraction-review queue; without it, those PDFs only get
+  // the stub extractor's empty payload.
+  aiJobsQueue?: Queue<AiJobData>;
 }
 
 export class PdfIntakePipeline {
@@ -210,6 +218,40 @@ export class PdfIntakePipeline {
           sourceOrg: classification.publishingOrg ?? pdf.sourceOrg,
         },
       });
+
+      // 7. For POLICY / REPORT lands, auto-enqueue ANALYZE_POLICY_DOC so
+      // the real policy-doc.v1 LLM extractor produces a useful summary +
+      // tags. Without this chain step, the stub extractor's empty
+      // payload is all the operator sees in /admin/extraction-review.
+      //
+      // Resolve the final sourceCategory the same way the update block
+      // above did — operator hint wins, then non-zero classifier verdict,
+      // else the existing value.
+      const finalCategory: typeof classification.sourceCategory =
+        pdf.sourceCategoryHint ??
+        (classification.confidence > 0 ? classification.sourceCategory : pdf.sourceCategory);
+      const policyClass = finalCategory === 'POLICY' || finalCategory === 'REPORT';
+      if (policyClass && this.deps.aiJobsQueue) {
+        try {
+          await this.deps.aiJobsQueue.add(
+            'ANALYZE_POLICY_DOC',
+            { kind: 'ANALYZE_POLICY_DOC', entityId: pdfDocumentId, trigger: 'CHAINED' },
+            // BullMQ rejects colons in custom jobIds. Timestamp suffix
+            // so re-extracts of the same PDF don't collide on a prior id.
+            { jobId: `policy-doc-${pdfDocumentId}-${Date.now()}` },
+          );
+          this.logger.log(
+            `chained ANALYZE_POLICY_DOC for ${pdfDocumentId} (category=${finalCategory})`,
+          );
+        } catch (err) {
+          // Don't fail the intake job on a chain-enqueue blip — the
+          // operator can manually re-run the analysis from
+          // /admin/extraction-review.
+          this.logger.warn(
+            `chain ANALYZE_POLICY_DOC failed for ${pdfDocumentId}: ${(err as Error).message}`,
+          );
+        }
+      }
 
       return {
         pdfDocumentId,

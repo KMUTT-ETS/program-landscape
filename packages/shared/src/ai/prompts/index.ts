@@ -21,3 +21,4 @@ export * from './imd-rankings-extract';
 export * from './risk-assessment';
 export * from './expertise-narrative';
 export * from './external-feed-summary';
+export * from './pdf-classify';

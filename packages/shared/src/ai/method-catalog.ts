@@ -198,6 +198,15 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     defaultModel: 'gemini-3.1-pro-preview',
   },
   {
+    methodPrefix: 'pdf-classify',
+    currentVersion: 'pdf-classify.v1',
+    label: 'PDF classifier (intake)',
+    description: 'Reads the first ~3 pages of an uploaded PDF and picks sourceCategory + language + confidence. Replaces the prior stub that silently dropped uploads into OTHER.',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
     methodPrefix: 'skill-name-normaliser',
     currentVersion: 'skill-name-normaliser.v1',
     label: 'Skill name normaliser',
