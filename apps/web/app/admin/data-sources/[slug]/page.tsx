@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
 
@@ -56,17 +57,19 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const stats = await apiFetch<SourceStats>(
+  const statsRes = await apiFetchSafe<SourceStats>(
     `/data-sources/by-slug/${encodeURIComponent(params.slug)}/stats`,
-  ).catch(() => null);
+  );
 
-  if (!stats) {
+  if (!statsRes.ok) {
     return (
       <AuthedAppShell user={user}>
-        <PageHeader title="Data source not found" subtitle={params.slug} />
+        <PageHeader title="Data source" subtitle={params.slug} />
+        <DiagnosticEmptyState surface="this data source" error={statsRes.error} />
       </AuthedAppShell>
     );
   }
+  const stats = statsRes.data;
 
   const sr = stats.window.last7d.successRate;
   const healthTone: 'danger' | 'warning' | 'success' | 'neutral' =

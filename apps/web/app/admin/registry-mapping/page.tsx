@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { RegistryMappingClient } from './client';
 
@@ -44,7 +45,7 @@ export default async function RegistryMappingPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const data = await apiFetch<UnmatchedResponse>('/admin/registry-mapping/unmatched').catch(() => null);
+  const dataRes = await apiFetchSafe<UnmatchedResponse>('/admin/registry-mapping/unmatched');
 
   return (
     <AuthedAppShell user={user}>
@@ -52,18 +53,15 @@ export default async function RegistryMappingPage() {
         title="Registry mapping triage"
         subtitle="Programs that the auto-seed couldn't pair with a kku-registry tuple. Each pairing creates one RegistryProgramMapping row, which lets the kku-finance + kku-registry connectors compute tuition revenue + enrolment for that program."
       />
-      {data ? (
+      {dataRes.ok ? (
         <RegistryMappingClient
-          totalUnmatched={data.totalUnmatched}
-          fixtureSize={data.fixtureSize}
-          fixtureLoaded={data.fixtureLoaded}
-          initialPrograms={data.programs}
+          totalUnmatched={dataRes.data.totalUnmatched}
+          fixtureSize={dataRes.data.fixtureSize}
+          fixtureLoaded={dataRes.data.fixtureLoaded}
+          initialPrograms={dataRes.data.programs}
         />
       ) : (
-        <div className="rounded-md border border-border-default bg-surface-1 p-6 text-text-secondary">
-          Unable to load unmatched-program data. Check that <code className="font-mono">data_sources:configure</code>{' '}
-          permission is granted on your role.
-        </div>
+        <DiagnosticEmptyState surface="registry mapping triage" error={dataRes.error} />
       )}
     </AuthedAppShell>
   );

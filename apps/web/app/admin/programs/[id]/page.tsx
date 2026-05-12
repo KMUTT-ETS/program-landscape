@@ -1,8 +1,9 @@
 import { redirect, notFound } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, PageHeader } from '@kku/ui';
 import { ProgramEditClient, type ProgramDetail } from './client';
 
@@ -34,12 +35,21 @@ export default async function AdminProgramDetailPage({
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const { id } = await params;
-  const [program, faculties, departments] = await Promise.all([
-    apiFetch<ProgramDetail>(`/admin/programs/${id}`).catch(() => null),
+  const programRes = await apiFetchSafe<ProgramDetail>(`/admin/programs/${id}`);
+  const [faculties, departments] = await Promise.all([
     apiFetch<Faculty[]>('/faculties').catch(() => [] as Faculty[]),
     apiFetch<Department[]>('/departments').catch(() => [] as Department[]),
   ]);
-  if (!program) notFound();
+  if (!programRes.ok) {
+    if (programRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader eyebrow="Admin · Programs" title="Program" />
+        <DiagnosticEmptyState surface="this program" error={programRes.error} />
+      </AuthedAppShell>
+    );
+  }
+  const program = programRes.data;
 
   return (
     <AuthedAppShell user={user}>

@@ -2,8 +2,9 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Button, PageHeader } from '@kku/ui';
 import { ReviewClient } from './client';
 import { ArrowLeft } from 'lucide-react';
@@ -57,8 +58,18 @@ export default async function AdminPdfReviewDetailPage({
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const { id } = await params;
-  const pdf = await apiFetch<PdfDetail | null>(`/pdfs/${id}`).catch(() => null);
-  if (!pdf) notFound();
+  const pdfRes = await apiFetchSafe<PdfDetail | null>(`/pdfs/${id}`);
+  if (!pdfRes.ok) {
+    if (pdfRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="PDF" />
+        <DiagnosticEmptyState surface="this PDF" error={pdfRes.error} />
+      </AuthedAppShell>
+    );
+  }
+  if (!pdfRes.data) notFound();
+  const pdf = pdfRes.data;
 
   // Signed URL fetched server-side so the client component gets a URL
   // already scoped to the user's session. TTL is short (15 min default),

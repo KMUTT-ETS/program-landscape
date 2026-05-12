@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Card, ConfidenceBadge, EmptyState, PageHeader, Section } from '@kku/ui';
 
 export const dynamic = 'force-dynamic';
@@ -46,12 +47,12 @@ export default async function AdminExtractionReviewPage() {
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const [pending, stats] = await Promise.all([
-    apiFetch<AiExtractionRow[]>('/ai/extractions?status=PENDING_REVIEW&limit=100').catch(
-      () => [] as AiExtractionRow[],
-    ),
-    apiFetch<Stats>('/ai/inferences/stats').catch(() => null),
-  ]);
+  // pending is the canary; stats strip is best-effort (just hides on error).
+  const pendingRes = await apiFetchSafe<AiExtractionRow[]>(
+    '/ai/extractions?status=PENDING_REVIEW&limit=100',
+  );
+  const stats = await apiFetch<Stats>('/ai/inferences/stats').catch(() => null);
+  const pending = pendingRes.ok ? pendingRes.data : [];
 
   return (
     <AuthedAppShell user={user}>
@@ -60,8 +61,10 @@ export default async function AdminExtractionReviewPage() {
         subtitle="LLM outputs that landed below the auto-approve threshold. Each row is one extraction — approve to materialise it into the domain tables."
       />
       {stats && <StatsStrip stats={stats} />}
-      <Section title={`Pending review (${pending.length})`}>
-        {pending.length === 0 ? (
+      <Section title={pendingRes.ok ? `Pending review (${pending.length})` : 'Pending review'}>
+        {!pendingRes.ok ? (
+          <DiagnosticEmptyState surface="AI extraction queue" error={pendingRes.error} />
+        ) : pending.length === 0 ? (
           <EmptyState
             title="Queue is empty"
             description="AI jobs haven't produced any low-confidence extractions yet. Set AI_PROVIDER + the provider API key and run a job to see this populate."

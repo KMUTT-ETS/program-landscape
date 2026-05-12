@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section } from '@kku/ui';
 import { DataSourcesClient } from './client';
 
@@ -43,10 +44,10 @@ export default async function AdminDataSourcesPage() {
   // ANALYST + admin-grade have data_sources:read; everyone else redirected.
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const [sources, overview] = await Promise.all([
-    apiFetch<DataSourceRow[]>('/data-sources').catch(() => [] as DataSourceRow[]),
-    apiFetch<OverviewStats>('/data-sources/admin/overview').catch(() => null),
-  ]);
+  // sources is the canary — if the listing fails the page can't render
+  // meaningfully. overview is best-effort (the strip just hides).
+  const sourcesRes = await apiFetchSafe<DataSourceRow[]>('/data-sources');
+  const overview = await apiFetch<OverviewStats>('/data-sources/admin/overview').catch(() => null);
 
   return (
     <AuthedAppShell user={user}>
@@ -56,7 +57,11 @@ export default async function AdminDataSourcesPage() {
       />
       {overview && <OverviewStrip overview={overview} />}
       <Section title="Connectors">
-        <DataSourcesClient rows={sources} canConfigure={isAdminGrade(user.role)} />
+        {sourcesRes.ok ? (
+          <DataSourcesClient rows={sourcesRes.data} canConfigure={isAdminGrade(user.role)} />
+        ) : (
+          <DiagnosticEmptyState surface="data sources" error={sourcesRes.error} />
+        )}
       </Section>
     </AuthedAppShell>
   );
