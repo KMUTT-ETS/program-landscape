@@ -72,7 +72,15 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // its level" — complements the existing per-student / coverage / trend
 // drivers (which are all ratios). Lifecycle.v1.4 uses the same
 // signal as a first-class lifecycle driver + flagship-floor gate.
-export const HEALTH_SCORE_VERSION = 'health-score.v3.5';
+//
+// v3.6 (2026-05-12) adds the `pedagogical_fit` driver to the relevance
+// dimension, sourced from ProgramPedagogyAssessment.overallScore (the
+// new `program-pedagogy.v1` extractor). Captures "does this program
+// teach in ways the discipline actually demands" — medical programs
+// without PBL drop, engineering without project-based+internship
+// drops, humanities without seminar/practicum drops. Null-safe when
+// the pedagogy assessment hasn't run yet.
+export const HEALTH_SCORE_VERSION = 'health-score.v3.6';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -1393,6 +1401,16 @@ async function scoreRelevanceProgram(
     sectorValue = inStrategic ? 100 : 50;
   }
 
+  // v3.6: pedagogical_fit driver — discipline-fit score from
+  // ProgramPedagogyAssessment.overallScore (`program-pedagogy.v1`).
+  // Null when the assessment hasn't run yet — completeness drops, no
+  // penalty applied.
+  const pedagogyAssessment = await prisma.programPedagogyAssessment.findUnique({
+    where: { programId },
+    select: { overallScore: true, disciplineFitScore: true, qaScore: true },
+  });
+  const pedagogicalFit: number | null = pedagogyAssessment?.overallScore ?? null;
+
   const drivers = [
     {
       label: 'labour_market_alignment',
@@ -1402,6 +1420,17 @@ async function scoreRelevanceProgram(
     { label: 'demand_match_filled', value: demandMatchValue, raw: { totalRelevant: matchRows.length } },
     { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook } },
     { label: 'strategic_sector_alignment', value: sectorValue, raw: { kmitlCareers: program?.kmitlCareerIds.length ?? 0 } },
+    {
+      label: 'pedagogical_fit',
+      value: pedagogicalFit === null ? null : clamp(pedagogicalFit),
+      raw: pedagogyAssessment
+        ? {
+            overall: pedagogyAssessment.overallScore,
+            disciplineFit: pedagogyAssessment.disciplineFitScore,
+            qa: pedagogyAssessment.qaScore,
+          }
+        : null,
+    },
   ];
   return summariseDrivers(drivers);
 }

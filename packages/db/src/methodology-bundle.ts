@@ -2,7 +2,7 @@
 // Methodology bundle — closes evaluation-pipeline.md §13 gap #4.
 //
 // A Council Pack frequently cites 5+ sub-methodology versions in a single
-// document (health-score.v3.5, lifecycle.v1.4, risk-scoring.v1.10, peer-
+// document (health-score.v3.6, lifecycle.v1.4, risk-scoring.v1.10, peer-
 // review.v2, program-strategic-narrative.v1, ...). PDF footers embed one
 // stamp per page — readers can't tell which section uses which version.
 //
@@ -56,6 +56,7 @@ import {
   PROGRAM_STRATEGIC_NARRATIVE_VERSION,
   PROGRAM_SKILLS_DETAILED_VERSION,
   PROGRAM_FACULTY_VERSION,
+  PROGRAM_PEDAGOGY_VERSION,
   RISK_ASSESSMENT_VERSION,
   DEMAND_MATCH_VERSION,
   GRADUATE_EMPLOYMENT_SURVEY_VERSION,
@@ -144,6 +145,7 @@ export const METHODOLOGY_MANIFEST = {
   'program-digest':            PROGRAM_DIGEST_VERSION,
   'program-faculty':           PROGRAM_FACULTY_VERSION,
   'program-peer-review':       PROGRAM_PEER_REVIEW_VERSION,
+  'program-pedagogy':          PROGRAM_PEDAGOGY_VERSION,
   'program-peer-selection':    PROGRAM_PEER_SELECTION_VERSION,
   'program-skills-detailed':   PROGRAM_SKILLS_DETAILED_VERSION,
   'program-strategic-narrative': PROGRAM_STRATEGIC_NARRATIVE_VERSION,

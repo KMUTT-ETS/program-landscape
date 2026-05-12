@@ -85,6 +85,9 @@ const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [
   // Pro tier — discipline-aware AI readiness reasoning (replaces the
   // generic v1 keyword classifier with grounded per-discipline guidance).
   { prefix: 'program-ai-readiness',         model: 'gemini-3.1-pro-preview' },
+  // Pro tier — discipline-fit pedagogy assessment (reads PDF teaching/
+  // learning/QA against discipline best practice).
+  { prefix: 'program-pedagogy',             model: 'gemini-3.1-pro-preview' },
 ];
 
 function pickModelForMethod(methodVersion: string | undefined, fallback: string): string {

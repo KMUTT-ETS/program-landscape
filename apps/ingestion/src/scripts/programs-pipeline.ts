@@ -5,10 +5,11 @@
 // Replaces 9 separate bulk scripts that previously had to be run by hand in
 // the right order. Composes:
 //
-//   Phase 1 — PDF AI extraction (PARALLEL: digest + faculty + skills)
-//      - programs:digest                    (gemini-3-flash-preview)
-//      - programs:extract-faculty           (gemini-3-flash-preview)
-//      - programs:extract-skills            (gemini-3-flash-preview)
+//   Phase 1 — PDF AI extraction (PARALLEL: digest + faculty + skills + pedagogy)
+//      - programs:digest                    (gemini-3.1-pro-preview)
+//      - programs:extract-faculty           (gemini-3.1-pro-preview)
+//      - programs:extract-skills            (gemini-3.1-pro-preview)
+//      - programs:pedagogy                  (gemini-3.1-pro-preview)
 //
 //   Phase 2 — Approve + materialise (DB only, fast)
 //      - approve-pending PROGRAM_DIGEST → ProgramSkill rows
@@ -90,6 +91,7 @@ import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runProgramFacultyExtraction } from '../program-faculty/run';
 import { runProgramSkillsDetailed } from '../program-skills/run';
+import { runProgramPedagogy } from '../program-pedagogy/run';
 import { mapProgramCareers } from '../program-careers/map';
 import { runDemandMatch } from '../program-demand-match/run';
 import { selectProgramPeers } from '../program-peers/select';
@@ -266,9 +268,13 @@ async function processProgram(
   const t0 = Date.now();
 
   // ── Phase 1 — PDF AI extraction (parallel) ───────────────────────
+  // Four extractors hit the same PDF in parallel: digest, faculty,
+  // skills, pedagogy. Pedagogy added 2026-05-12 — discipline-fit
+  // assessment for the new pedagogical_fit health driver + ai-readiness
+  // pedagogicalReadiness sub-score (was null/reserved).
   if (shouldRun('phase1')) {
     const t = Date.now();
-    const [digest, faculty, skills] = await Promise.all([
+    const [digest, faculty, skills, pedagogy] = await Promise.all([
       runProgramDigest({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
         status: 'FAILED' as const, reason: String(e?.message ?? e),
       })),
@@ -278,19 +284,32 @@ async function processProgram(
       runProgramSkillsDetailed({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
         status: 'FAILED' as const, reason: String(e?.message ?? e),
       })),
+      runProgramPedagogy({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
+        status: 'FAILED' as const, reason: String(e?.message ?? e),
+      })),
     ]);
     const cost =
       (digest.status === 'SUCCEEDED' ? digest.costUsd : 0) +
       (faculty.status === 'SUCCEEDED' ? faculty.costUsd : 0) +
-      (skills.status === 'SUCCEEDED' ? skills.costUsd : 0);
+      (skills.status === 'SUCCEEDED' ? skills.costUsd : 0) +
+      (pedagogy.status === 'SUCCEEDED' ? pedagogy.costUsd : 0);
     const summarise = (r: { status: string; reason?: string }, name: string) =>
       r.status === 'SUCCEEDED' ? `${name}✓` : r.status === 'SKIPPED' ? `${name}=skip` : `${name}✗`;
     phases.push({
       name: 'phase1 PDF extraction (parallel)',
       durationMs: Date.now() - t,
       costUsd: cost,
-      ok: digest.status !== 'FAILED' && faculty.status !== 'FAILED' && skills.status !== 'FAILED',
-      notes: [summarise(digest, 'digest'), summarise(faculty, 'faculty'), summarise(skills, 'skills')].join(' '),
+      ok:
+        digest.status !== 'FAILED' &&
+        faculty.status !== 'FAILED' &&
+        skills.status !== 'FAILED' &&
+        pedagogy.status !== 'FAILED',
+      notes: [
+        summarise(digest, 'digest'),
+        summarise(faculty, 'faculty'),
+        summarise(skills, 'skills'),
+        summarise(pedagogy, 'pedagogy'),
+      ].join(' '),
     });
   }
 

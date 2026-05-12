@@ -810,9 +810,15 @@ export async function programAiReadiness(programId: string): Promise<ProgramAiRe
   const researchPresence =
     totalPubs === 0 ? 0 : Math.min(100, (aiPubs / totalPubs) * 200);
 
-  // 4. Pedagogical readiness: placeholder for now. Surveys + classroom
-  // instrumentation land later.
-  const pedagogicalReadiness: number | null = null;
+  // 4. Pedagogical readiness — populated from the persisted
+  // ProgramPedagogyAssessment (`program-pedagogy.v1`). When the program
+  // hasn't been pedagogy-assessed yet, falls back to null and the
+  // composite redistributes weight across the other three sub-scores.
+  const pedagogyAssessment = await prisma.programPedagogyAssessment.findUnique({
+    where: { programId },
+    select: { overallScore: true },
+  });
+  const pedagogicalReadiness: number | null = pedagogyAssessment?.overallScore ?? null;
 
   // Composite — 40 / 30 / 20 / 10 weighting. When pedagogical is null,
   // redistribute its weight equally across the other three.

@@ -427,6 +427,7 @@ model Program {
   peerReview            ProgramPeerReview?
   strategicNarrative    ProgramStrategicNarrative?
   aiReadinessAssessment ProgramAiReadinessAssessment?
+  pedagogyAssessment    ProgramPedagogyAssessment?
   lifecycleSnapshot     ProgramLifecycleSnapshot?
   verdictSnapshots      VerdictSnapshot[]
   financialMetrics      FinancialMetric[]
@@ -1777,6 +1778,45 @@ model ProgramAiReadinessAssessment {
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@map("program_ai_readiness_assessments")
+}
+
+/// Per-program pedagogical-readiness assessment. Reads the curriculum
+/// PDF + program metadata (faculty, level) and scores observed teaching
+/// /learning/assessment/QA practices against discipline-specific best
+/// practice (medical→PBL+clinical, engineering→project-based+internship,
+/// etc.). Single source of truth for:
+///   - health-score.v3.6 relevance dimension `pedagogical_fit` driver
+///   - ai-readiness.v3 `pedagogicalReadiness` sub-score (replaces the
+///     reserved-null pedagogy weight redistribution)
+/// Methodology version: `program-pedagogy.v1`. Re-generation upserts
+/// (programId is unique).
+model ProgramPedagogyAssessment {
+  id                       String   @id @default(cuid())
+  programId                String   @unique @map("program_id")
+  /// Discipline-fit score 0-100 — how well OBSERVED pedagogy matches
+  /// the EXPECTED pattern for this discipline + level.
+  disciplineFitScore       Float    @map("discipline_fit_score")
+  /// QA-system quality 0-100 (TQF / AUN-QA / EdPEx framework strength
+  /// + stakeholder feedback loops + continuous-improvement evidence).
+  qaScore                  Float    @map("qa_score")
+  /// Composite 0-100 = 0.5·disciplineFit + 0.3·qa + 0.2·industrial.
+  /// Feeds health-score relevance + ai-readiness pedagogy sub-score.
+  overallScore             Float    @map("overall_score")
+  /// Full assessment payload — typed at the Zod schema layer
+  /// (`ProgramPedagogyAssessmentSchema`). JSONB so structure can evolve
+  /// without per-bump migrations.
+  payloadJson              Json     @map("payload_json")
+  /// Method version stamp (e.g. `program-pedagogy.v1`).
+  methodVersion            String   @map("method_version")
+  /// AI's self-rated confidence 0-1. Drops when teaching/learning/QA
+  /// sections are thin in the PDF, not when the program scores low.
+  confidence               Float
+  generatedAt              DateTime @default(now()) @map("generated_at")
+  generatedByAiInferenceId String?  @map("generated_by_ai_inference_id")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@map("program_pedagogy_assessments")
 }
 
 /// Persisted per-program lifecycle verdict snapshot. Computed by

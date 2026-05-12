@@ -15,6 +15,7 @@ export * from './program-strategic-narrative';
 export * from './program-skills-detailed';
 export * from './skill-name-normaliser';
 export * from './program-ai-readiness';
+export * from './program-pedagogy';
 export * from './graduate-employment-survey';
 export * from './imd-rankings-extract';
 export * from './risk-assessment';
