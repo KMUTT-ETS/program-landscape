@@ -16,11 +16,10 @@ import {
   FileSearch,
   FileText,
   GitBranch,
+  Globe2,
   Layers,
-  LayoutDashboard,
-  Palette,
+  Settings2,
   ShieldCheck,
-  Upload,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -28,9 +27,19 @@ import {
 // ─────────────────────────────────────────────────────────────────────────
 // Admin console — the operational front door for KKU Curriculum Landscape.
 //
-// One landing page. Hero with live KPIs at the top, three command bays
-// below (Data setup / Review queues / System) each carrying tile cards
-// with live state badges where relevant.
+// IA restructured 2026-05-12 to three nouns matching the operator's
+// mental model: Programs / External data / Application. Each group
+// carries tile cards with live state badges. Phase-gated tiles
+// (Phase 3-5) ship as visible placeholders with a "Phase N" badge so
+// the URL surface is reserved and expectations are set.
+//
+// Phase plan tracked in commit history (search 'admin IA Phase').
+//   Phase 1 (this commit): 3-group landing + 3 placeholder pages
+//   Phase 2: Programs admin — batch actions, dup-check, status edit
+//   Phase 3: AI settings — per-task model picker + cost
+//   Phase 4: PDF library — non-curriculum PDF lifecycle
+//   Phase 5: External AI search & synthesis (trend_signals feed)
+//   Phase 6: Job queue realtime status enhancements
 //
 // Reference look: Linear's settings overview + Stripe Dashboard's
 // "Today" page. Dense without feeling busy. Every tile has an obvious
@@ -467,21 +476,16 @@ function buildGroups({
   sysStatus: SystemStatus | null;
   role: SessionUser['role'];
 }): ConsoleGroup[] {
-  const dataSetup: ConsoleTile[] = [
-    {
-      href: '/admin/data-setup',
-      label: 'Setup hub',
-      description:
-        'Per-category overview of every input the AI depends on — curriculum, policy, financials, research outputs.',
-      icon: <LayoutDashboard className="h-5 w-5" />,
-      meta: dataStats
-        ? `${dataStats.curriculumDocs.total + dataStats.externalDocs.total} documents indexed`
-        : undefined,
-    },
+  // ── 1) Programs ────────────────────────────────────────────────────
+  // Curriculum-centric ops: the program list (table + batch actions),
+  // the new-program flow, and the curriculum-related review gates.
+  // Non-curriculum PDFs live under External data → PDF library.
+  const programs: ConsoleTile[] = [
     {
       href: '/admin/programs',
-      label: 'Programs',
-      description: 'Browse, search, and manage KKU programs.',
+      label: 'Program list',
+      description:
+        'Full table of the 297 KKU programs — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch).',
       icon: <Building2 className="h-5 w-5" />,
       badge: dataStats
         ? { label: dataStats.programs.total.toLocaleString(), tone: 'neutral' }
@@ -491,48 +495,17 @@ function buildGroups({
         : undefined,
     },
     {
-      href: '/admin/data-sources',
-      label: 'Connectors / feeds',
+      href: '/admin/programs/new',
+      label: 'New program',
       description:
-        'Every external source — KKU Registrar, KKU HR, OpenAlex, KMITL — and their current status.',
-      icon: <Database className="h-5 w-5" />,
-      badge: dataStats
-        ? {
-            label: `${dataStats.dataFeeds.live} live`,
-            tone: dataStats.dataFeeds.live > 0 ? 'success' : 'neutral',
-          }
-        : undefined,
-      meta: dataStats ? `${dataStats.dataFeeds.mocked} still mocked` : undefined,
-    },
-    {
-      href: '/admin/registry-mapping',
-      label: 'Registry mapping',
-      description:
-        'Resolve unmatched registrar tuples to canonical Program rows.',
-      icon: <GitBranch className="h-5 w-5" />,
-    },
-    {
-      href: '/upload',
-      label: 'Upload PDFs',
-      description: 'Drop policy documents, curricula (มคอ.2), surveys, peer brochures.',
-      icon: <Upload className="h-5 w-5" />,
-      roles: [...ADMIN_GRADE, 'FACULTY_USER'],
-    },
-  ];
-
-  const review: ConsoleTile[] = [
-    {
-      href: '/admin/pdf-review',
-      label: 'PDF intake review',
-      description:
-        'PDFs the AI classified below the auto-approve threshold — curriculum, policy, peer brochures, surveys. Inspect the source + verify what was extracted.',
-      icon: <FileSearch className="h-5 w-5" />,
+        'Upload a curriculum PDF — the digest extractor auto-fills metadata, dup-check warns on collisions, full pipeline fires after analyst confirms.',
+      icon: <FileText className="h-5 w-5" />,
     },
     {
       href: '/admin/extraction-review',
-      label: 'AI extraction review',
+      label: 'Review queue',
       description:
-        'Non-PDF AI outputs awaiting approval — course-skill mappings, job-posting tagging, proposed taxonomy entries. Approve to materialise into the domain tables.',
+        'Curriculum AI extractions awaiting analyst sign-off — course-skill mappings, proposed taxonomy entries, low-confidence digests.',
       icon: <BrainCircuit className="h-5 w-5" />,
       badge:
         sysStatus && sysStatus.pendingExtractions > 0
@@ -543,11 +516,54 @@ function buildGroups({
           : undefined,
       tone: sysStatus && sysStatus.pendingExtractions > 50 ? 'warn' : 'default',
     },
+  ];
+
+  // ── 2) External data ──────────────────────────────────────────────
+  // Sources outside KKU's own systems. Connectors handle structured
+  // data (DBs + APIs). AI search & synthesis handles unstructured
+  // intelligence feeds. PDF library handles non-curriculum docs.
+  const external: ConsoleTile[] = [
+    {
+      href: '/admin/data-sources',
+      label: 'DB / API connectors',
+      description:
+        'Structured-data sources — KKU Registrar, KKU HR, KKU Finance, KMITL skill mapping. Manage cron schedules and fire manual re-syncs.',
+      icon: <Database className="h-5 w-5" />,
+      badge: dataStats
+        ? {
+            label: `${dataStats.dataFeeds.live} live`,
+            tone: dataStats.dataFeeds.live > 0 ? 'success' : 'neutral',
+          }
+        : undefined,
+      meta: dataStats ? `${dataStats.dataFeeds.mocked} still mocked` : undefined,
+    },
+    {
+      href: '/admin/external/ai-search',
+      label: 'AI search & synthesis',
+      description:
+        'External intelligence feeds — WEF, IMD, BOI, World Bank, Google News. URL-list + web-search sources, AI-summarised into trend_signals.',
+      icon: <Globe2 className="h-5 w-5" />,
+      badge: { label: 'Phase 5', tone: 'info' },
+    },
+    {
+      href: '/admin/pdf-review',
+      label: 'PDF library',
+      description:
+        'Non-curriculum PDFs — Thai government / MHESI / KKU / faculty policy documents and reports. Re-extract, archive, deprecate, delete.',
+      icon: <FileSearch className="h-5 w-5" />,
+    },
+    {
+      href: '/admin/registry-mapping',
+      label: 'Registry mapping',
+      description:
+        'Resolve unmatched registrar tuples to canonical Program rows — analyst-driven crosswalk for the kku-registry connector.',
+      icon: <GitBranch className="h-5 w-5" />,
+    },
     {
       href: '/admin/data-quality',
       label: 'Data quality',
       description:
-        'Completeness, ingestion-failure rate, and year-on-year drift detection across enrollment, financials, and outcome series.',
+        'Completeness + year-on-year drift detection across enrollment, financials, outcome series. Surfaces when an external feed turns flaky.',
       icon: <ClipboardCheck className="h-5 w-5" />,
       badge: sysStatus
         ? (() => {
@@ -560,14 +576,46 @@ function buildGroups({
     },
   ];
 
-  const system: ConsoleTile[] = [
+  // ── 3) Application ────────────────────────────────────────────────
+  // Operational + observability surfaces. Most tiles SYSTEM_ADMIN+;
+  // AI settings is super-admin-only because it controls per-task
+  // model overrides + cost dashboards.
+  const application: ConsoleTile[] = [
     {
       href: '/admin/users',
       label: 'Users & access',
       description:
-        'Pre-provision KKU staff, assign roles, and bind faculty/department scope to user accounts.',
+        'Pre-provision KKU staff, assign roles, and bind faculty scope to user accounts.',
       icon: <Users className="h-5 w-5" />,
       roles: ADMIN_GRADE,
+    },
+    {
+      href: '/admin/app/ai-settings',
+      label: 'AI settings',
+      description:
+        'Per-task model picker + cost dashboard. Override the default model for any methodVersion, view spend per user / module / 7-30 days.',
+      icon: <Settings2 className="h-5 w-5" />,
+      roles: SUPER_GRADE,
+      tone: 'super',
+      badge: { label: 'Phase 3', tone: 'info' },
+      meta: sysStatus
+        ? `Today $ ${sysStatus.ai24h.costUsd.toFixed(2)} · ${sysStatus.ai24h.calls} calls`
+        : undefined,
+    },
+    {
+      href: '/admin/queues',
+      label: 'Job queues',
+      description:
+        'Live BullMQ state — what is running, waiting, failed. Pause, resume, retry, clean. (Phase 6 adds realtime processing status.)',
+      icon: <Layers className="h-5 w-5" />,
+      roles: ADMIN_GRADE,
+      meta: sysStatus
+        ? (() => {
+            const failed =
+              sysStatus.ingestionRuns7d.find((r) => r.status === 'FAILED')?.count ?? 0;
+            return failed > 0 ? `${failed} failed in last 7d` : 'no failures · 7d';
+          })()
+        : undefined,
     },
     {
       href: '/admin/system-status',
@@ -586,69 +634,40 @@ function buildGroups({
         : undefined,
     },
     {
-      href: '/admin/queues',
-      label: 'Job queues',
-      description:
-        'Live BullMQ state — what is running, waiting, failed. Pause, resume, retry, clean.',
-      icon: <Layers className="h-5 w-5" />,
-      roles: ADMIN_GRADE,
-      meta: sysStatus
-        ? (() => {
-            const failed =
-              sysStatus.ingestionRuns7d.find((r) => r.status === 'FAILED')?.count ?? 0;
-            return failed > 0 ? `${failed} failed in last 7d` : 'no failures · 7d';
-          })()
-        : undefined,
-    },
-    {
       href: '/admin/pdf-generation',
       label: 'PDF generation',
       description:
-        'Every Council Pack, brief, and report routed through Gotenberg — what was generated, how long it took, and what failed.',
+        'Every Council Pack, brief, and report routed through Gotenberg — generation history, durations, failures.',
       icon: <FileText className="h-5 w-5" />,
-    },
-    {
-      href: '/admin/ai-cost',
-      label: 'AI cost',
-      description: 'Per-user, per-module spend over the last 7 / 30 days. Quota oversight.',
-      icon: <CircleDollarSign className="h-5 w-5" />,
-      roles: SUPER_GRADE,
-      tone: 'super',
-      meta: sysStatus
-        ? `Today $ ${sysStatus.ai24h.costUsd.toFixed(2)} · ${sysStatus.ai24h.calls} calls`
-        : undefined,
-    },
-    {
-      href: '/styleguide',
-      label: 'Styleguide',
-      description: 'Design system reference — tokens, components, charts, density modes.',
-      icon: <Palette className="h-5 w-5" />,
     },
   ];
 
   // Per-tile role gate: visibility tracks the viewer's permissions so a
-  // SYSTEM_ADMIN doesn't see "AI cost" greyed out — it just disappears.
+  // SYSTEM_ADMIN doesn't see "AI settings" greyed out — it just disappears.
   const filterByRole = (t: ConsoleTile) =>
     t.roles ? t.roles.includes(role) : ADMIN_GRADE.includes(role);
 
   return [
     {
-      eyebrow: 'Step 1',
-      label: 'Data setup',
-      caption: 'Upload + organise the inputs the AI analyses.',
-      tiles: dataSetup.filter(filterByRole),
+      eyebrow: 'Group 1',
+      label: 'Programs',
+      caption:
+        'Curriculum-centric operations — program list, new-program intake, review queue for AI extractions awaiting analyst sign-off.',
+      tiles: programs.filter(filterByRole),
     },
     {
-      eyebrow: 'Step 2',
-      label: 'Review queues',
-      caption: 'Human-in-the-loop quality gates before AI output reaches Council surfaces.',
-      tiles: review.filter(filterByRole),
+      eyebrow: 'Group 2',
+      label: 'External data',
+      caption:
+        'Sources outside KKU — connectors, AI-summarised intelligence feeds, non-curriculum PDFs, and data-quality monitoring.',
+      tiles: external.filter(filterByRole),
     },
     {
-      eyebrow: 'Step 3',
-      label: 'System',
-      caption: 'Operations + observability. Tighter access — a few tiles are super-admin only.',
-      tiles: system.filter(filterByRole),
+      eyebrow: 'Group 3',
+      label: 'Application',
+      caption:
+        'Operations + observability. AI settings is super-admin only; everything else is system-admin-and-up.',
+      tiles: application.filter(filterByRole),
     },
   ];
 }

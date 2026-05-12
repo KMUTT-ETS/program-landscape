@@ -107,9 +107,9 @@ const analysisSection: NavSection = {
   ],
 };
 
-// Admin — single entry collapsing what used to be 11 items in three
-// groups (Data setup / Review queues / System) into one console page.
-// The /admin landing route renders the full grid of admin tools.
+// Admin — single sidebar entry pointing at /admin. The landing page
+// expands into three groups (Programs / External data / Application)
+// — see apps/web/app/admin/page.tsx for the full grid.
 const adminSection: NavSection = {
   label: 'Admin',
   items: [
