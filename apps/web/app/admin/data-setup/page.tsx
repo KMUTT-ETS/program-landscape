@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import {
   Badge,
@@ -95,9 +96,12 @@ export default async function AdminDataSetupPage() {
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const stats = await apiFetch<DataSetupStats>('/admin/data-setup/stats').catch(
-    () => EMPTY_STATS,
-  );
+  // Stats fetch — when it fails we render a diagnostic banner above the
+  // cards. The cards still draw with zeros so the operator can navigate
+  // into sub-areas (most cards have static text + a "manage" link that
+  // doesn't depend on the numbers).
+  const statsRes = await apiFetchSafe<DataSetupStats>('/admin/data-setup/stats');
+  const stats = statsRes.ok ? statsRes.data : EMPTY_STATS;
 
   return (
     <AuthedAppShell user={user}>
@@ -116,6 +120,12 @@ export default async function AdminDataSetupPage() {
           </EdgeGlow>
         }
       />
+
+      {!statsRes.ok && (
+        <div className="mb-4">
+          <DiagnosticEmptyState surface="data-setup stats" error={statsRes.error} />
+        </div>
+      )}
 
       {/* ── Curriculum docs ──────────────────────────────────────── */}
       <Section

@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser, ApiSuccess } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch, apiFetchEnvelope } from '@/lib/api-client';
+import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Button, EdgeGlow, KPI, PageHeader, Section } from '@kku/ui';
 import Link from 'next/link';
@@ -66,8 +67,12 @@ export default async function AdminProgramsPage({
   // Always fetch pipeline stats (drives the always-visible KPI strip).
   // Only fetch the program list when on that view — saves a round-trip
   // when the user is on the pipeline tab.
-  const [stats, listResult, faculties] = await Promise.all([
-    apiFetch<PipelineStats>('/admin/programs/pipeline/stats').catch(() => EMPTY_STATS),
+  // Stats is the canary — drives the KPI strip + the pipeline-tab
+  // badge. On failure we still render the page (KPIs show zero), with
+  // a diagnostic banner above so the operator sees the reason.
+  const statsRes = await apiFetchSafe<PipelineStats>('/admin/programs/pipeline/stats');
+  const stats = statsRes.ok ? statsRes.data : EMPTY_STATS;
+  const [listResult, faculties] = await Promise.all([
     view === 'list'
       ? apiFetchEnvelope<ProgramListRow[]>(
           `/admin/programs?${query.toString()}`,
@@ -115,6 +120,12 @@ export default async function AdminProgramsPage({
           </div>
         }
       />
+
+      {!statsRes.ok && (
+        <div className="mb-4">
+          <DiagnosticEmptyState surface="program pipeline stats" error={statsRes.error} />
+        </div>
+      )}
 
       {/* Always-visible KPI strip — applies to both views, gives
           operational context regardless of which tab the user is on. */}

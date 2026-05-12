@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Card, PageHeader, Section } from '@kku/ui';
 
@@ -50,9 +51,8 @@ export default async function DataQualityPage() {
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const dq = await apiFetch<DataQuality>('/admin/data-quality').catch(
-    () => null,
-  );
+  const dqRes = await apiFetchSafe<DataQuality>('/admin/data-quality');
+  const dq = dqRes.ok ? dqRes.data : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -62,11 +62,7 @@ export default async function DataQualityPage() {
         subtitle="Completeness, ingestion-failure rate, and anomaly detection across the program metrics. Flags are advisory — investigate before acting on affected programs."
       />
       {!dq ? (
-        <Card>
-          <div className="py-6 text-center text-text-secondary">
-            Data quality report unavailable.
-          </div>
-        </Card>
+        <DiagnosticEmptyState surface="data quality report" error={dqRes.ok ? null : dqRes.error} />
       ) : (
         <div className="flex flex-col gap-6">
           <Section title="Completeness (last 3 years / cohorts)">

@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import {
   Card,
@@ -42,10 +43,12 @@ export default async function AdminPdfGenerationPage() {
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
-  const [recent, templates] = await Promise.all([
-    apiFetch<PdfGenerationRow[]>('/pdf/admin/recent').catch(() => [] as PdfGenerationRow[]),
-    apiFetch<PdfTemplate[]>('/pdf/templates').catch(() => [] as PdfTemplate[]),
+  const [recentRes, templatesRes] = await Promise.all([
+    apiFetchSafe<PdfGenerationRow[]>('/pdf/admin/recent'),
+    apiFetchSafe<PdfTemplate[]>('/pdf/templates'),
   ]);
+  const recent = recentRes.ok ? recentRes.data : [];
+  const templates = templatesRes.ok ? templatesRes.data : [];
 
   return (
     <AuthedAppShell user={user}>
@@ -55,7 +58,9 @@ export default async function AdminPdfGenerationPage() {
       />
 
       <Section title="Registered templates">
-        {templates.length === 0 ? (
+        {!templatesRes.ok ? (
+          <DiagnosticEmptyState surface="PDF templates" error={templatesRes.error} />
+        ) : templates.length === 0 ? (
           <EmptyState
             title="No templates loaded"
             description="The NestJS PdfModule registers the @kku/pdf-templates package at boot. If this list is empty, the API service may be failing to start — check logs."
@@ -75,7 +80,9 @@ export default async function AdminPdfGenerationPage() {
       </Section>
 
       <Section title="Recent generations">
-        {recent.length === 0 ? (
+        {!recentRes.ok ? (
+          <DiagnosticEmptyState surface="PDF generation history" error={recentRes.error} />
+        ) : recent.length === 0 ? (
           <EmptyState
             title="No generations yet"
             description="Once any module calls PdfGenerationService, rows appear here. First targets: Council Pack export from the Cockpit (prompt 05) and the Program Deep-Dive brief (prompt 06)."

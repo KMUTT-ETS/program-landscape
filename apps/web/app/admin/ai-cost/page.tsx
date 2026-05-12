@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Card, PageHeader, Section } from '@kku/ui';
 
@@ -43,9 +44,8 @@ export default async function AiCostPage({
 
   const params = await searchParams;
   const days = params.days ?? '30';
-  const data = await apiFetch<AiCost>(`/admin/ai-cost?days=${days}`).catch(
-    () => null,
-  );
+  const dataRes = await apiFetchSafe<AiCost>(`/admin/ai-cost?days=${days}`);
+  const data = dataRes.ok ? dataRes.data : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -72,11 +72,7 @@ export default async function AiCostPage({
         }
       />
       {!data ? (
-        <Card>
-          <div className="py-6 text-center text-text-secondary">
-            AI cost report unavailable.
-          </div>
-        </Card>
+        <DiagnosticEmptyState surface="AI cost report" error={dataRes.ok ? null : dataRes.error} />
       ) : (
         <div className="flex flex-col gap-6">
           <Card tone="glossy">

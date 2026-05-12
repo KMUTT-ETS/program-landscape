@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
@@ -55,9 +56,8 @@ export default async function SystemStatusPage() {
     redirect('/no-access');
   }
 
-  const status = await apiFetch<SystemStatus>('/admin/system-status').catch(
-    () => null,
-  );
+  const statusRes = await apiFetchSafe<SystemStatus>('/admin/system-status');
+  const status = statusRes.ok ? statusRes.data : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -67,11 +67,7 @@ export default async function SystemStatusPage() {
         subtitle="Operational snapshot before a Council session — data freshness, ingestion health, AI spend, pending reviews, recent decisions."
       />
       {!status ? (
-        <Card>
-          <div className="py-6 text-center text-text-secondary">
-            System status unavailable — backend may be down. Retry in a moment.
-          </div>
-        </Card>
+        <DiagnosticEmptyState surface="system status" error={statusRes.ok ? null : statusRes.error} />
       ) : (
         <div className="flex flex-col gap-6">
           <Section title="Data freshness">

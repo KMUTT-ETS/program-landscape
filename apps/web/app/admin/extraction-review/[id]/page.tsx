@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Button, ConfidenceBadge, PageHeader } from '@kku/ui';
 import { ArrowLeft } from 'lucide-react';
 import { ReviewClient } from './client';
@@ -50,10 +51,18 @@ export default async function AdminAiExtractionDetailPage({
   if (!isAdminGrade(user.role)) redirect('/no-access');
 
   const { id } = await params;
-  const extraction = await apiFetch<AiExtractionDetail | null>(`/ai/extractions/${id}`).catch(
-    () => null,
-  );
-  if (!extraction) notFound();
+  const extractionRes = await apiFetchSafe<AiExtractionDetail | null>(`/ai/extractions/${id}`);
+  if (!extractionRes.ok) {
+    if (extractionRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="AI extraction" />
+        <DiagnosticEmptyState surface="this AI extraction" error={extractionRes.error} />
+      </AuthedAppShell>
+    );
+  }
+  if (!extractionRes.data) notFound();
+  const extraction = extractionRes.data;
 
   return (
     <AuthedAppShell user={user}>
