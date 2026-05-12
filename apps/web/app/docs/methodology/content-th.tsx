@@ -38,7 +38,7 @@ export function MethodologyContentTh() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.4</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.2</Code> (วงจรชีวิต)</> },
+              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.4</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.3</Code> (วงจรชีวิต)</> },
               { label: 'เวอร์ชันเอกสาร', value: '1.0' },
               { label: 'จัดทำโดย', value: 'สำนักงานข้อมูลและธรรมาภิบาลข้อมูล มข. — คณะทำงาน Curriculum Landscape' },
               { label: 'สถานะ', value: 'สาธารณะ — สำหรับเผยแพร่แก่สภามหาวิทยาลัย ผู้บริหาร คณบดี หัวหน้าภาควิชา ผู้รับผิดชอบหลักสูตร' },
@@ -446,11 +446,12 @@ export function MethodologyContentTh() {
               <TR><TD>2</TD><TD mono>health_overall</TD><TD>±20</TD><TD>คะแนนสุขภาพรวมของหลักสูตร (<Code>(score − 50) × 0.4</Code>)</TD></TR>
               <TR><TD>3</TD><TD mono>enrollment_trend_slope</TD><TD>±15</TD><TD>ทิศทางและความชันของแนวโน้มการลงทะเบียนล่าสุด</TD></TR>
               <TR><TD>4</TD><TD mono>tuition_trend_slope</TD><TD>±10</TD><TD>ทิศทางของแนวโน้มรายได้ค่าเล่าเรียน</TD></TR>
-              <TR><TD>5</TD><TD mono>content_modernity</TD><TD>±20</TD><TD>คำตัดสินจาก AI peer review เกี่ยวกับเนื้อหาหลักสูตร (<Code>OLD_SCHOOL</Code> / <Code>IN_BETWEEN</Code> / <Code>FRONTIER</Code>)</TD></TR>
-              <TR><TD>6</TD><TD mono>major_content_gaps</TD><TD>สูงสุด −12</TD><TD>บทลงโทษ: 4 คะแนนต่อช่องว่างเนื้อหาสำคัญที่ AI peer review ระบุ เพดาน 12</TD></TR>
-              <TR><TD>7</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>ความทนทานของหลักสูตรต่อการลดลงของกลุ่มอายุ 18–22 ของไทย</TD></TR>
-              <TR><TD>8</TD><TD mono>delayed_graduation_share</TD><TD>สูงสุด −10</TD><TD>บทลงโทษสำหรับ cohort ที่มีสัดส่วนสูงที่จบหลังกำหนด</TD></TR>
-              <TR><TD>9</TD><TD mono>capability_strength</TD><TD>−8 ถึง +8</TD><TD>ความอาวุโสของคณาจารย์และความเข้มข้นของผลงานวิจัย</TD></TR>
+              <TR><TD>5</TD><TD mono>content_modernity</TD><TD>±10</TD><TD>คำตัดสินจาก AI peer review เกี่ยวกับเนื้อหาหลักสูตร (<Code>OLD_SCHOOL</Code> / <Code>IN_BETWEEN</Code> / <Code>FRONTIER</Code>) ลดน้ำหนักจาก ±20 ใน v1.3 — สัญญาณเชิงคุณภาพ (LLM-as-judge) นี้เสริม แต่ไม่ทดแทน สัญญาณ labour-market alignment ด้านล่าง</TD></TR>
+              <TR><TD>6</TD><TD mono>labour_market_alignment</TD><TD>±15</TD><TD><Em>ใหม่ใน v1.3</Em> ส่วนแบ่งของทักษะในหลักสูตรที่ตรงกับอุปสงค์ของนายจ้างใน KMITL (รับโดยตรงจากมิติ relevance) ยกระดับสัญญาณเชิงปริมาณนี้จาก "ฝังลึกในคะแนนสุขภาพรวม" ให้เป็นอินพุตชั้นแรกของวงจรชีวิต ย่าน: ≥70 → +15, 50–70 → +5, 30–50 → −5, &lt;30 → −15 ค่าว่างเมื่อยังไม่ได้แมป KMITL career (ไม่มีบทลงโทษ)</TD></TR>
+              <TR><TD>7</TD><TD mono>major_content_gaps</TD><TD>สูงสุด −12</TD><TD>บทลงโทษ: 4 คะแนนต่อช่องว่างเนื้อหาสำคัญที่ AI peer review ระบุ เพดาน 12</TD></TR>
+              <TR><TD>8</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>ความทนทานของหลักสูตรต่อการลดลงของกลุ่มอายุ 18–22 ของไทย</TD></TR>
+              <TR><TD>9</TD><TD mono>delayed_graduation_share</TD><TD>สูงสุด −10</TD><TD>บทลงโทษสำหรับ cohort ที่มีสัดส่วนสูงที่จบหลังกำหนด</TD></TR>
+              <TR><TD>10</TD><TD mono>capability_strength</TD><TD>−8 ถึง +8</TD><TD>ความอาวุโสของคณาจารย์และความเข้มข้นของผลงานวิจัย</TD></TR>
             </tbody>
           </Tbl>
           <P>
@@ -500,6 +501,8 @@ score >= 45                                       → STABLE
             <LI><Strong>เกตความทันสมัยของเนื้อหา</Strong> ถ้า AI peer review ตัดสิน <Code>contentModernity.verdict = OLD_SCHOOL</Code> คำตัดสินใด ๆ ที่เป็น <Code>RISING</Code> หรือ <Code>FRONTIER</Code> จะถูกลดระดับเป็น <Code>STABLE</Code> เหตุผล: หลักสูตรที่ผู้รีวิวเห็นว่าตามไม่ทันสาขา ไม่อาจเรียกว่า "กำลังขึ้น" ได้ — แนวโน้มดังกล่าวเป็นภาพลวงจนกว่าเนื้อหาจะถูกฟื้นฟู (เมื่อ AI peer review ยังไม่ได้รัน เกตนี้ใช้บังคับไม่ได้)</LI>
             <LI><Strong>ฐานความพร้อม AI (เพดาน Stable)</Strong> ถ้า <Code>ai_readiness {'<'} 30</Code> คำตัดสิน <Code>RISING</Code> หรือ <Code>FRONTIER</Code> ใด ๆ จะถูกลดเป็น <Code>STABLE</Code> เหตุผล: หลักสูตรที่เผชิญความเสี่ยงโครงสร้างจากการแทนที่ด้วย AI ไม่ควรถูกจัดประเภทว่ากำลังเติบโต บนพื้นฐานของตัววัดที่อาจไม่อยู่รอดในตลาดแรงงานปี 2569 ขึ้นไป</LI>
             <LI><Strong>ฐานความพร้อม AI (เพดาน Frontier)</Strong> ถ้า <Code>ai_readiness {'<'} 50</Code> คำตัดสิน <Code>FRONTIER</Code> จะถูกลดเป็น <Code>RISING</Code> เหตุผล: ป้าย FRONTIER สงวนไว้สำหรับหลักสูตรที่บูรณาการ AI อย่างแท้จริง</LI>
+            <LI><Strong>ฐานความสอดคล้องกับตลาดแรงงาน (เพดาน Stable)</Strong> <Em>ใหม่ใน v1.3</Em> ถ้า <Code>labour_market_alignment {'<'} 30</Code> คำตัดสิน <Code>RISING</Code> หรือ <Code>FRONTIER</Code> ใด ๆ จะถูกลดเป็น <Code>STABLE</Code> เหตุผล: หลักสูตรที่สอนทักษะเพียงเศษส่วนของที่นายจ้างต้องการ ไม่อาจอ้างแนวโน้มได้ ไม่ว่าคำตัดสินความทันสมัยจาก AI peer review จะดูดีเพียงใด ปลอดภัยต่อค่าว่าง: เมื่อยังไม่ได้แมป KMITL career เกตนี้ใช้บังคับไม่ได้</LI>
+            <LI><Strong>ฐานความสอดคล้องกับตลาดแรงงาน (เพดาน Frontier)</Strong> <Em>ใหม่ใน v1.3</Em> ถ้า <Code>labour_market_alignment {'<'} 50</Code> คำตัดสิน <Code>FRONTIER</Code> จะถูกลดเป็น <Code>RISING</Code> เหตุผล: ป้าย FRONTIER สงวนไว้สำหรับหลักสูตรที่ตอบสนองอุปสงค์ของนายจ้างได้จริง</LI>
           </OL>
           <P>
             เกตเหล่านี้สื่อจุดยืนเชิงสถาบันอย่างชัดเจน:
@@ -523,7 +526,7 @@ score >= 45                                       → STABLE
         <DocSubsection number="3.7" title="การเก็บและการตรวจสอบย้อนกลับ">
           <P>
             การคำนวณวงจรชีวิตทุกครั้งจะถูก upsert ลงตาราง <Code>program_lifecycle_snapshots</Code>{' '}
-            พร้อมคำตัดสิน คะแนนแนวโน้ม เวอร์ชันระเบียบวิธี (<Code>lifecycle.v1.2</Code> ณ วันที่ร่าง)
+            พร้อมคำตัดสิน คะแนนแนวโน้ม เวอร์ชันระเบียบวิธี (<Code>lifecycle.v1.3</Code> ณ วันที่ร่าง)
             และ payload ตัวขับครบถ้วนเป็น JSON ทั้งนี้เพื่อ (ก) อ่านเร็วในหน้า cockpit
             โดยไม่ต้องคำนวณซ้ำ และ (ข) เก็บเส้นทางการตรวจสอบย้อนกลับถาวร
             ว่าหลักสูตรใดได้รับคำตัดสินใดในวันใด ด้วยข้อมูลใด
@@ -830,7 +833,7 @@ score >= 45                                       → STABLE
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.4'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.2'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.3'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
           </UL>
           <P>
             ทุกแถวคะแนนที่ระบบผลิตประทับเวอร์ชันที่ผลิตคะแนนนั้น คะแนนในอดีต <Strong>ไม่</Strong>{' '}
@@ -1030,6 +1033,7 @@ score >= 45                                       → STABLE
             <TR><TD mono>lifecycle.v1.0</TD><TD>1 พ.ค. 2569</TD><TD>ตัวจัดประเภทสี่ระดับเริ่มต้น แปดตัวขับ เกตความทันสมัยของเนื้อหา</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2 พ.ค. 2569</TD><TD>เพิ่มตัวขับ AI readiness เป็นตัวที่หนักที่สุด (±25) เพิ่มเกตปรับเปลี่ยน AI readiness สองตัว ลดน้ำหนักตัวขับ health-overall จาก ±25 เป็น ±20 เพื่อให้พื้นที่</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>12 พ.ค. 2569</TD><TD>เปิดเผย counterfactual ของเกตปรับเปลี่ยน (gap #8): ผลลัพธ์ตอนนี้พกพา <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> ไปด้วยกับ <Code>verdict</Code> ที่ผ่านเกตแล้ว ให้ผู้อ่านสภาฯ มองเห็นได้ว่าเกตปรับเปลี่ยนใดทำให้คำตัดสินเปลี่ยน + ทำไม คำตัดสินที่ผ่านเกตยังคงเดิม</TD></TR>
+            <TR><TD mono>lifecycle.v1.3</TD><TD>12 พ.ค. 2569</TD><TD>ปรับสมดุลสัญญาณเนื้อหาเชิงคุณภาพ-เชิงปริมาณ หลัง KKU-SEQ-0018 เผยให้เห็นว่าคำตัดสินความทันสมัยจาก AI peer review มีน้ำหนักเกินจริง บดบังช่องว่าง labour-market alignment ที่เพียง 12.5% ลดน้ำหนัก <Code>content_modernity</Code> ลงครึ่งหนึ่ง (±20 → ±10) เพิ่มตัวขับชั้นแรก <Code>labour_market_alignment</Code> (±15) ที่รับโดยตรงจากส่วนแบ่งอุปสงค์นายจ้าง KMITL เพิ่มเกตปรับเปลี่ยนสองตัว (<Code>lowLabourMarketAlignmentStableCap</Code> ที่ &lt;30 และ <Code>lowLabourMarketAlignmentFrontierCap</Code> ที่ &lt;50) สะท้อนรูปแบบเกต AI readiness — หลักสูตรไม่อาจอ้างแนวโน้มได้หากสอนทักษะเพียงเศษส่วนของที่นายจ้างต้องการ</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

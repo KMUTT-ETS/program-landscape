@@ -703,6 +703,7 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
     enrollment_trend: 'Enrollment growth',
     tuition_trend: 'Tuition growth',
     content_modernity: 'Curriculum modernity',
+    labour_market_alignment: 'Labour-market alignment',
     major_content_gaps: 'Major content gaps vs peers',
     demographic_resilience: 'Demographic resilience',
     delayed_graduation_share: 'Delayed-graduation share',
@@ -720,7 +721,9 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
   > = {
     oldSchoolContentCap: 'Old-school content cap',
     aiReadinessStableCap: 'AI readiness < 30 (STABLE cap)',
-    aiReadinessFrontierCap: 'AI readiness < 70 (FRONTIER cap)',
+    aiReadinessFrontierCap: 'AI readiness < 50 (FRONTIER cap)',
+    lowLabourMarketAlignmentStableCap: 'Labour-market alignment < 30 (STABLE cap)',
+    lowLabourMarketAlignmentFrontierCap: 'Labour-market alignment < 50 (FRONTIER cap)',
   };
   const ungatedMeta =
     data.ungatedVerdict !== data.verdict ? verdictMeta[data.ungatedVerdict] : null;

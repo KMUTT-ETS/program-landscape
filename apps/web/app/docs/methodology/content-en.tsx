@@ -38,7 +38,7 @@ export function MethodologyContentEn() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'Methodology code', value: <><Code>health-score.v3.4</Code> (program health) · <Code>lifecycle.v1.2</Code> (lifecycle verdict)</> },
+              { label: 'Methodology code', value: <><Code>health-score.v3.4</Code> (program health) · <Code>lifecycle.v1.3</Code> (lifecycle verdict)</> },
               { label: 'Document version', value: '1.0' },
               { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
@@ -627,11 +627,12 @@ export function MethodologyContentEn() {
               <TR><TD>2</TD><TD mono>health_overall</TD><TD>±20</TD><TD>The program's overall health score (<Code>(score − 50) × 0.4</Code>).</TD></TR>
               <TR><TD>3</TD><TD mono>enrollment_trend_slope</TD><TD>±15</TD><TD>Direction and steepness of recent enrolment trend.</TD></TR>
               <TR><TD>4</TD><TD mono>tuition_trend_slope</TD><TD>±10</TD><TD>Direction of tuition revenue trend.</TD></TR>
-              <TR><TD>5</TD><TD mono>content_modernity</TD><TD>±20</TD><TD>AI peer-review verdict on curriculum content (<Code>OLD_SCHOOL</Code> / <Code>IN_BETWEEN</Code> / <Code>FRONTIER</Code>).</TD></TR>
-              <TR><TD>6</TD><TD mono>major_content_gaps</TD><TD>up to −12</TD><TD>Penalty: 4 points per major curriculum gap identified by AI peer review, capped at 12.</TD></TR>
-              <TR><TD>7</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>Programme's resilience to Thailand's 18–22 cohort decline.</TD></TR>
-              <TR><TD>8</TD><TD mono>delayed_graduation_share</TD><TD>up to −10</TD><TD>Penalty for cohorts with high shares delayed past programme duration.</TD></TR>
-              <TR><TD>9</TD><TD mono>capability_strength</TD><TD>−8 to +8</TD><TD>Faculty seniority and publication strength.</TD></TR>
+              <TR><TD>5</TD><TD mono>content_modernity</TD><TD>±10</TD><TD>AI peer-review verdict on curriculum content (<Code>OLD_SCHOOL</Code> / <Code>IN_BETWEEN</Code> / <Code>FRONTIER</Code>). Halved from ±20 in v1.3 — qualitative LLM-as-judge signal complements but does not substitute for labour-market alignment.</TD></TR>
+              <TR><TD>6</TD><TD mono>labour_market_alignment</TD><TD>±15</TD><TD><Em>New in v1.3.</Em> Share of program skills that match KMITL employer demand (sourced directly from the relevance dimension). Brings the quantitative employer-demand signal up from "buried inside overall health" to first-class lifecycle input. Bands: ≥70 → +15, 50–70 → +5, 30–50 → −5, &lt;30 → −15. Null when KMITL career mapping isn't populated yet (no penalty).</TD></TR>
+              <TR><TD>7</TD><TD mono>major_content_gaps</TD><TD>up to −12</TD><TD>Penalty: 4 points per major curriculum gap identified by AI peer review, capped at 12.</TD></TR>
+              <TR><TD>8</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>Programme's resilience to Thailand's 18–22 cohort decline.</TD></TR>
+              <TR><TD>9</TD><TD mono>delayed_graduation_share</TD><TD>up to −10</TD><TD>Penalty for cohorts with high shares delayed past programme duration.</TD></TR>
+              <TR><TD>10</TD><TD mono>capability_strength</TD><TD>−8 to +8</TD><TD>Faculty seniority and publication strength.</TD></TR>
             </tbody>
           </Tbl>
           <P>
@@ -706,6 +707,21 @@ otherwise                                         → SUNSET`}</Pre>
               a <Code>FRONTIER</Code> verdict is downgraded to <Code>RISING</Code>. Rationale: the
               FRONTIER label is reserved for genuinely AI-integrated programs.
             </LI>
+            <LI>
+              <Strong>Labour-market alignment floor (Stable cap).</Strong>{' '}
+              <Em>New in v1.3.</Em> If <Code>labour_market_alignment {'<'} 30</Code>, any{' '}
+              <Code>RISING</Code> or <Code>FRONTIER</Code> verdict is downgraded to{' '}
+              <Code>STABLE</Code>. Rationale: a program that teaches only a fraction of
+              employer-demanded skills cannot claim trajectory, regardless of how good the AI
+              peer-review modernity verdict sounds. Null-safe: when KMITL career mapping is
+              missing, the gate cannot apply.
+            </LI>
+            <LI>
+              <Strong>Labour-market alignment floor (Frontier cap).</Strong>{' '}
+              <Em>New in v1.3.</Em> If <Code>labour_market_alignment {'<'} 50</Code>, a{' '}
+              <Code>FRONTIER</Code> verdict is downgraded to <Code>RISING</Code>. Rationale: the
+              FRONTIER label is reserved for programs that actually meet employer demand.
+            </LI>
           </OL>
           <P>
             These gates encode an explicit institutional position: that a high health score in a
@@ -729,7 +745,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="3.7" title="Persistence and audit">
           <P>
             Every lifecycle computation is upserted to a <Code>program_lifecycle_snapshots</Code>{' '}
-            table with the verdict, trajectory score, methodology version (<Code>lifecycle.v1.2</Code>{' '}
+            table with the verdict, trajectory score, methodology version (<Code>lifecycle.v1.3</Code>{' '}
             at time of writing), and the full driver payload as JSON. This enables (a) fast reads on
             the cockpit page without recomputation, and (b) a permanent audit trail of what verdict
             was assigned to which program on which date with which inputs. Snapshot-write failures are
@@ -1103,7 +1119,7 @@ otherwise                                         → SUNSET`}</Pre>
           <P>The methodology version constants are:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.4'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.2'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.3'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
           </UL>
           <P>
             Every score row emitted by the application carries the version that produced it.
@@ -1314,6 +1330,7 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>lifecycle.v1.0</TD><TD>2026-05-01</TD><TD>Initial four-band classifier; eight drivers; content-modernity gate.</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2026-05-02</TD><TD>AI-readiness added as the heaviest driver (±25); two AI-readiness modifier gates introduced; health-overall driver weight reduced from ±25 to ±20 to make headroom.</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>2026-05-12</TD><TD>Exposes the gate counterfactual (gap #8 closure): result now carries <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> alongside the gated <Code>verdict</Code>, so Council readers can see when + why a modifier gate moved the verdict. No behavioural change to the gated verdict.</TD></TR>
+            <TR><TD mono>lifecycle.v1.3</TD><TD>2026-05-12</TD><TD>Rebalances qualitative-vs-quantitative content signals after KKU-SEQ-0018 surfaced an over-weighted peer-review modernity verdict masking a 12.5% labour-market-alignment gap. <Code>content_modernity</Code> weight halved (±20 → ±10). New first-class driver <Code>labour_market_alignment</Code> (±15) sourced from the KMITL employer-demand share. Two new modifier gates (<Code>lowLabourMarketAlignmentStableCap</Code> at &lt;30, <Code>lowLabourMarketAlignmentFrontierCap</Code> at &lt;50) mirror the AI-readiness gate pattern — a program can't claim trajectory if it teaches a fraction of what employers demand.</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

@@ -2,7 +2,7 @@
 // Methodology bundle — closes evaluation-pipeline.md §13 gap #4.
 //
 // A Council Pack frequently cites 5+ sub-methodology versions in a single
-// document (health-score.v3.4, lifecycle.v1.2, risk-scoring.v1.10, peer-
+// document (health-score.v3.4, lifecycle.v1.3, risk-scoring.v1.10, peer-
 // review.v2, program-strategic-narrative.v1, ...). PDF footers embed one
 // stamp per page — readers can't tell which section uses which version.
 //
@@ -78,7 +78,13 @@ import {
 // v1.2 (2026-05-12 — gap #8) exposes the gate counterfactual: result
 // now carries `ungatedVerdict` + `gatesApplied[]` alongside the gated
 // `verdict`. No behavioural change to the gated verdict.
-const LIFECYCLE_VERSION = 'lifecycle.v1.2';
+//
+// v1.3 (2026-05-12) rebalances qualitative-vs-quantitative content
+// signals: content_modernity halved (±20 → ±10), new first-class
+// labour_market_alignment driver (±15), plus two new modifier gates
+// (lowLabourMarketAlignmentStable/FrontierCap) mirroring the AI-
+// readiness gate pattern.
+const LIFECYCLE_VERSION = 'lifecycle.v1.3';
 
 // ── The bundle ──────────────────────────────────────────────────────────
 

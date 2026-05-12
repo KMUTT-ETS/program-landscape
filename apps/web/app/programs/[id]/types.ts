@@ -56,7 +56,9 @@ export interface DeepDiveLifecycleDriver {
 export type DeepDiveLifecycleGateName =
   | 'oldSchoolContentCap'
   | 'aiReadinessStableCap'
-  | 'aiReadinessFrontierCap';
+  | 'aiReadinessFrontierCap'
+  | 'lowLabourMarketAlignmentStableCap'
+  | 'lowLabourMarketAlignmentFrontierCap';
 
 /** Gap #8 closure (lifecycle.v1.2): one modifier gate that capped the
  *  trajectory-score verdict. `from` is the counterfactual at that step. */

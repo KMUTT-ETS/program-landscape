@@ -1062,7 +1062,12 @@ export interface ProgramLifecycleDriver {
  *  position, not just the trajectory math. */
 export interface LifecycleGateEffect {
   /** Stable identifier — UI + analytics group by this. */
-  name: 'oldSchoolContentCap' | 'aiReadinessStableCap' | 'aiReadinessFrontierCap';
+  name:
+    | 'oldSchoolContentCap'
+    | 'aiReadinessStableCap'
+    | 'aiReadinessFrontierCap'
+    | 'lowLabourMarketAlignmentStableCap'
+    | 'lowLabourMarketAlignmentFrontierCap';
   /** Verdict before this gate fired (the counterfactual at this step). */
   from: ProgramLifecycleVerdict;
   /** Verdict after this gate fired. */
@@ -1104,7 +1109,27 @@ export interface ProgramLifecycleResult {
 // behavioural change to the gated verdict — only adds `ungatedVerdict`
 // + `gatesApplied[]` to the result so Council readers can see when
 // + why a modifier gate moved the verdict.
-const LIFECYCLE_VERSION = 'lifecycle.v1.2';
+//
+// v1.3 (2026-05-12) rebalances qualitative-vs-quantitative content
+// signals after KKU-SEQ-0018 surfaced an over-weighted peer-review
+// modernity verdict masking a 12.5% labour-market-alignment gap.
+// Three coordinated changes:
+//   1. content_modernity weight ±20 → ±10. The AI peer-review verdict
+//      is qualitative (LLM-as-judge reading the syllabus); halving
+//      stops a "modern-in-name-only" verdict from single-handedly
+//      maxing the trajectory.
+//   2. New first-class driver `labour_market_alignment` (±15) sourced
+//      from the relevance-dimension driver, surfacing the
+//      KMITL-employer-demand share directly into the lifecycle math
+//      instead of leaving it diluted three layers deep inside health.
+//   3. Two new modifier gates mirroring the AI-readiness gate pattern:
+//        lowLabourMarketAlignmentStableCap   (score < 30 → STABLE)
+//        lowLabourMarketAlignmentFrontierCap (score < 50 + FRONTIER → RISING)
+//      The gates make the institutional position explicit: a program
+//      can't claim trajectory if it teaches a fraction of what
+//      employers demand, regardless of how good the peer-review
+//      reasoning sounds.
+const LIFECYCLE_VERSION = 'lifecycle.v1.3';
 
 export async function programLifecycleVerdict(
   programId: string,
@@ -1167,6 +1192,10 @@ export async function programLifecycleVerdict(
   );
 
   // ── Driver 4: content modernity (AI peer review v2) ──────────────
+  // v1.3: weight halved from ±20 to ±10. This is a qualitative signal
+  // (LLM-as-judge reading the syllabus against peer institutions) and
+  // is correlated with — but not a substitute for — the quantitative
+  // labour_market_alignment driver below.
   const reviewPayload = peerReviewRow?.payloadJson as
     | { contentModernity?: { verdict: string }; contentGaps?: Array<{ severity: string }> }
     | null
@@ -1175,13 +1204,39 @@ export async function programLifecycleVerdict(
   let modernityVerdict: string | null = null;
   if (reviewPayload?.contentModernity) {
     modernityVerdict = reviewPayload.contentModernity.verdict;
-    if (modernityVerdict === 'FRONTIER') modernityContribution = 20;
-    else if (modernityVerdict === 'OLD_SCHOOL') modernityContribution = -20;
+    if (modernityVerdict === 'FRONTIER') modernityContribution = 10;
+    else if (modernityVerdict === 'OLD_SCHOOL') modernityContribution = -10;
   }
   const modernityDriver: ProgramLifecycleDriver = {
     label: 'content_modernity',
     contribution: modernityContribution,
     raw: { verdict: modernityVerdict ?? 'unknown' },
+  };
+
+  // ── Driver 4b (NEW in v1.3): labour-market alignment ─────────────
+  // Surfaces the KMITL-employer-demand-share driver from the relevance
+  // dimension directly into the lifecycle math. Previously this signal
+  // was diluted three layers deep (relevance dim → overall health →
+  // health_overall driver × 0.4), so a 12.5% labour-market gap only
+  // contributed ~-2 to the trajectory — easily masked by a +20
+  // content_modernity verdict. Now first-class at ±15. Null when the
+  // KMITL career mapping isn't populated yet (no penalty).
+  const labourMarketScore =
+    health?.dimensions.relevance.drivers.find((d) => d.label === 'labour_market_alignment')
+      ?.value ?? null;
+  const labourMarketDriver: ProgramLifecycleDriver = {
+    label: 'labour_market_alignment',
+    contribution:
+      labourMarketScore === null
+        ? 0
+        : labourMarketScore >= 70
+          ? 15
+          : labourMarketScore >= 50
+            ? 5
+            : labourMarketScore >= 30
+              ? -5
+              : -15,
+    raw: { score: labourMarketScore },
   };
 
   // ── Driver 5: major content gaps (penalty) ───────────────────────
@@ -1250,6 +1305,7 @@ export async function programLifecycleVerdict(
     enrollmentTrendDriver,
     tuitionTrendDriver,
     modernityDriver,
+    labourMarketDriver, // v1.3
     gapDriver,
     resilienceDriver,
     delayedDriver,
@@ -1319,6 +1375,40 @@ export async function programLifecycleVerdict(
       from,
       to: verdict,
       reason: `AI readiness ${aiReadiness.overallScore.toFixed(0)}/100 < 50 — FRONTIER label reserved for genuinely AI-integrated programs; caps at RISING.`,
+    });
+  }
+
+  // Labour-market-alignment gates (NEW in v1.3). A program can't claim
+  // trajectory if it teaches a fraction of what employers actually
+  // demand, regardless of how good the peer-review modernity verdict
+  // sounds. Two hard caps mirroring the AI-readiness gate pattern:
+  //   - alignment < 30 → cap at STABLE (severe curriculum-market gap)
+  //   - alignment < 50 → cap at RISING (FRONTIER reserved for programs
+  //     that actually meet employer demand)
+  // Null-safe: when the KMITL career mapping isn't populated yet, no
+  // gate fires (we can't penalise data we don't have).
+  if (
+    labourMarketScore !== null &&
+    labourMarketScore < 30 &&
+    (verdict === 'RISING' || verdict === 'FRONTIER')
+  ) {
+    const from = verdict;
+    verdict = 'STABLE';
+    gatesApplied.push({
+      name: 'lowLabourMarketAlignmentStableCap',
+      from,
+      to: verdict,
+      reason: `Labour-market alignment ${labourMarketScore.toFixed(0)}/100 < 30 — program teaches only a fraction of employer-demanded skills; caps verdict at STABLE regardless of trajectory.`,
+    });
+  }
+  if (labourMarketScore !== null && labourMarketScore < 50 && verdict === 'FRONTIER') {
+    const from = verdict;
+    verdict = 'RISING';
+    gatesApplied.push({
+      name: 'lowLabourMarketAlignmentFrontierCap',
+      from,
+      to: verdict,
+      reason: `Labour-market alignment ${labourMarketScore.toFixed(0)}/100 < 50 — FRONTIER label reserved for programs that meet employer demand; caps at RISING.`,
     });
   }
 
@@ -1421,6 +1511,10 @@ function labelGateName(name: LifecycleGateEffect['name']): string {
       return 'AI readiness < 30 (STABLE cap)';
     case 'aiReadinessFrontierCap':
       return 'AI readiness < 50 (FRONTIER cap)';
+    case 'lowLabourMarketAlignmentStableCap':
+      return 'Labour-market alignment < 30 (STABLE cap)';
+    case 'lowLabourMarketAlignmentFrontierCap':
+      return 'Labour-market alignment < 50 (FRONTIER cap)';
   }
 }
 
@@ -1461,6 +1555,7 @@ function labelToPhrase(label: string): string {
     case 'enrollment_trend': return 'enrollment growth';
     case 'tuition_trend': return 'tuition growth';
     case 'content_modernity': return 'curriculum modernity';
+    case 'labour_market_alignment': return 'labour-market alignment';
     case 'major_content_gaps': return 'major content gaps vs peers';
     case 'demographic_resilience': return 'demographic resilience';
     case 'delayed_graduation_share': return 'delayed graduation share';
