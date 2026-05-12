@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import {
   Card,
   CardHeader,
@@ -52,6 +53,7 @@ export default async function AdminPdfGenerationPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="PDF generation" />
       <PageHeader
         title="PDF Generation"
         subtitle="Every Council Pack, brief, and report this app emits routes through Gotenberg. This page tracks what has been generated, how long it took, and what failed."

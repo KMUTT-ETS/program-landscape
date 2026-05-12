@@ -3,6 +3,7 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, PageHeader } from '@kku/ui';
 import { ProgramEditClient, type ProgramDetail } from './client';
@@ -44,6 +45,7 @@ export default async function AdminProgramDetailPage({
     if (programRes.error.category === 'notFound') notFound();
     return (
       <AuthedAppShell user={user}>
+        <AdminBackNav current="Program" group="Programs" groupHref="/admin/programs" />
         <PageHeader eyebrow="Admin · Programs" title="Program" />
         <DiagnosticEmptyState surface="this program" error={programRes.error} />
       </AuthedAppShell>
@@ -53,6 +55,7 @@ export default async function AdminProgramDetailPage({
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current={program.code} group="Programs" groupHref="/admin/programs" />
       <PageHeader
         eyebrow="Admin · Programs"
         title={program.nameEn}

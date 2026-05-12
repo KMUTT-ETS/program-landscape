@@ -471,13 +471,17 @@ export function ProgramsListClient({
                     <button
                       type="button"
                       onClick={toggleAllOnPage}
-                      className="flex items-center text-text-secondary hover:text-text-primary"
+                      // Bigger hit target — operators frequently bulk-
+                      // select 20+ programs at a time. The icon itself
+                      // is h-5 (20px) and the button has comfortable
+                      // padding around it.
+                      className="-m-2 flex items-center rounded p-2 text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                       title={allOnPageSelected ? 'Deselect all on this page' : 'Select all on this page'}
                     >
                       {allOnPageSelected ? (
-                        <CheckSquare className="h-4 w-4" aria-hidden />
+                        <CheckSquare className="h-5 w-5 text-accent-default" aria-hidden />
                       ) : (
-                        <Square className="h-4 w-4" aria-hidden />
+                        <Square className="h-5 w-5" aria-hidden />
                       )}
                     </button>
                   </th>
@@ -505,13 +509,13 @@ export function ProgramsListClient({
                         <button
                           type="button"
                           onClick={() => toggleRow(r.id)}
-                          className="flex items-center text-text-secondary hover:text-text-primary"
+                          className="-m-2 flex items-center rounded p-2 text-text-secondary hover:bg-surface-2 hover:text-text-primary"
                           aria-label={isSelected ? 'Deselect row' : 'Select row'}
                         >
                           {isSelected ? (
-                            <CheckSquare className="h-4 w-4 text-accent-default" aria-hidden />
+                            <CheckSquare className="h-5 w-5 text-accent-default" aria-hidden />
                           ) : (
-                            <Square className="h-4 w-4" aria-hidden />
+                            <Square className="h-5 w-5" aria-hidden />
                           )}
                         </button>
                       </td>

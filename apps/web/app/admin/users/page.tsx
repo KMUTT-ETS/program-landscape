@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { isAdminGrade, type Role, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { PageHeader } from '@kku/ui';
 import { prisma, type Prisma } from '@kku/db';
 import { UsersClient } from './client';
@@ -133,6 +134,7 @@ export default async function AdminUsersPage({
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Users & access" />
       <PageHeader
         eyebrow="Admin · Users"
         title="Users & access"

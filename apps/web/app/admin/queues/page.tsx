@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { isAdminGrade, isSuperGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { Card, PageHeader } from '@kku/ui';
 import { QueuesClient } from './client';
 
@@ -21,6 +22,7 @@ export default async function QueuesPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Job queues" />
       <PageHeader
         eyebrow="Admin · Queues"
         title="Job queues"

@@ -3,6 +3,7 @@ import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { RegistryMappingClient } from './client';
@@ -49,6 +50,7 @@ export default async function RegistryMappingPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Registry mapping" />
       <PageHeader
         title="Registry mapping triage"
         subtitle="Programs that the auto-seed couldn't pair with a kku-registry tuple. Each pairing creates one RegistryProgramMapping row, which lets the kku-finance + kku-registry connectors compute tuition revenue + enrolment for that program."

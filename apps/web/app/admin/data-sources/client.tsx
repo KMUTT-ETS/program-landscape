@@ -44,6 +44,17 @@ interface RunRow {
   errorMessage: string | null;
 }
 
+// Sort priority by status: ACTIVE float to the top so operators see
+// what's actually firing first, then PAUSED, MOCKED, ERROR, and
+// DISABLED tail. Within the same status, name-alphabetical.
+const STATUS_RANK: Record<string, number> = {
+  active: 0,
+  paused: 1,
+  mocked: 2,
+  error: 3,
+  disabled: 4,
+};
+
 export function DataSourcesClient({
   rows,
   canConfigure,
@@ -57,6 +68,15 @@ export function DataSourcesClient({
   const [detail, setDetail] = React.useState<DataSourceRow | null>(null);
   const [detailRuns, setDetailRuns] = React.useState<RunRow[] | null>(null);
 
+  const sortedRows = React.useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const ra = STATUS_RANK[a.status.toLowerCase()] ?? 99;
+      const rb = STATUS_RANK[b.status.toLowerCase()] ?? 99;
+      if (ra !== rb) return ra - rb;
+      return a.name.localeCompare(b.name);
+    });
+  }, [rows]);
+
   // Toggle-one row in/out of the bulk selection.
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -68,7 +88,7 @@ export function DataSourcesClient({
   };
 
   const allVisibleSelected =
-    rows.length > 0 && rows.every((r) => selected.has(r.id));
+    sortedRows.length > 0 && sortedRows.every((r) => selected.has(r.id));
 
   const columns: ColumnDef<DataSourceRow>[] = [
     {
@@ -79,7 +99,7 @@ export function DataSourcesClient({
           aria-label="Select all"
           checked={allVisibleSelected}
           onChange={(e) => {
-            if (e.target.checked) setSelected(new Set(rows.map((r) => r.id)));
+            if (e.target.checked) setSelected(new Set(sortedRows.map((r) => r.id)));
             else setSelected(new Set());
           }}
         />
@@ -250,7 +270,7 @@ export function DataSourcesClient({
       <Card padding="none">
         <DataTable
           columns={columns}
-          data={rows}
+          data={sortedRows}
           globalFilter={filter}
           variant="ghost"
           pageSize={50}

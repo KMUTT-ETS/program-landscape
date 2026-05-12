@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { Badge, Card, PageHeader, Section } from '@kku/ui';
 
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,7 @@ export default async function DataQualityPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Data quality" />
       <PageHeader
         eyebrow="Admin · Data quality"
         title="Data quality dashboard"

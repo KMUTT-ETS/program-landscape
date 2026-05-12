@@ -4,6 +4,7 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Button, ConfidenceBadge, PageHeader } from '@kku/ui';
 import { ArrowLeft } from 'lucide-react';
@@ -56,6 +57,7 @@ export default async function AdminAiExtractionDetailPage({
     if (extractionRes.error.category === 'notFound') notFound();
     return (
       <AuthedAppShell user={user}>
+        <AdminBackNav current="Extraction detail" group="AI extraction review" groupHref="/admin/extraction-review" />
         <PageHeader title="AI extraction" />
         <DiagnosticEmptyState surface="this AI extraction" error={extractionRes.error} />
       </AuthedAppShell>
@@ -66,6 +68,7 @@ export default async function AdminAiExtractionDetailPage({
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Extraction detail" group="AI extraction review" groupHref="/admin/extraction-review" />
       <PageHeader
         title={extraction.extractionKind}
         subtitle={`${extraction.sourceEntityType} · ${extraction.sourceEntityId} · ${extraction.methodVersion}`}

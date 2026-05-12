@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { Badge, Card, PageHeader, Section } from '@kku/ui';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ export default async function AiCostPage({
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="AI cost" />
       <PageHeader
         eyebrow="Admin · AI cost"
         title="AI cost rollup"

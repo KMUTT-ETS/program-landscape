@@ -3,6 +3,7 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section } from '@kku/ui';
 import { DataSourcesClient } from './client';
@@ -51,6 +52,7 @@ export default async function AdminDataSourcesPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Data sources" />
       <PageHeader
         title="Data sources"
         subtitle="Every external feed powering this app — from KKU Registry to WEF Future of Jobs. Real wiring in prompt 14; mocked sources are marked."

@@ -4,6 +4,7 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Card, ConfidenceBadge, EmptyState, PageHeader, Section } from '@kku/ui';
 
@@ -56,6 +57,7 @@ export default async function AdminExtractionReviewPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="AI extraction review" group="Job queues" groupHref="/admin/queues" />
       <PageHeader
         title="AI extraction review"
         subtitle="LLM outputs that landed below the auto-approve threshold. Each row is one extraction — approve to materialise it into the domain tables."

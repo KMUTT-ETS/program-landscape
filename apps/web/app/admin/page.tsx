@@ -322,37 +322,48 @@ function Tile({ tile }: { tile: ConsoleTile }) {
   return (
     <Link href={tile.href} className="group block">
       <Card
-        padding="md"
+        padding="lg"
         elevation="sm"
         className="relative h-full overflow-hidden transition-all hover:border-border-strong hover:shadow-elevation-3"
       >
-        {/* Subtle gradient sweep on hover */}
+        {/* Warm gradient sweep on hover — super-tier tiles get the
+            KKU cardinal accent; the rest get the warm-neutral accent.
+            Adds the "this is a place you can go" warmth to each tile. */}
         <div
           aria-hidden
           className="absolute inset-0 -z-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
           style={{
             background:
-              'linear-gradient(135deg, transparent 0%, transparent 60%, oklch(var(--color-accent-default) / 0.06) 100%)',
+              tile.tone === 'super'
+                ? 'linear-gradient(135deg, transparent 0%, transparent 50%, oklch(var(--color-brand-cardinal) / 0.08) 100%)'
+                : 'linear-gradient(135deg, transparent 0%, transparent 50%, oklch(var(--color-accent-default) / 0.08) 100%)',
           }}
         />
 
-        <div className="relative flex items-start gap-3">
-          {/* Icon halo — gradient ring + tinted fill */}
+        <div className="relative flex items-start gap-4">
+          {/* Icon — 56px badge with a soft glow on hover. Bumped from
+              40px so the icon reads at a glance instead of as a tiny
+              chip in the corner. */}
           <div className="relative flex-shrink-0">
             <div
               aria-hidden
-              className="absolute -inset-px rounded-xl opacity-0 blur-sm transition-opacity duration-200 group-hover:opacity-60"
-              style={{ background: 'oklch(var(--color-accent-default) / 0.6)' }}
+              className="absolute -inset-1 rounded-2xl opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70"
+              style={{
+                background:
+                  tile.tone === 'super'
+                    ? 'oklch(var(--color-brand-cardinal) / 0.55)'
+                    : 'oklch(var(--color-accent-default) / 0.6)',
+              }}
             />
             <div
               className={[
-                'relative flex h-10 w-10 items-center justify-center rounded-xl border',
+                'relative flex h-14 w-14 items-center justify-center rounded-2xl border',
                 tile.tone === 'super'
-                  ? 'border-danger/25 bg-danger/8 text-danger'
+                  ? 'border-danger/30 bg-danger/8 text-danger'
                   : tile.tone === 'warn'
-                    ? 'border-warning-default/30 bg-warning-default/10 text-warning-default'
+                    ? 'border-warning-default/35 bg-warning-default/10 text-warning-default'
                     : 'border-border-default bg-surface-2 text-text-secondary',
-                'transition-all group-hover:scale-[1.02] group-hover:border-accent-default/40',
+                'transition-all duration-200 group-hover:scale-[1.04] group-hover:border-accent-default/45',
               ].join(' ')}
             >
               {tile.icon}
@@ -361,30 +372,27 @@ function Tile({ tile }: { tile: ConsoleTile }) {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-[13px] font-medium text-text-primary">
+              <div className="text-[15px] font-medium text-text-primary">
                 {tile.label}
               </div>
               {tile.badge && (
-                <Badge
-                  tone={tile.badge.tone ?? 'neutral'}
-                                    className="tabular-nums"
-                >
+                <Badge tone={tile.badge.tone ?? 'neutral'} className="tabular-nums">
                   {tile.badge.label}
                 </Badge>
               )}
             </div>
-            <div className="mt-1 text-[12px] leading-relaxed text-text-tertiary line-clamp-3">
+            <div className="mt-1.5 text-[12.5px] leading-relaxed text-text-tertiary line-clamp-3">
               {tile.description}
             </div>
             {tile.meta && (
-              <div className="mt-2 text-[11px] text-text-tertiary/80">
+              <div className="mt-2.5 text-[11px] text-text-tertiary/80">
                 {tile.meta}
               </div>
             )}
           </div>
 
           <ArrowUpRight
-            className="absolute right-3 top-3 h-3.5 w-3.5 text-text-tertiary opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-accent-default"
+            className="absolute right-3 top-3 h-4 w-4 text-text-tertiary opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-accent-default"
             aria-hidden
           />
         </div>
@@ -486,7 +494,7 @@ function buildGroups({
       label: 'Program list',
       description:
         'Full table of the 297 KKU programs — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch), add new program via PDF upload.',
-      icon: <Building2 className="h-5 w-5" />,
+      icon: <Building2 className="h-6 w-6" />,
       badge: dataStats
         ? { label: dataStats.programs.total.toLocaleString(), tone: 'neutral' }
         : undefined,
@@ -506,7 +514,7 @@ function buildGroups({
       label: 'DB / API connectors',
       description:
         'Structured-data sources — KKU Registrar, KKU HR, KKU Finance, KMITL skill mapping. Manage cron schedules and fire manual re-syncs.',
-      icon: <Database className="h-5 w-5" />,
+      icon: <Database className="h-6 w-6" />,
       badge: dataStats
         ? {
             label: `${dataStats.dataFeeds.live} live`,
@@ -520,7 +528,7 @@ function buildGroups({
       label: 'AI search & synthesis',
       description:
         'External intelligence feeds — WEF, IMD, BOI, World Bank, Google News. URL-list + web-search sources, AI-summarised into trend_signals.',
-      icon: <Globe2 className="h-5 w-5" />,
+      icon: <Globe2 className="h-6 w-6" />,
       badge: { label: 'Phase 5', tone: 'info' },
     },
     {
@@ -528,21 +536,21 @@ function buildGroups({
       label: 'PDF library',
       description:
         'Non-curriculum PDFs — Thai government / MHESI / KKU / faculty policy documents and reports. Re-extract, archive, deprecate, delete.',
-      icon: <FileSearch className="h-5 w-5" />,
+      icon: <FileSearch className="h-6 w-6" />,
     },
     {
       href: '/admin/registry-mapping',
       label: 'Registry mapping',
       description:
         'Resolve unmatched registrar tuples to canonical Program rows — analyst-driven crosswalk for the kku-registry connector.',
-      icon: <GitBranch className="h-5 w-5" />,
+      icon: <GitBranch className="h-6 w-6" />,
     },
     {
       href: '/admin/data-quality',
       label: 'Data quality',
       description:
         'Completeness + year-on-year drift detection across enrollment, financials, outcome series. Surfaces when an external feed turns flaky.',
-      icon: <ClipboardCheck className="h-5 w-5" />,
+      icon: <ClipboardCheck className="h-6 w-6" />,
       badge: sysStatus
         ? (() => {
             const stale = sysStatus.dataFreshness.filter((f) => f.stale).length;
@@ -564,7 +572,7 @@ function buildGroups({
       label: 'Users & access',
       description:
         'Pre-provision KKU staff, assign roles, and bind faculty scope to user accounts.',
-      icon: <Users className="h-5 w-5" />,
+      icon: <Users className="h-6 w-6" />,
       roles: ADMIN_GRADE,
     },
     {
@@ -572,7 +580,7 @@ function buildGroups({
       label: 'AI settings',
       description:
         'Per-task model picker + cost dashboard. Override the default model for any methodVersion, view spend per user / module / 7-30 days.',
-      icon: <Settings2 className="h-5 w-5" />,
+      icon: <Settings2 className="h-6 w-6" />,
       roles: SUPER_GRADE,
       tone: 'super',
       badge: { label: 'Phase 3', tone: 'info' },
@@ -585,7 +593,7 @@ function buildGroups({
       label: 'Job queues',
       description:
         'Live BullMQ state with realtime tiles + recent-activity stream + per-queue throughput. Human-review queues (AI + PDF extractions awaiting sign-off) surface inline; pause, resume, retry, clean from the same page.',
-      icon: <Layers className="h-5 w-5" />,
+      icon: <Layers className="h-6 w-6" />,
       roles: ADMIN_GRADE,
       // Two signals folded into this tile: BullMQ run failures (system
       // health) + pending AI-extraction reviews (analyst-attention).
@@ -612,7 +620,7 @@ function buildGroups({
       label: 'System status',
       description:
         'Database / Redis / MinIO / Gotenberg / AI provider health and dependency probes.',
-      icon: <Activity className="h-5 w-5" />,
+      icon: <Activity className="h-6 w-6" />,
       roles: ADMIN_GRADE,
       badge: sysStatus
         ? (() => {
@@ -628,7 +636,7 @@ function buildGroups({
       label: 'PDF generation',
       description:
         'Every Council Pack, brief, and report routed through Gotenberg — generation history, durations, failures.',
-      icon: <FileText className="h-5 w-5" />,
+      icon: <FileText className="h-6 w-6" />,
     },
   ];
 

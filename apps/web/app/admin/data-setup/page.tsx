@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import {
   Badge,
   Button,
@@ -105,6 +106,7 @@ export default async function AdminDataSetupPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Data setup" />
       <PageHeader
         eyebrow="Admin · Data setup"
         title="Feed the system"

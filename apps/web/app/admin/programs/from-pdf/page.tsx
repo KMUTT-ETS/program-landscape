@@ -3,6 +3,7 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section } from '@kku/ui';
 import { FromPdfClient } from './client';
@@ -35,6 +36,7 @@ export default async function NewFromPdfPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="New from PDF" group="Programs" groupHref="/admin/programs" />
       <PageHeader
         eyebrow="Admin · Programs"
         title="New program from PDF"

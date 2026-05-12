@@ -4,6 +4,7 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
@@ -64,6 +65,7 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
   if (!statsRes.ok) {
     return (
       <AuthedAppShell user={user}>
+        <AdminBackNav current={params.slug} group="Data sources" groupHref="/admin/data-sources" />
         <PageHeader title="Data source" subtitle={params.slug} />
         <DiagnosticEmptyState surface="this data source" error={statsRes.error} />
       </AuthedAppShell>
@@ -77,6 +79,7 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current={stats.name} group="Data sources" groupHref="/admin/data-sources" />
       <PageHeader
         title={stats.name}
         subtitle={

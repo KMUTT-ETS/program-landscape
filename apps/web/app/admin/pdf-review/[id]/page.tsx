@@ -2,8 +2,9 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch, apiFetchSafe } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Button, PageHeader } from '@kku/ui';
 import { ReviewClient } from './client';
@@ -63,6 +64,7 @@ export default async function AdminPdfReviewDetailPage({
     if (pdfRes.error.category === 'notFound') notFound();
     return (
       <AuthedAppShell user={user}>
+        <AdminBackNav current="PDF detail" group="PDF library" groupHref="/admin/pdf-review" />
         <PageHeader title="PDF" />
         <DiagnosticEmptyState surface="this PDF" error={pdfRes.error} />
       </AuthedAppShell>
@@ -71,13 +73,14 @@ export default async function AdminPdfReviewDetailPage({
   if (!pdfRes.data) notFound();
   const pdf = pdfRes.data;
 
-  // Signed URL fetched server-side so the client component gets a URL
-  // already scoped to the user's session. TTL is short (15 min default),
-  // which is fine for a single review session.
-  const { url: fileUrl } = await apiFetch<{ url: string }>(`/pdfs/${id}/signed-url`);
+  // Same-origin streaming proxy. The browser never sees the internal
+  // MinIO endpoint, and this URL works in prod where MinIO is on the
+  // docker network only. See apps/web/app/api/pdfs/[id]/file/route.ts.
+  const fileUrl = `/api/pdfs/${id}/file`;
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current={pdf?.originalFilename ?? 'PDF detail'} group="PDF library" groupHref="/admin/pdf-review" />
       <PageHeader
         title={pdf.originalFilename}
         subtitle={`${pdf.pageCount} pages · ${pdf.sourceOrg ?? 'Unknown source'} · uploaded ${new Date(pdf.uploadedAt).toLocaleString()}`}

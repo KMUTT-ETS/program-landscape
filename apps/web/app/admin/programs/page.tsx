@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import { Button, EdgeGlow, KPI, PageHeader, Section } from '@kku/ui';
 import Link from 'next/link';
 import { FileUp, Plus } from 'lucide-react';
@@ -97,6 +98,7 @@ export default async function AdminProgramsPage({
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="Programs" />
       <PageHeader
         eyebrow="Admin · Programs"
         title="Program management"

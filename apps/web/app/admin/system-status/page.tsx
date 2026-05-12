@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { AdminBackNav } from '@/components/admin-back-nav';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { Badge, Card, PageHeader, Section, FreshnessBadge } from '@kku/ui';
@@ -61,6 +62,7 @@ export default async function SystemStatusPage() {
 
   return (
     <AuthedAppShell user={user}>
+      <AdminBackNav current="System status" />
       <PageHeader
         eyebrow="Admin · Runtime"
         title="System status"
