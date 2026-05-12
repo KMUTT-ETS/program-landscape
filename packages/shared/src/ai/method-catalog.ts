@@ -1,0 +1,366 @@
+// ─────────────────────────────────────────────────────────────────────────
+// AI method catalog — admin-facing metadata for every AI prompt version
+// in the system. Drives the /admin/app/ai-settings page (per-method model
+// picker) and the GET /admin/ai-settings endpoint.
+//
+// Adding a new prompt? Add it here AND to the relevant *_VERSION export
+// in packages/shared/src/ai/prompts/* so the runtime stamps match what
+// admins see in the picker.
+//
+// `methodPrefix` MUST match `startsWith()` semantics against the runtime
+// `methodVersion` (e.g. "program-pedagogy" matches "program-pedagogy.v1"
+// and "program-pedagogy.v2" alike). Prefix → override is the dispatch
+// contract — once an admin picks a model for "program-pedagogy", any
+// future v-bump inherits the choice unless explicitly cleared.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type AiMethodTier =
+  | 'reasoning' // Pro-class — needs reasoning, slow, expensive
+  | 'extraction' // Structured PDF / text extraction
+  | 'narrative' // Long-form generation
+  | 'classification' // Short label / score generation
+  | 'embedding'; // Vector embedding only
+
+export interface AiMethodEntry {
+  /** Prefix matched against the runtime methodVersion. */
+  methodPrefix: string;
+  /** Current pinned version — what the prompts/* file exports today. */
+  currentVersion: string;
+  /** Human label for the admin UI. */
+  label: string;
+  /** One-sentence description (admin-facing). */
+  description: string;
+  /** Which module surfaces this prompt. */
+  module:
+    | 'cockpit'
+    | 'gap'
+    | 'scenarios'
+    | 'decisions'
+    | 'benchmarking'
+    | 'analyst'
+    | 'pipeline'
+    | 'ingestion'
+    | 'profile';
+  /** Workload tier — drives which models in the catalog make sense. */
+  tier: AiMethodTier;
+  /** Static MODEL_BY_METHOD_PREFIX default for this prefix (Google side). */
+  defaultModel: string;
+}
+
+export const AI_METHOD_CATALOG: AiMethodEntry[] = [
+  // ── Program pipeline (heaviest cost cluster) ─────────────────────────
+  {
+    methodPrefix: 'program-digest',
+    currentVersion: 'program-digest.v1',
+    label: 'Program digest (PDF → structured)',
+    description: 'Single-shot extraction of program metadata, courses, skills, and recruitment summary from curriculum PDF.',
+    module: 'pipeline',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-faculty',
+    currentVersion: 'program-faculty.v1',
+    label: 'Program faculty extraction',
+    description: 'Pulls academic staff roster from curriculum PDF (names, ranks, ORCID, areas).',
+    module: 'pipeline',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-skills-detailed',
+    currentVersion: 'program-skills-detailed.v2',
+    label: 'Program skills (per-course)',
+    description: 'Per-course skill extraction with weight + verbatim evidence quote per skill.',
+    module: 'pipeline',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-peer-review',
+    currentVersion: 'program-peer-review.v2',
+    label: 'Peer-comparative program review',
+    description: 'Frank cross-program critique against peer institutions; curriculum modernity verdict.',
+    module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-peer-selection',
+    currentVersion: 'program-peer-selection.v1',
+    label: 'Peer selection',
+    description: 'Picks the 5 most-comparable peer programs from a candidate set.',
+    module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-strategic-narrative',
+    currentVersion: 'program-strategic-narrative.v1',
+    label: 'Program strategic narrative',
+    description: 'Council-grade strategic brief — official Thai format with disciplined drafting.',
+    module: 'pipeline',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-ai-readiness',
+    currentVersion: 'program-ai-readiness.v2',
+    label: 'Program AI readiness',
+    description: 'Discipline-aware AI-readiness assessment (per-discipline rubric, not generic keyword count).',
+    module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'program-pedagogy',
+    currentVersion: 'program-pedagogy.v1',
+    label: 'Program pedagogy',
+    description: 'Reads PDF teaching/learning/QA narrative and scores against discipline best practice (PBL, internship, clinical, etc.).',
+    module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'risk-assessment',
+    currentVersion: 'risk-assessment.v2',
+    label: 'Risk assessment',
+    description: 'Per-program risk indicators + recommended mitigation measures.',
+    module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+
+  // ── Cross-module AI surfaces ─────────────────────────────────────────
+  {
+    methodPrefix: 'gap-insights',
+    currentVersion: 'gap-insights.v1',
+    label: 'Gap analyzer insights',
+    description: 'Strategic top-5 / per-program skills / sector brief — three modes.',
+    module: 'gap',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'scenario-insights',
+    currentVersion: 'scenario-insights.v1',
+    label: 'Scenario planner insights',
+    description: '5 modes: suggest-assumptions / identify-risks / compare / devils-advocate / what-would-change.',
+    module: 'scenarios',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'benchmarking-insights',
+    currentVersion: 'benchmarking-insights.v1',
+    label: 'Benchmarking insights',
+    description: '4 modes: suggest-peers / curriculum-gap / distinctiveness / positioning-brief.',
+    module: 'benchmarking',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'outcome-review',
+    currentVersion: 'outcome-review.v1',
+    label: 'Decision outcome review',
+    description: 'AI-generated post-decision outcome review (6mo / 1yr / 3yr horizons).',
+    module: 'decisions',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+
+  // ── Ingestion / classification (lighter workload) ────────────────────
+  {
+    methodPrefix: 'course-skills',
+    currentVersion: 'course-skills.v1',
+    label: 'Course → skill extraction',
+    description: 'Maps a course description to its taxonomy skills (ai-jobs queue).',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'job-posting-skills',
+    currentVersion: 'job-posting-skills.v1',
+    label: 'Job posting → skill extraction',
+    description: 'Maps a job posting to its taxonomy skills (labour-market path).',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'policy-doc',
+    currentVersion: 'policy-doc.v1',
+    label: 'Policy document analysis',
+    description: 'Extracts narrative + topic tags + sector relevance from policy PDFs.',
+    module: 'ingestion',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'skill-name-normaliser',
+    currentVersion: 'skill-name-normaliser.v1',
+    label: 'Skill name normaliser',
+    description: 'Resolves free-text skill names to the canonical taxonomy (low-stakes classification).',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'demand-match',
+    currentVersion: 'demand-match.v2',
+    label: 'Demand → skill match',
+    description: 'Cross-references labour-market demand strings against the KKU skill taxonomy.',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'career-kmitl-mapping',
+    currentVersion: 'career-kmitl-mapping.v1',
+    label: 'KMITL career mapping',
+    description: 'Maps KMITL skill-mapping careers to ISCO-08 + program affinity.',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'imd-rankings',
+    currentVersion: 'imd-rankings.v1',
+    label: 'IMD rankings extract',
+    description: 'Extracts country ranking rows from the annual IMD World Competitiveness PDF.',
+    module: 'ingestion',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'graduate-employment-survey',
+    currentVersion: 'graduate-employment-survey.v1',
+    label: 'Graduate employment survey',
+    description: 'Extracts structured outcomes from KKU graduate-employment-survey PDFs.',
+    module: 'ingestion',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+
+  // ── Profile / analyst ────────────────────────────────────────────────
+  {
+    methodPrefix: 'expertise-narrative',
+    currentVersion: 'expertise-narrative.v2',
+    label: 'Profile expertise narrative',
+    description: 'Per-user expertise blurb from education + publication titles (profile page).',
+    module: 'profile',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+  {
+    methodPrefix: 'analyst-system',
+    currentVersion: 'analyst-system.v1',
+    label: 'AI Analyst (tool-use)',
+    description: 'Conversational analyst with 12 grounding tools. Uses Anthropic for tool-use.',
+    module: 'analyst',
+    tier: 'reasoning',
+    defaultModel: 'claude-sonnet-4-6',
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────
+// Available models — the curated catalog admins can pick from. Keep this
+// short on purpose: every entry here must be one we've QA'd against at
+// least one prompt in the system. New entries land here AFTER a smoke run.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type AiModelProvider = 'google' | 'anthropic';
+
+export interface AiModelEntry {
+  id: string;
+  label: string;
+  provider: AiModelProvider;
+  tier: 'pro' | 'flash' | 'sonnet' | 'haiku' | 'opus';
+  description: string;
+  /** USD per 1M input tokens. */
+  costInputPer1m: number;
+  /** USD per 1M output tokens. */
+  costOutputPer1m: number;
+  /** True when this model should NOT be the default pick for new methods. */
+  legacy?: boolean;
+}
+
+export const AVAILABLE_AI_MODELS: AiModelEntry[] = [
+  // ── Google Gemini ────────────────────────────────────────────────────
+  {
+    id: 'gemini-3.1-pro-preview',
+    label: 'Gemini 3.1 Pro (preview)',
+    provider: 'google',
+    tier: 'pro',
+    description: 'Default Pro tier — best reasoning, slowest, ~$1.25/$10 per 1M tokens. Required for peer-review + strategic narrative.',
+    costInputPer1m: 1.25,
+    costOutputPer1m: 10,
+  },
+  {
+    id: 'gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    provider: 'google',
+    tier: 'pro',
+    description: 'Pro tier with stable thoughtSignature support — preferred for analyst tool-use loops.',
+    costInputPer1m: 1.25,
+    costOutputPer1m: 10,
+  },
+  {
+    id: 'gemini-2.5-flash',
+    label: 'Gemini 2.5 Flash',
+    provider: 'google',
+    tier: 'flash',
+    description: 'Flash tier — fast, cheap (~$0.075/$0.30 per 1M tokens). Use for classification / normalisation. Truncation risk on >400-token outputs.',
+    costInputPer1m: 0.075,
+    costOutputPer1m: 0.3,
+    legacy: true,
+  },
+  {
+    id: 'gemini-flash-latest',
+    label: 'Gemini Flash (latest)',
+    provider: 'google',
+    tier: 'flash',
+    description: 'Latest Flash alias — same pricing as 2.5 Flash but may track ahead of stable.',
+    costInputPer1m: 0.075,
+    costOutputPer1m: 0.3,
+    legacy: true,
+  },
+
+  // ── Anthropic Claude ─────────────────────────────────────────────────
+  {
+    id: 'claude-opus-4-7',
+    label: 'Claude Opus 4.7',
+    provider: 'anthropic',
+    tier: 'opus',
+    description: 'Most capable Claude — best for nuanced narrative + critique. Most expensive.',
+    costInputPer1m: 15,
+    costOutputPer1m: 75,
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    label: 'Claude Sonnet 4.6',
+    provider: 'anthropic',
+    tier: 'sonnet',
+    description: 'Mid-tier Claude — strong tool-use support. Default for the AI Analyst.',
+    costInputPer1m: 3,
+    costOutputPer1m: 15,
+  },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    label: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    tier: 'haiku',
+    description: 'Fastest, cheapest Claude — fine for classification / short summaries.',
+    costInputPer1m: 1,
+    costOutputPer1m: 5,
+  },
+];
+
+export function findAiMethodEntry(prefix: string): AiMethodEntry | undefined {
+  return AI_METHOD_CATALOG.find((e) => e.methodPrefix === prefix);
+}
+
+export function findAiModelEntry(id: string): AiModelEntry | undefined {
+  return AVAILABLE_AI_MODELS.find((m) => m.id === id);
+}

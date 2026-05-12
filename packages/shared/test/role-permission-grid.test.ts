@@ -69,13 +69,16 @@ describe('Role → permission grid (canonical matrix)', () => {
     }
   });
 
-  describe('SYSTEM_ADMIN — everything EXCEPT queues:manage', () => {
+  describe('SYSTEM_ADMIN — everything EXCEPT super-only perms', () => {
     const u = user('SYSTEM_ADMIN');
     it('does NOT have queues:manage', () => {
       expect(hasPermission(u, 'queues:manage')).toBe(false);
     });
+    it('does NOT have ai_models:configure', () => {
+      expect(hasPermission(u, 'ai_models:configure')).toBe(false);
+    });
     for (const p of PERMISSIONS) {
-      if (p === 'queues:manage') continue;
+      if (p === 'queues:manage' || p === 'ai_models:configure') continue;
       it(`has ${p}`, () => {
         expect(hasPermission(u, p)).toBe(true);
       });

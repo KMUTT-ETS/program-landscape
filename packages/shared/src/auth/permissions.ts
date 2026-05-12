@@ -96,6 +96,12 @@ export const PERMISSIONS = [
   'risks:assess:any',
   'risks:measures:edit',
 
+  // AI model dispatch — gates the admin AI-settings page where the
+  // per-method model picker lives. Super-admin only because model
+  // choice has direct cost + reliability + Council-defensibility
+  // impact; same posture as `queues:manage`.
+  'ai_models:configure',
+
   // University-wide dashboards (Education, Staff, System status). These
   // surfaces read every faculty's data by design — they're for Council
   // and university-management roles, not for FACULTY_USER / PROGRAM_USER
@@ -118,7 +124,7 @@ const SUPER_ADMIN_PERMS: Permission[] = [...PERMISSIONS];
 // lives in the admin-users service layer (role assignment validation),
 // not here. Queue management is super-only.
 const SYSTEM_ADMIN_PERMS: Permission[] = [
-  ...PERMISSIONS.filter((p) => p !== 'queues:manage'),
+  ...PERMISSIONS.filter((p) => p !== 'queues:manage' && p !== 'ai_models:configure'),
 ];
 
 // UNIVERSITY_USER — read-all at university scope. Inherits the legacy
