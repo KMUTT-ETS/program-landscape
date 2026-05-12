@@ -3,7 +3,7 @@
 // program's PLOs + course descriptions + extracted skills.
 //
 // Usage:
-//   pnpm programs:match-demand <code|mhesi|sequenceNo|id>
+//   pnpm programs:match-demand <code|mhesi|sequenceNo|id> [--model=<name>]
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -53,9 +53,11 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const positional = args.find((a) => !a.startsWith('--'));
   if (!positional) {
-    console.error('Usage: pnpm programs:match-demand <code|mhesi|sequenceNo|id>');
+    console.error('Usage: pnpm programs:match-demand <code|mhesi|sequenceNo|id> [--model=<name>]');
     process.exit(1);
   }
+  const modelArg = args.find((a) => a.startsWith('--model='));
+  const modelOverride = modelArg ? modelArg.split('=')[1] : undefined;
 
   const programId = await resolveProgramId(positional);
   const recorder = new PrismaAiInferenceRecorder();
@@ -70,9 +72,11 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log('Running demand-driven curriculum match…');
+  console.log(
+    `Running demand-driven curriculum match…${modelOverride ? ` (model=${modelOverride})` : ''}`,
+  );
   const t0 = Date.now();
-  const result = await runDemandMatch({ programId, ai });
+  const result = await runDemandMatch({ programId, ai, modelOverride });
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
   console.log(`\nDone in ${elapsed}s`);

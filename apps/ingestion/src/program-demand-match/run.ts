@@ -28,6 +28,11 @@ export interface MatchDemandParams {
   /** When true, force the AI re-run even if a complete match set already
    *  exists. Useful after PLO/digest updates. */
   force?: boolean;
+  /** Override the model used for the structured match call. Defaults to
+   *  `gemini-flash-latest`. Use a Pro model (e.g. `gemini-3.1-pro-preview`)
+   *  when flash truncates the structured response on long demanded-skill
+   *  sets — the long structured output is in Pro's wheelhouse. */
+  modelOverride?: string;
 }
 
 export type MatchDemandOutcome =
@@ -181,7 +186,10 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       // when the v2 schema (added relevantToCurriculum) and prompt (added
       // discipline-relevance rules) grew. gemini-flash-latest handles
       // longer structured output more reliably for this prompt class.
-      model: 'gemini-flash-latest',
+      // params.modelOverride lets an operator escalate to Pro when even
+      // gemini-flash-latest truncates (observed sporadically at ~463
+      // output tokens on long PLO sets).
+      model: params.modelOverride ?? 'gemini-flash-latest',
       maxOutputTokens: 12000,
     },
     DemandMatchSchema,
