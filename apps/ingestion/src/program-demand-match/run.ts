@@ -29,9 +29,9 @@ export interface MatchDemandParams {
    *  exists. Useful after PLO/digest updates. */
   force?: boolean;
   /** Override the model used for the structured match call. Defaults to
-   *  `gemini-flash-latest`. Use a Pro model (e.g. `gemini-3.1-pro-preview`)
-   *  when flash truncates the structured response on long demanded-skill
-   *  sets — the long structured output is in Pro's wheelhouse. */
+   *  `gemini-3.1-pro-preview` (see comment at the call site for why we
+   *  dropped flash). Use to swap models for cost-comparison experiments
+   *  or to fall back to a different family if Pro hits its own issues. */
   modelOverride?: string;
 }
 
@@ -182,14 +182,20 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       },
       messages,
       methodVersion: DEMAND_MATCH_VERSION,
-      // gemini-3-flash-preview started truncating at ~470 output tokens
-      // when the v2 schema (added relevantToCurriculum) and prompt (added
-      // discipline-relevance rules) grew. gemini-flash-latest handles
-      // longer structured output more reliably for this prompt class.
-      // params.modelOverride lets an operator escalate to Pro when even
-      // gemini-flash-latest truncates (observed sporadically at ~463
-      // output tokens on long PLO sets).
-      model: params.modelOverride ?? 'gemini-flash-latest',
+      // Model history:
+      //   gemini-3-flash-preview  — truncated at ~470 output tokens once
+      //     the v2 schema (relevantToCurriculum) + discipline-relevance
+      //     prompt rules grew the expected response shape.
+      //   gemini-flash-latest     — still occasionally truncated at ~463
+      //     output tokens despite maxOutputTokens=12000 (observed on
+      //     KKU-SEQ-0062, 2026-05-12 — two consecutive retries lost the
+      //     same way; both responses ended mid-JSON, conf=0).
+      //   gemini-3.1-pro-preview  — CURRENT DEFAULT. Long structured
+      //     output is in Pro's wheelhouse. Adds ~$0.04/program vs flash's
+      //     ~$0.002, but reliability >> cost at this volume (≤297 progs).
+      //     Verified end-to-end on KKU-SEQ-0062: 3,774 output tokens,
+      //     conf 0.90, 30/30 demanded skills matched cleanly.
+      model: params.modelOverride ?? 'gemini-3.1-pro-preview',
       maxOutputTokens: 12000,
     },
     DemandMatchSchema,

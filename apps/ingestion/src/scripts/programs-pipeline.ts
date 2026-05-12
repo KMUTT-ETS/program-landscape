@@ -15,7 +15,7 @@
 //
 //   Phase 3 — Dependent AI extraction (SEQUENTIAL)
 //      - programs:map-careers               (gemini-3-flash-preview)
-//      - programs:match-demand              (gemini-3-flash-preview)
+//      - programs:match-demand              (gemini-3.1-pro-preview)
 //
 //   Phase 4 — Oracle / MSSQL data linkage (PARALLEL: 3 sources)
 //      - programs:link-cohorts              (Oracle)
