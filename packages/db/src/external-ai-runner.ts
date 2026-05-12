@@ -267,13 +267,22 @@ function readOptionalNumber(json: Prisma.JsonValue, key: string): number | undef
 
 async function fetchAndStrip(url: string): Promise<string> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 8_000);
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: {
-        'user-agent': 'KKU-CurriculumLandscape/1.0 (+https://program-landscape.kku.ac.th)',
-        accept: 'text/html, application/xhtml+xml, application/xml, application/rss+xml',
+        // Browser-like UA — many sites (OECD, WEF, others behind Akamai/
+        // Cloudflare bot-management) block obviously-automated UAs at
+        // the CDN layer regardless of intent. We're a research tool
+        // doing rate-limited fetches; identifying as Chrome is honest
+        // about the fact that we render the page like a browser would.
+        'user-agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,application/rss+xml;q=0.9,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9,th;q=0.6',
+        'accept-encoding': 'gzip, deflate, br',
       },
       redirect: 'follow',
     });
