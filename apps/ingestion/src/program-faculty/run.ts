@@ -205,9 +205,18 @@ export async function runProgramFacultyExtraction(
       },
       messages,
       methodVersion: PROGRAM_FACULTY_VERSION,
-      // Even a 100-staff program comes in well under 8K output tokens.
-      // 12K gives generous headroom for verbose qualifications.
-      maxOutputTokens: 12000,
+      // Faculty extraction is pure name+role+qualification listing —
+      // no reasoning needed. Disable thinking explicitly so the entire
+      // output budget is available for JSON. With the default Pro auto-
+      // thinking (40% of maxOutputTokens), Gemini consumes ~4,800 of a
+      // 12K budget on internal reasoning then truncates the JSON near
+      // 2,400 tokens. Observed on KKU-SEQ-0018 (50 instructors × verbose
+      // Thai qualifications ≈ 10K tokens of JSON): two consecutive Pro
+      // retries truncated mid-Thai-text at exactly 2,425 output tokens.
+      thinking: false,
+      // 24K headroom — accounts for programs with 60-80 staff entries
+      // and Thai qualification strings that average ~150 tokens each.
+      maxOutputTokens: 24000,
     },
     ProgramFacultyExtractionSchema,
   );
