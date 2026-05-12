@@ -195,37 +195,73 @@ export function WorkforceClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Faculties at retirement risk</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Where more than 1 in 5 staff are in their late 50s — succession planning likely needed soon. Sorted by % at risk.
+          Where more than 1 in 5 staff are in their late 50s — split by academic / support track because succession-planning levers differ. Sorted by overall % at risk.
         </p>
         <ul className="mt-3 flex flex-col gap-1.5">
           {data.demographics.facultyRetirementRisk.slice(0, 25).map((r) => {
-            const tone = r.pct >= 20 ? 'text-warning font-semibold' : '';
+            const acaTone =
+              r.academicPct >= 20 ? 'text-warning font-semibold' : 'text-text-secondary';
+            const supTone =
+              r.supportPct >= 20 ? 'text-warning font-semibold' : 'text-text-secondary';
             return (
               <li
                 key={r.facultyName}
-                className="grid grid-cols-[16rem_minmax(0,1fr)_5rem_5rem_5rem] gap-x-4 text-xs items-center"
+                className="grid grid-cols-[14rem_minmax(0,1fr)_3rem_3rem_3rem_3rem] gap-x-3 text-xs items-center"
               >
                 <span className="truncate" title={r.facultyName}>
                   {r.facultyName}
                 </span>
-                <div className="h-3 rounded-sm" style={{ background: 'rgba(120,120,120,0.18)' }}>
-                  <div
-                    className="h-full"
-                    style={{ width: `${Math.min(r.pct * 3, 100)}%`, background: r.pct >= 20 ? '#f59e0b' : '#0ea5e9' }}
-                  />
+                {/* Stacked bar: orange = academic-at-risk share, teal =
+                  * support-at-risk share, both relative to total staff. */}
+                <div
+                  className="relative h-4 overflow-hidden rounded-sm"
+                  style={{ background: 'rgba(120,120,120,0.18)' }}
+                  title={`Academic ${r.academicRetire5y}/${r.academicTotal} · Support ${r.supportRetire5y}/${r.supportTotal}`}
+                >
+                  {r.total > 0 && (
+                    <div
+                      className="absolute inset-y-0 left-0 flex"
+                      style={{ width: '100%' }}
+                    >
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${(r.academicRetire5y / r.total) * 100}%`,
+                          background: '#f97316',
+                        }}
+                      />
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${(r.supportRetire5y / r.total) * 100}%`,
+                          background: '#14b8a6',
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-                <span className="text-right font-tabular">{r.total.toLocaleString('en-US')}</span>
-                <span className="text-right font-tabular">{r.retire5y.toLocaleString('en-US')}</span>
-                <span className={`text-right font-tabular ${tone}`}>{r.pct.toFixed(1)}%</span>
+                <span className={`text-right font-tabular ${acaTone}`}>
+                  {r.academicTotal > 0 ? r.academicPct.toFixed(0) + '%' : '—'}
+                </span>
+                <span className="text-right font-tabular text-text-tertiary">
+                  {r.academicRetire5y}/{r.academicTotal}
+                </span>
+                <span className={`text-right font-tabular ${supTone}`}>
+                  {r.supportTotal > 0 ? r.supportPct.toFixed(0) + '%' : '—'}
+                </span>
+                <span className="text-right font-tabular text-text-tertiary">
+                  {r.supportRetire5y}/{r.supportTotal}
+                </span>
               </li>
             );
           })}
-          <li className="grid grid-cols-[16rem_minmax(0,1fr)_5rem_5rem_5rem] gap-x-4 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
+          <li className="grid grid-cols-[14rem_minmax(0,1fr)_3rem_3rem_3rem_3rem] gap-x-3 pt-1 text-[0.65rem] uppercase tracking-wide text-text-tertiary">
             <span></span>
             <span></span>
-            <span className="text-right">total staff</span>
-            <span className="text-right">retiring</span>
-            <span className="text-right">% at risk</span>
+            <span className="text-right text-warning">aca %</span>
+            <span className="text-right">aca n</span>
+            <span className="text-right" style={{ color: '#14b8a6' }}>sup %</span>
+            <span className="text-right">sup n</span>
           </li>
         </ul>
       </Card>

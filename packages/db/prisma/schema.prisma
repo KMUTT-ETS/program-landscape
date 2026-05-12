@@ -317,6 +317,7 @@ model Faculty {
   facultyBudgets         FacultyBudget[]
   staffMasterRecords     StaffMasterRecord[]
   staffCompensationCubes StaffCompensationCube[]
+  staffHires             StaffHire[]
   staffSeparations       StaffSeparation[]
   divergenceSnapshots    CrossScopeDivergenceSnapshot[]
 
@@ -3680,6 +3681,53 @@ model StaffCompensationCube {
   @@index([fiscalYear])
   @@index([isAcademic])
   @@map("staff_compensation_cube")
+}
+
+// Per-hire snapshot from HCMEmployee.EmployeeDetail. Captures every
+// staff member (academic + research + support, no STATUS or
+// position-type filter) who joined KKU within the last 10 years —
+// FIRSTHIREDATE-keyed. Drives the "New hires" KPI on
+// /staff/workforce. Same construction pattern as StaffSeparation
+// (parallel hires/separations sources, both derived from the full
+// EmployeeDetail without the active-only filter that scopes Q1 to
+// academic faculty).
+//
+// One row per hire event, keyed on HCM's EMPLOYEEID hash so
+// re-ingestion is idempotent. Snapshot-replaced by the kku-hr
+// connector on each run.
+model StaffHire {
+  /// SHA-256 of HCMEmployee.EMPLOYEEID — canonical join key.
+  employeeHash  String    @id @map("employee_hash")
+  /// HR-internal employment number — non-PII per KKU 2026-05-02.
+  employeeId    String?   @map("employee_id")
+  /// SHA-256 of citizen ID when present.
+  citizenIdHash String?   @map("citizen_id_hash")
+  /// HCMEmployee.BIRTHDAY — primary HCM birth date for ALL staff
+  /// (including support). Replaces vw_history.birthday as the source
+  /// for age + retirement-cliff + retirement-risk calcs across the
+  /// workforce dashboard. The table name kept as "staff_hires" for
+  /// continuity even though it now functionally holds full HCM staff
+  /// demographics (one row per FIRSTHIREDATE-having employee).
+  birthDate     DateTime? @map("birth_date") @db.Date
+  /// HCMEmployee.FIRSTHIREDATE — original KKU join date.
+  firstHireDate DateTime  @map("first_hire_date") @db.Date
+  /// HCM STATUS at time of pull. 'A' = active; other = the person
+  /// joined within the window AND has already separated.
+  status        String?
+  /// BU1 (faculty code) at time of pull.
+  facultyKey    String?   @map("faculty_key")
+  /// workforce_hcm_actual.All_Position_Types — current position type.
+  positionType  String?   @map("position_type")
+  /// Resolved Faculty row from the kku-hr connector's facultyMappings.
+  facultyId     String?   @map("faculty_id")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  faculty Faculty? @relation(fields: [facultyId], references: [id])
+
+  @@index([firstHireDate])
+  @@index([birthDate])
+  @@index([positionType])
+  @@map("staff_hires")
 }
 
 // Per-separation snapshot from HCMEmployee.EmployeeDetail. Captures

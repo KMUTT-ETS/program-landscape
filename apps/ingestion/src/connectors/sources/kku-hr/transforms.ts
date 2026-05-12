@@ -91,6 +91,23 @@ export const Q4RowSchema = z.object({
 });
 export type Q4Row = z.infer<typeof Q4RowSchema>;
 
+// ── Q5 row schema (Full HCM staff snapshot from EmployeeDetail) ───────────
+
+export const Q5RowSchema = z.object({
+  EMPLOYEE_HASH: z.string().min(1),
+  EMPLOYEE_ID: z.string().nullable(),
+  PERSON_HASH: z.string().min(1).nullable(),
+  STATUS: z.string().nullable(),
+  /** BIRTHDAY — date format same as Q4's ENDWORKDATE. */
+  BIRTHDAY: z.union([z.date(), z.string(), z.null()]),
+  /** FIRSTHIREDATE comes back as a Date from mssql-client (same
+   *  format as ENDWORKDATE in Q4). */
+  FIRSTHIREDATE: z.union([z.date(), z.string(), z.null()]),
+  FACULTY_KEY: z.string().nullable(),
+  POSITION_TYPE: z.string().nullable(),
+});
+export type Q5Row = z.infer<typeof Q5RowSchema>;
+
 // ─────────────────────────────────────────────────────────────────────────
 // Date parsing — HCM stores dates as 'YYYY-MM-DD' text in CE format.
 // Returns null on empty / unparseable strings rather than throwing.

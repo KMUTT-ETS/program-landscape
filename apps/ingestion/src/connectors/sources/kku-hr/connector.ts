@@ -64,6 +64,8 @@ import {
   type Q3Row,
   Q4RowSchema,
   type Q4Row,
+  Q5RowSchema,
+  type Q5Row,
 } from './transforms';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -146,6 +148,47 @@ FROM [epm_report].[dbo].[Faculty]
 ORDER BY Faculty
 `;
 
+// Q5 — full HCM staff snapshot (hires + birth dates, every staff
+// member with FIRSTHIREDATE in EmployeeDetail).
+//
+// Broadened 2026-05-12 from "hires last 10y" to "full snapshot":
+//   - dropped the 10y FIRSTHIREDATE window (now covers all staff
+//     with a hire date, ~15-18k rows)
+//   - added BIRTHDAY (replaces vw_history.birthday as the primary
+//     source for age/retirement-cliff calcs)
+//
+// Drives:
+//   - "New hires (last 12 months)" KPI (FIRSTHIREDATE within 12m)
+//   - Retirement projection 10y    (BIRTHDAY → KKU rule)
+//   - Retirement cliff 5y          (BIRTHDAY → age)
+//   - Faculties at retirement risk (BIRTHDAY → age)
+//   - Age pyramids                 (BIRTHDAY → age)
+//   - Tenure distribution          (FIRSTHIREDATE)
+//
+// vw_history (staff_lifecycle_dates) becomes the FALLBACK only — used
+// when a citizenIdHash matches but the HCM row is missing
+// (rare; observed for some legacy staff).
+//
+// Same PII gate as Q1/Q4: hashed identifiers only, no names/salaries.
+const Q5_HIRES = `
+SELECT
+  CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CAST(e.EMPLOYEEID AS varchar(50)) AS varbinary(500))), 2) AS EMPLOYEE_HASH,
+  CAST(e.EMPLOYEEID AS varchar(50)) AS EMPLOYEE_ID,
+  CASE WHEN e.ID_PEOPLE IS NULL OR e.ID_PEOPLE = ''
+       THEN NULL
+       ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CAST(e.ID_PEOPLE AS varchar(50)) AS varbinary(500))), 2)
+  END                          AS PERSON_HASH,
+  e.STATUS,
+  e.BIRTHDAY,
+  e.FIRSTHIREDATE,
+  e.BU1                        AS FACULTY_KEY,
+  w.All_Position_Types         AS POSITION_TYPE
+FROM dbo.EmployeeDetail e
+LEFT JOIN [epm_report].[dbo].[workforce_hcm_actual] w
+  ON e.EMP_POSITION COLLATE Thai_CI_AS = w.POSITION_NUMBER COLLATE Thai_CI_AS
+WHERE e.FIRSTHIREDATE IS NOT NULL
+`;
+
 // Q4 — separations snapshot (10-year window).
 //
 // Pulls EVERY EmployeeDetail row that has ENDWORKDATE filled —
@@ -226,7 +269,12 @@ interface HrRawDataSeparation {
   q4: Q4Row;
 }
 
-type HrRawPayload = HrRawData | HrRawDataCompensation | HrRawDataSeparation;
+interface HrRawDataHire {
+  kind: 'hire';
+  q5: Q5Row;
+}
+
+type HrRawPayload = HrRawData | HrRawDataCompensation | HrRawDataSeparation | HrRawDataHire;
 
 export class KkuHrRealConnector extends ApiConnector {
   readonly slug = 'kku-hr';
@@ -290,12 +338,13 @@ export class KkuHrRealConnector extends ApiConnector {
       );
     }
 
-    // 2. Run all four queries in one connection.
+    // 2. Run all five queries in one connection.
     const cfg = this.mssqlConfig();
     let q1Raw: unknown[] = [];
     let q2Raw: unknown[] = [];
     let q3Raw: unknown[] = [];
     let q4Raw: unknown[] = [];
+    let q5Raw: unknown[] = [];
     await withConnection(cfg, async (pool) => {
       ctx.log.info('running Q3 Faculty lookup');
       q3Raw = await query(pool, Q3_FACULTY_LOOKUP);
@@ -312,6 +361,10 @@ export class KkuHrRealConnector extends ApiConnector {
       ctx.log.info('running Q4 separations (10y window)');
       q4Raw = await query(pool, Q4_SEPARATIONS);
       ctx.log.info(`Q4 returned ${q4Raw.length.toLocaleString()} rows`);
+
+      ctx.log.info('running Q5 hires (10y window)');
+      q5Raw = await query(pool, Q5_HIRES);
+      ctx.log.info(`Q5 returned ${q5Raw.length.toLocaleString()} rows`);
     });
 
     // 3. Validate via Zod. Failure = connector bug; throw NonRetryable.
@@ -351,6 +404,16 @@ export class KkuHrRealConnector extends ApiConnector {
         throw new NonRetryableError(
           'Q4_VALIDATION',
           `Q4 row ${i} failed validation: ${parsed.error.message}`,
+        );
+      }
+      return parsed.data;
+    });
+    const q5Rows = q5Raw.map((r, i): Q5Row => {
+      const parsed = Q5RowSchema.safeParse(r);
+      if (!parsed.success) {
+        throw new NonRetryableError(
+          'Q5_VALIDATION',
+          `Q5 row ${i} failed validation: ${parsed.error.message}`,
         );
       }
       return parsed.data;
@@ -398,6 +461,13 @@ export class KkuHrRealConnector extends ApiConnector {
         data: { kind: 'separation', q4 } satisfies HrRawPayload,
       });
     }
+    for (const q5 of q5Rows) {
+      records.push({
+        externalId: `kku-hr:hire:${q5.EMPLOYEE_HASH}`,
+        sourceTimestamp: fetchTimestamp,
+        data: { kind: 'hire', q5 } satisfies HrRawPayload,
+      });
+    }
     return records;
   }
 
@@ -416,6 +486,9 @@ export class KkuHrRealConnector extends ApiConnector {
     }
     if (data.kind === 'separation') {
       return this.transformSeparation(state, data.q4, raw.sourceTimestamp);
+    }
+    if (data.kind === 'hire') {
+      return this.transformHire(state, data.q5, raw.sourceTimestamp);
     }
     return this.transformCompensation(state, data.q2, raw.sourceTimestamp);
   }
@@ -554,6 +627,49 @@ export class KkuHrRealConnector extends ApiConnector {
           status: q4.STATUS,
           facultyKey: q4.FACULTY_KEY,
           positionType: q4.POSITION_TYPE,
+          facultyId,
+        },
+        freshnessDate,
+      },
+    ];
+  }
+
+  private transformHire(
+    state: RunState,
+    q5: Q5Row,
+    freshnessDate: Date,
+  ): NormalizedRecord[] {
+    // Helper to normalise the Date/string union the mssql driver
+    // returns. Same logic as transformSeparation.
+    function normaliseHcmDate(v: Date | string | null): Date | null {
+      if (v === null) return null;
+      if (v instanceof Date) {
+        const y = v.getUTCFullYear();
+        return y >= 1900 && y <= 2100 ? v : null;
+      }
+      return parseHcmDate(v);
+    }
+    const hireDate = normaliseHcmDate(q5.FIRSTHIREDATE);
+    if (!hireDate) return [];
+    const birthDate = normaliseHcmDate(q5.BIRTHDAY);
+
+    const facultyId = q5.FACULTY_KEY
+      ? state.facultyMappings.get(q5.FACULTY_KEY) ?? null
+      : null;
+
+    return [
+      {
+        target: 'staff_hires',
+        externalId: `kku-hr:hire:${q5.EMPLOYEE_HASH}`,
+        payload: {
+          employeeHash: q5.EMPLOYEE_HASH,
+          employeeId: q5.EMPLOYEE_ID,
+          citizenIdHash: q5.PERSON_HASH?.toLowerCase() ?? null,
+          birthDate,
+          firstHireDate: hireDate,
+          status: q5.STATUS,
+          facultyKey: q5.FACULTY_KEY,
+          positionType: q5.POSITION_TYPE,
           facultyId,
         },
         freshnessDate,
@@ -728,6 +844,43 @@ export class KkuHrRealConnector extends ApiConnector {
               },
             });
           }
+          loaded++;
+        } else if (rec.target === 'staff_hires') {
+          const p = rec.payload as {
+            employeeHash: string;
+            employeeId: string | null;
+            citizenIdHash: string | null;
+            birthDate: Date | null;
+            firstHireDate: Date;
+            status: string | null;
+            facultyKey: string | null;
+            positionType: string | null;
+            facultyId: string | null;
+          };
+          await this.db.staffHire.upsert({
+            where: { employeeHash: p.employeeHash },
+            create: {
+              employeeHash: p.employeeHash,
+              employeeId: p.employeeId,
+              citizenIdHash: p.citizenIdHash,
+              birthDate: p.birthDate,
+              firstHireDate: p.firstHireDate,
+              status: p.status,
+              facultyKey: p.facultyKey,
+              positionType: p.positionType,
+              facultyId: p.facultyId,
+            },
+            update: {
+              employeeId: p.employeeId,
+              citizenIdHash: p.citizenIdHash,
+              birthDate: p.birthDate,
+              firstHireDate: p.firstHireDate,
+              status: p.status,
+              facultyKey: p.facultyKey,
+              positionType: p.positionType,
+              facultyId: p.facultyId,
+            },
+          });
           loaded++;
         } else if (rec.target === 'staff_separations') {
           const p = rec.payload as {

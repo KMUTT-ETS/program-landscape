@@ -71,7 +71,25 @@ export interface OverviewBlock {
 export interface DemographicsBlock {
   academic: TrackBlock;
   support: TrackBlock;
-  facultyRetirementRisk: Array<{ facultyName: string; total: number; retire5y: number; pct: number }>;
+  /** Per-faculty 5-year retirement risk with academic/support split.
+   *  Succession-planning levers differ by track — academic needs long-
+   *  lead hiring + dissertation pipelines; support has shorter
+   *  recruitment windows. Sorted by overall pct. */
+  facultyRetirementRisk: Array<{
+    facultyName: string;
+    /** Combined totals (back-compat). */
+    total: number;
+    retire5y: number;
+    pct: number;
+    /** Academic split. */
+    academicTotal: number;
+    academicRetire5y: number;
+    academicPct: number;
+    /** Support split. */
+    supportTotal: number;
+    supportRetire5y: number;
+    supportPct: number;
+  }>;
 }
 export interface TrackBlock {
   total: number;

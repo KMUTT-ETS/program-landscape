@@ -154,26 +154,69 @@ export class StaffService {
       },
     });
 
-    // Pull authoritative dates from processed-HR (DS2001's BIRTHDAY is a
-    // placeholder; HCMEmployee.RESIGNDATE is null for active staff).
-    // Full-date precision (added 2026-05-12) lets us build month-grain
-    // retirement projections + tenure-distribution viz.
-    const lifecycle = await prisma.staffLifecycleDates.findMany({
-      where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
-      select: {
-        citizenIdHash: true,
-        birthYearAd: true,
-        retireDate: true,
-        hireDate: true,
-      },
-    });
-    const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l.birthYearAd]));
-    const lifeFullByHash = new Map(
-      lifecycle.map((l) => [
-        l.citizenIdHash,
-        { retireDate: l.retireDate, hireDate: l.hireDate },
-      ]),
+    // Pull staff demographics. PRIMARY source: HCM (staff_hires) which
+    // now carries BIRTHDAY + FIRSTHIREDATE for every EmployeeDetail row
+    // (full snapshot, no 10y window). FALLBACK: vw_history
+    // (staff_lifecycle_dates) for the rare staff with a matching
+    // citizenIdHash but no HCM row.
+    const hashes = rows.map((r) => r.citizenIdHash);
+    const [hcm, lifecycle] = await Promise.all([
+      prisma.staffHire.findMany({
+        where: { citizenIdHash: { in: hashes } },
+        select: { citizenIdHash: true, birthDate: true, firstHireDate: true },
+      }),
+      prisma.staffLifecycleDates.findMany({
+        where: { citizenIdHash: { in: hashes } },
+        select: {
+          citizenIdHash: true,
+          birthYearAd: true,
+          retireDate: true,
+          hireDate: true,
+          birthDate: true,
+        },
+      }),
+    ]);
+    const hcmByHash = new Map(
+      hcm
+        .filter((h) => h.citizenIdHash)
+        .map((h) => [h.citizenIdHash!, h] as const),
     );
+    const lifeRowByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l]));
+
+    // KKU retirement-date rule (same as kku-hr connector): retire on
+    // 1 Oct AFTER turning 60. birthMonth ≤ Sep → +60; ≥ Oct → +61.
+    function computeRetireFromBirth(birth: Date | null): Date | null {
+      if (!birth) return null;
+      const y = birth.getUTCFullYear();
+      const m = birth.getUTCMonth(); // 0-indexed; 9 = October
+      if (y < 1900 || y > 2100) return null;
+      const ry = m >= 9 ? y + 61 : y + 60;
+      return new Date(Date.UTC(ry, 9, 1));
+    }
+
+    // Per-staff demographics lookup: HCM primary, vw_history fallback.
+    // Returns { birthYearAd, retireDate, hireDate } per citizenIdHash.
+    function lookupDemographics(hash: string): {
+      birthYearAd: number | null;
+      retireDate: Date | null;
+      hireDate: Date | null;
+    } {
+      const h = hcmByHash.get(hash);
+      const l = lifeRowByHash.get(hash);
+      const birth = h?.birthDate ?? l?.birthDate ?? null;
+      const birthYearAd = birth?.getUTCFullYear() ?? l?.birthYearAd ?? null;
+      const retireDate = computeRetireFromBirth(birth) ?? l?.retireDate ?? null;
+      const hireDate = h?.firstHireDate ?? l?.hireDate ?? null;
+      return { birthYearAd, retireDate, hireDate };
+    }
+    // Back-compat aliases for the existing call sites below.
+    const lifeByHash = new Map<string, number | null>();
+    const lifeFullByHash = new Map<string, { retireDate: Date | null; hireDate: Date | null }>();
+    for (const r of rows) {
+      const d = lookupDemographics(r.citizenIdHash);
+      lifeByHash.set(r.citizenIdHash, d.birthYearAd);
+      lifeFullByHash.set(r.citizenIdHash, { retireDate: d.retireDate, hireDate: d.hireDate });
+    }
 
     const total = rows.length;
     let academic = 0;
@@ -218,20 +261,29 @@ export class StaffService {
       .map(([name, cell]) => ({ facultyName: name, ...cell, total: cell.academic + cell.support }))
       .sort((a, b) => b.total - a.total);
 
-    // 12-month hire / separation flow from MOVEMENT_DATE/TYPE
+    // 12-month hire / separation flow — sourced from HCMEmployee
+    // .EmployeeDetail (the user-noted authoritative source).
+    //
+    // OLD source (DS2001 movement codes): structurally broken —
+    // staff_master_record.movementDate is null on 100% of rows.
+    // Both KPIs silently returned 0.
+    //
+    // NEW source (2026-05-12):
+    //   hires12m       = staff_hires (Q5 — full EmployeeDetail
+    //                    FIRSTHIREDATE, no STATUS filter, no
+    //                    academic-only filter)
+    //   separations12m = staff_separations (Q4 — full EmployeeDetail
+    //                    ENDWORKDATE, same construction)
+    //
+    // Both tables are populated from the full EmployeeDetail without
+    // the active-only INNER JOIN — they're the symmetric pair for
+    // workforce inflow / outflow on /staff/workforce.
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    let hires12m = 0;
-    let separations12m = 0;
-    for (const r of rows) {
-      if (!r.movementDate || !r.movementTypeId) continue;
-      if (r.movementDate < oneYearAgo) continue;
-      const code = r.movementTypeId.padStart(2, '0');
-      // 03=บรรจุใหม่, 09=ทำสัญญาครั้งแรก, 04=บรรจุกลับ → hires
-      // 06=เกษียณ, 07=ลาออก, 08=ถึงแก่กรรม, 11=หมดสัญญา, 12=พ้นสภาพ → separations
-      if (['03', '09', '04', '05'].includes(code)) hires12m += 1;
-      if (['06', '07', '08', '11', '12'].includes(code)) separations12m += 1;
-    }
+    const [hires12m, separations12m] = await Promise.all([
+      prisma.staffHire.count({ where: { firstHireDate: { gte: oneYearAgo } } }),
+      prisma.staffSeparation.count({ where: { endWorkDate: { gte: oneYearAgo } } }),
+    ]);
 
     // ── Retirement projection — next 10 fiscal years, monthly grain ─
     // KKU's mandatory retirement is the 1 Oct of the fiscal year in
@@ -404,15 +456,35 @@ export class StaffService {
     });
 
     // DS2001's BIRTHDAY is a placeholder ('1970-01-01' for every row —
-    // KKU sanitised that field in the MHESI submission). We pull the
-    // authoritative year-precision dates from processed-HR's vw_history,
-    // joined here via citizenIdHash. Falls back to DS2001 birth_year
-    // for the rare staff missing from vw_history.
-    const lifecycle = await prisma.staffLifecycleDates.findMany({
-      where: { citizenIdHash: { in: rows.map((r) => r.citizenIdHash) } },
-      select: { citizenIdHash: true, birthYearAd: true, retireYearAd: true },
-    });
+    // KKU sanitised that field in the MHESI submission). We use HCM as
+    // the PRIMARY source (staff_hires.birthDate, full HCM snapshot)
+    // with vw_history as the FALLBACK for staff missing an HCM row.
+    // Final fallback is DS2001 birth_year.
+    const hashes = rows.map((r) => r.citizenIdHash);
+    const [hcm, lifecycle] = await Promise.all([
+      prisma.staffHire.findMany({
+        where: { citizenIdHash: { in: hashes } },
+        select: { citizenIdHash: true, birthDate: true },
+      }),
+      prisma.staffLifecycleDates.findMany({
+        where: { citizenIdHash: { in: hashes } },
+        select: { citizenIdHash: true, birthYearAd: true, retireYearAd: true },
+      }),
+    ]);
+    const hcmByHash = new Map(
+      hcm
+        .filter((h) => h.citizenIdHash)
+        .map((h) => [h.citizenIdHash!, h.birthDate] as const),
+    );
     const lifeByHash = new Map(lifecycle.map((l) => [l.citizenIdHash, l]));
+    /** HCM-primary → vw_history fallback → DS2001 fallback. */
+    function birthYearAdForHash(citizenIdHash: string, ds2001BirthYear: number | null): number | null {
+      const hcmBirth = hcmByHash.get(citizenIdHash);
+      if (hcmBirth) return hcmBirth.getUTCFullYear();
+      const life = lifeByHash.get(citizenIdHash);
+      if (life?.birthYearAd) return life.birthYearAd;
+      return adBirth(ds2001BirthYear);
+    }
 
     const currentYearAd = new Date().getFullYear();
     function adBirth(beYear: number | null): number | null {
@@ -456,12 +528,11 @@ export class StaffService {
 
     for (const r of rows) {
       const track = staffTrack(r.subStaffTypeId);
-      // Prefer processed-HR's birthYearAd (already in AD years); fall
-      // back to DS2001's birth_year (BE) only when the row isn't on
-      // vw_history. DS2001 dates are unreliable so the LEFT JOIN is
-      // the primary path.
-      const life = lifeByHash.get(r.citizenIdHash);
-      const ay = life?.birthYearAd ?? adBirth(r.birthYear);
+      // HCM-primary lookup (staff_hires.birthDate) → vw_history fallback
+      // → DS2001's birth_year. DS2001's BIRTHDAY column is sanitised
+      // (every row reads 1970-01-01); we use birth_year as the last
+      // resort.
+      const ay = birthYearAdForHash(r.citizenIdHash, r.birthYear);
       const age = ay ? currentYearAd - ay : null;
 
       if (track === 'ACADEMIC') academicTotal += 1;
@@ -493,26 +564,61 @@ export class StaffService {
       }
     }
 
-    // Per-faculty retirement-risk table (>20% retiring in 5y)
-    const facultyRisk = new Map<string, { total: number; retire5y: number }>();
+    // Per-faculty retirement-risk table (academic vs support split).
+    // 2026-05-12: split by track because succession-planning levers
+    // differ — academic faculty need long-lead hiring + dissertation
+    // pipelines, support staff have shorter recruitment windows. A
+    // faculty with 30% academic-cliff is a different planning problem
+    // from one with 30% support-cliff.
+    interface RiskCell {
+      academicTotal: number;
+      academicRetire5y: number;
+      supportTotal: number;
+      supportRetire5y: number;
+    }
+    const facultyRisk = new Map<string, RiskCell>();
     for (const r of rows) {
       const fac = r.faculty?.nameTh ?? '∅ (unmapped)';
-      const life = lifeByHash.get(r.citizenIdHash);
-      const ay = life?.birthYearAd ?? adBirth(r.birthYear);
+      const ay = birthYearAdForHash(r.citizenIdHash, r.birthYear);
       const age = ay ? currentYearAd - ay : null;
-      const cell = facultyRisk.get(fac) ?? { total: 0, retire5y: 0 };
-      cell.total += 1;
-      if (age !== null && age >= 55 && age < 60) cell.retire5y += 1;
+      const track = staffTrack(r.subStaffTypeId);
+      const cell: RiskCell = facultyRisk.get(fac) ?? {
+        academicTotal: 0,
+        academicRetire5y: 0,
+        supportTotal: 0,
+        supportRetire5y: 0,
+      };
+      if (track === 'ACADEMIC') {
+        cell.academicTotal += 1;
+        if (age !== null && age >= 55 && age < 60) cell.academicRetire5y += 1;
+      } else {
+        cell.supportTotal += 1;
+        if (age !== null && age >= 55 && age < 60) cell.supportRetire5y += 1;
+      }
       facultyRisk.set(fac, cell);
     }
     const riskRanked = [...facultyRisk.entries()]
-      .filter(([, c]) => c.total >= 5)
-      .map(([name, c]) => ({
-        facultyName: name,
-        total: c.total,
-        retire5y: c.retire5y,
-        pct: c.total > 0 ? (c.retire5y / c.total) * 100 : 0,
-      }))
+      .filter(([, c]) => c.academicTotal + c.supportTotal >= 5)
+      .map(([name, c]) => {
+        const total = c.academicTotal + c.supportTotal;
+        const retire5y = c.academicRetire5y + c.supportRetire5y;
+        const academicPct = c.academicTotal > 0 ? (c.academicRetire5y / c.academicTotal) * 100 : 0;
+        const supportPct = c.supportTotal > 0 ? (c.supportRetire5y / c.supportTotal) * 100 : 0;
+        return {
+          facultyName: name,
+          total,
+          retire5y,
+          academicTotal: c.academicTotal,
+          academicRetire5y: c.academicRetire5y,
+          academicPct,
+          supportTotal: c.supportTotal,
+          supportRetire5y: c.supportRetire5y,
+          supportPct,
+          // Overall rank still uses the combined percentage — the UI
+          // sorts on it but renders the two sub-rates side-by-side.
+          pct: total > 0 ? (retire5y / total) * 100 : 0,
+        };
+      })
       .sort((a, b) => b.pct - a.pct);
 
     return {
