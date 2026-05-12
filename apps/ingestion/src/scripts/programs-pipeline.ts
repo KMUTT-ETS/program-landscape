@@ -26,6 +26,21 @@
 //      - peers:select                       (gemini-3.1-pro-preview)
 //      - peers:review                       (gemini-3.1-pro-preview, thinking)
 //
+//   Phase 6 — AI readiness (Pro)
+//      - programs:ai-readiness              (gemini-3.1-pro-preview)
+//      Runs before narrative because narrative consumes the assessment.
+//
+//   Phase 7 — Strategic narrative (Pro thinking)
+//      - programs:narrative                 (gemini-3.1-pro-preview)
+//      Runs LAST among the narrative chain — consumes every prior phase.
+//
+//   Phase 8 — Risk analysis (deterministic + Pro narrative)
+//      - risks:assess <code>                (math + gemini-3.1-pro-preview)
+//      Subprocess. Consumes Phase 4 (financials, enrolment) + Phase 5
+//      (peer subject + white-spaces) — independent of narrative, so it
+//      could run in parallel with Phase 7, but kept sequential for
+//      simpler operator-visible progress.
+//
 // Cost optimization landed:
 //   - Per-method model routing — extraction tasks stay on flash; peer
 //     selection + peer review use pro (reasoning)
@@ -80,9 +95,27 @@ import { runDemandMatch } from '../program-demand-match/run';
 import { selectProgramPeers } from '../program-peers/select';
 import { generateProgramPeerReview } from '../program-peers/review';
 import { generateProgramStrategicNarrative } from '../program-narrative/run';
+import { runProgramAiReadiness } from '../program-ai-readiness/run';
 
-type Phase = 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'phase5' | 'phase6';
-const ALL_PHASES: Phase[] = ['phase1', 'phase2', 'phase3', 'phase4', 'phase5', 'phase6'];
+type Phase =
+  | 'phase1'
+  | 'phase2'
+  | 'phase3'
+  | 'phase4'
+  | 'phase5'
+  | 'phase6'
+  | 'phase7'
+  | 'phase8';
+const ALL_PHASES: Phase[] = [
+  'phase1',
+  'phase2',
+  'phase3',
+  'phase4',
+  'phase5',
+  'phase6',
+  'phase7',
+  'phase8',
+];
 
 interface CliArgs {
   programArg: string | null;
@@ -138,15 +171,25 @@ async function resolveProgramIds(args: CliArgs): Promise<ProgramSummary[]> {
       select: { id: true, code: true, nameEn: true },
     });
     if (args.resume) {
-      // Skip programs whose Phase 6 strategic narrative is already
-      // persisted. Phase 6 runs LAST and consumes signals from every
-      // prior phase, so its presence is the proof-of-completion gate.
-      const doneIds = new Set(
-        (await prisma.programStrategicNarrative.findMany({ select: { programId: true } })).map((r) => r.programId),
-      );
+      // Skip programs that have BOTH a strategic narrative AND a risk
+      // assessment persisted. Phase 7 (narrative) and Phase 8 (risks)
+      // are the two terminal AI surfaces — a program is "done" only
+      // when both exist. A program with narrative but no risk row
+      // (e.g. risks-assess failed mid-batch on a prior run) gets
+      // re-piped so the missing risk surface gets filled.
+      const [narrativeIds, riskIds] = await Promise.all([
+        prisma.programStrategicNarrative.findMany({ select: { programId: true } }),
+        prisma.riskAssessment
+          .findMany({ select: { programId: true }, distinct: ['programId'] })
+          .catch(() => [] as Array<{ programId: string }>),
+      ]);
+      const narrativeSet = new Set(narrativeIds.map((r) => r.programId));
+      const riskSet = new Set(riskIds.map((r) => r.programId));
       const before = programs.length;
-      programs = programs.filter((p) => !doneIds.has(p.id));
-      console.log(`--resume: skipped ${before - programs.length} program(s) with Phase 6 already complete\n`);
+      programs = programs.filter((p) => !(narrativeSet.has(p.id) && riskSet.has(p.id)));
+      console.log(
+        `--resume: skipped ${before - programs.length} program(s) with Phase 7 + Phase 8 already complete\n`,
+      );
     }
     if (args.limit) programs = programs.slice(0, args.limit);
     return programs;
@@ -334,18 +377,40 @@ async function processProgram(
     });
   }
 
-  // ── Phase 6 — Strategic narrative (Pro thinking) ─────────────────
-  // Runs LAST because it consumes signals from every prior phase
-  // (health, AI readiness, lifecycle, TCAS, financials, demand,
+  // ── Phase 6 — AI readiness (Pro) ─────────────────────────────────
+  // Runs BEFORE the narrative because the narrative reads the freshly-
+  // persisted ProgramAiReadinessAssessment row to fold AI-disruption
+  // signals into the Council brief. Force=true so a --force pipeline
+  // rerun gets a fresh assessment even when a prior one exists.
+  if (shouldRun('phase6')) {
+    const t = Date.now();
+    const r = await runProgramAiReadiness({ programId: program.id, ai, force: true }).catch(
+      (e) => ({ status: 'FAILED' as const, reason: String(e?.message ?? e) }),
+    );
+    phases.push({
+      name: 'phase6 AI readiness (Pro)',
+      durationMs: Date.now() - t,
+      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
+      ok: r.status !== 'FAILED',
+      notes:
+        r.status === 'SUCCEEDED'
+          ? `score ${r.relevanceScore.toFixed(0)} · ${r.gapCount} gaps · ${r.recommendationCount} recs · conf ${r.confidence.toFixed(2)}`
+          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
+    });
+  }
+
+  // ── Phase 7 — Strategic narrative (Pro thinking) ─────────────────
+  // Runs after every other AI phase because it consumes their persisted
+  // signals (health, AI readiness, lifecycle, TCAS, financials, demand,
   // demographic, peer review). Pre-computes the official Council
   // brief so the Deep-Dive UI shows it on first load.
-  if (shouldRun('phase6')) {
+  if (shouldRun('phase7')) {
     const t = Date.now();
     const r = await generateProgramStrategicNarrative({ programId: program.id, ai }).catch((e) => ({
       status: 'FAILED' as const, reason: String(e?.message ?? e),
     }));
     phases.push({
-      name: 'phase6 strategic narrative (Pro)',
+      name: 'phase7 strategic narrative (Pro)',
       durationMs: Date.now() - t,
       costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
       ok: r.status !== 'FAILED',
@@ -353,6 +418,23 @@ async function processProgram(
         r.status === 'SUCCEEDED'
           ? `${r.contentLength} chars · conf ${r.confidence.toFixed(2)}`
           : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
+    });
+  }
+
+  // ── Phase 8 — Risk analysis (deterministic + Pro narrative) ──────
+  // Subprocess: risks-assess.ts owns its own dotenv, prisma, ai service.
+  // Treated the same as the Oracle/MSSQL phase 4 scripts. Consumes
+  // financial + enrolment (phase 4) and peer subject (phase 5). Runs
+  // last so any of its inputs are already persisted.
+  if (shouldRun('phase8')) {
+    const t = Date.now();
+    const r = await runChildScript('risks-assess.ts', [program.code]);
+    phases.push({
+      name: 'phase8 risk analysis (Pro)',
+      durationMs: Date.now() - t,
+      costUsd: 0, // cost recorded on AiInference, not extractable from subprocess stdout
+      ok: r.ok,
+      notes: r.ok ? 'risk assessment + narrative + measures persisted' : 'risks-assess subprocess failed',
     });
   }
 
