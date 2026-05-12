@@ -41,6 +41,13 @@ import {
   scheduleMonitors,
   type TrendMonitorJobData,
 } from './trend-monitors';
+import {
+  createExternalAiSourcesQueue,
+  createExternalAiSourcesWorker,
+  createExternalAiSourcesEvents,
+  reconcileExternalAiRepeatables,
+  type ExternalAiSourceJobData,
+} from './external-ai';
 
 // Owns FIVE runtime components:
 //   - connector registry + ConnectorRunner
@@ -68,6 +75,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private trendMonitorsQueue?: Queue<TrendMonitorJobData>;
   private trendMonitorsWorker?: Worker<TrendMonitorJobData>;
   private trendMonitorsEvents?: QueueEvents;
+  private externalAiQueue?: Queue<ExternalAiSourceJobData>;
+  private externalAiWorker?: Worker<ExternalAiSourceJobData>;
+  private externalAiEvents?: QueueEvents;
+  private externalAiReconciler?: NodeJS.Timeout;
   private scheduler?: IngestionScheduler;
 
   constructor(private readonly config: ConfigService) {}
@@ -151,28 +162,61 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.trendMonitorsEvents = createTrendMonitorsEvents({ redisUrl });
     const { registered: monitorsRegistered } = await scheduleMonitors(this.trendMonitorsQueue);
 
+    // ── External AI sources (Phase 5 cron) ────────────────────────────
+    // Queue + worker that execute the fetch+summarise runner on cron.
+    // Reconciler converges the BullMQ repeatable set against the DB
+    // on boot AND every 5 min — handles status flips / cadence edits
+    // that didn't make it through the API's hot-flip path.
+    const externalAiConfig = {
+      redisUrl,
+      ai,
+      googleCseApiKey: this.config.get<string>('GOOGLE_CSE_API_KEY') || undefined,
+      googleCseCx: this.config.get<string>('GOOGLE_CSE_CX') || undefined,
+      concurrency: Number(this.config.get('EXTERNAL_AI_CONCURRENCY') ?? 1),
+    };
+    this.externalAiQueue = createExternalAiSourcesQueue(externalAiConfig);
+    this.externalAiWorker = createExternalAiSourcesWorker(externalAiConfig);
+    this.externalAiEvents = createExternalAiSourcesEvents(externalAiConfig);
+    const initialReconcile = await reconcileExternalAiRepeatables(this.externalAiQueue);
+    this.logger.log(
+      `external-ai reconcile (boot): added=${initialReconcile.added} ` +
+        `removed=${initialReconcile.removed} active=${initialReconcile.active}/${initialReconcile.total}`,
+    );
+    this.externalAiReconciler = setInterval(() => {
+      reconcileExternalAiRepeatables(this.externalAiQueue!).catch((err) => {
+        this.logger.warn(`external-ai reconcile failed: ${(err as Error).message}`);
+      });
+    }, 5 * 60_000);
+    // Unref so the timer doesn't keep the event loop alive during shutdown.
+    this.externalAiReconciler.unref();
+
     this.logger.log(
       `ingestion worker online — ${registry.size} connectors (${registered} scheduled, ${skipped} manual-only); ` +
         `pdf-intake concurrency=${pdfIntakeQueueConfig.concurrency}; ` +
         `ai-jobs provider=${ai.providerId} concurrency=${aiJobsQueueConfig.concurrency}; ` +
-        `trend-monitors registered=${monitorsRegistered}`,
+        `trend-monitors registered=${monitorsRegistered}; ` +
+        `external-ai active=${initialReconcile.active}`,
     );
   }
 
   async onModuleDestroy(): Promise<void> {
+    if (this.externalAiReconciler) clearInterval(this.externalAiReconciler);
     // Order: workers first (drain in-flight), then queues + events.
     await this.connectorWorker?.close();
     await this.pdfIntakeWorker?.close();
     await this.aiJobsWorker?.close();
     await this.trendMonitorsWorker?.close();
+    await this.externalAiWorker?.close();
     await this.connectorQueue?.close();
     await this.pdfIntakeQueue?.close();
     await this.aiJobsQueue?.close();
     await this.trendMonitorsQueue?.close();
+    await this.externalAiQueue?.close();
     await this.connectorEvents?.close();
     await this.pdfIntakeEvents?.close();
     await this.aiJobsEvents?.close();
     await this.trendMonitorsEvents?.close();
+    await this.externalAiEvents?.close();
   }
 
   scheduleNow(slug: string, userId: string): Promise<string> {

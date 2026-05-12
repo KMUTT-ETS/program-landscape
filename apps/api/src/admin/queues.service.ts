@@ -39,6 +39,12 @@ export const KNOWN_QUEUES = [
     description:
       'Scheduled monitors that scan for new policy / job-market / research / patent signals.',
   },
+  {
+    name: 'external-ai-sources',
+    label: 'External AI sources',
+    description:
+      'Cron-fired fetch+summarise runs for the Phase-5 catalog of external feeds (WEF / IMD / BOI / World Bank / MHESI / OECD / ASEAN / Google News).',
+  },
 ] as const;
 
 export type QueueName = (typeof KNOWN_QUEUES)[number]['name'];
