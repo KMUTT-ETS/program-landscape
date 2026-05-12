@@ -39,6 +39,13 @@ export interface ProgramOverviewResult {
     department: { id: string; nameEn: string; nameTh: string } | null;
   };
   health: HealthScoreRow | null;
+  /** Most recent pipeline-output timestamp for this program. MAX across
+   *  ProgramStrategicNarrative, ProgramAiReadinessAssessment,
+   *  ProgramPeerReview, RiskAssessment. Carries full time-of-day
+   *  precision so the "Updated Xh ago" deep-dive badge reflects when
+   *  the pipeline actually last ran (not when the underlying registrar
+   *  data was reported, which is `@db.Date` and lacks time). */
+  lastAnalysedAt: Date | null;
   methodologyVersion: string;
 }
 
@@ -133,7 +140,10 @@ export async function programOverview(programId: string): Promise<ProgramOvervie
   });
   if (!program) return null;
 
-  const health = (await computeHealthScores('program', programId))[0] ?? null;
+  const [health, lastAnalysedAt] = await Promise.all([
+    computeHealthScores('program', programId).then((rows) => rows[0] ?? null),
+    computeLastAnalysedAt(programId),
+  ]);
 
   return {
     program: {
@@ -148,8 +158,47 @@ export async function programOverview(programId: string): Promise<ProgramOvervie
       department: program.department,
     },
     health,
+    /** MAX(strategicNarrative.generatedAt, aiReadiness.generatedAt,
+     *  peerReview.generatedAt, riskAssessment.assessedAt) — the most
+     *  recent time any analytical-output table was written for this
+     *  program. The deep-dive "Updated Xh ago" badge sources from this
+     *  (a full DateTime), not from EnrollmentMetric.freshness_date
+     *  which is `@db.Date` and always reads 00:00:00 UTC in tooltips. */
+    lastAnalysedAt,
     methodologyVersion: HEALTH_SCORE_VERSION,
   };
+}
+
+async function computeLastAnalysedAt(programId: string): Promise<Date | null> {
+  // Read the four analytical-output DateTime fields in parallel. Each is
+  // upserted by a different pipeline phase. MAX across them = "when did
+  // the pipeline last touch this program".
+  const [narrative, aiReadiness, peerReview, risk] = await Promise.all([
+    prisma.programStrategicNarrative.findUnique({
+      where: { programId },
+      select: { generatedAt: true },
+    }),
+    prisma.programAiReadinessAssessment.findUnique({
+      where: { programId },
+      select: { generatedAt: true },
+    }),
+    prisma.programPeerReview.findUnique({
+      where: { programId },
+      select: { generatedAt: true },
+    }),
+    prisma.riskAssessment.findFirst({
+      where: { programId },
+      orderBy: { assessedAt: 'desc' },
+      select: { assessedAt: true },
+    }),
+  ]);
+  const candidates: Date[] = [];
+  if (narrative?.generatedAt) candidates.push(narrative.generatedAt);
+  if (aiReadiness?.generatedAt) candidates.push(aiReadiness.generatedAt);
+  if (peerReview?.generatedAt) candidates.push(peerReview.generatedAt);
+  if (risk?.assessedAt) candidates.push(risk.assessedAt);
+  if (candidates.length === 0) return null;
+  return new Date(Math.max(...candidates.map((d) => d.getTime())));
 }
 
 // ── Demand funnel ──────────────────────────────────────────────────────

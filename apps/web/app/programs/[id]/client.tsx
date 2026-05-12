@@ -71,8 +71,13 @@ interface Props {
  * `toLocaleDateString()` without an explicit locale falls back to the
  * runtime's default — Node (server) and the browser (client)
  * frequently disagree, so the SSR'd HTML doesn't match what the
- * client re-renders on hydration. ISO `YYYY-MM-DD` is deterministic
- * everywhere.
+ * client re-renders on hydration. ISO `YYYY-MM-DD HH:MM UTC` is
+ * deterministic everywhere AND carries time-of-day for DateTime
+ * sources (strategic narrative `generatedAt`, peer review
+ * `generatedAt` etc.). When the source is a Postgres DATE column
+ * (arrives as 00:00:00 UTC) the time component is suppressed —
+ * showing "00:00 UTC" on a date-only field looks like the renderer
+ * wrongly stripped the real time.
  */
 function formatDate(value: string | Date | null | undefined): string {
   if (!value) return '';
@@ -81,7 +86,12 @@ function formatDate(value: string | Date | null | undefined): string {
   // Use UTC slicing so the displayed date matches the stored UTC date
   // regardless of the viewer's local timezone (no off-by-one near
   // midnight UTC).
-  return d.toISOString().slice(0, 10);
+  const iso = d.toISOString();
+  const datePart = iso.slice(0, 10);
+  // Postgres DATE columns serialise to YYYY-MM-DDT00:00:00.000Z. Those
+  // never carry meaningful time-of-day, so display date-only.
+  if (iso.endsWith('T00:00:00.000Z')) return datePart;
+  return `${datePart} ${iso.slice(11, 16)} UTC`;
 }
 
 // Section ordering — top-down "Council reading flow":
@@ -348,7 +358,20 @@ function HeaderSection({
                     {h.overall.score === null ? '—' : Math.round(h.overall.score)}
                   </span>
                 </div>
-                {h.latestFreshness && <FreshnessBadge freshnessDate={h.latestFreshness} />}
+                {/* The badge represents WHEN THE PIPELINE LAST RAN for
+                  * this program (full timestamp, time-of-day preserved).
+                  * Sources from overview.lastAnalysedAt which is
+                  * MAX(narrative.generatedAt, ai-readiness.generatedAt,
+                  * peer-review.generatedAt, risk.assessedAt). Falls back
+                  * to health.latestFreshness (data vintage, `@db.Date`,
+                  * always midnight UTC) only when no pipeline output
+                  * exists yet. */}
+                {(overview.lastAnalysedAt ?? h.latestFreshness) && (
+                  <FreshnessBadge
+                    freshnessDate={overview.lastAnalysedAt ?? h.latestFreshness}
+                    label={overview.lastAnalysedAt ? 'pipeline run' : 'source data'}
+                  />
+                )}
                 <span className="text-xs text-text-tertiary">
                   {h.methodologyVersion} · data completeness {Math.round(h.overall.dataCompletenessPct)}%
                 </span>

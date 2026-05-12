@@ -26,6 +26,17 @@ function parse(d: string | Date | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Render a date as either `YYYY-MM-DD HH:MM:SS UTC` (when time-of-day
+ *  is meaningful) or `YYYY-MM-DD (date only)` (when the source was a
+ *  Postgres DATE column — those arrive as 00:00:00 UTC, and showing
+ *  "00:00:00 UTC" looks like the time component was wrongly stripped). */
+function formatTooltipTimestamp(d: Date): string {
+  const iso = d.toISOString();
+  const isMidnightUtc = iso.endsWith('T00:00:00.000Z');
+  if (isMidnightUtc) return `${iso.slice(0, 10)} (date only)`;
+  return `${iso.replace('T', ' ').slice(0, 19)} UTC`;
+}
+
 function relative(d: Date): { text: string; hours: number } {
   const hours = (Date.now() - d.getTime()) / 36e5;
   if (hours < 1) return { text: `${Math.max(1, Math.floor(hours * 60))}m ago`, hours };
@@ -95,7 +106,7 @@ export function FreshnessBadge({
           <span className="text-[11px] uppercase tracking-wide text-text-tertiary">
             {label}
           </span>
-          <span className="font-tabular">{date.toISOString().replace('T', ' ').slice(0, 19)} UTC</span>
+          <span className="font-tabular">{formatTooltipTimestamp(date)}</span>
         </div>
       </TooltipContent>
     </Tooltip>

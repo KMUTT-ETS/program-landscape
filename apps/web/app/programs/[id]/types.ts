@@ -106,6 +106,12 @@ export interface DeepDiveOverview {
     overall: HealthCell;
     latestFreshness: string | null;
   } | null;
+  /** ISO timestamp (full DateTime, time-of-day preserved) of the most
+   *  recent pipeline-output for this program. Drives the "Updated Xh
+   *  ago" badge on the Health card. Distinct from
+   *  `health.latestFreshness` which describes underlying registrar
+   *  data vintage (a `@db.Date`, always midnight UTC). */
+  lastAnalysedAt: string | null;
   methodologyVersion: string;
 }
 
