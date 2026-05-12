@@ -48,6 +48,21 @@ export interface PdfDetail {
   }>;
 }
 
+// AiExtraction rows produced by chained AI jobs (ANALYZE_POLICY_DOC etc.).
+// The intake-side stub extractor writes PdfExtraction (above); the real
+// LLM-backed analysis lives in AiExtraction. Both need to surface so the
+// detail page shows actual content, not just stub empty payloads.
+export interface AiExtractionRow {
+  id: string;
+  extractionKind: string;
+  confidence: number;
+  methodVersion: string;
+  reviewStatus: 'PENDING_REVIEW' | 'AUTO_APPROVED' | 'APPROVED' | 'REJECTED';
+  payloadJson: unknown;
+  reasoning: string | null;
+  createdAt: string;
+}
+
 export default async function AdminPdfReviewDetailPage({
   params,
 }: {
@@ -78,6 +93,16 @@ export default async function AdminPdfReviewDetailPage({
   // docker network only. See apps/web/app/api/pdfs/[id]/file/route.ts.
   const fileUrl = `/api/pdfs/${id}/file`;
 
+  // Fetch AI extractions linked to this PDF. These are the rows produced
+  // by chained AI jobs (ANALYZE_POLICY_DOC + future variants) — they live
+  // in a separate table from PdfExtraction and were previously invisible
+  // on this page, which was the bug behind the "I see only an empty stub
+  // payload" report on 2026-05-12.
+  const aiExtractionsRes = await apiFetchSafe<AiExtractionRow[]>(
+    `/ai/extractions?sourceEntityType=policy_document&sourceEntityId=${encodeURIComponent(id)}&limit=20`,
+  );
+  const aiExtractions = aiExtractionsRes.ok ? aiExtractionsRes.data : [];
+
   return (
     <AuthedAppShell user={user}>
       <AdminBackNav current={pdf?.originalFilename ?? 'PDF detail'} group="PDF library" groupHref="/admin/pdf-review" />
@@ -102,7 +127,7 @@ export default async function AdminPdfReviewDetailPage({
           {pdf.processingError}
         </div>
       )}
-      <ReviewClient pdf={pdf} fileUrl={fileUrl} />
+      <ReviewClient pdf={pdf} fileUrl={fileUrl} aiExtractions={aiExtractions} />
     </AuthedAppShell>
   );
 }

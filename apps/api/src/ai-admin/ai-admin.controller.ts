@@ -34,6 +34,10 @@ import {
 const ListQuerySchema = z.object({
   status: z.enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'AUTO_APPROVED']).optional(),
   kind: z.string().optional(),
+  // Filter by source entity. Useful for "show AI extractions linked to
+  // this PDF" on /admin/pdf-review/[id].
+  sourceEntityType: z.string().optional(),
+  sourceEntityId: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
 });
 
@@ -57,6 +61,8 @@ export class AiAdminController {
     const where: Prisma.AiExtractionWhereInput = {};
     if (q.status) where.reviewStatus = q.status;
     if (q.kind) where.extractionKind = q.kind;
+    if (q.sourceEntityType) where.sourceEntityType = q.sourceEntityType;
+    if (q.sourceEntityId) where.sourceEntityId = q.sourceEntityId;
     return prisma.aiExtraction.findMany({
       where,
       orderBy: { createdAt: 'desc' },

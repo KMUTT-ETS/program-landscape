@@ -17,7 +17,7 @@ import {
   rejectExtractionAction,
   reExtractAction,
 } from '@/lib/actions/pdf-review';
-import type { PdfDetail } from './page';
+import type { AiExtractionRow, PdfDetail } from './page';
 
 // Lazy-load react-pdf + pdfjs (~110 kB) on the client only. Drops the
 // initial-load cost of every other page that imports from this file's
@@ -33,7 +33,15 @@ const PdfViewer = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewer),
   ),
 });
 
-export function ReviewClient({ pdf, fileUrl }: { pdf: PdfDetail; fileUrl: string }) {
+export function ReviewClient({
+  pdf,
+  fileUrl,
+  aiExtractions,
+}: {
+  pdf: PdfDetail;
+  fileUrl: string;
+  aiExtractions: AiExtractionRow[];
+}) {
   const router = useRouter();
   const [selectedExtractionId, setSelectedExtractionId] = React.useState<string | null>(
     pdf.extractions[0]?.id ?? null,
@@ -145,6 +153,53 @@ export function ReviewClient({ pdf, fileUrl }: { pdf: PdfDetail; fileUrl: string
             </div>
           )}
         </Card>
+
+        {aiExtractions.length > 0 && (
+          <Card>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                AI analyses ({aiExtractions.length})
+              </h3>
+              <span className="text-[11px] text-text-tertiary">
+                from chained AI jobs · /admin/extraction-review
+              </span>
+            </div>
+            <p className="mb-3 text-xs text-text-tertiary">
+              Real LLM-backed analyses (policy-doc.v1) produced by chained
+              AI jobs. These are separate from the intake-pipeline
+              extractions above and carry the meaningful Thai + English
+              summaries, key directives, and sector tags.
+            </p>
+            <div className="flex flex-col gap-3">
+              {aiExtractions.map((a) => (
+                <div
+                  key={a.id}
+                  className="rounded-md border border-border-default bg-surface-0 p-3"
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+                    <span className="font-mono">{a.extractionKind}</span>
+                    <span>·</span>
+                    <span>{a.methodVersion}</span>
+                    <span>·</span>
+                    <span>{new Date(a.createdAt).toLocaleString()}</span>
+                    <Badge tone={reviewTone(a.reviewStatus)} className="ml-auto">
+                      {a.reviewStatus}
+                    </Badge>
+                    <ConfidenceBadge value={a.confidence} />
+                  </div>
+                  {a.reasoning && (
+                    <div className="mb-2 rounded bg-surface-2 p-2 text-xs text-text-secondary">
+                      {a.reasoning}
+                    </div>
+                  )}
+                  <pre className="max-h-72 overflow-auto rounded border border-border-subtle bg-surface-1 p-2 text-xs">
+                    {JSON.stringify(a.payloadJson, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {selected && (
           <Card>

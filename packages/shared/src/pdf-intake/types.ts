@@ -144,6 +144,18 @@ export interface PipelineOutcome {
   autoApproved: number;
   pendingReview: number;
   durationMs: number;
+  /** Domain-level verdict on top of BullMQ's coarse "completed" flag.
+   *  OK      — extracted at least one non-stub row OR chained an AI job
+   *  SKIPPED — completed but produced nothing useful (likely scanned,
+   *            classifier fell back, no extractor matched, dedup hit)
+   *  FAILED  — handler threw (BullMQ marks failed, this is set for
+   *            return-value consistency on retries that recover)
+   *  Always present in 2026-05-12+ pipeline runs. Optional only for
+   *  back-compat with older BullMQ-stored returnvalues. */
+  verdict?: 'OK' | 'SKIPPED' | 'FAILED';
+  /** Human-readable reason when verdict !== 'OK'. Surfaced in /admin/queues
+   *  so operators know WHY a job succeeded-but-skipped. */
+  verdictReason?: string;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

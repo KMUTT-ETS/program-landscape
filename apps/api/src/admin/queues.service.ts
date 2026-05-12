@@ -284,29 +284,52 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
   // finishedAt desc. Drives the "recent activity" stream in the UI.
   // Each queue's history is capped at `limit` and the merge keeps the
   // overall result trimmed too — small constant memory, no scan.
-  async recentActivity(limit = 30): Promise<
-    Array<{
-      queueName: QueueName;
-      queueLabel: string;
-      id: string;
-      jobName: string;
-      state: 'completed' | 'failed';
-      finishedAt: number | null;
-      durationMs: number | null;
-      failedReason: string | null;
-    }>
+  // Combined "all queues" view — every job across every queue, every
+  // state, ordered by job start time desc. Pulls per-queue caps so
+  // memory stays bounded; the merge gives operators a single chronological
+  // feed instead of forcing them to drill into one queue at a time.
+  async allQueuesJobs(opts: { limit?: number; states?: JobType[] } = {}): Promise<
+    AllQueuesEntry[]
   > {
+    const states = opts.states ?? (['active', 'waiting', 'delayed', 'completed', 'failed'] as JobType[]);
+    const limit = Math.max(10, Math.min(opts.limit ?? 100, 500));
+    const perQueue = Math.max(20, Math.ceil(limit / KNOWN_QUEUES.length) * 3);
+    const merged: AllQueuesEntry[] = [];
+    for (const entry of KNOWN_QUEUES) {
+      const q = this.queues.get(entry.name)!;
+      const jobs = await q.getJobs(states, 0, perQueue - 1, false);
+      for (const j of jobs) {
+        const jobState = ((await j.getState()) as JobType | 'unknown') ?? 'unknown';
+        const verdict =
+          jobState === 'completed' ? extractVerdict(j.returnvalue) :
+          jobState === 'failed' ? 'FAILED' : null;
+        merged.push({
+          queueName: entry.name,
+          queueLabel: entry.label,
+          id: String(j.id ?? ''),
+          jobName: j.name,
+          state: jobState,
+          verdict,
+          verdictReason: jobState === 'completed' ? extractVerdictReason(j.returnvalue) : null,
+          // Started = when the worker picked up the job. For jobs still
+          // waiting/delayed there's no start time yet, so we fall back
+          // to the enqueue timestamp so the ordering is still useful.
+          startedAt: j.processedOn ?? j.timestamp ?? null,
+          finishedAt: j.finishedOn ?? null,
+          durationMs:
+            j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
+          failedReason: j.failedReason ?? null,
+          attempts: { made: j.attemptsMade ?? 0, max: j.opts?.attempts ?? 1 },
+        });
+      }
+    }
+    merged.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+    return merged.slice(0, limit);
+  }
+
+  async recentActivity(limit = 30): Promise<ActivityEntry[]> {
     const perQueue = Math.max(5, Math.min(limit, 50));
-    const merged: Array<{
-      queueName: QueueName;
-      queueLabel: string;
-      id: string;
-      jobName: string;
-      state: 'completed' | 'failed';
-      finishedAt: number | null;
-      durationMs: number | null;
-      failedReason: string | null;
-    }> = [];
+    const merged: ActivityEntry[] = [];
     for (const entry of KNOWN_QUEUES) {
       const q = this.queues.get(entry.name)!;
       const [completed, failed] = await Promise.all([
@@ -314,12 +337,20 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
         q.getJobs(['failed'], 0, perQueue - 1, false),
       ]);
       for (const j of completed) {
+        const verdict = extractVerdict(j.returnvalue);
         merged.push({
           queueName: entry.name,
           queueLabel: entry.label,
           id: String(j.id ?? ''),
           jobName: j.name,
-          state: 'completed',
+          // state from BullMQ's perspective is `completed` — but the
+          // domain verdict from the handler return value is what the
+          // operator actually wants to see. `completed-skipped` is the
+          // "ran without error but produced nothing useful" bucket.
+          state:
+            verdict === 'SKIPPED' ? 'completed-skipped' : 'completed',
+          verdict,
+          verdictReason: extractVerdictReason(j.returnvalue),
           finishedAt: j.finishedOn ?? null,
           durationMs:
             j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
@@ -333,6 +364,8 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
           id: String(j.id ?? ''),
           jobName: j.name,
           state: 'failed',
+          verdict: 'FAILED',
+          verdictReason: null,
           finishedAt: j.finishedOn ?? null,
           durationMs:
             j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
@@ -410,4 +443,75 @@ async function serialiseJob(
     failedReason: job.failedReason ?? null,
     stacktraceTail: stack.length > 0 ? stack.slice(-4).join('\n') : null,
   };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Domain-level verdict surfacing
+//
+// BullMQ marks a job `completed` whenever the handler doesn't throw.
+// That elides the difference between "produced useful output" and
+// "ran successfully but did nothing" (low-confidence skip, no extractor
+// matched, dedup hit, source paused). Every handler in apps/ingestion
+// already returns a `status` or `verdict` field in its return value;
+// we read that here so the admin UI can show OK / SKIPPED / FAILED
+// instead of pretending everything succeeded.
+//
+// The PDF intake worker returns `{ verdict: 'OK' | 'SKIPPED' }`; the
+// AI-jobs handlers return `{ status: 'SUCCEEDED' | 'SKIPPED' | 'FAILED' }`.
+// We normalise both into the same enum.
+// ──────────────────────────────────────────────────────────────────────
+
+export type JobVerdict = 'OK' | 'SKIPPED' | 'FAILED';
+
+export interface AllQueuesEntry {
+  queueName: QueueName;
+  queueLabel: string;
+  id: string;
+  jobName: string;
+  state: JobType | 'unknown';
+  verdict: JobVerdict | null;
+  verdictReason: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  durationMs: number | null;
+  failedReason: string | null;
+  attempts: { made: number; max: number };
+}
+
+export interface ActivityEntry {
+  queueName: QueueName;
+  queueLabel: string;
+  id: string;
+  jobName: string;
+  /** BullMQ's lifecycle state, with one extra flavour: `completed-skipped`
+   *  for jobs that BullMQ thinks completed but the handler returned a
+   *  SKIPPED verdict. Operators read this column to see real outcomes. */
+  state: 'completed' | 'completed-skipped' | 'failed';
+  verdict: JobVerdict;
+  verdictReason: string | null;
+  finishedAt: number | null;
+  durationMs: number | null;
+  failedReason: string | null;
+}
+
+function extractVerdict(returnValue: unknown): JobVerdict {
+  if (!returnValue || typeof returnValue !== 'object') return 'OK';
+  const r = returnValue as Record<string, unknown>;
+  // PDF intake worker shape.
+  if (r.verdict === 'OK' || r.verdict === 'SKIPPED' || r.verdict === 'FAILED') {
+    return r.verdict as JobVerdict;
+  }
+  // AI-jobs handler shape: { status: 'SUCCEEDED' | 'SKIPPED' | 'FAILED' }.
+  if (r.status === 'SKIPPED') return 'SKIPPED';
+  if (r.status === 'FAILED') return 'FAILED';
+  if (r.status === 'SUCCEEDED') return 'OK';
+  return 'OK';
+}
+
+function extractVerdictReason(returnValue: unknown): string | null {
+  if (!returnValue || typeof returnValue !== 'object') return null;
+  const r = returnValue as Record<string, unknown>;
+  if (typeof r.verdictReason === 'string') return r.verdictReason;
+  if (typeof r.message === 'string') return r.message;
+  return null;
 }

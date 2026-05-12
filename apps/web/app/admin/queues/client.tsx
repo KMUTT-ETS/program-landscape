@@ -66,10 +66,32 @@ interface ActivityEntry {
   queueLabel: string;
   id: string;
   jobName: string;
-  state: 'completed' | 'failed';
+  // `completed` = BullMQ completed AND handler returned a useful result
+  // `completed-skipped` = BullMQ completed BUT handler returned SKIPPED
+  //   (low confidence, dedup, paused source, etc.) — the operator should
+  //   see this distinctly from "real success" so silent fails don't hide
+  // `failed` = handler threw / BullMQ marked failed
+  state: 'completed' | 'completed-skipped' | 'failed';
+  verdict: 'OK' | 'SKIPPED' | 'FAILED';
+  verdictReason: string | null;
   finishedAt: number | null;
   durationMs: number | null;
   failedReason: string | null;
+}
+
+interface AllQueuesEntry {
+  queueName: string;
+  queueLabel: string;
+  id: string;
+  jobName: string;
+  state: 'active' | 'waiting' | 'delayed' | 'completed' | 'failed' | 'paused' | 'unknown';
+  verdict: 'OK' | 'SKIPPED' | 'FAILED' | null;
+  verdictReason: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  durationMs: number | null;
+  failedReason: string | null;
+  attempts: { made: number; max: number };
 }
 
 interface ThroughputEntry {
@@ -100,14 +122,19 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
   const [reviewCounts, setReviewCounts] = React.useState<ReviewCounts | null>(null);
   const [activity, setActivity] = React.useState<ActivityEntry[]>([]);
   const [throughput, setThroughput] = React.useState<ThroughputMap>({});
+  // "All jobs" combined feed — used when activeQueue === 'all'. We
+  // poll it alongside the summaries tick so the operator gets the
+  // realtime view without drilling into a specific queue.
+  const [allJobs, setAllJobs] = React.useState<AllQueuesEntry[]>([]);
 
   const loadRealtime = React.useCallback(async () => {
     // Fetch the three side-channel endpoints in parallel. Each is
     // best-effort: a failure leaves the previous state visible.
-    const [rcRes, acRes, tpRes] = await Promise.allSettled([
+    const [rcRes, acRes, tpRes, allRes] = await Promise.allSettled([
       fetch('/api/admin-queues/review-counts').then((r) => (r.ok ? r.json() : null)),
       fetch('/api/admin-queues/activity?limit=30').then((r) => (r.ok ? r.json() : null)),
       fetch('/api/admin-queues/throughput').then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/admin-queues/all-jobs?limit=150').then((r) => (r.ok ? r.json() : null)),
     ]);
     if (rcRes.status === 'fulfilled' && rcRes.value?.data) {
       setReviewCounts(rcRes.value.data as ReviewCounts);
@@ -117,6 +144,9 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
     }
     if (tpRes.status === 'fulfilled' && tpRes.value?.data) {
       setThroughput(tpRes.value.data as ThroughputMap);
+    }
+    if (allRes.status === 'fulfilled' && allRes.value?.data) {
+      setAllJobs(allRes.value.data as AllQueuesEntry[]);
     }
   }, []);
 
@@ -128,7 +158,10 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
       const j = await res.json();
       const data = j.data as QueueSummary[];
       setSummaries(data);
-      setActiveQueue((cur) => cur ?? data[0]?.name ?? null);
+      // Default to the combined "all jobs" view so the operator sees
+      // the global picture first. They can still click a queue tile to
+      // drill in.
+      setActiveQueue((cur) => cur ?? 'all');
       setError(null);
     } catch (err) {
       setError((err as Error).message);
@@ -174,17 +207,21 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
     );
   }
 
-  const current = summaries.find((s) => s.name === activeQueue) ?? summaries[0];
-  if (!current) {
-    // summaries was non-empty when we checked above (activeQueue is set
-    // only after summaries[0] exists); kept here for type narrowing.
-    return null;
-  }
+  const isAllView = activeQueue === 'all';
+  const current = isAllView
+    ? null
+    : (summaries.find((s) => s.name === activeQueue) ?? summaries[0] ?? null);
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-5">
-      {/* Top KPI row — one tile per queue + the human-review pseudo-tile */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {/* Top KPI row — the "All" tile + one tile per queue + the
+          human-review pseudo-tile */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <AllJobsTile
+          active={isAllView}
+          onClick={() => setActiveQueue('all')}
+          totals={summariseAll(summaries)}
+        />
         {summaries.map((s) => (
           <QueueTile
             key={s.name}
@@ -201,14 +238,23 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
       {/* Toolbar above the bucket tabs */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-text-primary">{current.label}</span>
-          {current.paused && (
-            <Badge tone="warning">
-              <Pause className="h-3 w-3" aria-hidden />
-              Paused
-            </Badge>
-          )}
-          <span className="text-text-tertiary">— {current.description}</span>
+          {isAllView ? (
+            <>
+              <span className="font-medium text-text-primary">All queues</span>
+              <span className="text-text-tertiary">— combined feed, ordered by start time desc</span>
+            </>
+          ) : current ? (
+            <>
+              <span className="font-medium text-text-primary">{current.label}</span>
+              {current.paused && (
+                <Badge tone="warning">
+                  <Pause className="h-3 w-3" aria-hidden />
+                  Paused
+                </Badge>
+              )}
+              <span className="text-text-tertiary">— {current.description}</span>
+            </>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -221,7 +267,7 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
             <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />
             Refresh
           </Button>
-          {canManage && (
+          {canManage && current && (
             <QueueAdminMenu
               queue={current}
               onChanged={() => void loadSummaries()}
@@ -230,16 +276,192 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
         </div>
       </div>
 
-      <QueueDetail
-        key={current.name}
-        queue={current}
-        canManage={canManage}
-        onChanged={() => void loadSummaries()}
-      />
+      {isAllView ? (
+        <AllJobsTable entries={allJobs} />
+      ) : current ? (
+        <QueueDetail
+          key={current.name}
+          queue={current}
+          canManage={canManage}
+          onChanged={() => void loadSummaries()}
+        />
+      ) : null}
 
       <ActivityStream entries={activity} />
     </div>
   );
+}
+
+// ─── "All queues" tile (Phase 7) ──────────────────────────────────────────
+// Shows the global counts and acts as the entry point into the
+// combined all-jobs view. Sits at the start of the tile row.
+
+function summariseAll(summaries: QueueSummary[] | null): {
+  active: number;
+  waiting: number;
+  failed: number;
+  completed: number;
+} {
+  const acc = { active: 0, waiting: 0, failed: 0, completed: 0 };
+  if (!summaries) return acc;
+  for (const s of summaries) {
+    acc.active += s.counts.active ?? 0;
+    acc.waiting += (s.counts.waiting ?? 0) + (s.counts.delayed ?? 0);
+    acc.failed += s.counts.failed ?? 0;
+    acc.completed += s.counts.completed ?? 0;
+  }
+  return acc;
+}
+
+function AllJobsTile({
+  active,
+  onClick,
+  totals,
+}: {
+  active: boolean;
+  onClick: () => void;
+  totals: { active: number; waiting: number; failed: number; completed: number };
+}) {
+  const live = totals.active > 0;
+  const danger = totals.failed > 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        'group relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors ' +
+        (active
+          ? 'border-accent/60 bg-accent-subtle/40 shadow-sm'
+          : 'border-border-subtle bg-surface-1 hover:border-accent/30 hover:bg-accent-subtle/20')
+      }
+    >
+      {live ? (
+        <span aria-hidden className="absolute right-3 top-3 flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-60" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-warning" />
+        </span>
+      ) : null}
+      <div className="flex items-start justify-between gap-2">
+        <span className="font-medium text-text-primary">All queues</span>
+        <span className="font-tabular text-[11px] uppercase tracking-wide text-text-tertiary">
+          combined
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <Stat label="active" value={totals.active} tone="warning" />
+        <Stat label="waiting" value={totals.waiting} tone="neutral" />
+        <Stat label="failed" value={totals.failed} tone={danger ? 'danger' : 'neutral'} />
+      </div>
+      <div className="flex items-center justify-between text-[11px] text-text-tertiary">
+        <span>{totals.completed.toLocaleString()} completed</span>
+        <span className="text-[10px] uppercase tracking-wider">click to see all jobs</span>
+      </div>
+    </button>
+  );
+}
+
+// ─── "All queues" jobs table ──────────────────────────────────────────────
+
+function AllJobsTable({ entries }: { entries: AllQueuesEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <Card padding="sm">
+        <div className="py-6 text-center text-sm text-text-tertiary">No jobs yet.</div>
+      </Card>
+    );
+  }
+  return (
+    <Card padding="sm">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold">All jobs · {entries.length}</h2>
+        <span className="text-[11px] text-text-tertiary">
+          ordered by start time desc · refreshes every 5s
+        </span>
+      </div>
+      <div className="-mx-3 max-h-[640px] overflow-y-auto">
+        <table className="w-full min-w-[900px] text-xs">
+          <thead className="sticky top-0 bg-surface-1">
+            <tr className="text-left uppercase tracking-wide text-text-tertiary">
+              <th className="px-3 py-1.5 font-medium">Started</th>
+              <th className="px-3 py-1.5 font-medium">Queue</th>
+              <th className="px-3 py-1.5 font-medium">Job</th>
+              <th className="px-3 py-1.5 font-medium">State</th>
+              <th className="px-3 py-1.5 text-right font-medium">Duration</th>
+              <th className="px-3 py-1.5 font-medium">Attempts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr
+                key={`${e.queueName}:${e.id}`}
+                className="border-t border-border-default align-top"
+              >
+                <td className="px-3 py-2 text-text-tertiary">
+                  {e.startedAt ? <RelativeTime ms={e.startedAt} /> : '—'}
+                </td>
+                <td className="px-3 py-2 text-text-secondary">{e.queueLabel}</td>
+                <td className="px-3 py-2 font-mono text-[11px]">{e.jobName}</td>
+                <td className="px-3 py-2">
+                  <JobStateBadge entry={e} />
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {e.durationMs != null ? formatDuration(e.durationMs) : '—'}
+                </td>
+                <td className="px-3 py-2 text-text-tertiary">
+                  {e.attempts.made}/{e.attempts.max}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
+  if (entry.state === 'failed') {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-danger"
+        title={entry.failedReason ?? undefined}
+      >
+        <XCircle className="h-3 w-3" aria-hidden /> failed
+      </span>
+    );
+  }
+  if (entry.state === 'completed') {
+    if (entry.verdict === 'SKIPPED') {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-warning"
+          title={entry.verdictReason ?? 'completed without producing useful output'}
+        >
+          <AlertTriangle className="h-3 w-3" aria-hidden /> skipped
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-success">
+        <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+      </span>
+    );
+  }
+  if (entry.state === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1 text-warning">
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> running
+      </span>
+    );
+  }
+  if (entry.state === 'waiting' || entry.state === 'delayed') {
+    return (
+      <span className="inline-flex items-center gap-1 text-text-secondary">
+        <Clock className="h-3 w-3" aria-hidden /> {entry.state}
+      </span>
+    );
+  }
+  return <span className="text-text-tertiary">{entry.state}</span>;
 }
 
 // ─── Review-queue row (Phase 6) ────────────────────────────────────────────
@@ -362,6 +584,13 @@ function ActivityStream({ entries }: { entries: ActivityEntry[] }) {
                   {e.state === 'completed' ? (
                     <span className="inline-flex items-center gap-1 text-success">
                       <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+                    </span>
+                  ) : e.state === 'completed-skipped' ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-warning"
+                      title={e.verdictReason ?? 'completed without producing useful output'}
+                    >
+                      <AlertTriangle className="h-3 w-3" aria-hidden /> skipped
                     </span>
                   ) : (
                     <span

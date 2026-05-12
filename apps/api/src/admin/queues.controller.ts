@@ -58,6 +58,16 @@ export class QueuesController {
     return this.svc.recentActivity(n);
   }
 
+  // Combined feed of every job across every queue, ordered by job
+  // start time desc. Phase 7 — operators no longer have to drill into
+  // one queue tile at a time to see "what's happening right now."
+  @Get('all-jobs')
+  @Authorized('queues:read')
+  async allJobs(@Query('limit') limitRaw?: string) {
+    const n = limitRaw ? Math.min(Math.max(Number(limitRaw) || 100, 10), 500) : 100;
+    return this.svc.allQueuesJobs({ limit: n });
+  }
+
   @Get('throughput')
   @Authorized('queues:read')
   async throughput() {

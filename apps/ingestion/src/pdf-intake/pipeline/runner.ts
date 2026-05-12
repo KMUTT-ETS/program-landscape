@@ -132,6 +132,8 @@ export class PdfIntakePipeline {
           autoApproved: 0,
           pendingReview: 0,
           durationMs: Date.now() - startedAt,
+          verdict: 'SKIPPED',
+          verdictReason: 'Scanned PDF — awaiting OCR (vision-LLM path).',
         };
       }
 
@@ -149,9 +151,24 @@ export class PdfIntakePipeline {
       };
       const classification = await this.deps.classifier.classify(ctx);
 
-      // 5. Pick extractors and run them sequentially (prompt 04 can
-      // parallelise once the real LLM latencies dominate).
-      const extractors = extractorsFor(classification.sourceCategory);
+      // 5. Pick extractors. When the AI-jobs chain (step 7 below) is
+      // going to run for POLICY/REPORT, skip the stub POLICY/REPORT
+      // extractors — their empty payload would otherwise become the
+      // visible "extraction" on /admin/pdf-review/[id], hiding the real
+      // ANALYZE_POLICY_DOC AiExtraction that the chain produces.
+      const willChainAiSummary =
+        (classification.sourceCategory === 'POLICY' || classification.sourceCategory === 'REPORT') &&
+        Boolean(this.deps.aiJobsQueue);
+      const extractors = extractorsFor(classification.sourceCategory).filter((ex) => {
+        if (!willChainAiSummary) return true;
+        // Drop the stub policy + stub statistical-report extractors when
+        // the AI chain will produce a real summary. Real extractors (e.g.
+        // CurriculumAiExtractor, future PolicyAiExtractor) stay.
+        const isStub = ex.methodVersion === 'stub-v1';
+        const isPolicyOrReportStub =
+          isStub && (ex.extractionType === 'POLICY_DOC' || ex.extractionType === 'LABOR_STAT');
+        return !isPolicyOrReportStub;
+      });
       let autoApproved = 0;
       let pendingReview = 0;
       const extractionRows: Array<{
@@ -231,6 +248,8 @@ export class PdfIntakePipeline {
         pdf.sourceCategoryHint ??
         (classification.confidence > 0 ? classification.sourceCategory : pdf.sourceCategory);
       const policyClass = finalCategory === 'POLICY' || finalCategory === 'REPORT';
+      let chainEnqueued = false;
+      let chainError: string | null = null;
       if (policyClass && this.deps.aiJobsQueue) {
         try {
           await this.deps.aiJobsQueue.add(
@@ -240,26 +259,63 @@ export class PdfIntakePipeline {
             // so re-extracts of the same PDF don't collide on a prior id.
             { jobId: `policy-doc-${pdfDocumentId}-${Date.now()}` },
           );
+          chainEnqueued = true;
           this.logger.log(
             `chained ANALYZE_POLICY_DOC for ${pdfDocumentId} (category=${finalCategory})`,
           );
         } catch (err) {
-          // Don't fail the intake job on a chain-enqueue blip — the
-          // operator can manually re-run the analysis from
-          // /admin/extraction-review.
+          chainError = (err as Error).message;
+          // Don't fail the intake job on a chain-enqueue blip — operator
+          // can re-run from /admin/extraction-review. But DO surface the
+          // failure on processingError so the admin UI shows it instead
+          // of pretending everything is fine.
           this.logger.warn(
-            `chain ANALYZE_POLICY_DOC failed for ${pdfDocumentId}: ${(err as Error).message}`,
+            `chain ANALYZE_POLICY_DOC failed for ${pdfDocumentId}: ${chainError}`,
           );
+          await prisma.pdfDocument
+            .update({
+              where: { id: pdfDocumentId },
+              data: {
+                processingError: `Intake completed but follow-up analysis failed to enqueue: ${chainError}. The PDF text + classification are saved; click "Re-extract" to retry.`,
+              },
+            })
+            .catch(() => undefined);
         }
+      }
+
+      // Compute domain verdict. The pipeline can land in three places
+      // that BullMQ would all label "completed":
+      //   - OK      : meaningful work landed (extractions OR chained job)
+      //   - SKIPPED : no extractor matched, or only stub extractions,
+      //               or classifier fell back, or chain failed silently
+      //   - FAILED  : handled in the catch block below
+      const extractionCount = autoApproved + pendingReview;
+      let verdict: 'OK' | 'SKIPPED' = 'OK';
+      const reasons: string[] = [];
+      if (extractionCount === 0 && !chainEnqueued) {
+        verdict = 'SKIPPED';
+        reasons.push('no extractors matched');
+      }
+      if (classification.confidence < this.deps.config.classifierAutoApproveThreshold) {
+        // Low classifier confidence — surface as a soft skip so the queue
+        // UI flags it for operator attention even if extractions wrote.
+        reasons.push(`classifier confidence ${classification.confidence.toFixed(2)} below threshold`);
+        if (extractionCount === 0) verdict = 'SKIPPED';
+      }
+      if (chainError) {
+        verdict = 'SKIPPED';
+        reasons.push(`chain enqueue failed: ${chainError}`);
       }
 
       return {
         pdfDocumentId,
         classification,
-        extractionCount: autoApproved + pendingReview,
+        extractionCount,
         autoApproved,
         pendingReview,
         durationMs: Date.now() - startedAt,
+        verdict,
+        verdictReason: reasons.length > 0 ? reasons.join('; ') : undefined,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
