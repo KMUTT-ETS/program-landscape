@@ -23,13 +23,29 @@ export type AiJobKind =
   | 'RUN_PROGRAM_PIPELINE'
   | 'RUN_IMD_RANKINGS_EXTRACT';
 
+/**
+ * Pipeline phases. Mirrors apps/ingestion/src/scripts/programs-pipeline.ts:
+ *   phase1  PDF extraction (digest + faculty + skills + pedagogy)
+ *   phase2  approve + materialise
+ *   phase3  career mapping + demand match
+ *   phase4  Oracle/MSSQL data linkage (cohorts, alumni, financials)
+ *   phase5  peer select + peer review
+ *   phase6  AI readiness
+ *   phase7  strategic narrative
+ *   phase8  risk analysis
+ *
+ * Phases 7 + 8 added 2026-05-12 (pipeline expansion commit 44b6bee).
+ * The enum was stale until 2026-05-12 (Phase 2a admin redesign).
+ */
 export type ProgramPipelinePhase =
   | 'phase1'
   | 'phase2'
   | 'phase3'
   | 'phase4'
   | 'phase5'
-  | 'phase6';
+  | 'phase6'
+  | 'phase7'
+  | 'phase8';
 
 export interface AiJobData {
   kind: AiJobKind;

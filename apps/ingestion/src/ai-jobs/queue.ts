@@ -27,13 +27,19 @@ export type AiJobKind =
   | 'RUN_PROGRAM_PIPELINE'
   | 'RUN_IMD_RANKINGS_EXTRACT';
 
+// Pipeline phases. Mirrors the API-side definition in
+// apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in
+// apps/ingestion/src/scripts/programs-pipeline.ts.
+// Phases 7 + 8 added 2026-05-12 (Phase 2a admin redesign).
 export type ProgramPipelinePhase =
   | 'phase1'
   | 'phase2'
   | 'phase3'
   | 'phase4'
   | 'phase5'
-  | 'phase6';
+  | 'phase6'
+  | 'phase7'
+  | 'phase8';
 
 export interface AiJobData {
   kind: AiJobKind;
