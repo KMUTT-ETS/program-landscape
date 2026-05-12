@@ -43,6 +43,27 @@ export class QueuesController {
     return this.svc.listSummaries();
   }
 
+  // ── Phase 6 realtime additions ────────────────────────────────────
+
+  @Get('review-counts')
+  @Authorized('queues:read')
+  async reviewCounts() {
+    return this.svc.reviewCounts();
+  }
+
+  @Get('activity')
+  @Authorized('queues:read')
+  async activity(@Query('limit') limitRaw?: string) {
+    const n = limitRaw ? Math.min(Math.max(Number(limitRaw) || 30, 5), 100) : 30;
+    return this.svc.recentActivity(n);
+  }
+
+  @Get('throughput')
+  @Authorized('queues:read')
+  async throughput() {
+    return this.svc.throughput();
+  }
+
   @Get(':queue/jobs')
   @Authorized('queues:read')
   async jobs(

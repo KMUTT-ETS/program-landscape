@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue, type JobType } from 'bullmq';
+import { prisma } from '@kku/db';
 import { ApiError } from '@kku/shared';
 
 // Read + manage all four BullMQ queues from a single place.
@@ -256,6 +257,132 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
   async resume(name: string): Promise<{ paused: false }> {
     await this.resolve(name).resume();
     return { paused: false };
+  }
+
+  // ── Phase 6: realtime enhancements ───────────────────────────────────
+
+  // AI-extraction + PDF-extraction PENDING_REVIEW counts. The user can
+  // reach the actual review UIs at /admin/extraction-review and
+  // /admin/pdf-review?lifecycle=ACTIVE&status=PENDING_REVIEW; this
+  // method just surfaces the awaiting-attention counts on the queues
+  // dashboard so the operator doesn't have to navigate to find them.
+  async reviewCounts(): Promise<{ aiExtractions: number; pdfExtractions: number }> {
+    const [ai, pdf] = await Promise.all([
+      prisma.aiExtraction.count({ where: { reviewStatus: 'PENDING_REVIEW' } }),
+      prisma.pdfExtraction.count({ where: { reviewStatus: 'PENDING_REVIEW' } }),
+    ]);
+    return { aiExtractions: ai, pdfExtractions: pdf };
+  }
+
+  // Last N completed + failed jobs across every queue, merged by
+  // finishedAt desc. Drives the "recent activity" stream in the UI.
+  // Each queue's history is capped at `limit` and the merge keeps the
+  // overall result trimmed too — small constant memory, no scan.
+  async recentActivity(limit = 30): Promise<
+    Array<{
+      queueName: QueueName;
+      queueLabel: string;
+      id: string;
+      jobName: string;
+      state: 'completed' | 'failed';
+      finishedAt: number | null;
+      durationMs: number | null;
+      failedReason: string | null;
+    }>
+  > {
+    const perQueue = Math.max(5, Math.min(limit, 50));
+    const merged: Array<{
+      queueName: QueueName;
+      queueLabel: string;
+      id: string;
+      jobName: string;
+      state: 'completed' | 'failed';
+      finishedAt: number | null;
+      durationMs: number | null;
+      failedReason: string | null;
+    }> = [];
+    for (const entry of KNOWN_QUEUES) {
+      const q = this.queues.get(entry.name)!;
+      const [completed, failed] = await Promise.all([
+        q.getJobs(['completed'], 0, perQueue - 1, false),
+        q.getJobs(['failed'], 0, perQueue - 1, false),
+      ]);
+      for (const j of completed) {
+        merged.push({
+          queueName: entry.name,
+          queueLabel: entry.label,
+          id: String(j.id ?? ''),
+          jobName: j.name,
+          state: 'completed',
+          finishedAt: j.finishedOn ?? null,
+          durationMs:
+            j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
+          failedReason: null,
+        });
+      }
+      for (const j of failed) {
+        merged.push({
+          queueName: entry.name,
+          queueLabel: entry.label,
+          id: String(j.id ?? ''),
+          jobName: j.name,
+          state: 'failed',
+          finishedAt: j.finishedOn ?? null,
+          durationMs:
+            j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
+          failedReason: j.failedReason ?? null,
+        });
+      }
+    }
+    merged.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+    return merged.slice(0, limit);
+  }
+
+  // Per-queue throughput in 5 / 15 / 60-minute windows. Counts only
+  // completed jobs (failures aren't throughput, they're toil). Reads
+  // up to 500 most-recent completed jobs per queue and bucket-counts
+  // by finishedOn — cheap and accurate for any realistic workload.
+  async throughput(): Promise<
+    Record<
+      QueueName,
+      { last5min: number; last15min: number; last60min: number; avgDurationMs: number | null }
+    >
+  > {
+    const now = Date.now();
+    const cut5 = now - 5 * 60_000;
+    const cut15 = now - 15 * 60_000;
+    const cut60 = now - 60 * 60_000;
+    const result = {} as Record<
+      QueueName,
+      { last5min: number; last15min: number; last60min: number; avgDurationMs: number | null }
+    >;
+    for (const entry of KNOWN_QUEUES) {
+      const q = this.queues.get(entry.name)!;
+      const jobs = await q.getJobs(['completed'], 0, 499, false);
+      let n5 = 0;
+      let n15 = 0;
+      let n60 = 0;
+      let durTotal = 0;
+      let durCount = 0;
+      for (const j of jobs) {
+        const finished = j.finishedOn ?? 0;
+        if (finished < cut60) continue;
+        n60 += 1;
+        if (finished >= cut15) n15 += 1;
+        if (finished >= cut5) n5 += 1;
+        if (j.processedOn && j.finishedOn) {
+          durTotal += j.finishedOn - j.processedOn;
+          durCount += 1;
+        }
+      }
+      result[entry.name] = {
+        last5min: n5,
+        last15min: n15,
+        last60min: n60,
+        avgDurationMs: durCount > 0 ? Math.round(durTotal / durCount) : null,
+      };
+    }
+    return result;
   }
 }
 

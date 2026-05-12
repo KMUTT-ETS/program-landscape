@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   Badge,
@@ -15,13 +16,17 @@ import {
 import {
   AlertTriangle,
   Brush,
+  CheckCircle2,
+  ClipboardCheck,
   Clock,
+  FileSearch,
   Loader2,
   Pause,
   Play,
   RefreshCw,
   RotateCcw,
   Trash2,
+  XCircle,
 } from 'lucide-react';
 
 // ─── Types (mirror apps/api/src/admin/queues.service.ts) ───────────────────
@@ -50,6 +55,31 @@ interface QueueJob {
   stacktraceTail: string | null;
 }
 
+// Phase 6 additions
+interface ReviewCounts {
+  aiExtractions: number;
+  pdfExtractions: number;
+}
+
+interface ActivityEntry {
+  queueName: string;
+  queueLabel: string;
+  id: string;
+  jobName: string;
+  state: 'completed' | 'failed';
+  finishedAt: number | null;
+  durationMs: number | null;
+  failedReason: string | null;
+}
+
+interface ThroughputEntry {
+  last5min: number;
+  last15min: number;
+  last60min: number;
+  avgDurationMs: number | null;
+}
+type ThroughputMap = Record<string, ThroughputEntry>;
+
 const STATE_TABS: Array<{ id: JobState; label: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }> = [
   { id: 'active', label: 'Active', tone: 'warning' },
   { id: 'waiting', label: 'Waiting', tone: 'neutral' },
@@ -65,6 +95,30 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
   const [activeQueue, setActiveQueue] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
+  // Phase 6 — realtime side-channels. All three poll alongside the
+  // summaries tick; failures don't kill the main view (just stay stale).
+  const [reviewCounts, setReviewCounts] = React.useState<ReviewCounts | null>(null);
+  const [activity, setActivity] = React.useState<ActivityEntry[]>([]);
+  const [throughput, setThroughput] = React.useState<ThroughputMap>({});
+
+  const loadRealtime = React.useCallback(async () => {
+    // Fetch the three side-channel endpoints in parallel. Each is
+    // best-effort: a failure leaves the previous state visible.
+    const [rcRes, acRes, tpRes] = await Promise.allSettled([
+      fetch('/api/admin-queues/review-counts').then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/admin-queues/activity?limit=30').then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/admin-queues/throughput').then((r) => (r.ok ? r.json() : null)),
+    ]);
+    if (rcRes.status === 'fulfilled' && rcRes.value?.data) {
+      setReviewCounts(rcRes.value.data as ReviewCounts);
+    }
+    if (acRes.status === 'fulfilled' && acRes.value?.data) {
+      setActivity(acRes.value.data as ActivityEntry[]);
+    }
+    if (tpRes.status === 'fulfilled' && tpRes.value?.data) {
+      setThroughput(tpRes.value.data as ThroughputMap);
+    }
+  }, []);
 
   const loadSummaries = React.useCallback(async () => {
     setRefreshing(true);
@@ -81,7 +135,8 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+    void loadRealtime();
+  }, [loadRealtime]);
 
   React.useEffect(() => {
     void loadSummaries();
@@ -128,7 +183,7 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-5">
-      {/* Top KPI row — one tile per queue */}
+      {/* Top KPI row — one tile per queue + the human-review pseudo-tile */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {summaries.map((s) => (
           <QueueTile
@@ -136,9 +191,12 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
             summary={s}
             active={s.name === activeQueue}
             onClick={() => setActiveQueue(s.name)}
+            throughput={throughput[s.name]}
           />
         ))}
       </div>
+
+      {reviewCounts ? <ReviewQueueRow counts={reviewCounts} /> : null}
 
       {/* Toolbar above the bucket tabs */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -178,8 +236,164 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
         canManage={canManage}
         onChanged={() => void loadSummaries()}
       />
+
+      <ActivityStream entries={activity} />
     </div>
   );
+}
+
+// ─── Review-queue row (Phase 6) ────────────────────────────────────────────
+// Surfaces the AI-extraction + PDF-extraction PENDING_REVIEW counts here
+// per the IA-restructure decision (Phase 1, 2026-05-12) that folded the
+// human-review queues into the BullMQ console rather than keeping them
+// as separate admin tiles.
+
+function ReviewQueueRow({ counts }: { counts: ReviewCounts }) {
+  const total = counts.aiExtractions + counts.pdfExtractions;
+  if (total === 0) {
+    return (
+      <div className="rounded-xl border border-border-subtle bg-surface-1 p-3 text-xs text-text-tertiary">
+        <span className="inline-flex items-center gap-1.5">
+          <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />
+          No human review pending — every AI extraction is above the auto-approve threshold.
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <ReviewTile
+        href="/admin/extraction-review"
+        icon={<ClipboardCheck className="h-4 w-4" aria-hidden />}
+        label="AI extractions awaiting review"
+        count={counts.aiExtractions}
+      />
+      <ReviewTile
+        href="/admin/pdf-review"
+        icon={<FileSearch className="h-4 w-4" aria-hidden />}
+        label="PDF extractions awaiting review"
+        count={counts.pdfExtractions}
+      />
+    </div>
+  );
+}
+
+function ReviewTile({
+  href,
+  icon,
+  label,
+  count,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+}) {
+  const tone =
+    count === 0
+      ? 'neutral'
+      : count > 50
+        ? 'warning'
+        : count > 0
+          ? 'info'
+          : 'neutral';
+  return (
+    <Link
+      href={href}
+      className="group flex items-center justify-between rounded-xl border border-border-subtle bg-surface-1 px-4 py-3 transition-colors hover:border-accent/30 hover:bg-accent-subtle/30"
+    >
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-2 text-text-secondary group-hover:bg-accent-subtle group-hover:text-accent">
+          {icon}
+        </span>
+        <div>
+          <div className="text-sm font-medium text-text-primary">{label}</div>
+          <div className="text-[11px] text-text-tertiary">
+            click to open the review surface
+          </div>
+        </div>
+      </div>
+      <Badge tone={tone}>{count.toLocaleString()} pending</Badge>
+    </Link>
+  );
+}
+
+// ─── Activity stream (Phase 6) ─────────────────────────────────────────────
+// Last ~30 completed + failed jobs across every queue, merged by
+// finishedAt desc. Drives the operator's "what just happened?" view —
+// the existing per-state tabs require picking a queue first; this one
+// is read at-a-glance.
+
+function ActivityStream({ entries }: { entries: ActivityEntry[] }) {
+  if (entries.length === 0) {
+    return null;
+  }
+  return (
+    <Card padding="sm">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold">Recent activity</h2>
+        <span className="text-[11px] text-text-tertiary">
+          last 30 completed + failed jobs · refreshes every 5s
+        </span>
+      </div>
+      <div className="-mx-3 max-h-[420px] overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-surface-1">
+            <tr className="text-left uppercase tracking-wide text-text-tertiary">
+              <th className="px-3 py-1.5 font-medium">When</th>
+              <th className="px-3 py-1.5 font-medium">Queue</th>
+              <th className="px-3 py-1.5 font-medium">Job</th>
+              <th className="px-3 py-1.5 text-right font-medium">Duration</th>
+              <th className="px-3 py-1.5 font-medium">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={`${e.queueName}:${e.id}`} className="border-t border-border-default">
+                <td className="px-3 py-2 text-text-tertiary">
+                  {e.finishedAt ? <RelativeTime ms={e.finishedAt} /> : '—'}
+                </td>
+                <td className="px-3 py-2 text-text-secondary">{e.queueLabel}</td>
+                <td className="px-3 py-2 font-mono text-[11px]">{e.jobName}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {e.durationMs != null ? formatDuration(e.durationMs) : '—'}
+                </td>
+                <td className="px-3 py-2">
+                  {e.state === 'completed' ? (
+                    <span className="inline-flex items-center gap-1 text-success">
+                      <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1 text-danger"
+                      title={e.failedReason ?? undefined}
+                    >
+                      <XCircle className="h-3 w-3" aria-hidden /> failed
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function RelativeTime({ ms }: { ms: number }) {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return <>{Math.max(0, Math.floor(diff / 1000))}s ago</>;
+  if (diff < 60 * 60_000) return <>{Math.floor(diff / 60_000)}m ago</>;
+  if (diff < 24 * 60 * 60_000) return <>{Math.floor(diff / (60 * 60_000))}h ago</>;
+  return <>{new Date(ms).toLocaleDateString()}</>;
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 60 * 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  return `${(ms / (60 * 60_000)).toFixed(1)}h`;
 }
 
 // ─── KPI tile per queue ────────────────────────────────────────────────────
@@ -188,23 +402,38 @@ function QueueTile({
   summary,
   active,
   onClick,
+  throughput,
 }: {
   summary: QueueSummary;
   active: boolean;
   onClick: () => void;
+  throughput?: ThroughputEntry;
 }) {
   const danger = summary.counts.failed > 0;
+  const live = summary.counts.active > 0;
   return (
     <button
       type="button"
       onClick={onClick}
       className={
-        'group flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors ' +
+        'group relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors ' +
         (active
           ? 'border-accent/60 bg-accent-subtle/40 shadow-sm'
           : 'border-border-subtle bg-surface-1 hover:border-accent/30 hover:bg-accent-subtle/20')
       }
     >
+      {/* Live pulse — fires only when a worker is currently processing
+          a job in this queue. The 5s polling cadence keeps it accurate
+          enough for human-eye feedback. */}
+      {live ? (
+        <span
+          aria-hidden
+          className="absolute right-3 top-3 flex h-2.5 w-2.5"
+        >
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-60" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-warning" />
+        </span>
+      ) : null}
       <div className="flex items-start justify-between gap-2">
         <span className="font-medium text-text-primary">{summary.label}</span>
         <span className="font-tabular text-[11px] uppercase tracking-wide text-text-tertiary">
@@ -225,6 +454,25 @@ function QueueTile({
           </Badge>
         )}
       </div>
+      {throughput ? (
+        <div className="-mb-1 flex items-center justify-between border-t border-border-subtle pt-2 text-[10px] text-text-tertiary">
+          <span className="uppercase tracking-wider">throughput</span>
+          <span className="font-tabular">
+            <span className="text-text-secondary">{throughput.last5min}</span>
+            <span className="text-text-tertiary/70">/5m · </span>
+            <span className="text-text-secondary">{throughput.last15min}</span>
+            <span className="text-text-tertiary/70">/15m · </span>
+            <span className="text-text-secondary">{throughput.last60min}</span>
+            <span className="text-text-tertiary/70">/1h</span>
+            {throughput.avgDurationMs != null ? (
+              <>
+                <span className="text-text-tertiary/70"> · avg </span>
+                <span className="text-text-secondary">{formatDuration(throughput.avgDurationMs)}</span>
+              </>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
     </button>
   );
 }

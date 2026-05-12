@@ -584,7 +584,7 @@ function buildGroups({
       href: '/admin/queues',
       label: 'Job queues',
       description:
-        'Live BullMQ state — what is running, waiting, failed. Pause, resume, retry, clean. AI-extraction review queue (human sign-off on low-confidence outputs) folds in here in Phase 6.',
+        'Live BullMQ state with realtime tiles + recent-activity stream + per-queue throughput. Human-review queues (AI + PDF extractions awaiting sign-off) surface inline; pause, resume, retry, clean from the same page.',
       icon: <Layers className="h-5 w-5" />,
       roles: ADMIN_GRADE,
       // Two signals folded into this tile: BullMQ run failures (system
