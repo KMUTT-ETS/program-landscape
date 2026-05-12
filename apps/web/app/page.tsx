@@ -22,7 +22,7 @@ import { apiFetchAsUniversityUser } from '@/lib/api-client';
 import { resolveUserChrome } from '@/lib/display-name';
 import { PublicationsSparkline } from '@/components/dashboard/publications-sparkline';
 import { CopyrightFooter } from '@/components/copyright-footer';
-import type { PublicationEntry } from '@/lib/profile-types';
+import { getHomePublicationsSnapshot } from '@/lib/profile-data';
 
 // Lightweight welcome home. ~75% of the page is content shared across
 // every signed-in user (university KPIs, quick actions); ~25% is a
@@ -49,6 +49,120 @@ const ROLE_LABEL: Record<string, string> = {
 // 10 years is meaningful for "current research vitality" — older work
 // is in the all-time roll-up, but for at-a-glance we want recency.
 const RESEARCH_YEARS_BACK = 10;
+
+// ─── In-process cache for universal KPIs ─────────────────────────────
+// The "KKU at a glance" KPI strip is the same numbers for every
+// signed-in user: active programs, total students, staff headcount,
+// 10-year papers + citations. These aggregations cost ~50-200ms cold
+// (mostly the citation sum over ~165k research_output rows). Cache
+// the merged result at module scope with a 5-minute TTL so the first
+// load fills it and the next ~250 requests hit memory.
+//
+// Same pattern as `apps/web/src/lib/news/today.ts` — single Node
+// worker per container, module-scope variable, TTL based on
+// freshness expectations (KKU's student/staff headcount rarely
+// changes within a 5-min window; citation counts drift on ingestion
+// runs but we don't need to-the-minute accuracy here).
+
+interface KpiCache {
+  data: UniversityKpis;
+  expiresAt: number;
+}
+const KPI_TTL_MS = 5 * 60 * 1000;
+let kpiCache: KpiCache | null = null;
+
+interface UniversityKpis {
+  enrolledTotal: number;
+  activeProgramCount: number;
+  staffCounts: {
+    total: number;
+    academic: number;
+    support: number;
+    leadership: number;
+  };
+  totalPapersWindow: number;
+  totalCitationsWindow: number;
+  researchYearLabel: string;
+}
+
+async function loadUniversityKpisCached(
+  caller: Pick<SessionUser, 'userId' | 'email' | 'name'>,
+  researchYearFrom: number,
+  currentYear: number,
+): Promise<UniversityKpis> {
+  const now = Date.now();
+  if (kpiCache && kpiCache.expiresAt > now) {
+    return kpiCache.data;
+  }
+
+  const [studentInfoResp, activeProgramCount, workforceResp, researchResp] =
+    await Promise.all([
+      apiFetchAsUniversityUser<{ totalActive: number }>(
+        caller,
+        '/education/student-info',
+      ).catch(() => ({ totalActive: 0 })),
+      prisma.program
+        .count({
+          where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
+        })
+        .catch(() => 0),
+      apiFetchAsUniversityUser<{
+        headcount: {
+          total: number;
+          academic: number;
+          support: number;
+          executives: number;
+          unknownTrack: number;
+        };
+      }>(caller, '/staff-dashboard/workforce').catch(() => ({
+        headcount: {
+          total: 0,
+          academic: 0,
+          support: 0,
+          executives: 0,
+          unknownTrack: 0,
+        },
+      })),
+      apiFetchAsUniversityUser<{
+        yearFrom: number;
+        yearTo: number;
+        totalPapers: number;
+        totalCitations: number;
+      }>(caller, '/staff-dashboard/research').catch(() => ({
+        yearFrom: researchYearFrom,
+        yearTo: currentYear,
+        totalPapers: 0,
+        totalCitations: 0,
+      })),
+    ]);
+
+  const data: UniversityKpis = {
+    enrolledTotal: studentInfoResp.totalActive ?? 0,
+    activeProgramCount,
+    staffCounts: {
+      total: workforceResp.headcount.total,
+      academic: workforceResp.headcount.academic,
+      support: workforceResp.headcount.support,
+      leadership: workforceResp.headcount.executives,
+    },
+    totalPapersWindow: researchResp.totalPapers ?? 0,
+    totalCitationsWindow: researchResp.totalCitations ?? 0,
+    researchYearLabel: `${researchResp.yearFrom}–${researchResp.yearTo}`,
+  };
+
+  // Only cache the row when at least one field came back non-zero —
+  // an all-zeros payload means every upstream call failed, and we
+  // don't want a degraded result pinned for 5 minutes.
+  const allZero =
+    data.enrolledTotal === 0 &&
+    data.activeProgramCount === 0 &&
+    data.staffCounts.total === 0 &&
+    data.totalPapersWindow === 0;
+  if (!allZero) {
+    kpiCache = { data, expiresAt: now + KPI_TTL_MS };
+  }
+  return data;
+}
 
 // Greeting respecting Asia/Bangkok wall-clock — most KKU users are
 // local. Server-side render so it's correct at first paint.
@@ -98,57 +212,11 @@ export default async function HomePage() {
     name: user.name ?? null,
   };
 
-  const [
-    studentInfoResp,
-    activeProgramCount,
-    workforceResp,
-    researchResp,
-    chrome,
-    facultyName,
-    pubsCacheRow,
-    userScopes,
-  ] = await Promise.all([
-    // Total students — calls /education/student-info, same endpoint that
-    // backs the /education dashboard headline.
-    apiFetchAsUniversityUser<{ totalActive: number }>(
-      callerForFetch,
-      '/education/student-info',
-    ).catch(() => ({ totalActive: 0 })),
-    // Active programs — same predicate as getDashboardOverview()
-    // (status='ACTIVE' + sequenceNoFromSheet not null). Programs aren't
-    // exposed via a one-shot KPI endpoint, so this 1-query count is
-    // the cheapest reuse — it's literally the same `where` clause.
-    prisma.program
-      .count({ where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } })
-      .catch(() => 0),
-    // Staff headcount — calls /staff-dashboard/workforce, same endpoint
-    // that backs the /staff dashboard. Returns headcount.{total,
-    // academic, support, executives, unknownTrack}.
-    apiFetchAsUniversityUser<{
-      headcount: {
-        total: number;
-        academic: number;
-        support: number;
-        executives: number;
-        unknownTrack: number;
-      };
-    }>(callerForFetch, '/staff-dashboard/workforce').catch(() => ({
-      headcount: { total: 0, academic: 0, support: 0, executives: 0, unknownTrack: 0 },
-    })),
-    // Total papers + citations — calls /staff-dashboard/research, same
-    // endpoint backing the /staff/research dashboard. Returns
-    // { yearFrom, yearTo, totalPapers, totalCitations, ... }.
-    apiFetchAsUniversityUser<{
-      yearFrom: number;
-      yearTo: number;
-      totalPapers: number;
-      totalCitations: number;
-    }>(callerForFetch, '/staff-dashboard/research').catch(() => ({
-      yearFrom: researchYearFrom,
-      yearTo: currentYear,
-      totalPapers: 0,
-      totalCitations: 0,
-    })),
+  // Universal KPIs come from a 5-minute in-process cache shared across
+  // all users (see loadUniversityKpisCached above). Personal slices —
+  // chrome, faculty name, publications, scopes — are fetched per-user.
+  const [kpis, chrome, facultyName, pubsSnapshot, userScopes] = await Promise.all([
+    loadUniversityKpisCached(callerForFetch, researchYearFrom, currentYear),
     resolveUserChrome(user.userId).catch(() => ({ name: null, avatarUrl: null })),
     user.facultyId
       ? prisma.faculty
@@ -158,9 +226,12 @@ export default async function HomePage() {
           })
           .catch(() => null)
       : Promise.resolve(null),
-    prisma.userPublicationsCache
-      .findUnique({ where: { userId: user.userId }, select: { payloadJson: true, paperCount: true } })
-      .catch(() => null),
+    // Publications sparkline — wired to LIVE Scopus through the same
+    // stale-while-revalidate cache the profile page uses. Cache hit
+    // returns in ~5ms; cache miss blocks on the live pipeline (~3-5s
+    // with Scopus AU-ID lookup). Returns null when the user isn't
+    // matched to a FacultyMember row.
+    getHomePublicationsSnapshot(user.userId).catch(() => null),
     prisma.userScope
       .findMany({
         where: { userId: user.userId, role: 'PROGRAM_USER' },
@@ -174,33 +245,17 @@ export default async function HomePage() {
       .catch(() => []),
   ]);
 
-  const enrolledTotal = studentInfoResp.totalActive ?? 0;
-  const staffCounts = {
-    total: workforceResp.headcount.total,
-    academic: workforceResp.headcount.academic,
-    support: workforceResp.headcount.support,
-    leadership: workforceResp.headcount.executives,
-  };
-  const totalPapersWindow = researchResp.totalPapers ?? 0;
-  const totalCitationsWindow = researchResp.totalCitations ?? 0;
-  const researchYearLabel = `${researchResp.yearFrom}–${researchResp.yearTo}`;
+  const {
+    enrolledTotal,
+    activeProgramCount,
+    staffCounts,
+    totalPapersWindow,
+    totalCitationsWindow,
+    researchYearLabel,
+  } = kpis;
 
-  // Personal: extract publications-by-year from the cache.
-  let publicationsByYear: Array<{ year: number; count: number }> = [];
-  let totalPapersPersonal = 0;
-  if (pubsCacheRow?.payloadJson) {
-    const entries = pubsCacheRow.payloadJson as unknown as PublicationEntry[];
-    if (Array.isArray(entries)) {
-      totalPapersPersonal = entries.length;
-      const byYear = new Map<number, number>();
-      for (const e of entries) {
-        if (typeof e?.year === 'number') {
-          byYear.set(e.year, (byYear.get(e.year) ?? 0) + 1);
-        }
-      }
-      publicationsByYear = [...byYear.entries()].map(([year, count]) => ({ year, count }));
-    }
-  }
+  const publicationsByYear = pubsSnapshot?.byYear ?? [];
+  const totalPapersPersonal = pubsSnapshot?.totalPapers ?? 0;
 
   // Personal: programs the user has explicit scope for.
   const myPrograms = userScopes

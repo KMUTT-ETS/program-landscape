@@ -876,3 +876,155 @@ async function writeCache(
     },
   });
 }
+
+// ─── Home-page publications snapshot ──────────────────────────────────
+// Lightweight "is this user an academic staffer, and what does their
+// last-N-years publications-per-year look like?" helper used by the
+// home page sparkline. Wires the chart to LIVE Scopus data by
+// going through the same loadPublicationsWithCache path as the
+// profile page — same stale-while-revalidate semantics, same Scopus
+// resolver, same kkuscholar fallback. Result:
+//
+//   - Cache hit + fresh: returns immediately (~5ms).
+//   - Cache hit + stale: returns the stale data immediately AND fires
+//     a background refresh against live Scopus. The next page load
+//     picks up the new data.
+//   - Cache miss: blocks on the full pipeline (~3-5s with Scopus
+//     AU-ID lookup). Caches the result so subsequent loads are fast.
+//
+// Returns `null` for users who aren't matched to a FacultyMember row
+// (admins, viewers, students) — the caller renders a non-academic
+// placeholder card in that case.
+
+export interface HomePublicationsSnapshot {
+  byYear: Array<{ year: number; count: number }>;
+  totalPapers: number;
+  fetchedAt: string;
+  /** True when the result came from a cache row that is older than
+   *  CACHE_FRESH_MS — caller can show a subtle "refreshing…" badge. */
+  isStale: boolean;
+}
+
+export async function getHomePublicationsSnapshot(
+  userId: string,
+): Promise<HomePublicationsSnapshot | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, employeeId: true },
+  });
+  if (!user) return null;
+
+  // FacultyMember bridge — same posture as getProfileData (HR
+  // employeeId first, Thai-name fallback for users that pre-date the
+  // employeeId capture path).
+  let member = user.employeeId
+    ? await prisma.facultyMember.findFirst({
+        where: { employeeId: user.employeeId, isActive: true },
+        select: {
+          id: true,
+          nameEn: true,
+          nameTh: true,
+          employeeCode: true,
+          scopusAuthorId: true,
+        },
+      })
+    : null;
+  if (!member && user.name) {
+    const stripped = stripTitlePrefixes(user.name);
+    if (stripped) {
+      member = await prisma.facultyMember.findFirst({
+        where: { nameTh: stripped, isActive: true },
+        select: {
+          id: true,
+          nameEn: true,
+          nameTh: true,
+          employeeCode: true,
+          scopusAuthorId: true,
+        },
+      });
+    }
+  }
+  if (!member) return null;
+
+  const ownerSurname = lastTokenOf(member.nameEn);
+  const ownerGiven = firstTokenOf(member.nameEn);
+
+  // Local ResearchOutput rows (the gap-filler the merge step uses).
+  // This is the single Prisma query we have to run cold — bounded by
+  // the per-author paper count (typically 10-200 rows).
+  const localPapers = await prisma.researchOutput.findMany({
+    where: { facultyMemberId: member.id },
+    orderBy: { year: 'desc' },
+  });
+  const dedupedLocal = dedupePublications(localPapers);
+
+  // Read the cache row directly so we can report `isStale` to the
+  // caller for a subtle UI hint. We still let loadPublicationsWithCache
+  // decide whether to fire the background refresh.
+  const cacheRow = await prisma.userPublicationsCache.findUnique({
+    where: { userId: user.id },
+    select: { fetchedAt: true },
+  });
+  const isStale = cacheRow
+    ? Date.now() - cacheRow.fetchedAt.getTime() > CACHE_FRESH_MS
+    : false;
+
+  const publications = await loadPublicationsWithCache(user.id, async () => {
+    // Same compute as getProfileData — Scopus AU-ID first, then
+    // kkuscholar fallback for medical / Thai-language researchers.
+    let scopusAuthorId = member.scopusAuthorId;
+    if (!scopusAuthorId && ownerSurname && ownerGiven) {
+      const resolved = await resolveScopusAuthorId({
+        surnameEn: ownerSurname,
+        givenEn: ownerGiven,
+      }).catch(() => null);
+      if (resolved) {
+        scopusAuthorId = resolved.authorId;
+        void prisma.facultyMember
+          .update({
+            where: { id: member.id },
+            data: { scopusAuthorId: resolved.authorId },
+          })
+          .catch(() => undefined);
+      }
+    }
+
+    const scopusPapers = scopusAuthorId
+      ? await fetchPublicationsByScopusAuthor(scopusAuthorId)
+      : [];
+    const fallbackPapers =
+      scopusPapers.length === 0
+        ? await fetchKkuScholarPublicationsByPerson({
+            kkuScholarPersonId: scholarPersonIdFromEmployeeCode(member.employeeCode),
+            surnameEn: ownerSurname,
+            givenNameEn: ownerGiven,
+            surnameTh: lastTokenOf(member.nameTh),
+            givenNameTh: firstTokenOf(member.nameTh),
+          })
+        : [];
+
+    return mergeAndEnrichPublications(
+      [...scopusPapers, ...fallbackPapers],
+      dedupedLocal,
+      ownerSurname,
+      ownerGiven,
+    );
+  });
+
+  const byYearMap = new Map<number, number>();
+  for (const p of publications) {
+    if (typeof p.year === 'number') {
+      byYearMap.set(p.year, (byYearMap.get(p.year) ?? 0) + 1);
+    }
+  }
+  const byYear = [...byYearMap.entries()]
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => a.year - b.year);
+
+  return {
+    byYear,
+    totalPapers: publications.length,
+    fetchedAt: cacheRow?.fetchedAt.toISOString() ?? new Date().toISOString(),
+    isStale,
+  };
+}
