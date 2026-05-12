@@ -2,7 +2,7 @@
 // Methodology bundle — closes evaluation-pipeline.md §13 gap #4.
 //
 // A Council Pack frequently cites 5+ sub-methodology versions in a single
-// document (health-score.v3.4, lifecycle.v1.3, risk-scoring.v1.10, peer-
+// document (health-score.v3.5, lifecycle.v1.4, risk-scoring.v1.10, peer-
 // review.v2, program-strategic-narrative.v1, ...). PDF footers embed one
 // stamp per page — readers can't tell which section uses which version.
 //
@@ -84,7 +84,14 @@ import {
 // labour_market_alignment driver (±15), plus two new modifier gates
 // (lowLabourMarketAlignmentStable/FrontierCap) mirroring the AI-
 // readiness gate pattern.
-const LIFECYCLE_VERSION = 'lifecycle.v1.3';
+//
+// v1.4 (2026-05-12) bakes revenue-production potential into the
+// verdict: new `revenue_scale` driver (±10, level-aware) + new
+// `lowRevenuePotentialFrontierCap` gate (absolute 3M THB/yr flagship
+// floor). FRONTIER reserved for revenue-substantial programs;
+// boutique-excellence PhDs cap at RISING, reflecting the non-degree
+// HRD shift squeezing post-grad cohorts.
+const LIFECYCLE_VERSION = 'lifecycle.v1.4';
 
 // ── The bundle ──────────────────────────────────────────────────────────
 

@@ -58,7 +58,8 @@ export type DeepDiveLifecycleGateName =
   | 'aiReadinessStableCap'
   | 'aiReadinessFrontierCap'
   | 'lowLabourMarketAlignmentStableCap'
-  | 'lowLabourMarketAlignmentFrontierCap';
+  | 'lowLabourMarketAlignmentFrontierCap'
+  | 'lowRevenuePotentialFrontierCap';
 
 /** Gap #8 closure (lifecycle.v1.2): one modifier gate that capped the
  *  trajectory-score verdict. `from` is the counterfactual at that step. */

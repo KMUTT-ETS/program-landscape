@@ -38,7 +38,7 @@ export function MethodologyContentTh() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.4</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.3</Code> (วงจรชีวิต)</> },
+              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.5</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.4</Code> (วงจรชีวิต)</> },
               { label: 'เวอร์ชันเอกสาร', value: '1.0' },
               { label: 'จัดทำโดย', value: 'สำนักงานข้อมูลและธรรมาภิบาลข้อมูล มข. — คณะทำงาน Curriculum Landscape' },
               { label: 'สถานะ', value: 'สาธารณะ — สำหรับเผยแพร่แก่สภามหาวิทยาลัย ผู้บริหาร คณบดี หัวหน้าภาควิชา ผู้รับผิดชอบหลักสูตร' },
@@ -176,7 +176,7 @@ export function MethodologyContentTh() {
           <P>
             โครงสร้างนี้เป็นผลของการออกแบบใหม่ในเดือนพฤษภาคม 2569 ซึ่งแทนที่สองมิติเดิมที่เคยเป็นค่าว่าง
             (<Code>relevance</Code> และ <Code>capability</Code> ซึ่งเป็นค่าว่างใน v2) ด้วยตัวคำนวณที่ใช้ข้อมูลจริง
-            เวอร์ชันก่อนหน้าเก็บไว้สำหรับการตรวจสอบย้อนกลับ การคำนวณปัจจุบันประทับ <Code>health-score.v3.4</Code>
+            เวอร์ชันก่อนหน้าเก็บไว้สำหรับการตรวจสอบย้อนกลับ การคำนวณปัจจุบันประทับ <Code>health-score.v3.5</Code>
           </P>
         </DocSubsection>
 
@@ -526,7 +526,7 @@ score >= 45                                       → STABLE
         <DocSubsection number="3.7" title="การเก็บและการตรวจสอบย้อนกลับ">
           <P>
             การคำนวณวงจรชีวิตทุกครั้งจะถูก upsert ลงตาราง <Code>program_lifecycle_snapshots</Code>{' '}
-            พร้อมคำตัดสิน คะแนนแนวโน้ม เวอร์ชันระเบียบวิธี (<Code>lifecycle.v1.3</Code> ณ วันที่ร่าง)
+            พร้อมคำตัดสิน คะแนนแนวโน้ม เวอร์ชันระเบียบวิธี (<Code>lifecycle.v1.4</Code> ณ วันที่ร่าง)
             และ payload ตัวขับครบถ้วนเป็น JSON ทั้งนี้เพื่อ (ก) อ่านเร็วในหน้า cockpit
             โดยไม่ต้องคำนวณซ้ำ และ (ข) เก็บเส้นทางการตรวจสอบย้อนกลับถาวร
             ว่าหลักสูตรใดได้รับคำตัดสินใดในวันใด ด้วยข้อมูลใด
@@ -832,8 +832,8 @@ score >= 45                                       → STABLE
         <DocSubsection number="6.1" title="นโยบายเวอร์ชัน">
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.4'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.3'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.5'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
           </UL>
           <P>
             ทุกแถวคะแนนที่ระบบผลิตประทับเวอร์ชันที่ผลิตคะแนนนั้น คะแนนในอดีต <Strong>ไม่</Strong>{' '}
@@ -1030,10 +1030,12 @@ score >= 45                                       → STABLE
             <TR><TD mono>health-score.v2.1</TD><TD>1 พ.ค. 2569</TD><TD>สายลำดับชั้นสี่ลำดับบนตัวขับ labour-market</TD></TR>
             <TR><TD mono>health-score.v3.0</TD><TD>2 พ.ค. 2569</TD><TD>ห้ามิติทั้งหมดมีข้อมูลจริงสนับสนุน <Code>demand</Code> → <Code>attractiveness</Code>; <Code>quality</Code> → <Code>outcomes</Code>; <Code>relevance</Code> และ <Code>capability</Code> ไม่ใช่ค่าว่างอีกต่อไป</TD></TR>
             <TR><TD mono>health-score.v3.4</TD><TD>4 พ.ค. 2569</TD><TD>เพิ่มตัวขับนโยบายฐานการรับเข้าของ มข. นำเอา heuristic การตัดปีปัจจุบันที่ยังไม่จบบนความชันแนวโน้มเข้ามาใช้ นำเอาตัวกรอง "ปีที่เสร็จสมบูรณ์" ของ funnel TCAS เข้ามา</TD></TR>
+            <TR><TD mono>health-score.v3.5</TD><TD>12 พ.ค. 2569</TD><TD>เพิ่มตัวขับ <Code>revenue_scale</Code> ในมิติการเงิน — รายได้สัมบูรณ์เทียบกับเป้าระดับ (BACHELOR 8 ล้าน / MASTER · DOCTORAL · HGD 2 ล้านบาทต่อปี) เติมเต็มสัญญาณ "หลักสูตรเป็นแหล่งรายได้หลักของระดับนี้หรือไม่" เสริมตัวขับเชิงอัตราส่วน (กำไรต่อนักศึกษา / ความครอบคลุมรายได้ / ความชันแนวโน้มค่าเล่าเรียน) lifecycle.v1.4 ใช้สัญญาณเดียวกันเป็นทั้งตัวขับชั้นแรกและเกตพื้น flagship</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>1 พ.ค. 2569</TD><TD>ตัวจัดประเภทสี่ระดับเริ่มต้น แปดตัวขับ เกตความทันสมัยของเนื้อหา</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2 พ.ค. 2569</TD><TD>เพิ่มตัวขับ AI readiness เป็นตัวที่หนักที่สุด (±25) เพิ่มเกตปรับเปลี่ยน AI readiness สองตัว ลดน้ำหนักตัวขับ health-overall จาก ±25 เป็น ±20 เพื่อให้พื้นที่</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>12 พ.ค. 2569</TD><TD>เปิดเผย counterfactual ของเกตปรับเปลี่ยน (gap #8): ผลลัพธ์ตอนนี้พกพา <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> ไปด้วยกับ <Code>verdict</Code> ที่ผ่านเกตแล้ว ให้ผู้อ่านสภาฯ มองเห็นได้ว่าเกตปรับเปลี่ยนใดทำให้คำตัดสินเปลี่ยน + ทำไม คำตัดสินที่ผ่านเกตยังคงเดิม</TD></TR>
             <TR><TD mono>lifecycle.v1.3</TD><TD>12 พ.ค. 2569</TD><TD>ปรับสมดุลสัญญาณเนื้อหาเชิงคุณภาพ-เชิงปริมาณ หลัง KKU-SEQ-0018 เผยให้เห็นว่าคำตัดสินความทันสมัยจาก AI peer review มีน้ำหนักเกินจริง บดบังช่องว่าง labour-market alignment ที่เพียง 12.5% ลดน้ำหนัก <Code>content_modernity</Code> ลงครึ่งหนึ่ง (±20 → ±10) เพิ่มตัวขับชั้นแรก <Code>labour_market_alignment</Code> (±15) ที่รับโดยตรงจากส่วนแบ่งอุปสงค์นายจ้าง KMITL เพิ่มเกตปรับเปลี่ยนสองตัว (<Code>lowLabourMarketAlignmentStableCap</Code> ที่ &lt;30 และ <Code>lowLabourMarketAlignmentFrontierCap</Code> ที่ &lt;50) สะท้อนรูปแบบเกต AI readiness — หลักสูตรไม่อาจอ้างแนวโน้มได้หากสอนทักษะเพียงเศษส่วนของที่นายจ้างต้องการ</TD></TR>
+            <TR><TD mono>lifecycle.v1.4</TD><TD>12 พ.ค. 2569</TD><TD>นำศักยภาพการสร้างรายได้เข้ามาในคำตัดสิน หลัง KKU-SEQ-0291 (ดุษฎีบัณฑิตวิทยาการระบาดและชีวสถิติ ~2 ล้านบาท/ปี 4 คน/รุ่น) ได้ FRONTIER ใน v1.3 เพิ่มตัวขับ <Code>revenue_scale</Code> (±10 ตามระดับ เทียบกับเป้ารายได้ต่อระดับ) เพิ่มเกต <Code>lowRevenuePotentialFrontierCap</Code> — รายได้ค่าเล่าเรียนต่อปี &lt; 3 ล้านบาท (พื้น flagship สากล) ปิด FRONTIER เป็น RISING ไม่ขึ้นกับระดับ สะท้อนการเปลี่ยนแปลงสู่ HRD แบบไม่รับปริญญาที่กดดันรุ่นบัณฑิตศึกษา: FRONTIER หมายถึงเชิงกลยุทธ์-เรือธง ไม่ใช่ความเป็นเลิศทางวิชาการเดี่ยว</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

@@ -108,7 +108,7 @@ describe('LANDSCAPE_METHODOLOGY_BUNDLE', () => {
     // methodology-bundle.ts because LIFECYCLE_VERSION is not exported
     // from program-deep-dive.ts. When that gets exported, replace this
     // with a proper import + assertion.
-    expect(METHODOLOGY_MANIFEST['lifecycle']).toBe('lifecycle.v1.3');
+    expect(METHODOLOGY_MANIFEST['lifecycle']).toBe('lifecycle.v1.4');
   });
 
   it('every manifest value is a non-empty version string', () => {

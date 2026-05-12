@@ -4,6 +4,8 @@ import { prisma } from './index';
 import {
   computeHealthScores,
   HEALTH_SCORE_VERSION,
+  FLAGSHIP_REVENUE_FLOOR_THB,
+  REVENUE_TARGET_THB_BY_LEVEL,
   type HealthDimension,
   type HealthScoreRow,
 } from './health-score';
@@ -1067,7 +1069,8 @@ export interface LifecycleGateEffect {
     | 'aiReadinessStableCap'
     | 'aiReadinessFrontierCap'
     | 'lowLabourMarketAlignmentStableCap'
-    | 'lowLabourMarketAlignmentFrontierCap';
+    | 'lowLabourMarketAlignmentFrontierCap'
+    | 'lowRevenuePotentialFrontierCap';
   /** Verdict before this gate fired (the counterfactual at this step). */
   from: ProgramLifecycleVerdict;
   /** Verdict after this gate fired. */
@@ -1129,22 +1132,102 @@ export interface ProgramLifecycleResult {
 //      can't claim trajectory if it teaches a fraction of what
 //      employers demand, regardless of how good the peer-review
 //      reasoning sounds.
-const LIFECYCLE_VERSION = 'lifecycle.v1.3';
+//
+// v1.4 (2026-05-12) bakes revenue-production potential into the verdict
+// after KKU-SEQ-0291 (PhD Epi & Biostat, ~2M THB/yr, ~4 students/cohort)
+// landed at FRONTIER with v1.3. The verdict was technically correct on
+// content + alignment, but FRONTIER means "flagship the university
+// should invest more in" — a boutique research program with structural
+// revenue ceiling can't carry that institutional weight, regardless of
+// content quality. Encodes the non-degree HRD shift bench-checking
+// post-grad programs.
+// Two coordinated changes:
+//   1. New driver `revenue_scale` (±10), level-aware bands ("are you
+//      revenue-substantial for your level"). DOCTORAL programs naturally
+//      sit lower, so the per-level target compensates.
+//   2. New modifier gate `lowRevenuePotentialFrontierCap` — level-
+//      INDEPENDENT absolute threshold of 3M THB/yr annual tuition.
+//      FRONTIER caps to RISING if revenue < 3M. Rationale: FRONTIER is
+//      strategic, not academic — a program below 3M/yr is at best a
+//      boutique-excellence case. Combined with the per-level driver
+//      above this creates the right balance: "good for your level" earns
+//      a driver bump, but "flagship-class" requires absolute scale.
+const LIFECYCLE_VERSION = 'lifecycle.v1.4';
+
+/** Compute the revenue_scale driver value for a program.
+ *  - Returns ±10 banded score
+ *  - Null-safe: returns 0 when revenue or level is missing (no penalty
+ *    for data gaps; programs land neutral). */
+export function computeRevenueScaleContribution(
+  latestAnnualRevenueThb: number | null,
+  level: keyof typeof REVENUE_TARGET_THB_BY_LEVEL | string | null,
+): number {
+  if (latestAnnualRevenueThb === null || latestAnnualRevenueThb <= 0) return 0;
+  if (!level || !(level in REVENUE_TARGET_THB_BY_LEVEL)) return 0;
+  const target = REVENUE_TARGET_THB_BY_LEVEL[level as keyof typeof REVENUE_TARGET_THB_BY_LEVEL];
+  const ratio = latestAnnualRevenueThb / target;
+  if (ratio >= 1.5) return 10;
+  if (ratio >= 1.0) return 5;
+  if (ratio >= 0.5) return 0;
+  if (ratio >= 0.25) return -5;
+  return -10;
+}
 
 export async function programLifecycleVerdict(
   programId: string,
 ): Promise<ProgramLifecycleResult> {
   // Pull every signal we already compute. All these helpers are
   // partial-year-aware + null-safe.
-  const [healthRows, cohorts, demoOutlook, peerReviewRow, peerSelections, aiReadiness] = await Promise.all([
+  const [
+    healthRows,
+    cohorts,
+    demoOutlook,
+    peerReviewRow,
+    peerSelections,
+    aiReadiness,
+    program,
+    latestFinancial,
+  ] = await Promise.all([
     computeHealthScores('program', programId),
     programStudentCohorts(programId),
     programDemographicOutlook(programId),
     prisma.programPeerReview.findUnique({ where: { programId } }),
     prisma.programPeerSelection.findMany({ where: { programId }, take: 1 }),
     programAiReadiness(programId),
+    prisma.program.findUnique({ where: { id: programId }, select: { level: true } }),
+    // Latest completed-year tuition revenue. Used by the v1.4 revenue-
+    // scale driver + the lowRevenuePotentialFrontierCap gate. Picks
+    // most recent fiscal year — drop most-recent year if partial
+    // (tuition < 30% of prior) to avoid penalising mid-year programs.
+    prisma.financialMetric.findMany({
+      where: { programId },
+      orderBy: { fiscalYear: 'desc' },
+      select: { tuitionRevenue: true, fiscalYear: true },
+      take: 2,
+    }),
   ]);
   const health = healthRows[0] ?? null;
+
+  // Materialise latest annual revenue as a primitive THB number for the
+  // driver + gate calculations below. Picks the most recent fiscal year
+  // — drops it if partial (tuition < 30% of prior year) to avoid
+  // penalising mid-year programs. Mirrors the partial-year drop applied
+  // in scoreFinancialProgram (health-score.ts).
+  const latestAnnualRevenueThb: number | null = (() => {
+    if (latestFinancial.length === 0) return null;
+    const head = latestFinancial[0];
+    if (!head?.tuitionRevenue) return null;
+    const latest = Number(head.tuitionRevenue);
+    if (latestFinancial.length >= 2) {
+      const prior = latestFinancial[1]?.tuitionRevenue;
+      const priorN = prior ? Number(prior) : 0;
+      // Partial-year heuristic: pick prior if latest is < 30% of prior.
+      if (priorN > 0 && latest < priorN * 0.3) return priorN;
+    }
+    return latest;
+  })();
+  const latestRevenueFiscalYear =
+    latestAnnualRevenueThb === null ? null : latestFinancial[0]?.fiscalYear ?? null;
 
   // ── Driver 1: overall health (central signal, weight 0.4) ────────
   // v1.1 weight reduced from 0.5 to 0.4 to make room for the new
@@ -1299,6 +1382,24 @@ export async function programLifecycleVerdict(
     raw: { score: capabilityScore },
   };
 
+  // ── Driver 4c (NEW in v1.4): revenue scale ───────────────────────
+  // Level-aware "are you revenue-substantial for your level". Banded
+  // ±10 — small enough not to dominate, large enough to materially
+  // shift trajectory for outsized-revenue programs (high-volume
+  // Bachelor's) and boutique programs (low-cohort PhDs).
+  const revenueScaleDriver: ProgramLifecycleDriver = {
+    label: 'revenue_scale',
+    contribution: computeRevenueScaleContribution(latestAnnualRevenueThb, program?.level ?? null),
+    raw: {
+      latestAnnualRevenueThb,
+      fiscalYear: latestRevenueFiscalYear,
+      level: program?.level ?? null,
+      target: program?.level
+        ? REVENUE_TARGET_THB_BY_LEVEL[program.level as keyof typeof REVENUE_TARGET_THB_BY_LEVEL] ?? null
+        : null,
+    },
+  };
+
   const drivers: ProgramLifecycleDriver[] = [
     aiReadinessDriver,
     healthDriver,
@@ -1306,6 +1407,7 @@ export async function programLifecycleVerdict(
     tuitionTrendDriver,
     modernityDriver,
     labourMarketDriver, // v1.3
+    revenueScaleDriver, // v1.4
     gapDriver,
     resilienceDriver,
     delayedDriver,
@@ -1412,6 +1514,30 @@ export async function programLifecycleVerdict(
     });
   }
 
+  // Revenue-potential gate (NEW in v1.4). A program below the universal
+  // 3M-THB/year flagship floor cannot claim FRONTIER regardless of
+  // content or AI alignment — FRONTIER means "strategic flagship the
+  // university should invest more in," not "academically excellent
+  // boutique program." Encodes the non-degree HRD shift squeezing
+  // post-grad cohorts.
+  // Null-safe: when financial data is missing, gate cannot apply.
+  if (
+    latestAnnualRevenueThb !== null &&
+    latestAnnualRevenueThb < FLAGSHIP_REVENUE_FLOOR_THB &&
+    verdict === 'FRONTIER'
+  ) {
+    const from = verdict;
+    verdict = 'RISING';
+    const revM = (latestAnnualRevenueThb / 1_000_000).toFixed(1);
+    const floorM = (FLAGSHIP_REVENUE_FLOOR_THB / 1_000_000).toFixed(0);
+    gatesApplied.push({
+      name: 'lowRevenuePotentialFrontierCap',
+      from,
+      to: verdict,
+      reason: `Annual tuition revenue ${revM}M THB < ${floorM}M flagship floor — FRONTIER reserved for revenue-substantial programs (strategic, not academic); caps at RISING. Path to FRONTIER: grow cohort or partnerships.`,
+    });
+  }
+
   // ── Narrative ────────────────────────────────────────────────────
   const sortedDrivers = [...drivers].sort(
     (a, b) => Math.abs(b.contribution) - Math.abs(a.contribution),
@@ -1515,6 +1641,8 @@ function labelGateName(name: LifecycleGateEffect['name']): string {
       return 'Labour-market alignment < 30 (STABLE cap)';
     case 'lowLabourMarketAlignmentFrontierCap':
       return 'Labour-market alignment < 50 (FRONTIER cap)';
+    case 'lowRevenuePotentialFrontierCap':
+      return 'Revenue < 3M THB/yr flagship floor (FRONTIER cap)';
   }
 }
 
@@ -1556,6 +1684,7 @@ function labelToPhrase(label: string): string {
     case 'tuition_trend': return 'tuition growth';
     case 'content_modernity': return 'curriculum modernity';
     case 'labour_market_alignment': return 'labour-market alignment';
+    case 'revenue_scale': return 'revenue scale';
     case 'major_content_gaps': return 'major content gaps vs peers';
     case 'demographic_resilience': return 'demographic resilience';
     case 'delayed_graduation_share': return 'delayed graduation share';

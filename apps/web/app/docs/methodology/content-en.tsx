@@ -38,7 +38,7 @@ export function MethodologyContentEn() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'Methodology code', value: <><Code>health-score.v3.4</Code> (program health) · <Code>lifecycle.v1.3</Code> (lifecycle verdict)</> },
+              { label: 'Methodology code', value: <><Code>health-score.v3.5</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
               { label: 'Document version', value: '1.0' },
               { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
@@ -227,7 +227,7 @@ export function MethodologyContentEn() {
             This structure is the result of a v3 redesign in May 2026 that replaced two previously
             placeholder dimensions (<Code>relevance</Code> and <Code>capability</Code>, both null in v2)
             with real-data backed scorers. Earlier versions are retained for audit; current
-            computations stamp <Code>health-score.v3.4</Code>.
+            computations stamp <Code>health-score.v3.5</Code>.
           </P>
         </DocSubsection>
 
@@ -629,10 +629,11 @@ export function MethodologyContentEn() {
               <TR><TD>4</TD><TD mono>tuition_trend_slope</TD><TD>±10</TD><TD>Direction of tuition revenue trend.</TD></TR>
               <TR><TD>5</TD><TD mono>content_modernity</TD><TD>±10</TD><TD>AI peer-review verdict on curriculum content (<Code>OLD_SCHOOL</Code> / <Code>IN_BETWEEN</Code> / <Code>FRONTIER</Code>). Halved from ±20 in v1.3 — qualitative LLM-as-judge signal complements but does not substitute for labour-market alignment.</TD></TR>
               <TR><TD>6</TD><TD mono>labour_market_alignment</TD><TD>±15</TD><TD><Em>New in v1.3.</Em> Share of program skills that match KMITL employer demand (sourced directly from the relevance dimension). Brings the quantitative employer-demand signal up from "buried inside overall health" to first-class lifecycle input. Bands: ≥70 → +15, 50–70 → +5, 30–50 → −5, &lt;30 → −15. Null when KMITL career mapping isn't populated yet (no penalty).</TD></TR>
-              <TR><TD>7</TD><TD mono>major_content_gaps</TD><TD>up to −12</TD><TD>Penalty: 4 points per major curriculum gap identified by AI peer review, capped at 12.</TD></TR>
-              <TR><TD>8</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>Programme's resilience to Thailand's 18–22 cohort decline.</TD></TR>
-              <TR><TD>9</TD><TD mono>delayed_graduation_share</TD><TD>up to −10</TD><TD>Penalty for cohorts with high shares delayed past programme duration.</TD></TR>
-              <TR><TD>10</TD><TD mono>capability_strength</TD><TD>−8 to +8</TD><TD>Faculty seniority and publication strength.</TD></TR>
+              <TR><TD>7</TD><TD mono>revenue_scale</TD><TD>±10</TD><TD><Em>New in v1.4.</Em> Level-aware absolute revenue ("revenue-substantial for your level"). Banded against per-level target: BACHELOR 8M / MASTER · DOCTORAL · HGD 2M THB per year. Bands: ratio ≥1.5 → +10, ≥1.0 → +5, ≥0.5 → 0, ≥0.25 → −5, &lt;0.25 → −10. Null when financial data missing (no penalty).</TD></TR>
+              <TR><TD>8</TD><TD mono>major_content_gaps</TD><TD>up to −12</TD><TD>Penalty: 4 points per major curriculum gap identified by AI peer review, capped at 12.</TD></TR>
+              <TR><TD>9</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>Programme's resilience to Thailand's 18–22 cohort decline.</TD></TR>
+              <TR><TD>10</TD><TD mono>delayed_graduation_share</TD><TD>up to −10</TD><TD>Penalty for cohorts with high shares delayed past programme duration.</TD></TR>
+              <TR><TD>11</TD><TD mono>capability_strength</TD><TD>−8 to +8</TD><TD>Faculty seniority and publication strength.</TD></TR>
             </tbody>
           </Tbl>
           <P>
@@ -722,6 +723,18 @@ otherwise                                         → SUNSET`}</Pre>
               <Code>FRONTIER</Code> verdict is downgraded to <Code>RISING</Code>. Rationale: the
               FRONTIER label is reserved for programs that actually meet employer demand.
             </LI>
+            <LI>
+              <Strong>Revenue potential floor (Frontier cap).</Strong>{' '}
+              <Em>New in v1.4.</Em> If annual tuition revenue &lt; <Code>3M THB/year</Code>{' '}
+              (the universal flagship floor), a <Code>FRONTIER</Code> verdict is downgraded to{' '}
+              <Code>RISING</Code>. Level-INDEPENDENT — FRONTIER is strategic ("flagship the
+              university should invest more in"), not academic. A 2M-THB boutique research
+              program does not earn the verdict even if it's "good for its level." Encodes
+              the non-degree HRD shift squeezing post-graduate cohort sizes. Path to
+              FRONTIER for capped programs: grow cohort or international partnerships to
+              clear the 3M floor. Null-safe: when financial data is missing, gate cannot
+              apply.
+            </LI>
           </OL>
           <P>
             These gates encode an explicit institutional position: that a high health score in a
@@ -745,7 +758,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="3.7" title="Persistence and audit">
           <P>
             Every lifecycle computation is upserted to a <Code>program_lifecycle_snapshots</Code>{' '}
-            table with the verdict, trajectory score, methodology version (<Code>lifecycle.v1.3</Code>{' '}
+            table with the verdict, trajectory score, methodology version (<Code>lifecycle.v1.4</Code>{' '}
             at time of writing), and the full driver payload as JSON. This enables (a) fast reads on
             the cockpit page without recomputation, and (b) a permanent audit trail of what verdict
             was assigned to which program on which date with which inputs. Snapshot-write failures are
@@ -1118,8 +1131,8 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="6.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.4'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.3'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.5'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
           </UL>
           <P>
             Every score row emitted by the application carries the version that produced it.
@@ -1327,10 +1340,12 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>health-score.v2.1</TD><TD>2026-05-01</TD><TD>Four-quadrant fallback chain on labour-market driver.</TD></TR>
             <TR><TD mono>health-score.v3.0</TD><TD>2026-05-02</TD><TD>Five dimensions all real-data backed; <Code>demand</Code> → <Code>attractiveness</Code>; <Code>quality</Code> → <Code>outcomes</Code>; <Code>relevance</Code> and <Code>capability</Code> no longer placeholders.</TD></TR>
             <TR><TD mono>health-score.v3.4</TD><TD>2026-05-04</TD><TD>KKU intake-floor policy driver added; partial-current-year drop heuristic introduced for trend slopes; TCAS-funnel "complete year" filter introduced.</TD></TR>
+            <TR><TD mono>health-score.v3.5</TD><TD>2026-05-12</TD><TD>Adds <Code>revenue_scale</Code> driver to the financial dimension — level-aware absolute revenue scaled 0-100 against per-level target (BACHELOR 8M, MASTER · DOCTORAL · HGD 2M THB/yr). Complements the existing per-student / coverage / trend ratio drivers with an absolute-scale signal. Lifecycle.v1.4 uses the same signal as both a first-class lifecycle driver (±10) AND a flagship-floor modifier gate.</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>2026-05-01</TD><TD>Initial four-band classifier; eight drivers; content-modernity gate.</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2026-05-02</TD><TD>AI-readiness added as the heaviest driver (±25); two AI-readiness modifier gates introduced; health-overall driver weight reduced from ±25 to ±20 to make headroom.</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>2026-05-12</TD><TD>Exposes the gate counterfactual (gap #8 closure): result now carries <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> alongside the gated <Code>verdict</Code>, so Council readers can see when + why a modifier gate moved the verdict. No behavioural change to the gated verdict.</TD></TR>
             <TR><TD mono>lifecycle.v1.3</TD><TD>2026-05-12</TD><TD>Rebalances qualitative-vs-quantitative content signals after KKU-SEQ-0018 surfaced an over-weighted peer-review modernity verdict masking a 12.5% labour-market-alignment gap. <Code>content_modernity</Code> weight halved (±20 → ±10). New first-class driver <Code>labour_market_alignment</Code> (±15) sourced from the KMITL employer-demand share. Two new modifier gates (<Code>lowLabourMarketAlignmentStableCap</Code> at &lt;30, <Code>lowLabourMarketAlignmentFrontierCap</Code> at &lt;50) mirror the AI-readiness gate pattern — a program can't claim trajectory if it teaches a fraction of what employers demand.</TD></TR>
+            <TR><TD mono>lifecycle.v1.4</TD><TD>2026-05-12</TD><TD>Bakes revenue-production potential into the verdict after KKU-SEQ-0291 (PhD Epi & Biostat, ~2M THB/yr, 4 students/cohort) landed at FRONTIER under v1.3. New <Code>revenue_scale</Code> driver (±10, level-aware against per-level revenue targets). New <Code>lowRevenuePotentialFrontierCap</Code> gate — annual revenue &lt; 3M THB/yr (universal flagship floor) caps FRONTIER at RISING regardless of level. Encodes the non-degree HRD shift squeezing post-graduate cohorts: FRONTIER is strategic-flagship, not academic-excellence.</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

@@ -5,6 +5,38 @@ import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
 import { realDataWhere, realDataSql } from './data-quality';
 
+/** Annual tuition revenue target by program level (THB). Used by the
+ *  health-score.v3.5 financial-dimension `revenue_scale` driver AND by
+ *  lifecycle.v1.4's `revenue_scale` driver. Reflects KKU's actual
+ *  revenue distribution as of 2026 — re-calibrate if the underlying
+ *  tuition/cohort economics shift materially.
+ *
+ *  Lives here (not in program-deep-dive.ts) because program-deep-dive
+ *  imports from health-score; defining it the other way around would
+ *  create a circular dependency. */
+export const REVENUE_TARGET_THB_BY_LEVEL: Record<
+  'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
+  number
+> = {
+  BACHELOR: 8_000_000,
+  MASTER: 2_000_000,
+  DOCTORAL: 2_000_000,
+  HIGHER_GRAD_DIPLOMA: 2_000_000,
+};
+
+/** Universal "flagship" threshold in THB/year — the gate that decides
+ *  whether a program is revenue-substantial enough to claim FRONTIER.
+ *  Level-INDEPENDENT by design: FRONTIER is strategic, not academic, so
+ *  a 2M-THB boutique PhD doesn't earn the verdict even if it's "good
+ *  for a PhD." Below this threshold, lifecycle.v1.4 caps FRONTIER to
+ *  RISING via `lowRevenuePotentialFrontierCap`.
+ *
+ *  Calibration: 3M ≈ 30 bachelor students × 100k THB tuition, or
+ *  20 master students × 150k, or 20 PhD students × 150k. Reflects the
+ *  smallest cohort that can plausibly carry "flagship" institutional
+ *  weight given the non-degree HRD shift squeezing post-grad programs. */
+export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
+
 // Health scores for the Portfolio Overview Cockpit + Deep-Dive radar.
 // Five dimensions + overall composite. Scores 0-100 where 100 is healthy.
 //
@@ -34,7 +66,13 @@ import { realDataWhere, realDataSql } from './data-quality';
 // v2 / v2.1 driver `labor_market_alignment_kmitl` (LinkedIn via MHESI,
 // 4-quadrant fallback) is preserved under `relevance`. v1 / v2 / v2.1
 // rows retained for audit; new rows stamp v3.0.
-export const HEALTH_SCORE_VERSION = 'health-score.v3.4';
+// v3.5 (2026-05-12) adds the `revenue_scale` driver to the financial
+// dimension: level-aware absolute revenue scaled 0-100 against the
+// per-level target. Captures "is this program revenue-substantial for
+// its level" — complements the existing per-student / coverage / trend
+// drivers (which are all ratios). Lifecycle.v1.4 uses the same
+// signal as a first-class lifecycle driver + flagship-floor gate.
+export const HEALTH_SCORE_VERSION = 'health-score.v3.5';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -756,15 +794,19 @@ async function scoreFinancialProgram(
   programId: string,
   enrollment: MetricRow[],
 ): Promise<HealthScore> {
-  const rows = await prisma.financialMetric.findMany({
-    where: { programId, ...realDataWhere() },
-    orderBy: { fiscalYear: 'asc' },
-  });
+  const [rows, programMeta] = await Promise.all([
+    prisma.financialMetric.findMany({
+      where: { programId, ...realDataWhere() },
+      orderBy: { fiscalYear: 'asc' },
+    }),
+    prisma.program.findUnique({ where: { id: programId }, select: { level: true } }),
+  ]);
   if (rows.length === 0) {
     return emptyScore([
       'net_contribution_per_student',
       'revenue_coverage_program_direct',
       'tuition_trend_slope',
+      'revenue_scale',
     ]);
   }
   const num = (v: { toNumber: () => number } | unknown): number =>
@@ -822,6 +864,26 @@ async function scoreFinancialProgram(
         return clamp(50 + (slope / 500_000) * 50);
       })(),
       raw: rows.map((r) => num(r.tuitionRevenue)),
+    },
+    {
+      label: 'revenue_scale',
+      // v3.5: level-aware absolute revenue. Captures "is this program
+      // revenue-substantial for its level" — complements per-student /
+      // coverage / trend ratios above with the absolute scale signal.
+      // 0-100 scaled against REVENUE_TARGET_THB_BY_LEVEL: ratio 1.0 → 75,
+      // ratio 0.5 → 50, ratio 2.0 → 100 (capped), ratio 0 → 0.
+      value: (() => {
+        const level = programMeta?.level ?? null;
+        if (!level || !(level in REVENUE_TARGET_THB_BY_LEVEL)) return null;
+        if (tuition <= 0) return 0;
+        const target = REVENUE_TARGET_THB_BY_LEVEL[level as keyof typeof REVENUE_TARGET_THB_BY_LEVEL];
+        const ratio = tuition / target;
+        // Linear: ratio 0 → 0, 1 → 75, 2+ → 100. Encodes diminishing
+        // returns past the per-level target (after ratio≥2, you're
+        // already revenue-substantial).
+        return clamp(Math.min(ratio, 2) * 50);
+      })(),
+      raw: { latestAnnualRevenueThb: tuition, level: programMeta?.level ?? null },
     },
   ];
   return summariseDrivers(drivers);

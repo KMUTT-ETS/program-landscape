@@ -704,6 +704,7 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
     tuition_trend: 'Tuition growth',
     content_modernity: 'Curriculum modernity',
     labour_market_alignment: 'Labour-market alignment',
+    revenue_scale: 'Revenue scale',
     major_content_gaps: 'Major content gaps vs peers',
     demographic_resilience: 'Demographic resilience',
     delayed_graduation_share: 'Delayed-graduation share',
@@ -724,6 +725,7 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
     aiReadinessFrontierCap: 'AI readiness < 50 (FRONTIER cap)',
     lowLabourMarketAlignmentStableCap: 'Labour-market alignment < 30 (STABLE cap)',
     lowLabourMarketAlignmentFrontierCap: 'Labour-market alignment < 50 (FRONTIER cap)',
+    lowRevenuePotentialFrontierCap: 'Revenue < 3M THB/yr flagship floor (FRONTIER cap)',
   };
   const ungatedMeta =
     data.ungatedVerdict !== data.verdict ? verdictMeta[data.ungatedVerdict] : null;
