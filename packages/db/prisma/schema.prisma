@@ -136,6 +136,22 @@ enum PolicySource {
   OTHER
 }
 
+// External-AI-search source kinds. URL_LIST pulls explicit URLs
+// (RSS / report-index pages / one-off reports) on cadence and AI-
+// summarises each item. WEB_SEARCH issues queries against a search
+// provider (Google CSE / Bing / Brave — keyed at runtime, env-driven)
+// and AI-summarises the top-N results. Added 2026-05-12 for Phase 5.
+enum ExternalAiSourceKind {
+  URL_LIST
+  WEB_SEARCH
+}
+
+enum ExternalAiSourceStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
 enum SignalType {
   POLICY
   RESEARCH
@@ -572,6 +588,7 @@ model User {
   expertiseNarratives     UserExpertiseNarrative[]
   publicationsCache       UserPublicationsCache?
   aiModelOverridesSet     AiModelOverride[]
+  externalAiSourcesCreated ExternalAiSource[]      @relation("ExternalAiSourceCreator")
 
   @@index([email])
   @@index([ssoSubject])
@@ -1653,14 +1670,64 @@ model TrendSignal {
   affectedProgramIds String[]   @map("affected_program_ids")
   affectedSkillIds   String[]   @map("affected_skill_ids")
   aiInferenceId      String?    @map("ai_inference_id")
+  // Optional back-pointer to the Phase-5 ExternalAiSource that
+  // produced this signal. NULL for legacy / pre-Phase-5 signals + the
+  // 6 seeded connector-driven monitors.
+  externalAiSourceId String?    @map("external_ai_source_id")
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @updatedAt @map("updated_at")
 
-  aiInference AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+  aiInference      AiInference?      @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+  externalAiSource ExternalAiSource? @relation(fields: [externalAiSourceId], references: [id], onDelete: SetNull)
 
   @@index([signalType])
   @@index([detectedDate])
+  @@index([externalAiSourceId])
   @@map("trend_signals")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// External AI search & synthesis — Phase 5 of the admin-console
+// redesign (2026-05-12).
+//
+// One row per external intelligence feed (WEF, IMD, BOI, World Bank,
+// Google News, etc.). Each row has a kind that determines how the
+// scheduler fetches content (URL_LIST = enumerate URLs; WEB_SEARCH =
+// run search queries) and a configJson that carries the kind-specific
+// payload (an array of URLs, or an array of query strings).
+//
+// Every fetched item is AI-summarised into a TrendSignal row, which the
+// rest of the platform already consumes (analyst, deep-dive, cockpit).
+// ─────────────────────────────────────────────────────────────────────────
+model ExternalAiSource {
+  id              String                 @id @default(cuid())
+  slug            String                 @unique
+  name            String
+  description     String?                @db.Text
+  kind            ExternalAiSourceKind
+  status          ExternalAiSourceStatus @default(PAUSED)
+  // URL_LIST: { urls: string[] }
+  // WEB_SEARCH: { queries: string[], provider?: 'google_cse'|'bing'|'brave', maxResultsPerQuery?: number }
+  configJson      Json                   @map("config_json")
+  cadenceCron     String?                @map("cadence_cron")
+  // Default classification + scoring for signals produced by this
+  // source — operator-overridable per-source via the admin UI.
+  signalType      SignalType             @default(NEWS) @map("signal_type")
+  defaultImpact   Float                  @default(0.5) @map("default_impact")
+  lastFetchedAt   DateTime?              @map("last_fetched_at")
+  lastFetchStatus String?                @map("last_fetch_status")
+  lastFetchError  String?                @map("last_fetch_error") @db.Text
+  lastSignalCount Int?                   @map("last_signal_count")
+  createdById     String?                @map("created_by_id")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  createdBy User?         @relation("ExternalAiSourceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  signals   TrendSignal[]
+
+  @@index([status])
+  @@index([kind])
+  @@map("external_ai_sources")
 }
 
 model PeerProgram {

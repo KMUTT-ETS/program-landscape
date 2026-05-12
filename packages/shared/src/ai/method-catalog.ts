@@ -243,6 +243,17 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     defaultModel: 'gemini-3.1-pro-preview',
   },
 
+  // ── External AI search & synthesis (Phase 5) ─────────────────────────
+  {
+    methodPrefix: 'external-feed-summary',
+    currentVersion: 'external-feed-summary.v1',
+    label: 'External feed summary',
+    description: 'Distils a fetched URL or search result into a TrendSignal payload (Phase-5 admin source catalog).',
+    module: 'ingestion',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.1-pro-preview',
+  },
+
   // ── Profile / analyst ────────────────────────────────────────────────
   {
     methodPrefix: 'expertise-narrative',

@@ -5,6 +5,8 @@ import { AiSettingsController } from './ai-settings.controller';
 import { AiSettingsService } from './ai-settings.service';
 import { BackupVerificationService } from './backup-verification.service';
 import { DataQualityController } from './data-quality.controller';
+import { ExternalAiController } from './external-ai/external-ai.controller';
+import { ExternalAiService } from './external-ai/external-ai.service';
 import { ImdController } from './imd.controller';
 import { QueuesController } from './queues.controller';
 import { QueuesService } from './queues.service';
@@ -18,11 +20,12 @@ import { SystemStatusController } from './system-status.controller';
     DataQualityController,
     AiCostController,
     AiSettingsController,
+    ExternalAiController,
     ImdController,
     QueuesController,
     RegistryMappingController,
   ],
-  providers: [QueuesService, BackupVerificationService, AiSettingsService],
+  providers: [QueuesService, BackupVerificationService, AiSettingsService, ExternalAiService],
   exports: [QueuesService],
 })
 export class AdminModule {}

@@ -1189,6 +1189,9 @@ async function main() {
   // ── Decision Workspace (prompt 12) — gated ─────────────────────────────
   if (SEED_MOCKS) await seedDecisionSamples();
 
+  // ── External AI sources (Phase 5) — always seed catalog ─────────────────
+  await seedExternalAiSources();
+
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
     faculties: await prisma.faculty.count(),
@@ -1786,6 +1789,176 @@ async function seedDecisionSamples() {
 
   // eslint-disable-next-line no-console
   console.log('seedDecisionSamples: seeded 3 decisions + milestones + 1 outcome review');
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// External AI sources (Phase 5) — catalog of intelligence feeds.
+// Seeded in PAUSED state so the operator activates each one explicitly
+// after deciding cadence + verifying any required env keys.
+// Idempotent: upserts by slug, no destructive updates.
+// ─────────────────────────────────────────────────────────────────────────
+async function seedExternalAiSources() {
+  const seeds = [
+    {
+      slug: 'wef-global-risks',
+      name: 'World Economic Forum',
+      description: 'WEF Global Risks Report, future-of-jobs publications, and weekly insights blog.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.7,
+      cadenceCron: '0 8 * * 1',
+      configJson: {
+        urls: [
+          'https://www.weforum.org/reports/global-risks-report-2026',
+          'https://www.weforum.org/agenda/archive/jobs-and-the-future-of-work/',
+        ],
+      },
+    },
+    {
+      slug: 'imd-competitiveness',
+      name: 'IMD World Competitiveness',
+      description: 'IMD World Competitiveness Center publications + digital + talent rankings.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.65,
+      cadenceCron: '0 8 1 * *',
+      configJson: {
+        urls: [
+          'https://www.imd.org/centers/world-competitiveness-center/rankings/',
+          'https://www.imd.org/centers/world-competitiveness-center/publications/',
+        ],
+      },
+    },
+    {
+      slug: 'thailand-boi',
+      name: 'Thailand BOI',
+      description: 'Thailand Board of Investment — promoted industries, investment statistics, S-curve announcements.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.6,
+      cadenceCron: '0 8 * * 2',
+      configJson: {
+        urls: [
+          'https://www.boi.go.th/index.php?page=news_business',
+        ],
+      },
+    },
+    {
+      slug: 'world-bank-thailand',
+      name: 'World Bank Thailand',
+      description: 'World Bank Thailand country page — economic monitor, sector briefs, policy notes.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.55,
+      cadenceCron: '0 9 1 * *',
+      configJson: {
+        urls: [
+          'https://www.worldbank.org/en/country/thailand/publication',
+        ],
+      },
+    },
+    {
+      slug: 'oecd-education',
+      name: 'OECD Education',
+      description: 'OECD education skills, higher-education, and labour-market policy publications.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.6,
+      cadenceCron: '0 9 1 * *',
+      configJson: {
+        urls: [
+          'https://www.oecd.org/education/',
+        ],
+      },
+    },
+    {
+      slug: 'unesco-iesalc',
+      name: 'UNESCO IESALC',
+      description: 'UNESCO International Institute for Higher Education — policy briefs + global reports.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.55,
+      cadenceCron: '0 9 1 * *',
+      configJson: {
+        urls: [
+          'https://www.iesalc.unesco.org/en/category/publications/',
+        ],
+      },
+    },
+    {
+      slug: 'mhesi-news',
+      name: 'MHESI announcements',
+      description: 'Thai Ministry of Higher Education, Science, Research and Innovation — policy notices, regulation, funding calls.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.7,
+      cadenceCron: '0 9 * * *',
+      configJson: {
+        urls: [
+          'https://www.mhesi.go.th/index.php/all-media/news.html',
+        ],
+      },
+    },
+    {
+      slug: 'asean-he',
+      name: 'ASEAN higher-ed statistics',
+      description: 'ASEAN University Network + ASEAN Secretariat publications on higher-education + skills.',
+      kind: 'URL_LIST' as const,
+      signalType: 'POLICY' as const,
+      defaultImpact: 0.5,
+      cadenceCron: '0 9 1 * *',
+      configJson: {
+        urls: [
+          'https://asean.org/our-communities/asean-socio-cultural-community/education/',
+        ],
+      },
+    },
+    {
+      slug: 'google-news-kku',
+      name: 'Google News — KKU & Thai HE',
+      description: 'Web-search seeded by KKU-relevant keywords — news about KKU, peer Thai universities, Thai higher-ed policy.',
+      kind: 'WEB_SEARCH' as const,
+      signalType: 'NEWS' as const,
+      defaultImpact: 0.45,
+      cadenceCron: '0 7 * * *',
+      configJson: {
+        queries: [
+          'มหาวิทยาลัยขอนแก่น เปิดหลักสูตร',
+          'หลักสูตรใหม่ มหาวิทยาลัยขอนแก่น',
+          'Khon Kaen University new program',
+          'Thailand higher education policy 2026',
+        ],
+        provider: 'google_cse',
+        maxResultsPerQuery: 5,
+      },
+    },
+  ];
+
+  for (const s of seeds) {
+    await prisma.externalAiSource.upsert({
+      where: { slug: s.slug },
+      create: {
+        slug: s.slug,
+        name: s.name,
+        description: s.description,
+        kind: s.kind,
+        status: 'PAUSED',
+        signalType: s.signalType,
+        defaultImpact: s.defaultImpact,
+        cadenceCron: s.cadenceCron,
+        configJson: s.configJson,
+      },
+      update: {
+        // Only refresh purely-cosmetic fields. Don't touch operator-
+        // managed fields (status, cadenceCron, configJson) on re-seed.
+        name: s.name,
+        description: s.description,
+      },
+    });
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(`seedExternalAiSources: seeded ${seeds.length} sources (PAUSED by default)`);
 }
 
 main()
