@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { TrendsClient } from './client';
 import type { TrendsFeedResponse } from './types';
@@ -32,7 +33,7 @@ export default async function TrendsPage({
   if (sp.search) qs.set('search', sp.search);
   qs.set('limit', '50');
 
-  const feed = await apiFetch<TrendsFeedResponse>(`/trends?${qs}`).catch(() => null);
+  const feedRes = await apiFetchSafe<TrendsFeedResponse>(`/trends?${qs}`);
 
   return (
     <AuthedAppShell user={user}>
@@ -40,9 +41,9 @@ export default async function TrendsPage({
         title="Future Trends Radar"
         subtitle="Curated signals from policy, research, market, tech, and news — linked to KKU programs and skills."
       />
-      {feed ? (
+      {feedRes.ok ? (
         <TrendsClient
-          feed={feed}
+          feed={feedRes.data}
           initialFilters={{
             signalType: sp.signalType ?? '',
             windowDays: sp.windowDays ?? '90',
@@ -51,7 +52,7 @@ export default async function TrendsPage({
           }}
         />
       ) : (
-        <p className="text-sm text-text-tertiary">Trends feed unavailable.</p>
+        <DiagnosticEmptyState surface="trends feed" error={feedRes.error} />
       )}
     </AuthedAppShell>
   );

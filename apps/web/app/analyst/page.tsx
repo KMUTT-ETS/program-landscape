@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { AnalystClient } from './client';
 import type {
@@ -25,10 +26,11 @@ export default async function AnalystPage({
 
   const sp = await searchParams;
 
-  const [conversations, briefs, activeConversation] = await Promise.all([
-    apiFetch<AnalystConversationDto[]>('/analyst/conversations').catch(
-      () => [] as AnalystConversationDto[],
-    ),
+  // Conversations is the canary — if THAT fails (auth/permission/server)
+  // the user can't do anything useful, so surface the diagnostic. Briefs
+  // is best-effort; activeConversation is optional.
+  const conversationsRes = await apiFetchSafe<AnalystConversationDto[]>('/analyst/conversations');
+  const [briefs, activeConversation] = await Promise.all([
     apiFetch<AnalystBriefTemplate[]>('/analyst/brief-templates').catch(
       () => [] as AnalystBriefTemplate[],
     ),
@@ -43,11 +45,15 @@ export default async function AnalystPage({
         title="AI Analyst"
         subtitle="Ask strategic questions in Thai or English — grounded in KKU data, cited, with confidence labels."
       />
-      <AnalystClient
-        conversations={conversations}
-        briefs={briefs}
-        activeConversation={activeConversation}
-      />
+      {!conversationsRes.ok ? (
+        <DiagnosticEmptyState surface="AI analyst" error={conversationsRes.error} />
+      ) : (
+        <AnalystClient
+          conversations={conversationsRes.data}
+          briefs={briefs}
+          activeConversation={activeConversation}
+        />
+      )}
     </AuthedAppShell>
   );
 }

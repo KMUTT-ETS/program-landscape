@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { EmptyState, PageHeader, Section } from '@kku/ui';
 import { InboxClient } from './client';
 
@@ -32,7 +33,8 @@ export default async function InboxPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const data = await apiFetch<InboxResponse>('/notifications').catch(() => null);
+  const dataRes = await apiFetchSafe<InboxResponse>('/notifications');
+  const data = dataRes.ok ? dataRes.data : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -45,7 +47,9 @@ export default async function InboxPage() {
         }
       />
       <Section title="Notifications">
-        {!data || data.notifications.length === 0 ? (
+        {!data ? (
+          <DiagnosticEmptyState surface="your inbox" error={dataRes.ok ? null : dataRes.error} />
+        ) : data.notifications.length === 0 ? (
           <EmptyState
             title="No notifications yet"
             description="Subscribe to sectors, programs, or signal types in the Trends Radar — high-impact matches land here automatically."

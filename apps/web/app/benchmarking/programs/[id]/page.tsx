@@ -1,8 +1,9 @@
 import { redirect, notFound } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Card, CoverageMatrix, PageHeader, type CoverageRow, type CoverageSkill } from '@kku/ui';
 import Link from 'next/link';
 import type { ProgramPeersResponse } from '../../types';
@@ -46,8 +47,8 @@ export default async function ProgramBenchmarkingPage({
   const sp = await searchParams;
   const peerSetQs = sp.peerSetId ? `peerSetId=${encodeURIComponent(sp.peerSetId)}&` : '';
 
-  const [overview, peersResp, kkuSkillsResp] = await Promise.all([
-    apiFetch<ProgramOverview>(`/programs/${id}/overview`).catch(() => null),
+  const overviewRes = await apiFetchSafe<ProgramOverview>(`/programs/${id}/overview`);
+  const [peersResp, kkuSkillsResp] = await Promise.all([
     apiFetch<ProgramPeersResponse>(`/benchmarking/programs/${id}/peers?${peerSetQs}limit=5`).catch(
       () => null,
     ),
@@ -56,8 +57,19 @@ export default async function ProgramBenchmarkingPage({
     })),
   ]);
 
-  if (!overview) notFound();
-  const program = overview.program;
+  if (!overviewRes.ok) {
+    if (overviewRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="Benchmarking" />
+        <DiagnosticEmptyState
+          surface="this program's benchmarking view"
+          error={overviewRes.error}
+        />
+      </AuthedAppShell>
+    );
+  }
+  const program = overviewRes.data.program;
   const kkuSkills = kkuSkillsResp.taught ?? [];
 
   const skillsUnion: CoverageSkill[] = kkuSkills.map((s) => ({

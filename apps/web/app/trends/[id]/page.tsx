@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Button, Card, PageHeader, Section } from '@kku/ui';
 import { ArrowLeft } from 'lucide-react';
 import { MarkReviewedButton } from './mark-reviewed';
@@ -55,8 +56,20 @@ export default async function TrendSignalPage({
   if (!user?.userId) redirect('/signin');
   const { id } = await params;
 
-  const detail = await apiFetch<TrendDetail | null>(`/trends/${id}`).catch(() => null);
-  if (!detail) notFound();
+  const detailRes = await apiFetchSafe<TrendDetail | null>(`/trends/${id}`);
+  const detail = detailRes.ok ? detailRes.data : null;
+  if (!detail) {
+    if (!detailRes.ok && detailRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="Trend signal" />
+        <DiagnosticEmptyState
+          surface="this trend signal"
+          error={detailRes.ok ? null : detailRes.error}
+        />
+      </AuthedAppShell>
+    );
+  }
 
   const s = detail.signal;
 

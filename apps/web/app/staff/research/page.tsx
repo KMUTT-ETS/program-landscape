@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
 import { StaffBackLink } from '../back-link';
@@ -42,12 +43,10 @@ export default async function ResearchPage({
   sources.forEach((v) => qs.append('sources', v));
   if (yearFrom) qs.set('yearFrom', String(yearFrom));
 
-  const [data, options] = await Promise.all([
-    apiFetch<ResearchResponse>(`/staff-dashboard/research${qs.toString() ? `?${qs}` : ''}`).catch(
-      () => null,
-    ),
-    apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null),
-  ]);
+  const dataRes = await apiFetchSafe<ResearchResponse>(
+    `/staff-dashboard/research${qs.toString() ? `?${qs}` : ''}`,
+  );
+  const options = await apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null);
 
   return (
     <AuthedAppShell user={user}>
@@ -56,16 +55,17 @@ export default async function ResearchPage({
         title="Research and publications"
         subtitle="All KKU staff publications (incl. retired) from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. This is historical-output measurement; program-scoring views (health score, lifecycle) use only active staff and live elsewhere."
       />
-      {data && options ? (
+      {dataRes.ok && options ? (
         <ResearchClient
-          data={data}
+          data={dataRes.data}
           options={options}
           initialFilters={{ facultyName, sources, yearFrom }}
         />
       ) : (
-        <Card>
-          <p className="text-sm text-text-secondary">No data yet.</p>
-        </Card>
+        <DiagnosticEmptyState
+          surface="research and publications"
+          error={dataRes.ok ? null : dataRes.error}
+        />
       )}
     </AuthedAppShell>
   );

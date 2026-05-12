@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, FreshnessBadge } from '@kku/ui';
 import { prisma } from '@kku/db';
 import { CockpitClient } from './client';
@@ -40,8 +41,13 @@ export default async function CockpitPage({
   }
 
   const qs = new URLSearchParams({ scope, ...(scopeId ? { scopeId } : {}) });
-  const [kpis, heatmap, matrix, rollup, recruitment, savedViews] = await Promise.all([
-    apiFetch<CockpitKpis>(`/cockpit/kpis?${qs}`).catch(() => null),
+  // KPIs is the canary — if it fails on auth/permission/server we
+  // surface the diagnostic instead of rendering empty sub-sections.
+  // The other fetches stay best-effort (each section can be null).
+  const kpisRes = await apiFetchSafe<CockpitKpis>(`/cockpit/kpis?${qs}`);
+  const kpis = kpisRes.ok ? kpisRes.data : null;
+  const kpisError = kpisRes.ok ? null : kpisRes.error;
+  const [heatmap, matrix, rollup, recruitment, savedViews] = await Promise.all([
     apiFetch<CockpitHeatmap>(`/cockpit/heatmap?${qs}`).catch(() => null),
     apiFetch<CockpitMatrix>(`/cockpit/matrix?${qs}`).catch(() => null),
     apiFetch<CockpitRollup>(`/cockpit/rollup?${qs}`).catch(() => null),
@@ -94,19 +100,23 @@ export default async function CockpitPage({
           ) : undefined
         }
       />
-      <CockpitClient
-        user={user}
-        scope={scope}
-        scopeId={scopeId}
-        initialView={initialView}
-        kpis={kpis}
-        heatmap={heatmap}
-        matrix={matrix}
-        rollup={rollup}
-        recruitment={recruitment}
-        savedViews={savedViews}
-        breadcrumb={breadcrumb}
-      />
+      {kpisError ? (
+        <DiagnosticEmptyState surface="cockpit" error={kpisError} />
+      ) : (
+        <CockpitClient
+          user={user}
+          scope={scope}
+          scopeId={scopeId}
+          initialView={initialView}
+          kpis={kpis}
+          heatmap={heatmap}
+          matrix={matrix}
+          rollup={rollup}
+          recruitment={recruitment}
+          savedViews={savedViews}
+          breadcrumb={breadcrumb}
+        />
+      )}
     </AuthedAppShell>
   );
 }

@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import type {
   EntryScoreResponse,
@@ -57,10 +58,12 @@ export default async function PerformancePage({
   region.forEach((v) => qs.append('region', v));
   const qsString = qs.toString() ? `?${qs}` : '';
 
-  const [overall, byProgram, byLocation, entryScores] = await Promise.all([
-    apiFetch<PerformanceOverall>(
-      `/education/performance/overall${qsString}`,
-    ).catch(() => null),
+  // Overall is the canary; the per-program/location/entry-score
+  // fetches stay best-effort (each section can be null).
+  const overallRes = await apiFetchSafe<PerformanceOverall>(
+    `/education/performance/overall${qsString}`,
+  );
+  const [byProgram, byLocation, entryScores] = await Promise.all([
     apiFetch<PerformanceByProgramResponse>(
       `/education/performance/by-program${qsString}`,
     ).catch(() => null),
@@ -79,22 +82,16 @@ export default async function PerformancePage({
         title="Student performance"
         subtitle="Undergraduate GPAs and entry test scores. Faculty → Program drill-down for GPA averages, plus a deeper Region → Province → School view, plus a per-subject score pivot."
       />
-      {overall ? (
+      {overallRes.ok ? (
         <PerformanceClient
-          overall={overall}
+          overall={overallRes.data}
           byProgram={byProgram}
           byLocation={byLocation}
           entryScores={entryScores}
           initialFilters={{ facultyName, programLevel, programName, region }}
         />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet — go back to{' '}
-          <a className="underline" href="/education">
-            Education hub
-          </a>{' '}
-          and click <strong>Refresh from registry</strong> first.
-        </div>
+        <DiagnosticEmptyState surface="student performance" error={overallRes.error} />
       )}
     </AuthedAppShell>
   );

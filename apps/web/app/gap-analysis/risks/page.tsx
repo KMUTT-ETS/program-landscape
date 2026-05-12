@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Card, PageHeader } from '@kku/ui';
 import Link from 'next/link';
 import type { RiskRowDto } from '../types';
@@ -44,7 +45,9 @@ export default async function RisksPage({
   });
   if (sp.scopeId) qs.set('scopeId', sp.scopeId);
 
-  const data = await apiFetch<RiskResponse>(`/gap/risks?${qs}`).catch(() => null);
+  const dataRes = await apiFetchSafe<RiskResponse>(`/gap/risks?${qs}`);
+  const data = dataRes.ok ? dataRes.data : null;
+  const dataError = dataRes.ok ? null : dataRes.error;
 
   return (
     <AuthedAppShell user={user}>
@@ -76,7 +79,9 @@ export default async function RisksPage({
               {data.lowConfidenceReason}
             </div>
           )}
-          {!data || data.rows.length === 0 ? (
+          {!data ? (
+            <DiagnosticEmptyState surface="gap risks" error={dataError} />
+          ) : data.rows.length === 0 ? (
             <EmptyMessage />
           ) : (
             <div className="overflow-x-auto">

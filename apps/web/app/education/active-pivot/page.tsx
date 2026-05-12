@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import type { ActivePivotResponse } from '../types';
 import { EducationBackLink } from '../back-link';
@@ -17,9 +18,7 @@ export default async function ActivePivotPage() {
   if (!user?.userId) redirect('/signin');
   if (!isUniversityWide(user.role)) redirect('/no-access');
 
-  const data = await apiFetch<ActivePivotResponse>(
-    '/education/active-pivot',
-  ).catch(() => null);
+  const dataRes = await apiFetchSafe<ActivePivotResponse>('/education/active-pivot');
 
   return (
     <AuthedAppShell user={user}>
@@ -28,16 +27,14 @@ export default async function ActivePivotPage() {
         title="Active students by entry year"
         subtitle="Currently-enrolled students broken out by entry year (columns) and Faculty → Program Level → Program (rows)."
       />
-      {data && data.rows.length > 0 ? (
-        <ActivePivotClient data={data} />
+      {dataRes.ok && dataRes.data.rows.length > 0 ? (
+        <ActivePivotClient data={dataRes.data} />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet — go back to{' '}
-          <a className="underline" href="/education">
-            Education hub
-          </a>{' '}
-          and click <strong>Refresh from registry</strong> first.
-        </div>
+        <DiagnosticEmptyState
+          surface="active-students pivot"
+          error={dataRes.ok ? null : dataRes.error}
+          emptyMessage="No data yet — go back to Education hub and click Refresh from registry first."
+        />
       )}
     </AuthedAppShell>
   );

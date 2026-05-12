@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
 import type { TuitionResponse } from '../types';
@@ -35,9 +36,9 @@ export default async function TuitionPage({
   semester.forEach((v) => qs.append('semester', v));
   facultyName.forEach((v) => qs.append('facultyName', v));
 
-  const data = await apiFetch<TuitionResponse>(
+  const dataRes = await apiFetchSafe<TuitionResponse>(
     `/education/tuition${qs.toString() ? `?${qs}` : ''}`,
-  ).catch(() => null);
+  );
 
   return (
     <AuthedAppShell user={user}>
@@ -46,19 +47,13 @@ export default async function TuitionPage({
         title="Tuition fee incomes"
         subtitle="Tuition revenue by year, faculty, and semester."
       />
-      {data ? (
+      {dataRes.ok ? (
         <TuitionClient
-          data={data}
+          data={dataRes.data}
           initialFilters={{ semester, facultyName }}
         />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet — go back to{' '}
-          <a className="underline" href="/education">
-            Education hub
-          </a>{' '}
-          and click <strong>Refresh from registry</strong> first.
-        </div>
+        <DiagnosticEmptyState surface="tuition revenue" error={dataRes.error} />
       )}
     </AuthedAppShell>
   );

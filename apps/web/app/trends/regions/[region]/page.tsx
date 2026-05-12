@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Card, PageHeader, Section } from '@kku/ui';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
+import { PageHeader } from '@kku/ui';
 import { TrendsClient } from '../../client';
 import type { TrendsFeedResponse } from '../../types';
 
@@ -44,7 +45,7 @@ export default async function RegionTrendsPage({
   qs.set('windowDays', '365');
   qs.set('limit', '50');
 
-  const feed = await apiFetch<TrendsFeedResponse>(`/trends?${qs}`).catch(() => null);
+  const feedRes = await apiFetchSafe<TrendsFeedResponse>(`/trends?${qs}`);
 
   return (
     <AuthedAppShell user={user}>
@@ -52,9 +53,9 @@ export default async function RegionTrendsPage({
         title={`Regional trends · ${preset?.label ?? region}`}
         subtitle={preset?.note ?? 'Region-scoped trend board.'}
       />
-      {feed ? (
+      {feedRes.ok ? (
         <TrendsClient
-          feed={feed}
+          feed={feedRes.data}
           initialFilters={{
             signalType: '',
             windowDays: '365',
@@ -63,11 +64,7 @@ export default async function RegionTrendsPage({
           }}
         />
       ) : (
-        <Section title="Unavailable">
-          <Card>
-            <p className="text-sm text-text-tertiary">Regional trends feed unavailable.</p>
-          </Card>
-        </Section>
+        <DiagnosticEmptyState surface="regional trends feed" error={feedRes.error} />
       )}
     </AuthedAppShell>
   );

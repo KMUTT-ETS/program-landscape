@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Card, PageHeader } from '@kku/ui';
 import Link from 'next/link';
 import type { OpportunityRowDto } from '../types';
@@ -33,7 +34,9 @@ export default async function OpportunitiesPage({
   });
   if (sp.scopeId) qs.set('scopeId', sp.scopeId);
 
-  const data = await apiFetch<OpportunityResponse>(`/gap/opportunities?${qs}`).catch(() => null);
+  const dataRes = await apiFetchSafe<OpportunityResponse>(`/gap/opportunities?${qs}`);
+  const data = dataRes.ok ? dataRes.data : null;
+  const dataError = dataRes.ok ? null : dataRes.error;
 
   return (
     <AuthedAppShell user={user}>
@@ -61,7 +64,9 @@ export default async function OpportunitiesPage({
             </span>
           </div>
 
-          {!data || data.rows.length === 0 ? (
+          {!data ? (
+            <DiagnosticEmptyState surface="gap opportunities" error={dataError} />
+          ) : data.rows.length === 0 ? (
             <EmptyMessage />
           ) : (
             <div className="overflow-x-auto">

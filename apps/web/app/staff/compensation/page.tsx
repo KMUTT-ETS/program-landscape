@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
 import { StaffBackLink } from '../back-link';
@@ -37,12 +38,10 @@ export default async function CompensationPage({
   track.forEach((v) => qs.append('track', v));
   budgetId.forEach((v) => qs.append('budgetId', v));
 
-  const [data, options] = await Promise.all([
-    apiFetch<CompensationResponse>(
-      `/staff-dashboard/compensation${qs.toString() ? `?${qs}` : ''}`,
-    ).catch(() => null),
-    apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null),
-  ]);
+  const dataRes = await apiFetchSafe<CompensationResponse>(
+    `/staff-dashboard/compensation${qs.toString() ? `?${qs}` : ''}`,
+  );
+  const options = await apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null);
 
   return (
     <AuthedAppShell user={user}>
@@ -51,16 +50,17 @@ export default async function CompensationPage({
         title="Salaries and funding"
         subtitle="Where each person's salary comes from, and the income mix per faculty. To protect privacy, individual salaries are never shown — only buckets of 5 or more people."
       />
-      {data && options ? (
+      {dataRes.ok && options ? (
         <CompensationClient
-          data={data}
+          data={dataRes.data}
           options={options}
           initialFilters={{ facultyName, track, budgetId }}
         />
       ) : (
-        <Card>
-          <p className="text-sm text-text-secondary">No data yet.</p>
-        </Card>
+        <DiagnosticEmptyState
+          surface="staff compensation"
+          error={dataRes.ok ? null : dataRes.error}
+        />
       )}
     </AuthedAppShell>
   );

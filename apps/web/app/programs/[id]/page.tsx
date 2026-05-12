@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Button, Card, PageHeader } from '@kku/ui';
 import { ChevronRight, FileText, Home, Printer } from 'lucide-react';
 import { DeepDiveClient } from './client';
@@ -40,10 +41,16 @@ export default async function ProgramDeepDivePage({
 
   const { id } = await params;
 
+  // Overview is the canary — it's the smallest fetch + every section
+  // depends on knowing the program is reachable + the user can see it.
+  // If overview fails on auth/permission/server we surface diagnostic;
+  // 404 falls through to the standard not-found page.
+  const overviewRes = await apiFetchSafe<DeepDiveOverview>(`/programs/${id}/overview`);
+  const overview = overviewRes.ok ? overviewRes.data : null;
+
   // Parallel-fetch all sections. If any section 403s (role-gated) we
   // render the page with that section in an empty state.
   const [
-    overview,
     demandFunnel,
     studentCohorts,
     tcasStats,
@@ -60,7 +67,6 @@ export default async function ProgramDeepDivePage({
     peers,
     trends,
   ] = await Promise.all([
-    apiFetch<DeepDiveOverview>(`/programs/${id}/overview`).catch(() => null),
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
     apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
     apiFetch<DeepDiveTcasStats>(`/programs/${id}/tcas-stats`).catch(() => null),
@@ -78,7 +84,18 @@ export default async function ProgramDeepDivePage({
     apiFetch<DeepDiveTrends>(`/programs/${id}/trends`).catch(() => null),
   ]);
 
-  if (!overview) notFound();
+  if (!overview) {
+    if (!overviewRes.ok && overviewRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="Program deep-dive" />
+        <DiagnosticEmptyState
+          surface="this program's deep-dive"
+          error={overviewRes.ok ? null : overviewRes.error}
+        />
+      </AuthedAppShell>
+    );
+  }
 
   // Cockpit-style breadcrumb so users can navigate back from the
   // deepest level (program → department → faculty → KKU root) without

@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
 import type { LocationResponse, ThailandRegion } from '../types';
@@ -52,9 +53,9 @@ export default async function LocationPage({
   programName.forEach((v) => qs.append('programName', v));
   region.forEach((v) => qs.append('region', v));
 
-  const data = await apiFetch<LocationResponse>(
+  const dataRes = await apiFetchSafe<LocationResponse>(
     `/education/by-location${qs.toString() ? `?${qs}` : ''}`,
-  ).catch(() => null);
+  );
 
   return (
     <AuthedAppShell user={user}>
@@ -63,9 +64,9 @@ export default async function LocationPage({
         title="Student by location"
         subtitle="Where current students went to school — by school name, province, and Thailand region."
       />
-      {data ? (
+      {dataRes.ok ? (
         <LocationClient
-          data={data}
+          data={dataRes.data}
           initialFilters={{
             cohortYearBe: cohortYearBe.map(Number).filter((n) => Number.isFinite(n)),
             region: region as ThailandRegion[],
@@ -75,13 +76,7 @@ export default async function LocationPage({
           }}
         />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet — go back to{' '}
-          <a className="underline" href="/education">
-            Education hub
-          </a>{' '}
-          and click <strong>Refresh from registry</strong> first.
-        </div>
+        <DiagnosticEmptyState surface="student location" error={dataRes.error} />
       )}
     </AuthedAppShell>
   );

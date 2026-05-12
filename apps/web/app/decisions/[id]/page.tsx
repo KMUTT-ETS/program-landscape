@@ -1,8 +1,9 @@
 import { redirect, notFound } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, PageHeader } from '@kku/ui';
 import { DecisionDetailClient } from './detail-client';
 import type { DecisionDetail, DecisionStatus } from '../types';
@@ -36,8 +37,17 @@ export default async function DecisionDetailPage({
   const { id } = await params;
   const sp = await searchParams;
 
-  const decision = await apiFetch<DecisionDetail>(`/decisions/${id}`).catch(() => null);
-  if (!decision) notFound();
+  const decisionRes = await apiFetchSafe<DecisionDetail>(`/decisions/${id}`);
+  if (!decisionRes.ok) {
+    if (decisionRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="Decision" />
+        <DiagnosticEmptyState surface="this decision" error={decisionRes.error} />
+      </AuthedAppShell>
+    );
+  }
+  const decision = decisionRes.data;
 
   return (
     <AuthedAppShell user={user}>

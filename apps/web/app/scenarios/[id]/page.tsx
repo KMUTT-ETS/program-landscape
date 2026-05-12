@@ -1,8 +1,9 @@
 import { redirect, notFound } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, PageHeader } from '@kku/ui';
 import { ScenarioEditorClient } from './editor-client';
 import type { ScenarioDetail } from '../types';
@@ -25,8 +26,19 @@ export default async function ScenarioEditorPage({
   const sp = await searchParams;
   const tab = (sp.tab ?? 'setup') as 'setup' | 'assumptions' | 'simulation' | 'comparison' | 'discussion';
 
-  const scenario = await apiFetch<ScenarioDetail>(`/scenarios/${id}`).catch(() => null);
-  if (!scenario) notFound();
+  const scenarioRes = await apiFetchSafe<ScenarioDetail>(`/scenarios/${id}`);
+  if (!scenarioRes.ok) {
+    // 404 collapses to the standard not-found page; everything else
+    // shows the diagnostic so a 401/403/5xx isn't hidden as "missing".
+    if (scenarioRes.error.category === 'notFound') notFound();
+    return (
+      <AuthedAppShell user={user}>
+        <PageHeader title="Scenario" />
+        <DiagnosticEmptyState surface="this scenario" error={scenarioRes.error} />
+      </AuthedAppShell>
+    );
+  }
+  const scenario = scenarioRes.data;
 
   return (
     <AuthedAppShell user={user}>

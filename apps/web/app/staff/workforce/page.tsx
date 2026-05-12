@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
 import { StaffBackLink } from '../back-link';
@@ -35,12 +36,10 @@ export default async function WorkforcePage({
   facultyName.forEach((v) => qs.append('facultyName', v));
   track.forEach((v) => qs.append('track', v));
 
-  const [data, options] = await Promise.all([
-    apiFetch<WorkforceResponse>(
-      `/staff-dashboard/workforce${qs.toString() ? `?${qs}` : ''}`,
-    ).catch(() => null),
-    apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null),
-  ]);
+  const dataRes = await apiFetchSafe<WorkforceResponse>(
+    `/staff-dashboard/workforce${qs.toString() ? `?${qs}` : ''}`,
+  );
+  const options = await apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null);
 
   return (
     <AuthedAppShell user={user}>
@@ -49,16 +48,13 @@ export default async function WorkforcePage({
         title="Who works here"
         subtitle="Headcount, age, tenure, retirement timeline, and the past year's hires and departures."
       />
-      {data && options ? (
-        <WorkforceClient data={data} options={options} initialFilters={{ facultyName, track }} />
+      {dataRes.ok && options ? (
+        <WorkforceClient data={dataRes.data} options={options} initialFilters={{ facultyName, track }} />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet. Head to the{' '}
-          <a className="underline" href="/staff">
-            Staff dashboard
-          </a>{' '}
-          and click <strong>Refresh all</strong> to pull the first snapshot.
-        </div>
+        <DiagnosticEmptyState
+          surface="workforce dashboard"
+          error={dataRes.ok ? null : dataRes.error}
+        />
       )}
     </AuthedAppShell>
   );

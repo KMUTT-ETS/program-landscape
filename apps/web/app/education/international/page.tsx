@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Card, PageHeader } from '@kku/ui';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
+import { PageHeader } from '@kku/ui';
 import type { InternationalResponse } from '../types';
 import { InternationalClient } from './client';
 import { EducationBackLink } from '../back-link';
@@ -17,9 +18,7 @@ export default async function InternationalPage() {
   if (!user?.userId) redirect('/signin');
   if (!isUniversityWide(user.role)) redirect('/no-access');
 
-  const data = await apiFetch<InternationalResponse>(
-    '/education/international',
-  ).catch(() => null);
+  const dataRes = await apiFetchSafe<InternationalResponse>('/education/international');
 
   return (
     <AuthedAppShell user={user}>
@@ -28,16 +27,10 @@ export default async function InternationalPage() {
         title="International students"
         subtitle="Currently-enrolled non-Thai students by country of origin and program."
       />
-      {data ? (
-        <InternationalClient data={data} />
+      {dataRes.ok ? (
+        <InternationalClient data={dataRes.data} />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet — go back to{' '}
-          <a className="underline" href="/education">
-            Education hub
-          </a>{' '}
-          and click <strong>Refresh from registry</strong> first.
-        </div>
+        <DiagnosticEmptyState surface="international students" error={dataRes.error} />
       )}
     </AuthedAppShell>
   );

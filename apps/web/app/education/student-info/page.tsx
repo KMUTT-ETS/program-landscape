@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import type { StatusGroup, StudentInfoResponse } from '../types';
 import { StudentInfoClient } from './client';
@@ -45,9 +46,9 @@ export default async function StudentInfoPage({
   statusCode.forEach((v) => qs.append('statusCode', v));
   statusGroup.forEach((v) => qs.append('statusGroup', v));
 
-  const data = await apiFetch<StudentInfoResponse>(
+  const dataRes = await apiFetchSafe<StudentInfoResponse>(
     `/education/student-info${qs.toString() ? `?${qs}` : ''}`,
-  ).catch(() => null);
+  );
 
   return (
     <AuthedAppShell user={user}>
@@ -56,9 +57,9 @@ export default async function StudentInfoPage({
         title="Student info"
         subtitle="Headcount across demographic and recruitment facets. Defaults to currently-enrolled students; switch to incoming or former groups, or pick a specific status code."
       />
-      {data ? (
+      {dataRes.ok ? (
         <StudentInfoClient
-          data={data}
+          data={dataRes.data}
           initialFilters={{
             facultyName,
             programLevel,
@@ -68,13 +69,7 @@ export default async function StudentInfoPage({
           }}
         />
       ) : (
-        <div className="rounded-md border border-border-subtle bg-surface-1 p-6 text-sm text-text-secondary">
-          No data yet — go back to{' '}
-          <a className="underline" href="/education">
-            Education hub
-          </a>{' '}
-          and click <strong>Refresh from registry</strong> first.
-        </div>
+        <DiagnosticEmptyState surface="student info" error={dataRes.error} />
       )}
     </AuthedAppShell>
   );

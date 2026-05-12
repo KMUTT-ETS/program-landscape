@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
+import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { GapAnalysisClient } from './client';
 import type {
@@ -30,10 +31,13 @@ export default async function GapAnalysisPage({
   const qs = new URLSearchParams({ scope, limit: '20' });
   if (scopeId) qs.set('scopeId', scopeId);
 
-  // Three real-data fetches. Fan-out so above-the-fold paints if any
-  // single endpoint is slow.
-  const [skillGap, opportunities, programGaps] = await Promise.all([
-    apiFetch<SkillGapResponse>(`/gap/skills?${qs}`).catch(() => null),
+  // Three real-data fetches. skillGap is the canary — a failure on it
+  // means the user can't see anything useful, so we surface the
+  // diagnostic instead. opportunities + programGaps stay best-effort.
+  const skillGapRes = await apiFetchSafe<SkillGapResponse>(`/gap/skills?${qs}`);
+  const skillGap = skillGapRes.ok ? skillGapRes.data : null;
+  const skillGapError = skillGapRes.ok ? null : skillGapRes.error;
+  const [opportunities, programGaps] = await Promise.all([
     apiFetch<OpportunityResponse>(`/gap/opportunities?${qs}`).catch(() => null),
     apiFetch<ProgramDemandGapResponse>(`/gap/program-demand-gaps?${qs}`).catch(() => null),
   ]);
@@ -44,10 +48,14 @@ export default async function GapAnalysisPage({
         title="Demand-Supply Gap Analyzer"
         subtitle="Where labour-market demand and KKU graduate supply diverge — LinkedIn-derived skill demand (subscribed by MHESI) × KKU alumni cohort outcomes."
       />
-      <GapAnalysisClient
-        initialFilters={{ scope, scopeId }}
-        data={{ skillGap, opportunities, programGaps }}
-      />
+      {skillGapError ? (
+        <DiagnosticEmptyState surface="gap analysis" error={skillGapError} />
+      ) : (
+        <GapAnalysisClient
+          initialFilters={{ scope, scopeId }}
+          data={{ skillGap, opportunities, programGaps }}
+        />
+      )}
     </AuthedAppShell>
   );
 }
