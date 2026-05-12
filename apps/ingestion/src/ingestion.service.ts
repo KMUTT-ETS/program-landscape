@@ -42,6 +42,7 @@ import {
   type TrendMonitorJobData,
 } from './trend-monitors';
 import {
+  BrowserService,
   createExternalAiSourcesQueue,
   createExternalAiSourcesWorker,
   createExternalAiSourcesEvents,
@@ -79,6 +80,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   private externalAiWorker?: Worker<ExternalAiSourceJobData>;
   private externalAiEvents?: QueueEvents;
   private externalAiReconciler?: NodeJS.Timeout;
+  private externalAiBrowser?: BrowserService;
   private scheduler?: IngestionScheduler;
 
   constructor(private readonly config: ConfigService) {}
@@ -167,11 +169,17 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     // Reconciler converges the BullMQ repeatable set against the DB
     // on boot AND every 5 min — handles status flips / cadence edits
     // that didn't make it through the API's hot-flip path.
+    //
+    // BrowserService is the singleton Playwright Chromium for sources
+    // whose fetchStrategy=HEADLESS. Lazily launches on first use so
+    // the worker boot stays fast when no HEADLESS source is configured.
+    this.externalAiBrowser = new BrowserService();
     const externalAiConfig = {
       redisUrl,
       ai,
       googleCseApiKey: this.config.get<string>('GOOGLE_CSE_API_KEY') || undefined,
       googleCseCx: this.config.get<string>('GOOGLE_CSE_CX') || undefined,
+      browser: this.externalAiBrowser,
       concurrency: Number(this.config.get('EXTERNAL_AI_CONCURRENCY') ?? 1),
     };
     this.externalAiQueue = createExternalAiSourcesQueue(externalAiConfig);
@@ -217,6 +225,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     await this.aiJobsEvents?.close();
     await this.trendMonitorsEvents?.close();
     await this.externalAiEvents?.close();
+    await this.externalAiBrowser?.close();
   }
 
   scheduleNow(slug: string, userId: string): Promise<string> {

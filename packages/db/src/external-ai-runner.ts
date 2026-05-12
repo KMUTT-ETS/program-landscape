@@ -35,6 +35,12 @@ export interface RunExternalAiSourceOptions {
   googleCseCx?: string;
   /** Best-effort sink for diagnostic output. */
   logger?: { warn(msg: string): void; error?(msg: string): void };
+  /** Resolve a URL to plain text using a real browser. Required when
+   *  the source's fetchStrategy is HEADLESS. apps/ingestion injects a
+   *  Playwright-backed implementation; apps/api sync runNow doesn't
+   *  ship one (the API process shouldn't host a browser), so HEADLESS
+   *  sources fail synchronously with an actionable message. */
+  headlessFetch?: (url: string) => Promise<string>;
 }
 
 export interface RunExternalAiSourceResult {
@@ -65,8 +71,10 @@ export async function runExternalAiSource(
     const items = await fetchItems({
       kind: source.kind,
       configJson: source.configJson,
+      fetchStrategy: source.fetchStrategy,
       googleCseApiKey: opts.googleCseApiKey,
       googleCseCx: opts.googleCseCx,
+      headlessFetch: opts.headlessFetch,
       logger: opts.logger,
     });
     fetchedCount = items.length;
@@ -167,17 +175,38 @@ export async function runExternalAiSource(
 async function fetchItems(opts: {
   kind: 'URL_LIST' | 'WEB_SEARCH';
   configJson: Prisma.JsonValue;
+  fetchStrategy: 'PLAIN' | 'HEADLESS';
   googleCseApiKey?: string;
   googleCseCx?: string;
+  headlessFetch?: (url: string) => Promise<string>;
   logger?: { warn(msg: string): void };
 }): Promise<Array<{ url: string; text: string }>> {
+  // Resolve which fetcher to use up-front so the per-URL loops stay
+  // simple. HEADLESS strategy requires the caller to inject a
+  // headlessFetch; we fail with an operator-readable message otherwise
+  // rather than silently fall back to PLAIN (which we already know
+  // gets blocked — that's why the operator chose HEADLESS).
+  let fetcher: (url: string) => Promise<string>;
+  if (opts.fetchStrategy === 'HEADLESS') {
+    if (!opts.headlessFetch) {
+      throw new Error(
+        'Source has fetchStrategy=HEADLESS but no headlessFetch callback was provided. ' +
+          'This source must be run by the apps/ingestion worker (which hosts Playwright) ' +
+          "— the API's sync runNow path can't execute it.",
+      );
+    }
+    fetcher = opts.headlessFetch;
+  } else {
+    fetcher = fetchAndStrip;
+  }
+
   if (opts.kind === 'URL_LIST') {
     const urls = readStringArray(opts.configJson, 'urls');
     if (urls.length === 0) throw new Error('URL_LIST source has empty `urls` config.');
     const out: Array<{ url: string; text: string }> = [];
     for (const url of urls) {
       try {
-        const text = await fetchAndStrip(url);
+        const text = await fetcher(url);
         if (text.length > 0) out.push({ url, text });
       } catch (err) {
         opts.logger?.warn(`URL fetch failed for ${url}: ${(err as Error).message}`);
@@ -200,7 +229,7 @@ async function fetchItems(opts: {
       const items = await googleCseSearch(opts.googleCseApiKey, opts.googleCseCx, q, maxResultsPerQuery);
       for (const it of items) {
         try {
-          const text = await fetchAndStrip(it.link);
+          const text = await fetcher(it.link);
           if (text.length > 0) out.push({ url: it.link, text });
         } catch (err) {
           opts.logger?.warn(
@@ -288,13 +317,15 @@ async function fetchAndStrip(url: string): Promise<string> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.text();
-    return stripHtml(raw).slice(0, 50_000);
+    return stripExternalAiHtml(raw).slice(0, 50_000);
   } finally {
     clearTimeout(timer);
   }
 }
 
-function stripHtml(html: string): string {
+// Exported so apps/ingestion's headless Playwright fetcher can apply
+// the same stripping to its rendered HTML before sending to the LLM.
+export function stripExternalAiHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')

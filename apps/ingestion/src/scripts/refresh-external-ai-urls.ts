@@ -7,7 +7,7 @@
 // Usage: pnpm tsx apps/ingestion/src/scripts/refresh-external-ai-urls.ts
 
 import 'dotenv/config';
-import { prisma } from '@kku/db';
+import { Prisma, prisma } from '@kku/db';
 
 interface Refresh {
   slug: string;
@@ -104,7 +104,7 @@ async function main() {
     await prisma.externalAiSource.update({
       where: { slug: r.slug },
       data: {
-        configJson: r.configJson,
+        configJson: r.configJson as Prisma.InputJsonValue,
         description: r.description,
         ...(r.status !== undefined && { status: r.status }),
       },

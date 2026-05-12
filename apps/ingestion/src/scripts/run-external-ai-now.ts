@@ -10,6 +10,7 @@ import {
   type AiProviderId,
 } from '@kku/shared';
 import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
+import { BrowserService } from '../external-ai/browser';
 
 async function main() {
   const slug = process.argv[2];
@@ -51,6 +52,13 @@ async function main() {
     error: (msg: string) => console.log(`  ✖ ${msg}`),
   };
 
+  // Lazy Playwright — only spins up when the source needs it.
+  const browser = new BrowserService();
+  const headlessFetch = source.fetchStrategy === 'HEADLESS'
+    ? (url: string) => browser.fetchHtml(url)
+    : undefined;
+  if (headlessFetch) console.log(`  (using headless browser)`);
+
   const startedAt = Date.now();
   console.log(`  fetching + summarising…`);
   try {
@@ -59,6 +67,7 @@ async function main() {
       ai,
       googleCseApiKey: process.env.GOOGLE_CSE_API_KEY,
       googleCseCx: process.env.GOOGLE_CSE_CX,
+      headlessFetch,
       logger,
     });
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -77,6 +86,7 @@ async function main() {
     console.error(`\n  ✖ run failed: ${(err as Error).message}`);
     process.exit(1);
   } finally {
+    await browser.close();
     await prisma.$disconnect();
   }
 }

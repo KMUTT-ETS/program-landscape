@@ -152,6 +152,16 @@ enum ExternalAiSourceStatus {
   DISABLED
 }
 
+// How to fetch the source URLs. PLAIN uses Node fetch with a browser
+// UA (works for most sites). HEADLESS launches a Playwright Chromium
+// page (necessary for CDN-protected sources — WEF's siblings on
+// Akamai, OECD, Incapsula-protected gov sites). HEADLESS is more
+// expensive (per-fetch wall-time + memory) so default stays PLAIN.
+enum ExternalAiFetchStrategy {
+  PLAIN
+  HEADLESS
+}
+
 enum SignalType {
   POLICY
   RESEARCH
@@ -1706,6 +1716,7 @@ model ExternalAiSource {
   description     String?                @db.Text
   kind            ExternalAiSourceKind
   status          ExternalAiSourceStatus @default(PAUSED)
+  fetchStrategy   ExternalAiFetchStrategy @default(PLAIN) @map("fetch_strategy")
   // URL_LIST: { urls: string[] }
   // WEB_SEARCH: { queries: string[], provider?: 'google_cse'|'bing'|'brave', maxResultsPerQuery?: number }
   configJson      Json                   @map("config_json")

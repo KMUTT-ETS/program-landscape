@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Queue, Worker, QueueEvents, type ConnectionOptions } from 'bullmq';
 import { prisma, runExternalAiSource } from '@kku/db';
 import type { AiService } from '@kku/shared';
+import type { BrowserService } from './browser';
 
 // Queue name must match apps/api/src/admin/external-ai/external-ai.service.ts
 export const EXTERNAL_AI_SOURCES_QUEUE_NAME = 'external-ai-sources';
@@ -17,6 +18,10 @@ export interface ExternalAiSourcesConfig {
   ai: AiService;
   googleCseApiKey?: string;
   googleCseCx?: string;
+  /** Optional Playwright-backed fetcher — supplied for HEADLESS-strategy
+   *  sources (OECD / BOI / similar CDN-protected feeds). When absent,
+   *  HEADLESS sources fail with an operator-readable message. */
+  browser?: BrowserService;
   /** Soft concurrency — fetching is HTTP-bound, summarising hits the
    *  AI rate limits. Keep modest. */
   concurrency?: number;
@@ -75,6 +80,9 @@ export function createExternalAiSourcesWorker(
         ai: config.ai,
         googleCseApiKey: config.googleCseApiKey,
         googleCseCx: config.googleCseCx,
+        headlessFetch: config.browser
+          ? (url) => config.browser!.fetchHtml(url)
+          : undefined,
         logger,
       });
       logger.log(
