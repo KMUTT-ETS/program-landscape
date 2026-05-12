@@ -318,6 +318,17 @@ export function CockpitClient(props: Props) {
             <p className="mt-3 text-xs text-text-tertiary">
               Cells: 0–100. &lt;40 danger · 40–65 needs attention · &gt;65 healthy. Hover a cell to see underlying drivers. Methodology {props.heatmap.methodologyVersion} — see /methodologies/health-score.md
             </p>
+            {/* Preview-methodology caveat (gap #5 closure): the Financial
+              * column is driven by cost-allocation.v0, which is a placeholder
+              * until Finance Committee signs off on v1.0. */}
+            <p className="mt-1 text-xs text-text-tertiary">
+              <Badge tone="warning" size="sm" className="mr-1.5 align-middle">
+                PREVIEW
+              </Badge>
+              <span className="align-middle">
+                Financial column uses cost-allocation.v0 (placeholder). Read directional, not absolute.
+              </span>
+            </p>
           </Card>
         )}
 

@@ -103,33 +103,32 @@ describe('computeHealthScores — null handling', () => {
     expect(rows[0]?.methodologyVersion).toBe(HEALTH_SCORE_VERSION);
   });
 
-  it('data-completeness reflects the fraction of non-null drivers (attractiveness scope-level)', async () => {
-    // v3.0 attractiveness scope-fallback driver set is {admission_yield,
-    // retention_year2}. With one of two drivers populated, completeness
-    // should be 50% and the score reflects the single resolved driver.
+  it('attractiveness scope-level: no TCAS-funnel data → score null + completeness 0', async () => {
+    // v3.4 attractiveness scope-level driver set is {tcas_competition_ratio,
+    // tcas_fill_rate, tcas_registration_yield} — all read from
+    // `tcas_admission_funnels` via $queryRaw. When the mock returns no
+    // funnel rows (default `$queryRaw: vi.fn().mockResolvedValue([])`),
+    // all three drivers resolve to null → completeness 0, score null.
+    // This is the canonical "every null → null, never 0" assertion at
+    // the attractiveness scope-fallback path.
     mocks.facultyFindMany.mockResolvedValue([
-      { id: 'f2', nameEn: 'Partial', nameTh: 'บางส่วน' },
+      { id: 'f2', nameEn: 'No funnel', nameTh: 'ไม่มีข้อมูล TCAS' },
     ]);
-    mocks.queryMetricByScope
-      .mockResolvedValueOnce([
-        {
-          applicationsTotal: 1000,
-          admittedTotal: 400, // yield 40% → above the 30% scale → 100
-          enrolledTotal: null,
-          retainedYear2Total: null,
-          graduatedOnTimeTotal: null,
-          graduatedLateTotal: null,
-          dropoutsTotal: null,
-          programCount: 10,
-          latestFreshness: new Date('2026-04-01'),
-        },
-      ])
-      .mockResolvedValue([]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
 
     const rows = await computeHealthScores('university', null);
     const attractiveness = rows[0]?.dimensions.attractiveness;
-    expect(attractiveness?.dataCompletenessPct).toBeCloseTo(50, 0);
-    expect(attractiveness?.score).toBe(100);
+    expect(attractiveness?.dataCompletenessPct).toBe(0);
+    expect(attractiveness?.score).toBe(null);
+    // The driver list shape is the contract: 3 named drivers, all null.
+    expect(attractiveness?.drivers.map((d) => d.label).sort()).toEqual([
+      'tcas_competition_ratio',
+      'tcas_fill_rate',
+      'tcas_registration_yield',
+    ]);
+    for (const d of attractiveness?.drivers ?? []) {
+      expect(d.value).toBe(null);
+    }
   });
 
   it('exposes the v3.0 5-dimension contract on every row', async () => {

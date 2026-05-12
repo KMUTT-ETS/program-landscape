@@ -53,10 +53,29 @@ export interface DeepDiveLifecycleDriver {
   raw: unknown;
 }
 
+export type DeepDiveLifecycleGateName =
+  | 'oldSchoolContentCap'
+  | 'aiReadinessStableCap'
+  | 'aiReadinessFrontierCap';
+
+/** Gap #8 closure (lifecycle.v1.2): one modifier gate that capped the
+ *  trajectory-score verdict. `from` is the counterfactual at that step. */
+export interface DeepDiveLifecycleGateEffect {
+  name: DeepDiveLifecycleGateName;
+  from: DeepDiveLifecycleVerdict;
+  to: DeepDiveLifecycleVerdict;
+  reason: string;
+}
+
 export interface DeepDiveLifecycle {
   verdict: DeepDiveLifecycleVerdict;
+  /** Counterfactual verdict from trajectory score alone, with gates
+   *  skipped. Equals `verdict` when no gate fired. */
+  ungatedVerdict: DeepDiveLifecycleVerdict;
   trajectoryScore: number;
   drivers: DeepDiveLifecycleDriver[];
+  /** Modifier gates that fired, in application order. */
+  gatesApplied: DeepDiveLifecycleGateEffect[];
   narrative: string;
   methodologyVersion: string;
   generatedAt: string;

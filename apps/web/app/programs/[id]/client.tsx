@@ -688,6 +688,20 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
   };
   const labelOf = (lbl: string) => phrases[lbl] ?? lbl.replace(/_/g, ' ');
 
+  // Gap #8 closure: surface the gate counterfactual when any modifier
+  // gate fired. The gated verdict remains the institutional position;
+  // this readout shows the reader what the trajectory math alone said.
+  const gateLabels: Record<
+    NonNullable<DeepDiveLifecycle['gatesApplied'][number]['name']>,
+    string
+  > = {
+    oldSchoolContentCap: 'Old-school content cap',
+    aiReadinessStableCap: 'AI readiness < 30 (STABLE cap)',
+    aiReadinessFrontierCap: 'AI readiness < 70 (FRONTIER cap)',
+  };
+  const ungatedMeta =
+    data.ungatedVerdict !== data.verdict ? verdictMeta[data.ungatedVerdict] : null;
+
   return (
     <section id="verdict" className="flex flex-1 flex-col scroll-mt-16">
       <Card className={`flex flex-1 flex-col border-l-4 ${meta.stripe}`}>
@@ -765,6 +779,41 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
 
         {/* Narrative */}
         <p className="mt-4 text-sm text-text-secondary">{data.narrative}</p>
+
+        {/* Gate counterfactual (gap #8 closure, lifecycle.v1.2).
+         *  Only renders when a modifier gate moved the verdict —
+         *  shows reader what the trajectory math alone would have said
+         *  and which institutional cap intervened. */}
+        {ungatedMeta && data.gatesApplied.length > 0 && (
+          <div
+            className="mt-3 rounded-md border border-border-subtle bg-surface-2/60 px-3 py-2 text-xs text-text-secondary"
+            role="note"
+          >
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="uppercase tracking-wide text-text-tertiary">
+                Without modifier gates:
+              </span>
+              <span className={`font-semibold ${ungatedMeta.text}`}>
+                {ungatedMeta.label}
+              </span>
+              <span className="text-text-tertiary">
+                (trajectory math alone)
+              </span>
+            </div>
+            <ul className="mt-1 flex flex-col gap-0.5">
+              {data.gatesApplied.map((g, i) => (
+                <li key={`${g.name}-${i}`} className="leading-snug">
+                  <span className="font-medium text-text-primary">
+                    {gateLabels[g.name]}
+                  </span>
+                  <span className="text-text-tertiary">
+                    {' '}— capped {g.from} → {g.to}. {g.reason}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Driver split */}
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1881,7 +1930,19 @@ function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
   const latestTuition = headlineRow?.tuitionRevenue ?? 0;
   const subsidy = data.governmentFacultySubsidy ?? 0;
   return (
-    <Section id="financials" title="Financials">
+    <Section
+      id="financials"
+      title="Financials"
+      actions={
+        <Badge
+          tone="warning"
+          size="sm"
+          title="Cost-allocation methodology v0 — placeholder allocations only. Net contribution + per-program cost figures pending Finance Committee sign-off."
+        >
+          PREVIEW
+        </Badge>
+      }
+    >
       {data.partialCurrentYearAvailable && (
         <Card padding="sm" tone="quiet" className="mb-3">
           <p className="text-xs text-text-secondary">

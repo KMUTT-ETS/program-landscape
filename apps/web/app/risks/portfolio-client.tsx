@@ -22,6 +22,7 @@ import {
   type ConcentrationBar,
   type DriverMixSlice,
 } from './viz';
+import { Badge } from '@kku/ui';
 
 // Tier order kept for legacy references; the program-table grouping now
 // uses ERM_ORDER (KKU L × I band) for consistency with the rest of the
@@ -487,7 +488,15 @@ export function RisksPortfolioClient({
         <section className="rounded-lg border border-border-default bg-surface-0 p-4">
           <header className="mb-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
-              Top revenue at risk
+              Top revenue at risk{' '}
+              <Badge
+                tone="warning"
+                size="sm"
+                className="ml-1.5 align-middle"
+                title="Per-program cost allocation uses cost-allocation.v0 (placeholder). Tuition exposure itself is real; net-contribution / loss figures pending Finance Committee sign-off."
+              >
+                PREVIEW
+              </Badge>
             </h3>
             <p className="mt-0.5 text-xs text-text-tertiary">
               5-yr tuition exposure · bar colour = ERM L × I band

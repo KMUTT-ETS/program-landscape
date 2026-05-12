@@ -38,7 +38,7 @@ export function MethodologyContentTh() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.4</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.1</Code> (วงจรชีวิต)</> },
+              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.4</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.2</Code> (วงจรชีวิต)</> },
               { label: 'เวอร์ชันเอกสาร', value: '1.0' },
               { label: 'จัดทำโดย', value: 'สำนักงานข้อมูลและธรรมาภิบาลข้อมูล มข. — คณะทำงาน Curriculum Landscape' },
               { label: 'สถานะ', value: 'สาธารณะ — สำหรับเผยแพร่แก่สภามหาวิทยาลัย ผู้บริหาร คณบดี หัวหน้าภาควิชา ผู้รับผิดชอบหลักสูตร' },
@@ -523,7 +523,7 @@ score >= 45                                       → STABLE
         <DocSubsection number="3.7" title="การเก็บและการตรวจสอบย้อนกลับ">
           <P>
             การคำนวณวงจรชีวิตทุกครั้งจะถูก upsert ลงตาราง <Code>program_lifecycle_snapshots</Code>{' '}
-            พร้อมคำตัดสิน คะแนนแนวโน้ม เวอร์ชันระเบียบวิธี (<Code>lifecycle.v1.1</Code> ณ วันที่ร่าง)
+            พร้อมคำตัดสิน คะแนนแนวโน้ม เวอร์ชันระเบียบวิธี (<Code>lifecycle.v1.2</Code> ณ วันที่ร่าง)
             และ payload ตัวขับครบถ้วนเป็น JSON ทั้งนี้เพื่อ (ก) อ่านเร็วในหน้า cockpit
             โดยไม่ต้องคำนวณซ้ำ และ (ข) เก็บเส้นทางการตรวจสอบย้อนกลับถาวร
             ว่าหลักสูตรใดได้รับคำตัดสินใดในวันใด ด้วยข้อมูลใด
@@ -830,7 +830,7 @@ score >= 45                                       → STABLE
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.4'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.1'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.2'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
           </UL>
           <P>
             ทุกแถวคะแนนที่ระบบผลิตประทับเวอร์ชันที่ผลิตคะแนนนั้น คะแนนในอดีต <Strong>ไม่</Strong>{' '}
@@ -1029,6 +1029,7 @@ score >= 45                                       → STABLE
             <TR><TD mono>health-score.v3.4</TD><TD>4 พ.ค. 2569</TD><TD>เพิ่มตัวขับนโยบายฐานการรับเข้าของ มข. นำเอา heuristic การตัดปีปัจจุบันที่ยังไม่จบบนความชันแนวโน้มเข้ามาใช้ นำเอาตัวกรอง "ปีที่เสร็จสมบูรณ์" ของ funnel TCAS เข้ามา</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>1 พ.ค. 2569</TD><TD>ตัวจัดประเภทสี่ระดับเริ่มต้น แปดตัวขับ เกตความทันสมัยของเนื้อหา</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2 พ.ค. 2569</TD><TD>เพิ่มตัวขับ AI readiness เป็นตัวที่หนักที่สุด (±25) เพิ่มเกตปรับเปลี่ยน AI readiness สองตัว ลดน้ำหนักตัวขับ health-overall จาก ±25 เป็น ±20 เพื่อให้พื้นที่</TD></TR>
+            <TR><TD mono>lifecycle.v1.2</TD><TD>12 พ.ค. 2569</TD><TD>เปิดเผย counterfactual ของเกตปรับเปลี่ยน (gap #8): ผลลัพธ์ตอนนี้พกพา <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> ไปด้วยกับ <Code>verdict</Code> ที่ผ่านเกตแล้ว ให้ผู้อ่านสภาฯ มองเห็นได้ว่าเกตปรับเปลี่ยนใดทำให้คำตัดสินเปลี่ยน + ทำไม คำตัดสินที่ผ่านเกตยังคงเดิม</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

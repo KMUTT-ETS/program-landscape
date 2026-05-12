@@ -185,7 +185,7 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [{ id: 'health-score', name: 'Health score v3.0' }],
-    methodologyVersion: 'lifecycle.v1',
+    methodologyVersion: 'lifecycle.v1.2',
   })
   async lifecycle(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);

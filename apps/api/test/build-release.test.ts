@@ -74,14 +74,26 @@ describe('build-release', () => {
     }
   });
 
-  it('nginx conf routes /api/auth/* to web (next-auth lives there)', () => {
+  it('nginx conf routes the four /api/* tiers correctly', () => {
     const conf = readFileSync(
       path.join(REPO_ROOT, 'infra/nginx/conf.d/program-landscape.conf'),
       'utf8',
     );
-    // Verify the auth split — /api/auth/* → web, /api/* → api.
+    // Verify the four-tier routing — inverted on 2026-05-11 (commit beda02b)
+    // so the default `/api/` goes to web (covers Next route handlers like
+    // /api/admin-*, /api/me/, /api/proxy/, /api/profile-*). The explicit
+    // /api/v1/ tier handles NestJS controllers. `/api/auth/` stays on web
+    // (next-auth's home). Heavy NestJS endpoints route through their own
+    // tier with burst-friendly rate limits.
+    //
+    //   /api/auth/                               → web   (next-auth)
+    //   /api/v1/(cockpit/export|programs/.../export-detail-pdf|pdf/generate) → api (heavy)
+    //   /api/v1/                                 → api   (NestJS catch-all)
+    //   /api/                                    → web   (Next route handler catch-all)
     expect(conf).toMatch(/location\s+\/api\/auth\/\s*\{[^}]*web_upstream/);
-    expect(conf).toMatch(/location\s+\/api\/\s*\{[^}]*api_upstream/);
+    expect(conf).toMatch(/location\s+\/api\/v1\/\s*\{[^}]*api_upstream/);
+    // The bare /api/ default must route to web (the user-typed inversion).
+    expect(conf).toMatch(/location\s+\/api\/\s*\{[^}]*web_upstream/);
   });
 
   it('deploy + rollback scripts are executable', () => {

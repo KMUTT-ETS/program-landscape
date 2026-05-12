@@ -38,7 +38,7 @@ export function MethodologyContentEn() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'Methodology code', value: <><Code>health-score.v3.4</Code> (program health) · <Code>lifecycle.v1.1</Code> (lifecycle verdict)</> },
+              { label: 'Methodology code', value: <><Code>health-score.v3.4</Code> (program health) · <Code>lifecycle.v1.2</Code> (lifecycle verdict)</> },
               { label: 'Document version', value: '1.0' },
               { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
@@ -729,7 +729,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="3.7" title="Persistence and audit">
           <P>
             Every lifecycle computation is upserted to a <Code>program_lifecycle_snapshots</Code>{' '}
-            table with the verdict, trajectory score, methodology version (<Code>lifecycle.v1.1</Code>{' '}
+            table with the verdict, trajectory score, methodology version (<Code>lifecycle.v1.2</Code>{' '}
             at time of writing), and the full driver payload as JSON. This enables (a) fast reads on
             the cockpit page without recomputation, and (b) a permanent audit trail of what verdict
             was assigned to which program on which date with which inputs. Snapshot-write failures are
@@ -1103,7 +1103,7 @@ otherwise                                         → SUNSET`}</Pre>
           <P>The methodology version constants are:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.4'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.1'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.2'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
           </UL>
           <P>
             Every score row emitted by the application carries the version that produced it.
@@ -1313,6 +1313,7 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>health-score.v3.4</TD><TD>2026-05-04</TD><TD>KKU intake-floor policy driver added; partial-current-year drop heuristic introduced for trend slopes; TCAS-funnel "complete year" filter introduced.</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>2026-05-01</TD><TD>Initial four-band classifier; eight drivers; content-modernity gate.</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2026-05-02</TD><TD>AI-readiness added as the heaviest driver (±25); two AI-readiness modifier gates introduced; health-overall driver weight reduced from ±25 to ±20 to make headroom.</TD></TR>
+            <TR><TD mono>lifecycle.v1.2</TD><TD>2026-05-12</TD><TD>Exposes the gate counterfactual (gap #8 closure): result now carries <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> alongside the gated <Code>verdict</Code>, so Council readers can see when + why a modifier gate moved the verdict. No behavioural change to the gated verdict.</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>
