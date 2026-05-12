@@ -1007,13 +1007,41 @@ export interface ProgramLifecycleDriver {
   raw: unknown;
 }
 
+/** One of the three modifier gates that can downgrade (never upgrade) the
+ *  trajectory-score-based verdict (gap #8 closure). The presence of
+ *  `gatesApplied[]` entries means the verdict reflects an institutional
+ *  position, not just the trajectory math. */
+export interface LifecycleGateEffect {
+  /** Stable identifier — UI + analytics group by this. */
+  name: 'oldSchoolContentCap' | 'aiReadinessStableCap' | 'aiReadinessFrontierCap';
+  /** Verdict before this gate fired (the counterfactual at this step). */
+  from: ProgramLifecycleVerdict;
+  /** Verdict after this gate fired. */
+  to: ProgramLifecycleVerdict;
+  /** Council-readable explanation of why this gate caps the verdict. */
+  reason: string;
+}
+
 export interface ProgramLifecycleResult {
+  /** Final verdict after all modifier gates have been applied. This is
+   *  what surfaces on cockpit + Deep-Dive + Council Pack. */
   verdict: ProgramLifecycleVerdict;
+  /** Counterfactual (gap #8): the verdict produced by trajectory score
+   *  alone, with the 3 modifier gates skipped. Equals `verdict` when no
+   *  gate fired. Surfaces in the lifecycle UI's "if gates were off" view
+   *  so Council readers can see the gate's effect, even though the
+   *  institutional position remains the gated value. */
+  ungatedVerdict: ProgramLifecycleVerdict;
   /** Trajectory score, 0-100. Derived from weighted sum of drivers. */
   trajectoryScore: number;
   /** Drivers ordered by absolute contribution magnitude. */
   drivers: ProgramLifecycleDriver[];
-  /** 2-3 sentence rule-based narrative explaining the verdict. */
+  /** Modifier gates that fired (in application order). Empty when the
+   *  trajectory-score-based verdict survived unchanged. */
+  gatesApplied: LifecycleGateEffect[];
+  /** 2-3 sentence rule-based narrative explaining the verdict. When any
+   *  gate fired, mentions the gate's effect explicitly so the reader
+   *  sees both the gated verdict and the counterfactual. */
   narrative: string;
   methodologyVersion: string;
   generatedAt: string;
@@ -1022,7 +1050,12 @@ export interface ProgramLifecycleResult {
 // v1.1 (2026-05-02) adds AI-readiness as the single heaviest driver
 // (±25). AI is the dominant disruption higher education faces this
 // decade; the lifecycle verdict treats it as a first-class signal.
-const LIFECYCLE_VERSION = 'lifecycle.v1.1';
+//
+// v1.2 (2026-05-12) exposes the gate counterfactual (gap #8). No
+// behavioural change to the gated verdict — only adds `ungatedVerdict`
+// + `gatesApplied[]` to the result so Council readers can see when
+// + why a modifier gate moved the verdict.
+const LIFECYCLE_VERSION = 'lifecycle.v1.2';
 
 export async function programLifecycleVerdict(
   programId: string,
@@ -1194,9 +1227,23 @@ export async function programLifecycleVerdict(
   else if (trajectoryScore >= 45) verdict = 'STABLE';
   else verdict = 'SUNSET';
 
+  // Counterfactual capture (gap #8) — the trajectory-score-based verdict,
+  // captured BEFORE the 3 modifier gates run. If no gate fires, this
+  // equals `verdict`. If any gate fires, this is what the verdict would
+  // be without the institutional-position caps.
+  const ungatedVerdict = verdict;
+  const gatesApplied: LifecycleGateEffect[] = [];
+
   // Apply OLD_SCHOOL cap: downgrade RISING/FRONTIER to STABLE.
   if (modernityVerdict === 'OLD_SCHOOL' && (verdict === 'RISING' || verdict === 'FRONTIER')) {
+    const from = verdict;
     verdict = 'STABLE';
+    gatesApplied.push({
+      name: 'oldSchoolContentCap',
+      from,
+      to: verdict,
+      reason: 'Peer-review content modernity verdict = OLD_SCHOOL; curriculum out of touch with the field caps the verdict at STABLE regardless of trajectory.',
+    });
   }
 
   // AI-readiness gate. The 2026+ labour market punishes graduates
@@ -1206,10 +1253,24 @@ export async function programLifecycleVerdict(
   //   - AI readiness < 50 → cap at RISING (cannot claim FRONTIER
   //     without genuine AI integration)
   if (aiReadiness.overallScore < 30 && (verdict === 'RISING' || verdict === 'FRONTIER')) {
+    const from = verdict;
     verdict = 'STABLE';
+    gatesApplied.push({
+      name: 'aiReadinessStableCap',
+      from,
+      to: verdict,
+      reason: `AI readiness ${aiReadiness.overallScore.toFixed(0)}/100 < 30 — program faces structural AI threat regardless of trajectory; caps verdict at STABLE.`,
+    });
   }
   if (aiReadiness.overallScore < 50 && verdict === 'FRONTIER') {
+    const from = verdict;
     verdict = 'RISING';
+    gatesApplied.push({
+      name: 'aiReadinessFrontierCap',
+      from,
+      to: verdict,
+      reason: `AI readiness ${aiReadiness.overallScore.toFixed(0)}/100 < 50 — FRONTIER label reserved for genuinely AI-integrated programs; caps at RISING.`,
+    });
   }
 
   // ── Narrative ────────────────────────────────────────────────────
@@ -1230,6 +1291,16 @@ export async function programLifecycleVerdict(
       `Drag: ${negatives.map((d) => labelToPhrase(d.label)).join(', ')}.`,
     );
   }
+  // Gate-counterfactual transparency (gap #8). When a modifier gate
+  // moved the verdict, surface the counterfactual explicitly so
+  // Council readers see the institutional position, not just its
+  // effect.
+  if (gatesApplied.length > 0) {
+    const gateNames = gatesApplied.map((g) => labelGateName(g.name)).join(', ');
+    narrativeParts.push(
+      `Modifier gate(s) lowered verdict from ${ungatedVerdict} to ${verdict}: ${gateNames}.`,
+    );
+  }
   if (peerSelections.length === 0) {
     narrativeParts.push(
       'AI peer review not yet generated — run `pnpm peers:select <code>` for richer modernity + content-gap inputs.',
@@ -1239,8 +1310,10 @@ export async function programLifecycleVerdict(
 
   const result: ProgramLifecycleResult = {
     verdict,
+    ungatedVerdict,
     trajectoryScore,
     drivers: sortedDrivers,
+    gatesApplied,
     narrative,
     methodologyVersion: LIFECYCLE_VERSION,
     generatedAt: new Date().toISOString(),
@@ -1289,6 +1362,17 @@ function extractDriverFromHealth(
   const raw = scaler(driver.value);
   const clamped = Math.max(-cap, Math.min(cap, raw));
   return { label: outLabel, contribution: clamped, raw: { score: driver.value } };
+}
+
+function labelGateName(name: LifecycleGateEffect['name']): string {
+  switch (name) {
+    case 'oldSchoolContentCap':
+      return 'OLD_SCHOOL content cap';
+    case 'aiReadinessStableCap':
+      return 'AI readiness < 30 (STABLE cap)';
+    case 'aiReadinessFrontierCap':
+      return 'AI readiness < 50 (FRONTIER cap)';
+  }
 }
 
 function verdictHeadline(

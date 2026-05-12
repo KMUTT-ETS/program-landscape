@@ -4,7 +4,7 @@
 >
 > **Audience.** Engineers + analysts working across modules. Read this before making cross-cutting changes; otherwise consult the per-methodology doc.
 >
-> **Last updated.** 2026-05-12 (gaps #1 + #2 + #4 + #6 + #7 closed; gap #3 infrastructure + gap #5 PDF path landed. First cross-scope consistency measurement: 7 of 24 faculties exceed the 10pt threshold with bottom-up consistently higher than top-down — methodology-team worklist item).
+> **Last updated.** 2026-05-12 (gaps #1 + #2 + #4 + #6 + #7 closed; gap #3 infrastructure + gap #5 PDF path + gap #8 scorer-side counterfactual landed. `lifecycle.v1.1 → v1.2` — `ProgramLifecycleResult` now carries `ungatedVerdict` + `gatesApplied[]` so Council readers can see the modifier gate's effect, not just its outcome).
 >
 > **When to update.** Bump the "Last updated" line and the affected section whenever any of: methodology version constant, scoring formula, AI prompt version, data-source flip (mocked→real), or status-transition rule changes. Drift between this doc and the code is high-cost — Council readers cite this file.
 
@@ -17,7 +17,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
 | Axis | Output | Where stamped | Code reference |
 |---|---|---|---|
 | **Health Score** | 0–100 composite + 5 dimension sub-scores + 0–100 `dataCompletenessPct` | `methodologyVersion: 'health-score.v3.4'` on `HealthScoreRow` | `packages/db/src/health-score.ts` |
-| **Lifecycle Verdict** | `SUNSET` / `STABLE` / `RISING` / `FRONTIER` + 0–100 trajectory + 9 signed drivers | `methodologyVersion: 'lifecycle.v1.1'` on `ProgramLifecycleResult` + persisted to `program_lifecycle_snapshots` | `packages/db/src/program-deep-dive.ts` |
+| **Lifecycle Verdict** | `SUNSET` / `STABLE` / `RISING` / `FRONTIER` + 0–100 trajectory + 9 signed drivers + counterfactual (`ungatedVerdict`) | `methodologyVersion: 'lifecycle.v1.2'` on `ProgramLifecycleResult` + persisted to `program_lifecycle_snapshots` | `packages/db/src/program-deep-dive.ts` |
 | **Risk Tier** | `LOW` / `MODERATE` / `HIGH` / `CRITICAL` / `NEEDS_DATA` + L1/L2/L3 drivers + I1/I2 impact + composite | `methodologyVersion: 'risk-scoring.v1.10'` on `RiskAssessment` + `risk-assessment.v2` on AI overlay | `packages/db/src/risk-scoring.ts` + `packages/shared/src/ai/prompts/risk-assessment.ts` |
 | **KKU 5×5 Matrix** | `LOW` / `MODERATE` / `HIGH` / `VERY_HIGH` / `NEEDS_DATA` + `matrixScore` 1–25 (likelihood × impact bins) | Derived from Risk Tier; same methodology stamp | `bin5` + `deriveKkuMatrix` in `risk-scoring.ts` |
 | **BCG Quadrant** | `star` / `cash-cow` / `question` / `dog` / `dead` | `methodologyVersion: 'dashboard-overview.v1'` on cockpit payload | `packages/db/src/dashboard-overview.ts:486-505` |
@@ -487,7 +487,7 @@ Per-prompt versions:
 
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)
-- `lifecycle.v1.1`
+- `lifecycle.v1.2`
 - `risk-scoring.v1.10`
 - `benchmarking.v1`
 - `forecasting.v1`
@@ -566,7 +566,7 @@ The full caveat list per methodology lives in `docs/methodologies/program-health
 
 | # | Gap | Status | Remediation |
 |---|---|---|---|
-| **8** | **Lifecycle gates encode institutional positions, not findings.** The two AI-readiness floor caps + OLD_SCHOOL content cap are explicit opinions ("AI-ignoring curriculum is at risk regardless of metrics"). A Council member who disagrees has no in-app channel beyond a post-hoc disagreement annotation. | ☐ Open | Add a "gate-counterfactual" toggle in the lifecycle UI — show verdict if all gates were off. Council reads both. Persisted verdict unchanged; just makes the gate's effect visible. |
+| **8** | **Lifecycle gates encode institutional positions, not findings.** The two AI-readiness floor caps + OLD_SCHOOL content cap are explicit opinions ("AI-ignoring curriculum is at risk regardless of metrics"). A Council member who disagrees has no in-app channel beyond a post-hoc disagreement annotation. | ◐ **Scorer-side closed; UI follow-up deferred** 2026-05-12. `programLifecycleVerdict()` bumped to `lifecycle.v1.2` — `ProgramLifecycleResult` now carries `ungatedVerdict` (the counterfactual: what the verdict would be without modifier gates) + `gatesApplied[]` (which gates fired, from→to transitions, Council-readable reasons). The rule-based narrative explicitly cites the counterfactual when any gate fires: "Modifier gate(s) lowered verdict from RISING to STABLE: AI readiness < 30 (STABLE cap)." Persisted unchanged — `ProgramLifecycleSnapshot.driversJson` already serialises the full result so the counterfactual auto-flows into the snapshot, the verdict-stability snapshots (gap #6), and any future consumer. No behavioural change to the gated verdict (the institutional position holds). Smoke-test on dev DB confirmed: KKU-SEQ-0001 Fisheries trajectory 65.6 → ungated RISING, gated STABLE, narrative cites the AI-readiness cap. | **Done — scorer side.** The counterfactual is in the result payload; any UI consumer (deep-dive lifecycle section, Council Pack PDF, analyst dashboard) can render "without modifier gates this program would be X" by reading `ungatedVerdict` + `gatesApplied`. **Deferred:** explicit UI toggle on `/programs/[id]` lifecycle section that lets the user click between gated + ungated views; stale `lifecycle.v1.1` references in `apps/web/app/docs/methodology/content-{en,th}.tsx` (display-only; not load-bearing); version-history rows in those docs for the v1.2 bump. |
 
 ### Process
 
