@@ -27,7 +27,6 @@ import {
   Pencil,
   Play,
   Search,
-  Square,
   X,
 } from 'lucide-react';
 
@@ -465,25 +464,23 @@ export function ProgramsListClient({
         <Card padding="none">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
-                <tr>
+              {/* Header style matches the shared DataTable (used by
+                  /admin/data-sources): sticky bg-surface-2 row, 11px
+                  uppercase tracking-wide text-text-tertiary cells with
+                  font-medium. Keeps the admin tables visually consistent. */}
+              <thead className="sticky top-0 z-10 bg-surface-2">
+                <tr className="border-b border-border-default text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
                   <th className="px-3 py-2 text-left">
-                    <button
-                      type="button"
-                      onClick={toggleAllOnPage}
-                      // Bigger hit target — operators frequently bulk-
-                      // select 20+ programs at a time. The icon itself
-                      // is h-5 (20px) and the button has comfortable
-                      // padding around it.
-                      className="-m-2 flex items-center rounded p-2 text-text-secondary hover:bg-surface-2 hover:text-text-primary"
-                      title={allOnPageSelected ? 'Deselect all on this page' : 'Select all on this page'}
-                    >
-                      {allOnPageSelected ? (
-                        <CheckSquare className="h-5 w-5 text-accent-default" aria-hidden />
-                      ) : (
-                        <Square className="h-5 w-5" aria-hidden />
-                      )}
-                    </button>
+                    <input
+                      type="checkbox"
+                      aria-label={
+                        allOnPageSelected
+                          ? 'Deselect all on this page'
+                          : 'Select all on this page'
+                      }
+                      checked={allOnPageSelected}
+                      onChange={toggleAllOnPage}
+                    />
                   </th>
                   <th className="px-4 py-2 text-left">Code · CURR_ID</th>
                   <th className="px-4 py-2 text-left">Program</th>
@@ -506,18 +503,13 @@ export function ProgramsListClient({
                       className={`hover:bg-surface-1 ${isSelected ? 'bg-accent-default/[0.04]' : ''}`}
                     >
                       <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleRow(r.id)}
-                          className="-m-2 flex items-center rounded p-2 text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                        <input
+                          type="checkbox"
                           aria-label={isSelected ? 'Deselect row' : 'Select row'}
-                        >
-                          {isSelected ? (
-                            <CheckSquare className="h-5 w-5 text-accent-default" aria-hidden />
-                          ) : (
-                            <Square className="h-5 w-5" aria-hidden />
-                          )}
-                        </button>
+                          checked={isSelected}
+                          onChange={() => toggleRow(r.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                       </td>
                       <td className="px-4 py-2 font-tabular font-medium text-text-primary">
                         <div className="flex flex-col leading-tight">
