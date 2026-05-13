@@ -132,17 +132,39 @@ const tags = images.map((i) => `ghcr.io/${ORG}/${i.name}:${version}`);
 // (e.g., CI with the new defaults), set DOCKER_BUILDKIT=0 + drop
 // --platform/--load to fall back to the legacy builder. ~30% slower
 // because no shared deps-stage cache across images.
-for (const [idx, img] of images.entries()) {
-  const tag = tags[idx]!;
-  console.log(`\n--- [${idx + 1}/${images.length}] docker buildx build ${tag} ---`);
-  try {
-    execSync(
-      `docker buildx build --platform linux/amd64 --load -t "${tag}" -f "${img.dockerfile}" "${img.context}"`,
-      { cwd: REPO_ROOT, stdio: 'inherit' },
-    );
-  } catch (err) {
-    console.error(`[build-release] docker build failed for ${tag}`);
-    process.exit(1);
+// SKIP_BUILDX=1 — assume images are already built (and tagged in the
+// local registry) and skip straight to docker save + pack. Used when
+// retrying after a packaging-stage failure (disk full, scp interrupted)
+// so we don't re-spend 25 min on the buildx pipeline.
+const skipBuildx = process.env.SKIP_BUILDX === '1';
+if (skipBuildx) {
+  console.log(`\n--- SKIP_BUILDX=1 — verifying tagged images present ---`);
+  for (const tag of tags) {
+    try {
+      execSync(`docker image inspect "${tag}" >/dev/null 2>&1`, {
+        shell: '/bin/bash',
+      });
+      console.log(`  ✓ ${tag}`);
+    } catch {
+      console.error(
+        `[build-release] SKIP_BUILDX set but ${tag} is not in the local registry. Re-run without SKIP_BUILDX or build manually.`,
+      );
+      process.exit(1);
+    }
+  }
+} else {
+  for (const [idx, img] of images.entries()) {
+    const tag = tags[idx]!;
+    console.log(`\n--- [${idx + 1}/${images.length}] docker buildx build ${tag} ---`);
+    try {
+      execSync(
+        `docker buildx build --platform linux/amd64 --load -t "${tag}" -f "${img.dockerfile}" "${img.context}"`,
+        { cwd: REPO_ROOT, stdio: 'inherit' },
+      );
+    } catch (err) {
+      console.error(`[build-release] docker build failed for ${tag}`);
+      process.exit(1);
+    }
   }
 }
 
@@ -198,6 +220,11 @@ const copyPairs: Array<[string, string]> = [
   ['scripts/pdpa', 'scripts/pdpa'],
   ['scripts/load', 'scripts/load'],
   ['DEPLOYMENT.md', 'DEPLOYMENT.md'],
+  // Per-prompt hardening reports — read by scripts/preflight.sh's
+  // `reports_present` + `no_unowned_deferrals` gates. Without these,
+  // every release fails preflight and the operator has to override
+  // with OVERRIDE_REASON. Bundle them so the preflight gate is real.
+  ['docs/hardening', 'docs/hardening'],
 ];
 
 for (const [src, dest] of copyPairs) {
