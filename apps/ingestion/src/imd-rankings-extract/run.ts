@@ -1,4 +1,4 @@
-import { prisma } from '@kku/db';
+import { prisma, materialiseImdRankings } from '@kku/db';
 import {
   buildImdRankingsExtractMessages,
   IMD_RANKINGS_EXTRACT_VERSION,
@@ -7,7 +7,10 @@ import {
   type AiService,
   type S3Storage,
 } from '@kku/shared';
+import { Logger } from '@nestjs/common';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
+
+const imdLogger = new Logger('ImdRankingsExtract');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IMD rankings extract — given a PdfDocument that contains an IMD WCY /
@@ -46,6 +49,15 @@ export type RunImdRankingsExtractOutcome =
       tokensOutput: number;
       costUsd: number;
       rowsExtracted: number;
+      /** True when the extraction cleared the auto-approve threshold
+       *  and was stamped AUTO_APPROVED at write time. */
+      autoApproved: boolean;
+      /** True when materialiseImdRankings ran successfully right after
+       *  auto-approval — ImdRanking + ImdEconomy rows already upserted. */
+      materialised: boolean;
+      /** Set when materialisation was attempted but failed. The AI
+       *  extraction row is persisted regardless. */
+      materialisationError: string | null;
     }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
@@ -134,6 +146,12 @@ export async function runImdRankingsExtract(
     ImdRankingsExtractionSchema,
   );
 
+  // See program-digest/run.ts for the rationale on auto-approve at
+  // write time. Same env var, same default (0) — disables human review
+  // entirely unless the operator brings it back via the env.
+  const autoApproveThreshold = Number(process.env.AI_AUTO_APPROVE_THRESHOLD ?? 0);
+  const autoApprove = response.confidence >= autoApproveThreshold;
+
   const created = await prisma.aiExtraction.create({
     data: {
       sourceEntityType: 'pdf',
@@ -143,11 +161,25 @@ export async function runImdRankingsExtract(
       confidence: response.confidence,
       methodVersion: IMD_RANKINGS_EXTRACT_VERSION,
       aiInferenceId: response.aiInferenceId,
-      reviewStatus: 'PENDING_REVIEW',
+      reviewStatus: autoApprove ? 'AUTO_APPROVED' : 'PENDING_REVIEW',
       reasoning: response.reasoning ?? null,
     },
     select: { id: true },
   });
+
+  let materialised = false;
+  let materialisationError: string | null = null;
+  if (autoApprove) {
+    try {
+      await materialiseImdRankings(created.id);
+      materialised = true;
+    } catch (err) {
+      materialisationError = err instanceof Error ? err.message : String(err);
+      imdLogger.warn(
+        `materialiseImdRankings failed for extraction ${created.id} (pdf ${pdf.id}): ${materialisationError}`,
+      );
+    }
+  }
 
   return {
     status: 'SUCCEEDED',
@@ -158,5 +190,8 @@ export async function runImdRankingsExtract(
     tokensOutput: response.tokens.output,
     costUsd: response.cost.usd,
     rowsExtracted: response.parsed.rankings.length,
+    autoApproved: autoApprove,
+    materialised,
+    materialisationError,
   };
 }

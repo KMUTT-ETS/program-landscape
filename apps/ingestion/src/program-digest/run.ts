@@ -1,4 +1,4 @@
-import { prisma } from '@kku/db';
+import { prisma, materialiseProgramDigest } from '@kku/db';
 import {
   buildProgramDigestMessages,
   ProgramDigestSchema,
@@ -6,8 +6,11 @@ import {
   type AiService,
   type S3Storage,
 } from '@kku/shared';
+import { Logger } from '@nestjs/common';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
 import { loadProgramSystemContext } from '../program-system-context/load';
+
+const digestLogger = new Logger('ProgramDigest');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Single source of truth for the per-program digest run. Used by:
@@ -49,6 +52,18 @@ export type RunProgramDigestOutcome =
       tokensOutput: number;
       costUsd: number;
       skillsExtracted: number;
+      /** True when the digest cleared the auto-approve threshold and
+       *  was stamped AUTO_APPROVED at write time (no analyst sign-off
+       *  needed). False when the row landed PENDING_REVIEW. */
+      autoApproved: boolean;
+      /** True when materialiseProgramDigest ran successfully right
+       *  after the auto-approval — the digest is already reflected in
+       *  Program columns + ProgramSkill rows. */
+      materialised: boolean;
+      /** Set when materialisation was attempted but failed. The AI
+       *  extraction row is persisted regardless; operator can retry
+       *  from /admin/extraction-review. */
+      materialisationError: string | null;
     }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
@@ -141,6 +156,14 @@ export async function runProgramDigest(
     ProgramDigestSchema,
   );
 
+  // Auto-approve gate. AI_AUTO_APPROVE_THRESHOLD defaults to 0 (every
+  // extraction auto-approves at write time) per the 2026-05-13 KKU
+  // operator policy that disables human review. Set the env to a
+  // non-zero confidence floor (e.g. 0.85) to bring the review queue
+  // back.
+  const autoApproveThreshold = Number(process.env.AI_AUTO_APPROVE_THRESHOLD ?? 0);
+  const autoApprove = response.confidence >= autoApproveThreshold;
+
   const created = await prisma.aiExtraction.create({
     data: {
       sourceEntityType: 'program',
@@ -150,11 +173,31 @@ export async function runProgramDigest(
       confidence: response.confidence,
       methodVersion: PROGRAM_DIGEST_VERSION,
       aiInferenceId: response.aiInferenceId,
-      reviewStatus: 'PENDING_REVIEW',
+      reviewStatus: autoApprove ? 'AUTO_APPROVED' : 'PENDING_REVIEW',
       reasoning: response.reasoning ?? null,
     },
     select: { id: true },
   });
+
+  // When auto-approved, run materialise immediately so the digest
+  // writes through to Program columns + ProgramSkill rows without a
+  // second "click approve all" pass. Errors are logged but don't fail
+  // the digest run — the AiExtraction row is already persisted and the
+  // operator can re-trigger materialisation from /admin/extraction-review
+  // (or via the bulk-approve endpoint on /admin/queues).
+  let materialised = false;
+  let materialisationError: string | null = null;
+  if (autoApprove) {
+    try {
+      await materialiseProgramDigest(created.id);
+      materialised = true;
+    } catch (err) {
+      materialisationError = err instanceof Error ? err.message : String(err);
+      digestLogger.warn(
+        `materialiseProgramDigest failed for extraction ${created.id} (program ${program.code}): ${materialisationError}`,
+      );
+    }
+  }
 
   return {
     status: 'SUCCEEDED',
@@ -165,5 +208,8 @@ export async function runProgramDigest(
     tokensOutput: response.tokens.output,
     costUsd: response.cost.usd,
     skillsExtracted: response.parsed.extractedSkills.length,
+    autoApproved: autoApprove,
+    materialised,
+    materialisationError,
   };
 }
