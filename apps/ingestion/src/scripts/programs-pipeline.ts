@@ -240,13 +240,15 @@ async function runApprovePending(programId: string): Promise<{ ms: number; ok: b
   // output. Faster than re-implementing the bulk approval here, and
   // cheap since approve-pending is a DB-only step.
   const t0 = Date.now();
+  const located = resolveSiblingScript('approve-pending-digests');
+  if (!located) {
+    return { ms: Date.now() - t0, ok: false, notes: 'approve-pending-digests script not found' };
+  }
   const child = spawn(
     'node',
-    [
-      require.resolve('tsx/cli'),
-      path.resolve(__dirname, 'approve-pending-digests.ts'),
-      '--program-id=' + programId,
-    ],
+    located.kind === 'js'
+      ? [located.path, '--program-id=' + programId]
+      : [require.resolve('tsx/cli'), located.path, '--program-id=' + programId],
     { stdio: 'pipe', env: process.env },
   );
   let out = '';
@@ -471,15 +473,48 @@ async function runChildScript(
   argv: string[],
 ): Promise<{ name: string; ok: boolean; ms: number }> {
   const t0 = Date.now();
-  const scriptPath = path.resolve(__dirname, scriptFile);
-  const child = spawn('node', [require.resolve('tsx/cli'), scriptPath, ...argv], {
-    stdio: 'pipe',
-    env: process.env,
-  });
+  // scriptFile carries a `.ts` extension from the call sites — historical
+  // dev-only assumption. Strip it and resolve to whatever's actually
+  // on disk (prod ships `.js`, dev keeps `.ts`).
+  const base = scriptFile.replace(/\.(ts|js)$/i, '');
+  const located = resolveSiblingScript(base);
+  if (!located) {
+    return { name: scriptFile, ok: false, ms: Date.now() - t0 };
+  }
+  const child = spawn(
+    'node',
+    located.kind === 'js'
+      ? [located.path, ...argv]
+      : [require.resolve('tsx/cli'), located.path, ...argv],
+    { stdio: 'pipe', env: process.env },
+  );
   child.stdout.on('data', () => { /* swallow — we summarise at the end */ });
   child.stderr.on('data', () => { /* same */ });
   const exitCode: number = await new Promise((resolve) => child.on('exit', (c) => resolve(c ?? 1)));
   return { name: scriptFile, ok: exitCode === 0, ms: Date.now() - t0 };
+}
+
+// Resolve a sibling CLI script (in scripts/) — prefers .ts in dev so
+// editor saves always reach the runner; prefers .js in prod since the
+// .ts isn't bundled into the prod image. Mirrors the BullMQ handler's
+// probe in apps/ingestion/src/ai-jobs/handlers.ts.
+function resolveSiblingScript(baseName: string): { path: string; kind: 'ts' | 'js' } | null {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const tsPath = path.resolve(__dirname, `${baseName}.ts`);
+  const jsPath = path.resolve(__dirname, `${baseName}.js`);
+  const order: Array<{ path: string; kind: 'ts' | 'js' }> = isDev
+    ? [
+        { path: tsPath, kind: 'ts' },
+        { path: jsPath, kind: 'js' },
+      ]
+    : [
+        { path: jsPath, kind: 'js' },
+        { path: tsPath, kind: 'ts' },
+      ];
+  for (const c of order) {
+    if (existsSync(c.path)) return c;
+  }
+  return null;
 }
 
 async function main(): Promise<void> {
