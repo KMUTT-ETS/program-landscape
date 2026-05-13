@@ -290,6 +290,15 @@ export async function runProgramFacultyExtraction(
     }
   }
 
+  // Auto-approve gate — same posture as program-digest/run.ts. The
+  // PROGRAM_FACULTY_LIST extractor doesn't have a separate materialise
+  // step today; the ProgramFaculty rows above were already written
+  // inline. Auto-approving here just clears the row from the review
+  // queue. Set AI_AUTO_APPROVE_THRESHOLD to a non-zero value to bring
+  // the review gate back.
+  const autoApproveThreshold = Number(process.env.AI_AUTO_APPROVE_THRESHOLD ?? 0);
+  const autoApprove = response.confidence >= autoApproveThreshold;
+
   // Persist the full extraction with audit trail.
   const created = await prisma.aiExtraction.create({
     data: {
@@ -304,7 +313,7 @@ export async function runProgramFacultyExtraction(
       confidence: response.confidence,
       methodVersion: PROGRAM_FACULTY_VERSION,
       aiInferenceId: response.aiInferenceId,
-      reviewStatus: 'PENDING_REVIEW',
+      reviewStatus: autoApprove ? 'AUTO_APPROVED' : 'PENDING_REVIEW',
       reasoning: response.reasoning ?? null,
     },
     select: { id: true },

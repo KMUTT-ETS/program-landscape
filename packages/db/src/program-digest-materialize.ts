@@ -191,15 +191,29 @@ export async function materialiseProgramDigest(
   // PROPOSED_SKILL). Analyst reviews these to add into the Skill table.
   // Idempotent via the (sourceEntityType, sourceEntityId) + skill name
   // uniqueness — but AiExtraction has no such constraint, so we just
-  // dedupe-on-create by checking for an existing PENDING_REVIEW row with
-  // the same payload.programId + payload.nameTh.
+  // dedupe-on-create by checking for an existing row with the same
+  // payload.programId + payload.nameTh.
+  //
+  // Auto-approve gate: respects AI_AUTO_APPROVE_THRESHOLD (default 0)
+  // — when met, PROPOSED_SKILL rows land AUTO_APPROVED so they don't
+  // pile up in the review queue. Note this only flips the AiExtraction
+  // status; the analyst-driven Skill-row promotion via
+  // `pnpm skills:normalise --auto-promote` still applies. Set the env
+  // to a confidence floor to bring back the review gate.
+  const autoApproveThreshold = Number(process.env.AI_AUTO_APPROVE_THRESHOLD ?? 0);
+  const proposedConfidence = 0.7;
+  const proposedAutoApprove = proposedConfidence >= autoApproveThreshold;
   for (const ps of proposedSkills) {
+    // Dedupe against existing rows in EITHER review status — a previous
+    // run may have already created an AUTO_APPROVED row for this
+    // (programId, nameTh) pair and we don't want to re-create it under
+    // a different status.
     const existing = await prisma.aiExtraction.findFirst({
       where: {
         sourceEntityType: 'program',
         sourceEntityId: programId,
         extractionKind: 'PROPOSED_SKILL',
-        reviewStatus: 'PENDING_REVIEW',
+        reviewStatus: { in: ['PENDING_REVIEW', 'AUTO_APPROVED', 'APPROVED'] },
         payloadJson: { path: ['nameTh'], equals: ps.nameTh },
       },
       select: { id: true },
@@ -211,9 +225,9 @@ export async function materialiseProgramDigest(
         sourceEntityId: programId,
         extractionKind: 'PROPOSED_SKILL',
         payloadJson: ps,
-        confidence: 0.7,
+        confidence: proposedConfidence,
         methodVersion: 'program-digest.v1',
-        reviewStatus: 'PENDING_REVIEW',
+        reviewStatus: proposedAutoApprove ? 'AUTO_APPROVED' : 'PENDING_REVIEW',
       },
     });
   }
