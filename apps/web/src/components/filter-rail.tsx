@@ -2,6 +2,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Card, Input, Label, cn } from '@kku/ui';
 import { ArrowUpRight, Search } from 'lucide-react';
+import { FilterAutoSubmit } from './filter-auto-submit';
 
 // Filter-rail primitives — codify the canonical filter UI established
 // on /admin/programs so every page renders the same chrome:
@@ -41,6 +42,12 @@ export interface FilterRailProps {
   action?: string;
   /** Optional form method when using `action`. Defaults to `get`. */
   method?: 'get' | 'post';
+  /** Server-form only: auto-commit the form whenever a `<select>` value
+   *  changes (including picking "All …" which clears the filter). Defaults
+   *  to true when `action` is set — server forms have no visible submit
+   *  button and otherwise leave dropdown changes stranded. Has no effect
+   *  in client-island (`onSubmit`) mode. */
+  autoSubmit?: boolean;
   className?: string;
 }
 
@@ -58,6 +65,7 @@ export function FilterRail({
   onSubmit,
   action,
   method = 'get',
+  autoSubmit,
   className,
 }: FilterRailProps) {
   // Two modes:
@@ -65,6 +73,12 @@ export function FilterRail({
   //      to the URL with the controls' name/value pairs as query string.
   //   2. onSubmit — client island; intercept submit and run the handler.
   // Don't intercept submit when an action is provided.
+  //
+  // Auto-commit on select change defaults ON for server forms because
+  // they have no visible submit button — without it, picking "All …"
+  // from a dropdown does nothing. Client islands manage their own
+  // commit cadence so we leave them alone.
+  const enableAutoSubmit = autoSubmit ?? Boolean(action);
   return (
     <Card padding="sm" tone="quiet" className={className}>
       <form
@@ -81,6 +95,7 @@ export function FilterRail({
         }
       >
         {children}
+        {action && enableAutoSubmit && <FilterAutoSubmit />}
       </form>
     </Card>
   );
