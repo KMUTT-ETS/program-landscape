@@ -107,7 +107,11 @@ export default async function ProgramsDirectoryPage({
   // user the page still renders with a clear empty state.
   const [rows, faculties] = await Promise.all([
     apiFetch<ProgramsListResponse>(`/programs?${qs}`).catch(() => [] as ProgramRow[]),
-    apiFetch<FacultiesListResponse>('/faculties').catch(() => [] as FacultyLite[]),
+    // hasPrograms=true drops faculties that have no canonical programs
+    // — keeps the Faculty filter aligned with the rows actually shown.
+    apiFetch<FacultiesListResponse>('/faculties?hasPrograms=true').catch(
+      () => [] as FacultyLite[],
+    ),
   ]);
 
   const total = rows.length;

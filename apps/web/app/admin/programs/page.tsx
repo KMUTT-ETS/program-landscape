@@ -90,8 +90,12 @@ export default async function AdminProgramsPage({
             }) satisfies PaginatedEnvelope,
         )
       : null,
+    // hasPrograms=true clamps the dropdown to faculties that actually
+    // have a canonical Program — drops admin BUs / central offices /
+    // language centre that have no curriculum rows and would only
+    // produce empty filter results.
     apiFetch<Array<{ id: string; code: string; nameEn: string; nameTh: string }>>(
-      '/faculties',
+      '/faculties?hasPrograms=true',
     ).catch(() => []),
   ]);
   const rowsEnvelope = listResult as PaginatedEnvelope | null;
