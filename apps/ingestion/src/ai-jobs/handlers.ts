@@ -285,25 +285,34 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       }
       if (pipelineForce) args.push('--force');
 
-      // Locate the script. In prod (apps/ingestion's compiled image),
-      // only the compiled .js lives under dist/. In dev, .ts source sits
-      // under src/ and we spawn through tsx. We try both — the .js path
-      // is preferred so prod doesn't spin up tsx at all (faster startup
-      // and one fewer moving part).
+      // Locate the script. Two layouts:
+      //   - prod: only compiled .js exists under dist/scripts/
+      //   - dev:  .ts source under src/scripts/ — dist/ may also exist
+      //           from an earlier nest build but goes STALE the moment
+      //           the developer edits the .ts. Picking the stale .js
+      //           silently runs old code (and historically silent-killed
+      //           the worker mid-pipeline). Verified 2026-05-13.
       //
-      // Bug fixed 2026-05-13: previously only .ts paths were probed, so
-      // every prod RUN_PROGRAM_PIPELINE job returned FAILED in <10ms
-      // because no .ts existed under dist/.
+      // Posture: in dev (NODE_ENV !== 'production') prefer .ts over .js
+      // so editor saves always reach the worker. In prod, only .js is
+      // available — the .ts probes return missing and we land on the
+      // .js with no tsx wrapper.
       type ScriptLocation = { path: string; kind: 'js' | 'ts' };
-      const scriptCandidates: ScriptLocation[] = [
-        // Prod layout — handlers.js → ../scripts/programs-pipeline.js
-        { path: path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.js'), kind: 'js' },
-        // Dev layout — handlers.ts → ../scripts/programs-pipeline.ts
+      const isDev = process.env.NODE_ENV !== 'production';
+      const jsCandidate: ScriptLocation = {
+        path: path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.js'),
+        kind: 'js',
+      };
+      const tsCandidates: ScriptLocation[] = [
+        // handlers.ts → ../scripts/programs-pipeline.ts (tsx-watched dev)
         { path: path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.ts'), kind: 'ts' },
-        // Dev layout from a tsx-watched ts-node-style runner — handlers.ts
-        // is at apps/ingestion/src/ai-jobs/handlers.ts, src is one up.
+        // handlers.js in dist → ../../src/scripts/programs-pipeline.ts
+        // (dev where the worker runs from dist but src/ still has .ts)
         { path: path.resolve(__dirname, '..', '..', 'src', 'scripts', 'programs-pipeline.ts'), kind: 'ts' },
       ];
+      const scriptCandidates: ScriptLocation[] = isDev
+        ? [...tsCandidates, jsCandidate]
+        : [jsCandidate, ...tsCandidates];
       const located = scriptCandidates.find((c) => existsSync(c.path));
       if (!located) {
         return {
