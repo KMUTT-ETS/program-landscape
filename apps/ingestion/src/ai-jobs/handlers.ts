@@ -285,17 +285,32 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       }
       if (pipelineForce) args.push('--force');
 
-      // Locate the script. apps/ingestion runs from its own dist folder
-      // in prod and from the source tree in dev — derive both.
-      const scriptCandidates = [
-        path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.ts'),
-        path.resolve(__dirname, '..', '..', 'src', 'scripts', 'programs-pipeline.ts'),
+      // Locate the script. In prod (apps/ingestion's compiled image),
+      // only the compiled .js lives under dist/. In dev, .ts source sits
+      // under src/ and we spawn through tsx. We try both — the .js path
+      // is preferred so prod doesn't spin up tsx at all (faster startup
+      // and one fewer moving part).
+      //
+      // Bug fixed 2026-05-13: previously only .ts paths were probed, so
+      // every prod RUN_PROGRAM_PIPELINE job returned FAILED in <10ms
+      // because no .ts existed under dist/.
+      type ScriptLocation = { path: string; kind: 'js' | 'ts' };
+      const scriptCandidates: ScriptLocation[] = [
+        // Prod layout — handlers.js → ../scripts/programs-pipeline.js
+        { path: path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.js'), kind: 'js' },
+        // Dev layout — handlers.ts → ../scripts/programs-pipeline.ts
+        { path: path.resolve(__dirname, '..', 'scripts', 'programs-pipeline.ts'), kind: 'ts' },
+        // Dev layout from a tsx-watched ts-node-style runner — handlers.ts
+        // is at apps/ingestion/src/ai-jobs/handlers.ts, src is one up.
+        { path: path.resolve(__dirname, '..', '..', 'src', 'scripts', 'programs-pipeline.ts'), kind: 'ts' },
       ];
-      const scriptPath = scriptCandidates.find((p) => existsSync(p));
-      if (!scriptPath) {
+      const located = scriptCandidates.find((c) => existsSync(c.path));
+      if (!located) {
         return {
           status: 'FAILED',
-          message: `programs-pipeline.ts not found in ${scriptCandidates.join(' | ')}`,
+          message: `programs-pipeline script not found. Tried: ${scriptCandidates
+            .map((c) => c.path)
+            .join(' | ')}`,
         };
       }
 
@@ -311,24 +326,32 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       );
 
       logger.log(
-        `RUN_PROGRAM_PIPELINE spawning programs-pipeline ${args.join(' ')} ` +
-          `(by user ${triggeredByUserId ?? 'unknown'}); log → ${logPath}`,
+        `RUN_PROGRAM_PIPELINE spawning ${located.kind} script (${located.path}) ` +
+          `${args.join(' ')} (by user ${triggeredByUserId ?? 'unknown'}); log → ${logPath}`,
       );
 
-      // Resolve tsx/cli via Node's require so we don't depend on a
-      // shell PATH that may not include pnpm/npx in the worker env.
-      let tsxBin: string;
-      try {
-        tsxBin = require.resolve('tsx/cli');
-      } catch (err) {
-        return {
-          status: 'FAILED',
-          message: `tsx/cli not resolvable: ${(err as Error).message}`,
-        };
+      // For .js, spawn directly with node — the script is already
+      // compiled. For .ts, route through tsx. Resolving tsx/cli via
+      // Node's require so we don't depend on a shell PATH that may
+      // not include pnpm/npx in the worker env.
+      let spawnArgs: string[];
+      if (located.kind === 'js') {
+        spawnArgs = [located.path, ...args];
+      } else {
+        let tsxBin: string;
+        try {
+          tsxBin = require.resolve('tsx/cli');
+        } catch (err) {
+          return {
+            status: 'FAILED',
+            message: `tsx/cli not resolvable: ${(err as Error).message}`,
+          };
+        }
+        spawnArgs = [tsxBin, located.path, ...args];
       }
 
       const exitCode: number = await new Promise((resolve) => {
-        const child = spawn('node', [tsxBin, scriptPath, ...args], {
+        const child = spawn('node', spawnArgs, {
           stdio: ['ignore', 'pipe', 'pipe'],
           env: process.env,
         });

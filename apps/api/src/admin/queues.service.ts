@@ -619,6 +619,12 @@ function extractVerdictReason(returnValue: unknown): string | null {
 // AI-jobs that operate on a single Program. We resolve `data.entityId`
 // for these so the queue UI can render the program code + name inline
 // (vs. an opaque cuid in the job payload).
+//
+// Stored UPPERCASE here for clarity, but matched against the BullMQ job
+// name CASE-INSENSITIVELY — the producer in apps/api/src/ai-jobs/
+// ai-jobs-queue.service.ts names jobs `${kind.toLowerCase()}:${entityId}`
+// (e.g. `run_program_pipeline:cmon1wy8r...`). A strict-case set lookup
+// missed every job; fixed 2026-05-13.
 const PROGRAM_TARGETED_AI_JOBS = new Set([
   'RUN_PROGRAM_PIPELINE',
   'RUN_PROGRAM_DIGEST',
@@ -640,7 +646,10 @@ function extractJobTargetShallow(
   const d = data as Record<string, unknown>;
   const entityId = typeof d.entityId === 'string' ? d.entityId : null;
   if (!entityId) return null;
-  if (!PROGRAM_TARGETED_AI_JOBS.has(jobName)) return null;
+  // Job names are `<kind.toLowerCase()>:<entityId>` from the producer.
+  // Strip the suffix + uppercase before comparing against the kind set.
+  const kindPart = jobName.split(':')[0]?.toUpperCase() ?? '';
+  if (!PROGRAM_TARGETED_AI_JOBS.has(kindPart)) return null;
   const phases = Array.isArray(d.pipelinePhases)
     ? (d.pipelinePhases as unknown[]).filter(
         (x): x is string => typeof x === 'string',
