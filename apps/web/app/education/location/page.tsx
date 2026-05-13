@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { isUniversityWide, type SessionUser } from '@kku/shared';
+import { canSeeFacultyDashboards, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
@@ -35,7 +35,7 @@ export default async function LocationPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isUniversityWide(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
 
   const sp = await searchParams;
   const cohortYearBe = arr(sp.cohortYearBe);

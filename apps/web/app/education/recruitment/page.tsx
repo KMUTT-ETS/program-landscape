@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { isUniversityWide, type SessionUser } from '@kku/shared';
+import { canSeeFacultyDashboards, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -31,7 +31,7 @@ export default async function RecruitmentPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isUniversityWide(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
 
   const sp = await searchParams;
   const params = new URLSearchParams();
@@ -39,7 +39,7 @@ export default async function RecruitmentPage({
   if (sp.facultyId) params.set('facultyId', sp.facultyId);
   if (sp.level) params.set('level', sp.level);
 
-  const [data, faculties] = await Promise.all([
+  const [data, allFaculties] = await Promise.all([
     apiFetch<RecruitmentDashboardPayload>(
       `/education/recruitment${params.toString() ? '?' + params.toString() : ''}`,
     ).catch((e) => {
@@ -48,6 +48,15 @@ export default async function RecruitmentPage({
     }),
     apiFetch<Faculty[]>('/faculties').catch(() => [] as Faculty[]),
   ]);
+
+  // FACULTY_USER sees only their own faculty in the picker — the
+  // server already clamps the query, but locking the dropdown avoids
+  // the "I picked another faculty but the data didn't change" surprise.
+  const faculties =
+    user.role === 'FACULTY_USER' && user.facultyId
+      ? allFaculties.filter((f) => f.id === user.facultyId)
+      : allFaculties;
+  const facultyFilterLocked = user.role === 'FACULTY_USER';
 
   if (!data) {
     return (
@@ -67,7 +76,11 @@ export default async function RecruitmentPage({
         title="Undergraduate Recruitment"
         subtitle="Full TCAS round 1–4 funnel — quota, applicants, passed, Clearinghouse send + confirm, and registrar reporting per program × round × year. Source: KKU Registry POWERBI.ADMISSION_STAT_CURRID. The current cycle (BE 2569 / CE 2026) stays informational only; all aggregate metrics use the latest completed cohort."
       />
-      <RecruitmentClient data={data} faculties={faculties} />
+      <RecruitmentClient
+        data={data}
+        faculties={faculties}
+        facultyFilterLocked={facultyFilterLocked}
+      />
     </AuthedAppShell>
   );
 }

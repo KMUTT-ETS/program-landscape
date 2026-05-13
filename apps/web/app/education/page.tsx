@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { isUniversityWide, type SessionUser } from '@kku/shared';
+import {
+  canSeeFacultyDashboards,
+  isUniversityWide,
+  type SessionUser,
+} from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -92,20 +96,28 @@ export default async function EducationHubPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isUniversityWide(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
 
-  const status = await apiFetch<RefreshStatus>('/education/refresh/status').catch(
-    () => null,
-  );
+  // Refresh button is university-only — triggers a global cube
+  // rebuild + reads from the Oracle registry. Skip the fetch + UI
+  // entirely for FACULTY_USER.
+  const canRefresh = isUniversityWide(user.role);
+  const status = canRefresh
+    ? await apiFetch<RefreshStatus>('/education/refresh/status').catch(() => null)
+    : null;
 
   return (
     <AuthedAppShell user={user}>
       <PageHeader
         title="Education dashboard"
-        subtitle="Interactive views of registrar data — student demographics, location, tuition, and international cohorts. Click Refresh to pull the latest snapshot from the registrar."
+        subtitle={
+          canRefresh
+            ? 'Interactive views of registrar data — student demographics, location, tuition, and international cohorts. Click Refresh to pull the latest snapshot from the registrar.'
+            : "Interactive views of your faculty's registrar data — student demographics, location, tuition, and international cohorts. Snapshots refresh nightly across the whole university."
+        }
       />
 
-      <EducationRefreshBar initialStatus={status} />
+      {canRefresh && <EducationRefreshBar initialStatus={status} />}
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {TILES.map((t) => {

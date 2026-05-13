@@ -108,6 +108,14 @@ export const PERMISSIONS = [
   // who must stay scoped to their own faculty/program. See
   // docs/hardening/04-authz-matrix.report.md V8 + V10.
   'institution:read:university',
+  // Education + Staff dashboards at faculty scope. Same data surfaces
+  // as the university view, but the server clamps every filter to the
+  // caller's own faculty (Thai-name array or facultyId, depending on
+  // the endpoint). Granted to FACULTY_USER alongside the wider
+  // university roles; PROGRAM_USER stays excluded (their scope is the
+  // single program — Education + Staff dashboards have no per-program
+  // variant).
+  'institution:read:dashboard',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -143,6 +151,7 @@ const UNIVERSITY_USER_PERMS: Permission[] = [
   'risks:read:all',
   'risks:measures:edit',
   'institution:read:university',
+  'institution:read:dashboard',
 ];
 
 // FACULTY_USER — read-only scoped to user's own faculty.
@@ -160,6 +169,10 @@ const FACULTY_USER_PERMS: Permission[] = [
   'decisions:read:all',
   'pdf:generate',
   'risks:read:all',
+  // Education + Staff dashboards at faculty scope. The server clamps
+  // every filter to user.facultyId so a FACULTY_USER only ever sees
+  // their own faculty's numbers.
+  'institution:read:dashboard',
 ];
 
 // PROGRAM_USER — read-only at the user's specific program. Coarse

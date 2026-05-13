@@ -78,9 +78,17 @@ export class StaffService {
     return where;
   }
 
-  /** Provide the available filter dropdown options (always full set). */
-  async filterOptions() {
+  /** Provide the available filter dropdown options. When `facultyName`
+   *  is provided, the faculties list is clamped to just that one (used
+   *  by FACULTY_USER so their dropdown reads "Engineering" instead of
+   *  the full 30-faculty list). All other facets aggregate from rows
+   *  filtered to that faculty too — keeps the dropdowns consistent
+   *  with the data they're filtering. */
+  async filterOptions(opts: { facultyName?: string } = {}) {
     const rows = await prisma.staffMasterRecord.findMany({
+      where: opts.facultyName
+        ? { faculty: { nameTh: opts.facultyName } }
+        : undefined,
       select: {
         staffTypeId: true,
         subStaffTypeId: true,

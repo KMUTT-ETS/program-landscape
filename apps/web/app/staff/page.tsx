@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { isUniversityWide, type SessionUser } from '@kku/shared';
+import {
+  canSeeFacultyDashboards,
+  isUniversityWide,
+  type SessionUser,
+} from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -57,20 +61,28 @@ export default async function StaffHubPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isUniversityWide(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
 
-  const status = await apiFetch<RefreshStatus>('/staff-dashboard/refresh/status').catch(
-    () => null,
-  );
+  // Refresh button is university-only — triggers a global cube
+  // rebuild. Skip the fetch + UI entirely for FACULTY_USER so they
+  // don't see a button they can't use.
+  const canRefresh = isUniversityWide(user.role);
+  const status = canRefresh
+    ? await apiFetch<RefreshStatus>('/staff-dashboard/refresh/status').catch(() => null)
+    : null;
 
   return (
     <AuthedAppShell user={user}>
       <PageHeader
         title="Staff dashboard"
-        subtitle="A live view of KKU's workforce — academic and support staff together. Refreshes automatically every morning."
+        subtitle={
+          canRefresh
+            ? "A live view of KKU's workforce — academic and support staff together. Refreshes automatically every morning."
+            : "Your faculty's workforce — academic and support staff together. Refreshed nightly across the whole university."
+        }
       />
 
-      <StaffRefreshBar initialStatus={status} />
+      {canRefresh && <StaffRefreshBar initialStatus={status} />}
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {TILES.map((t) => {

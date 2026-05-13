@@ -39,6 +39,25 @@ export function assertUniversityWide(user: SessionUser): void {
   }
 }
 
+// Dashboard guard for the faculty-scoped variant. Allows admin-grade +
+// UNIVERSITY_USER (full view) AND FACULTY_USER (clamped to own faculty
+// by the helpers below). PROGRAM_USER is still rejected — the dashboard
+// has no per-program variant.
+export function assertCanSeeFacultyDashboards(user: SessionUser): void {
+  if (seesAllScopes(user.role)) return;
+  if (user.role === 'FACULTY_USER') {
+    if (!user.facultyId) {
+      throw new ForbiddenException(
+        'Your account has no faculty assignment. Contact an admin.',
+      );
+    }
+    return;
+  }
+  throw new ForbiddenException(
+    'This dashboard is restricted to university-wide and faculty-level roles.',
+  );
+}
+
 // Refuse access to a per-program endpoint when the program is outside
 // the caller's scope. Throws 403 (or 404 for unknown program) so the
 // front-end can land on the polite no-access page instead of an empty
@@ -119,6 +138,26 @@ export async function clampFacultyNameFilter<F extends { facultyName: string[] }
   });
   if (!faculty) return null;
   return { ...filter, facultyName: [faculty.nameTh] };
+}
+
+// UUID variant — forces `facultyId` to the caller's own faculty when
+// they're FACULTY_USER. Used by endpoints that join on Faculty.id
+// directly (e.g., the TCAS recruitment dashboard). Admin-grade +
+// UNIVERSITY_USER pass through untouched; a FACULTY_USER's supplied
+// value is overridden so they can't peek at another faculty by URL.
+export function clampFacultyIdFilter<
+  F extends { facultyId: string | null | undefined },
+>(filter: F, user: SessionUser): F {
+  if (seesAllScopes(user.role)) return filter;
+  if (user.role === 'FACULTY_USER' && user.facultyId) {
+    return { ...filter, facultyId: user.facultyId };
+  }
+  // For roles that don't have a faculty assignment we can't safely
+  // resolve a filter — caller has already been gated by
+  // assertCanSeeFacultyDashboards, so this branch shouldn't fire in
+  // practice. Returning the filter unchanged is the least surprising
+  // fallback if it does.
+  return filter;
 }
 
 // Generic scope clamp for endpoints that accept a `scope` +

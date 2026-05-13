@@ -66,3 +66,22 @@ export function isUniversityWide(role: Role | undefined | null): boolean {
   if (!role) return false;
   return (UNIVERSITY_WIDE_ROLES as readonly string[]).includes(role);
 }
+
+// Roles that can see the Education + Staff dashboards. Adds FACULTY_USER
+// to the university-wide set — the dashboards are the same UI, but the
+// server clamps every filter to user.facultyId so the FACULTY_USER only
+// ever sees their own faculty's numbers. PROGRAM_USER stays excluded —
+// these dashboards have no per-program variant.
+export const FACULTY_DASHBOARD_ROLES: readonly Role[] = [
+  'SUPER_ADMIN',
+  'SYSTEM_ADMIN',
+  'UNIVERSITY_USER',
+  'FACULTY_USER',
+] as const;
+
+export function canSeeFacultyDashboards(
+  role: Role | undefined | null,
+): boolean {
+  if (!role) return false;
+  return (FACULTY_DASHBOARD_ROLES as readonly string[]).includes(role);
+}

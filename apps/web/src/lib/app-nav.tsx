@@ -12,12 +12,15 @@ function isAdminGrade(role: string | undefined | null): boolean {
   return role === 'SUPER_ADMIN' || role === 'SYSTEM_ADMIN';
 }
 
-// Mirrors @kku/shared/auth/roles.ts UNIVERSITY_WIDE_ROLES.
-function isUniversityWide(role: string | undefined | null): boolean {
+// Mirrors @kku/shared/auth/roles.ts FACULTY_DASHBOARD_ROLES. Adds
+// FACULTY_USER to the set that sees /education + /staff in the nav —
+// they get the same UI clamped to their own faculty by the server.
+function canSeeFacultyDashboards(role: string | undefined | null): boolean {
   return (
     role === 'SUPER_ADMIN' ||
     role === 'SYSTEM_ADMIN' ||
-    role === 'UNIVERSITY_USER'
+    role === 'UNIVERSITY_USER' ||
+    role === 'FACULTY_USER'
   );
 }
 import {
@@ -64,11 +67,12 @@ const dashboardItemsBase = [
   { href: '/cockpit', label: 'Portfolio Cockpit', icon: createElement(PieChart), moduleKey: 'cockpit' as const },
 ];
 
-// Education + Staff dashboards aggregate across EVERY faculty by
-// design — there's no faculty-scoped variant — so FACULTY_USER and
-// PROGRAM_USER don't see them in the nav. The /education and /staff
-// routes also gate at the page level (redirect to /no-access).
-const dashboardItemsUniversityWide = [
+// Education + Staff dashboards are visible to admin-grade +
+// UNIVERSITY_USER + FACULTY_USER. The FACULTY_USER variant is the
+// same UI clamped server-side to user.facultyId (filter dropdowns are
+// locked to their own faculty). PROGRAM_USER stays excluded — these
+// dashboards have no per-program variant.
+const dashboardItemsFacultyAware = [
   {
     href: '/education',
     label: 'Education',
@@ -86,8 +90,8 @@ const dashboardItemsUniversityWide = [
 function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
   return {
     label: 'Dashboards',
-    items: isUniversityWide(user?.role)
-      ? [...dashboardItemsBase, ...dashboardItemsUniversityWide]
+    items: canSeeFacultyDashboards(user?.role)
+      ? [...dashboardItemsBase, ...dashboardItemsFacultyAware]
       : dashboardItemsBase,
   };
 }

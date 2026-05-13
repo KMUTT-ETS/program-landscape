@@ -615,9 +615,12 @@ export class EducationService {
 
   // ── Dashboard 3 — Active pivot (Faculty → Level → Program × Year) ─
 
-  async activePivot(): Promise<ActivePivotResponse> {
+  async activePivot(filter: { facultyName?: string } = {}): Promise<ActivePivotResponse> {
     const rows = await prisma.educationStudentCube.findMany({
-      where: { statusCode: { in: DEFAULT_ACTIVE_STATUS_CODES } },
+      where: {
+        statusCode: { in: DEFAULT_ACTIVE_STATUS_CODES },
+        ...(filter.facultyName ? { facultyName: filter.facultyName } : {}),
+      },
       select: {
         facultyName: true,
         programLevel: true,
@@ -636,11 +639,12 @@ export class EducationService {
 
   // ── Dashboard 4 — International by country, level pivot ──────────
 
-  async international(): Promise<InternationalResponse> {
+  async international(filter: { facultyName?: string } = {}): Promise<InternationalResponse> {
     const rows = await prisma.educationStudentCube.findMany({
       where: {
         statusCode: { in: DEFAULT_ACTIVE_STATUS_CODES },
         isThai: false,
+        ...(filter.facultyName ? { facultyName: filter.facultyName } : {}),
       },
       select: {
         facultyName: true,

@@ -131,9 +131,13 @@ const FUNNEL_LABELS = [
 export function RecruitmentClient({
   data,
   faculties,
+  facultyFilterLocked = false,
 }: {
   data: RecruitmentDashboardPayload;
   faculties: Faculty[];
+  /** When true, hide the "All faculties" option and disable changes —
+   *  FACULTY_USER scope. */
+  facultyFilterLocked?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -172,8 +176,9 @@ export function RecruitmentClient({
           <SharedFilterSelect
             value={data.meta.appliedFilters.facultyId ?? ''}
             onChange={(e) => setFilter('facultyId', e.target.value || null)}
+            disabled={facultyFilterLocked}
           >
-            <option value="">All faculties</option>
+            {!facultyFilterLocked && <option value="">All faculties</option>}
             {faculties.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.code} · {f.nameEn}

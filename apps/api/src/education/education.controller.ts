@@ -1,12 +1,16 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
+import { prisma } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 import {
   AuditLog,
   AuthSession,
   Authorized,
   ZodValidationPipe,
+  assertCanSeeFacultyDashboards,
   assertUniversityWide,
+  clampFacultyIdFilter,
+  clampFacultyNameFilter,
 } from '../common';
 import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
@@ -128,16 +132,22 @@ export class EducationController {
   ) {}
 
   @Get('recruitment')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async recruitmentDashboard(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(RecruitmentQuerySchema))
     q: z.infer<typeof RecruitmentQuerySchema>,
   ) {
-    assertUniversityWide(user);
+    assertCanSeeFacultyDashboards(user);
+    // FACULTY_USER → facultyId is forced to user.facultyId regardless
+    // of what the URL says. Admin-grade + UNIVERSITY_USER pass through.
+    const clamped = clampFacultyIdFilter(
+      { facultyId: q.facultyId ?? null },
+      user,
+    );
     return this.recruitment.getDashboard({
       entryYearBE: q.entryYearBE ?? null,
-      facultyId: q.facultyId ?? null,
+      facultyId: clamped.facultyId,
       level: q.level ?? null,
     });
   }
@@ -210,88 +220,128 @@ export class EducationController {
   }
 
   @Get('student-info')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async studentInfo(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StudentInfoQuerySchema)) q: StudentInfoQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.studentInfo(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null) return this.education.studentInfo({ ...q, facultyName: ['__none__'] });
+    return this.education.studentInfo(clamped);
   }
 
   @Get('by-location')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async byLocation(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(LocationQuerySchema)) q: LocationQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.byLocation(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null) return this.education.byLocation({ ...q, facultyName: ['__none__'] });
+    return this.education.byLocation(clamped);
   }
 
   @Get('active-pivot')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async activePivot(@AuthSession() user: SessionUser) {
-    assertUniversityWide(user);
-    return this.education.activePivot();
+    assertCanSeeFacultyDashboards(user);
+    const facultyName = await this.resolveFacultyNameClamp(user);
+    return this.education.activePivot(
+      facultyName === '__none__' ? { facultyName: '__none__' } : { facultyName },
+    );
   }
 
   @Get('international')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async international(@AuthSession() user: SessionUser) {
-    assertUniversityWide(user);
-    return this.education.international();
+    assertCanSeeFacultyDashboards(user);
+    const facultyName = await this.resolveFacultyNameClamp(user);
+    return this.education.international(
+      facultyName === '__none__' ? { facultyName: '__none__' } : { facultyName },
+    );
+  }
+
+  /** Returns the Thai faculty name to clamp queries to for FACULTY_USER,
+   *  or `undefined` for admin-grade + UNIVERSITY_USER (no clamp).
+   *  '__none__' is a sentinel for "user has no resolvable faculty" so
+   *  the cube query yields zero rows. */
+  private async resolveFacultyNameClamp(
+    user: SessionUser,
+  ): Promise<string | '__none__' | undefined> {
+    if (user.role !== 'FACULTY_USER') return undefined;
+    if (!user.facultyId) return '__none__';
+    const faculty = await prisma.faculty.findUnique({
+      where: { id: user.facultyId },
+      select: { nameTh: true },
+    });
+    return faculty?.nameTh ?? '__none__';
   }
 
   @Get('tuition')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async tuition(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(TuitionQuerySchema)) q: TuitionQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.tuition(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null) return this.education.tuition({ ...q, facultyName: ['__none__'] });
+    return this.education.tuition(clamped);
   }
 
   // ── Performance dashboard endpoints ──────────────────────────────
 
   @Get('performance/overall')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async performanceOverall(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.performanceOverall(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.performanceOverall({ ...q, facultyName: ['__none__'] });
+    return this.education.performanceOverall(clamped);
   }
 
   @Get('performance/by-program')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async performanceByProgram(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.performanceByProgram(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.performanceByProgram({ ...q, facultyName: ['__none__'] });
+    return this.education.performanceByProgram(clamped);
   }
 
   @Get('performance/by-location')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async performanceByLocation(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.performanceByLocation(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.performanceByLocation({ ...q, facultyName: ['__none__'] });
+    return this.education.performanceByLocation(clamped);
   }
 
   @Get('entry-scores')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async entryScores(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertUniversityWide(user);
-    return this.education.entryScores(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.entryScores({ ...q, facultyName: ['__none__'] });
+    return this.education.entryScores(clamped);
   }
 }

@@ -6,7 +6,9 @@ import {
   AuthSession,
   Authorized,
   ZodValidationPipe,
+  assertCanSeeFacultyDashboards,
   assertUniversityWide,
+  clampFacultyNameFilter,
 } from '../common';
 import { StaffService } from './staff.service';
 import { IngestionQueueService } from '../data-sources/ingestion-queue.service';
@@ -71,11 +73,12 @@ const ResearchFilterSchema = z.object({
     }),
 });
 
-// Staff dashboard is restricted to university-wide roles
-// (admin-grade + UNIVERSITY_USER) per Council decision 2026-05-09.
-// FACULTY_USER + PROGRAM_USER do NOT have access — there's no
-// faculty-scoped variant of this dashboard. Use assertUniversityWide()
-// at the top of every method as a single gate.
+// Staff dashboard reads from the staff-master + compensation cubes.
+// Visibility: admin-grade + UNIVERSITY_USER see everything; FACULTY_USER
+// gets the same UI but every list/aggregate is clamped to user.facultyId
+// at the server. PROGRAM_USER is excluded (no per-program variant).
+// Refresh endpoints stay university-only — a FACULTY_USER shouldn't
+// trigger a global cube rebuild.
 
 @Controller('/staff-dashboard')
 export class StaffController {
@@ -85,9 +88,18 @@ export class StaffController {
   ) {}
 
   @Get('filter-options')
-  @Authorized('institution:read:university')
-  filterOptions(@AuthSession() user: SessionUser) {
-    assertUniversityWide(user);
+  @Authorized('institution:read:dashboard')
+  async filterOptions(@AuthSession() user: SessionUser) {
+    assertCanSeeFacultyDashboards(user);
+    if (user.role === 'FACULTY_USER' && user.facultyId) {
+      const faculty = await prisma.faculty.findUnique({
+        where: { id: user.facultyId },
+        select: { nameTh: true },
+      });
+      return this.staff.filterOptions({
+        facultyName: faculty?.nameTh ?? '__none__',
+      });
+    }
     return this.staff.filterOptions();
   }
 
@@ -108,9 +120,9 @@ export class StaffController {
   }
 
   @Get('refresh/status')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async refreshStatus(@AuthSession() user: SessionUser) {
-    assertUniversityWide(user);
+    assertCanSeeFacultyDashboards(user);
     const slugs = [...STAFF_REFRESH_SLUGS];
     const sources = await prisma.dataSource.findMany({
       where: { slug: { in: slugs } },
@@ -152,39 +164,50 @@ export class StaffController {
   }
 
   @Get('workforce')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async workforce(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
   ) {
-    assertUniversityWide(user);
-    return this.staff.workforce(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.staff.workforce({ ...q, facultyName: ['__none__'] });
+    return this.staff.workforce(clamped);
   }
 
   @Get('faculty-by-program')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async facultyByProgram(@AuthSession() user: SessionUser) {
-    assertUniversityWide(user);
-    return this.staff.facultyByProgram();
+    assertCanSeeFacultyDashboards(user);
+    const facultyId =
+      user.role === 'FACULTY_USER' && user.facultyId ? user.facultyId : undefined;
+    return this.staff.facultyByProgram({ facultyId });
   }
 
   @Get('research')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async research(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ResearchFilterSchema)) q: z.infer<typeof ResearchFilterSchema>,
   ) {
-    assertUniversityWide(user);
-    return this.staff.researchOutput(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.staff.researchOutput({ ...q, facultyName: ['__none__'] });
+    return this.staff.researchOutput(clamped);
   }
 
   @Get('compensation')
-  @Authorized('institution:read:university')
+  @Authorized('institution:read:dashboard')
   async compensation(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
   ) {
-    assertUniversityWide(user);
-    return this.staff.compensation(q);
+    assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.staff.compensation({ ...q, facultyName: ['__none__'] });
+    return this.staff.compensation(clamped);
   }
 }

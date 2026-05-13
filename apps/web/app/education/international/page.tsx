@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { isUniversityWide, type SessionUser } from '@kku/shared';
+import { canSeeFacultyDashboards, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -16,7 +16,7 @@ export default async function InternationalPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isUniversityWide(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
 
   const dataRes = await apiFetchSafe<InternationalResponse>('/education/international');
 
