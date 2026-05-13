@@ -23,7 +23,13 @@ import {
   type DriverMixSlice,
 } from './viz';
 import { Badge } from '@kku/ui';
-import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
+import {
+  FilterCrossLink,
+  FilterCrossLinkGroup,
+  FilterField,
+  FilterRail,
+  FilterSelect,
+} from '@/components/filter-rail';
 
 // Tier order kept for legacy references; the program-table grouping now
 // uses ERM_ORDER (KKU L × I band) for consistency with the rest of the
@@ -326,26 +332,17 @@ export function RisksPortfolioClient({
           </FilterSelect>
         </FilterField>
         <FilterField label="Cross-links">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/risks/matrix"
-              className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
-            >
-              Likelihood × impact matrix →
-            </Link>
-            <Link
-              href="/risks/indicators"
-              className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
-            >
-              Indicators →
-            </Link>
-            <Link
-              href="/risks/drivers"
-              className="rounded-md border border-border-default bg-surface-2 px-3 py-1 text-xs hover:bg-surface-3"
-            >
-              Drivers →
-            </Link>
-          </div>
+          <FilterCrossLinkGroup>
+            <FilterCrossLink href="/risks/matrix" tone="accent">
+              Likelihood × impact matrix
+            </FilterCrossLink>
+            <FilterCrossLink href="/risks/indicators" tone="cardinal">
+              Indicators
+            </FilterCrossLink>
+            <FilterCrossLink href="/risks/drivers" tone="warning">
+              Drivers
+            </FilterCrossLink>
+          </FilterCrossLinkGroup>
         </FilterField>
       </FilterRail>
       <div className="flex flex-wrap items-center gap-2 text-xs text-text-tertiary">

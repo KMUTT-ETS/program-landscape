@@ -19,6 +19,7 @@ const REFRESHABLE_CUBES = [
   'tuition',
   'performance',
   'entryScores',
+  'recruitment',
 ] as const;
 type Cube = (typeof REFRESHABLE_CUBES)[number];
 
@@ -31,6 +32,7 @@ function cubeLabel(n: string): string {
       tuition: 'Tuition revenue',
       performance: 'Performance (GPA)',
       entryScores: 'Entry test scores',
+      recruitment: 'Recruitment (TCAS funnel)',
     } as Record<string, string>)[n] ?? n
   );
 }
@@ -65,8 +67,12 @@ export function EducationRefreshBar({ initialStatus }: Props) {
       const counts = body.recordsByCube ?? {};
       const summary =
         cubes && cubes.length === 1
-          ? `${cubeLabel(cubes[0]!)} — ${counts[cubes[0]!] ?? 0} rows`
-          : `student ${counts.student ?? 0} · location ${counts.location ?? 0} · tuition ${counts.tuition ?? 0} · performance ${counts.performance ?? 0} · entry scores ${counts.entryScores ?? 0}`;
+          ? cubes[0] === 'recruitment'
+            ? // Recruitment is enqueued, not loaded synchronously —
+              // the value-counts come in via the status poll.
+              `Recruitment fetch queued — connector will run in the background`
+            : `${cubeLabel(cubes[0]!)} — ${counts[cubes[0]!] ?? 0} rows`
+          : `student ${counts.student ?? 0} · location ${counts.location ?? 0} · tuition ${counts.tuition ?? 0} · performance ${counts.performance ?? 0} · entry scores ${counts.entryScores ?? 0} · recruitment ${counts.recruitment === 1 ? 'queued' : 'skipped'}`;
       toast.success(`Refresh complete — ${summary}`);
       await reloadStatus();
     } catch (err) {

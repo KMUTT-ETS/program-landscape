@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { Badge, Card, Input } from '@kku/ui';
+import { Badge, Card } from '@kku/ui';
+import { FilterSearch } from '@/components/filter-rail';
 import type { SkillNode } from './page';
 
 // Tree + detail layout. Two columns: taxonomy tree (left, scrollable),
@@ -123,12 +124,13 @@ export function SkillsExplorer({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)]">
       <Card padding="none" className="p-3">
-        <Input
-          placeholder="Search Thai or English…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="mb-3"
-        />
+        <div className="mb-3">
+          <FilterSearch
+            placeholder="Search Thai or English…"
+            value={query}
+            onChange={setQuery}
+          />
+        </div>
         <div className="max-h-[70vh] overflow-y-auto">
           {roots.length === 0 ? (
             <div className="p-4 text-sm text-text-tertiary">

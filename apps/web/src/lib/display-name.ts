@@ -57,6 +57,50 @@ function stripTitlePrefixes(name: string): string {
 }
 
 /**
+ * Canonical greeting-name resolver used by every hero greeting.
+ * Order of preference: FacultyMember English name → FacultyMember Thai
+ * name → user.name (with honorifics stripped) → email local part.
+ * Centralised so the home page and the admin console (and any future
+ * hero greeting) always say "Good morning, Denpong" instead of one
+ * page saying "Welcome back, Mr. Denpong Sudpakdee" and another saying
+ * "Good morning, Sudpakdee D.".
+ */
+export function pickGreetingName(input: {
+  chrome: { name: { th: string; en: string } | null } | null | undefined;
+  user: { name?: string | null; email?: string | null };
+}): string {
+  const chromeName = input.chrome?.name;
+  if (chromeName?.en) return chromeName.en;
+  if (chromeName?.th) return chromeName.th;
+  if (input.user.name) {
+    const stripped = stripTitlePrefixes(input.user.name);
+    if (stripped) return stripped;
+  }
+  if (input.user.email) {
+    const local = input.user.email.split('@')[0];
+    if (local) return local;
+  }
+  return 'there';
+}
+
+/**
+ * Time-of-day greeting respecting Asia/Bangkok wall-clock.
+ * Server-side render so it's correct at first paint.
+ */
+export function timeOfDayGreeting(): string {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    hour12: false,
+    timeZone: 'Asia/Bangkok',
+  });
+  const hour = parseInt(fmt.format(new Date()), 10);
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  if (hour >= 17 && hour < 22) return 'Good evening';
+  return 'Hello';
+}
+
+/**
  * Returns the avatar URL + rank-prefixed display name for a User.
  * Both fields are nullable — every user can have an avatar; only
  * faculty/staff have a rank-prefixed name.

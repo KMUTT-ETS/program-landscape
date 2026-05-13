@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
 import {
   FilterField,
   FilterRail,
+  FilterSearch,
   FilterSelect as SharedFilterSelect,
 } from '@/components/filter-rail';
 
@@ -727,13 +728,13 @@ function ProgramDrillTable({ rows }: { rows: ProgramDrillRow[] }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-4 py-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search code, name, CURR_ID…"
-          className="w-64 rounded-md border border-border-default bg-surface-1 px-3 py-1.5 text-sm"
-        />
+        <div className="w-64">
+          <FilterSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search code, name, CURR_ID…"
+          />
+        </div>
         <div className="flex items-center gap-1 text-xs">
           <button
             type="button"

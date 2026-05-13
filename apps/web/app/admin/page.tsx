@@ -4,7 +4,13 @@ import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Badge, Card, EdgeGlow, Stat } from '@kku/ui';
+import { Badge, Card, EdgeGlow } from '@kku/ui';
+import { HeroBanner, type HeroBannerStat } from '@/components/hero-banner';
+import {
+  pickGreetingName,
+  resolveUserChrome,
+  timeOfDayGreeting,
+} from '@/lib/display-name';
 import {
   Activity,
   ArrowUpRight,
@@ -93,7 +99,7 @@ export default async function AdminConsolePage() {
   // Pull live numbers in parallel; degrade gracefully if either endpoint
   // is reachable. The console renders fine without them — the badges
   // just disappear and the stat strip falls back to "—".
-  const [dataStats, sysStatus, externalAi] = await Promise.all([
+  const [dataStats, sysStatus, externalAi, chrome] = await Promise.all([
     apiFetch<DataSetupStats>('/admin/data-setup/stats').catch(() => null),
     apiFetch<SystemStatus>('/admin/system-status').catch(() => null),
     // External-AI source list — used to surface "X feeds active" on the
@@ -102,6 +108,13 @@ export default async function AdminConsolePage() {
     apiFetch<ExternalAiSourceLite[]>('/admin/external-ai-sources').catch(
       () => null as ExternalAiSourceLite[] | null,
     ),
+    // Same name source as the home page — when the operator is on the
+    // FacultyMember roster their rank-prefixed name comes through; SSO
+    // honorifics (นาย / ดร. / Asst. Prof.) get stripped at fallback.
+    resolveUserChrome(user.userId).catch(() => ({
+      name: null,
+      avatarUrl: null,
+    })),
   ]);
 
   const heroStats = buildHeroStats(dataStats, sysStatus);
@@ -110,7 +123,7 @@ export default async function AdminConsolePage() {
   return (
     <AuthedAppShell user={user}>
       <div className="flex flex-col gap-8">
-        <Hero greetingFor={user} stats={heroStats} />
+        <Hero greetingFor={user} chrome={chrome} stats={heroStats} />
 
         {groups.map((g) =>
           g.tiles.length === 0 ? null : <CommandBay key={g.label} group={g} />,
@@ -124,157 +137,37 @@ export default async function AdminConsolePage() {
 // Hero
 // ─────────────────────────────────────────────────────────────────────────
 
-// Common Thai + English titles to strip before greeting. Many KKU SSO
-// profiles arrive with a leading "นาย" / "นาง" / "ดร." prefix; using
-// `name.split(' ')[0]` blindly produces "Welcome back, นาย" instead of
-// the person's actual given name.
-const TITLE_PREFIXES = new Set([
-  // Thai
-  'นาย',
-  'นาง',
-  'นางสาว',
-  'น.ส.',
-  'น.ส',
-  'ดร.',
-  'ดร',
-  'ผศ.',
-  'ผศ',
-  'ผศ.ดร.',
-  'ผศ.ดร',
-  'รศ.',
-  'รศ',
-  'รศ.ดร.',
-  'รศ.ดร',
-  'ศ.',
-  'ศ',
-  'ศ.ดร.',
-  'ศ.ดร',
-  'อ.',
-  'อ',
-  // English
-  'Mr.',
-  'Mr',
-  'Mrs.',
-  'Mrs',
-  'Ms.',
-  'Ms',
-  'Miss',
-  'Dr.',
-  'Dr',
-  'Prof.',
-  'Prof',
-  'Asst.',
-  'Assoc.',
-]);
-
-function stripTitles(name: string): string {
-  const tokens = name.trim().split(/\s+/).filter(Boolean);
-  while (tokens.length > 1 && TITLE_PREFIXES.has(tokens[0]!)) {
-    tokens.shift();
-  }
-  return tokens.join(' ');
-}
-
-function greetingNameFor(user: SessionUser): string {
-  const stripped = stripTitles(user.name ?? '');
-  if (stripped) return stripped;
-  // Fallback: email local part (e.g. "denpong" from "denpong@kku.ac.th").
-  return user.email.split('@')[0]!;
-}
+// Greeting uses the shared HeroBanner so /admin and / read as the same
+// chrome. Name resolution goes through pickGreetingName — same source
+// of truth as the home page (FacultyMember English → FacultyMember Thai
+// → stripped SSO name → email local-part).
 
 function Hero({
   greetingFor,
+  chrome,
   stats,
 }: {
   greetingFor: SessionUser;
+  chrome: { name: { th: string; en: string } | null } | null;
   stats: HeroStat[];
 }) {
-  const greeting = greetingNameFor(greetingFor);
+  const greetingName = pickGreetingName({ chrome, user: greetingFor });
+  const tod = timeOfDayGreeting();
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-1">
-      {/* Layered gradient + warm bloom — same recipe as the signin pane,
-          dialled down so the hero doesn't drown the content below. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-90"
-        style={{
-          background:
-            'linear-gradient(135deg, oklch(var(--color-surface-1)) 0%, oklch(var(--color-surface-1)) 55%, oklch(var(--color-accent-default) / 0.08) 100%)',
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute -top-32 -right-24 h-[420px] w-[420px] rounded-full blur-[120px] opacity-25"
-        style={{ background: 'oklch(var(--color-accent-default))' }}
-      />
-      <div
-        aria-hidden
-        className="absolute -bottom-32 -left-24 h-[360px] w-[360px] rounded-full blur-[120px] opacity-15"
-        style={{ background: 'oklch(var(--color-brand-cardinal))' }}
-      />
-      {/* Faint dot grid for texture, kept low so it reads as paper, not noise */}
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 1px 1px, oklch(var(--color-text-primary)) 1.2px, transparent 1.2px)',
-          backgroundSize: '24px 24px',
-        }}
-      />
-
-      <div className="relative z-10 px-7 py-8 sm:px-9 sm:py-10">
-        {/* Top row: brand mark + breadcrumb-style eyebrow + role chip */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="relative flex-shrink-0">
-              <div
-                aria-hidden
-                className="absolute inset-0 rounded-2xl blur-md opacity-50"
-                style={{ background: 'oklch(var(--color-accent-default))' }}
-              />
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-accent-default/30 bg-accent-default/10 text-accent-default">
-                <Wrench className="h-6 w-6" aria-hidden />
-              </div>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
-                <span>Admin</span>
-                <span aria-hidden className="opacity-40">
-                  /
-                </span>
-                <span className="text-text-secondary">Console</span>
-              </div>
-              <h1 className="mt-1 text-[26px] font-medium tracking-tight text-text-primary sm:text-[30px]">
-                Welcome back, {greeting}
-              </h1>
-              <p className="mt-1.5 max-w-[640px] text-[13px] leading-relaxed text-text-secondary">
-                Operational tools for keeping the curriculum-landscape data
-                fresh, accurate, and trustworthy. Tile visibility tracks
-                your role's permissions.
-              </p>
-            </div>
-          </div>
-          <RoleChip role={greetingFor.role} />
-        </div>
-
-        {/* Stat strip */}
-        {stats.length > 0 && (
-          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.map((s) => (
-              <Card
-                key={s.label}
-                padding="sm"
-                elevation="sm"
-                className="bg-surface-0/70 backdrop-blur-sm"
-              >
-                <Stat label={s.label} value={s.value} hint={s.hint} icon={s.icon} />
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
+    <HeroBanner
+      eyebrow={
+        <>
+          <span>Admin</span>
+          <span aria-hidden className="opacity-40">/</span>
+          <span className="text-text-secondary">Console</span>
+        </>
+      }
+      title={`${tod}, ${greetingName}`}
+      subtitle="Operational tools for keeping the curriculum-landscape data fresh, accurate, and trustworthy. Tile visibility tracks your role's permissions."
+      icon={<Wrench className="h-6 w-6" aria-hidden />}
+      right={<RoleChip role={greetingFor.role} />}
+      stats={stats}
+    />
   );
 }
 
@@ -375,7 +268,7 @@ function Tile({ tile }: { tile: ConsoleTile }) {
                 tile.tone === 'super'
                   ? 'border-danger/30 bg-danger/8 text-danger'
                   : tile.tone === 'warn'
-                    ? 'border-warning-default/35 bg-warning-default/10 text-warning-default'
+                    ? 'border-warning/35 bg-warning/10 text-warning'
                     : 'border-border-default bg-surface-2 text-text-secondary',
                 'transition-all duration-200 group-hover:scale-[1.04] group-hover:border-accent-default/45',
               ].join(' ')}
@@ -419,12 +312,9 @@ function Tile({ tile }: { tile: ConsoleTile }) {
 // Stat + group composition
 // ─────────────────────────────────────────────────────────────────────────
 
-interface HeroStat {
-  label: string;
-  value: React.ReactNode;
-  hint?: string;
-  icon?: React.ReactNode;
-}
+// Re-export the shared HeroBanner stat shape under the page-local alias
+// so the rest of the file keeps reading naturally.
+type HeroStat = HeroBannerStat;
 
 interface ConsoleTile {
   href: string;

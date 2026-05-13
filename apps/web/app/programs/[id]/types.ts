@@ -311,10 +311,26 @@ export interface DeepDiveFinancials {
   partialCurrentYearAvailable: boolean;
   /** Annual government-funded faculty salary subsidy for this program.
    *  Informational — NOT netted from tuition (Thai public university
-   *  model: salaries paid from the government block grant). */
+   *  model: salaries paid from the government block grant).
+   *  SUPERSEDED by `salaryByFunding` when present (more accurate split). */
   governmentFacultySubsidy: number | null;
   /** Government investment per enrolled student per year. */
   costPerStudent: number | null;
+  /** Enrolment-weighted salary breakdown by funding source (kku-hr cube).
+   *  Multi-program staff: contribution to THIS program is weighted by
+   *  share of enrolment across all programs they teach. */
+  salaryByFunding: {
+    methodologyVersion: string;
+    totalAnnualThb: number;
+    contributingMembers: number;
+    unresolvedMembers: number;
+    sourceFiscalYear: number | null;
+    entries: Array<{
+      salType: string;
+      annualThb: number;
+      share: number;
+    }>;
+  } | null;
   sensitivity: {
     tuitionPlus5Pct: { tuitionRevenue: number; netContribution: number };
   } | null;

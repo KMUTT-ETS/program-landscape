@@ -14,7 +14,7 @@ export interface CommandPaletteTriggerProps {
 }
 
 export function CommandPaletteTrigger({
-  placeholder = 'Search programs, scenarios, decisions…',
+  placeholder = 'Search programs, scenarios, faculties…',
   className,
 }: CommandPaletteTriggerProps) {
   const open = React.useCallback(() => {

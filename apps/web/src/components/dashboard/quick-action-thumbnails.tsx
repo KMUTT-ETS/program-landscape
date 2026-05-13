@@ -162,50 +162,7 @@ export function ThumbTrends({ className }: Props) {
   );
 }
 
-// 6. Decisions — checklist with two completed items
-export function ThumbDecisions({ className }: Props) {
-  return (
-    <svg {...SVG_BASE_PROPS} className={className}>
-      <Backdrop />
-      {[18, 32, 46].map((y, i) => (
-        <g key={i}>
-          <rect
-            x="22"
-            y={y}
-            width="10"
-            height="10"
-            rx="2"
-            fill={i < 2 ? 'oklch(var(--color-positive))' : 'none'}
-            stroke="oklch(var(--color-text-tertiary))"
-            strokeWidth="1"
-          />
-          {i < 2 && (
-            <path
-              d={`M${24} ${y + 5} L${27} ${y + 8} L${31} ${y + 3}`}
-              fill="none"
-              stroke="oklch(var(--color-text-on-accent))"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-          <rect
-            x="38"
-            y={y + 3}
-            width={i === 2 ? 50 : 60}
-            height="4"
-            rx="1"
-            fill={
-              i < 2 ? 'oklch(var(--color-text-secondary) / 0.6)' : 'oklch(var(--color-text-secondary) / 0.9)'
-            }
-          />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-// 7. My profile — avatar circle + name lines + small stat bar
+// My profile — avatar circle + name lines + small stat bar
 export function ThumbProfile({ className }: Props) {
   return (
     <svg {...SVG_BASE_PROPS} className={className}>

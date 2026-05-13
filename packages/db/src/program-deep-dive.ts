@@ -2377,6 +2377,210 @@ export async function programDemographicOutlook(
   };
 }
 
+// ── Faculty salary by funding source (enrolment-weighted) ──────────────
+// Surfaces, for the deep-dive financial section, where this program's
+// teaching-staff salaries are funded from. NOT "all government" —
+// reality (from the kku-hr-processed `staff_compensation_cube`) is that
+// salaries split across เงินงบประมาณ (government allocation), เงินรายได้
+// (university revenue), 50:50, special funds, etc.
+//
+// Multi-program faculty: a person who teaches multiple programs has
+// their salary contribution to EACH program weighted by enrolment
+// share — a lecturer who teaches a 200-student program AND a 20-student
+// program contributes ~91% / ~9% to each respectively. Avoids the
+// double-counting trap of summing the same person's full salary across
+// every program they touch.
+//
+// Methodology stamp: 'salary-by-fund.v1'. Bump on behaviour change.
+const SALARY_BY_FUND_VERSION = 'salary-by-fund.v1';
+
+// Maps the FacultyMember.rank enum to the substring we expect to find
+// in `staff_compensation_cube.level`. The cube stores Thai abbreviated
+// forms ('ผศ', 'รศ', 'ศ', 'อ.') — we match by `startsWith` so variants
+// like 'ผศ.ดร.' / 'ศ.เกียรติคุณ' still resolve to the same rank bucket.
+const RANK_TO_LEVEL_PREFIXES: Record<
+  'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER',
+  string[]
+> = {
+  PROF: ['ศ.', 'ศ ', 'ศาสตราจารย์'],
+  ASSOC_PROF: ['รศ', 'รองศาสตราจารย์'],
+  ASST_PROF: ['ผศ', 'ผู้ช่วยศาสตราจารย์'],
+  LECTURER: ['อ.', 'อ ', 'อาจารย์'],
+};
+
+function levelMatchesRank(
+  level: string | null,
+  rank: 'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER',
+): boolean {
+  if (!level) return false;
+  const t = level.trim();
+  return RANK_TO_LEVEL_PREFIXES[rank].some((p) => t.startsWith(p));
+}
+
+export interface SalaryByFundingEntry {
+  /** Funding source as stored in the HR cube: 'เงินงบประมาณ' /
+   *  'เงินรายได้' / '50:50' / etc. Normalised — blank / null becomes
+   *  'เงินรายได้' to match the staff-dashboard convention. */
+  salType: string;
+  /** Enrolment-weighted annual salary contribution to THIS program
+   *  funded from this source (THB / year). */
+  annualThb: number;
+  /** Share of the program's total weighted salary cost. 0–1. */
+  share: number;
+}
+
+export interface ProgramSalaryByFunding {
+  methodologyVersion: string;
+  /** Sum of `annualThb` across all entries. */
+  totalAnnualThb: number;
+  /** How many ProgramFaculty members contributed (after enrolment
+   *  weighting). Useful for sanity-checking — should match the
+   *  deep-dive's "active teaching staff" count. */
+  contributingMembers: number;
+  /** Members from ProgramFaculty whose cube row couldn't be resolved
+   *  (no matching faculty × rank cell). Surfaced as a caveat. */
+  unresolvedMembers: number;
+  /** Latest fiscal year the cube row was sourced from (BE). */
+  sourceFiscalYear: number | null;
+  /** Breakdown by funding source, sorted by share desc. */
+  entries: SalaryByFundingEntry[];
+}
+
+export async function programFacultySalaryByFunding(
+  programId: string,
+): Promise<ProgramSalaryByFunding | null> {
+  // 1. Find ProgramFaculty members on THIS program.
+  const onThisProgram = await prisma.programFaculty.findMany({
+    where: { programId },
+    select: {
+      facultyMember: {
+        select: {
+          id: true,
+          rank: true,
+          facultyId: true,
+        },
+      },
+    },
+  });
+  if (onThisProgram.length === 0) return null;
+
+  const memberIds = onThisProgram
+    .map((p) => p.facultyMember?.id)
+    .filter((x): x is string => Boolean(x));
+  if (memberIds.length === 0) return null;
+
+  // 2. Pull every program assignment for those members (across the
+  //    whole institution) and the latest enrolment per program.
+  const allAssignments = await prisma.programFaculty.findMany({
+    where: { facultyMemberId: { in: memberIds } },
+    select: { facultyMemberId: true, programId: true },
+  });
+  const programIds = [
+    ...new Set(allAssignments.map((a) => a.programId)),
+  ];
+  const enrolments = await prisma.enrollmentMetric.findMany({
+    where: { programId: { in: programIds } },
+    orderBy: { academicYear: 'desc' },
+    select: { programId: true, enrolled: true, academicYear: true },
+  });
+  const enrolByProgram = new Map<string, number>();
+  for (const e of enrolments) {
+    if (!enrolByProgram.has(e.programId)) {
+      enrolByProgram.set(e.programId, e.enrolled);
+    }
+  }
+
+  // 3. For each member, weight = enrolment(thisProgram) / sum across
+  //    all their programs. When all are 0, fall back to even split.
+  const memberWeight = new Map<string, number>();
+  for (const id of memberIds) {
+    const myPrograms = allAssignments
+      .filter((a) => a.facultyMemberId === id)
+      .map((a) => a.programId);
+    const totals = myPrograms.map((p) => enrolByProgram.get(p) ?? 0);
+    const total = totals.reduce((s, v) => s + v, 0);
+    const here = enrolByProgram.get(programId) ?? 0;
+    const weight = total > 0 ? here / total : 1 / myPrograms.length;
+    memberWeight.set(id, weight);
+  }
+
+  // 4. Load every cube row keyed by the faculties + ranks we need.
+  const facIds = [
+    ...new Set(
+      onThisProgram
+        .map((p) => p.facultyMember?.facultyId)
+        .filter((x): x is string => Boolean(x)),
+    ),
+  ];
+  if (facIds.length === 0) return null;
+  const cube = await prisma.staffCompensationCube.findMany({
+    where: { facultyId: { in: facIds }, isAcademic: true },
+    orderBy: { fiscalYear: 'desc' },
+  });
+  // Latest fiscal year only — we report a single-year snapshot.
+  const latestFy = cube.length > 0 ? cube[0]!.fiscalYear : null;
+  const latestCube = latestFy === null ? [] : cube.filter((r) => r.fiscalYear === latestFy);
+
+  // 5. Walk each member and tally per-salType contribution.
+  const perSalType = new Map<string, number>();
+  let contributingMembers = 0;
+  let unresolvedMembers = 0;
+  for (const p of onThisProgram) {
+    const m = p.facultyMember;
+    if (!m) continue;
+    const rows = latestCube.filter(
+      (r) =>
+        r.facultyId === m.facultyId &&
+        levelMatchesRank(r.level, m.rank as keyof typeof RANK_TO_LEVEL_PREFIXES),
+    );
+    if (rows.length === 0) {
+      unresolvedMembers += 1;
+      continue;
+    }
+    contributingMembers += 1;
+    const weight = memberWeight.get(m.id) ?? 1;
+    // Build a salType → share table for this faculty × rank, using
+    // headcount as the proportional weight (more headcount on a given
+    // salType means more of the rank's salary mass comes from there).
+    const rankHeadcount = rows.reduce((s, r) => s + r.headcount, 0);
+    if (rankHeadcount === 0) continue;
+    // Cube `meanSalary` is monthly (THB / month); HR runs payroll monthly.
+    // Annualise by × 12.
+    const memberAnnualByType = new Map<string, number>();
+    for (const r of rows) {
+      const salType = (r.salType ?? '').trim() || 'เงินรายได้';
+      const proportion = r.headcount / rankHeadcount;
+      const memberAnnual = r.meanSalary * 12 * proportion * weight;
+      memberAnnualByType.set(
+        salType,
+        (memberAnnualByType.get(salType) ?? 0) + memberAnnual,
+      );
+    }
+    for (const [salType, thb] of memberAnnualByType) {
+      perSalType.set(salType, (perSalType.get(salType) ?? 0) + thb);
+    }
+  }
+
+  const total = [...perSalType.values()].reduce((s, v) => s + v, 0);
+  if (total === 0) return null;
+  const entries: SalaryByFundingEntry[] = [...perSalType.entries()]
+    .map(([salType, annualThb]) => ({
+      salType,
+      annualThb,
+      share: annualThb / total,
+    }))
+    .sort((a, b) => b.share - a.share);
+
+  return {
+    methodologyVersion: SALARY_BY_FUND_VERSION,
+    totalAnnualThb: total,
+    contributingMembers,
+    unresolvedMembers,
+    sourceFiscalYear: latestFy,
+    entries,
+  };
+}
+
 // ── Financial waterfall ────────────────────────────────────────────────
 // Current year snapshot + 5-year trend. The detailed allocation split
 // (tuition → direct → faculty alloc → facilities alloc → overhead →
@@ -2448,6 +2652,12 @@ export async function programFinancials(programId: string) {
       }
     : null;
 
+  // Salary breakdown by funding source — multi-program faculty are
+  // weighted by enrolment share. Returns null when this program has no
+  // ProgramFaculty links or no cube data is available; the deep-dive UI
+  // falls back to the older "government subsidy" line in that case.
+  const salaryByFunding = await programFacultySalaryByFunding(programId);
+
   return {
     waterfall,
     trend,
@@ -2459,9 +2669,15 @@ export async function programFinancials(programId: string) {
     /// Annual salary subsidy the government pays for this program's
     /// faculty — sourced from `EmployeeDetail.SALARY × 12` for the staff
     /// in `ProgramFaculty`. Informational only; NOT netted from tuition.
+    /// SUPERSEDED by `salaryByFunding` when available; kept for back-
+    /// compat with surfaces that haven't migrated yet.
     governmentFacultySubsidy: latest ? Number(latest.allocatedFacultyCost) : null,
     /// Government investment per enrolled student per year.
     costPerStudent: latest?.costPerStudent ? Number(latest.costPerStudent) : null,
+    /// Enrolment-weighted, faculty-rank-aware breakdown of salary cost
+    /// by funding source (เงินงบประมาณ / เงินรายได้ / 50:50 / etc.).
+    /// Sourced from staff_compensation_cube via salary-by-fund.v1.
+    salaryByFunding,
     sensitivity,
     costMethodologyVersion: latest?.methodologyVersion ?? 'pending',
     latestFreshness: latest?.freshnessDate ?? null,

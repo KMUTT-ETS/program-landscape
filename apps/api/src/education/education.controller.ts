@@ -162,6 +162,7 @@ export class EducationController {
                   'tuition',
                   'performance',
                   'entryScores',
+                  'recruitment',
                 ]),
               )
               .optional(),

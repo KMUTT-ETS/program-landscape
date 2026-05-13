@@ -132,6 +132,117 @@ export const GetMethodologyInputSchema = z.object({
 });
 export type GetMethodologyInput = z.infer<typeof GetMethodologyInputSchema>;
 
+// Operational + observability tools — the user asked the analyst to be
+// aware of every data input that flows into the platform. These tools
+// wrap the admin endpoints + materialised dashboard summaries so the
+// LLM can answer "is kku-finance live?", "how many curriculum PDFs do
+// we have?", "what's the staff headcount across faculties?" without
+// the user having to navigate to /admin themselves.
+
+export const ListDataSourcesInputSchema = z.object({
+  /** Filter by connector mode. Defaults to 'all'. */
+  mode: z.enum(['all', 'real', 'mocked']).default('all'),
+  /** Filter by Phase (A internal, B national, C international). */
+  phase: z.enum(['A', 'B', 'C']).optional(),
+  limit: z.number().int().min(1).max(50).default(30),
+});
+export type ListDataSourcesInput = z.infer<typeof ListDataSourcesInputSchema>;
+
+export const QueryPipelineRunsInputSchema = z.object({
+  /** Slug of a specific connector, or omit for all. */
+  slug: z.string().optional(),
+  /** Filter by run status. */
+  status: z.enum(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'SKIPPED']).optional(),
+  /** How far back to look (days). */
+  windowDays: z.number().int().min(1).max(180).default(14),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+export type QueryPipelineRunsInput = z.infer<typeof QueryPipelineRunsInputSchema>;
+
+export const QueryPdfLibraryInputSchema = z.object({
+  /** Filter by source category (e.g., POLICY_DOCUMENT, CURRICULUM_DOCUMENT). */
+  sourceCategory: z.string().optional(),
+  /** Filter by processing status. */
+  processingStatus: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']).optional(),
+  /** Free-text title match. */
+  query: z.string().optional(),
+  limit: z.number().int().min(1).max(30).default(15),
+});
+export type QueryPdfLibraryInput = z.infer<typeof QueryPdfLibraryInputSchema>;
+
+export const QueryAiExtractionsInputSchema = z.object({
+  /** Filter by extraction type (e.g., PROGRAM_DIGEST, POLICY_NARRATIVE). */
+  extractionType: z.string().optional(),
+  /** Filter by review status. */
+  reviewStatus: z
+    .enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'AUTO_APPROVED'])
+    .optional(),
+  /** Filter by a specific programId (PROGRAM_DIGEST). */
+  programId: z.string().optional(),
+  limit: z.number().int().min(1).max(30).default(15),
+});
+export type QueryAiExtractionsInput = z.infer<typeof QueryAiExtractionsInputSchema>;
+
+export const GetEducationKpisInputSchema = z.object({
+  /** Optional faculty filter — passed through to the materialised cube. */
+  facultyName: z.string().optional(),
+  /** Subset of dashboards to include. Defaults to all. */
+  include: z
+    .array(
+      z.enum([
+        'student',
+        'location',
+        'tuition',
+        'performance',
+        'entryScores',
+        'recruitment',
+      ]),
+    )
+    .optional(),
+});
+export type GetEducationKpisInput = z.infer<typeof GetEducationKpisInputSchema>;
+
+export const GetStaffKpisInputSchema = z.object({
+  /** Optional faculty filter. */
+  facultyName: z.string().optional(),
+  /** Subset of staff dashboards. Defaults to all. */
+  include: z
+    .array(
+      z.enum([
+        'workforce',
+        'compensation',
+        'research',
+        'lifecycle',
+      ]),
+    )
+    .optional(),
+});
+export type GetStaffKpisInput = z.infer<typeof GetStaffKpisInputSchema>;
+
+export const GetRiskPortfolioInputSchema = z.object({
+  /** Filter by program level. */
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL']).default('BACHELOR'),
+  /** Filter by faculty. */
+  facultyId: z.string().optional(),
+  /** Filter by ERM tier. */
+  riskLevel: z
+    .enum(['NEEDS_DATA', 'LOW', 'MODERATE', 'HIGH', 'VERY_HIGH'])
+    .optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+export type GetRiskPortfolioInput = z.infer<typeof GetRiskPortfolioInputSchema>;
+
+export const QueryRecruitmentInputSchema = z.object({
+  /** TCAS entry year (BE). Defaults to latest available. */
+  entryYearBe: z.number().int().min(2540).max(2700).optional(),
+  /** Filter by faculty. */
+  facultyId: z.string().optional(),
+  /** Filter by program. */
+  programId: z.string().optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+export type QueryRecruitmentInput = z.infer<typeof QueryRecruitmentInputSchema>;
+
 // ── Tool registry ───────────────────────────────────────────────────
 //
 // Hand-written JSON-Schema so we don't pull a Zod → JSON-Schema
@@ -321,6 +432,114 @@ export const ANALYST_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
       },
       required: ['metricName'],
+    },
+  },
+  {
+    name: 'list_data_sources',
+    description: "List external data connectors (e.g., kku-registry, kku-hr, kku-finance, kku-research, kmitl-skill-mapping) with their mode (real/mocked), status, last run, cron cadence, and 7-day success rate. Use for questions like 'is kku-finance live?', 'when did kku-research last run?', 'how many connectors are still mocked?'.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['all', 'real', 'mocked'], default: 'all' },
+        phase: { type: 'string', enum: ['A', 'B', 'C'] },
+        limit: { type: 'number', minimum: 1, maximum: 50, default: 30 },
+      },
+    },
+  },
+  {
+    name: 'query_pipeline_runs',
+    description: 'Recent ingestion run history — status, records loaded, duration, errors. Use to debug data freshness ("why is kku-hr stale?", "did last night\'s kku-tcas-funnel run succeed?").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string' },
+        status: { type: 'string', enum: ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'SKIPPED'] },
+        windowDays: { type: 'number', minimum: 1, maximum: 180, default: 14 },
+        limit: { type: 'number', minimum: 1, maximum: 50, default: 20 },
+      },
+    },
+  },
+  {
+    name: 'query_pdf_library',
+    description: 'Catalog of ingested PDFs (curriculum specs, ministry policy PDFs, faculty reports) with extraction status. Use for questions like "how many curriculum PDFs do we have?", "which faculty\'s curriculum hasn\'t been processed yet?".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCategory: { type: 'string' },
+        processingStatus: { type: 'string', enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'] },
+        query: { type: 'string' },
+        limit: { type: 'number', minimum: 1, maximum: 30, default: 15 },
+      },
+    },
+  },
+  {
+    name: 'query_ai_extractions',
+    description: 'Recent AI-extracted structured outputs (program digests, course skills, policy narratives). Includes review status, confidence, methodology version. Use for "what does the AI think program X teaches?", "how many PROGRAM_DIGEST rows are pending review?".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        extractionType: { type: 'string' },
+        reviewStatus: { type: 'string', enum: ['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'AUTO_APPROVED'] },
+        programId: { type: 'string' },
+        limit: { type: 'number', minimum: 1, maximum: 30, default: 15 },
+      },
+    },
+  },
+  {
+    name: 'get_education_kpis',
+    description: 'University-wide Education dashboard rollup — total active students, geographic origin split, tuition revenue by year, undergraduate GPA trends, entry test scores, and the TCAS recruitment funnel. Sourced from the same materialised cubes /education uses. Use for "how many students does KKU have?", "what\'s our recruitment funnel looking like this year?".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        facultyName: { type: 'string' },
+        include: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['student', 'location', 'tuition', 'performance', 'entryScores', 'recruitment'],
+          },
+        },
+      },
+    },
+  },
+  {
+    name: 'get_staff_kpis',
+    description: 'University-wide Staff dashboard rollup — workforce headcount split by track (academic / support / executive), compensation by funding source (the "where salaries come from" view), research output counts, and staff lifecycle indicators (joiners / leavers / retirements). Use for "how big is our academic staff?", "what fraction of salaries are funded by government allocation?".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        facultyName: { type: 'string' },
+        include: {
+          type: 'array',
+          items: { type: 'string', enum: ['workforce', 'compensation', 'research', 'lifecycle'] },
+        },
+      },
+    },
+  },
+  {
+    name: 'get_risk_portfolio',
+    description: 'Per-program risk assessment portfolio: KKU 5×5 likelihood-impact matrix score, ERM tier (LOW / MODERATE / HIGH / VERY_HIGH), 5-year revenue at risk, and the dominant risk driver (L1 recruitment decay / L2 AI disruption / L3 demographic). Same data /risks shows. Use for "which programs are at highest risk?", "what\'s the L2 AI-disruption exposure for our portfolio?".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        level: { type: 'string', enum: ['BACHELOR', 'MASTER', 'DOCTORAL'], default: 'BACHELOR' },
+        facultyId: { type: 'string' },
+        riskLevel: { type: 'string', enum: ['NEEDS_DATA', 'LOW', 'MODERATE', 'HIGH', 'VERY_HIGH'] },
+        limit: { type: 'number', minimum: 1, maximum: 50, default: 20 },
+      },
+    },
+  },
+  {
+    name: 'query_recruitment',
+    description: "TCAS round 1-4 admission funnel: plan vs allocated seats vs applicants vs reported-in. Aggregates POWERBI.ADMISSION_STAT_CURRID. Use for 'how is recruitment going this year?', 'which programs over-allocated seats?'.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        entryYearBe: { type: 'number' },
+        facultyId: { type: 'string' },
+        programId: { type: 'string' },
+        limit: { type: 'number', minimum: 1, maximum: 50, default: 20 },
+      },
     },
   },
 ];

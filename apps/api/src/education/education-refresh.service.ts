@@ -2,6 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@kku/db';
 import { lookupRegion } from '@kku/shared';
 import { configFromEnv, query, withConnection } from './oracle-client';
+import { IngestionQueueService } from '../data-sources/ingestion-queue.service';
+
+// Recruitment refresh delegates to the `kku-tcas-funnel` connector
+// (apps/ingestion) — the data lives in TcasAdmissionFunnel, not in a
+// hand-rolled education cube. We enqueue a manual run and project the
+// IngestionRun's status into the cube-refresh shape so the dashboard's
+// refresh-bar can show "X rows · Y s" without knowing it's a connector.
+const RECRUITMENT_CONNECTOR_SLUG = 'kku-tcas-funnel';
 
 // Education cube refresh — runs three Oracle queries against the
 // POWERBI warehouse and re-populates the three education cube tables.
@@ -277,6 +285,8 @@ export class EducationRefreshService {
   // rather than starting a parallel refresh. Cleared in finally().
   private inflight: Promise<RefreshResult> | null = null;
 
+  constructor(private readonly ingestionQueue: IngestionQueueService) {}
+
   /** Trigger a refresh. With no `cubes` argument, refreshes all five
    *  cubes; with a list, refreshes only those (useful for the per-cube
    *  refresh icons in the dashboard header). Returns the most recent
@@ -301,7 +311,10 @@ export class EducationRefreshService {
   }
 
   /** Most recent refresh row per cube (newest first). Drives the
-   *  "last fetched" badge on every dashboard. */
+   *  "last fetched" badge on every dashboard. Recruitment is sourced
+   *  from IngestionRun (not the cube-refresh table) because that data
+   *  flows through the `kku-tcas-funnel` connector, not a hand-rolled
+   *  cube. */
   async latestPerCube(): Promise<
     {
       cubeName: string;
@@ -313,24 +326,28 @@ export class EducationRefreshService {
       errorMessage: string | null;
     }[]
   > {
-    const rows = await prisma.$queryRaw<
-      {
-        cube_name: string;
-        status: string;
-        started_at: Date;
-        completed_at: Date | null;
-        records_loaded: number | null;
-        duration_ms: number | null;
-        error_message: string | null;
-      }[]
-    >(Prisma.sql`
-      SELECT DISTINCT ON (cube_name)
-        cube_name, status, started_at, completed_at,
-        records_loaded, duration_ms, error_message
-      FROM education_cube_refresh
-      ORDER BY cube_name, started_at DESC
-    `);
-    return rows.map((r) => ({
+    const [rows, recruitmentRow] = await Promise.all([
+      prisma.$queryRaw<
+        {
+          cube_name: string;
+          status: string;
+          started_at: Date;
+          completed_at: Date | null;
+          records_loaded: number | null;
+          duration_ms: number | null;
+          error_message: string | null;
+        }[]
+      >(Prisma.sql`
+        SELECT DISTINCT ON (cube_name)
+          cube_name, status, started_at, completed_at,
+          records_loaded, duration_ms, error_message
+        FROM education_cube_refresh
+        ORDER BY cube_name, started_at DESC
+      `),
+      this.latestRecruitmentRun(),
+    ]);
+
+    const out = rows.map((r) => ({
       cubeName: r.cube_name,
       status: r.status,
       startedAt: r.started_at,
@@ -339,6 +356,62 @@ export class EducationRefreshService {
       durationMs: r.duration_ms,
       errorMessage: r.error_message,
     }));
+    if (recruitmentRow) out.push(recruitmentRow);
+    return out;
+  }
+
+  /** Project the latest IngestionRun for `kku-tcas-funnel` into the
+   *  cube-refresh shape so the refresh-bar can display it alongside
+   *  the hand-rolled cubes without special-casing in the UI. */
+  private async latestRecruitmentRun(): Promise<{
+    cubeName: string;
+    status: string;
+    startedAt: Date;
+    completedAt: Date | null;
+    recordsLoaded: number | null;
+    durationMs: number | null;
+    errorMessage: string | null;
+  } | null> {
+    const source = await prisma.dataSource.findUnique({
+      where: { slug: RECRUITMENT_CONNECTOR_SLUG },
+      select: { id: true },
+    });
+    if (!source) return null;
+    const run = await prisma.ingestionRun.findFirst({
+      where: { dataSourceId: source.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        status: true,
+        startedAt: true,
+        completedAt: true,
+        durationMs: true,
+        recordsLoaded: true,
+        errorMessage: true,
+        createdAt: true,
+      },
+    });
+    if (!run) return null;
+    const startedAt = run.startedAt ?? run.createdAt;
+    return {
+      cubeName: 'recruitment',
+      status:
+        run.status === 'RUNNING' || run.status === 'QUEUED'
+          ? 'RUNNING'
+          : run.status === 'SUCCEEDED'
+            ? 'SUCCEEDED'
+            : run.status === 'SKIPPED'
+              ? 'SKIPPED'
+              : 'FAILED',
+      startedAt,
+      completedAt: run.completedAt,
+      recordsLoaded: run.recordsLoaded ?? null,
+      durationMs:
+        run.durationMs ??
+        (run.completedAt
+          ? run.completedAt.getTime() - startedAt.getTime()
+          : null),
+      errorMessage: run.errorMessage,
+    };
   }
 
   // ── Internal ──────────────────────────────────────────────────────
@@ -458,9 +531,33 @@ export class EducationRefreshService {
       ? await this.persistTuition(q3, refreshedAt, triggeredByUserId, startedAt)
       : 0;
 
+    // Recruitment is asynchronous — the connector runs on the
+    // ingestion worker. We enqueue a manual run and report `0` rows
+    // synchronously; the refresh-bar's status-poll picks up the real
+    // count from the IngestionRun once the worker finishes.
+    let recruitmentEnqueued = 0;
+    if (want('recruitment')) {
+      try {
+        await this.ingestionQueue.enqueueManual(
+          RECRUITMENT_CONNECTOR_SLUG,
+          triggeredByUserId ?? 'system',
+        );
+        recruitmentEnqueued = 1;
+        this.logger.log(
+          `recruitment cube · enqueued ${RECRUITMENT_CONNECTOR_SLUG} manual run`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to enqueue ${RECRUITMENT_CONNECTOR_SLUG} — ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
     const completedAt = new Date();
     this.logger.log(
-      `Education cube refresh complete · student=${studentRows} · location=${locationRows} · tuition=${tuitionRows} · ${completedAt.getTime() - startedAt.getTime()}ms`,
+      `Education cube refresh complete · student=${studentRows} · location=${locationRows} · tuition=${tuitionRows} · recruitment=${recruitmentEnqueued} · ${completedAt.getTime() - startedAt.getTime()}ms`,
     );
 
     return {
@@ -472,6 +569,7 @@ export class EducationRefreshService {
         tuition: tuitionRows,
         performance: performanceRows,
         entryScores: entryScoreRows,
+        recruitment: recruitmentEnqueued,
       },
     };
   }
@@ -978,7 +1076,8 @@ export type RefreshableCube =
   | 'location'
   | 'tuition'
   | 'performance'
-  | 'entryScores';
+  | 'entryScores'
+  | 'recruitment';
 
 export const REFRESHABLE_CUBES: RefreshableCube[] = [
   'student',
@@ -986,6 +1085,7 @@ export const REFRESHABLE_CUBES: RefreshableCube[] = [
   'tuition',
   'performance',
   'entryScores',
+  'recruitment',
 ];
 
 export interface RefreshResult {
@@ -997,6 +1097,9 @@ export interface RefreshResult {
     tuition: number;
     performance: number;
     entryScores: number;
+    /** 1 when the connector was enqueued; 0 when refresh didn't ask
+     *  for it. Actual rows landed are reported by the IngestionRun. */
+    recruitment: number;
   };
 }
 

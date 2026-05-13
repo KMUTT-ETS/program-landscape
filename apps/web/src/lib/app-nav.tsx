@@ -23,7 +23,6 @@ function isUniversityWide(role: string | undefined | null): boolean {
 import {
   BookOpen,
   Building2,
-  ClipboardList,
   GitCompare,
   GraduationCap,
   History,
@@ -102,7 +101,6 @@ const analysisSection: NavSection = {
     { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
     { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
     { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
-    { href: '/decisions', label: 'Decisions', icon: createElement(ClipboardList), moduleKey: 'decisions' },
     { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
   ],
 };

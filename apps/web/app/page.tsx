@@ -5,9 +5,14 @@ import {
   CardHeader,
   CardTitle,
   KPI,
-  PageHeader,
 } from '@kku/ui';
-import { ArrowRight } from 'lucide-react';
+import {
+  ArrowRight,
+  Building2,
+  GraduationCap,
+  LineChart,
+  Sparkles,
+} from 'lucide-react';
 import {
   ThumbCockpit,
   ThumbExecutive,
@@ -19,10 +24,15 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { apiFetchAsUniversityUser } from '@/lib/api-client';
-import { resolveUserChrome } from '@/lib/display-name';
+import {
+  pickGreetingName,
+  resolveUserChrome,
+  timeOfDayGreeting,
+} from '@/lib/display-name';
 import { PublicationsSparkline } from '@/components/dashboard/publications-sparkline';
 import { CopyrightFooter } from '@/components/copyright-footer';
 import { getHomePublicationsSnapshot } from '@/lib/profile-data';
+import { HeroBanner, type HeroBannerStat } from '@/components/hero-banner';
 
 // Lightweight welcome home. ~75% of the page is content shared across
 // every signed-in user (university KPIs, quick actions); ~25% is a
@@ -164,23 +174,6 @@ async function loadUniversityKpisCached(
   return data;
 }
 
-// Greeting respecting Asia/Bangkok wall-clock — most KKU users are
-// local. Server-side render so it's correct at first paint.
-function timeOfDayGreeting(): string {
-  // Force Bangkok TZ. Intl is more reliable than Date.getHours() since
-  // the server may be UTC.
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    hour12: false,
-    timeZone: 'Asia/Bangkok',
-  });
-  const hour = parseInt(fmt.format(new Date()), 10);
-  if (hour >= 5 && hour < 12) return 'Good morning';
-  if (hour >= 12 && hour < 17) return 'Good afternoon';
-  if (hour >= 17 && hour < 22) return 'Good evening';
-  return 'Hello';
-}
-
 function compactNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
@@ -264,34 +257,72 @@ export default async function HomePage() {
     .slice(0, 6);
   const myProgramsExtra = Math.max(0, userScopes.length - myPrograms.length);
 
-  // chrome.name is { th, en } when the user is on the FacultyMember
-  // roster; null otherwise. Prefer English here. Fall back to user.name
-  // (from SSO claims) and finally a generic greeting.
-  const greetingName =
-    chrome.name?.en ??
-    chrome.name?.th ??
-    user.name ??
-    user.email?.split('@')[0] ??
-    'there';
+  // Canonical greeting resolution — shared with /admin via
+  // pickGreetingName so the same user sees the same name everywhere.
+  const greetingName = pickGreetingName({ chrome, user });
   const greeting = timeOfDayGreeting();
   const roleLabel = ROLE_LABEL[user.role] ?? user.role;
   const isAcademicStaff = totalPapersPersonal > 0;
 
+  const heroStats: HeroBannerStat[] = [
+    {
+      label: 'Active programs',
+      value: activeProgramCount.toLocaleString('en-US'),
+      hint: 'status = ACTIVE',
+      icon: <Building2 className="h-3.5 w-3.5" />,
+    },
+    {
+      label: 'Total students',
+      value:
+        enrolledTotal > 0 ? enrolledTotal.toLocaleString('en-US') : '—',
+      hint: 'all enrolled',
+      icon: <GraduationCap className="h-3.5 w-3.5" />,
+    },
+    {
+      label: `Papers (${researchYearLabel})`,
+      value:
+        totalPapersWindow > 0 ? compactNumber(totalPapersWindow) : '—',
+      hint:
+        totalCitationsWindow > 0
+          ? `${compactNumber(totalCitationsWindow)} citations`
+          : 'Scopus + PubMed',
+      icon: <LineChart className="h-3.5 w-3.5" />,
+    },
+    {
+      label: 'Total staff',
+      value:
+        staffCounts.total > 0
+          ? staffCounts.total.toLocaleString('en-US')
+          : '—',
+      hint:
+        staffCounts.academic > 0
+          ? `${staffCounts.academic.toLocaleString('en-US')} academic`
+          : 'KKU HR roster',
+      icon: <Sparkles className="h-3.5 w-3.5" />,
+    },
+  ];
+
   return (
     <AuthedAppShell user={user}>
       <div className="mx-auto flex max-w-[1280px] flex-col gap-6 p-6">
-        {/* HERO ────────────────────────────────────────────────────────── */}
-        <PageHeader
-          eyebrow="Welcome back"
+        {/* HERO ─── shared HeroBanner used by /admin too ───────────────── */}
+        <HeroBanner
+          eyebrow={
+            <>
+              <span>KKU</span>
+              <span aria-hidden className="opacity-40">/</span>
+              <span className="text-text-secondary">Welcome back</span>
+            </>
+          }
           title={`${greeting}, ${greetingName}`}
           subtitle={
-            facultyName
-              ? `${roleLabel} · ${facultyName.nameEn}`
-              : roleLabel
+            facultyName ? `${roleLabel} · ${facultyName.nameEn}` : roleLabel
           }
+          icon={<Sparkles className="h-6 w-6" aria-hidden />}
+          stats={heroStats}
         />
 
-        {/* UNIVERSITY KPI STRIP ─── 75% (universal) ─────────────────────── */}
+        {/* SECONDARY KPI STRIP ─── staff + leadership detail ───────────── */}
         <Card padding="md">
           <CardHeader className="mb-3">
             <CardTitle className="text-xs uppercase tracking-wide text-text-tertiary">
@@ -299,21 +330,6 @@ export default async function HomePage() {
             </CardTitle>
           </CardHeader>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {/* Row 1 — institutional scale + leadership highlight */}
-            <KPI
-              label="Active programs"
-              value={activeProgramCount.toLocaleString('en-US')}
-            />
-            <KPI
-              label="Total students"
-              value={enrolledTotal > 0 ? enrolledTotal.toLocaleString('en-US') : '—'}
-            />
-            <KPI
-              label="Total staff"
-              value={
-                staffCounts.total > 0 ? staffCounts.total.toLocaleString('en-US') : '—'
-              }
-            />
             <KPI
               label="Leadership roles"
               value={
@@ -322,7 +338,6 @@ export default async function HomePage() {
                   : '—'
               }
             />
-            {/* Row 2 — staff breakdown + research outputs */}
             <KPI
               label="Academic staff"
               value={
@@ -340,13 +355,11 @@ export default async function HomePage() {
               }
             />
             <KPI
-              label={`Papers (${researchYearLabel})`}
-              value={totalPapersWindow > 0 ? compactNumber(totalPapersWindow) : '—'}
-            />
-            <KPI
               label={`Citations (${researchYearLabel})`}
               value={
-                totalCitationsWindow > 0 ? compactNumber(totalCitationsWindow) : '—'
+                totalCitationsWindow > 0
+                  ? compactNumber(totalCitationsWindow)
+                  : '—'
               }
             />
           </div>

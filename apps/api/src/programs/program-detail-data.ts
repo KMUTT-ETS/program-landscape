@@ -299,11 +299,21 @@ export async function buildProgramDetailData(
             : '',
       });
     }
-    if (financials.governmentFacultySubsidy !== null) {
+    if (financials.salaryByFunding && financials.salaryByFunding.totalAnnualThb > 0) {
+      const top = financials.salaryByFunding.entries[0];
       executiveSnapshot.push({
-        metric: 'Government faculty subsidy',
+        metric: 'Teaching-staff salary cost',
+        value: `${fmtNum(Math.round(financials.salaryByFunding.totalAnnualThb))} THB / yr`,
+        notes:
+          top
+            ? `enrolment-weighted · top source: ${top.salType} (${Math.round(top.share * 100)}%)`
+            : 'enrolment-weighted across this program’s teaching staff',
+      });
+    } else if (financials.governmentFacultySubsidy !== null) {
+      executiveSnapshot.push({
+        metric: 'Teaching-staff salary cost',
         value: `${fmtNum(financials.governmentFacultySubsidy)} THB / yr`,
-        notes: 'block-grant-funded faculty salaries (not netted from tuition)',
+        notes: 'fallback — kku-hr compensation cube unavailable for this program',
       });
     }
   }

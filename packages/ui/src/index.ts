@@ -1,4 +1,5 @@
 export * from './lib/cn';
+export * from './lib/humanize';
 export * from './primitives';
 export * from './feedback';
 export * from './layout';

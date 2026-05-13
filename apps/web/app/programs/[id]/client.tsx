@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -1990,22 +1991,75 @@ function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
           <div className="text-xs text-text-tertiary">THB · direct income from enrolled students</div>
         </Card>
         <Card tone="quiet">
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">Government salary subsidy</div>
+          <div className="text-xs uppercase tracking-wide text-text-tertiary">
+            Teaching-staff salary cost
+          </div>
           <div className="mt-1 font-tabular text-2xl font-semibold">
-            {subsidy.toLocaleString('en-US')}
+            {(data.salaryByFunding?.totalAnnualThb ?? subsidy).toLocaleString(
+              'en-US',
+              { maximumFractionDigits: 0 },
+            )}
           </div>
           <div className="text-xs text-text-tertiary">
-            THB/yr · faculty salaries funded by central government block grant — NOT netted from tuition
+            {data.salaryByFunding
+              ? `THB/yr · weighted by enrolment share · ${data.salaryByFunding.contributingMembers} member${data.salaryByFunding.contributingMembers === 1 ? '' : 's'}`
+              : 'THB/yr · faculty payroll — NOT netted from tuition'}
           </div>
         </Card>
         <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">Government investment / student</div>
+          <div className="text-xs uppercase tracking-wide text-text-tertiary">Public investment / student</div>
           <div className="mt-1 font-tabular text-2xl font-semibold">
             {data.costPerStudent ? Math.round(data.costPerStudent).toLocaleString('en-US') : '—'}
           </div>
-          <div className="text-xs text-text-tertiary">THB/yr · subsidized salary per enrolled head</div>
+          <div className="text-xs text-text-tertiary">THB/yr · subsidised salary per enrolled head</div>
         </Card>
       </div>
+      {data.salaryByFunding && data.salaryByFunding.entries.length > 0 && (
+        <Card>
+          <h4 className="mb-1 text-sm font-semibold">
+            Where teaching-staff salaries come from
+          </h4>
+          <p className="mb-3 text-xs text-text-tertiary">
+            Funding-source split for this program&apos;s teaching staff,
+            sourced from the KKU-HR compensation cube (
+            <Link href="/staff/compensation" className="text-accent-default hover:underline">
+              /staff/compensation
+            </Link>
+            ). Staff who teach more than one program have their salary
+            contribution to <em>this</em> program weighted by enrolment
+            share (a lecturer teaching a 200- and a 20-student program
+            contributes ~91% to the former).
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {data.salaryByFunding.entries.map((e) => (
+              <li key={e.salType} className="flex items-center gap-3">
+                <span className="w-44 shrink-0 truncate text-xs" lang="th">
+                  {e.salType}
+                </span>
+                <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    className="h-full rounded-full bg-accent-default/70"
+                    style={{ width: `${Math.max(2, e.share * 100)}%` }}
+                  />
+                </div>
+                <span className="w-24 shrink-0 text-right font-tabular text-xs">
+                  {Math.round(e.annualThb).toLocaleString('en-US')}
+                </span>
+                <span className="w-12 shrink-0 text-right font-tabular text-xs text-text-tertiary">
+                  {Math.round(e.share * 100)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-text-tertiary">
+            Methodology {data.salaryByFunding.methodologyVersion} · FY{' '}
+            {data.salaryByFunding.sourceFiscalYear ?? '—'} ·{' '}
+            {data.salaryByFunding.contributingMembers} contributing,{' '}
+            {data.salaryByFunding.unresolvedMembers} unresolved (no cube
+            row at their faculty × rank).
+          </p>
+        </Card>
+      )}
       <Card>
         <h4 className="mb-2 text-sm font-semibold">Tuition flow</h4>
         <p className="mb-3 text-xs text-text-tertiary">

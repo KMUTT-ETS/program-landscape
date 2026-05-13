@@ -28,11 +28,19 @@ import {
   ComparePeersInputSchema,
   DEFAULT_ASSUMPTIONS,
   GenerateChartInputSchema,
+  GetEducationKpisInputSchema,
   GetMethodologyInputSchema,
   GetProgramInputSchema,
+  GetRiskPortfolioInputSchema,
+  GetStaffKpisInputSchema,
   InterventionSchema,
+  ListDataSourcesInputSchema,
+  QueryAiExtractionsInputSchema,
   QueryGapsInputSchema,
+  QueryPdfLibraryInputSchema,
+  QueryPipelineRunsInputSchema,
   QueryProgramsInputSchema,
+  QueryRecruitmentInputSchema,
   QuerySkillsInputSchema,
   QueryTrendsInputSchema,
   RunQuickScenarioInputSchema,
@@ -45,6 +53,7 @@ import {
   type Intervention,
   type ToolCall,
 } from '@kku/shared';
+import { listPortfolioRisk } from '@kku/db';
 
 // ═════════════════════════════════════════════════════════════════════
 // Analyst tool executor
@@ -512,6 +521,478 @@ export class AnalystToolExecutor {
               'Demand from JobPostingSkill + OccupationDemand; supply from ProgramSkill × graduate counts. Ranked by |gap|. Regional filter is a view filter, not a flow model.',
           };
       }
+    },
+
+    // ── Operational + observability tools ──────────────────────────
+    // These wrap the admin endpoints + materialised dashboard summaries
+    // so the analyst can answer "is kku-finance live?", "how many
+    // curriculum PDFs do we have?", "what's our staff headcount?".
+
+    list_data_sources: async (input) => {
+      const q = ListDataSourcesInputSchema.parse(input);
+      const sources = await prisma.dataSource.findMany({
+        take: q.limit,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          ownerContact: true,
+          cadenceCron: true,
+          scheduleEnabled: true,
+          status: true,
+          // Latest 7-day window of runs, used to compute a rough
+          // success rate without a separate aggregation query.
+          ingestionRuns: {
+            orderBy: { createdAt: 'desc' },
+            take: 7,
+            select: {
+              status: true,
+              createdAt: true,
+              recordsLoaded: true,
+              durationMs: true,
+            },
+          },
+        },
+      });
+      const items = sources
+        .map((s) => {
+          const last = s.ingestionRuns[0];
+          const succeeded = s.ingestionRuns.filter(
+            (r) => r.status === 'SUCCEEDED',
+          ).length;
+          const total = s.ingestionRuns.length;
+          // DataSource.status is the live "mocked" / "real" tag.
+          const mode =
+            (s.status === 'mocked' ? 'mocked' : 'real') as 'mocked' | 'real';
+          if (q.mode !== 'all' && q.mode !== mode) return null;
+          return {
+            slug: s.slug,
+            name: s.name,
+            mode,
+            scheduleEnabled: s.scheduleEnabled,
+            cadenceCron: s.cadenceCron,
+            ownerContact: s.ownerContact,
+            lastRunStatus: last?.status ?? null,
+            lastRunAt: last?.createdAt ?? null,
+            recentSuccessRate:
+              total > 0 ? Math.round((succeeded / total) * 100) : null,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      return { count: items.length, sources: items };
+    },
+
+    query_pipeline_runs: async (input) => {
+      const q = QueryPipelineRunsInputSchema.parse(input);
+      const since = new Date(Date.now() - q.windowDays * 86_400_000);
+      const where: Prisma.IngestionRunWhereInput = {
+        createdAt: { gte: since },
+      };
+      if (q.status) where.status = q.status;
+      if (q.slug) {
+        const src = await prisma.dataSource.findUnique({
+          where: { slug: q.slug },
+          select: { id: true },
+        });
+        if (!src) return { count: 0, runs: [], note: `unknown slug: ${q.slug}` };
+        where.dataSourceId = src.id;
+      }
+      const runs = await prisma.ingestionRun.findMany({
+        where,
+        take: q.limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          trigger: true,
+          startedAt: true,
+          completedAt: true,
+          durationMs: true,
+          recordsLoaded: true,
+          recordsFailed: true,
+          errorCode: true,
+          errorMessage: true,
+          dataSource: { select: { slug: true, name: true } },
+        },
+      });
+      return {
+        count: runs.length,
+        runs: runs.map((r) => ({
+          slug: r.dataSource.slug,
+          sourceName: r.dataSource.name,
+          status: r.status,
+          trigger: r.trigger,
+          startedAt: r.startedAt,
+          completedAt: r.completedAt,
+          durationMs: r.durationMs,
+          recordsLoaded: r.recordsLoaded,
+          recordsFailed: r.recordsFailed,
+          errorCode: r.errorCode,
+          // Trim long error messages so they don't blow the LLM context.
+          errorMessage:
+            r.errorMessage && r.errorMessage.length > 400
+              ? r.errorMessage.slice(0, 400) + ' …'
+              : r.errorMessage,
+        })),
+      };
+    },
+
+    query_pdf_library: async (input) => {
+      const q = QueryPdfLibraryInputSchema.parse(input);
+      const where: Prisma.PdfDocumentWhereInput = {};
+      if (q.sourceCategory) where.sourceCategory = q.sourceCategory as never;
+      if (q.processingStatus) where.processingStatus = q.processingStatus;
+      if (q.query) {
+        where.OR = [
+          { originalFilename: { contains: q.query, mode: 'insensitive' } },
+          { sourceOrg: { contains: q.query, mode: 'insensitive' } },
+        ];
+      }
+      const rows = await prisma.pdfDocument.findMany({
+        where,
+        take: q.limit,
+        orderBy: { uploadedAt: 'desc' },
+        select: {
+          id: true,
+          originalFilename: true,
+          sourceCategory: true,
+          sourceOrg: true,
+          processingStatus: true,
+          uploadedAt: true,
+          pageCount: true,
+          fileSize: true,
+        },
+      });
+      return { count: rows.length, pdfs: rows };
+    },
+
+    query_ai_extractions: async (input) => {
+      const q = QueryAiExtractionsInputSchema.parse(input);
+      const where: Prisma.AiExtractionWhereInput = {};
+      if (q.extractionType) where.extractionKind = q.extractionType;
+      if (q.reviewStatus) where.reviewStatus = q.reviewStatus;
+      // AiExtraction uses a generic (sourceEntityType, sourceEntityId)
+      // anchor — for PROGRAM_DIGEST rows the program id is stored
+      // there. Matches the materialise pipeline in @kku/db.
+      if (q.programId) {
+        where.sourceEntityType = 'program';
+        where.sourceEntityId = q.programId;
+      }
+      const rows = await prisma.aiExtraction.findMany({
+        where,
+        take: q.limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          extractionKind: true,
+          sourceEntityType: true,
+          sourceEntityId: true,
+          reviewStatus: true,
+          confidence: true,
+          methodVersion: true,
+          createdAt: true,
+        },
+      });
+      // Resolve program names for any program-anchored rows in a single
+      // batched lookup so the LLM gets a human-readable label.
+      const programIds = [
+        ...new Set(
+          rows
+            .filter((r) => r.sourceEntityType === 'program')
+            .map((r) => r.sourceEntityId),
+        ),
+      ];
+      const programs = programIds.length
+        ? await prisma.program.findMany({
+            where: { id: { in: programIds } },
+            select: { id: true, code: true, nameEn: true },
+          })
+        : [];
+      const programById = new Map(programs.map((p) => [p.id, p]));
+      return {
+        count: rows.length,
+        extractions: rows.map((r) => {
+          const p =
+            r.sourceEntityType === 'program'
+              ? programById.get(r.sourceEntityId)
+              : undefined;
+          return {
+            id: r.id,
+            extractionKind: r.extractionKind,
+            sourceEntityType: r.sourceEntityType,
+            sourceEntityId: r.sourceEntityId,
+            programCode: p?.code ?? null,
+            programNameEn: p?.nameEn ?? null,
+            reviewStatus: r.reviewStatus,
+            confidence: r.confidence,
+            methodVersion: r.methodVersion,
+            createdAt: r.createdAt,
+          };
+        }),
+      };
+    },
+
+    get_education_kpis: async (input) => {
+      const q = GetEducationKpisInputSchema.parse(input);
+      const include = new Set(
+        q.include ?? ['student', 'location', 'tuition', 'performance', 'entryScores', 'recruitment'],
+      );
+      const facWhere = q.facultyName ? { facultyName: q.facultyName } : {};
+      const out: Record<string, unknown> = {};
+      if (include.has('student')) {
+        const totalActive = await prisma.educationStudentCube.aggregate({
+          where: { ...facWhere, statusCode: 10 },
+          _sum: { studentCount: true },
+        });
+        out.studentTotalActive = totalActive._sum.studentCount ?? 0;
+      }
+      if (include.has('location')) {
+        const byRegion = await prisma.educationStudentLocationCube.groupBy({
+          by: ['thaiRegion'],
+          where: facWhere,
+          _sum: { studentCount: true },
+        });
+        out.studentByRegion = byRegion.map((r) => ({
+          region: r.thaiRegion,
+          studentCount: r._sum.studentCount ?? 0,
+        }));
+      }
+      if (include.has('tuition')) {
+        const tuitionByYear = await prisma.educationTuitionCube.groupBy({
+          by: ['academicYearBe'],
+          where: facWhere,
+          _sum: { revenueThb: true, studentCount: true },
+          orderBy: { academicYearBe: 'desc' },
+          take: 5,
+        });
+        out.tuitionByYear = tuitionByYear.map((r) => ({
+          academicYearBe: r.academicYearBe,
+          revenueThb: Number(r._sum.revenueThb ?? 0),
+          studentCount: r._sum.studentCount ?? 0,
+        }));
+      }
+      if (include.has('performance')) {
+        const perf = await prisma.educationPerformanceCube.aggregate({
+          where: facWhere,
+          _sum: { gpaSum: true, gpaCount: true, entryGpaSum: true, entryGpaCount: true },
+        });
+        out.gpaAverage =
+          (perf._sum.gpaCount ?? 0) > 0
+            ? Number((perf._sum.gpaSum ?? 0)) / (perf._sum.gpaCount ?? 1)
+            : null;
+        out.entryGpaAverage =
+          (perf._sum.entryGpaCount ?? 0) > 0
+            ? Number((perf._sum.entryGpaSum ?? 0)) / (perf._sum.entryGpaCount ?? 1)
+            : null;
+      }
+      if (include.has('entryScores')) {
+        const topSubjects = await prisma.educationEntryScoreCube.groupBy({
+          by: ['subjectCode', 'subjectName'],
+          _sum: { scoreSum: true, scoreCount: true, studentCount: true },
+          orderBy: { _sum: { studentCount: 'desc' } },
+          take: 5,
+        });
+        out.topEntryScoreSubjects = topSubjects.map((r) => ({
+          subjectCode: r.subjectCode,
+          subjectName: r.subjectName,
+          meanScore:
+            (r._sum.scoreCount ?? 0) > 0
+              ? Number((r._sum.scoreSum ?? 0)) / (r._sum.scoreCount ?? 1)
+              : null,
+          studentCount: r._sum.studentCount ?? 0,
+        }));
+      }
+      if (include.has('recruitment')) {
+        const latestYear = await prisma.tcasAdmissionFunnel.aggregate({
+          _max: { entryYearBE: true },
+        });
+        const year = latestYear._max.entryYearBE;
+        if (year !== null && year !== undefined) {
+          const totals = await prisma.tcasAdmissionFunnel.aggregate({
+            where: { entryYearBE: year },
+            _sum: {
+              planPerYear: true,
+              enrollSeats: true,
+              totalApplicants: true,
+              regReported: true,
+            },
+          });
+          out.recruitmentLatestYearBe = year;
+          out.recruitmentTotals = {
+            planPerYear: totals._sum?.planPerYear ?? 0,
+            enrollSeats: totals._sum?.enrollSeats ?? 0,
+            totalApplicants: totals._sum?.totalApplicants ?? 0,
+            regReported: totals._sum?.regReported ?? 0,
+          };
+        }
+      }
+      return out;
+    },
+
+    get_staff_kpis: async (input) => {
+      const q = GetStaffKpisInputSchema.parse(input);
+      const include = new Set(q.include ?? ['workforce', 'compensation', 'research', 'lifecycle']);
+      const facWhere = q.facultyName ? { facultyName: q.facultyName } : {};
+      const out: Record<string, unknown> = {};
+      if (include.has('workforce')) {
+        const total = await prisma.facultyMember.count({ where: { isActive: true } });
+        const byRank = await prisma.facultyMember.groupBy({
+          by: ['rank'],
+          where: { isActive: true },
+          _count: true,
+        });
+        out.workforceTotalActive = total;
+        out.workforceByRank = byRank.map((r) => ({ rank: r.rank, count: r._count }));
+      }
+      if (include.has('compensation')) {
+        // "Where salaries come from" — sum headcount + sum salary per
+        // salType. Same shape as the /staff/compensation viz uses.
+        const rows = await prisma.staffCompensationCube.findMany({
+          where: { ...facWhere, isAcademic: true },
+          select: { salType: true, headcount: true, sumSalary: true, fiscalYear: true },
+        });
+        const latestFy = Math.max(0, ...rows.map((r) => r.fiscalYear));
+        const map = new Map<string, { headcount: number; sumSalary: number }>();
+        for (const r of rows.filter((r) => r.fiscalYear === latestFy)) {
+          const k = (r.salType ?? '').trim() || 'เงินรายได้';
+          const acc = map.get(k) ?? { headcount: 0, sumSalary: 0 };
+          acc.headcount += r.headcount;
+          acc.sumSalary += Number(r.sumSalary);
+          map.set(k, acc);
+        }
+        out.compensationBySalType = [...map.entries()].map(([salType, v]) => ({
+          salType,
+          headcount: v.headcount,
+          totalMonthlySalaryThb: v.sumSalary,
+        }));
+      }
+      if (include.has('research')) {
+        const total = await prisma.researchOutput.count();
+        const recentYear = new Date().getUTCFullYear();
+        const last5 = await prisma.researchOutput.count({
+          where: { year: { gte: recentYear - 5 } },
+        });
+        out.researchOutputTotal = total;
+        out.researchOutputLast5Years = last5;
+      }
+      if (include.has('lifecycle')) {
+        const joiners = await prisma.facultyMember.count({
+          where: {
+            hireDate: {
+              gte: new Date(Date.now() - 365 * 86_400_000),
+            },
+          },
+        });
+        const retiringSoon = await prisma.facultyMember.count({
+          where: {
+            isActive: true,
+            retirementDate: {
+              not: null,
+              lte: new Date(Date.now() + 5 * 365 * 86_400_000),
+            },
+          },
+        });
+        out.joinersLast12Months = joiners;
+        out.retiringWithin5Years = retiringSoon;
+      }
+      return out;
+    },
+
+    get_risk_portfolio: async (input) => {
+      const q = GetRiskPortfolioInputSchema.parse(input);
+      const rows = await listPortfolioRisk({
+        level: q.level,
+        facultyId: q.facultyId,
+      });
+      const filtered = q.riskLevel
+        ? rows.filter((r) => r.kkuRiskLevel === q.riskLevel)
+        : rows;
+      const top = filtered
+        .slice()
+        .sort((a, b) => (b.kkuMatrixScore ?? 0) - (a.kkuMatrixScore ?? 0))
+        .slice(0, q.limit);
+      return {
+        count: top.length,
+        portfolio: top.map((r) => ({
+          programId: r.programId,
+          programCode: r.programCode,
+          programNameEn: r.programNameEn,
+          facultyNameEn: r.facultyNameEn,
+          kkuRiskLevel: r.kkuRiskLevel,
+          kkuMatrixScore: r.kkuMatrixScore,
+          likelihoodBin: r.likelihoodBin,
+          impactBin: r.impactBin,
+          directRevenueAtRiskThb:
+            r.directRevenueAtRiskThb !== null
+              ? Number(r.directRevenueAtRiskThb)
+              : null,
+          dominantDriver:
+            // Highest of L1/L2/L3 — same heuristic /risks uses for the
+            // driver-mix donut.
+            [
+              { name: 'L1 recruitment decay', value: r.l1 ?? 0 },
+              { name: 'L2 AI disruption', value: r.l2 ?? 0 },
+              { name: 'L3 demographic', value: r.l3 ?? 0 },
+            ].sort((a, b) => b.value - a.value)[0]?.name ?? null,
+        })),
+      };
+    },
+
+    query_recruitment: async (input) => {
+      const q = QueryRecruitmentInputSchema.parse(input);
+      const maxAgg = await prisma.tcasAdmissionFunnel.aggregate({
+        _max: { entryYearBE: true },
+      });
+      const latestYear = q.entryYearBe ?? maxAgg._max?.entryYearBE ?? null;
+      if (latestYear === null) return { count: 0, rows: [] };
+      const where: Prisma.TcasAdmissionFunnelWhereInput = {
+        entryYearBE: latestYear,
+      };
+      if (q.programId) where.programId = q.programId;
+      const rows = await prisma.tcasAdmissionFunnel.findMany({
+        where,
+        take: q.limit,
+        orderBy: { totalApplicants: 'desc' },
+        select: {
+          entryYearBE: true,
+          round: true,
+          planPerYear: true,
+          enrollSeats: true,
+          totalApplicants: true,
+          regReported: true,
+          program: {
+            select: {
+              id: true,
+              code: true,
+              nameEn: true,
+              facultyId: true,
+              faculty: { select: { id: true, nameEn: true } },
+            },
+          },
+        },
+      });
+      const facultyFiltered = q.facultyId
+        ? rows.filter((r) => r.program?.facultyId === q.facultyId)
+        : rows;
+      return {
+        count: facultyFiltered.length,
+        entryYearBe: latestYear,
+        rows: facultyFiltered.map((r) => ({
+          programCode: r.program?.code,
+          programNameEn: r.program?.nameEn,
+          facultyNameEn: r.program?.faculty?.nameEn,
+          round: r.round,
+          planPerYear: r.planPerYear,
+          enrollSeats: r.enrollSeats,
+          totalApplicants: r.totalApplicants,
+          regReported: r.regReported,
+          competitionRatio:
+            r.enrollSeats && r.enrollSeats > 0 && r.totalApplicants
+              ? Number((r.totalApplicants / r.enrollSeats).toFixed(2))
+              : null,
+        })),
+      };
     },
   };
 }

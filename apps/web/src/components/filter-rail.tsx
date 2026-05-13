@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { Card, Input, Label } from '@kku/ui';
-import { Search } from 'lucide-react';
+import Link from 'next/link';
+import { Card, Input, Label, cn } from '@kku/ui';
+import { ArrowUpRight, Search } from 'lucide-react';
 
 // Filter-rail primitives — codify the canonical filter UI established
 // on /admin/programs so every page renders the same chrome:
@@ -138,10 +139,15 @@ export type FilterSearchProps =
 
 export function FilterSearch(props: FilterSearchProps) {
   const isControlled = 'value' in props;
+  // Icon centred vertically (top-1/2 + -translate-y-1/2) at the same
+  // 12px left inset as Input's px-3. pl-10 leaves 16px of breathing
+  // room between icon (right edge at 28px) and the text caret — safe
+  // for Thai glyphs with side-bearings and for placeholder italics
+  // that would otherwise touch the icon.
   return (
     <div className="relative">
       <Search
-        className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-text-tertiary"
+        className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-text-tertiary"
         aria-hidden
       />
       {isControlled ? (
@@ -151,7 +157,7 @@ export function FilterSearch(props: FilterSearchProps) {
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           placeholder={props.placeholder}
-          className="pl-8"
+          className="pl-10"
         />
       ) : (
         <Input
@@ -159,11 +165,71 @@ export function FilterSearch(props: FilterSearchProps) {
           name={props.name}
           defaultValue={props.defaultValue}
           placeholder={props.placeholder}
-          className="pl-8"
+          className="pl-10"
         />
       )}
     </div>
   );
+}
+
+// Cross-link rendered inside a FilterRail row at filter-control height
+// (h-9, matches Input + Select). Used on /risks and any other page
+// where a filter row hosts navigation chips to sibling views.
+//
+// Tone palette mirrors the Badge primitive so the chip reads as a
+// scoped action, not chrome. Default tone is "accent" — visible enough
+// to invite a click without competing with the page's filter focus.
+export type FilterCrossLinkTone = 'accent' | 'cardinal' | 'success' | 'warning' | 'neutral';
+
+const CROSS_LINK_TONE: Record<FilterCrossLinkTone, string> = {
+  accent:
+    'border-accent-default/40 bg-accent-default/10 text-accent-default hover:bg-accent-default/20',
+  cardinal:
+    'border-brand-cardinal/40 bg-brand-cardinal/10 text-brand-cardinal hover:bg-brand-cardinal/20',
+  success: 'border-success/40 bg-success/10 text-success hover:bg-success/20',
+  warning: 'border-warning/40 bg-warning/10 text-warning hover:bg-warning/20',
+  neutral:
+    'border-border-default bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary',
+};
+
+export interface FilterCrossLinkProps {
+  href: string;
+  children: React.ReactNode;
+  tone?: FilterCrossLinkTone;
+  className?: string;
+  /** Open in a new tab. Defaults to false. */
+  external?: boolean;
+}
+
+export function FilterCrossLink({
+  href,
+  children,
+  tone = 'accent',
+  className,
+  external,
+}: FilterCrossLinkProps) {
+  return (
+    <Link
+      href={href}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
+      className={cn(
+        'inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors',
+        CROSS_LINK_TONE[tone],
+        className,
+      )}
+    >
+      {children}
+      <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+    </Link>
+  );
+}
+
+// Companion: a row of cross-links inside a FilterField, sized to share
+// the row with FilterSelect / FilterSearch. Wraps onto a second line
+// when the row narrows.
+export function FilterCrossLinkGroup({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-2">{children}</div>;
 }
 
 export type FilterSelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;

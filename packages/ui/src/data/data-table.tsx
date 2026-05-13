@@ -12,9 +12,11 @@ import {
   type SortingState,
   type Table as TableInstance,
 } from '@tanstack/react-table';
-import { ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { Button } from '../primitives/button';
+import { HoverTooltip } from '../primitives/tooltip';
+import { humanizeNumber } from '../lib/humanize';
 
 // TanStack Table v8 wrapper. Scope for this prompt:
 //   ✓ Sort, filter (global text via opts.globalFilter), paginate, select
@@ -35,6 +37,12 @@ export interface DataTableProps<T> {
   variant?: 'ghost' | 'bordered';
   /** Empty-state rendered in the tbody area. */
   emptyState?: React.ReactNode;
+  /** When `onRowClick` is set, append a right-aligned chevron column that
+   *  visually signals "click to drill in". Mirrors the chevron column on
+   *  /education/active-pivot. Defaults to true when `onRowClick` is
+   *  provided. Set false to opt out (e.g. when the row itself carries an
+   *  inline action that the chevron would conflict with). */
+  drillIndicator?: boolean;
 }
 
 export function DataTable<T>({
@@ -46,6 +54,7 @@ export function DataTable<T>({
   onRowClick,
   variant = 'bordered',
   emptyState,
+  drillIndicator,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const table = useReactTable<T>({
@@ -61,6 +70,8 @@ export function DataTable<T>({
   });
 
   const rows = table.getRowModel().rows;
+  const showDrillCol = drillIndicator ?? Boolean(onRowClick);
+  const colSpanWithDrill = table.getAllColumns().length + (showDrillCol ? 1 : 0);
 
   return (
     <div
@@ -82,6 +93,15 @@ export function DataTable<T>({
                   const align =
                     meta?.align ?? (meta?.numeric ? 'right' : 'left');
                   const canSort = header.column.getCanSort();
+                  const sortDir = header.column.getIsSorted();
+                  const sortIcon =
+                    sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3 text-accent-default" aria-hidden />
+                    ) : sortDir === 'desc' ? (
+                      <ArrowDown className="h-3 w-3 text-accent-default" aria-hidden />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-60" aria-hidden />
+                    );
                   return (
                     <th
                       key={header.id}
@@ -95,10 +115,21 @@ export function DataTable<T>({
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="inline-flex items-center gap-1 hover:text-text-primary"
+                          className={cn(
+                            'inline-flex items-center gap-1 hover:text-text-primary',
+                            align === 'right' && 'flex-row-reverse',
+                            sortDir && 'text-text-primary',
+                          )}
+                          aria-label={
+                            sortDir === 'asc'
+                              ? 'Sorted ascending'
+                              : sortDir === 'desc'
+                                ? 'Sorted descending'
+                                : 'Click to sort'
+                          }
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          <ArrowUpDown className="h-3 w-3" aria-hidden />
+                          {sortIcon}
                         </button>
                       ) : (
                         flexRender(header.column.columnDef.header, header.getContext())
@@ -106,6 +137,12 @@ export function DataTable<T>({
                     </th>
                   );
                 })}
+                {showDrillCol && (
+                  <th
+                    aria-label="Open detail"
+                    className="w-8 px-1 py-[var(--density-cell-py)]"
+                  />
+                )}
               </tr>
             ))}
           </thead>
@@ -113,7 +150,7 @@ export function DataTable<T>({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={table.getAllColumns().length}
+                  colSpan={colSpanWithDrill}
                   className="px-4 py-12 text-center"
                 >
                   {emptyState ?? (
@@ -127,16 +164,32 @@ export function DataTable<T>({
                   key={row.id}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   className={cn(
-                    'border-b border-border-subtle last:border-b-0 h-[var(--density-row-h)]',
+                    'group border-b border-border-subtle last:border-b-0 h-[var(--density-row-h)]',
                     onRowClick && 'cursor-pointer hover:bg-surface-2',
                   )}
                 >
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta as
-                      | { numeric?: boolean; align?: 'left' | 'right' | 'center' }
+                      | {
+                          numeric?: boolean;
+                          align?: 'left' | 'right' | 'center';
+                          /** When the rendered cell is compact (3.2M), pass
+                           *  the raw value so a hover tooltip can show the
+                           *  exact humanized number. */
+                          rawValue?: (row: T) => number | null | undefined;
+                          /** Override the tooltip body for the cell. When
+                           *  set, this wins over `rawValue`. */
+                          tooltip?: (row: T) => React.ReactNode;
+                        }
                       | undefined;
                     const align =
                       meta?.align ?? (meta?.numeric ? 'right' : 'left');
+                    const rendered = flexRender(cell.column.columnDef.cell, cell.getContext());
+                    const tooltipBody = meta?.tooltip
+                      ? meta.tooltip(row.original)
+                      : meta?.rawValue
+                        ? humanizeNumber(meta.rawValue(row.original))
+                        : null;
                     return (
                       <td
                         key={cell.id}
@@ -146,10 +199,24 @@ export function DataTable<T>({
                           meta?.numeric && 'font-tabular',
                         )}
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {tooltipBody !== null && tooltipBody !== undefined ? (
+                          <HoverTooltip content={tooltipBody}>
+                            <span className="inline-block">{rendered}</span>
+                          </HoverTooltip>
+                        ) : (
+                          rendered
+                        )}
                       </td>
                     );
                   })}
+                  {showDrillCol && (
+                    <td className="w-8 px-1 align-middle">
+                      <ChevronRight
+                        className="h-4 w-4 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      />
+                    </td>
+                  )}
                 </tr>
               ))
             )}

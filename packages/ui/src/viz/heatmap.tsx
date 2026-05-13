@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { cn } from '../lib/cn';
+import { HoverTooltip } from '../primitives/tooltip';
 
 // Heatmap for the Portfolio Overview Cockpit (prompt 05). Rows are scope
 // children (faculties / departments / programs depending on current
@@ -119,8 +120,10 @@ export function Heatmap({
 function Cell({ cell }: { cell: HeatmapCell }) {
   if (cell.score === null) {
     return (
-      <td className="px-2 py-2 text-center text-text-tertiary" title="No data">
-        —
+      <td className="px-2 py-2 text-center text-text-tertiary">
+        <HoverTooltip content="No data">
+          <span className="inline-block">—</span>
+        </HoverTooltip>
       </td>
     );
   }
@@ -132,21 +135,45 @@ function Cell({ cell }: { cell: HeatmapCell }) {
       : tone === 'warning'
         ? 'bg-warning-subtle text-warning'
         : 'bg-success-subtle text-success';
-  const driversText = cell.drivers?.length
-    ? cell.drivers
-        .map((d) => `${d.label}: ${d.value === null ? '—' : Math.round(d.value)}`)
-        .join('  ·  ')
-    : '';
-  const completenessNote =
-    cell.dataCompletenessPct < 100
-      ? `  (completeness ${Math.round(cell.dataCompletenessPct)}%)`
-      : '';
+  const tooltipBody = (
+    <div className="flex flex-col gap-1.5 text-left">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[10px] uppercase tracking-wide text-text-tertiary">
+          Score
+        </span>
+        <span className="font-tabular text-sm font-semibold">
+          {Math.round(cell.score)}
+        </span>
+      </div>
+      {cell.drivers && cell.drivers.length > 0 && (
+        <div className="flex flex-col gap-0.5 border-t border-border-subtle pt-1.5">
+          {cell.drivers.map((d) => (
+            <div
+              key={d.label}
+              className="flex items-baseline justify-between gap-3 text-[11px]"
+            >
+              <span className="text-text-secondary">{d.label}</span>
+              <span className="font-tabular text-text-primary">
+                {d.value === null ? '—' : Math.round(d.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {cell.dataCompletenessPct < 100 && (
+        <div className="border-t border-border-subtle pt-1 text-[10px] text-text-tertiary">
+          Completeness {Math.round(cell.dataCompletenessPct)}%
+        </div>
+      )}
+    </div>
+  );
   return (
     <td
       className={cn('px-2 py-2 text-center font-tabular text-sm font-medium', tint)}
-      title={`${Math.round(cell.score)} · ${driversText}${completenessNote}`}
     >
-      {Math.round(cell.score)}
+      <HoverTooltip content={tooltipBody} className="min-w-[180px] p-3">
+        <span className="inline-block">{Math.round(cell.score)}</span>
+      </HoverTooltip>
     </td>
   );
 }

@@ -12,6 +12,7 @@ import {
   Input,
   Label,
 } from '@kku/ui';
+import { FilterSearch } from '@/components/filter-rail';
 import {
   approveExtractionAction,
   rejectExtractionAction,
@@ -365,9 +366,9 @@ function ApplyToProgramPanel({
         </div>
       ) : (
         <div className="relative">
-          <Input
+          <FilterSearch
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
             placeholder="Search by code or name"
           />
           {options.length > 0 && (
