@@ -420,23 +420,33 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
       ]);
       for (const j of completed) {
         const verdict = extractVerdict(j.returnvalue);
+        const verdictReason = extractVerdictReason(j.returnvalue);
+        // state from BullMQ's perspective is `completed` — but the
+        // domain verdict from the handler return value is what the
+        // operator actually wants to see:
+        //   - verdict=SKIPPED → ran without error, produced nothing
+        //   - verdict=FAILED  → ran without throwing, but the handler
+        //                        reported a failure (e.g., script not
+        //                        found). Treat as failed in the feed,
+        //                        not green ok. Fixed 2026-05-13.
+        //   - verdict=OK      → real success
         merged.push({
           queueName: entry.name,
           queueLabel: entry.label,
           id: String(j.id ?? ''),
           jobName: j.name,
-          // state from BullMQ's perspective is `completed` — but the
-          // domain verdict from the handler return value is what the
-          // operator actually wants to see. `completed-skipped` is the
-          // "ran without error but produced nothing useful" bucket.
           state:
-            verdict === 'SKIPPED' ? 'completed-skipped' : 'completed',
+            verdict === 'SKIPPED'
+              ? 'completed-skipped'
+              : verdict === 'FAILED'
+                ? 'failed'
+                : 'completed',
           verdict,
-          verdictReason: extractVerdictReason(j.returnvalue),
+          verdictReason,
           finishedAt: j.finishedOn ?? null,
           durationMs:
             j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
-          failedReason: null,
+          failedReason: verdict === 'FAILED' ? verdictReason : null,
         });
       }
       for (const j of failed) {

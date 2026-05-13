@@ -461,11 +461,16 @@ function JobTargetCell({ target }: { target: QueueJobTarget | null }) {
 }
 
 function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
-  if (entry.state === 'failed') {
+  // BullMQ marks a job `failed` only when the handler THROWS. A handler
+  // that returns `{ status: 'FAILED', message: '…' }` is `completed`
+  // from BullMQ's perspective — we have to look at `verdict` to surface
+  // the handler-reported failure, otherwise a script-not-found / no-op
+  // run gets a green ok badge in the UI. Fixed 2026-05-13.
+  if (entry.state === 'failed' || entry.verdict === 'FAILED') {
     return (
       <span
         className="inline-flex items-center gap-1 text-danger"
-        title={entry.failedReason ?? undefined}
+        title={entry.failedReason ?? entry.verdictReason ?? undefined}
       >
         <XCircle className="h-3 w-3" aria-hidden /> failed
       </span>
@@ -483,7 +488,10 @@ function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-success">
+      <span
+        className="inline-flex items-center gap-1 text-success"
+        title={entry.verdictReason ?? undefined}
+      >
         <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
       </span>
     );

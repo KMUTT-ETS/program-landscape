@@ -1345,11 +1345,15 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
 }
 
 function PipelineRunStateBadge({ entry }: { entry: PipelineHistoryEntry }) {
-  if (entry.state === 'failed') {
+  // Handler-reported FAILED ({ status: 'FAILED' }) is a "completed"
+  // BullMQ job — surface it as a failure here so script-not-found and
+  // similar no-ops don't show green ok. Mirror of the global queues UI
+  // fix (2026-05-13).
+  if (entry.state === 'failed' || entry.verdict === 'FAILED') {
     return (
       <span
         className="inline-flex items-center gap-1 text-danger"
-        title={entry.failedReason ?? undefined}
+        title={entry.failedReason ?? entry.verdictReason ?? undefined}
       >
         <XCircle className="h-3 w-3" aria-hidden /> failed
       </span>
@@ -1367,7 +1371,10 @@ function PipelineRunStateBadge({ entry }: { entry: PipelineHistoryEntry }) {
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-success">
+      <span
+        className="inline-flex items-center gap-1 text-success"
+        title={entry.verdictReason ?? undefined}
+      >
         <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
       </span>
     );
