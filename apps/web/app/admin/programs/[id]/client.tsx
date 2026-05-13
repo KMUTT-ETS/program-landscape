@@ -15,12 +15,18 @@ import {
   SegmentedContent,
 } from '@kku/ui';
 import {
+  AlertTriangle,
   Archive,
   CheckCircle2,
+  ExternalLink,
   FileText,
+  Loader2,
+  Play,
   Plus,
+  RefreshCw,
   Trash2,
   Upload,
+  XCircle,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -125,9 +131,26 @@ interface Props {
 // ─────────────────────────────────────────────────────────────────────────
 
 export function ProgramEditClient({ program, faculties, departments }: Props) {
+  // Honour `?tab=...` so deep-links from the queues UI land on the right
+  // tab. SSR-safe: defaults to 'overview' until the client hydrates.
   const [tab, setTab] = React.useState('overview');
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t && ['overview', 'approvals', 'careers', 'files', 'pipeline'].includes(t)) {
+      setTab(t);
+    }
+  }, []);
+  const changeTab = React.useCallback((v: string) => {
+    setTab(v);
+    if (typeof window !== 'undefined') {
+      const u = new URLSearchParams(window.location.search);
+      u.set('tab', v);
+      window.history.replaceState(null, '', `?${u.toString()}`);
+    }
+  }, []);
   return (
-    <Segmented value={tab} onValueChange={setTab} className="w-full">
+    <Segmented value={tab} onValueChange={changeTab} className="w-full">
       <SegmentedList className="mb-4">
         <SegmentedTrigger value="overview">Overview</SegmentedTrigger>
         <SegmentedTrigger value="approvals">Approvals</SegmentedTrigger>
@@ -135,6 +158,7 @@ export function ProgramEditClient({ program, faculties, departments }: Props) {
         <SegmentedTrigger value="files">
           Files ({program.documents.length})
         </SegmentedTrigger>
+        <SegmentedTrigger value="pipeline">Pipeline history</SegmentedTrigger>
       </SegmentedList>
       <SegmentedContent value="overview">
         <OverviewTab program={program} faculties={faculties} departments={departments} />
@@ -147,6 +171,9 @@ export function ProgramEditClient({ program, faculties, departments }: Props) {
       </SegmentedContent>
       <SegmentedContent value="files">
         <FilesTab program={program} />
+      </SegmentedContent>
+      <SegmentedContent value="pipeline">
+        <PipelineHistoryTab program={program} />
       </SegmentedContent>
     </Segmented>
   );
@@ -1033,4 +1060,354 @@ function FilesTab({ program }: { program: ProgramDetail }) {
       )}
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Pipeline history tab
+//
+// Per-program job history from the `ai-jobs` BullMQ queue, filtered
+// server-side by `data.entityId === program.id`. Mirrors the global
+// /admin/queues all-jobs view at a finer scope so an operator can see
+// "what's run on THIS program lately" without grepping the queue.
+//
+// "Run pipeline" is reachable from the bulk page (/admin/programs)
+// already; this tab is intentionally read-only so it stays a clear
+// observability surface (verdict, duration, attempts, failure reason).
+// ─────────────────────────────────────────────────────────────────────────
+
+interface PipelineHistoryEntry {
+  queueName: string;
+  queueLabel: string;
+  id: string;
+  jobName: string;
+  state:
+    | 'active'
+    | 'waiting'
+    | 'delayed'
+    | 'completed'
+    | 'failed'
+    | 'paused'
+    | 'unknown';
+  verdict: 'OK' | 'SKIPPED' | 'FAILED' | null;
+  verdictReason: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  durationMs: number | null;
+  failedReason: string | null;
+  attempts: { made: number; max: number };
+  target: {
+    kind: 'program';
+    id: string;
+    label: string;
+    description: string | null;
+    pipelinePhases?: string[];
+    pipelineForce?: boolean;
+  } | null;
+}
+
+function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
+  const [entries, setEntries] = React.useState<PipelineHistoryEntry[] | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [running, setRunning] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin-queues/program-history/${program.id}?limit=100`,
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      setEntries((j.data ?? []) as PipelineHistoryEntry[]);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [program.id]);
+
+  React.useEffect(() => {
+    void load();
+    // Poll every 5s while the tab is mounted — same cadence the global
+    // queues page uses, so per-program and global views stay in sync.
+    const id = setInterval(() => void load(), 5000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const runPipeline = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch(`/api/admin-programs/${program.id}/run-pipeline`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+      }
+      toast.success('Pipeline enqueued');
+      await load();
+    } catch (err) {
+      toast.error(`Pipeline enqueue failed: ${(err as Error).message}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  // Tally: last-30 runs broken down by verdict so the operator gets a
+  // one-line "is this program healthy" read above the table.
+  const tally = React.useMemo(() => {
+    if (!entries) return null;
+    const last30 = entries.slice(0, 30);
+    let ok = 0;
+    let skipped = 0;
+    let failed = 0;
+    let active = 0;
+    for (const e of last30) {
+      if (e.state === 'active' || e.state === 'waiting' || e.state === 'delayed') {
+        active += 1;
+        continue;
+      }
+      if (e.verdict === 'FAILED') failed += 1;
+      else if (e.verdict === 'SKIPPED') skipped += 1;
+      else if (e.verdict === 'OK') ok += 1;
+    }
+    return { ok, skipped, failed, active, total: last30.length };
+  }, [entries]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card padding="sm">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Recent pipeline runs</h3>
+            <p className="text-xs text-text-tertiary">
+              Last 100 jobs in the <code className="font-mono">ai-jobs</code>{' '}
+              queue targeting this program. Polls every 5s.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`}
+                aria-hidden
+              />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={runPipeline}
+              disabled={running}
+            >
+              <Play className="h-3.5 w-3.5" aria-hidden />
+              {running ? 'Enqueuing…' : 'Run full pipeline'}
+            </Button>
+          </div>
+        </div>
+        {tally && tally.total > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-text-tertiary">Last {tally.total} jobs:</span>
+            {tally.active > 0 && (
+              <Badge tone="warning" className="font-tabular">
+                {tally.active} in flight
+              </Badge>
+            )}
+            <Badge tone="success" className="font-tabular">
+              {tally.ok} ok
+            </Badge>
+            {tally.skipped > 0 && (
+              <Badge tone="warning" className="font-tabular">
+                {tally.skipped} skipped
+              </Badge>
+            )}
+            {tally.failed > 0 && (
+              <Badge tone="danger" className="font-tabular">
+                {tally.failed} failed
+              </Badge>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {error && (
+        <Card padding="sm" className="border-danger/40 bg-danger/5">
+          <div className="flex items-center gap-2 text-sm text-danger">
+            <AlertTriangle className="h-4 w-4" aria-hidden />
+            {error}
+          </div>
+        </Card>
+      )}
+
+      <Card padding="none">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px] text-xs">
+            <thead className="bg-surface-2 text-text-tertiary">
+              <tr className="text-left uppercase tracking-wide">
+                <th className="px-3 py-2 font-medium">Started</th>
+                <th className="px-3 py-2 font-medium">Job</th>
+                <th className="px-3 py-2 font-medium">Phases</th>
+                <th className="px-3 py-2 font-medium">State</th>
+                <th className="px-3 py-2 text-right font-medium">Duration</th>
+                <th className="px-3 py-2 font-medium">Attempts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries && entries.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-10 text-center text-text-tertiary"
+                  >
+                    No pipeline jobs in the recent window. Click{' '}
+                    <strong>Run full pipeline</strong> to enqueue one, or use
+                    the bulk picker at{' '}
+                    <a
+                      href="/admin/programs"
+                      className="text-accent-default hover:underline"
+                    >
+                      /admin/programs
+                    </a>
+                    .
+                  </td>
+                </tr>
+              )}
+              {entries === null && loading && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-10 text-center text-text-tertiary"
+                  >
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-hidden />
+                  </td>
+                </tr>
+              )}
+              {entries?.map((e) => (
+                <tr
+                  key={`${e.queueName}:${e.id}`}
+                  className="border-t border-border-default align-top"
+                >
+                  <td className="px-3 py-2 text-text-tertiary">
+                    {e.startedAt ? <RelativeTime ms={e.startedAt} /> : '—'}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-[11px]">
+                    {e.jobName}
+                  </td>
+                  <td className="px-3 py-2 text-text-secondary">
+                    {e.target?.pipelinePhases && e.target.pipelinePhases.length > 0 ? (
+                      <span className="font-mono text-[10px]">
+                        {e.target.pipelinePhases.join(', ')}
+                      </span>
+                    ) : e.jobName === 'RUN_PROGRAM_PIPELINE' ? (
+                      <span className="text-text-tertiary">all</span>
+                    ) : (
+                      <span className="text-text-tertiary">—</span>
+                    )}
+                    {e.target?.pipelineForce && (
+                      <span className="ml-1 text-[10px] text-warning">force</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <PipelineRunStateBadge entry={e} />
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {e.durationMs != null ? formatPipelineDuration(e.durationMs) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-text-tertiary">
+                    {e.attempts.made}/{e.attempts.max}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <p className="text-[11px] text-text-tertiary">
+        Need the full job payload, retry, or removal?{' '}
+        <a
+          href="/admin/queues"
+          className="text-accent-default hover:underline inline-flex items-center gap-1"
+        >
+          Open the queues console <ExternalLink className="h-3 w-3" />
+        </a>
+      </p>
+    </div>
+  );
+}
+
+function PipelineRunStateBadge({ entry }: { entry: PipelineHistoryEntry }) {
+  if (entry.state === 'failed') {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-danger"
+        title={entry.failedReason ?? undefined}
+      >
+        <XCircle className="h-3 w-3" aria-hidden /> failed
+      </span>
+    );
+  }
+  if (entry.state === 'completed') {
+    if (entry.verdict === 'SKIPPED') {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-warning"
+          title={entry.verdictReason ?? 'completed without producing useful output'}
+        >
+          <AlertTriangle className="h-3 w-3" aria-hidden /> skipped
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-success">
+        <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+      </span>
+    );
+  }
+  if (entry.state === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1 text-warning">
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> running
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-text-secondary">
+      {entry.state}
+    </span>
+  );
+}
+
+function RelativeTime({ ms }: { ms: number }) {
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick((x) => x + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = Date.now() - ms;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 30) return <span title={new Date(ms).toLocaleString()}>just now</span>;
+  if (sec < 60) return <span title={new Date(ms).toLocaleString()}>{sec}s ago</span>;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return <span title={new Date(ms).toLocaleString()}>{min}m ago</span>;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return <span title={new Date(ms).toLocaleString()}>{hr}h ago</span>;
+  const d = Math.floor(hr / 24);
+  return <span title={new Date(ms).toLocaleString()}>{d}d ago</span>;
+}
+
+function formatPipelineDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const min = Math.floor(ms / 60_000);
+  const sec = Math.floor((ms % 60_000) / 1000);
+  return `${min}m ${sec}s`;
 }

@@ -74,6 +74,19 @@ export class QueuesController {
     return this.svc.throughput();
   }
 
+  // Per-program job history — same shape as /all-jobs, filtered to
+  // jobs whose `data.entityId` matches the given program. Powers the
+  // "Pipeline history" tab on /admin/programs/[id].
+  @Get('program-history/:programId')
+  @Authorized('queues:read')
+  async programHistory(
+    @Param('programId') programId: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    const n = limitRaw ? Math.min(Math.max(Number(limitRaw) || 50, 5), 200) : 50;
+    return this.svc.programJobHistory(programId, { limit: n });
+  }
+
   @Get(':queue/jobs')
   @Authorized('queues:read')
   async jobs(

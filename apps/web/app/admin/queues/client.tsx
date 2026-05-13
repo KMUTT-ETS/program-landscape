@@ -92,6 +92,16 @@ interface AllQueuesEntry {
   durationMs: number | null;
   failedReason: string | null;
   attempts: { made: number; max: number };
+  target: QueueJobTarget | null;
+}
+
+interface QueueJobTarget {
+  kind: 'program';
+  id: string;
+  label: string;
+  description: string | null;
+  pipelinePhases?: string[];
+  pipelineForce?: boolean;
 }
 
 interface ThroughputEntry {
@@ -385,6 +395,7 @@ function AllJobsTable({ entries }: { entries: AllQueuesEntry[] }) {
               <th className="px-3 py-1.5 font-medium">Started</th>
               <th className="px-3 py-1.5 font-medium">Queue</th>
               <th className="px-3 py-1.5 font-medium">Job</th>
+              <th className="px-3 py-1.5 font-medium">Target</th>
               <th className="px-3 py-1.5 font-medium">State</th>
               <th className="px-3 py-1.5 text-right font-medium">Duration</th>
               <th className="px-3 py-1.5 font-medium">Attempts</th>
@@ -402,6 +413,9 @@ function AllJobsTable({ entries }: { entries: AllQueuesEntry[] }) {
                 <td className="px-3 py-2 text-text-secondary">{e.queueLabel}</td>
                 <td className="px-3 py-2 font-mono text-[11px]">{e.jobName}</td>
                 <td className="px-3 py-2">
+                  <JobTargetCell target={e.target} />
+                </td>
+                <td className="px-3 py-2">
                   <JobStateBadge entry={e} />
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
@@ -417,6 +431,33 @@ function AllJobsTable({ entries }: { entries: AllQueuesEntry[] }) {
       </div>
     </Card>
   );
+}
+
+function JobTargetCell({ target }: { target: QueueJobTarget | null }) {
+  if (!target) return <span className="text-text-tertiary">—</span>;
+  if (target.kind === 'program') {
+    const phaseText =
+      target.pipelinePhases && target.pipelinePhases.length > 0
+        ? `phases: ${target.pipelinePhases.join(', ')}${target.pipelineForce ? ' · force' : ''}`
+        : target.pipelineForce
+          ? 'force'
+          : null;
+    return (
+      <Link
+        href={`/admin/programs/${target.id}?tab=pipeline`}
+        className="inline-flex flex-col leading-tight hover:text-accent-default"
+        title={phaseText ?? undefined}
+      >
+        <span className="font-mono text-[11px] font-semibold">{target.label}</span>
+        {target.description && (
+          <span className="text-[10px] text-text-tertiary truncate max-w-[260px]">
+            {target.description}
+          </span>
+        )}
+      </Link>
+    );
+  }
+  return <span className="text-text-tertiary">—</span>;
 }
 
 function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {

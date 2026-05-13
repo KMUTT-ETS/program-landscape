@@ -320,11 +320,93 @@ export class QueuesService implements OnModuleInit, OnModuleDestroy {
             j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
           failedReason: j.failedReason ?? null,
           attempts: { made: j.attemptsMade ?? 0, max: j.opts?.attempts ?? 1 },
+          target: extractJobTargetShallow(entry.name, j.name, j.data),
         });
       }
     }
     merged.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
-    return merged.slice(0, limit);
+    const sliced = merged.slice(0, limit);
+    await this.enrichProgramTargets(sliced);
+    return sliced;
+  }
+
+  /**
+   * Recent pipeline + AI-job history for ONE program. Walks the
+   * `ai-jobs` queue (the only queue program-pipeline runs land in) and
+   * filters by `data.entityId === programId`. Used by the per-program
+   * admin page's Pipeline history tab so operators can see this
+   * program's recent runs without scanning the global queue.
+   */
+  async programJobHistory(
+    programId: string,
+    opts: { limit?: number; states?: JobType[] } = {},
+  ): Promise<AllQueuesEntry[]> {
+    const states = opts.states ?? (['active', 'waiting', 'delayed', 'completed', 'failed'] as JobType[]);
+    const limit = Math.max(5, Math.min(opts.limit ?? 50, 200));
+    // Pull a generous superset and filter — BullMQ doesn't support
+    // server-side data filtering. 500 per state is plenty for the
+    // per-program view (a program rarely accumulates that many runs
+    // before old jobs age out under the default 24h/7d clean policies).
+    const q = this.resolve('ai-jobs');
+    const collected: AllQueuesEntry[] = [];
+    for (const state of states) {
+      const jobs = await q.getJobs([state], 0, 499, false);
+      for (const j of jobs) {
+        const d = j.data as Record<string, unknown> | null;
+        if (!d || d.entityId !== programId) continue;
+        const jobState = ((await j.getState()) as JobType | 'unknown') ?? 'unknown';
+        const verdict =
+          jobState === 'completed' ? extractVerdict(j.returnvalue) :
+          jobState === 'failed' ? 'FAILED' : null;
+        collected.push({
+          queueName: 'ai-jobs',
+          queueLabel: 'AI jobs',
+          id: String(j.id ?? ''),
+          jobName: j.name,
+          state: jobState,
+          verdict,
+          verdictReason: jobState === 'completed' ? extractVerdictReason(j.returnvalue) : null,
+          startedAt: j.processedOn ?? j.timestamp ?? null,
+          finishedAt: j.finishedOn ?? null,
+          durationMs:
+            j.processedOn && j.finishedOn ? j.finishedOn - j.processedOn : null,
+          failedReason: j.failedReason ?? null,
+          attempts: { made: j.attemptsMade ?? 0, max: j.opts?.attempts ?? 1 },
+          target: extractJobTargetShallow('ai-jobs', j.name, j.data),
+        });
+      }
+    }
+    collected.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+    const sliced = collected.slice(0, limit);
+    await this.enrichProgramTargets(sliced);
+    return sliced;
+  }
+
+  /** Fill program code/name for any target whose id we resolved
+   *  shallowly. Single Prisma round-trip for the whole batch. */
+  private async enrichProgramTargets(entries: AllQueuesEntry[]): Promise<void> {
+    const ids = [
+      ...new Set(
+        entries
+          .map((e) => (e.target?.kind === 'program' ? e.target.id : null))
+          .filter((x): x is string => Boolean(x)),
+      ),
+    ];
+    if (ids.length === 0) return;
+    const programs = await prisma.program.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, code: true, nameEn: true },
+    });
+    const byId = new Map(programs.map((p) => [p.id, p]));
+    for (const e of entries) {
+      if (e.target?.kind === 'program') {
+        const p = byId.get(e.target.id);
+        if (p) {
+          e.target.label = p.code;
+          e.target.description = p.nameEn;
+        }
+      }
+    }
   }
 
   async recentActivity(limit = 30): Promise<ActivityEntry[]> {
@@ -476,6 +558,24 @@ export interface AllQueuesEntry {
   durationMs: number | null;
   failedReason: string | null;
   attempts: { made: number; max: number };
+  /** Resolved target entity — currently only Program is resolved (other
+   *  entity kinds carry an opaque id in `data.entityId` that's not
+   *  user-facing). Surfaces in the queues UI so operators see
+   *  "RUN_PROGRAM_PIPELINE · ENG-CE" instead of an opaque job name. */
+  target: QueueJobTarget | null;
+}
+
+export interface QueueJobTarget {
+  /** Discriminator — drives the link target in the UI. */
+  kind: 'program';
+  id: string;
+  /** Short identifier (e.g. Program.code). */
+  label: string;
+  /** Human-readable longer label (e.g. Program.nameEn). */
+  description: string | null;
+  /** Optional pipeline-specific metadata — phases requested, force flag. */
+  pipelinePhases?: string[];
+  pipelineForce?: boolean;
 }
 
 export interface ActivityEntry {
@@ -514,4 +614,47 @@ function extractVerdictReason(returnValue: unknown): string | null {
   if (typeof r.verdictReason === 'string') return r.verdictReason;
   if (typeof r.message === 'string') return r.message;
   return null;
+}
+
+// AI-jobs that operate on a single Program. We resolve `data.entityId`
+// for these so the queue UI can render the program code + name inline
+// (vs. an opaque cuid in the job payload).
+const PROGRAM_TARGETED_AI_JOBS = new Set([
+  'RUN_PROGRAM_PIPELINE',
+  'RUN_PROGRAM_DIGEST',
+]);
+
+/**
+ * Build a placeholder `QueueJobTarget` from the job payload without
+ * touching Prisma. Caller fills in `label` + `description` via a
+ * batched program lookup. Returns null for jobs we don't know how to
+ * resolve (most non-program job kinds).
+ */
+function extractJobTargetShallow(
+  queueName: string,
+  jobName: string,
+  data: unknown,
+): QueueJobTarget | null {
+  if (queueName !== 'ai-jobs') return null;
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  const entityId = typeof d.entityId === 'string' ? d.entityId : null;
+  if (!entityId) return null;
+  if (!PROGRAM_TARGETED_AI_JOBS.has(jobName)) return null;
+  const phases = Array.isArray(d.pipelinePhases)
+    ? (d.pipelinePhases as unknown[]).filter(
+        (x): x is string => typeof x === 'string',
+      )
+    : undefined;
+  return {
+    kind: 'program',
+    id: entityId,
+    // Placeholders — overwritten by enrichProgramTargets when the
+    // program exists in DB. Left as the id so the UI never shows blank
+    // when a program got deleted between enqueue and now.
+    label: entityId.slice(0, 8),
+    description: null,
+    pipelinePhases: phases,
+    pipelineForce: typeof d.pipelineForce === 'boolean' ? d.pipelineForce : undefined,
+  };
 }
