@@ -274,7 +274,8 @@ export async function generateProgramPeerReview(
       },
       messages,
       methodVersion: PROGRAM_PEER_REVIEW_VERSION,
-      maxOutputTokens: 8000,
+      // Bumped 8000 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     ProgramPeerReviewSchema,
   );

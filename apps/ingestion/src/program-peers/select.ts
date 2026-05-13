@@ -114,7 +114,8 @@ export async function selectProgramPeers(params: SelectPeersParams): Promise<Sel
       },
       messages,
       methodVersion: PROGRAM_PEER_SELECTION_VERSION,
-      maxOutputTokens: 8000,
+      // Bumped 8000 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     ProgramPeerSelectionSchema,
   );

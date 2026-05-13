@@ -203,7 +203,8 @@ export async function generateProgramStrategicNarrative(
       },
       messages,
       methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
-      maxOutputTokens: 4096,
+      // Bumped 4096 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     ProgramStrategicNarrativeSchema,
   );

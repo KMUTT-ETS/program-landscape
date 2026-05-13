@@ -196,7 +196,8 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       //     KKU-SEQ-0062: 3,774 output tokens, conf 0.90, 30/30
       //     demanded skills matched cleanly.
       model: params.modelOverride ?? 'gemini-3.1-pro-preview',
-      maxOutputTokens: 12000,
+      // Bumped 12000 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     DemandMatchSchema,
   );

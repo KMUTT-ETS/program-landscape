@@ -184,12 +184,12 @@ async function processBatch(
         messages,
         methodVersion: SKILL_NAME_NORMALISER_VERSION,
         // All-Pro posture (2026-05-12). Each decision ≈ 100-200 tokens.
-        // For batch_size=25 worst-case ~5000 output tokens. 16000 gives
-        // headroom for AMBIGUOUS verbose reasoning. (Was 2.5-flash to
-        // dodge 3-flash-preview's ~600-token truncation; Pro
-        // supersedes both.)
+        // For batch_size=25 worst-case ~5000 output tokens; bumped to
+        // 50000 on 2026-05-13 to share the heavy-extractor ceiling.
+        // Pro thinking is verbose enough to occasionally hit the prior
+        // 16k cap on AMBIGUOUS-heavy batches.
         model: 'gemini-3.1-pro-preview',
-        maxOutputTokens: 16000,
+        maxOutputTokens: 50000,
       },
       SkillNormaliserBatchSchema,
     );

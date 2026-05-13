@@ -216,7 +216,10 @@ export async function runProgramFacultyExtraction(
       thinking: false,
       // 24K headroom — accounts for programs with 60-80 staff entries
       // and Thai qualification strings that average ~150 tokens each.
-      maxOutputTokens: 24000,
+      // Bumped 24000 → 50000 on 2026-05-13. Large programs (Medicine,
+      // Engineering) carry 100+ academic staff each; the prior cap
+      // truncated faculty lists mid-stream.
+      maxOutputTokens: 50000,
     },
     ProgramFacultyExtractionSchema,
   );

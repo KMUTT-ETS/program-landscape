@@ -136,9 +136,10 @@ export async function runProgramPedagogy(
       messages,
       methodVersion: PROGRAM_PEDAGOGY_VERSION,
       // Discipline rubric reasoning + multi-section evidence quoting
-      // produces ~3-4k JSON output. Pro thinking adds ~5-6k thinking
-      // tokens — 16k gives headroom for both.
-      maxOutputTokens: 16000,
+      // produces ~3-4k JSON output, plus Pro thinking adds ~5-6k.
+      // Bumped 16000 → 50000 on 2026-05-13 to share the heavy-extractor
+      // ceiling with digest/faculty/skills.
+      maxOutputTokens: 50000,
       // Thinking ENABLED — this is reasoning over discipline best
       // practice, not pure extraction. (Pro auto-enables thinking; we
       // explicitly opt in for clarity.)

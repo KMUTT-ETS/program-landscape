@@ -160,7 +160,8 @@ export async function runProgramAiReadiness(
       },
       messages,
       methodVersion: PROGRAM_AI_READINESS_VERSION,
-      maxOutputTokens: 8192,
+      // Bumped 8192 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     ProgramAiReadinessAssessmentSchema,
   );

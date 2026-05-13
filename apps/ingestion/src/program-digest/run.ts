@@ -151,7 +151,12 @@ export async function runProgramDigest(
       },
       messages,
       methodVersion: PROGRAM_DIGEST_VERSION,
-      maxOutputTokens: 16000,
+      // Bumped 16000 → 50000 on 2026-05-13 to fit very large
+      // curriculum digests (PLO + all-courses + recruitment summary +
+      // skills + evidence quotes) without hitting the previous ceiling.
+      // Gemini 2.5 Pro's hard cap is 65536; 50000 leaves headroom for
+      // reasoning tokens that count against the same budget.
+      maxOutputTokens: 50000,
     },
     ProgramDigestSchema,
   );

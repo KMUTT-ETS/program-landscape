@@ -336,10 +336,10 @@ export class CurriculumAiExtractor implements PdfExtractor {
           // aren't critical).
           model:
             process.env.AI_CURRICULUM_MODEL ?? 'gemini-3-flash-preview',
-          // 2.5-flash enables "thinking" by default which eats output
-          // tokens; give it plenty of headroom. Raise if we see truncated
-          // JSON in production — audit log has token counts.
-          maxOutputTokens: 8192,
+          // Bumped 8192 → 50000 on 2026-05-13 — see program-digest/run.ts.
+          // "Thinking" eats budget; the previous 8k cap occasionally
+          // truncated full curriculum JSON.
+          maxOutputTokens: 50000,
         },
         CurriculumAiPayloadSchema,
       );

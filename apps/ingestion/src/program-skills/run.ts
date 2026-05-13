@@ -135,7 +135,8 @@ export async function runProgramSkillsDetailed(
       // to gemini-2.5-flash counter-intuitively caps at ~627 output tokens
       // when the input is the full ~99K-token PDF — likely a context/output
       // ratio limit on the smaller model. Stick with the default preview.
-      maxOutputTokens: 16000,
+      // Bumped 16000 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     ProgramSkillsDetailedSchema,
   );

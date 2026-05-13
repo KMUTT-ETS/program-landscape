@@ -130,7 +130,8 @@ export async function mapProgramCareers(params: MapCareersParams): Promise<MapCa
       },
       messages,
       methodVersion: CAREER_KMITL_MAPPING_VERSION,
-      maxOutputTokens: 8000,
+      // Bumped 8000 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50000,
     },
     CareerKmitlMappingSchema,
   );

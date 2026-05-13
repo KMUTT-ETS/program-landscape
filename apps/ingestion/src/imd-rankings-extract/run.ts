@@ -141,7 +141,8 @@ export async function runImdRankingsExtract(
         { role: 'user', content: `\n\n--- PDF TEXT START ---\n${extracted.fullText.slice(0, 200_000)}\n--- PDF TEXT END ---` },
       ],
       methodVersion: IMD_RANKINGS_EXTRACT_VERSION,
-      maxOutputTokens: 16_000,
+      // Bumped 16000 → 50000 on 2026-05-13 — see program-digest/run.ts.
+      maxOutputTokens: 50_000,
     },
     ImdRankingsExtractionSchema,
   );
