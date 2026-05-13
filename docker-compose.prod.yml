@@ -174,7 +174,13 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=500M
-    user: "1001:1001"   # matches `app` user in apps/ingestion/Dockerfile.prod
+    # Persist pipeline child-process logs on the host so operators can
+    # `tail -f` them without docker exec. Bind-target was created in the
+    # Dockerfile with the right ownership; the host dir must be chowned
+    # to UID 1010 by deploy.sh on first run (or manually).
+    volumes:
+      - /opt/program-landscape/logs:/app/logs
+    user: "1010:1010"   # matches `app` user in apps/ingestion/Dockerfile.prod
     <<: *common-security
     depends_on:
       postgres:

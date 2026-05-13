@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && tsx ./scripts/bundle-pipeline-scripts.ts",
     "start": "node dist/main.js",
     "start:dev": "cross-env NODE_OPTIONS=\"--require tsx/cjs\" nest start --watch",
     "lint": "eslint \"src/**/*.ts\"",
@@ -41,6 +41,7 @@
     "@types/oracledb": "^6.5.2",
     "@types/pg": "^8.11.10",
     "cross-env": "^7.0.3",
+    "esbuild": "^0.27.0",
     "eslint": "^9.17.0",
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",

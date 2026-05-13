@@ -84,6 +84,15 @@ command -v sudo >/dev/null 2>&1 || fail "sudo required"
 
 sudo mkdir -p "$RELEASES_DIR" "$SECRETS_DIR" "$CERTS_DIR" "$BACKUPS_DIR"
 
+# Host bind-mount target for the ingestion service's pipeline child-process
+# logs. The container's runtime UID is 1010 (apps/ingestion/Dockerfile.prod's
+# `app` user); the host dir must be writable by that UID. Idempotent — chown
+# is a no-op when ownership already matches.
+LOGS_DIR="$DEPLOY_ROOT/logs"
+sudo mkdir -p "$LOGS_DIR"
+sudo chown 1010:1010 "$LOGS_DIR"
+sudo chmod 755 "$LOGS_DIR"
+
 [ -f "$ENV_FILE" ] || fail "$ENV_FILE missing — copy .env.prod.example there first, fill in values, chmod 600"
 [ -f "$CERTS_DIR/fullchain.pem" ] || fail "self-signed cert missing — run scripts/generate-self-signed-cert.sh"
 [ -f "$CERTS_DIR/privkey.pem" ] || fail "self-signed key missing"

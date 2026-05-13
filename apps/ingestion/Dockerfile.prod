@@ -100,6 +100,24 @@ COPY --from=build --chown=app:app /app/packages/db/prisma ./packages/db/prisma
 COPY --from=build --chown=app:app /app/packages/db/package.json ./packages/db/
 COPY --from=build --chown=app:app /app/apps/ingestion/package.json ./
 
+# Hoist `.prisma/` and `@prisma/` from pnpm's flat store to top-level
+# node_modules so bundled CLI scripts (apps/ingestion/scripts/bundle-pipeline-scripts.ts
+# output) can resolve `require('.prisma/client')` and `require('@prisma/client')`
+# via Node's standard walk-up resolution. Without these symlinks, the
+# RUN_PROGRAM_PIPELINE handler's spawned child crashes with MODULE_NOT_FOUND.
+# Wildcard glob: there's exactly one @prisma+client@VERSION_prismaVERSION dir.
+RUN PRISMA_DIR="$(ls -d /app/node_modules/.pnpm/@prisma+client@*/node_modules 2>/dev/null | head -n1)" \
+  && [ -n "$PRISMA_DIR" ] || (echo "ERROR: @prisma+client not found under .pnpm/" && exit 1) \
+  && ln -sfn "$PRISMA_DIR/.prisma" /app/node_modules/.prisma \
+  && ln -sfn "$PRISMA_DIR/@prisma" /app/node_modules/@prisma \
+  && chown -h app:app /app/node_modules/.prisma /app/node_modules/@prisma
+
+# /app is read-only at runtime (compose `read_only: true`); the BullMQ
+# RUN_PROGRAM_PIPELINE handler writes a per-run log to /app/logs/, so
+# pre-create it. docker-compose.prod.yml mounts a host bind-mount on
+# top of this path so logs persist across container restarts.
+RUN mkdir -p /app/logs && chown app:app /app/logs
+
 USER app
 
 # No HTTP port — Docker healthcheck probes the process.
