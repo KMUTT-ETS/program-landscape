@@ -7,7 +7,6 @@ import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { AnalystClient } from './client';
 import type {
-  AnalystBriefTemplate,
   AnalystConversationDto,
   AnalystConversationDetail,
 } from './types';
@@ -27,17 +26,15 @@ export default async function AnalystPage({
   const sp = await searchParams;
 
   // Conversations is the canary — if THAT fails (auth/permission/server)
-  // the user can't do anything useful, so surface the diagnostic. Briefs
-  // is best-effort; activeConversation is optional.
-  const conversationsRes = await apiFetchSafe<AnalystConversationDto[]>('/analyst/conversations');
-  const [briefs, activeConversation] = await Promise.all([
-    apiFetch<AnalystBriefTemplate[]>('/analyst/brief-templates').catch(
-      () => [] as AnalystBriefTemplate[],
-    ),
-    sp.c
-      ? apiFetch<AnalystConversationDetail>(`/analyst/conversations/${sp.c}`).catch(() => null)
-      : Promise.resolve(null),
-  ]);
+  // the user can't do anything useful, so surface the diagnostic.
+  // activeConversation is optional.
+  const conversationsRes =
+    await apiFetchSafe<AnalystConversationDto[]>('/analyst/conversations');
+  const activeConversation = sp.c
+    ? await apiFetch<AnalystConversationDetail>(
+        `/analyst/conversations/${sp.c}`,
+      ).catch(() => null)
+    : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -50,7 +47,6 @@ export default async function AnalystPage({
       ) : (
         <AnalystClient
           conversations={conversationsRes.data}
-          briefs={briefs}
           activeConversation={activeConversation}
         />
       )}

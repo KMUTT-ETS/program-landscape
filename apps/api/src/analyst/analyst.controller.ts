@@ -1,11 +1,22 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
-import type { SessionUser } from '@kku/shared';
+import type { AnalystStreamEvent, SessionUser } from '@kku/shared';
 import { ANALYST_BRIEFS, getBriefTemplate } from '@kku/shared';
 import {
   AiCall,
   AiQuota,
+  AuditLog,
   AuthSession,
   Authorized,
   ZodValidationPipe,
@@ -98,6 +109,77 @@ export class AnalystController {
       conversationId: body.conversationId,
       userMessage: body.message,
     });
+  }
+
+  // Server-sent-events variant of /chat. Emits status events as the
+  // tool loop progresses + delta events as the final text is chunked
+  // out. Same rate-limit + audit posture as /chat. UI reads via a
+  // streaming fetch reader.
+  @Post('chat/stream')
+  @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 20, ttl: 60_000 }, ai_hourly: { limit: 200, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'analyst' })
+  @AiCall({ module: 'analyst' })
+  async chatStream(
+    @AuthSession() user: SessionUser,
+    @Body(new ZodValidationPipe(ChatBodySchema)) body: ChatBody,
+    @Res() res: Response,
+  ) {
+    // SSE headers. Disabling buffering matters for nginx-fronted setups
+    // — without `X-Accel-Buffering: no` events arrive in batches once
+    // the connection closes, defeating the point of streaming.
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const writeEvent = (e: AnalystStreamEvent) => {
+      res.write(`event: ${e.type}\n`);
+      res.write(`data: ${JSON.stringify(e)}\n\n`);
+    };
+
+    let clientGone = false;
+    res.on('close', () => {
+      clientGone = true;
+    });
+
+    try {
+      await this.analyst.streamChat(
+        {
+          userId: user.userId,
+          conversationId: body.conversationId,
+          userMessage: body.message,
+        },
+        async (event) => {
+          if (clientGone) return;
+          writeEvent(event);
+        },
+      );
+    } catch (err) {
+      if (!clientGone) {
+        writeEvent({ type: 'error', message: (err as Error).message });
+      }
+    } finally {
+      if (!clientGone) res.end();
+    }
+  }
+
+  @Delete('conversations/:id')
+  @Authorized('programs:read:all')
+  @AuditLog({ action: 'analyst.delete_conversation', entityType: 'AnalystConversation' })
+  async deleteConversation(
+    @AuthSession() user: SessionUser,
+    @Param('id') id: string,
+  ) {
+    return this.analyst.deleteConversation(id, user.userId);
+  }
+
+  @Delete('conversations')
+  @Authorized('programs:read:all')
+  @AuditLog({ action: 'analyst.delete_all_conversations', entityType: 'AnalystConversation' })
+  async deleteAllConversations(@AuthSession() user: SessionUser) {
+    return this.analyst.deleteAllConversations(user.userId);
   }
 
   @Post('briefs/generate')
