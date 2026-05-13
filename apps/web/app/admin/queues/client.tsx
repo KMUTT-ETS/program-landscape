@@ -16,6 +16,7 @@ import {
 import {
   AlertTriangle,
   Brush,
+  Check,
   CheckCircle2,
   ClipboardCheck,
   Clock,
@@ -28,6 +29,10 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react';
+import {
+  bulkApproveAiExtractionsAction,
+  bulkApprovePdfExtractionsAction,
+} from '@/lib/actions/ai-extraction';
 
 // ─── Types (mirror apps/api/src/admin/queues.service.ts) ───────────────────
 
@@ -243,7 +248,12 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
         ))}
       </div>
 
-      {reviewCounts ? <ReviewQueueRow counts={reviewCounts} /> : null}
+      {reviewCounts ? (
+        <ReviewQueueRow
+          counts={reviewCounts}
+          onAfterBulkApprove={() => void loadRealtime()}
+        />
+      ) : null}
 
       {/* Toolbar above the bucket tabs */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -519,7 +529,13 @@ function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
 // human-review queues into the BullMQ console rather than keeping them
 // as separate admin tiles.
 
-function ReviewQueueRow({ counts }: { counts: ReviewCounts }) {
+function ReviewQueueRow({
+  counts,
+  onAfterBulkApprove,
+}: {
+  counts: ReviewCounts;
+  onAfterBulkApprove: () => void;
+}) {
   const total = counts.aiExtractions + counts.pdfExtractions;
   if (total === 0) {
     return (
@@ -538,12 +554,16 @@ function ReviewQueueRow({ counts }: { counts: ReviewCounts }) {
         icon={<ClipboardCheck className="h-4 w-4" aria-hidden />}
         label="AI extractions awaiting review"
         count={counts.aiExtractions}
+        kind="ai"
+        onAfterBulkApprove={onAfterBulkApprove}
       />
       <ReviewTile
         href="/admin/pdf-review"
         icon={<FileSearch className="h-4 w-4" aria-hidden />}
         label="PDF extractions awaiting review"
         count={counts.pdfExtractions}
+        kind="pdf"
+        onAfterBulkApprove={onAfterBulkApprove}
       />
     </div>
   );
@@ -554,12 +574,17 @@ function ReviewTile({
   icon,
   label,
   count,
+  kind,
+  onAfterBulkApprove,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
   count: number;
+  kind: 'ai' | 'pdf';
+  onAfterBulkApprove: () => void;
 }) {
+  const [busy, setBusy] = React.useState(false);
   const tone =
     count === 0
       ? 'neutral'
@@ -568,24 +593,88 @@ function ReviewTile({
         : count > 0
           ? 'info'
           : 'neutral';
+
+  const runBulkApprove: React.MouseEventHandler<HTMLButtonElement> = async (
+    e,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (count === 0) return;
+    if (
+      !window.confirm(
+        `Auto-approve all ${count} pending ${kind === 'ai' ? 'AI' : 'PDF'} extraction${count === 1 ? '' : 's'}? This bypasses human review and runs materialisation where applicable.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      if (kind === 'ai') {
+        const res = await bulkApproveAiExtractionsAction();
+        if (!res.ok) {
+          toast.error(`Bulk approve failed: ${res.message}`);
+          return;
+        }
+        const r = res.result;
+        const errPart =
+          r.errors.length > 0 ? ` · ${r.errors.length} errors (see server log)` : '';
+        toast.success(
+          `Approved ${r.approved}/${r.totalPending} AI extractions, materialised ${r.materialised}${errPart}`,
+        );
+      } else {
+        const res = await bulkApprovePdfExtractionsAction();
+        if (!res.ok) {
+          toast.error(`Bulk approve failed: ${res.message}`);
+          return;
+        }
+        toast.success(
+          `Approved ${res.result.approved}/${res.result.totalPending} PDF extractions`,
+        );
+      }
+      onAfterBulkApprove();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Link
-      href={href}
-      className="group flex items-center justify-between rounded-xl border border-border-subtle bg-surface-1 px-4 py-3 transition-colors hover:border-accent/30 hover:bg-accent-subtle/30"
-    >
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-1 px-4 py-3">
+      <Link
+        href={href}
+        className="group flex flex-1 items-center gap-3 transition-colors hover:text-accent-default"
+      >
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-2 text-text-secondary group-hover:bg-accent-subtle group-hover:text-accent">
           {icon}
         </span>
         <div>
-          <div className="text-sm font-medium text-text-primary">{label}</div>
+          <div className="text-sm font-medium text-text-primary group-hover:text-accent-default">
+            {label}
+          </div>
           <div className="text-[11px] text-text-tertiary">
             click to open the review surface
           </div>
         </div>
+      </Link>
+      <div className="flex items-center gap-2">
+        <Badge tone={tone}>{count.toLocaleString()} pending</Badge>
+        {count > 0 && (
+          <button
+            type="button"
+            onClick={runBulkApprove}
+            disabled={busy}
+            className="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-1 text-[11px] font-medium text-success hover:bg-success/20 disabled:opacity-50"
+            title={`Auto-approve all ${count} pending — no review needed`}
+          >
+            {busy ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <Check className="h-3 w-3" aria-hidden />
+            )}
+            {busy ? 'Approving…' : 'Approve all'}
+          </button>
+        )}
       </div>
-      <Badge tone={tone}>{count.toLocaleString()} pending</Badge>
-    </Link>
+    </div>
   );
 }
 

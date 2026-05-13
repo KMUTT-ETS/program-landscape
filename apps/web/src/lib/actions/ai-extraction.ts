@@ -35,3 +35,43 @@ export async function rejectAiExtractionAction(
     return { ok: false, message: (e as Error).message };
   }
 }
+
+export interface BulkApproveResult {
+  totalPending: number;
+  approved: number;
+  materialised: number;
+  errors: Array<{ id: string; kind: string; message: string }>;
+}
+
+export async function bulkApproveAiExtractionsAction(): Promise<
+  { ok: true; result: BulkApproveResult } | { ok: false; message: string }
+> {
+  try {
+    const result = await apiFetch<BulkApproveResult>(
+      '/ai/extractions/approve-all-pending',
+      { method: 'POST', body: JSON.stringify({}) },
+    );
+    revalidatePath('/admin/extraction-review');
+    revalidatePath('/admin/queues');
+    return { ok: true, result };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+export async function bulkApprovePdfExtractionsAction(): Promise<
+  | { ok: true; result: { totalPending: number; approved: number } }
+  | { ok: false; message: string }
+> {
+  try {
+    const result = await apiFetch<{ totalPending: number; approved: number }>(
+      '/pdfs/extractions/approve-all-pending',
+      { method: 'POST', body: JSON.stringify({}) },
+    );
+    revalidatePath('/admin/pdf-review');
+    revalidatePath('/admin/queues');
+    return { ok: true, result };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}

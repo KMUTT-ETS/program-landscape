@@ -162,6 +162,65 @@ export class AiAdminController {
     });
   }
 
+  // Bulk-approve every PENDING_REVIEW AiExtraction owned by no caller.
+  // Same materialisation chain as the per-row approve — PROGRAM_DIGEST
+  // writes through to Program columns + ProgramSkill rows, IMD_RANKINGS
+  // writes ImdRanking rows, every other kind just flips status (the
+  // materialise scaffold for those is deferred).
+  //
+  // Wire-up for the operator who wants to disable human review entirely:
+  // pair this with the lowered AI_AUTO_APPROVE_THRESHOLD=0 default so
+  // future extractions land AUTO_APPROVED at write time and never enter
+  // the queue. Audit-logged.
+  @Post('extractions/approve-all-pending')
+  @Authorized('pdf:approve_extraction')
+  @AuditLog({ action: 'ai.extraction.approve_all_pending', entityType: 'AiExtraction' })
+  async approveAllPending(@AuthSession() user: SessionUser) {
+    const pending = await prisma.aiExtraction.findMany({
+      where: { reviewStatus: 'PENDING_REVIEW' },
+      select: { id: true, extractionKind: true },
+    });
+    if (pending.length === 0) {
+      return { totalPending: 0, approved: 0, materialised: 0, errors: [] };
+    }
+
+    let materialised = 0;
+    const errors: Array<{ id: string; kind: string; message: string }> = [];
+
+    for (const ext of pending) {
+      try {
+        await prisma.aiExtraction.update({
+          where: { id: ext.id },
+          data: {
+            reviewStatus: 'APPROVED',
+            reviewedBy: { connect: { id: user.userId } },
+            reviewedAt: new Date(),
+            reviewNotes: 'Bulk auto-approve (no human review)',
+          },
+        });
+        if (ext.extractionKind === 'PROGRAM_DIGEST') {
+          await materialiseProgramDigest(ext.id);
+          materialised += 1;
+        } else if (ext.extractionKind === 'IMD_RANKINGS') {
+          await materialiseImdRankings(ext.id);
+          materialised += 1;
+        }
+      } catch (err) {
+        errors.push({
+          id: ext.id,
+          kind: ext.extractionKind,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return {
+      totalPending: pending.length,
+      approved: pending.length - errors.length,
+      materialised,
+      errors,
+    };
+  }
+
   @Get('inferences')
   @Authorized('data_sources:read')
   @Provenance({ sources: [{ id: 'ai-inference', name: 'AI Inference Log' }] })

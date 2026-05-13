@@ -131,9 +131,14 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       concurrency: Number(this.config.get('AI_JOBS_CONCURRENCY') ?? 2),
     };
 
+    // Default flipped to 0 on 2026-05-13: KKU operator opted to disable
+    // human review entirely, so every AI extraction now lands
+    // AUTO_APPROVED at write time and the review queue stays empty.
+    // Set AI_AUTO_APPROVE_THRESHOLD=0.85 (or any 0..1 value) on the env
+    // to bring back the old confidence gate.
     const aiHandlers = buildAiJobHandlers({
       ai,
-      autoApproveThreshold: Number(this.config.get('AI_AUTO_APPROVE_THRESHOLD') ?? 0.85),
+      autoApproveThreshold: Number(this.config.get('AI_AUTO_APPROVE_THRESHOLD') ?? 0),
       storage,
     });
 
@@ -147,12 +152,16 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       classifier: new GeminiPdfClassifier(),
       storage,
       rawBucket: this.required('MINIO_BUCKET_PDF_RAW'),
+      // PDF intake thresholds flipped to 0 on 2026-05-13 (same opt-out
+      // as AI_AUTO_APPROVE_THRESHOLD). Operator can re-introduce the
+      // review gate per-source by setting the env vars to a non-zero
+      // confidence floor.
       config: PipelineConfigSchema.parse({
         classifierAutoApproveThreshold: Number(
-          this.config.get('PDF_INTAKE_CLASSIFIER_THRESHOLD') ?? 0.7,
+          this.config.get('PDF_INTAKE_CLASSIFIER_THRESHOLD') ?? 0,
         ),
         extractorAutoApproveThreshold: Number(
-          this.config.get('PDF_INTAKE_EXTRACTOR_THRESHOLD') ?? 0.8,
+          this.config.get('PDF_INTAKE_EXTRACTOR_THRESHOLD') ?? 0,
         ),
       }),
       ai,

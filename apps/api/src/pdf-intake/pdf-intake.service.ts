@@ -387,6 +387,21 @@ export class PdfIntakeService implements OnModuleInit {
     return doc;
   }
 
+  async approveAllPendingExtractions(input: {
+    reviewerId: string;
+  }): Promise<{ totalPending: number; approved: number }> {
+    const result = await prisma.pdfExtraction.updateMany({
+      where: { reviewStatus: 'PENDING_REVIEW' },
+      data: {
+        reviewStatus: 'APPROVED',
+        reviewedByUserId: input.reviewerId,
+        reviewedAt: new Date(),
+        reviewNotes: 'Bulk auto-approve (no human review)',
+      },
+    });
+    return { totalPending: result.count, approved: result.count };
+  }
+
   async approveExtraction(input: {
     extractionId: string;
     reviewerId: string;

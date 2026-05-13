@@ -227,6 +227,19 @@ export class PdfIntakeController {
     });
   }
 
+  // Bulk-approve every PENDING_REVIEW PdfExtraction. Mirror of the AI
+  // extraction bulk-approve — flips status, stamps the reviewer +
+  // reviewedAt, writes a uniform reviewNotes line. PDF extractions
+  // don't have a materialise step today (the classifier writes to
+  // PdfDocument fields directly at intake time); this is a pure
+  // status flip.
+  @Post('extractions/approve-all-pending')
+  @Authorized('pdf:approve_extraction')
+  @AuditLog({ action: 'pdf.extraction.approve_all_pending', entityType: 'PdfExtraction' })
+  async approveAllPendingExtractions(@AuthSession() user: SessionUser) {
+    return this.service.approveAllPendingExtractions({ reviewerId: user.userId });
+  }
+
   @Post('bulk-reprocess')
   @Authorized('pdf:approve_extraction')
   @AuditLog({ action: 'pdf.bulk_reprocess', entityType: 'PdfDocument' })
