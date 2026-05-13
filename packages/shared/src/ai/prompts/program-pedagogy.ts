@@ -61,7 +61,7 @@ import type { AiMessage } from '../types';
 // long discipline-aware output on small tests.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_PEDAGOGY_VERSION = 'program-pedagogy.v1';
+export const PROGRAM_PEDAGOGY_VERSION = 'program-pedagogy.v1.1';
 
 export const PedagogicalApproachSchema = z.object({
   method: z.enum([
@@ -166,7 +166,7 @@ export const ProgramPedagogyAssessmentSchema = z.object({
   disciplineFitScore: z.number().min(0).max(100),
   /** What the LLM expected for this discipline (so Council can verify
    *  the rubric the LLM applied). 3-6 bullet points. */
-  disciplineExpectedMethods: z.array(z.string().min(5).max(200)).min(3).max(8),
+  disciplineExpectedMethods: z.array(z.string().min(2).max(200)).min(3).max(8),
   /** Specific gaps vs discipline best practice. Empty when fit is high. */
   gaps: z.array(PedagogyGapSchema).max(6),
   /** Single composite score 0-100. Weighted blend of disciplineFitScore
