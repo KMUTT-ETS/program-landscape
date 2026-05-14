@@ -142,15 +142,20 @@ export const authConfig: NextAuthConfig = {
         const dbUser = await prisma.user.findUniqueOrThrow({
           where: { id: user.id as string },
         });
+        const scopes = await prisma.userScope.findMany({
+          where: { userId: dbUser.id },
+          select: { role: true, facultyId: true, programId: true },
+        });
+        const eff = resolveHighestRole(dbUser, scopes);
         return {
           ...token,
           userId: dbUser.id,
           email: dbUser.email,
           name: dbUser.name,
-          role: dbUser.role,
-          facultyId: dbUser.facultyId,
+          role: eff.role,
+          facultyId: eff.facultyId,
           departmentId: dbUser.departmentId,
-          programId: dbUser.programId,
+          programId: eff.programId,
           themePreference: dbUser.themePreference,
         };
       }
@@ -167,12 +172,17 @@ export const authConfig: NextAuthConfig = {
           },
         });
         if (fresh) {
+          const scopes = await prisma.userScope.findMany({
+            where: { userId: token.userId as string },
+            select: { role: true, facultyId: true, programId: true },
+          });
+          const eff = resolveHighestRole(fresh, scopes);
           return {
             ...token,
-            role: fresh.role,
-            facultyId: fresh.facultyId,
+            role: eff.role,
+            facultyId: eff.facultyId,
             departmentId: fresh.departmentId,
-            programId: fresh.programId,
+            programId: eff.programId,
             themePreference: fresh.themePreference,
           };
         }
@@ -213,7 +223,17 @@ export const authConfig: NextAuthConfig = {
         }
       }
 
-      (session as unknown as { user: SessionUser }).user = user;
+      // effectiveRole mirrors user.role at this point — the JWT
+      // callback already promoted the role to the highest grant
+      // (resolveHighestRole). Impersonation override (above) may have
+      // narrowed user.role for previewing; effectiveRole follows the
+      // current acting role so consumers don't have to reason about
+      // both. Kept as a separate field for any consumer that still
+      // reads it.
+      (session as unknown as { user: SessionUser }).user = {
+        ...user,
+        effectiveRole: user.role,
+      };
       return session;
     },
   },
@@ -221,3 +241,61 @@ export const authConfig: NextAuthConfig = {
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+
+// Promote the user's primary role to the HIGHEST grant across
+// (users.role, UserScope rows). The DB row stays as the audit record;
+// the JWT carries the runtime role so every consumer sees the most-
+// permissive level. Scope fields (facultyId/programId) follow the
+// promoted role:
+//   - Admin / UNIVERSITY_USER  → null/null (unscoped)
+//   - FACULTY_USER             → facultyId of the first FACULTY_USER
+//                                grant; programId null
+//   - PROGRAM_USER             → primary scope IDs preserved
+//
+// Multi-scope users with grants at the same tier (e.g. two
+// FACULTY_USER grants) pick the FIRST one as the "primary" scope ID —
+// the runtime server-side scope clamping (resolveEffectiveScope on
+// the API side) still unions ALL grants when querying data.
+type RoleRow = { role: SessionUser['role']; facultyId: string | null; programId: string | null };
+const ROLE_RANK: Record<SessionUser['role'], number> = {
+  SUPER_ADMIN: 5,
+  SYSTEM_ADMIN: 4,
+  UNIVERSITY_USER: 3,
+  FACULTY_USER: 2,
+  PROGRAM_USER: 1,
+};
+
+export function resolveHighestRole(
+  primary: { role: SessionUser['role']; facultyId: string | null; programId: string | null },
+  scopes: RoleRow[],
+): { role: SessionUser['role']; facultyId: string | null; programId: string | null } {
+  // 1. Find the highest rank across (primary, scopes).
+  const candidates: RoleRow[] = [primary, ...scopes];
+  let maxRank = ROLE_RANK[primary.role];
+  for (const c of candidates) {
+    if (ROLE_RANK[c.role] > maxRank) maxRank = ROLE_RANK[c.role];
+  }
+  // 2. Within the top tier, prefer the candidate with the most-specific
+  //    scope IDs (programId > facultyId > none). Critical for SSO-auto-
+  //    assigned PROGRAM_USERs where users.program_id is null but a
+  //    UserScope row carries the actual program assignment.
+  const topTier = candidates.filter((c) => ROLE_RANK[c.role] === maxRank);
+  let best = topTier[0]!;
+  let bestScore = (best.programId ? 2 : 0) + (best.facultyId ? 1 : 0);
+  for (const c of topTier) {
+    const score = (c.programId ? 2 : 0) + (c.facultyId ? 1 : 0);
+    if (score > bestScore) {
+      best = c;
+      bestScore = score;
+    }
+  }
+  // 3. Normalise scope IDs per role tier.
+  if (best.role === 'SUPER_ADMIN' || best.role === 'SYSTEM_ADMIN' || best.role === 'UNIVERSITY_USER') {
+    return { role: best.role, facultyId: null, programId: null };
+  }
+  if (best.role === 'FACULTY_USER') {
+    return { role: best.role, facultyId: best.facultyId, programId: null };
+  }
+  // PROGRAM_USER
+  return { role: best.role, facultyId: best.facultyId, programId: best.programId };
+}

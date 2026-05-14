@@ -53,7 +53,7 @@ export default async function SystemStatusPage() {
   if (!user?.userId) redirect('/signin');
   // System status is exec-readable: admin-grade + UNIVERSITY_USER (which
   // absorbs the legacy COUNCIL/EXECUTIVE/VIEWER population).
-  if (!isAdminGrade(user.role) && user.role !== 'UNIVERSITY_USER') {
+  if (!isAdminGrade(user.effectiveRole ?? user.role) && user.role !== 'UNIVERSITY_USER') {
     redirect('/no-access');
   }
 

@@ -43,7 +43,7 @@ export default async function AdminDataSourcesPage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
   // ANALYST + admin-grade have data_sources:read; everyone else redirected.
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // sources is the canary — if the listing fails the page can't render
   // meaningfully. overview is best-effort (the strip just hides).
@@ -60,7 +60,7 @@ export default async function AdminDataSourcesPage() {
       {overview && <OverviewStrip overview={overview} />}
       <Section title="Connectors">
         {sourcesRes.ok ? (
-          <DataSourcesClient rows={sourcesRes.data} canConfigure={isAdminGrade(user.role)} />
+          <DataSourcesClient rows={sourcesRes.data} canConfigure={isAdminGrade(user.effectiveRole ?? user.role)} />
         ) : (
           <DiagnosticEmptyState surface="data sources" error={sourcesRes.error} />
         )}

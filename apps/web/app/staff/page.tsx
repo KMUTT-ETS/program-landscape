@@ -61,12 +61,12 @@ export default async function StaffHubPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // Refresh button is university-only — triggers a global cube
   // rebuild. Skip the fetch + UI entirely for FACULTY_USER so they
   // don't see a button they can't use.
-  const canRefresh = isUniversityWide(user.role);
+  const canRefresh = isUniversityWide(user.effectiveRole ?? user.role);
   const status = canRefresh
     ? await apiFetch<RefreshStatus>('/staff-dashboard/refresh/status').catch(() => null)
     : null;

@@ -16,7 +16,7 @@ export default async function FacultyByProgramPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const dataRes = await apiFetchSafe<FacultyByProgramResponse>(
     '/staff-dashboard/faculty-by-program',

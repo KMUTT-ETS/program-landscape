@@ -43,7 +43,7 @@ export default async function AdminProgramsPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const params = await searchParams;
   const view = params.view === 'pipeline' ? 'pipeline' : 'list';

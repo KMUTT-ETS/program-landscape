@@ -95,7 +95,7 @@ export default async function AdminDataSetupPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // Stats fetch — when it fails we render a diagnostic banner above the
   // cards. The cards still draw with zeros so the operator can navigate

@@ -14,9 +14,11 @@ import {
 } from '@/lib/auth/provisioning';
 import {
   getSignInLockoutStatus,
+  prisma,
   recordSignInFailure,
   recordSignInSuccess,
 } from '@kku/db';
+import { resolveHighestRole } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -130,14 +132,26 @@ export async function GET(req: Request) {
     // MUST include every field declared in SessionUserSchema or the JWT
     // verify on the next request will reject the cookie and auth() will
     // return null — no session, no login.
+    //
+    // Promote primary role → highest grant from UserScope rows. The
+    // standard jwt() callback in lib/auth.ts does the same for the
+    // dev-credentials flow — kku-sso bypasses that callback entirely
+    // (mints the JWT directly here), so the promotion has to be
+    // duplicated. Otherwise multi-scope SSO users sign in with their
+    // DB-primary role and lose every UserScope-granted elevation.
+    const scopes = await prisma.userScope.findMany({
+      where: { userId: user.id },
+      select: { role: true, facultyId: true, programId: true },
+    });
+    const eff = resolveHighestRole(user, scopes);
     const sessionUser = {
       userId: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
-      facultyId: user.facultyId,
+      role: eff.role,
+      facultyId: eff.facultyId,
       departmentId: user.departmentId,
-      programId: user.programId,
+      programId: eff.programId,
       themePreference: user.themePreference,
     };
 

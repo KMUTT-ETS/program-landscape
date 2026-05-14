@@ -88,9 +88,14 @@ const dashboardItemsFacultyAware = [
 ];
 
 function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
+  // Use effectiveRole when available — a user whose primary role is
+  // PROGRAM_USER but who has a UserScope grant of UNIVERSITY_USER or
+  // FACULTY_USER should see Education + Staff in the nav. Falls back
+  // to `role` for older JWTs minted before effectiveRole landed.
+  const role = user?.effectiveRole ?? user?.role;
   return {
     label: 'Dashboards',
-    items: canSeeFacultyDashboards(user?.role)
+    items: canSeeFacultyDashboards(role)
       ? [...dashboardItemsBase, ...dashboardItemsFacultyAware]
       : dashboardItemsBase,
   };

@@ -50,7 +50,7 @@ export default async function DataQualityPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const dqRes = await apiFetchSafe<DataQuality>('/admin/data-quality');
   const dq = dqRes.ok ? dqRes.data : null;

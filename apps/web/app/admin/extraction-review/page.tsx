@@ -46,7 +46,7 @@ export default async function AdminExtractionReviewPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // pending is the canary; stats strip is best-effort (just hides on error).
   const pendingRes = await apiFetchSafe<AiExtractionRow[]>(

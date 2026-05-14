@@ -48,7 +48,7 @@ export default async function AdminUsersPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
   const isSuper = user.role === 'SUPER_ADMIN';
 
   const params = await searchParams;

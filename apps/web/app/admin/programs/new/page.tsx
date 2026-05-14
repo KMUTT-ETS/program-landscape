@@ -29,7 +29,7 @@ export default async function NewProgramPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // Faculties is the canary — without it the form has no faculty dropdown
   // and is unusable. Departments stays best-effort (the form can ship

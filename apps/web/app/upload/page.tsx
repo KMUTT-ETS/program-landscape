@@ -15,7 +15,7 @@ export default async function UploadPage() {
   if (!user?.userId) redirect('/signin');
   // pdf:upload — admin-grade + FACULTY_USER (absorbs the legacy
   // DEAN/DEPT_HEAD population that owned faculty-scope upload rights).
-  const allowed = isAdminGrade(user.role) || user.role === 'FACULTY_USER';
+  const allowed = isAdminGrade(user.effectiveRole ?? user.role) || user.role === 'FACULTY_USER';
   if (!allowed) redirect('/no-access');
 
   return (

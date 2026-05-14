@@ -38,8 +38,12 @@ export async function requireSession({
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) return { kind: 'deny', response: UNAUTHORIZED };
 
-  const ok =
-    minRole === 'admin' ? isAdminGrade(user.role) : isUniversityWide(user.role);
+  // Use effectiveRole (most-permissive of primary + UserScope grants)
+  // for the gate. NestJS still enforces real scope clamping per
+  // endpoint via resolveEffectiveScope() — this is defence-in-depth at
+  // the BFF level. Falls back to `role` on older JWTs.
+  const role = user.effectiveRole ?? user.role;
+  const ok = minRole === 'admin' ? isAdminGrade(role) : isUniversityWide(role);
   if (!ok) return { kind: 'deny', response: FORBIDDEN };
   return { kind: 'allow', user };
 }

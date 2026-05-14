@@ -94,7 +94,7 @@ export default async function AdminConsolePage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // Pull live numbers in parallel; degrade gracefully if either endpoint
   // is reachable. The console renders fine without them — the badges

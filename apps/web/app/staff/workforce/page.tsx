@@ -26,7 +26,7 @@ export default async function WorkforcePage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);

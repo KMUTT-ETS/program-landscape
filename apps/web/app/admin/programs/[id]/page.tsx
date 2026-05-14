@@ -33,7 +33,7 @@ export default async function AdminProgramDetailPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const { id } = await params;
   const programRes = await apiFetchSafe<ProgramDetail>(`/admin/programs/${id}`);

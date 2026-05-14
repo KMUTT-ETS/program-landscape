@@ -25,6 +25,13 @@ export const SessionUserSchema = z.object({
   // session verify.
   departmentId: z.string().nullable().optional().default(null),
   programId: z.string().nullable().optional().default(null),
+  // Effective role = most-permissive grant across (primary role,
+  // UserScope rows). Used by client-side nav to decide which
+  // dashboards to surface. Server-side access decisions still consult
+  // UserScope rows directly via resolveEffectiveScope() — this is
+  // just the nav-visibility hint. Falls back to `role` when not set
+  // (back-compat with older JWTs).
+  effectiveRole: RoleSchema.optional(),
   themePreference: ThemePreferenceSchema,
 });
 export type SessionUser = z.infer<typeof SessionUserSchema>;

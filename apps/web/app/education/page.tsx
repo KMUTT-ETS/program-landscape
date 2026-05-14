@@ -96,12 +96,12 @@ export default async function EducationHubPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.role)) redirect('/no-access');
+  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   // Refresh button is university-only — triggers a global cube
   // rebuild + reads from the Oracle registry. Skip the fetch + UI
   // entirely for FACULTY_USER.
-  const canRefresh = isUniversityWide(user.role);
+  const canRefresh = isUniversityWide(user.effectiveRole ?? user.role);
   const status = canRefresh
     ? await apiFetch<RefreshStatus>('/education/refresh/status').catch(() => null)
     : null;

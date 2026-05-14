@@ -28,7 +28,7 @@ export default async function AdminPdfLibraryPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!isAdminGrade(user.role)) redirect('/no-access');
+  if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const sp = await searchParams;
   const params = new URLSearchParams();
