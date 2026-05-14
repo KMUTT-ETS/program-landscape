@@ -681,19 +681,28 @@ export function DriverRadar({
           <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="rgb(99 102 241)" />
         ))}
         {axes.map((a, i) => {
-          const labelR = radius + 16;
+          // Compact "L1/L2/L3" markers at each axis tip. Full labels +
+          // sub-text live in the right-side KPI cards already (avoiding
+          // double-labelling), and the original "L1 Recruitment / TCAS /
+          // fill rate" text overflowed the 260-wide viewBox on L2 and
+          // bled into the right-hand KPI column. The cos-sign anchor
+          // also avoided the L3 label rendering INTO the radar polygon
+          // (the old `angle > 0` test sent both L2 and L3 to 'start').
+          const labelR = radius + 14;
           const x = cx + labelR * Math.cos(a.angle);
           const y = cy + labelR * Math.sin(a.angle);
-          const anchor = a.angle === -Math.PI / 2 ? 'middle' : a.angle > 0 ? 'start' : 'end';
           return (
-            <g key={a.label}>
-              <text x={x} y={y} textAnchor={anchor} className="fill-current" fontSize="11" fontWeight="600">
-                {a.label}
-              </text>
-              <text x={x} y={y + 12} textAnchor={anchor} className="fill-current opacity-60" fontSize="9">
-                {a.sub}
-              </text>
-            </g>
+            <text
+              key={a.label}
+              x={x}
+              y={y + 4}
+              textAnchor="middle"
+              className="fill-current opacity-70"
+              fontSize="10"
+              fontWeight="600"
+            >
+              L{i + 1}
+            </text>
           );
         })}
       </svg>
