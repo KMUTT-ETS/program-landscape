@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
+import { ForbiddenException } from '@nestjs/common';
+import { prisma } from '@kku/db';
 import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -17,6 +19,7 @@ import {
   Provenance,
   ZodValidationPipe,
   clampScopeForUser,
+  resolveEffectiveScope,
 } from '../common';
 import { CockpitService } from './cockpit.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -69,6 +72,52 @@ async function clampCockpitScope(
   return { scope: clamped.scope as ScopeLevel, scopeId: clamped.scopeId };
 }
 
+// Build the list of (scope, scopeId) pairs the cockpit should fetch
+// for this user. Single-scope users get [{ scope: requested, scopeId }];
+// multi-grant users get one entry per granted faculty/program so the
+// service can be fanned out and the rows unioned. A user with grants
+// across both axes (e.g. FACULTY_USER F1 + PROGRAM_USER P9 in another
+// faculty) gets the union of both.
+async function cockpitScopeTargets(
+  scope: ScopeLevel,
+  scopeId: string | null,
+  user: SessionUser,
+): Promise<Array<{ scope: ScopeLevel; scopeId: string | null }>> {
+  const eff = await resolveEffectiveScope(user);
+  if (eff.mode === 'none') {
+    throw new ForbiddenException(
+      'Your account has no faculty or program assignment. Contact an admin.',
+    );
+  }
+  if (eff.mode === 'all') {
+    // Admin / UNIVERSITY tier — honour whatever scope was requested.
+    return [{ scope, scopeId }];
+  }
+  const targets: Array<{ scope: ScopeLevel; scopeId: string | null }> = [];
+  for (const fid of eff.facultyIds) targets.push({ scope: 'faculty', scopeId: fid });
+  // Drop program grants whose faculty is already covered by a faculty
+  // grant — otherwise the program shows twice (once via the faculty
+  // target's roll-up, once via its own target). Common pattern: a
+  // FACULTY_USER grant for F1 plus an explicit PROGRAM_USER grant for
+  // a program inside F1 (admin-redundant but not invalid).
+  if (eff.programIds.length > 0 && eff.facultyIds.length > 0) {
+    const facultyIdSet = new Set(eff.facultyIds);
+    const programs = await prisma.program.findMany({
+      where: { id: { in: eff.programIds } },
+      select: { id: true, facultyId: true },
+    });
+    const programFacultyById = new Map(programs.map((p) => [p.id, p.facultyId]));
+    for (const pid of eff.programIds) {
+      const fid = programFacultyById.get(pid);
+      if (fid && facultyIdSet.has(fid)) continue; // covered by faculty target
+      targets.push({ scope: 'program', scopeId: pid });
+    }
+  } else {
+    for (const pid of eff.programIds) targets.push({ scope: 'program', scopeId: pid });
+  }
+  return targets;
+}
+
 @Controller('/cockpit')
 export class CockpitController {
   constructor(
@@ -113,8 +162,15 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
   ) {
-    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
-    return this.cockpit.kpis(eff.scope, eff.scopeId);
+    const targets = await cockpitScopeTargets(q.scope, q.scopeId ?? null, user);
+    if (targets.length === 1) {
+      const t = targets[0]!;
+      return this.cockpit.kpis(t.scope, t.scopeId);
+    }
+    // Multi-grant — fan out + combine. Counts sum; averages weight by
+    // programCount per call.
+    const results = await Promise.all(targets.map((t) => this.cockpit.kpis(t.scope, t.scopeId)));
+    return combineKpis(results);
   }
 
   @Get('heatmap')
@@ -127,8 +183,16 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
   ) {
-    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
-    return this.cockpit.heatmap(eff.scope, eff.scopeId);
+    const targets = await cockpitScopeTargets(q.scope, q.scopeId ?? null, user);
+    if (targets.length === 1) {
+      const t = targets[0]!;
+      return this.cockpit.heatmap(t.scope, t.scopeId);
+    }
+    const results = await Promise.all(targets.map((t) => this.cockpit.heatmap(t.scope, t.scopeId)));
+    return {
+      methodologyVersion: results[0]!.methodologyVersion,
+      rows: results.flatMap((r) => r.rows),
+    };
   }
 
   @Get('matrix')
@@ -141,8 +205,16 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
   ) {
-    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
-    return this.cockpit.matrix(eff.scope, eff.scopeId);
+    const targets = await cockpitScopeTargets(q.scope, q.scopeId ?? null, user);
+    if (targets.length === 1) {
+      const t = targets[0]!;
+      return this.cockpit.matrix(t.scope, t.scopeId);
+    }
+    const results = await Promise.all(targets.map((t) => this.cockpit.matrix(t.scope, t.scopeId)));
+    return {
+      ...results[0]!,
+      bubbles: results.flatMap((r) => r.bubbles),
+    };
   }
 
   @Get('rollup')
@@ -158,8 +230,16 @@ export class CockpitController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ScopeQuerySchema)) q: ScopeQuery,
   ) {
-    const eff = await clampCockpitScope(q.scope, q.scopeId ?? null, user);
-    return this.cockpit.rollup(eff.scope, eff.scopeId);
+    const targets = await cockpitScopeTargets(q.scope, q.scopeId ?? null, user);
+    if (targets.length === 1) {
+      const t = targets[0]!;
+      return this.cockpit.rollup(t.scope, t.scopeId);
+    }
+    const results = await Promise.all(targets.map((t) => this.cockpit.rollup(t.scope, t.scopeId)));
+    return {
+      methodologyVersion: results[0]!.methodologyVersion,
+      nodes: results.flatMap((r) => r.nodes),
+    };
   }
 
   @Post('brief')
@@ -300,6 +380,67 @@ export class CockpitController {
 // ──────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────
+
+// Combine N single-scope cockpit KPI responses into one. Counts sum;
+// averages (dataCompleteness, curriculum age) weight by programCount
+// so a faculty grant doesn't get drowned by a single-program grant.
+// Used for users with multi-faculty / multi-program / mixed grants.
+type KpisShape = Awaited<ReturnType<CockpitService['kpis']>>;
+function combineKpis(parts: KpisShape[]): KpisShape {
+  if (parts.length === 0) {
+    throw new Error('combineKpis requires at least one part');
+  }
+  const first = parts[0]!;
+  const sumN = (key: keyof KpisShape): number =>
+    parts.reduce<number>((acc, p) => acc + ((p[key] as number | null) ?? 0), 0);
+  const sumNullable = (key: keyof KpisShape): number | null => {
+    let acc = 0;
+    let anyNotNull = false;
+    for (const p of parts) {
+      const v = p[key] as number | null;
+      if (v !== null && v !== undefined) {
+        acc += v;
+        anyNotNull = true;
+      }
+    }
+    return anyNotNull ? acc : null;
+  };
+  const weightedAvg = (key: keyof KpisShape): number | null => {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const p of parts) {
+      const v = p[key] as number | null;
+      const w = p.programCount;
+      if (v !== null && v !== undefined && w > 0) {
+        weightedSum += v * w;
+        totalWeight += w;
+      }
+    }
+    return totalWeight > 0 ? weightedSum / totalWeight : null;
+  };
+  const latestFreshness: Date | null = (() => {
+    let latest: Date | null = null;
+    for (const p of parts) {
+      const v = p.latestFreshness;
+      if (v && (!latest || v > latest)) latest = v;
+    }
+    return latest;
+  })();
+  return {
+    programCount: sumN('programCount'),
+    enrolledTotal: sumNullable('enrolledTotal') ?? 0,
+    netContributionTotal: sumNullable('netContributionTotal'),
+    dangerZoneCount: sumN('dangerZoneCount'),
+    qualityConcernCount: sumN('qualityConcernCount'),
+    atRiskCount: sumN('atRiskCount'),
+    surgingCount: sumN('surgingCount'),
+    programsWithTrend: sumN('programsWithTrend'),
+    dataCompletenessPct: weightedAvg('dataCompletenessPct'),
+    averageCurriculumAgeYears: weightedAvg('averageCurriculumAgeYears'),
+    methodologyVersion: first.methodologyVersion,
+    latestFreshness,
+  };
+}
 
 function formatThaiDate(d: Date): string {
   // Buddhist-era year (CE + 543) + Thai month names. Simple enough to

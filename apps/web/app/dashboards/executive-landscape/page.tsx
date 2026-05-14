@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
-import { getDashboardOverview } from '@kku/db';
+import { getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
 import {
   Card,
   CardHeader,
@@ -33,42 +33,98 @@ export default async function ExecutiveLandscapePage() {
   const user = session.user as SessionUser;
 
   // Scope-aware home page. Admin-grade + UNIVERSITY_USER see the full
-  // 297-program rollup; FACULTY_USER sees only their faculty's slice;
-  // PROGRAM_USER sees only their single assigned program. Both
-  // surfaces (dashboard overview + cockpit matrix) honour the same
-  // scope so the page feels consistent end-to-end.
+  // 297-program rollup; FACULTY_USER sees their faculty's slice;
+  // PROGRAM_USER sees their assigned program(s). Multi-grant users
+  // (e.g. PROGRAM_USER in 3 programs) see the UNION — fan-out below.
   const isUniversityWide =
     user.role === 'SUPER_ADMIN' ||
     user.role === 'SYSTEM_ADMIN' ||
     user.role === 'UNIVERSITY_USER';
-  const overviewScope = isUniversityWide
-    ? {}
-    : user.role === 'PROGRAM_USER' && user.programId
-      ? { programId: user.programId }
-      : user.role === 'FACULTY_USER' && user.facultyId
-        ? { facultyId: user.facultyId }
-        : {};
-  const matrixQuery = isUniversityWide
-    ? 'scope=university'
-    : user.role === 'PROGRAM_USER' && user.programId
-      ? `scope=program&scopeId=${encodeURIComponent(user.programId)}`
-      : user.role === 'FACULTY_USER' && user.facultyId
-        ? `scope=faculty&scopeId=${encodeURIComponent(user.facultyId)}`
-        : 'scope=university';
 
-  const [overview, strategicMatrix] = await Promise.all([
-    getDashboardOverview(overviewScope),
-    apiFetch<CockpitMatrix>(`/cockpit/matrix?${matrixQuery}`).catch(() => null),
-  ]);
+  // Resolve effective scope (primary + UserScope rows) for multi-grant
+  // detection. Same logic as scope-guards.ts resolveEffectiveScope but
+  // inlined to keep the page self-contained.
+  const seesAll =
+    user.role === 'SUPER_ADMIN' ||
+    user.role === 'SYSTEM_ADMIN' ||
+    user.role === 'UNIVERSITY_USER';
+  let grantedFacultyIds: string[] = [];
+  let grantedProgramIds: string[] = [];
+  if (!seesAll) {
+    const scopes = await prisma.userScope.findMany({
+      where: { userId: user.userId },
+      select: { role: true, facultyId: true, programId: true },
+    });
+    if (scopes.some((s) => s.role === 'SUPER_ADMIN' || s.role === 'SYSTEM_ADMIN' || s.role === 'UNIVERSITY_USER')) {
+      // Elevated via UserScope — treat as university-wide.
+    } else {
+      const fids = new Set<string>();
+      const pids = new Set<string>();
+      if (user.role === 'FACULTY_USER' && user.facultyId) fids.add(user.facultyId);
+      if (user.role === 'PROGRAM_USER' && user.programId) pids.add(user.programId);
+      for (const s of scopes) {
+        if (s.role === 'FACULTY_USER' && s.facultyId) fids.add(s.facultyId);
+        if (s.role === 'PROGRAM_USER' && s.programId) pids.add(s.programId);
+      }
+      grantedFacultyIds = [...fids];
+      grantedProgramIds = [...pids];
+    }
+  }
+  const isElevatedByUserScope = !seesAll && !isUniversityWide && grantedFacultyIds.length === 0 && grantedProgramIds.length === 0;
+  const effectivelyUniversityWide = isUniversityWide || isElevatedByUserScope;
+
+  // Build the fan-out target list (one per granted scope). Drop
+  // program grants whose faculty is already covered by a faculty
+  // grant — otherwise the program shows twice (once rolled up under
+  // the faculty target, once via its own).
+  let overviewTargets: Array<{ programId?: string; facultyId?: string }>;
+  if (effectivelyUniversityWide) {
+    overviewTargets = [{}];
+  } else {
+    let programGrantsToFanOut = grantedProgramIds;
+    if (grantedFacultyIds.length > 0 && grantedProgramIds.length > 0) {
+      const facultySet = new Set(grantedFacultyIds);
+      const progs = await prisma.program.findMany({
+        where: { id: { in: grantedProgramIds } },
+        select: { id: true, facultyId: true },
+      });
+      const facByProgram = new Map(progs.map((p) => [p.id, p.facultyId]));
+      programGrantsToFanOut = grantedProgramIds.filter((pid) => {
+        const fid = facByProgram.get(pid);
+        return !fid || !facultySet.has(fid);
+      });
+    }
+    overviewTargets = [
+      ...grantedFacultyIds.map((fid) => ({ facultyId: fid })),
+      ...programGrantsToFanOut.map((pid) => ({ programId: pid })),
+    ];
+  }
+
+  // For the matrix we let the cockpit endpoint do its own fan-out
+  // (already multi-scope-aware via cockpitScopeTargets). Just pass the
+  // requested scope; the API unions internally.
+  const matrixQuery = effectivelyUniversityWide
+    ? 'scope=university'
+    : grantedFacultyIds.length === 1 && grantedProgramIds.length === 0
+      ? `scope=faculty&scopeId=${encodeURIComponent(grantedFacultyIds[0]!)}`
+      : grantedProgramIds.length === 1 && grantedFacultyIds.length === 0
+        ? `scope=program&scopeId=${encodeURIComponent(grantedProgramIds[0]!)}`
+        : 'scope=university'; // API clamps; multi-target fan-out happens server-side
+
+  // Run the overview fan-out (1 call for single-grant; N for multi).
+  const overviewParts = await Promise.all(overviewTargets.map((t) => getDashboardOverview(t)));
+  const overview = overviewParts.length === 1 ? overviewParts[0]! : combineDashboardOverviews(overviewParts);
+
+  const strategicMatrix = await apiFetch<CockpitMatrix>(`/cockpit/matrix?${matrixQuery}`).catch(() => null);
 
   // Scope label injected into every PanelFrame's provenance drawer so
   // the user can see which slice they're looking at.
   const provenanceScope: { level: 'university' | 'faculty' | 'program'; id: string | null } =
-    isUniversityWide
+    effectivelyUniversityWide
       ? { level: 'university', id: null }
-      : user.role === 'PROGRAM_USER' && user.programId
-        ? { level: 'program', id: user.programId }
-        : { level: 'faculty', id: user.facultyId };
+      : grantedProgramIds.length > 0 && grantedFacultyIds.length === 0
+        ? { level: 'program', id: grantedProgramIds[0] ?? null }
+        : { level: 'faculty', id: grantedFacultyIds[0] ?? null };
   const k = overview.kpis;
   const bulkRunning = k.bulkPipelineProgress.done < k.bulkPipelineProgress.total;
   const generatedAtIso = overview.generatedAt.toISOString();
@@ -353,4 +409,77 @@ function HeroStat({
       <p className="text-[11px] text-text-tertiary">{sub}</p>
     </div>
   );
+}
+
+// Combine N single-scope DashboardOverview responses for multi-grant
+// users. Per user spec only the headline KPI hero needs the multi-
+// grant union — other panels (urgent / momentum / facultyTiles /
+// lifecycle / pulse / facultyHealth) keep the first part's data,
+// scoped to their granted programs naturally (each part is per
+// program/faculty so the rows already belong to the user).
+//
+// KPIs:
+//   programCount, facultyCount: COUNT DISTINCT (since multiple
+//     programs in the same faculty shouldn't double-count faculties)
+//   latestEnrolled, netContributionThb, *Count, intakePolicy.*: SUM
+//   bulkPipelineProgress: SUM done+total; pick max lastCompletedAt
+function combineDashboardOverviews(parts: DashboardOverview[]): DashboardOverview {
+  if (parts.length === 0) throw new Error('combineDashboardOverviews requires at least one part');
+  if (parts.length === 1) return parts[0]!;
+  const first = parts[0]!;
+
+  const sumN = (key: keyof typeof first.kpis): number =>
+    parts.reduce<number>((acc, p) => acc + ((p.kpis[key] as number | null | undefined) ?? 0), 0);
+
+  // No-op block kept for the comment below — counts now sum directly
+  // (each fan-out call returns the count for its own scope; summing
+  // gives the union total). Earlier we tried COUNT DISTINCT from
+  // quadrant.points, but quadrant excludes programs without recent
+  // enrollment data, so a sparse-data program would silently drop
+  // out of the KPI count.
+
+  let lastCompletedAt: Date | null = null;
+  let lastCompletedCode: string | null = null;
+  let bulkDone = 0;
+  let bulkTotal = 0;
+  for (const p of parts) {
+    const b = p.kpis.bulkPipelineProgress;
+    bulkDone += b.done;
+    bulkTotal += b.total;
+    if (b.lastCompletedAt && (!lastCompletedAt || b.lastCompletedAt > lastCompletedAt)) {
+      lastCompletedAt = b.lastCompletedAt;
+      lastCompletedCode = b.lastCompletedCode;
+    }
+  }
+
+  // Return the first part's overview with the rolled-up KPIs spliced in.
+  // Other fields (urgent / momentum / facultyTiles / facultyHealth /
+  // lifecycle / pulse / quadrant / levelMix) are taken from the first
+  // part — those panels are per-row lists that don't need merging for
+  // the user's current need (only the KPI hero summary).
+  return {
+    ...first,
+    kpis: {
+      programCount: sumN('programCount'),
+      facultyCount: sumN('facultyCount'),
+      latestEnrolled: sumN('latestEnrolled'),
+      netContributionThb: sumN('netContributionThb'),
+      zeroEnrollmentCount: sumN('zeroEnrollmentCount'),
+      crashingCount: sumN('crashingCount'),
+      surgingCount: sumN('surgingCount'),
+      intakePolicy: {
+        bachelorBreach: parts.reduce((a, p) => a + p.kpis.intakePolicy.bachelorBreach, 0),
+        postgradWatch: parts.reduce((a, p) => a + p.kpis.intakePolicy.postgradWatch, 0),
+        bachelorCompliant: parts.reduce((a, p) => a + p.kpis.intakePolicy.bachelorCompliant, 0),
+        postgradCompliant: parts.reduce((a, p) => a + p.kpis.intakePolicy.postgradCompliant, 0),
+        unknownCount: parts.reduce((a, p) => a + p.kpis.intakePolicy.unknownCount, 0),
+      },
+      bulkPipelineProgress: {
+        done: bulkDone,
+        total: bulkTotal,
+        lastCompletedAt,
+        lastCompletedCode,
+      },
+    },
+  };
 }
