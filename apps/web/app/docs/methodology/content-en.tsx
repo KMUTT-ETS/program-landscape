@@ -671,6 +671,24 @@ export function MethodologyContentEn() {
             <Code>packages/db/src/program-deep-dive.ts</Code> and reviewed manually whenever the skill
             taxonomy is enlarged.
           </P>
+          <P>
+            <Em>Distinct from the per-program AI-readiness assessment.</Em> The four sub-scores
+            above are the <Code>ai_readiness</Code> driver consumed by health-score / lifecycle. A
+            separate richer assessment — versioned <Code>program-ai-readiness.v3</Code> —
+            powers the AI-readiness section on /programs/[id] using the Shao et al. (2025) Human
+            Agency Scale + four-zone automation framework (GREEN_LIGHT / RED_LIGHT /
+            RD_OPPORTUNITY / LOW_PRIORITY). The v3 assessment is descriptive (per-discipline
+            rubric, named peer references, prioritised recommendations); the driver above is
+            quantitative (one number that feeds the composite).
+          </P>
+          <P>
+            <Em>Pedagogical readiness is now live</Em> — <Code>program-pedagogy.v1.1</Code>{' '}
+            replaces the "Reserved" placeholder. The assessment is discipline-aware:
+            medical → PBL + clinical rotations + OSCE; engineering → project-based +
+            internship + CDIO; etc. Output includes observed approaches, QA-system fit, and a
+            disciplineFitScore. Currently used in the deep-dive section; folding it into the
+            health-score driver weighting is gated on a 30-day green-history window.
+          </P>
         </DocSubsection>
 
         <DocSubsection number="3.4" title="Verdict assignment">
@@ -1065,10 +1083,17 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
             <TR>
               <TD mono>kku-research</TD>
-              <TD>OpenAlex publications attributed to KKU institution <Code>I179193067</Code></TD>
-              <TD>OpenAlex (CC0)</TD>
-              <TD>Capability (publications), Lifecycle (AI research presence)</TD>
-              <TD><Strong>Live</Strong> since 2026-04-28; Scopus enrichment deferred pending KKU Library API key</TD>
+              <TD>
+                Internal KKU Library publications warehouse (<Code>kkuscholar</Code>) — Scopus +
+                PubMed publication metadata + curator-grade author / faculty / department graph
+              </TD>
+              <TD>Khon Kaen University, Library — internal mirror</TD>
+              <TD>Capability (publications), Lifecycle (AI research presence), Profile (per-faculty publication list)</TD>
+              <TD>
+                <Strong>Live</Strong> since 2026-04-28 (OpenAlex v1) → pivoted to internal mirror
+                2026-05-07 (v2). 59.4k unique (paper × author) pairs spanning 1948–2026.
+                FacultyMember backfill from <Code>kkuscholar.people</Code> lifted match rate to 99.6%.
+              </TD>
             </TR>
             <TR>
               <TD mono>kmitl-skill-mapping</TD>
@@ -1079,10 +1104,10 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
             <TR>
               <TD mono>tcas</TD>
-              <TD>TCAS3 admission statistics for peer institutions</TD>
+              <TD>TCAS3 admission statistics (mytcas.com maxmin xlsx, rounds TCAS62–TCAS68)</TD>
               <TD>สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย (CUPT)</TD>
               <TD>Attractiveness (peer competition), Outcomes (TCAS minimum-score percentile)</TD>
-              <TD><Strong>Live</Strong> for peer rows</TD>
+              <TD><Strong>Live</Strong> since 2026-05-13 — 26.5k admission rows + funnel rollups across 7 cohorts</TD>
             </TR>
             <TR>
               <TD>Demographic projections</TD>
