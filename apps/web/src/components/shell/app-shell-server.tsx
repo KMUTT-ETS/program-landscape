@@ -4,8 +4,6 @@ import { AppShell, LeftNav, TopBar } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { appNavSectionsFor } from '@/lib/app-nav';
 import { fetchScopeEntities } from '@/lib/app-entities';
-import { apiFetch } from '@/lib/api-client';
-import type { MeResponse } from '@kku/shared';
 import { AppShellClientChrome } from './client-chrome';
 import { TopBarRight } from './top-bar-right';
 import { NavCredits } from './nav-user-footer';
@@ -29,9 +27,8 @@ export async function AuthedAppShell({
   user: SessionUser;
   children: React.ReactNode;
 }) {
-  const [entities, me, cookieStore, chrome] = await Promise.all([
+  const [entities, cookieStore, chrome] = await Promise.all([
     fetchScopeEntities(),
-    apiFetch<MeResponse>('/me').catch(() => null),
     cookies(),
     // Avatar URL + rank-prefixed Thai/English name. `chrome.name` is
     // null for admin-only accounts not on the HR roster — TopBarRight
@@ -43,14 +40,6 @@ export async function AuthedAppShell({
   const impersonation = tryDecodeImpersonation(
     cookieStore.get(IMPERSONATION_COOKIE)?.value,
   );
-  const access = me
-    ? me.scopeAccess
-    : {
-        universityRead: true,
-        allFacultiesRead: true,
-        ownFacultyId: null,
-        ownDepartmentId: null,
-      };
 
   const brand = (
     <>
@@ -97,7 +86,7 @@ export async function AuthedAppShell({
       topBar={
         <TopBar
           breadcrumb={<TopBarBreadcrumb />}
-          center={<AppShellClientChrome entities={entities} access={access} />}
+          center={<AppShellClientChrome entities={entities} />}
           right={
             <TopBarRight
               user={user}
