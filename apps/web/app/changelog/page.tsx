@@ -27,13 +27,15 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-05-14',
-    version: 'v1.1.4 · UI polish + risk-scope honour',
-    title: 'BCG tooltip, radar layout, multi-scope respect in Risk Management',
+    version: 'v1.1.5 · Multi-scope sessions + UI polish',
+    title: 'Multi-scope respect across every module; BCG tooltip + radar layout',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
+      'Multi-scope session model — a user whose primary role is PROGRAM_USER but who holds a UserScope grant of UNIVERSITY_USER (or FACULTY_USER) is now treated at the elevated tier in every module. The JWT carries the highest-rank grant; the DB row keeps the original assignment as audit. Applies to risks, cockpit, executive landscape, /programs directory, education + staff dashboards, and the admin gates. Multi-scope SSO users who are auto-assigned to N programs see one of those programs in single-scope views (cockpit, executive landscape, /programs) and the union across all of them in risks.',
       'Strategic Matrix (BCG) on Executive Landscape — hover now shows a floating tooltip card next to the cursor with axis values, size, and contribution. Edge-aware: flips left/up near the right/bottom edges.',
       'Likelihood-drivers radar on /risks/[id] — compact L1/L2/L3 axis markers replace the longer labels that overlapped the right-side KPI cards.',
-      'Risk Management (/risks portfolio, drivers, indicators) now respects the full scope chain — primary role + UserScope grants. A user whose primary role is PROGRAM_USER but who has a UserScope grant of UNIVERSITY_USER now correctly sees the full portfolio; a FACULTY_USER with grants in multiple faculties sees the union. Drivers chart\'s automation-risk panel now shows only skills taught by programs in scope (was the global skill taxonomy regardless of scope). Indicator histograms + severity counts now clamp consistently with the breach list.',
+      'Risk Management drivers chart\'s automation-risk panel now shows only skills taught by programs in scope (was the global skill taxonomy regardless of scope). Indicator histograms + severity counts clamp consistently with the breach list.',
+      'Top-bar scope dropdown removed — scope is now entirely role-driven from the session, so the dropdown wasn\'t the source of truth for any module\'s data fetch. The command-palette search trigger now fills the row.',
     ],
   },
   {
