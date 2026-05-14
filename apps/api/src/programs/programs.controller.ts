@@ -76,10 +76,18 @@ async function resolveEffectiveScope(user: SessionUser): Promise<EffectiveScope>
   const allowedFacultyIds = new Set<string>();
   const allowedProgramIds = new Set<string>();
 
-  // Primary fields contribute when set (backwards-compat for users not yet
-  // backfilled into UserScope, plus legacy admin-edited rows).
-  if (user.facultyId) allowedFacultyIds.add(user.facultyId);
-  if (user.programId) allowedProgramIds.add(user.programId);
+  // Primary fields contribute ONLY when the role matches that scope
+  // axis. Without this gate, a user whose primary row has
+  // role=PROGRAM_USER + facultyId=engineering (a back-context field
+  // from FacultyMember sync) would have engineering added as a
+  // FACULTY_USER-level grant — exposing all 19 engineering programs
+  // when their actual scope is a single program.
+  if (user.role === 'FACULTY_USER' && user.facultyId) {
+    allowedFacultyIds.add(user.facultyId);
+  }
+  if (user.role === 'PROGRAM_USER' && user.programId) {
+    allowedProgramIds.add(user.programId);
+  }
 
   for (const s of scopes) {
     if (s.role === 'FACULTY_USER' && s.facultyId) {

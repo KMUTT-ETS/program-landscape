@@ -138,10 +138,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(RecruitmentQuerySchema))
     q: z.infer<typeof RecruitmentQuerySchema>,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     // FACULTY_USER → facultyId is forced to user.facultyId regardless
     // of what the URL says. Admin-grade + UNIVERSITY_USER pass through.
-    const clamped = clampFacultyIdFilter(
+    const clamped = await clampFacultyIdFilter(
       { facultyId: q.facultyId ?? null },
       user,
     );
@@ -182,7 +182,7 @@ export class EducationController {
     )
     body: { cubes?: RefreshableCube[] },
   ) {
-    assertUniversityWide(user);
+    await assertUniversityWide(user);
     // Validate cube list — null / empty array means refresh everything.
     const cubes =
       body.cubes && body.cubes.length > 0
@@ -203,7 +203,7 @@ export class EducationController {
   @Get('refresh/status')
   @Authorized('institution:read:university')
   async refreshStatus(@AuthSession() user: SessionUser) {
-    assertUniversityWide(user);
+    await assertUniversityWide(user);
     const latest = await this.refresher.latestPerCube();
     return {
       isRunning: this.refresher.isRunning(),
@@ -225,7 +225,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StudentInfoQuerySchema)) q: StudentInfoQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null) return this.education.studentInfo({ ...q, facultyName: ['__none__'] });
     return this.education.studentInfo(clamped);
@@ -237,7 +237,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(LocationQuerySchema)) q: LocationQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null) return this.education.byLocation({ ...q, facultyName: ['__none__'] });
     return this.education.byLocation(clamped);
@@ -246,7 +246,7 @@ export class EducationController {
   @Get('active-pivot')
   @Authorized('institution:read:dashboard')
   async activePivot(@AuthSession() user: SessionUser) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const facultyName = await this.resolveFacultyNameClamp(user);
     return this.education.activePivot(
       facultyName === '__none__' ? { facultyName: '__none__' } : { facultyName },
@@ -256,7 +256,7 @@ export class EducationController {
   @Get('international')
   @Authorized('institution:read:dashboard')
   async international(@AuthSession() user: SessionUser) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const facultyName = await this.resolveFacultyNameClamp(user);
     return this.education.international(
       facultyName === '__none__' ? { facultyName: '__none__' } : { facultyName },
@@ -285,7 +285,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(TuitionQuerySchema)) q: TuitionQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null) return this.education.tuition({ ...q, facultyName: ['__none__'] });
     return this.education.tuition(clamped);
@@ -299,7 +299,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.education.performanceOverall({ ...q, facultyName: ['__none__'] });
@@ -312,7 +312,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.education.performanceByProgram({ ...q, facultyName: ['__none__'] });
@@ -325,7 +325,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.education.performanceByLocation({ ...q, facultyName: ['__none__'] });
@@ -338,7 +338,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PerformanceQuerySchema)) q: PerformanceQuery,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.education.entryScores({ ...q, facultyName: ['__none__'] });

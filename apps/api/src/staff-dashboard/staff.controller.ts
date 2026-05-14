@@ -90,7 +90,7 @@ export class StaffController {
   @Get('filter-options')
   @Authorized('institution:read:dashboard')
   async filterOptions(@AuthSession() user: SessionUser) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     if (user.role === 'FACULTY_USER' && user.facultyId) {
       const faculty = await prisma.faculty.findUnique({
         where: { id: user.facultyId },
@@ -109,7 +109,7 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(RefreshBodySchema)) body: { slugs?: StaffSlug[] },
   ) {
-    assertUniversityWide(user);
+    await assertUniversityWide(user);
     const slugs = (body.slugs && body.slugs.length > 0 ? body.slugs : STAFF_REFRESH_SLUGS) as StaffSlug[];
     const queued: Array<{ slug: string; jobId: string }> = [];
     for (const slug of slugs) {
@@ -122,7 +122,7 @@ export class StaffController {
   @Get('refresh/status')
   @Authorized('institution:read:dashboard')
   async refreshStatus(@AuthSession() user: SessionUser) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const slugs = [...STAFF_REFRESH_SLUGS];
     const sources = await prisma.dataSource.findMany({
       where: { slug: { in: slugs } },
@@ -169,7 +169,7 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.staff.workforce({ ...q, facultyName: ['__none__'] });
@@ -179,7 +179,7 @@ export class StaffController {
   @Get('faculty-by-program')
   @Authorized('institution:read:dashboard')
   async facultyByProgram(@AuthSession() user: SessionUser) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const facultyId =
       user.role === 'FACULTY_USER' && user.facultyId ? user.facultyId : undefined;
     return this.staff.facultyByProgram({ facultyId });
@@ -191,7 +191,7 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ResearchFilterSchema)) q: z.infer<typeof ResearchFilterSchema>,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.staff.researchOutput({ ...q, facultyName: ['__none__'] });
@@ -204,7 +204,7 @@ export class StaffController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(StaffFilterSchema)) q: z.infer<typeof StaffFilterSchema>,
   ) {
-    assertCanSeeFacultyDashboards(user);
+    await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter(q, user);
     if (clamped === null)
       return this.staff.compensation({ ...q, facultyName: ['__none__'] });

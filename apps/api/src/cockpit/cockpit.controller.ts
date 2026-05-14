@@ -2,14 +2,13 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Param,
   Post,
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
+import { LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
 import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -17,6 +16,7 @@ import {
   Authorized,
   Provenance,
   ZodValidationPipe,
+  clampScopeForUser,
 } from '../common';
 import { CockpitService } from './cockpit.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -54,97 +54,19 @@ const SaveViewBodySchema = z.object({
 });
 type SaveViewBody = z.infer<typeof SaveViewBodySchema>;
 
-// Scope guard for cockpit reads. Admin-grade + UNIVERSITY_USER pass
-// through with whatever scope they ask for.
-//
-// FACULTY_USER:
-//   - scope=university    → downgrade to (faculty, ownFacultyId)
-//   - scope=faculty       → must match ownFacultyId, else 403
-//   - scope=department    → must belong to ownFacultyId, else 403
-//   - scope=program       → must belong to ownFacultyId, else 403
-//
-// PROGRAM_USER (narrowest):
-//   - any scope wider than program → downgrade directly to
-//     (program, ownProgramId). The cockpit's faculty/university-level
-//     KPIs aggregate across programs they can't see; showing those
-//     numbers would leak signal about other programs in their faculty.
-//   - scope=program → must match ownProgramId, else 403
-//
-// The clamp is preferred over a 403 for the "broader-than-allowed"
-// case so the user always lands on something useful (their own slice)
-// instead of a hard stop. Narrower-but-elsewhere requests are refused.
+// Scope guard for cockpit reads. Delegates to the shared
+// `clampScopeForUser` helper which honours both the primary session
+// scope AND UserScope rows (multi-scope). A user whose primary role
+// is PROGRAM_USER but who has a UserScope grant of UNIVERSITY_USER
+// now sees the full cockpit at any requested scope — same posture
+// applied across the risks / education / staff modules.
 async function clampCockpitScope(
   scope: ScopeLevel,
   scopeId: string | null,
   user: SessionUser,
 ): Promise<{ scope: ScopeLevel; scopeId: string | null }> {
-  if (
-    user.role === 'SUPER_ADMIN' ||
-    user.role === 'SYSTEM_ADMIN' ||
-    user.role === 'UNIVERSITY_USER'
-  ) {
-    return { scope, scopeId };
-  }
-
-  // ── PROGRAM_USER ─ narrowest scope ────────────────────────────
-  if (user.role === 'PROGRAM_USER') {
-    if (!user.programId) {
-      throw new ForbiddenException(
-        'Your account has no program assignment. Contact an admin.',
-      );
-    }
-    // Anything wider than program → drop to program-level view of
-    // their own program. The cockpit-as-PROGRAM_USER is essentially a
-    // "my single program" dashboard.
-    if (scope !== 'program') {
-      return { scope: 'program', scopeId: user.programId };
-    }
-    if (scopeId !== user.programId) {
-      throw new ForbiddenException("This is not the program assigned to your account.");
-    }
-    return { scope, scopeId };
-  }
-
-  // ── FACULTY_USER ─ faculty-wide ───────────────────────────────
-  if (!user.facultyId) {
-    throw new ForbiddenException(
-      'Your account has no faculty assignment. Contact an admin to set your scope.',
-    );
-  }
-  if (scope === 'university') {
-    return { scope: 'faculty', scopeId: user.facultyId };
-  }
-  if (scope === 'faculty') {
-    if (scopeId !== user.facultyId) {
-      throw new ForbiddenException("You can only view your own faculty's data.");
-    }
-    return { scope, scopeId };
-  }
-  if (scope === 'department') {
-    if (!scopeId) throw new ForbiddenException('scopeId required for department scope.');
-    const dept = await prisma.department.findUnique({
-      where: { id: scopeId },
-      select: { facultyId: true },
-    });
-    if (!dept) throw new ForbiddenException('Department not found.');
-    if (dept.facultyId !== user.facultyId) {
-      throw new ForbiddenException('Department is outside your faculty.');
-    }
-    return { scope, scopeId };
-  }
-  if (scope === 'program') {
-    if (!scopeId) throw new ForbiddenException('scopeId required for program scope.');
-    const prog = await prisma.program.findUnique({
-      where: { id: scopeId },
-      select: { facultyId: true },
-    });
-    if (!prog) throw new ForbiddenException('Program not found.');
-    if (prog.facultyId !== user.facultyId) {
-      throw new ForbiddenException('Program is outside your faculty.');
-    }
-    return { scope, scopeId };
-  }
-  return { scope, scopeId };
+  const clamped = await clampScopeForUser(scope, scopeId, user);
+  return { scope: clamped.scope as ScopeLevel, scopeId: clamped.scopeId };
 }
 
 @Controller('/cockpit')

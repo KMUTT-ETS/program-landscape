@@ -92,28 +92,48 @@ export async function resolveEffectiveScope(
 
 // Refuse access to dashboards that are intentionally university-wide
 // only (Education + Staff modules). FACULTY_USER and PROGRAM_USER get
-// 403'd; the front-end then bounces them to /no-access.
-export function assertUniversityWide(user: SessionUser): void {
-  if (!seesAllScopes(user.role)) {
-    throw new ForbiddenException(
-      'This dashboard is restricted to university-wide roles.',
-    );
-  }
+// 403'd UNLESS they hold an admin-grade or UNIVERSITY_USER UserScope
+// grant (multi-scope). Front-end bounces 403'd users to /no-access.
+export async function assertUniversityWide(user: SessionUser): Promise<void> {
+  if (seesAllScopes(user.role)) return;
+  const scopes = await prisma.userScope.findMany({
+    where: { userId: user.userId },
+    select: { role: true },
+  });
+  if (scopes.some((s) => seesAllScopes(s.role))) return;
+  throw new ForbiddenException(
+    'This dashboard is restricted to university-wide roles.',
+  );
 }
 
 // Dashboard guard for the faculty-scoped variant. Allows admin-grade +
 // UNIVERSITY_USER (full view) AND FACULTY_USER (clamped to own faculty
-// by the helpers below). PROGRAM_USER is still rejected — the dashboard
-// has no per-program variant.
-export function assertCanSeeFacultyDashboards(user: SessionUser): void {
+// by the helpers below). PROGRAM_USER is still rejected unless they
+// hold a FACULTY_USER or UNIVERSITY_USER UserScope grant — these
+// dashboards have no per-program variant.
+export async function assertCanSeeFacultyDashboards(
+  user: SessionUser,
+): Promise<void> {
   if (seesAllScopes(user.role)) return;
-  if (user.role === 'FACULTY_USER') {
-    if (!user.facultyId) {
-      throw new ForbiddenException(
-        'Your account has no faculty assignment. Contact an admin.',
-      );
-    }
+  if (user.role === 'FACULTY_USER' && user.facultyId) return;
+  // Consult UserScope rows — any admin/UNIVERSITY_USER or FACULTY_USER
+  // grant elevates this user to dashboard access.
+  const scopes = await prisma.userScope.findMany({
+    where: { userId: user.userId },
+    select: { role: true, facultyId: true },
+  });
+  if (
+    scopes.some(
+      (s) =>
+        seesAllScopes(s.role) || (s.role === 'FACULTY_USER' && s.facultyId),
+    )
+  ) {
     return;
+  }
+  if (user.role === 'FACULTY_USER' && !user.facultyId) {
+    throw new ForbiddenException(
+      'Your account has no faculty assignment. Contact an admin.',
+    );
   }
   throw new ForbiddenException(
     'This dashboard is restricted to university-wide and faculty-level roles.',
@@ -183,43 +203,69 @@ export async function assertProgramAccessible(
 }
 
 // Clamp a `?facultyName=...` filter array (Thai faculty name) to the
-// user's own faculty. Used by /staff-dashboard and /education endpoints
+// UNION of faculties the user is granted access to (primary scope +
+// UserScope rows). Used by /staff-dashboard and /education endpoints
 // where the data is keyed off the StaffMasterRecord's faculty Thai name.
 //
-// Returns the rewritten filter — or null if the user has no faculty
-// assignment (caller should treat as "no rows").
+// Returns the rewritten filter, OR the unfiltered filter when the
+// effective scope is 'all', OR null when the user has no faculty
+// grants at all (caller treats as "no rows").
 export async function clampFacultyNameFilter<F extends { facultyName: string[] }>(
   filter: F,
   user: SessionUser,
 ): Promise<F | null> {
-  if (seesAllScopes(user.role)) return filter;
-  if (!user.facultyId) return null;
-  const faculty = await prisma.faculty.findUnique({
-    where: { id: user.facultyId },
+  const eff = await resolveEffectiveScope(user);
+  if (eff.mode === 'all') return filter;
+  if (eff.mode === 'none') return null;
+  // Resolve granted facultyIds to nameTh. Programs granted directly
+  // (via PROGRAM_USER UserScope) roll up to their faculty so the
+  // dashboard still has rows — these dashboards are not per-program.
+  const grantedFacultyIds = new Set<string>(eff.facultyIds);
+  if (eff.programIds.length > 0) {
+    const progs = await prisma.program.findMany({
+      where: { id: { in: eff.programIds } },
+      select: { facultyId: true },
+    });
+    for (const p of progs) grantedFacultyIds.add(p.facultyId);
+  }
+  if (grantedFacultyIds.size === 0) return null;
+  const faculties = await prisma.faculty.findMany({
+    where: { id: { in: [...grantedFacultyIds] } },
     select: { nameTh: true },
   });
-  if (!faculty) return null;
-  return { ...filter, facultyName: [faculty.nameTh] };
+  if (faculties.length === 0) return null;
+  return { ...filter, facultyName: faculties.map((f) => f.nameTh) };
 }
 
-// UUID variant — forces `facultyId` to the caller's own faculty when
-// they're FACULTY_USER. Used by endpoints that join on Faculty.id
-// directly (e.g., the TCAS recruitment dashboard). Admin-grade +
-// UNIVERSITY_USER pass through untouched; a FACULTY_USER's supplied
-// value is overridden so they can't peek at another faculty by URL.
-export function clampFacultyIdFilter<
+// UUID variant — clamps `facultyId` to the user's granted scope set.
+// Used by endpoints that join on Faculty.id directly (e.g., the TCAS
+// recruitment dashboard). Multi-scope-aware:
+//   - effective 'all' → pass through (no clamp)
+//   - effective 'scoped' → if the manual ?facultyId= matches a granted
+//     faculty, keep it; else fall back to the FIRST granted faculty
+//     (silent clamp, same posture as the original primary-only impl).
+//   - effective 'none' → pass through (caller has already 403'd).
+//
+// Per-faculty dashboards are single-faculty by design; multi-scope
+// users with grants in N faculties see one at a time and the UI
+// surfaces a chooser to switch.
+export async function clampFacultyIdFilter<
   F extends { facultyId: string | null | undefined },
->(filter: F, user: SessionUser): F {
-  if (seesAllScopes(user.role)) return filter;
-  if (user.role === 'FACULTY_USER' && user.facultyId) {
-    return { ...filter, facultyId: user.facultyId };
+>(filter: F, user: SessionUser): Promise<F> {
+  const eff = await resolveEffectiveScope(user);
+  if (eff.mode !== 'scoped') return filter;
+  const grantedFacultyIds = new Set<string>(eff.facultyIds);
+  if (eff.programIds.length > 0) {
+    const progs = await prisma.program.findMany({
+      where: { id: { in: eff.programIds } },
+      select: { facultyId: true },
+    });
+    for (const p of progs) grantedFacultyIds.add(p.facultyId);
   }
-  // For roles that don't have a faculty assignment we can't safely
-  // resolve a filter — caller has already been gated by
-  // assertCanSeeFacultyDashboards, so this branch shouldn't fire in
-  // practice. Returning the filter unchanged is the least surprising
-  // fallback if it does.
-  return filter;
+  const granted = [...grantedFacultyIds];
+  if (granted.length === 0) return filter;
+  if (filter.facultyId && granted.includes(filter.facultyId)) return filter;
+  return { ...filter, facultyId: granted[0] };
 }
 
 // Generic scope clamp for endpoints that accept a `scope` +
@@ -233,46 +279,56 @@ export async function clampScopeForUser(
   scopeId: string | null,
   user: SessionUser,
 ): Promise<{ scope: GenericScope; scopeId: string | null }> {
-  if (seesAllScopes(user.role)) return { scope, scopeId };
-
-  // PROGRAM_USER — narrowest tier. Anything wider than program drops
-  // to the user's own program.
-  if (user.role === 'PROGRAM_USER') {
-    if (!user.programId) {
-      throw new ForbiddenException(
-        'Your account has no program assignment. Contact an admin.',
-      );
-    }
-    if (scope !== 'program') {
-      return { scope: 'program', scopeId: user.programId };
-    }
-    if (scopeId !== user.programId) {
-      throw new ForbiddenException(
-        'This is not the program assigned to your account.',
-      );
-    }
-    return { scope, scopeId };
-  }
-
-  // FACULTY_USER — faculty-wide.
-  if (user.role !== 'FACULTY_USER') {
-    throw new ForbiddenException('Your role cannot view scoped data.');
-  }
-  if (!user.facultyId) {
+  const eff = await resolveEffectiveScope(user);
+  if (eff.mode === 'all') return { scope, scopeId };
+  if (eff.mode === 'none') {
     throw new ForbiddenException(
-      'Your account has no faculty assignment. Contact an admin.',
+      'Your account has no faculty or program assignment. Contact an admin.',
     );
   }
+  // 'scoped' — UNION of granted faculties + programs.
+  //
+  // CRITICAL distinction:
+  //   - directFacultyIds: real FACULTY_USER grants — promote the user
+  //     to faculty-tier view (can see ALL programs in those faculties).
+  //   - directProgramSet:  real PROGRAM_USER grants — only those
+  //     specific programs are visible; faculty-tier views must NOT
+  //     show the program's faculty mates.
+  //
+  // Previously we derived a single `grantedFacultyIds` set by mixing
+  // direct faculty grants with the implied faculty of each granted
+  // program. That over-elevated a pure PROGRAM_USER to faculty view
+  // (when asking for university scope the clamp returned faculty +
+  // the implied faculty, exposing all programs in that faculty).
+  const directFacultyIds = new Set<string>(eff.facultyIds);
+  const directProgramSet = new Set<string>(eff.programIds);
+  const onlyProgramGrants =
+    directFacultyIds.size === 0 && directProgramSet.size > 0;
+
+  // PROGRAM_USER-only — narrowest tier. Anything wider drops to the
+  // FIRST granted program (multi-program-grant users get a chooser
+  // upstream; this is the safe default).
+  if (onlyProgramGrants) {
+    const firstProgram = [...directProgramSet][0]!;
+    if (scope !== 'program') {
+      return { scope: 'program', scopeId: firstProgram };
+    }
+    if (scopeId && !directProgramSet.has(scopeId)) {
+      throw new ForbiddenException('This program is outside the scopes assigned to your account.');
+    }
+    return { scope, scopeId: scopeId ?? firstProgram };
+  }
+
+  // FACULTY-tier (with optional direct program grants in OTHER faculties).
+  const firstFaculty = [...directFacultyIds][0]!;
   if (scope === 'university') {
-    return { scope: 'faculty', scopeId: user.facultyId };
+    return { scope: 'faculty', scopeId: firstFaculty };
   }
   if (scope === 'faculty') {
-    if (scopeId !== user.facultyId) {
-      throw new ForbiddenException(
-        "You can only view your own faculty's data.",
-      );
+    if (scopeId && !directFacultyIds.has(scopeId)) {
+      throw new ForbiddenException("You can only view faculties assigned to your account.");
     }
-    return { scope, scopeId };
+    return { scope, scopeId: scopeId ?? firstFaculty };
   }
   if (scope === 'department') {
     if (!scopeId) throw new ForbiddenException('scopeId required for department scope.');
@@ -281,20 +337,22 @@ export async function clampScopeForUser(
       select: { facultyId: true },
     });
     if (!dept) throw new ForbiddenException('Department not found.');
-    if (dept.facultyId !== user.facultyId) {
-      throw new ForbiddenException('Department is outside your faculty.');
+    if (!directFacultyIds.has(dept.facultyId)) {
+      throw new ForbiddenException('Department is outside your assigned faculties.');
     }
     return { scope, scopeId };
   }
-  // scope === 'program'
+  // scope === 'program' — allow if directly granted OR within a direct
+  // faculty grant.
   if (!scopeId) throw new ForbiddenException('scopeId required for program scope.');
+  if (directProgramSet.has(scopeId)) return { scope, scopeId };
   const prog = await prisma.program.findUnique({
     where: { id: scopeId },
     select: { facultyId: true },
   });
   if (!prog) throw new ForbiddenException('Program not found.');
-  if (prog.facultyId !== user.facultyId) {
-    throw new ForbiddenException('Program is outside your faculty.');
+  if (!directFacultyIds.has(prog.facultyId)) {
+    throw new ForbiddenException('Program is outside your assigned scopes.');
   }
   return { scope, scopeId };
 }
