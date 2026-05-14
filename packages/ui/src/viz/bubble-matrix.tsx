@@ -300,6 +300,13 @@ export function BubbleMatrix({
         role="img"
         aria-label={`BCG-style strategic matrix: ${axisXLabel} on X, ${axisYLabel} on Y. ${bubbles.length} items.`}
         style={{ display: 'block' }}
+        // Wheel handled at the SVG level so zoom works regardless of
+        // whether the cursor is over a bubble or empty plot area. The
+        // bubble layer (rendered last → on top in z-order) intercepts
+        // hover/click for the floating tooltip; the pan-drag rect
+        // underneath catches mousedown in the empty plot gaps. Moving
+        // wheel here makes both paths coexist cleanly.
+        onWheel={onWheel as unknown as React.WheelEventHandler<SVGSVGElement>}
       >
         <defs>
           <clipPath id={clipId}>
@@ -424,9 +431,36 @@ export function BubbleMatrix({
           </g>
         )}
 
+        {/* Pan/drag interaction overlay — transparent rect under the
+            bubbles. Catches drag-to-pan in the empty plot gaps.
+            Wheel-to-zoom is on the parent <svg> so it fires regardless
+            of whether the cursor is over a bubble. Render order: this
+            rect first (under bubbles in z-order) so bubble hover/click
+            isn't intercepted. */}
+        <rect
+          x={M.left}
+          y={M.top}
+          width={W}
+          height={H}
+          fill="transparent"
+          style={{
+            cursor: dragRef.current
+              ? 'grabbing'
+              : zoom > 1 || pan.x !== 0 || pan.y !== 0
+                ? 'grab'
+                : 'crosshair',
+          }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={endDrag}
+          onMouseLeave={endDrag}
+        />
+
         {/* Bubble layer — clipped to plot area so pan/zoom doesn't bleed
             over axis labels. Positions are pre-computed manually so the
-            radius doesn't scale with zoom (cleaner data-viz feel). */}
+            radius doesn't scale with zoom (cleaner data-viz feel).
+            Rendered LAST so bubbles sit on top of the pan-drag rect
+            and receive hover (floating tooltip) + click events. */}
         <g clipPath={`url(#${clipId})`}>
           {bubblePositions.map(({ bubble: b, cx, cy, r }) => {
             const lowData = (b.dataCompletenessPct ?? 100) < 50;
@@ -465,34 +499,6 @@ export function BubbleMatrix({
             );
           })}
         </g>
-
-        {/* Pan/zoom interaction overlay — transparent rect covering the
-            plot area, ABOVE bubbles in z-order so wheel always hits us
-            but bubbles still receive hover/click via pointerEvents. We
-            keep this rect's pointerEvents on so it captures wheel +
-            drag, and let the bubble layer above (rendered after this
-            rect in source order ⇒ above it visually) get hover/click.
-            The bubble click handler checks dragMovedRef to suppress
-            click-after-pan. */}
-        <rect
-          x={M.left}
-          y={M.top}
-          width={W}
-          height={H}
-          fill="transparent"
-          style={{
-            cursor: dragRef.current
-              ? 'grabbing'
-              : zoom > 1 || pan.x !== 0 || pan.y !== 0
-                ? 'grab'
-                : 'crosshair',
-          }}
-          onWheel={onWheel}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={endDrag}
-          onMouseLeave={endDrag}
-        />
       </svg>
 
       {/* Floating tooltip — appears next to the cursor when a bubble is
