@@ -1036,17 +1036,40 @@ export interface PortfolioRiskRow {
  */
 export async function listPortfolioRisk(opts?: {
   level?: ProgramLevel;
+  /** Single-faculty clamp (back-compat). Either this OR facultyIds. */
   facultyId?: string;
-  /** Optional program clamp — used by PROGRAM_USER scope to narrow
-   * the portfolio to a single program. Ignored when null. */
+  /** Multi-scope: UNION of program rows in any of these faculties. */
+  facultyIds?: string[];
+  /** Single-program clamp (back-compat). Either this OR programIds. */
   programId?: string;
+  /** Multi-scope: UNION of these specific programs. */
+  programIds?: string[];
   tier?: RiskTier;
 }): Promise<PortfolioRiskRow[]> {
   const level = opts?.level ?? 'BACHELOR';
-  const facultyClause = opts?.facultyId ? Prisma.sql`AND p.faculty_id = ${opts.facultyId}` : Prisma.empty;
-  const programClause = opts?.programId
-    ? Prisma.sql`AND p.id = ${opts.programId}`
-    : Prisma.empty;
+  // Normalise scope clauses. When both facultyIds + programIds are set
+  // (a mixed-scope user has both faculty-wide and program-specific
+  // grants), the WHERE becomes an OR — show programs that match either.
+  // Single-value back-compat: `facultyId` → `facultyIds: [facultyId]`.
+  const facultyIdSet = new Set<string>([
+    ...(opts?.facultyId ? [opts.facultyId] : []),
+    ...(opts?.facultyIds ?? []),
+  ]);
+  const programIdSet = new Set<string>([
+    ...(opts?.programId ? [opts.programId] : []),
+    ...(opts?.programIds ?? []),
+  ]);
+  let scopeClause: Prisma.Sql = Prisma.empty;
+  if (facultyIdSet.size > 0 && programIdSet.size > 0) {
+    scopeClause = Prisma.sql`AND (p.faculty_id IN (${Prisma.join([...facultyIdSet])}) OR p.id IN (${Prisma.join([...programIdSet])}))`;
+  } else if (facultyIdSet.size > 0) {
+    scopeClause = Prisma.sql`AND p.faculty_id IN (${Prisma.join([...facultyIdSet])})`;
+  } else if (programIdSet.size > 0) {
+    scopeClause = Prisma.sql`AND p.id IN (${Prisma.join([...programIdSet])})`;
+  }
+  // Legacy named bindings kept for the existing SQL template below.
+  const facultyClause = Prisma.empty;
+  const programClause = Prisma.empty;
   const tierClause = opts?.tier ? Prisma.sql`AND ra.tier = ${opts.tier}::"RiskTier"` : Prisma.empty;
 
   const rows = await prisma.$queryRaw<
@@ -1108,6 +1131,7 @@ export async function listPortfolioRisk(opts?: {
     INNER JOIN faculties f ON f.id = p.faculty_id
     WHERE p.level = ${level}::"ProgramLevel"
       AND p.status = 'ACTIVE'
+      ${scopeClause}
       ${facultyClause}
       ${programClause}
       ${tierClause}

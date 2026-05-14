@@ -28,6 +28,68 @@ export function seesAllScopes(role: SessionUser['role']): boolean {
   );
 }
 
+// Effective scope for aggregate (non-per-program) endpoints. Folds the
+// user's primary session scope with all their UserScope grants into one
+// of three modes:
+//
+//   { mode: 'all' }                            — see everything
+//   { mode: 'scoped', facultyIds, programIds } — UNION of granted scopes
+//   { mode: 'none' }                           — no grants → 403
+//
+// 'all' fires when EITHER the session role OR any UserScope row is
+// admin-grade or UNIVERSITY_USER. This is what lets a user whose
+// primary role is PROGRAM_USER but who has a UserScope of
+// UNIVERSITY_USER see the full portfolio — same per-row scope chain
+// that `assertProgramAccessible` rule 3 already honours for per-program
+// endpoints, lifted to the list-aggregate level.
+//
+// 'scoped' returns the UNION of the user's primary faculty/program
+// (when applicable) plus every faculty/program named in their
+// UserScope rows. Caller passes the arrays to the service's
+// `facultyIds` / `programIds` WHERE-IN clamp. Empty in both means
+// 'none'.
+//
+// `mode: 'none'` means the account has a faculty/program-scoped role
+// but zero actual grants — caller should throw 403.
+export interface EffectiveScope {
+  mode: 'all' | 'scoped' | 'none';
+  facultyIds: string[];
+  programIds: string[];
+}
+
+export async function resolveEffectiveScope(
+  user: SessionUser,
+): Promise<EffectiveScope> {
+  if (seesAllScopes(user.role)) {
+    return { mode: 'all', facultyIds: [], programIds: [] };
+  }
+  const scopes = await prisma.userScope.findMany({
+    where: { userId: user.userId },
+    select: { role: true, facultyId: true, programId: true },
+  });
+  // Promote to 'all' if any UserScope is admin-grade or UNIVERSITY_USER.
+  if (scopes.some((s) => seesAllScopes(s.role))) {
+    return { mode: 'all', facultyIds: [], programIds: [] };
+  }
+  // Otherwise union faculty/program IDs from primary scope + UserScope rows.
+  const facultyIds = new Set<string>();
+  const programIds = new Set<string>();
+  if (user.role === 'FACULTY_USER' && user.facultyId) facultyIds.add(user.facultyId);
+  if (user.role === 'PROGRAM_USER' && user.programId) programIds.add(user.programId);
+  for (const s of scopes) {
+    if (s.role === 'FACULTY_USER' && s.facultyId) facultyIds.add(s.facultyId);
+    if (s.role === 'PROGRAM_USER' && s.programId) programIds.add(s.programId);
+  }
+  if (facultyIds.size === 0 && programIds.size === 0) {
+    return { mode: 'none', facultyIds: [], programIds: [] };
+  }
+  return {
+    mode: 'scoped',
+    facultyIds: [...facultyIds],
+    programIds: [...programIds],
+  };
+}
+
 // Refuse access to dashboards that are intentionally university-wide
 // only (Education + Staff modules). FACULTY_USER and PROGRAM_USER get
 // 403'd; the front-end then bounces them to /no-access.

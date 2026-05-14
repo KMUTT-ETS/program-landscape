@@ -36,8 +36,12 @@ export class RisksService {
   async portfolio(opts: {
     level?: ProgramLevel;
     facultyId?: string;
+    /** Multi-scope: UNION of programs in any of these faculties. */
+    facultyIds?: string[];
     /** PROGRAM_USER scope clamp — narrows to a single program. */
     programId?: string;
+    /** Multi-scope: UNION of these specific programs. */
+    programIds?: string[];
     tier?: RiskTier;
   }): Promise<{
     rows: PortfolioRiskRow[];
@@ -83,11 +87,27 @@ export class RisksService {
       totalStrandedCostThb += r.strandedCostThb ?? 0;
     }
 
+    // Total-programs count respects the same scope union as the rows.
+    const facultyIdSet = [
+      ...(opts.facultyId ? [opts.facultyId] : []),
+      ...(opts.facultyIds ?? []),
+    ];
+    const programIdSet = [
+      ...(opts.programId ? [opts.programId] : []),
+      ...(opts.programIds ?? []),
+    ];
     const totalPrograms = await prisma.program.count({
       where: {
         level: opts.level ?? 'BACHELOR',
         status: 'ACTIVE',
-        ...(opts.facultyId ? { facultyId: opts.facultyId } : {}),
+        ...(facultyIdSet.length > 0 || programIdSet.length > 0
+          ? {
+              OR: [
+                ...(facultyIdSet.length > 0 ? [{ facultyId: { in: facultyIdSet } }] : []),
+                ...(programIdSet.length > 0 ? [{ id: { in: programIdSet } }] : []),
+              ],
+            }
+          : {}),
       },
     });
 
@@ -180,7 +200,16 @@ export class RisksService {
     };
   }
 
-  async indicatorBreaches(slug: string, limit = 200): Promise<{
+  async indicatorBreaches(
+    slug: string,
+    opts: {
+      facultyId?: string;
+      facultyIds?: string[];
+      programId?: string;
+      programIds?: string[];
+    } = {},
+    limit = 200,
+  ): Promise<{
     indicator: {
       slug: string;
       labelTh: string;
@@ -211,15 +240,57 @@ export class RisksService {
     if (!indicator) {
       throw new NotFoundException(`indicator not found: ${slug}`);
     }
+    // Scope clamp: FACULTY_USER / PROGRAM_USER pass facultyId / programId
+    // here; admin-grade + UNIVERSITY_USER pass nothing and see all rows.
+    // Same clamp is applied to BOTH the breaches list AND the severity-
+    // counts + value-histogram queries below — otherwise a FACULTY_USER
+    // would see "3 programs in CRITICAL" in their breach list but the
+    // histogram would say "27 CRITICAL programs" (university-wide), which
+    // is misleading.
+    // Scope union — same logic as `drivers` / `portfolio`.
+    const facultyIdSet = [
+      ...(opts.facultyId ? [opts.facultyId] : []),
+      ...(opts.facultyIds ?? []),
+    ];
+    const programIdSet = [
+      ...(opts.programId ? [opts.programId] : []),
+      ...(opts.programIds ?? []),
+    ];
+    const hasAnyScope = facultyIdSet.length > 0 || programIdSet.length > 0;
     const breaches = await prisma.riskIndicatorBreach.findMany({
-      where: { indicatorSlug: slug },
+      where: {
+        indicatorSlug: slug,
+        ...(hasAnyScope
+          ? {
+              OR: [
+                ...(facultyIdSet.length > 0
+                  ? [{ program: { facultyId: { in: facultyIdSet } } }]
+                  : []),
+                ...(programIdSet.length > 0
+                  ? [{ programId: { in: programIdSet } }]
+                  : []),
+              ],
+            }
+          : {}),
+      },
       include: {
         program: { select: { code: true, nameTh: true, nameEn: true, facultyId: true, faculty: { select: { nameTh: true } } } },
       },
       orderBy: { observedAt: 'desc' },
       take: limit,
     });
-    // Latest-per-program counts (for severity breakdown).
+    // Latest-per-program counts (for severity breakdown). Same clamp as
+    // the breaches query above — fold OR-of-arrays into one SQL clause.
+    let scopeClause: Prisma.Sql = Prisma.empty;
+    if (facultyIdSet.length > 0 && programIdSet.length > 0) {
+      scopeClause = Prisma.sql`AND (p.faculty_id IN (${Prisma.join(facultyIdSet)}) OR p.id IN (${Prisma.join(programIdSet)}))`;
+    } else if (facultyIdSet.length > 0) {
+      scopeClause = Prisma.sql`AND p.faculty_id IN (${Prisma.join(facultyIdSet)})`;
+    } else if (programIdSet.length > 0) {
+      scopeClause = Prisma.sql`AND p.id IN (${Prisma.join(programIdSet)})`;
+    }
+    const facultyClause = scopeClause;
+    const programClause = Prisma.empty;
     const latest = await prisma.$queryRaw<
       Array<{ severity: 'OK' | 'WARN' | 'CRITICAL'; value: number | null }>
     >(Prisma.sql`
@@ -229,6 +300,8 @@ export class RisksService {
       WHERE b.indicator_slug = ${slug}
         AND p.status = 'ACTIVE'
         AND p.level = 'BACHELOR'
+        ${facultyClause}
+        ${programClause}
       ORDER BY program_id, observed_at DESC
     `);
     const severityCounts = {
@@ -304,7 +377,12 @@ export class RisksService {
 
   // ── Drivers transparency page ────────────────────────────────────────
 
-  async drivers(opts: { facultyId?: string; programId?: string } = {}): Promise<{
+  async drivers(opts: {
+    facultyId?: string;
+    facultyIds?: string[];
+    programId?: string;
+    programIds?: string[];
+  } = {}): Promise<{
     methodology: { version: string; docPath: string };
     cohort: {
       yearlyDeclinePct: number;
@@ -331,11 +409,35 @@ export class RisksService {
       severityCounts: { major: number; moderate: number; minor: number };
     };
   }> {
-    // Automation risk distribution
-    const grouped = await prisma.skill.groupBy({
-      by: ['automationRisk'],
-      _count: { _all: true },
-    });
+    // Scope clauses — union of all granted faculty/program IDs.
+    // Empty when admin-grade / UNIVERSITY_USER (caller passes nothing).
+    const facultyIdSet = [
+      ...(opts.facultyId ? [opts.facultyId] : []),
+      ...(opts.facultyIds ?? []),
+    ];
+    const programIdSet = [
+      ...(opts.programId ? [opts.programId] : []),
+      ...(opts.programIds ?? []),
+    ];
+    let scopeClause: Prisma.Sql = Prisma.empty;
+    if (facultyIdSet.length > 0 && programIdSet.length > 0) {
+      scopeClause = Prisma.sql`AND (p.faculty_id IN (${Prisma.join(facultyIdSet)}) OR p.id IN (${Prisma.join(programIdSet)}))`;
+    } else if (facultyIdSet.length > 0) {
+      scopeClause = Prisma.sql`AND p.faculty_id IN (${Prisma.join(facultyIdSet)})`;
+    } else if (programIdSet.length > 0) {
+      scopeClause = Prisma.sql`AND p.id IN (${Prisma.join(programIdSet)})`;
+    }
+    // Aliases kept for readability — existing SQL templates below
+    // reference `facultyClause` / `programClause` for clarity.
+    const facultyClause = scopeClause;
+    const programClause = Prisma.empty;
+
+    // Automation-risk distribution. Two modes:
+    //   - Admin-grade (no scope clamp): the global skill taxonomy
+    //     distribution. Cheap groupBy on the Skill table.
+    //   - Faculty-/program-scoped: count only skills taught by
+    //     programs in the user's scope (via ProgramSkill linkage).
+    //     A skill teaching multiple programs in scope counts once.
     const counts: Record<'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN', number> = {
       LOW: 0,
       MEDIUM: 0,
@@ -343,34 +445,71 @@ export class RisksService {
       UNKNOWN: 0,
     };
     let total = 0;
-    for (const g of grouped) {
-      counts[g.automationRisk] = g._count._all;
-      total += g._count._all;
+    if (!opts.facultyId && !opts.programId) {
+      const grouped = await prisma.skill.groupBy({
+        by: ['automationRisk'],
+        _count: { _all: true },
+      });
+      for (const g of grouped) {
+        counts[g.automationRisk] = g._count._all;
+        total += g._count._all;
+      }
+    } else {
+      const scopedRows = await prisma.$queryRaw<
+        Array<{ automation_risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN'; count: bigint }>
+      >(Prisma.sql`
+        SELECT s.automation_risk, COUNT(DISTINCT s.id) AS count
+        FROM skills s
+        JOIN program_skills ps ON ps.skill_id = s.id
+        JOIN programs p ON p.id = ps.program_id
+        WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+          ${facultyClause}
+          ${programClause}
+        GROUP BY s.automation_risk
+      `);
+      for (const r of scopedRows) {
+        counts[r.automation_risk] = Number(r.count);
+        total += Number(r.count);
+      }
     }
 
+    // Top-12 representative skills per tier — same scope clamp as
+    // counts above (so a FACULTY_USER sees skills their programs
+    // actually teach, not the global taxonomy).
     const sampleByTier: Record<'LOW' | 'MEDIUM' | 'HIGH', Array<{ id: string; nameEn: string; nameTh: string }>> = {
       LOW: [],
       MEDIUM: [],
       HIGH: [],
     };
     for (const tier of ['LOW', 'MEDIUM', 'HIGH'] as const) {
-      const samples = await prisma.skill.findMany({
-        where: { automationRisk: tier },
-        orderBy: { nameEn: 'asc' },
-        take: 12,
-        select: { id: true, nameEn: true, nameTh: true },
-      });
+      let samples;
+      if (!opts.facultyId && !opts.programId) {
+        samples = await prisma.skill.findMany({
+          where: { automationRisk: tier },
+          orderBy: { nameEn: 'asc' },
+          take: 12,
+          select: { id: true, nameEn: true, nameTh: true },
+        });
+      } else {
+        samples = await prisma.$queryRaw<
+          Array<{ id: string; name_en: string; name_th: string }>
+        >(Prisma.sql`
+          SELECT DISTINCT s.id, s.name_en, s.name_th
+          FROM skills s
+          JOIN program_skills ps ON ps.skill_id = s.id
+          JOIN programs p ON p.id = ps.program_id
+          WHERE s.automation_risk = ${tier}::"AutomationRisk"
+            AND p.level = 'BACHELOR' AND p.status = 'ACTIVE'
+            ${facultyClause}
+            ${programClause}
+          ORDER BY s.name_en
+          LIMIT 12
+        `).then((rows) =>
+          rows.map((r) => ({ id: r.id, nameEn: r.name_en, nameTh: r.name_th })),
+        );
+      }
       sampleByTier[tier] = samples;
     }
-
-    // Competitiveness — programs that have a TCAS funnel for the latest year.
-    // Optional facultyId clamp for FACULTY_USER / PROGRAM_USER.
-    const facultyClause = opts.facultyId
-      ? Prisma.sql`AND p.faculty_id = ${opts.facultyId}`
-      : Prisma.empty;
-    const programClause = opts.programId
-      ? Prisma.sql`AND p.id = ${opts.programId}`
-      : Prisma.empty;
     const competRows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
       SELECT COUNT(DISTINCT p.id) AS count
       FROM programs p

@@ -9,14 +9,17 @@ import {
   Provenance,
   ZodValidationPipe,
   assertProgramAccessible,
-  seesAllScopes,
+  resolveEffectiveScope,
 } from '../common';
 import { RisksService } from './risks.service';
 
 // Risk reads are gated with `risks:read:all` (every role has it). The
 // scope clamp here is what stops a FACULTY_USER from seeing other
-// faculties' risk profiles. Aliased for readability in this module.
-const seesAllRisks = seesAllScopes;
+// faculties' risk profiles. resolveEffectiveScope() unions the user's
+// primary session scope with their UserScope grants (so a user whose
+// primary role is PROGRAM_USER but who has a UserScope grant of
+// UNIVERSITY_USER sees the full portfolio — same multi-scope chain
+// `assertProgramAccessible` already honours for per-program endpoints).
 const assertProgramAccessibleForRisks = assertProgramAccessible;
 
 const PortfolioQuerySchema = z.object({
@@ -53,38 +56,34 @@ export class RisksController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(PortfolioQuerySchema)) q: PortfolioQuery,
   ) {
-    // Clamp scope for FACULTY_USER + PROGRAM_USER. Cross-scope queries
-    // (asking for a different faculty/department than the one you're
-    // assigned to) are refused outright — not silently narrowed —
-    // because the only way the client passes them is by deliberate
-    // override.
-    let opts: {
+    const scope = await resolveEffectiveScope(user);
+    if (scope.mode === 'none') {
+      throw new ForbiddenException(
+        'Your account has no faculty or program assignment. Contact an admin.',
+      );
+    }
+    const opts: {
       level?: typeof q.level;
       facultyId?: string;
+      facultyIds?: string[];
       programId?: string;
+      programIds?: string[];
       tier?: typeof q.tier;
-    } = { ...q };
-    if (!seesAllRisks(user.role)) {
-      if (!user.facultyId) {
+    } = { level: q.level, tier: q.tier };
+    if (scope.mode === 'scoped') {
+      // If a manual ?facultyId= is supplied, it must intersect with the
+      // user's granted faculties — else 403 (deliberate cross-scope
+      // probe).
+      if (q.facultyId && !scope.facultyIds.includes(q.facultyId)) {
         throw new ForbiddenException(
-          'Your account has no faculty assignment. Contact an admin.',
+          "You can only view risks for faculties / programs assigned to your account.",
         );
       }
-      if (q.facultyId && q.facultyId !== user.facultyId) {
-        throw new ForbiddenException("You can only view your own faculty's risk portfolio.");
-      }
-      opts.facultyId = user.facultyId;
-      // PROGRAM_USER: clamp to a single program (the one they're
-      // assigned to). The portfolio table will then have exactly one
-      // row — by design.
-      if (user.role === 'PROGRAM_USER') {
-        if (!user.programId) {
-          throw new ForbiddenException(
-            'Your account has no program assignment. Contact an admin.',
-          );
-        }
-        opts.programId = user.programId;
-      }
+      opts.facultyIds = q.facultyId ? [q.facultyId] : scope.facultyIds;
+      opts.programIds = scope.programIds;
+    } else if (q.facultyId) {
+      // Admin / UNIVERSITY_USER: optional manual ?facultyId= filter.
+      opts.facultyId = q.facultyId;
     }
     return this.risks.portfolio(opts);
   }
@@ -115,25 +114,19 @@ export class RisksController {
     @AuthSession() user: SessionUser,
     @Param('slug') slug: string,
   ) {
-    const result = await this.risks.indicatorBreaches(slug);
-    // Filter the per-program breach list and the histogram to only
-    // programs the user can see. Indicator metadata + severity-counts
-    // pass through unchanged; the breach rows are scoped.
-    if (seesAllRisks(user.role)) return result;
-    if (!user.facultyId) {
+    const scope = await resolveEffectiveScope(user);
+    if (scope.mode === 'none') {
       throw new ForbiddenException(
-        'Your account has no faculty assignment. Contact an admin.',
+        'Your account has no faculty or program assignment. Contact an admin.',
       );
     }
-    if (user.role === 'PROGRAM_USER') {
-      // Single-program scope — keep only the row for their own program.
-      const breaches = user.programId
-        ? result.breaches.filter((b) => b.programId === user.programId)
-        : [];
-      return { ...result, breaches };
+    if (scope.mode === 'all') {
+      return this.risks.indicatorBreaches(slug);
     }
-    const filteredBreaches = result.breaches.filter((b) => b.facultyId === user.facultyId);
-    return { ...result, breaches: filteredBreaches };
+    return this.risks.indicatorBreaches(slug, {
+      facultyIds: scope.facultyIds,
+      programIds: scope.programIds,
+    });
   }
 
   @Get('drivers')
@@ -146,25 +139,17 @@ export class RisksController {
     methodologyVersion: 'risk-scoring.v1',
   })
   async drivers(@AuthSession() user: SessionUser) {
-    // Drivers view aggregates university-wide risk-driver distributions
-    // (recruitment decay × AI disruption × demographic). FACULTY_USER
-    // sees only their own faculty's slice; PROGRAM_USER narrows to the
-    // single program they're assigned to.
-    if (seesAllRisks(user.role)) return this.risks.drivers();
-    if (user.role === 'PROGRAM_USER') {
-      if (!user.programId) {
-        throw new ForbiddenException(
-          'Your account has no program assignment. Contact an admin.',
-        );
-      }
-      return this.risks.drivers({ programId: user.programId });
-    }
-    if (!user.facultyId) {
+    const scope = await resolveEffectiveScope(user);
+    if (scope.mode === 'none') {
       throw new ForbiddenException(
-        'Your account has no faculty assignment. Contact an admin.',
+        'Your account has no faculty or program assignment. Contact an admin.',
       );
     }
-    return this.risks.drivers({ facultyId: user.facultyId });
+    if (scope.mode === 'all') return this.risks.drivers();
+    return this.risks.drivers({
+      facultyIds: scope.facultyIds,
+      programIds: scope.programIds,
+    });
   }
 
   @Get('programs/:id')
@@ -194,15 +179,15 @@ export class RisksController {
   ) {
     // Defense in depth: even if the permission map ever opens
     // `risks:measures:edit` to FACULTY_USER, refuse to mutate a
-    // measure on a program the user can't see.
-    if (!seesAllRisks(user.role)) {
-      const measure = await prisma.riskMeasure.findUnique({
-        where: { id },
-        select: { assessment: { select: { programId: true } } },
-      });
-      if (!measure) throw new NotFoundException();
-      await assertProgramAccessibleForRisks(measure.assessment.programId, user);
-    }
+    // measure on a program the user can't see. assertProgramAccessible
+    // already short-circuits for admin-grade + UNIVERSITY_USER (incl.
+    // via UserScope rows).
+    const measure = await prisma.riskMeasure.findUnique({
+      where: { id },
+      select: { assessment: { select: { programId: true } } },
+    });
+    if (!measure) throw new NotFoundException();
+    await assertProgramAccessibleForRisks(measure.assessment.programId, user);
     return this.risks.setMeasureStatus(id, body.status, body.decisionId);
   }
 
