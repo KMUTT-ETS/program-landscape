@@ -82,11 +82,17 @@ export function BubbleMatrix({
 }: BubbleMatrixProps) {
   const palette = useChartPalette();
   const [hovered, setHovered] = React.useState<Bubble | null>(null);
+  // Track cursor position relative to the container so we can render a
+  // floating tooltip card near the cursor. Without this the only hover
+  // affordance is the below-chart caption + browser-native <title> —
+  // neither matches the Recharts-style tooltip Council members expect.
+  const [hoverPos, setHoverPos] = React.useState<{ x: number; y: number } | null>(null);
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState({ x: 0, y: 0 });
   const [maxed, setMaxed] = React.useState(false);
   const [maxSize, setMaxSize] = React.useState<{ w: number; h: number } | null>(null);
   const svgRef = React.useRef<SVGSVGElement | null>(null);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
   const dragRef = React.useRef<{
     startX: number;
     startY: number;
@@ -237,6 +243,7 @@ export function BubbleMatrix({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         'relative',
         maxed ? 'fixed inset-0 z-50 flex flex-col bg-surface-0 p-6' : 'overflow-hidden',
@@ -436,16 +443,25 @@ export function BubbleMatrix({
                 strokeWidth={lowData ? 1 : 1.5}
                 strokeDasharray={lowData ? '2 2' : undefined}
                 style={{ cursor: onBubbleClick ? 'pointer' : 'default' }}
-                onMouseEnter={() => setHovered(b)}
-                onMouseLeave={() => setHovered((prev) => (prev?.id === b.id ? null : prev))}
+                onMouseEnter={(e) => {
+                  setHovered(b);
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (rect) setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                }}
+                onMouseMove={(e) => {
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (rect) setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                }}
+                onMouseLeave={() => {
+                  setHovered((prev) => (prev?.id === b.id ? null : prev));
+                  setHoverPos(null);
+                }}
                 onClick={() => {
                   // Suppress clicks that came from a pan-drag.
                   if (dragMovedRef.current) return;
                   onBubbleClick?.(b);
                 }}
-              >
-                <title>{`${b.label}${lowData ? ' (low data completeness)' : ''}`}</title>
-              </circle>
+              />
             );
           })}
         </g>
@@ -478,6 +494,54 @@ export function BubbleMatrix({
           onMouseLeave={endDrag}
         />
       </svg>
+
+      {/* Floating tooltip — appears next to the cursor when a bubble is
+          hovered. Mirrors the below-chart caption's content but matches the
+          Recharts-style cursor-following affordance users expect. The
+          below-chart caption stays for keyboard nav + a stable read-back
+          when the cursor moves between bubbles. */}
+      {hovered && hoverPos && (() => {
+        const containerW = containerRef.current?.clientWidth ?? effectiveWidth;
+        const containerH = containerRef.current?.clientHeight ?? effectiveHeight;
+        // Tooltip is ~220px wide and ~96px tall. Flip sides near edges so
+        // it never spills off the container or covers the bubble.
+        const flipX = hoverPos.x > containerW - 240;
+        const flipY = hoverPos.y > containerH - 110;
+        return (
+          <div
+            className={cn(
+              'pointer-events-none absolute z-20 max-w-[240px] rounded-md border border-border-subtle',
+              'bg-surface-0/95 px-2.5 py-1.5 text-xs shadow-lg backdrop-blur-sm',
+            )}
+            style={{
+              left: flipX ? hoverPos.x - 12 : hoverPos.x + 16,
+              top: flipY ? hoverPos.y - 12 : hoverPos.y + 16,
+              transform: `${flipX ? 'translateX(-100%) ' : ''}${flipY ? 'translateY(-100%)' : ''}`.trim(),
+            }}
+          >
+            <div className="font-semibold text-text-primary">{hovered.label}</div>
+            <div className="mt-1 grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-text-secondary">
+              <span className="text-text-tertiary">{axisXLabel}</span>
+              <span className="tabular-nums">{Math.round(hovered.x)}</span>
+              <span className="text-text-tertiary">{axisYLabel}</span>
+              <span className="tabular-nums">{Math.round(hovered.y)}</span>
+              <span className="text-text-tertiary">size</span>
+              <span className="tabular-nums">{Math.round(hovered.size).toLocaleString('en-US')}</span>
+              <span className="text-text-tertiary">contrib</span>
+              <span className="tabular-nums">
+                {hovered.color >= 0 ? '+' : ''}
+                {Math.round(hovered.color).toLocaleString('en-US')}
+              </span>
+              {hovered.dataCompletenessPct !== undefined && hovered.dataCompletenessPct < 100 && (
+                <>
+                  <span className="text-text-tertiary">data</span>
+                  <span className="tabular-nums">{Math.round(hovered.dataCompletenessPct)}%</span>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Hover details. Fixed position below the SVG keeps layout stable.
           In maximized mode the caption sits at the bottom of the overlay
