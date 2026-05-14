@@ -27,12 +27,13 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-05-14',
-    version: 'v1.1.4 · UI polish',
-    title: 'Tooltip + radar layout fixes',
-    audience: ['Council', 'Executive', 'Analyst'],
+    version: 'v1.1.4 · UI polish + risk-scope honour',
+    title: 'BCG tooltip, radar layout, multi-scope respect in Risk Management',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       'Strategic Matrix (BCG) on Executive Landscape — hover now shows a floating tooltip card next to the cursor with axis values, size, and contribution. Edge-aware: flips left/up near the right/bottom edges.',
       'Likelihood-drivers radar on /risks/[id] — compact L1/L2/L3 axis markers replace the longer labels that overlapped the right-side KPI cards.',
+      'Risk Management (/risks portfolio, drivers, indicators) now respects the full scope chain — primary role + UserScope grants. A user whose primary role is PROGRAM_USER but who has a UserScope grant of UNIVERSITY_USER now correctly sees the full portfolio; a FACULTY_USER with grants in multiple faculties sees the union. Drivers chart\'s automation-risk panel now shows only skills taught by programs in scope (was the global skill taxonomy regardless of scope). Indicator histograms + severity counts now clamp consistently with the breach list.',
     ],
   },
   {
