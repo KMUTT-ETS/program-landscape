@@ -14,6 +14,7 @@ import {
 } from '../common';
 import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
+import { ClassOfferingsService, type ClassOfferingsFilter } from './class-offerings.service';
 import {
   EducationRefreshService,
   REFRESHABLE_CUBES,
@@ -123,12 +124,26 @@ const PerformanceQuerySchema = z.object({
 });
 type PerformanceQuery = z.infer<typeof PerformanceQuerySchema>;
 
+const ClassOfferingsQuerySchema = z.object({
+  facultyName: StringArray,
+  acadYearBE: z.coerce.number().int().min(2500).max(2700).optional(),
+  semester: z.coerce.number().int().min(1).max(4).optional(),
+  levelName: StringArray,
+  geOnly: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
+  limit: z.coerce.number().int().min(1).max(2000).optional(),
+});
+type ClassOfferingsQuery = z.infer<typeof ClassOfferingsQuerySchema>;
+
 @Controller('/education')
 export class EducationController {
   constructor(
     private readonly education: EducationService,
     private readonly refresher: EducationRefreshService,
     private readonly recruitment: RecruitmentService,
+    private readonly classOfferings: ClassOfferingsService,
   ) {}
 
   @Get('recruitment')
@@ -343,5 +358,108 @@ export class EducationController {
     if (clamped === null)
       return this.education.entryScores({ ...q, facultyName: ['__none__'] });
     return this.education.entryScores(clamped);
+  }
+
+  // ───── /education/class-offerings — subject offerings & fulfilment ─────
+  //
+  // All six endpoints clamp via `clampFacultyNameFilter`. The clamp
+  // matches against `class_offerings.registry_faculty_name` (Thai) —
+  // same posture as the other education endpoints.
+
+  @Get('class-offerings/filter-options')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsFilterOptions(@AuthSession() user: SessionUser) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter({ facultyName: [] as string[] }, user);
+    if (clamped === null) {
+      return this.classOfferings.filterOptions(['__none__']);
+    }
+    return this.classOfferings.filterOptions(clamped.facultyName);
+  }
+
+  @Get('class-offerings/summary')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsSummary(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.summary(filter);
+  }
+
+  @Get('class-offerings/heatmap')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsHeatmap(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    // Heatmap deliberately spans all years/semesters — strip those filters.
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.heatmap({
+      facultyName: filter.facultyName,
+      levelName: filter.levelName,
+      geOnly: filter.geOnly,
+    });
+  }
+
+  @Get('class-offerings/distribution')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsDistribution(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.distribution(filter);
+  }
+
+  @Get('class-offerings/ge')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsGe(@AuthSession() user: SessionUser) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter({ facultyName: [] as string[] }, user);
+    if (clamped === null) return this.classOfferings.geBreakdown(['__none__']);
+    return this.classOfferings.geBreakdown(clamped.facultyName);
+  }
+
+  @Get('class-offerings/deep-dive')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsDeepDive(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.deepDive({ ...filter, limit: q.limit ?? 500 });
+  }
+
+  /**
+   * Shared resolver: clamp faculty list, default to the latest available
+   * snapshot when (acadYearBE, semester) aren't supplied.
+   */
+  private async resolveClassOfferingsFilter(
+    user: SessionUser,
+    q: ClassOfferingsQuery,
+  ): Promise<ClassOfferingsFilter> {
+    const clamped = await clampFacultyNameFilter({ facultyName: q.facultyName }, user);
+    const facultyName = clamped === null ? ['__none__'] : clamped.facultyName;
+    let acadYearBE = q.acadYearBE;
+    let semester = q.semester;
+    if (acadYearBE === undefined || semester === undefined) {
+      const latest = await this.classOfferings.resolveLatestSnapshot(facultyName);
+      if (latest) {
+        acadYearBE = acadYearBE ?? latest.acadYearBE;
+        semester = semester ?? latest.semester;
+      }
+    }
+    return {
+      facultyName,
+      acadYearBE,
+      semester,
+      levelName: q.levelName,
+      geOnly: q.geOnly,
+    };
   }
 }

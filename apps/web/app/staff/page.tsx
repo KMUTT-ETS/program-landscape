@@ -9,7 +9,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
-import { Users, BookOpen, Microscope, Wallet } from 'lucide-react';
+import { Users, BookOpen, Microscope, Wallet, ClipboardList } from 'lucide-react';
 import type { RefreshStatus } from './types';
 import { StaffRefreshBar } from './refresh-bar';
 import {
@@ -54,6 +54,14 @@ const TILES = [
     blurb:
       "Where each person's salary comes from (government allocation vs university revenue) and the income-band mix per faculty. Numbers only shown where at least 5 people fall in a bucket.",
     Thumb: CompensationThumb,
+  },
+  {
+    href: '/staff/teaching-workload',
+    icon: ClipboardList,
+    title: 'Teaching workload',
+    blurb:
+      "Subject contact hours per teacher — every section's lecture+lab hours/week summed across each KKUMAIL. Workload-band histogram, faculty pulse, and a per-teacher deep-dive that surfaces both heavy loads and unresolved emails.",
+    Thumb: WorkforceThumb,
   },
 ];
 

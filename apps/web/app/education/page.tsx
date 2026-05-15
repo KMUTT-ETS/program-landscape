@@ -17,6 +17,7 @@ import {
   Coins,
   TrendingUp,
   Filter,
+  CalendarRange,
 } from 'lucide-react';
 import type { RefreshStatus } from './types';
 import { EducationRefreshBar } from './refresh-bar';
@@ -88,6 +89,14 @@ const TILES = [
     title: 'Student performance',
     blurb:
       'Undergraduate GPAs and entry test scores. Faculty → Program drill-down on average GPA, plus a Region → Province → School → Faculty → Program location view, plus a per-subject score pivot.',
+    Thumb: PerformanceThumb,
+  },
+  {
+    href: '/education/class-offerings',
+    icon: CalendarRange,
+    title: 'Subject offerings & fulfilment',
+    blurb:
+      'Every course-section the registrar opened — seat fulfilment heatmap, utilisation distribution, dedicated General-Education view, plus a course-level deep-dive table. Source: POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER.',
     Thumb: PerformanceThumb,
   },
 ];

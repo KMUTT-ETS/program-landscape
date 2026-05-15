@@ -9,8 +9,13 @@ import {
   assertCanSeeFacultyDashboards,
   assertUniversityWide,
   clampFacultyNameFilter,
+  resolveEffectiveScope,
 } from '../common';
 import { StaffService } from './staff.service';
+import {
+  TeachingWorkloadService,
+  type TeachingWorkloadFilter,
+} from './teaching-workload.service';
 import { IngestionQueueService } from '../data-sources/ingestion-queue.service';
 
 const STAFF_REFRESH_SLUGS = [
@@ -43,6 +48,20 @@ const TrackArray = z
     const arr = v === undefined ? [] : Array.isArray(v) ? v : [v];
     return arr.filter((x): x is 'ACADEMIC' | 'SUPPORT' => x === 'ACADEMIC' || x === 'SUPPORT');
   });
+
+const TeachingWorkloadQuerySchema = z.object({
+  acadYearBE: z.coerce.number().int().min(2500).max(2700).optional(),
+  semester: z.coerce.number().int().min(1).max(4).optional(),
+  levelName: StringArray,
+});
+
+const TeachingWorkloadDeepDiveSchema = TeachingWorkloadQuerySchema.extend({
+  limit: z.coerce.number().int().min(1).max(2000).optional(),
+  onlyUnresolved: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
+});
 
 const StaffFilterSchema = z.object({
   facultyName: StringArray,
@@ -85,6 +104,7 @@ export class StaffController {
   constructor(
     private readonly staff: StaffService,
     private readonly queue: IngestionQueueService,
+    private readonly teaching: TeachingWorkloadService,
   ) {}
 
   @Get('filter-options')
@@ -209,5 +229,122 @@ export class StaffController {
     if (clamped === null)
       return this.staff.compensation({ ...q, facultyName: ['__none__'] });
     return this.staff.compensation(clamped);
+  }
+
+  // ───── /staff-dashboard/teaching-workload — subject teaching workload ─────
+  //
+  // Scope clamp axis is the TEACHER's home faculty (fm.faculty_id), not
+  // the course-owning faculty — a Math teacher teaching a service course
+  // to Engineering students still counts as Math's load. Admin /
+  // UNIVERSITY_USER pass `facultyIds=null` (no clamp).
+
+  @Get('teaching-workload/filter-options')
+  @Authorized('institution:read:dashboard')
+  async teachingWorkloadFilterOptions(@AuthSession() user: SessionUser) {
+    await assertCanSeeFacultyDashboards(user);
+    const facultyIds = await this.resolveTeachingFacultyIds(user);
+    return this.teaching.filterOptions(facultyIds);
+  }
+
+  @Get('teaching-workload/summary')
+  @Authorized('institution:read:dashboard')
+  async teachingWorkloadSummary(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
+    q: z.infer<typeof TeachingWorkloadQuerySchema>,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveTeachingFilter(user, q);
+    return this.teaching.summary(filter);
+  }
+
+  @Get('teaching-workload/histogram')
+  @Authorized('institution:read:dashboard')
+  async teachingWorkloadHistogram(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
+    q: z.infer<typeof TeachingWorkloadQuerySchema>,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveTeachingFilter(user, q);
+    return this.teaching.histogram(filter);
+  }
+
+  @Get('teaching-workload/by-faculty')
+  @Authorized('institution:read:dashboard')
+  async teachingWorkloadByFaculty(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
+    q: z.infer<typeof TeachingWorkloadQuerySchema>,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveTeachingFilter(user, q);
+    return this.teaching.byFaculty(filter);
+  }
+
+  @Get('teaching-workload/teachers')
+  @Authorized('institution:read:dashboard')
+  async teachingWorkloadTeachers(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(TeachingWorkloadDeepDiveSchema))
+    q: z.infer<typeof TeachingWorkloadDeepDiveSchema>,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filter = await this.resolveTeachingFilter(user, q);
+    return this.teaching.teachers({
+      ...filter,
+      limit: q.limit ?? 500,
+      onlyUnresolved: q.onlyUnresolved,
+    });
+  }
+
+  /**
+   * Resolve the user's effective faculty grants to a list of Faculty.id
+   * for the teaching-workload service. Returns `null` for admin /
+   * UNIVERSITY_USER (no clamp), or an array of granted IDs otherwise.
+   *
+   * PROGRAM_USER without faculty/uni grant has already been 403'd by
+   * `assertCanSeeFacultyDashboards`. PROGRAM_USER WITH a FACULTY_USER
+   * UserScope grant inherits the faculty's full teacher list.
+   */
+  private async resolveTeachingFacultyIds(
+    user: SessionUser,
+  ): Promise<string[] | null> {
+    const eff = await resolveEffectiveScope(user);
+    if (eff.mode === 'all') return null;
+    if (eff.mode === 'none') return [];
+    // Programs granted directly roll up to their faculty so the teacher
+    // list is still meaningful at the faculty level.
+    const facultyIds = new Set<string>(eff.facultyIds);
+    if (eff.programIds.length > 0) {
+      const progs = await prisma.program.findMany({
+        where: { id: { in: eff.programIds } },
+        select: { facultyId: true },
+      });
+      for (const p of progs) facultyIds.add(p.facultyId);
+    }
+    return [...facultyIds];
+  }
+
+  private async resolveTeachingFilter(
+    user: SessionUser,
+    q: z.infer<typeof TeachingWorkloadQuerySchema>,
+  ): Promise<TeachingWorkloadFilter> {
+    const facultyIds = await this.resolveTeachingFacultyIds(user);
+    let acadYearBE = q.acadYearBE;
+    let semester = q.semester;
+    if (acadYearBE === undefined || semester === undefined) {
+      const latest = await this.teaching.resolveLatestSnapshot(facultyIds);
+      if (latest) {
+        acadYearBE = acadYearBE ?? latest.acadYearBE;
+        semester = semester ?? latest.semester;
+      }
+    }
+    return {
+      facultyIds,
+      acadYearBE,
+      semester,
+      levelName: q.levelName,
+    };
   }
 }
