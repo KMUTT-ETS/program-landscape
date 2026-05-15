@@ -121,6 +121,69 @@ export interface CachedExpertiseNarrative {
   methodVersion: string;
 }
 
+/** Per-academic-year workload point in the teaching trend. */
+export interface TeachingYearPoint {
+  acadYearBE: number;
+  sections: number;
+  /** Σ (lecture + lab hours per week) across every section in the year.
+   *  Faculty-load proxy — a year with sem1=10 hrs/wk + sem2=12 hrs/wk
+   *  surfaces as 22. */
+  contactHrsPerWeekTotal: number;
+  /** Σ ENROLLSEAT across the year's sections — head-count of seats taught. */
+  studentsTaught: number;
+}
+
+/** Per-course summary inside the teaching profile. */
+export interface TeachingTopCourse {
+  courseCode: string;
+  courseNameTh: string | null;
+  courseNameEn: string | null;
+  /** Total sections taught of this course in the 5-year window. */
+  sections: number;
+  /** Σ ENROLLSEAT — students reached through this course. */
+  studentsTaught: number;
+  /** Earliest BE year the teacher appeared on this course in-window. */
+  firstYearBE: number;
+  /** Latest BE year the teacher appeared on this course in-window. */
+  lastYearBE: number;
+}
+
+/** Owning-faculty bucket — proxies the teacher's "domain of practice".
+ *  A CP* teacher will surface "วิทยาลัยการคอมพิวเตอร์"; cross-faculty
+ *  service teaching shows up here too. */
+export interface TeachingExpertiseArea {
+  registryFacultyName: string;
+  sections: number;
+  distinctCourses: number;
+}
+
+/** 5-year teaching profile — the "what I teach" view summarised from
+ *  class_offering_teachers × class_offerings. */
+export interface TeachingProfile {
+  /** False when the user has no kkuEmail (= no teaching record was
+   *  ever joined to them) OR there are no in-window teaching rows.
+   *  Profile-view collapses to a friendly empty-state in that case. */
+  available: boolean;
+  /** BE range that fed the summary. Currently last 5 academic years
+   *  by the canonical default snapshot — fixed-window so the figures
+   *  stay stable as new terms land. */
+  windowYearsBE: { from: number; to: number };
+  kpis: {
+    totalSections: number;
+    totalDistinctCourses: number;
+    /** Distinct (year, semester) tuples the teacher appeared in. */
+    activeSemesters: number;
+    /** Mean contact-hrs/week across ACTIVE semesters only — the
+     *  per-week load when actually teaching, not diluted by gap terms. */
+    avgContactHrsPerWeekActive: number;
+    /** Σ ENROLLSEAT across the window — student-seat head-count. */
+    totalStudentsTaught: number;
+  };
+  byYear: TeachingYearPoint[];
+  topCourses: TeachingTopCourse[];
+  expertiseAreas: TeachingExpertiseArea[];
+}
+
 export interface ProfileData {
   hasFacultyMemberRecord: boolean;
   basic: ProfileBasicInfo;
@@ -128,6 +191,10 @@ export interface ProfileData {
   research: ResearchSummary;
   curriculum: CurriculumProgram[];
   publications: PublicationEntry[];
+  /** Teaching summary from the registrar's class-offerings cube. Null
+   *  when the user is unmatched to a FacultyMember — same posture as
+   *  research/curriculum. */
+  teaching: TeachingProfile | null;
   /** Pre-computed AI expertise summary, when one has been generated.
    *  Null when never generated — the client component auto-fires the
    *  generation request on first mount in that case. */

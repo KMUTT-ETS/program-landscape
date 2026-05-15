@@ -8,12 +8,15 @@ import {
   Authorized,
   ZodValidationPipe,
   assertCanSeeFacultyDashboards,
+  assertCanSeeProgramAwareDashboards,
   assertUniversityWide,
   clampFacultyIdFilter,
   clampFacultyNameFilter,
+  resolveOfferingScope,
 } from '../common';
 import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
+import { ClassOfferingsService, type ClassOfferingsFilter } from './class-offerings.service';
 import {
   EducationRefreshService,
   REFRESHABLE_CUBES,
@@ -123,12 +126,26 @@ const PerformanceQuerySchema = z.object({
 });
 type PerformanceQuery = z.infer<typeof PerformanceQuerySchema>;
 
+const ClassOfferingsQuerySchema = z.object({
+  facultyName: StringArray,
+  acadYearBE: z.coerce.number().int().min(2500).max(2700).optional(),
+  semester: z.coerce.number().int().min(1).max(4).optional(),
+  levelName: StringArray,
+  geOnly: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
+  limit: z.coerce.number().int().min(1).max(2000).optional(),
+});
+type ClassOfferingsQuery = z.infer<typeof ClassOfferingsQuerySchema>;
+
 @Controller('/education')
 export class EducationController {
   constructor(
     private readonly education: EducationService,
     private readonly refresher: EducationRefreshService,
     private readonly recruitment: RecruitmentService,
+    private readonly classOfferings: ClassOfferingsService,
   ) {}
 
   @Get('recruitment')
@@ -343,5 +360,110 @@ export class EducationController {
     if (clamped === null)
       return this.education.entryScores({ ...q, facultyName: ['__none__'] });
     return this.education.entryScores(clamped);
+  }
+
+  // ───── /education/class-offerings — subject offerings & fulfilment ─────
+  //
+  // Scope clamp:
+  //   admin / UNIVERSITY_USER — see everything
+  //   FACULTY_USER            — see their faculty's class offerings
+  //                             (clamps c.registry_faculty_name)
+  //   PROGRAM_USER            — see only courses in their program(s)
+  //                             via program_courses (extracted from
+  //                             the curriculum PDF; falls back to
+  //                             teacher-derived for un-digested programs)
+  //   mixed                   — OR of the above
+
+  @Get('class-offerings/filter-options')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsFilterOptions(@AuthSession() user: SessionUser) {
+    await assertCanSeeProgramAwareDashboards(user);
+    const scope = await resolveOfferingScope(user);
+    return this.classOfferings.filterOptions(scope);
+  }
+
+  @Get('class-offerings/summary')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsSummary(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeProgramAwareDashboards(user);
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.summary(filter);
+  }
+
+  @Get('class-offerings/heatmap')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsHeatmap(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeProgramAwareDashboards(user);
+    // Heatmap deliberately spans all years/semesters — strip those filters.
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.heatmap({
+      scope: filter.scope,
+      levelName: filter.levelName,
+      geOnly: filter.geOnly,
+    });
+  }
+
+  @Get('class-offerings/distribution')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsDistribution(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeProgramAwareDashboards(user);
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.distribution(filter);
+  }
+
+  @Get('class-offerings/ge')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsGe(@AuthSession() user: SessionUser) {
+    await assertCanSeeProgramAwareDashboards(user);
+    const scope = await resolveOfferingScope(user);
+    return this.classOfferings.geBreakdown(scope);
+  }
+
+  @Get('class-offerings/deep-dive')
+  @Authorized('institution:read:dashboard')
+  async classOfferingsDeepDive(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
+  ) {
+    await assertCanSeeProgramAwareDashboards(user);
+    const filter = await this.resolveClassOfferingsFilter(user, q);
+    return this.classOfferings.deepDiveDrillDown(filter);
+  }
+
+  /**
+   * Shared resolver: build the offering scope from the caller's
+   * effective grants and default to the latest snapshot when the
+   * query doesn't pin (acadYearBE, semester).
+   */
+  private async resolveClassOfferingsFilter(
+    user: SessionUser,
+    q: ClassOfferingsQuery,
+  ): Promise<ClassOfferingsFilter> {
+    const scope = await resolveOfferingScope(user);
+    let acadYearBE = q.acadYearBE;
+    let semester = q.semester;
+    if (acadYearBE === undefined || semester === undefined) {
+      const latest = await this.classOfferings.resolveLatestSnapshot(scope);
+      if (latest) {
+        acadYearBE = acadYearBE ?? latest.acadYearBE;
+        semester = semester ?? latest.semester;
+      }
+    }
+    return {
+      scope,
+      acadYearBE,
+      semester,
+      levelName: q.levelName,
+      geOnly: q.geOnly,
+    };
   }
 }

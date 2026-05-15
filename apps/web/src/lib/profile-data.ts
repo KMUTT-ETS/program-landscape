@@ -38,6 +38,7 @@ import {
   fetchExternalAuthors,
   fetchExternalAuthorsByMetadata,
 } from './external-publications';
+import { summariseTeaching } from './teaching-profile';
 
 // Re-export the client-safe types so existing server-side callers
 // continue to import them from here.
@@ -149,6 +150,7 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
       research: emptyResearchSummary(),
       curriculum: [],
       publications: [],
+      teaching: null,
       cachedNarrative,
     };
   }
@@ -286,6 +288,10 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
 
   const research = summariseResearch(publications);
   const basic = buildBasicInfo(user, member, education, avatarUrl);
+  const teaching = await summariseTeaching({
+    id: member.id,
+    kkuEmail: member.kkuEmail,
+  });
 
   return {
     hasFacultyMemberRecord: true,
@@ -294,6 +300,7 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
     research,
     curriculum,
     publications,
+    teaching,
     cachedNarrative,
   };
 }

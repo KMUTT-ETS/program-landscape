@@ -16,7 +16,7 @@
 // new scope axes) only have to land in one place.
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { prisma } from '@kku/db';
+import { Prisma, prisma } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 
 // Roles that see every faculty's data without a clamp.
@@ -106,37 +106,193 @@ export async function assertUniversityWide(user: SessionUser): Promise<void> {
   );
 }
 
-// Dashboard guard for the faculty-scoped variant. Allows admin-grade +
-// UNIVERSITY_USER (full view) AND FACULTY_USER (clamped to own faculty
-// by the helpers below). PROGRAM_USER is still rejected unless they
-// hold a FACULTY_USER or UNIVERSITY_USER UserScope grant — these
-// dashboards have no per-program variant.
-export async function assertCanSeeFacultyDashboards(
+// Dashboard guard for surfaces that DO have a per-program variant —
+// /education/class-offerings and /staff/teaching-workload. Same as
+// assertCanSeeFacultyDashboards but ALSO admits PROGRAM_USER (clamped
+// to their program's courses by `resolveOfferingScope` below).
+export async function assertCanSeeProgramAwareDashboards(
   user: SessionUser,
 ): Promise<void> {
   if (seesAllScopes(user.role)) return;
   if (user.role === 'FACULTY_USER' && user.facultyId) return;
-  // Consult UserScope rows — any admin/UNIVERSITY_USER or FACULTY_USER
-  // grant elevates this user to dashboard access.
+  if (user.role === 'PROGRAM_USER' && user.programId) return;
   const scopes = await prisma.userScope.findMany({
     where: { userId: user.userId },
-    select: { role: true, facultyId: true },
+    select: { role: true, facultyId: true, programId: true },
   });
   if (
     scopes.some(
       (s) =>
-        seesAllScopes(s.role) || (s.role === 'FACULTY_USER' && s.facultyId),
+        seesAllScopes(s.role) ||
+        (s.role === 'FACULTY_USER' && s.facultyId) ||
+        (s.role === 'PROGRAM_USER' && s.programId),
     )
   ) {
     return;
   }
   if (user.role === 'FACULTY_USER' && !user.facultyId) {
-    throw new ForbiddenException(
-      'Your account has no faculty assignment. Contact an admin.',
-    );
+    throw new ForbiddenException('Your account has no faculty assignment. Contact an admin.');
+  }
+  if (user.role === 'PROGRAM_USER' && !user.programId) {
+    throw new ForbiddenException('Your account has no program assignment. Contact an admin.');
   }
   throw new ForbiddenException(
-    'This dashboard is restricted to university-wide and faculty-level roles.',
+    'This dashboard is restricted to assigned scopes — contact an admin.',
+  );
+}
+
+// Resolves the user's effective scope into the inputs both
+// program-aware dashboards (class-offerings + teaching-workload)
+// need:
+//   - facultyNames : Thai names for matching `class_offerings.registry_faculty_name`
+//   - facultyIds   : Faculty.id for matching `faculty_members.faculty_id`
+//   - programCourseCodes : normalised codes the user's granted programs use
+//
+// PROGRAM_USER scope works two ways, with option 1 preferred:
+//   1. Materialised PROGRAM_DIGEST → `program_courses` (course list extracted
+//      from each program's curriculum PDF, INCLUDES general-education subjects).
+//   2. Fallback for programs missing a digest: derive course codes from
+//      class_offerings whose teachers are on the program's ProgramFaculty
+//      roster (acceptable miss — GE courses are taught by GE Institute
+//      teachers, not on any program's faculty list).
+//
+// Modes:
+//   'all'    — admin / UNIVERSITY_USER, no clamp
+//   'scoped' — restrict by (facultyNames OR facultyIds OR programCourseCodes),
+//              caller picks which fields to apply for its WHERE clause
+//   'none'   — caller should yield empty results (no readable rows)
+export interface OfferingScope {
+  mode: 'all' | 'scoped' | 'none';
+  facultyNames: string[];
+  facultyIds: string[];
+  programCourseCodes: string[];
+}
+
+export async function resolveOfferingScope(
+  user: SessionUser,
+): Promise<OfferingScope> {
+  const eff = await resolveEffectiveScope(user);
+  if (eff.mode === 'all') {
+    return { mode: 'all', facultyNames: [], facultyIds: [], programCourseCodes: [] };
+  }
+  if (eff.mode === 'none') {
+    return { mode: 'none', facultyNames: [], facultyIds: [], programCourseCodes: [] };
+  }
+
+  // Resolve faculty grants (names + IDs in one query).
+  let facultyNames: string[] = [];
+  let facultyIds: string[] = [];
+  if (eff.facultyIds.length > 0) {
+    const faculties = await prisma.faculty.findMany({
+      where: { id: { in: eff.facultyIds } },
+      select: { id: true, nameTh: true },
+    });
+    facultyNames = faculties.map((f) => f.nameTh);
+    facultyIds = faculties.map((f) => f.id);
+  }
+
+  // Resolve program grants → course-code list. NB: this is unioned
+  // with the faculty clamp at the WHERE-clause level, so a mixed-grant
+  // user sees both buckets of data.
+  let programCourseCodes: string[] = [];
+  if (eff.programIds.length > 0) {
+    programCourseCodes = await resolveProgramCourseCodes(eff.programIds);
+  }
+
+  // If nothing resolved (e.g., program grants but program_courses is empty
+  // for those programs AND the fallback found no teacher-derived courses
+  // — likely a brand-new program with no teaching activity yet), degrade
+  // to 'none' so the caller renders an empty state rather than passing
+  // through with no clamp.
+  if (facultyNames.length === 0 && programCourseCodes.length === 0) {
+    return { mode: 'none', facultyNames: [], facultyIds: [], programCourseCodes: [] };
+  }
+
+  return { mode: 'scoped', facultyNames, facultyIds, programCourseCodes };
+}
+
+/**
+ * Resolve a set of programIds to the union of course codes they use,
+ * with the option-1 → option-2 fallback chain described above. Course
+ * codes are returned in the normalised (whitespace-stripped, upper-
+ * cased) form that both `class_offerings.course_code` and
+ * `program_courses.course_code` are stored under.
+ */
+async function resolveProgramCourseCodes(programIds: string[]): Promise<string[]> {
+  if (programIds.length === 0) return [];
+
+  // Option 1 — extracted PROGRAM_DIGEST courses (preferred; includes GE).
+  const direct = await prisma.programCourse.findMany({
+    where: { programId: { in: programIds } },
+    select: { programId: true, courseCode: true },
+  });
+  const codes = new Set<string>();
+  const programsWithDirect = new Set<string>();
+  for (const r of direct) {
+    codes.add(r.courseCode);
+    programsWithDirect.add(r.programId);
+  }
+
+  // Option 2 fallback — teacher-derived. For programs with no
+  // materialised course list, take every course taught by any
+  // FacultyMember on the program's ProgramFaculty roster. Misses GE
+  // (GE Institute teachers aren't on any program's faculty list);
+  // acceptable per the spec's "GE is acceptable to miss" note.
+  const missing = programIds.filter((id) => !programsWithDirect.has(id));
+  if (missing.length > 0) {
+    const fallback = await prisma.$queryRaw<Array<{ course_code: string }>>`
+      SELECT DISTINCT c.course_code
+        FROM class_offerings c
+        JOIN class_offering_teachers t ON t.class_offering_id = c.id
+        JOIN program_faculties pf ON pf.faculty_member_id = t.faculty_member_id
+       WHERE pf.program_id IN (${Prisma.join(missing)})
+    `;
+    for (const r of fallback) codes.add(r.course_code);
+  }
+
+  return [...codes];
+}
+
+// Dashboard guard for the Education + Staff faculty-grain endpoints.
+// Admits anyone with a usable grant:
+//   admin / UNIVERSITY_USER — full view (no clamp)
+//   FACULTY_USER            — clamped to own faculty by clampFacultyNameFilter
+//   PROGRAM_USER            — rolled up to their program's faculty by the
+//                             same clamp helper, so they see their
+//                             faculty's data on these surfaces (the
+//                             two program-aware dashboards do further
+//                             course-level clamping per their own helpers)
+// Throws 403 only when the account has no faculty- or program-grant at all.
+export async function assertCanSeeFacultyDashboards(
+  user: SessionUser,
+): Promise<void> {
+  if (seesAllScopes(user.role)) return;
+  if (user.role === 'FACULTY_USER' && user.facultyId) return;
+  if (user.role === 'PROGRAM_USER' && user.programId) return;
+  // Consult UserScope rows — any admin / UNIVERSITY / FACULTY / PROGRAM
+  // grant elevates this user to dashboard access.
+  const scopes = await prisma.userScope.findMany({
+    where: { userId: user.userId },
+    select: { role: true, facultyId: true, programId: true },
+  });
+  if (
+    scopes.some(
+      (s) =>
+        seesAllScopes(s.role) ||
+        (s.role === 'FACULTY_USER' && s.facultyId) ||
+        (s.role === 'PROGRAM_USER' && s.programId),
+    )
+  ) {
+    return;
+  }
+  if (user.role === 'FACULTY_USER' && !user.facultyId) {
+    throw new ForbiddenException('Your account has no faculty assignment. Contact an admin.');
+  }
+  if (user.role === 'PROGRAM_USER' && !user.programId) {
+    throw new ForbiddenException('Your account has no program assignment. Contact an admin.');
+  }
+  throw new ForbiddenException(
+    'This dashboard is restricted to assigned scopes — contact an admin.',
   );
 }
 

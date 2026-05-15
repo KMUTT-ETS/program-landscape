@@ -363,6 +363,7 @@ model Faculty {
   staffHires             StaffHire[]
   staffSeparations       StaffSeparation[]
   divergenceSnapshots    CrossScopeDivergenceSnapshot[]
+  classOfferings         ClassOffering[]
 
   @@index([code])
   @@map("faculties")
@@ -486,6 +487,7 @@ model Program {
   studentRecords        StudentProgramRecord[]
   riskAssessments       RiskAssessment[]
   riskIndicatorBreaches RiskIndicatorBreach[]
+  programCourses        ProgramCourse[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -1243,13 +1245,20 @@ model FacultyMember {
   // hashCitizenId() in @kku/shared. Populated lazily as connectors
   // observe a matching person across DS2003 / DS2004 / processed-HR.
   citizenIdHash         String?     @unique @map("citizen_id_hash")
+  /// KKU work email (HCMEmployee.EMAIL, lowercased). Populated by the
+  /// kku-hr connector. The KKUMAIL field on the registrar's class-offering
+  /// view (POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER) is a comma-separated
+  /// list of these emails — that's how a class section is linked back to
+  /// its teaching staff for the teaching-workload dashboard.
+  kkuEmail              String?     @unique @map("kku_email")
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 
-  faculty          Faculty          @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  department       Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  programFaculties ProgramFaculty[]
-  researchOutputs  ResearchOutput[]
+  faculty               Faculty                 @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  department            Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  programFaculties      ProgramFaculty[]
+  researchOutputs       ResearchOutput[]
+  classOfferingTeachers ClassOfferingTeacher[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -2625,6 +2634,8 @@ model IngestionRun {
   kmitlSkillGrowths          KmitlSkillGrowth[]
   tcasAdmissionFunnels       TcasAdmissionFunnel[]
   programDemandMatches       ProgramDemandMatch[]
+  classOfferings             ClassOffering[]
+  programCourses             ProgramCourse[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
@@ -3513,6 +3524,155 @@ model EducationCubeRefresh {
   @@index([cubeName, startedAt])
   @@index([status])
   @@map("education_cube_refresh")
+}
+
+// ─── Class offerings (POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER) ────────────
+//
+// One row per CLASSID = one course-section opened in a given
+// (academic year, semester). The view is the registrar's authoritative
+// list of every class taught + the staff who taught it. Two dashboards
+// consume this table:
+//   - /education/class-offerings — seat fulfilment + course catalogue
+//   - /staff/teaching-workload   — contact hours per teacher
+//
+// Faculty attribution is direct (`registryFacultyId` + `facultyName`
+// from the view, resolved to `facultyId` by Thai-name exact-match
+// against Faculty.nameTh at insert time). Garbage rows (LEVELNAME
+// 'ทดสอบ'/'ไม่กำหนด', FACULTYNAME 'ข้อมูลเดิม', test course codes)
+// are filtered out by the connector. Refreshed by
+// `pnpm programs:link-class-offerings` — idempotent full-replace.
+//
+// Program attribution is many-to-many through `program_courses` —
+// a course can appear in multiple curricula. Resolve at query time.
+model ClassOffering {
+  id                  String   @id @default(cuid())
+  /// Buddhist-Era academic year (e.g., 2568).
+  acadYearBE          Int      @map("acad_year_be")
+  /// 1, 2 = main terms; 3, 4 = summer/special terms.
+  semester            Int
+  /// Whitespace-stripped, upper-cased course code (e.g., "EN241100").
+  /// `courseCodeRaw` keeps the registrar's original form for audit.
+  courseCode          String   @map("course_code")
+  courseCodeRaw       String   @map("course_code_raw")
+  courseNameTh        String?  @map("course_name_th")
+  courseNameEn        String?  @map("course_name_en")
+  /// Section / group number within a course in a semester.
+  section             Int
+  /// Registrar's natural key — unique across the entire view.
+  classId             BigInt   @unique @map("class_id")
+  /// `CREDITTOTAL` — total credits the course is worth.
+  creditTotal         Int?     @map("credit_total")
+  /// Raw `COURSEUNIT` string, e.g., "3 (2-2-5)" = A (B-C-D) where
+  /// A=credits, B=lecture-hrs/wk, C=lab-hrs/wk, D=self-study-hrs/wk.
+  courseUnit          String?  @map("course_unit")
+  /// Parsed B = lecture contact hours per week. Drives teacher workload.
+  lectureHrsPerWeek   Int?     @map("lecture_hrs_per_week")
+  /// Parsed C = lab contact hours per week. Drives teacher workload.
+  labHrsPerWeek       Int?     @map("lab_hrs_per_week")
+  /// Students currently enrolled in this section.
+  enrollSeat          Int      @map("enroll_seat")
+  /// Section capacity (max students that can register).
+  totalSeat           Int      @map("total_seat")
+  /// LEVELNAME = "ปริญญาตรี" / "ปริญญาโท" / etc. Already filtered
+  /// to drop test/unspecified values at connector time.
+  levelName           String   @map("level_name")
+  /// Raw FACULTYID from the registrar's view (numeric string).
+  registryFacultyId   String   @map("registry_faculty_id")
+  /// Raw FACULTYNAME from the registrar's view (Thai).
+  registryFacultyName String   @map("registry_faculty_name")
+  /// Resolved FK to our Faculty model. Null when the registrar's
+  /// faculty name doesn't match any seeded Faculty.nameTh (analyst
+  /// reconciliation worklist).
+  facultyId           String?  @map("faculty_id")
+  /// True when the course is general-education: starts with `00`
+  /// (legacy numeric GE) or `GE` (current GE codes), or the owning
+  /// registry faculty is the GE Institute or Language Institute.
+  isGeneralEducation  Boolean  @default(false) @map("is_general_education")
+  descriptionTh       String?  @map("description_th") @db.Text
+  descriptionEn       String?  @map("description_en") @db.Text
+  refreshedAt         DateTime @default(now()) @updatedAt @map("refreshed_at")
+  ingestionRunId      String?  @map("ingestion_run_id")
+
+  faculty      Faculty?               @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun?          @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  teachers     ClassOfferingTeacher[]
+
+  @@index([facultyId, acadYearBE, semester])
+  @@index([acadYearBE, semester])
+  @@index([courseCode])
+  @@index([levelName])
+  @@index([isGeneralEducation, acadYearBE, semester])
+  @@index([ingestionRunId])
+  @@map("class_offerings")
+}
+
+// Per-teacher attribution for a class offering. One row per (CLASSID ×
+// distinct KKUMAIL email). KKUMAIL is a comma-separated list with
+// historical duplicates — the connector takes distinct values per
+// CLASSID before inserting here.
+//
+// All teachers on a team-taught course receive the FULL workload per
+// KKU teaching-credit policy (the registrar's representation matches
+// this — every co-teacher appears as one of the comma-separated
+// emails, and we treat each as fully responsible).
+//
+// `facultyMemberId` is a soft FK — resolved against `FacultyMember.
+// kkuEmail` (lowercased exact match) at connector time. Null when the
+// email doesn't match any active staff (external lecturers, retired
+// staff, HCM-not-yet-ingested) — surfaces as the "unresolved teachers"
+// row on the workload dashboard for analyst follow-up.
+model ClassOfferingTeacher {
+  id              String   @id @default(cuid())
+  classOfferingId String   @map("class_offering_id")
+  /// Lowercased KKU work email from KKUMAIL (e.g., "nattee@kku.ac.th").
+  kkuEmail        String   @map("kku_email")
+  facultyMemberId String?  @map("faculty_member_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  classOffering ClassOffering  @relation(fields: [classOfferingId], references: [id], onDelete: Cascade)
+  facultyMember FacultyMember? @relation(fields: [facultyMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([classOfferingId, kkuEmail])
+  @@index([facultyMemberId])
+  @@index([kkuEmail])
+  @@map("class_offering_teachers")
+}
+
+// Many-to-many bridge from `Program` → course code, materialised from
+// approved `PROGRAM_DIGEST` AiExtraction payloads. A course can appear
+// in multiple programs (the registrar's class-offering view has no
+// direct program column for exactly this reason). Refreshed by
+// `pnpm programs:materialise-program-courses` — idempotent
+// delete-and-replace per program.
+//
+// `courseCode` is normalised the same way as ClassOffering.courseCode
+// (whitespace stripped, upper) so the natural join key matches.
+model ProgramCourse {
+  id             String   @id @default(cuid())
+  programId      String   @map("program_id")
+  /// Whitespace-stripped, upper-cased course code, matching
+  /// ClassOffering.courseCode (e.g., "EN241100").
+  courseCode     String   @map("course_code")
+  /// As-extracted course code (preserves the digest's original form,
+  /// usually with spaces like "EN 241 100").
+  courseCodeRaw  String   @map("course_code_raw")
+  courseNameTh   String?  @map("course_name_th")
+  courseNameEn   String?  @map("course_name_en")
+  credits        Int?
+  /// Method version of the PROGRAM_DIGEST extractor that produced
+  /// this row — lets a methodology bump re-flow new courses without
+  /// wiping older curricula whose digests haven't been re-run yet.
+  methodVersion  String   @map("method_version")
+  refreshedAt    DateTime @default(now()) @updatedAt @map("refreshed_at")
+  ingestionRunId String?  @map("ingestion_run_id")
+
+  program      Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([programId, courseCode])
+  @@index([courseCode])
+  @@index([ingestionRunId])
+  @@map("program_courses")
 }
 
 // ─── Staff cross-system identity tables ─────────────────────────────────

@@ -192,6 +192,14 @@ const PROGRAM_USER_PERMS: Permission[] = [
   'decisions:read:all',
   'pdf:generate',
   'risks:read:all',
+  // The two program-aware dashboards — /education/class-offerings and
+  // /staff/teaching-workload — clamp via program_courses (option 1) or
+  // teacher-derived (option 2 fallback) so a PROGRAM_USER only ever
+  // sees the courses their program uses. The other endpoints behind
+  // this same permission (workforce / compensation / recruitment etc.)
+  // gate further via assertCanSeeFacultyDashboards which still 403s
+  // PROGRAM_USER — so the permission is necessary-but-not-sufficient.
+  'institution:read:dashboard',
 ];
 
 // Copy the arrays into readonly sets so callers can't mutate them.

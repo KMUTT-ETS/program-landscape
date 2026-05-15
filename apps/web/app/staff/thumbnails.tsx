@@ -143,3 +143,57 @@ export function CompensationThumb() {
     </Frame>
   );
 }
+
+export function TeachingWorkloadThumb() {
+  // Clipboard with stylised workload bars + a small clock-face accent —
+  // signals "contact hours per teacher, per week".
+  return (
+    <Frame>
+      {/* Clipboard background */}
+      <g transform="translate(20, 14)">
+        <rect width={120} height={92} rx={6} fill="white" stroke={PALETTE.ink} strokeWidth={1.4} opacity={0.95} />
+        {/* Clipboard clip */}
+        <rect x={42} y={-4} width={36} height={10} rx={2} fill={PALETTE.ink} opacity={0.8} />
+        {/* Header line */}
+        <rect x={12} y={14} width={70} height={5} rx={1.5} fill={PALETTE.ink} opacity={0.55} />
+        {/* Workload bars — colour-coded by load band */}
+        {[
+          { y: 28, w: 90, c: PALETTE.warm, lbl: '8h' },   // under
+          { y: 42, w: 60, c: PALETTE.warm, lbl: '5h' },   // under
+          { y: 56, w: 70, c: PALETTE.ok, lbl: '11h' },    // normal
+          { y: 70, w: 85, c: PALETTE.pop, lbl: '21h' },   // over
+        ].map((b, i) => (
+          <g key={i} transform={`translate(12, ${b.y})`}>
+            <rect width={100} height={9} rx={2} fill={PALETTE.cool} opacity={0.18} />
+            <rect width={b.w} height={9} rx={2} fill={b.c} opacity={0.9} />
+            <text x={104} y={7.5} fontSize="6.5" fill={PALETTE.ink} opacity={0.7}>
+              {b.lbl}
+            </text>
+          </g>
+        ))}
+      </g>
+      {/* Clock face on the right */}
+      <g transform="translate(190, 60)">
+        <circle r={24} fill="white" stroke={PALETTE.ink} strokeWidth={1.6} />
+        {[0, 90, 180, 270].map((deg) => (
+          <line
+            key={deg}
+            x1={Math.cos(((deg - 90) * Math.PI) / 180) * 20}
+            y1={Math.sin(((deg - 90) * Math.PI) / 180) * 20}
+            x2={Math.cos(((deg - 90) * Math.PI) / 180) * 23}
+            y2={Math.sin(((deg - 90) * Math.PI) / 180) * 23}
+            stroke={PALETTE.ink}
+            strokeWidth={1.4}
+          />
+        ))}
+        {/* Hour + minute hand */}
+        <line x1={0} y1={0} x2={0} y2={-10} stroke={PALETTE.accent} strokeWidth={2.4} strokeLinecap="round" />
+        <line x1={0} y1={0} x2={14} y2={2} stroke={PALETTE.accent} strokeWidth={1.6} strokeLinecap="round" />
+        <circle r={2} fill={PALETTE.accent} />
+        <text x={0} y={36} textAnchor="middle" fontSize="6" fill={PALETTE.ink} opacity={0.65}>
+          hrs / week
+        </text>
+      </g>
+    </Frame>
+  );
+}

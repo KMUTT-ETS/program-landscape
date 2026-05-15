@@ -71,6 +71,17 @@ const T = {
     expertiseKeywords: 'คำสำคัญ',
     facultyLabel: 'คณะ',
     departmentLabel: 'ภาควิชา',
+    sectionTeaching: 'ภาระงานการสอน',
+    sectionTeachingHelp: 'สรุปจากข้อมูลตารางสอน 5 ปีย้อนหลัง · เฉพาะหมู่เรียนที่มีนักศึกษาลงทะเบียน',
+    statTeachingDistinctCourses: 'จำนวนรายวิชา',
+    statTeachingStudents: 'จำนวนนักศึกษาที่สอน',
+    teachingYearTrend: 'จำนวนนักศึกษาต่อปีการศึกษา',
+    teachingTopCourses: 'รายวิชาที่สอนบ่อยที่สุด',
+    teachingExpertiseAreas: 'ขอบเขตการสอน (คณะเจ้าของรายวิชา)',
+    noTeaching: 'ยังไม่มีบันทึกการสอนในช่วง 5 ปีที่ผ่านมา',
+    sectionsLabel: 'หมู่เรียน',
+    studentsLabel: 'นักศึกษา',
+    coursesLabel: 'รายวิชา',
     languageToggle: 'EN',
     languageToggleAria: 'เปลี่ยนเป็นภาษาอังกฤษ',
   },
@@ -111,6 +122,17 @@ const T = {
     expertiseKeywords: 'Keywords',
     facultyLabel: 'Faculty',
     departmentLabel: 'Department',
+    sectionTeaching: 'Teaching profile',
+    sectionTeachingHelp: 'Last 5 academic years · only sections that actually enrolled students',
+    statTeachingDistinctCourses: 'Distinct courses',
+    statTeachingStudents: 'Students taught',
+    teachingYearTrend: 'Students taught per year',
+    teachingTopCourses: 'Most-taught courses',
+    teachingExpertiseAreas: 'Teaching domains (course-owning faculty)',
+    noTeaching: 'No teaching record in the last 5 academic years',
+    sectionsLabel: 'sections',
+    studentsLabel: 'students',
+    coursesLabel: 'courses',
     languageToggle: 'TH',
     languageToggleAria: 'Switch to Thai',
   },
@@ -227,6 +249,14 @@ export function ProfileView({
 
         <div className="space-y-6 lg:col-span-2">
           <CurriculumSection curriculum={profile.curriculum} lang={lang} t={t} />
+          {/* Teaching workload is institutional data — only show on the
+              owner's own /profile, not the public /p/[slug] view, until
+              the owner opts in. (Same posture as the email field.)
+              Placed directly under Programs taught: same "what I teach"
+              theme, drilling from program-level to subject-level. */}
+          {!publicMode && profile.hasFacultyMemberRecord && (
+            <TeachingSection teaching={profile.teaching} lang={lang} t={t} />
+          )}
           <PublicationsSection
             publications={profile.publications}
             ownerSurname={ownerSurname}
@@ -804,6 +834,282 @@ function ResearchSummarySection({
       </Card>
     </Section>
   );
+}
+
+// ─── Teaching profile (5-yr workload + expertise from class-offerings) ───
+
+function TeachingSection({
+  teaching,
+  lang,
+  t,
+}: {
+  teaching: ProfileData['teaching'];
+  lang: Lang;
+  t: (typeof T)[Lang];
+}) {
+  // Always render the section so the header is consistent across users,
+  // but switch to an empty state when there's nothing in-window.
+  const isEmpty = !teaching || !teaching.available || teaching.kpis.totalSections === 0;
+  const years = teaching ? teaching.byYear : [];
+  const windowLabel = teaching
+    ? `BE ${teaching.windowYearsBE.from}–${teaching.windowYearsBE.to}`
+    : '';
+
+  return (
+    <Section
+      title={
+        <span className="flex items-center gap-2">
+          <BookOpen className="h-12 w-12 text-text-tertiary" aria-hidden />
+          {t.sectionTeaching}
+        </span>
+      }
+    >
+      <Card className="p-5" elevation="lg">
+        <p className="text-[11px] uppercase tracking-wider text-text-tertiary mb-3">
+          {t.sectionTeachingHelp}
+          {windowLabel && <span className="ml-2 text-text-secondary">· {windowLabel}</span>}
+        </p>
+
+        {isEmpty ? (
+          <p className="text-sm text-text-tertiary">{t.noTeaching}</p>
+        ) : teaching ? (
+          <div className="space-y-5">
+            {/* KPIs — two tiles, the things this section is really about */}
+            <dl className="grid grid-cols-2 gap-3">
+              <StatTile
+                label={t.statTeachingDistinctCourses}
+                value={teaching.kpis.totalDistinctCourses.toLocaleString()}
+                accent
+              />
+              <StatTile
+                label={t.statTeachingStudents}
+                value={teaching.kpis.totalStudentsTaught.toLocaleString()}
+                accent
+              />
+            </dl>
+
+            {/* Students-taught histogram — vertical bars, year on x-axis */}
+            <YearTrendChart years={years} t={t} />
+
+            {/* Top courses */}
+            {teaching.topCourses.length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5">
+                  {t.teachingTopCourses}
+                </div>
+                <ul className="divide-y divide-border-subtle">
+                  {teaching.topCourses.map((c) => {
+                    const name =
+                      lang === 'th'
+                        ? c.courseNameTh ?? c.courseNameEn
+                        : c.courseNameEn ?? c.courseNameTh;
+                    const yearRange =
+                      c.firstYearBE === c.lastYearBE
+                        ? `BE ${c.firstYearBE}`
+                        : `BE ${c.firstYearBE}–${c.lastYearBE}`;
+                    return (
+                      <li
+                        key={c.courseCode}
+                        className="py-1.5 grid grid-cols-[110px_1fr_auto] items-center gap-3"
+                        title={`${c.courseCode} · ${name ?? ''} · ${yearRange} · ${c.sections.toLocaleString()} ${t.sectionsLabel} · ${c.studentsTaught.toLocaleString()} ${t.studentsLabel}`}
+                      >
+                        <span className="font-mono text-[11px] text-accent-default">
+                          {c.courseCode}
+                        </span>
+                        <span className="text-sm text-text-primary truncate">
+                          {name ?? '—'}
+                        </span>
+                        <span className="text-[11px] text-text-tertiary tabular-nums">
+                          {c.sections.toLocaleString()} {t.sectionsLabel} ·{' '}
+                          {c.studentsTaught.toLocaleString()} {t.studentsLabel} ·{' '}
+                          {yearRange}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </Card>
+    </Section>
+  );
+}
+
+/** Vertical-bar histogram — one bar per academic year in the window.
+ *  Bar height encodes students-taught (Σ ENROLLSEAT across every
+ *  section the teacher appeared on). X-axis = BE year. Pure inline SVG,
+ *  no chart lib — keeps the page light and renders correctly through
+ *  SSR + PDF export. */
+function YearTrendChart({
+  years,
+  t,
+}: {
+  years: NonNullable<ProfileData['teaching']>['byYear'];
+  t: (typeof T)[Lang];
+}) {
+  // ── Chart geometry ───────────────────────────────────────────
+  const W = 560;
+  const H = 220;
+  const PAD = { top: 14, right: 16, bottom: 36, left: 44 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const n = years.length;
+  const slot = innerW / n;
+  const barW = Math.min(slot * 0.65, 60);
+  const barOffset = (slot - barW) / 2;
+
+  // Round the max up to a tidy number so the y-axis ticks look clean.
+  const rawMax = Math.max(1, ...years.map((y) => y.studentsTaught));
+  const niceMax = niceCeil(rawMax);
+  const TICKS = 4;
+  const tickValues = Array.from({ length: TICKS + 1 }, (_, i) =>
+    Math.round((niceMax * i) / TICKS),
+  );
+
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5">
+        {t.teachingYearTrend}
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-auto"
+        role="img"
+        aria-label={t.teachingYearTrend}
+      >
+        {/* Gridlines + y-axis tick labels */}
+        {tickValues.map((tv, i) => {
+          const y = PAD.top + innerH - (innerH * tv) / niceMax;
+          return (
+            <g key={i}>
+              <line
+                x1={PAD.left}
+                x2={PAD.left + innerW}
+                y1={y}
+                y2={y}
+                stroke="currentColor"
+                strokeWidth={i === 0 ? 1 : 0.5}
+                className="text-border-subtle"
+                opacity={i === 0 ? 0.55 : 0.3}
+              />
+              <text
+                x={PAD.left - 6}
+                y={y + 4}
+                textAnchor="end"
+                className="fill-text-tertiary"
+                style={{ fontSize: 10 }}
+              >
+                {tv.toLocaleString()}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* y-axis label */}
+        <text
+          x={12}
+          y={PAD.top + innerH / 2}
+          transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+          textAnchor="middle"
+          className="fill-text-tertiary"
+          style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}
+        >
+          {t.studentsLabel}
+        </text>
+
+        {/* Bars */}
+        {years.map((y, i) => {
+          const x = PAD.left + i * slot + barOffset;
+          const h = niceMax > 0 ? (innerH * y.studentsTaught) / niceMax : 0;
+          const yPos = PAD.top + innerH - h;
+          const isActive = y.studentsTaught > 0;
+          return (
+            <g key={y.acadYearBE}>
+              {isActive ? (
+                <>
+                  <rect
+                    x={x}
+                    y={yPos}
+                    width={barW}
+                    height={h}
+                    rx={2}
+                    className="fill-accent-default"
+                  >
+                    <title>
+                      BE {y.acadYearBE}: {y.studentsTaught.toLocaleString()}{' '}
+                      {t.studentsLabel} · {y.sections.toLocaleString()}{' '}
+                      {t.sectionsLabel}
+                    </title>
+                  </rect>
+                  {/* Value label above the bar */}
+                  <text
+                    x={x + barW / 2}
+                    y={yPos - 4}
+                    textAnchor="middle"
+                    className="fill-text-secondary"
+                    style={{ fontSize: 10, fontWeight: 600 }}
+                  >
+                    {y.studentsTaught.toLocaleString()}
+                  </text>
+                </>
+              ) : (
+                <>
+                  {/* Empty-year stub so the year still appears on the axis */}
+                  <rect
+                    x={x}
+                    y={PAD.top + innerH - 2}
+                    width={barW}
+                    height={2}
+                    className="fill-text-tertiary"
+                    opacity={0.4}
+                  >
+                    <title>BE {y.acadYearBE}: no students taught</title>
+                  </rect>
+                  <text
+                    x={x + barW / 2}
+                    y={PAD.top + innerH - 6}
+                    textAnchor="middle"
+                    className="fill-text-tertiary"
+                    style={{ fontSize: 10 }}
+                  >
+                    —
+                  </text>
+                </>
+              )}
+              {/* X-axis BE year label */}
+              <text
+                x={x + barW / 2}
+                y={PAD.top + innerH + 18}
+                textAnchor="middle"
+                className="fill-text-tertiary"
+                style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums' }}
+              >
+                BE {y.acadYearBE}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** Round a raw max up to a tidy number for axis ticks — 23 → 25, 137 → 150,
+ *  860 → 1,000. Picks the smallest step in {1, 2, 2.5, 5, 10} × 10^k that
+ *  produces a clean ceiling at or above the value. */
+function niceCeil(raw: number): number {
+  if (raw <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / pow;
+  let nice: number;
+  if (norm <= 1) nice = 1;
+  else if (norm <= 2) nice = 2;
+  else if (norm <= 2.5) nice = 2.5;
+  else if (norm <= 5) nice = 5;
+  else nice = 10;
+  return nice * pow;
 }
 
 function StatTile({

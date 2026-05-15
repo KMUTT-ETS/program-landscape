@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { canSeeFacultyDashboards, type SessionUser } from '@kku/shared';
+import { canSeeProgramAwareDashboards, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
@@ -26,7 +26,7 @@ export default async function CompensationPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
+  if (!canSeeProgramAwareDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);
