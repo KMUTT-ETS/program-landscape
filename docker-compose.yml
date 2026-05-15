@@ -10,6 +10,11 @@ services:
     image: program-landscape-postgres:dev
     container_name: program-landscape-postgres
     restart: unless-stopped
+    # Postgres' parallel-query workers map hash-join state into /dev/shm.
+    # The 64 MB Docker default blows up on parallel fan-outs that JOIN
+    # class_offering_teachers (214k) × class_offerings (122k). Bump to
+    # 1 GB — covers a 5-way parallel page-load with comfortable margin.
+    shm_size: 1g
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kku}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kku_dev_password}

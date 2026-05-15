@@ -1,4 +1,4 @@
-// Response shapes — mirrored from apps/api/src/staff-dashboard/teaching-workload.service.ts.
+// Response shapes — mirror apps/api/src/staff-dashboard/teaching-workload.service.ts.
 
 export interface FilterOptions {
   years: number[];
@@ -59,17 +59,52 @@ export interface ByFacultyResponse {
   };
 }
 
-export interface TeacherRow {
-  kkuEmail: string;
-  facultyMemberId: string | null;
-  nameTh: string | null;
-  nameEn: string | null;
-  rank: string | null;
+export interface StudentsByFacultyRow {
   facultyId: string | null;
-  facultyName: string | null;
+  facultyName: string;
+  teachers: number;
+  sections: number;
+  studentsTaught: number;
+  studentsPerTeacher: number;
+}
+
+export interface StudentsByFacultyResponse {
+  acadYearBE: number | null;
+  semester: number | null;
+  rows: StudentsByFacultyRow[];
+  totals: {
+    teachers: number;
+    sections: number;
+    studentsTaught: number;
+  };
+}
+
+// By-teacher drill-down: Faculty → Teacher
+export interface TeacherRow {
+  facultyMemberId: string | null;
+  displayName: string;
+  rank: string | null;
   sections: number;
   distinctCourses: number;
+  /** Σ lecture-hrs per week (COURSEUNIT "B" of "A (B-C-D)"). */
+  lectureHrsPerWeek: number;
+  /** Σ lab-hrs per week (COURSEUNIT "C"). */
+  labHrsPerWeek: number;
   totalContactHrsPerWeek: number;
+  studentsTaught: number;
+  teamTaughtSections: number;
+}
+
+export interface TeacherFacultyGroup {
+  facultyId: string | null;
+  facultyName: string;
+  children: TeacherRow[];
+  teachers: number;
+  sections: number;
+  lectureHrsPerWeek: number;
+  labHrsPerWeek: number;
+  totalContactHrsPerWeek: number;
+  avgContactHrsPerTeacher: number;
   studentsTaught: number;
   teamTaughtSections: number;
 }
@@ -77,6 +112,13 @@ export interface TeacherRow {
 export interface TeachersResponse {
   acadYearBE: number | null;
   semester: number | null;
-  rows: TeacherRow[];
-  truncated: boolean;
+  rows: TeacherFacultyGroup[];
+  totals: {
+    teachers: number;
+    sections: number;
+    totalContactHrsPerWeek: number;
+    avgContactHrsPerTeacher: number;
+    studentsTaught: number;
+    teamTaughtSections: number;
+  };
 }

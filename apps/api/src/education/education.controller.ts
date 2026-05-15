@@ -8,9 +8,11 @@ import {
   Authorized,
   ZodValidationPipe,
   assertCanSeeFacultyDashboards,
+  assertCanSeeProgramAwareDashboards,
   assertUniversityWide,
   clampFacultyIdFilter,
   clampFacultyNameFilter,
+  resolveOfferingScope,
 } from '../common';
 import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
@@ -362,19 +364,22 @@ export class EducationController {
 
   // ───── /education/class-offerings — subject offerings & fulfilment ─────
   //
-  // All six endpoints clamp via `clampFacultyNameFilter`. The clamp
-  // matches against `class_offerings.registry_faculty_name` (Thai) —
-  // same posture as the other education endpoints.
+  // Scope clamp:
+  //   admin / UNIVERSITY_USER — see everything
+  //   FACULTY_USER            — see their faculty's class offerings
+  //                             (clamps c.registry_faculty_name)
+  //   PROGRAM_USER            — see only courses in their program(s)
+  //                             via program_courses (extracted from
+  //                             the curriculum PDF; falls back to
+  //                             teacher-derived for un-digested programs)
+  //   mixed                   — OR of the above
 
   @Get('class-offerings/filter-options')
   @Authorized('institution:read:dashboard')
   async classOfferingsFilterOptions(@AuthSession() user: SessionUser) {
-    await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter({ facultyName: [] as string[] }, user);
-    if (clamped === null) {
-      return this.classOfferings.filterOptions(['__none__']);
-    }
-    return this.classOfferings.filterOptions(clamped.facultyName);
+    await assertCanSeeProgramAwareDashboards(user);
+    const scope = await resolveOfferingScope(user);
+    return this.classOfferings.filterOptions(scope);
   }
 
   @Get('class-offerings/summary')
@@ -383,7 +388,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveClassOfferingsFilter(user, q);
     return this.classOfferings.summary(filter);
   }
@@ -394,11 +399,11 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     // Heatmap deliberately spans all years/semesters — strip those filters.
     const filter = await this.resolveClassOfferingsFilter(user, q);
     return this.classOfferings.heatmap({
-      facultyName: filter.facultyName,
+      scope: filter.scope,
       levelName: filter.levelName,
       geOnly: filter.geOnly,
     });
@@ -410,7 +415,7 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveClassOfferingsFilter(user, q);
     return this.classOfferings.distribution(filter);
   }
@@ -418,10 +423,9 @@ export class EducationController {
   @Get('class-offerings/ge')
   @Authorized('institution:read:dashboard')
   async classOfferingsGe(@AuthSession() user: SessionUser) {
-    await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter({ facultyName: [] as string[] }, user);
-    if (clamped === null) return this.classOfferings.geBreakdown(['__none__']);
-    return this.classOfferings.geBreakdown(clamped.facultyName);
+    await assertCanSeeProgramAwareDashboards(user);
+    const scope = await resolveOfferingScope(user);
+    return this.classOfferings.geBreakdown(scope);
   }
 
   @Get('class-offerings/deep-dive')
@@ -430,32 +434,32 @@ export class EducationController {
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ClassOfferingsQuerySchema)) q: ClassOfferingsQuery,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveClassOfferingsFilter(user, q);
-    return this.classOfferings.deepDive({ ...filter, limit: q.limit ?? 500 });
+    return this.classOfferings.deepDiveDrillDown(filter);
   }
 
   /**
-   * Shared resolver: clamp faculty list, default to the latest available
-   * snapshot when (acadYearBE, semester) aren't supplied.
+   * Shared resolver: build the offering scope from the caller's
+   * effective grants and default to the latest snapshot when the
+   * query doesn't pin (acadYearBE, semester).
    */
   private async resolveClassOfferingsFilter(
     user: SessionUser,
     q: ClassOfferingsQuery,
   ): Promise<ClassOfferingsFilter> {
-    const clamped = await clampFacultyNameFilter({ facultyName: q.facultyName }, user);
-    const facultyName = clamped === null ? ['__none__'] : clamped.facultyName;
+    const scope = await resolveOfferingScope(user);
     let acadYearBE = q.acadYearBE;
     let semester = q.semester;
     if (acadYearBE === undefined || semester === undefined) {
-      const latest = await this.classOfferings.resolveLatestSnapshot(facultyName);
+      const latest = await this.classOfferings.resolveLatestSnapshot(scope);
       if (latest) {
         acadYearBE = acadYearBE ?? latest.acadYearBE;
         semester = semester ?? latest.semester;
       }
     }
     return {
-      facultyName,
+      scope,
       acadYearBE,
       semester,
       levelName: q.levelName,

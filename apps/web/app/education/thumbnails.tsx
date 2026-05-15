@@ -373,6 +373,73 @@ export function TuitionThumb() {
   );
 }
 
+// Dashboard 8 — Class offerings: seat grid coloured by fill rate,
+// suggests the heatmap headline + a stack of stylised class slots.
+export function ClassOfferingsThumb() {
+  // 6×4 grid of "seats" with varied fill levels — visually previews
+  // the seat-fulfilment heatmap on the dashboard.
+  const cells: Array<{ x: number; y: number; rate: number }> = [];
+  const rates = [
+    0.0, 0.1, 0.4, 0.7, 1.0, 0.9,
+    0.0, 0.3, 0.6, 0.8, 1.0, 1.0,
+    0.2, 0.5, 0.7, 0.9, 0.6, 0.4,
+    0.0, 0.0, 0.3, 0.5, 0.7, 0.8,
+  ];
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 6; c++) {
+      cells.push({ x: 16 + c * 18, y: 18 + r * 18, rate: rates[r * 6 + c] ?? 0 });
+    }
+  }
+  const colour = (rate: number): string => {
+    if (rate <= 0) return '#e7e5e1';
+    if (rate < 0.25) return '#fde7ad';
+    if (rate < 0.5) return '#facd6a';
+    if (rate < 0.75) return COLORS.amber;
+    if (rate < 1) return COLORS.warm;
+    return COLORS.accent;
+  };
+  return (
+    <Frame>
+      {cells.map((c, i) => (
+        <rect
+          key={i}
+          x={c.x}
+          y={c.y}
+          width={14}
+          height={14}
+          rx={2}
+          fill={colour(c.rate)}
+          opacity={0.92}
+        />
+      ))}
+      {/* Side panel — fill-rate gauge */}
+      <g transform="translate(140, 16)">
+        <rect width={86} height={88} fill={COLORS.bg} stroke={COLORS.muted} strokeWidth="0.5" opacity="0.4" rx="3" />
+        <text x={43} y={18} textAnchor="middle" fontSize="9" fill={COLORS.ink} opacity="0.65">
+          seat fill
+        </text>
+        <text x={43} y={46} textAnchor="middle" fontSize="22" fontWeight="700" fill={COLORS.primary}>
+          53%
+        </text>
+        <g transform="translate(8, 60)">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <rect
+              key={i}
+              x={(i - 1) * 12}
+              y={(6 - i) * 2}
+              width={10}
+              height={i * 4}
+              fill={i >= 5 ? COLORS.accent : i >= 3 ? COLORS.amber : COLORS.warm}
+              opacity={0.85}
+              rx={1}
+            />
+          ))}
+        </g>
+      </g>
+    </Frame>
+  );
+}
+
 // Dashboard 7 — Recruitment funnel: stylised funnel narrowing from
 // applicants down to reported-in.
 export function RecruitmentThumb() {

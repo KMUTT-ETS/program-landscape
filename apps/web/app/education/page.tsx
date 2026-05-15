@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   canSeeFacultyDashboards,
+  canSeeProgramAwareDashboards,
   isUniversityWide,
   type SessionUser,
 } from '@kku/shared';
@@ -23,6 +24,7 @@ import type { RefreshStatus } from './types';
 import { EducationRefreshBar } from './refresh-bar';
 import {
   ActivePivotThumb,
+  ClassOfferingsThumb,
   InternationalThumb,
   LocationThumb,
   PerformanceThumb,
@@ -34,7 +36,17 @@ import {
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Education dashboard' };
 
-const TILES = [
+// `programAware` flags the tiles a PROGRAM_USER can open. The rest are
+// faculty-scope-only and would 403 if opened — we filter them out of the
+// hub for PROGRAM_USER instead of showing dead links.
+const TILES: Array<{
+  href: string;
+  icon: typeof Filter;
+  title: string;
+  blurb: string;
+  Thumb: typeof RecruitmentThumb;
+  programAware?: boolean;
+}> = [
   {
     href: '/education/recruitment',
     icon: Filter,
@@ -96,8 +108,9 @@ const TILES = [
     icon: CalendarRange,
     title: 'Subject offerings & fulfilment',
     blurb:
-      'Every course-section the registrar opened — seat fulfilment heatmap, utilisation distribution, dedicated General-Education view, plus a course-level deep-dive table. Source: POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER.',
-    Thumb: PerformanceThumb,
+      "Every course-section the registrar opened in a given semester. See how well classes are filling, where empty sections are piling up, who's running the General-Education catalogue, and drill from faculty → program level → course to find the long tail of under-filled subjects.",
+    Thumb: ClassOfferingsThumb,
+    programAware: true,
   },
 ];
 
@@ -105,15 +118,23 @@ export default async function EducationHubPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
+  const role = user.effectiveRole ?? user.role;
+  if (!canSeeProgramAwareDashboards(role)) redirect('/no-access');
 
   // Refresh button is university-only — triggers a global cube
   // rebuild + reads from the Oracle registry. Skip the fetch + UI
-  // entirely for FACULTY_USER.
-  const canRefresh = isUniversityWide(user.effectiveRole ?? user.role);
+  // entirely for everyone else.
+  const canRefresh = isUniversityWide(role);
   const status = canRefresh
     ? await apiFetch<RefreshStatus>('/education/refresh/status').catch(() => null)
     : null;
+
+  // Everyone with a usable grant sees every tile — per-endpoint
+  // clamping narrows the data, not the menu. (PROGRAM_USER on a
+  // faculty-grain tile lands on their program's faculty's data,
+  // rolled up via clampFacultyNameFilter; on the two program-aware
+  // tiles they see only their program's courses.)
+  const isProgramOnly = !canSeeFacultyDashboards(role);
 
   return (
     <AuthedAppShell user={user}>
@@ -122,7 +143,9 @@ export default async function EducationHubPage() {
         subtitle={
           canRefresh
             ? 'Interactive views of registrar data — student demographics, location, tuition, and international cohorts. Click Refresh to pull the latest snapshot from the registrar.'
-            : "Interactive views of your faculty's registrar data — student demographics, location, tuition, and international cohorts. Snapshots refresh nightly across the whole university."
+            : isProgramOnly
+              ? "Interactive views of registrar data. The two program-aware tiles are clamped to your program's courses; the rest show your program's faculty for context."
+              : "Interactive views of your faculty's registrar data — student demographics, location, tuition, and international cohorts. Snapshots refresh nightly across the whole university."
         }
       />
 

@@ -16,13 +16,18 @@
 
 import { Injectable } from '@nestjs/common';
 import { prisma, Prisma } from '@kku/db';
+import { CacheService } from '../common/cache.service';
+import type { OfferingScope } from '../common/scope-guards';
 
 export interface TeachingWorkloadFilter {
-  /** Granted faculty IDs (Faculty.id) — clamps on the TEACHER's home
-   *  faculty (fm.faculty_id), NOT the course-owning faculty. A Math
-   *  teacher teaching a service course to Engineering still counts as
-   *  Math's workload. `null` = no clamp (admin / UNIVERSITY_USER). */
-  facultyIds: string[] | null;
+  /** Resolved scope. The WHERE clause emits an OR of:
+   *    (fm.faculty_id IN facultyIds)            — clamps to the
+   *      TEACHER's home faculty (so a Math teacher running a service
+   *      course to Engineering still counts as Math's workload), AND
+   *    (c.course_code IN programCourseCodes)    — clamps to courses
+   *      the granted programs use (PROGRAM_USER scope).
+   *  Admin / UNIVERSITY = no clamp; mixed scope = OR of both. */
+  scope: OfferingScope;
   acadYearBE?: number;
   semester?: number;
   levelName?: string[];
@@ -84,17 +89,40 @@ export interface ByFacultyResponse {
   };
 }
 
-export interface TeacherDeepDiveRow {
-  kkuEmail: string;
+/** Leaf row inside the by-teacher drill-down. */
+export interface TeacherRow {
   facultyMemberId: string | null;
-  nameTh: string | null;
-  nameEn: string | null;
+  /** Thai name if present, otherwise English, else the email local-part.
+   *  KKUMAIL is intentionally not surfaced to the UI (cleaner reading;
+   *  the admin raw-data viewer still has it). */
+  displayName: string;
+  /** Rank code (PROF / ASSOC_PROF / ASST_PROF / LECTURER) — the UI
+   *  resolves to a human-readable label. Null for unresolved teachers
+   *  (external lecturers / HCM gaps). */
   rank: string | null;
-  facultyId: string | null;
-  facultyName: string | null;
   sections: number;
   distinctCourses: number;
+  /** Σ lecture hours per week. From COURSEUNIT "B" of "A (B-C-D)". */
+  lectureHrsPerWeek: number;
+  /** Σ lab hours per week. From COURSEUNIT "C" of "A (B-C-D)". */
+  labHrsPerWeek: number;
+  /** Σ lecture + lab — what the histogram + summary use. */
   totalContactHrsPerWeek: number;
+  studentsTaught: number;
+  teamTaughtSections: number;
+}
+
+/** Top-level (faculty) group in the by-teacher drill-down. */
+export interface TeacherFacultyGroup {
+  facultyId: string | null;
+  facultyName: string;
+  children: TeacherRow[];
+  teachers: number;
+  sections: number;
+  lectureHrsPerWeek: number;
+  labHrsPerWeek: number;
+  totalContactHrsPerWeek: number;
+  avgContactHrsPerTeacher: number;
   studentsTaught: number;
   teamTaughtSections: number;
 }
@@ -102,12 +130,61 @@ export interface TeacherDeepDiveRow {
 export interface TeacherDeepDiveResponse {
   acadYearBE: number | null;
   semester: number | null;
-  rows: TeacherDeepDiveRow[];
-  truncated: boolean;
+  rows: TeacherFacultyGroup[];
+  totals: {
+    teachers: number;
+    sections: number;
+    totalContactHrsPerWeek: number;
+    avgContactHrsPerTeacher: number;
+    studentsTaught: number;
+    teamTaughtSections: number;
+  };
+}
+
+/** "Students taught" by faculty — feeds the second staff viz. */
+export interface StudentsByFacultyResponse {
+  acadYearBE: number | null;
+  semester: number | null;
+  rows: Array<{
+    facultyId: string | null;
+    facultyName: string;
+    teachers: number;
+    sections: number;
+    studentsTaught: number;
+    studentsPerTeacher: number;
+  }>;
+  totals: {
+    teachers: number;
+    sections: number;
+    studentsTaught: number;
+  };
 }
 
 @Injectable()
 export class TeachingWorkloadService {
+  /** Cache TTL for the per-snapshot rollups. The cube is full-replaced
+   *  by `pnpm programs:link-class-offerings` (admin-triggered), so a
+   *  10-minute TTL is comfortable — operators see the new data on the
+   *  next refresh and the page renders ~instantly between refreshes. */
+  private static readonly CACHE_TTL_SECONDS = 600;
+
+  constructor(private readonly cache: CacheService) {}
+
+  private cacheKey(
+    namespace: string,
+    filter: TeachingWorkloadFilter,
+  ): string {
+    const s = filter.scope;
+    return CacheService.keyOf(`teaching-workload:${namespace}`, {
+      scopeMode: s.mode,
+      facultyIds: [...s.facultyIds].sort().join(','),
+      programCourseCodes: [...s.programCourseCodes].sort().join(','),
+      acadYearBE: filter.acadYearBE ?? null,
+      semester: filter.semester ?? null,
+      levelName: (filter.levelName ?? []).slice().sort().join(','),
+    });
+  }
+
   /**
    * Find the latest "main" snapshot WITH teaching activity for the
    * caller's scope. Prefers sem 1 / 2 of the most recent year that has
@@ -116,20 +193,15 @@ export class TeachingWorkloadService {
    * filters still reach them.
    */
   async resolveLatestSnapshot(
-    facultyIds: string[] | null,
+    scope: OfferingScope,
   ): Promise<{ acadYearBE: number; semester: number } | null> {
-    const facClause =
-      facultyIds === null
-        ? Prisma.sql`TRUE`
-        : facultyIds.length === 0
-        ? Prisma.sql`FALSE`
-        : Prisma.sql`fm.faculty_id IN (${Prisma.join(facultyIds)})`;
+    const scopeClause = this.buildWhere({ scope });
     const rows = await prisma.$queryRaw<Array<{ y: number; s: number }>>`
       SELECT c.acad_year_be AS y, c.semester AS s
         FROM class_offerings c
         JOIN class_offering_teachers t ON t.class_offering_id = c.id
         LEFT JOIN faculty_members fm ON fm.id = t.faculty_member_id
-       WHERE ${facClause}
+       WHERE ${scopeClause}
        GROUP BY c.acad_year_be, c.semester
       HAVING SUM(c.enroll_seat)::numeric / NULLIF(SUM(c.total_seat),0)::numeric >= 0.1
        ORDER BY c.acad_year_be DESC,
@@ -142,23 +214,18 @@ export class TeachingWorkloadService {
 
   /**
    * Filter options — pulls year/semester/level distinct values from
-   * the scoped slice of teaching activity. Faculties list is sourced
-   * from the granted Faculty rows directly.
+   * the scoped slice of teaching activity. Faculty dropdown shows the
+   * granted-faculty set; for pure PROGRAM_USER the dropdown is empty.
    */
-  async filterOptions(facultyIds: string[] | null): Promise<FilterOptionsResponse> {
-    const facClause =
-      facultyIds === null
-        ? Prisma.sql`TRUE`
-        : facultyIds.length === 0
-        ? Prisma.sql`FALSE`
-        : Prisma.sql`fm.faculty_id IN (${Prisma.join(facultyIds)})`;
-    const [years, semesters, levels, faculties] = await Promise.all([
+  async filterOptions(scope: OfferingScope): Promise<FilterOptionsResponse> {
+    const scopeClause = this.buildWhere({ scope });
+    const [years, semesters, levels, facultyRows] = await Promise.all([
       prisma.$queryRaw<Array<{ y: number }>>`
         SELECT DISTINCT c.acad_year_be AS y
           FROM class_offerings c
           JOIN class_offering_teachers t ON t.class_offering_id = c.id
           LEFT JOIN faculty_members fm ON fm.id = t.faculty_member_id
-         WHERE ${facClause}
+         WHERE ${scopeClause}
          ORDER BY c.acad_year_be DESC
       `,
       prisma.$queryRaw<Array<{ s: number }>>`
@@ -166,7 +233,7 @@ export class TeachingWorkloadService {
           FROM class_offerings c
           JOIN class_offering_teachers t ON t.class_offering_id = c.id
           LEFT JOIN faculty_members fm ON fm.id = t.faculty_member_id
-         WHERE ${facClause}
+         WHERE ${scopeClause}
          ORDER BY c.semester
       `,
       prisma.$queryRaw<Array<{ l: string }>>`
@@ -174,22 +241,24 @@ export class TeachingWorkloadService {
           FROM class_offerings c
           JOIN class_offering_teachers t ON t.class_offering_id = c.id
           LEFT JOIN faculty_members fm ON fm.id = t.faculty_member_id
-         WHERE ${facClause}
+         WHERE ${scopeClause}
          ORDER BY c.level_name
       `,
-      facultyIds === null
+      scope.mode === 'all'
         ? prisma.faculty.findMany({ select: { nameTh: true }, orderBy: { nameTh: 'asc' } })
-        : prisma.faculty.findMany({
-            where: { id: { in: facultyIds } },
+        : scope.facultyIds.length > 0
+        ? prisma.faculty.findMany({
+            where: { id: { in: scope.facultyIds } },
             select: { nameTh: true },
             orderBy: { nameTh: 'asc' },
-          }),
+          })
+        : Promise.resolve([] as Array<{ nameTh: string }>),
     ]);
     return {
       years: years.map((r) => r.y),
       semesters: semesters.map((r) => r.s),
       levels: levels.map((r) => r.l),
-      faculties: faculties.map((r) => r.nameTh),
+      faculties: facultyRows.map((r) => r.nameTh),
     };
   }
 
@@ -198,20 +267,32 @@ export class TeachingWorkloadService {
    * `class_offering_teachers t JOIN class_offerings c LEFT JOIN faculty_members fm`
    * shape used by every query in this service.
    *
-   * Faculty clamp filters by `fm.faculty_id` — the TEACHER's home
-   * faculty — NOT the course-owning registry faculty. A Math teacher
-   * teaching a GE service course is still attributed to Math's load.
-   * For UNIVERSITY / admin scope, `facultyIds === null` skips the
-   * clamp entirely.
+   * Scope clamp emits an OR of:
+   *   `fm.faculty_id IN (facultyIds)` — TEACHER's home faculty
+   *     (so a Math teacher running a GE service course is still
+   *     attributed to Math's load), AND
+   *   `c.course_code IN (programCourseCodes)` — courses used by the
+   *     granted programs (PROGRAM_USER scope, includes GE).
+   *
+   * Admin / UNIVERSITY = no clamp; mixed scope = OR; no-grants =
+   * unsatisfiable predicate so the query yields empty.
    */
   private buildWhere(filter: TeachingWorkloadFilter): Prisma.Sql {
     const clauses: Prisma.Sql[] = [Prisma.sql`TRUE`];
-    if (filter.facultyIds !== null) {
-      if (filter.facultyIds.length === 0) {
-        clauses.push(Prisma.sql`FALSE`);
-      } else {
-        clauses.push(Prisma.sql`fm.faculty_id IN (${Prisma.join(filter.facultyIds)})`);
+    const scope = filter.scope;
+    if (scope.mode === 'none') {
+      clauses.push(Prisma.sql`FALSE`);
+    } else if (scope.mode === 'scoped') {
+      const or: Prisma.Sql[] = [];
+      if (scope.facultyIds.length > 0) {
+        or.push(Prisma.sql`fm.faculty_id IN (${Prisma.join(scope.facultyIds)})`);
       }
+      if (scope.programCourseCodes.length > 0) {
+        or.push(Prisma.sql`c.course_code IN (${Prisma.join(scope.programCourseCodes)})`);
+      }
+      if (or.length === 0) clauses.push(Prisma.sql`FALSE`);
+      else if (or.length === 1) clauses.push(or[0]!);
+      else clauses.push(Prisma.sql`(${Prisma.join(or, ' OR ')})`);
     }
     if (filter.acadYearBE !== undefined) {
       clauses.push(Prisma.sql`c.acad_year_be = ${filter.acadYearBE}`);
@@ -226,8 +307,22 @@ export class TeachingWorkloadService {
   }
 
   /** Per-teacher contact-hour CTE shared by histogram + by-faculty +
-   *  deep-dive. One row per kku_email × snapshot. The LEFT JOIN to
-   *  `faculty_members fm` is what makes the faculty-clamp possible. */
+   *  deep-dive. One row per kku_email × snapshot.
+   *
+   *  Performance notes:
+   *  - "Team-taught" was previously a correlated subquery (`SELECT COUNT
+   *    FROM class_offering_teachers WHERE class_offering_id = c.id`) —
+   *    that ran per-row × per-teacher = O(N²), exhausting Postgres's
+   *    small `/dev/shm` budget under parallel workers (64 MB by default
+   *    in the dev container). Now factored as a derived table joined
+   *    once: ~10× faster + fits in a single backend without spilling.
+   *  - Lecture / lab hours are summed separately so the per-teacher
+   *    deep-dive can show them as distinct columns (the registrar's
+   *    COURSEUNIT carries `A (B-C-D)` = credits + lecture + lab + study).
+   *
+   *  The LEFT JOIN to `faculty_members fm` is what enables the
+   *  faculty-clamp (`fm.faculty_id IN (...)`) — see buildWhere().
+   */
   private teacherCteSql(filter: TeachingWorkloadFilter): Prisma.Sql {
     return Prisma.sql`
       SELECT
@@ -235,18 +330,35 @@ export class TeachingWorkloadService {
         t.faculty_member_id,
         COUNT(DISTINCT c.id)::bigint                                    AS sections,
         COUNT(DISTINCT c.course_code)::bigint                           AS distinct_courses,
+        COALESCE(SUM(c.lecture_hrs_per_week), 0)::bigint                AS lecture_hrs,
+        COALESCE(SUM(c.lab_hrs_per_week),     0)::bigint                AS lab_hrs,
         COALESCE(SUM(COALESCE(c.lecture_hrs_per_week,0) + COALESCE(c.lab_hrs_per_week,0)),0)::bigint AS contact_hrs,
         COALESCE(SUM(c.enroll_seat),0)::bigint                          AS students_taught,
-        SUM(CASE WHEN (SELECT COUNT(*) FROM class_offering_teachers tt WHERE tt.class_offering_id = c.id) >= 2 THEN 1 ELSE 0 END)::bigint AS team_sections
+        SUM(CASE WHEN ts.class_offering_id IS NOT NULL THEN 1 ELSE 0 END)::bigint AS team_sections
       FROM class_offering_teachers t
       JOIN class_offerings c ON c.id = t.class_offering_id
       LEFT JOIN faculty_members fm ON fm.id = t.faculty_member_id
+      LEFT JOIN (
+        SELECT class_offering_id
+          FROM class_offering_teachers
+         GROUP BY class_offering_id
+        HAVING COUNT(*) >= 2
+      ) ts ON ts.class_offering_id = c.id
       WHERE ${this.buildWhere(filter)}
       GROUP BY t.kku_email, t.faculty_member_id
     `;
   }
 
   async summary(filter: TeachingWorkloadFilter): Promise<SummaryResponse> {
+    const ck = this.cacheKey('summary', filter);
+    const cached = await this.cache.get<SummaryResponse>(ck);
+    if (cached) return cached;
+    const res = await this.summaryFresh(filter);
+    await this.cache.set(ck, res, TeachingWorkloadService.CACHE_TTL_SECONDS);
+    return res;
+  }
+
+  private async summaryFresh(filter: TeachingWorkloadFilter): Promise<SummaryResponse> {
     const sectionsRow = await prisma.$queryRaw<Array<{ n: bigint }>>`
       SELECT COUNT(DISTINCT c.id)::bigint AS n
         FROM class_offerings c
@@ -310,6 +422,15 @@ export class TeachingWorkloadService {
    * by-faculty + summary cards already surface the unresolved count.
    */
   async histogram(filter: TeachingWorkloadFilter): Promise<HistogramResponse> {
+    const ck = this.cacheKey('histogram', filter);
+    const cached = await this.cache.get<HistogramResponse>(ck);
+    if (cached) return cached;
+    const res = await this.histogramFresh(filter);
+    await this.cache.set(ck, res, TeachingWorkloadService.CACHE_TTL_SECONDS);
+    return res;
+  }
+
+  private async histogramFresh(filter: TeachingWorkloadFilter): Promise<HistogramResponse> {
     const buckets: Array<{
       bucket: string;
       lo: number;
@@ -361,6 +482,15 @@ export class TeachingWorkloadService {
    * Faculty.nameTh. Unresolved teachers pooled into a single row.
    */
   async byFaculty(filter: TeachingWorkloadFilter): Promise<ByFacultyResponse> {
+    const ck = this.cacheKey('byFaculty', filter);
+    const cached = await this.cache.get<ByFacultyResponse>(ck);
+    if (cached) return cached;
+    const res = await this.byFacultyFresh(filter);
+    await this.cache.set(ck, res, TeachingWorkloadService.CACHE_TTL_SECONDS);
+    return res;
+  }
+
+  private async byFacultyFresh(filter: TeachingWorkloadFilter): Promise<ByFacultyResponse> {
     const rows = await prisma.$queryRaw<
       Array<{
         faculty_id: string | null;
@@ -428,14 +558,30 @@ export class TeachingWorkloadService {
     };
   }
 
-  async teachers(
-    filter: TeachingWorkloadFilter & { limit?: number; onlyUnresolved?: boolean },
+  /**
+   * Per-teacher drill-down — Faculty → Teacher hierarchy. Aggregates
+   * roll up to the faculty tier. UI matches the active-pivot
+   * drill-down style. The teacher's KKU email is NOT surfaced (the
+   * admin raw-data viewer still has it for analyst follow-up); the
+   * display name falls back to the email's local-part for unresolved
+   * teachers so the row is still readable.
+   *
+   * Cached by full filter signature for ~10 min.
+   */
+  async teachersDrillDown(
+    filter: TeachingWorkloadFilter,
   ): Promise<TeacherDeepDiveResponse> {
-    const limit = Math.min(filter.limit ?? 500, 2000);
-    const onlyUnresolved = filter.onlyUnresolved ?? false;
-    const unresolvedClause = onlyUnresolved
-      ? Prisma.sql`AND per_teacher.faculty_member_id IS NULL`
-      : Prisma.sql`AND TRUE`;
+    const ck = this.cacheKey('teachersDrillDown', filter);
+    const cached = await this.cache.get<TeacherDeepDiveResponse>(ck);
+    if (cached) return cached;
+    const res = await this.teachersDrillDownFresh(filter);
+    await this.cache.set(ck, res, TeachingWorkloadService.CACHE_TTL_SECONDS);
+    return res;
+  }
+
+  private async teachersDrillDownFresh(
+    filter: TeachingWorkloadFilter,
+  ): Promise<TeacherDeepDiveResponse> {
     const rows = await prisma.$queryRaw<
       Array<{
         kku_email: string;
@@ -447,6 +593,8 @@ export class TeachingWorkloadService {
         faculty_name_th: string | null;
         sections: bigint;
         distinct_courses: bigint;
+        lecture_hrs: bigint;
+        lab_hrs: bigint;
         contact_hrs: bigint;
         students_taught: bigint;
         team_sections: bigint;
@@ -461,35 +609,174 @@ export class TeachingWorkloadService {
         f.name_th AS faculty_name_th,
         per_teacher.sections,
         per_teacher.distinct_courses,
+        per_teacher.lecture_hrs,
+        per_teacher.lab_hrs,
         per_teacher.contact_hrs,
         per_teacher.students_taught,
         per_teacher.team_sections
       FROM per_teacher
       LEFT JOIN faculty_members fm ON fm.id = per_teacher.faculty_member_id
       LEFT JOIN faculties f ON f.id = fm.faculty_id
-      WHERE TRUE ${unresolvedClause}
-      ORDER BY per_teacher.contact_hrs DESC, per_teacher.kku_email
-      LIMIT ${limit + 1}
+      ORDER BY f.name_th NULLS LAST, per_teacher.contact_hrs DESC
     `;
-    const truncated = rows.length > limit;
+
+    // Pivot SQL rows into Faculty → Teacher tree.
+    const facMap = new Map<string, TeacherFacultyGroup>();
+    const facKey = (id: string | null, nm: string | null): string =>
+      id ?? `__unresolved__:${nm ?? ''}`;
+    for (const r of rows) {
+      const sections = Number(r.sections);
+      const lectureHrs = Number(r.lecture_hrs);
+      const labHrs = Number(r.lab_hrs);
+      const contactHrs = Number(r.contact_hrs);
+      const students = Number(r.students_taught);
+      const team = Number(r.team_sections);
+      const displayName =
+        r.name_th?.trim() ||
+        r.name_en?.trim() ||
+        r.kku_email.split('@')[0] ||
+        r.kku_email;
+      const groupName = r.faculty_name_th ?? 'Unresolved (external / HCM gap)';
+      const k = facKey(r.faculty_id, r.faculty_name_th);
+      const fac = facMap.get(k) ?? {
+        facultyId: r.faculty_id,
+        facultyName: groupName,
+        children: [],
+        teachers: 0,
+        sections: 0,
+        lectureHrsPerWeek: 0,
+        labHrsPerWeek: 0,
+        totalContactHrsPerWeek: 0,
+        avgContactHrsPerTeacher: 0,
+        studentsTaught: 0,
+        teamTaughtSections: 0,
+      };
+      fac.children.push({
+        facultyMemberId: r.faculty_member_id,
+        displayName,
+        rank: r.rank,
+        sections,
+        distinctCourses: Number(r.distinct_courses),
+        lectureHrsPerWeek: lectureHrs,
+        labHrsPerWeek: labHrs,
+        totalContactHrsPerWeek: contactHrs,
+        studentsTaught: students,
+        teamTaughtSections: team,
+      });
+      fac.teachers += 1;
+      fac.sections += sections;
+      fac.lectureHrsPerWeek += lectureHrs;
+      fac.labHrsPerWeek += labHrs;
+      fac.totalContactHrsPerWeek += contactHrs;
+      fac.studentsTaught += students;
+      fac.teamTaughtSections += team;
+      facMap.set(k, fac);
+    }
+    const out: TeacherFacultyGroup[] = [];
+    let totTeachers = 0,
+      totSections = 0,
+      totHrs = 0,
+      totStudents = 0,
+      totTeam = 0;
+    for (const fac of facMap.values()) {
+      fac.avgContactHrsPerTeacher =
+        fac.teachers > 0 ? fac.totalContactHrsPerWeek / fac.teachers : 0;
+      out.push(fac);
+      totTeachers += fac.teachers;
+      totSections += fac.sections;
+      totHrs += fac.totalContactHrsPerWeek;
+      totStudents += fac.studentsTaught;
+      totTeam += fac.teamTaughtSections;
+    }
+    // Default ordering: resolved faculties (by total contact hrs desc),
+    // unresolved row last (typically a long tail of external lecturers).
+    out.sort((a, b) => {
+      if (a.facultyId === null && b.facultyId !== null) return 1;
+      if (a.facultyId !== null && b.facultyId === null) return -1;
+      return b.totalContactHrsPerWeek - a.totalContactHrsPerWeek;
+    });
     return {
       acadYearBE: filter.acadYearBE ?? null,
       semester: filter.semester ?? null,
-      rows: rows.slice(0, limit).map((r) => ({
-        kkuEmail: r.kku_email,
-        facultyMemberId: r.faculty_member_id,
-        nameTh: r.name_th,
-        nameEn: r.name_en,
-        rank: r.rank,
-        facultyId: r.faculty_id,
-        facultyName: r.faculty_name_th,
-        sections: Number(r.sections),
-        distinctCourses: Number(r.distinct_courses),
-        totalContactHrsPerWeek: Number(r.contact_hrs),
-        studentsTaught: Number(r.students_taught),
-        teamTaughtSections: Number(r.team_sections),
-      })),
-      truncated,
+      rows: out,
+      totals: {
+        teachers: totTeachers,
+        sections: totSections,
+        totalContactHrsPerWeek: totHrs,
+        avgContactHrsPerTeacher: totTeachers > 0 ? totHrs / totTeachers : 0,
+        studentsTaught: totStudents,
+        teamTaughtSections: totTeam,
+      },
     };
+  }
+
+  /**
+   * "Students taught" by faculty — feeds the second viz on the staff
+   * dashboard. Counts students-per-teacher seat-enrolment Σ across
+   * every section the faculty's teachers teach. Useful complement to
+   * the contact-hours pulse — a faculty can be over-loaded on hours
+   * but under-reaching on student headcount (or vice versa).
+   *
+   * Cached by full filter signature.
+   */
+  async studentsByFaculty(
+    filter: TeachingWorkloadFilter,
+  ): Promise<StudentsByFacultyResponse> {
+    const ck = this.cacheKey('studentsByFaculty', filter);
+    const cached = await this.cache.get<StudentsByFacultyResponse>(ck);
+    if (cached) return cached;
+    const rows = await prisma.$queryRaw<
+      Array<{
+        faculty_id: string | null;
+        faculty_name_th: string | null;
+        teachers: bigint;
+        sections: bigint;
+        students_taught: bigint;
+      }>
+    >`
+      WITH per_teacher AS (${this.teacherCteSql(filter)})
+      SELECT
+        fm.faculty_id,
+        f.name_th AS faculty_name_th,
+        COUNT(*)::bigint                 AS teachers,
+        SUM(per_teacher.sections)::bigint AS sections,
+        SUM(per_teacher.students_taught)::bigint AS students_taught
+      FROM per_teacher
+      LEFT JOIN faculty_members fm ON fm.id = per_teacher.faculty_member_id
+      LEFT JOIN faculties f ON f.id = fm.faculty_id
+      GROUP BY fm.faculty_id, f.name_th
+      ORDER BY SUM(per_teacher.students_taught) DESC NULLS LAST
+    `;
+    let totT = 0,
+      totS = 0,
+      totST = 0;
+    const out = rows.map((r) => {
+      const teachers = Number(r.teachers);
+      const sections = Number(r.sections);
+      const students = Number(r.students_taught);
+      totT += teachers;
+      totS += sections;
+      totST += students;
+      return {
+        facultyId: r.faculty_id,
+        facultyName: r.faculty_name_th ?? 'Unresolved (external / HCM gap)',
+        teachers,
+        sections,
+        studentsTaught: students,
+        studentsPerTeacher: teachers > 0 ? students / teachers : 0,
+      };
+    });
+    const res: StudentsByFacultyResponse = {
+      acadYearBE: filter.acadYearBE ?? null,
+      semester: filter.semester ?? null,
+      rows: out,
+      totals: {
+        teachers: totT,
+        sections: totS,
+        studentsTaught: totST,
+      },
+    };
+    await this.cache.set(ck, res, TeachingWorkloadService.CACHE_TTL_SECONDS);
+    return res;
   }
 }

@@ -11,9 +11,14 @@
 
 import { Injectable } from '@nestjs/common';
 import { prisma, Prisma } from '@kku/db';
+import type { OfferingScope } from '../common/scope-guards';
 
 export interface ClassOfferingsFilter {
-  facultyName: string[];
+  /** Resolved user scope — drives the WHERE-clause OR of
+   *  (registry_faculty_name IN faculties) and (course_code IN program-codes).
+   *  Admin/UNI = 'all' (no clamp); pure FACULTY_USER has facultyNames only;
+   *  pure PROGRAM_USER has programCourseCodes only; mixed = both. */
+  scope: OfferingScope;
   acadYearBE?: number;
   semester?: number;
   levelName?: string[];
@@ -97,12 +102,11 @@ export interface GeBreakdownResponse {
   };
 }
 
-export interface DeepDiveRow {
+/** One course-row inside a faculty × level group. Leaf of the drill-down. */
+export interface DeepDiveCourseRow {
   courseCode: string;
   courseNameTh: string | null;
   courseNameEn: string | null;
-  registryFacultyName: string;
-  levelName: string;
   isGeneralEducation: boolean;
   sections: number;
   seatsOffered: number;
@@ -112,25 +116,69 @@ export interface DeepDiveRow {
   programsCount: number;
 }
 
+/** Mid-level (program-level) group inside a faculty. */
+export interface DeepDiveLevelGroup {
+  levelName: string;
+  children: DeepDiveCourseRow[];
+  sections: number;
+  seatsOffered: number;
+  seatsFilled: number;
+  fillRate: number;
+  totalCreditsDelivered: number;
+}
+
+/** Top-level (faculty) group. Aggregates roll up over all levels. */
+export interface DeepDiveFacultyGroup {
+  facultyName: string;
+  children: DeepDiveLevelGroup[];
+  sections: number;
+  seatsOffered: number;
+  seatsFilled: number;
+  fillRate: number;
+  totalCreditsDelivered: number;
+  distinctCourses: number;
+}
+
 export interface DeepDiveResponse {
   acadYearBE: number;
   semester: number;
-  rows: DeepDiveRow[];
-  /** True when the result set was truncated by the page limit. */
-  truncated: boolean;
+  rows: DeepDiveFacultyGroup[];
+  totals: {
+    sections: number;
+    seatsOffered: number;
+    seatsFilled: number;
+    fillRate: number;
+    totalCreditsDelivered: number;
+    distinctCourses: number;
+  };
 }
 
 @Injectable()
 export class ClassOfferingsService {
   /**
-   * Build the WHERE clause shared by every query. Faculty clamping is
-   * applied through `facultyName` (which the controller has already
-   * intersected with the user's scope).
+   * Prisma-style WHERE for `prisma.classOffering.*` calls. Scope clamp
+   * is built as an OR of (registry_faculty_name IN faculties) and
+   * (course_code IN program-codes) — admin = no clamp, scoped = OR of
+   * the relevant sets, none = an unsatisfiable predicate so the query
+   * returns no rows.
    */
   private buildWhere(filter: ClassOfferingsFilter): Prisma.ClassOfferingWhereInput {
     const where: Prisma.ClassOfferingWhereInput = {};
-    if (filter.facultyName.length > 0) {
-      where.registryFacultyName = { in: filter.facultyName };
+    const scope = filter.scope;
+    if (scope.mode === 'none') {
+      // Unsatisfiable — yields empty result set.
+      where.id = '__none__';
+    } else if (scope.mode === 'scoped') {
+      const or: Prisma.ClassOfferingWhereInput[] = [];
+      if (scope.facultyNames.length > 0) {
+        or.push({ registryFacultyName: { in: scope.facultyNames } });
+      }
+      if (scope.programCourseCodes.length > 0) {
+        or.push({ courseCode: { in: scope.programCourseCodes } });
+      }
+      if (or.length === 0) where.id = '__none__';
+      else if (or.length === 1) Object.assign(where, or[0]);
+      else where.OR = or;
     }
     if (filter.acadYearBE !== undefined) where.acadYearBE = filter.acadYearBE;
     if (filter.semester !== undefined) where.semester = filter.semester;
@@ -151,37 +199,31 @@ export class ClassOfferingsService {
    * (year, sem) filters still reach them. Returns null on empty scope.
    */
   async resolveLatestSnapshot(
-    facultyName: string[],
+    scope: OfferingScope,
   ): Promise<{ acadYearBE: number; semester: number } | null> {
-    const facClause =
-      facultyName.length > 0
-        ? Prisma.sql`registry_faculty_name IN (${Prisma.join(facultyName)})`
-        : Prisma.sql`TRUE`;
-    // Group + filter to (year, sem) tuples with ≥10% fill — KKU's
-    // typical fully-enrolled main term lands around 22–27% fill.
-    // Anything below 10% is an in-progress / not-yet-enrolled term.
+    // Reuse the rawWhereSnippet logic by passing a scope-only filter.
+    const scopeOnly = this.rawWhereSnippet({ scope });
     const rows = await prisma.$queryRaw<Array<{ y: number; s: number }>>`
-      SELECT acad_year_be AS y, semester AS s
-        FROM class_offerings
-       WHERE ${facClause}
-       GROUP BY acad_year_be, semester
-      HAVING SUM(enroll_seat)::numeric / NULLIF(SUM(total_seat),0)::numeric >= 0.1
-       ORDER BY acad_year_be DESC,
-                CASE WHEN semester IN (1, 2) THEN 0 ELSE 1 END,
-                semester DESC
+      SELECT c.acad_year_be AS y, c.semester AS s
+        FROM class_offerings c
+       WHERE ${scopeOnly}
+       GROUP BY c.acad_year_be, c.semester
+      HAVING SUM(c.enroll_seat)::numeric / NULLIF(SUM(c.total_seat),0)::numeric >= 0.1
+       ORDER BY c.acad_year_be DESC,
+                CASE WHEN c.semester IN (1, 2) THEN 0 ELSE 1 END,
+                c.semester DESC
        LIMIT 1
     `;
     return rows[0] ? { acadYearBE: rows[0].y, semester: rows[0].s } : null;
   }
 
   /**
-   * Filter options. Always returns the FULL set of years/semesters/levels/
-   * faculties that the caller can see — driven by the (already clamped)
-   * facultyName whitelist when non-empty.
+   * Filter options. Drives the dropdowns on the page. Returns the
+   * FULL set of years/semesters/levels/faculties that the caller can
+   * see — clamped by the user's effective scope.
    */
-  async filterOptions(facultyName: string[]): Promise<FilterOptionsResponse> {
-    const where: Prisma.ClassOfferingWhereInput =
-      facultyName.length > 0 ? { registryFacultyName: { in: facultyName } } : {};
+  async filterOptions(scope: OfferingScope): Promise<FilterOptionsResponse> {
+    const where = this.buildWhere({ scope });
     const [years, semesters, levels, faculties] = await Promise.all([
       prisma.classOffering.findMany({
         where,
@@ -273,14 +315,26 @@ export class ClassOfferingsService {
   }
 
   /**
-   * Raw SQL WHERE snippet matching `buildWhere`. Used by aggregate
-   * queries that need to JOIN through teachers — `prisma.aggregate`
-   * can't express the join.
+   * Raw SQL WHERE snippet matching `buildWhere`. Used by the
+   * heatmap / GE / deep-dive queries that need GROUP BY at the SQL
+   * level. Same OR-of-scope-clauses contract as buildWhere().
    */
   private rawWhereSnippet(filter: ClassOfferingsFilter): Prisma.Sql {
     const clauses: Prisma.Sql[] = [Prisma.sql`TRUE`];
-    if (filter.facultyName.length > 0) {
-      clauses.push(Prisma.sql`c.registry_faculty_name IN (${Prisma.join(filter.facultyName)})`);
+    const scope = filter.scope;
+    if (scope.mode === 'none') {
+      clauses.push(Prisma.sql`FALSE`);
+    } else if (scope.mode === 'scoped') {
+      const or: Prisma.Sql[] = [];
+      if (scope.facultyNames.length > 0) {
+        or.push(Prisma.sql`c.registry_faculty_name IN (${Prisma.join(scope.facultyNames)})`);
+      }
+      if (scope.programCourseCodes.length > 0) {
+        or.push(Prisma.sql`c.course_code IN (${Prisma.join(scope.programCourseCodes)})`);
+      }
+      if (or.length === 0) clauses.push(Prisma.sql`FALSE`);
+      else if (or.length === 1) clauses.push(or[0]!);
+      else clauses.push(Prisma.sql`(${Prisma.join(or, ' OR ')})`);
     }
     if (filter.acadYearBE !== undefined) {
       clauses.push(Prisma.sql`c.acad_year_be = ${filter.acadYearBE}`);
@@ -302,6 +356,11 @@ export class ClassOfferingsService {
    */
   async heatmap(filter: Omit<ClassOfferingsFilter, 'acadYearBE' | 'semester'>): Promise<HeatmapResponse> {
     // Group at SQL level for speed (the JS-side groupBy would walk 122k rows).
+    // The (year, sem) tuple is filtered out GLOBALLY when total enrolment
+    // is zero — that drops not-yet-enrolled future terms cleanly without
+    // hiding legitimate completed semesters. Summer (sem 3) and Special
+    // (sem 4) terms have low fill rates by their nature (1–6%) but they
+    // *did* run; they belong in the heatmap.
     const rows = await prisma.$queryRaw<
       Array<{
         registry_faculty_name: string;
@@ -312,6 +371,13 @@ export class ClassOfferingsService {
         enrolled: bigint;
       }>
     >`
+      WITH eligible AS (
+        SELECT c.acad_year_be, c.semester
+          FROM class_offerings c
+         WHERE ${this.rawWhereSnippet(filter)}
+         GROUP BY c.acad_year_be, c.semester
+        HAVING SUM(c.enroll_seat) > 0
+      )
       SELECT
         c.registry_faculty_name,
         c.acad_year_be,
@@ -320,6 +386,7 @@ export class ClassOfferingsService {
         SUM(c.total_seat)::bigint AS seats,
         SUM(c.enroll_seat)::bigint AS enrolled
       FROM class_offerings c
+      JOIN eligible e ON e.acad_year_be = c.acad_year_be AND e.semester = c.semester
       WHERE ${this.rawWhereSnippet(filter)}
       GROUP BY c.registry_faculty_name, c.acad_year_be, c.semester
       ORDER BY c.registry_faculty_name, c.acad_year_be, c.semester
@@ -418,8 +485,8 @@ export class ClassOfferingsService {
    * narrow GE — every faculty's students take GE — but the consistent
    * application keeps the contract simple).
    */
-  async geBreakdown(facultyName: string[]): Promise<GeBreakdownResponse> {
-    const filter: ClassOfferingsFilter = { facultyName, geOnly: true };
+  async geBreakdown(scope: OfferingScope): Promise<GeBreakdownResponse> {
+    const filter: ClassOfferingsFilter = { scope, geOnly: true };
     const where = this.buildWhere(filter);
     const [byProviderRaw, trendRaw, totals] = await Promise.all([
       prisma.$queryRaw<
@@ -510,14 +577,15 @@ export class ClassOfferingsService {
   }
 
   /**
-   * Course-level deep-dive table. One row per (course_code × faculty)
-   * within the active filter. Joins to program_courses to count how
-   * many programs use the course.
+   * Course-level deep-dive — three-tier hierarchy
+   * Faculty → Program Level → Course. Aggregates roll up at every tier.
+   * Designed to plug straight into the DrillDownPivot-style table on
+   * the web side (same UI idiom as /education/active-pivot).
+   *
+   * Mass courses (e.g., gen-ed) joined to program_courses to count how
+   * many programs list each course.
    */
-  async deepDive(
-    filter: ClassOfferingsFilter & { limit?: number },
-  ): Promise<DeepDiveResponse> {
-    const limit = Math.min(filter.limit ?? 500, 2000);
+  async deepDiveDrillDown(filter: ClassOfferingsFilter): Promise<DeepDiveResponse> {
     const rows = await prisma.$queryRaw<
       Array<{
         course_code: string;
@@ -535,46 +603,113 @@ export class ClassOfferingsService {
     >`
       SELECT
         c.course_code,
-        MAX(c.course_name_th) AS course_name_th,
-        MAX(c.course_name_en) AS course_name_en,
+        MAX(c.course_name_th)            AS course_name_th,
+        MAX(c.course_name_en)            AS course_name_en,
         c.registry_faculty_name,
-        MAX(c.level_name)     AS level_name,
-        bool_or(c.is_general_education) AS is_general_education,
-        COUNT(*)::bigint AS n,
-        SUM(c.total_seat)::bigint AS seats,
-        SUM(c.enroll_seat)::bigint AS enrolled,
-        MAX(c.credit_total) AS credit_total,
-        (SELECT COUNT(*)::bigint FROM program_courses pc WHERE pc.course_code = c.course_code) AS programs_count
+        c.level_name,
+        bool_or(c.is_general_education)  AS is_general_education,
+        COUNT(*)::bigint                 AS n,
+        SUM(c.total_seat)::bigint        AS seats,
+        SUM(c.enroll_seat)::bigint       AS enrolled,
+        MAX(c.credit_total)              AS credit_total,
+        (SELECT COUNT(*)::bigint
+           FROM program_courses pc
+          WHERE pc.course_code = c.course_code) AS programs_count
       FROM class_offerings c
       WHERE ${this.rawWhereSnippet(filter)}
-      GROUP BY c.course_code, c.registry_faculty_name
-      ORDER BY SUM(c.total_seat) DESC NULLS LAST, c.course_code
-      LIMIT ${limit + 1}
+      GROUP BY c.course_code, c.registry_faculty_name, c.level_name
+      ORDER BY c.registry_faculty_name, c.level_name, SUM(c.total_seat) DESC NULLS LAST, c.course_code
     `;
-    const truncated = rows.length > limit;
-    const out: DeepDiveRow[] = rows.slice(0, limit).map((r) => {
+
+    // Pivot SQL rows into Faculty → Level → Course tree.
+    const facultyMap = new Map<string, DeepDiveFacultyGroup>();
+    for (const r of rows) {
+      const facName = r.registry_faculty_name;
+      const lvlName = r.level_name;
       const seats = Number(r.seats);
       const enrolled = Number(r.enrolled);
-      return {
+      const sections = Number(r.n);
+      const credits = Number(r.credit_total ?? 0) * sections;
+      const fac = facultyMap.get(facName) ?? {
+        facultyName: facName,
+        children: [],
+        sections: 0,
+        seatsOffered: 0,
+        seatsFilled: 0,
+        fillRate: 0,
+        totalCreditsDelivered: 0,
+        distinctCourses: 0,
+      };
+      let level = fac.children.find((l) => l.levelName === lvlName);
+      if (!level) {
+        level = {
+          levelName: lvlName,
+          children: [],
+          sections: 0,
+          seatsOffered: 0,
+          seatsFilled: 0,
+          fillRate: 0,
+          totalCreditsDelivered: 0,
+        };
+        fac.children.push(level);
+      }
+      level.children.push({
         courseCode: r.course_code,
         courseNameTh: r.course_name_th,
         courseNameEn: r.course_name_en,
-        registryFacultyName: r.registry_faculty_name,
-        levelName: r.level_name,
         isGeneralEducation: r.is_general_education,
-        sections: Number(r.n),
+        sections,
         seatsOffered: seats,
         seatsFilled: enrolled,
         fillRate: seats > 0 ? enrolled / seats : 0,
         creditTotal: r.credit_total === null ? null : Number(r.credit_total),
         programsCount: Number(r.programs_count),
-      };
-    });
+      });
+      level.sections += sections;
+      level.seatsOffered += seats;
+      level.seatsFilled += enrolled;
+      level.totalCreditsDelivered += credits;
+      fac.sections += sections;
+      fac.seatsOffered += seats;
+      fac.seatsFilled += enrolled;
+      fac.totalCreditsDelivered += credits;
+      facultyMap.set(facName, fac);
+    }
+    // Finalise — fill rate (weighted) + distinct course count per faculty.
+    const out: DeepDiveFacultyGroup[] = [...facultyMap.values()];
+    let totSections = 0,
+      totSeats = 0,
+      totEnrolled = 0,
+      totCredits = 0;
+    const allCourses = new Set<string>();
+    for (const fac of out) {
+      const facCourses = new Set<string>();
+      for (const lvl of fac.children) {
+        lvl.fillRate = lvl.seatsOffered > 0 ? lvl.seatsFilled / lvl.seatsOffered : 0;
+        for (const c of lvl.children) facCourses.add(c.courseCode);
+      }
+      fac.distinctCourses = facCourses.size;
+      fac.fillRate = fac.seatsOffered > 0 ? fac.seatsFilled / fac.seatsOffered : 0;
+      totSections += fac.sections;
+      totSeats += fac.seatsOffered;
+      totEnrolled += fac.seatsFilled;
+      totCredits += fac.totalCreditsDelivered;
+      for (const code of facCourses) allCourses.add(code);
+    }
+    // Stable, Thai-friendly faculty ordering: by section count desc.
+    out.sort((a, b) => b.sections - a.sections);
     return {
       acadYearBE: filter.acadYearBE ?? 0,
       semester: filter.semester ?? 0,
       rows: out,
-      truncated,
+      totals: {
+        sections: totSections,
+        seatsOffered: totSeats,
+        seatsFilled: totEnrolled,
+        fillRate: totSeats > 0 ? totEnrolled / totSeats : 0,
+        totalCreditsDelivered: totCredits,
+        distinctCourses: allCourses.size,
+      },
     };
   }
 }

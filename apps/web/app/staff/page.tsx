@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   canSeeFacultyDashboards,
+  canSeeProgramAwareDashboards,
   isUniversityWide,
   type SessionUser,
 } from '@kku/shared';
@@ -17,12 +18,22 @@ import {
   FacultyByProgramThumb,
   ResearchThumb,
   CompensationThumb,
+  TeachingWorkloadThumb,
 } from './thumbnails';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Staff dashboard' };
 
-const TILES = [
+// `programAware` marks tiles a PROGRAM_USER can open. Others 403 at
+// the API guard, so the hub hides them to avoid dead-link UX.
+const TILES: Array<{
+  href: string;
+  icon: typeof Users;
+  title: string;
+  blurb: string;
+  Thumb: typeof WorkforceThumb;
+  programAware?: boolean;
+}> = [
   {
     href: '/staff/workforce',
     icon: Users,
@@ -60,8 +71,9 @@ const TILES = [
     icon: ClipboardList,
     title: 'Teaching workload',
     blurb:
-      "Subject contact hours per teacher — every section's lecture+lab hours/week summed across each KKUMAIL. Workload-band histogram, faculty pulse, and a per-teacher deep-dive that surfaces both heavy loads and unresolved emails.",
-    Thumb: WorkforceThumb,
+      "Contact hours per teacher per week, summed across every section they teach. A workload-distribution histogram surfaces the under- and over-loaded tails, a faculty pulse compares the houses, a students-taught chart shows reach, and a Faculty → Teacher drill-down ranks individuals.",
+    Thumb: TeachingWorkloadThumb,
+    programAware: true,
   },
 ];
 
@@ -69,15 +81,18 @@ export default async function StaffHubPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
-  if (!canSeeFacultyDashboards(user.effectiveRole ?? user.role)) redirect('/no-access');
+  const role = user.effectiveRole ?? user.role;
+  if (!canSeeProgramAwareDashboards(role)) redirect('/no-access');
 
   // Refresh button is university-only — triggers a global cube
-  // rebuild. Skip the fetch + UI entirely for FACULTY_USER so they
+  // rebuild. Skip the fetch + UI entirely for everyone else so they
   // don't see a button they can't use.
-  const canRefresh = isUniversityWide(user.effectiveRole ?? user.role);
+  const canRefresh = isUniversityWide(role);
   const status = canRefresh
     ? await apiFetch<RefreshStatus>('/staff-dashboard/refresh/status').catch(() => null)
     : null;
+
+  const isProgramOnly = !canSeeFacultyDashboards(role);
 
   return (
     <AuthedAppShell user={user}>
@@ -86,7 +101,9 @@ export default async function StaffHubPage() {
         subtitle={
           canRefresh
             ? "A live view of KKU's workforce — academic and support staff together. Refreshes automatically every morning."
-            : "Your faculty's workforce — academic and support staff together. Refreshed nightly across the whole university."
+            : isProgramOnly
+              ? "Workforce views. Teaching workload is clamped to your program's courses; the rest roll up to your program's faculty."
+              : "Your faculty's workforce — academic and support staff together. Refreshed nightly across the whole university."
         }
       />
 

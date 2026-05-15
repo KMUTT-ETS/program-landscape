@@ -7,9 +7,10 @@ import {
   Authorized,
   ZodValidationPipe,
   assertCanSeeFacultyDashboards,
+  assertCanSeeProgramAwareDashboards,
   assertUniversityWide,
   clampFacultyNameFilter,
-  resolveEffectiveScope,
+  resolveOfferingScope,
 } from '../common';
 import { StaffService } from './staff.service';
 import {
@@ -53,14 +54,6 @@ const TeachingWorkloadQuerySchema = z.object({
   acadYearBE: z.coerce.number().int().min(2500).max(2700).optional(),
   semester: z.coerce.number().int().min(1).max(4).optional(),
   levelName: StringArray,
-});
-
-const TeachingWorkloadDeepDiveSchema = TeachingWorkloadQuerySchema.extend({
-  limit: z.coerce.number().int().min(1).max(2000).optional(),
-  onlyUnresolved: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((v) => v === true || v === 'true' || v === '1'),
 });
 
 const StaffFilterSchema = z.object({
@@ -233,17 +226,24 @@ export class StaffController {
 
   // ───── /staff-dashboard/teaching-workload — subject teaching workload ─────
   //
-  // Scope clamp axis is the TEACHER's home faculty (fm.faculty_id), not
-  // the course-owning faculty — a Math teacher teaching a service course
-  // to Engineering students still counts as Math's load. Admin /
-  // UNIVERSITY_USER pass `facultyIds=null` (no clamp).
+  // Scope clamp:
+  //   admin / UNIVERSITY_USER — see everything
+  //   FACULTY_USER            — teachers whose home faculty is granted
+  //                             (clamps fm.faculty_id, NOT the course-
+  //                             owning faculty, so a Math teacher
+  //                             running a GE service course still
+  //                             counts as Math's load)
+  //   PROGRAM_USER            — teachers who teach the program's
+  //                             courses (clamps c.course_code via
+  //                             program_courses, includes GE)
+  //   mixed                   — OR of the above
 
   @Get('teaching-workload/filter-options')
   @Authorized('institution:read:dashboard')
   async teachingWorkloadFilterOptions(@AuthSession() user: SessionUser) {
-    await assertCanSeeFacultyDashboards(user);
-    const facultyIds = await this.resolveTeachingFacultyIds(user);
-    return this.teaching.filterOptions(facultyIds);
+    await assertCanSeeProgramAwareDashboards(user);
+    const scope = await resolveOfferingScope(user);
+    return this.teaching.filterOptions(scope);
   }
 
   @Get('teaching-workload/summary')
@@ -253,7 +253,7 @@ export class StaffController {
     @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
     q: z.infer<typeof TeachingWorkloadQuerySchema>,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveTeachingFilter(user, q);
     return this.teaching.summary(filter);
   }
@@ -265,7 +265,7 @@ export class StaffController {
     @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
     q: z.infer<typeof TeachingWorkloadQuerySchema>,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveTeachingFilter(user, q);
     return this.teaching.histogram(filter);
   }
@@ -277,7 +277,7 @@ export class StaffController {
     @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
     q: z.infer<typeof TeachingWorkloadQuerySchema>,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveTeachingFilter(user, q);
     return this.teaching.byFaculty(filter);
   }
@@ -286,62 +286,42 @@ export class StaffController {
   @Authorized('institution:read:dashboard')
   async teachingWorkloadTeachers(
     @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(TeachingWorkloadDeepDiveSchema))
-    q: z.infer<typeof TeachingWorkloadDeepDiveSchema>,
+    @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
+    q: z.infer<typeof TeachingWorkloadQuerySchema>,
   ) {
-    await assertCanSeeFacultyDashboards(user);
+    await assertCanSeeProgramAwareDashboards(user);
     const filter = await this.resolveTeachingFilter(user, q);
-    return this.teaching.teachers({
-      ...filter,
-      limit: q.limit ?? 500,
-      onlyUnresolved: q.onlyUnresolved,
-    });
+    return this.teaching.teachersDrillDown(filter);
   }
 
-  /**
-   * Resolve the user's effective faculty grants to a list of Faculty.id
-   * for the teaching-workload service. Returns `null` for admin /
-   * UNIVERSITY_USER (no clamp), or an array of granted IDs otherwise.
-   *
-   * PROGRAM_USER without faculty/uni grant has already been 403'd by
-   * `assertCanSeeFacultyDashboards`. PROGRAM_USER WITH a FACULTY_USER
-   * UserScope grant inherits the faculty's full teacher list.
-   */
-  private async resolveTeachingFacultyIds(
-    user: SessionUser,
-  ): Promise<string[] | null> {
-    const eff = await resolveEffectiveScope(user);
-    if (eff.mode === 'all') return null;
-    if (eff.mode === 'none') return [];
-    // Programs granted directly roll up to their faculty so the teacher
-    // list is still meaningful at the faculty level.
-    const facultyIds = new Set<string>(eff.facultyIds);
-    if (eff.programIds.length > 0) {
-      const progs = await prisma.program.findMany({
-        where: { id: { in: eff.programIds } },
-        select: { facultyId: true },
-      });
-      for (const p of progs) facultyIds.add(p.facultyId);
-    }
-    return [...facultyIds];
+  @Get('teaching-workload/students-by-faculty')
+  @Authorized('institution:read:dashboard')
+  async teachingWorkloadStudentsByFaculty(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(TeachingWorkloadQuerySchema))
+    q: z.infer<typeof TeachingWorkloadQuerySchema>,
+  ) {
+    await assertCanSeeProgramAwareDashboards(user);
+    const filter = await this.resolveTeachingFilter(user, q);
+    return this.teaching.studentsByFaculty(filter);
   }
 
   private async resolveTeachingFilter(
     user: SessionUser,
     q: z.infer<typeof TeachingWorkloadQuerySchema>,
   ): Promise<TeachingWorkloadFilter> {
-    const facultyIds = await this.resolveTeachingFacultyIds(user);
+    const scope = await resolveOfferingScope(user);
     let acadYearBE = q.acadYearBE;
     let semester = q.semester;
     if (acadYearBE === undefined || semester === undefined) {
-      const latest = await this.teaching.resolveLatestSnapshot(facultyIds);
+      const latest = await this.teaching.resolveLatestSnapshot(scope);
       if (latest) {
         acadYearBE = acadYearBE ?? latest.acadYearBE;
         semester = semester ?? latest.semester;
       }
     }
     return {
-      facultyIds,
+      scope,
       acadYearBE,
       semester,
       levelName: q.levelName,

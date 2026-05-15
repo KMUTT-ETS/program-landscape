@@ -1,4 +1,4 @@
-// Response shapes — mirrored from apps/api/src/education/class-offerings.service.ts.
+// Response shapes — mirror apps/api/src/education/class-offerings.service.ts.
 
 export interface FilterOptions {
   years: number[];
@@ -82,12 +82,11 @@ export interface GeResponse {
   };
 }
 
-export interface DeepDiveRow {
+// Drill-down deep-dive — Faculty → Level → Course
+export interface DeepDiveCourseRow {
   courseCode: string;
   courseNameTh: string | null;
   courseNameEn: string | null;
-  registryFacultyName: string;
-  levelName: string;
   isGeneralEducation: boolean;
   sections: number;
   seatsOffered: number;
@@ -97,9 +96,37 @@ export interface DeepDiveRow {
   programsCount: number;
 }
 
+export interface DeepDiveLevelGroup {
+  levelName: string;
+  children: DeepDiveCourseRow[];
+  sections: number;
+  seatsOffered: number;
+  seatsFilled: number;
+  fillRate: number;
+  totalCreditsDelivered: number;
+}
+
+export interface DeepDiveFacultyGroup {
+  facultyName: string;
+  children: DeepDiveLevelGroup[];
+  sections: number;
+  seatsOffered: number;
+  seatsFilled: number;
+  fillRate: number;
+  totalCreditsDelivered: number;
+  distinctCourses: number;
+}
+
 export interface DeepDiveResponse {
   acadYearBE: number;
   semester: number;
-  rows: DeepDiveRow[];
-  truncated: boolean;
+  rows: DeepDiveFacultyGroup[];
+  totals: {
+    sections: number;
+    seatsOffered: number;
+    seatsFilled: number;
+    fillRate: number;
+    totalCreditsDelivered: number;
+    distinctCourses: number;
+  };
 }
