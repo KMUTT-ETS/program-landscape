@@ -26,6 +26,21 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-05-15',
+    version: 'v1.2.0 · Class offerings + teaching workload + teaching profile',
+    title: 'Two new dashboards on registrar class-offerings; teaching summary on every profile; program-user access across Education + Staff',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New dashboard /education/class-offerings — every class section the registrar opened, with seat-fill heatmap (faculty × semester, all 5 years × 4 terms once they’ve run), section utilisation distribution, dedicated general-education view (GE Institute + Language Institute), and a faculty → program-level → course drill-down table with sortable columns. Source: POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER (~122k sections, BE 2565–2569).',
+      'New dashboard /staff/teaching-workload — contact hours per teacher per week, derived from COURSEUNIT lecture + lab hours × every section they teach. Workload-band histogram (under-load / normal 9–15 hrs / over-load), faculty pulse, students-taught bar chart, and a faculty → teacher drill-down with lecture / lab / total hours, sections, students, and team-teaching share. Teacher names are prefixed with the Thai academic rank title; KKUMAIL emails kept out of the UI.',
+      'New section on /profile — Teaching profile · last 5 academic years. Two KPIs (distinct courses, students taught), an SVG bar histogram of students-taught per year (skipping the not-yet-enrolled trailing term), and a most-taught-courses list. Sits under Programs taught. Owner-only — public profile keeps it hidden.',
+      'Program-user access across Education + Staff — PROGRAM_USER now sees the Education + Staff menus and every sub-dashboard. Faculty-grain tiles (student-info, workforce, etc.) roll up to the user’s program’s faculty; the two program-aware tiles (class-offerings, teaching-workload) clamp to the program’s courses via the curriculum PDF extraction (option 1, includes GE) with a teacher-derived fallback for un-digested programs.',
+      'Fill-rate pill on the deep-dive table now picks text colour by background band — readable on every step of the orange / red ramp across both light and dark themes.',
+      'Postgres dev container’s /dev/shm raised from 64 MB → 1 GB so the 6-way parallel page fan-out fits comfortably; staff-workload CTE refactored to drop a correlated subquery (~10× lighter).',
+      'Server-form filter rail across both dashboards — same UI idiom as /programs; URL-shareable and reliable (state lives in the URL, no React drift).',
+    ],
+  },
+  {
     date: '2026-05-14',
     version: 'v1.1.5 · Multi-scope sessions + UI polish',
     title: 'Multi-scope respect across every module; BCG tooltip + radar layout',

@@ -71,7 +71,7 @@ export function isUniversityWide(role: Role | undefined | null): boolean {
 // to the university-wide set — the dashboards are the same UI, but the
 // server clamps every filter to user.facultyId so the FACULTY_USER only
 // ever sees their own faculty's numbers. PROGRAM_USER stays excluded —
-// these dashboards have no per-program variant.
+// most of these dashboards have no per-program variant.
 export const FACULTY_DASHBOARD_ROLES: readonly Role[] = [
   'SUPER_ADMIN',
   'SYSTEM_ADMIN',
@@ -84,4 +84,24 @@ export function canSeeFacultyDashboards(
 ): boolean {
   if (!role) return false;
   return (FACULTY_DASHBOARD_ROLES as readonly string[]).includes(role);
+}
+
+// Broader set — roles that can see at least one Education / Staff
+// dashboard, including the program-aware variants
+// (/education/class-offerings + /staff/teaching-workload). Adds
+// PROGRAM_USER to the faculty-dashboard set. The two program-aware
+// surfaces clamp via program_courses (PDF extraction) with a teacher-
+// derived fallback; the rest of the tiles 403 PROGRAM_USER at the
+// per-endpoint guard, so the hub renders only the tiles the user can
+// actually open.
+export const PROGRAM_AWARE_DASHBOARD_ROLES: readonly Role[] = [
+  ...FACULTY_DASHBOARD_ROLES,
+  'PROGRAM_USER',
+] as const;
+
+export function canSeeProgramAwareDashboards(
+  role: Role | undefined | null,
+): boolean {
+  if (!role) return false;
+  return (PROGRAM_AWARE_DASHBOARD_ROLES as readonly string[]).includes(role);
 }

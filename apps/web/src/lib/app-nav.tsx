@@ -12,15 +12,17 @@ function isAdminGrade(role: string | undefined | null): boolean {
   return role === 'SUPER_ADMIN' || role === 'SYSTEM_ADMIN';
 }
 
-// Mirrors @kku/shared/auth/roles.ts FACULTY_DASHBOARD_ROLES. Adds
-// FACULTY_USER to the set that sees /education + /staff in the nav —
-// they get the same UI clamped to their own faculty by the server.
-function canSeeFacultyDashboards(role: string | undefined | null): boolean {
+// Mirrors @kku/shared/auth/roles.ts PROGRAM_AWARE_DASHBOARD_ROLES.
+// PROGRAM_USER lands here too because both hubs surface at least one
+// program-aware tile (class-offerings, teaching-workload); the hub
+// page filters away the faculty-only tiles a PROGRAM_USER can't open.
+function canSeeProgramAwareDashboards(role: string | undefined | null): boolean {
   return (
     role === 'SUPER_ADMIN' ||
     role === 'SYSTEM_ADMIN' ||
     role === 'UNIVERSITY_USER' ||
-    role === 'FACULTY_USER'
+    role === 'FACULTY_USER' ||
+    role === 'PROGRAM_USER'
   );
 }
 import {
@@ -70,8 +72,9 @@ const dashboardItemsBase = [
 // Education + Staff dashboards are visible to admin-grade +
 // UNIVERSITY_USER + FACULTY_USER. The FACULTY_USER variant is the
 // same UI clamped server-side to user.facultyId (filter dropdowns are
-// locked to their own faculty). PROGRAM_USER stays excluded — these
-// dashboards have no per-program variant.
+// locked to their own faculty). PROGRAM_USER also lands here — the
+// hubs surface the program-aware tiles (/education/class-offerings +
+// /staff/teaching-workload) and filter away the rest.
 const dashboardItemsFacultyAware = [
   {
     href: '/education',
@@ -95,7 +98,7 @@ function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
   const role = user?.effectiveRole ?? user?.role;
   return {
     label: 'Dashboards',
-    items: canSeeFacultyDashboards(role)
+    items: canSeeProgramAwareDashboards(role)
       ? [...dashboardItemsBase, ...dashboardItemsFacultyAware]
       : dashboardItemsBase,
   };
