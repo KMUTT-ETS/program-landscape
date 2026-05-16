@@ -38,13 +38,24 @@ const OUT_DIR = path.resolve(__dirname, '..', 'dist', 'scripts');
 //   - phase 2: approve-pending-digests
 //   - phase 4: link-program-cohorts / link-program-alumni / link-program-financials
 //   - phase 8: risks-assess
+//
+// Plus operator-run scripts that the prod admin invokes via
+// `docker compose exec ingestion node /app/dist/scripts/<x>.js` to
+// (re)populate v1.2.0+ tables. Same bare-require breakage applies in
+// prod, so they need bundling too.
 const TARGETS = [
+  // Worker-spawned (BullMQ pipeline)
   'programs-pipeline.ts',
   'approve-pending-digests.ts',
   'link-program-cohorts.ts',
   'link-program-alumni.ts',
   'link-program-financials.ts',
   'risks-assess.ts',
+  // Operator-run (manual data hydration on prod) — class-offerings cube +
+  // PROGRAM_DIGEST course materialisation + HCM email backfill (v1.2.0).
+  'link-class-offerings.ts',
+  'materialise-program-courses.ts',
+  'backfill-faculty-member-emails.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.
