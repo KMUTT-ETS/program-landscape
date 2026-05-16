@@ -212,6 +212,13 @@ services:
     image: ghcr.io/khon-kaen-university/program-landscape-postgres:${RELEASE_VERSION}
     container_name: program-landscape-postgres
     restart: unless-stopped
+    # Postgres parallel-query workers map hash-join state into /dev/shm.
+    # The 64 MB Docker default blows up on the per-teacher CTE in the
+    # /staff/teaching-workload endpoints (joins 122k class_offerings ×
+    # 215k class_offering_teachers). Bump to 1 GB — mirrors the same
+    # change shipped in docker-compose.yml (dev). Verified prod 2026-05-16:
+    # the per-teacher drill-down 500'd until this landed.
+    shm_size: 1g
     environment:
       # Postgres 16 supports *_FILE for every connection var. The deploy
       # script writes these files from /opt/program-landscape/secrets.
