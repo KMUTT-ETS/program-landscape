@@ -26,6 +26,22 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-05-16',
+    version: 'v1.2.2 · Application topology — interactive 3D data-flow map',
+    title:
+      'New /admin/application-topology surface — every active connector → Postgres table → AI task → consuming dashboard, with pan / zoom / fullscreen and a 2D ↔ 3D isometric toggle',
+    audience: ['Admin'],
+    bullets: [
+      'New page /admin/application-topology — visual map of how data flows through the whole app. ~90 nodes across 5 lanes (External systems → Connectors / Scripts → Postgres tables → AI tasks → Dashboards) with ~200 edges. Covers every active connector (14 real KKU sources, the 2 deprecated ones excluded) and every consumer module — Education + Staff sub-dashboards, Cockpit, Program Deep-Dive, Risk portfolio + matrix + indicators + drivers, Trends Radar, Gap Analyzer, Benchmarking, Scenario Planner, Decision Workspace, AI Analyst.',
+      'Connector nodes carry a live LIVE / MOCK pill driven by data_sources.mocked from /admin/data-sources — drift detection inline. AI task nodes carry a per-task GEMINI / CLAUDE vendor pill so you can see at a glance which LLM each prompt runs on.',
+      'Hover-trace highlights upstream + downstream paths; click pins a floating tooltip with description, target, cadence, Prisma model, live status (with drift warning when status/mocked disagree), related tables, and a link out to the consuming surface.',
+      '12 filter tabs by dashboard family — All, Education, Staff, Cockpit, Deep-Dive, Risk, Trends, Gap, Benchmarking, Scenarios, Decisions, Analyst. Anchor-based upstream BFS shows only the subgraph that feeds the chosen family.',
+      'Pan + zoom (⌘/Ctrl + wheel) + native browser fullscreen + 2D ↔ 3D toggle. The 3D view is a real X-Y-Z isometric projection: base lanes (L1 / L2 / L3 / L5) sit on the X-Y floor plane, L4 AI tasks are elevated at Z = AI_Z. A subtle floor grid plus dashed drop-pillars from each AI box to its base-plane shadow visualise the depth. Shift+drag rotates the scene; ↺ snaps back to the iso default.',
+      'LIVE / MOCK signal now keys off data_sources.mocked (canonical boolean) instead of data_sources.status (enum) — closes the v1.1.3 drift footgun where flipped-real connectors still showed MOCK because the status column never got the matching UPDATE. Inline drift warning surfaces in the detail panel when the two columns disagree.',
+      'Tile added to /admin landing in the "External data" group.',
+    ],
+  },
+  {
     date: '2026-05-15',
     version: 'v1.2.0 · Class offerings + teaching workload + teaching profile',
     title: 'Two new dashboards on registrar class-offerings; teaching summary on every profile; program-user access across Education + Staff',

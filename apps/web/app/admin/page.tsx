@@ -25,6 +25,7 @@ import {
   Layers,
   Settings2,
   ShieldCheck,
+  Share2,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -428,6 +429,13 @@ function buildGroups({
           }
         : undefined,
       meta: dataStats ? `${dataStats.dataFeeds.mocked} still mocked` : undefined,
+    },
+    {
+      href: '/admin/application-topology',
+      label: 'Application topology',
+      description:
+        'Whole-application data flow — every active connector → Postgres tables → every consuming dashboard (Education, Staff, Cockpit, Deep-Dive, Risk, Trends, Gap, Benchmarking, Scenarios, Decisions, Analyst). Live connector status inline.',
+      icon: <Share2 className="h-6 w-6" />,
     },
     {
       href: '/admin/external/ai-search',
