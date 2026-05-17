@@ -15,5 +15,15 @@ import { DataSourcesModule } from '../data-sources/data-sources.module';
     RecruitmentService,
     ClassOfferingsService,
   ],
+  // Exported so AnalystModule (and any future dashboard-driven consumer)
+  // can inject these services without re-providing them. The dashboard
+  // chatbot's tool executor calls EducationService directly so the
+  // dashboards stay the single source of truth.
+  exports: [
+    EducationService,
+    EducationRefreshService,
+    RecruitmentService,
+    ClassOfferingsService,
+  ],
 })
 export class EducationModule {}

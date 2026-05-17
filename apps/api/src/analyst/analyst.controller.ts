@@ -37,9 +37,14 @@ import { AnalystService } from './analyst.service';
 // full response in one JSON payload.
 // ═════════════════════════════════════════════════════════════════════
 
+// `kind` is optional for back-compat. When the client passes DASHBOARD,
+// AnalystService routes to the dashboard tool catalog + system prompt.
+// On a continuation turn (conversationId is set) the stored kind wins;
+// `kind` is only honoured on first turn.
 const ChatBodySchema = z.object({
   conversationId: z.string().optional(),
   message: z.string().min(1).max(4000),
+  kind: z.enum(['STRATEGIC', 'DASHBOARD']).optional(),
 });
 type ChatBody = z.infer<typeof ChatBodySchema>;
 
@@ -60,6 +65,8 @@ type BriefBody = z.infer<typeof BriefBodySchema>;
 
 const ListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  /** Filter the list by conversation kind. Omit to see all. */
+  kind: z.enum(['STRATEGIC', 'DASHBOARD']).optional(),
 });
 type ListQuery = z.infer<typeof ListQuerySchema>;
 
@@ -84,9 +91,9 @@ export class AnalystController {
   @Authorized('programs:read:all')
   async listConversations(
     @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(ListQuerySchema)) _q: ListQuery,
+    @Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery,
   ) {
-    return this.analyst.listConversations(user.userId);
+    return this.analyst.listConversations(user.userId, q.kind);
   }
 
   @Get('conversations/:id')
@@ -108,6 +115,7 @@ export class AnalystController {
       userId: user.userId,
       conversationId: body.conversationId,
       userMessage: body.message,
+      kind: body.kind,
     });
   }
 
@@ -150,6 +158,7 @@ export class AnalystController {
           userId: user.userId,
           conversationId: body.conversationId,
           userMessage: body.message,
+          kind: body.kind,
         },
         async (event) => {
           if (clientGone) return;

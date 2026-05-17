@@ -1,7 +1,15 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 import {
+  prisma,
+  PrismaAiInferenceRecorder,
+  getAiModelOverrideStore,
+  type AnalystConversationKind,
+} from '@kku/db';
+import {
+  ANALYST_DASHBOARD_SYSTEM_PROMPT,
+  ANALYST_DASHBOARD_SYSTEM_PROMPT_VERSION,
+  ANALYST_DASHBOARD_TOOL_DEFINITIONS,
   ANALYST_SYSTEM_PROMPT,
   ANALYST_SYSTEM_PROMPT_VERSION,
   ANALYST_TOOL_DEFINITIONS,
@@ -14,10 +22,13 @@ import {
   type AiService,
   type AnalystStreamEvent,
   type ToolCall,
+  type ToolDefinition,
   type ToolUseMessage,
   type ToolUseRequest,
 } from '@kku/shared';
 import { AnalystToolExecutor } from './tool-executor.service';
+import { DashboardToolExecutor } from './dashboard-tool-executor.service';
+import type { SessionUser } from '@kku/shared';
 
 // ═════════════════════════════════════════════════════════════════════
 // Analyst service — orchestrates one chat turn.
@@ -47,7 +58,20 @@ export interface ChatTurnResult {
   tokens: { input: number; output: number };
   costUsd: number;
   latencyMs: number;
-  methodologyVersion: typeof ANALYST_SYSTEM_PROMPT_VERSION;
+  /** Either the strategic prompt's version stamp or the dashboard
+   *  prompt's, depending on the conversation's kind. */
+  methodologyVersion: string;
+}
+
+// Per-kind config bundle: which system prompt, which tool catalog,
+// which methodology version stamp the AnalystMessage row carries.
+interface KindConfig {
+  systemPrompt: string;
+  systemPromptVersion: string;
+  tools: ToolDefinition[];
+  // 'strategic' → AnalystToolExecutor with scope clamping.
+  // 'dashboard' → DashboardToolExecutor with caller passed straight through.
+  executor: 'strategic' | 'dashboard';
 }
 
 @Injectable()
@@ -58,7 +82,40 @@ export class AnalystService implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly toolExecutor: AnalystToolExecutor,
+    private readonly dashboardExecutor: DashboardToolExecutor,
   ) {}
+
+  /** Resolve the system prompt + tool catalog + executor flavour for a
+   *  conversation kind. Default STRATEGIC keeps the original /analyst
+   *  surface intact for any caller that doesn't pass kind. */
+  private kindConfig(kind: AnalystConversationKind | undefined): KindConfig {
+    if (kind === 'DASHBOARD') {
+      return {
+        systemPrompt: ANALYST_DASHBOARD_SYSTEM_PROMPT,
+        systemPromptVersion: ANALYST_DASHBOARD_SYSTEM_PROMPT_VERSION,
+        tools: ANALYST_DASHBOARD_TOOL_DEFINITIONS,
+        executor: 'dashboard',
+      };
+    }
+    return {
+      systemPrompt: ANALYST_SYSTEM_PROMPT,
+      systemPromptVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+      tools: ANALYST_TOOL_DEFINITIONS,
+      executor: 'strategic',
+    };
+  }
+
+  /** Pick the right executor and dispatch a tool call. */
+  private async dispatchTool(
+    cfg: KindConfig,
+    call: ToolCall,
+    caller: SessionUser,
+  ): Promise<string> {
+    if (cfg.executor === 'dashboard') {
+      return this.dashboardExecutor.execute(call, caller);
+    }
+    return this.toolExecutor.execute(call, caller);
+  }
 
   onModuleInit(): void {
     const recorder = new PrismaAiInferenceRecorder();
@@ -98,13 +155,17 @@ export class AnalystService implements OnModuleInit {
   }
 
   // ── Conversation CRUD ───────────────────────────────────────────────
-  async listConversations(userId: string) {
+  /** List a user's conversations, optionally filtered by kind.
+   *  `kind` undefined returns the full history across both flavours
+   *  (admin / audit use); pass STRATEGIC or DASHBOARD to scope. */
+  async listConversations(userId: string, kind?: AnalystConversationKind) {
     return prisma.analystConversation.findMany({
-      where: { userId },
+      where: { userId, ...(kind ? { kind } : {}) },
       orderBy: { updatedAt: 'desc' },
       take: 100,
       select: {
         id: true,
+        kind: true,
         title: true,
         language: true,
         messageCount: true,
@@ -133,6 +194,10 @@ export class AnalystService implements OnModuleInit {
     userId: string;
     conversationId?: string;
     userMessage: string;
+    /** STRATEGIC = the Council /analyst (default). DASHBOARD = the
+     *  Education/Staff dashboard chatbot. Ignored when continuing an
+     *  existing conversation — the conversation's stored kind wins. */
+    kind?: AnalystConversationKind;
   }): Promise<ChatTurnResult> {
     const trimmed = params.userMessage.trim();
     if (!trimmed) throw new Error('Empty message');
@@ -163,22 +228,41 @@ export class AnalystService implements OnModuleInit {
       themePreference: callerRow.themePreference,
     };
 
-    // 1. Safety gate.
-    const verdict = checkAnalystSafety(trimmed);
-
-    // 2. Ensure conversation exists; create if first turn.
+    // 1. Resolve the conversation kind FIRST — the safety gate is
+    // kind-aware (dashboard surface allows aggregate-only salary
+    // questions because the compensation tool masks <5-person buckets
+    // server-side). On continuation, the stored kind is authoritative.
     const language = detectLanguage(trimmed);
     let conversationId = params.conversationId;
+    let kind: AnalystConversationKind = params.kind ?? 'STRATEGIC';
     if (!conversationId) {
       const created = await prisma.analystConversation.create({
         data: {
           userId: params.userId,
+          kind,
           title: truncate(trimmed, 80),
           language,
         },
       });
       conversationId = created.id;
+    } else {
+      const existing = await prisma.analystConversation.findUnique({
+        where: { id: conversationId },
+        select: { kind: true, userId: true },
+      });
+      if (!existing) throw new NotFoundException();
+      if (existing.userId !== params.userId)
+        throw new ForbiddenException('Not your conversation');
+      kind = existing.kind;
     }
+    const cfg = this.kindConfig(kind);
+
+    // 2. Safety gate — surface picks which salary/performance ruleset
+    // applies. Strategic = strict; Dashboard = aggregate-friendly.
+    const verdict = checkAnalystSafety(
+      trimmed,
+      kind === 'DASHBOARD' ? 'dashboard' : 'strategic',
+    );
 
     // Persist the user turn regardless — we keep the full audit trail
     // whether or not we refuse or successfully answer.
@@ -220,7 +304,7 @@ export class AnalystService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         costUsd: 0,
         latencyMs: 0,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       };
     }
 
@@ -255,7 +339,7 @@ export class AnalystService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         costUsd: 0,
         latencyMs: 0,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       };
     }
 
@@ -277,7 +361,7 @@ export class AnalystService implements OnModuleInit {
     // prompt-injection vector where a user's own message tries to
     // override the system prompt.
     const messages: ToolUseMessage[] = [
-      { role: 'system', content: ANALYST_SYSTEM_PROMPT },
+      { role: 'system', content: cfg.systemPrompt },
       ...history
         .filter((m) => m.content && m.role !== 'ASSISTANT' || (m.role === 'ASSISTANT' && !m.refused))
         .slice(-10) // sliding window of 10 turns
@@ -309,9 +393,9 @@ export class AnalystService implements OnModuleInit {
     // multi-tool plans land in fewer iterations. Anthropic users get
     // their default Sonnet/Haiku via the provider's own routing.
     const req: ToolUseRequest = {
-      ctx: { module: 'analyst', kind: 'chat', userId: params.userId },
+      ctx: { module: 'analyst', kind: kind === 'DASHBOARD' ? 'dashboard-chat' : 'chat', userId: params.userId },
       messages,
-      tools: ANALYST_TOOL_DEFINITIONS,
+      tools: cfg.tools,
       maxIterations: 6,
       maxOutputTokens: 2500,
       temperature: 0.3,
@@ -320,7 +404,7 @@ export class AnalystService implements OnModuleInit {
 
     const toolCallsForEvidence: Array<{ name: string; input: Record<string, unknown>; result?: string }> = [];
     const executeTool = async (call: ToolCall): Promise<string> => {
-      const result = await this.toolExecutor.execute(call, caller);
+      const result = await this.dispatchTool(cfg, call, caller);
       toolCallsForEvidence.push({ name: call.name, input: call.input, result: result.slice(0, 2000) });
       return result;
     };
@@ -372,7 +456,7 @@ export class AnalystService implements OnModuleInit {
         tokens: resp.tokens,
         costUsd: resp.cost.usd,
         latencyMs: resp.latencyMs,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       };
     } catch (err) {
       const msg = err instanceof ToolUseNotSupportedError
@@ -400,7 +484,7 @@ export class AnalystService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         costUsd: 0,
         latencyMs: 0,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       };
     }
   }
@@ -416,6 +500,8 @@ export class AnalystService implements OnModuleInit {
       userId: string;
       conversationId?: string;
       userMessage: string;
+      /** STRATEGIC (default) | DASHBOARD. Mirrors `chat()`. */
+      kind?: AnalystConversationKind;
     },
     onEvent: (e: AnalystStreamEvent) => void | Promise<void>,
   ): Promise<void> {
@@ -460,17 +546,39 @@ export class AnalystService implements OnModuleInit {
       themePreference: callerRow.themePreference,
     };
 
-    await emit({ type: 'status', phase: 'safety_check', label: 'Checking safety…' });
-    const verdict = checkAnalystSafety(trimmed);
-
     const language = detectLanguage(trimmed);
     let conversationId = params.conversationId;
+    // Resolve kind FIRST so the safety gate runs against the right
+    // surface (strategic = strict, dashboard = aggregate-friendly).
+    // Stored kind on continuation is authoritative.
+    let kind: AnalystConversationKind = params.kind ?? 'STRATEGIC';
     if (!conversationId) {
       const created = await prisma.analystConversation.create({
-        data: { userId: params.userId, title: truncate(trimmed, 80), language },
+        data: { userId: params.userId, kind, title: truncate(trimmed, 80), language },
       });
       conversationId = created.id;
+    } else {
+      const existing = await prisma.analystConversation.findUnique({
+        where: { id: conversationId },
+        select: { kind: true, userId: true },
+      });
+      if (!existing) {
+        await emit({ type: 'error', message: 'Conversation not found' });
+        return;
+      }
+      if (existing.userId !== params.userId) {
+        await emit({ type: 'error', message: 'Not your conversation' });
+        return;
+      }
+      kind = existing.kind;
     }
+    const cfg = this.kindConfig(kind);
+
+    await emit({ type: 'status', phase: 'safety_check', label: 'Checking safety…' });
+    const verdict = checkAnalystSafety(
+      trimmed,
+      kind === 'DASHBOARD' ? 'dashboard' : 'strategic',
+    );
     await emit({ type: 'open', conversationId });
 
     await prisma.analystMessage.create({
@@ -509,7 +617,7 @@ export class AnalystService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         costUsd: 0,
         latencyMs: 0,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       });
       return;
     }
@@ -544,7 +652,7 @@ export class AnalystService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         costUsd: 0,
         latencyMs: 0,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       });
       return;
     }
@@ -562,7 +670,7 @@ export class AnalystService implements OnModuleInit {
     history.reverse();
 
     const messages: ToolUseMessage[] = [
-      { role: 'system', content: ANALYST_SYSTEM_PROMPT },
+      { role: 'system', content: cfg.systemPrompt },
       ...history
         .filter((m) => m.content && m.role !== 'ASSISTANT' || (m.role === 'ASSISTANT' && !m.refused))
         .slice(-10)
@@ -583,9 +691,9 @@ export class AnalystService implements OnModuleInit {
     await emit({ type: 'status', phase: 'thinking', label: 'Thinking…' });
 
     const req: ToolUseRequest = {
-      ctx: { module: 'analyst', kind: 'chat', userId: params.userId },
+      ctx: { module: 'analyst', kind: kind === 'DASHBOARD' ? 'dashboard-chat' : 'chat', userId: params.userId },
       messages,
-      tools: ANALYST_TOOL_DEFINITIONS,
+      tools: cfg.tools,
       maxIterations: 6,
       maxOutputTokens: 2500,
       temperature: 0.3,
@@ -607,7 +715,7 @@ export class AnalystService implements OnModuleInit {
         toolName: call.name,
       });
       const t0 = Date.now();
-      const result = await this.toolExecutor.execute(call, caller);
+      const result = await this.dispatchTool(cfg, call, caller);
       const durationMs = Date.now() - t0;
       toolCallsForEvidence.push({
         name: call.name,
@@ -687,7 +795,7 @@ export class AnalystService implements OnModuleInit {
         tokens: resp.tokens,
         costUsd: resp.cost.usd,
         latencyMs: resp.latencyMs,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       });
     } catch (err) {
       const msg =
@@ -718,7 +826,7 @@ export class AnalystService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         costUsd: 0,
         latencyMs: 0,
-        methodologyVersion: ANALYST_SYSTEM_PROMPT_VERSION,
+        methodologyVersion: cfg.systemPromptVersion,
       });
     }
   }
@@ -798,6 +906,23 @@ const TOOL_LABELS: Record<string, string> = {
   get_staff_kpis: 'Staff KPIs',
   get_risk_portfolio: 'Risk portfolio',
   query_recruitment: 'Recruitment funnel',
+  // Dashboard-scoped tools (v1.2.3 dashboard chatbot).
+  dash_education_student_info: 'Student info',
+  dash_education_by_location: 'Student location',
+  dash_education_active_pivot: 'Cohort pivot',
+  dash_education_international: 'International students',
+  dash_education_tuition: 'Tuition revenue',
+  dash_education_performance: 'Academic performance',
+  dash_education_recruitment: 'TCAS recruitment',
+  dash_education_class_offerings: 'Class offerings',
+  dash_staff_workforce: 'Workforce',
+  dash_staff_compensation: 'Compensation',
+  dash_staff_teaching_workload: 'Teaching workload',
+  dash_staff_research: 'Research outputs',
+  dash_staff_faculty_by_program: 'Faculty by program',
+  dash_filter_options: 'Filter options',
+  dash_data_freshness: 'Data freshness',
+  dash_compute: 'Calculation',
 };
 
 function humaniseToolName(name: string): string {

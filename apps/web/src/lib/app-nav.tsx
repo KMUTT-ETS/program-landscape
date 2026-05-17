@@ -33,6 +33,7 @@ import {
   History,
   Home,
   LineChart,
+  MessageSquare,
   Microscope,
   PieChart,
   ShieldAlert,
@@ -114,6 +115,7 @@ const analysisSection: NavSection = {
     { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
     { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
     { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
+    { href: '/analyst/dashboards', label: 'Dashboards Assistant', icon: createElement(MessageSquare), moduleKey: 'analyst' },
   ],
 };
 

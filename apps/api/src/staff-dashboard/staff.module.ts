@@ -9,5 +9,8 @@ import { DataSourcesModule } from '../data-sources/data-sources.module';
   imports: [DataSourcesModule],
   controllers: [StaffController],
   providers: [StaffService, TeachingWorkloadService, CacheService],
+  // Exported so AnalystModule can inject these services for the
+  // dashboard chatbot's tool executor without re-providing them.
+  exports: [StaffService, TeachingWorkloadService],
 })
 export class StaffDashboardModule {}

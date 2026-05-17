@@ -2998,26 +2998,48 @@ enum AnalystMessageRole {
   ASSISTANT
 }
 
+// Discriminates which assistant flavour produced the conversation.
+//
+// STRATEGIC — the Council-facing /analyst. Full tool catalog (programs,
+// scenarios, peers, trends, risks). System prompt frames the assistant
+// as a strategic advisor.
+// DASHBOARD — the operational /analyst/dashboards (and the in-page side
+// panel on Education + Staff). Narrower tool catalog scoped to the
+// Education + Staff dashboard surfaces. System prompt steers strategic
+// questions back to /analyst.
+//
+// Kept as a separate enum (not a free-text tag) so the conversation
+// list queries can filter on a B-tree index without LIKE scans.
+enum AnalystConversationKind {
+  STRATEGIC
+  DASHBOARD
+}
+
 model AnalystConversation {
-  id           String   @id @default(cuid())
-  userId       String   @map("user_id")
+  id           String                  @id @default(cuid())
+  userId       String                  @map("user_id")
+  // Which assistant flavour this conversation belongs to. Defaults to
+  // STRATEGIC for back-compat with rows created before the column landed.
+  kind         AnalystConversationKind @default(STRATEGIC)
   title        String
   // Running summary of pruned-away older turns, so the agent has memory
   // even after we truncate messages outside the sliding window.
-  summaryTh    String?  @map("summary_th") @db.Text
-  summaryEn    String?  @map("summary_en") @db.Text
+  summaryTh    String?                 @map("summary_th") @db.Text
+  summaryEn    String?                 @map("summary_en") @db.Text
   // Language detected from the first user turn ('th' | 'en'). Used to
   // pick system-prompt flavour; not sticky per-message.
-  language     String   @default("en")
-  messageCount Int      @default(0) @map("message_count")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  language     String                  @default("en")
+  messageCount Int                     @default(0) @map("message_count")
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
 
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages AnalystMessage[]
 
   @@index([userId])
   @@index([updatedAt])
+  // List-query path: WHERE userId = ? AND kind = ? ORDER BY updatedAt DESC.
+  @@index([userId, kind, updatedAt])
   @@map("analyst_conversations")
 }
 

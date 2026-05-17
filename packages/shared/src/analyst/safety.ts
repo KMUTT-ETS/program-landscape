@@ -8,7 +8,7 @@
 // handle nuance.
 // ═════════════════════════════════════════════════════════════════════
 
-export const ANALYST_SAFETY_VERSION = 'analyst-safety.v1';
+export const ANALYST_SAFETY_VERSION = 'analyst-safety.v3';
 
 export type SafetyCategory =
   | 'personal-info'
@@ -17,6 +17,21 @@ export type SafetyCategory =
   | 'external-content-request'
   | 'decision-commitment';
 
+/** Conversation flavour for the safety check.
+ *
+ *  - 'strategic' (default) — the original /analyst surface. Strict
+ *    salary/performance rules because the analyst tool catalog doesn't
+ *    have a server-side <5-person mask. Asks about individual salaries
+ *    are refused unconditionally.
+ *  - 'dashboard'             — the /analyst/dashboards surface. The
+ *    compensation tool returns ONLY aggregates with <5-person masking
+ *    enforced server-side, so aggregate-level salary questions
+ *    ("how much does Faculty X pay in total", "split by funding
+ *    source", "average per rank") are exactly what the surface is for.
+ *    Only refuse when a person identifier is present.
+ */
+export type SafetySurface = 'strategic' | 'dashboard';
+
 export interface SafetyVerdict {
   refuse: boolean;
   categories: SafetyCategory[];
@@ -24,33 +39,102 @@ export interface SafetyVerdict {
   version: typeof ANALYST_SAFETY_VERSION;
 }
 
+// Salary/performance rules — STRICT (strategic). Catches both individual
+// and category-level mentions because the strategic analyst doesn't have
+// a server-side aggregate mask.
+const STRATEGIC_SALARY_PATTERNS: RegExp[] = [
+  /\b(who|which)\s+(faculty\s+member|teacher|lecturer|professor).*\s+(earns?|salary|performance)/i,
+  /\bsalary\s+of\s+\w+/i,
+  /performance\s+(review|rating|score)\s+(of|for)\s+\w+/i,
+  /เงินเดือน\s*(ของ|อาจารย์)/,
+  /ผลงาน(รายบุคคล|ของอาจารย์)/,
+];
+
+// Salary/performance rules — LENIENT (dashboard). Only refuses on
+// UNAMBIGUOUS individual-identification signals. Borderline Thai
+// phrasing falls through to the system prompt (which still tells the
+// LLM to refuse individual asks) and the tool layer (compensation
+// tool enforces <5-person masking server-side).
+//
+// Refused:
+//   - "salary of <CapitalizedName>" / "<Name1 Name2> earns/salary/paid"
+//   - "performance review of <CapitalizedName>"
+//   - "individual / per person / per-employee / specific (employee|teacher|professor|lecturer)" + salary/compensation
+//   - Thai title-name patterns: "ดร./อ./ผศ./รศ./ศ./นาย/นาง/นางสาว<2+ Thai chars>" near salary
+//   - Thai "ผลงานรายบุคคล" or "ผลงานของอาจารย์<2+ Thai chars>"
+//
+// Allowed (these all pass and let the tool answer):
+//   - "คณะวิศวฯ จ่ายเงินเดือนอาจารย์เดือนละเท่าไหร่" (aggregate by faculty)
+//   - "total salary spend of Engineering, split by funding source"
+//   - "เงินเดือนเฉลี่ยของอาจารย์ในคณะวิศวกรรมศาสตร์" (average)
+//   - "what's the salary funding split for Medicine?"
+const DASHBOARD_SALARY_PATTERNS: RegExp[] = [
+  // English — title (Dr/Prof/Mr/Ms/Mrs + optional period) followed by a
+  // capitalised name + 'salary'/'performance'. Title is the strong
+  // individual-identification signal; without it "salary of Engineering"
+  // would false-positive on aggregate questions.
+  /\bsalary\s+of\s+(?:Dr|Prof|Mr|Mrs|Ms|Asst\.?\s+Prof|Assoc\.?\s+Prof)\.?\s+[A-Z]\w+/i,
+  /\b(?:Dr|Prof|Mr|Mrs|Ms)\.?\s+[A-Z]\w+'?s?\s+(?:earns?|salary|paid|performance)/i,
+  // Two consecutive capitalised words preceding salary verb — "John Smith earns".
+  /\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\s+(?:earns?|salary|paid)/,
+  // Performance reviews of named individuals.
+  /performance\s+(review|rating|score)\s+(of|for)\s+(?:Dr|Prof|Mr|Mrs|Ms)\.?\s+[A-Z]\w+/i,
+  // Thai title prefix + 2+ Thai chars name + salary keyword nearby.
+  // Bounded by 0–40 chars so we don't accidentally bridge unrelated
+  // sentences. Title is the strong signal.
+  /(?:ดร\.|อ\.|ผศ\.|รศ\.|ศ\.|นาย|นาง|นางสาว)\s*[ก-๙]{2,}[\s\S]{0,40}เงินเดือน/,
+  /เงินเดือน[\s\S]{0,40}(?:ดร\.|อ\.|ผศ\.|รศ\.|ศ\.|นาย|นาง|นางสาว)\s*[ก-๙]{2,}/,
+  // Thai — explicit "individual performance".
+  /ผลงานรายบุคคล/,
+  /ผลงานของ(?:ดร\.|อ\.|ผศ\.|รศ\.|ศ\.|นาย|นาง|นางสาว)\s*[ก-๙]{2,}/,
+  // Explicit individual-data phrasing.
+  /\b(individual|per[- ]person|per[- ]employee|each\s+employee|specific\s+(?:employee|teacher|professor|lecturer))\b[\s\S]{0,30}\b(salary|salaries|compensation|earning)/i,
+  /\b(salary|salaries|compensation|earning)\b[\s\S]{0,30}\b(per[- ]person|per[- ]employee|individual|each\s+employee|specific\s+(?:employee|teacher|professor|lecturer))\b/i,
+];
+
 // Patterns that match clear refuse-categories. Case-insensitive.
-const REFUSAL_PATTERNS: Array<{ cat: SafetyCategory; patterns: RegExp[]; explanation: string }> = [
+const REFUSAL_PATTERNS: Array<{
+  cat: SafetyCategory;
+  patterns: (surface: SafetySurface) => RegExp[];
+  explanation: string;
+}> = [
   {
     cat: 'salary-or-performance',
-    patterns: [
-      /\b(who|which)\s+(faculty\s+member|teacher|lecturer|professor).*\s+(earns?|salary|performance)/i,
-      /\bsalary\s+of\s+\w+/i,
-      /performance\s+(review|rating|score)\s+(of|for)\s+\w+/i,
-      /เงินเดือน\s*(ของ|อาจารย์)/,
-      /ผลงาน(รายบุคคล|ของอาจารย์)/,
-    ],
+    patterns: (surface) =>
+      surface === 'dashboard' ? DASHBOARD_SALARY_PATTERNS : STRATEGIC_SALARY_PATTERNS,
     explanation:
-      'Individual employee performance + salary information is restricted — HR manages that system. Rollup stats (e.g. "average salary in faculty X") are visible in the relevant module.',
+      'Individual employee performance + salary information is restricted — HR manages that system. Aggregate stats (faculty totals, funding-source splits, averages) are answered by the compensation dashboard.',
   },
   {
     cat: 'personal-info',
-    patterns: [
+    patterns: () => [
       // English — \b word boundaries (safe with ASCII).
       /\b(phone number|home address|personal email|id card|citizen id)\b/i,
       // Thai — \b doesn't apply to Thai characters; match directly.
       /เลขประชาชน|หมายเลขบัตรประชาชน|ที่อยู่บ้าน|เบอร์ส่วนตัว/,
+      // KKU student ID asks. ID is typically 10-digit (BE yy + faculty
+      // + sequence, e.g. 6510310001). Match only when the digit string
+      // is paired with an explicit identifier keyword to avoid false
+      // positives on revenue figures, populations, etc.
+      /\b(student\s+id|รหัสนักศึกษา|รหัส\s*นศ\.?|รหัส)\s*[:#]?\s*\d{8,13}/i,
+      /\b\d{8,13}\s*(student\s+id|รหัสนักศึกษา|รหัสนศ|รหัส)/i,
+      /(นักศึกษา|นศ\.?)\s*(?:รหัส|เลขที่|id)?\s*\d{8,13}/i,
+      // KKU employee code prefixes from the FacultyMember backfill
+      // (hr_<hash> from KKU-HR, kkupub_<id> from kku-publications).
+      /\b(?:hr_[0-9a-f]{4,}|kkupub_\d+)\b/i,
+      // "This student" / "นักศึกษาคนนี้" + identifying detail asks.
+      /\b(this|that)\s+(student|employee|teacher|professor|lecturer)\b/i,
+      /(นักศึกษา|พนักงาน|อาจารย์)(คนนี้|คนนั้น|ที่ชื่อ|รหัส)/,
+      // "show me <Name>'s record" / "give me info on <Name>" — explicit
+      // person-record asks. Match common asks for individual records.
+      /\b(show|give|find|tell)\s+me\s+(?:\w+\s+){0,4}(?:record|info|details|profile|file)\s+(?:on|of|for)\s+[A-Z]\w+/i,
     ],
-    explanation: 'Personal contact information is out of scope.',
+    explanation:
+      'Personal information / individual student or employee records are out of scope. Aggregate stats are available; refer to /education or /staff dashboards for what is published.',
   },
   {
     cat: 'prompt-injection',
-    patterns: [
+    patterns: () => [
       /ignore\s+(previous|all|prior|above)\s+(instructions|prompts|rules)/i,
       /\byou\s+are\s+now\s+a\s+(different|new|jailbroken|unrestricted)\b/i,
       /\bdisregard\s+(your|the)\s+(system|prior)\s+(prompt|instructions)/i,
@@ -63,7 +147,7 @@ const REFUSAL_PATTERNS: Array<{ cat: SafetyCategory; patterns: RegExp[]; explana
   },
   {
     cat: 'external-content-request',
-    patterns: [
+    patterns: () => [
       /\b(write|draft|generate)\s+(a\s+)?(press\s+release|public\s+statement|social\s+media\s+post|tweet|op-ed)/i,
       /(เขียน|ร่าง)\s*(ข่าว|แถลงการณ์|โพสต์)\s*(ประชาสัมพันธ์|ส่งสื่อ|สาธารณะ)/,
     ],
@@ -72,7 +156,7 @@ const REFUSAL_PATTERNS: Array<{ cat: SafetyCategory; patterns: RegExp[]; explana
   },
   {
     cat: 'decision-commitment',
-    patterns: [
+    patterns: () => [
       /\b(commit\s+to|make\s+the\s+decision|approve|sign\s+off|finalise)\s+(closing|launching|merging)/i,
       /(ตัดสิน|อนุมัติ|ยืนยัน)\s*(ปิด|เปิด|ควบรวม)/,
     ],
@@ -175,11 +259,21 @@ export function sanitizeAiOutput(text: string): SanitizeResult {
 
 // Runs the guardrail check. If `refuse` is true, the caller must respond
 // with `explanation` and skip the LLM call entirely.
-export function checkAnalystSafety(userMessage: string): SafetyVerdict {
+//
+// `surface` defaults to 'strategic' for back-compat with the strategic
+// /analyst caller. Pass 'dashboard' from the dashboard chat path so
+// aggregate-only salary/performance questions land on the compensation
+// tool (which masks <5-person buckets server-side) rather than being
+// refused upfront.
+export function checkAnalystSafety(
+  userMessage: string,
+  surface: SafetySurface = 'strategic',
+): SafetyVerdict {
   const hits: SafetyCategory[] = [];
   const explanations: string[] = [];
   for (const rule of REFUSAL_PATTERNS) {
-    if (rule.patterns.some((p) => p.test(userMessage))) {
+    const patterns = rule.patterns(surface);
+    if (patterns.some((p) => p.test(userMessage))) {
       hits.push(rule.cat);
       explanations.push(rule.explanation);
     }

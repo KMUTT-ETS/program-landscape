@@ -1,5 +1,11 @@
+export type AnalystConversationKind = 'STRATEGIC' | 'DASHBOARD';
+
 export interface AnalystConversationDto {
   id: string;
+  /** Optional — older serialised payloads from before the v1.2.3
+   *  dashboard chatbot migration may not carry it. Treat missing as
+   *  STRATEGIC. */
+  kind?: AnalystConversationKind;
   title: string;
   language: 'th' | 'en';
   messageCount: number;

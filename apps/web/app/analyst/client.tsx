@@ -14,6 +14,7 @@ import type {
 import type {
   AnalystConversationDto,
   AnalystConversationDetail,
+  AnalystConversationKind,
   AnalystMessageDto,
 } from './types';
 
@@ -21,14 +22,34 @@ import type {
 // panel removed at the user's request — pre-built briefs reachable from
 // the AI Analyst landing card on /admin / search / cmd-palette. The
 // extra width goes to the chat surface.
+//
+// The same component powers both the strategic /analyst surface and
+// the operational /analyst/dashboards surface. The `kind` prop picks
+// which AnalystConversation bucket the chat lands in (the server
+// system prompt + tool catalog switch on the same flag).
+
+export interface AnalystClientProps {
+  conversations: AnalystConversationDto[];
+  activeConversation: AnalystConversationDetail | null;
+  /** Which conversation bucket. Default STRATEGIC matches v1 behaviour. */
+  kind?: AnalystConversationKind;
+  /** Route prefix used by history links (`?c=…`). Default `/analyst`. */
+  basePath?: string;
+  /** Replace the default empty-state copy with surface-specific
+   *  starter prompts. */
+  emptyState?: React.ReactNode;
+  /** Placeholder text for the chat input. */
+  placeholder?: string;
+}
 
 export function AnalystClient({
   conversations: initialConversations,
   activeConversation,
-}: {
-  conversations: AnalystConversationDto[];
-  activeConversation: AnalystConversationDetail | null;
-}) {
+  kind = 'STRATEGIC',
+  basePath = '/analyst',
+  emptyState,
+  placeholder,
+}: AnalystClientProps) {
   const router = useRouter();
   const [conversations, setConversations] =
     React.useState<AnalystConversationDto[]>(initialConversations);
@@ -93,6 +114,9 @@ export function AnalystClient({
         body: JSON.stringify({
           conversationId: conversationId ?? undefined,
           message: trimmed,
+          // First-turn signal — server ignores when continuing an
+          // existing conversation (stored kind is authoritative).
+          kind,
         }),
       });
       if (!res.ok || !res.body) {
@@ -149,6 +173,7 @@ export function AnalystClient({
             return [
               {
                 id: done.conversationId,
+                kind,
                 title: trimmed.slice(0, 80),
                 language: 'en',
                 messageCount: 2,
@@ -190,7 +215,7 @@ export function AnalystClient({
     setStatusPhase(null);
     const qs = new URLSearchParams(window.location.search);
     qs.delete('c');
-    router.push(`/analyst${qs.toString() ? '?' + qs : ''}`);
+    router.push(`${basePath}${qs.toString() ? '?' + qs : ''}`);
   };
 
   const deleteOne = async (id: string) => {
@@ -280,7 +305,7 @@ export function AnalystClient({
                   }
                 >
                   <Link
-                    href={`/analyst?c=${c.id}`}
+                    href={`${basePath}?c=${c.id}`}
                     className={
                       'flex-1 truncate text-xs ' +
                       (c.id === conversationId
@@ -330,7 +355,7 @@ export function AnalystClient({
         <Card padding="md" className="flex flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto pr-1">
             {messages.length === 0 && !sending ? (
-              <EmptyState />
+              emptyState ?? <EmptyState />
             ) : (
               <>
                 {messages.map((m) => (
@@ -366,7 +391,10 @@ export function AnalystClient({
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="ถามเป็นภาษาไทยหรือ English. For example: โปรแกรมไหนที่มีความเสี่ยงทางการเงินสูงสุด 5 อันดับแรก"
+              placeholder={
+                placeholder ??
+                'ถามเป็นภาษาไทยหรือ English. For example: โปรแกรมไหนที่มีความเสี่ยงทางการเงินสูงสุด 5 อันดับแรก'
+              }
               disabled={sending}
               className="flex-1 rounded-md border border-default bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-default disabled:opacity-50"
             />
