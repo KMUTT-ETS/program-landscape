@@ -110,7 +110,30 @@ export class DashboardToolExecutor {
         programName: arr(q.programName),
         region: q.region ? [q.region] : undefined,
         cohortYearBe: q.cohortYearBe ? [q.cohortYearBe] : undefined,
+        schoolFilter: q.schoolFilter,
       });
+
+      // schoolFilter — case-insensitive substring lookup that bypasses
+      // the top-50 cap. Required for "students from <specific school>"
+      // when the school isn't in the by-count top-50. Forces view to
+      // 'schools' regardless of the view arg so the response shape is
+      // predictable for the bot. The filter is applied at the SQL
+      // layer (see EducationService.byLocation) so bucket()'s
+      // built-in 30-school cap doesn't truncate matches.
+      if (q.schoolFilter) {
+        return {
+          view: 'schools',
+          region: q.region ?? null,
+          schoolFilter: q.schoolFilter,
+          totalActive: res.totalActive,
+          schools: res.bySchool.slice(0, 25),
+          matchedCount: res.bySchool.length,
+          note:
+            res.bySchool.length === 0
+              ? 'No school in the active-student dataset matches that substring. The dataset only carries schools that have sent at least one student to KKU in the cohort window; if the school exists but appears empty, the bot should phrase: "we have no record of students from <name>".'
+              : undefined,
+        };
+      }
 
       if (q.view === 'provinces') {
         return {
@@ -450,6 +473,30 @@ export class DashboardToolExecutor {
               });
             }
           }
+        }
+        // schoolFilter — case-insensitive substring match on schoolName.
+        // When set, return ALL matching schools (no top-20 cap) and
+        // IGNORE minStudentCount (the user named the school; show what
+        // we have, even if it's a 2-student cohort). Empty match means
+        // the school has no GPA rows — bot phrases "no GPA records".
+        if (q.schoolFilter) {
+          const needle = q.schoolFilter.toLowerCase();
+          const matches = flatSchools.filter((r) =>
+            r.schoolName.toLowerCase().includes(needle),
+          );
+          return withGpaGuard({
+            view: 'by_location',
+            schoolFilter: q.schoolFilter,
+            sortBy: q.sortBy,
+            minStudentCountIgnored: true,
+            totals: res.totals,
+            matchedSchools: rankPerformanceRows(matches, q.sortBy, 1).slice(0, 25),
+            matchedCount: matches.length,
+            note:
+              matches.length === 0
+                ? 'No school in the GPA dataset matches that substring. The performance dataset only carries schools whose alumni have GPA records in our cube; if the school exists in the by-location origin set but appears empty here, phrase: "we have origin data but no GPA records yet for <name>".'
+                : undefined,
+          });
         }
         const ranked = rankPerformanceRows(flatSchools, q.sortBy, q.minStudentCount);
         // Region-level summary helps the bot phrase "average GPA in the

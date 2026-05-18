@@ -106,6 +106,18 @@ export const DashEducationByLocationInputSchema = z.object({
     .enum(['overview', 'provinces', 'schools'])
     .default('overview')
     .describe('overview = region totals + top 15 of each. provinces = top 40 provinces (rank-by-count). schools = top 50 schools.'),
+  /** Substring match (case-insensitive) on school name (Thai or English).
+   *  When set, the response returns ALL matching schools, NOT just the
+   *  top 50 — use this when the user asks about a specific school that
+   *  may not be in the by-count top ranking. View is forced to 'schools'
+   *  when this filter is supplied. */
+  schoolFilter: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Substring (case-insensitive) to match against school names. When set, returns all matching schools regardless of rank — bypasses the top-50 cap. Use for "students from <specific school>" questions.',
+    ),
 });
 export type DashEducationByLocationInput = z.infer<
   typeof DashEducationByLocationInputSchema
@@ -204,6 +216,18 @@ export const DashEducationPerformanceInputSchema = z.object({
     .max(1000)
     .default(5)
     .describe('Minimum cohort size for by_location ranking. Default 5 to avoid 1-student outliers.'),
+  /** Substring match (case-insensitive) on school name. When set with
+   *  view=by_location, returns ALL matching schools regardless of rank
+   *  and ignores minStudentCount (the user named the school; show what
+   *  we have). Empty match list means we have no GPA records for that
+   *  school. */
+  schoolFilter: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Substring (case-insensitive) to match against school names (only honoured when view=by_location). Returns all matching schools regardless of rank/cohort-size cap. Use for "what GPA does <specific school> get" questions.',
+    ),
 });
 export type DashEducationPerformanceInput = z.infer<
   typeof DashEducationPerformanceInputSchema
@@ -470,7 +494,7 @@ export const ANALYST_DASHBOARD_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'dash_education_by_location',
     description:
-      'Origin of KKU students from /education/location. view="overview" (default) → byRegion + top 15 provinces + top 15 schools; use for "which region sends us the most students". view="provinces" → top 40 provinces ranked by student count (filter by region to scope). view="schools" → top 50 schools ranked by student count (filter by region to scope); use for "what schools feed Engineering". Note: this dashboard ranks by COUNT, not by GPA — for "best-performing school" call dash_education_performance with view=by_location.',
+      'Origin of KKU students from /education/location. view="overview" (default) → byRegion + top 15 provinces + top 15 schools; use for "which region sends us the most students". view="provinces" → top 40 provinces ranked by student count (filter by region to scope). view="schools" → top 50 schools ranked by student count (filter by region to scope); use for "what schools feed Engineering". Pass schoolFilter="<name substring>" to look up a specific school regardless of rank — required for questions about a school NOT in the top 50. Note: this dashboard ranks by COUNT, not by GPA — for "best-performing school" call dash_education_performance with view=by_location.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -480,6 +504,7 @@ export const ANALYST_DASHBOARD_TOOL_DEFINITIONS: ToolDefinition[] = [
         region: { type: 'string', enum: ['NORTH', 'NORTHEAST', 'CENTRAL', 'EAST', 'WEST', 'SOUTH'] },
         cohortYearBe: { type: 'number', minimum: 2540, maximum: 2700 },
         view: { type: 'string', enum: ['overview', 'provinces', 'schools'], default: 'overview' },
+        schoolFilter: { type: 'string', minLength: 1 },
       },
     },
   },
@@ -523,7 +548,7 @@ export const ANALYST_DASHBOARD_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'dash_education_performance',
     description:
-      'Academic performance from /education/performance. FOUR views — pick the right one. (1) view="overall" → headline KPIs (average GPA, entry GPA, English GPA). (2) view="by_program" → Faculty → Program rows ranked by GPA, use for "which program has the highest GPA". (3) view="by_location" → top schools ranked by averageGpa, use for "which school in the South has the best students", "which Northeast school sends the highest-GPA cohort". Each row carries region + province + schoolName + averageGpa + averageEntryGpa + studentCount. Filter by region to scope to one of NORTH / NORTHEAST / CENTRAL / EAST / WEST / SOUTH. minStudentCount defaults to 5 to drop 1-student outliers. (4) view="entry_scores" → per-subject entry-test breakdown.',
+      'Academic performance from /education/performance. FOUR views — pick the right one. (1) view="overall" → headline KPIs (average GPA, entry GPA, English GPA). (2) view="by_program" → Faculty → Program rows ranked by GPA, use for "which program has the highest GPA". (3) view="by_location" → top schools ranked by averageGpa, use for "which school in the South has the best students", "which Northeast school sends the highest-GPA cohort". Each row carries region + province + schoolName + averageGpa + averageEntryGpa + studentCount. Filter by region to scope to one of NORTH / NORTHEAST / CENTRAL / EAST / WEST / SOUTH. minStudentCount defaults to 5 to drop 1-student outliers. Pass schoolFilter="<name substring>" to look up a SPECIFIC school regardless of rank — required for questions about a school that may not be in the top-20 ranking. (4) view="entry_scores" → per-subject entry-test breakdown.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -542,6 +567,7 @@ export const ANALYST_DASHBOARD_TOOL_DEFINITIONS: ToolDefinition[] = [
           default: 'averageGpa',
         },
         minStudentCount: { type: 'number', minimum: 1, maximum: 1000, default: 5 },
+        schoolFilter: { type: 'string', minLength: 1 },
       },
     },
   },
@@ -751,11 +777,11 @@ Tool catalog — pick the right view
 
 Education
 - dash_education_student_info — headcount breakdowns by level / entry method / gender / nationality / status. No drill — filters narrow scope.
-- dash_education_by_location — view: overview (default) | provinces (top 40) | schools (top 50). RANKS BY COUNT, not GPA. For "schools with best GPA" use dash_education_performance(view=by_location).
+- dash_education_by_location — view: overview (default) | provinces (top 40) | schools (top 50). RANKS BY COUNT, not GPA. **schoolFilter="<substring>"** → bypasses the top-50 cap and returns ALL matching schools — use this WHENEVER the user names a specific school by name. For "schools with best GPA" use dash_education_performance(view=by_location).
 - dash_education_active_pivot — view: university (default, faculty totals) | faculty (Program Level → Program drill for ONE faculty, requires facultyName).
 - dash_education_international — view: overview (default, countries + faculty totals) | faculty_drill (Program × Country breakdown for ONE faculty, requires facultyName).
 - dash_education_tuition — view: overview (default) | by_year | faculty_drill (Program Level → Program × year grid for ONE faculty, requires facultyName).
-- dash_education_performance — view: overall (default) | by_program (ranks PROGRAMS by GPA) | by_location (ranks SCHOOLS by GPA, top 20 with ≥5-student cohort filter) | entry_scores.
+- dash_education_performance — view: overall (default) | by_program (ranks PROGRAMS by GPA) | by_location (ranks SCHOOLS by GPA, top 20 with ≥5-student cohort filter) | entry_scores. **With view=by_location**, pass schoolFilter="<substring>" to look up a SPECIFIC school regardless of rank/cohort-size — required when the user names a school that may not be top-20.
 - dash_education_recruitment — view: kpis (default) | programs (top 50, sortBy = totalApplicants | competitionRatio | fillRate | regReported) | by_round | by_year.
 - dash_education_class_offerings — view: summary (default) | distribution (fill-rate histogram) | ge (General Education) | heatmap (faculty × term sections) | deep_dive (Faculty → Program Level → Course rows).
 

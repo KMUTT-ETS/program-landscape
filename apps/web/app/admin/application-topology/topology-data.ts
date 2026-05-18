@@ -628,16 +628,16 @@ const connectorNodes: TopologyNode[] = [
     id: 'ai.analyst-agent',
     lane: 'ai',
     kind: 'ai-task',
-    llm: 'claude',
+    llm: 'gemini',
     label: 'AI Analyst agent',
     subtitle: 'Tool-use · analyst-system.v1',
     details: {
       description:
-        "Anthropic-only tool-use loop. 12 typed tools wrap @kku/db helpers: query_programs, get_program, query_skills, query_trends, query_gaps, compare_peers, run_quick_scenario, generate_chart, cite_source, search_policy_docs, search_research, get_methodology. Up to 8 loop iterations per turn.",
+        "Gemini function-calling tool-use loop (model = gemini-2.5-pro by default, overridable via the ai_model_overrides table — dev uses gemini-flash-latest). 12 typed tools wrap @kku/db helpers: query_programs, get_program, query_skills, query_trends, query_gaps, compare_peers, run_quick_scenario, generate_chart, cite_source, search_policy_docs, search_research, get_methodology. Up to 8 loop iterations per turn. Anthropic remains supported as a fallback provider when AI_PROVIDER=anthropic.",
       cadence: 'User-triggered from /analyst',
       notes: [
         'One AiInference row per LLM invocation; AnalystMessage.aiInferenceIds[] stitches them together',
-        'Tool results clipped to 8 KB to keep Claude context manageable',
+        'Tool results clipped to 8 KB to keep the LLM context manageable',
         'Rule-based safety gate refuses 5 categories BEFORE the LLM is called',
       ],
     },

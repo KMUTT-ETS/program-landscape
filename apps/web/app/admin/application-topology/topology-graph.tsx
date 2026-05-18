@@ -1192,8 +1192,9 @@ function NodeGroup({
         <LlmVendorPill
           x={NODE_W - 10}
           y={NODE_H / 2}
-          // Default to Gemini when llm is unset — most program-pipeline
-          // tasks run on Google; only the Analyst is Anthropic-pinned.
+          // Default to Gemini when llm is unset — every AI-task node now
+          // runs on Google (AI_PROVIDER=google). Anthropic remains
+          // implemented as a fallback provider but no node hard-pins it.
           llm={node.llm ?? 'gemini'}
         />
       ) : null}

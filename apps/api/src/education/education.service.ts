@@ -102,6 +102,10 @@ export interface LocationFilters {
   facultyName?: string[];
   programLevel?: string[];
   programName?: string[];
+  /** Substring match (case-insensitive) on schoolName. When set, the
+   *  Prisma query filters at the DB layer so the bucket()-imposed
+   *  top-30 cap doesn't hide low-rank matches. */
+  schoolFilter?: string;
 }
 
 export interface LocationResponse {
@@ -519,6 +523,8 @@ export class EducationService {
       where.programLevel = { in: filters.programLevel };
     if (filters.programName && filters.programName.length > 0)
       where.programName = { in: filters.programName };
+    if (filters.schoolFilter)
+      where.schoolName = { contains: filters.schoolFilter, mode: 'insensitive' };
 
     const rows = await prisma.educationStudentLocationCube.findMany({
       where,
