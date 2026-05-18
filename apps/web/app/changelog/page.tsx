@@ -26,8 +26,20 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-05-18',
+    version: 'v1.2.5 · Hotfix — Gemini tool-schema union rejection',
+    title:
+      'dash_compute\'s series.period field was a JSON-Schema union ({type:["string","number"]}) which Gemini\'s function-calling protobuf rejects with HTTP 400. Every dashboard chat turn was failing on the first tool-list load. Tightened to {type:"string"} — bot passes year labels as strings ("2569"). No effect on other tools.',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'dash_compute(op="year_over_year") schema fix: series[].period is now string-only. Existing callers stringify their year keys ("2569" instead of 2569). Zod schema mirrors the change.',
+      'System prompt version bumped to analyst-dashboard-system.v1.4.1.',
+      'Root cause documented: Gemini\'s JSON-Schema → Protobuf converter accepts only a single primitive type per field. Adding a multi-type union anywhere in the tool catalog turns the whole chat surface into an "Agent error: got status: 400 Bad Request" on every turn. Eslint catch: lint rule could be added to forbid array-typed `type` in tool inputSchema definitions.',
+    ],
+  },
+  {
     date: '2026-05-17',
-    version: 'v1.2.3 · Dashboards Assistant — chat scoped to Education + Staff',
+    version: 'v1.2.4 · Dashboards Assistant — chat scoped to Education + Staff',
     title:
       'New AI chatbot that answers operational questions about every Education + Staff dashboard. Side panel on every dashboard page (⌘/Ctrl+/) plus a dedicated full-page view at /analyst/dashboards. Reaches every drill-down on every sub-dashboard via per-tool `view` parameters.',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],

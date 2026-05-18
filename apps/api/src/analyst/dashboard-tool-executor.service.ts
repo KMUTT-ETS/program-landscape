@@ -1041,8 +1041,8 @@ export class DashboardToolExecutor {
           // series-order it passed (no auto-sort) so it controls the
           // direction (oldest→newest is conventional).
           const deltas: Array<{
-            fromPeriod: string | number;
-            toPeriod: string | number;
+            fromPeriod: string;
+            toPeriod: string;
             from: number;
             to: number;
             delta: number;

@@ -411,13 +411,18 @@ export const DashComputeInputSchema = z.object({
   series: z
     .array(
       z.object({
-        period: z.union([z.string(), z.number()]),
+        // Period MUST be a string so Gemini's tool-use API accepts the
+        // schema (it rejects JSON-Schema unions like {type:['string',
+        // 'number']}). Pass year labels as strings: "2569", "2024",
+        // "2569/1" (year+semester). The bot can quote numbers from
+        // prior tool results: String(2569) → "2569".
+        period: z.string(),
         value: z.number(),
       }),
     )
     .optional()
     .describe(
-      'Ordered time series (oldest → newest, or vice versa). Used by op=year_over_year. Returns Δ + %Δ per period gap.',
+      'Ordered time series (oldest → newest, or vice versa). Used by op=year_over_year. Returns Δ + %Δ per period gap. NOTE: period is a STRING — pass "2569" not 2569.',
     ),
   sanityMax: z
     .number()
@@ -678,7 +683,10 @@ export const ANALYST_DASHBOARD_TOOL_DEFINITIONS: ToolDefinition[] = [
           items: {
             type: 'object',
             properties: {
-              period: { type: ['string', 'number'] },
+              // Gemini's function-calling protobuf rejects JSON-Schema
+              // type unions. Period is a string label ("2569",
+              // "2569/1"); pass numeric years as strings.
+              period: { type: 'string' },
               value: { type: 'number' },
             },
             required: ['period', 'value'],
@@ -723,15 +731,13 @@ export const ANALYST_DASHBOARD_TOOL_DEFINITIONS: ToolDefinition[] = [
 // portfolio questions (those belong to the main /analyst). Same safety
 // envelope and bilingual posture as the strategic prompt.
 
-// v1.3 → v1.4 — 80-scenario QA pass. dash_compute gains rank_bottom +
-// min + max + year_over_year, with sanityMin support. Cross-term
-// guards now ship on tuition, class_offerings, active_pivot (not just
-// teaching_workload). GPA values sanity-checked at the tool layer.
-// System prompt below adds concrete patterns for: ranking BOTTOM,
-// year-over-year trend asks, and admitting "I don't have historical
-// data" instead of inventing.
+// v1.4 → v1.4.1 — hotfix: dash_compute.series.items.period was
+// `{type:['string','number']}` (JSON-Schema union), which Gemini's
+// protobuf-backed function-calling API rejects with HTTP 400 — every
+// dashboard chat turn was failing. Tightened to `string`; bot passes
+// year labels as strings ("2569"). No behavioural change to other tools.
 export const ANALYST_DASHBOARD_SYSTEM_PROMPT_VERSION =
-  'analyst-dashboard-system.v1.4';
+  'analyst-dashboard-system.v1.4.1';
 
 export const ANALYST_DASHBOARD_SYSTEM_PROMPT = `You are the KKU Dashboards Assistant — a grounded, bilingual helper for the Education and Staff dashboards at /education and /staff.
 
