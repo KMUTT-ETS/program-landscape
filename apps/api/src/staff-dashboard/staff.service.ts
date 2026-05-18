@@ -1059,8 +1059,15 @@ export class StaffService {
   }
 
   // ── 6. (consolidated entry point — see comment block at §5 above) ──
-  async researchOutput(filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number }) {
+  async researchOutput(filter: {
+    facultyName?: string[];
+    sources?: string[];
+    yearFrom?: number;
+    /** When set, restricts to papers in this exact year — wins over yearFrom. */
+    yearExact?: number;
+  }) {
     const yearFrom = filter.yearFrom ?? Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
+    const yearExact = filter.yearExact;
     const sourceFilter = filter.sources && filter.sources.length > 0
       ? filter.sources
       : ['kku-publications:scopus', 'kku-publications:pubmed'];
@@ -1072,18 +1079,20 @@ export class StaffService {
       facultyName: filter.facultyName?.sort() ?? [],
       sources: sourceFilter.slice().sort(),
       yearFrom,
+      yearExact: yearExact ?? null,
     });
     const cached = await this.cache?.get<unknown>(cacheKey);
     if (cached) return cached;
-    const result = await this.computeResearchOutput(filter, sourceFilter, yearFrom);
+    const result = await this.computeResearchOutput(filter, sourceFilter, yearFrom, yearExact);
     await this.cache?.set(cacheKey, result, 60 * 5);
     return result;
   }
 
   private async computeResearchOutput(
-    filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number },
+    filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number; yearExact?: number },
     sourceFilter: string[],
     yearFrom: number,
+    yearExact: number | undefined,
   ) {
 
     // FacultyMember snapshot — count EVERYONE who has authored on KKU's
@@ -1115,6 +1124,11 @@ export class StaffService {
     const fmIds = fmRows.map((r) => r.id);
 
     // Research output — filtered to FM IDs + source + year window
+    // yearExact (when present) wins over yearFrom — restricts to a single
+    // year rather than an accumulate-from-here window.
+    const yearWhere = yearExact !== undefined
+      ? { year: yearExact }
+      : { year: { gte: yearFrom } };
     const papers =
       fmIds.length === 0
         ? []
@@ -1122,7 +1136,7 @@ export class StaffService {
             where: {
               facultyMemberId: { in: fmIds },
               source: { in: sourceFilter },
-              year: { gte: yearFrom },
+              ...yearWhere,
               ...realDataWhere(),
             },
             select: {
@@ -1410,10 +1424,16 @@ export class StaffService {
 
     let totalCitations = 0;
     for (const paper of paperMap.values()) totalCitations += paper.citations;
+    // activeStaff — subset of fmRows with isActive=true. Used to compute
+    // the "papers per active faculty" KPI. Same denominator the
+    // /staff/workforce dashboard uses for "active faculty".
+    const activeStaff = fmRows.filter((fm) => fm.isActive).length;
     return {
       yearFrom,
-      yearTo: new Date().getFullYear(),
+      yearTo: yearExact ?? new Date().getFullYear(),
+      yearExact: yearExact ?? null,
       totalStaff: fmRows.length,
+      activeStaff,
       publishingStaff: authorList.length,
       totalPapers: paperMap.size,
       totalCitations,

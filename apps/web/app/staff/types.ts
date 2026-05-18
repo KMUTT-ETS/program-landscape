@@ -192,7 +192,14 @@ export interface ResearchByRankRow {
 export interface ResearchResponse {
   yearFrom: number;
   yearTo: number;
+  /** When set, the window collapses to a single year. yearFrom is set to
+   *  this value too so the existing chart axis logic keeps working. */
+  yearExact: number | null;
   totalStaff: number;
+  /** Faculty members with isActive=true in the filter set. Denominator
+   *  for the "papers per active faculty" KPI — same active-count the
+   *  /staff/workforce dashboard reports. */
+  activeStaff: number;
   publishingStaff: number;
   totalPapers: number;
   totalCitations: number;

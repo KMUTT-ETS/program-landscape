@@ -149,14 +149,14 @@ export default async function ProgramPrintPage({
           <FinancialsBlock data={financials} />
         )}
 
-        {/* MACRO 7 · External context ------------------------------------- */}
-        <MacroBand title="External context" pageBreakBefore />
-        {(aiPeers || (peers && peers.peers.length > 0)) && (
-          <PeersBlock peers={peers} aiPeers={aiPeers} />
-        )}
-        {trends && trends.signals.length > 0 && <TrendsBlock data={trends} />}
+        {/* External context (Peers + Trends) removed from the print
+            view in v1.2.7 — those live on /benchmarking and /trends.
+            Decisions still print as a standalone macro band below. */}
         {decisions && decisions.decisions.length > 0 && (
-          <DecisionsBlock data={decisions} />
+          <>
+            <MacroBand title="Decisions" pageBreakBefore />
+            <DecisionsBlock data={decisions} />
+          </>
         )}
 
         <FooterBand

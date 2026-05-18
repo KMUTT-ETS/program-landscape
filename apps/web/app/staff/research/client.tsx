@@ -27,6 +27,7 @@ interface Props {
     facultyName: string[];
     sources: string[];
     yearFrom?: number;
+    yearExact?: number;
   };
 }
 
@@ -53,13 +54,22 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
   const [faculty, setFaculty] = React.useState<string[]>(initialFilters.facultyName);
   const [sources, setSources] = React.useState<string[]>(initialFilters.sources);
   const [yearFrom, setYearFrom] = React.useState<number | undefined>(initialFilters.yearFrom);
+  const [yearExact, setYearExact] = React.useState<number | undefined>(initialFilters.yearExact);
 
   const apply = (next: Partial<typeof initialFilters>) => {
     const params = new URLSearchParams();
     (next.facultyName ?? faculty).forEach((v) => params.append('facultyName', v));
     (next.sources ?? sources).forEach((v) => params.append('sources', v));
-    const yf = next.yearFrom ?? yearFrom;
-    if (yf) params.set('yearFrom', String(yf));
+    // yearExact wins over yearFrom; whichever is set goes on the URL.
+    // Treat an explicit `undefined` in `next` as "clear it" (don't fall
+    // back to local state) so toggling between the two modes works.
+    const yx = 'yearExact' in next ? next.yearExact : yearExact;
+    const yf = 'yearFrom' in next ? next.yearFrom : yearFrom;
+    if (yx) {
+      params.set('yearExact', String(yx));
+    } else if (yf) {
+      params.set('yearFrom', String(yf));
+    }
     router.push(`/staff/research${params.toString() ? `?${params}` : ''}`);
   };
 
@@ -142,14 +152,21 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
           <div className="flex flex-col gap-0.5">
             <label className="text-[0.65rem] font-medium uppercase tracking-wide text-text-tertiary whitespace-nowrap">
               From year
+              {yearExact !== undefined && (
+                <span className="ml-1 normal-case tracking-normal text-text-tertiary">
+                  (disabled — exact year set)
+                </span>
+              )}
             </label>
             <input
               type="number"
               min={1900}
               max={2100}
-              className="w-28 rounded border border-border-subtle bg-surface-1 px-2 py-1.5 text-sm font-tabular tabular-nums"
+              disabled={yearExact !== undefined}
+              className="w-28 rounded border border-border-subtle bg-surface-1 px-2 py-1.5 text-sm font-tabular tabular-nums disabled:opacity-50"
               defaultValue={yearFrom ?? data.yearFrom}
               onBlur={(e) => {
+                if (yearExact !== undefined) return; // ignore when exact-year is active
                 const v = e.target.value ? Number(e.target.value) : undefined;
                 if (v !== yearFrom) {
                   setYearFrom(v);
@@ -158,13 +175,37 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
               }}
             />
           </div>
-          {(faculty.length > 0 || sources.length > 0 || yearFrom) && (
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[0.65rem] font-medium uppercase tracking-wide text-text-tertiary whitespace-nowrap">
+              Exact year
+            </label>
+            <input
+              type="number"
+              min={1900}
+              max={2100}
+              placeholder="e.g. 2024"
+              className="w-28 rounded border border-border-subtle bg-surface-1 px-2 py-1.5 text-sm font-tabular tabular-nums"
+              defaultValue={yearExact ?? ''}
+              key={yearExact ?? 'empty'}
+              onBlur={(e) => {
+                const v = e.target.value ? Number(e.target.value) : undefined;
+                if (v !== yearExact) {
+                  setYearExact(v);
+                  // Switching to/from exact-year mode; pass both keys
+                  // so apply() knows to use the new value.
+                  apply({ yearExact: v });
+                }
+              }}
+            />
+          </div>
+          {(faculty.length > 0 || sources.length > 0 || yearFrom || yearExact) && (
             <button
               className="rounded border border-border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
               onClick={() => {
                 setFaculty([]);
                 setSources([]);
                 setYearFrom(undefined);
+                setYearExact(undefined);
                 router.push('/staff/research');
               }}
             >
@@ -172,21 +213,30 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
             </button>
           )}
           <span className="ml-auto text-xs text-text-tertiary">
-            All staff (incl. retired) · window {data.yearFrom}–{data.yearTo} · {data.totalStaff.toLocaleString('en-US')} staff (
-            {data.publishingStaff.toLocaleString('en-US')} publishing)
+            All staff (incl. retired) ·{' '}
+            {data.yearExact !== null
+              ? `year ${data.yearExact}`
+              : `window ${data.yearFrom}–${data.yearTo}`}{' '}
+            · {data.totalStaff.toLocaleString('en-US')} staff ({data.publishingStaff.toLocaleString('en-US')} publishing,{' '}
+            {data.activeStaff.toLocaleString('en-US')} active)
           </span>
         </div>
       </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Papers" value={data.totalPapers.toLocaleString('en-US')} sub={`${pct(data.publishingStaff, data.totalStaff)} of staff have published`} />
         <Kpi label="Citations (Scopus)" value={data.totalCitations.toLocaleString('en-US')} sub="PubMed citations not in mirror" />
         <Kpi label="All staff (incl. retired)" value={data.totalStaff.toLocaleString('en-US')} sub={`${data.publishingStaff.toLocaleString('en-US')} have published`} />
         <Kpi
           label="Avg papers per publishing author"
           value={data.publishingStaff > 0 ? (data.totalPapers / data.publishingStaff).toFixed(1) : '—'}
-          sub={`window ${data.yearFrom}–${data.yearTo}`}
+          sub={data.yearExact !== null ? `year ${data.yearExact}` : `window ${data.yearFrom}–${data.yearTo}`}
+        />
+        <Kpi
+          label="Papers per active faculty"
+          value={data.activeStaff > 0 ? (data.totalPapers / data.activeStaff).toFixed(2) : '—'}
+          sub={`${data.activeStaff.toLocaleString('en-US')} active faculty (from /staff/workforce)`}
         />
       </div>
 

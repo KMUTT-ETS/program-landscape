@@ -23,6 +23,7 @@ import {
   GitBranch,
   Globe2,
   Layers,
+  RefreshCw,
   Settings2,
   ShieldCheck,
   Share2,
@@ -429,6 +430,13 @@ function buildGroups({
           }
         : undefined,
       meta: dataStats ? `${dataStats.dataFeeds.mocked} still mocked` : undefined,
+    },
+    {
+      href: '/admin/dashboard-data-fetch',
+      label: 'Dashboard data fetch',
+      description:
+        'Manually rebuild Education + Staff dashboard cubes from their underlying Oracle / MSSQL warehouses. Was on /education + /staff before; consolidated here in v1.2.8 since only operators can fire it.',
+      icon: <RefreshCw className="h-6 w-6" />,
     },
     {
       href: '/admin/application-topology',

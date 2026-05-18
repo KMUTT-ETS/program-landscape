@@ -1,17 +1,12 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  KPI,
-} from '@kku/ui';
+import { Card } from '@kku/ui';
 import {
   ArrowRight,
   Building2,
   GraduationCap,
-  LineChart,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import {
   ThumbCockpit,
@@ -90,22 +85,21 @@ interface UniversityKpis {
     support: number;
     leadership: number;
   };
-  totalPapersWindow: number;
-  totalCitationsWindow: number;
-  researchYearLabel: string;
 }
 
 async function loadUniversityKpisCached(
   caller: Pick<SessionUser, 'userId' | 'email' | 'name'>,
-  researchYearFrom: number,
-  currentYear: number,
 ): Promise<UniversityKpis> {
   const now = Date.now();
   if (kpiCache && kpiCache.expiresAt > now) {
     return kpiCache.data;
   }
 
-  const [studentInfoResp, activeProgramCount, workforceResp, researchResp] =
+  // v1.2.9 — dropped the /staff-dashboard/research fetch from the home
+  // page hero. The research endpoint reads the publications mirror
+  // (~50k+ rows joined to FacultyMember) which dominated the cold-cache
+  // home-page TTFB. Papers + Citations KPIs are surfaced on /staff/research.
+  const [studentInfoResp, activeProgramCount, workforceResp] =
     await Promise.all([
       apiFetchAsUniversityUser<{ totalActive: number }>(
         caller,
@@ -133,17 +127,6 @@ async function loadUniversityKpisCached(
           unknownTrack: 0,
         },
       })),
-      apiFetchAsUniversityUser<{
-        yearFrom: number;
-        yearTo: number;
-        totalPapers: number;
-        totalCitations: number;
-      }>(caller, '/staff-dashboard/research').catch(() => ({
-        yearFrom: researchYearFrom,
-        yearTo: currentYear,
-        totalPapers: 0,
-        totalCitations: 0,
-      })),
     ]);
 
   const data: UniversityKpis = {
@@ -155,9 +138,6 @@ async function loadUniversityKpisCached(
       support: workforceResp.headcount.support,
       leadership: workforceResp.headcount.executives,
     },
-    totalPapersWindow: researchResp.totalPapers ?? 0,
-    totalCitationsWindow: researchResp.totalCitations ?? 0,
-    researchYearLabel: `${researchResp.yearFrom}–${researchResp.yearTo}`,
   };
 
   // Only cache the row when at least one field came back non-zero —
@@ -166,18 +146,11 @@ async function loadUniversityKpisCached(
   const allZero =
     data.enrolledTotal === 0 &&
     data.activeProgramCount === 0 &&
-    data.staffCounts.total === 0 &&
-    data.totalPapersWindow === 0;
+    data.staffCounts.total === 0;
   if (!allZero) {
     kpiCache = { data, expiresAt: now + KPI_TTL_MS };
   }
   return data;
-}
-
-function compactNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toLocaleString('en-US');
 }
 
 export default async function HomePage() {
@@ -188,6 +161,8 @@ export default async function HomePage() {
   const user = session.user as SessionUser;
 
   const currentYear = new Date().getUTCFullYear();
+  // researchYearFrom retained for the per-user PublicationsSparkline
+  // below — the *hero* no longer fetches research-window data.
   const researchYearFrom = currentYear - RESEARCH_YEARS_BACK + 1;
 
   // ─── Parallel fetch of all blocks. Each query is cheap; the slowest
@@ -209,7 +184,7 @@ export default async function HomePage() {
   // all users (see loadUniversityKpisCached above). Personal slices —
   // chrome, faculty name, publications, scopes — are fetched per-user.
   const [kpis, chrome, facultyName, pubsSnapshot, userScopes] = await Promise.all([
-    loadUniversityKpisCached(callerForFetch, researchYearFrom, currentYear),
+    loadUniversityKpisCached(callerForFetch),
     resolveUserChrome(user.userId).catch(() => ({ name: null, avatarUrl: null })),
     user.facultyId
       ? prisma.faculty
@@ -242,9 +217,6 @@ export default async function HomePage() {
     enrolledTotal,
     activeProgramCount,
     staffCounts,
-    totalPapersWindow,
-    totalCitationsWindow,
-    researchYearLabel,
   } = kpis;
 
   const publicationsByYear = pubsSnapshot?.byYear ?? [];
@@ -264,6 +236,10 @@ export default async function HomePage() {
   const roleLabel = ROLE_LABEL[user.role] ?? user.role;
   const isAcademicStaff = totalPapersPersonal > 0;
 
+  // v1.2.9 — hero KPI strip absorbed the previous "KKU at a glance"
+  // card. Papers + Citations + Leadership-roles KPIs removed entirely
+  // (Papers/Citations live on /staff/research; the heavy
+  // /staff-dashboard/research fetch dominated cold-cache TTFB).
   const heroStats: HeroBannerStat[] = [
     {
       label: 'Active programs',
@@ -279,26 +255,31 @@ export default async function HomePage() {
       icon: <GraduationCap className="h-3.5 w-3.5" />,
     },
     {
-      label: `Papers (${researchYearLabel})`,
-      value:
-        totalPapersWindow > 0 ? compactNumber(totalPapersWindow) : '—',
-      hint:
-        totalCitationsWindow > 0
-          ? `${compactNumber(totalCitationsWindow)} citations`
-          : 'Scopus + PubMed',
-      icon: <LineChart className="h-3.5 w-3.5" />,
-    },
-    {
       label: 'Total staff',
       value:
         staffCounts.total > 0
           ? staffCounts.total.toLocaleString('en-US')
           : '—',
-      hint:
-        staffCounts.academic > 0
-          ? `${staffCounts.academic.toLocaleString('en-US')} academic`
-          : 'KKU HR roster',
+      hint: 'KKU HR roster',
       icon: <Sparkles className="h-3.5 w-3.5" />,
+    },
+    {
+      label: 'Academic staff',
+      value:
+        staffCounts.academic > 0
+          ? staffCounts.academic.toLocaleString('en-US')
+          : '—',
+      hint: 'faculty + researchers',
+      icon: <GraduationCap className="h-3.5 w-3.5" />,
+    },
+    {
+      label: 'Support staff',
+      value:
+        staffCounts.support > 0
+          ? staffCounts.support.toLocaleString('en-US')
+          : '—',
+      hint: 'admin + technical',
+      icon: <Users className="h-3.5 w-3.5" />,
     },
   ];
 
@@ -320,50 +301,10 @@ export default async function HomePage() {
           }
           icon={<Sparkles className="h-6 w-6" aria-hidden />}
           stats={heroStats}
+          // 5 stats → 2/3 on mobile/sm, 5 across at md+. Replaces the
+          // default sm:grid-cols-4 fit so nothing wraps awkwardly.
+          statsGridClass="grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
         />
-
-        {/* SECONDARY KPI STRIP ─── staff + leadership detail ───────────── */}
-        <Card padding="md">
-          <CardHeader className="mb-3">
-            <CardTitle className="text-xs uppercase tracking-wide text-text-tertiary">
-              KKU at a glance
-            </CardTitle>
-          </CardHeader>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <KPI
-              label="Leadership roles"
-              value={
-                staffCounts.leadership > 0
-                  ? staffCounts.leadership.toLocaleString('en-US')
-                  : '—'
-              }
-            />
-            <KPI
-              label="Academic staff"
-              value={
-                staffCounts.academic > 0
-                  ? staffCounts.academic.toLocaleString('en-US')
-                  : '—'
-              }
-            />
-            <KPI
-              label="Support staff"
-              value={
-                staffCounts.support > 0
-                  ? staffCounts.support.toLocaleString('en-US')
-                  : '—'
-              }
-            />
-            <KPI
-              label={`Citations (${researchYearLabel})`}
-              value={
-                totalCitationsWindow > 0
-                  ? compactNumber(totalCitationsWindow)
-                  : '—'
-              }
-            />
-          </div>
-        </Card>
 
         {/* QUICK ACTIONS ─── 1 row × 4 tiles (compact, landscape) ─────── */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

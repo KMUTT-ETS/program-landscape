@@ -7,7 +7,6 @@ import {
   type SessionUser,
 } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
 import {
@@ -20,8 +19,9 @@ import {
   Filter,
   CalendarRange,
 } from 'lucide-react';
-import type { RefreshStatus } from './types';
-import { EducationRefreshBar } from './refresh-bar';
+// EducationRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
+// The component still lives in ./refresh-bar — the admin page imports
+// it from there. Dropping the import here drops it from this page.
 import {
   ActivePivotThumb,
   ClassOfferingsThumb,
@@ -121,13 +121,10 @@ export default async function EducationHubPage() {
   const role = user.effectiveRole ?? user.role;
   if (!canSeeProgramAwareDashboards(role)) redirect('/no-access');
 
-  // Refresh button is university-only — triggers a global cube
-  // rebuild + reads from the Oracle registry. Skip the fetch + UI
-  // entirely for everyone else.
+  // Refresh moved to /admin/dashboard-data-fetch (v1.2.8) — was here
+  // as a top-strip but only admins could actually fire it. The legacy
+  // status fetch is removed to keep this page snappy for everyone else.
   const canRefresh = isUniversityWide(role);
-  const status = canRefresh
-    ? await apiFetch<RefreshStatus>('/education/refresh/status').catch(() => null)
-    : null;
 
   // Everyone with a usable grant sees every tile — per-endpoint
   // clamping narrows the data, not the menu. (PROGRAM_USER on a
@@ -142,14 +139,12 @@ export default async function EducationHubPage() {
         title="Education dashboard"
         subtitle={
           canRefresh
-            ? 'Interactive views of registrar data — student demographics, location, tuition, and international cohorts. Click Refresh to pull the latest snapshot from the registrar.'
+            ? 'Interactive views of registrar data — student demographics, location, tuition, and international cohorts. Snapshots refresh nightly; manual rebuilds live in /admin/dashboard-data-fetch.'
             : isProgramOnly
               ? "Interactive views of registrar data. The two program-aware tiles are clamped to your program's courses; the rest show your program's faculty for context."
               : "Interactive views of your faculty's registrar data — student demographics, location, tuition, and international cohorts. Snapshots refresh nightly across the whole university."
         }
       />
-
-      {canRefresh && <EducationRefreshBar initialStatus={status} />}
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {TILES.map((t) => {

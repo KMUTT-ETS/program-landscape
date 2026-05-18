@@ -123,7 +123,10 @@ const SECTIONS = [
   { id: 'outcomes', label: 'Outcomes' },
   { id: 'curriculum', label: 'Curriculum & Faculty' },
   { id: 'financials', label: 'Financials' },
-  { id: 'context', label: 'External context' },
+  // 'External context' (Peers + Trends) removed from the deep-dive in
+  // v1.2.7 — those subjects live on /benchmarking and /trends. Data
+  // fetches for peers + trends remain in place so AI Analyst tools can
+  // still query them.
 ];
 
 export function DeepDiveClient(props: Props) {
@@ -243,15 +246,6 @@ export function DeepDiveClient(props: Props) {
           subtitle="Revenue, cost, and per-student economics — methodology v0; treat as preview."
         >
           <FinancialsSection data={props.financials} />
-        </MacroGroup>
-
-        <MacroGroup
-          id="context"
-          title="External context"
-          subtitle="Peer institutions and the trend signals shaping demand for this program over 1–10 years."
-        >
-          <PeersSection data={props.peers} aiPeers={props.aiPeers} />
-          <TrendsSection data={props.trends} />
         </MacroGroup>
       </div>
     </div>

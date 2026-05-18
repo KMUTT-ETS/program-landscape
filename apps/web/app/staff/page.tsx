@@ -7,12 +7,12 @@ import {
   type SessionUser,
 } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
 import { Users, BookOpen, Microscope, Wallet, ClipboardList } from 'lucide-react';
-import type { RefreshStatus } from './types';
-import { StaffRefreshBar } from './refresh-bar';
+// StaffRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
+// The component still lives in ./refresh-bar — the admin page imports
+// it from there.
 import {
   WorkforceThumb,
   FacultyByProgramThumb,
@@ -84,13 +84,9 @@ export default async function StaffHubPage() {
   const role = user.effectiveRole ?? user.role;
   if (!canSeeProgramAwareDashboards(role)) redirect('/no-access');
 
-  // Refresh button is university-only — triggers a global cube
-  // rebuild. Skip the fetch + UI entirely for everyone else so they
-  // don't see a button they can't use.
+  // Refresh moved to /admin/dashboard-data-fetch (v1.2.8) — was here
+  // but only admins could fire it.
   const canRefresh = isUniversityWide(role);
-  const status = canRefresh
-    ? await apiFetch<RefreshStatus>('/staff-dashboard/refresh/status').catch(() => null)
-    : null;
 
   const isProgramOnly = !canSeeFacultyDashboards(role);
 
@@ -100,14 +96,12 @@ export default async function StaffHubPage() {
         title="Staff dashboard"
         subtitle={
           canRefresh
-            ? "A live view of KKU's workforce — academic and support staff together. Refreshes automatically every morning."
+            ? "A live view of KKU's workforce — academic and support staff together. Refreshes automatically every morning; manual rebuilds live in /admin/dashboard-data-fetch."
             : isProgramOnly
               ? "Workforce views. Teaching workload is clamped to your program's courses; the rest roll up to your program's faculty."
               : "Your faculty's workforce — academic and support staff together. Refreshed nightly across the whole university."
         }
       />
-
-      {canRefresh && <StaffRefreshBar initialStatus={status} />}
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {TILES.map((t) => {

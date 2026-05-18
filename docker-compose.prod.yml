@@ -219,6 +219,17 @@ services:
     # change shipped in docker-compose.yml (dev). Verified prod 2026-05-16:
     # the per-teacher drill-down 500'd until this landed.
     shm_size: 1g
+    # max_connections — 100 (Postgres default) is too tight. Long-lived
+    # containers each run a Prisma client with a per-process pool of
+    # ~17: api + ingestion + web = ~51 baseline. Ingestion can burst
+    # to 4-5 concurrent connector runs, and /dashboards/executive-landscape
+    # fans 10+ parallel queries from one request. Default 100 saturated
+    # on dev 2026-05-18 ("too many clients already"); 300 gives ~6×
+    # headroom and is well within Postgres' comfort zone for the 4 GB
+    # container budget. shared_buffers stays at the default-relative
+    # 256 MB — we have a 4 GB memory limit, can revisit if a workload
+    # benchmarks bottlenecked on cache.
+    command: ["postgres", "-c", "max_connections=300", "-c", "shared_buffers=256MB"]
     environment:
       # Postgres 16 supports *_FILE for every connection var. The deploy
       # script writes these files from /opt/program-landscape/secrets.

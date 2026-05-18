@@ -28,8 +28,13 @@ export interface HeroBannerProps {
   icon?: React.ReactNode;
   /** Companion element rendered at the top-right (e.g. role chip). */
   right?: React.ReactNode;
-  /** When provided, renders below the heading as a 4-up stat grid. */
+  /** When provided, renders below the heading as a stat grid. Default
+   *  column counts are 2 (mobile) / 4 (sm+) — override via `statsGridClass`. */
   stats?: HeroBannerStat[];
+  /** Tailwind classes for the stats grid container — replaces the
+   *  default `grid-cols-2 sm:grid-cols-4`. Useful for hero strips with
+   *  5+ stats that need a different column count. */
+  statsGridClass?: string;
   /** Visual accent tone. Defaults to "accent" (warm-neutral). */
   tone?: 'accent' | 'cardinal';
   className?: string;
@@ -42,6 +47,7 @@ export function HeroBanner({
   icon,
   right,
   stats,
+  statsGridClass,
   tone = 'accent',
   className,
 }: HeroBannerProps) {
@@ -125,7 +131,12 @@ export function HeroBanner({
         </div>
 
         {stats && stats.length > 0 && (
-          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div
+            className={cn(
+              'mt-7 grid gap-3',
+              statsGridClass ?? 'grid-cols-2 sm:grid-cols-4',
+            )}
+          >
             {stats.map((s) => (
               <Card
                 key={String(s.label)}

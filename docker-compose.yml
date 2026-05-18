@@ -15,6 +15,13 @@ services:
     # class_offering_teachers (214k) × class_offerings (122k). Bump to
     # 1 GB — covers a 5-way parallel page-load with comfortable margin.
     shm_size: 1g
+    # max_connections — 100 (Postgres default) is too tight for this
+    # stack: each of {api, ingestion, web-Next-dev} runs a Prisma client
+    # with a per-process pool of ~17. Add ad-hoc tsx probes and the
+    # ingestion worker firing 4-5 connectors in parallel at boot, and
+    # the pool saturates ("too many clients already"). 300 gives ~15×
+    # headroom and is well within Postgres' comfort zone for dev RAM.
+    command: ["postgres", "-c", "max_connections=300", "-c", "shared_buffers=256MB"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kku}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kku_dev_password}

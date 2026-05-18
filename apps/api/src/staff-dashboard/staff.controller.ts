@@ -68,21 +68,25 @@ const StaffFilterSchema = z.object({
 
 // Research view has its own narrower filter set — we drive it off
 // FacultyMember + ResearchOutput (not staff_master_records), so we don't
-// need staffType/track/budget/nationality. We DO need source + yearFrom
-// because the kku-publications corpus has multiple sources
-// (Scopus / PubMed / legacy OpenAlex) and a configurable time window.
-// Active-only is hardcoded at the service layer — this view shows
-// active employees only by design.
+// need staffType/track/budget/nationality. We DO need source + a time
+// filter because the kku-publications corpus has multiple sources
+// (Scopus / PubMed / legacy OpenAlex). The time filter is either:
+//   - yearFrom (accumulate from this year forward, inclusive), OR
+//   - yearExact (only this specific year)
+// yearExact wins when both are present.
+const yearValidator = z
+  .union([z.string(), z.number()])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : Number(v)))
+  .refine((v) => v === undefined || (Number.isInteger(v) && v >= 1900 && v <= 2100), {
+    message: 'year must be an integer between 1900 and 2100',
+  });
+
 const ResearchFilterSchema = z.object({
   facultyName: StringArray,
   sources: StringArray,
-  yearFrom: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((v) => (v === undefined ? undefined : Number(v)))
-    .refine((v) => v === undefined || (Number.isInteger(v) && v >= 1900 && v <= 2100), {
-      message: 'yearFrom must be an integer between 1900 and 2100',
-    }),
+  yearFrom: yearValidator,
+  yearExact: yearValidator,
 });
 
 // Staff dashboard reads from the staff-master + compensation cubes.

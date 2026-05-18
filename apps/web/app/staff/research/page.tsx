@@ -37,11 +37,17 @@ export default async function ResearchPage({
   const sources = arr(sp.sources);
   const yearFromRaw = one(sp.yearFrom);
   const yearFrom = yearFromRaw && /^\d+$/.test(yearFromRaw) ? Number(yearFromRaw) : undefined;
+  const yearExactRaw = one(sp.yearExact);
+  const yearExact = yearExactRaw && /^\d+$/.test(yearExactRaw) ? Number(yearExactRaw) : undefined;
 
   const qs = new URLSearchParams();
   facultyName.forEach((v) => qs.append('facultyName', v));
   sources.forEach((v) => qs.append('sources', v));
-  if (yearFrom) qs.set('yearFrom', String(yearFrom));
+  if (yearExact) {
+    qs.set('yearExact', String(yearExact));
+  } else if (yearFrom) {
+    qs.set('yearFrom', String(yearFrom));
+  }
 
   const dataRes = await apiFetchSafe<ResearchResponse>(
     `/staff-dashboard/research${qs.toString() ? `?${qs}` : ''}`,
@@ -59,7 +65,7 @@ export default async function ResearchPage({
         <ResearchClient
           data={dataRes.data}
           options={options}
-          initialFilters={{ facultyName, sources, yearFrom }}
+          initialFilters={{ facultyName, sources, yearFrom, yearExact }}
         />
       ) : (
         <DiagnosticEmptyState
