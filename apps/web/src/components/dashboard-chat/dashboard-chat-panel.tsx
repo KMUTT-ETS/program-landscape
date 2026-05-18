@@ -12,11 +12,12 @@ import type {
 } from '@kku/shared';
 
 // ──────────────────────────────────────────────────────────────────────────
-// Dashboard chat side panel (v1.2.3).
+// Dashboard chat side panel.
 //
 // Floating FAB + slide-in drawer. Mounted from the Education + Staff
-// layouts so the affordance is present on every sub-dashboard without
-// each page having to import it.
+// layouts only — the bot's tool catalog covers those two surfaces, so
+// surfacing the FAB elsewhere would invite questions the tools can't
+// answer.
 //
 // Same SSE endpoint as /analyst/dashboards — `kind=DASHBOARD` so the
 // server picks the dashboard system prompt + tool catalog. Conversation
@@ -224,9 +225,9 @@ export function DashboardChatPanel() {
           onClick={() => setOpen(true)}
           aria-label="Open dashboard assistant (Cmd/Ctrl + /)"
           title="Ask the dashboards assistant — ⌘/Ctrl + /"
-          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent-default text-accent-fg shadow-lg transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent-default focus:ring-offset-2"
+          className="fixed bottom-8 right-8 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-accent-default text-accent-fg shadow-lg transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent-default focus:ring-offset-2"
         >
-          <MessageSquare className="h-5 w-5" aria-hidden />
+          <MessageSquare className="h-8 w-8" aria-hidden />
         </button>
       )}
 
@@ -242,7 +243,7 @@ export function DashboardChatPanel() {
       {/* Drawer */}
       <aside
         className={
-          'fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border-default bg-surface-1 shadow-xl transition-transform duration-200 ease-out ' +
+          'fixed right-0 top-0 z-50 flex h-full w-full max-w-xl flex-col border-l border-border-default bg-surface-1 shadow-xl transition-transform duration-200 ease-out ' +
           (open ? 'translate-x-0' : 'translate-x-full pointer-events-none')
         }
         role="dialog"
@@ -250,55 +251,55 @@ export function DashboardChatPanel() {
         aria-hidden={!open}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 border-b border-border-default px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-border-default px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-accent-default" aria-hidden />
-              <h2 className="truncate text-sm font-semibold text-text-primary">
+              <MessageSquare className="h-6 w-6 text-accent-default" aria-hidden />
+              <h2 className="truncate text-base font-semibold text-text-primary">
                 Dashboards Assistant
               </h2>
             </div>
-            <p className="mt-0.5 truncate text-xs text-text-tertiary">
+            <p className="mt-1 truncate text-sm text-text-tertiary">
               Context: {surfaceLabel}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <Link
               href="/analyst/dashboards"
-              className="rounded-md p-1.5 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
+              className="rounded-md p-2 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
               title="Open full view"
               aria-label="Open full view"
             >
-              <ExternalLink className="h-4 w-4" aria-hidden />
+              <ExternalLink className="h-5 w-5" aria-hidden />
             </Link>
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close panel"
-              className="rounded-md p-1.5 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
+              className="rounded-md p-2 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
             >
-              <X className="h-4 w-4" aria-hidden />
+              <X className="h-5 w-5" aria-hidden />
             </button>
           </div>
         </div>
 
         {/* Conversation */}
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
           {messages.length === 0 && !sending && (
-            <div className="rounded-md border border-dashed border-border-default p-3 text-xs leading-relaxed text-text-secondary">
+            <div className="rounded-md border border-dashed border-border-default p-4 text-sm leading-relaxed text-text-secondary">
               <p className="font-medium text-text-primary">
                 Ask about this dashboard&apos;s data.
               </p>
-              <p className="mt-1 text-text-tertiary">
+              <p className="mt-1.5 text-text-tertiary">
                 Examples:
               </p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-text-tertiary">
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-text-tertiary">
                 <li>How many students at this faculty?</li>
                 <li>Which region sends the most students?</li>
                 <li>When was this data last refreshed?</li>
                 <li>เปรียบเทียบจำนวนนักศึกษาตามคณะ</li>
               </ul>
-              <p className="mt-2 text-[11px] text-text-tertiary">
+              <p className="mt-3 text-xs text-text-tertiary">
                 Strategic Council questions live in{' '}
                 <Link href="/analyst" className="text-accent-default hover:underline">
                   /analyst
@@ -313,9 +314,9 @@ export function DashboardChatPanel() {
           ))}
 
           {sending && (
-            <div className="rounded-md border border-border-default bg-surface-2 px-3 py-2 text-xs">
+            <div className="rounded-md border border-border-default bg-surface-2 px-4 py-3 text-sm">
               <div className="flex items-center gap-2 text-text-tertiary">
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 <span>{statusLabel ?? 'Working…'}</span>
               </div>
               {streamingText && (
@@ -335,7 +336,7 @@ export function DashboardChatPanel() {
             e.preventDefault();
             send(input);
           }}
-          className="border-t border-border-default px-3 py-3"
+          className="border-t border-border-default px-4 py-4"
         >
           <div className="flex items-end gap-2">
             <textarea
@@ -351,15 +352,15 @@ export function DashboardChatPanel() {
               placeholder="Ask in Thai or English…"
               rows={2}
               disabled={sending}
-              className="flex-1 resize-none rounded-md border border-border-default bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-default disabled:opacity-50"
+              className="flex-1 resize-none rounded-md border border-border-default bg-surface-1 px-3 py-2 text-base text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent-default disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={sending || !input.trim()}
-              className="inline-flex h-9 items-center gap-1 rounded-md bg-accent-default px-3 text-xs font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
+              className="inline-flex h-11 items-center gap-1.5 rounded-md bg-accent-default px-4 text-sm font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
               aria-label="Send"
             >
-              <Send className="h-3.5 w-3.5" aria-hidden />
+              <Send className="h-5 w-5" aria-hidden />
               Send
             </button>
           </div>
@@ -391,7 +392,7 @@ function MessageBubble({ message }: { message: Message }) {
     >
       <div
         className={
-          'max-w-[90%] rounded-md px-3 py-2 text-xs leading-relaxed ' +
+          'max-w-[90%] rounded-md px-4 py-2.5 text-sm leading-relaxed ' +
           (isUser
             ? 'bg-accent-default text-accent-fg'
             : message.refused

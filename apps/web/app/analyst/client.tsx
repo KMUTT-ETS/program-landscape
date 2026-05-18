@@ -263,9 +263,14 @@ export function AnalystClient({
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[260px_320px_minmax(0,1fr)]">
-      {/* Left rail — conversation history (with per-row delete + clear all) */}
-      <aside className="flex flex-col gap-4">
+    <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      {/* Left column — History (top, capped) + Evidence (bottom, fills rest).
+       *  Layout request: keep both on the same vertical column rather
+       *  than side-by-side. History uses max-h + overflow-y-auto so long
+       *  conversation lists don't push Evidence below the fold; Evidence
+       *  card stretches to consume the remaining viewport via flex-1. */}
+      <aside className="flex flex-col gap-3">
+        {/* History — capped at 40vh, scrolls internally when long */}
         <Card padding="sm">
           <button
             type="button"
@@ -277,6 +282,11 @@ export function AnalystClient({
           <div className="mt-3 flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
               History
+              {conversations.length > 0 && (
+                <span className="ml-1.5 normal-case tracking-normal text-text-tertiary">
+                  ({conversations.length})
+                </span>
+              )}
             </h3>
             {conversations.length > 0 && (
               <button
@@ -290,11 +300,11 @@ export function AnalystClient({
               </button>
             )}
           </div>
-          <div className="mt-2 flex flex-col gap-0.5">
+          <div className="mt-2 flex max-h-[40vh] flex-col gap-0.5 overflow-y-auto pr-1">
             {conversations.length === 0 ? (
               <p className="text-xs text-text-tertiary">No conversations yet.</p>
             ) : (
-              conversations.slice(0, 30).map((c) => (
+              conversations.map((c) => (
                 <div
                   key={c.id}
                   className={
@@ -333,20 +343,23 @@ export function AnalystClient({
             )}
           </div>
         </Card>
-      </aside>
 
-      {/* Middle — Evidence panel (moved here per layout request) */}
-      <aside className="flex flex-col gap-3">
-        <Card padding="md">
+        {/* Evidence — flex-1 so it grows to fill the space left below
+         *  the (capped) History card. Body scrolls internally so the
+         *  outer page doesn't grow vertically when the evidence trace
+         *  is long. */}
+        <Card padding="md" className="flex flex-1 flex-col">
           <h3 className="mb-2 text-sm font-semibold text-text-primary">Evidence</h3>
-          {activeEvidence ? (
-            <EvidencePanel message={activeEvidence} />
-          ) : (
-            <p className="text-xs text-text-tertiary">
-              Ask a question. The evidence panel will show tool calls, data
-              retrieved, and AI inference ids.
-            </p>
-          )}
+          <div className="flex-1 overflow-y-auto pr-1">
+            {activeEvidence ? (
+              <EvidencePanel message={activeEvidence} />
+            ) : (
+              <p className="text-xs text-text-tertiary">
+                Ask a question. The evidence panel will show tool calls, data
+                retrieved, and AI inference ids.
+              </p>
+            )}
+          </div>
         </Card>
       </aside>
 

@@ -33,7 +33,6 @@ import {
   History,
   Home,
   LineChart,
-  MessageSquare,
   Microscope,
   PieChart,
   ShieldAlert,
@@ -115,7 +114,10 @@ const analysisSection: NavSection = {
     { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
     { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
     { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
-    { href: '/analyst/dashboards', label: 'Dashboards Assistant', icon: createElement(MessageSquare), moduleKey: 'analyst' },
+    // /analyst/dashboards is still mounted (used by the FAB's "Open full
+    // view" deep-link for conversation history), but no longer surfaces
+    // as a top-level menu entry — the floating chat widget on every
+    // authenticated page is the primary entry point.
   ],
 };
 
