@@ -13,6 +13,7 @@ import {
   HEALTH_SCORE_VERSION,
   Prisma,
   prisma,
+  programCourses,
   programFinancials,
   programOverview,
   programDemandFunnel,
@@ -31,6 +32,7 @@ import {
   GetEducationKpisInputSchema,
   GetMethodologyInputSchema,
   GetProgramInputSchema,
+  QueryProgramCoursesInputSchema,
   GetRiskPortfolioInputSchema,
   GetStaffKpisInputSchema,
   InterventionSchema,
@@ -196,6 +198,11 @@ export class AnalystToolExecutor {
         result.skills = await programSkills(q.programId);
       }
       return result;
+    },
+
+    query_program_courses: async (input) => {
+      const q = QueryProgramCoursesInputSchema.parse(input);
+      return await programCourses(q.programId);
     },
 
     query_skills: async (input) => {

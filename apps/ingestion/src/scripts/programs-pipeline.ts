@@ -13,6 +13,11 @@
 //
 //   Phase 2 — Approve + materialise (DB only, fast)
 //      - approve-pending PROGRAM_DIGEST → ProgramSkill rows
+//   Phase 2b — Focused course-code extraction (replaces digest's
+//      truncated 8-course list with the exhaustive 40-90 of an actual
+//      curriculum). Distinct AI call (program-courses-extract.v1);
+//      runs AFTER phase 2 so its materialise overwrites the digest's
+//      truncated program_courses write. Cheap (~$0.18/program).
 //
 //   Phase 3 — Dependent AI extraction (SEQUENTIAL)
 //      - programs:map-careers               (gemini-3-flash-preview)
@@ -89,6 +94,7 @@ import { spawn } from 'node:child_process';
 import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
 import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
+import { runProgramCoursesExtract } from '../program-courses-extract/run';
 import { runProgramFacultyExtraction } from '../program-faculty/run';
 import { runProgramSkillsDetailed } from '../program-skills/run';
 import { runProgramPedagogy } from '../program-pedagogy/run';
@@ -102,6 +108,7 @@ import { runProgramAiReadiness } from '../program-ai-readiness/run';
 type Phase =
   | 'phase1'
   | 'phase2'
+  | 'phase2b'
   | 'phase3'
   | 'phase4'
   | 'phase5'
@@ -111,6 +118,7 @@ type Phase =
 const ALL_PHASES: Phase[] = [
   'phase1',
   'phase2',
+  'phase2b',
   'phase3',
   'phase4',
   'phase5',
@@ -324,6 +332,28 @@ async function processProgram(
       costUsd: 0,
       ok: r.ok,
       notes: r.notes,
+    });
+  }
+
+  // ── Phase 2b — Focused course extraction (overwrites digest's
+  //   truncated program_courses with the exhaustive list) ──────────
+  if (shouldRun('phase2b')) {
+    const t = Date.now();
+    const outcome = await runProgramCoursesExtract({ programId: program.id, ai, storage }).catch(
+      (e) => ({ status: 'FAILED' as const, reason: String(e?.message ?? e) }),
+    );
+    const ok = outcome.status === 'SUCCEEDED';
+    phases.push({
+      name: 'phase2b courses-extract',
+      durationMs: Date.now() - t,
+      costUsd: ok ? outcome.costUsd : 0,
+      ok,
+      notes:
+        outcome.status === 'SUCCEEDED'
+          ? `${outcome.previousCount} → ${outcome.materialisedCount} courses · confidence ${outcome.confidence.toFixed(2)}`
+          : outcome.status === 'SKIPPED'
+            ? `skipped: ${outcome.reason}`
+            : `failed: ${outcome.reason}`,
     });
   }
 

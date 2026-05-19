@@ -93,6 +93,28 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes: 'Skill claims per student. Already live in production — wiring here mirrors the claims feed.',
     mocked: true,
   },
+  {
+    slug: 'kku-evaluations',
+    name: 'KKU Student Evaluations (Teaching & Learning)',
+    kind: 'API',
+    inputFormat: 'JSON',
+    // Bi-weekly on the 1st and 15th at 21:00 local time (cron runs in
+    // server timezone). A full refresh moves ~986K cells; running every
+    // 14 days keeps the source under-load while still keeping the
+    // dashboard refresh cadence well inside the typical Council review
+    // cycle. Operators can force a fresh fetch via /admin/dashboard-data-fetch.
+    cadenceCron: '0 21 1,15 * *',
+    ownerContact: 'KKU Registrar — Academic Office (POWERBI schema)',
+    notes:
+      'Pre-aggregated student evaluations from POWERBI.EVALUATE_INSTRUCTOR — ~1.4M source rows ' +
+      'spanning 5 years (BE 2564–2569), 21 (year,sem) buckets, 40 distinct questions, 2,456 ' +
+      'instructors, 27 faculties. Aggregated server-side per (class × question × instructor) ' +
+      'with TOTAL_STUDENT >= 5 anonymity gate. Powers /education/satisfaction (course-aggregated) ' +
+      'and /staff/teaching (instructor-individual with tiered visibility). ' +
+      'Refresh: bi-weekly (1st + 15th at 21:00); full load is ~110 min. ' +
+      'Real connector wired 2026-05-19; 30-day green-history countdown to 2026-06-18.',
+    mocked: false,
+  },
 
   // ── National Thai ──────────────────────────────────────────────────────
   {

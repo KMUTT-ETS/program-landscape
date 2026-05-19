@@ -364,6 +364,7 @@ model Faculty {
   staffSeparations       StaffSeparation[]
   divergenceSnapshots    CrossScopeDivergenceSnapshot[]
   classOfferings         ClassOffering[]
+  evaluationResponses    EvaluationResponseSummary[]
 
   @@index([code])
   @@map("faculties")
@@ -574,38 +575,38 @@ model User {
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   program    Program?    @relation("ProgramUserScope", fields: [programId], references: [id], onDelete: SetNull)
 
-  auditLogs               AuditLog[]
-  aiInferences            AiInference[]
-  uploadedPdfs            PdfDocument[]            @relation("PdfUploader")
-  reviewedExtractions     PdfExtraction[]          @relation("ExtractionReviewer")
-  reviewedAiExtractions   AiExtraction[]           @relation("AiExtractionReviewer")
-  goldLabelledExtractions AiExtraction[]           @relation("AiExtractionGoldLabeller")
-  reviewedSkillAliases    SkillAlias[]             @relation("SkillAliasReviewer")
-  scenarios               Scenario[]
-  councilDecisions        CouncilDecision[]
-  annotations             Annotation[]
-  pdfGenerations          PdfGeneration[]
-  triggeredIngestionRuns  IngestionRun[]           @relation("IngestionTriggeredBy")
-  savedCockpitViews       SavedCockpitView[]
-  notifications           Notification[]
-  signalSubscriptions     SignalSubscription[]
-  peerSets                PeerSet[]
-  analystConversations    AnalystConversation[]
-  analystFeedback         AnalystFeedback[]
-  milestonesOwned         DecisionMilestone[]      @relation("MilestoneOwner")
-  approvedDecisions       DecisionApprover[]       @relation("ApproverUser")
-  attachedProgramDocs     ProgramDocument[]        @relation("ProgramDocAttacher")
+  auditLogs                AuditLog[]
+  aiInferences             AiInference[]
+  uploadedPdfs             PdfDocument[]            @relation("PdfUploader")
+  reviewedExtractions      PdfExtraction[]          @relation("ExtractionReviewer")
+  reviewedAiExtractions    AiExtraction[]           @relation("AiExtractionReviewer")
+  goldLabelledExtractions  AiExtraction[]           @relation("AiExtractionGoldLabeller")
+  reviewedSkillAliases     SkillAlias[]             @relation("SkillAliasReviewer")
+  scenarios                Scenario[]
+  councilDecisions         CouncilDecision[]
+  annotations              Annotation[]
+  pdfGenerations           PdfGeneration[]
+  triggeredIngestionRuns   IngestionRun[]           @relation("IngestionTriggeredBy")
+  savedCockpitViews        SavedCockpitView[]
+  notifications            Notification[]
+  signalSubscriptions      SignalSubscription[]
+  peerSets                 PeerSet[]
+  analystConversations     AnalystConversation[]
+  analystFeedback          AnalystFeedback[]
+  milestonesOwned          DecisionMilestone[]      @relation("MilestoneOwner")
+  approvedDecisions        DecisionApprover[]       @relation("ApproverUser")
+  attachedProgramDocs      ProgramDocument[]        @relation("ProgramDocAttacher")
   // Multi-scope assignments — additive to the (role, facultyId, programId)
   // single-primary columns above. A user can own multiple (role, scope)
   // tuples: e.g. FACULTY_USER for two faculties + PROGRAM_USER for three
   // programs across other faculties. Phase 1 (added 2026-05-07): admin UI
   // manages these; runtime can() still consults the primary fields above.
   // Phase 2 will rewrite can() + SessionUser to consume scopes[] directly.
-  scopes                  UserScope[]
-  expertiseNarratives     UserExpertiseNarrative[]
-  publicationsCache       UserPublicationsCache?
-  aiModelOverridesSet     AiModelOverride[]
-  externalAiSourcesCreated ExternalAiSource[]      @relation("ExternalAiSourceCreator")
+  scopes                   UserScope[]
+  expertiseNarratives      UserExpertiseNarrative[]
+  publicationsCache        UserPublicationsCache?
+  aiModelOverridesSet      AiModelOverride[]
+  externalAiSourcesCreated ExternalAiSource[]       @relation("ExternalAiSourceCreator")
 
   @@index([email])
   @@index([ssoSubject])
@@ -1254,11 +1255,12 @@ model FacultyMember {
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 
-  faculty               Faculty                 @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  department            Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  faculty               Faculty                     @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  department            Department?                 @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   programFaculties      ProgramFaculty[]
   researchOutputs       ResearchOutput[]
   classOfferingTeachers ClassOfferingTeacher[]
+  evaluationResponses   EvaluationResponseSummary[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -1724,28 +1726,28 @@ model TrendSignal {
 // rest of the platform already consumes (analyst, deep-dive, cockpit).
 // ─────────────────────────────────────────────────────────────────────────
 model ExternalAiSource {
-  id              String                 @id @default(cuid())
-  slug            String                 @unique
+  id              String                  @id @default(cuid())
+  slug            String                  @unique
   name            String
-  description     String?                @db.Text
+  description     String?                 @db.Text
   kind            ExternalAiSourceKind
-  status          ExternalAiSourceStatus @default(PAUSED)
+  status          ExternalAiSourceStatus  @default(PAUSED)
   fetchStrategy   ExternalAiFetchStrategy @default(PLAIN) @map("fetch_strategy")
   // URL_LIST: { urls: string[] }
   // WEB_SEARCH: { queries: string[], provider?: 'google_cse'|'bing'|'brave', maxResultsPerQuery?: number }
-  configJson      Json                   @map("config_json")
-  cadenceCron     String?                @map("cadence_cron")
+  configJson      Json                    @map("config_json")
+  cadenceCron     String?                 @map("cadence_cron")
   // Default classification + scoring for signals produced by this
   // source — operator-overridable per-source via the admin UI.
-  signalType      SignalType             @default(NEWS) @map("signal_type")
-  defaultImpact   Float                  @default(0.5) @map("default_impact")
-  lastFetchedAt   DateTime?              @map("last_fetched_at")
-  lastFetchStatus String?                @map("last_fetch_status")
-  lastFetchError  String?                @map("last_fetch_error") @db.Text
-  lastSignalCount Int?                   @map("last_signal_count")
-  createdById     String?                @map("created_by_id")
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
+  signalType      SignalType              @default(NEWS) @map("signal_type")
+  defaultImpact   Float                   @default(0.5) @map("default_impact")
+  lastFetchedAt   DateTime?               @map("last_fetched_at")
+  lastFetchStatus String?                 @map("last_fetch_status")
+  lastFetchError  String?                 @map("last_fetch_error") @db.Text
+  lastSignalCount Int?                    @map("last_signal_count")
+  createdById     String?                 @map("created_by_id")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
 
   createdBy User?         @relation("ExternalAiSourceCreator", fields: [createdById], references: [id], onDelete: SetNull)
   signals   TrendSignal[]
@@ -2636,6 +2638,8 @@ model IngestionRun {
   programDemandMatches       ProgramDemandMatch[]
   classOfferings             ClassOffering[]
   programCourses             ProgramCourse[]
+  evaluationQuestions        EvaluationQuestion[]
+  evaluationResponses        EvaluationResponseSummary[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
@@ -3612,12 +3616,40 @@ model ClassOffering {
   isGeneralEducation  Boolean  @default(false) @map("is_general_education")
   descriptionTh       String?  @map("description_th") @db.Text
   descriptionEn       String?  @map("description_en") @db.Text
+  // ── Grade distribution (added 2026-05-19) ───────────────────────────
+  // Per-letter counts pulled from VIEW_CLASS_OPEN_GROUP_OFFICER columns
+  // A / BPLUS / B / CPLUS / C / DPLUS / D / F (the 8 graded letters that
+  // weight into GPA) and I / W / AU / S (non-graded — excluded from GPA).
+  // All default 0 so older rows pre-grade-feature stay consistent;
+  // `gradedCount = sum of 8 graded letters`, `classGpa = NULL` when
+  // gradedCount=0 (current term in progress or pass/fail course).
+  // KKU 4.0 weights: A=4.0, B+=3.5, B=3.0, C+=2.5, C=2.0, D+=1.5, D=1.0, F=0.
+  gradeA              Int      @default(0) @map("grade_a")
+  gradeBPlus          Int      @default(0) @map("grade_b_plus")
+  gradeB              Int      @default(0) @map("grade_b")
+  gradeCPlus          Int      @default(0) @map("grade_c_plus")
+  gradeC              Int      @default(0) @map("grade_c")
+  gradeDPlus          Int      @default(0) @map("grade_d_plus")
+  gradeD              Int      @default(0) @map("grade_d")
+  gradeF              Int      @default(0) @map("grade_f")
+  gradeI              Int      @default(0) @map("grade_i")
+  gradeW              Int      @default(0) @map("grade_w")
+  gradeAU             Int      @default(0) @map("grade_au")
+  gradeS              Int      @default(0) @map("grade_s")
+  /// Sum of the 8 graded letters — denominator for class_gpa.
+  gradedCount         Int      @default(0) @map("graded_count")
+  /// Weighted mean of letter grades on the KKU 4.0 scale, precomputed
+  /// at ingestion. NULL when gradedCount = 0 (term in progress, or
+  /// course is pass/fail-only with all S/AU). 0.0 is a legitimate value
+  /// (everyone failed) and must not be substituted for null.
+  classGpa            Float?   @map("class_gpa")
   refreshedAt         DateTime @default(now()) @updatedAt @map("refreshed_at")
   ingestionRunId      String?  @map("ingestion_run_id")
 
-  faculty      Faculty?               @relation(fields: [facultyId], references: [id], onDelete: SetNull)
-  ingestionRun IngestionRun?          @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
-  teachers     ClassOfferingTeacher[]
+  faculty             Faculty?                    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  ingestionRun        IngestionRun?               @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  teachers            ClassOfferingTeacher[]
+  evaluationResponses EvaluationResponseSummary[]
 
   @@index([facultyId, acadYearBE, semester])
   @@index([acadYearBE, semester])
@@ -3625,6 +3657,12 @@ model ClassOffering {
   @@index([levelName])
   @@index([isGeneralEducation, acadYearBE, semester])
   @@index([ingestionRunId])
+  /// Drives the /education/performance class-GPA trend query — fans by
+  /// (faculty × year × sem) and reads classGpa + gradedCount + creditTotal.
+  /// Partial-style index covering only graded rows would be cheaper but
+  /// Prisma can't express that yet; the predicate ON classGpa IS NOT NULL
+  /// at query time keeps the inverted-bitmap scan small.
+  @@index([acadYearBE, semester, facultyId, classGpa])
   @@map("class_offerings")
 }
 
@@ -3658,6 +3696,139 @@ model ClassOfferingTeacher {
   @@index([facultyMemberId])
   @@index([kkuEmail])
   @@map("class_offering_teachers")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Student evaluations on teaching & learning (POWERBI.EVALUATE_INSTRUCTOR)
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Two tables work together:
+//   - evaluation_questions          — canonical question catalog with
+//                                     drift detection (TH text + AI-EN)
+//   - evaluation_response_summaries — pre-aggregated cell per
+//                                     (class × question × instructor)
+//
+// PDPA gate: the connector applies a server-side `HAVING TOTAL_STUDENT >= 5`
+// clause so no per-student data ever lands in our DB. Cells with fewer
+// than 5 respondents are dropped at source.
+
+model EvaluationQuestion {
+  id                     String    @id @default(cuid())
+  /// Registrar's QUESTIONID — zero-padded text e.g. "01"…"40".
+  /// The registrar reuses the same id across years; text drifts
+  /// occasionally — `questionTextHash` discriminates versions.
+  questionIdRegistrar    String    @map("question_id_registrar")
+  questionTextTh         String    @map("question_text_th") @db.Text
+  /// AI-translated English (evaluation-question-translate.v1).
+  /// Watermark in UI: "(EN — AI translation, pending review)".
+  /// Null = not yet translated; populate via
+  /// `pnpm evaluations:translate-questions`.
+  questionTextEn         String?   @map("question_text_en") @db.Text
+  /// DEAN / ADMIN-curated override. UI prefers this over `questionTextEn`
+  /// when present. Same text length budget as the Thai source.
+  questionTextEnOverride String?   @map("question_text_en_override") @db.Text
+  /// SHA-256 prefix of `questionTextTh` (16-char hex). Two rows with the
+  /// same `questionIdRegistrar` but different hashes are different
+  /// versions of the same question — kept separate so audit history
+  /// survives drift.
+  questionTextHash       String    @map("question_text_hash")
+  /// Analyst-curated theme: "active-learning" | "ethics" | "assessment"
+  /// | "feedback" | "content-design" | "english-skills" | ""
+  themeTag               String?   @map("theme_tag")
+  firstSeenYearBE        Int       @map("first_seen_year_be")
+  lastSeenYearBE         Int       @map("last_seen_year_be")
+  /// Count of distinct (acadYear × semester) buckets the question
+  /// appears in. Used to classify "core / extended / recent /
+  /// specialized" without a separate enum.
+  semestersUsed          Int       @map("semesters_used")
+  /// True when the question is present in every observed (year,sem)
+  /// bucket. Derived at ingestion time.
+  isCore                 Boolean   @default(false) @map("is_core")
+  methodologyVersion     String    @default("kku-evaluations.v1") @map("methodology_version")
+  translatedAt           DateTime? @map("translated_at")
+  translationModel       String?   @map("translation_model")
+  ingestionRunId         String?   @map("ingestion_run_id")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  ingestionRun IngestionRun?               @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  responses    EvaluationResponseSummary[]
+
+  @@unique([questionIdRegistrar, questionTextHash])
+  @@index([questionIdRegistrar])
+  @@index([isCore])
+  @@index([ingestionRunId])
+  @@map("evaluation_questions")
+}
+
+model EvaluationResponseSummary {
+  id         String @id @default(cuid())
+  acadYearBE Int    @map("acad_year_be")
+  semester   Int
+
+  // ── Resolved foreign keys (nullable — best-effort resolution) ───────
+  /// Joined via ClassOffering.facultyId (same CLASSID).
+  facultyId       String? @map("faculty_id")
+  /// Joined via ClassOffering.classId == classIdRegistrar.
+  classOfferingId String? @map("class_offering_id")
+  /// Joined via FacultyMember.kkuEmail (lowercased) == kkumail.
+  facultyMemberId String? @map("faculty_member_id")
+  /// FK to EvaluationQuestion (resolved at ingest time by
+  /// `(questionIdRegistrar, questionTextHash)`).
+  questionId      String? @map("question_id")
+
+  // ── Registrar's natural keys (raw, retained for audit) ──────────────
+  facultyRegistryId   Int    @map("faculty_registry_id")
+  classIdRegistrar    BigInt @map("class_id_registrar")
+  officerIdRegistrar  Int    @map("officer_id_registrar")
+  questionIdRegistrar String @map("question_id_registrar")
+
+  // ── Denormalized for fast filter without joins ──────────────────────
+  courseCode    String  @map("course_code")
+  courseCodeRaw String  @map("course_code_raw")
+  courseNameTh  String? @map("course_name_th")
+  courseNameEn  String? @map("course_name_en")
+  section       Int
+  campusId      Int     @map("campus_id")
+  /// Retained when facultyMemberId can't resolve — operators see who
+  /// the registrar credited the score to even if we can't pin them.
+  kkumailRaw    String? @map("kkumail_raw")
+
+  // ── Aggregate metrics ───────────────────────────────────────────────
+  /// 0.000–5.000 — Thai 1-5 likert mean from POWERBI POINT_AVG.
+  /// Stored as Decimal so the round-trip preserves 2-3 decimal places.
+  ratingAvg       Decimal   @map("rating_avg") @db.Decimal(4, 3)
+  /// ≥ 5 by construction (server-side anonymity gate). Number of
+  /// students who answered this question in this class.
+  respondentCount Int       @map("respondent_count")
+  /// Source-side refresh timestamp (LAST_UPDATE from the view —
+  /// single batch value, shared across all rows in a registrar refresh).
+  lastUpdateAt    DateTime? @map("last_update_at")
+
+  // ── Audit ───────────────────────────────────────────────────────────
+  methodologyVersion String   @default("kku-evaluations.v1") @map("methodology_version")
+  ingestionRunId     String   @map("ingestion_run_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  faculty       Faculty?            @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  classOffering ClassOffering?      @relation(fields: [classOfferingId], references: [id], onDelete: SetNull)
+  facultyMember FacultyMember?      @relation(fields: [facultyMemberId], references: [id], onDelete: SetNull)
+  question      EvaluationQuestion? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  ingestionRun  IngestionRun        @relation(fields: [ingestionRunId], references: [id], onDelete: Restrict)
+
+  /// Natural key from the source — uniquely identifies every row of
+  /// POWERBI.EVALUATE_INSTRUCTOR. Idempotent upsert key.
+  @@unique([acadYearBE, semester, classIdRegistrar, questionIdRegistrar, officerIdRegistrar], name: "evaluation_natural_key")
+  /// Faculty rollup index — drives `/education/satisfaction` aggregations.
+  @@index([facultyId, acadYearBE, semester])
+  /// Instructor rollup index — drives `/staff/teaching` per-person reads.
+  @@index([facultyMemberId, acadYearBE, semester])
+  @@index([classOfferingId])
+  @@index([courseCode, acadYearBE, semester])
+  @@index([questionIdRegistrar])
+  @@index([ingestionRunId])
+  @@map("evaluation_response_summaries")
 }
 
 // Many-to-many bridge from `Program` → course code, materialised from
@@ -3986,16 +4157,16 @@ model StaffCompensationCube {
 // untouched. UI surfaces a "stale" hint where applicable; no
 // auto-re-run.
 model AiModelOverride {
-  id            String   @id @default(cuid())
-  methodPrefix  String   @unique @map("method_prefix")
+  id           String   @id @default(cuid())
+  methodPrefix String   @unique @map("method_prefix")
   /// The model identifier (e.g. 'gemini-3.1-pro-preview',
   /// 'claude-sonnet-4-6'). Validated against the catalog at the
   /// admin-endpoint layer; stored verbatim here so even off-catalog
   /// models work in a pinch.
-  modelId       String   @map("model_id")
+  modelId      String   @map("model_id")
   /// Operator who last changed this override. Helpful for audit.
-  setByUserId   String?  @map("set_by_user_id")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  setByUserId  String?  @map("set_by_user_id")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   setBy User? @relation(fields: [setByUserId], references: [id])
 
@@ -4503,45 +4674,45 @@ model RiskIndicatorBreach {
 }
 
 model RiskMeasure {
-  id               String             @id @default(cuid())
-  assessmentId     String             @map("assessment_id")
-  kind             RiskMeasureKind
+  id                   String                 @id @default(cuid())
+  assessmentId         String                 @map("assessment_id")
+  kind                 RiskMeasureKind
   // The SPECIFIC recommendation. titleEn = short label (used in tables),
   // rationaleTh = the analyst-facing "why" (200-400 chars). The AI fills
   // both with concrete program-level context — not a generic "modernize
   // curriculum" but "add CS-301 Applied Generative AI; drop CS-220 SOAP
   // Web Services."
-  titleTh          String             @map("title_th")
-  titleEn          String             @map("title_en")
-  rationaleTh      String             @map("rationale_th") @db.Text
-  rationaleEn      String?            @map("rationale_en") @db.Text
+  titleTh              String                 @map("title_th")
+  titleEn              String                 @map("title_en")
+  rationaleTh          String                 @map("rationale_th") @db.Text
+  rationaleEn          String?                @map("rationale_en") @db.Text
   // Coarse cost class — 'LOW' (process / curriculum tweak),
   // 'MEDIUM' (hire / channel investment), 'HIGH' (program restructure /
   // facility build).
-  costClass        String?            @map("cost_class")
+  costClass            String?                @map("cost_class")
   // Time horizon to effect (Council strategic-plan cadence).
-  horizon          RiskMeasureHorizon @default(MEDIUM_TERM)
+  horizon              RiskMeasureHorizon     @default(MEDIUM_TERM)
   // Expected revenue delta over a 5y window (positive = revenue saved/added,
   // negative = cost). Often null for low-confidence measures.
-  expectedDeltaThb Decimal?           @map("expected_delta_thb") @db.Decimal(16, 2)
+  expectedDeltaThb     Decimal?               @map("expected_delta_thb") @db.Decimal(16, 2)
   // 1 = highest priority within the assessment.
-  priority         Int                @default(99)
-  status           RiskMeasureStatus  @default(PROPOSED)
+  priority             Int                    @default(99)
+  status               RiskMeasureStatus      @default(PROPOSED)
   // Optional link to the Decision Workspace if the measure has been
   // raised to a formal decision.
-  decisionId       String?            @map("decision_id")
+  decisionId           String?                @map("decision_id")
   // Specific evidence references the AI cited — peer programs, demand
   // signals, automation-risk tagged skills, etc. Free-shape JSON.
-  evidenceJson     Json?              @map("evidence_json")
+  evidenceJson         Json?                  @map("evidence_json")
   // When this measure was generated by the deterministic rule engine
   // (risk-measure-rules.v1+) in response to a KRI breach, these fields
   // record which indicator + severity triggered it. NULL for measures
   // proposed purely by the AI without a rule match. The UI uses these
   // to render a "triggered by indicator X" badge on the measure card.
-  triggerIndicatorSlug String?         @map("trigger_indicator_slug")
+  triggerIndicatorSlug String?                @map("trigger_indicator_slug")
   triggerSeverity      RiskIndicatorSeverity? @map("trigger_severity")
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
 
   assessment RiskAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   decision   CouncilDecision? @relation(fields: [decisionId], references: [id], onDelete: SetNull)

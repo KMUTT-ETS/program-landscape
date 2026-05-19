@@ -1,8 +1,19 @@
 # Health score methodology
 
-**Version:** `health-score.v3.0`
-**Reviewed:** 2026-05-02
+**Version:** `health-score.v3.7`
+**Reviewed:** 2026-05-19
 **Owner:** KKU Data Office
+
+**v3.7 (2026-05-19):** Outcomes dimension gains the `student_satisfaction`
+driver, sourced from POWERBI.EVALUATE_INSTRUCTOR via the new
+`kku-evaluations` connector. Aggregates the scope's surveyed-course
+cells (semesters 1+2, all observed years) into a respondent-weighted
+mean rating on the 1-5 likert scale, then normalises via anchored
+linear `[3.5, 5.0] → [0, 100]`. The narrow band is chosen because 87%
+of source cells score ≥ 4.0 (per `docs/methodologies/evaluations.md`
+§"Score scale") — a naive `[1, 5] → [0, 100]` would compress every
+program into the 75-100 band. See the `student_satisfaction` row in
+the Outcomes table below.
 
 > **v3 redesign (2026-05-02):** Five dimensions, all with real-data backing in
 > 2026-05. Replaces the v1/v2 set in which `relevance` and `capability` were
@@ -77,8 +88,11 @@
 | Driver | Formula | Data source | Status |
 |---|---|---|---|
 | `tcas_min_score_percentile` | KKU's TCAS3 min-score percentile within same-subject peer set | `tcas_admission_stats` | REAL |
-| `employment_rate` | `clamp(rate × 100)` | `graduate_outcomes` | PENDING (kku-alumni real connector) |
-| `average_salary` | `clamp(salary / 30000 × 100)` (30k THB → 100) | `graduate_outcomes` | PENDING |
+| `employment_rate` | `clamp(rate × 100)` | `graduate_outcomes` | REAL (kku-alumni PDF/XLSX intake) |
+| `job_relevance` | `clamp(jobRelevanceScore × 100)` — share with "ตรงสาขา" job (program-level only) | `graduate_outcomes` | REAL |
+| `average_salary` | Anchored: ฿15k → 0, ฿20k → 40, ฿25k → 70, ฿35k+ → 100 (`(salary − 15_000) / 200`) | `graduate_outcomes` | REAL |
+| `further_study_rate` | Sweet-spot scoring: 0% → 50, 5-15% → 100, 30%+ → 30. Both extremes are negative signals (program-level only) | `graduate_outcomes` | REAL |
+| `student_satisfaction` (v3.7) | `clamp(((rating − 3.5) / 1.5) × 100)` — weighted-mean rating across the scope's courses' surveyed cells (semesters 1+2, all observed years), anchored linear to [3.5, 5.0]. Captures the ceiling-biased distribution: 87% of cells score ≥ 4.0, so a naive [1, 5] → [0, 100] would compress every program into 75-100. See `docs/methodologies/evaluations.md` §"Score scale" | `evaluation_response_summaries` (POWERBI.EVALUATE_INSTRUCTOR via `kku-evaluations` connector) | REAL |
 
 ### Relevance
 

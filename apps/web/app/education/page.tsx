@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Filter,
   CalendarRange,
+  MessageSquare,
 } from 'lucide-react';
 // EducationRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
 // The component still lives in ./refresh-bar — the admin page imports
@@ -29,6 +30,7 @@ import {
   LocationThumb,
   PerformanceThumb,
   RecruitmentThumb,
+  SatisfactionThumb,
   StudentInfoThumb,
   TuitionThumb,
 } from './thumbnails';
@@ -111,6 +113,14 @@ const TILES: Array<{
       "Every course-section the registrar opened in a given semester. See how well classes are filling, where empty sections are piling up, who's running the General-Education catalogue, and drill from faculty → program level → course to find the long tail of under-filled subjects.",
     Thumb: ClassOfferingsThumb,
     programAware: true,
+  },
+  {
+    href: '/education/satisfaction',
+    icon: MessageSquare,
+    title: 'Student evaluations',
+    blurb:
+      'Course satisfaction from 1.4M student-evaluation responses across 5 years. Heatmap of Faculty → Program Level → Program → Course ratings, semester trend, and per-course question-by-question detail on hover.',
+    Thumb: SatisfactionThumb,
   },
 ];
 

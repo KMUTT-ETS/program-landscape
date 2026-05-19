@@ -80,7 +80,16 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // without PBL drop, engineering without project-based+internship
 // drops, humanities without seminar/practicum drops. Null-safe when
 // the pedagogy assessment hasn't run yet.
-export const HEALTH_SCORE_VERSION = 'health-score.v3.6';
+// v3.7 (2026-05-19) — outcomes dimension gains `student_satisfaction`
+// driver, sourced from POWERBI.EVALUATE_INSTRUCTOR via the new
+// `kku-evaluations` connector (`evaluation_response_summaries`).
+// Aggregates the program's courses' weighted-mean rating across
+// main terms (semester 1+2) all observed years, normalised
+// 3.5→0..5.0→100 on the 1-5 likert scale (anchored linear, captures
+// the ceiling-biased distribution from kku-evaluations.v1 §"Score
+// scale"). Null when the program teaches no courses surveyed in
+// window (rare — most active programs have hundreds of cells).
+export const HEALTH_SCORE_VERSION = 'health-score.v3.7';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -264,7 +273,7 @@ export async function computeHealthScores(
       : await scoreCapabilityScope(child.id, childScope);
     const outcomesScore = isProgram
       ? await scoreOutcomesProgram(child.id, latestOutcomes)
-      : scoreOutcomesScope(latestOutcomes);
+      : await scoreOutcomesScope(childScope, child.id, latestOutcomes);
     const relevance = isProgram
       ? await scoreRelevanceProgram(child.id, programAlignment.get(child.id) ?? null)
       : await scoreRelevanceScope(child.id, childScope, programAlignment);
@@ -1315,6 +1324,9 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
         ? { furtherStudyRate: grad.furtherStudyRate, surveyYear: grad.surveyYear }
         : null,
     },
+    // v3.7: student-satisfaction driver — POWERBI.EVALUATE_INSTRUCTOR
+    // weighted mean rating, normalised to the [3.5, 5.0] band.
+    await studentSatisfactionDriver({ scope: 'program', scopeId: programId }),
   ];
   return summariseDrivers(drivers);
 }
@@ -1328,8 +1340,12 @@ function scoreFurtherStudyRate(rate: number): number {
   return Math.max(30, 70 - ((rate - 0.30) / 0.20) * 40);     // taper to 30
 }
 
-function scoreOutcomesScope(row: MetricRow | null): HealthScore {
-  const drivers = [
+async function scoreOutcomesScope(
+  scope: ScopeLevel,
+  scopeId: string,
+  row: MetricRow | null,
+): Promise<HealthScore> {
+  const drivers: HealthScore['drivers'] = [
     {
       label: 'employment_rate',
       value: row?.employmentRateWeighted !== null && row?.employmentRateWeighted !== undefined
@@ -1342,8 +1358,101 @@ function scoreOutcomesScope(row: MetricRow | null): HealthScore {
       value: row?.averageSalaryWeighted ? clamp((row.averageSalaryWeighted / 30_000) * 100) : null,
       raw: row?.averageSalaryWeighted,
     },
+    await studentSatisfactionDriver({ scope, scopeId }),
   ];
   return summariseDrivers(drivers);
+}
+
+// ── student_satisfaction driver (added v3.7) ─────────────────────────
+//
+// Aggregates the program's (or scope's) courses' weighted-mean rating
+// from POWERBI.EVALUATE_INSTRUCTOR via evaluation_response_summaries.
+// Normalised 3.5→0..5.0→100 on the 1-5 likert scale (anchored linear),
+// which captures the ceiling-biased distribution (87% ≥ 4.0 per
+// docs/methodologies/evaluations.md §"Score scale"). Below 3.5
+// saturates at 0; above 5.0 is impossible. Null when no surveyed
+// cells exist for this scope in window — caller treats null as a
+// data gap (driver excluded from the dimension average, completeness
+// drops), NOT as a zero penalty.
+//
+// Scope:
+//   - program → join through program_courses where program_id = scopeId
+//   - faculty → join through program_courses → programs where program.faculty_id = scopeId
+//   - department → similar, programs.department_id = scopeId
+//   - university → no scope filter (Σ across all programs)
+//
+// The same cell can be attributed to multiple programs (general-ed
+// courses) — at faculty/dept/uni rollups this is the correct posture
+// (the cell SHOULD count once per program that teaches it). The
+// double-count is benign for the weighted mean since both copies
+// carry the same rating + respondent count.
+async function studentSatisfactionDriver(args: {
+  scope: ScopeLevel;
+  scopeId: string;
+  // Program-scope shortcut — when caller already has the programId,
+  // skip the program→faculty rollup. Same WHERE clause is built either
+  // way; this is purely for readability at call sites.
+  programId?: string;
+}): Promise<HealthScore['drivers'][number]> {
+  let scopeWhere: Prisma.Sql;
+  if (args.scope === 'program') {
+    scopeWhere = Prisma.sql`AND pc.program_id = ${args.scopeId}`;
+  } else if (args.scope === 'faculty') {
+    scopeWhere = Prisma.sql`AND p.faculty_id = ${args.scopeId}`;
+  } else if (args.scope === 'department') {
+    scopeWhere = Prisma.sql`AND p.department_id = ${args.scopeId}`;
+  } else {
+    // university — no scope filter (Σ across all programs).
+    scopeWhere = Prisma.empty;
+  }
+  const rows = await prisma.$queryRaw<
+    Array<{
+      rating: number | null;
+      n: bigint;
+      cells: bigint;
+      courses: bigint;
+      years: bigint;
+    }>
+  >`
+    SELECT
+      (SUM(e.rating_avg::numeric * e.respondent_count) / NULLIF(SUM(e.respondent_count), 0))::float AS rating,
+      COALESCE(SUM(e.respondent_count), 0)::bigint                                                  AS n,
+      COUNT(*)::bigint                                                                              AS cells,
+      COUNT(DISTINCT e.course_code)::bigint                                                         AS courses,
+      COUNT(DISTINCT e.acad_year_be)::bigint                                                        AS years
+    FROM evaluation_response_summaries e
+    JOIN ingestion_runs ir ON ir.id = e.ingestion_run_id
+    JOIN data_sources ds ON ds.id = ir.data_source_id
+    JOIN program_courses pc ON pc.course_code = e.course_code
+    JOIN programs p ON p.id = pc.program_id
+    WHERE ds.mocked = false
+      AND e.semester IN (1, 2)
+      ${scopeWhere}
+  `;
+  const r = rows[0];
+  if (!r || r.rating === null || Number(r.cells) === 0) {
+    return { label: 'student_satisfaction', value: null, raw: null };
+  }
+  const rating = Number(r.rating);
+  // Anchored linear: 3.5 → 0, 5.0 → 100. Below 3.5 saturates at 0.
+  // Spreads the [3.5, 5.0] band — where 95%+ of real ratings sit —
+  // across the full 0..100 health-score range so programs actually
+  // differentiate. A naive [1, 5] → [0, 100] would compress every
+  // program into the 75-100 band given KKU's ceiling-biased data.
+  const value = clamp(((rating - 3.5) / 1.5) * 100);
+  return {
+    label: 'student_satisfaction',
+    value,
+    raw: {
+      ratingAvg: rating,
+      respondentCount: Number(r.n),
+      cellCount: Number(r.cells),
+      coursesObserved: Number(r.courses),
+      yearsObserved: Number(r.years),
+      normalisation: '3.5 → 0, 5.0 → 100 (anchored linear)',
+      source: 'kku-evaluations.v1',
+    },
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1419,7 +1528,15 @@ async function scoreRelevanceProgram(
     },
     { label: 'demand_match_filled', value: demandMatchValue, raw: { totalRelevant: matchRows.length } },
     { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook } },
-    { label: 'strategic_sector_alignment', value: sectorValue, raw: { kmitlCareers: program?.kmitlCareerIds.length ?? 0 } },
+    // `targetedCareers` is the raw-payload field surfaced on the
+    // hover tooltip for this driver. It's the COUNT of LinkedIn-demand
+    // career groups the program has been mapped to — used to
+    // disambiguate "high score because actually strategic" from "high
+    // score from a fluke 1-career match". We deliberately don't say
+    // "kmitl" in any user-visible string — KMITL is the API host, the
+    // data origin is LinkedIn (subscribed by MHESI). See
+    // memory/feedback_kmitl_data_attribution.md.
+    { label: 'strategic_sector_alignment', value: sectorValue, raw: { targetedCareers: program?.kmitlCareerIds.length ?? 0 } },
     {
       label: 'pedagogical_fit',
       value: pedagogicalFit === null ? null : clamp(pedagogicalFit),

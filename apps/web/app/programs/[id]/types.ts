@@ -526,3 +526,41 @@ export interface DeepDiveRecruitment {
   inProgressRounds: { entryYearBE: number; rounds: DeepDiveRecruitmentRoundRow[] } | null;
   methodologyVersion: string;
 }
+
+// v1.2.9 — per-program course list from program-courses-extract.v1
+// joined with class_offerings grade-distribution aggregates. Only
+// courses with non-null classGpa in the selected semester window
+// appear; the deep-dive surfaces only courses where we have
+// verifiable GPA data.
+export interface DeepDiveCourseYearCell {
+  classCount: number;
+  gradedCount: number;
+  averageClassGpa: number | null;
+}
+
+export interface DeepDiveCourseRow {
+  courseCode: string;
+  courseNameTh: string;
+  courseNameEn: string;
+  credits: number | null;
+  classCount: number;
+  gradedCount: number;
+  classGpa: number;
+  /** Per-year cell keyed by ACADYEAR_BE. UI renders as columns. */
+  byYear: Record<string, DeepDiveCourseYearCell>;
+}
+
+export interface DeepDiveCourses {
+  methodVersion: string;
+  /** Number of rows returned (= courses with GPA data in the window). */
+  total: number;
+  /** Total program_courses on file (some without GPA data); the UI
+   *  uses the gap (extractedCount - total) for context. */
+  extractedCount: number;
+  rows: DeepDiveCourseRow[];
+  /** Sorted ascending; UI uses for column headers. */
+  yearsObserved: number[];
+  windowYearsBE: { start: number | null; end: number | null };
+  /** Semesters that filtered the aggregate (default [1, 2]). */
+  semestersApplied: number[];
+}

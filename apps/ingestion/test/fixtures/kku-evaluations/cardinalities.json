@@ -1,0 +1,47 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "columns": [
+    {
+      "label": "instructor",
+      "column": "KKUMAIL",
+      "distinct": 2298,
+      "nonNullPct": 95.03772126486028
+    },
+    {
+      "label": "subject",
+      "column": "COURSECODE",
+      "distinct": 10892,
+      "nonNullPct": 100
+    },
+    {
+      "label": "class",
+      "column": "CLASSID",
+      "distinct": 55559,
+      "nonNullPct": 100
+    },
+    {
+      "label": "class",
+      "column": "SECTION",
+      "distinct": 186,
+      "nonNullPct": 100
+    },
+    {
+      "label": "question",
+      "column": "QUESTIONID",
+      "distinct": 40,
+      "nonNullPct": 100
+    },
+    {
+      "label": "question",
+      "column": "QUESTION",
+      "distinct": 212,
+      "nonNullPct": 99.99566301637212
+    },
+    {
+      "label": "faculty",
+      "column": "FACULTYID",
+      "distinct": 27,
+      "nonNullPct": 100
+    }
+  ]
+}

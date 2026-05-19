@@ -448,6 +448,48 @@ export const ProgramDetailDataSchema = z.object({
   demographic: DemographicSchema.nullable().default(null),
   outcomes: OutcomesSchema.nullable().default(null),
   skills: SkillsSchema.nullable().default(null),
+  // v1.2.9: per-program course list materialised from
+  // program-courses-extract.v1 (focused course-code AI extractor).
+  // ~40-90 courses per Bachelor program. Each row carries class-GPA
+  // and gradedCount aggregates so the deep-dive can show academic
+  // performance per-course without an additional API trip.
+  //
+  // Filter: only courses with non-null classGpa appear. `total` is
+  // the visible count; `extractedCount` is the unfiltered
+  // program_courses row count so the UI can phrase "showing X of Y
+  // curriculum courses".
+  courses: z
+    .object({
+      methodVersion: z.string(),
+      total: z.number(),
+      extractedCount: z.number(),
+      rows: z.array(
+        z.object({
+          courseCode: z.string(),
+          courseNameTh: z.string().default(''),
+          courseNameEn: z.string().default(''),
+          credits: z.number().nullable(),
+          classCount: z.number(),
+          gradedCount: z.number(),
+          classGpa: z.number(),
+          byYear: z.record(
+            z.object({
+              classCount: z.number(),
+              gradedCount: z.number(),
+              averageClassGpa: z.number().nullable(),
+            }),
+          ).default({}),
+        }),
+      ),
+      yearsObserved: z.array(z.number()).default([]),
+      windowYearsBE: z.object({
+        start: z.number().nullable(),
+        end: z.number().nullable(),
+      }),
+      semestersApplied: z.array(z.number()).default([1, 2]),
+    })
+    .nullable()
+    .default(null),
   faculty: FacultySchema.nullable().default(null),
   financials: FinancialsSchema.nullable().default(null),
   peers: PeersSchema.nullable().default(null),

@@ -81,7 +81,34 @@ interface ViewRow {
   FACULTYID: string | number;
   FACULTYNAME: string;
   KKUMAIL: string | null;
+  // Grade-distribution columns (added to the view; default 0 in older
+  // rows where the registrar hadn't reported yet).
+  A: number;
+  BPLUS: number;
+  B: number;
+  CPLUS: number;
+  C: number;
+  DPLUS: number;
+  D: number;
+  F: number;
+  I: number;
+  W: number;
+  AU: number;
+  S: number;
 }
+
+// KKU 4.0 GPA weights. Single source of truth — duplicated in
+// docs/methodologies/class-gpa.md if values ever change.
+const GPA_WEIGHTS = {
+  A: 4.0,
+  BPLUS: 3.5,
+  B: 3.0,
+  CPLUS: 2.5,
+  C: 2.0,
+  DPLUS: 1.5,
+  D: 1.0,
+  F: 0.0,
+} as const;
 
 interface CliArgs {
   apply: boolean;
@@ -116,7 +143,8 @@ async function main(): Promise<void> {
         ACADYEAR, SEMESTER, COURSECODE, SECTION, CLASSID,
         COURSENAME, COURSENAMEENG,
         CREDITTOTAL, COURSEUNIT, ENROLLSEAT, TOTALSEAT,
-        LEVELNAME, FACULTYID, FACULTYNAME, KKUMAIL
+        LEVELNAME, FACULTYID, FACULTYNAME, KKUMAIL,
+        A, BPLUS, B, CPLUS, C, DPLUS, D, F, I, W, AU, S
       FROM POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER
       WHERE LEVELNAME NOT IN ('${EXCLUDED_LEVEL_NAMES.join("','")}')
         AND FACULTYNAME NOT IN ('${EXCLUDED_FACULTY_NAMES.join("','")}')
@@ -166,6 +194,34 @@ async function main(): Promise<void> {
       const ge = isGeneralEd(normCode, facName);
       if (ge) geCount++;
 
+      // Grade counts — Oracle returns null when no grades reported yet.
+      // Coerce to 0 so the sum/division logic is straightforward.
+      const gA = Number(r.A ?? 0);
+      const gBp = Number(r.BPLUS ?? 0);
+      const gB = Number(r.B ?? 0);
+      const gCp = Number(r.CPLUS ?? 0);
+      const gC = Number(r.C ?? 0);
+      const gDp = Number(r.DPLUS ?? 0);
+      const gD = Number(r.D ?? 0);
+      const gF = Number(r.F ?? 0);
+      const gradedCount = gA + gBp + gB + gCp + gC + gDp + gD + gF;
+      // classGpa precomputed at ingestion. NULL when gradedCount = 0 —
+      // either the section hasn't reported (term in progress) or it's
+      // a pass/fail course (only S / AU populated). 0.0 stays as a
+      // legitimate value when literally everyone failed.
+      const classGpa =
+        gradedCount > 0
+          ? (gA * GPA_WEIGHTS.A +
+              gBp * GPA_WEIGHTS.BPLUS +
+              gB * GPA_WEIGHTS.B +
+              gCp * GPA_WEIGHTS.CPLUS +
+              gC * GPA_WEIGHTS.C +
+              gDp * GPA_WEIGHTS.DPLUS +
+              gD * GPA_WEIGHTS.D +
+              gF * GPA_WEIGHTS.F) /
+            gradedCount
+          : null;
+
       offerings.push({
         acadYearBE: Number(r.ACADYEAR),
         semester: Number(r.SEMESTER),
@@ -186,6 +242,20 @@ async function main(): Promise<void> {
         registryFacultyName: facName,
         facultyId: facId,
         isGeneralEducation: ge,
+        gradeA: gA,
+        gradeBPlus: gBp,
+        gradeB: gB,
+        gradeCPlus: gCp,
+        gradeC: gC,
+        gradeDPlus: gDp,
+        gradeD: gD,
+        gradeF: gF,
+        gradeI: Number(r.I ?? 0),
+        gradeW: Number(r.W ?? 0),
+        gradeAU: Number(r.AU ?? 0),
+        gradeS: Number(r.S ?? 0),
+        gradedCount,
+        classGpa,
         ingestionRunId: runId,
       });
 

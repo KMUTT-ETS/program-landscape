@@ -7,6 +7,7 @@ import {
   JobThaiConnector,
   JobsDbConnector,
   KkuAlumniConnector,
+  KkuEvaluationsConnector,
   KkuFinanceConnector,
   KkuHrConnector,
   KkuRegistryConnector,
@@ -23,6 +24,7 @@ import {
   UniconDs2004Connector,
   WorldBankConnector,
 } from './sources/kku-connectors';
+import { KkuEvaluationsRealConnector } from './sources/kku-evaluations';
 import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
@@ -128,6 +130,11 @@ const ENTRIES: readonly ConnectorEntry[] = [
     slug: 'kku-research',
     mock: () => new KkuResearchConnector(),
     real: () => new KkuResearchRealConnector(),
+  },
+  {
+    slug: 'kku-evaluations',
+    mock: () => new KkuEvaluationsConnector(),
+    real: () => new KkuEvaluationsRealConnector(),
   },
   { slug: 'digital-transcript', mock: () => new DigitalTranscriptConnector() },
 

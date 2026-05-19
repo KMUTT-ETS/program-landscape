@@ -1,0 +1,15 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "groupKeys": [
+    "ACADYEAR",
+    "SEMESTER",
+    "COURSECODE",
+    "SECTION",
+    "KKUMAIL",
+    "QUESTIONID"
+  ],
+  "groupsWithMultipleRows": 26222,
+  "maxRowsPerGroup": 16,
+  "avgRowsPerGroup": 2.4251391960948823,
+  "respondentColCandidate": null
+}

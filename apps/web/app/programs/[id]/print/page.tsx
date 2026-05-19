@@ -1845,10 +1845,19 @@ function SkillsBlock({ data }: { data: DeepDiveSkills }) {
   const minor = data.taught.filter(
     (s) => !s.pickedFromPlo && (s.compulsoryWeight ?? s.weight) < 0.5,
   );
+  // Friendly label for the demand-side data source. The backend returns
+  // raw slugs (e.g., `linkedin-via-mhesi`) for API stability; the UI
+  // never shows the slug — only this lookup result, falling back to
+  // "Demand-side signal" so unknown slugs degrade gracefully.
+  const DEMAND_SOURCE_LABEL: Record<string, string> = {
+    'linkedin-via-mhesi': 'LinkedIn (via MHESI)',
+  };
+  const demandSourceLabel =
+    DEMAND_SOURCE_LABEL[data.demandSource] ?? 'Demand-side signal';
   return (
     <SectionCard
       title="Skills coverage"
-      subtitle={`${data.taught.length} skills taught (${data.ploSkillCount} from PLOs) · demand match ${Math.round(data.matchScore)} · source ${data.demandSource} (${data.demandTier})`}
+      subtitle={`${data.taught.length} skills taught (${data.ploSkillCount} from PLOs) · demand match ${Math.round(data.matchScore)} · source ${demandSourceLabel}`}
       accent="border-l-chart-2"
       pageBreakBefore
     >

@@ -27,6 +27,7 @@ import type {
   DeepDiveAiPeers,
   DeepDiveAiReadiness,
   DeepDiveStrategicNarrative,
+  DeepDiveCourses,
   DeepDiveDemandFunnel,
   DeepDiveDemographicOutlook,
   DeepDiveFaculty,
@@ -62,6 +63,9 @@ interface Props {
   financials: DeepDiveFinancials | null;
   skills: DeepDiveSkills | null;
   outcomes: DeepDiveOutcomes | null;
+  // v1.2.9 — per-program course list from program-courses-extract.v1
+  // joined with class-GPA aggregates per course.
+  courses: DeepDiveCourses | null;
   faculty: DeepDiveFaculty | null;
   peers: DeepDivePeers | null;
   trends: DeepDiveTrends | null;
@@ -237,6 +241,7 @@ export function DeepDiveClient(props: Props) {
           subtitle="What we teach (skill coverage) and who teaches it (faculty capability + succession risk)."
         >
           <SkillsSection data={props.skills} programId={props.programId} />
+          <CoursesSection data={props.courses} programId={props.programId} />
           <FacultySection data={props.faculty} />
         </MacroGroup>
 
@@ -2370,6 +2375,191 @@ function OutcomesSection({ data }: { data: DeepDiveOutcomes | null }) {
   );
 }
 
+// GPA → OKLCH heatmap colour. Mirrors the /education/performance pivot
+// so the visual language is consistent across the two surfaces.
+function courseGpaHeat(gpa: number | null): string {
+  if (gpa === null) return 'transparent';
+  const c = Math.max(0, Math.min(4, gpa));
+  const hue = c < 2 ? 25 + ((60 - 25) * c) / 2 : 60 + ((145 - 60) * (c - 2)) / 2;
+  return `oklch(0.86 0.08 ${hue.toFixed(0)})`;
+}
+
+const COURSE_SEM_OPTIONS = [
+  { value: 1, label: 'Sem 1' },
+  { value: 2, label: 'Sem 2' },
+  { value: 3, label: 'Summer (3)' },
+  { value: 4, label: 'Intersession (4)' },
+] as const;
+
+function CoursesSection({
+  data: initialData,
+  programId,
+}: {
+  data: DeepDiveCourses | null;
+  programId: string;
+}) {
+  const [data, setData] = React.useState<DeepDiveCourses | null>(initialData);
+  const [selectedSemesters, setSelectedSemesters] = React.useState<number[]>(
+    initialData?.semestersApplied ?? [1, 2],
+  );
+  const [loading, setLoading] = React.useState(false);
+
+  // Refetch on semester change. Skip the first render so we don't fire
+  // a fetch identical to the SSR payload — only re-fetch when the user
+  // toggles a semester button.
+  const isFirstRender = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const ctrl = new AbortController();
+    const qs = new URLSearchParams();
+    selectedSemesters.forEach((s) => qs.append('semester', String(s)));
+    setLoading(true);
+    fetch(`/api/proxy/programs/${programId}/courses?${qs}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((env) => {
+        const payload: DeepDiveCourses = env.data ?? env;
+        setData(payload);
+      })
+      .catch((e: unknown) => {
+        if (e instanceof Error && e.name === 'AbortError') return;
+      })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSemesters.join(','), programId]);
+
+  if (!data || data.total === 0) {
+    return (
+      <EmptyCard
+        title="Course list"
+        note={
+          !data || data.extractedCount === 0
+            ? 'No course list materialised yet. Run pnpm programs:extract-courses <code> to populate program_courses.'
+            : `${data.extractedCount} curriculum courses on file but none have graded class data in the selected semesters. Try toggling additional semesters above.`
+        }
+      />
+    );
+  }
+  const fmtGpa = (n: number | null): string => (n === null ? '—' : n.toFixed(2));
+  const remainder = data.extractedCount - data.total;
+
+  return (
+    <Section
+      title="Course list"
+      description={`${data.total} of ${data.extractedCount} curriculum courses with graded class data${
+        remainder > 0
+          ? ` (${remainder} course${remainder === 1 ? '' : 's'} on the curriculum have no graded sections in the selected semesters)`
+          : ''
+      }. Extracted via ${data.methodVersion}. Class GPA is credit-weighted across every section taught of each course; coloured cell = high (green) → low (red).`}
+    >
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] text-text-tertiary">Semesters:</span>
+        {COURSE_SEM_OPTIONS.map((s) => {
+          const active = selectedSemesters.includes(s.value);
+          return (
+            <button
+              key={s.value}
+              onClick={() => {
+                setSelectedSemesters((prev) =>
+                  prev.includes(s.value)
+                    ? prev.filter((x) => x !== s.value)
+                    : [...prev, s.value].sort(),
+                );
+              }}
+              className={
+                'rounded border px-2 py-0.5 text-[11px] ' +
+                (active
+                  ? 'border-accent-default bg-accent-subtle text-accent-default'
+                  : 'border-border-subtle text-text-secondary hover:bg-surface-2')
+              }
+            >
+              {s.label}
+            </button>
+          );
+        })}
+        {loading && <span className="ml-1 text-[11px] italic text-text-tertiary">refreshing…</span>}
+      </div>
+
+      <div className="overflow-x-auto rounded-md border border-border-subtle">
+        <table className="w-full text-xs">
+          <thead className="bg-surface-2 text-text-tertiary">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Course code</th>
+              <th className="px-3 py-2 text-left font-medium">Title</th>
+              <th className="px-3 py-2 text-right font-medium">Cr</th>
+              <th className="px-3 py-2 text-right font-medium">Sections</th>
+              <th className="px-3 py-2 text-right font-medium">Students</th>
+              <th className="px-3 py-2 text-right font-medium">All-year GPA</th>
+              {data.yearsObserved.map((y) => (
+                <th key={y} className="px-3 py-2 text-right font-medium font-mono">
+                  BE {y}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((c) => (
+              <tr key={c.courseCode} className="border-t border-border-subtle">
+                <td className="px-3 py-1.5 font-mono text-text-secondary">{c.courseCode}</td>
+                <td className="px-3 py-1.5">
+                  <span className="text-text-primary">{c.courseNameTh || c.courseNameEn || '—'}</span>
+                </td>
+                <td className="px-3 py-1.5 text-right font-tabular tabular-nums">
+                  {c.credits ?? '—'}
+                </td>
+                <td className="px-3 py-1.5 text-right font-tabular tabular-nums">
+                  {c.classCount.toLocaleString()}
+                </td>
+                <td className="px-3 py-1.5 text-right font-tabular tabular-nums">
+                  {c.gradedCount.toLocaleString()}
+                </td>
+                <td className="px-3 py-1.5 text-right">
+                  <span
+                    className="inline-block rounded px-2 py-0.5 font-tabular font-semibold tabular-nums text-text-primary"
+                    style={{
+                      background: courseGpaHeat(c.classGpa),
+                      minWidth: '3.2rem',
+                      textAlign: 'right',
+                    }}
+                    title={`Class GPA ${c.classGpa.toFixed(3)}`}
+                  >
+                    {fmtGpa(c.classGpa)}
+                  </span>
+                </td>
+                {data.yearsObserved.map((y) => {
+                  const cell = c.byYear[String(y)];
+                  return (
+                    <td key={y} className="px-3 py-1.5 text-right">
+                      <span
+                        className="inline-block rounded px-2 py-0.5 font-tabular font-semibold tabular-nums text-text-primary"
+                        style={{
+                          background: courseGpaHeat(cell?.averageClassGpa ?? null),
+                          minWidth: '3rem',
+                          textAlign: 'right',
+                        }}
+                        title={
+                          cell?.averageClassGpa !== null && cell !== undefined
+                            ? `BE ${y}: GPA ${cell.averageClassGpa!.toFixed(3)} · ${cell.classCount} section${cell.classCount === 1 ? '' : 's'} · ${cell.gradedCount.toLocaleString()} graded`
+                            : `BE ${y}: no graded data`
+                        }
+                      >
+                        {fmtGpa(cell?.averageClassGpa ?? null)}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
 function FacultySection({ data }: { data: DeepDiveFaculty | null }) {
   if (!data) return <EmptyCard title="Faculty capability" note="Faculty data unavailable." />;
   const scopeLabel =
@@ -3369,6 +3559,10 @@ const RAW_KEY_LOOKUP: Record<string, string> = {
   fiscalYear: 'Fiscal year',
   // Relevance
   kmitlAlignmentPct: 'LinkedIn labour-market alignment %',
+  // strategic_sector_alignment driver — `targetedCareers` is the
+  // count of LinkedIn-via-MHESI career groups this program is
+  // mapped to (see health-score.ts).
+  targetedCareers: 'Targeted careers (LinkedIn)',
   // Generic
   lower: 'Lower',
   upper: 'Upper',

@@ -1,0 +1,23 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "scoreColumns": [
+    {
+      "column": "POINT_AVG",
+      "min": 0.64,
+      "max": 5,
+      "distinct": 429,
+      "sample": [
+        5,
+        4,
+        4.5,
+        4.67,
+        4.75,
+        4.33,
+        4.8,
+        4.6,
+        4.83,
+        4.71
+      ]
+    }
+  ]
+}

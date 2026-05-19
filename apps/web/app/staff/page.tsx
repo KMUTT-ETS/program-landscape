@@ -9,7 +9,7 @@ import {
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
-import { Users, BookOpen, Microscope, Wallet, ClipboardList } from 'lucide-react';
+import { Users, BookOpen, Microscope, Wallet, ClipboardList, MessageSquare } from 'lucide-react';
 // StaffRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
 // The component still lives in ./refresh-bar — the admin page imports
 // it from there.
@@ -19,6 +19,7 @@ import {
   ResearchThumb,
   CompensationThumb,
   TeachingWorkloadThumb,
+  TeachingEvaluationsThumb,
 } from './thumbnails';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,15 @@ const TILES: Array<{
     blurb:
       "Contact hours per teacher per week, summed across every section they teach. A workload-distribution histogram surfaces the under- and over-loaded tails, a faculty pulse compares the houses, a students-taught chart shows reach, and a Faculty → Teacher drill-down ranks individuals.",
     Thumb: TeachingWorkloadThumb,
+    programAware: true,
+  },
+  {
+    href: '/staff/teaching',
+    icon: MessageSquare,
+    title: 'Teaching evaluations',
+    blurb:
+      'Per-instructor student-evaluation scores from POWERBI.EVALUATE_INSTRUCTOR. Faculty roster with mean rating per person, plus drill-down into question-by-question heatmap and course-level breakdown. Program-scope users see their own record only; faculty users see their faculty.',
+    Thumb: TeachingEvaluationsThumb,
     programAware: true,
   },
 ];

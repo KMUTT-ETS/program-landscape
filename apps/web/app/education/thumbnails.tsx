@@ -483,3 +483,98 @@ export function RecruitmentThumb() {
     </Frame>
   );
 }
+
+// Dashboard — Student evaluations: speech-bubble star-rating glyph next
+// to a per-question score heatmap row.
+export function SatisfactionThumb() {
+  // Heat palette mapping [3.0, 5.0] across hue arc — mirrors the
+  // dashboard's narrow-range palette. Hex values precomputed so the
+  // SVG renders consistently across themes.
+  const heat = ['#dc6c4b', '#d99a4f', '#cdb958', '#b9c46a', '#94c282', '#7bb98e', '#6bb091'];
+  return (
+    <Frame>
+      {/* Speech bubble on the left */}
+      <g transform="translate(20, 22)">
+        <path
+          d="M 0 8 Q 0 0 8 0 L 56 0 Q 64 0 64 8 L 64 38 Q 64 46 56 46 L 22 46 L 14 54 L 16 46 L 8 46 Q 0 46 0 38 Z"
+          fill="white"
+          stroke={COLORS.ink}
+          strokeWidth={1.4}
+          opacity={0.95}
+        />
+        {/* 5-star rating with 4 filled */}
+        {[0, 1, 2, 3, 4].map((i) => {
+          const cx = 8 + i * 11;
+          const cy = 18;
+          const filled = i < 4;
+          // Simple 5-point star path
+          const pts: string[] = [];
+          for (let k = 0; k < 5; k++) {
+            const a = (Math.PI / 2) + (k * 2 * Math.PI) / 5;
+            const ax = cx + Math.cos(a) * 4;
+            const ay = cy - Math.sin(a) * 4;
+            const ia = a + Math.PI / 5;
+            const ix = cx + Math.cos(ia) * 1.7;
+            const iy = cy - Math.sin(ia) * 1.7;
+            pts.push(`${ax},${ay}`);
+            pts.push(`${ix},${iy}`);
+          }
+          return (
+            <polygon
+              key={i}
+              points={pts.join(' ')}
+              fill={filled ? COLORS.amber : 'white'}
+              stroke={COLORS.ink}
+              strokeWidth={0.8}
+              opacity={filled ? 0.95 : 0.5}
+            />
+          );
+        })}
+        {/* Rating numeric */}
+        <text x={32} y={38} textAnchor="middle" fontSize="9" fontWeight="700" fill={COLORS.ink}>
+          4.5 / 5
+        </text>
+      </g>
+
+      {/* Question-by-question heatmap rows on the right */}
+      <g transform="translate(102, 18)">
+        <text x={0} y={0} fontSize="8" fontWeight="600" fill={COLORS.ink} opacity={0.7}>
+          Per-question
+        </text>
+        {/* 4 rows × 10 cells of varying heat */}
+        {[0, 1, 2, 3].map((row) => {
+          const labels = ['Q1', 'Q2', 'Q3', 'Q4'];
+          return (
+            <g key={row} transform={`translate(0, ${10 + row * 18})`}>
+              <text x={0} y={9} fontSize="7" fill={COLORS.ink} opacity={0.55}>
+                {labels[row]}
+              </text>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((col) => {
+                // Pseudo-random distribution biased toward green (high)
+                // — mirrors the real ceiling-biased data.
+                const seed = (row * 7 + col * 3) % 7;
+                const idx = Math.min(6, Math.max(0, seed + (col > 6 ? 1 : 0)));
+                return (
+                  <rect
+                    key={col}
+                    x={18 + col * 11}
+                    y={1}
+                    width={9.5}
+                    height={11}
+                    rx={1}
+                    fill={heat[idx]}
+                    opacity={0.85}
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
+      </g>
+
+      <text x={120} y={113} textAnchor="middle" fontSize="9" fontWeight="600" fill={COLORS.ink} opacity={0.55}>
+        Course satisfaction
+      </text>
+    </Frame>
+  );
+}

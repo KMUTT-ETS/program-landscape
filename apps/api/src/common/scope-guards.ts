@@ -358,6 +358,96 @@ export async function assertProgramAccessible(
   );
 }
 
+// Refuse access to a per-instructor endpoint based on the
+// /staff/teaching visibility tier:
+//   - admin-grade / UNIVERSITY_USER → always allowed
+//   - FACULTY_USER → only if instructor.facultyId is in their granted set
+//   - PROGRAM_USER → only their OWN record (resolved via User.employeeId
+//                    or User.email exact match)
+//
+// 404 when the instructor doesn't exist, 403 when out of scope. Designed
+// for /staff/teaching/instructor/:facultyMemberId and any future
+// per-instructor endpoint.
+export async function assertInstructorAccessible(
+  facultyMemberId: string,
+  user: SessionUser,
+): Promise<void> {
+  if (seesAllScopes(user.role)) return;
+
+  const fm = await prisma.facultyMember.findUnique({
+    where: { id: facultyMemberId },
+    select: { id: true, facultyId: true, employeeCode: true, employeeId: true, kkuEmail: true },
+  });
+  if (!fm) throw new NotFoundException();
+
+  // PROGRAM_USER → own only. Match by User.employeeId → FacultyMember.employeeId,
+  // then by lowercased email as fallback.
+  if (user.role === 'PROGRAM_USER') {
+    const me = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { employeeId: true, email: true },
+    });
+    if (me?.employeeId && fm.employeeId && me.employeeId === fm.employeeId) return;
+    if (me?.email && fm.kkuEmail && me.email.toLowerCase() === fm.kkuEmail.toLowerCase()) return;
+    throw new ForbiddenException('You may only view your own teaching evaluations.');
+  }
+
+  // FACULTY_USER → instructor must be in their granted set of faculties
+  // (primary + UserScope rows).
+  if (user.role === 'FACULTY_USER') {
+    if (user.facultyId === fm.facultyId) return;
+    const scopes = await prisma.userScope.findMany({
+      where: { userId: user.userId },
+      select: { role: true, facultyId: true, programId: true },
+    });
+    for (const s of scopes) {
+      if (s.role === 'UNIVERSITY_USER') return;
+      if (s.role === 'FACULTY_USER' && s.facultyId === fm.facultyId) return;
+    }
+    throw new ForbiddenException(
+      'This instructor is outside the scopes assigned to your account.',
+    );
+  }
+
+  throw new ForbiddenException(
+    'Your role does not permit access to per-instructor evaluation data.',
+  );
+}
+
+// Resolve the logged-in user's own FacultyMember row. Used by
+// /staff/teaching/me to project the personal evaluation view without the
+// caller having to know their own facultyMemberId.
+//
+// Returns null when the user cannot be matched to a FacultyMember
+// (admin staff not in HR, contract lecturers without an entry, etc.) —
+// the caller renders a polite "you don't have evaluations on file" page.
+export async function resolveOwnFacultyMember(
+  user: SessionUser,
+): Promise<{ id: string; facultyId: string } | null> {
+  const me = await prisma.user.findUnique({
+    where: { id: user.userId },
+    select: { employeeId: true, email: true },
+  });
+  if (!me) return null;
+
+  // Match by employeeId first (HR-canonical), then by lowercased email.
+  if (me.employeeId) {
+    const byId = await prisma.facultyMember.findFirst({
+      where: { employeeId: me.employeeId },
+      select: { id: true, facultyId: true },
+    });
+    if (byId) return byId;
+  }
+  if (me.email) {
+    const byEmail = await prisma.facultyMember.findFirst({
+      where: { kkuEmail: me.email.toLowerCase() },
+      select: { id: true, facultyId: true },
+    });
+    if (byEmail) return byEmail;
+  }
+  return null;
+}
+
 // Clamp a `?facultyName=...` filter array (Thai faculty name) to the
 // UNION of faculties the user is granted access to (primary scope +
 // UserScope rows). Used by /staff-dashboard and /education endpoints

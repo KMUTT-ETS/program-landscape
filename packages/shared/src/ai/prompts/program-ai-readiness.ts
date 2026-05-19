@@ -2,7 +2,15 @@ import { z } from 'zod';
 import type { AiMessage } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// program-ai-readiness.v3
+// program-ai-readiness.v4
+//
+// v4 (2026-05-19) — data-source upgrade only, no prompt change. The
+// `courses` input now comes from `program_courses` (canonical course
+// list from `program-courses-extract.v1`, typically 40-90 courses per
+// Bachelor) instead of the legacy digest payload's top-25 truncated
+// list. The AI sees the full curriculum and can spot AI-disruption
+// gaps that were invisible under the old 25-course window. Method
+// version bumps so back-compared assessments are distinguishable.
 //
 // v3 (2026-05-12) layers the Shao et al. (2025) "Future of Work with AI
 // Agents" framework on top of v2's discipline-aware reasoning:
@@ -54,7 +62,7 @@ import type { AiMessage } from '../types';
 // extraction.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_AI_READINESS_VERSION = 'program-ai-readiness.v3';
+export const PROGRAM_AI_READINESS_VERSION = 'program-ai-readiness.v4';
 
 export const ProgramAiReadinessGapSchema = z.object({
   topic: z.string().min(5).max(160),

@@ -30,6 +30,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `risk-management` | Risk Management (workflow) | `risk-management.v2` | [risk-management.md](./risk-management.md) |
 | `risk-measure-rules` | Risk Management (rule engine) | `risk-measure-rules.v1` | `packages/db/src/risk-measure-rules.ts` |
 | `risk-assessment` | Risk Management (AI prompt) | `risk-assessment.v3` | `packages/shared/src/ai/prompts/risk-assessment.ts` |
+| `class-gpa` | `/education/performance` — class-GPA section | `class-gpa.v1` | [class-gpa.md](./class-gpa.md) |
 
 ### Light derived metrics (no separate doc)
 

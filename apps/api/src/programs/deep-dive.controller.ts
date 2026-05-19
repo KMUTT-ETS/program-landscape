@@ -6,11 +6,13 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import { Prisma, prisma } from '@kku/db';
 import {
+  programCourses,
   programDecisions,
   programDemandFunnel,
   programFaculty,
@@ -257,6 +259,30 @@ export class DeepDiveController {
     await assertProgramAccessible(programId, user);
     const visibility = await resolveFacultyVisibility(programId, user);
     return programFaculty(programId, visibility);
+  }
+
+  @Get('courses')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'program-courses-extract', name: 'Program courses extraction (program-courses-extract.v1)' },
+      { id: 'kku-tcas-funnel', name: 'KKU class offerings (POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER)' },
+    ],
+  })
+  async courses(
+    @Param('programId') programId: string,
+    @AuthSession() user: SessionUser,
+    @Query('semester') semesterParam?: string | string[],
+  ) {
+    await assertProgramAccessible(programId, user);
+    // `?semester=1&semester=2` arrives as either a string or an array
+    // depending on whether the client repeated the key. Normalise to
+    // number[] before passing in; the helper applies a 1+2 default
+    // when the list is empty.
+    const semesters = (Array.isArray(semesterParam) ? semesterParam : semesterParam ? [semesterParam] : [])
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n) && n >= 1 && n <= 4);
+    return programCourses(programId, semesters.length > 0 ? { semesters } : {});
   }
 
   @Get('peers')

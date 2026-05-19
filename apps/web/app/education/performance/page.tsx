@@ -6,6 +6,9 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import type {
+  ClassGpaByProgramResponse,
+  ClassGpaOverall,
+  ClassGpaTrendRow,
   EntryScoreResponse,
   PerformanceByLocationResponse,
   PerformanceByProgramResponse,
@@ -63,17 +66,40 @@ export default async function PerformancePage({
   const overallRes = await apiFetchSafe<PerformanceOverall>(
     `/education/performance/overall${qsString}`,
   );
-  const [byProgram, byLocation, entryScores] = await Promise.all([
-    apiFetch<PerformanceByProgramResponse>(
-      `/education/performance/by-program${qsString}`,
-    ).catch(() => null),
-    apiFetch<PerformanceByLocationResponse>(
-      `/education/performance/by-location${qsString}`,
-    ).catch(() => null),
-    apiFetch<EntryScoreResponse>(
-      `/education/entry-scores${qsString}`,
-    ).catch(() => null),
-  ]);
+  // Class-GPA queries take only facultyName from the page's filter set
+  // (no region / programName — those don't apply to per-class data).
+  // The pivot table SSR opens with main terms (sem 1 + 2) to match the
+  // client-side default; the user toggles other semesters and the
+  // client refetches. Overall + trend stay UNFILTERED — those describe
+  // the whole window. Only `by-program` (the pivot) takes the sem filter.
+  const classGpaOverallQs = new URLSearchParams();
+  facultyName.forEach((v) => classGpaOverallQs.append('facultyName', v));
+  const classGpaOverallQsString =
+    classGpaOverallQs.toString() ? `?${classGpaOverallQs}` : '';
+  const classGpaTableQs = new URLSearchParams(classGpaOverallQs);
+  classGpaTableQs.append('semester', '1');
+  classGpaTableQs.append('semester', '2');
+  const classGpaTableQsString = `?${classGpaTableQs}`;
+
+  const [byProgram, byLocation, entryScores, classGpaOverall, classGpaTrend, classGpaByProgram] =
+    await Promise.all([
+      apiFetch<PerformanceByProgramResponse>(
+        `/education/performance/by-program${qsString}`,
+      ).catch(() => null),
+      apiFetch<PerformanceByLocationResponse>(
+        `/education/performance/by-location${qsString}`,
+      ).catch(() => null),
+      apiFetch<EntryScoreResponse>(`/education/entry-scores${qsString}`).catch(() => null),
+      apiFetch<ClassGpaOverall>(
+        `/education/performance/class-gpa/overall${classGpaOverallQsString}`,
+      ).catch(() => null),
+      apiFetch<ClassGpaTrendRow[]>(
+        `/education/performance/class-gpa/trend${classGpaOverallQsString}`,
+      ).catch(() => null),
+      apiFetch<ClassGpaByProgramResponse>(
+        `/education/performance/class-gpa/by-program${classGpaTableQsString}`,
+      ).catch(() => null),
+    ]);
 
   return (
     <AuthedAppShell user={user}>
@@ -88,6 +114,9 @@ export default async function PerformancePage({
           byProgram={byProgram}
           byLocation={byLocation}
           entryScores={entryScores}
+          classGpaOverall={classGpaOverall}
+          classGpaTrend={classGpaTrend}
+          classGpaByProgram={classGpaByProgram}
           initialFilters={{ facultyName, programLevel, programName, region }}
         />
       ) : (

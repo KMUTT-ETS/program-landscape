@@ -15,6 +15,7 @@ import type {
   DeepDiveFinancials,
   DeepDiveSkills,
   DeepDiveOutcomes,
+  DeepDiveCourses,
   DeepDiveFaculty,
   DeepDivePeers,
   DeepDiveStudentCohorts,
@@ -63,6 +64,7 @@ export default async function ProgramDeepDivePage({
     financials,
     skills,
     outcomes,
+    courses,
     facultyData,
     peers,
     trends,
@@ -79,6 +81,7 @@ export default async function ProgramDeepDivePage({
     apiFetch<DeepDiveFinancials>(`/programs/${id}/financials`).catch(() => null),
     apiFetch<DeepDiveSkills>(`/programs/${id}/skills`).catch(() => null),
     apiFetch<DeepDiveOutcomes>(`/programs/${id}/outcomes`).catch(() => null),
+    apiFetch<DeepDiveCourses>(`/programs/${id}/courses`).catch(() => null),
     apiFetch<DeepDiveFaculty>(`/programs/${id}/faculty`).catch(() => null),
     apiFetch<DeepDivePeers>(`/programs/${id}/peers`).catch(() => null),
     apiFetch<DeepDiveTrends>(`/programs/${id}/trends`).catch(() => null),
@@ -200,6 +203,7 @@ export default async function ProgramDeepDivePage({
         financials={financials}
         skills={skills}
         outcomes={outcomes}
+        courses={courses}
         faculty={facultyData}
         peers={peers}
         trends={trends}

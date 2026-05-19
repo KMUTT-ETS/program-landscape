@@ -418,6 +418,23 @@ const connectorNodes: TopologyNode[] = [
       sourceSlug: 'kku-research',
     },
   },
+  {
+    id: 'con.kku-evaluations',
+    lane: 'connector',
+    kind: 'connector',
+    label: 'kku-evaluations',
+    subtitle: 'Bi-weekly · student satisfaction',
+    details: {
+      description:
+        'Pre-aggregated student-evaluation ratings from POWERBI.EVALUATE_INSTRUCTOR — ~986K (class × question × instructor) cells loaded per run, semesters 1+2 across BE 2564–2569. Server-side HAVING TOTAL_STUDENT >= 5 anonymity gate. ~110 min wall-clock end-to-end load. Drives /education/satisfaction (course-aggregated), /staff/teaching (instructor-individual), and the `student_satisfaction` driver of health-score.v3.7 outcomes dimension.',
+      cadence: '0 21 1,15 * * (1st + 15th at 21:00)',
+      sourceSlug: 'kku-evaluations',
+      notes: [
+        'PDPA gate at source: HAVING TOTAL_STUDENT >= 5 server-side — per-student responses never reach our DB',
+        'Force a refresh via /admin/dashboard-data-fetch when a Council meeting needs the latest semester before the next bi-weekly slot',
+      ],
+    },
+  },
   // Manual scripts (no DataSource row — no live status badge)
   {
     id: 'scr.link-class-offerings',
@@ -560,6 +577,22 @@ const connectorNodes: TopologyNode[] = [
       description:
         "Thai-primary strategic narrative — the one the Council reads on the Deep-Dive's hero section. Synthesises every prior phase's output into a 600-word brief with confidence + caveats.",
       cadence: 'Per-program · programs-pipeline phase 7',
+    },
+  },
+  {
+    id: 'ai.evaluation-question-translate',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Evaluation Q translation',
+    subtitle: 'One-shot · TH → EN for the 40 survey questions',
+    details: {
+      description:
+        'Translates the questionnaire from Thai to English in one Gemini call (~$0.02 per run). Watermarks each row as "(EN — AI translation, pending review)" so DEAN can override per question via questionTextEnOverride.',
+      cadence: 'Manual — pnpm evaluations:translate-questions',
+      notes: [
+        'Methodology: evaluation-question-translate.v1',
+        'Re-run when the registrar adds new QIDs (40 today across core / extended / recent / specialised tiers)',
+      ],
     },
   },
   {
@@ -818,10 +851,10 @@ const tableNodes: TopologyNode[] = [
     lane: 'table',
     kind: 'table',
     label: 'ClassOffering',
-    subtitle: '~122k rows · BE 2565–2569',
+    subtitle: '~122k rows · BE 2565–2569 · grade dist + class GPA',
     details: {
       description:
-        'Every section the registrar opened. Full delete-and-replace per run from POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER. registry_faculty_name resolves to Faculty.nameTh.',
+        'Every section the registrar opened. Full delete-and-replace per run from POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER. registry_faculty_name resolves to Faculty.nameTh. Grade-distribution columns (grade_a … grade_f + grade_i/w/au/s) added v1.2.9 — class_gpa is precomputed at ingest as the credit×count-weighted KKU 4.0 mean over the 8 graded letters; NULL when graded_count = 0.',
       prismaModel: 'ClassOffering',
     },
   },
@@ -847,6 +880,31 @@ const tableNodes: TopologyNode[] = [
       description:
         'Materialised from approved PROGRAM_DIGEST AiExtractions. Drives the PROGRAM_USER scope clamp — a program user only sees class offerings whose courseCode is in their program.',
       prismaModel: 'ProgramCourse',
+    },
+  },
+  {
+    id: 'tab.evaluation-response-summary',
+    lane: 'table',
+    kind: 'table',
+    label: 'EvaluationResponseSummary',
+    subtitle: '~986K cells · BE 2564–2569',
+    details: {
+      description:
+        'Pre-aggregated student-evaluation cell per (acadYearBE × semester × classIdRegistrar × questionIdRegistrar × officerIdRegistrar). Natural key from POWERBI.EVALUATE_INSTRUCTOR; idempotent upsert each run. respondent_count ≥ 5 by construction (PDPA gate at source). Resolves to FacultyMember via kkuEmail and to ClassOffering via classId — both nullable for unmatched cells.',
+      prismaModel: 'EvaluationResponseSummary',
+      relatedTables: ['EvaluationQuestion (FK)', 'ClassOffering (soft FK)', 'FacultyMember (soft FK)', 'Faculty (soft FK)'],
+    },
+  },
+  {
+    id: 'tab.evaluation-question',
+    lane: 'table',
+    kind: 'table',
+    label: 'EvaluationQuestion',
+    subtitle: '40 rows · TH + AI-EN catalog',
+    details: {
+      description:
+        'Canonical question catalog with drift detection via questionTextHash (SHA-256 prefix of TH text). Same QID can hold multiple text versions when the registrar edits wording. AI-translated English in questionTextEn (watermarked); DEAN override via questionTextEnOverride.',
+      prismaModel: 'EvaluationQuestion',
     },
   },
   {
@@ -1275,11 +1333,11 @@ const dashboardNodes: TopologyNode[] = [
     lane: 'dashboard',
     kind: 'dashboard',
     label: 'Student performance',
-    subtitle: '/education/performance',
+    subtitle: '/education/performance · GPA + class GPA',
     href: '/education/performance',
     details: {
       description:
-        'Undergraduate GPAs and entry test scores. Faculty → Program drill-down on average GPA + Region → Province → School → Faculty → Program location view.',
+        'Two GPA views in one dashboard. (1) Student GPA: cumulative average grade per faculty/program (from VIEW_STUDENT_DETAIL_ALL). (2) Class GPA (v1.2.9): Faculty → Program Level → Program → Course pivot with year columns + semester filter + heatmap cells, computed from the grade-distribution columns on ClassOffering. Plus the Region → Province → School → Faculty → Program location view and a per-subject entry-score pivot.',
     },
   },
   {
@@ -1292,6 +1350,18 @@ const dashboardNodes: TopologyNode[] = [
     details: {
       description:
         'Every course section the registrar opened in a semester. Seat-fill heatmap, distribution histogram, GE catalogue, Faculty → Level → Course drill-down. PROGRAM_USER scope clamp via ProgramCourse.',
+    },
+  },
+  {
+    id: 'dash.education-satisfaction',
+    lane: 'dashboard',
+    kind: 'dashboard',
+    label: 'Student evaluations',
+    subtitle: '/education/satisfaction · course satisfaction',
+    href: '/education/satisfaction',
+    details: {
+      description:
+        'Course-aggregated student-evaluation ratings. 4-level expandable tree (Faculty → Program Level → Program → Course) with year columns + semester filter + per-cell hover tooltip showing question-by-question scores + click-to-drill course detail panel (KPI strip + trend + per-question × per-year heatmap). Heatmap palette narrowed to [3.5, 5.0] because real ratings are ceiling-biased (87% ≥ 4.0). PROGRAM_USER / FACULTY_USER scope-clamped at the program faculty.',
     },
   },
 
@@ -1354,6 +1424,18 @@ const dashboardNodes: TopologyNode[] = [
     details: {
       description:
         'Contact hours per teacher per week, summed across every section. Workload-distribution histogram, faculty pulse, students-taught chart, Faculty → Teacher drill-down. PROGRAM_USER scope clamp.',
+    },
+  },
+  {
+    id: 'dash.staff-teaching',
+    lane: 'dashboard',
+    kind: 'dashboard',
+    label: 'Teaching evaluations',
+    subtitle: '/staff/teaching · per-teacher ratings',
+    href: '/staff/teaching',
+    details: {
+      description:
+        'Per-instructor student-evaluation ratings. 5-level expandable tree (Faculty → Program Level → Program → Teacher → Course) with hover tooltip showing question-by-question scores + click-to-drill teacher detail panel narrowed to the program-of-context. Teacher name formatted as "<rank-abbrev>.<first> <last>" (e.g., ผศ.เด่นพงษ์ สุดภักดี). Tiered visibility: PROGRAM_USER own only, FACULTY_USER faculty roster, UNIVERSITY+ all.',
     },
   },
 
@@ -1527,6 +1609,7 @@ const edges: TopologyEdge[] = [
   // ── External → Connector ───────────────────────────────────────────
   { from: 'ext.oracle-powerbi', to: 'con.kku-tcas-funnel', scope: E },
   { from: 'ext.oracle-powerbi', to: 'scr.link-class-offerings', scope: ES },
+  { from: 'ext.oracle-powerbi', to: 'con.kku-evaluations', scope: ES },
   { from: 'ext.mysql-unicon', to: 'con.unicon-ds1001', scope: E },
   { from: 'ext.mysql-unicon', to: 'con.unicon-ds2001', scope: S },
   { from: 'ext.mysql-unicon', to: 'con.unicon-ds2003', scope: S },
@@ -1551,6 +1634,10 @@ const edges: TopologyEdge[] = [
   { from: 'con.kku-research', to: 'tab.faculty-member', scope: S },
   { from: 'scr.link-class-offerings', to: 'tab.class-offering', scope: ES },
   { from: 'scr.link-class-offerings', to: 'tab.class-offering-teacher', scope: ES },
+  { from: 'con.kku-evaluations', to: 'tab.evaluation-response-summary', scope: ES },
+  { from: 'con.kku-evaluations', to: 'tab.evaluation-question', scope: ES },
+  // AI translation writes English text + watermark back into the catalog.
+  { from: 'ai.evaluation-question-translate', to: 'tab.evaluation-question', scope: ES },
   { from: 'scr.backfill-faculty-emails', to: 'tab.faculty-member', scope: ES },
   { from: 'scr.seed-programs-from-sheet', to: 'tab.program', scope: ES },
   { from: 'scr.programs-pipeline', to: 'tab.ai-extraction', scope: ES },
@@ -1587,6 +1674,22 @@ const edges: TopologyEdge[] = [
   { from: 'tab.program', to: 'dash.education-class-offerings', scope: E },
   { from: 'tab.faculty', to: 'dash.education-class-offerings', scope: E },
 
+  // Class GPA (added v1.2.9) — same ClassOffering table, surfaces a
+  // separate section inside /education/performance. Already covered
+  // by the "Education student dashboards" generic flatMap above
+  // (which routes tab.student-program-record / tab.program /
+  // tab.faculty → dash.education-performance). The grade-distribution
+  // path is internal to ClassOffering; one explicit edge below makes
+  // the class-GPA section's lineage visible in the diagram.
+  { from: 'tab.class-offering', to: 'dash.education-performance', scope: E },
+
+  // Student evaluations (v1.2.10) — course-aggregated pivot
+  { from: 'tab.evaluation-response-summary', to: 'dash.education-satisfaction', scope: E },
+  { from: 'tab.evaluation-question', to: 'dash.education-satisfaction', scope: E },
+  { from: 'tab.program-course', to: 'dash.education-satisfaction', scope: E },
+  { from: 'tab.program', to: 'dash.education-satisfaction', scope: E },
+  { from: 'tab.faculty', to: 'dash.education-satisfaction', scope: E },
+
   // Staff workforce
   { from: 'tab.staff-master-record', to: 'dash.staff-workforce', scope: S },
   { from: 'tab.staff-lifecycle-dates', to: 'dash.staff-workforce', scope: S },
@@ -1615,6 +1718,14 @@ const edges: TopologyEdge[] = [
   { from: 'tab.faculty-member', to: 'dash.staff-teaching-workload', scope: S },
   { from: 'tab.program-course', to: 'dash.staff-teaching-workload', scope: S },
   { from: 'tab.faculty', to: 'dash.staff-teaching-workload', scope: S },
+
+  // Teaching evaluations (v1.2.10) — per-instructor pivot
+  { from: 'tab.evaluation-response-summary', to: 'dash.staff-teaching', scope: S },
+  { from: 'tab.evaluation-question', to: 'dash.staff-teaching', scope: S },
+  { from: 'tab.faculty-member', to: 'dash.staff-teaching', scope: S },
+  { from: 'tab.program-course', to: 'dash.staff-teaching', scope: S },
+  { from: 'tab.program', to: 'dash.staff-teaching', scope: S },
+  { from: 'tab.faculty', to: 'dash.staff-teaching', scope: S },
 
   // ──────────────────────────────────────────────────────────────────────
   // Direct data-input edges into AI tasks that consume external sources.
@@ -1968,6 +2079,7 @@ export const FILTER_ANCHORS: Record<Exclude<ScopeFilter, 'all'>, readonly string
     'dash.education-tuition',
     'dash.education-performance',
     'dash.education-class-offerings',
+    'dash.education-satisfaction',
   ],
   staff: [
     'dash.staff-workforce',
@@ -1975,6 +2087,7 @@ export const FILTER_ANCHORS: Record<Exclude<ScopeFilter, 'all'>, readonly string
     'dash.staff-research',
     'dash.staff-compensation',
     'dash.staff-teaching-workload',
+    'dash.staff-teaching',
   ],
   cockpit: ['dash.cockpit'],
   'deep-dive': ['dash.program-deep-dive'],

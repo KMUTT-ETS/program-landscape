@@ -9,6 +9,7 @@
 import {
   programAiPeers,
   programAiReadiness,
+  programCourses,
   programDecisions,
   programDemandFunnel,
   programDemographicOutlook,
@@ -754,6 +755,13 @@ export async function buildProgramDetailData(
         }
       : null;
 
+  // ── Courses (v1.2.9 — program-courses-extract.v1) ────────────────
+  // Single shared helper in @kku/db; same payload also served at
+  // /programs/:id/courses for the interactive deep-dive.
+  const coursesRaw = await programCourses(programId);
+  const coursesData: ProgramDetailData['courses'] =
+    coursesRaw.total > 0 ? coursesRaw : null;
+
   // ── Skills ───────────────────────────────────────────────────────
   const skillsData: ProgramDetailData['skills'] = skills
     ? (() => {
@@ -1056,6 +1064,7 @@ export async function buildProgramDetailData(
     demographic: demographicData,
     outcomes: outcomesData,
     skills: skillsData,
+    courses: coursesData,
     faculty: facultyData,
     financials: financialsData,
     peers: peersData,

@@ -1,0 +1,150 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "capturedAt": "2026-05-19T08:14:41.065Z",
+  "columns": [
+    {
+      "ordinal": 1,
+      "name": "CAMPUSID",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 2,
+      "name": "FACULTYID",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 3,
+      "name": "ACADYEAR",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 4,
+      "name": "SEMESTER",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 5,
+      "name": "COURSECODE",
+      "type": "VARCHAR2",
+      "length": 20,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 6,
+      "name": "COURSEID",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 7,
+      "name": "CLASSID",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 8,
+      "name": "COURSENAME",
+      "type": "VARCHAR2",
+      "length": 255,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 9,
+      "name": "COURSENAMEENG",
+      "type": "VARCHAR2",
+      "length": 255,
+      "nullable": true,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 10,
+      "name": "SECTION",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 11,
+      "name": "QUESTIONID",
+      "type": "VARCHAR2",
+      "length": 20,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 12,
+      "name": "QUESTION",
+      "type": "VARCHAR2",
+      "length": 255,
+      "nullable": true,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 13,
+      "name": "POINT",
+      "type": "VARCHAR2",
+      "length": 20,
+      "nullable": true,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 14,
+      "name": "OFFICERID",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": false,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 15,
+      "name": "KKUMAIL",
+      "type": "VARCHAR2",
+      "length": 100,
+      "nullable": true,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 16,
+      "name": "LAST_UPDATE",
+      "type": "DATE",
+      "length": 7,
+      "nullable": true,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 17,
+      "name": "TOTAL_STUDENT",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": true,
+      "piiFlag": false
+    },
+    {
+      "ordinal": 18,
+      "name": "POINT_AVG",
+      "type": "NUMBER",
+      "length": 22,
+      "nullable": true,
+      "piiFlag": false
+    }
+  ]
+}

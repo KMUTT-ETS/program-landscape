@@ -255,7 +255,22 @@ export function ProfileView({
               Placed directly under Programs taught: same "what I teach"
               theme, drilling from program-level to subject-level. */}
           {!publicMode && profile.hasFacultyMemberRecord && (
-            <TeachingSection teaching={profile.teaching} lang={lang} t={t} />
+            <>
+              <TeachingSection teaching={profile.teaching} lang={lang} t={t} />
+              <a
+                href="/staff/teaching"
+                className="block rounded-lg border border-border-subtle bg-surface-1 p-4 transition hover:bg-surface-2"
+              >
+                <div className="text-xs uppercase tracking-wider text-text-tertiary">
+                  {lang === 'th' ? 'การประเมินการสอนของฉัน' : 'My teaching evaluations'}
+                </div>
+                <div className="mt-1 text-sm text-text-primary">
+                  {lang === 'th'
+                    ? 'ดูคะแนนประเมินจากนักศึกษารายข้อ + รายวิชา ตามภาคการศึกษา'
+                    : 'See your per-question and per-course student-evaluation scores across semesters.'}
+                </div>
+              </a>
+            </>
           )}
           <PublicationsSection
             publications={profile.publications}

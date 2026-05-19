@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { prisma } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
@@ -9,6 +9,7 @@ import {
   ZodValidationPipe,
   assertCanSeeFacultyDashboards,
   assertCanSeeProgramAwareDashboards,
+  assertProgramAccessible,
   assertUniversityWide,
   clampFacultyIdFilter,
   clampFacultyNameFilter,
@@ -17,6 +18,7 @@ import {
 import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
 import { ClassOfferingsService, type ClassOfferingsFilter } from './class-offerings.service';
+import { EvaluationsService } from './evaluations.service';
 import {
   EducationRefreshService,
   REFRESHABLE_CUBES,
@@ -126,6 +128,22 @@ const PerformanceQuerySchema = z.object({
 });
 type PerformanceQuery = z.infer<typeof PerformanceQuerySchema>;
 
+// Class-GPA — distinct from PerformanceQuery (student GPA cube uses
+// region; class GPA uses acadYearBE/semester/geOnly from class_offerings).
+// Reuses the StringArray + NumberArray helpers declared at the top of
+// this file (lines 35 + 44).
+const ClassGpaQuerySchema = z.object({
+  facultyName: StringArray,
+  levelName: StringArray,
+  acadYearBE: NumberArray,
+  semester: NumberArray,
+  geOnly: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
+});
+type ClassGpaQuery = z.infer<typeof ClassGpaQuerySchema>;
+
 const ClassOfferingsQuerySchema = z.object({
   facultyName: StringArray,
   acadYearBE: z.coerce.number().int().min(2500).max(2700).optional(),
@@ -139,6 +157,15 @@ const ClassOfferingsQuerySchema = z.object({
 });
 type ClassOfferingsQuery = z.infer<typeof ClassOfferingsQuerySchema>;
 
+// Student-evaluation filter (POWERBI.EVALUATE_INSTRUCTOR). Reuses
+// StringArray + NumberArray helpers from the top of this file.
+const SatisfactionQuerySchema = z.object({
+  facultyName: StringArray,
+  acadYearBE: NumberArray,
+  semester: NumberArray,
+});
+type SatisfactionQuery = z.infer<typeof SatisfactionQuerySchema>;
+
 @Controller('/education')
 export class EducationController {
   constructor(
@@ -146,6 +173,7 @@ export class EducationController {
     private readonly refresher: EducationRefreshService,
     private readonly recruitment: RecruitmentService,
     private readonly classOfferings: ClassOfferingsService,
+    private readonly evaluations: EvaluationsService,
   ) {}
 
   @Get('recruitment')
@@ -362,6 +390,72 @@ export class EducationController {
     return this.education.entryScores(clamped);
   }
 
+  // ───── /education/performance — class GPA (new in v1.2.9) ─────────────
+  // Class GPA computed from ClassOffering grade distributions, distinct
+  // from STUDENT cumulative GPA above. Same role-clamp pattern via
+  // clampFacultyNameFilter so a FACULTY_USER sees only their faculty's
+  // classes.
+
+  @Get('performance/class-gpa/overall')
+  @Authorized('institution:read:dashboard')
+  async classGpaOverall(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.classGpaOverall({ ...q, facultyName: ['__none__'] });
+    return this.education.classGpaOverall(clamped);
+  }
+
+  @Get('performance/class-gpa/trend')
+  @Authorized('institution:read:dashboard')
+  async classGpaTrend(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.classGpaTrend({ ...q, facultyName: ['__none__'] });
+    return this.education.classGpaTrend(clamped);
+  }
+
+  @Get('performance/class-gpa/by-program')
+  @Authorized('institution:read:dashboard')
+  async classGpaByProgram(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.education.classGpaByProgram({ ...q, facultyName: ['__none__'] });
+    return this.education.classGpaByProgram(clamped);
+  }
+
+  @Get('performance/class-gpa/courses/:programId')
+  @Authorized('institution:read:dashboard')
+  async classGpaCourses(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+    @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    // Per-program clamp. The course drill lives behind the parent
+    // by-program table (which the page-level facultyName filter
+    // narrows) — but a crafted URL with another faculty's programId
+    // would otherwise bypass that narrowing. assertProgramAccessible
+    // throws 403 for FACULTY_USER / PROGRAM_USER trying to peek
+    // outside their scope.
+    await assertProgramAccessible(programId, user);
+    return this.education.classGpaByCourse(programId, {
+      acadYearBE: q.acadYearBE,
+      semester: q.semester,
+    });
+  }
+
   // ───── /education/class-offerings — subject offerings & fulfilment ─────
   //
   // Scope clamp:
@@ -465,5 +559,148 @@ export class EducationController {
       levelName: q.levelName,
       geOnly: q.geOnly,
     };
+  }
+
+  // ───── /education/satisfaction — student-evaluation dashboard ─────────
+  //
+  // Course-aggregated only (no per-instructor names exposed here — those
+  // live on /staff/teaching with tiered visibility). Scope-clamped:
+  //   admin / UNIVERSITY_USER — all faculties
+  //   FACULTY_USER            — their faculty (via clampFacultyNameFilter)
+  //   PROGRAM_USER            — rolls up to their faculty (program-level
+  //                             evaluations don't exist at course-aggregate)
+  //
+  // PDPA gate is enforced at ingestion (rows with n<5 never reach DB);
+  // no additional suppression needed at the query layer.
+
+  @Get('satisfaction/overall')
+  @Authorized('institution:read:dashboard')
+  async satisfactionOverall(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.evaluations.overall({ ...q, facultyName: ['__none__'] });
+    return this.evaluations.overall(clamped);
+  }
+
+  @Get('satisfaction/by-course')
+  @Authorized('institution:read:dashboard')
+  async satisfactionByCourse(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.evaluations.coursesByYear({ ...q, facultyName: ['__none__'] });
+    return this.evaluations.coursesByYear(clamped);
+  }
+
+  @Get('satisfaction/by-program')
+  @Authorized('institution:read:dashboard')
+  async satisfactionByProgram(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.evaluations.coursesByProgram({ ...q, facultyName: ['__none__'] });
+    return this.evaluations.coursesByProgram(clamped);
+  }
+
+  // GET /education/satisfaction/course-questions?...scope&...filter
+  //
+  // Per-question detail at any scope. The hover tooltip on every rating
+  // cell calls this — the scope is set by which cell the user is hovering
+  // (faculty row × overall column → just facultyId; course row × year
+  // column → courseCode + programId + acadYearBE; etc.). Inherits the
+  // page-level filter (facultyName / semester) on top.
+  @Get('satisfaction/course-questions')
+  @Authorized('institution:read:dashboard')
+  async satisfactionCourseQuestions(
+    @AuthSession() user: SessionUser,
+    @Query('facultyId') facultyId: string | undefined,
+    @Query('programLevel') programLevel: string | undefined,
+    @Query('programId') programId: string | undefined,
+    @Query('courseCode') courseCode: string | undefined,
+    @Query('acadYearBE') acadYearBEStr: string | undefined,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    // When a programId is supplied, verify the user can access that
+    // program. The SQL clamp would zero-out cross-faculty results
+    // anyway, but the explicit 403 is a cleaner UX signal.
+    if (programId) await assertProgramAccessible(programId, user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    const filter = clamped === null ? { ...q, facultyName: ['__none__'] } : clamped;
+    const acadYearBE = acadYearBEStr ? Number(acadYearBEStr) : undefined;
+    return this.evaluations.courseQuestionDetail({
+      facultyId,
+      programLevel,
+      programId,
+      courseCode,
+      acadYearBE: Number.isFinite(acadYearBE) ? acadYearBE : undefined,
+      filter,
+    });
+  }
+
+  // GET /education/satisfaction/course-detail?courseCode=X&programId=Y&...filter
+  //
+  // Richer payload for the click-to-drill panel below the pivot. Returns
+  // summary KPIs + (year × sem) trend + per-question heatmap for one
+  // (program × course) pair. Course-aggregated — no instructor names.
+  @Get('satisfaction/course-detail')
+  @Authorized('institution:read:dashboard')
+  async satisfactionCourseDetail(
+    @AuthSession() user: SessionUser,
+    @Query('courseCode') courseCode: string,
+    @Query('programId') programId: string,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    // Per-program access — matches the class-GPA `courses/:programId`
+    // pattern. FACULTY_USER / PROGRAM_USER can't drill into a course
+    // outside their granted scope even via a crafted URL.
+    await assertProgramAccessible(programId, user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    const filter = clamped === null ? { ...q, facultyName: ['__none__'] } : clamped;
+    return this.evaluations.courseDetail({ programId, courseCode, filter });
+  }
+
+  @Get('satisfaction/trend')
+  @Authorized('institution:read:dashboard')
+  async satisfactionTrend(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.evaluations.trend({ ...q, facultyName: ['__none__'] });
+    return this.evaluations.trend(clamped);
+  }
+
+  @Get('satisfaction/question-gaps')
+  @Authorized('institution:read:dashboard')
+  async satisfactionQuestionGaps(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null)
+      return this.evaluations.questionGaps({ ...q, facultyName: ['__none__'] });
+    return this.evaluations.questionGaps(clamped);
+  }
+
+  @Get('satisfaction/questions')
+  @Authorized('institution:read:dashboard')
+  async satisfactionQuestions(@AuthSession() user: SessionUser) {
+    await assertCanSeeFacultyDashboards(user);
+    return this.evaluations.questionCatalog();
   }
 }

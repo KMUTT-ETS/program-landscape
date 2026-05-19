@@ -39,6 +39,15 @@ export const GetProgramInputSchema = z.object({
 });
 export type GetProgramInput = z.infer<typeof GetProgramInputSchema>;
 
+// ── 2b. query_program_courses ────────────────────────────────────────
+// Per-program course list + class-GPA aggregate per course.
+// v1.2.9 addition — wraps the same @kku/db helper that backs
+// /programs/:id/courses and the deep-dive page's Courses section.
+export const QueryProgramCoursesInputSchema = z.object({
+  programId: z.string(),
+});
+export type QueryProgramCoursesInput = z.infer<typeof QueryProgramCoursesInputSchema>;
+
 // ── 3. query_skills ─────────────────────────────────────────────────
 export const QuerySkillsInputSchema = z.object({
   search: z.string().optional(),
@@ -276,6 +285,18 @@ export const ANALYST_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'array',
           items: { type: 'string', enum: ['overview', 'health', 'enrollment', 'financials', 'faculty', 'trends'] },
         },
+      },
+      required: ['programId'],
+    },
+  },
+  {
+    name: 'query_program_courses',
+    description:
+      "Fetch the full course list of a program from program_courses (extracted by program-courses-extract.v1 from the curriculum PDF) joined with class-GPA aggregates per course (from POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER grade columns). Use for questions like \"what courses does this program teach\", \"which courses have the lowest GPA in Mechanical Engineering\", \"how many credits is the curriculum\". Returns one row per course with code/title/credits/sectionCount/gradedStudentCount/classGpa.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        programId: { type: 'string' },
       },
       required: ['programId'],
     },

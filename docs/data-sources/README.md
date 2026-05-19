@@ -17,6 +17,7 @@ Keep this table in sync as integrations land. The "Mode" column is the env-flag 
 | **A** Internal | `kku-hr` | KKU Human Resources | `mocked` | [kku-hr.md](./kku-hr.md) | PDPA sign-off required |
 | **A** Internal | `kku-alumni` | KKU Alumni Affairs | `mocked` | [kku-alumni.md](./kku-alumni.md) | — |
 | **A** Internal | `kku-research` | KKU Research Affairs | `mocked` | [kku-research.md](./kku-research.md) | — |
+| **A** Internal | `kku-evaluations` | KKU Student Evaluations (Teaching & Learning) | `mocked` | [kku-evaluations.md](./kku-evaluations.md) | Phase 0 complete 2026-05-19 |
 | **A** Internal | `digital-transcript` | Thailand Digital Transcript | `mocked` | [digital-transcript.md](./digital-transcript.md) | — |
 | **A** Internal | `mhesi-cisa` | MHESI CISA portal | `mocked` | [mhesi-cisa.md](./mhesi-cisa.md) | — |
 | **B** National | `nso-labor-force` | NSO Thailand | `mocked` | [nso-labor-force.md](./nso-labor-force.md) | PDF pipeline |

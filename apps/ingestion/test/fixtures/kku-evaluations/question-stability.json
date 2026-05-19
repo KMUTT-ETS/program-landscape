@@ -1,0 +1,128 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "questionIdCol": "QUESTIONID",
+  "questionTextCol": "QUESTIONID",
+  "presenceTop30": [
+    {
+      "id": "04",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "10",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "07",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "03",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "09",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "06",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "05",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "08",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "01",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "02",
+      "yearSemBuckets": 21
+    },
+    {
+      "id": "22",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "11",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "19",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "13",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "21",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "23",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "20",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "14",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "16",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "25",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "18",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "17",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "15",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "24",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "12",
+      "yearSemBuckets": 20
+    },
+    {
+      "id": "26",
+      "yearSemBuckets": 11
+    },
+    {
+      "id": "27",
+      "yearSemBuckets": 11
+    },
+    {
+      "id": "28",
+      "yearSemBuckets": 11
+    },
+    {
+      "id": "29",
+      "yearSemBuckets": 11
+    },
+    {
+      "id": "31",
+      "yearSemBuckets": 5
+    }
+  ],
+  "textDrift": []
+}

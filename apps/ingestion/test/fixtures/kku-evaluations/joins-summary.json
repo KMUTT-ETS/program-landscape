@@ -1,0 +1,543 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "naturalKey": {
+    "rowCount": 1429565,
+    "distinctClassidQidOfficerKey": 1429565,
+    "unique": true
+  },
+  "teamSizeDistribution": [
+    {
+      "teamSize": 1,
+      "groups": 427695
+    },
+    {
+      "teamSize": 2,
+      "groups": 132006
+    },
+    {
+      "teamSize": 3,
+      "groups": 51189
+    },
+    {
+      "teamSize": 4,
+      "groups": 21679
+    },
+    {
+      "teamSize": 5,
+      "groups": 11477
+    },
+    {
+      "teamSize": 6,
+      "groups": 6366
+    },
+    {
+      "teamSize": 7,
+      "groups": 6416
+    },
+    {
+      "teamSize": 8,
+      "groups": 4436
+    },
+    {
+      "teamSize": 9,
+      "groups": 3040
+    },
+    {
+      "teamSize": 10,
+      "groups": 1970
+    },
+    {
+      "teamSize": 11,
+      "groups": 1952
+    },
+    {
+      "teamSize": 12,
+      "groups": 2131
+    },
+    {
+      "teamSize": 13,
+      "groups": 1361
+    },
+    {
+      "teamSize": 14,
+      "groups": 710
+    },
+    {
+      "teamSize": 15,
+      "groups": 1720
+    },
+    {
+      "teamSize": 16,
+      "groups": 973
+    },
+    {
+      "teamSize": 17,
+      "groups": 920
+    },
+    {
+      "teamSize": 18,
+      "groups": 564
+    },
+    {
+      "teamSize": 19,
+      "groups": 266
+    },
+    {
+      "teamSize": 20,
+      "groups": 598
+    },
+    {
+      "teamSize": 21,
+      "groups": 604
+    },
+    {
+      "teamSize": 22,
+      "groups": 588
+    },
+    {
+      "teamSize": 23,
+      "groups": 576
+    },
+    {
+      "teamSize": 24,
+      "groups": 186
+    },
+    {
+      "teamSize": 26,
+      "groups": 302
+    },
+    {
+      "teamSize": 28,
+      "groups": 78
+    },
+    {
+      "teamSize": 29,
+      "groups": 104
+    },
+    {
+      "teamSize": 30,
+      "groups": 78
+    },
+    {
+      "teamSize": 31,
+      "groups": 52
+    },
+    {
+      "teamSize": 32,
+      "groups": 402
+    },
+    {
+      "teamSize": 37,
+      "groups": 1
+    },
+    {
+      "teamSize": 39,
+      "groups": 26
+    },
+    {
+      "teamSize": 43,
+      "groups": 20
+    },
+    {
+      "teamSize": 44,
+      "groups": 1
+    },
+    {
+      "teamSize": 45,
+      "groups": 20
+    },
+    {
+      "teamSize": 46,
+      "groups": 1
+    },
+    {
+      "teamSize": 47,
+      "groups": 27
+    },
+    {
+      "teamSize": 48,
+      "groups": 56
+    },
+    {
+      "teamSize": 49,
+      "groups": 50
+    },
+    {
+      "teamSize": 50,
+      "groups": 26
+    },
+    {
+      "teamSize": 51,
+      "groups": 625
+    }
+  ],
+  "scoreSanity": {
+    "rowsWithPoint": 1429477,
+    "pointNumericOk": 1429477,
+    "pointEqualsAvgTimesN": 662563,
+    "pointAvgRange": [
+      0.64,
+      5
+    ],
+    "totalStudentRange": [
+      1,
+      575
+    ]
+  },
+  "instructorIdentity": {
+    "distinctOfficerId": 2456,
+    "distinctKkumail": 2298,
+    "nullKkumailRows": 70939,
+    "officerIdRange": [
+      2649,
+      52663
+    ],
+    "kkumailsWithMultiOfficerId": 5
+  },
+  "facultyTop30": [
+    {
+      "facultyId": 7,
+      "rows": 202879,
+      "distinctInstructors": 407
+    },
+    {
+      "facultyId": 2,
+      "rows": 161638,
+      "distinctInstructors": 236
+    },
+    {
+      "facultyId": 51,
+      "rows": 149484,
+      "distinctInstructors": 158
+    },
+    {
+      "facultyId": 5,
+      "rows": 97847,
+      "distinctInstructors": 224
+    },
+    {
+      "facultyId": 4,
+      "rows": 89570,
+      "distinctInstructors": 199
+    },
+    {
+      "facultyId": 53,
+      "rows": 86626,
+      "distinctInstructors": 29
+    },
+    {
+      "facultyId": 3,
+      "rows": 85088,
+      "distinctInstructors": 132
+    },
+    {
+      "facultyId": 8,
+      "rows": 68577,
+      "distinctInstructors": 222
+    },
+    {
+      "facultyId": 38,
+      "rows": 54850,
+      "distinctInstructors": 49
+    },
+    {
+      "facultyId": 45,
+      "rows": 50260,
+      "distinctInstructors": 135
+    },
+    {
+      "facultyId": 6,
+      "rows": 49910,
+      "distinctInstructors": 107
+    },
+    {
+      "facultyId": 11,
+      "rows": 46738,
+      "distinctInstructors": 69
+    },
+    {
+      "facultyId": 18,
+      "rows": 41240,
+      "distinctInstructors": 81
+    },
+    {
+      "facultyId": 21,
+      "rows": 41210,
+      "distinctInstructors": 95
+    },
+    {
+      "facultyId": 20,
+      "rows": 35600,
+      "distinctInstructors": 69
+    },
+    {
+      "facultyId": 15,
+      "rows": 31530,
+      "distinctInstructors": 71
+    },
+    {
+      "facultyId": 22,
+      "rows": 30043,
+      "distinctInstructors": 83
+    },
+    {
+      "facultyId": 29,
+      "rows": 25501,
+      "distinctInstructors": 78
+    },
+    {
+      "facultyId": 16,
+      "rows": 24949,
+      "distinctInstructors": 82
+    },
+    {
+      "facultyId": 13,
+      "rows": 14689,
+      "distinctInstructors": 82
+    },
+    {
+      "facultyId": 27,
+      "rows": 10953,
+      "distinctInstructors": 55
+    },
+    {
+      "facultyId": 28,
+      "rows": 8980,
+      "distinctInstructors": 82
+    },
+    {
+      "facultyId": 32,
+      "rows": 8715,
+      "distinctInstructors": 33
+    },
+    {
+      "facultyId": 9,
+      "rows": 8618,
+      "distinctInstructors": 61
+    },
+    {
+      "facultyId": 74,
+      "rows": 3230,
+      "distinctInstructors": 28
+    },
+    {
+      "facultyId": 10,
+      "rows": 830,
+      "distinctInstructors": 22
+    },
+    {
+      "facultyId": 24,
+      "rows": 10,
+      "distinctInstructors": 1
+    }
+  ],
+  "questionCatalog": [
+    {
+      "questionId": "01",
+      "rows": 111686,
+      "questionText": "นักศึกษาได้รับรู้และเข้าใจผลลัพธ์การเรียนรู้/เป้าหมายของรายวิชา"
+    },
+    {
+      "questionId": "02",
+      "rows": 113553,
+      "questionText": "นักศึกษาได้รับการชี้แจ้งหรือมีส่วนร่วมในการกำหนดรูปแบบการจัดการเรียนการสอนและเกณฑ์การประเมินผล"
+    },
+    {
+      "questionId": "03",
+      "rows": 113560,
+      "questionText": "ผู้สอนมีกิจกรรมการเรียนการสอนที่เน้นให้ผู้เรียนมีส่วนร่วมมีรูปแบบหลากหลายและสอดคล้องกับผลลัพธ์การเรียนรู้"
+    },
+    {
+      "questionId": "04",
+      "rows": 113562,
+      "questionText": "ผู้สอนมีการสอดแทรกคุณธรรม จริยธรรม จรรยาบรรณวิชาชีพในการเรียนการสอน"
+    },
+    {
+      "questionId": "05",
+      "rows": 113562,
+      "questionText": "ผู้สอนมีการจัดการเรียนการสอนที่ส่งเสริมให้นักศึกษาได้ค้นคว้าหาความรู้ด้วยตนเองทั้งในและนอกห้องเรียน"
+    },
+    {
+      "questionId": "06",
+      "rows": 113561,
+      "questionText": "ผู้สอนมีการวัดและประเมินผลด้วยวิธีการที่หลากหลาย และสะท้อนการบรรลุผลลัพธ์การเรียนรู้"
+    },
+    {
+      "questionId": "07",
+      "rows": 113561,
+      "questionText": "นักศึกษาได้รับการเรียนรู้จากสื่อของผู้สอนที่เข้าใจได้ง่าย"
+    },
+    {
+      "questionId": "08",
+      "rows": 113561,
+      "questionText": "ผู้สอนมีการใช้เทคโนโลยีการเรียนรู้ หรือสื่อสารสนเทศเพื่อส่งเสริมการเรียนรู้"
+    },
+    {
+      "questionId": "09",
+      "rows": 113563,
+      "questionText": "นักศึกษามีโอกาสได้ซักถามและได้รับคำแนะนำจากอาจารย์ผู้สอน"
+    },
+    {
+      "questionId": "10",
+      "rows": 113562,
+      "questionText": "ผู้สอนมีการส่งเสริมคุณธรรม จริยธรรม จรรยาบรรณวิชาชีพหรือปฏฺบัติตนเป็นแบบอย่างที่ดีแก่นักศึกษา"
+    },
+    {
+      "questionId": "11",
+      "rows": 21250,
+      "questionText": "ในชั้นเรียนนักศึกษาได้ “ลงมือทำ” งานหรือกิจกรรมที่ทำให้เข้าใจเนื้อหา มากกว่าการนั่งฟังอย่างเดียว"
+    },
+    {
+      "questionId": "12",
+      "rows": 20970,
+      "questionText": "เนื้อหาในรายวิชามีความทันสมัย ทันต่อการเปลี่ยนแปลง"
+    },
+    {
+      "questionId": "13",
+      "rows": 20971,
+      "questionText": "โจทย์หรือโครงงานในรายวิชานี้ มีลักษณะที่ท้าทายให้ท่านต้องประยุกต์ใช้ความรู้เพื่อแก้ปัญหาที่มีความซับซ้อน คล้ายกับสถานการณ์ที่อาจพบได้ในชีวิตจริงหรือการทำงานในอนาคตหรือไม่"
+    },
+    {
+      "questionId": "14",
+      "rows": 19591,
+      "questionText": "เปิดโอกาสให้นักศึกษาแสดงความคิดเห็นและตอบข้อซักถามอย่างตรงประเด็น"
+    },
+    {
+      "questionId": "15",
+      "rows": 17395,
+      "questionText": "เนื้อหาในรายวิชานี้ช่วยให้ท่านมองเห็นความเชื่อมโยงระหว่างศาสตร์ต่าง ๆ หรือสามารถนำความรู้จากวิชาอื่นที่กำลังเรียนมาประกอบการทำความเข้าใจ"
+    },
+    {
+      "questionId": "16",
+      "rows": 17307,
+      "questionText": "อาจารย์ผู้สอน สามารถใช้เทคนิควิธีการสอนต่างๆ เพื่อให้นักศึกษาเกิดความสนใจและติดตามการสอนตลอดเวลา เช่น ใช้ภาษาที่เข้าใจง่าย"
+    },
+    {
+      "questionId": "17",
+      "rows": 17307,
+      "questionText": "เมื่อท่านต้องทำโครงงานหรือศึกษาค้นคว้าด้วยตนเอง อาจารย์ผู้สอนเข้ามามีบทบาทในการให้คำแนะนำ ชี้แนะแหล่งข้อมูล หรือเป็นที่ปรึกษาในกระบวนการเรียนรู้ของท่าน"
+    },
+    {
+      "questionId": "18",
+      "rows": 17305,
+      "questionText": "อาจารย์ผู้สอน ยกตัวอย่าง สอดแทรกประสบการณ์ใช้คำถามเพื่อให้นักศึกษาคิดและตอบคำถามให้เข้าใจได้ชัดเจน"
+    },
+    {
+      "questionId": "19",
+      "rows": 17305,
+      "questionText": "อาจารย์ผู้สอน เปิดโอกาสให้นักศึกษาแสดงความคิดเห็นและตอบข้อซักถามอย่างตรงประเด็น"
+    },
+    {
+      "questionId": "20",
+      "rows": 17305,
+      "questionText": "อาจารย์ผู้สอน แจ้งให้นักศึกษารู้จักแหล่งข้อมูลที่จะค้นคว้าศึกษาเพิ่มเติม"
+    },
+    {
+      "questionId": "21",
+      "rows": 15944,
+      "questionText": "อาจารย์ผู้สอน แจ้งให้นักศึกษารู้จักแหล่งข้อมูลที่จะค้นคว้าศึกษาเพิ่มเติม"
+    },
+    {
+      "questionId": "22",
+      "rows": 15944,
+      "questionText": "อาจารย์ผู้สอน แจ้งให้นักศึกษารู้จักแหล่งข้อมูลที่จะค้นคว้าศึกษาเพิ่มเติม"
+    },
+    {
+      "questionId": "23",
+      "rows": 14093,
+      "questionText": "เนื้อหาที่เรียนมีความทันสมัย น่าสนใจ"
+    },
+    {
+      "questionId": "24",
+      "rows": 14093,
+      "questionText": "อาจารย์ผู้สอน สามารถสอนเนื้อหาได้ครบถ้วนตามวัตถุประสงค์ในเวลาที่กำหนด"
+    },
+    {
+      "questionId": "25",
+      "rows": 14093,
+      "questionText": "อาจารย์ผู้สอน สามารถสอนเนื้อหาได้ครบถ้วนตามวัตถุประสงค์ในเวลาที่กำหนด"
+    },
+    {
+      "questionId": "26",
+      "rows": 5692,
+      "questionText": "อาจารย์ผู้สอน สามารถสอนเนื้อหาได้ครบถ้วนตามวัตถุประสงค์ในเวลาที่กำหนด"
+    },
+    {
+      "questionId": "27",
+      "rows": 3593,
+      "questionText": "อาจารย์ผู้สอน มีการสรุปหลักการหรือแนวคิดในหัวข้อที่สอนอย่างชัดเจน"
+    },
+    {
+      "questionId": "28",
+      "rows": 3365,
+      "questionText": "เนื้อหาและกิจกรรมต่างๆในชั้นเรียนมีความเหมาะสม"
+    },
+    {
+      "questionId": "29",
+      "rows": 3204,
+      "questionText": "อาจารย์ผู้สอน มีการสรุปหลักการหรือแนวคิดในหัวข้อที่สอนอย่างชัดเจน"
+    },
+    {
+      "questionId": "30",
+      "rows": 1737,
+      "questionText": "เกณฑ์การให้คะแนนของงานแต่ละชิ้นมีความชัดเจนและเหมาะสม"
+    },
+    {
+      "questionId": "31",
+      "rows": 1737,
+      "questionText": "สัดส่วนคะแนนจากกิจกรรมต่างๆของรายวิชานี้มีความเหมาะสม"
+    },
+    {
+      "questionId": "32",
+      "rows": 1737,
+      "questionText": "เกณฑ์การประเมินผลการเรียนรู้ในรายวิชามีความเหมาะสม"
+    },
+    {
+      "questionId": "33",
+      "rows": 1737,
+      "questionText": "ความสามารถทางการฟังของข้าพเจ้าดีขึ้น"
+    },
+    {
+      "questionId": "34",
+      "rows": 1737,
+      "questionText": "ความสามารถทางการพูดของข้าพเจ้าดีขึ้น"
+    },
+    {
+      "questionId": "35",
+      "rows": 1737,
+      "questionText": "ความสามารถทางการอ่านของข้าพเจ้าดีขึ้น"
+    },
+    {
+      "questionId": "36",
+      "rows": 1737,
+      "questionText": "\tความสามารถทางการเขียนของข้าพเจ้าดีขึ้น"
+    },
+    {
+      "questionId": "37",
+      "rows": 1737,
+      "questionText": "\tความรู้ด้านไวยากรณ์ของข้าพเจ้าดีขึ้น"
+    },
+    {
+      "questionId": "38",
+      "rows": 1737,
+      "questionText": "ความรู้ด้านคำศัพท์ของข้าพเจ้าดีขึ้น"
+    },
+    {
+      "questionId": "39",
+      "rows": 1737,
+      "questionText": "\tระดับความสามารถทางภาษาอังกฤษก่อนเรียน"
+    },
+    {
+      "questionId": "40",
+      "rows": 1737,
+      "questionText": "\tระดับความสามารถทางภาษาอังกฤษเมื่อสิ้นภาคการศึกษา"
+    }
+  ],
+  "suppression": {
+    "threshold": 5,
+    "total": 1429565,
+    "kept": 986075,
+    "skipped": 443490,
+    "skippedPct": 31.02272369566966
+  }
+}

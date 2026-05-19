@@ -1,0 +1,112 @@
+{
+  "view": "POWERBI.EVALUATE_INSTRUCTOR",
+  "yearCol": "ACADYEAR",
+  "semCol": "SEMESTER",
+  "buckets": [
+    {
+      "year": 2569,
+      "semester": 1,
+      "rowCount": 10
+    },
+    {
+      "year": 2568,
+      "semester": 1,
+      "rowCount": 141631
+    },
+    {
+      "year": 2568,
+      "semester": 2,
+      "rowCount": 111212
+    },
+    {
+      "year": 2568,
+      "semester": 3,
+      "rowCount": 2600
+    },
+    {
+      "year": 2568,
+      "semester": 4,
+      "rowCount": 1225
+    },
+    {
+      "year": 2567,
+      "semester": 1,
+      "rowCount": 150931
+    },
+    {
+      "year": 2567,
+      "semester": 2,
+      "rowCount": 120823
+    },
+    {
+      "year": 2567,
+      "semester": 3,
+      "rowCount": 2260
+    },
+    {
+      "year": 2567,
+      "semester": 4,
+      "rowCount": 1650
+    },
+    {
+      "year": 2566,
+      "semester": 1,
+      "rowCount": 153836
+    },
+    {
+      "year": 2566,
+      "semester": 2,
+      "rowCount": 134492
+    },
+    {
+      "year": 2566,
+      "semester": 3,
+      "rowCount": 2710
+    },
+    {
+      "year": 2566,
+      "semester": 4,
+      "rowCount": 2525
+    },
+    {
+      "year": 2565,
+      "semester": 1,
+      "rowCount": 166900
+    },
+    {
+      "year": 2565,
+      "semester": 2,
+      "rowCount": 126004
+    },
+    {
+      "year": 2565,
+      "semester": 3,
+      "rowCount": 9117
+    },
+    {
+      "year": 2565,
+      "semester": 4,
+      "rowCount": 4675
+    },
+    {
+      "year": 2564,
+      "semester": 1,
+      "rowCount": 152600
+    },
+    {
+      "year": 2564,
+      "semester": 2,
+      "rowCount": 126479
+    },
+    {
+      "year": 2564,
+      "semester": 3,
+      "rowCount": 10110
+    },
+    {
+      "year": 2564,
+      "semester": 4,
+      "rowCount": 7775
+    }
+  ]
+}

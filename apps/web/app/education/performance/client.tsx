@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@kku/ui';
 import { ChevronRight } from 'lucide-react';
 import type {
+  ClassGpaByProgramResponse,
+  ClassGpaOverall,
+  ClassGpaTrendRow,
   EntryScoreResponse,
   PerformanceByLocationResponse,
   PerformanceByProgramResponse,
@@ -12,12 +15,16 @@ import type {
   ThailandRegion,
 } from '../types';
 import { MultiSelectField } from '../multi-select';
+import { ClassGpaSection } from './class-gpa-section';
 
 interface Props {
   overall: PerformanceOverall;
   byProgram: PerformanceByProgramResponse | null;
   byLocation: PerformanceByLocationResponse | null;
   entryScores: EntryScoreResponse | null;
+  classGpaOverall: ClassGpaOverall | null;
+  classGpaTrend: ClassGpaTrendRow[] | null;
+  classGpaByProgram: ClassGpaByProgramResponse | null;
   initialFilters: {
     facultyName: string[];
     programLevel: string[];
@@ -53,6 +60,9 @@ export function PerformanceClient({
   byProgram,
   byLocation,
   entryScores,
+  classGpaOverall,
+  classGpaTrend,
+  classGpaByProgram,
   initialFilters,
 }: Props) {
   const router = useRouter();
@@ -258,6 +268,16 @@ export function PerformanceClient({
             this once the score view is reachable.
           </p>
         </Card>
+      )}
+
+      {/* ── Class GPA section (v1.2.9) ─────────────────────────────── */}
+      {classGpaOverall && classGpaTrend && classGpaByProgram && (
+        <ClassGpaSection
+          overall={classGpaOverall}
+          trend={classGpaTrend}
+          byProgram={classGpaByProgram}
+          facultyNameFilter={faculty}
+        />
       )}
     </div>
   );

@@ -308,6 +308,135 @@ export interface EntryScoreResponse {
   totals: { cells: Record<string, number>; studentCount: number };
 }
 
+// ── Class-GPA shapes (new in v1.2.9) ─────────────────────────────────────
+// Source: ClassOffering grade-distribution columns. Distinct from student
+// cumulative GPA (which lives in EducationPerformanceCube) — see
+// docs/methodologies/class-gpa.md.
+//
+// All aggregations are credit-weighted: a section's contribution to a
+// rollup is `classGpa × gradedCount × COALESCE(creditTotal, 1)`. The
+// `gradedCount` denominator and `creditTotal` weight are summed
+// separately at every level (faculty, program, course, semester) so the
+// numerator/denominator pair stays exact under further aggregation.
+
+export interface ClassGpaFilters {
+  facultyName?: string[];
+  /** LEVELNAME from the registrar — 'ปริญญาตรี' / 'ปริญญาโท' / etc. */
+  levelName?: string[];
+  /** ACADYEAR Buddhist Era — e.g. [2566, 2567, 2568]. Empty = all years. */
+  acadYearBE?: number[];
+  /** Semester codes 1-4. Empty = all. */
+  semester?: number[];
+  /** When true, only classes flagged isGeneralEducation=true. */
+  geOnly?: boolean;
+}
+
+export interface ClassGpaOverall {
+  /** Number of class offerings in the filtered window. */
+  totalClasses: number;
+  /** Subset whose gradedCount > 0 (had at least one letter grade reported). */
+  classesWithGrades: number;
+  /** Total students who received a graded letter (A..F). */
+  totalGradedCount: number;
+  /** Credit-weighted mean class GPA. NULL when no graded classes match. */
+  averageClassGpa: number | null;
+  /** Pass rate = 1 - (F count / gradedCount). NULL when gradedCount = 0. */
+  passRate: number | null;
+  /** Withdraw rate = W / (gradedCount + I + W). NULL on zero. */
+  withdrawalRate: number | null;
+  /** Letter distribution (counts of each graded letter across all matched
+   *  sections). UI renders this as a stacked bar / pie. */
+  gradeDistribution: Record<
+    'A' | 'BPLUS' | 'B' | 'CPLUS' | 'C' | 'DPLUS' | 'D' | 'F',
+    number
+  >;
+  /** Inclusive year range observed in the matched rows. */
+  windowYearsBE: { start: number | null; end: number | null };
+}
+
+export interface ClassGpaTrendCell {
+  classCount: number;
+  gradedCount: number;
+  averageClassGpa: number | null;
+}
+
+export interface ClassGpaTrendRow {
+  acadYearBE: number;
+  /** Per-semester cells. Missing semesters → undefined; UI renders as a
+   *  gap rather than zero. Keys are stringified for JSON portability. */
+  bySemester: Record<'1' | '2' | '3' | '4', ClassGpaTrendCell | undefined>;
+  overall: ClassGpaTrendCell;
+}
+
+export interface ClassGpaByProgramRow {
+  programId: string;
+  programName: string;
+  programLevel: string;
+  facultyName: string;
+  classCount: number;
+  gradedCount: number;
+  averageClassGpa: number | null;
+  /** Keys = ACADYEAR_BE; the UI renders these as columns. Cells where
+   *  the program had no graded data in that year are omitted; the UI
+   *  shows a blank "—" rather than 0. */
+  byYear: Record<string, ClassGpaTrendCell>;
+}
+
+export interface ClassGpaByProgramResponse {
+  rows: ClassGpaByProgramRow[];
+  totals: ClassGpaTrendCell;
+  /** Sorted ascending. The UI uses this to pin the column order. */
+  yearsObserved: number[];
+}
+
+export interface ClassGpaCourseRow {
+  courseCode: string;
+  courseNameTh: string | null;
+  courseNameEn: string | null;
+  classCount: number;
+  gradedCount: number;
+  averageClassGpa: number | null;
+  byYear: Record<string, ClassGpaTrendCell>;
+}
+
+export interface ClassGpaCoursesResponse {
+  programId: string;
+  rows: ClassGpaCourseRow[];
+  yearsObserved: number[];
+}
+
+/** Per-section drill — what the UI shows when an analyst clicks a program
+ *  in the class-GPA breakdown. Limited to a single (program × year × sem)
+ *  cell so the payload stays small (a program rarely has > 50 sections
+ *  per semester). */
+export interface ClassGpaSectionRow {
+  classOfferingId: string;
+  acadYearBE: number;
+  semester: number;
+  courseCode: string;
+  courseNameTh: string | null;
+  courseNameEn: string | null;
+  section: number;
+  enrollSeat: number;
+  gradedCount: number;
+  classGpa: number | null;
+  creditTotal: number | null;
+  // Grade letter counts for the section so the drill-down shows the
+  // distribution behind each row.
+  grades: {
+    A: number;
+    BPLUS: number;
+    B: number;
+    CPLUS: number;
+    C: number;
+    DPLUS: number;
+    D: number;
+    F: number;
+    I: number;
+    W: number;
+  };
+}
+
 @Injectable()
 export class EducationService {
   // ── Dashboard 1 — Student info ───────────────────────────────────
@@ -1233,6 +1362,505 @@ export class EducationService {
         ),
     ]);
     return { faculties, programLevels, programs };
+  }
+
+  // ── Class GPA (new in v1.2.9) ──────────────────────────────────────
+  // Driven from the ClassOffering grade-distribution columns. All
+  // aggregations credit-weighted: contribution = classGpa × gradedCount ×
+  // COALESCE(creditTotal, 1). gradedCount + creditTotal sums are tracked
+  // per cell so any further rollup remains exact.
+
+  /** Shared SQL fragment building the `class_offerings` WHERE clause from
+   *  a ClassGpaFilters bag. Used by every class-GPA query so the filter
+   *  semantics stay consistent. */
+  private classGpaWhere(filters: ClassGpaFilters) {
+    const where: Prisma.ClassOfferingWhereInput = {};
+    if (filters.facultyName && filters.facultyName.length > 0)
+      where.faculty = { OR: [{ nameTh: { in: filters.facultyName } }, { nameEn: { in: filters.facultyName } }] };
+    if (filters.levelName && filters.levelName.length > 0)
+      where.levelName = { in: filters.levelName };
+    if (filters.acadYearBE && filters.acadYearBE.length > 0)
+      where.acadYearBE = { in: filters.acadYearBE };
+    if (filters.semester && filters.semester.length > 0)
+      where.semester = { in: filters.semester };
+    if (filters.geOnly) where.isGeneralEducation = true;
+    return where;
+  }
+
+  /** Overall KPIs across the filtered window. */
+  async classGpaOverall(filters: ClassGpaFilters): Promise<ClassGpaOverall> {
+    const where = this.classGpaWhere(filters);
+    const rows = await prisma.classOffering.findMany({
+      where,
+      select: {
+        acadYearBE: true,
+        gradedCount: true,
+        classGpa: true,
+        creditTotal: true,
+        gradeA: true,
+        gradeBPlus: true,
+        gradeB: true,
+        gradeCPlus: true,
+        gradeC: true,
+        gradeDPlus: true,
+        gradeD: true,
+        gradeF: true,
+        gradeI: true,
+        gradeW: true,
+      },
+    });
+    let totalClasses = 0;
+    let classesWithGrades = 0;
+    let weightedGpaNumer = 0;
+    let weightedDenom = 0;
+    let totalGradedCount = 0;
+    let totalI = 0;
+    let totalW = 0;
+    const dist = {
+      A: 0,
+      BPLUS: 0,
+      B: 0,
+      CPLUS: 0,
+      C: 0,
+      DPLUS: 0,
+      D: 0,
+      F: 0,
+    };
+    let minYear: number | null = null;
+    let maxYear: number | null = null;
+    for (const r of rows) {
+      totalClasses++;
+      if (minYear === null || r.acadYearBE < minYear) minYear = r.acadYearBE;
+      if (maxYear === null || r.acadYearBE > maxYear) maxYear = r.acadYearBE;
+      if (r.gradedCount > 0 && r.classGpa !== null) {
+        classesWithGrades++;
+        const credits = r.creditTotal ?? 1;
+        const w = r.gradedCount * credits;
+        weightedGpaNumer += r.classGpa * w;
+        weightedDenom += w;
+      }
+      totalGradedCount += r.gradedCount;
+      totalI += r.gradeI;
+      totalW += r.gradeW;
+      dist.A += r.gradeA;
+      dist.BPLUS += r.gradeBPlus;
+      dist.B += r.gradeB;
+      dist.CPLUS += r.gradeCPlus;
+      dist.C += r.gradeC;
+      dist.DPLUS += r.gradeDPlus;
+      dist.D += r.gradeD;
+      dist.F += r.gradeF;
+    }
+    const averageClassGpa = weightedDenom > 0 ? weightedGpaNumer / weightedDenom : null;
+    const passRate = totalGradedCount > 0 ? 1 - dist.F / totalGradedCount : null;
+    const withdrawalDenom = totalGradedCount + totalI + totalW;
+    const withdrawalRate = withdrawalDenom > 0 ? totalW / withdrawalDenom : null;
+    return {
+      totalClasses,
+      classesWithGrades,
+      totalGradedCount,
+      averageClassGpa,
+      passRate,
+      withdrawalRate,
+      gradeDistribution: dist,
+      windowYearsBE: { start: minYear, end: maxYear },
+    };
+  }
+
+  /** Trend grid: one row per acadYearBE, four cells per semester (1, 2, 3, 4)
+   *  plus the year's overall. UI plots one line per semester. */
+  async classGpaTrend(filters: ClassGpaFilters): Promise<ClassGpaTrendRow[]> {
+    const where = this.classGpaWhere(filters);
+    const rows = await prisma.classOffering.findMany({
+      where: { ...where, gradedCount: { gt: 0 } },
+      select: {
+        acadYearBE: true,
+        semester: true,
+        gradedCount: true,
+        classGpa: true,
+        creditTotal: true,
+      },
+    });
+    interface Agg {
+      classCount: number;
+      gradedCount: number;
+      numer: number;
+      denom: number;
+    }
+    const yearMap = new Map<number, { sem: Map<number, Agg>; overall: Agg }>();
+    const blank = (): Agg => ({ classCount: 0, gradedCount: 0, numer: 0, denom: 0 });
+    for (const r of rows) {
+      if (r.classGpa === null) continue;
+      const credits = r.creditTotal ?? 1;
+      const w = r.gradedCount * credits;
+      const entry = yearMap.get(r.acadYearBE) ?? { sem: new Map(), overall: blank() };
+      const semCell = entry.sem.get(r.semester) ?? blank();
+      semCell.classCount++;
+      semCell.gradedCount += r.gradedCount;
+      semCell.numer += r.classGpa * w;
+      semCell.denom += w;
+      entry.sem.set(r.semester, semCell);
+      entry.overall.classCount++;
+      entry.overall.gradedCount += r.gradedCount;
+      entry.overall.numer += r.classGpa * w;
+      entry.overall.denom += w;
+      yearMap.set(r.acadYearBE, entry);
+    }
+    const out: ClassGpaTrendRow[] = [];
+    for (const [year, entry] of [...yearMap.entries()].sort((a, b) => a[0] - b[0])) {
+      const cell = (a: Agg): ClassGpaTrendCell => ({
+        classCount: a.classCount,
+        gradedCount: a.gradedCount,
+        averageClassGpa: a.denom > 0 ? a.numer / a.denom : null,
+      });
+      const bySemester: ClassGpaTrendRow['bySemester'] = {
+        '1': entry.sem.has(1) ? cell(entry.sem.get(1)!) : undefined,
+        '2': entry.sem.has(2) ? cell(entry.sem.get(2)!) : undefined,
+        '3': entry.sem.has(3) ? cell(entry.sem.get(3)!) : undefined,
+        '4': entry.sem.has(4) ? cell(entry.sem.get(4)!) : undefined,
+      };
+      out.push({ acadYearBE: year, bySemester, overall: cell(entry.overall) });
+    }
+    return out;
+  }
+
+  /** Per-program rollup. Class GPAs aggregated from ClassOffering rows
+   *  whose courseCode matches a row in `program_courses` for that
+   *  program. A class taught by a course shared across N programs
+   *  contributes to all N — accurate for a "what's the average GPA my
+   *  curriculum's classes produce" reading. Sort defaults to averageClassGpa
+   *  desc with NULLs sinking to the bottom. */
+  async classGpaByProgram(filters: ClassGpaFilters): Promise<ClassGpaByProgramResponse> {
+    // Raw query — joining ClassOffering ↔ ProgramCourse on courseCode +
+    // ProgramCourse ↔ Program is the natural shape. The Prisma ORM
+    // would need a nested aggregation which it doesn't model neatly;
+    // the SQL stays small + indexable.
+    const sqlConditions: Prisma.Sql[] = [];
+    if (filters.facultyName && filters.facultyName.length > 0)
+      sqlConditions.push(Prisma.sql`f."name_th" IN (${Prisma.join(filters.facultyName)})`);
+    if (filters.levelName && filters.levelName.length > 0)
+      sqlConditions.push(Prisma.sql`co."level_name" IN (${Prisma.join(filters.levelName)})`);
+    if (filters.acadYearBE && filters.acadYearBE.length > 0)
+      sqlConditions.push(Prisma.sql`co."acad_year_be" IN (${Prisma.join(filters.acadYearBE)})`);
+    if (filters.semester && filters.semester.length > 0)
+      sqlConditions.push(Prisma.sql`co."semester" IN (${Prisma.join(filters.semester)})`);
+    if (filters.geOnly) sqlConditions.push(Prisma.sql`co."is_general_education" = TRUE`);
+    const where =
+      sqlConditions.length > 0
+        ? Prisma.sql`WHERE ${Prisma.join(sqlConditions, ' AND ')} AND co."graded_count" > 0`
+        : Prisma.sql`WHERE co."graded_count" > 0`;
+
+    // Group by (program, year) so the UI can render year-columns. The
+    // overall program rollup is summed client-side from the year cells.
+    const rows = await prisma.$queryRaw<
+      Array<{
+        program_id: string;
+        program_name: string;
+        program_level: string;
+        faculty_name: string;
+        acad_year_be: number;
+        class_count: bigint;
+        graded_count: bigint;
+        weighted_numer: number | null;
+        weighted_denom: number | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        p."id"                                   AS program_id,
+        p."name_th"                              AS program_name,
+        p."level"::text                          AS program_level,
+        f."name_th"                              AS faculty_name,
+        co."acad_year_be"                        AS acad_year_be,
+        COUNT(co."id")::bigint                   AS class_count,
+        COALESCE(SUM(co."graded_count"), 0)::bigint AS graded_count,
+        SUM(co."class_gpa" * co."graded_count" * COALESCE(co."credit_total", 1)) AS weighted_numer,
+        SUM(co."graded_count" * COALESCE(co."credit_total", 1))::float AS weighted_denom
+      FROM "class_offerings" co
+      JOIN "program_courses" pc ON pc."course_code" = co."course_code"
+      JOIN "programs" p ON p."id" = pc."program_id"
+      JOIN "faculties" f ON f."id" = p."faculty_id"
+      ${where}
+      GROUP BY p."id", p."name_th", p."level", f."name_th", co."acad_year_be"
+    `);
+
+    // Fold (program × year) tuples into one row per program with a
+    // byYear map. Track yearsObserved globally for the column header set.
+    interface Agg {
+      programId: string;
+      programName: string;
+      programLevel: string;
+      facultyName: string;
+      classCount: number;
+      gradedCount: number;
+      weightedNumer: number;
+      weightedDenom: number;
+      byYear: Record<string, ClassGpaTrendCell>;
+    }
+    const programMap = new Map<string, Agg>();
+    const yearSet = new Set<number>();
+    for (const r of rows) {
+      yearSet.add(r.acad_year_be);
+      const numer = r.weighted_numer ?? 0;
+      const denom = r.weighted_denom ?? 0;
+      const classCount = Number(r.class_count);
+      const gradedCount = Number(r.graded_count);
+      const cell: ClassGpaTrendCell = {
+        classCount,
+        gradedCount,
+        averageClassGpa: denom > 0 ? numer / denom : null,
+      };
+      const entry =
+        programMap.get(r.program_id) ?? {
+          programId: r.program_id,
+          programName: r.program_name,
+          programLevel: r.program_level,
+          facultyName: r.faculty_name,
+          classCount: 0,
+          gradedCount: 0,
+          weightedNumer: 0,
+          weightedDenom: 0,
+          byYear: {},
+        };
+      entry.classCount += classCount;
+      entry.gradedCount += gradedCount;
+      entry.weightedNumer += numer;
+      entry.weightedDenom += denom;
+      entry.byYear[String(r.acad_year_be)] = cell;
+      programMap.set(r.program_id, entry);
+    }
+
+    let totalCount = 0;
+    let totalGraded = 0;
+    let totalNumer = 0;
+    let totalDenom = 0;
+    const out: ClassGpaByProgramRow[] = [...programMap.values()]
+      .map((a) => {
+        totalCount += a.classCount;
+        totalGraded += a.gradedCount;
+        totalNumer += a.weightedNumer;
+        totalDenom += a.weightedDenom;
+        return {
+          programId: a.programId,
+          programName: a.programName,
+          programLevel: a.programLevel,
+          facultyName: a.facultyName,
+          classCount: a.classCount,
+          gradedCount: a.gradedCount,
+          averageClassGpa: a.weightedDenom > 0 ? a.weightedNumer / a.weightedDenom : null,
+          byYear: a.byYear,
+        };
+      })
+      .sort((x, y) => {
+        const xv = x.averageClassGpa ?? -Infinity;
+        const yv = y.averageClassGpa ?? -Infinity;
+        return yv - xv;
+      });
+    return {
+      rows: out,
+      totals: {
+        classCount: totalCount,
+        gradedCount: totalGraded,
+        averageClassGpa: totalDenom > 0 ? totalNumer / totalDenom : null,
+      },
+      yearsObserved: [...yearSet].sort((a, b) => a - b),
+    };
+  }
+
+  /** Per-course (lowest level in Faculty→Program→Course drill) — one row
+   *  per courseCode in the program's curriculum, with year-columns
+   *  weighted across all sections of that course. Sections are
+   *  rolled up by (courseCode × year). */
+  async classGpaByCourse(
+    programId: string,
+    filters: Omit<ClassGpaFilters, 'facultyName' | 'levelName' | 'geOnly'>,
+  ): Promise<ClassGpaCoursesResponse> {
+    const sqlConditions: Prisma.Sql[] = [Prisma.sql`pc."program_id" = ${programId}`];
+    if (filters.acadYearBE && filters.acadYearBE.length > 0)
+      sqlConditions.push(Prisma.sql`co."acad_year_be" IN (${Prisma.join(filters.acadYearBE)})`);
+    if (filters.semester && filters.semester.length > 0)
+      sqlConditions.push(Prisma.sql`co."semester" IN (${Prisma.join(filters.semester)})`);
+    sqlConditions.push(Prisma.sql`co."graded_count" > 0`);
+    const where = Prisma.sql`WHERE ${Prisma.join(sqlConditions, ' AND ')}`;
+
+    const rows = await prisma.$queryRaw<
+      Array<{
+        course_code: string;
+        course_name_th: string | null;
+        course_name_en: string | null;
+        acad_year_be: number;
+        class_count: bigint;
+        graded_count: bigint;
+        weighted_numer: number | null;
+        weighted_denom: number | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        co."course_code"                          AS course_code,
+        MAX(co."course_name_th")                  AS course_name_th,
+        MAX(co."course_name_en")                  AS course_name_en,
+        co."acad_year_be"                         AS acad_year_be,
+        COUNT(co."id")::bigint                    AS class_count,
+        COALESCE(SUM(co."graded_count"), 0)::bigint AS graded_count,
+        SUM(co."class_gpa" * co."graded_count" * COALESCE(co."credit_total", 1)) AS weighted_numer,
+        SUM(co."graded_count" * COALESCE(co."credit_total", 1))::float AS weighted_denom
+      FROM "class_offerings" co
+      JOIN "program_courses" pc ON pc."course_code" = co."course_code"
+      ${where}
+      GROUP BY co."course_code", co."acad_year_be"
+    `);
+
+    interface Agg {
+      courseCode: string;
+      courseNameTh: string | null;
+      courseNameEn: string | null;
+      classCount: number;
+      gradedCount: number;
+      weightedNumer: number;
+      weightedDenom: number;
+      byYear: Record<string, ClassGpaTrendCell>;
+    }
+    const courseMap = new Map<string, Agg>();
+    const yearSet = new Set<number>();
+    for (const r of rows) {
+      yearSet.add(r.acad_year_be);
+      const numer = r.weighted_numer ?? 0;
+      const denom = r.weighted_denom ?? 0;
+      const classCount = Number(r.class_count);
+      const gradedCount = Number(r.graded_count);
+      const cell: ClassGpaTrendCell = {
+        classCount,
+        gradedCount,
+        averageClassGpa: denom > 0 ? numer / denom : null,
+      };
+      const entry =
+        courseMap.get(r.course_code) ?? {
+          courseCode: r.course_code,
+          courseNameTh: r.course_name_th,
+          courseNameEn: r.course_name_en,
+          classCount: 0,
+          gradedCount: 0,
+          weightedNumer: 0,
+          weightedDenom: 0,
+          byYear: {},
+        };
+      entry.classCount += classCount;
+      entry.gradedCount += gradedCount;
+      entry.weightedNumer += numer;
+      entry.weightedDenom += denom;
+      entry.byYear[String(r.acad_year_be)] = cell;
+      courseMap.set(r.course_code, entry);
+    }
+    const out: ClassGpaCourseRow[] = [...courseMap.values()]
+      .map((a) => ({
+        courseCode: a.courseCode,
+        courseNameTh: a.courseNameTh,
+        courseNameEn: a.courseNameEn,
+        classCount: a.classCount,
+        gradedCount: a.gradedCount,
+        averageClassGpa: a.weightedDenom > 0 ? a.weightedNumer / a.weightedDenom : null,
+        byYear: a.byYear,
+      }))
+      .sort((x, y) => x.courseCode.localeCompare(y.courseCode));
+    return {
+      programId,
+      rows: out,
+      yearsObserved: [...yearSet].sort((a, b) => a - b),
+    };
+  }
+
+  /** Resolve "latest (year × semester) with graded data" for a given
+   *  program. Defends the drill UI against picking a term that's still
+   *  in progress (e.g., BE 2569 sem 1 with no submitted grades yet). */
+  async classGpaLatestCellForProgram(
+    programId: string,
+  ): Promise<{ acadYearBE: number; semester: number } | null> {
+    const row = await prisma.$queryRaw<Array<{ acad_year_be: number; semester: number }>>(Prisma.sql`
+      SELECT co."acad_year_be", co."semester"
+        FROM "class_offerings" co
+        JOIN "program_courses" pc ON pc."course_code" = co."course_code"
+       WHERE pc."program_id" = ${programId}
+         AND co."graded_count" > 0
+       ORDER BY co."acad_year_be" DESC, co."semester" DESC
+       LIMIT 1
+    `);
+    if (row.length === 0) return null;
+    return { acadYearBE: row[0]!.acad_year_be, semester: row[0]!.semester };
+  }
+
+  /** Per-section drill — the sections a program's curriculum produced in
+   *  a specific (year × sem). Returns all sections; UI clips/sorts as
+   *  needed. Empty when the program has no `program_courses` rows
+   *  materialised yet. */
+  async classGpaSectionDrill(
+    programId: string,
+    acadYearBE: number,
+    semester: number,
+  ): Promise<ClassGpaSectionRow[]> {
+    const sections = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        acad_year_be: number;
+        semester: number;
+        course_code: string;
+        course_name_th: string | null;
+        course_name_en: string | null;
+        section: number;
+        enroll_seat: number;
+        graded_count: number;
+        class_gpa: number | null;
+        credit_total: number | null;
+        grade_a: number;
+        grade_b_plus: number;
+        grade_b: number;
+        grade_c_plus: number;
+        grade_c: number;
+        grade_d_plus: number;
+        grade_d: number;
+        grade_f: number;
+        grade_i: number;
+        grade_w: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        co."id", co."acad_year_be", co."semester", co."course_code",
+        co."course_name_th", co."course_name_en", co."section",
+        co."enroll_seat", co."graded_count", co."class_gpa",
+        co."credit_total",
+        co."grade_a", co."grade_b_plus", co."grade_b", co."grade_c_plus",
+        co."grade_c", co."grade_d_plus", co."grade_d", co."grade_f",
+        co."grade_i", co."grade_w"
+      FROM "class_offerings" co
+      JOIN "program_courses" pc ON pc."course_code" = co."course_code"
+      WHERE pc."program_id" = ${programId}
+        AND co."acad_year_be" = ${acadYearBE}
+        AND co."semester" = ${semester}
+      ORDER BY co."course_code", co."section"
+    `);
+    return sections.map((s) => ({
+      classOfferingId: s.id,
+      acadYearBE: s.acad_year_be,
+      semester: s.semester,
+      courseCode: s.course_code,
+      courseNameTh: s.course_name_th,
+      courseNameEn: s.course_name_en,
+      section: s.section,
+      enrollSeat: s.enroll_seat,
+      gradedCount: s.graded_count,
+      classGpa: s.class_gpa,
+      creditTotal: s.credit_total,
+      grades: {
+        A: s.grade_a,
+        BPLUS: s.grade_b_plus,
+        B: s.grade_b,
+        CPLUS: s.grade_c_plus,
+        C: s.grade_c,
+        DPLUS: s.grade_d_plus,
+        D: s.grade_d,
+        F: s.grade_f,
+        I: s.grade_i,
+        W: s.grade_w,
+      },
+    }));
   }
 }
 

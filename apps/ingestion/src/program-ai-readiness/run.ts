@@ -4,7 +4,6 @@ import {
   ProgramAiReadinessAssessmentSchema,
   PROGRAM_AI_READINESS_VERSION,
   type AiService,
-  type ProgramDigest,
 } from '@kku/shared';
 import { ProgramDigestSchema } from '@kku/shared';
 
@@ -92,13 +91,35 @@ export async function runProgramAiReadiness(
     compulsory: (ps.compulsoryWeight ?? 0) > 0,
   }));
 
-  // Pull courses + careerPaths from the most recent approved program-digest
-  // extraction, when one exists.
-  let courses: Array<{ code: string | null; nameEn: string | null; nameTh: string | null }> = [];
+  // ── Courses ────────────────────────────────────────────────────────
+  // Primary source: `program_courses` — the canonical course list
+  // produced by `program-courses-extract.v1` (focused extractor that
+  // reliably returns 40-90 courses per Bachelor program, vs the old
+  // truncated 8-from-digest path).
+  //
+  // The legacy digest is still queried to recover `careerPathsTh`
+  // (which the focused course extractor doesn't produce). Courses from
+  // the digest are NOT used anymore — even when the focused extractor
+  // hasn't run, falling back to the truncated digest list would
+  // understate AI exposure. Better to surface that gap (courses=[]) so
+  // the AI flags it in caveats than silently feed it stale data.
+  const programCoursesRows = await prisma.programCourse.findMany({
+    where: { programId: program.id },
+    orderBy: { courseCode: 'asc' },
+    select: { courseCode: true, courseNameEn: true, courseNameTh: true },
+  });
+  const courses: Array<{ code: string | null; nameEn: string | null; nameTh: string | null }> =
+    programCoursesRows.map((c) => ({
+      code: c.courseCode,
+      nameEn: c.courseNameEn,
+      nameTh: c.courseNameTh,
+    }));
+
   let careerPaths: string[] = [];
-  let matchedDigest: ProgramDigest | null = null;
   // AiExtraction.sourceEntityId points at the PDF document, not the
-  // program. Walk the latest 100 approved digests and match by name.
+  // program. Walk the latest 500 approved digests and match by name —
+  // only to recover careerPathsTh, which `program-courses-extract.v1`
+  // doesn't produce.
   const candidates = await prisma.aiExtraction.findMany({
     where: {
       sourceEntityType: 'curriculum',
@@ -111,19 +132,13 @@ export async function runProgramAiReadiness(
   for (const cand of candidates) {
     const parsed = ProgramDigestSchema.safeParse(cand.payloadJson);
     if (!parsed.success) continue;
-    if (parsed.data.programNameTh === program.nameTh
-      || (parsed.data.programNameEn && parsed.data.programNameEn === program.nameEn)) {
-      matchedDigest = parsed.data;
+    if (
+      parsed.data.programNameTh === program.nameTh ||
+      (parsed.data.programNameEn && parsed.data.programNameEn === program.nameEn)
+    ) {
+      careerPaths = parsed.data.careerPathsTh ?? [];
       break;
     }
-  }
-  if (matchedDigest) {
-    courses = matchedDigest.courses.slice(0, 25).map((c) => ({
-      code: c.code ?? null,
-      nameEn: c.nameEn ?? null,
-      nameTh: c.nameTh ?? null,
-    }));
-    careerPaths = matchedDigest.careerPathsTh ?? [];
   }
 
   // Cheap deterministic baseline: count AI-keyword skills as a sanity input

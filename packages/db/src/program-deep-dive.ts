@@ -2900,7 +2900,11 @@ export async function programSkills(programId: string) {
         pickedFromPlo: t.pickedFromPlo,
       })),
     matchScore,
-    demandSource: 'linkedin-via-mhesi-kmitl',
+    // User-facing attribution: data is from LinkedIn profiles, subscribed
+    // by MHESI. The KMITL Skill Mapping API is just the hosting endpoint
+    // and must never appear in user-visible surfaces. See
+    // memory/feedback_kmitl_data_attribution.md.
+    demandSource: 'linkedin-via-mhesi',
     /** Which tier of the demand fallback chain produced these rows.
      *  'thailand-job-postings' is the preferred (Council-facing) signal;
      *  'global-*' tiers fire when Thai data is sparse — the UI labels
@@ -2914,6 +2918,174 @@ export async function programSkills(programId: string) {
     // Real "top 5 specific recommendations" text needs an AI call —
     // the narrative regen endpoint produces that; this method returns
     // the raw data the LLM needs.
+  };
+}
+
+// ── Courses (v1.2.9 — program-courses-extract.v1) ─────────────────────
+// Per-program course list + class-GPA aggregate per course. Joins
+// program_courses (course-code list from the curriculum PDF) with
+// class_offerings (registrar-reported grade distributions). Used by:
+//   - /programs/[id]/courses endpoint (Curriculum & Faculty macro)
+//   - AI Analyst `query_program_courses` tool
+//   - PDF program-detail template's `courses` section
+//
+// Filter: returns only courses that have at least one graded section
+// somewhere in class_offerings (classGpa ≠ null). Courses on the
+// curriculum but never taught/never graded are excluded — the deep-dive
+// + Council surfaces only the rows with a verifiable GPA aggregate.
+// `total` is the count of returned rows; `extractedCount` is the
+// unfiltered program_courses row count.
+//
+// Returns one row per course with both an all-year roll-up and a
+// per-year `byYear` map (UI renders as year columns). The semesters
+// filter narrows which terms count toward both aggregates — default
+// is main terms 1+2.
+export interface ProgramCoursesCell {
+  classCount: number;
+  gradedCount: number;
+  averageClassGpa: number | null;
+}
+
+export async function programCourses(
+  programId: string,
+  opts: { semesters?: number[] } = {},
+): Promise<{
+  methodVersion: string;
+  total: number;
+  extractedCount: number;
+  rows: Array<{
+    courseCode: string;
+    courseNameTh: string;
+    courseNameEn: string;
+    credits: number | null;
+    classCount: number;
+    gradedCount: number;
+    classGpa: number;
+    byYear: Record<string, ProgramCoursesCell>;
+  }>;
+  yearsObserved: number[];
+  windowYearsBE: { start: number | null; end: number | null };
+  semestersApplied: number[];
+}> {
+  const semesters =
+    opts.semesters && opts.semesters.length > 0 ? [...opts.semesters].sort() : [1, 2];
+
+  const courseRows = await prisma.programCourse.findMany({
+    where: { programId },
+    orderBy: { courseCode: 'asc' },
+    select: {
+      courseCode: true,
+      courseNameTh: true,
+      courseNameEn: true,
+      credits: true,
+      methodVersion: true,
+    },
+  });
+  if (courseRows.length === 0) {
+    return {
+      methodVersion: 'none',
+      total: 0,
+      extractedCount: 0,
+      rows: [],
+      yearsObserved: [],
+      windowYearsBE: { start: null, end: null },
+      semestersApplied: semesters,
+    };
+  }
+  const codes = courseRows.map((c) => c.courseCode);
+
+  // Per-(course × year) aggregate. The UI rolls each course's year
+  // cells into the overall row aggregate to keep numerator/denominator
+  // exact under further combination.
+  const aggs = await prisma.$queryRaw<
+    Array<{
+      course_code: string;
+      acad_year_be: number;
+      class_count: bigint;
+      graded_count: bigint;
+      weighted_numer: number | null;
+      weighted_denom: number | null;
+    }>
+  >(Prisma.sql`
+    SELECT co."course_code"   AS course_code,
+           co."acad_year_be"  AS acad_year_be,
+           COUNT(co."id")::bigint AS class_count,
+           COALESCE(SUM(co."graded_count"), 0)::bigint AS graded_count,
+           SUM(co."class_gpa" * co."graded_count" * COALESCE(co."credit_total", 1)) AS weighted_numer,
+           SUM(co."graded_count" * COALESCE(co."credit_total", 1))::float AS weighted_denom
+      FROM "class_offerings" co
+     WHERE co."course_code" IN (${Prisma.join(codes)})
+       AND co."graded_count" > 0
+       AND co."semester" IN (${Prisma.join(semesters)})
+  GROUP BY co."course_code", co."acad_year_be"
+  `);
+
+  interface Agg {
+    classCount: number;
+    gradedCount: number;
+    weightedNumer: number;
+    weightedDenom: number;
+    byYear: Record<string, ProgramCoursesCell>;
+  }
+  const byCode = new Map<string, Agg>();
+  const yearSet = new Set<number>();
+  for (const r of aggs) {
+    yearSet.add(r.acad_year_be);
+    const numer = r.weighted_numer ?? 0;
+    const denom = r.weighted_denom ?? 0;
+    const classCount = Number(r.class_count);
+    const gradedCount = Number(r.graded_count);
+    const cell: ProgramCoursesCell = {
+      classCount,
+      gradedCount,
+      averageClassGpa: denom > 0 ? numer / denom : null,
+    };
+    const entry =
+      byCode.get(r.course_code) ?? {
+        classCount: 0,
+        gradedCount: 0,
+        weightedNumer: 0,
+        weightedDenom: 0,
+        byYear: {},
+      };
+    entry.classCount += classCount;
+    entry.gradedCount += gradedCount;
+    entry.weightedNumer += numer;
+    entry.weightedDenom += denom;
+    entry.byYear[String(r.acad_year_be)] = cell;
+    byCode.set(r.course_code, entry);
+  }
+
+  // Filter to courses with a real GPA aggregate within the semester
+  // window. Courses on the curriculum but with no graded sections in
+  // the chosen semesters are excluded entirely.
+  const rows = courseRows.flatMap((c) => {
+    const agg = byCode.get(c.courseCode);
+    if (!agg || agg.weightedDenom <= 0) return [];
+    return [{
+      courseCode: c.courseCode,
+      courseNameTh: c.courseNameTh ?? '',
+      courseNameEn: c.courseNameEn ?? '',
+      credits: c.credits,
+      classCount: agg.classCount,
+      gradedCount: agg.gradedCount,
+      classGpa: agg.weightedNumer / agg.weightedDenom,
+      byYear: agg.byYear,
+    }];
+  });
+
+  const yearsObserved = [...yearSet].sort((a, b) => a - b);
+  return {
+    methodVersion: courseRows[0]?.methodVersion ?? 'unknown',
+    total: rows.length,
+    extractedCount: courseRows.length,
+    rows,
+    yearsObserved,
+    windowYearsBE: {
+      start: yearsObserved.length > 0 ? yearsObserved[0]! : null,
+      end: yearsObserved.length > 0 ? yearsObserved[yearsObserved.length - 1]! : null,
+    },
+    semestersApplied: semesters,
   };
 }
 

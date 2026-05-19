@@ -527,3 +527,26 @@ export class KkuTcasFunnelConnector extends ApiConnector {
     return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
   }
 }
+
+export class KkuEvaluationsConnector extends ApiConnector {
+  readonly slug = 'kku-evaluations';
+  readonly mocked = true;
+  async fetch(): Promise<RawRecord[]> {
+    return [
+      {
+        externalId: 'kku-evaluations:mock:0',
+        sourceTimestamp: new Date('2026-05-19'),
+        data: {
+          note: 'mocked — real connector reads POWERBI.EVALUATE_INSTRUCTOR with TOTAL_STUDENT >= 5 gate',
+          shape: '(year, sem, classId, questionId, officerId) → ratingAvg + respondentCount',
+        },
+      },
+    ];
+  }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'evaluation_response_summaries', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked — no DB writes' } };
+  }
+}

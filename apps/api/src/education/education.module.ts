@@ -4,6 +4,7 @@ import { EducationService } from './education.service';
 import { EducationRefreshService } from './education-refresh.service';
 import { RecruitmentService } from './recruitment.service';
 import { ClassOfferingsService } from './class-offerings.service';
+import { EvaluationsService } from './evaluations.service';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { DataSourcesModule } from '../data-sources/data-sources.module';
     EducationRefreshService,
     RecruitmentService,
     ClassOfferingsService,
+    EvaluationsService,
   ],
   // Exported so AnalystModule (and any future dashboard-driven consumer)
   // can inject these services without re-providing them. The dashboard
@@ -24,6 +26,7 @@ import { DataSourcesModule } from '../data-sources/data-sources.module';
     EducationRefreshService,
     RecruitmentService,
     ClassOfferingsService,
+    EvaluationsService,
   ],
 })
 export class EducationModule {}

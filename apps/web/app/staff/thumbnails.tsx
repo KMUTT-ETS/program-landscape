@@ -197,3 +197,72 @@ export function TeachingWorkloadThumb() {
     </Frame>
   );
 }
+
+// Dashboard — Teaching evaluations: instructor avatar at the centre of a
+// 5-bar question-rating spider, with a downward gradient + star icon to
+// signal "per-person rating from students".
+export function TeachingEvaluationsThumb() {
+  // Same heat palette as the satisfaction dashboard (narrow [3.0, 5.0]).
+  const heat = ['#dc6c4b', '#d99a4f', '#cdb958', '#b9c46a', '#94c282', '#7bb98e', '#6bb091'];
+  // Three instructor "cards" stacked horizontally — each shows a small
+  // avatar circle + a row of 5 question-rating cells.
+  const instructors = [
+    { name: 'A', cells: [5, 6, 5, 6, 4] },
+    { name: 'B', cells: [4, 5, 6, 5, 5] },
+    { name: 'C', cells: [3, 4, 5, 4, 5] },
+  ];
+  return (
+    <Frame>
+      <text x={120} y={14} textAnchor="middle" fontSize="9" fontWeight="600" fill={PALETTE.ink} opacity={0.7}>
+        Per-instructor ratings
+      </text>
+      {instructors.map((ins, idx) => (
+        <g key={ins.name} transform={`translate(${24 + idx * 68}, 28)`}>
+          {/* Instructor card background */}
+          <rect width={58} height={80} rx={5} fill="white" stroke={PALETTE.ink} strokeWidth={1.1} opacity={0.95} />
+          {/* Avatar — circular silhouette */}
+          <g transform="translate(29, 22)">
+            <circle r={9} fill={PALETTE.accent} opacity={0.85} />
+            <circle cy={-2} r={3.5} fill="white" opacity={0.7} />
+            <path d="M -5 6 C -5 2, 5 2, 5 6 Z" fill="white" opacity={0.6} />
+          </g>
+          {/* Tiny star */}
+          <g transform="translate(48, 12)">
+            <polygon
+              points="0,-3 0.9,-1 3,-1 1.2,0.5 2,2.8 0,1.4 -2,2.8 -1.2,0.5 -3,-1 -0.9,-1"
+              fill={PALETTE.warm}
+              opacity={0.9}
+            />
+          </g>
+          {/* Per-question cells */}
+          {ins.cells.map((v, i) => (
+            <rect
+              key={i}
+              x={6 + i * 9.4}
+              y={48}
+              width={8}
+              height={11}
+              rx={1.5}
+              fill={heat[v]}
+              opacity={0.9}
+            />
+          ))}
+          {/* Aggregate rating */}
+          <text
+            x={29}
+            y={72}
+            textAnchor="middle"
+            fontSize="9"
+            fontWeight="700"
+            fill={PALETTE.ink}
+          >
+            {(ins.cells.reduce((s, x) => s + x, 0) / ins.cells.length / 6 * 5 + 0.5).toFixed(1)}
+          </text>
+        </g>
+      ))}
+      <text x={120} y={114} textAnchor="middle" fontSize="9" fontWeight="600" fill={PALETTE.ink} opacity={0.55}>
+        Teaching evaluations
+      </text>
+    </Frame>
+  );
+}
