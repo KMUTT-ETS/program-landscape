@@ -418,6 +418,87 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         message: outcome.reason,
       };
     },
+
+    // Full refresh of class_offerings + class_offering_teachers (incl.
+    // the grade-distribution columns + precomputed class_gpa) by
+    // spawning the bundled link-class-offerings script with --apply.
+    // Same spawn model + script-location probe as RUN_PROGRAM_PIPELINE.
+    // entityId is an unused sentinel — the refresh is portfolio-wide.
+    RUN_CLASS_OFFERINGS_LINK: async ({ triggeredByUserId }) => {
+      type ScriptLocation = { path: string; kind: 'js' | 'ts' };
+      const isDev = process.env.NODE_ENV !== 'production';
+      const jsCandidate: ScriptLocation = {
+        path: path.resolve(__dirname, '..', 'scripts', 'link-class-offerings.js'),
+        kind: 'js',
+      };
+      const tsCandidates: ScriptLocation[] = [
+        { path: path.resolve(__dirname, '..', 'scripts', 'link-class-offerings.ts'), kind: 'ts' },
+        { path: path.resolve(__dirname, '..', '..', 'src', 'scripts', 'link-class-offerings.ts'), kind: 'ts' },
+      ];
+      const scriptCandidates: ScriptLocation[] = isDev
+        ? [...tsCandidates, jsCandidate]
+        : [jsCandidate, ...tsCandidates];
+      const located = scriptCandidates.find((c) => existsSync(c.path));
+      if (!located) {
+        return {
+          status: 'FAILED',
+          message: `link-class-offerings script not found. Tried: ${scriptCandidates
+            .map((c) => c.path)
+            .join(' | ')}`,
+        };
+      }
+
+      const logsDir = path.resolve(process.cwd(), 'logs');
+      try {
+        mkdirSync(logsDir, { recursive: true });
+      } catch {
+        // read-only FS — logs just won't persist
+      }
+      const logPath = path.resolve(logsDir, `link-class-offerings-job-${Date.now()}.log`);
+
+      let spawnArgs: string[];
+      if (located.kind === 'js') {
+        spawnArgs = [located.path, '--apply'];
+      } else {
+        let tsxBin: string;
+        try {
+          tsxBin = require.resolve('tsx/cli');
+        } catch (err) {
+          return { status: 'FAILED', message: `tsx/cli not resolvable: ${(err as Error).message}` };
+        }
+        spawnArgs = [tsxBin, located.path, '--apply'];
+      }
+
+      logger.log(
+        `RUN_CLASS_OFFERINGS_LINK spawning ${located.kind} script (${located.path}) --apply ` +
+          `(by user ${triggeredByUserId ?? 'unknown'}); log → ${logPath}`,
+      );
+
+      const exitCode: number = await new Promise((resolve) => {
+        const child = spawn('node', spawnArgs, {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: process.env,
+        });
+        const logStream = createWriteStream(logPath, { flags: 'a' });
+        child.stdout.pipe(logStream);
+        child.stderr.pipe(logStream);
+        child.on('exit', (code) => resolve(code ?? 1));
+        child.on('error', (err) => {
+          logStream.write(`\n[spawn error] ${err.message}\n`);
+          resolve(1);
+        });
+      });
+
+      if (exitCode === 0) {
+        logger.log('RUN_CLASS_OFFERINGS_LINK succeeded');
+        return { status: 'SUCCEEDED', message: `class-offerings refreshed; log=${logPath}` };
+      }
+      logger.error(`RUN_CLASS_OFFERINGS_LINK failed (exit=${exitCode}); log=${logPath}`);
+      return {
+        status: 'FAILED',
+        message: `link-class-offerings exited with code ${exitCode}; log=${logPath}`,
+      };
+    },
   };
 }
 

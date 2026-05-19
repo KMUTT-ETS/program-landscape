@@ -6,9 +6,10 @@ import { RecruitmentService } from './recruitment.service';
 import { ClassOfferingsService } from './class-offerings.service';
 import { EvaluationsService } from './evaluations.service';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
+import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 
 @Module({
-  imports: [DataSourcesModule],
+  imports: [DataSourcesModule, AiJobsModule],
   controllers: [EducationController],
   providers: [
     EducationService,

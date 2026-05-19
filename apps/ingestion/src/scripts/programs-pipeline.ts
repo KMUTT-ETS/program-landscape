@@ -277,53 +277,132 @@ async function processProgram(
   const shouldRun = (p: Phase) => args.only.includes(p) && !args.skip.has(p);
   const t0 = Date.now();
 
-  // ── Phase 1 — PDF AI extraction (parallel) ───────────────────────
-  // Four extractors hit the same PDF in parallel: digest, faculty,
-  // skills, pedagogy. Pedagogy added 2026-05-12 — discipline-fit
-  // assessment for the new pedagogical_fit health driver + ai-readiness
-  // pedagogicalReadiness sub-score (was null/reserved).
-  if (shouldRun('phase1')) {
+  // ── Shared phase-1/2b inputs — prepare ONCE per program ──────────
+  // Previously each of {digest, faculty, skills, pedagogy} + {2b
+  // courses-extract} independently fetched the same PDF from MinIO,
+  // ran pdfjs on it, and loaded the same system-context joins. That's
+  // 5× fetch + 5× extract + 2× system-context per program. Below we
+  // do it once and thread the prepared inputs into every consumer.
+  //
+  // `sharedPdfPrep` is undefined when phase 1 + 2b are both skipped
+  // (e.g. --only=phase3) — the run*() functions still fall back to
+  // their own fetch path on solo invocations.
+  const wantsPdf = shouldRun('phase1') || shouldRun('phase2b');
+  const wantsSystemContext = shouldRun('phase1');
+  let sharedPdfPrep:
+    | Awaited<ReturnType<typeof import('../program-pdf-prep/load').loadProgramPdfPrep>>
+    | undefined;
+  let sharedSystemContext:
+    | Awaited<ReturnType<typeof import('../program-system-context/load').loadProgramSystemContext>>
+    | undefined;
+  if (wantsPdf) {
+    const { loadProgramPdfPrep } = await import('../program-pdf-prep/load');
+    sharedPdfPrep = await loadProgramPdfPrep({ programId: program.id, storage });
+  }
+  if (wantsSystemContext) {
+    const { loadProgramSystemContext } = await import('../program-system-context/load');
+    sharedSystemContext = await loadProgramSystemContext(program.id);
+  }
+  const pdfPrep =
+    sharedPdfPrep?.status === 'SUCCEEDED' ? sharedPdfPrep.prep : undefined;
+
+  // ── Phase 1 + Phase 2b — PDF AI extraction (parallel) ────────────
+  // Five extractors hit the same prepared PDF in parallel: digest,
+  // faculty, skills, pedagogy, courses-extract. All five reuse the
+  // shared `pdfPrep`. Digest + faculty also reuse `systemContext`
+  // (DS2004 + DS2003 + DS1001 + kku-hr joins) which both would
+  // otherwise call independently.
+  //
+  // Phase 2b runs in parallel with phase 1 because it has no real
+  // dependency on phase 1's digest output — verified 2026-05-19:
+  // `materialiseProgramDigest` in @kku/db does NOT write program_courses
+  // (course materialisation was DEFERRED for digest v1 per the comment
+  // there). Only `program-courses-extract` writes program_courses, so
+  // no race. Saves ~1.5m wall-clock per program — phase 2b previously
+  // ran AFTER phase 1+2 sequentially.
+  //
+  // Phase 2 (approve+materialise) still runs SEQUENTIALLY after phase
+  // 1 because it consumes the digest's AiExtraction row. Cheap step
+  // (~700ms) so the serial cost is negligible.
+  const phase1Enabled = shouldRun('phase1');
+  const phase2bEnabled = shouldRun('phase2b');
+  if (phase1Enabled || phase2bEnabled) {
     const t = Date.now();
-    const [digest, faculty, skills, pedagogy] = await Promise.all([
-      runProgramDigest({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
-        status: 'FAILED' as const, reason: String(e?.message ?? e),
-      })),
-      runProgramFacultyExtraction({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
-        status: 'FAILED' as const, reason: String(e?.message ?? e),
-      })),
-      runProgramSkillsDetailed({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
-        status: 'FAILED' as const, reason: String(e?.message ?? e),
-      })),
-      runProgramPedagogy({ programId: program.id, ai, storage, force: args.force }).catch((e) => ({
-        status: 'FAILED' as const, reason: String(e?.message ?? e),
-      })),
+    const [digest, faculty, skills, pedagogy, coursesExtract] = await Promise.all([
+      phase1Enabled
+        ? runProgramDigest({ programId: program.id, ai, storage, force: args.force, pdfPrep, systemContext: sharedSystemContext }).catch((e) => ({
+            status: 'FAILED' as const, reason: String(e?.message ?? e),
+          }))
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
+      phase1Enabled
+        ? runProgramFacultyExtraction({ programId: program.id, ai, storage, force: args.force, pdfPrep, systemContext: sharedSystemContext }).catch((e) => ({
+            status: 'FAILED' as const, reason: String(e?.message ?? e),
+          }))
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
+      phase1Enabled
+        ? runProgramSkillsDetailed({ programId: program.id, ai, storage, force: args.force, pdfPrep }).catch((e) => ({
+            status: 'FAILED' as const, reason: String(e?.message ?? e),
+          }))
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
+      phase1Enabled
+        ? runProgramPedagogy({ programId: program.id, ai, storage, force: args.force, pdfPrep }).catch((e) => ({
+            status: 'FAILED' as const, reason: String(e?.message ?? e),
+          }))
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
+      phase2bEnabled
+        ? runProgramCoursesExtract({ programId: program.id, ai, storage, pdfPrep }).catch((e) => ({
+            status: 'FAILED' as const, reason: String(e?.message ?? e),
+          }))
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase2b disabled' }),
     ]);
-    const cost =
-      (digest.status === 'SUCCEEDED' ? digest.costUsd : 0) +
-      (faculty.status === 'SUCCEEDED' ? faculty.costUsd : 0) +
-      (skills.status === 'SUCCEEDED' ? skills.costUsd : 0) +
-      (pedagogy.status === 'SUCCEEDED' ? pedagogy.costUsd : 0);
-    const summarise = (r: { status: string; reason?: string }, name: string) =>
-      r.status === 'SUCCEEDED' ? `${name}✓` : r.status === 'SKIPPED' ? `${name}=skip` : `${name}✗`;
-    phases.push({
-      name: 'phase1 PDF extraction (parallel)',
-      durationMs: Date.now() - t,
-      costUsd: cost,
-      ok:
-        digest.status !== 'FAILED' &&
-        faculty.status !== 'FAILED' &&
-        skills.status !== 'FAILED' &&
-        pedagogy.status !== 'FAILED',
-      notes: [
-        summarise(digest, 'digest'),
-        summarise(faculty, 'faculty'),
-        summarise(skills, 'skills'),
-        summarise(pedagogy, 'pedagogy'),
-      ].join(' '),
-    });
+    const phaseDuration = Date.now() - t;
+    if (phase1Enabled) {
+      const cost =
+        (digest.status === 'SUCCEEDED' ? digest.costUsd : 0) +
+        (faculty.status === 'SUCCEEDED' ? faculty.costUsd : 0) +
+        (skills.status === 'SUCCEEDED' ? skills.costUsd : 0) +
+        (pedagogy.status === 'SUCCEEDED' ? pedagogy.costUsd : 0);
+      const summarise = (r: { status: string; reason?: string }, name: string) =>
+        r.status === 'SUCCEEDED' ? `${name}✓` : r.status === 'SKIPPED' ? `${name}=skip` : `${name}✗`;
+      phases.push({
+        name: 'phase1 PDF extraction (parallel)',
+        durationMs: phaseDuration,
+        costUsd: cost,
+        ok:
+          digest.status !== 'FAILED' &&
+          faculty.status !== 'FAILED' &&
+          skills.status !== 'FAILED' &&
+          pedagogy.status !== 'FAILED',
+        notes: [
+          summarise(digest, 'digest'),
+          summarise(faculty, 'faculty'),
+          summarise(skills, 'skills'),
+          summarise(pedagogy, 'pedagogy'),
+        ].join(' '),
+      });
+    }
+    if (phase2bEnabled) {
+      const ok = coursesExtract.status === 'SUCCEEDED';
+      phases.push({
+        name: 'phase2b courses-extract (parallel with phase1)',
+        durationMs: phaseDuration,
+        costUsd: ok ? coursesExtract.costUsd : 0,
+        ok: coursesExtract.status !== 'FAILED',
+        notes:
+          coursesExtract.status === 'SUCCEEDED'
+            ? `${coursesExtract.previousCount} → ${coursesExtract.materialisedCount} courses · confidence ${coursesExtract.confidence.toFixed(2)}`
+            : coursesExtract.status === 'SKIPPED'
+              ? `skipped: ${coursesExtract.reason}`
+              : `failed: ${coursesExtract.reason}`,
+      });
+    }
   }
 
   // ── Phase 2 — Approve + materialise ──────────────────────────────
+  // Sequentially after phase 1 because it consumes the digest's
+  // AiExtraction row. Doesn't touch program_courses (materialise
+  // helper deferred course materialisation per the v1 comment) — so
+  // it's safe to run AFTER phase 2b's already-finished course writes.
   if (shouldRun('phase2')) {
     const r = await runApprovePending(program.id);
     phases.push({
@@ -332,28 +411,6 @@ async function processProgram(
       costUsd: 0,
       ok: r.ok,
       notes: r.notes,
-    });
-  }
-
-  // ── Phase 2b — Focused course extraction (overwrites digest's
-  //   truncated program_courses with the exhaustive list) ──────────
-  if (shouldRun('phase2b')) {
-    const t = Date.now();
-    const outcome = await runProgramCoursesExtract({ programId: program.id, ai, storage }).catch(
-      (e) => ({ status: 'FAILED' as const, reason: String(e?.message ?? e) }),
-    );
-    const ok = outcome.status === 'SUCCEEDED';
-    phases.push({
-      name: 'phase2b courses-extract',
-      durationMs: Date.now() - t,
-      costUsd: ok ? outcome.costUsd : 0,
-      ok,
-      notes:
-        outcome.status === 'SUCCEEDED'
-          ? `${outcome.previousCount} → ${outcome.materialisedCount} courses · confidence ${outcome.confidence.toFixed(2)}`
-          : outcome.status === 'SKIPPED'
-            ? `skipped: ${outcome.reason}`
-            : `failed: ${outcome.reason}`,
     });
   }
 

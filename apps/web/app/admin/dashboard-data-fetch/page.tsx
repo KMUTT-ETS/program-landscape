@@ -9,8 +9,16 @@ import { Card, PageHeader, Section } from '@kku/ui';
 import { EducationRefreshBar } from '../../education/refresh-bar';
 import { StaffRefreshBar } from '../../staff/refresh-bar';
 import { SatisfactionRefreshBar } from './satisfaction-refresh-bar';
+import { ClassOfferingsRefreshBar } from './class-offerings-refresh-bar';
 import type { RefreshStatus } from '../../education/types';
 import type { RefreshStatus as StaffRefreshStatus } from '../../staff/types';
+
+interface ClassOfferingsRefreshStatus {
+  isRunning: boolean;
+  rowCount: number;
+  withGpaCount: number;
+  lastRefreshedAt: string | null;
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // /admin/dashboard-data-fetch — manual refresh for Education + Staff cubes.
@@ -38,7 +46,7 @@ export default async function DashboardDataFetchPage() {
   // top-strip placement on /education and /staff.
   if (!isUniversityWide(role)) redirect('/no-access');
 
-  const [eduStatus, staffStatus, evalsSource] = await Promise.all([
+  const [eduStatus, staffStatus, evalsSource, classOfferingsStatus] = await Promise.all([
     apiFetch<RefreshStatus>('/education/refresh/status').catch(() => null),
     apiFetch<StaffRefreshStatus>('/staff-dashboard/refresh/status').catch(() => null),
     // kku-evaluations data source + its most recent ingestion run for
@@ -83,6 +91,9 @@ export default async function DashboardDataFetchPage() {
         lastRunDurationMs: lastRun?.durationMs ?? null,
       };
     })().catch(() => null),
+    apiFetch<ClassOfferingsRefreshStatus>(
+      '/education/class-offerings/refresh/status',
+    ).catch(() => null),
   ]);
 
   return (
@@ -109,6 +120,13 @@ export default async function DashboardDataFetchPage() {
         <Card>
           <StaffRefreshBar initialStatus={staffStatus} />
         </Card>
+      </Section>
+
+      <Section
+        title="Class offerings & class GPA"
+        description="POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER — every class section the registrar opened, with the per-letter grade distribution and the precomputed class GPA. Powers the class-GPA section of Education → Student performance. Run after the registrar posts a semester's grades."
+      >
+        <ClassOfferingsRefreshBar initial={classOfferingsStatus} />
       </Section>
 
       <Section

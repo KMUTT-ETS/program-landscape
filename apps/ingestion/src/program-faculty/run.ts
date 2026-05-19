@@ -60,6 +60,12 @@ export interface RunProgramFacultyParams {
   storage: S3Storage;
   triggeredByUserId?: string | null;
   force?: boolean;
+  // Optional pre-prepared inputs shared by the pipeline across phase-1
+  // extractors to avoid 4× MinIO download + 4× pdfjs extract + 2×
+  // system-context load on every program. Standalone CLI invocations
+  // still work — when these are absent the function fetches its own.
+  pdfPrep?: import('../program-pdf-prep/load').ProgramPdfPrep;
+  systemContext?: Awaited<ReturnType<typeof import('../program-system-context/load').loadProgramSystemContext>>;
 }
 
 export type RunProgramFacultyOutcome =
@@ -139,7 +145,7 @@ export async function runProgramFacultyExtraction(
   // below runs as enrichment for staff that DS2004 doesn't track
   // (visiting lecturers, external instructors, brand-new appointments
   // not yet submitted to MHESI). ──────────────────────────────────
-  const systemContext = await loadProgramSystemContext(program.id);
+  const systemContext = params.systemContext ?? (await loadProgramSystemContext(program.id));
   let programFacultyRowsFromMhesi = 0;
   const facultyMemberIdsFromMhesi = new Set<string>();
   for (const s of systemContext.staffFromMhesi) {
@@ -172,18 +178,21 @@ export async function runProgramFacultyExtraction(
     }
   }
 
-  // Fetch PDF bytes from MinIO via signed URL.
-  const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
-  if (!m) return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
-  const url = await params.storage.getSignedDownloadUrl({
-    bucket: m[1]!,
-    key: m[2]!,
-    ttlSeconds: 300,
-  });
-  const res = await fetch(url);
-  if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
-  const bytes = Buffer.from(await res.arrayBuffer());
-  const extracted = await extractNativeText(bytes);
+  // Reuse pipeline-prepared PDF when present; else fetch + extract locally.
+  let extracted = params.pdfPrep;
+  if (!extracted) {
+    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
+    if (!m) return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
+    const url = await params.storage.getSignedDownloadUrl({
+      bucket: m[1]!,
+      key: m[2]!,
+      ttlSeconds: 300,
+    });
+    const res = await fetch(url);
+    if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    extracted = await extractNativeText(bytes);
+  }
 
   // Run the AI extraction.
   const messages = buildProgramFacultyMessages({

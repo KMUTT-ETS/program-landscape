@@ -42,6 +42,8 @@ export interface RunProgramSkillsParams {
   storage: S3Storage;
   triggeredByUserId?: string | null;
   force?: boolean;
+  // Optional pipeline-shared PDF prep. See program-pdf-prep/load.ts.
+  pdfPrep?: import('../program-pdf-prep/load').ProgramPdfPrep;
 }
 
 export type RunProgramSkillsOutcome =
@@ -101,14 +103,17 @@ export async function runProgramSkillsDetailed(
     }
   }
 
-  // Fetch PDF bytes
-  const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
-  if (!m) return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
-  const url = await params.storage.getSignedDownloadUrl({ bucket: m[1]!, key: m[2]!, ttlSeconds: 300 });
-  const res = await fetch(url);
-  if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
-  const bytes = Buffer.from(await res.arrayBuffer());
-  const extracted = await extractNativeText(bytes);
+  // Reuse pipeline-shared PDF prep when supplied; else fetch + extract.
+  let extracted = params.pdfPrep;
+  if (!extracted) {
+    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
+    if (!m) return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
+    const url = await params.storage.getSignedDownloadUrl({ bucket: m[1]!, key: m[2]!, ttlSeconds: 300 });
+    const res = await fetch(url);
+    if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    extracted = await extractNativeText(bytes);
+  }
 
   // Run AI extraction
   const messages = buildProgramSkillsDetailedMessages({

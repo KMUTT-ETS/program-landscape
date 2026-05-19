@@ -40,6 +40,13 @@ export interface RunProgramDigestParams {
   // Bypass the "already digested" skip. Use when intentionally re-running
   // (methodology bump, edited prompt, force-overwrite from the admin UI).
   force?: boolean;
+  // Optional pre-prepared inputs — when the pipeline already fetched the
+  // PDF + extracted text + loaded the system context for parallel
+  // phase-1 extractors, pass them in to skip the redundant work. When
+  // absent, the function falls back to its own fetch + extract + load
+  // (so standalone CLI invocations still work).
+  pdfPrep?: import('../program-pdf-prep/load').ProgramPdfPrep;
+  systemContext?: Awaited<ReturnType<typeof import('../program-system-context/load').loadProgramSystemContext>>;
 }
 
 export type RunProgramDigestOutcome =
@@ -98,24 +105,28 @@ export async function runProgramDigest(
     if (existing) return { status: 'SKIPPED', reason: 'PROGRAM_DIGEST already exists; pass force=true to re-run' };
   }
 
-  // Read PDF bytes from MinIO. storageUrl is `s3://<bucket>/<key>`.
-  const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
-  if (!m) return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
-  const url = await params.storage.getSignedDownloadUrl({
-    bucket: m[1]!,
-    key: m[2]!,
-    ttlSeconds: 300,
-  });
-  const res = await fetch(url);
-  if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
-  const bytes = Buffer.from(await res.arrayBuffer());
-
-  const extracted = await extractNativeText(bytes);
+  // Reuse pipeline-prepared inputs when present; else fetch + extract +
+  // load locally. The local path mirrors what every standalone CLI
+  // invocation has always done.
+  let extracted = params.pdfPrep;
+  if (!extracted) {
+    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
+    if (!m) return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
+    const url = await params.storage.getSignedDownloadUrl({
+      bucket: m[1]!,
+      key: m[2]!,
+      ttlSeconds: 300,
+    });
+    const res = await fetch(url);
+    if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    extracted = await extractNativeText(bytes);
+  }
 
   // Load live grounding from DS2004 + DS2003 + DS1001 + kku-hr so the
   // recruitment summary's claims about staff and student composition
   // are anchored in real numbers, not invented from the PDF.
-  const systemContext = await loadProgramSystemContext(program.id);
+  const systemContext = params.systemContext ?? (await loadProgramSystemContext(program.id));
 
   const messages = buildProgramDigestMessages({
     programMetaFromSheet: {

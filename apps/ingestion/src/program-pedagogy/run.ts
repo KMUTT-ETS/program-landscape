@@ -36,6 +36,8 @@ export interface RunProgramPedagogyParams {
   /** When true, skip the "already assessed at current method version"
    *  early-return so a --force pipeline rerun gets a fresh extraction. */
   force?: boolean;
+  /** Optional pipeline-shared PDF prep. See program-pdf-prep/load.ts. */
+  pdfPrep?: import('../program-pdf-prep/load').ProgramPdfPrep;
 }
 
 export type ProgramPedagogyOutcome =
@@ -98,19 +100,23 @@ export async function runProgramPedagogy(
     };
   }
 
-  const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
-  if (!m) {
-    return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
+  // Reuse pipeline-shared PDF prep when supplied; else fetch + extract.
+  let extracted = params.pdfPrep;
+  if (!extracted) {
+    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(doc.pdfDocument.storageUrl);
+    if (!m) {
+      return { status: 'FAILED', reason: `unrecognised storageUrl: ${doc.pdfDocument.storageUrl}` };
+    }
+    const url = await params.storage.getSignedDownloadUrl({
+      bucket: m[1]!,
+      key: m[2]!,
+      ttlSeconds: 300,
+    });
+    const res = await fetch(url);
+    if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    extracted = await extractNativeText(bytes);
   }
-  const url = await params.storage.getSignedDownloadUrl({
-    bucket: m[1]!,
-    key: m[2]!,
-    ttlSeconds: 300,
-  });
-  const res = await fetch(url);
-  if (!res.ok) return { status: 'FAILED', reason: `PDF fetch ${res.status}` };
-  const bytes = Buffer.from(await res.arrayBuffer());
-  const extracted = await extractNativeText(bytes);
 
   const messages = buildProgramPedagogyMessages({
     program: {

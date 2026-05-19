@@ -21,7 +21,8 @@ export type AiJobKind =
   | 'ANALYZE_POLICY_DOC'
   | 'RUN_PROGRAM_DIGEST'
   | 'RUN_PROGRAM_PIPELINE'
-  | 'RUN_IMD_RANKINGS_EXTRACT';
+  | 'RUN_IMD_RANKINGS_EXTRACT'
+  | 'RUN_CLASS_OFFERINGS_LINK';
 
 /**
  * Pipeline phases. Mirrors apps/ingestion/src/scripts/programs-pipeline.ts:
@@ -90,5 +91,14 @@ export class AiJobsQueueService implements OnModuleInit, OnModuleDestroy {
       { attempts: data.trigger === 'MANUAL' ? 1 : 2 },
     );
     return job.id ?? '';
+  }
+
+  /** Count not-yet-finished jobs (waiting / active / delayed) of a given
+   *  kind. Used by status endpoints to tell the UI whether a refresh is
+   *  already in flight so the trigger button can disable itself. */
+  async countRunning(kind: AiJobKind): Promise<number> {
+    if (!this.queue) return 0;
+    const jobs = await this.queue.getJobs(['waiting', 'active', 'delayed']);
+    return jobs.filter((j) => j.data?.kind === kind).length;
   }
 }

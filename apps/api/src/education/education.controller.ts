@@ -19,6 +19,7 @@ import { EducationService } from './education.service';
 import { RecruitmentService } from './recruitment.service';
 import { ClassOfferingsService, type ClassOfferingsFilter } from './class-offerings.service';
 import { EvaluationsService } from './evaluations.service';
+import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 import {
   EducationRefreshService,
   REFRESHABLE_CUBES,
@@ -174,6 +175,7 @@ export class EducationController {
     private readonly recruitment: RecruitmentService,
     private readonly classOfferings: ClassOfferingsService,
     private readonly evaluations: EvaluationsService,
+    private readonly aiJobs: AiJobsQueueService,
   ) {}
 
   @Get('recruitment')
@@ -261,6 +263,55 @@ export class EducationController {
         durationMs: r.durationMs,
         errorMessage: r.errorMessage,
       })),
+    };
+  }
+
+  // ───── Class offerings + class GPA refresh ────────────────────────
+  //
+  // class_offerings (incl. the grade-distribution columns + precomputed
+  // class_gpa) is NOT an ingestion-framework connector — it's loaded by
+  // the link-class-offerings script. POST enqueues a RUN_CLASS_OFFERINGS_LINK
+  // BullMQ job; the ingestion worker spawns the bundled script. GET
+  // reports the table's freshness (it carries a refreshedAt column) +
+  // whether a refresh job is currently in flight.
+
+  @Post('class-offerings/refresh')
+  @Authorized('institution:read:university')
+  @AuditLog({
+    action: 'education.refresh_class_offerings',
+    entityType: 'ClassOfferingRefresh',
+  })
+  async classOfferingsRefresh(@AuthSession() user: SessionUser) {
+    await assertUniversityWide(user);
+    const jobId = await this.aiJobs.enqueue({
+      kind: 'RUN_CLASS_OFFERINGS_LINK',
+      // entityId is an unused sentinel — the refresh is portfolio-wide.
+      entityId: '__all__',
+      trigger: 'MANUAL',
+      triggeredByUserId: user.userId,
+    });
+    return { jobId };
+  }
+
+  @Get('class-offerings/refresh/status')
+  @Authorized('institution:read:university')
+  async classOfferingsRefreshStatus(@AuthSession() user: SessionUser) {
+    await assertUniversityWide(user);
+    const [agg, running] = await Promise.all([
+      prisma.classOffering.aggregate({
+        _count: { _all: true },
+        _max: { refreshedAt: true },
+      }),
+      this.aiJobs.countRunning('RUN_CLASS_OFFERINGS_LINK'),
+    ]);
+    const withGpa = await prisma.classOffering.count({
+      where: { classGpa: { not: null } },
+    });
+    return {
+      isRunning: running > 0,
+      rowCount: agg._count._all,
+      withGpaCount: withGpa,
+      lastRefreshedAt: agg._max.refreshedAt?.toISOString() ?? null,
     };
   }
 

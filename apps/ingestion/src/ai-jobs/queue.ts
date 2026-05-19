@@ -25,7 +25,13 @@ export type AiJobKind =
   | 'ANALYZE_POLICY_DOC'
   | 'RUN_PROGRAM_DIGEST'
   | 'RUN_PROGRAM_PIPELINE'
-  | 'RUN_IMD_RANKINGS_EXTRACT';
+  | 'RUN_IMD_RANKINGS_EXTRACT'
+  // Full delete-and-replace of class_offerings + class_offering_teachers
+  // from POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER — includes the
+  // grade-distribution columns + precomputed class_gpa. Spawns the
+  // bundled link-class-offerings script with --apply. `entityId` is an
+  // unused sentinel (the refresh is portfolio-wide, not per-program).
+  | 'RUN_CLASS_OFFERINGS_LINK';
 
 // Pipeline phases. Mirrors the API-side definition in
 // apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in
