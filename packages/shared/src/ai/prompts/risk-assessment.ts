@@ -26,7 +26,13 @@ import type { AiMessage } from '../types';
 // given the input data quality.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const RISK_ASSESSMENT_VERSION = 'risk-assessment.v2';
+// v3 (2026-05-19): adds rule-derived candidate measures + `triggerIndicatorSlug`
+// pass-through. The deterministic rule engine in @kku/db/risk-measure-rules.ts
+// fires one candidate measure per (KRI, severity) match before the AI runs;
+// the AI sees the candidates and is instructed to keep/refine/replace each
+// while preserving the trigger linkage via the new `triggerIndicatorSlug`
+// + `triggerSeverity` fields on each measure. Companion to risk-management.v2.
+export const RISK_ASSESSMENT_VERSION = 'risk-assessment.v3';
 
 const RiskMeasureKindSchema = z.enum([
   'CURRICULUM_MODERNIZE',
@@ -69,6 +75,13 @@ const RiskMeasureSchema = z.object({
   expectedDeltaThb: z.number().nullable().default(null),
   // 1 = highest priority within this assessment.
   priority: z.number().int().min(1).max(10).default(5),
+  // When this measure was prompted by a fired KRI (either directly via
+  // the rule-derived candidate, or because the AI's new measure addresses
+  // the same indicator's breach), echo back the indicator slug and
+  // severity here. Pass-through to the persisted RiskMeasure row so the
+  // UI can render "triggered by indicator X" provenance badges.
+  triggerIndicatorSlug: z.string().nullable().default(null),
+  triggerSeverity: z.enum(['WARN', 'CRITICAL']).nullable().default(null),
   // Free-shape evidence references the AI cited.
   evidence: z
     .object({
@@ -187,6 +200,27 @@ export interface RiskAssessmentInput {
   sectorOutlook: Array<{ sector: string; demandTrend: 'rising' | 'falling' | 'stable' }>;
   // KRI breaches surfaced by the deterministic evaluator.
   kriBreaches: Array<{ slug: string; severity: 'OK' | 'WARN' | 'CRITICAL'; value: number | null }>;
+  // Rule-derived candidate measures (risk-measure-rules.v1+). One entry per
+  // matched rule — i.e. one per fired (KRI × severity) pair. These are
+  // BASELINE candidates the AI should keep, refine, or replace. The AI is
+  // also free to add new measures beyond these candidates. When the AI
+  // emits a measure whose intent matches one of these candidates, it must
+  // echo back `triggerIndicatorSlug` and `triggerSeverity` so the
+  // persistence layer can store the provenance link.
+  ruleDerivedMeasures: Array<{
+    ruleKey: string;
+    indicatorSlug: string;
+    triggerSeverity: 'WARN' | 'CRITICAL';
+    measure: {
+      kind: string;
+      titleTh: string;
+      titleEn: string;
+      rationaleTh: string;
+      horizon: string;
+      costClass: string;
+      priority: number;
+    };
+  }>;
   // Data gaps surfaced by the loader.
   dataGaps: Array<{ field: string; reason: string }>;
 }
@@ -236,6 +270,17 @@ export function buildRiskAssessmentMessages(input: RiskAssessmentInput): AiMessa
 
 9. **confidence** — 0.4-0.6 เมื่อข้อมูลขาดมาก, 0.7-0.85 ปกติ, 0.9+ เมื่อมั่นใจสูง
 
+10. **มาตรการตั้งต้นจาก KRI rule engine** — ในข้อมูลขาเข้าจะมีบล็อก [มาตรการตั้งต้นจาก rule engine] ถ้ามี KRI ที่ติดธง:
+   - แต่ละ candidate ตั้งต้นมาด้วย kind/title/rationale/horizon/costClass/priority ที่กำหนดไว้ก่อนแล้ว
+   - **คุณต้องเก็บ candidate ทุกตัวไว้ในผลลัพธ์** (จะปรับเปลี่ยนได้ ไม่ใช่ลบทิ้ง) เพราะ Council มีหลักประกันว่า "KRI ที่ติดธงจะมีมาตรการตอบสนองเสมอ"
+   - คุณสามารถ:
+     - **ปรับให้เฉพาะเจาะจงขึ้น** — เช่น เปลี่ยน "เปิดช่องทางตลาดเพิ่ม" เป็น "เปิด TikTok ads ในกลุ่ม ม.4-6 ภาคอีสาน" โดยอ้างหลักฐานเฉพาะของหลักสูตรนั้น
+     - **เปลี่ยน priority หรือ horizon** ตามบริบทของหลักสูตรนั้น
+     - **เปลี่ยน kind** ถ้ามีมาตรการอื่นที่เหมาะกว่าสำหรับ indicator นั้น (เช่น เปลี่ยน RECRUITMENT_CHANNEL เป็น CURRICULUM_DIFFERENTIATE ถ้าปัญหารากเหง้าคือหลักสูตรไม่น่าสนใจ)
+   - **ต้อง echo back \`triggerIndicatorSlug\` และ \`triggerSeverity\`** บนทุกมาตรการที่มาจาก candidate (เพื่อ UI จะแสดง provenance badge)
+   - **เพิ่มมาตรการของคุณเอง 1-3 ข้อ** นอกเหนือจาก candidates เพื่อครอบคลุมมิติที่ rule engine ยังไม่จับ (เช่น peer white-spaces, sector outlook, qualitative caveats) — มาตรการเหล่านี้ set triggerIndicatorSlug = null
+   - ถ้าไม่มี KRI ติดธงเลย ก็ไม่มี candidate ก็เสนอ measures จาก L1/L2/L3 ตามปกติ
+
 โครงสร้าง JSON ผลลัพธ์ (ห้ามมี markdown, ห้ามมีคำอธิบายล่วงหน้า, ออก JSON เดี่ยวเท่านั้น):
 {
   "narrativeTh": "...",
@@ -252,6 +297,8 @@ export function buildRiskAssessmentMessages(input: RiskAssessmentInput): AiMessa
       "horizon": "SHORT_TERM" | "MEDIUM_TERM" | "LONG_TERM",
       "expectedDeltaThb": <ตัวเลข | null>,
       "priority": <1-10>,
+      "triggerIndicatorSlug": "<indicator slug ถ้ามาจาก rule candidate ไม่งั้น null>",
+      "triggerSeverity": "WARN" | "CRITICAL" | null,
       "evidence": {
         "drivers": ["L1", "L2", "L3"],
         "kris": ["application_seat_ratio", ...],
@@ -383,6 +430,25 @@ ${input.sectorOutlook.map((s) => `  ${s.sector}: ${s.demandTrend}`).join('\n')}`
       userBlocks.push(`[KRI ที่ติดธง]
 ${fired.map((k) => `  ${k.slug}: ${k.severity} (value=${k.value?.toFixed(2) ?? 'N/A'})`).join('\n')}`);
     }
+  }
+
+  if (input.ruleDerivedMeasures.length > 0) {
+    userBlocks.push(`[มาตรการตั้งต้นจาก rule engine — risk-measure-rules.v1]
+มี ${input.ruleDerivedMeasures.length} candidates ตั้งต้น แต่ละข้อมาจาก KRI ที่ติดธง (ดูบล็อก KRI ข้างบน)
+คุณต้องเก็บ candidate ทุกตัวไว้ในผลลัพธ์ (สามารถปรับให้เฉพาะเจาะจงขึ้น ไม่ใช่ลบทิ้ง)
+และต้อง echo back triggerIndicatorSlug + triggerSeverity บนทุก candidate ที่เก็บไว้
+
+${input.ruleDerivedMeasures
+  .map(
+    (c, i) => `  [Candidate ${i + 1}] (triggerIndicatorSlug="${c.indicatorSlug}" triggerSeverity="${c.triggerSeverity}")
+    kind: ${c.measure.kind} · horizon: ${c.measure.horizon} · costClass: ${c.measure.costClass} · priority: ${c.measure.priority}
+    titleTh: ${c.measure.titleTh}
+    titleEn: ${c.measure.titleEn}
+    rationaleTh: ${c.measure.rationaleTh}`,
+  )
+  .join('\n\n')}
+
+** ปรับให้ดีขึ้น (แต่ต้องเก็บทุกตัว) — เปลี่ยน title ให้อ้างชื่อวิชา/ช่องทาง/peer เฉพาะ เปลี่ยน rationale ให้อ้างตัวเลขของหลักสูตรนั้น เปลี่ยน priority ถ้าจำเป็น แล้วเพิ่มมาตรการของคุณเอง 1-3 ข้อด้วย (triggerIndicatorSlug = null) **`);
   }
 
   if (input.dataGaps.length > 0) {

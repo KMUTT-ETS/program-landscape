@@ -58,6 +58,7 @@ import {
   latestCompleteEntryYearBE,
   RISK_INDICATOR_CATALOG,
   RISK_SCORING_VERSION,
+  deriveRuleMeasures,
   Prisma,
   type ProgramRiskInputs,
   type ProgramRiskResult,
@@ -354,6 +355,37 @@ async function buildAiInput(
       severity: k.severity,
       value: k.value,
     })),
+    // Deterministic rule-derived candidate measures. One per fired
+    // (KRI × severity) match. The AI sees these in the prompt and is
+    // instructed to keep/refine each while preserving the trigger
+    // linkage via triggerIndicatorSlug + triggerSeverity. See
+    // packages/db/src/risk-measure-rules.ts.
+    ruleDerivedMeasures: deriveRuleMeasures(
+      kriResults.map((k) => ({
+        indicatorSlug: k.indicatorSlug,
+        severity: k.severity,
+        value: k.value,
+      })),
+      Object.fromEntries(
+        RISK_INDICATOR_CATALOG.map((c) => [
+          c.slug,
+          { warnThreshold: c.warnThreshold, criticalThreshold: c.criticalThreshold },
+        ]),
+      ),
+    ).map((c) => ({
+      ruleKey: c.ruleKey,
+      indicatorSlug: c.indicatorSlug,
+      triggerSeverity: c.triggerSeverity,
+      measure: {
+        kind: c.measure.kind,
+        titleTh: c.measure.titleTh,
+        titleEn: c.measure.titleEn,
+        rationaleTh: c.measure.rationaleTh,
+        horizon: c.measure.horizon,
+        costClass: c.measure.costClass,
+        priority: c.measure.priority,
+      },
+    })),
     dataGaps,
   };
 }
@@ -468,6 +500,49 @@ async function main(): Promise<void> {
       let aiInferenceId: string | null = null;
       let aiPayload: unknown = null;
 
+      // risk-management.v2: when --no-ai is set, the rule engine still
+      // produces baseline candidate measures so Council never sees an
+      // empty mitigation list for a program with fired KRIs. The AI path
+      // (below) gets the same candidates as input to refine.
+      if (!ai && !insufficient && !dryRun) {
+        const candidates = deriveRuleMeasures(
+          breaches.map((b) => ({
+            indicatorSlug: b.indicatorSlug,
+            severity: b.severity,
+            value: b.value,
+          })),
+          Object.fromEntries(
+            RISK_INDICATOR_CATALOG.map((c) => [
+              c.slug,
+              { warnThreshold: c.warnThreshold, criticalThreshold: c.criticalThreshold },
+            ]),
+          ),
+        );
+        // Cast through the same Zod-output shape the AI path uses so the
+        // downstream createMany works without conditional branching.
+        aiMeasures = candidates.map((c) => ({
+          kind: c.measure.kind as ReturnType<typeof RiskAssessmentSchema.parse>['measures'][number]['kind'],
+          titleTh: c.measure.titleTh,
+          titleEn: c.measure.titleEn,
+          rationaleTh: c.measure.rationaleTh,
+          rationaleEn: c.measure.rationaleEn,
+          costClass: c.measure.costClass,
+          horizon: c.measure.horizon as ReturnType<typeof RiskAssessmentSchema.parse>['measures'][number]['horizon'],
+          expectedDeltaThb: null,
+          priority: c.measure.priority,
+          triggerIndicatorSlug: c.indicatorSlug,
+          triggerSeverity: c.triggerSeverity,
+          evidence: {
+            drivers: [],
+            kris: [c.indicatorSlug],
+            peerPrograms: [],
+            whitespaceSkills: [],
+            automationRiskSkills: [],
+            notes: `rule-engine baseline (no AI) · ${c.ruleKey}`,
+          },
+        }));
+      }
+
       if (ai && !insufficient && !dryRun) {
         try {
           const aiInput = await buildAiInput(t.id, scores);
@@ -553,6 +628,11 @@ async function main(): Promise<void> {
                 m.expectedDeltaThb != null ? new Prisma.Decimal(m.expectedDeltaThb) : null,
               priority: m.priority,
               evidenceJson: m.evidence as Prisma.InputJsonValue,
+              // risk-management.v2: provenance link from a fired KRI to the
+              // measure the AI generated in response. Null when the AI
+              // proposed a measure not tied to any specific breach.
+              triggerIndicatorSlug: m.triggerIndicatorSlug,
+              triggerSeverity: m.triggerSeverity,
             })),
           });
         }

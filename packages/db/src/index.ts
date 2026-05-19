@@ -35,6 +35,7 @@ export * from './imd-rankings';
 export * from './imd-materialize';
 export * from './program-recruitment';
 export * from './risk-scoring';
+export * from './risk-measure-rules';
 export * from './retention';
 export * from './sign-in-lockout';
 export * from './data-quality';

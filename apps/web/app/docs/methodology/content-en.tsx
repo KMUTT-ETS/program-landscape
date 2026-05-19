@@ -99,7 +99,7 @@ export function MethodologyContentEn() {
           portfolio. The paper is deliberately conservative in its claims: every score informs, none
           decides, and program closure / merger / launch decisions remain a human-in-the-loop process
           requiring two-reviewer Council approval regardless of the computed values. Limitations and
-          known data gaps are documented in §7.
+          known data gaps are documented in §8.
         </P>
       </DocSection>
 
@@ -440,7 +440,7 @@ export function MethodologyContentEn() {
                 <TR>
                   <TD mono>demographic_resilience</TD>
                   <TD><Code>100 − clamp(requiredShareAt+10y × 100 000 × 100)</Code>. The required share is the fraction of Thailand's 18–22 cohort the programme would need to recruit from, ten years out, to maintain its current intake. {'<'} 0.05% → ≈ 100; {'>'} 0.2% → ≈ 0.</TD>
-                  <TD><Code>programDemographicOutlook</Code> (driven by Thailand cohort projections; see §4.3 for the calculation, §5 for the data source, and <Code>docs/methodologies/forecasting.md</Code>).</TD>
+                  <TD><Code>programDemographicOutlook</Code> (driven by Thailand cohort projections; see §4.3 for the calculation, §6 for the data source, and <Code>docs/methodologies/forecasting.md</Code>).</TD>
                 </TR>
                 <TR>
                   <TD mono>strategic_sector_alignment</TD>
@@ -975,7 +975,7 @@ otherwise                                         → SUNSET`}</Pre>
             count of <Code>severity = major</Code> content gaps. The richer fields are
             presentation-only on the Deep-Dive. AI peer-review outputs below the auto-approve
             confidence threshold (currently 0.85, configurable) sit in an analyst review queue and
-            are never silently materialised — see §6 (Governance).
+            are never silently materialised — see §7 (Governance).
           </P>
         </DocSubsection>
 
@@ -1035,7 +1035,255 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="data-sources" number="5." title="Data sources and provenance">
+      <DocSection id="risk-management" number="5." title="Risk Management">
+        <P>
+          Health Score (§2) and Lifecycle Verdict (§3) are descriptive — they
+          tell you what state a program is in. <Strong>Risk Management</Strong>
+          is the operational layer that turns those numbers into action: it
+          continuously watches a small set of key risk indicators (KRIs),
+          periodically generates an AI-assisted risk assessment with 2–4
+          concrete mitigations per program, and tracks those mitigations
+          through a formal lifecycle bound (where appropriate) to a Council
+          decision.
+        </P>
+        <P>
+          <Strong>Scope</Strong>: undergraduate (BACHELOR) programs only.
+          Postgraduate risk uses different demand signals (employer hiring
+          channels, research-funded vs taught-only routes) that the v1
+          indicator catalog does not model. Master's and doctoral programs
+          appear in <Code>/risks/</Code> tagged "out of scope" rather than
+          scored.
+        </P>
+        <P>
+          The companion canonical doc is{' '}
+          <Code>docs/methodologies/risk-management.md</Code> (workflow) and{' '}
+          <Code>docs/methodologies/risk-scoring.md</Code> (formula). Locked
+          references: <Code>packages/db/src/risk-scoring.ts</Code>,{' '}
+          <Code>apps/ingestion/src/scripts/risks-assess.ts</Code>,{' '}
+          <Code>apps/api/src/risks/risks.service.ts</Code>.
+        </P>
+
+        <DocSubsection number="5.1" title="Four operational layers">
+          <OL>
+            <LI><Strong>KRI alarms</Strong> — five pre-defined indicators evaluated nightly against each program. Each breach (warn / critical) lands in <Code>risk_indicator_breaches</Code> with a freshness date. Deterministic, no AI in the loop.</LI>
+            <LI><Strong>Rule engine (v2)</Strong> — deterministic mapper from fired KRIs to candidate <Code>RiskMeasure</Code> templates (<Code>risk-measure-rules.v1</Code> — six rules across all five v1 KRIs). Fires BEFORE the AI; the candidates are the safety net guaranteeing every breach gets at least one mitigation proposal even when AI is unavailable.</LI>
+            <LI><Strong>Periodic AI risk assessment</Strong> — analyst-triggered Gemini call (<Code>pnpm risks:assess</Code>) that reads the L1/L2/L3 likelihood drivers, the impact dimensions, AND the rule-derived candidates. Produces narratives and 2–4 specific RiskMeasure proposals per program, persists a <Code>RiskAssessment</Code> row with full AI provenance.</LI>
+            <LI><Strong>Measure lifecycle</Strong> — proposed mitigations move <Code>PROPOSED → ACCEPTED / REJECTED → IN_PROGRESS → COMPLETED</Code>, with optional binding to a <Code>CouncilDecision</Code> in the Decision Workspace.</LI>
+          </OL>
+        </DocSubsection>
+
+        <DocSubsection number="5.2" title="KRI catalog (v1)">
+          <P>
+            The v1 indicator set has five KRIs, all bachelor-only. Thresholds
+            were calibrated against the KKU Council ERM template for 2026-Q1.
+            Catalog is analyst-tunable via <Code>/admin/risks/indicators/</Code>{' '}
+            in v2; v1 thresholds are seeded constants in{' '}
+            <Code>RISK_INDICATOR_CATALOG</Code>.
+          </P>
+          <Tbl>
+            <THead>
+              <TR>
+                <TH>Slug</TH>
+                <TH>Formula</TH>
+                <TH width="10%">Warn</TH>
+                <TH width="12%">Critical</TH>
+                <TH width="10%">Direction</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD mono>application_seat_ratio</TD><TD>Σ applicants ÷ max(plan_per_year) (latest year)</TD><TD>≤ 1.5</TD><TD>≤ 1.0</TD><TD>low</TD></TR>
+              <TR><TD mono>enrollment_fill_rate</TD><TD>Σ reg_reported ÷ max(plan_per_year) (latest year)</TD><TD>≤ 0.7</TD><TD>≤ 0.5</TD><TD>low</TD></TR>
+              <TR><TD mono>late_round_dependency</TD><TD>late-round reg_reported ÷ total reg_reported</TD><TD>≥ 0.5</TD><TD>≥ 0.7</TD><TD>high</TD></TR>
+              <TR><TD mono>skill_automation_index</TD><TD>COUNT(skills WHERE automationRisk = HIGH) ÷ COUNT(skills)</TD><TD>≥ 0.3</TD><TD>≥ 0.6</TD><TD>high</TD></TR>
+              <TR><TD mono>bachelor_intake_floor</TD><TD>Σ reg_reported (latest year) · KKU Council policy ≥ 30/year</TD><TD>&lt; 36</TD><TD>&lt; 30</TD><TD>low</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            <Strong>Direction</Strong>: <Code>low</Code> means the indicator
+            alarms when its value falls BELOW the threshold (e.g. demand is
+            too thin); <Code>high</Code> means it alarms when its value rises
+            ABOVE the threshold (e.g. automation exposure is too high).
+            Breaches read only real-data rows — mocked connector outputs cannot
+            trigger false alarms.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.3" title="Rule engine (v2)">
+          <P>
+            Before the AI runs, a deterministic mapper called the{' '}
+            <Strong>rule engine</Strong> reads the breach list and emits one{' '}
+            <Code>RiskMeasure</Code> candidate per matched (KRI × severity)
+            pair. The candidates serve two purposes: (a) <Em>Council guarantee</Em>{' '}
+            — every fired KRI is guaranteed to produce at least one
+            corresponding measure proposal, even when AI is unavailable
+            (<Code>--no-ai</Code> flag); and (b) <Em>baseline for the AI</Em>{' '}
+            — the AI receives the candidates as a starting point and is
+            instructed to keep, refine, or extend them rather than reinvent.
+          </P>
+          <P>
+            <Strong>v1 rule catalog</Strong> — six rules covering all five v1
+            KRIs. The intake-floor indicator has two rules because the
+            mitigation differs by severity (WARN suggests outreach; CRITICAL
+            suggests cohort restructuring):
+          </P>
+          <Tbl>
+            <THead>
+              <TR>
+                <TH>Indicator</TH>
+                <TH width="10%">Severity</TH>
+                <TH>Measure kind</TH>
+                <TH width="13%">Horizon</TH>
+                <TH width="8%">Cost</TH>
+                <TH width="10%">Priority</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD mono>application_seat_ratio</TD><TD>WARN</TD><TD mono>RECRUITMENT_CHANNEL</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
+              <TR><TD mono>enrollment_fill_rate</TD><TD>WARN</TD><TD mono>RECRUITMENT_TARGETING</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
+              <TR><TD mono>late_round_dependency</TD><TD>WARN</TD><TD mono>RECRUITMENT_TARGETING</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>4</TD></TR>
+              <TR><TD mono>skill_automation_index</TD><TD>WARN</TD><TD mono>CURRICULUM_MODERNIZE</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>2</TD></TR>
+              <TR><TD mono>bachelor_intake_floor</TD><TD>WARN</TD><TD mono>RECRUITMENT_CHANNEL</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
+              <TR><TD mono>bachelor_intake_floor</TD><TD>CRITICAL</TD><TD mono>COHORT_REDUCTION</TD><TD>MEDIUM_TERM</TD><TD>MEDIUM</TD><TD>1</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            <Strong>Exact-severity matching</Strong> — a rule with{' '}
+            <Code>triggerSeverity = WARN</Code> fires only on WARN breaches,
+            not on CRITICAL. To fire a rule on both severities, add two
+            entries to the catalog. The engine is a pure function in{' '}
+            <Code>packages/db/src/risk-measure-rules.ts</Code> — deterministic
+            given (catalog, breaches, thresholds); unit-testable without a DB.
+          </P>
+          <P>
+            <Strong>Provenance</Strong> — two new fields on{' '}
+            <Code>RiskMeasure</Code> (additive migration{' '}
+            <Code>20260519120000_risk_measure_trigger</Code>):{' '}
+            <Code>triggerIndicatorSlug</Code> and{' '}
+            <Code>triggerSeverity</Code>. Populated automatically for
+            rule-derived measures in the <Code>--no-ai</Code> path; the AI
+            is instructed to echo them back when refining a candidate. The UI
+            uses these to render a "triggered by indicator X" badge on the
+            measure card.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.4" title="The risk assessment pipeline">
+          <P>
+            <Code>pnpm risks:assess</Code> runs the assessment for one program
+            (positional arg = code / sequence / id) or the whole portfolio
+            (<Code>--all</Code>, with <Code>--no-ai</Code> for fast
+            deterministic-only runs). The pipeline is:
+          </P>
+          <OL>
+            <LI><Strong>Load deterministic inputs</Strong> via{' '}
+              <Code>loadProgramRiskInputs(programId)</Code> — pulls the L1
+              recruitment driver (TCAS funnel decay), L2 AI-disruption driver
+              (share of skills tagged HIGH automation risk), L3 demographic
+              ceiling driver, and the two impact dimensions (direct
+              revenue-at-risk and stranded cost in THB).
+            </LI>
+            <LI><Strong>Compute the composite</Strong> using risk-scoring.v1
+              (see <Code>docs/methodologies/risk-scoring.md</Code>) →{' '}
+              <Code>tier</Code> (LOW / MODERATE / HIGH / CRITICAL / NEEDS_DATA),
+              <Code>composite_score</Code> (0–100),{' '}
+              <Code>kkuMatrixScore</Code> (1–25), and{' '}
+              <Code>kkuRiskLevel</Code> (the official ERM colour band).
+            </LI>
+            <LI><Strong>Run the AI prompt</Strong>{' '}
+              (<Code>risk-assessment.v1</Code> via Gemini) which receives the
+              deterministic inputs plus the latest indicator breaches and emits
+              Thai + English narratives, 2–4 specific RiskMeasure proposals
+              with concrete content (e.g. "Add CS-301 Applied Generative AI;
+              drop CS-220 SOAP Web Services" — not "modernize curriculum"),
+              and a confidence number.
+            </LI>
+            <LI><Strong>Persist</Strong> a single <Code>RiskAssessment</Code>{' '}
+              row plus 0–4 child <Code>RiskMeasure</Code> rows. All stamped
+              with <Code>methodologyVersion</Code>,{' '}
+              <Code>aiInferenceId</Code>, and <Code>payloadJson</Code> (the
+              full immutable AI response for audit).
+            </LI>
+          </OL>
+          <P>
+            Subsequent runs append new RiskAssessment rows; previous ones are
+            retained. The UI shows the latest by <Code>assessed_at</Code>;
+            older rows surface in the assessment-history drawer on the
+            program deep-dive.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.5" title="Measure lifecycle">
+          <P>
+            A <Code>RiskMeasure</Code> is a structured mitigation proposal.
+            Each carries a coarse kind (curriculum modernize / differentiate,
+            recruitment channel / targeting, cohort reduction, program merge,
+            phase-out, partnership, faculty hire, tuition adjust), a short
+            label, a 200–400 character rationale, a cost class (LOW / MEDIUM
+            / HIGH), a horizon (SHORT_TERM ≤ 12 mo / MEDIUM_TERM 1–3 yr /
+            LONG_TERM 3–5 yr), an expected 5-year revenue delta in THB
+            (nullable), and a priority rank within the assessment.
+          </P>
+          <Pre>{`PROPOSED ──► ACCEPTED ──► IN_PROGRESS ──► COMPLETED
+   │              │
+   │              └── (optional bind to CouncilDecision)
+   └────► REJECTED`}</Pre>
+          <P>
+            Transitions are role-gated at{' '}
+            <Code>RisksService.updateMeasureStatus()</Code>. PROPOSED →
+            ACCEPTED / REJECTED requires Department Head + Dean + above;
+            ACCEPTED → IN_PROGRESS and IN_PROGRESS → COMPLETED require
+            Department Head + above (the unit responsible for execution). All
+            transitions are audit-logged. A measure bound to a CouncilDecision
+            (<Code>decisionId</Code> set) cannot be silently REJECTED — the
+            decision must be SUPERSEDED first.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.6" title="KKU 5×5 institutional matrix">
+          <P>
+            Alongside the LOW / MODERATE / HIGH / CRITICAL tier, every
+            assessment carries KKU institutional matrix coordinates:{' '}
+            <Code>likelihoodBin</Code> (1–5, equal-width binning of the
+            composite score), <Code>impactBin</Code> (1–5, normalised against
+            the portfolio impact distribution),{' '}
+            <Code>kkuMatrixScore</Code> = <Code>likelihoodBin × impactBin</Code>{' '}
+            (1–25), and <Code>kkuRiskLevel</Code> mapped to the official
+            ERM colour bands (LOW / MODERATE / HIGH / VERY_HIGH).
+          </P>
+          <P>
+            Why two views: the composite tier is the analytics-driven action
+            signal; the 5×5 matrix is the legal/audit ERM view that KKU's
+            Risk Office formally tracks. Both come from the same{' '}
+            <Code>RiskAssessment</Code> row, so the analytics surface and the
+            ERM register can never disagree. When{' '}
+            <Code>composite_score IS NULL</Code> (every driver lacks data),
+            the program is excluded from the 5×5 grid rather than placed in
+            cell (1,1) — that would imply "low risk" and is more dangerous
+            than admitting we have nothing.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.7" title="Confidence and null handling">
+          <UL>
+            <LI><Strong>Indicator breach</Strong> — deterministic. Severity comes from the threshold comparison. If the value can't be computed (data gap), the breach is written with <Code>value = null</Code> and <Code>severity = OK</Code> — the UI distinguishes "no data" from "data says fine."</LI>
+            <LI><Strong>Assessment confidence</Strong> (<Code>RiskAssessment.confidence</Code>, 0–1) — the model's self-reported certainty about its narratives + measures. Combines data-completeness across L1/L2/L3, peer/sector-context availability, and the model's own hesitation signal. <Em>Not</Em> the same as the per-driver <Code>_confidence</Code> fields, which are data-completeness ratios for each driver.</LI>
+            <LI><Strong>Measure</Strong> — no explicit confidence; the <Code>priority</Code> rank (1 = strongest) is the model's relative-strength signal.</LI>
+            <LI><Strong>Missing drivers</Strong> — composite is <Code>max()</Code> over non-null drivers. If ALL three are null, <Code>composite_score = NULL</Code>, <Code>tier = NEEDS_DATA</Code>, matrix bins are null. Surfaces in the data-quality worklist instead of silently flagging "low risk".</LI>
+          </UL>
+        </DocSubsection>
+
+        <DocSubsection number="5.8" title="Known limitations">
+          <UL>
+            <LI><Strong>Bachelor only.</Strong> Postgraduate risk uses different demand signals — Master's and doctoral programs in <Code>/risks/</Code> are tagged out-of-scope rather than scored.</LI>
+            <LI><Strong>Indicator thresholds are fixed in v1.</Strong> Threshold changes require a schema seed re-run; visible in audit because every breach carries the methodologyVersion that was active when it was written.</LI>
+            <LI><Strong>Measure cost classes are coarse</Strong> (LOW / MEDIUM / HIGH, no attached THB range). Sized to fit Council-table layout, not budget planning. A precise cost methodology depends on Finance Committee sign-off on cost-allocation (see <Code>docs/methodologies/cost-allocation.md</Code>).</LI>
+            <LI><Strong>~~No automated breach → measure link~~</Strong> — <Em>closed in risk-management.v2</Em> (2026-05-19). The rule engine in <Code>risk-measure-rules.v1</Code> deterministically fires one candidate measure per matched (KRI × severity) pair before the AI runs. Six rules cover all five KRIs. New <Code>RiskMeasure.triggerIndicatorSlug</Code> column persists provenance.</LI>
+            <LI><Strong>Mitigation tracking is status-only.</Strong> Once a measure is IN_PROGRESS, milestone / % complete tracking lives on the linked <Code>CouncilDecision</Code> via <Code>DecisionMilestone</Code> (Decision Workspace). Standalone measures with no decision binding have opaque IN_PROGRESS state.</LI>
+          </UL>
+        </DocSubsection>
+      </DocSection>
+
+      <DocSection id="data-sources" number="6." title="Data sources and provenance">
         <P>
           This section lists every external and internal data source consumed by the health score and
           lifecycle verdict, with attribution. Each source has a per-source specification at{' '}
@@ -1152,8 +1400,8 @@ otherwise                                         → SUNSET`}</Pre>
         </P>
       </DocSection>
 
-      <DocSection id="governance" number="6." title="Governance, audit, and versioning">
-        <DocSubsection number="6.1" title="Versioning policy">
+      <DocSection id="governance" number="7." title="Governance, audit, and versioning">
+        <DocSubsection number="7.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.5'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
@@ -1173,7 +1421,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="6.2" title="Audit and reproducibility">
+        <DocSubsection number="7.2" title="Audit and reproducibility">
           <P>Every score and verdict is reproducible from:</P>
           <OL>
             <LI>The git commit recorded in the <Code>programLifecycleSnapshots.driversJson</Code> payload (or, for health scores, the <Code>IngestionRun</Code> rows referenced in provenance);</LI>
@@ -1186,7 +1434,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="6.3" title="Human-in-the-loop requirement">
+        <DocSubsection number="7.3" title="Human-in-the-loop requirement">
           <P>
             No score, verdict, or AI-generated narrative authorises an institutional decision. Per{' '}
             <Code>docs/ai-governance.md</Code>:
@@ -1198,7 +1446,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="6.4" title="Guardrails enforced at compute time">
+        <DocSubsection number="7.4" title="Guardrails enforced at compute time">
           <P>The scoring service enforces, at every computation:</P>
           <UL>
             <LI>All driver and dimension scores are clamped to <Code>[0, 100]</Code>.</LI>
@@ -1210,9 +1458,9 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="limitations" number="7." title="Limitations and known caveats">
+      <DocSection id="limitations" number="8." title="Limitations and known caveats">
         <P>This section is deliberately exhaustive. Decision-makers should read it with care.</P>
-        <DocSubsection number="7.1" title="Equal-weighting is a deliberate, conservative default">
+        <DocSubsection number="8.1" title="Equal-weighting is a deliberate, conservative default">
           <P>
             The composite score weighs all five dimensions equally. This is a least-arguable default:
             any weighted formulation encodes a value judgement, and the application errs toward making
@@ -1222,7 +1470,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.2" title="Data completeness varies sharply across programs">
+        <DocSubsection number="8.2" title="Data completeness varies sharply across programs">
           <P>A non-trivial number of KKU programs lack complete data for one or more dimensions:</P>
           <UL>
             <LI>The Outcomes dimension is largely null pending the <Code>kku-alumni</Code> real connector and PDPA sign-off; only the TCAS minimum-score percentile is currently live.</LI>
@@ -1235,7 +1483,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.3" title="Cross-scope consistency is not asserted">
+        <DocSubsection number="8.3" title="Cross-scope consistency is not asserted">
           <P>
             A faculty's overall health score is computed independently from its own scope's metric
             rollups, not as an average of its programs' scores. The two are typically close but not
@@ -1244,7 +1492,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.4" title="Some signals are still synthetic or proxied">
+        <DocSubsection number="8.4" title="Some signals are still synthetic or proxied">
           <UL>
             <LI>The labour-market alignment driver pulls from the LinkedIn-derived data feed (subscribed by MHESI; API hosted at KMITL) and is, until 2026-05-31, in a 30-day green-history readiness window. Council-facing surfaces should mark it as preview-quality.</LI>
             <LI>The <Code>pedagogicalReadiness</Code> sub-score in AI readiness is reserved (null) pending classroom and survey instrumentation; its weight is currently redistributed across the other three sub-scores.</LI>
@@ -1252,7 +1500,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="7.5" title="The lifecycle verdict's modifier gates are an institutional position, not an empirical fact">
+        <DocSubsection number="8.5" title="The lifecycle verdict's modifier gates are an institutional position, not an empirical fact">
           <P>
             The two AI-readiness floors (§3.5) and the OLD_SCHOOL content cap (§3.5) are explicit
             institutional positions, not findings. Decision-makers may disagree with those positions;
@@ -1260,7 +1508,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.6" title="The verdict bands are calibration choices">
+        <DocSubsection number="8.6" title="The verdict bands are calibration choices">
           <P>
             The trajectory cut-offs (45 / 65 / 80) and the health bands (40 / 65) were chosen to
             produce a roughly even distribution of programs across bands at KKU's current state. They
@@ -1269,7 +1517,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.7" title="Score volatility under data refreshes">
+        <DocSubsection number="8.7" title="Score volatility under data refreshes">
           <P>
             A single ingestion run can move a program's overall score by several points if it lands a
             previously-missing driver. This is by design (we want fresh data to register). Users of
@@ -1279,7 +1527,7 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="glossary" number="8." title="Glossary">
+      <DocSection id="glossary" number="9." title="Glossary">
         <UL>
           <LI><Strong>CUPT</Strong> — Council of University Presidents of Thailand (สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย); administers TCAS.</LI>
           <LI><Strong>TCAS</Strong> — Thai University Central Admission System; the four-round national admission process for Thai universities. KKU participates in rounds 1–4.</LI>
@@ -1298,26 +1546,26 @@ otherwise                                         → SUNSET`}</Pre>
         </UL>
       </DocSection>
 
-      <DocSection id="references" number="9." title="References">
+      <DocSection id="references" number="10." title="References">
         <P>
           The following are the actual source materials this paper draws from. References are split
           into (a) institutional source code and documentation that defines the methodology, and (b)
           external public references for the data sources cited.
         </P>
-        <DocSubsection number="9.1" title="Internal — methodology canon">
+        <DocSubsection number="10.1" title="Internal — methodology canon">
           <UL>
             <LI><Code>packages/db/src/health-score.ts</Code>. Primary implementation of the five-dimension health score scorers. Methodology version constant <Code>HEALTH_SCORE_VERSION</Code>.</LI>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programLifecycleVerdict</Code> and <Code>programAiReadiness</Code>. Methodology version constant <Code>LIFECYCLE_VERSION</Code>.</LI>
             <LI><Code>docs/methodologies/health-score.md</Code>. Internal-facing methodology notes; version history and review log.</LI>
             <LI><Code>docs/methodologies/cost-allocation.md</Code>. Cost-allocation methodology (v0 draft) feeding the Financial dimension.</LI>
             <LI><Code>docs/methodologies/forecasting.md</Code>. Forecasting methodology feeding demographic-resilience and trend drivers.</LI>
-            <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §5.</LI>
-            <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §6.</LI>
+            <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §6.</LI>
+            <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §7.</LI>
             <LI><Code>CLAUDE.md</Code>. Project charter and the eight strategic questions referenced in §2.1.</LI>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="9.2" title="External — data source operators (publicly available references)">
+        <DocSubsection number="10.2" title="External — data source operators (publicly available references)">
           <UL>
             <LI><Strong>OurResearch / OpenAlex.</Strong> Public scholarly-works catalogue. <a className="text-accent underline-offset-2 hover:underline" href="https://openalex.org" target="_blank" rel="noopener noreferrer">https://openalex.org</a>.</LI>
             <LI><Strong>CUPT (Council of University Presidents of Thailand).</Strong> Administers TCAS. <a className="text-accent underline-offset-2 hover:underline" href="https://www.mytcas.com" target="_blank" rel="noopener noreferrer">https://www.mytcas.com</a>.</LI>
@@ -1331,7 +1579,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="9.3" title="External — referenced policy frameworks">
+        <DocSubsection number="10.3" title="External — referenced policy frameworks">
           <UL>
             <LI>The <Strong>Bio-Circular-Green (BCG) economic model</Strong> is a Thai national-strategy framework articulated by the Royal Thai Government and operationalised through MHESI and NXPO. Public materials are available on the NXPO website.</LI>
             <LI>The <Strong>S-curve target industries</Strong> are likewise defined in Thai government strategy documentation.</LI>
@@ -1371,6 +1619,9 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>lifecycle.v1.2</TD><TD>2026-05-12</TD><TD>Exposes the gate counterfactual (gap #8 closure): result now carries <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> alongside the gated <Code>verdict</Code>, so Council readers can see when + why a modifier gate moved the verdict. No behavioural change to the gated verdict.</TD></TR>
             <TR><TD mono>lifecycle.v1.3</TD><TD>2026-05-12</TD><TD>Rebalances qualitative-vs-quantitative content signals after KKU-SEQ-0018 surfaced an over-weighted peer-review modernity verdict masking a 12.5% labour-market-alignment gap. <Code>content_modernity</Code> weight halved (±20 → ±10). New first-class driver <Code>labour_market_alignment</Code> (±15) sourced from the KMITL employer-demand share. Two new modifier gates (<Code>lowLabourMarketAlignmentStableCap</Code> at &lt;30, <Code>lowLabourMarketAlignmentFrontierCap</Code> at &lt;50) mirror the AI-readiness gate pattern — a program can't claim trajectory if it teaches a fraction of what employers demand.</TD></TR>
             <TR><TD mono>lifecycle.v1.4</TD><TD>2026-05-12</TD><TD>Bakes revenue-production potential into the verdict after KKU-SEQ-0291 (PhD Epi & Biostat, ~2M THB/yr, 4 students/cohort) landed at FRONTIER under v1.3. New <Code>revenue_scale</Code> driver (±10, level-aware against per-level revenue targets). New <Code>lowRevenuePotentialFrontierCap</Code> gate — annual revenue &lt; 3M THB/yr (universal flagship floor) caps FRONTIER at RISING regardless of level. Encodes the non-degree HRD shift squeezing post-graduate cohorts: FRONTIER is strategic-flagship, not academic-excellence.</TD></TR>
+            <TR><TD mono>risk-scoring.v1.9</TD><TD>2026-05-08</TD><TD>Locked formula for the per-program risk scorer: three Likelihood drivers (L1 recruitment decay, L2 AI-disruption, L3 demographic ceiling), two Impact dimensions (direct revenue-at-risk, stranded cost). Composite = <Code>max(L1, L2 × 0.7, L3)</Code> over non-null drivers — L2 carries a 0.7 discount to avoid a single AI-disruption signal pushing composite into CRITICAL alone. Scope: undergraduate programs only. Companion to risk-management.v1.</TD></TR>
+            <TR><TD mono>risk-management.v1</TD><TD>2026-05-19</TD><TD>Workflow layer documented for the first time (§5 in this paper). Three operational layers: KRI alarms (5 indicators: application_seat_ratio, enrollment_fill_rate, late_round_dependency, skill_automation_index, bachelor_intake_floor), AI risk assessment pipeline (<Code>pnpm risks:assess</Code> producing RiskAssessment + 2–4 RiskMeasure rows per program), and the PROPOSED→ACCEPTED→IN_PROGRESS→COMPLETED measure lifecycle with optional binding to CouncilDecision. KKU 5×5 institutional matrix mapped from the composite formula. No formula change vs risk-scoring.v1.9.</TD></TR>
+            <TR><TD mono>risk-management.v2 + risk-measure-rules.v1 + risk-assessment.v3</TD><TD>2026-05-19</TD><TD>Closes v1's biggest gap: <Strong>automated breach → measure link</Strong>. New deterministic rule engine in <Code>risk-measure-rules.v1</Code> (six rules across all five v1 KRIs, exact-severity matching) fires one candidate measure per matched (KRI × severity) pair BEFORE the AI runs. Additive migration <Code>20260519120000_risk_measure_trigger</Code> adds <Code>RiskMeasure.triggerIndicatorSlug</Code> + <Code>triggerSeverity</Code> columns for provenance. AI prompt bumped to <Code>risk-assessment.v3</Code> to accept candidates as input and echo back trigger fields. <Code>--no-ai</Code> path now also persists rule-derived candidates so Council never sees an empty mitigation list for a program with fired KRIs. No formula change vs risk-scoring.v1.9.</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

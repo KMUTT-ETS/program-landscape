@@ -780,7 +780,240 @@ score >= 45                                       → STABLE
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="data-sources" number="5." title="แหล่งข้อมูลและการระบุที่มา">
+      <DocSection id="risk-management" number="5." title="การบริหารความเสี่ยง">
+        <P>
+          คะแนนสุขภาพ (§2) และคำตัดสินวงจรชีวิต (§3) เป็นการบรรยายเชิงพรรณนา — บอกว่าหลักสูตรอยู่ในสถานะใด
+          <Strong>การบริหารความเสี่ยง</Strong>{' '}
+          คือชั้นปฏิบัติการที่แปลตัวเลขเหล่านั้นเป็นการกระทำ
+          กล่าวคือเฝ้าระวังตัวชี้วัดความเสี่ยงหลัก (KRI) ห้าตัวอย่างต่อเนื่อง
+          สร้างการประเมินความเสี่ยงโดย AI เป็นระยะพร้อมข้อเสนอมาตรการบรรเทาเฉพาะเจาะจง 2–4 ข้อต่อหลักสูตร
+          และติดตามมาตรการเหล่านั้นผ่านวงจรชีวิตที่เป็นทางการ
+          ผูกกับมติของสภามหาวิทยาลัยเมื่อจำเป็น
+        </P>
+        <P>
+          <Strong>ขอบเขต</Strong>: หลักสูตรปริญญาตรี (BACHELOR) เท่านั้น
+          ความเสี่ยงของหลักสูตรหลังปริญญาตรีใช้สัญญาณอุปสงค์ที่ต่างออกไป
+          (ช่องทางการจ้างงานของนายจ้าง การวิจัยทุนหนุน vs สอนล้วน)
+          ซึ่ง v1 catalog ของตัวชี้วัดยังไม่ครอบคลุม
+          หลักสูตรปริญญาโทและปริญญาเอกใน <Code>/risks/</Code> จะถูกระบุว่า "นอกขอบเขต" แทนการให้คะแนน
+        </P>
+        <P>
+          เอกสารหลักที่เป็นทางการคือ <Code>docs/methodologies/risk-management.md</Code>{' '}
+          (workflow) และ <Code>docs/methodologies/risk-scoring.md</Code> (สูตร)
+          การอ้างอิงรหัสที่ล็อกไว้: <Code>packages/db/src/risk-scoring.ts</Code>,{' '}
+          <Code>apps/ingestion/src/scripts/risks-assess.ts</Code>,{' '}
+          <Code>apps/api/src/risks/risks.service.ts</Code>
+        </P>
+
+        <DocSubsection number="5.1" title="ชั้นปฏิบัติการสี่ชั้น">
+          <OL>
+            <LI><Strong>การเตือน KRI</Strong> — ห้าตัวชี้วัดที่กำหนดล่วงหน้า ประเมินทุกคืนต่อหลักสูตร การเกินขีดจำกัด (warn / critical) แต่ละครั้งจะถูกบันทึกใน <Code>risk_indicator_breaches</Code> พร้อมวันที่ความสด เป็นการคำนวณแบบ deterministic ไม่มี AI ในขั้นตอนนี้</LI>
+            <LI><Strong>Rule engine (v2)</Strong> — ตัวสร้างมาตรการตั้งต้นแบบ deterministic จาก KRI ที่ติดธง (<Code>risk-measure-rules.v1</Code> — หกกฎครอบคลุม KRI ทั้งห้าตัว) ทำงาน <Em>ก่อน</Em> AI การันตีว่าทุก KRI ที่ติดธงได้รับข้อเสนอมาตรการอย่างน้อยหนึ่งข้อ แม้ AI ไม่พร้อมใช้</LI>
+            <LI><Strong>การประเมินความเสี่ยงด้วย AI เป็นระยะ</Strong> — analyst เรียก Gemini ผ่าน <Code>pnpm risks:assess</Code> ซึ่งอ่านตัวขับเคลื่อน L1/L2/L3, มิติผลกระทบ และ candidates จาก rule engine แล้วสร้างเนื้อหาบรรยายและข้อเสนอ RiskMeasure 2–4 ข้อต่อหลักสูตร เก็บใน <Code>RiskAssessment</Code> พร้อมหลักฐาน AI เต็มรูปแบบ</LI>
+            <LI><Strong>วงจรชีวิตของมาตรการ</Strong> — มาตรการที่เสนอจะเดินผ่าน <Code>PROPOSED → ACCEPTED / REJECTED → IN_PROGRESS → COMPLETED</Code> โดยมีตัวเลือกในการผูกกับ <Code>CouncilDecision</Code> ใน Decision Workspace</LI>
+          </OL>
+        </DocSubsection>
+
+        <DocSubsection number="5.2" title="แคตตาล็อก KRI (v1)">
+          <P>
+            ชุดตัวชี้วัด v1 มี KRI ห้าตัว เฉพาะปริญญาตรีเท่านั้น
+            ขีดจำกัดถูกสอบเทียบตามแม่แบบ ERM ของสภามหาวิทยาลัย ไตรมาส 1 ปี 2026
+            แคตตาล็อกสามารถปรับโดย analyst ผ่าน <Code>/admin/risks/indicators/</Code> ใน v2
+            โดยใน v1 ค่าขีดจำกัดเป็นค่าคงที่ที่ seed ผ่าน{' '}
+            <Code>RISK_INDICATOR_CATALOG</Code>
+          </P>
+          <Tbl>
+            <THead>
+              <TR>
+                <TH>Slug</TH>
+                <TH>สูตร</TH>
+                <TH width="10%">เตือน</TH>
+                <TH width="12%">วิกฤต</TH>
+                <TH width="10%">ทิศทาง</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD mono>application_seat_ratio</TD><TD>ผู้สมัครรวม ÷ max(plan_per_year) (ปีล่าสุด)</TD><TD>≤ 1.5</TD><TD>≤ 1.0</TD><TD>ต่ำ</TD></TR>
+              <TR><TD mono>enrollment_fill_rate</TD><TD>Σ reg_reported ÷ max(plan_per_year) (ปีล่าสุด)</TD><TD>≤ 0.7</TD><TD>≤ 0.5</TD><TD>ต่ำ</TD></TR>
+              <TR><TD mono>late_round_dependency</TD><TD>reg_reported รอบท้าย ÷ reg_reported รวม</TD><TD>≥ 0.5</TD><TD>≥ 0.7</TD><TD>สูง</TD></TR>
+              <TR><TD mono>skill_automation_index</TD><TD>COUNT(skills WHERE automationRisk = HIGH) ÷ COUNT(skills)</TD><TD>≥ 0.3</TD><TD>≥ 0.6</TD><TD>สูง</TD></TR>
+              <TR><TD mono>bachelor_intake_floor</TD><TD>Σ reg_reported (ปีล่าสุด) · นโยบายสภา ≥ 30/ปี</TD><TD>&lt; 36</TD><TD>&lt; 30</TD><TD>ต่ำ</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            <Strong>ทิศทาง</Strong>: <Code>ต่ำ</Code> หมายถึงตัวชี้วัดจะเตือนเมื่อค่าตกลงต่ำกว่าขีดจำกัด
+            (เช่น อุปสงค์เบาบางเกินไป) ส่วน <Code>สูง</Code> เตือนเมื่อค่าสูงขึ้นเหนือขีดจำกัด
+            (เช่น ความเสี่ยงต่อ AI สูงเกินไป) การ breach อ่านเฉพาะข้อมูลจริงเท่านั้น —
+            ผลผลิตของ connector ที่ยัง mock ไม่สามารถเป็นเหตุของการเตือนเทียมได้
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.3" title="Rule engine (v2)">
+          <P>
+            ก่อน AI จะรัน <Strong>rule engine</Strong> จะอ่านรายการ breach
+            แล้วสร้าง <Code>RiskMeasure</Code> candidate หนึ่งข้อต่อ
+            (KRI × ระดับความรุนแรง) ที่ตรงกัน candidates มีสองวัตถุประสงค์:
+            (ก) <Em>การันตีสภา</Em> — ทุก KRI ที่ติดธง จะได้รับมาตรการตอบสนองอย่างน้อยหนึ่งข้อ
+            แม้ AI ไม่พร้อมใช้ (ใช้ <Code>--no-ai</Code> ก็ยังบันทึก candidates ลง DB);
+            และ (ข) <Em>baseline ให้ AI</Em> —
+            AI ได้รับ candidates เป็นจุดตั้งต้น
+            แล้วถูกสั่งให้ปรับปรุงและขยายแทนการสร้างใหม่ทั้งหมด
+          </P>
+          <P>
+            <Strong>แคตตาล็อกกฎ v1</Strong> — หกกฎครอบคลุม KRI ทั้งห้าตัว
+            ตัวชี้วัด intake-floor มีสองกฎเพราะมาตรการต่างกันตามระดับความรุนแรง
+            (WARN → outreach; CRITICAL → ปรับโครงสร้าง cohort):
+          </P>
+          <Tbl>
+            <THead>
+              <TR>
+                <TH>ตัวชี้วัด</TH>
+                <TH width="10%">ระดับ</TH>
+                <TH>ชนิดมาตรการ</TH>
+                <TH width="13%">ระยะเวลา</TH>
+                <TH width="8%">ต้นทุน</TH>
+                <TH width="10%">priority</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD mono>application_seat_ratio</TD><TD>WARN</TD><TD mono>RECRUITMENT_CHANNEL</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
+              <TR><TD mono>enrollment_fill_rate</TD><TD>WARN</TD><TD mono>RECRUITMENT_TARGETING</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
+              <TR><TD mono>late_round_dependency</TD><TD>WARN</TD><TD mono>RECRUITMENT_TARGETING</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>4</TD></TR>
+              <TR><TD mono>skill_automation_index</TD><TD>WARN</TD><TD mono>CURRICULUM_MODERNIZE</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>2</TD></TR>
+              <TR><TD mono>bachelor_intake_floor</TD><TD>WARN</TD><TD mono>RECRUITMENT_CHANNEL</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
+              <TR><TD mono>bachelor_intake_floor</TD><TD>CRITICAL</TD><TD mono>COHORT_REDUCTION</TD><TD>MEDIUM_TERM</TD><TD>MEDIUM</TD><TD>1</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            <Strong>การจับคู่แบบ exact-severity</Strong> — กฎที่มี{' '}
+            <Code>triggerSeverity = WARN</Code> จะ fire เฉพาะ breach ระดับ WARN
+            ไม่ fire ที่ CRITICAL ถ้าต้องการให้ fire ทั้งสองระดับ ต้องเพิ่มสองรายการในแคตตาล็อก
+            Engine เป็น pure function ใน{' '}
+            <Code>packages/db/src/risk-measure-rules.ts</Code> — deterministic
+            ทดสอบ unit ได้โดยไม่ต้องใช้ DB
+          </P>
+          <P>
+            <Strong>Provenance</Strong> — ฟิลด์ใหม่สองตัวบน{' '}
+            <Code>RiskMeasure</Code> (migration เพิ่ม{' '}
+            <Code>20260519120000_risk_measure_trigger</Code>):{' '}
+            <Code>triggerIndicatorSlug</Code> และ{' '}
+            <Code>triggerSeverity</Code> เติมอัตโนมัติสำหรับมาตรการจาก rule engine
+            ในเส้นทาง <Code>--no-ai</Code>; AI ถูกสั่งให้ echo back ฟิลด์เหล่านี้
+            เมื่อปรับปรุง candidate UI ใช้ฟิลด์นี้เพื่อแสดง badge "ติดธงจากตัวชี้วัด X"
+            บน card ของมาตรการ
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.4" title="ขั้นตอนการประเมินความเสี่ยง">
+          <P>
+            <Code>pnpm risks:assess</Code>{' '}
+            รันการประเมินสำหรับหลักสูตรเดียว (ส่ง code / sequence / id เป็น argument)
+            หรือทั้ง portfolio (<Code>--all</Code> และมี{' '}
+            <Code>--no-ai</Code> สำหรับโหมด deterministic เร็ว) ขั้นตอนคือ:
+          </P>
+          <OL>
+            <LI><Strong>โหลดอินพุต deterministic</Strong> ผ่าน{' '}
+              <Code>loadProgramRiskInputs(programId)</Code> ดึงตัวขับ L1 (การเสื่อมของการรับนักศึกษา TCAS)
+              L2 (สัดส่วนทักษะที่ถูกแท็ก HIGH automation risk) L3 (เพดานประชากร)
+              พร้อมมิติผลกระทบสองตัว (รายได้ตรงที่เสี่ยง และต้นทุนค้างชำระ ใน THB)
+            </LI>
+            <LI><Strong>คำนวณคะแนนรวม</Strong> ด้วย risk-scoring.v1 (ดู{' '}
+              <Code>docs/methodologies/risk-scoring.md</Code>) → <Code>tier</Code>{' '}
+              (LOW / MODERATE / HIGH / CRITICAL / NEEDS_DATA),{' '}
+              <Code>composite_score</Code> (0–100),{' '}
+              <Code>kkuMatrixScore</Code> (1–25) และ{' '}
+              <Code>kkuRiskLevel</Code> (แถบสี ERM ทางการ)
+            </LI>
+            <LI><Strong>รัน AI prompt</Strong>{' '}
+              (<Code>risk-assessment.v1</Code> ผ่าน Gemini)
+              ซึ่งรับอินพุต deterministic บวก breach ของตัวชี้วัดล่าสุด
+              แล้วสร้างเนื้อหาบรรยายไทย + อังกฤษ, ข้อเสนอ RiskMeasure 2–4 ข้อ
+              ที่มีเนื้อหาเฉพาะเจาะจง (เช่น "เพิ่ม CS-301 Applied Generative AI;
+              ถอด CS-220 SOAP Web Services" — ไม่ใช่ "ปรับปรุงหลักสูตรให้ทันสมัย")
+              และค่าความมั่นใจ
+            </LI>
+            <LI><Strong>บันทึก</Strong> เป็น <Code>RiskAssessment</Code> หนึ่งแถว
+              พร้อม child <Code>RiskMeasure</Code> 0–4 แถว
+              ทุกแถวมี <Code>methodologyVersion</Code>, <Code>aiInferenceId</Code>{' '}
+              และ <Code>payloadJson</Code> (การตอบสนอง AI เต็มที่ไม่เปลี่ยนแปลงเพื่อการตรวจสอบ)
+            </LI>
+          </OL>
+          <P>
+            การรันรอบถัดไปจะเพิ่ม RiskAssessment แถวใหม่; แถวก่อนหน้าจะถูกเก็บไว้
+            UI จะแสดงแถวล่าสุดตาม <Code>assessed_at</Code>{' '}
+            แถวเก่าจะอยู่ใน drawer ประวัติการประเมินบน Program Deep-Dive
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.5" title="วงจรชีวิตของมาตรการ">
+          <P>
+            <Code>RiskMeasure</Code> คือข้อเสนอบรรเทาความเสี่ยงเชิงโครงสร้าง
+            แต่ละมาตรการมี kind เชิงหยาบ (curriculum modernize / differentiate,
+            recruitment channel / targeting, cohort reduction, program merge,
+            phase-out, partnership, faculty hire, tuition adjust),
+            ป้ายชื่อสั้น, เหตุผล 200–400 ตัวอักษร, ระดับต้นทุน (LOW / MEDIUM / HIGH),
+            ระยะเวลาดำเนินการ (SHORT_TERM ≤ 12 เดือน / MEDIUM_TERM 1–3 ปี /
+            LONG_TERM 3–5 ปี), expected revenue delta 5 ปีใน THB (อาจเป็น null),
+            และระดับความสำคัญในการประเมิน
+          </P>
+          <Pre>{`PROPOSED ──► ACCEPTED ──► IN_PROGRESS ──► COMPLETED
+   │              │
+   │              └── (ผูกกับ CouncilDecision ได้)
+   └────► REJECTED`}</Pre>
+          <P>
+            การเปลี่ยนสถานะเป็น role-gated ที่{' '}
+            <Code>RisksService.updateMeasureStatus()</Code> — PROPOSED →
+            ACCEPTED / REJECTED ต้องเป็นหัวหน้าภาควิชา + คณบดี + ขึ้นไป;
+            ACCEPTED → IN_PROGRESS และ IN_PROGRESS → COMPLETED
+            ต้องเป็นหัวหน้าภาควิชา + ขึ้นไป (หน่วยที่รับผิดชอบการดำเนินการ)
+            การเปลี่ยนสถานะทุกครั้งถูก audit-log
+            มาตรการที่ผูกกับ CouncilDecision (<Code>decisionId</Code> ตั้งค่าแล้ว)
+            จะไม่ถูก REJECTED แบบเงียบ — มติต้องถูก SUPERSEDED ก่อน
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.6" title="เมทริกซ์ ERM 5×5 ของ มข.">
+          <P>
+            เคียงคู่กับระดับ LOW / MODERATE / HIGH / CRITICAL
+            ทุกการประเมินยังส่งค่าพิกัดเมทริกซ์ ERM:{' '}
+            <Code>likelihoodBin</Code> (1–5, แบ่ง equal-width จาก composite score),{' '}
+            <Code>impactBin</Code> (1–5, normalised ต่อการกระจายตัวของผลกระทบ portfolio),{' '}
+            <Code>kkuMatrixScore</Code> = <Code>likelihoodBin × impactBin</Code> (1–25),
+            และ <Code>kkuRiskLevel</Code> แมปกับแถบสีตามแบบ ERM ทางการของมหาวิทยาลัย
+            (LOW / MODERATE / HIGH / VERY_HIGH)
+          </P>
+          <P>
+            เหตุที่ต้องมีสองมุมมอง: ระดับ composite คือสัญญาณการกระทำที่ขับเคลื่อนด้วยการวิเคราะห์;
+            เมทริกซ์ 5×5 คือมุมมอง ERM ทางกฎหมาย/การตรวจสอบ ที่สำนักงานความเสี่ยง มข.
+            ติดตามอย่างเป็นทางการ ทั้งสองมาจาก <Code>RiskAssessment</Code> แถวเดียวกัน
+            ดังนั้นมุมมองการวิเคราะห์และทะเบียน ERM จะไม่ขัดแย้งกัน
+            เมื่อ <Code>composite_score IS NULL</Code> (ทุกตัวขับเคลื่อนขาดข้อมูล)
+            หลักสูตรจะถูกแยกออกจาก grid 5×5 แทนการถูกวางในเซลล์ (1,1) —
+            ซึ่งหมายถึง "ความเสี่ยงต่ำ" และอันตรายกว่าการยอมรับว่าเรายังไม่มีข้อมูล
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="5.7" title="ความมั่นใจและการจัดการ null">
+          <UL>
+            <LI><Strong>การเกิด breach ของตัวชี้วัด</Strong> — deterministic ระดับความรุนแรงมาจากการเปรียบเทียบขีดจำกัดโดยตรง ถ้าค่าคำนวณไม่ได้ (ข้อมูลขาด) breach จะถูกบันทึกด้วย <Code>value = null</Code> และ <Code>severity = OK</Code> — UI แยก "ไม่มีข้อมูล" ออกจาก "ข้อมูลบอกว่าไม่มีปัญหา"</LI>
+            <LI><Strong>ความมั่นใจของการประเมิน</Strong> (<Code>RiskAssessment.confidence</Code>, 0–1) — ค่าความแน่นอนที่โมเดลรายงานเองเกี่ยวกับเนื้อหาและมาตรการ รวมความครบถ้วนของข้อมูล L1/L2/L3, ความพร้อมของบริบทเพียร์/ภาคส่วน, และสัญญาณความลังเลของโมเดลเอง <Em>ไม่ใช่</Em>สิ่งเดียวกับ <Code>_confidence</Code> รายตัวขับเคลื่อนซึ่งเป็นอัตราส่วนความครบถ้วนของข้อมูลเฉพาะตัวขับเคลื่อนนั้นๆ</LI>
+            <LI><Strong>มาตรการ</Strong> — ไม่มีค่าความมั่นใจชัดเจน; ระดับ <Code>priority</Code> (1 = แข็งที่สุด) คือสัญญาณความแข็งแกร่งโดยเปรียบเทียบของโมเดล</LI>
+            <LI><Strong>ตัวขับเคลื่อนที่ขาด</Strong> — composite คือ <Code>max()</Code> เหนือตัวขับเคลื่อนที่ไม่เป็น null ถ้าทั้งสามตัวเป็น null, <Code>composite_score = NULL</Code>, <Code>tier = NEEDS_DATA</Code>, ค่าเมทริกซ์เป็น null โผล่ขึ้นใน worklist คุณภาพข้อมูล แทนการแฝงสัญญาณ "ความเสี่ยงต่ำ" อย่างเงียบ</LI>
+          </UL>
+        </DocSubsection>
+
+        <DocSubsection number="5.8" title="ข้อจำกัดที่ทราบ">
+          <UL>
+            <LI><Strong>เฉพาะปริญญาตรี</Strong> ความเสี่ยงของหลักสูตรหลังปริญญาตรีใช้สัญญาณอุปสงค์ที่ต่างออกไป — ปริญญาโทและปริญญาเอกใน <Code>/risks/</Code> จะถูกระบุว่านอกขอบเขตแทนการให้คะแนน</LI>
+            <LI><Strong>ขีดจำกัดของตัวชี้วัดถูกตรึงใน v1</Strong> การเปลี่ยนขีดจำกัดต้อง seed schema ใหม่ มองเห็นได้ใน audit เพราะทุก breach จะมี methodologyVersion ที่ active ตอนเขียน</LI>
+            <LI><Strong>ระดับต้นทุนของมาตรการเป็น coarse</Strong> (LOW / MEDIUM / HIGH ไม่มีช่วง THB กำกับ) ออกแบบให้พอดีกับการนำเสนอในสภา ไม่ใช่เพื่อการวางแผนงบประมาณที่แม่นยำ ระเบียบวิธีต้นทุนที่แม่นยำขึ้นยังขึ้นกับการลงนามของคณะกรรมการการเงินใน cost-allocation (ดู <Code>docs/methodologies/cost-allocation.md</Code>)</LI>
+            <LI><Strong>~~ยังไม่มี breach → measure อัตโนมัติ~~</Strong> — <Em>ปิดงานใน risk-management.v2</Em> (19 พ.ค. 2569) rule engine ใน <Code>risk-measure-rules.v1</Code> สร้างมาตรการตั้งต้นแบบ deterministic หนึ่งข้อต่อ (KRI × ระดับความรุนแรง) ที่ติดธง ก่อน AI จะรัน หกกฎครอบคลุม KRI ทั้งห้าตัว ฟิลด์ <Code>RiskMeasure.triggerIndicatorSlug</Code> บันทึก provenance</LI>
+            <LI><Strong>การติดตามมาตรการเป็นแค่ status</Strong> เมื่อมาตรการอยู่ IN_PROGRESS การติดตาม milestone / % เสร็จยังอยู่บน <Code>CouncilDecision</Code> ที่ผูกไว้ผ่าน <Code>DecisionMilestone</Code> (Decision Workspace) มาตรการที่ไม่ผูกกับ decision จะมีสถานะ IN_PROGRESS ที่ไม่โปร่งใส</LI>
+          </UL>
+        </DocSubsection>
+      </DocSection>
+
+      <DocSection id="data-sources" number="6." title="แหล่งข้อมูลและการระบุที่มา">
         <P>
           หัวข้อนี้แสดงทุกแหล่งข้อมูลภายนอกและภายในที่ถูกใช้โดยคะแนนสุขภาพและคำตัดสินวงจรชีวิต พร้อมการระบุที่มา
           แหล่งข้อมูลแต่ละตัวมีข้อกำหนดต่อแหล่งที่ <Code>docs/data-sources/&lt;slug&gt;.md</Code>{' '}
@@ -828,8 +1061,8 @@ score >= 45                                       → STABLE
         </P>
       </DocSection>
 
-      <DocSection id="governance" number="6." title="ธรรมาภิบาล การตรวจสอบย้อนกลับ และการกำกับเวอร์ชัน">
-        <DocSubsection number="6.1" title="นโยบายเวอร์ชัน">
+      <DocSection id="governance" number="7." title="ธรรมาภิบาล การตรวจสอบย้อนกลับ และการกำกับเวอร์ชัน">
+        <DocSubsection number="7.1" title="นโยบายเวอร์ชัน">
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.5'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
@@ -846,7 +1079,7 @@ score >= 45                                       → STABLE
           </P>
         </DocSubsection>
 
-        <DocSubsection number="6.2" title="การตรวจสอบย้อนกลับและการสร้างซ้ำ">
+        <DocSubsection number="7.2" title="การตรวจสอบย้อนกลับและการสร้างซ้ำ">
           <P>ทุกคะแนนและคำตัดสินสร้างซ้ำได้จาก:</P>
           <OL>
             <LI>git commit ที่บันทึกใน <Code>programLifecycleSnapshots.driversJson</Code> payload (หรือสำหรับคะแนนสุขภาพ คือแถว <Code>IngestionRun</Code> ที่ provenance อ้างถึง)</LI>
@@ -859,7 +1092,7 @@ score >= 45                                       → STABLE
           </P>
         </DocSubsection>
 
-        <DocSubsection number="6.3" title="ข้อกำหนด human-in-the-loop">
+        <DocSubsection number="7.3" title="ข้อกำหนด human-in-the-loop">
           <P>
             ไม่มีคะแนน คำตัดสิน หรือบทบรรยายที่ AI สร้างใด ๆ ที่อนุมัติการตัดสินใจเชิงสถาบันได้ ตาม{' '}
             <Code>docs/ai-governance.md</Code>:
@@ -871,7 +1104,7 @@ score >= 45                                       → STABLE
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="6.4" title="การตรวจสอบในเวลาคำนวณ">
+        <DocSubsection number="7.4" title="การตรวจสอบในเวลาคำนวณ">
           <P>ระบบให้คะแนนบังคับใช้ในทุกการคำนวณ:</P>
           <UL>
             <LI>คะแนนตัวขับและคะแนนมิติทั้งหมดถูกตัดเข้าช่วง <Code>[0, 100]</Code></LI>
@@ -883,10 +1116,10 @@ score >= 45                                       → STABLE
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="limitations" number="7." title="ข้อจำกัดและคำเตือนที่ทราบอยู่แล้ว">
+      <DocSection id="limitations" number="8." title="ข้อจำกัดและคำเตือนที่ทราบอยู่แล้ว">
         <P>หัวข้อนี้จงใจให้ครอบคลุม ผู้ตัดสินใจควรอ่านอย่างระมัดระวัง</P>
 
-        <DocSubsection number="7.1" title="การถ่วงน้ำหนักเท่ากันเป็นค่าตั้งต้นที่จงใจให้ปกป้องได้ง่าย">
+        <DocSubsection number="8.1" title="การถ่วงน้ำหนักเท่ากันเป็นค่าตั้งต้นที่จงใจให้ปกป้องได้ง่าย">
           <P>
             คะแนนรวมถ่วงน้ำหนักทั้งห้ามิติเท่ากัน นี่คือค่าตั้งต้นที่โต้แย้งได้ยากที่สุด —
             สูตรถ่วงน้ำหนักใด ๆ จะเข้ารหัสการตัดสินคุณค่า
@@ -895,7 +1128,7 @@ score >= 45                                       → STABLE
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.2" title="ความครบถ้วนของข้อมูลแตกต่างกันอย่างมากระหว่างหลักสูตร">
+        <DocSubsection number="8.2" title="ความครบถ้วนของข้อมูลแตกต่างกันอย่างมากระหว่างหลักสูตร">
           <P>หลักสูตรของ มข. จำนวนไม่น้อยขาดข้อมูลครบถ้วนในมิติใดมิติหนึ่ง:</P>
           <UL>
             <LI>มิติ Outcomes ส่วนใหญ่เป็นค่าว่างรอ connector <Code>kku-alumni</Code> ฉบับจริงและการลงนามจาก DPO ปัจจุบันเปิดใช้เฉพาะเปอร์เซ็นไทล์คะแนน TCAS ขั้นต่ำเท่านั้น</LI>
@@ -908,14 +1141,14 @@ score >= 45                                       → STABLE
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.3" title="ความสอดคล้องข้ามขอบเขตไม่ถูกบังคับ">
+        <DocSubsection number="8.3" title="ความสอดคล้องข้ามขอบเขตไม่ถูกบังคับ">
           <P>
             คะแนนสุขภาพรวมของคณะคำนวณอย่างเป็นอิสระจาก rollup ตัววัดของขอบเขตคณะนั้น
             มิใช่เป็นค่าเฉลี่ยของคะแนนหลักสูตรในคณะ ทั้งสองมักใกล้เคียงกันแต่ไม่เท่ากันทุกครั้ง
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.4" title="สัญญาณบางตัวยังคงสังเคราะห์หรือเป็น proxy">
+        <DocSubsection number="8.4" title="สัญญาณบางตัวยังคงสังเคราะห์หรือเป็น proxy">
           <UL>
             <LI>ตัวขับ labour-market alignment ดึงจากข้อมูล LinkedIn (ที่ อว. สมัครใช้งาน, สจล. ดูแล API) และจนถึง 31 พ.ค. 2569 อยู่ในกรอบเวลา 30 วันของการสร้าง green-history ส่วนติดต่อผู้ใช้ที่หันหน้าให้สภาควรระบุว่ามีคุณภาพแบบพรีวิว</LI>
             <LI>คะแนนย่อย <Code>pedagogicalReadiness</Code> ในความพร้อมด้าน AI ยังเป็นค่าสำรอง (ค่าว่าง) รอเครื่องมือสำรวจชั้นเรียน น้ำหนักกระจายไปยังสามตัวที่เหลือ</LI>
@@ -923,7 +1156,7 @@ score >= 45                                       → STABLE
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="7.5" title="เกตปรับเปลี่ยนคำตัดสินวงจรชีวิตเป็นจุดยืนเชิงสถาบัน ไม่ใช่ข้อเท็จจริงเชิงประจักษ์">
+        <DocSubsection number="8.5" title="เกตปรับเปลี่ยนคำตัดสินวงจรชีวิตเป็นจุดยืนเชิงสถาบัน ไม่ใช่ข้อเท็จจริงเชิงประจักษ์">
           <P>
             ฐาน AI readiness สองตัวและเพดาน OLD_SCHOOL (ข้อ 3.5)
             เป็นจุดยืนเชิงสถาบันที่ชัดเจน ไม่ใช่ข้อค้นพบ
@@ -932,7 +1165,7 @@ score >= 45                                       → STABLE
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.6" title="ระดับคำตัดสินเป็นทางเลือกในการสอบเทียบ">
+        <DocSubsection number="8.6" title="ระดับคำตัดสินเป็นทางเลือกในการสอบเทียบ">
           <P>
             จุดตัดของแนวโน้ม (45 / 65 / 80) และระดับสุขภาพ (40 / 65)
             ถูกเลือกให้เกิดการกระจายของหลักสูตรค่อนข้างเท่ากันในระดับต่าง ๆ ที่สถานะปัจจุบันของ มข.
@@ -941,7 +1174,7 @@ score >= 45                                       → STABLE
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.7" title="ความผันผวนของคะแนนเมื่อรีเฟรชข้อมูล">
+        <DocSubsection number="8.7" title="ความผันผวนของคะแนนเมื่อรีเฟรชข้อมูล">
           <P>
             การ ingest หนึ่งครั้งสามารถทำให้คะแนนรวมของหลักสูตรขยับหลายจุด
             หากเปิดตัวขับที่เคยขาดข้อมูล นี่เป็นพฤติกรรมที่ออกแบบไว้ (เราต้องการให้ข้อมูลใหม่ลงทะเบียน)
@@ -951,7 +1184,7 @@ score >= 45                                       → STABLE
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="glossary" number="8." title="อภิธานศัพท์">
+      <DocSection id="glossary" number="9." title="อภิธานศัพท์">
         <UL>
           <LI><Strong>CUPT</Strong> — สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย ผู้ดำเนินการ TCAS</LI>
           <LI><Strong>TCAS</Strong> — ระบบการคัดเลือกบุคคลเข้าศึกษาในสถาบันอุดมศึกษา 4 รอบของไทย มข. เข้าร่วมรอบ 1–4</LI>
@@ -970,12 +1203,12 @@ score >= 45                                       → STABLE
         </UL>
       </DocSection>
 
-      <DocSection id="references" number="9." title="แหล่งอ้างอิง">
+      <DocSection id="references" number="10." title="แหล่งอ้างอิง">
         <P>
           แหล่งอ้างอิงต่อไปนี้เป็นวัสดุต้นฉบับที่เอกสารฉบับนี้นำมาใช้
           แบ่งเป็น (ก) ซอร์สโค้ดและเอกสารภายในที่กำหนดระเบียบวิธี และ (ข) แหล่งอ้างอิงสาธารณะภายนอกของแหล่งข้อมูลที่อ้างถึง
         </P>
-        <DocSubsection number="9.1" title="ภายใน — ระเบียบวิธีที่เป็นทางการ">
+        <DocSubsection number="10.1" title="ภายใน — ระเบียบวิธีที่เป็นทางการ">
           <UL>
             <LI><Code>packages/db/src/health-score.ts</Code> การติดตั้งหลักของตัวคำนวณคะแนนห้ามิติ ค่าคงที่ <Code>HEALTH_SCORE_VERSION</Code></LI>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code> การติดตั้งหลักของ <Code>programLifecycleVerdict</Code> และ <Code>programAiReadiness</Code></LI>
@@ -988,7 +1221,7 @@ score >= 45                                       → STABLE
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="9.2" title="ภายนอก — ผู้ดำเนินการแหล่งข้อมูล (อ้างอิงสาธารณะ)">
+        <DocSubsection number="10.2" title="ภายนอก — ผู้ดำเนินการแหล่งข้อมูล (อ้างอิงสาธารณะ)">
           <UL>
             <LI><Strong>OurResearch / OpenAlex</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://openalex.org" target="_blank" rel="noopener noreferrer">https://openalex.org</a></LI>
             <LI><Strong>CUPT (สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย)</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://www.mytcas.com" target="_blank" rel="noopener noreferrer">https://www.mytcas.com</a></LI>
@@ -1002,7 +1235,7 @@ score >= 45                                       → STABLE
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="9.3" title="ภายนอก — กรอบนโยบายที่อ้างถึง">
+        <DocSubsection number="10.3" title="ภายนอก — กรอบนโยบายที่อ้างถึง">
           <UL>
             <LI><Strong>โมเดลเศรษฐกิจ Bio-Circular-Green (BCG)</Strong> เป็นกรอบกลยุทธ์ระดับชาติที่รัฐบาลไทยประกาศและดำเนินการผ่าน อว. และ สอวช.</LI>
             <LI><Strong>อุตสาหกรรมเป้าหมาย S-curve</Strong> กำหนดในเอกสารกลยุทธ์ของรัฐบาลไทยเช่นกัน</LI>
@@ -1036,6 +1269,9 @@ score >= 45                                       → STABLE
             <TR><TD mono>lifecycle.v1.2</TD><TD>12 พ.ค. 2569</TD><TD>เปิดเผย counterfactual ของเกตปรับเปลี่ยน (gap #8): ผลลัพธ์ตอนนี้พกพา <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> ไปด้วยกับ <Code>verdict</Code> ที่ผ่านเกตแล้ว ให้ผู้อ่านสภาฯ มองเห็นได้ว่าเกตปรับเปลี่ยนใดทำให้คำตัดสินเปลี่ยน + ทำไม คำตัดสินที่ผ่านเกตยังคงเดิม</TD></TR>
             <TR><TD mono>lifecycle.v1.3</TD><TD>12 พ.ค. 2569</TD><TD>ปรับสมดุลสัญญาณเนื้อหาเชิงคุณภาพ-เชิงปริมาณ หลัง KKU-SEQ-0018 เผยให้เห็นว่าคำตัดสินความทันสมัยจาก AI peer review มีน้ำหนักเกินจริง บดบังช่องว่าง labour-market alignment ที่เพียง 12.5% ลดน้ำหนัก <Code>content_modernity</Code> ลงครึ่งหนึ่ง (±20 → ±10) เพิ่มตัวขับชั้นแรก <Code>labour_market_alignment</Code> (±15) ที่รับโดยตรงจากส่วนแบ่งอุปสงค์นายจ้าง KMITL เพิ่มเกตปรับเปลี่ยนสองตัว (<Code>lowLabourMarketAlignmentStableCap</Code> ที่ &lt;30 และ <Code>lowLabourMarketAlignmentFrontierCap</Code> ที่ &lt;50) สะท้อนรูปแบบเกต AI readiness — หลักสูตรไม่อาจอ้างแนวโน้มได้หากสอนทักษะเพียงเศษส่วนของที่นายจ้างต้องการ</TD></TR>
             <TR><TD mono>lifecycle.v1.4</TD><TD>12 พ.ค. 2569</TD><TD>นำศักยภาพการสร้างรายได้เข้ามาในคำตัดสิน หลัง KKU-SEQ-0291 (ดุษฎีบัณฑิตวิทยาการระบาดและชีวสถิติ ~2 ล้านบาท/ปี 4 คน/รุ่น) ได้ FRONTIER ใน v1.3 เพิ่มตัวขับ <Code>revenue_scale</Code> (±10 ตามระดับ เทียบกับเป้ารายได้ต่อระดับ) เพิ่มเกต <Code>lowRevenuePotentialFrontierCap</Code> — รายได้ค่าเล่าเรียนต่อปี &lt; 3 ล้านบาท (พื้น flagship สากล) ปิด FRONTIER เป็น RISING ไม่ขึ้นกับระดับ สะท้อนการเปลี่ยนแปลงสู่ HRD แบบไม่รับปริญญาที่กดดันรุ่นบัณฑิตศึกษา: FRONTIER หมายถึงเชิงกลยุทธ์-เรือธง ไม่ใช่ความเป็นเลิศทางวิชาการเดี่ยว</TD></TR>
+            <TR><TD mono>risk-scoring.v1.9</TD><TD>8 พ.ค. 2569</TD><TD>ล็อกสูตรของ risk scorer ระดับหลักสูตร: ตัวขับ Likelihood สามตัว (L1 การเสื่อมของ TCAS, L2 ภัยจาก AI, L3 เพดานประชากร) มิติ Impact สองตัว (รายได้ตรงที่เสี่ยง, ต้นทุนค้างชำระ) Composite = <Code>max(L1, L2 × 0.7, L3)</Code> เหนือตัวขับที่ไม่เป็น null โดย L2 มีการลดน้ำหนัก 0.7 เพื่อไม่ให้สัญญาณ AI เพียงตัวเดียวดันคะแนนไปที่ CRITICAL ขอบเขต: หลักสูตรปริญญาตรีเท่านั้น คู่กับ risk-management.v1</TD></TR>
+            <TR><TD mono>risk-management.v1</TD><TD>19 พ.ค. 2569</TD><TD>เริ่มจัดทำเอกสารชั้น workflow เป็นครั้งแรก (§5 ในเอกสารนี้) ชั้นปฏิบัติการสามชั้น: การเตือน KRI (5 ตัวชี้วัด: application_seat_ratio, enrollment_fill_rate, late_round_dependency, skill_automation_index, bachelor_intake_floor), ขั้นตอนการประเมินความเสี่ยงด้วย AI (<Code>pnpm risks:assess</Code> สร้าง RiskAssessment + RiskMeasure 2–4 แถวต่อหลักสูตร) และวงจรชีวิตของมาตรการ PROPOSED→ACCEPTED→IN_PROGRESS→COMPLETED พร้อมตัวเลือกผูกกับ CouncilDecision เมทริกซ์ 5×5 ของมหาวิทยาลัย ถูกแมปจากสูตร composite ไม่มีการเปลี่ยนสูตรเทียบกับ risk-scoring.v1.9</TD></TR>
+            <TR><TD mono>risk-management.v2 + risk-measure-rules.v1 + risk-assessment.v3</TD><TD>19 พ.ค. 2569</TD><TD>ปิดช่องว่างใหญ่ที่สุดของ v1: <Strong>การเชื่อม breach → measure อัตโนมัติ</Strong> เพิ่ม rule engine แบบ deterministic ใหม่ใน <Code>risk-measure-rules.v1</Code> (หกกฎครอบคลุม KRI ทั้งห้าตัว จับคู่แบบ exact-severity) สร้าง candidate มาตรการหนึ่งข้อต่อ (KRI × ระดับความรุนแรง) ที่ตรงกัน ก่อน AI จะรัน Migration เพิ่ม <Code>20260519120000_risk_measure_trigger</Code> เพิ่มฟิลด์ <Code>RiskMeasure.triggerIndicatorSlug</Code> + <Code>triggerSeverity</Code> สำหรับ provenance เพิ่ม AI prompt เป็น <Code>risk-assessment.v3</Code> เพื่อรับ candidates เป็น input และ echo back ฟิลด์ trigger เส้นทาง <Code>--no-ai</Code> บันทึก candidates จาก rule engine ลง DB เช่นกัน เพื่อให้สภาไม่เห็นรายการมาตรการว่างเปล่าสำหรับหลักสูตรที่มี KRI ติดธง ไม่มีการเปลี่ยนสูตรเทียบกับ risk-scoring.v1.9</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

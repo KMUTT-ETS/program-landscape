@@ -26,6 +26,21 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `methodology-bundle` | Cross-cutting (release stamp) | `landscape-2026-05.v1` (tag) + 8-char fingerprint | `packages/db/src/methodology-bundle.ts` |
 | `verdict-stability` | Verdict back-test loop | `verdict-stability.v1` | [verdict-stability.md](./verdict-stability.md) |
 | `cross-scope-consistency` | Top-down vs bottom-up divergence | `cross-scope-consistency.v1` | [cross-scope-consistency.md](./cross-scope-consistency.md) |
+| `risk-scoring` | Risk Management (formula) | `risk-scoring.v1.9` | [risk-scoring.md](./risk-scoring.md) |
+| `risk-management` | Risk Management (workflow) | `risk-management.v2` | [risk-management.md](./risk-management.md) |
+| `risk-measure-rules` | Risk Management (rule engine) | `risk-measure-rules.v1` | `packages/db/src/risk-measure-rules.ts` |
+| `risk-assessment` | Risk Management (AI prompt) | `risk-assessment.v3` | `packages/shared/src/ai/prompts/risk-assessment.ts` |
+
+### Light derived metrics (no separate doc)
+
+A handful of single-formula metrics surface on dashboards without
+needing a full methodology doc. They're stamped with the bundle version
+of the page that renders them.
+
+| Metric | Surface | Formula | Notes |
+|---|---|---|---|
+| Papers per active faculty | `/staff/research` (v1.2.7+) | `totalPapers / activeStaff` | `activeStaff` = `FacultyMember.isActive=true` filtered by the same `facultyName` set — same denominator `/staff/workforce` reports. Returns `—` when `activeStaff = 0` (never substitute 1). |
+| TCAS funnel (yield / fill / competition) | `/education/recruitment`, `/programs/[id]` | KKU TCAS Admission Funnel (`POWERBI.ADMISSION_STAT_CURRID`) — `admitted/applicants`, `enrolled/quota`, `applicants/quota` | All three guard against zero denominators with `—`. Source connector slug: `kku-tcas-funnel`. |
 
 ## Council-readiness contract
 
