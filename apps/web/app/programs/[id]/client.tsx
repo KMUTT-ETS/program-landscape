@@ -1775,16 +1775,18 @@ function DemographicOutlookSection({
     unknown: 'text-text-tertiary',
   };
   const riskLabel: Record<DeepDiveDemographicOutlook['riskLevel'], string> = {
-    low: 'Low — well below ceiling',
-    medium: 'Medium — watch the trajectory',
-    high: 'High — approaching ceiling',
-    unknown: 'Unknown — no Year-1 baseline',
+    low: 'Low — healthy applicant pool through +15y',
+    medium: 'Medium — applicant pool turns super-critical within +15y',
+    high: 'High — under 1.5 applicants/seat within +10y',
+    unknown: 'Unknown — no recruitment-funnel baseline',
   };
   const tenYear = data.projections.find((p) => p.year === data.projections[0]!.year + 10);
   const fifteenYear = data.projections.find((p) => p.year === data.projections[0]!.year + 15);
   // Bar visual — cohort population at each horizon, scaled to anchor.
   const anchorPop = data.projections[0]!.cohortPopulation;
   const peakWidth = anchorPop > 0 ? anchorPop : 1;
+  const funnel = data.funnelBaseline;
+  const planValue = funnel?.plan ?? 0;
   return (
     <Section id="demographic" title="Demographic outlook">
       {/* ── KPI strip ─────────────────────────────────────────────── */}
@@ -1842,11 +1844,19 @@ function DemographicOutlookSection({
           <div className="mt-1 text-xs text-text-tertiary">
             {riskLabel[data.riskLevel]}
           </div>
-          {tenYear?.requiredShareOfCohort !== null && tenYear?.requiredShareOfCohort !== undefined && (
-            <div className="mt-1 text-xs text-text-tertiary">
-              +10y share needed: {(tenYear.requiredShareOfCohort * 100).toFixed(3)}%
+          {data.superCriticalYear !== null ? (
+            <div className="mt-1 text-xs text-warning">
+              Super-critical from {data.superCriticalYear}
             </div>
-          )}
+          ) : data.funnelBaseline ? (
+            <div className="mt-1 text-xs text-text-tertiary">
+              Applicant pool healthy through +15y
+            </div>
+          ) : tenYear?.requiredShareOfCohort != null ? (
+            <div className="mt-1 text-xs text-text-tertiary">
+              +10y national share: {(tenYear.requiredShareOfCohort * 100).toFixed(4)}%
+            </div>
+          ) : null}
         </Card>
       </div>
 
@@ -1892,8 +1902,8 @@ function DemographicOutlookSection({
           <thead className="text-left text-xs text-text-tertiary">
             <tr>
               <th className="py-1.5 font-medium">Horizon</th>
-              <th className="py-1.5 text-right font-medium">{data.catchmentRegion === 'Northeast' ? 'NE' : 'TH'} {data.ageCohort} cohort</th>
-              <th className="py-1.5 text-right font-medium">National {data.ageCohort}</th>
+              <th className="py-1.5 text-right font-medium">National {data.ageCohort} cohort</th>
+              <th className="py-1.5 text-right font-medium">NE catchment</th>
               <th className="py-1.5 text-right font-medium">Decline vs today</th>
               <th className="py-1.5 text-right font-medium">Share to maintain intake</th>
             </tr>
@@ -1910,8 +1920,8 @@ function DemographicOutlookSection({
                   {p.cohortPopulation.toLocaleString('en-US')}
                 </td>
                 <td className="py-1.5 text-right font-tabular text-text-secondary">
-                  {p.cohortPopulationNational !== null
-                    ? p.cohortPopulationNational.toLocaleString('en-US')
+                  {p.cohortPopulationRegional !== null
+                    ? p.cohortPopulationRegional.toLocaleString('en-US')
                     : '—'}
                 </td>
                 <td className="py-1.5 text-right font-tabular text-text-secondary">
@@ -1919,7 +1929,7 @@ function DemographicOutlookSection({
                 </td>
                 <td className="py-1.5 text-right font-tabular">
                   {p.requiredShareOfCohort !== null
-                    ? `${(p.requiredShareOfCohort * 100).toFixed(3)}%`
+                    ? `${(p.requiredShareOfCohort * 100).toFixed(4)}%`
                     : '—'}
                 </td>
               </tr>
@@ -1928,17 +1938,105 @@ function DemographicOutlookSection({
         </table>
 
         <p className="mt-3 border-t border-border-subtle pt-2 text-xs text-text-tertiary">
-          Source: {data.source} (NESDC mid-variant population projection, republished by BOI). The
-          "share to maintain intake" column shows what fraction of the regional {data.ageCohort} cohort
-          this program would need to capture each year to keep today's Year-1 intake size.
+          Source: {data.source} (NESDC mid-variant population projection). The projection is
+          national; the NE-catchment column is a comparator.
           {fifteenYear && fifteenYear.cohortDeclinePct > 30 && (
             <span className="text-warning">
-              {' '}A {fifteenYear.cohortDeclinePct.toFixed(0)}% contraction by {fifteenYear.year}
-              indicates this program is structurally exposed to demographic shrinkage; portfolio-level
-              consolidation should be on the Council's radar.
+              {' '}A {fifteenYear.cohortDeclinePct.toFixed(0)}% national contraction by{' '}
+              {fifteenYear.year} leaves this program structurally exposed to demographic
+              shrinkage; portfolio-level consolidation should be on the Council's radar.
             </span>
           )}
         </p>
+      </Card>
+
+      {/* ── Recruitment funnel vs admission plan ──────────────────── */}
+      <Card>
+        <h4 className="mb-1 text-sm font-semibold">Recruitment funnel vs admission plan</h4>
+        {funnel ? (
+          <>
+            <p className="mb-3 text-xs text-text-tertiary">
+              Baseline — TCAS BE {funnel.entryYearBE}: plan{' '}
+              <span className="font-tabular text-text-secondary">
+                {funnel.plan.toLocaleString('en-US')}
+              </span>{' '}
+              · applicants{' '}
+              <span className="font-tabular text-text-secondary">
+                {funnel.applicants.toLocaleString('en-US')}
+              </span>{' '}
+              ({funnel.competitionRatio.toFixed(1)} per seat) · reported in{' '}
+              <span className="font-tabular text-text-secondary">
+                {funnel.reportedIn.toLocaleString('en-US')}
+              </span>{' '}
+              ({(funnel.reportedRate * 100).toFixed(0)}% TCAS yield). Applicants are projected
+              forward in proportion to the national {data.ageCohort} cohort; the risk is
+              whether enough applicants remain per seat — below 1.5 applicants per seat the
+              pool is too thin to fill the {planValue}-seat plan (super-critical).
+            </p>
+            <table className="w-full border-t border-border-subtle text-sm">
+              <thead className="text-left text-xs text-text-tertiary">
+                <tr>
+                  <th className="py-1.5 font-medium">Horizon</th>
+                  <th className="py-1.5 text-right font-medium">Proj. applicants</th>
+                  <th className="py-1.5 text-right font-medium">Plan</th>
+                  <th className="py-1.5 text-right font-medium">Applicants / seat</th>
+                  <th className="py-1.5 text-right font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.projections.map((p) => (
+                  <tr key={p.year} className="border-t border-border-subtle">
+                    <td className="py-1.5 font-tabular">
+                      {p.year === data.projections[0]!.year
+                        ? `${p.year} · today`
+                        : `${p.year} · +${p.year - data.projections[0]!.year}y`}
+                    </td>
+                    <td className="py-1.5 text-right font-tabular">
+                      {p.projectedApplicants !== null
+                        ? p.projectedApplicants.toLocaleString('en-US')
+                        : '—'}
+                    </td>
+                    <td className="py-1.5 text-right font-tabular text-text-secondary">
+                      {planValue.toLocaleString('en-US')}
+                    </td>
+                    <td className="py-1.5 text-right font-tabular">
+                      {p.competitionRatio !== null ? `${p.competitionRatio.toFixed(1)}×` : '—'}
+                    </td>
+                    <td className="py-1.5 text-right font-tabular">
+                      {p.superCritical === null ? (
+                        '—'
+                      ) : p.superCritical ? (
+                        <span className="text-warning">✗ super-critical</span>
+                      ) : (
+                        <span className="text-success">✓ healthy</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-3 border-t border-border-subtle pt-2 text-xs">
+              {data.superCriticalYear !== null ? (
+                <span className="text-warning">
+                  The shrinking national cohort drags projected applicants below 1.5 per seat
+                  from {data.superCriticalYear} onward — past that point the program no longer
+                  has a substantial enough applicant pool to fill its {planValue}-seat plan.
+                </span>
+              ) : (
+                <span className="text-text-tertiary">
+                  Projected applicants stay at or above 1.5 per seat through the +15y horizon —
+                  the pool remains substantial enough to fill the plan despite the demographic
+                  contraction.
+                </span>
+              )}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-text-tertiary">
+            No TCAS recruitment-funnel data (plan / applicants) is linked to this program, so
+            the applicants-per-seat projection can't be computed.
+          </p>
+        )}
       </Card>
     </Section>
   );

@@ -2227,20 +2227,24 @@ export async function universityTcasStats(): Promise<UniversityTcasStats | null>
   };
 }
 
-// ── Demographic outlook ────────────────────────────────────────────────
-// Project the program's catchment-region applicant pool forward and
-// compare against current Year-1 intake. KKU's catchment is primarily
-// Northeast Thailand; we use that as the v1 default and surface the
-// national 'TH' as a comparator. Sub-program catchment overrides come
-// later — for now every program inherits the institutional catchment.
+// ── Demographic outlook (v2 — national + recruitment-funnel-aware) ──────
+// Project the future youth cohort AND the program's recruitment funnel
+// forward, and answer the question Council cares about: "as the youth
+// cohort shrinks, can this program still fill its admission plan?"
 //
-// The signal Council wants: "If we maintain today's intake, what
-// share of the future 18-22 cohort do we need to capture?" — a low
-// share is comfortable; a rising share indicates the program is
-// approaching its demographic ceiling.
+// v2 changes (was: Northeast catchment, intake-share only):
+//   - The projection is NATIONAL (region='TH'). The Northeast catchment
+//     cohort is kept per-row as a comparator.
+//   - It joins the TCAS recruitment funnel (Plan → Applicants → Reported
+//     in). Applicants are scaled forward by the national cohort decline;
+//     reported-in via the observed applicant→reported conversion. Each
+//     horizon then shows whether projected reported-in still meets the
+//     plan, and `planShortfallYear` flags the first year it does not.
 export type DemographicRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
 
 export interface ProgramDemographicOutlook {
+  /** Always 'TH' (v2 is national-primary). The union is retained for
+   *  back-compat with downstream consumers. */
   catchmentRegion: 'Northeast' | 'TH';
   source: string;
   /** The cohort the projection is anchored to — '18-22' for bachelor
@@ -2249,26 +2253,56 @@ export interface ProgramDemographicOutlook {
   /** Today's Year-1 intake (latest year, dropping the in-progress
    *  partial year if applicable). Null when no enrollment data. */
   baselineYearOneIntake: number | null;
+  /** Recruitment-funnel baseline — the most recent TCAS entry year with
+   *  a usable Plan → Applicants → Reported-in funnel. Null when the
+   *  program has no TcasAdmissionFunnel data. */
+  funnelBaseline: {
+    entryYearBE: number;
+    /** แผนรับ — the registrar's annual seat target. */
+    plan: number;
+    /** จำนวนผู้สมัคร — total applicants. */
+    applicants: number;
+    /** จำนวนรายงานตัว — actually reported in / enrolled. */
+    reportedIn: number;
+    /** reportedIn / applicants — historical TCAS yield (funnel context;
+     *  does NOT drive the risk projection). */
+    reportedRate: number;
+    /** applicants / plan — applicants per seat at the baseline year. */
+    competitionRatio: number;
+  } | null;
   /** Cohort projection at +0 / +5 / +10 / +15 years from now. */
   projections: Array<{
     year: number;
+    /** NATIONAL 18-22 (or 23-29) cohort population. */
     cohortPopulation: number;
-    cohortPopulationNational: number | null;
-    /** Share of the catchment cohort needed to maintain today's
-     *  intake. Null when intake is unknown. */
+    /** Northeast catchment cohort — kept as a comparator. */
+    cohortPopulationRegional: number | null;
+    /** Share of the NATIONAL cohort needed to maintain today's intake.
+     *  Null when intake is unknown. */
     requiredShareOfCohort: number | null;
-    /** % decline of the cohort vs the year=now anchor. */
+    /** % decline of the national cohort vs the year=now anchor. */
     cohortDeclinePct: number;
+    /** Applicants projected forward, scaled by the national cohort
+     *  decline. Null when the program has no recruitment-funnel baseline. */
+    projectedApplicants: number | null;
+    /** projectedApplicants / plan — applicants per seat. The risk
+     *  signal: a program with a healthy applicant pool can fill its
+     *  plan even as the cohort shrinks; below ~1.5 applicants per seat
+     *  it is super-critical. */
+    competitionRatio: number | null;
+    /** True when competitionRatio < 1.5 — too few applicants to fill
+     *  the plan with any selectivity margin. */
+    superCritical: boolean | null;
   }>;
   /** Cohort decline from now → +15y, expressed as a percentage. */
   fifteenYearContraction: number;
-  /** Risk verdict based on the +10y required-share trajectory:
-   *    < 0.05% (NE 18-22)  → low
-   *    0.05–0.20%          → medium
-   *    > 0.20%             → high
-   *  Tuned for KKU's individual program scale; aggregate across all
-   *  KKU bachelor programs becomes the institutional ceiling and is
-   *  surfaced separately at the cockpit/portfolio level. */
+  /** First horizon year at which the applicant pool falls below 1.5×
+   *  the plan (super-critical). Null when it stays healthy through
+   *  +15y, or when there is no funnel baseline. */
+  superCriticalYear: number | null;
+  /** Risk verdict. With funnel data it is driven by when the applicant
+   *  pool turns super-critical (< 1.5 applicants/seat); without it, by
+   *  the +10y national required share. */
   riskLevel: DemographicRiskLevel;
 }
 
@@ -2278,6 +2312,59 @@ const COHORT_FOR_LEVEL: Record<string, '18-22' | '23-29'> = {
   MASTER: '23-29',
   DOCTORAL: '23-29',
 };
+
+// Applicants-per-seat floor. Below this the program no longer has a
+// substantial enough applicant pool to fill its plan with any
+// selectivity margin — "super-critical".
+const SUPER_CRITICAL_RATIO = 1.5;
+
+interface FunnelBaseline {
+  entryYearBE: number;
+  plan: number;
+  applicants: number;
+  reportedIn: number;
+  reportedRate: number;
+  competitionRatio: number;
+}
+
+// Most recent COMPLETE TCAS entry year with a usable Plan / Applicants /
+// Reported funnel. `maxEntryYearBE` excludes the in-progress admission
+// cycle — its `reportedIn` is still partial and would yield a junk
+// conversion rate. The plan repeats across a year's rounds (MAX collapses
+// it); applicants + reported-in sum across rounds.
+function buildFunnelBaseline(
+  rows: Array<{
+    entryYearBE: number;
+    planPerYear: number | null;
+    totalApplicants: number | null;
+    regReported: number | null;
+  }>,
+  maxEntryYearBE: number,
+): FunnelBaseline | null {
+  const byYear = new Map<number, { plan: number; applicants: number; reportedIn: number }>();
+  for (const r of rows) {
+    if (r.entryYearBE > maxEntryYearBE) continue;
+    const cur = byYear.get(r.entryYearBE) ?? { plan: 0, applicants: 0, reportedIn: 0 };
+    cur.plan = Math.max(cur.plan, r.planPerYear ?? 0);
+    cur.applicants += r.totalApplicants ?? 0;
+    cur.reportedIn += r.regReported ?? 0;
+    byYear.set(r.entryYearBE, cur);
+  }
+  for (const year of [...byYear.keys()].sort((a, b) => b - a)) {
+    const v = byYear.get(year)!;
+    if (v.plan > 0 && v.applicants > 0 && v.reportedIn > 0) {
+      return {
+        entryYearBE: year,
+        plan: v.plan,
+        applicants: v.applicants,
+        reportedIn: v.reportedIn,
+        reportedRate: v.reportedIn / v.applicants,
+        competitionRatio: v.applicants / v.plan,
+      };
+    }
+  }
+  return null;
+}
 
 export async function programDemographicOutlook(
   programId: string,
@@ -2289,7 +2376,6 @@ export async function programDemographicOutlook(
   });
   if (!program) return null;
 
-  const catchment: 'Northeast' = 'Northeast'; // KKU institutional default
   const ageCohort = COHORT_FOR_LEVEL[program.level] ?? '18-22';
 
   // Latest non-partial Year-1 intake. Use the most recent enrollment-
@@ -2312,6 +2398,23 @@ export async function programDemographicOutlook(
     baselineYearOneIntake = isPartial ? prior.enrolled : latest.enrolled;
   }
 
+  // Recruitment-funnel baseline — Plan → Applicants → Reported in.
+  const funnelRows = await prisma.tcasAdmissionFunnel.findMany({
+    where: { programId, ...realDataWhere() },
+    select: {
+      entryYearBE: true,
+      planPerYear: true,
+      totalApplicants: true,
+      regReported: true,
+    },
+  });
+  // `+ 543` = current Buddhist-Era year; `- 1` drops the in-progress
+  // admission cycle so the baseline uses the latest COMPLETE year.
+  const funnelBaseline = buildFunnelBaseline(
+    funnelRows,
+    now.getUTCFullYear() + 543 - 1,
+  );
+
   // Demographic projection rows. Pin to the canonical NESDC-mid-
   // variant source (`NESDC-PopProj-2010-2040`) — the older synthetic
   // `NESDC-v1` rows from the original seed remain for gap-analysis
@@ -2326,53 +2429,87 @@ export async function programDemographicOutlook(
   const nowCE = now.getUTCFullYear();
   const horizons = [0, 5, 10, 15];
   const projections: ProgramDemographicOutlook['projections'] = [];
-  let anchorPopulation: number | null = null;
+  let anchorNational: number | null = null;
   for (const h of horizons) {
     const targetYear = nowCE + h;
-    const regionalRow = allRows.find(
-      (r) => r.region === catchment && r.year === targetYear,
-    );
     const nationalRow = allRows.find(
       (r) => r.region === 'TH' && r.year === targetYear,
     );
-    if (!regionalRow) continue;
-    if (anchorPopulation === null) anchorPopulation = regionalRow.population;
+    const regionalRow = allRows.find(
+      (r) => r.region === 'Northeast' && r.year === targetYear,
+    );
+    if (!nationalRow) continue;
+    if (anchorNational === null) anchorNational = nationalRow.population;
     const requiredShare =
-      baselineYearOneIntake && regionalRow.population > 0
-        ? baselineYearOneIntake / regionalRow.population
+      baselineYearOneIntake && nationalRow.population > 0
+        ? baselineYearOneIntake / nationalRow.population
         : null;
     const declinePct =
-      anchorPopulation && anchorPopulation > 0
-        ? ((anchorPopulation - regionalRow.population) / anchorPopulation) * 100
+      anchorNational && anchorNational > 0
+        ? ((anchorNational - nationalRow.population) / anchorNational) * 100
         : 0;
+    // Funnel projection — applicants scale with the national cohort.
+    const cohortFactor =
+      anchorNational && anchorNational > 0 ? nationalRow.population / anchorNational : 1;
+    let projectedApplicants: number | null = null;
+    let competitionRatio: number | null = null;
+    let superCritical: boolean | null = null;
+    if (funnelBaseline && funnelBaseline.plan > 0) {
+      // Applicants shrink in proportion to the national cohort; the risk
+      // is whether enough applicants remain per seat (NOT whether
+      // reported-in — TCAS yield — covers the plan, since an over-
+      // subscribed program admits more to absorb no-shows).
+      projectedApplicants = Math.round(funnelBaseline.applicants * cohortFactor);
+      competitionRatio = projectedApplicants / funnelBaseline.plan;
+      superCritical = competitionRatio < SUPER_CRITICAL_RATIO;
+    }
     projections.push({
       year: targetYear,
-      cohortPopulation: regionalRow.population,
-      cohortPopulationNational: nationalRow?.population ?? null,
+      cohortPopulation: nationalRow.population,
+      cohortPopulationRegional: regionalRow?.population ?? null,
       requiredShareOfCohort: requiredShare,
       cohortDeclinePct: declinePct,
+      projectedApplicants,
+      competitionRatio,
+      superCritical,
     });
   }
   if (projections.length === 0) return null;
   const tenYear = projections.find((p) => p.year === nowCE + 10);
   const fifteenYear = projections.find((p) => p.year === nowCE + 15);
   const fifteenYearContraction = fifteenYear?.cohortDeclinePct ?? 0;
+  const superCriticalYear =
+    projections.find((p) => p.superCritical === true)?.year ?? null;
 
+  // Risk verdict. With funnel data: driven by when the applicant pool
+  // turns super-critical (< 1.5 applicants/seat) — a program with a
+  // substantial applicant pool can still fill its plan as the cohort
+  // shrinks. Without funnel data: the +10y national required share,
+  // thresholds rescaled ~1/3 from the v1 Northeast figures since the
+  // national cohort is ~3× the NE cohort.
   let riskLevel: DemographicRiskLevel = 'unknown';
-  if (tenYear && tenYear.requiredShareOfCohort !== null) {
+  if (funnelBaseline) {
+    const nowRow = projections.find((p) => p.year === nowCE);
+    if (nowRow?.superCritical === true) riskLevel = 'high';
+    else if (superCriticalYear !== null && superCriticalYear <= nowCE + 10) riskLevel = 'high';
+    else if (superCriticalYear !== null) riskLevel = 'medium';
+    else riskLevel = 'low';
+  } else if (tenYear && tenYear.requiredShareOfCohort !== null) {
     const sharePct = tenYear.requiredShareOfCohort * 100;
-    if (sharePct < 0.05) riskLevel = 'low';
-    else if (sharePct < 0.2) riskLevel = 'medium';
+    if (sharePct < 0.017) riskLevel = 'low';
+    else if (sharePct < 0.067) riskLevel = 'medium';
     else riskLevel = 'high';
   }
 
   return {
-    catchmentRegion: catchment,
+    catchmentRegion: 'TH',
     source: allRows[0]!.source,
     ageCohort,
     baselineYearOneIntake,
+    funnelBaseline,
     projections,
     fifteenYearContraction,
+    superCriticalYear,
     riskLevel,
   };
 }

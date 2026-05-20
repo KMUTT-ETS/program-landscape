@@ -266,14 +266,26 @@ export interface DeepDiveDemographicOutlook {
   source: string;
   ageCohort: '18-22' | '23-29';
   baselineYearOneIntake: number | null;
+  funnelBaseline: {
+    entryYearBE: number;
+    plan: number;
+    applicants: number;
+    reportedIn: number;
+    reportedRate: number;
+    competitionRatio: number;
+  } | null;
   projections: Array<{
     year: number;
     cohortPopulation: number;
-    cohortPopulationNational: number | null;
+    cohortPopulationRegional: number | null;
     requiredShareOfCohort: number | null;
     cohortDeclinePct: number;
+    projectedApplicants: number | null;
+    competitionRatio: number | null;
+    superCritical: boolean | null;
   }>;
   fifteenYearContraction: number;
+  superCriticalYear: number | null;
   riskLevel: 'low' | 'medium' | 'high' | 'unknown';
 }
 
