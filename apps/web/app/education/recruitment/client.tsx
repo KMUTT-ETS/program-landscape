@@ -118,7 +118,6 @@ const LEVELS = [
 ] as const;
 
 const FUNNEL_LABELS = [
-  'Planned seats (annual)',
   'Allocated seats (rounds)',
   'Applicants',
   'Passed',
@@ -232,11 +231,14 @@ export function RecruitmentClient({
         >
           <Card padding="md">
             {data.kpis.applicants > 0 ? (
-              <FunnelPipeline
-                stages={buildFunnelStages(data.kpis)}
-                width={560}
-                height={340}
-              />
+              <>
+                <FunnelPipeline
+                  stages={buildFunnelStages(data.kpis)}
+                  width={560}
+                  height={340}
+                />
+                <PlanCheck kpis={data.kpis} />
+              </>
             ) : (
               <EmptyState title="No funnel data" description="Filters returned no rows." />
             )}
@@ -441,7 +443,6 @@ function KpiStrip({
 
 function buildFunnelStages(kpis: RecruitmentDashboardPayload['kpis']): FunnelStage[] {
   const values = [
-    kpis.planPerYear,
     kpis.seats,
     kpis.applicants,
     kpis.passed,
@@ -455,6 +456,47 @@ function buildFunnelStages(kpis: RecruitmentDashboardPayload['kpis']): FunnelSta
     label: FUNNEL_LABELS[i] ?? `Stage ${i + 1}`,
     value: v,
   }));
+}
+
+// Plan-vs-reported readout shown beside the funnel. Planned seats is a
+// target, not a conversion stage (applicants vastly outnumber seats), so
+// it sits aside the funnel rather than as its first — misleadingly
+// narrow — bar. Lets the reader confirm at a glance whether the bottom
+// of the funnel (reported in) actually hit the annual plan.
+function PlanCheck({ kpis }: { kpis: RecruitmentDashboardPayload['kpis'] }) {
+  const plan = kpis.planPerYear;
+  const reported = kpis.regReported;
+  const ratio = plan > 0 ? reported / plan : null;
+  const verdictClass =
+    ratio === null
+      ? 'text-text-tertiary'
+      : ratio >= 1
+        ? 'text-positive'
+        : ratio >= 0.85
+          ? 'text-warning'
+          : 'text-danger';
+  const verdict =
+    ratio === null
+      ? 'No plan on file'
+      : ratio >= 1
+        ? '✓ Plan met'
+        : `${(ratio * 100).toFixed(0)}% of plan filled`;
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-surface-1 px-4 py-3">
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-text-tertiary">
+          Planned seats (annual)
+        </p>
+        <p className="font-tabular text-xl font-semibold">
+          {plan.toLocaleString('en-US')}
+        </p>
+        <p className="text-[11px] text-text-tertiary">
+          {reported.toLocaleString('en-US')} reported in
+        </p>
+      </div>
+      <p className={`font-tabular text-sm font-semibold ${verdictClass}`}>{verdict}</p>
+    </div>
+  );
 }
 
 function YearTrendChart({ byYear }: { byYear: YearTrendRow[] }) {
