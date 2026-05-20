@@ -7,7 +7,7 @@
 // Three Likelihood drivers (each 0-100, or null = data gap):
 //   L1 = recruitment / TCAS competition decay
 //   L2 = AI-disruption (share of taught skills tagged HIGH automationRisk)
-//   L3 = demographic ceiling (competitiveness percentile × cohort projection)
+//   L3 = demographic vulnerability (entry buffer + trend + forward projection)
 //
 // Two Impact dimensions (in raw THB plus 0-100 normalised):
 //   I1 = direct revenue at risk over rolling 5y
@@ -22,8 +22,9 @@
 
 import { Prisma, ProgramLevel, ProgramStatus, AutomationRisk, KkuRiskLevel, RiskTier } from '@prisma/client';
 import { prisma } from './index';
+import { programDemographicOutlook } from './program-deep-dive';
 
-export const RISK_SCORING_VERSION = 'risk-scoring.v1.10';
+export const RISK_SCORING_VERSION = 'risk-scoring.v1.11';
 
 // L2 (AI-disruption) is intentionally discounted in the COMPOSITE only.
 // Rationale: AI mitigation typically requires large multi-year investment
@@ -168,16 +169,24 @@ const GAP_DENOMINATOR = 18;
 const REC_DENOMINATOR = 18;
 
 // L3 v1.9: demographic vulnerability is no longer the universal-constant
-// cohort decline applied identically to every program. It's now driven by
-// program-specific entry-competitiveness BUFFER + trend. A program with 5:1
+// cohort decline applied identically to every program. It's driven by
+// program-specific entry-competitiveness — a program with 5:1
 // applicants/seat is genuinely insulated from cohort decline (their ratio
 // can absorb years of shrinkage before crossing the 1:1 cliff). A program
 // at 1.2:1 has no buffer left and is one bad year from under-subscription.
 //
+// L3 v1.11 adds a FORWARD component: programDemographicOutlook scales the
+// program's applicants by the NESDC national-cohort decline and reports
+// `superCriticalYear` — the year the pool is projected to fall below 1.5
+// applicants/seat. That horizon is discriminating (gated by the program's
+// current ratio), unlike the v1.8 universal baseline — so L3 now blends
+// the present (buffer), the past (trend) and the future (projection).
+//
 // Council policy threshold: applicants/seat < 1.5 = "no buffer" → CRITICAL.
 const L3_WEIGHTS = {
-  buffer: 0.75, // current proximity to the 1:1 cliff
-  trend: 0.25, // 5y applicant CAGR (negative = shrinking)
+  buffer: 0.5, // current proximity to the 1:1 cliff
+  demographicProjection: 0.3, // forward super-critical horizon (programDemographicOutlook)
+  trend: 0.2, // 5y applicant CAGR (negative = shrinking)
 } as const;
 
 const COHORT_DECLINE_PCT_PER_YEAR = 1.8; // retained for documentation; not used in scoring v1.9+
@@ -274,6 +283,17 @@ export interface ProgramRiskInputs {
   // KKU peers in same level. 0 = worst, 100 = best. Computed by the
   // portfolio loader from the full program list.
   competitivenessPercentile: number | null;
+  // Forward demographic projection from programDemographicOutlook — the
+  // program's applicant pool scaled by the NESDC national-cohort decline.
+  // Drives L3's forward-looking component. Null when there is no NESDC
+  // cohort data or no TCAS funnel baseline to project from.
+  demographicProjection: {
+    /** Year the pool is projected to fall below 1.5 applicants/seat;
+     *  null when it stays healthy through the +15y horizon. */
+    superCriticalYear: number | null;
+    /** Years from now to that year; null when superCriticalYear is null. */
+    yearsToSuperCritical: number | null;
+  } | null;
 }
 
 export interface ProgramRiskResult {
@@ -618,6 +638,14 @@ function bufferScoreFromRatio(appsPerSeat: number): number {
   return 0;
 }
 
+// Forward-projection sub-score (L3 v1.11). Maps the horizon until the
+// program is projected to fall below 1.5 applicants/seat into 0-100:
+//   0y (already super-critical) → 100; +5y → 77; +10y → 53; +15y → 30.
+// A program that never crosses within +15y is scored 0 by the caller.
+function projectionScoreFromYearsAway(yearsAway: number): number {
+  return Math.max(0, Math.min(100, 100 - yearsAway * (70 / 15)));
+}
+
 export function scoreL3Demographic(inputs: ProgramRiskInputs): DriverScore {
   const gaps: Array<{ field: string; reason: string }> = [];
   const detail: Record<string, unknown> = {};
@@ -682,6 +710,31 @@ export function scoreL3Demographic(inputs: ProgramRiskInputs): DriverScore {
     gaps.push({
       field: 'applicantTrend',
       reason: 'Need ≥3 years of applicant data for CAGR-based trend',
+    });
+  }
+
+  // ── Component 3: Forward demographic projection (v1.11) ───────────────
+  // programDemographicOutlook scales applicants by the NESDC national-
+  // cohort decline; superCriticalYear is when the pool drops below 1.5
+  // applicants/seat. A program that never crosses scores 0 (no forward
+  // demographic risk) — still a real component, not a gap.
+  if (inputs.demographicProjection) {
+    const { superCriticalYear, yearsToSuperCritical } = inputs.demographicProjection;
+    const score =
+      yearsToSuperCritical !== null
+        ? projectionScoreFromYearsAway(yearsToSuperCritical)
+        : 0;
+    components.push({
+      key: 'demographicProjection',
+      value: score,
+      weight: L3_WEIGHTS.demographicProjection,
+    });
+    detail.superCriticalYear = superCriticalYear;
+    detail.demographicProjectionScore = score;
+  } else {
+    gaps.push({
+      field: 'demographicProjection',
+      reason: 'No NESDC cohort projection or no TCAS funnel baseline to project forward',
     });
   }
 
@@ -894,6 +947,20 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
 
   const competitivenessPercentile = await computeCompetitivenessPercentile(programId, program.level);
 
+  // Forward demographic projection — L3 v1.11's third component.
+  const demoOutlook = await programDemographicOutlook(programId);
+  let demographicProjection: ProgramRiskInputs['demographicProjection'] = null;
+  if (demoOutlook && demoOutlook.funnelBaseline && demoOutlook.projections.length > 0) {
+    const anchorYear = demoOutlook.projections[0]!.year;
+    demographicProjection = {
+      superCriticalYear: demoOutlook.superCriticalYear,
+      yearsToSuperCritical:
+        demoOutlook.superCriticalYear !== null
+          ? Math.max(0, demoOutlook.superCriticalYear - anchorYear)
+          : null,
+    };
+  }
+
   // Map ProgramAiReadinessAssessment.payloadJson into the typed shape L2 needs.
   // Payload conforms to ProgramAiReadinessAssessmentSchema in @kku/shared.
   let aiReadiness: ProgramRiskInputs['aiReadiness'] = null;
@@ -953,6 +1020,7 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
       allocatedOverheadThb: f.allocatedOverhead.toNumber(),
     })),
     competitivenessPercentile,
+    demographicProjection,
   };
 }
 

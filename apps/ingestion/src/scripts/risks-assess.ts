@@ -269,6 +269,7 @@ async function buildAiInput(
       aiReadiness: null, // KRI evaluator doesn't read aiReadiness; only L2 does.
       financial: [],
       competitivenessPercentile: null,
+      demographicProjection: null, // KRI evaluator doesn't read it; only L3 does.
     },
     new Date(),
   );

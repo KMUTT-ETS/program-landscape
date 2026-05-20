@@ -129,7 +129,7 @@ analysis directly into the score AND surfaces the gaps + recommendations
 into the AI prompt's risk-mitigation measures so they cite the deep-dive's
 named items rather than inventing generic AI guidance.
 
-### L3 — Demographic vulnerability (0–100, v1.9 — buffer-driven)
+### L3 — Demographic vulnerability (0–100, v1.11 — present + past + future)
 
 The v1.x universal-cohort baseline was wrong: every program got the same
 ~43 score regardless of whether they had a real demographic problem. A
@@ -137,12 +137,19 @@ program with 8 applicants per seat is *insulated* from cohort decline —
 their ratio can absorb years of shrinkage and still stay over-subscribed.
 Only programs near the **1:1 cliff** are demographically at risk.
 
-v1.9 redesigns L3 around two program-specific signals:
+L3 blends three program-specific signals — the present, the past, and
+(since v1.11) the future:
 
 | Component | Weight | Formula |
 |---|---|---|
-| **Buffer score** | 0.75 | Piecewise function of latest applicants/seat ratio (see below). Council policy: < 1.5 = critical (no buffer left). |
-| **Trend score** | 0.25 | 5-year applicant CAGR. Negative trend amplifies vulnerability. CAGR of −10%/yr ⇒ 50; CAGR of −20%/yr ⇒ 100; CAGR ≥ 0 ⇒ 0. |
+| **Buffer score** | 0.50 | Piecewise function of latest applicants/seat ratio (see below). Council policy: < 1.5 = critical (no buffer left). |
+| **Demographic projection** | 0.30 | Forward signal from `programDemographicOutlook` — applicants scaled by the NESDC national-cohort decline, scored by the horizon until the pool falls below 1.5 applicants/seat (`superCriticalYear`). Already super-critical ⇒ 100; +5y ⇒ 77; +10y ⇒ 53; +15y ⇒ 30; never within +15y ⇒ 0. |
+| **Trend score** | 0.20 | 5-year applicant CAGR. Negative trend amplifies vulnerability. CAGR of −10%/yr ⇒ 50; CAGR of −20%/yr ⇒ 100; CAGR ≥ 0 ⇒ 0. |
+
+The v1.11 demographic-projection component is discriminating (gated by
+each program's current ratio — a healthy pool never crosses 1.5/seat
+within the horizon), so it does **not** reintroduce the non-program-
+specific universal baseline that v1.9 removed.
 
 #### Buffer score piecewise
 
@@ -342,3 +349,4 @@ component.
 | v1.7 | 2026-05-08 | **In-progress fiscal-year filter unit fix.** v1.5 added a filter to exclude in-progress FY from impact, but compared `FinancialMetric.fiscalYear` (CE) against `latestCompleteEntryYearBE()` (BE) — making the filter a no-op (CE 2026 ≤ BE 2568 is always true). Partial CE 2026 numbers were leaking in and deflating revenue projections (CE 2026 had ~50M baht across 72 programs vs CE 2025's ~1.08B for the same cohort — clearly mid-year). Added sibling helper `latestCompleteFiscalYearCE()` and switched `computeImpact()` to use it. |
 | v1.8 | 2026-05-08 | **Financial-missing → NEEDS_DATA.** Risk = Likelihood × Impact. Programs without `FinancialMetric` data (no tuition baseline, ~30% of undergrads due to incomplete `RegistryProgramMapping`) were getting a composite tier based on L scores alone, then sitting at impactScore=0 in the matrix → misleading "low impact, low priority" placement. Now `scoreProgramRisk` overrides the tier to `NEEDS_DATA` whenever `impact.totalThb` is null. Comparative viz (bubble chart, composite histogram, ERM 5×5 cell counts) filter out NEEDS_DATA programs; faculty heatmap + tier-grouped table still show them so the data-acquisition worklist stays visible. |
 | v1.9 | 2026-05-08 | **L3 redesigned around entry competitiveness + trend.** The v1–v1.8 L3 fired a universal cohort-shrinkage baseline (~43) for every program with TCAS data, regardless of whether they had real demographic exposure. A program with 8:1 applicants/seat is genuinely insulated from cohort decline; only programs near the 1:1 cliff face real risk. New L3 = 0.75×buffer + 0.25×trend, where `buffer` is a piecewise function of apps/seat (Council critical threshold: <1.5) and `trend` is the 5y applicant CAGR. Universal-cohort and peer-percentile components removed. Result: 78 of 89 BACHELOR programs (88%) drop from L3≈43 to L3≈0, correctly reflecting that strong applicant pools insulate them from cohort decline. |
+| v1.11 | 2026-05-20 | **L3 gains a forward demographic-projection component.** L3 v1.9 was present + past only (current applicants/seat buffer + 5y CAGR). v1.11 adds a third component — weight 0.30, with buffer 0.75→0.50 and trend 0.25→0.20: `programDemographicOutlook` scales the program's applicants by the NESDC national-cohort decline and reports `superCriticalYear`, the horizon at which the pool drops below 1.5 applicants/seat. Score: already super-critical→100, +5y→77, +10y→53, +15y→30, never within +15y→0. The component is discriminating (gated by each program's current ratio), so it does not reintroduce the v1.8 universal baseline. `programDemographicOutlook` becomes an input to `ProgramRiskInputs`. |

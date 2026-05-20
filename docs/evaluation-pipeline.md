@@ -18,7 +18,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
 |---|---|---|---|
 | **Health Score** | 0–100 composite + 5 dimension sub-scores + 0–100 `dataCompletenessPct` | `methodologyVersion: 'health-score.v3.4'` on `HealthScoreRow` | `packages/db/src/health-score.ts` |
 | **Lifecycle Verdict** | `SUNSET` / `STABLE` / `RISING` / `FRONTIER` + 0–100 trajectory + 9 signed drivers + counterfactual (`ungatedVerdict`) | `methodologyVersion: 'lifecycle.v1.2'` on `ProgramLifecycleResult` + persisted to `program_lifecycle_snapshots` | `packages/db/src/program-deep-dive.ts` |
-| **Risk Tier** | `LOW` / `MODERATE` / `HIGH` / `CRITICAL` / `NEEDS_DATA` + L1/L2/L3 drivers + I1/I2 impact + composite | `methodologyVersion: 'risk-scoring.v1.10'` on `RiskAssessment` + `risk-assessment.v2` on AI overlay | `packages/db/src/risk-scoring.ts` + `packages/shared/src/ai/prompts/risk-assessment.ts` |
+| **Risk Tier** | `LOW` / `MODERATE` / `HIGH` / `CRITICAL` / `NEEDS_DATA` + L1/L2/L3 drivers + I1/I2 impact + composite | `methodologyVersion: 'risk-scoring.v1.11'` on `RiskAssessment` + `risk-assessment.v2` on AI overlay | `packages/db/src/risk-scoring.ts` + `packages/shared/src/ai/prompts/risk-assessment.ts` |
 | **KKU 5×5 Matrix** | `LOW` / `MODERATE` / `HIGH` / `VERY_HIGH` / `NEEDS_DATA` + `matrixScore` 1–25 (likelihood × impact bins) | Derived from Risk Tier; same methodology stamp | `bin5` + `deriveKkuMatrix` in `risk-scoring.ts` |
 | **BCG Quadrant** | `star` / `cash-cow` / `question` / `dog` / `dead` | `methodologyVersion: 'dashboard-overview.v1'` on cockpit payload | `packages/db/src/dashboard-overview.ts:486-505` |
 
@@ -56,7 +56,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
                                           │
         ┌─────────────────────────────────┼─────────────────────────────────┐
         ▼                                 ▼                                 ▼
-  HEALTH SCORE (v3.4)             LIFECYCLE (v1.1)                   RISK (v1.10)
+  HEALTH SCORE (v3.4)             LIFECYCLE (v1.1)                   RISK (v1.11)
   5 dim × 2-4 drivers             9 signed drivers + 3 gates         3L × 2I + KKU 5×5
   computeHealthScores()           programLifecycleVerdict()          scoreL1+L2+L3+impact
                                   ↑ consumes Health + AI readiness   ↑ consumes ProgramAiReadinessAssessment
@@ -219,9 +219,9 @@ The discipline-aware path is what gives the Risk Score's L2 component the "music
 
 ---
 
-## 5. The Risk Score (v1.10)
+## 5. The Risk Score (v1.11)
 
-`packages/db/src/risk-scoring.ts` · `RISK_SCORING_VERSION = 'risk-scoring.v1.10'` · doc: `docs/methodologies/risk-scoring.md`
+`packages/db/src/risk-scoring.ts` · `RISK_SCORING_VERSION = 'risk-scoring.v1.11'` · doc: `docs/methodologies/risk-scoring.md`
 
 **Scope: BACHELOR programs only.** Postgrad is structurally small-cohort + closure-track-irrelevant.
 
@@ -240,11 +240,11 @@ Composite = max(L1, L2 × 0.7, L3)   over non-null drivers
 |---|---|---|---|
 | **L1 Recruitment / TCAS decay** | 0.35 competition_ratio + 0.35 fill_rate + 0.20 trend_decay + 0.10 late_round_dependency | `tcas_admission_funnels` (complete cycles only) | Latest year + 5y series |
 | **L2 AI-disruption** | 0.35 skill_pressure + 0.35 readiness_deficit + 0.30 disruption_signal | `program_skills × skill.automationRisk` + `program_ai_readiness_assessments` (via `programAiReadiness`) | Skill weights, AI v2 relevance score, gap/recommendation counts |
-| **L3 Demographic vulnerability** | 0.75 buffer + 0.25 trend | `tcas_admission_funnels` only | applicants/seat ratio piecewise + 5y CAGR |
+| **L3 Demographic vulnerability** | 0.50 buffer + 0.30 demographic-projection + 0.20 trend | `tcas_admission_funnels` + `programDemographicOutlook` | applicants/seat piecewise + forward super-critical horizon + 5y CAGR |
 
 **L1/L3 share `latestCompleteEntryYearBE()`** — `current_year + 543 − 1`. Same filter as health-score attractiveness. Rolls forward Jan 1 automatically.
 
-**L3 v1.9 redesign** removed the universal-cohort-shrinkage baseline that fired ~43 for every program; current applicants/seat ratio + 5y trend drive it now. 88% of BACHELOR programs end up at L3≈0 (insulated). Empirically confirmed against the 89-program portfolio.
+**L3 v1.9 redesign** removed the universal-cohort-shrinkage baseline that fired ~43 for every program; current applicants/seat ratio + 5y trend drive it now. 88% of BACHELOR programs end up at L3≈0 (insulated). Empirically confirmed against the 89-program portfolio. **L3 v1.11** adds a forward demographic-projection component (weight 0.30) from `programDemographicOutlook` — scored by the horizon until the pool falls below 1.5 applicants/seat. It is discriminating (gated by each program's current ratio), so it does not reintroduce the universal baseline.
 
 ### 5.3 Impact dimensions
 
@@ -401,7 +401,7 @@ Quick "where does this number come from" reference. Read this when a UI value lo
 |---|---|
 | `health-score.v3.4` (program scope) | `tcas_admission_funnels` + `tcas_admission_stats` (peers) + `enrollment_metrics` + `financial_metrics` + `program_faculties × faculty_members` + `research_outputs` + `program_skills × skill` + `kmitl_career_skill_demands` + `program_demand_matches` + `demographic_projections` + career→sector taxonomy |
 | `lifecycle.v1.1` | Above (via health) + `program_ai_readiness_assessments` (via `programAiReadiness` Path B) + `program_peer_reviews` (drivers 5+6) + `student_cohort_distributions` (driver 8) |
-| `risk-scoring.v1.10` L+I | `tcas_admission_funnels` (L1+L3) + `program_skills × skill.automationRisk` (L2) + `program_ai_readiness_assessments` (L2) + `financial_metrics` (I1+I2) — no Health Score dependency |
+| `risk-scoring.v1.11` L+I | `tcas_admission_funnels` (L1+L3) + `program_skills × skill.automationRisk` (L2) + `program_ai_readiness_assessments` (L2) + `financial_metrics` (I1+I2) — no Health Score dependency |
 | `dashboard-overview.v1` | `enrollment_metrics` + `financial_metrics` (BCG + KPIs) + `program_lifecycle_snapshots` (lifecycle distribution) + `program_strategic_narratives` (pulse) + `programs` (canonical filter) + `computeHealthScores('university')` (FacultyHealth rollup) |
 | BCG quadrant | 3y enrollment delta + latest year netContribution → 4 quadrants + `dead` (zero enrolment override) |
 
@@ -488,7 +488,7 @@ Per-prompt versions:
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)
 - `lifecycle.v1.2`
-- `risk-scoring.v1.10`
+- `risk-scoring.v1.11`
 - `benchmarking.v1`
 - `forecasting.v1`
 - `scenario-engine.v1`
