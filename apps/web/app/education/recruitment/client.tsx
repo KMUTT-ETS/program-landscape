@@ -8,6 +8,8 @@ import {
   Card,
   EmptyState,
   Section,
+  SortableTh,
+  useSortableTable,
 } from '@kku/ui';
 import { FunnelPipeline, useChartPalette, type FunnelStage } from '@kku/ui';
 import { ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
@@ -558,6 +560,20 @@ function LegendDot({ color, label, x, dashed = false }: { color: string; label: 
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
 function FacultyRollupTable({ rows }: { rows: FacultyRow[] }) {
+  const { sorted, sort } = useSortableTable(rows ?? [], {
+    faculty: (r) => r.facultyNameTh,
+    programCount: (r) => r.programCount,
+    planPerYear: (r) => r.totals.planPerYear,
+    seats: (r) => r.totals.seats,
+    overAlloc: (r) =>
+      r.totals.planPerYear > 0 ? r.totals.seats / r.totals.planPerYear : null,
+    applicants: (r) => r.totals.applicants,
+    compRatio: (r) =>
+      r.totals.seats > 0 ? r.totals.applicants / r.totals.seats : 0,
+    regReported: (r) => r.totals.regReported,
+    vsPlan: (r) =>
+      r.totals.planPerYear > 0 ? r.totals.regReported / r.totals.planPerYear : null,
+  });
   if (rows.length === 0) {
     return <p className="px-4 py-3 text-sm text-text-tertiary">No faculty data.</p>;
   }
@@ -567,20 +583,20 @@ function FacultyRollupTable({ rows }: { rows: FacultyRow[] }) {
       <table className="w-full text-sm">
         <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
           <tr>
-            <th className="px-4 py-2 text-left">Faculty</th>
-            <th className="px-4 py-2 text-right">Progs</th>
-            <th className="px-4 py-2 text-right" title="Annual plan target (PLAN_PER_YEAR)">Plan</th>
-            <th className="px-4 py-2 text-right" title="Sum of ENROLLSEAT across rounds (over-allocated to compensate no-show)">Allocated</th>
-            <th className="px-4 py-2 text-right">Over-alloc</th>
-            <th className="px-4 py-2 text-right">Applicants</th>
-            <th className="px-4 py-2 text-right">Comp. ratio</th>
-            <th className="px-4 py-2 text-right">Reported in</th>
-            <th className="px-4 py-2 text-right" title="Reported in / Planned seats — % of annual target filled">vs Plan</th>
+            <SortableTh sortKey="faculty" sort={sort} className="px-4 py-2 text-left">Faculty</SortableTh>
+            <SortableTh sortKey="programCount" sort={sort} align="right" className="px-4 py-2 text-right">Progs</SortableTh>
+            <SortableTh sortKey="planPerYear" sort={sort} align="right" className="px-4 py-2 text-right" title="Annual plan target (PLAN_PER_YEAR)">Plan</SortableTh>
+            <SortableTh sortKey="seats" sort={sort} align="right" className="px-4 py-2 text-right" title="Sum of ENROLLSEAT across rounds (over-allocated to compensate no-show)">Allocated</SortableTh>
+            <SortableTh sortKey="overAlloc" sort={sort} align="right" className="px-4 py-2 text-right">Over-alloc</SortableTh>
+            <SortableTh sortKey="applicants" sort={sort} align="right" className="px-4 py-2 text-right">Applicants</SortableTh>
+            <SortableTh sortKey="compRatio" sort={sort} align="right" className="px-4 py-2 text-right">Comp. ratio</SortableTh>
+            <SortableTh sortKey="regReported" sort={sort} align="right" className="px-4 py-2 text-right">Reported in</SortableTh>
+            <SortableTh sortKey="vsPlan" sort={sort} align="right" className="px-4 py-2 text-right" title="Reported in / Planned seats — % of annual target filled">vs Plan</SortableTh>
             <th className="px-4 py-2 text-left">Applicants distribution</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border-subtle">
-          {rows.map((r) => {
+          {sorted.map((r) => {
             const ratio = r.totals.seats > 0 ? r.totals.applicants / r.totals.seats : 0;
             const overAlloc = r.totals.planPerYear > 0 ? r.totals.seats / r.totals.planPerYear : null;
             const yieldVsPlan = r.totals.planPerYear > 0 ? r.totals.regReported / r.totals.planPerYear : null;
@@ -631,26 +647,39 @@ function FacultyRollupTable({ rows }: { rows: FacultyRow[] }) {
 }
 
 function RoundBreakdownTable({ rows }: { rows: RoundRow[] }) {
+  const { sorted, sort } = useSortableTable(rows ?? [], {
+    round: (r) => r.round,
+    programCount: (r) => r.totals.programCount,
+    seats: (r) => r.totals.seats,
+    applicants: (r) => r.totals.applicants,
+    passed: (r) => r.totals.passed,
+    sendCh: (r) => r.totals.sendCh,
+    confirmCh: (r) => r.totals.confirmCh,
+    sendReg: (r) => r.totals.sendReg,
+    regReported: (r) => r.totals.regReported,
+    regYield: (r) =>
+      r.totals.sendCh > 0 ? r.totals.regReported / r.totals.sendCh : null,
+  });
   if (rows.length === 0) return <p className="px-4 py-3 text-sm text-text-tertiary">No rounds.</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
           <tr>
-            <th className="px-4 py-2 text-left">Round</th>
-            <th className="px-4 py-2 text-right">Programs</th>
-            <th className="px-4 py-2 text-right">Seats</th>
-            <th className="px-4 py-2 text-right">Applicants</th>
-            <th className="px-4 py-2 text-right">Passed</th>
-            <th className="px-4 py-2 text-right">Send CH</th>
-            <th className="px-4 py-2 text-right">Confirm CH</th>
-            <th className="px-4 py-2 text-right">Send Reg</th>
-            <th className="px-4 py-2 text-right">Reported in</th>
-            <th className="px-4 py-2 text-right">Reg yield</th>
+            <SortableTh sortKey="round" sort={sort} className="px-4 py-2 text-left">Round</SortableTh>
+            <SortableTh sortKey="programCount" sort={sort} align="right" className="px-4 py-2 text-right">Programs</SortableTh>
+            <SortableTh sortKey="seats" sort={sort} align="right" className="px-4 py-2 text-right">Seats</SortableTh>
+            <SortableTh sortKey="applicants" sort={sort} align="right" className="px-4 py-2 text-right">Applicants</SortableTh>
+            <SortableTh sortKey="passed" sort={sort} align="right" className="px-4 py-2 text-right">Passed</SortableTh>
+            <SortableTh sortKey="sendCh" sort={sort} align="right" className="px-4 py-2 text-right">Send CH</SortableTh>
+            <SortableTh sortKey="confirmCh" sort={sort} align="right" className="px-4 py-2 text-right">Confirm CH</SortableTh>
+            <SortableTh sortKey="sendReg" sort={sort} align="right" className="px-4 py-2 text-right">Send Reg</SortableTh>
+            <SortableTh sortKey="regReported" sort={sort} align="right" className="px-4 py-2 text-right">Reported in</SortableTh>
+            <SortableTh sortKey="regYield" sort={sort} align="right" className="px-4 py-2 text-right">Reg yield</SortableTh>
           </tr>
         </thead>
         <tbody className="divide-y divide-border-subtle">
-          {rows.map((r) => {
+          {sorted.map((r) => {
             const yieldR = r.totals.sendCh > 0 ? r.totals.regReported / r.totals.sendCh : null;
             return (
               <tr key={r.round}>

@@ -20,7 +20,7 @@
 // appears under every program that teaches it.
 
 import * as React from 'react';
-import { Card } from '@kku/ui';
+import { Card, useSortableTable, SortableTh } from '@kku/ui';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, X } from 'lucide-react';
 import {
   CartesianGrid,
@@ -829,6 +829,28 @@ export function TeachingSection({
     );
   }, [selectedInstructor, byProgram]);
 
+  // Drill-panel flat tables — sortable headers.
+  const { sorted: sortedByQuestion, sort: byQuestionSort } = useSortableTable(
+    personal?.byQuestion ?? [],
+    {
+      qid: (q) => q.questionIdRegistrar,
+      question: (q) => q.questionTextEn ?? q.questionTextTh,
+      theme: (q) => (q.themeTag ? THEME_LABELS[q.themeTag] ?? q.themeTag : ''),
+      rating: (q) => q.ratingAvg,
+      n: (q) => q.respondentCount,
+    },
+  );
+  const { sorted: sortedByCourse, sort: byCourseSort } = useSortableTable(
+    personal?.byCourse ?? [],
+    {
+      code: (c) => c.courseCode,
+      name: (c) => c.courseNameTh ?? '',
+      rating: (c) => c.ratingAvg,
+      n: (c) => c.respondentCount,
+      latest: (c) => c.latestYearBE * 10 + c.latestSemester,
+    },
+  );
+
   const drillPanel = selectedInstructorId && personal ? (
     <Card className="p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -945,15 +967,15 @@ export function TeachingSection({
               <table className="min-w-full text-sm">
                 <thead className="bg-surface-1">
                   <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-tertiary">
-                    <th className="px-2 py-1.5">QID</th>
-                    <th className="px-2 py-1.5">Question</th>
-                    <th className="px-2 py-1.5">Theme</th>
-                    <th className="px-2 py-1.5 text-right">Rating</th>
-                    <th className="px-2 py-1.5 text-right">N</th>
+                    <SortableTh sortKey="qid" sort={byQuestionSort} className="px-2 py-1.5">QID</SortableTh>
+                    <SortableTh sortKey="question" sort={byQuestionSort} className="px-2 py-1.5">Question</SortableTh>
+                    <SortableTh sortKey="theme" sort={byQuestionSort} className="px-2 py-1.5">Theme</SortableTh>
+                    <SortableTh sortKey="rating" sort={byQuestionSort} align="right" className="px-2 py-1.5 text-right">Rating</SortableTh>
+                    <SortableTh sortKey="n" sort={byQuestionSort} align="right" className="px-2 py-1.5 text-right">N</SortableTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {personal.byQuestion.map((q) => (
+                  {sortedByQuestion.map((q) => (
                     <tr key={q.questionIdRegistrar} className="border-b border-border-subtle">
                       <td className="px-2 py-1.5 font-mono text-xs">{q.questionIdRegistrar}</td>
                       <td className="px-2 py-1.5 text-xs">
@@ -991,15 +1013,15 @@ export function TeachingSection({
               <table className="min-w-full text-sm">
                 <thead className="bg-surface-1">
                   <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-tertiary">
-                    <th className="px-2 py-1.5">Code</th>
-                    <th className="px-2 py-1.5">Name</th>
-                    <th className="px-2 py-1.5 text-right">Rating</th>
-                    <th className="px-2 py-1.5 text-right">N</th>
-                    <th className="px-2 py-1.5 text-right">Latest</th>
+                    <SortableTh sortKey="code" sort={byCourseSort} className="px-2 py-1.5">Code</SortableTh>
+                    <SortableTh sortKey="name" sort={byCourseSort} className="px-2 py-1.5">Name</SortableTh>
+                    <SortableTh sortKey="rating" sort={byCourseSort} align="right" className="px-2 py-1.5 text-right">Rating</SortableTh>
+                    <SortableTh sortKey="n" sort={byCourseSort} align="right" className="px-2 py-1.5 text-right">N</SortableTh>
+                    <SortableTh sortKey="latest" sort={byCourseSort} align="right" className="px-2 py-1.5 text-right">Latest</SortableTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {personal.byCourse.map((c) => (
+                  {sortedByCourse.map((c) => (
                     <tr key={c.courseCode} className="border-b border-border-subtle">
                       <td className="px-2 py-1.5 font-mono text-xs">{c.courseCode}</td>
                       <td className="px-2 py-1.5 text-xs">{c.courseNameTh ?? '(no name)'}</td>

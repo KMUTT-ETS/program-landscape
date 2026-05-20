@@ -10,7 +10,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Card } from '@kku/ui';
+import { Card, useSortableTable, SortableTh } from '@kku/ui';
 import { MultiSelectField } from '../multi-select';
 import { DrillDownPivot, type DrillRow } from '../drill-down-pivot';
 import type {
@@ -125,6 +125,19 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       for (const y of r.years) if (yearAxis.includes(y.year) && y.papers > m) m = y.papers;
     return m;
   }, [data.heatmap, yearAxis]);
+
+  // Top 30 authors — sortable headers.
+  const { sorted: sortedTopAuthors, sort: topAuthorsSort } = useSortableTable(
+    data.topAuthors ?? [],
+    {
+      author: (a) => authorDisplay(a),
+      faculty: (a) => a.facultyName ?? '',
+      papers: (a) => a.papers,
+      citations: (a) => a.citations,
+      hIndex: (a) => a.hIndex,
+      status: (a) => (a.isActive ? 'Active' : 'Former'),
+    },
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -365,16 +378,16 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
             <thead>
               <tr className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">
                 <th className="px-2 py-1 text-left font-medium">#</th>
-                <th className="px-2 py-1 text-left font-medium">Author</th>
-                <th className="px-2 py-1 text-left font-medium">Faculty</th>
-                <th className="px-2 py-1 text-right font-medium">Papers</th>
-                <th className="px-2 py-1 text-right font-medium">Citations</th>
-                <th className="px-2 py-1 text-right font-medium">h-index</th>
-                <th className="px-2 py-1 text-left font-medium">Status</th>
+                <SortableTh sortKey="author" sort={topAuthorsSort} className="px-2 py-1 text-left font-medium">Author</SortableTh>
+                <SortableTh sortKey="faculty" sort={topAuthorsSort} className="px-2 py-1 text-left font-medium">Faculty</SortableTh>
+                <SortableTh sortKey="papers" sort={topAuthorsSort} align="right" className="px-2 py-1 text-right font-medium">Papers</SortableTh>
+                <SortableTh sortKey="citations" sort={topAuthorsSort} align="right" className="px-2 py-1 text-right font-medium">Citations</SortableTh>
+                <SortableTh sortKey="hIndex" sort={topAuthorsSort} align="right" className="px-2 py-1 text-right font-medium">h-index</SortableTh>
+                <SortableTh sortKey="status" sort={topAuthorsSort} className="px-2 py-1 text-left font-medium">Status</SortableTh>
               </tr>
             </thead>
             <tbody>
-              {data.topAuthors.map((a, i) => (
+              {sortedTopAuthors.map((a, i) => (
                 <tr key={a.fmId} className="border-t border-border-subtle">
                   <td className="px-2 py-1 text-text-tertiary">{i + 1}</td>
                   <td className="px-2 py-1">{authorDisplay(a)}</td>

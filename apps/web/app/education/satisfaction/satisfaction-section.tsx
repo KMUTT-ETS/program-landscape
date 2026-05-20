@@ -16,7 +16,7 @@
 // differentiation in the bulk of the data.
 
 import * as React from 'react';
-import { Card } from '@kku/ui';
+import { Card, useSortableTable, SortableTh } from '@kku/ui';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, X } from 'lucide-react';
 import {
   CartesianGrid,
@@ -682,6 +682,17 @@ export function SatisfactionSection({
   } | null>(null);
   const [courseDetail, setCourseDetail] = React.useState<CourseDetailResult | null>(null);
   const [courseDetailLoading, setCourseDetailLoading] = React.useState(false);
+
+  // Sortable "By question, year over year" table in the course-detail
+  // panel. Flat table (one row per question); year columns are dynamic
+  // and stay plain headers.
+  const byQuestionSort = useSortableTable(courseDetail?.byQuestion ?? [], {
+    questionId: (q) => q.questionIdRegistrar,
+    question: (q) => q.questionTextEnOverride ?? q.questionTextEn ?? q.questionTextTh,
+    theme: (q) => (q.themeTag ? THEME_LABELS[q.themeTag] ?? q.themeTag : ''),
+    overall: (q) => q.ratingAvg,
+    n: (q) => q.respondentCount,
+  });
 
   const openCourse = React.useCallback(
     async (
@@ -1371,11 +1382,11 @@ export function SatisfactionSection({
                   <table className="min-w-full text-sm">
                     <thead className="bg-surface-1">
                       <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-tertiary">
-                        <th className="px-2 py-1.5">QID</th>
-                        <th className="px-2 py-1.5">Question</th>
-                        <th className="px-2 py-1.5">Theme</th>
-                        <th className="px-2 py-1.5 text-right">Overall</th>
-                        <th className="px-2 py-1.5 text-right">N</th>
+                        <SortableTh sortKey="questionId" sort={byQuestionSort.sort} className="px-2 py-1.5">QID</SortableTh>
+                        <SortableTh sortKey="question" sort={byQuestionSort.sort} className="px-2 py-1.5">Question</SortableTh>
+                        <SortableTh sortKey="theme" sort={byQuestionSort.sort} className="px-2 py-1.5">Theme</SortableTh>
+                        <SortableTh sortKey="overall" sort={byQuestionSort.sort} align="right" className="px-2 py-1.5 text-right">Overall</SortableTh>
+                        <SortableTh sortKey="n" sort={byQuestionSort.sort} align="right" className="px-2 py-1.5 text-right">N</SortableTh>
                         {courseDetail.summary.yearsObserved.map((y) => (
                           <th key={y} className="px-2 py-1.5 text-right">
                             BE {y}{' '}
@@ -1387,9 +1398,7 @@ export function SatisfactionSection({
                       </tr>
                     </thead>
                     <tbody>
-                      {courseDetail.byQuestion
-                        .slice()
-                        .sort((a, b) => a.ratingAvg - b.ratingAvg)
+                      {byQuestionSort.sorted
                         .map((q) => (
                           <tr
                             key={q.questionIdRegistrar}
