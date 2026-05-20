@@ -4173,6 +4173,55 @@ model AiModelOverride {
   @@map("ai_model_overrides")
 }
 
+// Catalog of AI models selectable on the admin AI-settings page.
+//
+// Google Gemini rows (source='openrouter') are refreshed daily from the
+// OpenRouter model list (https://openrouter.ai/api/v1/models) — the 2
+// latest flash + 2 latest pro, with OpenRouter's description + pricing.
+// OpenRouter is used ONLY for model discovery; AI calls still route
+// through the Google provider directly (id = OpenRouter id minus the
+// 'google/' prefix).
+//
+// Anthropic rows (source='static') are seeded once and never touched by
+// the refresh — the analyst runs on Claude and needs them as override
+// options.
+//
+// Pricing here is the single source of truth: PrismaAiInferenceRecorder
+// computes AiInference.costEstimateUsd from these per-1M figures,
+// falling back to the provider's static table only when a model is
+// absent from the catalog.
+model AiModelCatalog {
+  /// Provider API model id — what we pass to the Google/Anthropic SDK
+  /// (e.g. 'gemini-3.5-flash', 'claude-sonnet-4-6').
+  id              String   @id
+  provider        String
+  /// 'flash' | 'pro' | 'sonnet' | 'haiku' | 'opus'.
+  tier            String
+  label           String
+  description     String   @db.Text
+  costInputPer1m  Float    @map("cost_input_per_1m")
+  costOutputPer1m Float    @map("cost_output_per_1m")
+  /// 'openrouter' (cron-managed) | 'static' (seeded, never refreshed).
+  source          String
+  /// OpenRouter model id, e.g. 'google/gemini-3.5-flash'. Null for static rows.
+  openrouterId    String?  @map("openrouter_id")
+  /// OpenRouter `created` timestamp — drives "2 latest" ordering.
+  sourceCreatedAt DateTime? @map("source_created_at")
+  contextLength   Int?     @map("context_length")
+  /// Shown in the admin model picker. False = kept for cost lookup only.
+  isSelectable    Boolean  @default(true) @map("is_selectable")
+  /// True when this is NOT the freshest model of its tier (UI badge).
+  legacy          Boolean  @default(false)
+  /// When the row was last written by the refresh / seed.
+  fetchedAt       DateTime @default(now()) @map("fetched_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([source])
+  @@index([isSelectable])
+  @@map("ai_model_catalog")
+}
+
 // Per-hire snapshot from HCMEmployee.EmployeeDetail. Captures every
 // staff member (academic + research + support, no STATUS or
 // position-type filter) who joined KKU within the last 10 years —

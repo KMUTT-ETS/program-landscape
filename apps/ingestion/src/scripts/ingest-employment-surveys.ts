@@ -163,11 +163,9 @@ async function mainInner(_args: string[], pdfs: string[], runId: string): Promis
         {
           ctx: { module: 'outcomes', kind: 'graduate-employment-survey' },
           messages,
-          // All-Pro posture (2026-05-12). The report has 100+ programs
-          // to emit; ~30k output tokens. Pro handles this length cleanly.
-          // (Was previously gemini-2.5-flash for higher effective output
-          // budget vs flash-preview; Pro supersedes both.)
-          model: 'gemini-3.1-pro-preview',
+          // Uses the universal default (gemini-3.5-flash). Large report
+          // — 100+ programs, ~30k output tokens — so maxOutputTokens is
+          // set generously below.
           methodVersion: GRADUATE_EMPLOYMENT_SURVEY_VERSION,
           maxOutputTokens: 32_000,
           fileAttachment: { fileUri: uploaded.fileUri, mimeType: 'application/pdf' },

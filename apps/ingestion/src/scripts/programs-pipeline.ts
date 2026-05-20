@@ -91,7 +91,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { spawn } from 'node:child_process';
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
+import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runProgramCoursesExtract } from '../program-courses-extract/run';
@@ -625,6 +625,10 @@ async function main(): Promise<void> {
       anthropic: process.env.ANTHROPIC_API_KEY,
       openrouter: process.env.OPENROUTER_API_KEY,
     },
+    // Honour per-method model overrides set on the admin AI-settings
+    // page. Without this the spawned pipeline ignores overrides and
+    // every phase runs on DEFAULT_COMPLETION_MODEL only.
+    modelOverrideResolver: getAiModelOverrideStore(),
   });
   const storage = new S3Storage({
     endpoint: process.env.MINIO_ENDPOINT ?? '',

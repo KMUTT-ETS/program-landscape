@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Badge,
   Button,
@@ -11,8 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@kku/ui';
-import { Check, Cog, RotateCcw, Sparkles } from 'lucide-react';
-import { clearAiModelOverrideAction, setAiModelOverrideAction } from '@/lib/actions/ai-settings';
+import { Check, Cog, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  clearAiModelOverrideAction,
+  refreshAiModelsAction,
+  setAiModelOverrideAction,
+} from '@/lib/actions/ai-settings';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mirror of apps/api/src/admin/ai-settings.service.ts.
@@ -48,11 +54,18 @@ export interface AiSettingsModel {
   costInputPer1m: number;
   costOutputPer1m: number;
   legacy?: boolean;
+  /** 'openrouter' (Gemini, cron-refreshed) | 'static' (Anthropic, seeded). */
+  source?: string;
 }
 
 export interface AiSettingsResponse {
   methods: AiSettingsMethodRow[];
   models: AiSettingsModel[];
+  modelCatalog: {
+    lastFetchedAt: string | null;
+    openrouterCount: number;
+    staticCount: number;
+  };
 }
 
 const MODULE_LABELS: Record<string, string> = {
@@ -92,6 +105,29 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
   const [editing, setEditing] = useState<AiSettingsMethodRow | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
+
+  async function refreshModels() {
+    setRefreshing(true);
+    try {
+      const res = await refreshAiModelsAction();
+      if (!res.ok) {
+        toast.error(`Model refresh failed: ${res.message}`);
+        return;
+      }
+      if (res.warning) {
+        toast.warning('OpenRouter unavailable — kept the existing model catalog.');
+      } else {
+        toast.success(
+          `Refreshed ${res.count} Gemini model${res.count === 1 ? '' : 's'} from OpenRouter.`,
+        );
+      }
+      router.refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const grouped = useMemo(() => {
     const byModule = new Map<string, AiSettingsMethodRow[]>();
@@ -184,6 +220,35 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
           {error}
         </div>
       ) : null}
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-text-tertiary">Model catalog</div>
+            <div className="mt-1 text-sm">
+              {data.modelCatalog.openrouterCount} Google Gemini model
+              {data.modelCatalog.openrouterCount === 1 ? '' : 's'} discovered from OpenRouter
+              {' · '}
+              {data.models.length} selectable in total
+            </div>
+            <div className="mt-0.5 text-xs text-text-tertiary">
+              {data.modelCatalog.lastFetchedAt
+                ? `Gemini list last refreshed ${timeAgo(data.modelCatalog.lastFetchedAt)}`
+                : 'Gemini list not yet refreshed'}
+              {' · auto-refreshes daily · OpenRouter is used for discovery only, not for routing AI calls'}
+            </div>
+          </div>
+          <Button
+            onClick={() => void refreshModels()}
+            disabled={refreshing}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+            {refreshing ? 'Refreshing…' : 'Refresh from OpenRouter'}
+          </Button>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard label="Active overrides" value={String(totals.overrides)} sub={`of ${data.methods.length} methods`} />
@@ -326,6 +391,17 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
       </Dialog>
     </div>
   );
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return 'unknown';
+  const min = Math.round(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h ago`;
+  return `${Math.round(h / 24)} d ago`;
 }
 
 function SummaryCard({ label, value, sub }: { label: string; value: string; sub: string }) {

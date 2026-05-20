@@ -1,13 +1,24 @@
 import type { AiInferenceRecorder, InferenceRecord } from '@kku/shared';
 import { prisma } from './index';
+import { getAiModelPricingStore } from './ai-model-catalog';
 
 // Prisma-backed AiInferenceRecorder. Providers in @kku/shared write via
 // this so every LLM call leaves an audit trail. Lives in @kku/db to
 // avoid a @kku/shared → @kku/db cycle; @kku/db already depends on
 // @kku/shared for types.
+//
+// Cost: the persisted costEstimateUsd is computed from the ai_model_catalog
+// pricing (the single source of truth — kept fresh by the daily OpenRouter
+// refresh). The provider-supplied estimate is only a fallback for a model
+// that isn't in the catalog.
 
 export class PrismaAiInferenceRecorder implements AiInferenceRecorder {
   async record(r: InferenceRecord): Promise<{ id: string }> {
+    const catalogCost = getAiModelPricingStore().estimateUsd(
+      r.model,
+      r.tokensInput ?? 0,
+      r.tokensOutput ?? 0,
+    );
     const row = await prisma.aiInference.create({
       data: {
         userId: r.userId ?? null,
@@ -22,7 +33,7 @@ export class PrismaAiInferenceRecorder implements AiInferenceRecorder {
         tokensInput: r.tokensInput,
         tokensOutput: r.tokensOutput,
         latencyMs: r.latencyMs,
-        costEstimateUsd: r.costEstimateUsd,
+        costEstimateUsd: catalogCost ?? r.costEstimateUsd,
       },
       select: { id: true },
     });

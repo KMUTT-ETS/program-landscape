@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { Logger } from '@nestjs/common';
-import { Prisma, prisma } from '@kku/db';
+import { Prisma, prisma, refreshAiModelCatalog } from '@kku/db';
 import {
   COURSE_SKILL_EXTRACTION_VERSION,
   CourseSkillExtractionSchema,
@@ -498,6 +498,25 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         status: 'FAILED',
         message: `link-class-offerings exited with code ${exitCode}; log=${logPath}`,
       };
+    },
+
+    // Re-fetch the Google Gemini model list from OpenRouter (discovery
+    // only — model name + description + pricing). Runs daily via a
+    // repeatable; a fetch failure leaves the last-known-good catalog.
+    REFRESH_MODEL_CATALOG: async () => {
+      const result = await refreshAiModelCatalog();
+      if (result.ok) {
+        logger.log(
+          `REFRESH_MODEL_CATALOG refreshed ${result.count} model(s): ` +
+            result.models.map((m) => m.id).join(', '),
+        );
+        return { status: 'SUCCEEDED', message: `${result.count} models refreshed` };
+      }
+      // Non-fatal — the existing catalog is untouched, so the app keeps
+      // working on the last-known-good list. SKIPPED, not FAILED, so a
+      // transient OpenRouter outage doesn't churn BullMQ retries.
+      logger.warn(`REFRESH_MODEL_CATALOG skipped: ${result.error}`);
+      return { status: 'SKIPPED', message: result.error ?? 'refresh failed' };
     },
   };
 }

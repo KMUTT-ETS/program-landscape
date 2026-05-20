@@ -31,7 +31,11 @@ export type AiJobKind =
   // grade-distribution columns + precomputed class_gpa. Spawns the
   // bundled link-class-offerings script with --apply. `entityId` is an
   // unused sentinel (the refresh is portfolio-wide, not per-program).
-  | 'RUN_CLASS_OFFERINGS_LINK';
+  | 'RUN_CLASS_OFFERINGS_LINK'
+  // Re-fetch the Google Gemini model catalog from OpenRouter (model
+  // name + description + pricing only — discovery, not routing).
+  // Registered as a daily repeatable; `entityId` is an unused sentinel.
+  | 'REFRESH_MODEL_CATALOG';
 
 // Pipeline phases. Mirrors the API-side definition in
 // apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { z } from 'zod';
 import { AuditLog, AuthSession, Authorized, Provenance, ZodValidationPipe } from '../common';
 import type { SessionUser } from '@kku/shared';
@@ -14,7 +14,10 @@ import { AiSettingsService } from './ai-settings.service';
 // DELETE /admin/ai-settings/method/:prefix — clear the override (fall
 // back to MODEL_BY_METHOD_PREFIX / provider default).
 //
-// All three gated by `ai_models:configure` (super-admin only).
+// POST /admin/ai-settings/refresh-models — re-fetch the Google Gemini
+// model list from OpenRouter (manual trigger; also runs daily via cron).
+//
+// All four gated by `ai_models:configure` (super-admin only).
 // ─────────────────────────────────────────────────────────────────────────
 
 const SetOverrideSchema = z.object({
@@ -49,5 +52,12 @@ export class AiSettingsController {
   @AuditLog({ action: 'ai_model_override.clear', entityType: 'AiModelOverride' })
   async clearOverride(@Param('prefix') prefix: string) {
     return this.service.clearOverride(prefix);
+  }
+
+  @Post('/refresh-models')
+  @Authorized('ai_models:configure')
+  @AuditLog({ action: 'ai_model_catalog.refresh', entityType: 'AiModelCatalog' })
+  async refreshModels() {
+    return this.service.refreshModels();
   }
 }

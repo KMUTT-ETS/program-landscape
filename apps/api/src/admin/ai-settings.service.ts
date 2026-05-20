@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { getAiModelOverrideStore, prisma } from '@kku/db';
 import {
-  AI_METHOD_CATALOG,
-  AVAILABLE_AI_MODELS,
-  findAiMethodEntry,
-  findAiModelEntry,
-  type AiMethodEntry,
-} from '@kku/shared';
+  getAiModelOverrideStore,
+  prisma,
+  listSelectableModels,
+  findCatalogModel,
+  getModelCatalogStatus,
+  refreshAiModelCatalog,
+} from '@kku/db';
+import { AI_METHOD_CATALOG, findAiMethodEntry, type AiMethodEntry } from '@kku/shared';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Admin AI-settings service — read the method catalog joined with current
@@ -36,9 +37,34 @@ export interface MethodSettingRow {
   thirtyDayCalls: number;
 }
 
+/** A model the admin can pick — sourced from the ai_model_catalog table
+ *  (Gemini rows refreshed daily from OpenRouter; Anthropic rows static). */
+export interface ModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  tier: string;
+  description: string;
+  costInputPer1m: number;
+  costOutputPer1m: number;
+  legacy: boolean;
+  source: string;
+}
+
+export interface AiSettingsListResult {
+  methods: MethodSettingRow[];
+  models: ModelOption[];
+  /** Freshness of the OpenRouter-sourced model rows. */
+  modelCatalog: {
+    lastFetchedAt: string | null;
+    openrouterCount: number;
+    staticCount: number;
+  };
+}
+
 @Injectable()
 export class AiSettingsService {
-  async list(): Promise<{ methods: MethodSettingRow[]; models: typeof AVAILABLE_AI_MODELS }> {
+  async list(): Promise<AiSettingsListResult> {
     const overrides = await prisma.aiModelOverride.findMany({
       include: { setBy: { select: { id: true, name: true, email: true } } },
     });
@@ -90,13 +116,57 @@ export class AiSettingsService {
       };
     });
 
-    return { methods, models: AVAILABLE_AI_MODELS };
+    const [catalog, catalogStatus] = await Promise.all([
+      listSelectableModels(),
+      getModelCatalogStatus(),
+    ]);
+    const models: ModelOption[] = catalog.map((m) => ({
+      id: m.id,
+      label: m.label,
+      provider: m.provider,
+      tier: m.tier,
+      description: m.description,
+      costInputPer1m: m.costInputPer1m,
+      costOutputPer1m: m.costOutputPer1m,
+      legacy: m.legacy,
+      source: m.source,
+    }));
+
+    return {
+      methods,
+      models,
+      modelCatalog: {
+        lastFetchedAt: catalogStatus.lastFetchedAt?.toISOString() ?? null,
+        openrouterCount: catalogStatus.openrouterCount,
+        staticCount: catalogStatus.staticCount,
+      },
+    };
+  }
+
+  /** Refresh the Google Gemini model rows from OpenRouter (manual button
+   *  on the AI-settings page; also runs daily via the ingestion cron). */
+  async refreshModels(): Promise<{
+    ok: boolean;
+    count: number;
+    error?: string;
+    refreshedModels: { id: string; tier: string; label: string }[];
+    lastFetchedAt: string | null;
+  }> {
+    const result = await refreshAiModelCatalog();
+    const status = await getModelCatalogStatus();
+    return {
+      ok: result.ok,
+      count: result.count,
+      error: result.error,
+      refreshedModels: result.models,
+      lastFetchedAt: status.lastFetchedAt?.toISOString() ?? null,
+    };
   }
 
   async setOverride(methodPrefix: string, modelId: string, userId: string): Promise<MethodSettingRow> {
     const entry = findAiMethodEntry(methodPrefix);
     if (!entry) throw new NotFoundException(`Unknown method prefix: ${methodPrefix}`);
-    const model = findAiModelEntry(modelId);
+    const model = await findCatalogModel(modelId);
     if (!model) throw new BadRequestException(`Unknown model id: ${modelId}`);
 
     await prisma.aiModelOverride.upsert({

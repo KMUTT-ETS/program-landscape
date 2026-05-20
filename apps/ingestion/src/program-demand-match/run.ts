@@ -182,20 +182,14 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       },
       messages,
       methodVersion: DEMAND_MATCH_VERSION,
-      // Pin (now redundant with the all-Pro default in google-ai.ts,
-      // kept as documentation). Model history:
-      //   gemini-3-flash-preview  — truncated at ~470 output tokens once
-      //     the v2 schema (relevantToCurriculum) + discipline-relevance
-      //     prompt rules grew the expected response shape.
-      //   gemini-flash-latest     — still occasionally truncated at ~463
-      //     output tokens despite maxOutputTokens=12000 (observed on
-      //     KKU-SEQ-0062, 2026-05-12 — two consecutive retries lost the
-      //     same way; both responses ended mid-JSON, conf=0).
-      //   gemini-3.1-pro-preview  — CURRENT DEFAULT. Long structured
-      //     output is in Pro's wheelhouse. Verified end-to-end on
-      //     KKU-SEQ-0062: 3,774 output tokens, conf 0.90, 30/30
-      //     demanded skills matched cleanly.
-      model: params.modelOverride ?? 'gemini-3.1-pro-preview',
+      // Uses the universal default (gemini-3.5-flash) unless the caller
+      // passes an explicit modelOverride. Historical note: the older
+      // gemini-3-flash-preview / gemini-flash-latest models truncated
+      // this prompt mid-JSON at ~460-470 output tokens, which is why it
+      // ran on Pro from 2026-05-12; gemini-3.5-flash is a premium Flash
+      // tier that should not share that failure mode — worth a smoke
+      // run, and pin via the admin AI-settings page if it regresses.
+      model: params.modelOverride,
       // Bumped 12000 → 50000 on 2026-05-13 — see program-digest/run.ts.
       maxOutputTokens: 50000,
     },

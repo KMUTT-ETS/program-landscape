@@ -330,12 +330,10 @@ export class CurriculumAiExtractor implements PdfExtractor {
             },
           ],
           methodVersion: this.methodVersion,
-          // gemini-3-flash-preview handles Thai tone-mark restoration best
-          // in tests against มคอ.2 PDFs. Override via AI_CURRICULUM_MODEL
-          // (e.g. 'gemini-2.5-flash-lite' for a cheaper run if diacritics
-          // aren't critical).
-          model:
-            process.env.AI_CURRICULUM_MODEL ?? 'gemini-3-flash-preview',
+          // Uses the universal default (gemini-3.5-flash) unless
+          // AI_CURRICULUM_MODEL is set — e.g. to pin a cheaper or
+          // alternative model for a specific run.
+          model: process.env.AI_CURRICULUM_MODEL || undefined,
           // Bumped 8192 → 50000 on 2026-05-13 — see program-digest/run.ts.
           // "Thinking" eats budget; the previous 8k cap occasionally
           // truncated full curriculum JSON.

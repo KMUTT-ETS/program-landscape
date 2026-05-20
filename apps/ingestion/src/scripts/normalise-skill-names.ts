@@ -183,12 +183,9 @@ async function processBatch(
         },
         messages,
         methodVersion: SKILL_NAME_NORMALISER_VERSION,
-        // All-Pro posture (2026-05-12). Each decision ≈ 100-200 tokens.
-        // For batch_size=25 worst-case ~5000 output tokens; bumped to
-        // 50000 on 2026-05-13 to share the heavy-extractor ceiling.
-        // Pro thinking is verbose enough to occasionally hit the prior
-        // 16k cap on AMBIGUOUS-heavy batches.
-        model: 'gemini-3.1-pro-preview',
+        // Uses the universal default (gemini-3.5-flash). Each decision
+        // ≈ 100-200 tokens; for batch_size=25 worst-case ~5000 output
+        // tokens — maxOutputTokens set generously below.
         maxOutputTokens: 50000,
       },
       SkillNormaliserBatchSchema,

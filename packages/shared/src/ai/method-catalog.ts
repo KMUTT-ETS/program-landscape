@@ -56,7 +56,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Single-shot extraction of program metadata, courses, skills, and recruitment summary from curriculum PDF.',
     module: 'pipeline',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-faculty',
@@ -65,7 +65,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Pulls academic staff roster from curriculum PDF (names, ranks, ORCID, areas).',
     module: 'pipeline',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-skills-detailed',
@@ -74,7 +74,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Per-course skill extraction with weight + verbatim evidence quote per skill.',
     module: 'pipeline',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-peer-review',
@@ -83,7 +83,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Frank cross-program critique against peer institutions; curriculum modernity verdict.',
     module: 'pipeline',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-peer-selection',
@@ -92,7 +92,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Picks the 5 most-comparable peer programs from a candidate set.',
     module: 'pipeline',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-strategic-narrative',
@@ -101,7 +101,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Council-grade strategic brief — official Thai format with disciplined drafting.',
     module: 'pipeline',
     tier: 'narrative',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-ai-readiness',
@@ -110,7 +110,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Discipline-aware AI-readiness assessment + Shao et al. 2025 HAS / four-zone framework (per-discipline rubric grounded in worker preference + AI capability, not generic keyword count).',
     module: 'pipeline',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-pedagogy',
@@ -119,7 +119,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Reads PDF teaching/learning/QA narrative and scores against discipline best practice (PBL, internship, clinical, etc.).',
     module: 'pipeline',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'risk-assessment',
@@ -128,7 +128,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Per-program risk indicators + recommended mitigation measures.',
     module: 'pipeline',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
 
   // ── Cross-module AI surfaces ─────────────────────────────────────────
@@ -139,7 +139,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Strategic top-5 / per-program skills / sector brief — three modes.',
     module: 'gap',
     tier: 'narrative',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'scenario-insights',
@@ -148,7 +148,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: '5 modes: suggest-assumptions / identify-risks / compare / devils-advocate / what-would-change.',
     module: 'scenarios',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'benchmarking-insights',
@@ -157,7 +157,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: '4 modes: suggest-peers / curriculum-gap / distinctiveness / positioning-brief.',
     module: 'benchmarking',
     tier: 'narrative',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'outcome-review',
@@ -166,7 +166,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'AI-generated post-decision outcome review (6mo / 1yr / 3yr horizons).',
     module: 'decisions',
     tier: 'reasoning',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
 
   // ── Ingestion / classification (lighter workload) ────────────────────
@@ -177,7 +177,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Maps a course description to its taxonomy skills (ai-jobs queue).',
     module: 'ingestion',
     tier: 'classification',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'job-posting-skills',
@@ -186,7 +186,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Maps a job posting to its taxonomy skills (labour-market path).',
     module: 'ingestion',
     tier: 'classification',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'policy-doc',
@@ -195,7 +195,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Extracts narrative + topic tags + sector relevance from policy PDFs.',
     module: 'ingestion',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'pdf-classify',
@@ -204,7 +204,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Reads the first ~3 pages of an uploaded PDF and picks sourceCategory + language + confidence. Replaces the prior stub that silently dropped uploads into OTHER.',
     module: 'ingestion',
     tier: 'classification',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'skill-name-normaliser',
@@ -213,7 +213,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Resolves free-text skill names to the canonical taxonomy (low-stakes classification).',
     module: 'ingestion',
     tier: 'classification',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'demand-match',
@@ -222,7 +222,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Cross-references labour-market demand strings against the KKU skill taxonomy.',
     module: 'ingestion',
     tier: 'classification',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'career-kmitl-mapping',
@@ -231,7 +231,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Maps KMITL skill-mapping careers to ISCO-08 + program affinity.',
     module: 'ingestion',
     tier: 'classification',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'imd-rankings',
@@ -240,7 +240,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Extracts country ranking rows from the annual IMD World Competitiveness PDF.',
     module: 'ingestion',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'graduate-employment-survey',
@@ -249,7 +249,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Extracts structured outcomes from KKU graduate-employment-survey PDFs.',
     module: 'ingestion',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
 
   // ── External AI search & synthesis (Phase 5) ─────────────────────────
@@ -260,7 +260,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Distils a fetched URL or search result into a TrendSignal payload (Phase-5 admin source catalog).',
     module: 'ingestion',
     tier: 'narrative',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
 
   // ── Profile / analyst ────────────────────────────────────────────────
@@ -271,7 +271,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Per-user expertise blurb from education + publication titles (profile page).',
     module: 'profile',
     tier: 'narrative',
-    defaultModel: 'gemini-3.1-pro-preview',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'analyst-system',
@@ -313,7 +313,7 @@ export const AVAILABLE_AI_MODELS: AiModelEntry[] = [
     label: 'Gemini 3.1 Pro (preview)',
     provider: 'google',
     tier: 'pro',
-    description: 'Default Pro tier — best reasoning, slowest, ~$1.25/$10 per 1M tokens. Required for peer-review + strategic narrative.',
+    description: 'Pro tier — strongest reasoning, slowest, ~$1.25/$10 per 1M tokens. Pin per-method here for a high-stakes prompt that warrants Pro over the gemini-3.5-flash default.',
     costInputPer1m: 1.25,
     costOutputPer1m: 10,
   },
@@ -325,6 +325,15 @@ export const AVAILABLE_AI_MODELS: AiModelEntry[] = [
     description: 'Pro tier with stable thoughtSignature support — preferred for analyst tool-use loops.',
     costInputPer1m: 1.25,
     costOutputPer1m: 10,
+  },
+  {
+    id: 'gemini-3.5-flash',
+    label: 'Gemini 3.5 Flash',
+    provider: 'google',
+    tier: 'flash',
+    description: 'Universal default for every method — premium Flash tier, fast, strong structured output, low truncation risk. Priced well above legacy Flash (~$1.50/$9.00 per 1M tokens), close to Pro.',
+    costInputPer1m: 1.5,
+    costOutputPer1m: 9,
   },
   {
     id: 'gemini-2.5-flash',

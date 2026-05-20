@@ -26,36 +26,35 @@ import { scrubMessages } from '../scrub-messages';
 //   - flash-lite tier is cost-effective for extractor pipelines
 //   - embedding model (text-embedding-004) is multilingual
 //
-// Model choice per call (defaults — callers can override):
-//   extractStructured → 'gemini-3-flash-preview' (best Thai tone-mark
-//                       restoration in tests against มคอ.2 PDFs)
-//   complete/analysis  → 'gemini-3-flash-preview' (or override per call)
-//   vision             → 'gemini-3-flash-preview'
-//   embed              → 'text-embedding-004' (1536 dims — matches pgvector)
-//
-// Note: 2.0-flash was deprecated in 2026; 2.5-flash is GA; 3-flash-preview
-// is the current best for Thai structured extraction.
+// Model choice per call. Resolution order (see pickModelForMethod):
+//   1. explicit `model:` on the request   (highest priority)
+//   2. per-method admin override          (ai_model_overrides table)
+//   3. static MODEL_BY_METHOD_PREFIX       (empty since 2026-05-20)
+//   4. DEFAULT_COMPLETION_MODEL            (provider default)
+//   embed always → 'text-embedding-004' (1536 dims — matches pgvector)
 
-// All-Pro posture (2026-05-12). Flash defaults retired after observing:
-//   - gemini-3-flash-preview truncating program-digest at ~470 output
-//     tokens once the v2 schemas grew (mostly self-recovered on retry).
-//   - gemini-flash-latest truncating demand-match at ~463 output tokens
-//     deterministically (KKU-SEQ-0062, two consecutive retries lost).
-// Quality > cost at this volume (≤297 programs, single-tenant Council
-// app). ~5× per-token cost vs Flash but the bulk-run reliability tax
-// (manual operator retries on every truncation) is gone.
-// Flash escapes still exist on a per-call basis via `model:` overrides
-// — useful for cost-comparison experiments or if Pro itself hits a
-// regression and we need a quick fallback.
-const DEFAULT_COMPLETION_MODEL = 'gemini-3.1-pro-preview';
+// Universal default (2026-05-20). gemini-3.5-flash is the default for
+// every Gemini call — extraction, narrative, and reasoning alike —
+// superseding the all-Pro posture of 2026-05-12. 3.5 Flash is a premium
+// Flash tier (priced near Pro) and does not exhibit the mid-JSON
+// truncation that drove the earlier retreat off gemini-3-flash-preview /
+// gemini-flash-latest. Pin a specific prompt back to Pro per-method on
+// the admin AI-settings page if a regression ever warrants it.
+const DEFAULT_COMPLETION_MODEL = 'gemini-3.5-flash';
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
 
-// Per-1k-token prices in USD. Approximate + conservative — used for cost
-// audit only, not billing. Update when Google bumps pricing.
+// Per-1k-token prices in USD — FALLBACK ONLY. The authoritative cost
+// figures now live in the ai_model_catalog table (refreshed daily from
+// OpenRouter); PrismaAiInferenceRecorder computes costEstimateUsd from
+// there and only falls back to this table for a model absent from the
+// catalog. Update when Google bumps pricing.
 const PRICING: Record<string, { input: number; output: number }> = {
   // Flash tier — extraction tasks (digest, faculty, skills, careers,
   // demand-match, skill-normaliser).
   'gemini-3-flash-preview':   { input: 0.00030,  output: 0.00250 },
+  // gemini-3.5-flash — premium Flash tier, priced near Pro. Universal
+  // default since 2026-05-20.
+  'gemini-3.5-flash':         { input: 0.00150,  output: 0.00900 },
   'gemini-2.5-flash':         { input: 0.00030,  output: 0.00250 },
   'gemini-2.5-flash-lite':    { input: 0.00010,  output: 0.00040 },
   'gemini-flash-latest':      { input: 0.00030,  output: 0.00250 },
@@ -68,28 +67,16 @@ const PRICING: Record<string, { input: number; output: number }> = {
   'text-embedding-004':       { input: 0.00001,  output: 0 },
 };
 
-// Per-task model assignment — single source of truth so callers can
-// just pass `methodVersion` and we pick the right tier. Override per
-// call by passing an explicit `model` on the request.
-//
-// Since the 2026-05-12 all-Pro switch the default IS Pro, so every
-// entry below is currently a no-op (matches resolve to the same model
-// as the fallback). Kept as documentation of which methods we'd want
-// to stay on Pro first if we ever re-introduce a Flash default.
-const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [
-  // Pro tier — frank comparative review + curriculum modernity verdict.
-  { prefix: 'program-peer-review',          model: 'gemini-3.1-pro-preview' },
-  // Pro tier — picking peers from a candidate set is a reasoning task.
-  { prefix: 'program-peer-selection',       model: 'gemini-3.1-pro-preview' },
-  // Pro tier — official-format Council brief; reasoning + concise drafting.
-  { prefix: 'program-strategic-narrative',  model: 'gemini-3.1-pro-preview' },
-  // Pro tier — discipline-aware AI readiness reasoning (replaces the
-  // generic v1 keyword classifier with grounded per-discipline guidance).
-  { prefix: 'program-ai-readiness',         model: 'gemini-3.1-pro-preview' },
-  // Pro tier — discipline-fit pedagogy assessment (reads PDF teaching/
-  // learning/QA against discipline best practice).
-  { prefix: 'program-pedagogy',             model: 'gemini-3.1-pro-preview' },
-];
+// Static per-method-prefix model assignment — a fallback layer consulted
+// AFTER runtime admin overrides (ai_model_overrides) but BEFORE the
+// provider default. Empty since the 2026-05-20 universal-flash switch:
+// every method resolves to DEFAULT_COMPLETION_MODEL unless an admin pins
+// a different model on the AI-settings page. The prior Pro-tier pins
+// (program-peer-review / -peer-selection / -strategic-narrative /
+// -ai-readiness / -pedagogy) are in git history — re-add an entry here
+// only for a hard, non-admin-overridable pin; the admin override is the
+// supported per-method mechanism.
+const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [];
 
 function pickModelForMethod(
   methodVersion: string | undefined,

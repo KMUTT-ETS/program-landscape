@@ -22,7 +22,8 @@ export type AiJobKind =
   | 'RUN_PROGRAM_DIGEST'
   | 'RUN_PROGRAM_PIPELINE'
   | 'RUN_IMD_RANKINGS_EXTRACT'
-  | 'RUN_CLASS_OFFERINGS_LINK';
+  | 'RUN_CLASS_OFFERINGS_LINK'
+  | 'REFRESH_MODEL_CATALOG';
 
 /**
  * Pipeline phases. Mirrors apps/ingestion/src/scripts/programs-pipeline.ts:

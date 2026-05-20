@@ -146,6 +146,28 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.aiJobsWorker = createAiJobsWorker(aiJobsQueueConfig, aiHandlers);
     this.aiJobsEvents = createAiJobsEvents(aiJobsQueueConfig);
 
+    // Daily AI-model-catalog refresh from OpenRouter (discovery only).
+    // Clears any prior repeatable first so a MODEL_CATALOG_REFRESH_CRON
+    // edit takes effect on the next bounce. A one-off job fires at boot
+    // so a fresh deploy has a current catalog without waiting a day.
+    const modelCatalogCron = this.config.get<string>('MODEL_CATALOG_REFRESH_CRON') ?? '15 3 * * *';
+    for (const rep of await this.aiJobsQueue.getRepeatableJobs()) {
+      if (rep.name === 'refresh-model-catalog') {
+        await this.aiJobsQueue.removeRepeatableByKey(rep.key);
+      }
+    }
+    await this.aiJobsQueue.add(
+      'refresh-model-catalog',
+      { kind: 'REFRESH_MODEL_CATALOG', entityId: '_model_catalog', trigger: 'SCHEDULED' },
+      { repeat: { pattern: modelCatalogCron } },
+    );
+    await this.aiJobsQueue.add(
+      'refresh-model-catalog',
+      { kind: 'REFRESH_MODEL_CATALOG', entityId: '_model_catalog', trigger: 'SCHEDULED' },
+      { removeOnComplete: true },
+    );
+    this.logger.log(`model-catalog refresh scheduled @ ${modelCatalogCron} + one boot run`);
+
     const pipeline = new PdfIntakePipeline({
       // Gemini-backed PDF classifier (pdf-classify.v1). Falls back to
       // StubClassifier automatically when no AI provider is configured.

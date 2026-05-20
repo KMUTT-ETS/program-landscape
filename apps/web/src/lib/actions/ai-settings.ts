@@ -32,3 +32,29 @@ export async function clearAiModelOverrideAction(
     return { ok: false, message: (e as Error).message };
   }
 }
+
+// Re-fetch the Google Gemini model list from OpenRouter (discovery only —
+// model name, description, pricing). `ok:true` with a `warning` means
+// OpenRouter was unreachable but the existing catalog is intact.
+export async function refreshAiModelsAction(): Promise<
+  | { ok: true; count: number; lastFetchedAt: string | null; warning?: string }
+  | { ok: false; message: string }
+> {
+  try {
+    const res = await apiFetch<{
+      ok: boolean;
+      count: number;
+      error?: string;
+      lastFetchedAt: string | null;
+    }>('/admin/ai-settings/refresh-models', { method: 'POST' });
+    revalidatePath('/admin/app/ai-settings');
+    return {
+      ok: true,
+      count: res.count,
+      lastFetchedAt: res.lastFetchedAt,
+      warning: res.ok ? undefined : res.error,
+    };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
