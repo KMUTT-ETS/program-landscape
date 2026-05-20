@@ -16,7 +16,7 @@
 #   8. compose up -d       (start containers)
 #   9. wait for health     (all services healthy, up to 3 minutes)
 #  10. smoke test          (hit /healthz + /api/v1/ready)
-#  11. prune old releases  (keep last 5)
+#  11. prune old builds   (release dirs + images, keep last 3)
 
 set -euo pipefail
 
@@ -225,19 +225,40 @@ if [ -x "$CURRENT_LINK/scripts/smoke-test.sh" ]; then
   sudo "$CURRENT_LINK/scripts/smoke-test.sh" || fail "smoke test failed — consider ./scripts/rollback.sh"
 fi
 
-# ── 11. Prune old releases ────────────────────────────────────────────
-log "Pruning old releases (keeping last 5)"
-# ls -1t sorts by mtime descending. Keep top 5, delete the rest.
+# ── 11. Prune old builds — release dirs + images (keep last N) ───────
+# Override the retention count with KEEP_BUILDS=<n>. Dev applies the
+# same N in scripts/build-release.ts.
+KEEP_BUILDS="${KEEP_BUILDS:-3}"
+
+log "Pruning old release dirs (keeping last $KEEP_BUILDS)"
+# ls -1t sorts by mtime descending. Keep the newest $KEEP_BUILDS; never
+# delete the version we just deployed (it is the new `current`).
 (
   cd "$RELEASES_DIR"
-  ls -1t | tail -n +6 | while read -r old; do
-    if [ "$old" != "$(basename "$CURRENT_LINK" 2>/dev/null || true)" ]; then
-      sudo rm -rf -- "$RELEASES_DIR/$old"
-    fi
+  ls -1t | tail -n +"$((KEEP_BUILDS + 1))" | while read -r old; do
+    [ "$old" = "$VERSION" ] && continue
+    sudo rm -rf -- "$RELEASES_DIR/$old"
+    log "  removed release dir $old"
   done
 ) || true
 
-# ── Dangling image cleanup ───────────────────────────────────────────
+# Old build images: keep the newest $KEEP_BUILDS versions. `docker load`
+# preserves each image's original build time, so CreatedAt order = build
+# order; the just-deployed $VERSION is newest and always kept. `rmi` of
+# an image still backing a container fails harmlessly (|| true).
+IMG_REF="ghcr.io/khon-kaen-university/program-landscape-*"
+log "Pruning old build images (keeping last $KEEP_BUILDS versions)"
+sudo docker images --filter=reference="$IMG_REF" --format '{{.CreatedAt}}|{{.Tag}}' \
+  | sort -r | awk -F'|' '!seen[$2]++ {print $2}' | tail -n +"$((KEEP_BUILDS + 1))" \
+  | while read -r ver; do
+      { [ -n "$ver" ] && [ "$ver" != "$VERSION" ]; } || continue
+      sudo docker images --filter=reference="ghcr.io/khon-kaen-university/program-landscape-*:$ver" \
+        --format '{{.Repository}}:{{.Tag}}' \
+        | while read -r img; do sudo docker rmi "$img" >/dev/null 2>&1 || true; done
+      log "  removed images for v$ver"
+    done || true
+
+# Dangling (untagged) layers left behind by the image prune + docker load.
 sudo docker image prune -f >/dev/null || true
 
 log "=== Deployment complete: v${VERSION} ==="

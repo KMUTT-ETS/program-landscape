@@ -145,7 +145,7 @@ cd program-landscape-1.0.0
 7. `docker compose up -d` the new stack.
 8. Waits up to 3 minutes for every container to report healthy.
 9. Runs `scripts/smoke-test.sh`.
-10. Prunes old releases (keeps last 5).
+10. Prunes old builds — release dirs + tagged images (keeps last 3; override with `KEEP_BUILDS`).
 
 Total deploy time: 3–6 minutes for a zero-migration release; 5–10 minutes when migrations run.
 

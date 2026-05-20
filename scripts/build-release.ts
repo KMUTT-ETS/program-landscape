@@ -33,8 +33,10 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -42,6 +44,11 @@ import path from 'node:path';
 const REPO_ROOT = path.resolve(__dirname, '..');
 const ORG = 'khon-kaen-university';
 const REPO = 'program-landscape';
+
+// Retention: keep only the last N builds' artefacts on the dev box —
+// release tarballs, staging dirs, and tagged docker images. Override
+// with KEEP_BUILDS=<n>. Prod applies the same N in scripts/deploy.sh.
+const KEEP_BUILDS = Number(process.env.KEEP_BUILDS) || 3;
 
 const versionArg = process.argv[2];
 if (!versionArg) {
@@ -317,10 +324,89 @@ console.log(`  scp ${path.relative(REPO_ROOT, bundlePath)} kku-prod:/tmp/`);
 console.log(`\nOn kku-prod:`);
 console.log(`  cd /tmp && tar xzf ${bundleName} && cd ${stagingName} && ./scripts/deploy.sh`);
 
+// ── 6. Prune old builds — keep the last KEEP_BUILDS ────────────────
+// Runs only after a successful build, so the just-built version is the
+// newest and is never pruned.
+pruneOldBuilds();
+
 function tryExec(cmd: string, cwd: string): string | undefined {
   try {
     return execSync(cmd, { cwd, encoding: 'utf8' }).trim();
   } catch {
     return undefined;
+  }
+}
+
+// Newest-first list of entries in `dir` matching `match`, by mtime.
+function byMtimeDesc(dir: string, match: RegExp, kind: 'file' | 'dir'): string[] {
+  return readdirSync(dir)
+    .filter((n) => match.test(n))
+    .map((n) => ({ n, st: statSync(path.join(dir, n)) }))
+    .filter((x) => (kind === 'dir' ? x.st.isDirectory() : x.st.isFile()))
+    .sort((a, b) => b.st.mtimeMs - a.st.mtimeMs)
+    .map((x) => x.n);
+}
+
+function pruneOldBuilds(): void {
+  console.log(`\n--- pruning old builds (keeping last ${KEEP_BUILDS}) ---`);
+
+  // dist/ release tarballs (+ their .sha256 checksums).
+  for (const old of byMtimeDesc(distDir, /^program-landscape-.*\.tar\.gz$/, 'file').slice(
+    KEEP_BUILDS,
+  )) {
+    rmSync(path.join(distDir, old), { force: true });
+    rmSync(path.join(distDir, `${old}.sha256`), { force: true });
+    console.log(`  removed ${old} (+ .sha256)`);
+  }
+
+  // dist/releases/ staging dirs (each carries a multi-GB images.tar).
+  const stagingRoot = path.join(distDir, 'releases');
+  if (existsSync(stagingRoot)) {
+    for (const old of byMtimeDesc(stagingRoot, /^program-landscape-/, 'dir').slice(KEEP_BUILDS)) {
+      rmSync(path.join(stagingRoot, old), { recursive: true, force: true });
+      console.log(`  removed releases/${old}`);
+    }
+  }
+
+  pruneOldImages();
+}
+
+// Keep the last KEEP_BUILDS versions of the tagged build images; remove
+// the rest. CreatedAt sorts lexically = chronologically, so the
+// just-built version is newest and kept.
+function pruneOldImages(): void {
+  let raw: string;
+  try {
+    raw = execSync(
+      `docker images --filter=reference='ghcr.io/${ORG}/${REPO}-*' --format '{{.CreatedAt}}|{{.Tag}}'`,
+      { encoding: 'utf8' },
+    );
+  } catch {
+    console.warn('  (docker images query failed — skipping image prune)');
+    return;
+  }
+  const seen = new Set<string>();
+  const versionsNewestFirst: string[] = [];
+  for (const line of raw.trim().split('\n').filter(Boolean).sort().reverse()) {
+    const tag = line.split('|')[1]?.trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    versionsNewestFirst.push(tag);
+  }
+  for (const ver of versionsNewestFirst.slice(KEEP_BUILDS)) {
+    if (ver === version) continue; // never the version just built
+    try {
+      const imgs = execSync(
+        `docker images --filter=reference='ghcr.io/${ORG}/${REPO}-*:${ver}' --format '{{.Repository}}:{{.Tag}}'`,
+        { encoding: 'utf8' },
+      )
+        .trim()
+        .split('\n')
+        .filter(Boolean);
+      for (const img of imgs) execSync(`docker rmi "${img}"`, { stdio: 'ignore' });
+      console.log(`  removed images for v${ver}`);
+    } catch {
+      // image in use or already gone — ignore.
+    }
   }
 }
