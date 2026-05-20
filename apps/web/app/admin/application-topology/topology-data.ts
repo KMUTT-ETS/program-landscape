@@ -523,7 +523,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'Phase 1 · digest + faculty + skills + pedagogy',
     details: {
       description:
-        'Per-PDF Gemini extraction — 4 prompts run in parallel: program-digest.v1 (course list + recruitment summary), program-faculty.v1 (responsible lecturers), program-skills-detailed.v2 (ESCO-tagged skill weights), program-pedagogy.v1.1 (teaching-method distribution).',
+        'Per-PDF Gemini extraction — 4 prompts run in parallel: program-digest.v2 (course list + recruitment summary + generalised skills), program-faculty.v1 (responsible lecturers), program-skills-detailed.v2 (ESCO-tagged skill weights), program-pedagogy.v1.1 (teaching-method distribution).',
       cadence: 'Per-PDF · programs-pipeline phase 1',
       notes: [
         'Writes AiExtraction rows (4 types); materialise step lifts approved digests into Program + ProgramCourse + ProgramSkill',

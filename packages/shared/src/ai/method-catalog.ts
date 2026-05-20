@@ -51,7 +51,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   // ── Program pipeline (heaviest cost cluster) ─────────────────────────
   {
     methodPrefix: 'program-digest',
-    currentVersion: 'program-digest.v1',
+    currentVersion: 'program-digest.v2',
     label: 'Program digest (PDF → structured)',
     description: 'Single-shot extraction of program metadata, courses, skills, and recruitment summary from curriculum PDF.',
     module: 'pipeline',

@@ -2,47 +2,58 @@ import { z } from 'zod';
 import type { AiMessage } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// program-digest.v1
+// program-digest.v2
 //
 // One-shot full-PDF digest of a Thai university curriculum (มคอ.2 form
 // or equivalent). Returns structured Thai-primary output covering:
 //   1. Program metadata (degree name + abbrev TH/EN, total credits,
 //      duration, language)
 //   2. Course list (code, name TH/EN, credits, description TH)
-//   3. ALL skills built by the program (technical / methodological /
-//      soft) with weights and supporting evidence quotes
+//   3. The distinct skills the program builds — generalised, ESCO-style
+//      actionable phrases split into technical / cognitive, with weights
+//      and verbatim evidence quotes
 //   4. Marketing-ready Thai recruitment summary (200-400 words) — the
 //      net-new content the platform doesn't currently produce
 //   5. Career paths graduates can pursue
 //
 // Skill resolution against our `Skill` taxonomy is deliberately deferred —
-// the LLM extracts free-text Thai/English skill names; the script that
-// invokes this prompt does the lookup post-hoc and stamps each skill
-// with status='matched' | 'proposed' before persisting AiExtraction.
+// the LLM emits canonical, generalised skill phrases (English-primary);
+// materialiseProgramDigest() does the taxonomy lookup post-hoc and
+// records unmatched names as PROPOSED_SKILL extractions.
 //
 // Version bumping rule: any change to system prompt / examples / output
 // schema → bump VERSION. AiExtraction.methodVersion captures it so old
-// extractions remain readable, and a re-digest with v2 lands as a new
-// AiExtraction row alongside the v1 one (full audit).
+// extractions remain readable, and a re-digest lands as a new
+// AiExtraction row alongside the prior one (full audit).
+//
+// v2 (2026-05-20): skill extraction reworked — generalised, English-
+// primary actionable phrases (was verbatim curriculum fragments), 2
+// categories (technical / cognitive, was a 5-value free-text bucket),
+// deduplicated, and scoped to objectives + PLOs + course descriptions.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_DIGEST_VERSION = 'program-digest.v1';
+export const PROGRAM_DIGEST_VERSION = 'program-digest.v2';
 
 const ProgramSkillExtractionSchema = z.object({
-  // Thai-primary skill name (verbatim from curriculum where possible).
+  // Thai rendering of the canonical skill.
   nameTh: z.string(),
-  // English equivalent (if explicitly given in the curriculum, otherwise
-  // best-effort transliteration / translation; OK if blank for soft skills).
+  // Canonical English skill name — a concise, actionable noun phrase in
+  // ESCO style (e.g. "Financial Statement Preparation", "Critical
+  // Thinking"). This is the PRIMARY key the taxonomy match runs against,
+  // so it must be a generalised competency label, never a verbatim
+  // sentence fragment lifted from the curriculum.
   nameEn: z.string().default(''),
-  // High-level bucket: technical / methodological / soft / professional /
-  // domain. Free-text — analyst review will normalise.
-  category: z.string().default(''),
-  // 0..1 — central a skill is to the program. 1 = backbone of curriculum
-  // (e.g., "structural design" for a Civil Engineering program). 0.2 =
+  // Two values only: 'technical' (domain-specific hard skills, tools,
+  // methods, standards, software, compliance frameworks) or 'cognitive'
+  // (mental + interpersonal competencies — analytical/critical thinking,
+  // problem solving, decision making, communication, teamwork).
+  category: z.string().default('technical'),
+  // 0..1 — how central the skill is to the program. 1 = backbone of the
+  // curriculum (e.g. "structural design" for Civil Engineering); 0.2 =
   // briefly introduced.
   weight: z.number().min(0).max(1),
-  // A short verbatim quote from the curriculum that justifies this skill.
-  // Thai if the source is Thai. Used in the review UI to ground the LLM.
+  // A short verbatim quote from the curriculum that grounds this skill.
+  // Thai if the source is Thai. The NAME is generalised; the QUOTE is not.
   evidenceQuote: z.string(),
 });
 export type ProgramSkillExtraction = z.infer<typeof ProgramSkillExtractionSchema>;
@@ -74,9 +85,10 @@ export const ProgramDigestSchema = z.object({
   courses: z.array(ProgramCourseExtractionSchema).default([]),
 
   // ── Skills graduates build (THE supply side) ────────────────────────
-  // Extract EVERY skill the curriculum implies — be generous. Soft
-  // skills, professional knowledge, technical ability all count.
-  // Skill-taxonomy mapping happens after this output, in the script.
+  // Distinct, generalised skills drawn from the program objectives,
+  // PLOs, and course descriptions. Deduplicated — one canonical entry
+  // per competency, not one per course. Taxonomy mapping happens
+  // post-hoc in materialiseProgramDigest().
   extractedSkills: z.array(ProgramSkillExtractionSchema).default([]),
 
   // ── Recruitment narrative (Thai-primary, 200-400 words) ─────────────
@@ -144,11 +156,11 @@ export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage
   const meta = input.programMetaFromSheet;
   const maxCourses = input.maxCourses ?? 80;
 
-  const system = `คุณเป็นผู้เชี่ยวชาญด้านการวิเคราะห์หลักสูตรอุดมศึกษาไทย (มคอ.2) ของมหาวิทยาลัยขอนแก่น
+  const system = `คุณเป็นผู้เชี่ยวชาญด้านการวิเคราะห์หลักสูตรอุดมศึกษาไทย (มคอ.2) ของมหาวิทยาลัยขอนแก่น และผู้เชี่ยวชาญด้านการพัฒนากำลังคน (workforce development)
 
 หน้าที่: อ่านหลักสูตรฉบับเต็ม แล้วสกัดข้อมูลออกมาเป็น JSON ที่ถูกต้องตามโครงสร้างที่กำหนด
 
-เนื้อหาผลลัพธ์ทั้งหมดต้องเป็นภาษาไทยเป็นหลัก ยกเว้นชื่อภาษาอังกฤษของหลักสูตร/รายวิชา/ทักษะที่ปรากฏในเอกสารต้นฉบับ
+เนื้อหาผลลัพธ์ทั้งหมดต้องเป็นภาษาไทยเป็นหลัก ยกเว้นชื่อภาษาอังกฤษของหลักสูตร/รายวิชา และชื่อทักษะภาษาอังกฤษ (nameEn) ที่ต้องระบุเป็นภาษาอังกฤษมาตรฐานเสมอ
 
 โครงสร้าง JSON (ออกตรงนี้เท่านั้น ห้ามมี markdown หรือคำอธิบายเพิ่มเติม):
 {
@@ -167,9 +179,10 @@ export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage
       "learningOutcomesTh": ["<ผลการเรียนรู้/วัตถุประสงค์>", ...] }
   ],
   "extractedSkills": [
-    { "nameTh": "<ทักษะภาษาไทย>", "nameEn": "<ทักษะภาษาอังกฤษ>",
-      "category": "technical|methodological|soft|professional|domain",
-      "weight": <0.0-1.0>, "evidenceQuote": "<ข้อความสั้นจากหลักสูตรที่อ้างอิง>" }
+    { "nameEn": "<ชื่อทักษะภาษาอังกฤษ — วลีคำนามกระชับสไตล์ ESCO>",
+      "nameTh": "<ทักษะเดียวกันในภาษาไทย>",
+      "category": "technical" | "cognitive",
+      "weight": <0.0-1.0>, "evidenceQuote": "<ข้อความ verbatim สั้นจากหลักสูตรที่อ้างอิง>" }
   ],
   "recruitmentSummaryTh": "<บทแนะนำหลักสูตรสำหรับนักเรียนที่สนใจสมัครเรียน 200-400 คำ>",
   "careerPathsTh": ["<อาชีพ 1>", "<อาชีพ 2>", ...],
@@ -178,8 +191,16 @@ export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage
 }
 
 กฎสำคัญ:
-1. **ทักษะ**: สกัดทักษะ "ทุกทักษะ" ที่หลักสูตรสร้างให้บัณฑิต ไม่ว่าจะเป็นทักษะเฉพาะทาง (technical), วิธีคิด/วิจัย (methodological), ทักษะการทำงาน (soft), ความรู้วิชาชีพ (professional), หรือความเข้าใจในสาขา (domain) — รวมแล้วควรมี 15-40 ทักษะ ขึ้นกับขนาดหลักสูตร
-2. **ชื่อทักษะ**: ใช้คำที่อยู่ในเอกสารต้นฉบับ ห้ามคิดคำใหม่หรือใช้ jargon ที่ไม่ปรากฏในเอกสาร
+1. **ทักษะ (extractedSkills)**: สกัดทักษะที่หลักสูตรสร้างให้บัณฑิต โดยพิจารณา "เฉพาะ" 3 ส่วนนี้ของเอกสารเท่านั้น — (ก) วัตถุประสงค์ของหลักสูตร (ข) ผลลัพธ์การเรียนรู้ที่คาดหวังของหลักสูตร (PLO / ELO) (ค) คำอธิบายรายวิชา
+   จัดทักษะเป็น 2 ประเภทเท่านั้น (ค่า category):
+   - **technical** = ทักษะเฉพาะทาง เครื่องมือ วิธีการ มาตรฐาน ซอฟต์แวร์ กรอบวิชาชีพ/การกำกับ
+   - **cognitive** = กระบวนการทางความคิดและทักษะระหว่างบุคคล เช่น การคิดวิเคราะห์ การคิดเชิงวิพากษ์ การตัดสินใจ การแก้ปัญหาเชิงระบบ การวางแผนเชิงกลยุทธ์ การเรียนรู้ด้วยตนเอง การทำงานเป็นทีม การสื่อสาร
+2. **รูปแบบชื่อทักษะ**: ห้ามคัดลอกข้อความดิบจากเอกสารมาเป็นชื่อทักษะ — ให้ "สรุปและจัดเป็นวลีทักษะที่กระชับและเป็นรูปธรรม"
+   - \`nameEn\` คือคีย์หลัก ต้องระบุเสมอ ห้ามเว้นว่าง — เป็นวลีคำนามภาษาอังกฤษมาตรฐานสไตล์ ESCO (เช่น "Financial Statement Preparation", "Systemic Problem Solving", "Critical Thinking")
+   - \`nameTh\` คือทักษะเดียวกันในภาษาไทย
+   - ห้ามกุทักษะที่เอกสารไม่ได้กล่าวถึงเลย — ต้องอ้างอิงเนื้อหาจริง แต่อนุญาตให้สรุปและจัดหมวดได้
+   - ห้ามรายการซ้ำ — ถ้าทักษะแกนเดียวกันปรากฏหลายรายวิชา ให้รวมเป็นทักษะเดียว ไม่ต้องแยกเป็นหลายรายการ
+   - หลังจากรวมและสรุปแล้ว โดยทั่วไปจะได้ทักษะที่แตกต่างกันประมาณ 10-30 รายการ — ไม่ต้องเพิ่มจำนวนเกินจำเป็น
 3. **น้ำหนัก (weight)**: 1.0 = ทักษะแกนของหลักสูตร, 0.6-0.8 = หลักสูตรสร้างชัดเจนแต่ไม่ใช่จุดเน้น, 0.2-0.4 = แตะ-แต่ไม่ลึก
 4. **Evidence quote**: ต้องเป็นข้อความ "verbatim" จากเอกสาร — ไม่สรุป ไม่แปล (ถ้าเอกสารเป็นภาษาไทย ก็เป็นภาษาไทย)
 5. **รายวิชา**: ใส่ทุกวิชาที่ระบุใน "ข้อ 3.1.3" / "หมวดวิชาเฉพาะ" / โครงสร้างหลักสูตร — ถ้ามีมากกว่า ${maxCourses} วิชา ให้เลือกวิชาแกน + วิชาเอกของสาขา

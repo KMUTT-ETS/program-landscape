@@ -79,6 +79,7 @@ export async function materialiseProgramDigest(
       sourceEntityType: true,
       sourceEntityId: true,
       extractionKind: true,
+      methodVersion: true,
       payloadJson: true,
     },
   });
@@ -226,7 +227,9 @@ export async function materialiseProgramDigest(
         extractionKind: 'PROPOSED_SKILL',
         payloadJson: ps,
         confidence: proposedConfidence,
-        methodVersion: 'program-digest.v1',
+        // Stamp the PROPOSED_SKILL row with the digest version that
+        // produced it, so v1- and v2-sourced proposals stay distinguishable.
+        methodVersion: extraction.methodVersion,
         reviewStatus: proposedAutoApprove ? 'AUTO_APPROVED' : 'PENDING_REVIEW',
       },
     });
