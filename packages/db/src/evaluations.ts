@@ -24,15 +24,25 @@ export interface EvaluationFilter {
   acadYearBE?: number[];
   /** Semesters (1,2,3,4). Default: [1, 2] (main terms). */
   semester?: number[];
-  /** Thai-language faculty names to filter by — clamped by the caller
-   *  via `clampFacultyNameFilter`. */
+  /** Thai-language faculty names — set for FACULTY_USER / admin scope. */
   facultyName?: string[];
+  /** Normalised course codes — set for PROGRAM_USER scope. Used by the
+   *  course-level / aggregate queries (overall, by-course). OR'd with
+   *  `facultyName` for mixed-scope users. */
+  courseCodes?: string[];
+  /** Program ids — set for PROGRAM_USER scope. Used by the by-program
+   *  query, which joins program_courses and would otherwise fan a
+   *  shared course (esp. GE) out to every program that teaches it. OR'd
+   *  with `facultyName` for mixed-scope users. */
+  programIds?: string[];
 }
 
 interface ResolvedFilter {
   acadYearBE: number[] | undefined;
   semester: number[];
   facultyNameTh: string[] | undefined;
+  courseCodes: string[] | undefined;
+  programIds: string[] | undefined;
 }
 
 function resolveFilter(f: EvaluationFilter | undefined): ResolvedFilter {
@@ -40,7 +50,57 @@ function resolveFilter(f: EvaluationFilter | undefined): ResolvedFilter {
     acadYearBE: f?.acadYearBE && f.acadYearBE.length > 0 ? f.acadYearBE : undefined,
     semester: f?.semester && f.semester.length > 0 ? f.semester : [1, 2],
     facultyNameTh: f?.facultyName && f.facultyName.length > 0 ? f.facultyName : undefined,
+    courseCodes: f?.courseCodes && f.courseCodes.length > 0 ? f.courseCodes : undefined,
+    programIds: f?.programIds && f.programIds.length > 0 ? f.programIds : undefined,
   };
+}
+
+// Scope WHERE fragment for course-level / aggregate queries. A
+// FACULTY_USER carries facultyNameTh; a PROGRAM_USER carries courseCodes;
+// a mixed-scope user carries both, OR'd. `facultyNameColumn` is the
+// Thai-name column of the calling query — a trusted literal, never user
+// input. `e.course_code` is the evaluation row's course code.
+function scopeClause(f: ResolvedFilter, facultyNameColumn: string): Prisma.Sql {
+  const facultyCol = Prisma.raw(facultyNameColumn);
+  const hasFaculty = f.facultyNameTh !== undefined;
+  const hasCourses = f.courseCodes !== undefined;
+  if (hasFaculty && hasCourses) {
+    return Prisma.sql`AND (${facultyCol} = ANY(${f.facultyNameTh}::text[]) OR e.course_code = ANY(${f.courseCodes}::text[]))`;
+  }
+  if (hasFaculty) {
+    return Prisma.sql`AND ${facultyCol} = ANY(${f.facultyNameTh}::text[])`;
+  }
+  if (hasCourses) {
+    return Prisma.sql`AND e.course_code = ANY(${f.courseCodes}::text[])`;
+  }
+  return Prisma.empty;
+}
+
+// Scope WHERE fragment for the by-program query. That query joins
+// program_courses → programs, so a course-code clamp would fan a
+// PROGRAM_USER's view out to every program that shares one of their
+// courses (GE courses are shared widely). The clamp MUST be on the
+// program id. `programIdColumn` is the programs-table id column — a
+// trusted literal, never user input.
+function scopeClauseByProgram(
+  f: ResolvedFilter,
+  facultyNameColumn: string,
+  programIdColumn: string,
+): Prisma.Sql {
+  const facultyCol = Prisma.raw(facultyNameColumn);
+  const programCol = Prisma.raw(programIdColumn);
+  const hasFaculty = f.facultyNameTh !== undefined;
+  const hasPrograms = f.programIds !== undefined;
+  if (hasFaculty && hasPrograms) {
+    return Prisma.sql`AND (${facultyCol} = ANY(${f.facultyNameTh}::text[]) OR ${programCol} = ANY(${f.programIds}::text[]))`;
+  }
+  if (hasFaculty) {
+    return Prisma.sql`AND ${facultyCol} = ANY(${f.facultyNameTh}::text[])`;
+  }
+  if (hasPrograms) {
+    return Prisma.sql`AND ${programCol} = ANY(${f.programIds}::text[])`;
+  }
+  return Prisma.empty;
 }
 
 // ── KPI: overall satisfaction over the filter window ────────────────────
@@ -106,7 +166,7 @@ export async function overallSatisfaction(
     WHERE ds.mocked = false
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND f.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClause(f, 'f.name_th')}
   `;
   const r = rows[0]!;
   return {
@@ -218,7 +278,7 @@ export async function coursesByYear(
     WHERE ds.mocked = false
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND f.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClause(f, 'f.name_th')}
     GROUP BY e.faculty_id, f.name_th, e.course_code, e.acad_year_be
     ORDER BY f.name_th, e.course_code, e.acad_year_be DESC
   `;
@@ -352,7 +412,7 @@ export async function coursesByProgram(
     WHERE ds.mocked = false
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND fp.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClauseByProgram(f, 'fp.name_th', 'p.id')}
     GROUP BY fp.id, fp.name_th, p.level, p.id, p.name_th, e.course_code, e.acad_year_be
     ORDER BY fp.name_th, p.level, p.name_th, e.course_code, e.acad_year_be DESC
   `;
@@ -825,7 +885,7 @@ export async function trend(
     WHERE ds.mocked = false
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND f.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClause(f, 'f.name_th')}
     GROUP BY e.acad_year_be, e.semester
     ORDER BY e.acad_year_be ASC, e.semester ASC
   `;
@@ -913,7 +973,7 @@ export async function questionGaps(
     WHERE ds.mocked = false
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND f.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClause(f, 'f.name_th')}
   `;
   // Step 2: compute 10th-percentile thresholds per (faculty, question, semester).
   type Bucket = { values: number[]; cells: typeof cells };
@@ -1181,7 +1241,7 @@ export async function instructorRoster(
       AND e.faculty_member_id IS NOT NULL
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND f.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClause(f, 'f.name_th')}
     GROUP BY fm.id, fm.name_th, fm.name_en, fm.faculty_id, f.name_th, fm.department_id, d.name_th, fm.rank, fm.is_active
     ORDER BY f.name_th, d.name_th NULLS FIRST, fm.name_th
   `;
@@ -1283,7 +1343,7 @@ export async function instructorsByProgram(
       AND e.faculty_member_id IS NOT NULL
       AND e.semester = ANY(${f.semester}::int[])
       ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
-      ${f.facultyNameTh ? Prisma.sql`AND fp.name_th = ANY(${f.facultyNameTh}::text[])` : Prisma.empty}
+      ${scopeClauseByProgram(f, 'fp.name_th', 'p.id')}
     GROUP BY fp.id, fp.name_th, p.level, p.id, p.name_th,
              fm.id, fm.name_th, fm.name_en, fm.rank,
              e.acad_year_be

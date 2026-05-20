@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma } from '@kku/db';
+import { prisma, type EvaluationFilter } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -15,7 +15,7 @@ import {
   clampFacultyNameFilter,
   resolveOfferingScope,
 } from '../common';
-import { EducationService } from './education.service';
+import { EducationService, type ClassGpaFilters } from './education.service';
 import { RecruitmentService } from './recruitment.service';
 import { ClassOfferingsService, type ClassOfferingsFilter } from './class-offerings.service';
 import { EvaluationsService } from './evaluations.service';
@@ -375,6 +375,44 @@ export class EducationController {
     return faculty?.nameTh ?? '__none__';
   }
 
+  /** Resolve the caller's effective scope into a ClassGpaFilters bag.
+   *  admin / UNIVERSITY_USER → page filter passes through; FACULTY_USER
+   *  → clamped to their faculty; PROGRAM_USER → clamped to their
+   *  program's course codes, so they see only their own program's
+   *  classes, not the whole faculty. null → no usable grant. */
+  private async resolveClassGpaScope(
+    user: SessionUser,
+    q: ClassGpaQuery,
+  ): Promise<ClassGpaFilters | null> {
+    const scope = await resolveOfferingScope(user);
+    if (scope.mode === 'none') return null;
+    if (scope.mode === 'all') return q;
+    return {
+      ...q,
+      facultyName: scope.facultyNames,
+      courseCodes: scope.programCourseCodes,
+      programIds: scope.programIds,
+    };
+  }
+
+  /** Same scope resolution for the satisfaction dashboard — a
+   *  PROGRAM_USER is clamped to their program's course codes, not their
+   *  whole faculty. null → no usable grant. */
+  private async resolveEvaluationScope(
+    user: SessionUser,
+    q: SatisfactionQuery,
+  ): Promise<EvaluationFilter | null> {
+    const scope = await resolveOfferingScope(user);
+    if (scope.mode === 'none') return null;
+    if (scope.mode === 'all') return q;
+    return {
+      ...q,
+      facultyName: scope.facultyNames,
+      courseCodes: scope.programCourseCodes,
+      programIds: scope.programIds,
+    };
+  }
+
   @Get('tuition')
   @Authorized('institution:read:dashboard')
   async tuition(
@@ -454,10 +492,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
   ) {
     await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null)
+    const filters = await this.resolveClassGpaScope(user, q);
+    if (filters === null)
       return this.education.classGpaOverall({ ...q, facultyName: ['__none__'] });
-    return this.education.classGpaOverall(clamped);
+    return this.education.classGpaOverall(filters);
   }
 
   @Get('performance/class-gpa/trend')
@@ -467,10 +505,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
   ) {
     await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null)
+    const filters = await this.resolveClassGpaScope(user, q);
+    if (filters === null)
       return this.education.classGpaTrend({ ...q, facultyName: ['__none__'] });
-    return this.education.classGpaTrend(clamped);
+    return this.education.classGpaTrend(filters);
   }
 
   @Get('performance/class-gpa/by-program')
@@ -480,10 +518,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
   ) {
     await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null)
+    const filters = await this.resolveClassGpaScope(user, q);
+    if (filters === null)
       return this.education.classGpaByProgram({ ...q, facultyName: ['__none__'] });
-    return this.education.classGpaByProgram(clamped);
+    return this.education.classGpaByProgram(filters);
   }
 
   @Get('performance/class-gpa/courses/:programId')
@@ -631,10 +669,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
   ) {
     await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null)
+    const filter = await this.resolveEvaluationScope(user, q);
+    if (filter === null)
       return this.evaluations.overall({ ...q, facultyName: ['__none__'] });
-    return this.evaluations.overall(clamped);
+    return this.evaluations.overall(filter);
   }
 
   @Get('satisfaction/by-course')
@@ -644,10 +682,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
   ) {
     await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null)
+    const filter = await this.resolveEvaluationScope(user, q);
+    if (filter === null)
       return this.evaluations.coursesByYear({ ...q, facultyName: ['__none__'] });
-    return this.evaluations.coursesByYear(clamped);
+    return this.evaluations.coursesByYear(filter);
   }
 
   @Get('satisfaction/by-program')
@@ -657,10 +695,10 @@ export class EducationController {
     @Query(new ZodValidationPipe(SatisfactionQuerySchema)) q: SatisfactionQuery,
   ) {
     await assertCanSeeFacultyDashboards(user);
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null)
+    const filter = await this.resolveEvaluationScope(user, q);
+    if (filter === null)
       return this.evaluations.coursesByProgram({ ...q, facultyName: ['__none__'] });
-    return this.evaluations.coursesByProgram(clamped);
+    return this.evaluations.coursesByProgram(filter);
   }
 
   // GET /education/satisfaction/course-questions?...scope&...filter

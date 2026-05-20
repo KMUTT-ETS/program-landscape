@@ -321,6 +321,15 @@ export interface EntryScoreResponse {
 
 export interface ClassGpaFilters {
   facultyName?: string[];
+  /** Normalised class_offerings.course_code values — PROGRAM_USER scope
+   *  for the aggregate queries (overall, trend), via classGpaWhere().
+   *  OR'd with `facultyName` for mixed-scope users. */
+  courseCodes?: string[];
+  /** Granted program ids — PROGRAM_USER scope for the by-program query.
+   *  That query joins program_courses, so a course-code clamp would fan
+   *  a shared course out to every program that teaches it; the clamp
+   *  must be on the program id. OR'd with `facultyName`. */
+  programIds?: string[];
   /** LEVELNAME from the registrar — 'ปริญญาตรี' / 'ปริญญาโท' / etc. */
   levelName?: string[];
   /** ACADYEAR Buddhist Era — e.g. [2566, 2567, 2568]. Empty = all years. */
@@ -1375,8 +1384,20 @@ export class EducationService {
    *  semantics stay consistent. */
   private classGpaWhere(filters: ClassGpaFilters) {
     const where: Prisma.ClassOfferingWhereInput = {};
-    if (filters.facultyName && filters.facultyName.length > 0)
-      where.faculty = { OR: [{ nameTh: { in: filters.facultyName } }, { nameEn: { in: filters.facultyName } }] };
+    // Scope clamp: a faculty grant → faculty clause; a program grant →
+    // course-code clause; a mixed-scope user → OR of both. A PROGRAM_USER
+    // carries only courseCodes, so they see just their program's classes.
+    const facultyClause: Prisma.ClassOfferingWhereInput | null =
+      filters.facultyName && filters.facultyName.length > 0
+        ? { faculty: { OR: [{ nameTh: { in: filters.facultyName } }, { nameEn: { in: filters.facultyName } }] } }
+        : null;
+    const courseClause: Prisma.ClassOfferingWhereInput | null =
+      filters.courseCodes && filters.courseCodes.length > 0
+        ? { courseCode: { in: filters.courseCodes } }
+        : null;
+    if (facultyClause && courseClause) where.OR = [facultyClause, courseClause];
+    else if (facultyClause) Object.assign(where, facultyClause);
+    else if (courseClause) Object.assign(where, courseClause);
     if (filters.levelName && filters.levelName.length > 0)
       where.levelName = { in: filters.levelName };
     if (filters.acadYearBE && filters.acadYearBE.length > 0)
@@ -1536,8 +1557,17 @@ export class EducationService {
     // would need a nested aggregation which it doesn't model neatly;
     // the SQL stays small + indexable.
     const sqlConditions: Prisma.Sql[] = [];
+    // Scope: faculty grant → faculty name; program grant → program id.
+    // NOT course code — this query joins program_courses, so a shared
+    // course (esp. GE) would otherwise fan a PROGRAM_USER out to every
+    // program that teaches it. Mixed scope → OR of both.
+    const scopeConds: Prisma.Sql[] = [];
     if (filters.facultyName && filters.facultyName.length > 0)
-      sqlConditions.push(Prisma.sql`f."name_th" IN (${Prisma.join(filters.facultyName)})`);
+      scopeConds.push(Prisma.sql`f."name_th" IN (${Prisma.join(filters.facultyName)})`);
+    if (filters.programIds && filters.programIds.length > 0)
+      scopeConds.push(Prisma.sql`p."id" IN (${Prisma.join(filters.programIds)})`);
+    if (scopeConds.length > 0)
+      sqlConditions.push(Prisma.sql`(${Prisma.join(scopeConds, ' OR ')})`);
     if (filters.levelName && filters.levelName.length > 0)
       sqlConditions.push(Prisma.sql`co."level_name" IN (${Prisma.join(filters.levelName)})`);
     if (filters.acadYearBE && filters.acadYearBE.length > 0)

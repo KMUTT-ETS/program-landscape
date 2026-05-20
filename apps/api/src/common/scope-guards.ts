@@ -166,6 +166,10 @@ export interface OfferingScope {
   facultyNames: string[];
   facultyIds: string[];
   programCourseCodes: string[];
+  /** Granted program ids — for clamping by-program views directly
+   *  (a course-code clamp would fan a shared course out to every
+   *  program that teaches it). */
+  programIds: string[];
 }
 
 export async function resolveOfferingScope(
@@ -173,10 +177,10 @@ export async function resolveOfferingScope(
 ): Promise<OfferingScope> {
   const eff = await resolveEffectiveScope(user);
   if (eff.mode === 'all') {
-    return { mode: 'all', facultyNames: [], facultyIds: [], programCourseCodes: [] };
+    return { mode: 'all', facultyNames: [], facultyIds: [], programCourseCodes: [], programIds: [] };
   }
   if (eff.mode === 'none') {
-    return { mode: 'none', facultyNames: [], facultyIds: [], programCourseCodes: [] };
+    return { mode: 'none', facultyNames: [], facultyIds: [], programCourseCodes: [], programIds: [] };
   }
 
   // Resolve faculty grants (names + IDs in one query).
@@ -205,10 +209,10 @@ export async function resolveOfferingScope(
   // to 'none' so the caller renders an empty state rather than passing
   // through with no clamp.
   if (facultyNames.length === 0 && programCourseCodes.length === 0) {
-    return { mode: 'none', facultyNames: [], facultyIds: [], programCourseCodes: [] };
+    return { mode: 'none', facultyNames: [], facultyIds: [], programCourseCodes: [], programIds: [] };
   }
 
-  return { mode: 'scoped', facultyNames, facultyIds, programCourseCodes };
+  return { mode: 'scoped', facultyNames, facultyIds, programCourseCodes, programIds: eff.programIds };
 }
 
 /**
