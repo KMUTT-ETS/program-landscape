@@ -89,7 +89,8 @@ export interface ByFacultyResponse {
   };
 }
 
-/** Leaf row inside the by-teacher drill-down (Faculty → Program → Teacher).
+/** Leaf row inside the by-teacher drill-down
+ *  (Faculty → Program Level → Program → Teacher).
  *  The workload figures are the teacher's ACTUAL totals across every
  *  section they teach — they are NOT split or weighted per program. A
  *  teacher who is a curriculum member of three programs appears under all
@@ -144,14 +145,33 @@ export interface TeacherProgramGroup {
   teamTaughtSections: number;
 }
 
+/** Program-level tier (Faculty → Program Level → Program → Teacher).
+ *  `level` is the ProgramLevel enum value (BACHELOR / MASTER / DOCTORAL /
+ *  HIGHER_GRAD_DIPLOMA), or null for the "not attached to a curriculum"
+ *  bucket — whose single program child carries the fallback teachers. */
+export interface TeacherLevelGroup {
+  level: string | null;
+  programs: TeacherProgramGroup[];
+  /** Distinct teachers in this level — a teacher in two programs of the
+   *  same level is counted once. */
+  teachers: number;
+  sections: number;
+  lectureHrsPerWeek: number;
+  labHrsPerWeek: number;
+  totalContactHrsPerWeek: number;
+  avgContactHrsPerTeacher: number;
+  studentsTaught: number;
+  teamTaughtSections: number;
+}
+
 /** Top (faculty) tier. For program nodes the faculty is the curriculum's
  *  OWNING faculty (Program.facultyId); for the fallback node it is the
  *  teacher's home faculty. The faculty aggregate counts each teacher once
- *  even when they are a member of several of the faculty's programs. */
+ *  even when they teach across several of the faculty's programs. */
 export interface TeacherFacultyGroup {
   facultyId: string | null;
   facultyName: string;
-  programs: TeacherProgramGroup[];
+  levels: TeacherLevelGroup[];
   /** Distinct teachers — a teacher in several of the faculty's programs
    *  is counted once here (and once in the grand total). */
   teachers: number;
@@ -601,10 +621,12 @@ export class TeachingWorkloadService {
   }
 
   /**
-   * Per-teacher drill-down — Faculty → Program → Teacher hierarchy.
+   * Per-teacher drill-down — Faculty → Program Level → Program → Teacher.
    *
-   * The middle (program) tier comes from `program_faculties` — the
-   * teacher↔curriculum links extracted by the program-digest pipeline.
+   * The program tier comes from `program_faculties` — the
+   * teacher↔curriculum links extracted by the program-digest pipeline;
+   * the Program Level tier groups those programs by Program.level
+   * (Bachelor's / Master's / Doctoral / Higher Grad. Dip.).
    * A teacher is a curriculum member of 0..N programs; they appear under
    * EVERY program they belong to, each node showing their FULL actual
    * teaching workload (no split, no weighting — a deliberate choice so
@@ -782,14 +804,25 @@ export class TeachingWorkloadService {
       }
     }
 
-    // ── Pass 2: build the Faculty → Program → Teacher tree. ──
+    // ── Pass 2: build the Faculty → Program Level → Program → Teacher
+    //    tree. The fallback (teachers with no in-scope curriculum) sits in
+    //    a level node with `level = null`, whose single program child
+    //    carries them. ──
     const FALLBACK_PROGRAM = '__no_program__';
+    const FALLBACK_LEVEL = '__no_level__';
     const UNRESOLVED_FACULTY = '__unresolved__';
+    interface LevelAccum {
+      level: string | null;
+      programs: Map<string, TeacherProgramGroup>;
+      /** Deduped — a teacher in two programs of the same level is counted
+       *  once for the level rollup. */
+      distinct: Map<string, TeacherRow>;
+    }
     interface FacAccum {
       facultyId: string | null;
       facultyName: string;
-      programs: Map<string, TeacherProgramGroup>;
-      /** Deduped — a teacher in several of the faculty's programs is
+      levels: Map<string, LevelAccum>;
+      /** Deduped — a teacher across several of the faculty's programs is
        *  counted once for the faculty rollup. */
       distinct: Map<string, TeacherRow>;
     }
@@ -803,20 +836,32 @@ export class TeachingWorkloadService {
     ): FacAccum => {
       let f = facMap.get(key);
       if (!f) {
-        f = { facultyId, facultyName, programs: new Map(), distinct: new Map() };
+        f = { facultyId, facultyName, levels: new Map(), distinct: new Map() };
         facMap.set(key, f);
       }
       return f;
     };
-    const getProg = (
+    const getLevel = (
       fac: FacAccum,
+      levelKey: string,
+      level: string | null,
+    ): LevelAccum => {
+      let l = fac.levels.get(levelKey);
+      if (!l) {
+        l = { level, programs: new Map(), distinct: new Map() };
+        fac.levels.set(levelKey, l);
+      }
+      return l;
+    };
+    const getProg = (
+      lvl: LevelAccum,
       progKey: string,
       seed: Pick<
         TeacherProgramGroup,
         'programId' | 'programCode' | 'programName' | 'programLevel'
       >,
     ): TeacherProgramGroup => {
-      let p = fac.programs.get(progKey);
+      let p = lvl.programs.get(progKey);
       if (!p) {
         p = {
           ...seed,
@@ -830,7 +875,7 @@ export class TeachingWorkloadService {
           studentsTaught: 0,
           teamTaughtSections: 0,
         };
-        fac.programs.set(progKey, p);
+        lvl.programs.set(progKey, p);
       }
       return p;
     };
@@ -855,6 +900,8 @@ export class TeachingWorkloadService {
         facKey: string;
         facultyId: string | null;
         facultyName: string;
+        levelKey: string;
+        level: string | null;
         progKey: string;
         progSeed: Pick<
           TeacherProgramGroup,
@@ -869,6 +916,8 @@ export class TeachingWorkloadService {
             facKey: m.facultyId ?? UNRESOLVED_FACULTY,
             facultyId: m.facultyId,
             facultyName: m.facultyName ?? 'Unresolved (external / HCM gap)',
+            levelKey: m.programLevel ?? FALLBACK_LEVEL,
+            level: m.programLevel,
             progKey: m.programId,
             progSeed: {
               programId: m.programId,
@@ -882,7 +931,8 @@ export class TeachingWorkloadService {
       } else {
         // Teaching activity but no in-scope curriculum membership —
         // grouped under the teacher's home faculty (or the Unresolved
-        // bucket when the teacher itself is unresolved).
+        // bucket when the teacher itself is unresolved), inside a level
+        // node with no level.
         const resolvedHome = Boolean(t.facultyMemberId && t.homeFacultyId);
         placements.push({
           facKey: resolvedHome ? t.homeFacultyId! : UNRESOLVED_FACULTY,
@@ -890,6 +940,8 @@ export class TeachingWorkloadService {
           facultyName: resolvedHome
             ? t.homeFacultyName ?? '(unknown faculty)'
             : 'Unresolved (external / HCM gap)',
+          levelKey: FALLBACK_LEVEL,
+          level: null,
           progKey: FALLBACK_PROGRAM,
           progSeed: {
             programId: null,
@@ -903,7 +955,8 @@ export class TeachingWorkloadService {
 
       for (const pl of placements) {
         const fac = getFac(pl.facKey, pl.facultyId, pl.facultyName);
-        const prog = getProg(fac, pl.progKey, pl.progSeed);
+        const lvl = getLevel(fac, pl.levelKey, pl.level);
+        const prog = getProg(lvl, pl.progKey, pl.progSeed);
         const row = teacherRow(pl.role);
         prog.children.push(row);
         prog.teachers += 1;
@@ -913,7 +966,8 @@ export class TeachingWorkloadService {
         prog.totalContactHrsPerWeek += t.contactHrs;
         prog.studentsTaught += t.students;
         prog.teamTaughtSections += t.team;
-        // Faculty + grand-total rollups count each teacher once.
+        // Level + faculty + grand-total rollups count each teacher once.
+        lvl.distinct.set(t.kkuEmail, row);
         fac.distinct.set(t.kkuEmail, row);
         grandDistinct.set(t.kkuEmail, row);
       }
@@ -945,31 +999,67 @@ export class TeachingWorkloadService {
         teamTaughtSections: team,
       };
     };
+    // Bachelor → Master → Doctoral → Higher Grad. Dip.; fallback last.
+    const levelRank = (level: string | null): number => {
+      switch (level) {
+        case 'BACHELOR':
+          return 0;
+        case 'MASTER':
+          return 1;
+        case 'DOCTORAL':
+          return 2;
+        case 'HIGHER_GRAD_DIPLOMA':
+          return 3;
+        default:
+          return 99;
+      }
+    };
 
     const out: TeacherFacultyGroup[] = [];
     let programCount = 0;
     for (const fac of facMap.values()) {
-      const programs: TeacherProgramGroup[] = [];
-      for (const prog of fac.programs.values()) {
-        prog.avgContactHrsPerTeacher =
-          prog.teachers > 0 ? prog.totalContactHrsPerWeek / prog.teachers : 0;
-        prog.children.sort(
-          (a, b) => b.totalContactHrsPerWeek - a.totalContactHrsPerWeek,
-        );
-        if (prog.programId !== null) programCount += 1;
-        programs.push(prog);
+      const levels: TeacherLevelGroup[] = [];
+      for (const lvl of fac.levels.values()) {
+        const programs: TeacherProgramGroup[] = [];
+        for (const prog of lvl.programs.values()) {
+          prog.avgContactHrsPerTeacher =
+            prog.teachers > 0 ? prog.totalContactHrsPerWeek / prog.teachers : 0;
+          prog.children.sort(
+            (a, b) => b.totalContactHrsPerWeek - a.totalContactHrsPerWeek,
+          );
+          if (prog.programId !== null) programCount += 1;
+          programs.push(prog);
+        }
+        // Real programs by total contact hrs desc; fallback node last.
+        programs.sort((a, b) => {
+          if (a.programId === null && b.programId !== null) return 1;
+          if (a.programId !== null && b.programId === null) return -1;
+          return b.totalContactHrsPerWeek - a.totalContactHrsPerWeek;
+        });
+        const lAgg = sumRows(lvl.distinct);
+        levels.push({
+          level: lvl.level,
+          programs,
+          teachers: lAgg.teachers,
+          sections: lAgg.sections,
+          lectureHrsPerWeek: lAgg.lectureHrsPerWeek,
+          labHrsPerWeek: lAgg.labHrsPerWeek,
+          totalContactHrsPerWeek: lAgg.totalContactHrsPerWeek,
+          avgContactHrsPerTeacher:
+            lAgg.teachers > 0
+              ? lAgg.totalContactHrsPerWeek / lAgg.teachers
+              : 0,
+          studentsTaught: lAgg.studentsTaught,
+          teamTaughtSections: lAgg.teamTaughtSections,
+        });
       }
-      // Real programs by total contact hrs desc; fallback node last.
-      programs.sort((a, b) => {
-        if (a.programId === null && b.programId !== null) return 1;
-        if (a.programId !== null && b.programId === null) return -1;
-        return b.totalContactHrsPerWeek - a.totalContactHrsPerWeek;
-      });
+      // Levels in degree order; the no-level fallback last.
+      levels.sort((a, b) => levelRank(a.level) - levelRank(b.level));
       const agg = sumRows(fac.distinct);
       out.push({
         facultyId: fac.facultyId,
         facultyName: fac.facultyName,
-        programs,
+        levels,
         teachers: agg.teachers,
         sections: agg.sections,
         lectureHrsPerWeek: agg.lectureHrsPerWeek,

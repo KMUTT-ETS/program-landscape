@@ -765,11 +765,12 @@ export class DashboardToolExecutor {
       if (q.view === 'students_by_faculty')
         return withGuards(await this.teaching.studentsByFaculty(filter));
 
-      // view = 'teachers' — Faculty → Program → Teacher drill. The full
-      // payload at university scope is huge. Clip per faculty group: top
-      // 15 programs + top 30 distinct teachers by contact hours, at most
-      // 10 faculty groups. A teacher in several of the faculty's programs
-      // is deduped before the top-30 cut so the list isn't padded.
+      // view = 'teachers' — Faculty → Program Level → Program → Teacher
+      // drill. The full payload at university scope is huge. Clip per
+      // faculty group: top 15 programs (flattened across levels) + top 30
+      // distinct teachers by contact hours, at most 10 faculty groups. A
+      // teacher in several of the faculty's programs is deduped before the
+      // top-30 cut so the list isn't padded.
       const res = await this.teaching.teachersDrillDown(filter);
       return withGuards({
         view: 'teachers',
@@ -777,10 +778,11 @@ export class DashboardToolExecutor {
         semester: res.semester,
         totals: res.totals,
         faculties: res.rows.slice(0, 10).map((f) => {
+          const allPrograms = f.levels.flatMap((l) => l.programs);
           const seen = new Set<string>();
-          const topTeachers: (typeof res.rows)[number]['programs'][number]['children'] =
+          const topTeachers: (typeof res.rows)[number]['levels'][number]['programs'][number]['children'] =
             [];
-          for (const p of f.programs) {
+          for (const p of allPrograms) {
             for (const t of p.children) {
               const k = t.facultyMemberId ?? t.displayName;
               if (seen.has(k)) continue;
@@ -801,7 +803,15 @@ export class DashboardToolExecutor {
             avgContactHrsPerTeacher: f.avgContactHrsPerTeacher,
             studentsTaught: f.studentsTaught,
             teamTaughtSections: f.teamTaughtSections,
-            programs: f.programs.slice(0, 15).map((p) => ({
+            levels: f.levels.map((l) => ({
+              level: l.level,
+              teachers: l.teachers,
+              totalContactHrsPerWeek: l.totalContactHrsPerWeek,
+              avgContactHrsPerTeacher: l.avgContactHrsPerTeacher,
+              programCount: l.programs.filter((p) => p.programId !== null)
+                .length,
+            })),
+            programs: allPrograms.slice(0, 15).map((p) => ({
               programName: p.programName,
               programCode: p.programCode,
               programLevel: p.programLevel,

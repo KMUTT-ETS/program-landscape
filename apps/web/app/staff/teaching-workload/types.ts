@@ -79,7 +79,7 @@ export interface StudentsByFacultyResponse {
   };
 }
 
-// By-teacher drill-down: Faculty → Program → Teacher.
+// By-teacher drill-down: Faculty → Program Level → Program → Teacher.
 // Workload figures on a TeacherRow are the teacher's ACTUAL totals across
 // every section they teach — not split or weighted per program. A teacher
 // who is a curriculum member of several programs appears under each one,
@@ -123,10 +123,27 @@ export interface TeacherProgramGroup {
   teamTaughtSections: number;
 }
 
+// Program-level tier. `level` is the ProgramLevel enum (BACHELOR / MASTER
+// / DOCTORAL / HIGHER_GRAD_DIPLOMA), or null for the "Not attached to a
+// curriculum" bucket.
+export interface TeacherLevelGroup {
+  level: string | null;
+  programs: TeacherProgramGroup[];
+  /** Distinct teachers in this level — counted once even across programs. */
+  teachers: number;
+  sections: number;
+  lectureHrsPerWeek: number;
+  labHrsPerWeek: number;
+  totalContactHrsPerWeek: number;
+  avgContactHrsPerTeacher: number;
+  studentsTaught: number;
+  teamTaughtSections: number;
+}
+
 export interface TeacherFacultyGroup {
   facultyId: string | null;
   facultyName: string;
-  programs: TeacherProgramGroup[];
+  levels: TeacherLevelGroup[];
   /** Distinct teachers — a teacher in several of the faculty's programs
    *  is counted once. */
   teachers: number;
