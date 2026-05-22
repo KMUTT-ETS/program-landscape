@@ -765,30 +765,55 @@ export class DashboardToolExecutor {
       if (q.view === 'students_by_faculty')
         return withGuards(await this.teaching.studentsByFaculty(filter));
 
-      // view = 'teachers' — Faculty → Teacher drill. The full payload at
-      // university scope is huge (every teacher). Clip per faculty group
-      // to top 30 by contact hours and keep at most 10 faculty groups.
+      // view = 'teachers' — Faculty → Program → Teacher drill. The full
+      // payload at university scope is huge. Clip per faculty group: top
+      // 15 programs + top 30 distinct teachers by contact hours, at most
+      // 10 faculty groups. A teacher in several of the faculty's programs
+      // is deduped before the top-30 cut so the list isn't padded.
       const res = await this.teaching.teachersDrillDown(filter);
       return withGuards({
         view: 'teachers',
         acadYearBE: res.acadYearBE,
         semester: res.semester,
         totals: res.totals,
-        faculties: res.rows.slice(0, 10).map((f) => ({
-          facultyName: f.facultyName,
-          teachers: f.teachers,
-          sections: f.sections,
-          lectureHrsPerWeek: f.lectureHrsPerWeek,
-          labHrsPerWeek: f.labHrsPerWeek,
-          totalContactHrsPerWeek: f.totalContactHrsPerWeek,
-          avgContactHrsPerTeacher: f.avgContactHrsPerTeacher,
-          studentsTaught: f.studentsTaught,
-          teamTaughtSections: f.teamTaughtSections,
-          topTeachers: f.children
-            .slice()
-            .sort((a, b) => b.totalContactHrsPerWeek - a.totalContactHrsPerWeek)
-            .slice(0, 30),
-        })),
+        faculties: res.rows.slice(0, 10).map((f) => {
+          const seen = new Set<string>();
+          const topTeachers: (typeof res.rows)[number]['programs'][number]['children'] =
+            [];
+          for (const p of f.programs) {
+            for (const t of p.children) {
+              const k = t.facultyMemberId ?? t.displayName;
+              if (seen.has(k)) continue;
+              seen.add(k);
+              topTeachers.push(t);
+            }
+          }
+          topTeachers.sort(
+            (a, b) => b.totalContactHrsPerWeek - a.totalContactHrsPerWeek,
+          );
+          return {
+            facultyName: f.facultyName,
+            teachers: f.teachers,
+            sections: f.sections,
+            lectureHrsPerWeek: f.lectureHrsPerWeek,
+            labHrsPerWeek: f.labHrsPerWeek,
+            totalContactHrsPerWeek: f.totalContactHrsPerWeek,
+            avgContactHrsPerTeacher: f.avgContactHrsPerTeacher,
+            studentsTaught: f.studentsTaught,
+            teamTaughtSections: f.teamTaughtSections,
+            programs: f.programs.slice(0, 15).map((p) => ({
+              programName: p.programName,
+              programCode: p.programCode,
+              programLevel: p.programLevel,
+              teachers: p.teachers,
+              sections: p.sections,
+              totalContactHrsPerWeek: p.totalContactHrsPerWeek,
+              avgContactHrsPerTeacher: p.avgContactHrsPerTeacher,
+              studentsTaught: p.studentsTaught,
+            })),
+            topTeachers: topTeachers.slice(0, 30),
+          };
+        }),
         facultyCount: res.rows.length,
       });
     },

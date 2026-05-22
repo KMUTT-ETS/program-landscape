@@ -89,7 +89,11 @@ export interface ByFacultyResponse {
   };
 }
 
-/** Leaf row inside the by-teacher drill-down. */
+/** Leaf row inside the by-teacher drill-down (Faculty → Program → Teacher).
+ *  The workload figures are the teacher's ACTUAL totals across every
+ *  section they teach — they are NOT split or weighted per program. A
+ *  teacher who is a curriculum member of three programs appears under all
+ *  three program nodes, each showing the same full workload. */
 export interface TeacherRow {
   facultyMemberId: string | null;
   /** Thai name if present, otherwise English, else the email local-part.
@@ -100,6 +104,14 @@ export interface TeacherRow {
    *  resolves to a human-readable label. Null for unresolved teachers
    *  (external lecturers / HCM gaps). */
   rank: string | null;
+  /** ProgramFaculty role in THIS program context (COORDINATOR / CORE /
+   *  SUPPORT). Null in the "not attached to a curriculum" fallback node. */
+  programRole: string | null;
+  /** Number of programs this teacher is a curriculum member of (PDG
+   *  ProgramFaculty). >1 means this same workload row is repeated under
+   *  each of those program nodes — repeated, not additive. 0 for the
+   *  fallback node. */
+  programCount: number;
   sections: number;
   distinctCourses: number;
   /** Σ lecture hours per week. From COURSEUNIT "B" of "A (B-C-D)". */
@@ -112,11 +124,36 @@ export interface TeacherRow {
   teamTaughtSections: number;
 }
 
-/** Top-level (faculty) group in the by-teacher drill-down. */
+/** Middle (program) tier. `programId` is null for the synthetic
+ *  "not attached to a curriculum" node — teachers with teaching activity
+ *  but no ProgramFaculty membership. Within one program a teacher appears
+ *  exactly once, so the program aggregate is a straight sum of children. */
+export interface TeacherProgramGroup {
+  programId: string | null;
+  programCode: string | null;
+  programName: string;
+  programLevel: string | null;
+  children: TeacherRow[];
+  teachers: number;
+  sections: number;
+  lectureHrsPerWeek: number;
+  labHrsPerWeek: number;
+  totalContactHrsPerWeek: number;
+  avgContactHrsPerTeacher: number;
+  studentsTaught: number;
+  teamTaughtSections: number;
+}
+
+/** Top (faculty) tier. For program nodes the faculty is the curriculum's
+ *  OWNING faculty (Program.facultyId); for the fallback node it is the
+ *  teacher's home faculty. The faculty aggregate counts each teacher once
+ *  even when they are a member of several of the faculty's programs. */
 export interface TeacherFacultyGroup {
   facultyId: string | null;
   facultyName: string;
-  children: TeacherRow[];
+  programs: TeacherProgramGroup[];
+  /** Distinct teachers — a teacher in several of the faculty's programs
+   *  is counted once here (and once in the grand total). */
   teachers: number;
   sections: number;
   lectureHrsPerWeek: number;
@@ -132,8 +169,13 @@ export interface TeacherDeepDiveResponse {
   semester: number | null;
   rows: TeacherFacultyGroup[];
   totals: {
+    /** Distinct teachers, counted once across the whole tree. */
     teachers: number;
+    /** Distinct real program nodes (excludes the fallback node). */
+    programs: number;
     sections: number;
+    lectureHrsPerWeek: number;
+    labHrsPerWeek: number;
     totalContactHrsPerWeek: number;
     avgContactHrsPerTeacher: number;
     studentsTaught: number;
@@ -559,12 +601,22 @@ export class TeachingWorkloadService {
   }
 
   /**
-   * Per-teacher drill-down — Faculty → Teacher hierarchy. Aggregates
-   * roll up to the faculty tier. UI matches the active-pivot
-   * drill-down style. The teacher's KKU email is NOT surfaced (the
-   * admin raw-data viewer still has it for analyst follow-up); the
-   * display name falls back to the email's local-part for unresolved
-   * teachers so the row is still readable.
+   * Per-teacher drill-down — Faculty → Program → Teacher hierarchy.
+   *
+   * The middle (program) tier comes from `program_faculties` — the
+   * teacher↔curriculum links extracted by the program-digest pipeline.
+   * A teacher is a curriculum member of 0..N programs; they appear under
+   * EVERY program they belong to, each node showing their FULL actual
+   * teaching workload (no split, no weighting — a deliberate choice so
+   * each program reads as "this is the load the people on our curriculum
+   * carry"). Faculty + grand-total rows count each teacher once, so they
+   * stay consistent with the summary cards and the by-faculty pulse.
+   *
+   * Teachers with teaching activity but no (in-scope) curriculum
+   * membership land in a "Not attached to a curriculum" node under their
+   * home faculty (or the Unresolved bucket). The teacher's KKU email is
+   * NOT surfaced (the admin raw-data viewer still has it); the display
+   * name falls back to the email local-part for unresolved teachers.
    *
    * Cached by full filter signature for ~10 min.
    */
@@ -582,6 +634,32 @@ export class TeachingWorkloadService {
   private async teachersDrillDownFresh(
     filter: TeachingWorkloadFilter,
   ): Promise<TeacherDeepDiveResponse> {
+    // Program-membership join is clamped for scoped users so the deep-dive
+    // never surfaces curricula outside the caller's grant. A teacher whose
+    // memberships are all out-of-scope falls into the "not attached to a
+    // curriculum" node — same as a teacher with genuinely no membership.
+    const scope = filter.scope;
+    let programScope: Prisma.Sql = Prisma.sql`TRUE`;
+    if (scope.mode === 'scoped') {
+      const or: Prisma.Sql[] = [];
+      if (scope.facultyIds.length > 0) {
+        or.push(Prisma.sql`p.faculty_id IN (${Prisma.join(scope.facultyIds)})`);
+      }
+      if (scope.programIds.length > 0) {
+        or.push(Prisma.sql`p.id IN (${Prisma.join(scope.programIds)})`);
+      }
+      programScope =
+        or.length === 0
+          ? Prisma.sql`FALSE`
+          : or.length === 1
+          ? or[0]!
+          : Prisma.sql`(${Prisma.join(or, ' OR ')})`;
+    }
+
+    // The per_teacher CTE emits one row per teacher; the LEFT JOIN to
+    // program_faculties fans that out to one row per (teacher × program
+    // membership). Teachers with no in-scope membership keep their single
+    // row with program_id = NULL.
     const rows = await prisma.$queryRaw<
       Array<{
         kku_email: string;
@@ -589,8 +667,15 @@ export class TeachingWorkloadService {
         name_th: string | null;
         name_en: string | null;
         rank: string | null;
-        faculty_id: string | null;
-        faculty_name_th: string | null;
+        home_faculty_id: string | null;
+        home_faculty_name_th: string | null;
+        program_role: string | null;
+        program_id: string | null;
+        program_code: string | null;
+        program_name_th: string | null;
+        program_level: string | null;
+        program_faculty_id: string | null;
+        program_faculty_name_th: string | null;
         sections: bigint;
         distinct_courses: bigint;
         lecture_hrs: bigint;
@@ -605,8 +690,15 @@ export class TeachingWorkloadService {
         per_teacher.kku_email,
         per_teacher.faculty_member_id,
         fm.name_th, fm.name_en, fm.rank::text AS rank,
-        fm.faculty_id,
-        f.name_th AS faculty_name_th,
+        fm.faculty_id AS home_faculty_id,
+        hf.name_th    AS home_faculty_name_th,
+        pf.role::text AS program_role,
+        p.id          AS program_id,
+        p.code        AS program_code,
+        p.name_th     AS program_name_th,
+        p.level::text AS program_level,
+        p.faculty_id  AS program_faculty_id,
+        pgf.name_th   AS program_faculty_name_th,
         per_teacher.sections,
         per_teacher.distinct_courses,
         per_teacher.lecture_hrs,
@@ -615,97 +707,305 @@ export class TeachingWorkloadService {
         per_teacher.students_taught,
         per_teacher.team_sections
       FROM per_teacher
-      LEFT JOIN faculty_members fm ON fm.id = per_teacher.faculty_member_id
-      LEFT JOIN faculties f ON f.id = fm.faculty_id
-      ORDER BY f.name_th NULLS LAST, per_teacher.contact_hrs DESC
+      LEFT JOIN faculty_members fm   ON fm.id = per_teacher.faculty_member_id
+      LEFT JOIN faculties hf         ON hf.id = fm.faculty_id
+      LEFT JOIN program_faculties pf ON pf.faculty_member_id = per_teacher.faculty_member_id
+      LEFT JOIN programs p           ON p.id = pf.program_id AND ${programScope}
+      LEFT JOIN faculties pgf        ON pgf.id = p.faculty_id
     `;
 
-    // Pivot SQL rows into Faculty → Teacher tree.
-    const facMap = new Map<string, TeacherFacultyGroup>();
-    const facKey = (id: string | null, nm: string | null): string =>
-      id ?? `__unresolved__:${nm ?? ''}`;
+    // ── Pass 1: collapse the program-membership fan-out to one record
+    //    per teacher, carrying the list of in-scope memberships. ──
+    interface TeacherMeta {
+      kkuEmail: string;
+      facultyMemberId: string | null;
+      displayName: string;
+      rank: string | null;
+      homeFacultyId: string | null;
+      homeFacultyName: string | null;
+      sections: number;
+      distinctCourses: number;
+      lectureHrs: number;
+      labHrs: number;
+      contactHrs: number;
+      students: number;
+      team: number;
+      memberships: Array<{
+        programId: string;
+        programCode: string | null;
+        programName: string;
+        programLevel: string | null;
+        facultyId: string | null;
+        facultyName: string | null;
+        role: string | null;
+      }>;
+    }
+    const byTeacher = new Map<string, TeacherMeta>();
     for (const r of rows) {
-      const sections = Number(r.sections);
-      const lectureHrs = Number(r.lecture_hrs);
-      const labHrs = Number(r.lab_hrs);
-      const contactHrs = Number(r.contact_hrs);
-      const students = Number(r.students_taught);
-      const team = Number(r.team_sections);
-      const displayName =
-        r.name_th?.trim() ||
-        r.name_en?.trim() ||
-        r.kku_email.split('@')[0] ||
-        r.kku_email;
-      const groupName = r.faculty_name_th ?? 'Unresolved (external / HCM gap)';
-      const k = facKey(r.faculty_id, r.faculty_name_th);
-      const fac = facMap.get(k) ?? {
-        facultyId: r.faculty_id,
-        facultyName: groupName,
-        children: [],
-        teachers: 0,
-        sections: 0,
-        lectureHrsPerWeek: 0,
-        labHrsPerWeek: 0,
-        totalContactHrsPerWeek: 0,
-        avgContactHrsPerTeacher: 0,
-        studentsTaught: 0,
-        teamTaughtSections: 0,
-      };
-      fac.children.push({
-        facultyMemberId: r.faculty_member_id,
-        displayName,
-        rank: r.rank,
+      let t = byTeacher.get(r.kku_email);
+      if (!t) {
+        t = {
+          kkuEmail: r.kku_email,
+          facultyMemberId: r.faculty_member_id,
+          displayName:
+            r.name_th?.trim() ||
+            r.name_en?.trim() ||
+            r.kku_email.split('@')[0] ||
+            r.kku_email,
+          rank: r.rank,
+          homeFacultyId: r.home_faculty_id,
+          homeFacultyName: r.home_faculty_name_th,
+          sections: Number(r.sections),
+          distinctCourses: Number(r.distinct_courses),
+          lectureHrs: Number(r.lecture_hrs),
+          labHrs: Number(r.lab_hrs),
+          contactHrs: Number(r.contact_hrs),
+          students: Number(r.students_taught),
+          team: Number(r.team_sections),
+          memberships: [],
+        };
+        byTeacher.set(r.kku_email, t);
+      }
+      if (
+        r.program_id &&
+        !t.memberships.some((m) => m.programId === r.program_id)
+      ) {
+        t.memberships.push({
+          programId: r.program_id,
+          programCode: r.program_code,
+          programName: r.program_name_th ?? '(unnamed program)',
+          programLevel: r.program_level,
+          facultyId: r.program_faculty_id,
+          facultyName: r.program_faculty_name_th,
+          role: r.program_role,
+        });
+      }
+    }
+
+    // ── Pass 2: build the Faculty → Program → Teacher tree. ──
+    const FALLBACK_PROGRAM = '__no_program__';
+    const UNRESOLVED_FACULTY = '__unresolved__';
+    interface FacAccum {
+      facultyId: string | null;
+      facultyName: string;
+      programs: Map<string, TeacherProgramGroup>;
+      /** Deduped — a teacher in several of the faculty's programs is
+       *  counted once for the faculty rollup. */
+      distinct: Map<string, TeacherRow>;
+    }
+    const facMap = new Map<string, FacAccum>();
+    const grandDistinct = new Map<string, TeacherRow>();
+
+    const getFac = (
+      key: string,
+      facultyId: string | null,
+      facultyName: string,
+    ): FacAccum => {
+      let f = facMap.get(key);
+      if (!f) {
+        f = { facultyId, facultyName, programs: new Map(), distinct: new Map() };
+        facMap.set(key, f);
+      }
+      return f;
+    };
+    const getProg = (
+      fac: FacAccum,
+      progKey: string,
+      seed: Pick<
+        TeacherProgramGroup,
+        'programId' | 'programCode' | 'programName' | 'programLevel'
+      >,
+    ): TeacherProgramGroup => {
+      let p = fac.programs.get(progKey);
+      if (!p) {
+        p = {
+          ...seed,
+          children: [],
+          teachers: 0,
+          sections: 0,
+          lectureHrsPerWeek: 0,
+          labHrsPerWeek: 0,
+          totalContactHrsPerWeek: 0,
+          avgContactHrsPerTeacher: 0,
+          studentsTaught: 0,
+          teamTaughtSections: 0,
+        };
+        fac.programs.set(progKey, p);
+      }
+      return p;
+    };
+
+    for (const t of byTeacher.values()) {
+      const teacherRow = (programRole: string | null): TeacherRow => ({
+        facultyMemberId: t.facultyMemberId,
+        displayName: t.displayName,
+        rank: t.rank,
+        programRole,
+        programCount: t.memberships.length,
+        sections: t.sections,
+        distinctCourses: t.distinctCourses,
+        lectureHrsPerWeek: t.lectureHrs,
+        labHrsPerWeek: t.labHrs,
+        totalContactHrsPerWeek: t.contactHrs,
+        studentsTaught: t.students,
+        teamTaughtSections: t.team,
+      });
+
+      const placements: Array<{
+        facKey: string;
+        facultyId: string | null;
+        facultyName: string;
+        progKey: string;
+        progSeed: Pick<
+          TeacherProgramGroup,
+          'programId' | 'programCode' | 'programName' | 'programLevel'
+        >;
+        role: string | null;
+      }> = [];
+
+      if (t.memberships.length > 0) {
+        for (const m of t.memberships) {
+          placements.push({
+            facKey: m.facultyId ?? UNRESOLVED_FACULTY,
+            facultyId: m.facultyId,
+            facultyName: m.facultyName ?? 'Unresolved (external / HCM gap)',
+            progKey: m.programId,
+            progSeed: {
+              programId: m.programId,
+              programCode: m.programCode,
+              programName: m.programName,
+              programLevel: m.programLevel,
+            },
+            role: m.role,
+          });
+        }
+      } else {
+        // Teaching activity but no in-scope curriculum membership —
+        // grouped under the teacher's home faculty (or the Unresolved
+        // bucket when the teacher itself is unresolved).
+        const resolvedHome = Boolean(t.facultyMemberId && t.homeFacultyId);
+        placements.push({
+          facKey: resolvedHome ? t.homeFacultyId! : UNRESOLVED_FACULTY,
+          facultyId: resolvedHome ? t.homeFacultyId : null,
+          facultyName: resolvedHome
+            ? t.homeFacultyName ?? '(unknown faculty)'
+            : 'Unresolved (external / HCM gap)',
+          progKey: FALLBACK_PROGRAM,
+          progSeed: {
+            programId: null,
+            programCode: null,
+            programName: 'Not attached to a curriculum',
+            programLevel: null,
+          },
+          role: null,
+        });
+      }
+
+      for (const pl of placements) {
+        const fac = getFac(pl.facKey, pl.facultyId, pl.facultyName);
+        const prog = getProg(fac, pl.progKey, pl.progSeed);
+        const row = teacherRow(pl.role);
+        prog.children.push(row);
+        prog.teachers += 1;
+        prog.sections += t.sections;
+        prog.lectureHrsPerWeek += t.lectureHrs;
+        prog.labHrsPerWeek += t.labHrs;
+        prog.totalContactHrsPerWeek += t.contactHrs;
+        prog.studentsTaught += t.students;
+        prog.teamTaughtSections += t.team;
+        // Faculty + grand-total rollups count each teacher once.
+        fac.distinct.set(t.kkuEmail, row);
+        grandDistinct.set(t.kkuEmail, row);
+      }
+    }
+
+    // ── Pass 3: finalise aggregates + ordering. ──
+    const sumRows = (m: Map<string, TeacherRow>) => {
+      let sections = 0,
+        lec = 0,
+        lab = 0,
+        hrs = 0,
+        students = 0,
+        team = 0;
+      for (const r of m.values()) {
+        sections += r.sections;
+        lec += r.lectureHrsPerWeek;
+        lab += r.labHrsPerWeek;
+        hrs += r.totalContactHrsPerWeek;
+        students += r.studentsTaught;
+        team += r.teamTaughtSections;
+      }
+      return {
+        teachers: m.size,
         sections,
-        distinctCourses: Number(r.distinct_courses),
-        lectureHrsPerWeek: lectureHrs,
-        labHrsPerWeek: labHrs,
-        totalContactHrsPerWeek: contactHrs,
+        lectureHrsPerWeek: lec,
+        labHrsPerWeek: lab,
+        totalContactHrsPerWeek: hrs,
         studentsTaught: students,
         teamTaughtSections: team,
-      });
-      fac.teachers += 1;
-      fac.sections += sections;
-      fac.lectureHrsPerWeek += lectureHrs;
-      fac.labHrsPerWeek += labHrs;
-      fac.totalContactHrsPerWeek += contactHrs;
-      fac.studentsTaught += students;
-      fac.teamTaughtSections += team;
-      facMap.set(k, fac);
-    }
+      };
+    };
+
     const out: TeacherFacultyGroup[] = [];
-    let totTeachers = 0,
-      totSections = 0,
-      totHrs = 0,
-      totStudents = 0,
-      totTeam = 0;
+    let programCount = 0;
     for (const fac of facMap.values()) {
-      fac.avgContactHrsPerTeacher =
-        fac.teachers > 0 ? fac.totalContactHrsPerWeek / fac.teachers : 0;
-      out.push(fac);
-      totTeachers += fac.teachers;
-      totSections += fac.sections;
-      totHrs += fac.totalContactHrsPerWeek;
-      totStudents += fac.studentsTaught;
-      totTeam += fac.teamTaughtSections;
+      const programs: TeacherProgramGroup[] = [];
+      for (const prog of fac.programs.values()) {
+        prog.avgContactHrsPerTeacher =
+          prog.teachers > 0 ? prog.totalContactHrsPerWeek / prog.teachers : 0;
+        prog.children.sort(
+          (a, b) => b.totalContactHrsPerWeek - a.totalContactHrsPerWeek,
+        );
+        if (prog.programId !== null) programCount += 1;
+        programs.push(prog);
+      }
+      // Real programs by total contact hrs desc; fallback node last.
+      programs.sort((a, b) => {
+        if (a.programId === null && b.programId !== null) return 1;
+        if (a.programId !== null && b.programId === null) return -1;
+        return b.totalContactHrsPerWeek - a.totalContactHrsPerWeek;
+      });
+      const agg = sumRows(fac.distinct);
+      out.push({
+        facultyId: fac.facultyId,
+        facultyName: fac.facultyName,
+        programs,
+        teachers: agg.teachers,
+        sections: agg.sections,
+        lectureHrsPerWeek: agg.lectureHrsPerWeek,
+        labHrsPerWeek: agg.labHrsPerWeek,
+        totalContactHrsPerWeek: agg.totalContactHrsPerWeek,
+        avgContactHrsPerTeacher:
+          agg.teachers > 0 ? agg.totalContactHrsPerWeek / agg.teachers : 0,
+        studentsTaught: agg.studentsTaught,
+        teamTaughtSections: agg.teamTaughtSections,
+      });
     }
-    // Default ordering: resolved faculties (by total contact hrs desc),
-    // unresolved row last (typically a long tail of external lecturers).
+    // Resolved faculties by total contact hrs desc; Unresolved last.
     out.sort((a, b) => {
       if (a.facultyId === null && b.facultyId !== null) return 1;
       if (a.facultyId !== null && b.facultyId === null) return -1;
       return b.totalContactHrsPerWeek - a.totalContactHrsPerWeek;
     });
+
+    const grand = sumRows(grandDistinct);
     return {
       acadYearBE: filter.acadYearBE ?? null,
       semester: filter.semester ?? null,
       rows: out,
       totals: {
-        teachers: totTeachers,
-        sections: totSections,
-        totalContactHrsPerWeek: totHrs,
-        avgContactHrsPerTeacher: totTeachers > 0 ? totHrs / totTeachers : 0,
-        studentsTaught: totStudents,
-        teamTaughtSections: totTeam,
+        teachers: grand.teachers,
+        programs: programCount,
+        sections: grand.sections,
+        lectureHrsPerWeek: grand.lectureHrsPerWeek,
+        labHrsPerWeek: grand.labHrsPerWeek,
+        totalContactHrsPerWeek: grand.totalContactHrsPerWeek,
+        avgContactHrsPerTeacher:
+          grand.teachers > 0
+            ? grand.totalContactHrsPerWeek / grand.teachers
+            : 0,
+        studentsTaught: grand.studentsTaught,
+        teamTaughtSections: grand.teamTaughtSections,
       },
     };
   }

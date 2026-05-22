@@ -9,6 +9,7 @@ import type {
   StudentsByFacultyResponse,
   Summary,
   TeacherFacultyGroup,
+  TeacherProgramGroup,
   TeacherRow,
   TeachersResponse,
 } from './types';
@@ -211,15 +212,21 @@ export function TeachingWorkloadClient({
         </Card>
       )}
 
-      {/* ── Deep-dive: Faculty → Teacher drill-down ── */}
+      {/* ── Deep-dive: Faculty → Program → Teacher drill-down ── */}
       {teachers && teachers.rows.length > 0 && (
         <Card className="p-4">
           <h2 className="text-sm font-semibold mb-1">Per-teacher deep dive</h2>
           <p className="text-xs text-fg-3 mb-3">
-            Faculty → Teacher. Click a faculty to expand. Sort by any
-            column — sections, contact hours, students taught, team
-            sections — to find the heaviest carriers. Unresolved teachers
-            (external lecturers / HCM gaps) are pooled into the last row.
+            Faculty → Program → Teacher. The program tier is the
+            teacher↔curriculum link extracted by the program-digest
+            pipeline. A teacher who belongs to several programs appears
+            under each, every node showing their <em>full</em> actual
+            workload — figures are not split or weighted per program.
+            Faculty and Total rows therefore count each teacher once.
+            Teachers with teaching activity but no curriculum membership
+            sit in a <em>Not attached to a curriculum</em> node; unresolved
+            teachers (external lecturers / HCM gaps) are pooled last. Sort
+            by any column to find the heaviest carriers.
           </p>
           <TeacherDrillDown data={teachers} />
         </Card>
@@ -333,8 +340,11 @@ function StudentsTaughtBars({ data }: { data: StudentsByFacultyResponse }) {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// By-teacher drill-down — Faculty → Teacher, sortable headers,
-// matches the active-pivot visual idiom.
+// By-teacher drill-down — Faculty → Program → Teacher, sortable headers.
+// The program tier comes from the program-digest pipeline's teacher↔
+// curriculum links (ProgramFaculty). A teacher in several programs shows
+// under each, every node carrying their full actual workload (no split);
+// faculty + total rows count each teacher once.
 // ────────────────────────────────────────────────────────────────────
 
 type TeacherColKey =
@@ -351,8 +361,38 @@ interface SortState {
   dir: 'asc' | 'desc';
 }
 
+const LEVEL_LABEL: Record<string, string> = {
+  BACHELOR: "Bachelor's",
+  MASTER: "Master's",
+  DOCTORAL: 'Doctoral',
+  HIGHER_GRAD_DIPLOMA: 'Higher Grad. Dip.',
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  COORDINATOR: 'Coordinator',
+  CORE: 'Core',
+  SUPPORT: 'Support',
+};
+
+const facKeyOf = (f: TeacherFacultyGroup): string =>
+  f.facultyId ?? `__un__:${f.facultyName}`;
+const progKeyOf = (p: TeacherProgramGroup): string =>
+  p.programId ?? '__noprog__';
+
+function RoleChip({ role }: { role: string }) {
+  return (
+    <span
+      className="ml-1.5 px-1 py-px rounded-sm text-[9px] uppercase tracking-wide bg-surface-3 text-fg-2 align-middle"
+      title={`Curriculum role: ${ROLE_LABEL[role] ?? role}`}
+    >
+      {ROLE_LABEL[role] ?? role}
+    </span>
+  );
+}
+
 function TeacherDrillDown({ data }: { data: TeachersResponse }) {
-  const [open, setOpen] = React.useState<Set<string>>(() => new Set());
+  const [openFac, setOpenFac] = React.useState<Set<string>>(() => new Set());
+  const [openProg, setOpenProg] = React.useState<Set<string>>(() => new Set());
   const [sort, setSort] = React.useState<SortState | null>(null);
 
   const cycleSort = (k: TeacherColKey) => {
@@ -363,21 +403,20 @@ function TeacherDrillDown({ data }: { data: TeachersResponse }) {
     });
   };
 
+  const toggle =
+    (set: React.Dispatch<React.SetStateAction<Set<string>>>) =>
+    (k: string) =>
+      set((prev) => {
+        const next = new Set(prev);
+        if (next.has(k)) next.delete(k);
+        else next.add(k);
+        return next;
+      });
+  const toggleFac = toggle(setOpenFac);
+  const toggleProg = toggle(setOpenProg);
+
   const sortedRows = React.useMemo<TeacherFacultyGroup[]>(() => {
     if (!sort) return data.rows;
-    const facV = (f: TeacherFacultyGroup, k: TeacherColKey): number => {
-      if (k === 'sections') return f.sections;
-      if (k === 'distinctCourses') return f.children.reduce((s, c) => s + c.distinctCourses, 0);
-      // Faculty-row lecture/lab columns show the AVERAGE per teacher,
-      // so sort by that — keeps the visible order consistent with what
-      // the user sees in the cell.
-      if (k === 'lectureHrs') return f.teachers > 0 ? f.lectureHrsPerWeek / f.teachers : 0;
-      if (k === 'labHrs') return f.teachers > 0 ? f.labHrsPerWeek / f.teachers : 0;
-      if (k === 'contactHrs') return f.totalContactHrsPerWeek;
-      if (k === 'students') return f.studentsTaught;
-      if (k === 'team') return f.teamTaughtSections;
-      return 0;
-    };
     const teacherV = (t: TeacherRow, k: TeacherColKey): number => {
       if (k === 'sections') return t.sections;
       if (k === 'distinctCourses') return t.distinctCourses;
@@ -388,16 +427,49 @@ function TeacherDrillDown({ data }: { data: TeachersResponse }) {
       if (k === 'team') return t.teamTaughtSections;
       return 0;
     };
+    // Faculty + program rows render lecture/lab as an average per teacher,
+    // so sort by that — the visible order matches the cell value. The
+    // Courses column is teacher-only, so faculty/program keep their order.
+    const progV = (p: TeacherProgramGroup, k: TeacherColKey): number => {
+      if (k === 'sections') return p.sections;
+      if (k === 'distinctCourses') return 0;
+      if (k === 'lectureHrs') return p.teachers > 0 ? p.lectureHrsPerWeek / p.teachers : 0;
+      if (k === 'labHrs') return p.teachers > 0 ? p.labHrsPerWeek / p.teachers : 0;
+      if (k === 'contactHrs') return p.totalContactHrsPerWeek;
+      if (k === 'students') return p.studentsTaught;
+      if (k === 'team') return p.teamTaughtSections;
+      return 0;
+    };
+    const facV = (f: TeacherFacultyGroup, k: TeacherColKey): number => {
+      if (k === 'sections') return f.sections;
+      if (k === 'distinctCourses') return 0;
+      if (k === 'lectureHrs') return f.teachers > 0 ? f.lectureHrsPerWeek / f.teachers : 0;
+      if (k === 'labHrs') return f.teachers > 0 ? f.labHrsPerWeek / f.teachers : 0;
+      if (k === 'contactHrs') return f.totalContactHrsPerWeek;
+      if (k === 'students') return f.studentsTaught;
+      if (k === 'team') return f.teamTaughtSections;
+      return 0;
+    };
     const cmp = (a: number, b: number) => (sort.dir === 'asc' ? a - b : b - a);
     return data.rows
       .map((f) => ({
         ...f,
-        children: [...f.children].sort((a, b) =>
-          cmp(teacherV(a, sort.key), teacherV(b, sort.key)),
-        ),
+        programs: [...f.programs]
+          .map((p) => ({
+            ...p,
+            children: [...p.children].sort((a, b) =>
+              cmp(teacherV(a, sort.key), teacherV(b, sort.key)),
+            ),
+          }))
+          .sort((a, b) => {
+            // "Not attached to a curriculum" node always last.
+            if (a.programId === null && b.programId !== null) return 1;
+            if (a.programId !== null && b.programId === null) return -1;
+            return cmp(progV(a, sort.key), progV(b, sort.key));
+          }),
       }))
       .sort((a, b) => {
-        // Always keep unresolved last
+        // Always keep the unresolved faculty last.
         if (a.facultyId === null && b.facultyId !== null) return 1;
         if (a.facultyId !== null && b.facultyId === null) return -1;
         return cmp(facV(a, sort.key), facV(b, sort.key));
@@ -428,25 +500,34 @@ function TeacherDrillDown({ data }: { data: TeachersResponse }) {
     );
   };
 
+  const avgTotLec =
+    data.totals.teachers > 0
+      ? data.totals.lectureHrsPerWeek / data.totals.teachers
+      : 0;
+  const avgTotLab =
+    data.totals.teachers > 0
+      ? data.totals.labHrsPerWeek / data.totals.teachers
+      : 0;
+
   return (
     <div className="overflow-x-auto max-h-[640px] overflow-y-auto border border-line rounded-md">
       <table className="w-full text-[11px] border-collapse">
         <thead className="sticky top-0 bg-surface-2 z-10 border-b border-line text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
           <tr>
             <th className="px-2 py-1.5 text-left sticky left-0 bg-surface-2">
-              Faculty / teacher
+              Faculty / program / teacher
             </th>
             <SortHeader label="Sections" keyName="sections" tooltip="Number of class-sections the teacher appears on." />
-            <SortHeader label="Courses" keyName="distinctCourses" tooltip="Distinct course codes — same course counted once even across many sections." />
+            <SortHeader label="Courses" keyName="distinctCourses" tooltip="Distinct course codes — same course counted once even across many sections. Shown on teacher rows only." />
             <SortHeader
               label="Lecture hrs / wk"
               keyName="lectureHrs"
-              tooltip="Lecture hours per week ('B' in COURSEUNIT 'A (B-C-D)'). Faculty row = average per teacher. Teacher row = the teacher's own Σ across all sections."
+              tooltip="Lecture hours per week ('B' in COURSEUNIT 'A (B-C-D)'). Faculty + program rows = average per teacher. Teacher row = the teacher's own Σ across all sections."
             />
             <SortHeader
               label="Lab hrs / wk"
               keyName="labHrs"
-              tooltip="Laboratory hours per week ('C' in COURSEUNIT 'A (B-C-D)'). Faculty row = average per teacher. Teacher row = the teacher's own Σ across all sections."
+              tooltip="Laboratory hours per week ('C' in COURSEUNIT 'A (B-C-D)'). Faculty + program rows = average per teacher. Teacher row = the teacher's own Σ across all sections."
             />
             <SortHeader label="Total hrs / wk" keyName="contactHrs" tooltip="Σ lecture + lab hours per week across all the teacher's sections." />
             <SortHeader label="Students taught" keyName="students" tooltip="Σ ENROLLSEAT across the teacher's sections — a head-count of the seats they teach into." />
@@ -455,34 +536,39 @@ function TeacherDrillDown({ data }: { data: TeachersResponse }) {
         </thead>
         <tbody>
           {sortedRows.map((f) => {
-            const facKey = f.facultyId ?? `__un__:${f.facultyName}`;
-            const isOpen = open.has(facKey);
-            const isUnresolved = f.facultyId === null;
+            const fk = facKeyOf(f);
+            const facOpen = openFac.has(fk);
+            const isUnresolvedFac = f.facultyId === null;
+            const realPrograms = f.programs.filter(
+              (p) => p.programId !== null,
+            ).length;
+            const facLecAvg =
+              f.teachers > 0 ? f.lectureHrsPerWeek / f.teachers : 0;
+            const facLabAvg =
+              f.teachers > 0 ? f.labHrsPerWeek / f.teachers : 0;
             return (
-              <React.Fragment key={facKey}>
+              <React.Fragment key={fk}>
+                {/* ── Faculty row ── */}
                 <tr
                   className={`border-b border-line cursor-pointer bg-surface-1 hover:bg-surface-2 ${
-                    isUnresolved ? 'italic text-fg-3' : ''
+                    isUnresolvedFac ? 'italic text-fg-3' : ''
                   }`}
-                  onClick={() => {
-                    const next = new Set(open);
-                    next.has(facKey) ? next.delete(facKey) : next.add(facKey);
-                    setOpen(next);
-                  }}
+                  onClick={() => toggleFac(fk)}
                 >
                   <td className="px-2 py-1.5 font-semibold whitespace-nowrap sticky left-0 bg-surface-1">
                     <ChevronRight
                       size={12}
                       className={`inline-block transition-transform mr-1 ${
-                        isOpen ? 'rotate-90' : ''
+                        facOpen ? 'rotate-90' : ''
                       }`}
                     />
                     {f.facultyName}
                     <span className="ml-2 text-fg-3 font-normal">
-                      · {fmt(f.teachers)} teacher{f.teachers === 1 ? '' : 's'}
+                      · {fmt(realPrograms)} program{realPrograms === 1 ? '' : 's'} ·{' '}
+                      {fmt(f.teachers)} teacher{f.teachers === 1 ? '' : 's'}
                     </span>
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(f.sections)} sections in scope`}>
+                  <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(f.sections)} (teacher × section) instances`}>
                     {fmt(f.sections)}
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums text-fg-3">
@@ -490,25 +576,21 @@ function TeacherDrillDown({ data }: { data: TeachersResponse }) {
                   </td>
                   <td
                     className="px-2 py-1.5 text-right tabular-nums"
-                    title={`${fmt(f.lectureHrsPerWeek)} hrs lecture/wk Σ across faculty · avg ${(
-                      f.teachers > 0 ? f.lectureHrsPerWeek / f.teachers : 0
-                    ).toFixed(1)} per teacher`}
+                    title={`${fmt(f.lectureHrsPerWeek)} hrs lecture/wk Σ across ${fmt(f.teachers)} distinct teachers · avg ${facLecAvg.toFixed(1)} per teacher`}
                   >
-                    {(f.teachers > 0 ? f.lectureHrsPerWeek / f.teachers : 0).toFixed(1)}
+                    {facLecAvg.toFixed(1)}
                     <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
                   </td>
                   <td
                     className="px-2 py-1.5 text-right tabular-nums"
-                    title={`${fmt(f.labHrsPerWeek)} hrs lab/wk Σ across faculty · avg ${(
-                      f.teachers > 0 ? f.labHrsPerWeek / f.teachers : 0
-                    ).toFixed(1)} per teacher`}
+                    title={`${fmt(f.labHrsPerWeek)} hrs lab/wk Σ across ${fmt(f.teachers)} distinct teachers · avg ${facLabAvg.toFixed(1)} per teacher`}
                   >
-                    {(f.teachers > 0 ? f.labHrsPerWeek / f.teachers : 0).toFixed(1)}
+                    {facLabAvg.toFixed(1)}
                     <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
                   </td>
                   <td
                     className="px-2 py-1.5 text-right tabular-nums"
-                    title={`Total ${fmt(f.totalContactHrsPerWeek)} contact hrs/wk · avg ${f.avgContactHrsPerTeacher.toFixed(1)} per teacher`}
+                    title={`Total ${fmt(f.totalContactHrsPerWeek)} contact hrs/wk · avg ${f.avgContactHrsPerTeacher.toFixed(1)} per teacher (each teacher counted once)`}
                   >
                     <HrsPill hrs={f.avgContactHrsPerTeacher} suffix=" avg" />
                   </td>
@@ -519,88 +601,181 @@ function TeacherDrillDown({ data }: { data: TeachersResponse }) {
                     {fmt(f.teamTaughtSections)}
                   </td>
                 </tr>
-                {isOpen &&
-                  f.children.map((t) => (
-                    <tr
-                      key={`${facKey}::${t.facultyMemberId ?? t.displayName}`}
-                      className="border-b border-line/40 hover:bg-surface-2"
-                    >
-                      <td
-                        className="px-2 py-1.5 pl-7 whitespace-nowrap sticky left-0 bg-surface-1"
-                        title={t.rank ? `Rank: ${t.rank}` : 'Rank: unresolved (external / HCM gap)'}
-                      >
-                        {nameWithRank(t.displayName, t.rank)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.sections)} sections`}>
-                        {fmt(t.sections)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.distinctCourses)} distinct courses`}>
-                        {fmt(t.distinctCourses)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.lectureHrsPerWeek)} hrs of lecture per week (Σ across all this teacher's sections)`}>
-                        {fmt(t.lectureHrsPerWeek)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.labHrsPerWeek)} hrs of lab per week (Σ across all this teacher's sections)`}>
-                        {fmt(t.labHrsPerWeek)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.totalContactHrsPerWeek)} hrs/wk total · ${t.sections > 0 ? (t.totalContactHrsPerWeek / t.sections).toFixed(1) : '0'} avg per section`}>
-                        <HrsPill hrs={t.totalContactHrsPerWeek} />
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.studentsTaught)} student-seats taught`}>
-                        {fmt(t.studentsTaught)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.teamTaughtSections)} sections shared with at least one co-teacher`}>
-                        {fmt(t.teamTaughtSections)}
-                      </td>
-                    </tr>
-                  ))}
+
+                {/* ── Program rows ── */}
+                {facOpen &&
+                  f.programs.map((p) => {
+                    const pk = `${fk}::${progKeyOf(p)}`;
+                    const progOpen = openProg.has(pk);
+                    const isFallback = p.programId === null;
+                    const progLecAvg =
+                      p.teachers > 0 ? p.lectureHrsPerWeek / p.teachers : 0;
+                    const progLabAvg =
+                      p.teachers > 0 ? p.labHrsPerWeek / p.teachers : 0;
+                    return (
+                      <React.Fragment key={pk}>
+                        <tr
+                          className={`border-b border-line/60 cursor-pointer bg-surface-1 hover:bg-surface-2 ${
+                            isFallback ? 'italic text-fg-3' : ''
+                          }`}
+                          onClick={() => toggleProg(pk)}
+                        >
+                          <td
+                            className="px-2 py-1.5 pl-7 whitespace-nowrap sticky left-0 bg-surface-1"
+                            title={
+                              isFallback
+                                ? 'Teachers with teaching activity but no curriculum membership in this scope.'
+                                : `${p.programName}${p.programCode ? ` (${p.programCode})` : ''}`
+                            }
+                          >
+                            <ChevronRight
+                              size={11}
+                              className={`inline-block transition-transform mr-1 ${
+                                progOpen ? 'rotate-90' : ''
+                              }`}
+                            />
+                            {isFallback ? (
+                              <span>Not attached to a curriculum</span>
+                            ) : (
+                              <>
+                                {p.programLevel && (
+                                  <span className="mr-1.5 px-1 py-px rounded-sm text-[9px] uppercase tracking-wide bg-surface-3 text-fg-2 align-middle">
+                                    {LEVEL_LABEL[p.programLevel] ?? p.programLevel}
+                                  </span>
+                                )}
+                                <span className="font-medium">{p.programName}</span>
+                                {p.programCode && (
+                                  <span className="ml-1.5 text-fg-3 font-normal">
+                                    {p.programCode}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            <span className="ml-2 text-fg-3 font-normal">
+                              · {fmt(p.teachers)} teacher{p.teachers === 1 ? '' : 's'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(p.sections)} (teacher × section) instances`}>
+                            {fmt(p.sections)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-fg-3">
+                            —
+                          </td>
+                          <td
+                            className="px-2 py-1.5 text-right tabular-nums"
+                            title={`${fmt(p.lectureHrsPerWeek)} hrs lecture/wk Σ · avg ${progLecAvg.toFixed(1)} per teacher`}
+                          >
+                            {progLecAvg.toFixed(1)}
+                            <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
+                          </td>
+                          <td
+                            className="px-2 py-1.5 text-right tabular-nums"
+                            title={`${fmt(p.labHrsPerWeek)} hrs lab/wk Σ · avg ${progLabAvg.toFixed(1)} per teacher`}
+                          >
+                            {progLabAvg.toFixed(1)}
+                            <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
+                          </td>
+                          <td
+                            className="px-2 py-1.5 text-right tabular-nums"
+                            title={`Total ${fmt(p.totalContactHrsPerWeek)} contact hrs/wk · avg ${p.avgContactHrsPerTeacher.toFixed(1)} per teacher`}
+                          >
+                            <HrsPill hrs={p.avgContactHrsPerTeacher} suffix=" avg" />
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(p.studentsTaught)} student-seats`}>
+                            {fmt(p.studentsTaught)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(p.teamTaughtSections)} team-taught (teacher × section) instances`}>
+                            {fmt(p.teamTaughtSections)}
+                          </td>
+                        </tr>
+
+                        {/* ── Teacher rows ── */}
+                        {progOpen &&
+                          p.children.map((t) => (
+                            <tr
+                              key={`${pk}::${t.facultyMemberId ?? t.displayName}`}
+                              className="border-b border-line/30 hover:bg-surface-2"
+                            >
+                              <td
+                                className="px-2 py-1.5 pl-12 whitespace-nowrap sticky left-0 bg-surface-1"
+                                title={t.rank ? `Rank: ${t.rank}` : 'Rank: unresolved (external / HCM gap)'}
+                              >
+                                {nameWithRank(t.displayName, t.rank)}
+                                {t.programRole && <RoleChip role={t.programRole} />}
+                                {t.programCount > 1 && (
+                                  <span
+                                    className="ml-1.5 text-[9px] text-fg-3"
+                                    title={`Curriculum member of ${t.programCount} programs — the same workload row appears under each.`}
+                                  >
+                                    in {t.programCount} programs
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.sections)} sections`}>
+                                {fmt(t.sections)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.distinctCourses)} distinct courses`}>
+                                {fmt(t.distinctCourses)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.lectureHrsPerWeek)} hrs of lecture per week (Σ across all this teacher's sections)`}>
+                                {fmt(t.lectureHrsPerWeek)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.labHrsPerWeek)} hrs of lab per week (Σ across all this teacher's sections)`}>
+                                {fmt(t.labHrsPerWeek)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.totalContactHrsPerWeek)} hrs/wk total · ${t.sections > 0 ? (t.totalContactHrsPerWeek / t.sections).toFixed(1) : '0'} avg per section`}>
+                                <HrsPill hrs={t.totalContactHrsPerWeek} />
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.studentsTaught)} student-seats taught`}>
+                                {fmt(t.studentsTaught)}
+                              </td>
+                              <td className="px-2 py-1.5 text-right tabular-nums" title={`${fmt(t.teamTaughtSections)} sections shared with at least one co-teacher`}>
+                                {fmt(t.teamTaughtSections)}
+                              </td>
+                            </tr>
+                          ))}
+                      </React.Fragment>
+                    );
+                  })}
               </React.Fragment>
             );
           })}
           {/* Footer totals — lecture + lab shown as average per teacher,
-              consistent with the faculty rows above. The Σ totals (and
-              the teacher count behind the average) are in the tooltip. */}
-          {(() => {
-            const totLec = sortedRows.reduce((s, f) => s + f.lectureHrsPerWeek, 0);
-            const totLab = sortedRows.reduce((s, f) => s + f.labHrsPerWeek, 0);
-            const tch = data.totals.teachers;
-            const avgLec = tch > 0 ? totLec / tch : 0;
-            const avgLab = tch > 0 ? totLab / tch : 0;
-            return (
-              <tr className="border-t-2 border-line font-semibold bg-surface-2">
-                <td className="px-2 py-1.5 sticky left-0 bg-surface-2">
-                  Total
-                  <span className="ml-2 text-fg-3 font-normal">
-                    · {fmt(tch)} teachers
-                  </span>
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">{fmt(data.totals.sections)}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums text-fg-3">—</td>
-                <td
-                  className="px-2 py-1.5 text-right tabular-nums"
-                  title={`Σ ${fmt(totLec)} hrs/wk of lecture across ${fmt(tch)} teachers · avg ${avgLec.toFixed(1)} per teacher`}
-                >
-                  {avgLec.toFixed(1)}
-                  <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
-                </td>
-                <td
-                  className="px-2 py-1.5 text-right tabular-nums"
-                  title={`Σ ${fmt(totLab)} hrs/wk of lab across ${fmt(tch)} teachers · avg ${avgLab.toFixed(1)} per teacher`}
-                >
-                  {avgLab.toFixed(1)}
-                  <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
-                </td>
-                <td
-                  className="px-2 py-1.5 text-right tabular-nums"
-                  title={`${fmt(data.totals.totalContactHrsPerWeek)} hrs/wk Σ · ${data.totals.avgContactHrsPerTeacher.toFixed(1)} avg per teacher`}
-                >
-                  <HrsPill hrs={data.totals.avgContactHrsPerTeacher} suffix=" avg" />
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">{fmt(data.totals.studentsTaught)}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums">{fmt(data.totals.teamTaughtSections)}</td>
-              </tr>
-            );
-          })()}
+              consistent with the faculty rows. Teachers / hours count each
+              teacher once even when they span several programs. */}
+          <tr className="border-t-2 border-line font-semibold bg-surface-2">
+            <td className="px-2 py-1.5 sticky left-0 bg-surface-2">
+              Total
+              <span className="ml-2 text-fg-3 font-normal">
+                · {fmt(data.totals.teachers)} teachers ·{' '}
+                {fmt(data.totals.programs)} programs
+              </span>
+            </td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{fmt(data.totals.sections)}</td>
+            <td className="px-2 py-1.5 text-right tabular-nums text-fg-3">—</td>
+            <td
+              className="px-2 py-1.5 text-right tabular-nums"
+              title={`Σ ${fmt(data.totals.lectureHrsPerWeek)} hrs/wk of lecture across ${fmt(data.totals.teachers)} teachers · avg ${avgTotLec.toFixed(1)} per teacher`}
+            >
+              {avgTotLec.toFixed(1)}
+              <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
+            </td>
+            <td
+              className="px-2 py-1.5 text-right tabular-nums"
+              title={`Σ ${fmt(data.totals.labHrsPerWeek)} hrs/wk of lab across ${fmt(data.totals.teachers)} teachers · avg ${avgTotLab.toFixed(1)} per teacher`}
+            >
+              {avgTotLab.toFixed(1)}
+              <span className="ml-0.5 text-[9px] text-fg-3">avg</span>
+            </td>
+            <td
+              className="px-2 py-1.5 text-right tabular-nums"
+              title={`${fmt(data.totals.totalContactHrsPerWeek)} hrs/wk Σ · ${data.totals.avgContactHrsPerTeacher.toFixed(1)} avg per teacher`}
+            >
+              <HrsPill hrs={data.totals.avgContactHrsPerTeacher} suffix=" avg" />
+            </td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{fmt(data.totals.studentsTaught)}</td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{fmt(data.totals.teamTaughtSections)}</td>
+          </tr>
         </tbody>
       </table>
     </div>
