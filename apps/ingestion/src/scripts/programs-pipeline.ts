@@ -468,20 +468,32 @@ async function processProgram(
     if (select.status === 'SUCCEEDED') cost += select.costUsd;
 
     let reviewStatus = 'SKIPPED';
+    let reviewReason: string | undefined;
     if (select.status !== 'FAILED') {
       const review = await generateProgramPeerReview({ programId: program.id, ai }).catch((e) => ({
         status: 'FAILED' as const, reason: String(e?.message ?? e),
       }));
       reviewStatus = review.status;
+      reviewReason = 'reason' in review ? review.reason : undefined;
       if (review.status === 'SUCCEEDED') cost += review.costUsd;
     }
 
+    // Show the captured reason on the FAILED side(s) so the per-job
+    // log records WHY each step failed — otherwise an operator has to
+    // reproduce the failure manually to see the error.
+    const annotate = (label: string, status: string, reason?: string) =>
+      status === 'FAILED' && reason
+        ? `${label}=FAILED: ${reason.slice(0, 160)}`
+        : `${label}=${status}`;
     phases.push({
       name: 'phase5 peers select+review (Pro)',
       durationMs: Date.now() - t,
       costUsd: cost,
       ok: select.status !== 'FAILED' && reviewStatus !== 'FAILED',
-      notes: `select=${select.status} review=${reviewStatus}`,
+      notes: [
+        annotate('select', select.status, 'reason' in select ? select.reason : undefined),
+        annotate('review', reviewStatus, reviewReason),
+      ].join(' '),
     });
   }
 

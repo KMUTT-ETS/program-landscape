@@ -21,9 +21,18 @@ import type { AiMessage } from '../types';
 // (AI, sustainability, additive manufacturing, biotech, climate).
 // "Frontier" = built around what the next decade will demand.
 // "In between" = strong fundamentals + selective frontier patches.
+//
+// v2.1 (2026-05-25) — relax all four list min() bounds to 1. Pro
+// legitimately produced fewer items for small focused programs (e.g.
+// KKU-SEQ-0090 LLB returned 1-2 recommendations, hit the .min(3)
+// floor, and the whole review was discarded — losing the strengths /
+// weaknesses / verdicts / gaps the model HAD produced). The schema
+// floor should be "this many is plausible" (1), not "this many is
+// well-formed" (2-3) — the prompt still asks for 3-5 and Pro lands
+// there when the data supports it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_PEER_REVIEW_VERSION = 'program-peer-review.v2';
+export const PROGRAM_PEER_REVIEW_VERSION = 'program-peer-review.v2.1';
 
 const Bullet = z.object({
   /** ≤ 25-word claim, frank tone, references a specific peer or metric. */
@@ -33,15 +42,14 @@ const Bullet = z.object({
 });
 
 export const PeerReviewPayloadSchema = z.object({
-  /** 2-7 frank strengths — what this program does as well as or
-   *  better than its peers. Min 2 (relaxed from 3 in v2.0) — some
-   *  data-sparse programs genuinely have <3 honest strength claims;
-   *  forcing 3+ would invent platitudes. The system prompt still
-   *  asks for 3-5; Pro will land in that range when the data
-   *  supports it, but won't fail validation when it can't. */
-  strengths: z.array(Bullet).min(2).max(7),
-  /** 2-7 frank weaknesses — same rationale as strengths. */
-  weaknesses: z.array(Bullet).min(2).max(7),
+  /** 1-7 frank strengths — what this program does as well as or
+   *  better than its peers. Floor relaxed to 1 in v2.1 — for narrow,
+   *  focused programs Pro may legitimately produce 1-2 honest claims
+   *  and forcing more invents platitudes. The system prompt still
+   *  asks for 3-5; Pro will land there when the data supports it. */
+  strengths: z.array(Bullet).min(1).max(7),
+  /** 1-7 frank weaknesses — same rationale as strengths. */
+  weaknesses: z.array(Bullet).min(1).max(7),
   /** One verdict per tier: 1-3 sentence summary of how KKU stacks up. */
   tierVerdicts: z.object({
     WORLD: z.string().min(20).max(800),
@@ -57,9 +65,8 @@ export const PeerReviewPayloadSchema = z.object({
      *  curriculum / skills / peer comparison evidence. */
     narrative: z.string().min(40).max(1000),
   }),
-  /** 2-6 specific topics where KKU's program content lags peers
-   *  ("the gaps"). Each entry names the topic, KKU's current
-   *  status, peer examples, severity, and a recommendation. */
+  /** 1-6 specific topics where KKU's program content lags peers
+   *  ("the gaps"). Floor relaxed to 1 in v2.1. */
   contentGaps: z.array(
     z.object({
       /** Short topic name (e.g. "AI / ML in mechanical design",
@@ -73,8 +80,11 @@ export const PeerReviewPayloadSchema = z.object({
       /** 1-2 sentence concrete recommendation for closing the gap. */
       recommendation: z.string().min(10).max(500),
     }),
-  ).min(2).max(8),
-  /** 3-7 actionable recommendations for closing the gap, in priority order. */
+  ).min(1).max(8),
+  /** 1-7 actionable recommendations for closing the gap, in priority
+   *  order. Floor relaxed to 1 in v2.1 — for a tiny focused program
+   *  Pro may legitimately produce 1-2 high-leverage recommendations
+   *  rather than padding to 3+. */
   recommendations: z.array(
     z.object({
       priority: z.enum(['high', 'medium', 'low']),
@@ -82,7 +92,7 @@ export const PeerReviewPayloadSchema = z.object({
       detail: z.string().min(10).max(800),
       effortHorizon: z.enum(['short', 'medium', 'long']).default('medium'),
     }),
-  ).min(3).max(8),
+  ).min(1).max(8),
   /** 1-3 sentence overall positioning statement. Plain Thai or English. */
   subjectBenchmarkSummary: z.string().min(30).max(1000),
 });

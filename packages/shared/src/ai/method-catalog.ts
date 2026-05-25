@@ -98,7 +98,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-peer-review',
-    currentVersion: 'program-peer-review.v2',
+    currentVersion: 'program-peer-review.v2.1',
     label: 'Peer-comparative program review',
     description: 'Frank cross-program critique against peer institutions; curriculum modernity verdict.',
     module: 'pipeline',
