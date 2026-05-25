@@ -95,18 +95,20 @@ const STATUS_TONE: Record<
 // operator can always switch to "Custom" and tick individual phases.
 //
 // Pipeline reference (from apps/ingestion/src/scripts/programs-pipeline.ts):
-//   phase1  PDF extraction (digest + faculty + skills + pedagogy)
-//   phase2  approve + materialise
-//   phase3  career mapping + demand match
-//   phase4  Oracle/MSSQL data linkage (cohorts, alumni, financials)
-//   phase5  peer select + peer review
-//   phase6  AI readiness
-//   phase7  strategic narrative
-//   phase8  risk analysis
+//   phase1   PDF extraction (digest + faculty + skills + pedagogy)
+//   phase2   approve + materialise
+//   phase2b  focused course-code extractor (parallel with phase1)
+//   phase3   career mapping + demand match
+//   phase4   Oracle/MSSQL data linkage (cohorts, alumni, financials)
+//   phase5   peer select + peer review
+//   phase6   AI readiness
+//   phase7   strategic narrative
+//   phase8   risk analysis
 
 type Phase =
   | 'phase1'
   | 'phase2'
+  | 'phase2b'
   | 'phase3'
   | 'phase4'
   | 'phase5'
@@ -114,11 +116,22 @@ type Phase =
   | 'phase7'
   | 'phase8';
 
-const ALL_PHASES: Phase[] = ['phase1', 'phase2', 'phase3', 'phase4', 'phase5', 'phase6', 'phase7', 'phase8'];
+const ALL_PHASES: Phase[] = [
+  'phase1',
+  'phase2',
+  'phase2b',
+  'phase3',
+  'phase4',
+  'phase5',
+  'phase6',
+  'phase7',
+  'phase8',
+];
 
 const PHASE_LABEL: Record<Phase, string> = {
   phase1: 'Phase 1 · PDF extraction (digest / faculty / skills / pedagogy)',
   phase2: 'Phase 2 · Approve + materialise',
+  phase2b: 'Phase 2b · Courses-extract (focused course-code list)',
   phase3: 'Phase 3 · Careers + demand match',
   phase4: 'Phase 4 · Oracle / MSSQL data linkage',
   phase5: 'Phase 5 · Peer select + peer review',
@@ -138,15 +151,15 @@ const PIPELINE_PRESETS: PipelinePreset[] = [
   {
     key: 'full',
     label: 'Full pipeline',
-    description: 'All 8 phases · ~5–10 min · ~$0.60 per program in LLM cost',
+    description: 'All 9 phases · ~5–10 min · ~$0.60 per program in LLM cost',
     phases: null,
   },
   {
     key: 'ai-only',
     label: 'AI-only refresh',
     description:
-      'Re-run every LLM phase: PDF extraction · careers + demand · peers · AI readiness · narrative · risk. Skips Oracle/MSSQL.',
-    phases: ['phase1', 'phase2', 'phase3', 'phase5', 'phase6', 'phase7', 'phase8'],
+      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · peers · AI readiness · narrative · risk. Skips Oracle/MSSQL.',
+    phases: ['phase1', 'phase2', 'phase2b', 'phase3', 'phase5', 'phase6', 'phase7', 'phase8'],
   },
   {
     key: 'oracle-only',

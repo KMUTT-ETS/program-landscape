@@ -122,7 +122,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-ai-readiness',
-    currentVersion: 'program-ai-readiness.v3',
+    currentVersion: 'program-ai-readiness.v4',
     label: 'Program AI readiness',
     description: 'Discipline-aware AI-readiness assessment + Shao et al. 2025 HAS / four-zone framework (per-discipline rubric grounded in worker preference + AI capability, not generic keyword count).',
     module: 'pipeline',
@@ -131,7 +131,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-pedagogy',
-    currentVersion: 'program-pedagogy.v1',
+    currentVersion: 'program-pedagogy.v1.1',
     label: 'Program pedagogy',
     description: 'Reads PDF teaching/learning/QA narrative and scores against discipline best practice (PBL, internship, clinical, etc.).',
     module: 'pipeline',
@@ -140,7 +140,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'risk-assessment',
-    currentVersion: 'risk-assessment.v2',
+    currentVersion: 'risk-assessment.v3',
     label: 'Risk assessment',
     description: 'Per-program risk indicators + recommended mitigation measures.',
     module: 'pipeline',
@@ -201,6 +201,15 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     currentVersion: 'job-posting-skills.v1',
     label: 'Job posting → skill extraction',
     description: 'Maps a job posting to its taxonomy skills (labour-market path).',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'evaluation-question-translate',
+    currentVersion: 'evaluation-question-translate.v1',
+    label: 'Evaluation questions TH → EN',
+    description: 'Translates the POWERBI.EVALUATE_INSTRUCTOR student-evaluation question catalog (Thai authoritative source) to English for the courtesy UI watermark. One batched call per catalog refresh; DEAN / ADMIN can override per row.',
     module: 'ingestion',
     tier: 'classification',
     defaultModel: 'gemini-3.5-flash',

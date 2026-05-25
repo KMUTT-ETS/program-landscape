@@ -41,9 +41,13 @@ export type AiJobKind =
 // apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in
 // apps/ingestion/src/scripts/programs-pipeline.ts.
 // Phases 7 + 8 added 2026-05-12 (Phase 2a admin redesign).
+// phase2b added 2026-05-25 (focused course-code extractor that runs
+// parallel with phase1 — was missing here so the admin UI couldn't
+// select it via Custom or AI-only presets).
 export type ProgramPipelinePhase =
   | 'phase1'
   | 'phase2'
+  | 'phase2b'
   | 'phase3'
   | 'phase4'
   | 'phase5'

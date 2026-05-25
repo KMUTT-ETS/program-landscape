@@ -38,10 +38,14 @@ export type AiJobKind =
  *
  * Phases 7 + 8 added 2026-05-12 (pipeline expansion commit 44b6bee).
  * The enum was stale until 2026-05-12 (Phase 2a admin redesign).
+ * phase2b added 2026-05-25 (focused course-code extractor that runs
+ * parallel with phase1 — was missing here so the admin UI couldn't
+ * select it via Custom or the AI-only preset).
  */
 export type ProgramPipelinePhase =
   | 'phase1'
   | 'phase2'
+  | 'phase2b'
   | 'phase3'
   | 'phase4'
   | 'phase5'
