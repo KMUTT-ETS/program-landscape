@@ -1,6 +1,8 @@
 import { prisma } from '@kku/db';
 import {
   buildProgramCoursesExtractMessages,
+  extractCandidateCourseCodes,
+  extractFallbackCourseFromContext,
   ProgramCoursesExtractSchema,
   PROGRAM_COURSES_EXTRACT_VERSION,
   type AiService,
@@ -86,6 +88,14 @@ export async function runProgramCoursesExtract(
     extracted = await extractNativeText(bytes);
   }
 
+  // v2 anchors extraction to a deterministic regex pre-scan: every
+  // [A-Z]{2,4}\s?\d{3}\s?\d{3} match in the PDF text becomes a candidate
+  // the LLM uses as a high-recall starting hint. The catalog routes this
+  // method to Pro because the inline candidate list (typically 150-220
+  // codes for a Bachelor's mคอ.2) makes Gemini Flash deterministically
+  // stop after ~12 entries — Pro handles the same prompt cleanly.
+  const candidateCodes = extractCandidateCourseCodes(extracted.fullText);
+
   const messages = buildProgramCoursesExtractMessages({
     programCode: program.code,
     programNameTh: program.nameTh,
@@ -93,6 +103,7 @@ export async function runProgramCoursesExtract(
     facultyNameTh: program.faculty.nameTh,
     levelTh: LEVEL_TH_LABEL[program.level] ?? program.level,
     pdfText: extracted.fullText,
+    candidateCodes,
   });
 
   const response = await params.ai.extractStructured(
@@ -107,6 +118,13 @@ export async function runProgramCoursesExtract(
       methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
       // Course listings are dense but light — typical output 1k-4k tokens.
       maxOutputTokens: 16000,
+      // Pro defaults to thinking-on; the numbered candidate list +
+      // structured-output mode interact badly with the thinking budget
+      // (~40% of output is reserved for thinking, and the model spends
+      // it all on reasoning about the list, leaving < 700 tokens for
+      // actual JSON). Disabling thinking on this method gives all 16k
+      // back to the JSON, which fits a ~200-course response comfortably.
+      thinking: false,
     },
     ProgramCoursesExtractSchema,
   );
@@ -137,6 +155,7 @@ export async function runProgramCoursesExtract(
   });
 
   let materialisedCount = 0;
+  let fallbackAddedCount = 0;
   if (params.materialise !== false) {
     // De-dup by normalised code — the AI sometimes lists the same
     // course under multiple sections (e.g. "ปีที่ 1 ภาค 1" AND a
@@ -154,6 +173,7 @@ export async function runProgramCoursesExtract(
       credits: number | null;
       methodVersion: string;
     }> = [];
+    const placeholderRe = /^([X?N0-])\1+$/i;
     for (const c of response.parsed.courses) {
       const norm = normaliseCourseCode(c.code);
       if (!norm || norm.length < 4) continue;
@@ -162,7 +182,7 @@ export async function runProgramCoursesExtract(
       // free-elective / unspecified slots that don't correspond to a
       // real CLASSID in VIEW_CLASS_OPEN_GROUP_OFFICER. Drop them so
       // the join doesn't carry phantom rows.
-      if (/^([X?N0-])\1+$/i.test(norm)) {
+      if (placeholderRe.test(norm)) {
         skippedPlaceholder++;
         continue;
       }
@@ -178,6 +198,36 @@ export async function runProgramCoursesExtract(
         methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
       });
     }
+
+    // v2 fallback: any regex-detected candidate the LLM didn't emit gets
+    // a deterministic name+credit extraction from the PDF text. Filtered
+    // by occurrenceCount >= 2 to drop single-mention noise (page-number
+    // refs and footnote citations) while keeping real elective-catalog +
+    // faculty-teaching-load entries the LLM is prone to skipping.
+    //
+    // KKU-SEQ-0090 baseline (Bachelor of Laws, 210 candidates):
+    //   LLM alone        → 104 courses (52% recall vs 196 LW codes)
+    //   LLM + fallback   → 140+ courses (target ground-truth)
+    for (const code of candidateCodes) {
+      if (seen.has(code) || placeholderRe.test(code)) continue;
+      const fb = extractFallbackCourseFromContext(extracted.fullText, code);
+      if (!fb) continue;
+      // Single-occurrence codes are usually noise (page-number, footnote
+      // ref). Require ≥2 occurrences to count as a real course.
+      if (fb.occurrenceCount < 2) continue;
+      seen.add(code);
+      rows.push({
+        programId: program.id,
+        courseCode: code,
+        courseCodeRaw: code,
+        courseNameTh: fb.nameTh || null,
+        courseNameEn: fb.nameEn || null,
+        credits: fb.credits,
+        methodVersion: `${PROGRAM_COURSES_EXTRACT_VERSION}-fallback`,
+      });
+      fallbackAddedCount++;
+    }
+
     // Transaction: wipe + reinsert. Idempotent on re-runs.
     await prisma.$transaction([
       prisma.programCourse.deleteMany({ where: { programId: program.id } }),
@@ -185,7 +235,7 @@ export async function runProgramCoursesExtract(
     ]);
     materialisedCount = rows.length;
     logger.log(
-      `[${program.code}] extracted=${response.parsed.courses.length} normalised+deduped=${materialisedCount} placeholders-skipped=${skippedPlaceholder} previous=${previousCount} confidence=${response.confidence.toFixed(2)}`,
+      `[${program.code}] candidates=${candidateCodes.length} llm=${response.parsed.courses.length} fallback-added=${fallbackAddedCount} materialised=${materialisedCount} placeholders-skipped=${skippedPlaceholder} previous=${previousCount} confidence=${response.confidence.toFixed(2)}`,
     );
   }
 

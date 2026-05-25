@@ -33,6 +33,10 @@ export interface MethodSettingRow {
     setByUserName: string | null;
     updatedAt: string;
   };
+  /** When non-null this method is hard-locked to `lockedModel` — runtime
+   *  ignores any admin override; the UI hides the model picker. */
+  lockedModel: string | null;
+  lockReason: string | null;
   thirtyDayCost: number;
   thirtyDayCalls: number;
 }
@@ -92,7 +96,11 @@ export class AiSettingsService {
 
     const methods: MethodSettingRow[] = AI_METHOD_CATALOG.map((entry) => {
       const override = overrideByPrefix.get(entry.methodPrefix);
-      const effectiveModel = override?.modelId ?? entry.defaultModel;
+      // Locked methods ignore any admin override at runtime — surface
+      // the locked model as the effective one so the UI doesn't show a
+      // misleading "Override" value that isn't actually in use.
+      const effectiveModel =
+        entry.lockedModel ?? override?.modelId ?? entry.defaultModel;
       const spend = spendByPrefix.get(entry.methodPrefix);
       return {
         methodPrefix: entry.methodPrefix,
@@ -111,6 +119,8 @@ export class AiSettingsService {
               updatedAt: override.updatedAt.toISOString(),
             }
           : null,
+        lockedModel: entry.lockedModel ?? null,
+        lockReason: entry.lockReason ?? null,
         thirtyDayCost: spend?.cost ?? 0,
         thirtyDayCalls: spend?.calls ?? 0,
       };
@@ -166,6 +176,11 @@ export class AiSettingsService {
   async setOverride(methodPrefix: string, modelId: string, userId: string): Promise<MethodSettingRow> {
     const entry = findAiMethodEntry(methodPrefix);
     if (!entry) throw new NotFoundException(`Unknown method prefix: ${methodPrefix}`);
+    if (entry.lockedModel) {
+      throw new BadRequestException(
+        `Method "${entry.label}" is locked to ${entry.lockedModel} and cannot be overridden. ${entry.lockReason ?? ''}`.trim(),
+      );
+    }
     const model = await findCatalogModel(modelId);
     if (!model) throw new BadRequestException(`Unknown model id: ${modelId}`);
 

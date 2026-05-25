@@ -45,6 +45,14 @@ export interface AiMethodEntry {
   tier: AiMethodTier;
   /** Static MODEL_BY_METHOD_PREFIX default for this prefix (Google side). */
   defaultModel: string;
+  /** When set, admin cannot override this method — runtime always uses
+   *  this model. The /settings/ai picker is hidden for locked methods.
+   *  Pre-existing DB overrides are silently ignored at runtime. Use this
+   *  for methods that have a documented model-specific failure mode
+   *  (e.g. program-courses-extract on Flash truncates deterministically). */
+  lockedModel?: string;
+  /** Why this method is locked (admin UI surfaces this text). */
+  lockReason?: string;
 }
 
 export const AI_METHOD_CATALOG: AiMethodEntry[] = [
@@ -66,6 +74,18 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     module: 'pipeline',
     tier: 'extraction',
     defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'program-courses-extract',
+    currentVersion: 'program-courses-extract.v2',
+    label: 'Program courses (exhaustive)',
+    description: 'Regex-anchored course-code extractor from curriculum PDF. Distinct from program-digest — focused, complete course list including elective sub-groups + curriculum-comparison appendix + faculty teaching-load.',
+    module: 'pipeline',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.1-pro-preview',
+    lockedModel: 'gemini-3.1-pro-preview',
+    lockReason:
+      'Flash deterministically truncates this method at ~625 output tokens regardless of prompt phrasing or thinking-budget settings (observed across multiple model versions). Pro completes the same prompt cleanly. Locked to Pro.',
   },
   {
     methodPrefix: 'program-skills-detailed',

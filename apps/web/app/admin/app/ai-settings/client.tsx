@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@kku/ui';
-import { Check, Cog, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
+import { Check, Cog, Lock, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
 import {
   clearAiModelOverrideAction,
   refreshAiModelsAction,
@@ -41,6 +41,10 @@ export interface AiSettingsMethodRow {
     setByUserName: string | null;
     updatedAt: string;
   };
+  /** When non-null this method is hard-locked — the picker is hidden
+   *  and any DB override is ignored at runtime. */
+  lockedModel: string | null;
+  lockReason: string | null;
   thirtyDayCost: number;
   thirtyDayCalls: number;
 }
@@ -293,9 +297,23 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs">{model?.label ?? row.effectiveModel}</span>
-                          {row.override ? <Badge tone="warning" >Override</Badge> : <Badge tone="neutral" >Default</Badge>}
+                          {row.lockedModel ? (
+                            <Badge tone="info">
+                              <Lock className="mr-1 h-3 w-3" aria-hidden />
+                              Locked
+                            </Badge>
+                          ) : row.override ? (
+                            <Badge tone="warning">Override</Badge>
+                          ) : (
+                            <Badge tone="neutral">Default</Badge>
+                          )}
                         </div>
-                        {row.override?.setByUserName ? (
+                        {row.lockedModel ? (
+                          <div className="mt-0.5 text-[11px] text-text-tertiary">
+                            Pinned by the platform — admins cannot change this model.
+                            {row.lockReason ? ` ${row.lockReason}` : ''}
+                          </div>
+                        ) : row.override?.setByUserName ? (
                           <div className="mt-0.5 text-[11px] text-text-tertiary">
                             set by {row.override.setByUserName} · {new Date(row.override.updatedAt).toLocaleDateString()}
                           </div>
@@ -307,20 +325,31 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="outline" onClick={() => setEditing(row)} disabled={pending}>
-                            <Cog className="h-3.5 w-3.5" aria-hidden /> Edit
-                          </Button>
-                          {row.override ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => clearOverride(row.methodPrefix)}
-                              disabled={pending}
-                              title={`Revert to ${row.defaultModel}`}
+                          {row.lockedModel ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs text-text-tertiary"
+                              title={row.lockReason ?? 'This method is locked by the platform.'}
                             >
-                              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                            </Button>
-                          ) : null}
+                              <Lock className="h-3.5 w-3.5" aria-hidden /> Locked
+                            </span>
+                          ) : (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => setEditing(row)} disabled={pending}>
+                                <Cog className="h-3.5 w-3.5" aria-hidden /> Edit
+                              </Button>
+                              {row.override ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => clearOverride(row.methodPrefix)}
+                                  disabled={pending}
+                                  title={`Revert to ${row.defaultModel}`}
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                                </Button>
+                              ) : null}
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

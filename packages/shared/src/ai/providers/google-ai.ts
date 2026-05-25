@@ -17,6 +17,7 @@ import type {
   VisionRequest,
   VisionResponse,
 } from '../types';
+import { findAiMethodEntry } from '../method-catalog';
 import { scrubMessages } from '../scrub-messages';
 
 // Google/Gemini provider. Default because:
@@ -76,6 +77,11 @@ const PRICING: Record<string, { input: number; output: number }> = {
 // -ai-readiness / -pedagogy) are in git history — re-add an entry here
 // only for a hard, non-admin-overridable pin; the admin override is the
 // supported per-method mechanism.
+// Static method-prefix → model pin table. Reserved for hard pins that
+// MUST trump the admin's runtime override (the catalog's `lockedModel`
+// is now the canonical way to express this — kept here as a fast-path
+// only). Re-add an entry here only if the catalog mechanism isn't an
+// option (e.g. a method that has no catalog entry).
 const MODEL_BY_METHOD_PREFIX: Array<{ prefix: string; model: string }> = [];
 
 function pickModelForMethod(
@@ -84,16 +90,23 @@ function pickModelForMethod(
   resolver?: ModelOverrideResolver,
 ): string {
   if (!methodVersion) return fallback;
-  // 1. Runtime override (admin AI-settings page) — highest priority.
+  // 1. Catalog `lockedModel` — highest priority, trumps the admin
+  //    override. Used for methods with a documented model-specific
+  //    failure mode (e.g. program-courses-extract on Flash truncates).
+  const entry = findAiMethodEntry(
+    methodVersion.replace(/\.v\d+(?:\.\d+)*$/, ''),
+  );
+  if (entry?.lockedModel) return entry.lockedModel;
+  // 2. Runtime override (admin AI-settings page).
   if (resolver) {
     const override = resolver.resolve(methodVersion);
     if (override) return override;
   }
-  // 2. Hardcoded prefix table (Pro-tier reasoning tasks).
+  // 3. Hardcoded prefix table (legacy / no-catalog-entry pins).
   for (const r of MODEL_BY_METHOD_PREFIX) {
     if (methodVersion.startsWith(r.prefix)) return r.model;
   }
-  // 3. Provider-level default.
+  // 4. Provider-level default.
   return fallback;
 }
 
