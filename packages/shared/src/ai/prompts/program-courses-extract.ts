@@ -37,15 +37,22 @@ import type { AiMessage } from '../types';
 // empty class-offerings join and is corrected on the next pipeline run).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v2';
+export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v2.1';
 
+// credits.max(60): inherited v1's max(20) but that rejected entire
+// extractions on prod for any program whose curriculum lists a
+// doctoral thesis / dissertation unit (typical 36-48 credits) or any
+// other high-credit course unit the model emitted. Bumped to 60 so
+// realistic KKU credits all pass; values above that are still rejected
+// as model-fabrication safety. Schema-fix-only bump v2 → v2.1; the
+// prompt itself is unchanged.
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
    *  Materialiser normalises again before insert so EN241100 == "EN 241 100". */
   code: z.string().min(2),
   nameTh: z.string().default(''),
   nameEn: z.string().default(''),
-  credits: z.number().int().min(0).max(20).nullable().default(null),
+  credits: z.number().int().min(0).max(60).nullable().default(null),
 });
 export type ProgramCoursesExtractCourse = z.infer<typeof CourseSchema>;
 
