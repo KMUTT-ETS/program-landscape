@@ -79,13 +79,10 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     methodPrefix: 'program-courses-extract',
     currentVersion: 'program-courses-extract.v2.3',
     label: 'Program courses (exhaustive)',
-    description: 'Regex-anchored course-code extractor from curriculum PDF. Distinct from program-digest — focused, complete course list including elective sub-groups + curriculum-comparison appendix + faculty teaching-load.',
+    description: 'Regex-anchored course-code extractor scoped to the รายวิชา section (3 หมวด). Distinct from program-digest — focused, complete course list. Was locked to Pro under v2/v2.2 (Flash truncated on the full-PDF + embedded-candidate-list prompt); v2.3 narrowed the input to a ~20KB slice and Flash now returns the same result ~2× faster.',
     module: 'pipeline',
     tier: 'extraction',
-    defaultModel: 'gemini-3.1-pro-preview',
-    lockedModel: 'gemini-3.1-pro-preview',
-    lockReason:
-      'Flash deterministically truncates this method at ~625 output tokens regardless of prompt phrasing or thinking-budget settings (observed across multiple model versions). Pro completes the same prompt cleanly. Locked to Pro.',
+    defaultModel: 'gemini-3.5-flash',
   },
   {
     methodPrefix: 'program-skills-detailed',

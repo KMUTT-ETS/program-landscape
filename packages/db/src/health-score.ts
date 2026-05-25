@@ -1394,18 +1394,29 @@ async function studentSatisfactionDriver(args: {
   // way; this is purely for readability at call sites.
   programId?: string;
 }): Promise<HealthScore['drivers'][number]> {
-  let scopeWhere: Prisma.Sql;
+  // $queryRawUnsafe + plain SQL + positional params — same pattern as
+  // dashboard-overview.ts. Calling this with a Prisma.Sql fragment
+  // (Prisma.sql`...`) under concurrent Promise.all execution
+  // intermittently produces `syntax error at or near "$1"` because
+  // Prisma's Sql-object instanceof check fails across async contexts
+  // and the parameter mis-binds. Plain string + positional params
+  // bypasses the Sql-object machinery entirely.
+  let scopeSql: string;
+  const scopeParams: unknown[] = [];
   if (args.scope === 'program') {
-    scopeWhere = Prisma.sql`AND pc.program_id = ${args.scopeId}`;
+    scopeSql = 'AND pc.program_id = $1';
+    scopeParams.push(args.scopeId);
   } else if (args.scope === 'faculty') {
-    scopeWhere = Prisma.sql`AND p.faculty_id = ${args.scopeId}`;
+    scopeSql = 'AND p.faculty_id = $1';
+    scopeParams.push(args.scopeId);
   } else if (args.scope === 'department') {
-    scopeWhere = Prisma.sql`AND p.department_id = ${args.scopeId}`;
+    scopeSql = 'AND p.department_id = $1';
+    scopeParams.push(args.scopeId);
   } else {
     // university — no scope filter (Σ across all programs).
-    scopeWhere = Prisma.empty;
+    scopeSql = '';
   }
-  const rows = await prisma.$queryRaw<
+  const rows = await prisma.$queryRawUnsafe<
     Array<{
       rating: number | null;
       n: bigint;
@@ -1413,7 +1424,8 @@ async function studentSatisfactionDriver(args: {
       courses: bigint;
       years: bigint;
     }>
-  >`
+  >(
+    `
     SELECT
       (SUM(e.rating_avg::numeric * e.respondent_count) / NULLIF(SUM(e.respondent_count), 0))::float AS rating,
       COALESCE(SUM(e.respondent_count), 0)::bigint                                                  AS n,
@@ -1427,8 +1439,10 @@ async function studentSatisfactionDriver(args: {
     JOIN programs p ON p.id = pc.program_id
     WHERE ds.mocked = false
       AND e.semester IN (1, 2)
-      ${scopeWhere}
-  `;
+      ${scopeSql}
+    `,
+    ...scopeParams,
+  );
   const r = rows[0];
   if (!r || r.rating === null || Number(r.cells) === 0) {
     return { label: 'student_satisfaction', value: null, raw: null };
