@@ -37,15 +37,42 @@ import type { AiMessage } from '../types';
 // empty class-offerings join and is corrected on the next pipeline run).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v2.1';
+export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v2.3';
 
 // credits.max(60): inherited v1's max(20) but that rejected entire
 // extractions on prod for any program whose curriculum lists a
-// doctoral thesis / dissertation unit (typical 36-48 credits) or any
-// other high-credit course unit the model emitted. Bumped to 60 so
-// realistic KKU credits all pass; values above that are still rejected
-// as model-fabrication safety. Schema-fix-only bump v2 → v2.1; the
-// prompt itself is unchanged.
+// doctoral thesis / dissertation unit. Bumped to 60. (Schema-fix-only
+// bump v2 → v2.1.)
+//
+// v2.2 (runner-side): wrap the LLM call in try/catch so a hard failure
+// (truncation, schema rejection) still materialises via the regex
+// fallback on the full candidate set. maxOutputTokens 16k → 32k.
+//
+// v2.3 (2026-05-25, scope change): extract ONLY from the รายวิชา
+// section — the structured course list that every KKU มคอ.2 organises
+// into 3 หมวด:
+//   1. หมวดวิชาศึกษาทั่วไป  (General Education)
+//   2. หมวดวิชาเฉพาะ        (Major-specific)
+//   3. หมวดวิชาเลือกเสรี    (Free Electives)
+// Everything in ภาคผนวก (appendices) is invisible. The earlier-
+// considered "คำอธิบายรายวิชา" section is also excluded — it duplicates
+// the course list but adds a paragraph of prose per row that bloats
+// the LLM input. The structured รายวิชา section is the canonical
+// source of every active curriculum course.
+//
+// v2.0–2.2 deliberately scanned the appendices (curriculum-revision
+// comparison + faculty teaching-load) to maximise recall, but on
+// KKU-SEQ-0090 the model started quoting *old-curriculum* codes from
+// the comparison-table appendix and tagging them as active — see the
+// caveat the model itself volunteered:
+//   "รหัสวิชาในประวัติอาจารย์ (ภาคผนวก 4) เป็นรหัสวิชาจากหลักสูตรเก่า
+//    (พ.ศ. 2564) จึงไม่ได้นำามาใส่..."
+// The runner now slices the PDF text to the รายวิชา section (start:
+// "X.Y รายวิชา" header followed by หมวดวิชา + course codes; end: first
+// subsequent คำอธิบายรายวิชา / ภาคผนวก header) and passes only that
+// slice to the LLM + regex pre-scan + regex fallback. If the section
+// can't be located the run is SKIPPED with a clear reason — better
+// than silently extracting the wrong codes.
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
    *  Materialiser normalises again before insert so EN241100 == "EN 241 100". */
@@ -77,6 +104,66 @@ export interface ProgramCoursesExtractInput {
   /** Course codes pre-scanned from `pdfText` via the regex helper below.
    *  Passed to the LLM as a hint to anchor recall. */
   candidateCodes: string[];
+}
+
+/**
+ * Slice the PDF text down to the รายวิชา (Course List) section only —
+ * the structured list of every curriculum course, organised into the
+ * 3 หมวด (ศึกษาทั่วไป / เฉพาะ / เลือกเสรี). Everything before the
+ * section header (cover, ToC, sections 1-3.2 of มคอ.2) and everything
+ * from the next major section onward (ตัวอย่างแผนการศึกษา,
+ * คำอธิบายรายวิชา, ภาคผนวก) is dropped.
+ *
+ * Heuristics:
+ *   - The section header is a numbered form like "3.3 รายวิชา" or
+ *     "2.3 รายวิชา" depending on the มคอ.2 template — match
+ *     `<digit>.<digit> รายวิชา` and accept the first occurrence whose
+ *     trailing 400 chars contain both หมวดวิชา and a course-code
+ *     pattern (the real start always opens with the GE หมวด + its
+ *     first course row).
+ *   - End of section = the earliest of: next "ค[ ]อธิบายรายวิชา" /
+ *     "ภาคผนวก" / "Appendix" / numbered sibling header (e.g. "3.4 ").
+ *   - Returns found=false when no plausible section header is locatable
+ *     — the runner SKIPs rather than guessing on the full PDF.
+ */
+export function extractCourseListSection(text: string): {
+  found: boolean;
+  text: string;
+  startIndex: number;
+  endIndex: number;
+} {
+  const startRe = /\d[\s.]+\d[\s.]*รายวิชา/g;
+  const codeRe = /[A-Z]{2,4}\s?\d{3}\s?\d{3}/;
+  const subsectionRe = /หมวดวิชา/;
+  let start: number | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = startRe.exec(text)) !== null) {
+    const trailing = text.slice(m.index, m.index + 400);
+    if (subsectionRe.test(trailing) && codeRe.test(trailing)) {
+      start = m.index;
+      break;
+    }
+  }
+  if (start === null) {
+    return { found: false, text: '', startIndex: 0, endIndex: 0 };
+  }
+  // End: take the earliest subsequent major-section marker.
+  const endPatterns = [
+    /ค[\s฿]*[ำาํ][\s฿]*อธิบายรายวิชา/g, // คำอธิบายรายวิชา (with broken sara-am)
+    /ภาคผนวก/g,
+    /Appendix[\s:]/gi,
+    /ตัวอย่างแผนการศึกษา/g, // 3.4 (comes between 3.3 and 3.5 in standard มคอ.2)
+  ];
+  let end = text.length;
+  for (const re of endPatterns) {
+    re.lastIndex = start + 1;
+    const hit = re.exec(text);
+    if (hit && hit.index < end) end = hit.index;
+  }
+  if (end - start < 500) {
+    return { found: false, text: '', startIndex: 0, endIndex: 0 };
+  }
+  return { found: true, text: text.slice(start, end), startIndex: start, endIndex: end };
 }
 
 /**
@@ -186,38 +273,29 @@ export function buildProgramCoursesExtractMessages(
     ? '(pattern matching ไม่พบรหัสที่ตรงรูปแบบ — โปรดสกัดด้วยตนเองจากเอกสาร)'
     : `(${input.candidateCodes.length} รหัส เช่น ${input.candidateCodes.slice(0, 6).join(', ')}, …)`;
 
-  const system = `คุณเป็นผู้สกัดข้อมูล "รหัสรายวิชา" จากเอกสารหลักสูตร (มคอ.2) ของมหาวิทยาลัยขอนแก่น
+  const system = `คุณเป็นผู้สกัดข้อมูล "รหัสรายวิชา" จากส่วน "รายวิชา" ของเอกสารหลักสูตร (มคอ.2) มหาวิทยาลัยขอนแก่น
 
-หน้าที่: อ่านเอกสารหลักสูตรฉบับเต็ม แล้วสกัด **ทุกรายวิชา** ที่ปรากฏ
-ในโครงสร้างหลักสูตร พร้อมรหัสวิชา ชื่อวิชา (ไทย/อังกฤษ) และจำนวนหน่วยกิต
+★ ขอบเขต (สำคัญ) ★
+ข้อความ user ที่จะให้คุณ คือ **เฉพาะส่วน "รายวิชา"** ของหลักสูตร (ตัดส่วนหน้าเอกสาร, คำอธิบายรายวิชา, และภาคผนวกทั้งหมดออกแล้ว)
+ส่วนนี้แบ่งเป็น 3 หมวด:
+  1. หมวดวิชาศึกษาทั่วไป
+  2. หมวดวิชาเฉพาะ (อาจมีกลุ่มย่อย เช่น กลุ่มวิชาแกน, กลุ่มวิชาเฉพาะด้าน)
+  3. หมวดวิชาเลือกเสรี
 
-ขอบเขตการสกัด — สกัดทุกหมวด:
-- หมวดวิชาศึกษาทั่วไป (General Education) + ภาษา (LI/EN)
-- หมวดวิชาเฉพาะ (Major)
-  - วิชาบังคับ (Required)
-  - วิชาเลือก (Electives) — มักแบ่งเป็นกลุ่มย่อยหลายกลุ่ม เช่น
-    "กลุ่มวิชากฎหมายเอกชน" "กลุ่มวิชากฎหมายอาญา" — สกัดทุกกลุ่ม ทุกตัว
-- หมวดวิชาเลือกเสรี ที่หลักสูตรระบุไว้
-- วิชาฝึกงาน / สหกิจศึกษา / วิทยานิพนธ์ / โครงงาน
-- รายวิชาในตัวอย่างแผนการศึกษา / แผนการเรียน
-- ★ ตารางเปรียบเทียบหลักสูตรปรับปรุง (พ.ศ. ก่อนหน้า vs ปัจจุบัน) ในภาคผนวก
-  → สกัดรหัสฝั่ง "หลักสูตรปรับปรุง" ใหม่ (ปัจจุบัน) เท่านั้น
-  → ห้ามใส่รหัสฝั่งหลักสูตรเก่า
-- ★ ภาระงานสอน (Teaching Load) ของอาจารย์ในประวัติอาจารย์ (ภาคผนวก ก./ข.)
-  → รหัสวิชาที่ปรากฏในประวัติอาจารย์เป็นรายวิชาในหลักสูตรปัจจุบัน
+★ ห้ามอนุมาน, ห้ามคาดเดา ★
+- ห้ามใส่รหัสวิชาที่ไม่ปรากฏในข้อความที่ให้
+- ห้ามแก้รหัสวิชาให้ "ดูถูกต้องกว่า"
 
-** สำคัญที่สุด: ต้องครบทุกวิชา ห้ามตัดทอน **
-- ${input.levelTh} ของ ม.ขก. มักมีรายวิชาประมาณ ${target}
-  (รวมวิชาบังคับ + วิชาเลือกในกลุ่มย่อยทั้งหมด + GE + วิชาในตารางเปรียบเทียบฝั่งใหม่)
-- ถ้าผลลัพธ์น้อยกว่าเป้าหมายมาก แสดงว่าน่าจะตัด — ทบทวนกลุ่มวิชาเลือก
-  และตารางเปรียบเทียบหลักสูตรอีกครั้ง
-- ห้ามคัดเฉพาะวิชาแกน ห้ามข้าม electives
+หน้าที่: สกัดทุกรายวิชาในทั้ง 3 หมวด พร้อมรหัส ชื่อ TH/EN และจำนวนหน่วยกิต
+
+รูปแบบของแต่ละรายวิชาในเอกสาร:
+  <รหัสวิชา> <ชื่อภาษาไทย> <ชื่อภาษาอังกฤษ> <หน่วยกิต (B-C-D)>
+
+ปกติ ${input.levelTh} ของ ม.ขก. มี ${target} ในส่วนรายวิชา
 
 [หมายเหตุ — pattern matching ฝั่ง runner]
-runner ได้ทำ pattern matching ก่อนหน้าและพบรหัส candidate ${candidateHint}
-ระบบจะ post-process ผลลัพธ์ของคุณกับ candidate list — ดังนั้นโปรด focus
-ที่การสกัดรายวิชาที่ปรากฏใน "สามแหล่งซึ่ง v1 เคยข้าม" ด้านบน
-(กลุ่มวิชา/เลือก, ตารางเปรียบเทียบหลักสูตร, ภาระงานสอน)
+runner ได้ทำ pattern matching ในส่วนเดียวกันและพบรหัส candidate ${candidateHint}
+runner จะ post-process ผลลัพธ์ของคุณกับ candidate list — focus ให้สกัดครบ
 
 รูปแบบ JSON ผลลัพธ์ (ออก JSON เดี่ยวเท่านั้น ห้ามมี markdown ห้ามมีคำอธิบายล่วงหน้า):
 {
@@ -249,7 +327,7 @@ runner ได้ทำ pattern matching ก่อนหน้าและพบ�
 คณะ: ${input.facultyNameTh}
 ระดับ: ${input.levelTh}
 
-[เอกสารหลักสูตร — มคอ.2 ฉบับเต็ม]
+[ส่วน "รายวิชา" — 3 หมวด — สกัดทุกรายวิชาในข้อความนี้]
 ${input.pdfText}
 
 โปรดสกัดทุกรายวิชาตามที่อธิบายไว้ในส่วนระบบ`;

@@ -2,10 +2,13 @@ import { prisma } from '@kku/db';
 import {
   buildProgramCoursesExtractMessages,
   extractCandidateCourseCodes,
+  extractCourseListSection,
   extractFallbackCourseFromContext,
   ProgramCoursesExtractSchema,
   PROGRAM_COURSES_EXTRACT_VERSION,
   type AiService,
+  type ExtractionResponse,
+  type ProgramCoursesExtractPayload,
   type S3Storage,
 } from '@kku/shared';
 import { Logger } from '@nestjs/common';
@@ -88,13 +91,32 @@ export async function runProgramCoursesExtract(
     extracted = await extractNativeText(bytes);
   }
 
-  // v2 anchors extraction to a deterministic regex pre-scan: every
-  // [A-Z]{2,4}\s?\d{3}\s?\d{3} match in the PDF text becomes a candidate
-  // the LLM uses as a high-recall starting hint. The catalog routes this
-  // method to Pro because the inline candidate list (typically 150-220
-  // codes for a Bachelor's mคอ.2) makes Gemini Flash deterministically
-  // stop after ~12 entries — Pro handles the same prompt cleanly.
-  const candidateCodes = extractCandidateCourseCodes(extracted.fullText);
+  // v2.3 scope clamp: extract only from the รายวิชา section (the
+  // structured course list organised into 3 หมวด: ศึกษาทั่วไป /
+  // เฉพาะ / เลือกเสรี). Everything outside it — cover, ToC,
+  // ตัวอย่างแผนการศึกษา, คำอธิบายรายวิชา, and all ภาคผนวก — is
+  // invisible. Earlier versions read the full PDF and pulled in
+  // old-curriculum codes from the curriculum-revision comparison
+  // appendix; v2.3 slices that ambiguity out at the source.
+  const slice = extractCourseListSection(extracted.fullText);
+  if (!slice.found) {
+    return {
+      status: 'SKIPPED',
+      reason:
+        'Could not locate the "รายวิชา" section (X.Y รายวิชา → 3 หมวด → course codes) in the PDF — refusing to extract from the full document to avoid pulling appendix codes.',
+    };
+  }
+  const sectionText = slice.text;
+  logger.log(
+    `[${program.code}] sliced รายวิชา section: ` +
+      `${slice.startIndex}..${slice.endIndex} ` +
+      `(${(sectionText.length / 1024).toFixed(1)} KB of ${(extracted.fullText.length / 1024).toFixed(1)} KB)`,
+  );
+
+  // Regex pre-scan + LLM both operate on the slice only. The catalog
+  // routes this method to Pro (locked) because the inline candidate
+  // list is unsafe on Flash.
+  const candidateCodes = extractCandidateCourseCodes(sectionText);
 
   const messages = buildProgramCoursesExtractMessages({
     programCode: program.code,
@@ -102,47 +124,77 @@ export async function runProgramCoursesExtract(
     programNameEn: program.nameEn ?? '',
     facultyNameTh: program.faculty.nameTh,
     levelTh: LEVEL_TH_LABEL[program.level] ?? program.level,
-    pdfText: extracted.fullText,
+    pdfText: sectionText,
     candidateCodes,
   });
 
-  const response = await params.ai.extractStructured(
-    {
-      ctx: {
-        module: 'curriculum',
-        kind: 'program-courses-extract',
-        userId: params.triggeredByUserId ?? null,
-        traceId: `program-courses-extract-${program.id}`,
+  // v2.2: wrap the LLM call in try/catch. On long curricula Pro can
+  // still occasionally hit a hard ~6,600-token output ceiling that
+  // truncates the JSON mid-entry (despite thinking: false +
+  // maxOutputTokens: 32000), producing "no json found" at schema
+  // validation. We don't want one truncated LLM response to discard
+  // ~200 regex-extractable courses — the fallback below runs on the
+  // full candidate set when the LLM result is absent.
+  let response: ExtractionResponse<ProgramCoursesExtractPayload> | null = null;
+  let llmFailureReason: string | null = null;
+  try {
+    response = await params.ai.extractStructured(
+      {
+        ctx: {
+          module: 'curriculum',
+          kind: 'program-courses-extract',
+          userId: params.triggeredByUserId ?? null,
+          traceId: `program-courses-extract-${program.id}`,
+        },
+        messages,
+        methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
+        // Course listings are dense but light — typical output 5k-7k
+        // tokens. Bumped 16k → 32k in v2.2 to give Pro slack against
+        // the deterministic truncation that hits ~6,600 tokens on long
+        // mคอ.2 documents (KKU-SEQ-0090 reproducer).
+        maxOutputTokens: 32000,
+        // Pro defaults to thinking-on; the embedded candidate list +
+        // structured-output mode interact badly with the thinking budget
+        // (~40% of output is reserved for thinking, and the model spends
+        // it all on reasoning about the list). Disabling thinking gives
+        // the full budget to the JSON.
+        thinking: false,
       },
-      messages,
-      methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
-      // Course listings are dense but light — typical output 1k-4k tokens.
-      maxOutputTokens: 16000,
-      // Pro defaults to thinking-on; the numbered candidate list +
-      // structured-output mode interact badly with the thinking budget
-      // (~40% of output is reserved for thinking, and the model spends
-      // it all on reasoning about the list, leaving < 700 tokens for
-      // actual JSON). Disabling thinking on this method gives all 16k
-      // back to the JSON, which fits a ~200-course response comfortably.
-      thinking: false,
-    },
-    ProgramCoursesExtractSchema,
-  );
+      ProgramCoursesExtractSchema,
+    );
+  } catch (e) {
+    llmFailureReason = String((e as Error)?.message ?? e);
+    logger.warn(
+      `[${program.code}] LLM extract failed — falling back to regex-only ` +
+        `(reason: ${llmFailureReason.slice(0, 200)})`,
+    );
+  }
 
   // Persist the AI extraction row. Auto-approved by design — this is
   // structural reference data, low risk; the materialiser is the
-  // arbiter of correctness when classes don't join.
+  // arbiter of correctness when classes don't join. On LLM failure we
+  // still write a row with confidence=0 + the failure reason so the
+  // audit trail stays complete.
+  const llmCourses = response?.parsed.courses ?? [];
   const created = await prisma.aiExtraction.create({
     data: {
       sourceEntityType: 'program',
       sourceEntityId: program.id,
       extractionKind: 'PROGRAM_COURSES_EXTRACT',
-      payloadJson: response.parsed as object,
-      confidence: response.confidence,
+      payloadJson: (response?.parsed ?? {
+        courses: [],
+        caveats: [llmFailureReason ?? 'LLM call failed'],
+        confidence: 0,
+        llmFailureReason,
+      }) as object,
+      confidence: response?.confidence ?? 0,
       methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
-      aiInferenceId: response.aiInferenceId,
+      aiInferenceId: response?.aiInferenceId ?? null,
       reviewStatus: 'AUTO_APPROVED',
-      reasoning: response.reasoning ?? null,
+      reasoning: response?.reasoning
+        ?? (llmFailureReason
+          ? `LLM call failed: ${llmFailureReason}. Courses materialised from regex fallback only.`
+          : null),
     },
     select: { id: true },
   });
@@ -174,7 +226,7 @@ export async function runProgramCoursesExtract(
       methodVersion: string;
     }> = [];
     const placeholderRe = /^([X?N0-])\1+$/i;
-    for (const c of response.parsed.courses) {
+    for (const c of llmCourses) {
       const norm = normaliseCourseCode(c.code);
       if (!norm || norm.length < 4) continue;
       // Placeholder filter — curriculum PDFs use repeated-character
@@ -210,7 +262,7 @@ export async function runProgramCoursesExtract(
     //   LLM + fallback   → 140+ courses (target ground-truth)
     for (const code of candidateCodes) {
       if (seen.has(code) || placeholderRe.test(code)) continue;
-      const fb = extractFallbackCourseFromContext(extracted.fullText, code);
+      const fb = extractFallbackCourseFromContext(sectionText, code);
       if (!fb) continue;
       // Single-occurrence codes are usually noise (page-number, footnote
       // ref). Require ≥2 occurrences to count as a real course.
@@ -235,19 +287,23 @@ export async function runProgramCoursesExtract(
     ]);
     materialisedCount = rows.length;
     logger.log(
-      `[${program.code}] candidates=${candidateCodes.length} llm=${response.parsed.courses.length} fallback-added=${fallbackAddedCount} materialised=${materialisedCount} placeholders-skipped=${skippedPlaceholder} previous=${previousCount} confidence=${response.confidence.toFixed(2)}`,
+      `[${program.code}] candidates=${candidateCodes.length} llm=${llmCourses.length}` +
+        (llmFailureReason ? ' (LLM FAILED)' : '') +
+        ` fallback-added=${fallbackAddedCount} materialised=${materialisedCount}` +
+        ` placeholders-skipped=${skippedPlaceholder} previous=${previousCount}` +
+        ` confidence=${(response?.confidence ?? 0).toFixed(2)}`,
     );
   }
 
   return {
     status: 'SUCCEEDED',
     aiExtractionId: created.id,
-    aiInferenceId: response.aiInferenceId,
-    confidence: response.confidence,
-    tokensInput: response.tokens.input,
-    tokensOutput: response.tokens.output,
-    costUsd: response.cost.usd,
-    extractedCount: response.parsed.courses.length,
+    aiInferenceId: response?.aiInferenceId ?? null,
+    confidence: response?.confidence ?? 0,
+    tokensInput: response?.tokens.input ?? 0,
+    tokensOutput: response?.tokens.output ?? 0,
+    costUsd: response?.cost.usd ?? 0,
+    extractedCount: llmCourses.length,
     materialisedCount,
     previousCount,
   };

@@ -77,7 +77,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-courses-extract',
-    currentVersion: 'program-courses-extract.v2.1',
+    currentVersion: 'program-courses-extract.v2.3',
     label: 'Program courses (exhaustive)',
     description: 'Regex-anchored course-code extractor from curriculum PDF. Distinct from program-digest — focused, complete course list including elective sub-groups + curriculum-comparison appendix + faculty teaching-load.',
     module: 'pipeline',
