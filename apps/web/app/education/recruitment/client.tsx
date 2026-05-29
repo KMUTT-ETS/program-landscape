@@ -1162,8 +1162,8 @@ function ProgramGroup({
           <div className="flex items-center gap-1">
             {open ? <ChevronUp className="h-3 w-3 text-text-tertiary" /> : <ChevronDown className="h-3 w-3 text-text-tertiary" />}
             <div>
-              <div className="font-tabular text-xs font-semibold">{programCode}</div>
-              <div className="truncate text-xs text-text-secondary">{head.programNameEn || head.programNameTh}</div>
+              <div className="text-xs font-semibold" lang="th">{head.programNameTh || head.programNameEn}</div>
+              <div className="font-tabular text-xs text-text-secondary">{programCode}</div>
             </div>
           </div>
         </td>
@@ -1277,8 +1277,8 @@ function DrillRow({ r, indent }: { r: ProgramDrillRow; indent: boolean }) {
       <td className={`px-3 py-1.5 ${indent ? 'pl-10' : ''}`}>
         {!indent && (
           <>
-            <div className="font-tabular text-xs font-semibold">{r.programCode}</div>
-            <div className="truncate text-xs text-text-secondary">{r.programNameEn}</div>
+            <div className="text-xs font-semibold" lang="th">{r.programNameTh || r.programNameEn}</div>
+            <div className="font-tabular text-xs text-text-secondary">{r.programCode}</div>
           </>
         )}
         {indent && <span className="text-text-tertiary">{r.programNameTh.slice(0, 30)}</span>}
