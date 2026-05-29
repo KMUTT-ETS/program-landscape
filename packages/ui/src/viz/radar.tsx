@@ -8,6 +8,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Tooltip,
+  Legend,
 } from 'recharts';
 import { useChartPalette } from './chart-theme';
 
@@ -32,11 +33,21 @@ export interface RadarPoint {
   value: number | null;
 }
 
+// Optional benchmark overlays (e.g. University / Faculty averages on the
+// deep-dive Health radar). Each comparison's points align by index with
+// the main `points`. Rendered as stroke-only dashed polygons over the
+// filled primary series, with a legend.
+export interface RadarComparison {
+  label: string;
+  points: RadarPoint[];
+}
+
 export interface RadarChartSmallProps {
   points: RadarPoint[];
   width?: number;
   height?: number;
   seriesLabel?: string;
+  comparisons?: RadarComparison[];
 }
 
 const NO_DATA_SUFFIX = ' · n/d';
@@ -46,6 +57,7 @@ export function RadarChartSmall({
   width = 280,
   height = 240,
   seriesLabel = 'Health',
+  comparisons = [],
 }: RadarChartSmallProps) {
   const palette = useChartPalette();
   // Mount-guard: Recharts internals can produce slightly different
@@ -55,6 +67,16 @@ export function RadarChartSmall({
   // the client.
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
+  // Series the user has toggled off via the legend (by dataKey:
+  // 'value' = this program, 'cmp<i>' = a comparison overlay).
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleSeries = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   if (!mounted) {
     return (
       <div
@@ -79,14 +101,24 @@ export function RadarChartSmall({
   // Plot all 5 axes (so the radar's structure stays stable across
   // programs) but the value series is `null` on missing dims, which
   // Recharts renders as a gap — the polygon connects only the dims
-  // with real data.
-  const data = points.map((p) => ({
-    subject: p.value === null ? p.label + NO_DATA_SUFFIX : p.label,
-    value: p.value,
-    hasData: p.value !== null,
-  }));
+  // with real data. Comparison overlays (University / Faculty averages)
+  // ride alongside as `cmp<i>` keys, aligned by index.
+  const data = points.map((p, i) => {
+    const row: Record<string, string | number | boolean | null> = {
+      subject: p.value === null ? p.label + NO_DATA_SUFFIX : p.label,
+      value: p.value,
+      hasData: p.value !== null,
+    };
+    comparisons.forEach((c, ci) => {
+      row[`cmp${ci}`] = c.points[i]?.value ?? null;
+    });
+    return row;
+  });
+  const hasComparisons = comparisons.length > 0;
+  // Make room for the legend when overlays are present.
+  const chartHeight = hasComparisons ? height + 28 : height;
   return (
-    <RadarChart width={width} height={height} data={data}>
+    <RadarChart width={width} height={chartHeight} data={data}>
       <PolarGrid stroke={palette.grid} />
       <PolarAngleAxis
         dataKey="subject"
@@ -108,6 +140,17 @@ export function RadarChartSmall({
           fontSize: 12,
         }}
       />
+      {hasComparisons && (
+        <Legend
+          wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
+          iconSize={10}
+          onClick={(entry) => {
+            // Our series use string dataKeys ('value' / 'cmp<i>'); ignore
+            // the (typed-but-never-used-here) function-dataKey case.
+            if (typeof entry?.dataKey === 'string') toggleSeries(entry.dataKey);
+          }}
+        />
+      )}
       <Radar
         name={seriesLabel}
         dataKey="value"
@@ -117,7 +160,26 @@ export function RadarChartSmall({
         connectNulls={false}
         isAnimationActive={false}
         dot={{ r: 3 }}
+        hide={hidden.has('value')}
       />
+      {comparisons.map((c, ci) => {
+        const stroke = palette.series[(ci + 1) % palette.series.length] ?? palette.text;
+        return (
+          <Radar
+            key={`cmp${ci}`}
+            name={c.label}
+            dataKey={`cmp${ci}`}
+            stroke={stroke}
+            fill="none"
+            strokeWidth={1.75}
+            strokeDasharray="4 3"
+            connectNulls={false}
+            isAnimationActive={false}
+            dot={{ r: 2 }}
+            hide={hidden.has(`cmp${ci}`)}
+          />
+        );
+      })}
     </RadarChart>
   );
 }

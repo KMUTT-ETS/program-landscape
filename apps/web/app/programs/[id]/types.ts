@@ -127,6 +127,27 @@ export interface HealthCell {
   drivers: Array<{ label: string; value: number | null; raw?: unknown }>;
 }
 
+/** Mean of program-level dimension scores (null dims excluded). */
+export interface DeepDiveDimensionMeans {
+  attractiveness: number | null;
+  financial: number | null;
+  capability: number | null;
+  outcomes: number | null;
+  relevance: number | null;
+  sampleSize: number;
+}
+
+/** University + faculty program-level dimension averages overlaid on the
+ *  Health radar. From GET /programs/:id/health-benchmarks. */
+export interface DeepDiveHealthBenchmarks {
+  methodologyVersion: string;
+  programCount: number;
+  university: DeepDiveDimensionMeans;
+  faculty: DeepDiveDimensionMeans | null;
+  facultyId: string | null;
+  facultyNameTh: string | null;
+}
+
 export interface DeepDiveDemandFunnel {
   /** Entry year (BE) the funnel is anchored on. */
   anchorEntryYearBE: number | null;

@@ -26,6 +26,7 @@ import type {
   DeepDiveLifecycle,
   DeepDiveStrategicNarrative,
   DeepDiveTrends,
+  DeepDiveHealthBenchmarks,
 } from './types';
 
 export const dynamic = 'force-dynamic';
@@ -68,6 +69,7 @@ export default async function ProgramDeepDivePage({
     facultyData,
     peers,
     trends,
+    healthBenchmarks,
   ] = await Promise.all([
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
     apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
@@ -85,6 +87,7 @@ export default async function ProgramDeepDivePage({
     apiFetch<DeepDiveFaculty>(`/programs/${id}/faculty`).catch(() => null),
     apiFetch<DeepDivePeers>(`/programs/${id}/peers`).catch(() => null),
     apiFetch<DeepDiveTrends>(`/programs/${id}/trends`).catch(() => null),
+    apiFetch<DeepDiveHealthBenchmarks>(`/programs/${id}/health-benchmarks`).catch(() => null),
   ]);
 
   if (!overview) {
@@ -207,6 +210,7 @@ export default async function ProgramDeepDivePage({
         faculty={facultyData}
         peers={peers}
         trends={trends}
+        healthBenchmarks={healthBenchmarks}
       />
     </AuthedAppShell>
   );

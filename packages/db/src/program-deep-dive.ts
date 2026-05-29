@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { prisma } from './index';
 import {
   computeHealthScores,
+  computeProgramDimensionAverages,
   HEALTH_SCORE_VERSION,
   FLAGSHIP_REVENUE_FLOOR_THB,
   REVENUE_TARGET_THB_BY_LEVEL,
   type HealthDimension,
   type HealthScoreRow,
+  type ProgramDimensionMeans,
 } from './health-score';
 import { queryMetricByScope } from './scope';
 import { realDataWhere } from './data-quality';
@@ -168,6 +170,42 @@ export async function programOverview(programId: string): Promise<ProgramOvervie
      *  which is `@db.Date` and always reads 00:00:00 UTC in tooltips. */
     lastAnalysedAt,
     methodologyVersion: HEALTH_SCORE_VERSION,
+  };
+}
+
+// Health-radar benchmarks — the University and Faculty program-level
+// dimension averages this program is plotted against. Split out from
+// programOverview (the auth canary, kept fast) because the underlying
+// all-programs scoring is heavier; it's memoised for 5 minutes so the
+// steady-state cost is a map lookup.
+export interface ProgramHealthBenchmarksResult {
+  methodologyVersion: string;
+  /** Number of programs scored for the university mean. */
+  programCount: number;
+  university: ProgramDimensionMeans;
+  /** The program's faculty mean — null when the program has no faculty
+   *  or the faculty contributed no scored programs. */
+  faculty: ProgramDimensionMeans | null;
+  facultyId: string | null;
+  facultyNameTh: string | null;
+}
+
+export async function getProgramHealthBenchmarks(
+  programId: string,
+): Promise<ProgramHealthBenchmarksResult | null> {
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { facultyId: true, faculty: { select: { nameTh: true } } },
+  });
+  if (!program) return null;
+  const averages = await computeProgramDimensionAverages();
+  return {
+    methodologyVersion: averages.methodologyVersion,
+    programCount: averages.programCount,
+    university: averages.university,
+    faculty: program.facultyId ? (averages.byFaculty[program.facultyId] ?? null) : null,
+    facultyId: program.facultyId,
+    facultyNameTh: program.faculty?.nameTh ?? null,
   };
 }
 

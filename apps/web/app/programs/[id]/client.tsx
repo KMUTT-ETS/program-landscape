@@ -41,6 +41,7 @@ import type {
   DeepDiveTcasStats,
   DeepDiveRecruitment,
   DeepDiveTrends,
+  DeepDiveHealthBenchmarks,
 } from './types';
 
 // Anchored-nav deep-dive page. Left rail has section anchors; main
@@ -69,6 +70,7 @@ interface Props {
   faculty: DeepDiveFaculty | null;
   peers: DeepDivePeers | null;
   trends: DeepDiveTrends | null;
+  healthBenchmarks: DeepDiveHealthBenchmarks | null;
 }
 
 /**
@@ -196,7 +198,11 @@ export function DeepDiveClient(props: Props) {
           title="Executive snapshot"
           subtitle="Health verdict, strategic narrative, and AI readiness — the one-page brief."
         >
-          <HeaderSection overview={props.overview} lifecycle={props.lifecycle} />
+          <HeaderSection
+            overview={props.overview}
+            lifecycle={props.lifecycle}
+            benchmarks={props.healthBenchmarks}
+          />
           <NarrativeSection
             programId={props.programId}
             narrative={narrative}
@@ -294,9 +300,11 @@ function MacroGroup({
 function HeaderSection({
   overview,
   lifecycle,
+  benchmarks,
 }: {
   overview: DeepDiveOverview;
   lifecycle: DeepDiveLifecycle | null;
+  benchmarks: DeepDiveHealthBenchmarks | null;
 }) {
   const h = overview.health;
   const dims = h
@@ -308,6 +316,25 @@ function HeaderSection({
         { label: 'Relevance', value: h.dimensions.relevance.score },
       ]
     : [];
+  // University + faculty program-level averages, aligned to the same
+  // 5-dim order as `dims`, overlaid on the radar as dashed comparison
+  // polygons. Faculty omitted when the program has no faculty average.
+  const meansToPoints = (m: DeepDiveHealthBenchmarks['university']) => [
+    { label: 'Attractiveness', value: m.attractiveness },
+    { label: 'Financial', value: m.financial },
+    { label: 'Capability', value: m.capability },
+    { label: 'Outcomes', value: m.outcomes },
+    { label: 'Relevance', value: m.relevance },
+  ];
+  const radarComparisons =
+    h && benchmarks
+      ? [
+          { label: 'University avg', points: meansToPoints(benchmarks.university) },
+          ...(benchmarks.faculty
+            ? [{ label: 'Faculty avg', points: meansToPoints(benchmarks.faculty) }]
+            : []),
+        ]
+      : [];
   const breakdownRows = h
     ? [
         { key: 'attractiveness' as const, label: 'Attractiveness', cell: h.dimensions.attractiveness },
@@ -387,7 +414,7 @@ function HeaderSection({
           <h3 className="mb-2 text-sm font-semibold">Health radar</h3>
           {h ? (
             <>
-              <RadarChartSmall points={dims} />
+              <RadarChartSmall points={dims} comparisons={radarComparisons} seriesLabel="This program" />
               <HealthScoreBreakdown rows={breakdownRows} methodologyVersion={h.methodologyVersion} />
             </>
           ) : (

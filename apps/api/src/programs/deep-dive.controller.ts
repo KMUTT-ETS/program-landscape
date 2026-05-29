@@ -17,6 +17,7 @@ import {
   programDemandFunnel,
   programFaculty,
   programFinancials,
+  getProgramHealthBenchmarks,
   programOutcomes,
   programOverview,
   programPeers,
@@ -112,6 +113,23 @@ export class DeepDiveController {
   async overview(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
     const r = await programOverview(programId);
+    if (!r) throw new NotFoundException();
+    return r;
+  }
+
+  // University + faculty program-level dimension averages, overlaid on the
+  // Health radar. Separate from /overview because the all-programs scoring
+  // is heavier (memoised 5 min); fetched in parallel with the other
+  // sections so it never blocks the page's auth canary.
+  @Get('health-benchmarks')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'health-score', name: 'Health score v2.1' }],
+    methodologyVersion: 'health-score.v2.1',
+  })
+  async healthBenchmarks(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
+    const r = await getProgramHealthBenchmarks(programId);
     if (!r) throw new NotFoundException();
     return r;
   }

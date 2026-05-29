@@ -305,6 +305,142 @@ export async function computeHealthScores(
   return rows;
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Program-level dimension averages (radar benchmarks)
+//
+// The deep-dive Health radar overlays a University average and a Faculty
+// average against the program's own scores. These are the MEAN of the
+// PROGRAM-LEVEL dimension scores (not the faculty/university rollup
+// composite) — i.e. score every program at program scope, then average
+// each dimension. Null dimensions are EXCLUDED from the mean (null = "no
+// data", never 0 — same rule the scorers use).
+//
+// The values are identical regardless of which program is open, so the
+// whole computation is memoised per-process with a 5-minute TTL. Cold
+// computation fans out computeHealthScores('program', id) over every
+// program in bounded-concurrency chunks (mirrors the cockpit heatmap's
+// per-program fan-out; the expensive KMITL alignment scan inside is
+// already memoised so it runs once, not once-per-program).
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface ProgramDimensionMeans {
+  attractiveness: number | null;
+  financial: number | null;
+  capability: number | null;
+  outcomes: number | null;
+  relevance: number | null;
+  /** Programs that contributed ≥1 non-null dimension to these means. */
+  sampleSize: number;
+}
+
+export interface ProgramDimensionAverages {
+  methodologyVersion: string;
+  programCount: number;
+  university: ProgramDimensionMeans;
+  /** Keyed by facultyId. */
+  byFaculty: Record<string, ProgramDimensionMeans>;
+}
+
+interface DimAcc {
+  attractiveness: { sum: number; n: number };
+  financial: { sum: number; n: number };
+  capability: { sum: number; n: number };
+  outcomes: { sum: number; n: number };
+  relevance: { sum: number; n: number };
+  programs: number;
+}
+
+const PROGRAM_AVG_CONCURRENCY = 12;
+// 30-minute TTL: the portfolio-wide dimension means shift only when the
+// underlying health data refreshes (weekly-ish), so a long window keeps
+// the cold-miss fan-out (one score per program) rare — only the first
+// deep-dive view per window pays it; the rest are a map lookup.
+const PROGRAM_AVG_TTL_MS = 30 * 60_000;
+let _programAvgCache: { at: number; data: ProgramDimensionAverages } | null = null;
+
+export async function computeProgramDimensionAverages(): Promise<ProgramDimensionAverages> {
+  const now = Date.now();
+  if (_programAvgCache && now - _programAvgCache.at < PROGRAM_AVG_TTL_MS) {
+    return _programAvgCache.data;
+  }
+  const data = await _computeProgramDimensionAveragesImpl();
+  _programAvgCache = { at: now, data };
+  return data;
+}
+
+function freshAcc(): DimAcc {
+  return {
+    attractiveness: { sum: 0, n: 0 },
+    financial: { sum: 0, n: 0 },
+    capability: { sum: 0, n: 0 },
+    outcomes: { sum: 0, n: 0 },
+    relevance: { sum: 0, n: 0 },
+    programs: 0,
+  };
+}
+
+function accAdd(acc: DimAcc, dims: HealthScoreRow['dimensions']): boolean {
+  let contributed = false;
+  for (const d of HEALTH_DIMENSIONS) {
+    const s = dims[d].score;
+    if (s === null) continue;
+    acc[d].sum += s;
+    acc[d].n += 1;
+    contributed = true;
+  }
+  if (contributed) acc.programs += 1;
+  return contributed;
+}
+
+function accMeans(acc: DimAcc): ProgramDimensionMeans {
+  const m = (x: { sum: number; n: number }) => (x.n > 0 ? x.sum / x.n : null);
+  return {
+    attractiveness: m(acc.attractiveness),
+    financial: m(acc.financial),
+    capability: m(acc.capability),
+    outcomes: m(acc.outcomes),
+    relevance: m(acc.relevance),
+    sampleSize: acc.programs,
+  };
+}
+
+async function _computeProgramDimensionAveragesImpl(): Promise<ProgramDimensionAverages> {
+  const programs = await prisma.program.findMany({
+    select: { id: true, facultyId: true },
+  });
+  const uni = freshAcc();
+  const byFaculty = new Map<string, DimAcc>();
+
+  for (let i = 0; i < programs.length; i += PROGRAM_AVG_CONCURRENCY) {
+    const slice = programs.slice(i, i + PROGRAM_AVG_CONCURRENCY);
+    const scored = await Promise.all(
+      slice.map((p) =>
+        computeHealthScores('program', p.id)
+          .then((rows) => ({ p, row: rows[0] ?? null }))
+          .catch(() => ({ p, row: null as HealthScoreRow | null })),
+      ),
+    );
+    for (const { p, row } of scored) {
+      if (!row) continue;
+      accAdd(uni, row.dimensions);
+      if (p.facultyId) {
+        const facAcc = byFaculty.get(p.facultyId) ?? freshAcc();
+        accAdd(facAcc, row.dimensions);
+        byFaculty.set(p.facultyId, facAcc);
+      }
+    }
+  }
+
+  return {
+    methodologyVersion: HEALTH_SCORE_VERSION,
+    programCount: programs.length,
+    university: accMeans(uni),
+    byFaculty: Object.fromEntries(
+      [...byFaculty.entries()].map(([fid, acc]) => [fid, accMeans(acc)]),
+    ),
+  };
+}
+
 // Pick the most recent year-row in a metric series that actually
 // satisfies `predicate`. Falls back to null when no row qualifies.
 // MV rows are ordered ASC by year, so we walk backwards from the tail.
