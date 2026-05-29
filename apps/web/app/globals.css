@@ -13,3 +13,84 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dual-thumb range slider (e.g. /staff/research year range). Two
+ * full-width native range inputs are stacked over a div track; only the
+ * thumbs receive pointer events so both ends stay draggable. Thumb
+ * colours use design tokens (oklch(var(--…))) — the same sanctioned
+ * pattern as tokens.css, never literal hex/rgb. */
+.range-dual input[type='range'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range-dual input[type='range']::-webkit-slider-runnable-track {
+  background: transparent;
+  border: none;
+}
+.range-dual input[type='range']::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+.range-dual input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  height: 1rem;
+  width: 1rem;
+  border-radius: 9999px;
+  background: oklch(var(--color-accent-default));
+  border: 2px solid oklch(var(--color-surface-1));
+  cursor: pointer;
+}
+.range-dual input[type='range']::-moz-range-thumb {
+  pointer-events: auto;
+  height: 1rem;
+  width: 1rem;
+  border-radius: 9999px;
+  background: oklch(var(--color-accent-default));
+  border: 2px solid oklch(var(--color-surface-1));
+  cursor: pointer;
+}
+.range-dual input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid oklch(var(--color-accent-default));
+  outline-offset: 2px;
+}
+
+/* Global navigation progress bar (src/components/route-progress.tsx).
+ * Thin accent bar pinned to the top of the viewport during route /
+ * filter transitions. Colour via design token. */
+.route-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 100;
+  pointer-events: none;
+}
+.route-progress__bar {
+  height: 100%;
+  width: 0;
+  background: oklch(var(--color-accent-default));
+  animation: route-progress-trickle 12s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+/* Snap to full + fade once the new route has committed. */
+.route-progress__bar--done {
+  width: 100%;
+  animation: none;
+  opacity: 0;
+  transition: width 0.12s ease, opacity 0.2s ease 0.08s;
+}
+@keyframes route-progress-trickle {
+  0% { width: 0; }
+  25% { width: 42%; }
+  55% { width: 68%; }
+  85% { width: 88%; }
+  100% { width: 95%; }
+}

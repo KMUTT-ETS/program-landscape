@@ -9,6 +9,7 @@ import {
   ProvenanceDrawer,
   TooltipProvider,
 } from '@kku/ui';
+import { RouteProgress } from '@/components/route-progress';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: ReactNode }) {
       >
         <TooltipProvider delayDuration={200}>
           <ProvenanceProvider>
+            <RouteProgress />
             {children}
             <ProvenanceDrawer />
             <Toaster position="top-right" richColors />
