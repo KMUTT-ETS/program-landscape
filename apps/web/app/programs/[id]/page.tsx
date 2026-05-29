@@ -116,7 +116,7 @@ export default async function ProgramDeepDivePage({
           className="flex items-center gap-2 text-sm flex-wrap"
         >
           <Link
-            href="/cockpit"
+            href="/programs"
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
           >
             <Home className="h-3.5 w-3.5 shrink-0" aria-hidden />
