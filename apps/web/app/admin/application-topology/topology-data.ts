@@ -162,6 +162,10 @@ const externalNodes: TopologyNode[] = [
       description:
         "KKU Library's institutional research warehouse — Scopus + PubMed (+ ISI/TCI/NRIIS, stale upstream). 5,459 researcher people, ~99% faculty-resolved. Replaces the deprecated OpenAlex+Scopus public-API path.",
       target: '10.130.2.151:5432/kkuscholar (Postgres 9.5)',
+      notes: [
+        'scopus_documents / pubmed_documents — paper metadata + KKU author graph',
+        'scopus_citescores (512k rows) — per (journal × year × ASJC) quartile, percentile, SJR, top_10_percent; powers the journal-quality enrichment',
+      ],
     },
   },
   {
@@ -410,12 +414,16 @@ const connectorNodes: TopologyNode[] = [
     lane: 'connector',
     kind: 'connector',
     label: 'kku-research',
-    subtitle: 'Sun 06:00 · publications',
+    subtitle: 'Sun 06:00 · publications + journal quality',
     details: {
       description:
-        'Pulls Scopus + PubMed publications via the kkuscholar mirror. ~65k (paper × author) upserts/run; ~90% resolve to a FacultyMember after the people backfill.',
+        'Pulls Scopus + PubMed publications via the kkuscholar mirror. ~90k (paper × author) upserts/run; ~90% resolve to a FacultyMember after the people backfill. Each Scopus paper is enriched with its journal quartile (Q1–Q4), Tier-1 / top-10% flag, CiteScore percentile and SJR via a LATERAL join on scopus_citescores (nearest metric-year ≤ cover year, aggregated across the journal\'s ASJC subject areas).',
       cadence: '0 6 * * 0 (Sundays 06:00)',
       sourceSlug: 'kku-research',
+      notes: [
+        'Quartile enrichment is Scopus-only — PubMed rows carry null quartile/percentile/SJR.',
+        'Also exposed as a manual "Research output" refresh on /admin/dashboard-data-fetch.',
+      ],
     },
   },
   {
@@ -839,10 +847,10 @@ const tableNodes: TopologyNode[] = [
     lane: 'table',
     kind: 'table',
     label: 'ResearchOutput',
-    subtitle: 'paper × KKU author',
+    subtitle: 'paper × KKU author · journal quality',
     details: {
       description:
-        'One row per (paper × KKU co-author). Sources: kku-publications:scopus, kku-publications:pubmed. Older openalex rows retained during the green-history window.',
+        'One row per (paper × KKU co-author). Sources: kku-publications:scopus, kku-publications:pubmed. Older openalex rows retained during the green-history window. Scopus rows carry journal-quality columns — quartile (1–4), citeScorePercentile (journal MAX), top10Percent (Tier 1) and sjr — populated by the kku-research CiteScore enrichment.',
       prismaModel: 'ResearchOutput',
     },
   },
@@ -1395,11 +1403,10 @@ const dashboardNodes: TopologyNode[] = [
     lane: 'dashboard',
     kind: 'dashboard',
     label: 'Research and publications',
-    subtitle: '/staff/research',
-    href: '/staff/research',
+    subtitle: '/staff/research · journal quartile lead',
     details: {
       description:
-        'All KKU staff publications (Scopus + PubMed, incl. retired) from the internal kku-publications mirror. Year-trend, faculty heatmap, productivity-by-rank.',
+        'All KKU staff publications (Scopus + PubMed, incl. retired) from the internal kku-publications mirror. Leads with the Journal quartile · Scopus CiteScore hero (the QS / THE strategic driver): Tier 1 (top 10%) + Q1 share KPIs, a call-out quartile donut, and a by-year tier distribution chart. Below it: contributor pivot (faculty → individual, Tier 1 / Q1 ranked), faculty heatmap, productivity-by-rank.',
     },
   },
   {
