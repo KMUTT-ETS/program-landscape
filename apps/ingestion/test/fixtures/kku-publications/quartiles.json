@@ -1,0 +1,1220 @@
+{
+  "capturedAt": "2026-05-29T06:49:40.770Z",
+  "tables": [
+    {
+      "table": "scopus_citescores",
+      "exists": true,
+      "rowCount": 512652,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "uid",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "sourceid",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "citation_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "scholarly_output",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "percent_cited",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "citescore",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "snip",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "sjr",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "asjc_code",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "sub_subject_area",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "percentile",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "rank",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "rank_out_of",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "publisher",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "type_jd",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "open_access",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "quartile",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "top_10_percent",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "e_issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 1,
+          "uid": "2020-12001-3205",
+          "sourceid": "12001",
+          "title": "Journal of the Experimental Analysis of Behavior",
+          "citation_count": 774,
+          "scholarly_output": 247,
+          "percent_cited": 74,
+          "year": 2020,
+          "citescore": 3.1,
+          "snip": 1.104,
+          "sjr": 0.75,
+          "asjc_code": 3205,
+          "sub_subject_area": "Experimental and Cognitive Psychology",
+          "percentile": 55,
+          "rank": 66,
+          "rank_out_of": 148,
+          "publisher": "Wiley-Blackwell",
+          "type_jd": "j",
+          "open_access": false,
+          "quartile": 2,
+          "top_10_percent": false,
+          "url": "https://www.scopus.com/sourceid/12001",
+          "issn": "225002",
+          "e_issn": "19383711",
+          "created_at": "2021-12-17T15:05:02.341Z",
+          "updated_at": "2021-12-17T15:05:02.341Z",
+          "creator_id": null,
+          "updater_id": null
+        },
+        {
+          "id": 2,
+          "uid": "2020-12001-2802",
+          "sourceid": "12001",
+          "title": "Journal of the Experimental Analysis of Behavior",
+          "citation_count": 774,
+          "scholarly_output": 247,
+          "percent_cited": 74,
+          "year": 2020,
+          "citescore": 3.1,
+          "snip": 1.104,
+          "sjr": 0.75,
+          "asjc_code": 2802,
+          "sub_subject_area": "Behavioral Neuroscience",
+          "percentile": 33,
+          "rank": 52,
+          "rank_out_of": 78,
+          "publisher": "Wiley-Blackwell",
+          "type_jd": "j",
+          "open_access": false,
+          "quartile": 3,
+          "top_10_percent": false,
+          "url": "https://www.scopus.com/sourceid/12001",
+          "issn": "225002",
+          "e_issn": "19383711",
+          "created_at": "2021-12-17T15:05:02.352Z",
+          "updated_at": "2021-12-17T15:05:02.352Z",
+          "creator_id": null,
+          "updater_id": null
+        },
+        {
+          "id": 3,
+          "uid": "2020-12002-1202",
+          "sourceid": "12002",
+          "title": "Journal of the History of the Behavioral Sciences",
+          "citation_count": 58,
+          "scholarly_output": 63,
+          "percent_cited": 43,
+          "year": 2020,
+          "citescore": 0.9,
+          "snip": 1.215,
+          "sjr": 0.216,
+          "asjc_code": 1202,
+          "sub_subject_area": "History",
+          "percentile": 86,
+          "rank": 183,
+          "rank_out_of": 1328,
+          "publisher": "Wiley-Blackwell",
+          "type_jd": "j",
+          "open_access": false,
+          "quartile": 1,
+          "top_10_percent": false,
+          "url": "https://www.scopus.com/sourceid/12002",
+          "issn": "225061",
+          "e_issn": "15206696",
+          "created_at": "2021-12-17T15:05:02.356Z",
+          "updated_at": "2021-12-17T15:05:02.356Z",
+          "creator_id": null,
+          "updater_id": null
+        }
+      ]
+    },
+    {
+      "table": "scopus_journal_sjrs",
+      "exists": true,
+      "rowCount": 17,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "scopus_journal_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "publisher",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "aggregation_type",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "source_id",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "eissn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "subject_area",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "sjr",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 17,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2015,
+          "sjr": 0.2,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2016-10-31T10:37:54.125Z",
+          "updated_at": "2016-10-31T10:37:54.125Z"
+        },
+        {
+          "id": 1,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2014,
+          "sjr": 0.205,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:19.916Z",
+          "updated_at": "2016-10-31T10:37:54.142Z"
+        },
+        {
+          "id": 2,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2013,
+          "sjr": 0.24,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:19.929Z",
+          "updated_at": "2016-10-31T10:37:54.155Z"
+        }
+      ]
+    },
+    {
+      "table": "scopus_journal_snips",
+      "exists": true,
+      "rowCount": 17,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "scopus_journal_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "publisher",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "aggregation_type",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "source_id",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "eissn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "subject_area",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "snip",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 1,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2010,
+          "snip": 4.662,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:19.807Z",
+          "updated_at": "2016-10-31T10:37:53.996Z"
+        },
+        {
+          "id": 2,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2011,
+          "snip": 0.233,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:19.820Z",
+          "updated_at": "2016-10-31T10:37:54.012Z"
+        },
+        {
+          "id": 3,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2012,
+          "snip": 0.599,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:19.845Z",
+          "updated_at": "2016-10-31T10:37:54.024Z"
+        }
+      ]
+    },
+    {
+      "table": "scopus_journal_ipps",
+      "exists": true,
+      "rowCount": 17,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "scopus_journal_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "publisher",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "aggregation_type",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "source_id",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "eissn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "subject_area",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "ipp",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 1,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2010,
+          "ipp": 0.767,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:20.151Z",
+          "updated_at": "2016-10-31T10:37:54.406Z"
+        },
+        {
+          "id": 2,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2011,
+          "ipp": 0.124,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:20.165Z",
+          "updated_at": "2016-10-31T10:37:54.422Z"
+        },
+        {
+          "id": 3,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 2012,
+          "ipp": 0.38,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:20.175Z",
+          "updated_at": "2016-10-31T10:37:54.433Z"
+        }
+      ]
+    },
+    {
+      "table": "scopus_journal_yearly_infos",
+      "exists": true,
+      "rowCount": 21,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "scopus_journal_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "publisher",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "aggregation_type",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "source_id",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "eissn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "subject_area",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "publication_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "cite_count_sce",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "zero_cites_sce",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "zero_cites_percent_sce",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "rev_percent",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 2,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 1997,
+          "publication_count": 0,
+          "cite_count_sce": 0,
+          "zero_cites_sce": 0,
+          "zero_cites_percent_sce": null,
+          "rev_percent": 0,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:20.282Z",
+          "updated_at": "2016-10-31T10:37:54.564Z"
+        },
+        {
+          "id": 3,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 1998,
+          "publication_count": 0,
+          "cite_count_sce": 0,
+          "zero_cites_sce": 0,
+          "zero_cites_percent_sce": null,
+          "rev_percent": 0,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:20.293Z",
+          "updated_at": "2016-10-31T10:37:54.576Z"
+        },
+        {
+          "id": 4,
+          "scopus_journal_id": 1,
+          "title": "AACL Bioflux",
+          "publisher": "Bioflux Publishing House",
+          "aggregation_type": "journal",
+          "source_id": "19300156808",
+          "issn": "1844-8143",
+          "eissn": "1844-9166",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2308\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Management, Monitoring, Policy and Law\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1104\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Aquatic Science\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1105\", \"@abbrev\"=>\"AGRI\", \"$\"=>\"Ecology, Evolution, Behavior and Systematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2312\", \"@abbrev\"=>\"ENVI\", \"$\"=>\"Water Science and Technology\"}]",
+          "year": 1999,
+          "publication_count": 0,
+          "cite_count_sce": 0,
+          "zero_cites_sce": 0,
+          "zero_cites_percent_sce": null,
+          "rev_percent": 0,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:20.305Z",
+          "updated_at": "2016-10-31T10:37:54.589Z"
+        }
+      ]
+    },
+    {
+      "table": "scopus_journals",
+      "exists": true,
+      "rowCount": 9190,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "workflow_state",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "workflow_state_updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "publisher",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "aggregation_type",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "source_id",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "eissn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "subject_area",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 4,
+          "workflow_state": "enabled",
+          "workflow_state_updater_id": null,
+          "title": "Abstract and Applied Analysis",
+          "publisher": "Hindawi Publishing Corporation",
+          "aggregation_type": "journal",
+          "source_id": "24087",
+          "issn": "1085-3375",
+          "eissn": "1687-0409",
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"2604\", \"@abbrev\"=>\"MATH\", \"$\"=>\"Applied Mathematics\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"2603\", \"@abbrev\"=>\"MATH\", \"$\"=>\"Analysis\"}]",
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:28.989Z",
+          "updated_at": "2016-10-31T10:38:08.920Z"
+        },
+        {
+          "id": 5,
+          "workflow_state": "enabled",
+          "workflow_state_updater_id": null,
+          "title": "ACS Catalysis",
+          "publisher": "American Chemical Society",
+          "aggregation_type": "journal",
+          "source_id": "19700188320",
+          "issn": "2155-5435",
+          "eissn": null,
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"1503\", \"@abbrev\"=>\"CENG\", \"$\"=>\"Catalysis\"}]",
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:38.571Z",
+          "updated_at": "2016-10-31T10:38:44.466Z"
+        },
+        {
+          "id": 7,
+          "workflow_state": "enabled",
+          "workflow_state_updater_id": null,
+          "title": "ACS Medicinal Chemistry Letters",
+          "publisher": "American Chemical Society",
+          "aggregation_type": "journal",
+          "source_id": "19700177127",
+          "issn": "1948-5875",
+          "eissn": null,
+          "subject_area": "[{\"@_fa\"=>\"true\", \"@code\"=>\"3002\", \"@abbrev\"=>\"PHAR\", \"$\"=>\"Drug Discovery\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1605\", \"@abbrev\"=>\"CHEM\", \"$\"=>\"Organic Chemistry\"}, {\"@_fa\"=>\"true\", \"@code\"=>\"1303\", \"@abbrev\"=>\"BIOC\", \"$\"=>\"Biochemistry\"}]",
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2015-10-30T18:16:40.730Z",
+          "updated_at": "2016-10-31T10:38:52.645Z"
+        }
+      ]
+    },
+    {
+      "table": "person_quartile_years",
+      "exists": true,
+      "rowCount": 30087,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "person_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "quartile",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "quartile_great",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 1,
+          "person_id": 4299,
+          "year": 2020,
+          "quartile": null,
+          "quartile_great": null,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2022-08-30T04:10:15.204Z",
+          "updated_at": "2022-08-30T04:10:15.204Z"
+        },
+        {
+          "id": 2,
+          "person_id": 4299,
+          "year": 2021,
+          "quartile": null,
+          "quartile_great": null,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2022-08-30T04:10:15.210Z",
+          "updated_at": "2022-08-30T04:10:15.210Z"
+        },
+        {
+          "id": 3,
+          "person_id": 4299,
+          "year": 2022,
+          "quartile": null,
+          "quartile_great": null,
+          "creator_id": null,
+          "updater_id": null,
+          "created_at": "2022-08-30T04:10:15.215Z",
+          "updated_at": "2022-08-30T04:10:15.215Z"
+        }
+      ]
+    },
+    {
+      "table": "impact_factors",
+      "exists": true,
+      "rowCount": 8659,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "year",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "journal_title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "issn",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "total_cites",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "impact_factor",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "impact_factor_5_year",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "immediacy_index",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "items",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "cited_half_life",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "is_greater_than_cited_half_life",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "eigenfactor_score",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "article_influence_score",
+          "type": "double precision",
+          "nullable": true
+        },
+        {
+          "name": "creator_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "updater_id",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        }
+      ],
+      "piiColumns": [],
+      "sampleRows": [
+        {
+          "id": 10,
+          "year": 2014,
+          "journal_title": "ACAD PEDIATR",
+          "issn": "1876-2859",
+          "total_cites": 931,
+          "impact_factor": 2.007,
+          "impact_factor_5_year": 2.644,
+          "immediacy_index": 0.802,
+          "items": 96,
+          "cited_half_life": 3.5,
+          "is_greater_than_cited_half_life": false,
+          "eigenfactor_score": 0.00535,
+          "article_influence_score": 1.044,
+          "creator_id": 1,
+          "updater_id": 1,
+          "created_at": "2016-03-28T18:21:17.637Z",
+          "updated_at": "2016-04-19T08:31:25.447Z"
+        },
+        {
+          "id": 29,
+          "year": 2014,
+          "journal_title": "ACM T DATABASE SYST",
+          "issn": "0362-5915",
+          "total_cites": 1029,
+          "impact_factor": 0.684,
+          "impact_factor_5_year": 1.381,
+          "immediacy_index": 0.152,
+          "items": 33,
+          "cited_half_life": 10,
+          "is_greater_than_cited_half_life": true,
+          "eigenfactor_score": 0.00189,
+          "article_influence_score": 0.889,
+          "creator_id": 1,
+          "updater_id": 1,
+          "created_at": "2016-03-28T18:21:17.853Z",
+          "updated_at": "2016-04-19T08:31:25.827Z"
+        },
+        {
+          "id": 30,
+          "year": 2014,
+          "journal_title": "ACM T DES AUTOMAT EL",
+          "issn": "1084-4309",
+          "total_cites": 405,
+          "impact_factor": 0.686,
+          "impact_factor_5_year": 0.712,
+          "immediacy_index": 0.043,
+          "items": 47,
+          "cited_half_life": 6.6,
+          "is_greater_than_cited_half_life": false,
+          "eigenfactor_score": 0.00151,
+          "article_influence_score": 0.381,
+          "creator_id": 1,
+          "updater_id": 1,
+          "created_at": "2016-03-28T18:21:17.865Z",
+          "updated_at": "2016-04-19T08:31:25.845Z"
+        }
+      ]
+    }
+  ],
+  "citescoreJoin": {
+    "total_docs": "159030",
+    "with_citescore_id": "50372",
+    "join_resolves": "50372"
+  },
+  "personQuartileYears": {
+    "quartileColumn": "quartile",
+    "yearColumn": "year",
+    "distribution": [
+      {
+        "q": "1",
+        "n": "3894"
+      },
+      {
+        "q": "2",
+        "n": "1653"
+      },
+      {
+        "q": "3",
+        "n": "891"
+      },
+      {
+        "q": "4",
+        "n": "434"
+      },
+      {
+        "q": null,
+        "n": "23215"
+      }
+    ]
+  }
+}

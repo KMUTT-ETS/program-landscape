@@ -29,6 +29,7 @@
 //   pnpm publications:probe columns <table>  # column types of a table
 //   pnpm publications:probe sample <table>   # 5 sample rows (PII-guarded)
 //   pnpm publications:probe coverage         # year span + scopus-id / doi density
+//   pnpm publications:probe quartiles        # journal-metric + Q1-Q4 feasibility probe
 //   pnpm publications:probe all              # ping + tables + heuristic sample
 //
 // All output also written to apps/ingestion/test/fixtures/kku-publications/
@@ -930,6 +931,216 @@ async function kkuSummary(): Promise<void> {
 // CLI
 // ─────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────
+// quartiles — journal-metric + quartile feasibility probe.
+//
+// Answers "can we identify the quartile (Q1–Q4) of KKU's published
+// papers from the mirror, without calling the Scopus Serial Title API?"
+//
+// Dumps columns + row-count + (PII-guarded) sample rows for every
+// journal-metric / quartile table the mirror carries, plus two targeted
+// checks:
+//   - join feasibility: scopus_documents.scopus_citescore_id →
+//     scopus_citescores (how many docs resolve to a CiteScore row),
+//   - person_quartile_years: distinct quartile values + per-quartile
+//     row counts, to see whether quartiles are PRE-ROLLED per
+//     researcher per year (cheapest path) or must be derived from a
+//     percentile column.
+//
+// READ-ONLY. Everything lands in fixtures/kku-publications/quartiles.json.
+// ─────────────────────────────────────────────────────────────────────
+
+const QUARTILE_TABLES = [
+  'scopus_citescores',
+  'scopus_journal_sjrs',
+  'scopus_journal_snips',
+  'scopus_journal_ipps',
+  'scopus_journal_yearly_infos',
+  'scopus_journals',
+  'person_quartile_years',
+  'impact_factors',
+] as const;
+
+interface QuartileTableReport {
+  table: string;
+  exists: boolean;
+  rowCount: number | null;
+  columns: Array<{ name: string; type: string; nullable: boolean }>;
+  piiColumns: string[];
+  sampleRows: Array<Record<string, unknown>> | null;
+  sampleSkippedReason?: string;
+  notes?: string;
+}
+
+async function quartiles(): Promise<void> {
+  console.log(
+    '[quartiles] probing journal-metric + quartile tables (READ-ONLY)…',
+  );
+  const cfg = loadConfig();
+  const report: {
+    capturedAt: string;
+    tables: QuartileTableReport[];
+    citescoreJoin: Record<string, unknown> | null;
+    personQuartileYears: Record<string, unknown> | null;
+  } = {
+    capturedAt: new Date().toISOString(),
+    tables: [],
+    citescoreJoin: null,
+    personQuartileYears: null,
+  };
+
+  await withConnection(cfg, async (client) => {
+    for (const table of QUARTILE_TABLES) {
+      console.log(`\n  ── ${table} ──`);
+      const tr: QuartileTableReport = {
+        table,
+        exists: false,
+        rowCount: null,
+        columns: [],
+        piiColumns: [],
+        sampleRows: null,
+      };
+      try {
+        const cols = await query<ColumnRow>(
+          client,
+          `SELECT column_name, data_type, is_nullable, ordinal_position,
+                  column_default, character_maximum_length
+           FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = $1
+           ORDER BY ordinal_position`,
+          [table],
+        );
+        if (cols.length === 0) {
+          tr.notes = 'table not found in public schema';
+          console.log('    (not found)');
+          report.tables.push(tr);
+          continue;
+        }
+        tr.exists = true;
+        tr.columns = cols.map((c) => ({
+          name: c.column_name,
+          type: c.data_type,
+          nullable: c.is_nullable === 'YES',
+        }));
+        tr.piiColumns = cols
+          .filter((c) => PII_PATTERN.test(c.column_name))
+          .map((c) => c.column_name);
+        console.log(`    columns: ${tr.columns.map((c) => c.name).join(', ')}`);
+
+        const countRows = await query<{ n: string }>(
+          client,
+          `SELECT COUNT(*)::text AS n FROM "${table}"`,
+        );
+        tr.rowCount = Number(countRows[0]?.n ?? 0);
+        console.log(`    rows: ${tr.rowCount.toLocaleString()}`);
+
+        if (tr.piiColumns.length > 0) {
+          tr.sampleSkippedReason = `PII-pattern column(s): ${tr.piiColumns.join(', ')}`;
+          console.log(`    ⚠️  sample skipped — ${tr.sampleSkippedReason}`);
+        } else {
+          const rows = await query(client, `SELECT * FROM "${table}" LIMIT 3`);
+          tr.sampleRows = rows;
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row) continue;
+            const compact = Object.entries(row)
+              .map(([k, v]) => {
+                const s =
+                  v === null ? '∅' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+                return `${k}=${s.length > 40 ? s.slice(0, 37) + '…' : s}`;
+              })
+              .join('  ');
+            console.log(`    [${i + 1}] ${compact}`);
+          }
+        }
+      } catch (e) {
+        tr.notes = `query failed: ${(e as Error).message}`;
+        console.log(`    ✗ ${tr.notes}`);
+      }
+      report.tables.push(tr);
+    }
+
+    // ── Join feasibility: scopus_documents → scopus_citescores ──
+    console.log('\n  ── join: scopus_documents.scopus_citescore_id → scopus_citescores ──');
+    try {
+      const j = await query<{
+        total_docs: string;
+        with_citescore_id: string;
+        join_resolves: string;
+      }>(
+        client,
+        `SELECT
+           COUNT(*)::text AS total_docs,
+           COUNT(d.scopus_citescore_id)::text AS with_citescore_id,
+           COUNT(c.id)::text AS join_resolves
+         FROM scopus_documents d
+         LEFT JOIN scopus_citescores c ON c.id = d.scopus_citescore_id`,
+      );
+      report.citescoreJoin = j[0] ?? null;
+      if (j[0]) {
+        const total = Number(j[0].total_docs);
+        const withId = Number(j[0].with_citescore_id);
+        const resolves = Number(j[0].join_resolves);
+        console.log(
+          `    docs=${total.toLocaleString()}  with citescore_id=${withId.toLocaleString()} (${pct(withId, total)})  join resolves=${resolves.toLocaleString()} (${pct(resolves, total)})`,
+        );
+      }
+    } catch (e) {
+      report.citescoreJoin = { error: (e as Error).message };
+      console.log(`    ✗ ${(e as Error).message}`);
+    }
+
+    // ── person_quartile_years: is the quartile pre-rolled? ──
+    console.log('\n  ── person_quartile_years: quartile-value distribution ──');
+    try {
+      // Find the column most likely to hold the quartile label.
+      const pqyCols = await query<ColumnRow>(
+        client,
+        `SELECT column_name, data_type, is_nullable, ordinal_position,
+                column_default, character_maximum_length
+         FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='person_quartile_years'
+         ORDER BY ordinal_position`,
+      );
+      const qCol = pqyCols.find((c) => /quartile|q_?[1-4]|^q$|rank/i.test(c.column_name));
+      const yearCol = pqyCols.find((c) => /year/i.test(c.column_name));
+      if (qCol) {
+        const dist = await query<{ q: string | null; n: string }>(
+          client,
+          `SELECT "${qCol.column_name}"::text AS q, COUNT(*)::text AS n
+           FROM person_quartile_years
+           GROUP BY "${qCol.column_name}"
+           ORDER BY 1`,
+        );
+        report.personQuartileYears = {
+          quartileColumn: qCol.column_name,
+          yearColumn: yearCol?.column_name ?? null,
+          distribution: dist,
+        };
+        console.log(`    quartile column: ${qCol.column_name}${yearCol ? `, year column: ${yearCol.column_name}` : ''}`);
+        for (const d of dist) {
+          console.log(`      ${String(d.q ?? '∅').padEnd(8)} ${Number(d.n).toLocaleString()}`);
+        }
+      } else {
+        report.personQuartileYears = {
+          note: 'no obvious quartile column — inspect columns above',
+          columns: pqyCols.map((c) => c.column_name),
+        };
+        console.log('    no obvious quartile column — see columns dump above');
+      }
+    } catch (e) {
+      report.personQuartileYears = { error: (e as Error).message };
+      console.log(`    ✗ ${(e as Error).message}`);
+    }
+  });
+
+  await writeFixture('quartiles', report);
+}
+
+function pct(n: number, d: number): string {
+  return d > 0 ? `${((n / d) * 100).toFixed(1)}%` : '—';
+}
+
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd) {
@@ -968,6 +1179,9 @@ async function main(): Promise<void> {
       case 'find-author':
         await findAuthor(rest[0]);
         break;
+      case 'quartiles':
+        await quartiles();
+        break;
       case 'all':
         await ping();
         console.log();
@@ -995,6 +1209,7 @@ function printUsage(): void {
   pnpm publications:probe sample <table>   # 5 sample rows (PII-guarded)
   pnpm publications:probe coverage         # year span + scopus-id / doi density
   pnpm publications:probe kku-summary      # KKU-scoped aggregates across sources
+  pnpm publications:probe quartiles        # journal-metric + Q1-Q4 feasibility probe
   pnpm publications:probe all              # ping + tables + kku-summary`);
 }
 
