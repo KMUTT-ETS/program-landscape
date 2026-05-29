@@ -1566,6 +1566,19 @@ model ResearchOutput {
   doi             String?
   // The connector that wrote / last updated this row.
   source          String?
+  // Scopus journal quartile (1-4) for the paper's source in its
+  // publication year — the BEST (lowest-number) quartile across the
+  // journal's ASJC subject areas, from kku-publications
+  // `scopus_citescores` (CiteScore-based: Q1 = 75-99th percentile).
+  // The nearest available metric year ≤ publication year is used when
+  // the exact year is absent. Null for PubMed-sourced rows and Scopus
+  // papers whose journal carries no CiteScore record.
+  quartile            Int?           @map("quartile")
+  // CiteScore percentile (0-99) underlying the quartile — max across
+  // the journal's subject areas, matching the best-quartile pick.
+  citeScorePercentile Int?           @map("cite_score_percentile")
+  // SCImago Journal Rank (SJR) for the chosen journal/year.
+  sjr                 Float?         @map("sjr")
   // Raw author display name from the source — used for analyst
   // reconciliation when facultyMemberId is null. Multiple KKU authors
   // on one paper produce multiple rows, each carrying that author's
@@ -1586,6 +1599,7 @@ model ResearchOutput {
   @@index([pmid])
   @@index([doi])
   @@index([ingestionRunId])
+  @@index([quartile])
   @@map("research_outputs")
 }
 

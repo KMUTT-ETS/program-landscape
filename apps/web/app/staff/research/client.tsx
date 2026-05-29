@@ -253,6 +253,21 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
         />
       </div>
 
+      {/* Journal quartile (Scopus CiteScore) */}
+      <Card>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-sm font-semibold">Journal quartile · Scopus CiteScore</h3>
+          <span className="text-xs text-text-tertiary">
+            {data.byQuartile.rated.toLocaleString('en-US')} rated ·{' '}
+            {data.byQuartile.unrated.toLocaleString('en-US')} unrated (PubMed / no CiteScore)
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Best quartile across the journal&apos;s subject areas for each paper&apos;s year (Q1 = top 25%). Distinct papers; Q1 share is against rated papers only.
+        </p>
+        <QuartileMix byQuartile={data.byQuartile} byYear={data.quartileByYear} />
+      </Card>
+
       {/* Year trend + Source/Type breakdowns */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
@@ -527,6 +542,110 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
       <div className="mt-1 font-tabular text-2xl font-semibold">{value}</div>
       {sub && <div className="mt-1 text-xs text-text-tertiary">{sub}</div>}
     </Card>
+  );
+}
+
+// Quartile mix — headline Q1 share + a single stacked bar over rated
+// papers (Q1→Q4, green→red) + a per-year stacked-bar trend. Colours are
+// design tokens (lint-safe), semantically ramped: Q1 positive, Q2 info,
+// Q3 warning, Q4 danger.
+const QUARTILE_SEGMENTS = [
+  { key: 'q1' as const, label: 'Q1', cls: 'bg-positive' },
+  { key: 'q2' as const, label: 'Q2', cls: 'bg-info' },
+  { key: 'q3' as const, label: 'Q3', cls: 'bg-warning' },
+  { key: 'q4' as const, label: 'Q4', cls: 'bg-danger' },
+];
+
+function QuartileMix({
+  byQuartile,
+  byYear,
+}: {
+  byQuartile: ResearchResponse['byQuartile'];
+  byYear: ResearchResponse['quartileByYear'];
+}) {
+  const rated = byQuartile.rated;
+  if (rated === 0) {
+    return (
+      <div className="mt-3 text-xs text-text-tertiary">
+        No quartile-rated papers in this scope. Run the kku-research connector to populate Scopus CiteScore quartiles.
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 flex flex-col gap-4">
+      <div className="flex items-center gap-4">
+        <div className="shrink-0">
+          <div className="font-tabular text-3xl font-semibold text-positive">
+            {byQuartile.q1Share !== null ? `${Math.round(byQuartile.q1Share * 100)}%` : '—'}
+          </div>
+          <div className="text-[0.7rem] uppercase tracking-wide text-text-tertiary">Q1 share</div>
+        </div>
+        <div className="flex-1">
+          {/* Overall stacked bar (rated papers) */}
+          <div className="flex h-3 w-full overflow-hidden rounded-sm">
+            {QUARTILE_SEGMENTS.map((s) => {
+              const n = byQuartile[s.key];
+              const w = (n / rated) * 100;
+              if (w === 0) return null;
+              return (
+                <div
+                  key={s.key}
+                  className={s.cls}
+                  style={{ width: `${w}%` }}
+                  title={`${s.label}: ${n.toLocaleString('en-US')} (${w.toFixed(1)}%)`}
+                />
+              );
+            })}
+          </div>
+          {/* Legend */}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {QUARTILE_SEGMENTS.map((s) => (
+              <span key={s.key} className="inline-flex items-center gap-1.5">
+                <span className={`inline-block h-2.5 w-2.5 rounded-sm ${s.cls}`} />
+                <span className="text-text-secondary">{s.label}</span>
+                <span className="font-tabular font-semibold">{byQuartile[s.key].toLocaleString('en-US')}</span>
+              </span>
+            ))}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-surface-3" />
+              <span className="text-text-secondary">Unrated</span>
+              <span className="font-tabular font-semibold">{byQuartile.unrated.toLocaleString('en-US')}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-year quartile mix (rated papers only) — a small stacked-bar
+          trend so the reader sees whether Q1 share is rising. */}
+      {byYear.length > 1 && (
+        <div>
+          <div className="mb-1.5 text-[0.7rem] uppercase tracking-wide text-text-tertiary">
+            Quartile mix by year (rated papers)
+          </div>
+          <div className="flex items-end gap-1">
+            {byYear.map((y) => {
+              const tot = y.q1 + y.q2 + y.q3 + y.q4;
+              return (
+                <div key={y.year} className="flex flex-1 flex-col items-center gap-1">
+                  <div
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-sm"
+                    style={{ height: '3rem' }}
+                    title={`${y.year}: Q1 ${y.q1} · Q2 ${y.q2} · Q3 ${y.q3} · Q4 ${y.q4}`}
+                  >
+                    {QUARTILE_SEGMENTS.map((s) => {
+                      const n = y[s.key];
+                      if (tot === 0 || n === 0) return null;
+                      return <div key={s.key} className={s.cls} style={{ height: `${(n / tot) * 100}%` }} />;
+                    })}
+                  </div>
+                  <span className="text-[0.6rem] text-text-tertiary tabular-nums">{`'${String(y.year).slice(-2)}`}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

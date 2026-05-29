@@ -164,6 +164,8 @@ export interface ResearchFacultyRow {
   publishingStaff: number;
   papers: number;
   citations: number;
+  /** Distinct Q1 papers (Scopus CiteScore best-quartile = 1). */
+  q1Papers: number;
   bySource: Record<string, number>;
   byType: Record<string, number>;
 }
@@ -205,6 +207,20 @@ export interface ResearchResponse {
   totalCitations: number;
   bySource: Record<string, number>;
   byType: Record<string, number>;
+  /** Scopus journal-quartile distribution (distinct papers). `unrated`
+   *  = PubMed + journals with no CiteScore record; `q1Share` is against
+   *  `rated` only. */
+  byQuartile: {
+    q1: number;
+    q2: number;
+    q3: number;
+    q4: number;
+    unrated: number;
+    rated: number;
+    q1Share: number | null;
+  };
+  /** Quartile mix per year (rated Scopus papers only). */
+  quartileByYear: Array<{ year: number; q1: number; q2: number; q3: number; q4: number }>;
   byYear: Array<{ year: number; scopus: number; pubmed: number; total: number }>;
   byFaculty: ResearchFacultyRow[];
   heatmap: ResearchHeatmapRow[];

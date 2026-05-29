@@ -1149,6 +1149,7 @@ export class StaffService {
               doi: true,
               scopusId: true,
               pmid: true,
+              quartile: true,
             },
           });
 
@@ -1241,6 +1242,10 @@ export class StaffService {
       source: string;
       venue: string | null;
       citations: number;
+      // Scopus journal quartile (1-4) for this paper, or null (PubMed,
+      // or a Scopus journal with no CiteScore record). All author rows
+      // of one paper carry the same quartile, so first-seen wins.
+      quartile: number | null;
       facultyNames: Set<string>; // every faculty that has ≥1 author on this paper
     }
     const paperMap = new Map<string, DistinctPaper>();
@@ -1258,6 +1263,7 @@ export class StaffService {
           source: p.source ?? 'unknown',
           venue: p.venue,
           citations: p.citations ?? 0,
+          quartile: p.quartile ?? null,
           facultyNames: new Set<string>(),
         };
         paperMap.set(key, entry);
@@ -1279,6 +1285,8 @@ export class StaffService {
         publishingStaff: number;
         papers: number;
         citations: number;
+        /** Distinct Q1 papers (Scopus, best-quartile = 1). */
+        q1Papers: number;
         bySource: Record<string, number>;
         byType: Record<string, number>;
       }
@@ -1291,6 +1299,7 @@ export class StaffService {
         publishingStaff: 0,
         papers: 0,
         citations: 0,
+        q1Papers: 0,
         bySource: {},
         byType: {},
       };
@@ -1305,6 +1314,7 @@ export class StaffService {
         if (!cell) continue;
         cell.papers += 1;
         cell.citations += paper.citations;
+        if (paper.quartile === 1) cell.q1Papers += 1;
         cell.bySource[paper.source] = (cell.bySource[paper.source] ?? 0) + 1;
         cell.byType[paper.type] = (cell.byType[paper.type] ?? 0) + 1;
       }
@@ -1342,6 +1352,35 @@ export class StaffService {
     const bySource: Record<string, number> = {};
     for (const paper of paperMap.values()) {
       bySource[paper.source] = (bySource[paper.source] ?? 0) + 1;
+    }
+
+    // Quartile breakdown — distinct papers per Scopus journal quartile.
+    // `unrated` = PubMed papers (no Scopus metric) + Scopus papers whose
+    // journal carries no CiteScore record. `rated` is the denominator
+    // for the quartile mix (Q1-share is computed against rated, not
+    // total, so PubMed volume doesn't dilute it).
+    const byQuartile = { q1: 0, q2: 0, q3: 0, q4: 0, unrated: 0 };
+    for (const paper of paperMap.values()) {
+      if (paper.quartile === 1) byQuartile.q1 += 1;
+      else if (paper.quartile === 2) byQuartile.q2 += 1;
+      else if (paper.quartile === 3) byQuartile.q3 += 1;
+      else if (paper.quartile === 4) byQuartile.q4 += 1;
+      else byQuartile.unrated += 1;
+    }
+    const ratedPapers = byQuartile.q1 + byQuartile.q2 + byQuartile.q3 + byQuartile.q4;
+
+    // Quartile mix per year (Scopus-rated papers only) — feeds a
+    // stacked-bar trend so the dashboard shows whether KKU's Q1 share is
+    // rising. Keyed by year; PubMed / unrated excluded from these bars.
+    const quartileByYear = new Map<number, { q1: number; q2: number; q3: number; q4: number }>();
+    for (const paper of paperMap.values()) {
+      if (!paper.quartile) continue;
+      const cell = quartileByYear.get(paper.year) ?? { q1: 0, q2: 0, q3: 0, q4: 0 };
+      if (paper.quartile === 1) cell.q1 += 1;
+      else if (paper.quartile === 2) cell.q2 += 1;
+      else if (paper.quartile === 3) cell.q3 += 1;
+      else if (paper.quartile === 4) cell.q4 += 1;
+      quartileByYear.set(paper.year, cell);
     }
 
     // Top venues — distinct papers per venue
@@ -1439,6 +1478,17 @@ export class StaffService {
       totalCitations,
       bySource,
       byType,
+      // Scopus journal-quartile distribution (distinct papers). `q1Share`
+      // is against rated papers only. Quartile = best across the
+      // journal's ASJC subject areas, from kku-publications CiteScore.
+      byQuartile: {
+        ...byQuartile,
+        rated: ratedPapers,
+        q1Share: ratedPapers > 0 ? byQuartile.q1 / ratedPapers : null,
+      },
+      quartileByYear: [...quartileByYear.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([year, cell]) => ({ year, ...cell })),
       byYear: [...byYearMap.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([year, cell]) => ({
@@ -1483,6 +1533,7 @@ export class StaffService {
         'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard within 5-10% across both Scopus and PubMed.',
         'Scopus author resolution path (per KKU Library IT 2026-05-07): scopus_documents → scopus_author_documents → scopus_authors → scopus_author_people → people. The denormalised scopus_author_documents.person_id column is a stale cache (~3y backlog) and is no longer used.',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
+        'Journal quartile (Q1-Q4) is Scopus CiteScore-based, from kku-publications scopus_citescores — the best quartile across the journal’s subject areas for the paper’s year (nearest metric year ≤ publication year). PubMed papers and Scopus papers whose journal has no CiteScore record are "unrated"; the Q1 share is computed against rated papers only.',
         'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
       ],
     };
