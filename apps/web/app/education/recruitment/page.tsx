@@ -14,6 +14,7 @@ interface SearchParams {
   entryYearBE?: string;
   facultyId?: string;
   level?: string;
+  round?: string;
 }
 
 interface Faculty {
@@ -38,6 +39,7 @@ export default async function RecruitmentPage({
   if (sp.entryYearBE) params.set('entryYearBE', sp.entryYearBE);
   if (sp.facultyId) params.set('facultyId', sp.facultyId);
   if (sp.level) params.set('level', sp.level);
+  if (sp.round) params.set('round', sp.round);
 
   const [data, allFaculties] = await Promise.all([
     apiFetch<RecruitmentDashboardPayload>(

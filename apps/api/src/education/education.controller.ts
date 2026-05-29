@@ -30,6 +30,11 @@ const RecruitmentQuerySchema = z.object({
   entryYearBE: z.coerce.number().int().min(2400).max(2700).optional(),
   facultyId: z.string().min(1).optional(),
   level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).optional(),
+  // TCAS round — free-form string because the source view uses both
+  // integer rounds ('1'..'4') and fractional sub-rounds ('1.2', '2.2',
+  // '4.2'). Validated against the actual data at query time (an unknown
+  // round simply returns empty aggregates).
+  round: z.string().min(1).max(8).optional(),
 });
 
 // Express coerces a query param that appears once into a string and
@@ -196,6 +201,7 @@ export class EducationController {
       entryYearBE: q.entryYearBE ?? null,
       facultyId: clamped.facultyId,
       level: q.level ?? null,
+      round: q.round ?? null,
     });
   }
 

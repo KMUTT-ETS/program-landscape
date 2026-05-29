@@ -17,6 +17,11 @@ export interface RecruitmentFilters {
   entryYearBE?: number | null;
   facultyId?: string | null;
   level?: string | null;
+  /** TCAS round (e.g. '1', '1.2', '2', '3', '4'). When set, every
+   *  aggregate — KPIs, funnel, faculty rollup, round breakdown, year
+   *  trend, program drill — narrows to that single round. Null /
+   *  absent = all rounds (the default cross-round comparison view). */
+  round?: string | null;
 }
 
 export interface FunnelTotals {
@@ -80,7 +85,11 @@ export interface ProgramDrillRow {
   sendRegReported: number | null;
   regReported: number | null;
   competitionRatio: number | null;
-  registrationYield: number | null;
+  /** Reported-in ÷ annual planned seats (PLAN_PER_YEAR). At round
+   *  level this is the round's contribution toward filling the annual
+   *  plan; summed across a program's rounds it reaches the program's
+   *  overall plan-fill. Null when there's no plan on file. */
+  planYield: number | null;
 }
 
 export interface RecruitmentDashboardPayload {
@@ -89,7 +98,13 @@ export interface RecruitmentDashboardPayload {
     latestYearOverall: number | null;
     inProgressYear: number | null;
     availableYears: number[];
+    /** Distinct TCAS rounds present for the selected year + faculty +
+     *  level scope, lexicographically sorted (orders 1, 1.2, 1.3, 2,
+     *  2.2, 3, 4, 4.2 correctly). Drives the round-filter dropdown. */
+    availableRounds: string[];
     selectedYear: number | null;
+    /** Currently-applied round filter, or null for "all rounds". */
+    selectedRound: string | null;
     appliedFilters: RecruitmentFilters;
     /** True when the SELECTED year is in-progress — the UI shows a
      *  partial-data banner. */
@@ -167,6 +182,39 @@ export class RecruitmentService {
     return Prisma.join(clauses, ' ');
   }
 
+  // Round filter fragment. References the funnel-table alias `f` — every
+  // raw query below either selects `FROM tcas_admission_funnels f` or
+  // wraps it in an `eligible` CTE that does, so `f.round` is always in
+  // scope where this is interpolated. Returns Prisma.empty for the
+  // all-rounds default.
+  private roundFilter(filters: RecruitmentFilters): Prisma.Sql {
+    return filters.round
+      ? Prisma.sql`AND f.round = ${filters.round}`
+      : Prisma.empty;
+  }
+
+  // Distinct rounds present in the selected-year + faculty + level
+  // scope. Round-independent (never narrowed by filters.round) so the
+  // dropdown always lists every selectable round. Lexicographic sort
+  // matches the schema's documented ordering.
+  private async availableRounds(
+    year: number,
+    filters: RecruitmentFilters,
+  ): Promise<string[]> {
+    const programFilter = this.programFilter(filters);
+    const rows = await prisma.$queryRaw<Array<{ round: string }>>`
+      SELECT DISTINCT f.round
+      FROM tcas_admission_funnels f
+      JOIN programs p ON p.id = f.program_id
+      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+        AND f.entry_year_be = ${year}
+        AND ${realDataSql('f')}
+        ${programFilter}
+      ORDER BY f.round ASC
+    `;
+    return rows.map((r) => r.round);
+  }
+
   // ──────────────────────────────────────────────────────────────────
   // Aggregate funnel totals at scope × year.
   // ──────────────────────────────────────────────────────────────────
@@ -175,6 +223,7 @@ export class RecruitmentService {
     filters: RecruitmentFilters,
   ): Promise<FunnelTotals> {
     const programFilter = this.programFilter(filters);
+    const roundFilter = this.roundFilter(filters);
     // PLAN_PER_YEAR must sum-MAX-by-program (not multi-count across
     // rounds). Funnel columns sum across all rows. Two CTEs.
     const rows = await prisma.$queryRaw<
@@ -199,6 +248,7 @@ export class RecruitmentService {
           AND f.entry_year_be = ${year}
           AND ${realDataSql('f')}
           ${programFilter}
+          ${roundFilter}
       ),
       per_program AS (
         SELECT program_id, MAX(plan_per_year) AS plan_per_year
@@ -241,6 +291,7 @@ export class RecruitmentService {
     filters: RecruitmentFilters,
   ): Promise<FacultyRow[]> {
     const programFilter = this.programFilter(filters);
+    const roundFilter = this.roundFilter(filters);
     // Two-stage aggregation: roll PLAN_PER_YEAR up by MAX-per-program,
     // then SUM into the faculty bucket alongside the per-row funnel sums.
     // Start from `faculties` (LEFT JOIN funnel data) so every academic
@@ -278,6 +329,7 @@ export class RecruitmentService {
           AND f.entry_year_be = ${year}
           AND ${realDataSql('f')}
           ${programFilter}
+          ${roundFilter}
       ),
       per_program AS (
         SELECT faculty_id, program_id, MAX(plan_per_year) AS plan_per_year
@@ -356,6 +408,7 @@ export class RecruitmentService {
     filters: RecruitmentFilters,
   ): Promise<RoundRow[]> {
     const programFilter = this.programFilter(filters);
+    const roundFilter = this.roundFilter(filters);
     const rows = await prisma.$queryRaw<
       Array<{
         round: string;
@@ -387,6 +440,7 @@ export class RecruitmentService {
         AND f.entry_year_be = ${year}
         AND ${realDataSql('f')}
         ${programFilter}
+        ${roundFilter}
       GROUP BY f.round
       ORDER BY f.round;
     `;
@@ -413,6 +467,7 @@ export class RecruitmentService {
     filters: RecruitmentFilters,
   ): Promise<YearTrendRow[]> {
     const programFilter = this.programFilter(filters);
+    const roundFilter = this.roundFilter(filters);
     const rows = await prisma.$queryRaw<
       Array<{
         entry_year_be: number;
@@ -435,6 +490,7 @@ export class RecruitmentService {
         WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
           AND ${realDataSql('f')}
           ${programFilter}
+          ${roundFilter}
       ),
       per_program_year AS (
         SELECT entry_year_be, program_id, MAX(plan_per_year) AS plan_per_year
@@ -492,6 +548,7 @@ export class RecruitmentService {
     const where: Prisma.TcasAdmissionFunnelWhereInput = {
       entryYearBE: year,
       programId: { not: null },
+      ...(filters.round ? { round: filters.round } : {}),
       program: {
         status: 'ACTIVE',
         sequenceNoFromSheet: { not: null },
@@ -525,9 +582,9 @@ export class RecruitmentService {
           r.enrollSeats && r.enrollSeats > 0 && r.totalApplicants !== null
             ? r.totalApplicants / r.enrollSeats
             : null;
-        const yieldRate =
-          r.sendClearinghouse && r.sendClearinghouse > 0 && r.regReported !== null
-            ? r.regReported / r.sendClearinghouse
+        const planYield =
+          r.planPerYear && r.planPerYear > 0 && r.regReported !== null
+            ? r.regReported / r.planPerYear
             : null;
         return {
           programId: r.program!.id,
@@ -549,7 +606,7 @@ export class RecruitmentService {
           sendRegReported: r.sendRegReported,
           regReported: r.regReported,
           competitionRatio: ratio,
-          registrationYield: yieldRate,
+          planYield,
         };
       });
   }
@@ -585,7 +642,9 @@ export class RecruitmentService {
           latestYearOverall: null,
           inProgressYear: null,
           availableYears: [],
+          availableRounds: [],
           selectedYear: null,
+          selectedRound: filters.round ?? null,
           appliedFilters: filters,
           selectedYearIsComplete: false,
         },
@@ -603,14 +662,18 @@ export class RecruitmentService {
       };
     }
 
-    // Run all aggregations in parallel.
-    const [totals, byFaculty, byRound, byYear, programs] = await Promise.all([
-      this.totalsForYear(selectedYear, filters),
-      this.byFaculty(selectedYear, filters),
-      this.byRound(selectedYear, filters),
-      this.byYear(filters),
-      this.programDrill(selectedYear, filters),
-    ]);
+    // Run all aggregations in parallel. `availableRounds` is computed
+    // round-independent (it lists every round the dropdown can offer);
+    // every other aggregate honours filters.round when set.
+    const [totals, byFaculty, byRound, byYear, programs, availableRounds] =
+      await Promise.all([
+        this.totalsForYear(selectedYear, filters),
+        this.byFaculty(selectedYear, filters),
+        this.byRound(selectedYear, filters),
+        this.byYear(filters),
+        this.programDrill(selectedYear, filters),
+        this.availableRounds(selectedYear, filters),
+      ]);
 
     const inProgressYear =
       status.latestOverall !== null &&
@@ -636,7 +699,9 @@ export class RecruitmentService {
         latestYearOverall: status.latestOverall,
         inProgressYear,
         availableYears: status.available,
+        availableRounds,
         selectedYear,
+        selectedRound: filters.round ?? null,
         appliedFilters: filters,
         selectedYearIsComplete,
       },
