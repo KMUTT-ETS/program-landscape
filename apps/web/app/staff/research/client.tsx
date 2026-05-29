@@ -12,6 +12,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, useSortableTable, SortableTh } from '@kku/ui';
 import { MultiSelectField } from '../multi-select';
+import { startRouteProgress } from '@/components/route-progress';
 import { DrillDownPivot, type DrillRow } from '../drill-down-pivot';
 import type {
   FilterOptions,
@@ -27,7 +28,7 @@ interface Props {
     facultyName: string[];
     sources: string[];
     yearFrom?: number;
-    yearExact?: number;
+    yearTo?: number;
   };
 }
 
@@ -53,28 +54,40 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
   const router = useRouter();
   const [faculty, setFaculty] = React.useState<string[]>(initialFilters.facultyName);
   const [sources, setSources] = React.useState<string[]>(initialFilters.sources);
-  const [yearFrom, setYearFrom] = React.useState<number | undefined>(initialFilters.yearFrom);
-  const [yearExact, setYearExact] = React.useState<number | undefined>(initialFilters.yearExact);
+  // Year-range slider state. Initialise from the resolved window the API
+  // returned (reflects any active filter), clamped to the stable bounds.
+  const [yearRange, setYearRange] = React.useState<[number, number]>([
+    data.yearFrom,
+    data.yearTo,
+  ]);
 
-  const apply = (next: Partial<typeof initialFilters>) => {
+  const apply = (next: {
+    facultyName?: string[];
+    sources?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+  }) => {
     const params = new URLSearchParams();
     (next.facultyName ?? faculty).forEach((v) => params.append('facultyName', v));
     (next.sources ?? sources).forEach((v) => params.append('sources', v));
-    // yearExact wins over yearFrom; whichever is set goes on the URL.
-    // Treat an explicit `undefined` in `next` as "clear it" (don't fall
-    // back to local state) so toggling between the two modes works.
-    const yx = 'yearExact' in next ? next.yearExact : yearExact;
-    const yf = 'yearFrom' in next ? next.yearFrom : yearFrom;
-    if (yx) {
-      params.set('yearExact', String(yx));
-    } else if (yf) {
-      params.set('yearFrom', String(yf));
-    }
+    const yf = next.yearFrom ?? yearRange[0];
+    const yt = next.yearTo ?? yearRange[1];
+    // Only put year params on the URL when the range is narrower than the
+    // full [min, max] window — keeps default URLs clean.
+    if (yf > data.yearMin) params.set('yearFrom', String(yf));
+    if (yt < data.yearMax) params.set('yearTo', String(yt));
+    startRouteProgress();
     router.push(`/staff/research${params.toString() ? `?${params}` : ''}`);
   };
 
-  // Drill rows: Faculty → Author
-  const facultyAuthor = React.useMemo(() => {
+  // Contributor pivot: Faculty → Author, leading with Tier 1 (top 10%) +
+  // Q1 counts so the table answers "who drives KKU's high-tier output".
+  // Faculty rows use
+  // the distinct-paper per-faculty quartile counts (from byFaculty);
+  // author rows sum the per-author counts. (Author-level counts are
+  // per-author paper rows, so a co-authored paper is counted for each of
+  // its KKU authors — the right read for "this person's Q1 output".)
+  const contributorRows = React.useMemo(() => {
     const facMap = new Map<string, ResearchAuthor[]>();
     for (const a of data.perAuthor) {
       const fname = a.facultyName ?? '(unmapped)';
@@ -82,33 +95,50 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       list.push(a);
       facMap.set(fname, list);
     }
+    const facQuartile = new Map(data.byFaculty.map((f) => [f.facultyName, f]));
     const rows: DrillRow[] = [...facMap.entries()].map(([fname, authors]) => {
-      const totalPapers = authors.reduce((a, b) => a + b.papers, 0);
+      const fac = facQuartile.get(fname);
       const totalCites = authors.reduce((a, b) => a + b.citations, 0);
       const maxH = authors.reduce((a, b) => Math.max(a, b.hIndex), 0);
+      // Faculty name — Thai (the API now derives facultyName Thai-first);
+      // facultyNameTh is the explicit Thai field, fname the group key.
+      const labelTh = authors[0]?.facultyNameTh ?? fname;
       return {
-        label: fname,
+        label: labelTh,
         metrics: {
-          authors: authors.length,
-          papers: totalPapers,
-          citations: totalCites,
+          // Faculty-level = distinct papers (from byFaculty); falls back
+          // to the per-author sum only if the faculty isn't in byFaculty.
+          papers: fac?.papers ?? authors.reduce((a, b) => a + b.papers, 0),
+          q1: fac?.q1Papers ?? authors.reduce((a, b) => a + b.q1Papers, 0),
+          q2: fac?.q2Papers ?? authors.reduce((a, b) => a + b.q2Papers, 0),
+          top10: fac?.top10Papers ?? authors.reduce((a, b) => a + b.top10Papers, 0),
+          citations: fac?.citations ?? totalCites,
           hIndex: maxH,
         },
         children: authors
-          .sort((a, b) => b.papers - a.papers)
+          .sort((a, b) => b.top10Papers - a.top10Papers || b.q1Papers - a.q1Papers || b.papers - a.papers)
           .map((a) => ({
             label: authorDisplay(a),
             metrics: {
-              authors: 1,
               papers: a.papers,
+              q1: a.q1Papers,
+              q2: a.q2Papers,
+              top10: a.top10Papers,
               citations: a.citations,
               hIndex: a.hIndex,
             },
           })),
       };
     });
-    return rows.sort((a, b) => (b.metrics.papers ?? 0) - (a.metrics.papers ?? 0));
-  }, [data.perAuthor]);
+    // Sort faculties by Tier 1 output (the strategic lens), then Q1, then
+    // total papers.
+    return rows.sort(
+      (a, b) =>
+        (b.metrics.top10 ?? 0) - (a.metrics.top10 ?? 0) ||
+        (b.metrics.q1 ?? 0) - (a.metrics.q1 ?? 0) ||
+        (b.metrics.papers ?? 0) - (a.metrics.papers ?? 0),
+    );
+  }, [data.perAuthor, data.byFaculty]);
 
   // Heatmap viewport — last 10 years for legibility
   const yearAxis = React.useMemo(() => {
@@ -162,63 +192,25 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
               apply({ sources: vs });
             }}
           />
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[0.65rem] font-medium uppercase tracking-wide text-text-tertiary whitespace-nowrap">
-              From year
-              {yearExact !== undefined && (
-                <span className="ml-1 normal-case tracking-normal text-text-tertiary">
-                  (disabled — exact year set)
-                </span>
-              )}
-            </label>
-            <input
-              type="number"
-              min={1900}
-              max={2100}
-              disabled={yearExact !== undefined}
-              className="w-28 rounded border border-border-subtle bg-surface-1 px-2 py-1.5 text-sm font-tabular tabular-nums disabled:opacity-50"
-              defaultValue={yearFrom ?? data.yearFrom}
-              onBlur={(e) => {
-                if (yearExact !== undefined) return; // ignore when exact-year is active
-                const v = e.target.value ? Number(e.target.value) : undefined;
-                if (v !== yearFrom) {
-                  setYearFrom(v);
-                  apply({ yearFrom: v });
-                }
-              }}
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[0.65rem] font-medium uppercase tracking-wide text-text-tertiary whitespace-nowrap">
-              Exact year
-            </label>
-            <input
-              type="number"
-              min={1900}
-              max={2100}
-              placeholder="e.g. 2024"
-              className="w-28 rounded border border-border-subtle bg-surface-1 px-2 py-1.5 text-sm font-tabular tabular-nums"
-              defaultValue={yearExact ?? ''}
-              key={yearExact ?? 'empty'}
-              onBlur={(e) => {
-                const v = e.target.value ? Number(e.target.value) : undefined;
-                if (v !== yearExact) {
-                  setYearExact(v);
-                  // Switching to/from exact-year mode; pass both keys
-                  // so apply() knows to use the new value.
-                  apply({ yearExact: v });
-                }
-              }}
-            />
-          </div>
-          {(faculty.length > 0 || sources.length > 0 || yearFrom || yearExact) && (
+          <YearRangeSlider
+            min={data.yearMin}
+            max={data.yearMax}
+            from={yearRange[0]}
+            to={yearRange[1]}
+            onChange={setYearRange}
+            onCommit={(r) => apply({ yearFrom: r[0], yearTo: r[1] })}
+          />
+          {(faculty.length > 0 ||
+            sources.length > 0 ||
+            yearRange[0] > data.yearMin ||
+            yearRange[1] < data.yearMax) && (
             <button
               className="rounded border border-border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
               onClick={() => {
                 setFaculty([]);
                 setSources([]);
-                setYearFrom(undefined);
-                setYearExact(undefined);
+                setYearRange([data.yearMin, data.yearMax]);
+                startRouteProgress();
                 router.push('/staff/research');
               }}
             >
@@ -233,6 +225,76 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
             · {data.totalStaff.toLocaleString('en-US')} staff ({data.publishingStaff.toLocaleString('en-US')} publishing,{' '}
             {data.activeStaff.toLocaleString('en-US')} active)
           </span>
+        </div>
+      </Card>
+
+      {/* ── HERO: Journal quartile (Scopus CiteScore) ──────────────────
+          The strategic driver for QS / THE rankings, so it leads the
+          page: headline tier KPIs, the rated-paper quartile mix, and the
+          by-year tier distribution (scatter + line). */}
+      <Card>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold">Journal quartile · Scopus CiteScore</h2>
+            <p className="mt-0.5 text-xs text-text-tertiary">
+              KKU&apos;s strategic quality signal for QS &amp; THE rankings. Best quartile
+              across the journal&apos;s subject areas per paper-year (Tier 1 = top 10%, a
+              subset of Q1 = top 25%). Distinct papers; shares are against rated papers.
+            </p>
+          </div>
+          <span className="text-xs text-text-tertiary">
+            {data.byQuartile.rated.toLocaleString('en-US')} rated ·{' '}
+            {data.byQuartile.unrated.toLocaleString('en-US')} unrated (PubMed / no CiteScore)
+          </span>
+        </div>
+        <div className="mt-4 flex flex-col gap-5 lg:flex-row">
+          {/* Donut — quartile share (25% on desktop). */}
+          <div className="lg:w-1/4 lg:shrink-0 lg:border-r lg:border-border-subtle lg:pr-5">
+            <QuartileMix byQuartile={data.byQuartile} />
+          </div>
+          {/* By-year tier distribution (75%). */}
+          <div className="min-w-0 flex-1">
+            {data.quartileByYear.length > 1 ? (
+              <>
+                <h3 className="text-sm font-semibold">Publications by year &amp; tier</h3>
+                <p className="mt-0.5 text-xs text-text-tertiary">
+                  Distinct rated papers per year, split by quartile. The Tier 1 line (top
+                  10%) is a subset of Q1. Toggle a series in the legend; hover for exact values.
+                </p>
+                <QuartileByYearChart data={data.quartileByYear} />
+              </>
+            ) : (
+              <p className="text-xs text-text-tertiary">
+                Not enough years of rated data to chart a by-year tier distribution.
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Contributors — Faculty → Author, ranked by Tier 1 / Q1 output.
+          Who drives KKU's high-tier publication record. */}
+      <Card>
+        <h3 className="text-sm font-semibold">Contributors — faculty &amp; individual</h3>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Drill from faculty into its authors. Columns lead with Tier 1 (top 10%) and Q1
+          paper counts — the QS/THE-relevant output per contributor. Click a column header
+          to sort; click a faculty row to expand.
+        </p>
+        <div className="mt-3">
+          <DrillDownPivot
+            rowHeaderLabel="Faculty / Author"
+            maxDepth={2}
+            rows={contributorRows}
+            columns={[
+              { key: 'papers', label: 'Papers', format: 'int' },
+              { key: 'top10', label: 'Tier 1', format: 'int' },
+              { key: 'q1', label: 'Q1', format: 'int' },
+              { key: 'q2', label: 'Q2', format: 'int' },
+              { key: 'citations', label: 'Citations', format: 'int' },
+              { key: 'hIndex', label: 'h-index', format: 'int' },
+            ]}
+          />
         </div>
       </Card>
 
@@ -252,21 +314,6 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
           sub={`${data.activeStaff.toLocaleString('en-US')} active faculty (from /staff/workforce)`}
         />
       </div>
-
-      {/* Journal quartile (Scopus CiteScore) */}
-      <Card>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold">Journal quartile · Scopus CiteScore</h3>
-          <span className="text-xs text-text-tertiary">
-            {data.byQuartile.rated.toLocaleString('en-US')} rated ·{' '}
-            {data.byQuartile.unrated.toLocaleString('en-US')} unrated (PubMed / no CiteScore)
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-text-tertiary">
-          Best quartile across the journal&apos;s subject areas for each paper&apos;s year (Q1 = top 25%). Distinct papers; Q1 share is against rated papers only.
-        </p>
-        <QuartileMix byQuartile={data.byQuartile} byYear={data.quartileByYear} />
-      </Card>
 
       {/* Year trend + Source/Type breakdowns */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -485,27 +532,6 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
         </div>
       </Card>
 
-      {/* Drill-down: Faculty → Author */}
-      <Card>
-        <h3 className="text-sm font-semibold">Faculty → Author drill-down</h3>
-        <p className="mt-1 text-xs text-text-tertiary">
-          Click a faculty row to expand to its authors. Click any column header to sort.
-        </p>
-        <div className="mt-3">
-          <DrillDownPivot
-            rowHeaderLabel="Faculty / Author"
-            maxDepth={2}
-            rows={facultyAuthor}
-            columns={[
-              { key: 'authors', label: 'Authors', format: 'int' },
-              { key: 'papers', label: 'Papers', format: 'int' },
-              { key: 'citations', label: 'Citations', format: 'int' },
-              { key: 'hIndex', label: 'h-index', format: 'int' },
-            ]}
-          />
-        </div>
-      </Card>
-
       {/* Provenance / caveats */}
       <Card>
         <div className="text-xs text-text-secondary space-y-1">
@@ -545,23 +571,88 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
   );
 }
 
-// Quartile mix — headline Q1 share + a single stacked bar over rated
-// papers (Q1→Q4, green→red) + a per-year stacked-bar trend. Colours are
-// design tokens (lint-safe), semantically ramped: Q1 positive, Q2 info,
-// Q3 warning, Q4 danger.
-const QUARTILE_SEGMENTS = [
-  { key: 'q1' as const, label: 'Q1', cls: 'bg-positive' },
-  { key: 'q2' as const, label: 'Q2', cls: 'bg-info' },
-  { key: 'q3' as const, label: 'Q3', cls: 'bg-warning' },
-  { key: 'q4' as const, label: 'Q4', cls: 'bg-danger' },
-];
+// Quartile mix — headline Tier 1 + Q1 KPIs and a call-out donut over
+// rated papers. Colours are design tokens (lint-safe), semantically
+// ramped: Q1 positive, Q2 info, Q3 warning, Q4 danger.
+// Dual-thumb year range slider — replaces the old From-year + Exact-year
+// inputs. Two overlaid native range inputs; the highlighted track segment
+// sits between them. Thumb styling lives in globals.css (`.range-dual`)
+// so it can theme via design-token CSS vars. `onChange` updates the live
+// label/track during the drag; `onCommit` (release) pushes the URL.
+function YearRangeSlider({
+  min,
+  max,
+  from,
+  to,
+  onChange,
+  onCommit,
+}: {
+  min: number;
+  max: number;
+  from: number;
+  to: number;
+  onChange: (range: [number, number]) => void;
+  onCommit: (range: [number, number]) => void;
+}) {
+  const span = Math.max(1, max - min);
+  const pctFrom = ((from - min) / span) * 100;
+  const pctTo = ((to - min) / span) * 100;
+  const commit = () => onCommit([from, to]);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-[0.65rem] font-medium uppercase tracking-wide text-text-tertiary">
+          Year range
+        </label>
+        <span className="font-tabular text-xs tabular-nums text-text-secondary">
+          {from === to ? from : `${from}–${to}`}
+        </span>
+      </div>
+      <div className="range-dual relative h-5 w-56">
+        {/* full track */}
+        <div className="pointer-events-none absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-3" />
+        {/* selected segment */}
+        <div
+          className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent-default"
+          style={{ left: `${pctFrom}%`, right: `${100 - pctTo}%` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={from}
+          aria-label="From year"
+          onChange={(e) => onChange([Math.min(Number(e.target.value), to), to])}
+          onMouseUp={commit}
+          onTouchEnd={commit}
+          onKeyUp={commit}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={to}
+          aria-label="To year"
+          onChange={(e) => onChange([from, Math.max(Number(e.target.value), from)])}
+          onMouseUp={commit}
+          onTouchEnd={commit}
+          onKeyUp={commit}
+        />
+      </div>
+      <div className="flex justify-between font-tabular text-[0.6rem] tabular-nums text-text-tertiary">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    </div>
+  );
+}
 
 function QuartileMix({
   byQuartile,
-  byYear,
 }: {
   byQuartile: ResearchResponse['byQuartile'];
-  byYear: ResearchResponse['quartileByYear'];
 }) {
   const rated = byQuartile.rated;
   if (rated === 0) {
@@ -572,79 +663,291 @@ function QuartileMix({
     );
   }
   return (
-    <div className="mt-3 flex flex-col gap-4">
-      <div className="flex items-center gap-4">
-        <div className="shrink-0">
+    <div className="mt-3 flex flex-col items-center gap-4">
+      {/* Headline tier KPIs — Tier 1 (top 10%) leads, then Q1. */}
+      <div className="flex w-full justify-around gap-4">
+        <div className="text-center">
+          <div className="font-tabular text-3xl font-semibold text-accent-default">
+            {byQuartile.top10Share !== null ? `${Math.round(byQuartile.top10Share * 100)}%` : '—'}
+          </div>
+          <div className="text-[0.7rem] uppercase tracking-wide text-text-tertiary">Tier 1 share</div>
+          <div className="text-[0.7rem] text-text-tertiary">
+            {byQuartile.top10.toLocaleString('en-US')} of {rated.toLocaleString('en-US')} rated
+          </div>
+        </div>
+        <div className="text-center">
           <div className="font-tabular text-3xl font-semibold text-positive">
             {byQuartile.q1Share !== null ? `${Math.round(byQuartile.q1Share * 100)}%` : '—'}
           </div>
           <div className="text-[0.7rem] uppercase tracking-wide text-text-tertiary">Q1 share</div>
-        </div>
-        <div className="flex-1">
-          {/* Overall stacked bar (rated papers) */}
-          <div className="flex h-3 w-full overflow-hidden rounded-sm">
-            {QUARTILE_SEGMENTS.map((s) => {
-              const n = byQuartile[s.key];
-              const w = (n / rated) * 100;
-              if (w === 0) return null;
-              return (
-                <div
-                  key={s.key}
-                  className={s.cls}
-                  style={{ width: `${w}%` }}
-                  title={`${s.label}: ${n.toLocaleString('en-US')} (${w.toFixed(1)}%)`}
-                />
-              );
-            })}
-          </div>
-          {/* Legend */}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            {QUARTILE_SEGMENTS.map((s) => (
-              <span key={s.key} className="inline-flex items-center gap-1.5">
-                <span className={`inline-block h-2.5 w-2.5 rounded-sm ${s.cls}`} />
-                <span className="text-text-secondary">{s.label}</span>
-                <span className="font-tabular font-semibold">{byQuartile[s.key].toLocaleString('en-US')}</span>
-              </span>
-            ))}
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-surface-3" />
-              <span className="text-text-secondary">Unrated</span>
-              <span className="font-tabular font-semibold">{byQuartile.unrated.toLocaleString('en-US')}</span>
-            </span>
+          <div className="text-[0.7rem] text-text-tertiary">
+            {byQuartile.q1.toLocaleString('en-US')} papers (incl. Tier 1)
           </div>
         </div>
       </div>
 
-      {/* Per-year quartile mix (rated papers only) — a small stacked-bar
-          trend so the reader sees whether Q1 share is rising. */}
-      {byYear.length > 1 && (
-        <div>
-          <div className="mb-1.5 text-[0.7rem] uppercase tracking-wide text-text-tertiary">
-            Quartile mix by year (rated papers)
-          </div>
-          <div className="flex items-end gap-1">
-            {byYear.map((y) => {
-              const tot = y.q1 + y.q2 + y.q3 + y.q4;
+      {/* Donut — quartile share of rated papers */}
+      <QuartileDonut byQuartile={byQuartile} />
+
+    </div>
+  );
+}
+
+// Quartile-share donut (rated papers). Segments Q1→Q4 via stroke-
+// dasharray; centre shows the rated total. Each segment gets an external
+// call-out (leader line + "Q1 41%") so the proportions are readable at a
+// glance. Colours are the same design-token CSS vars as the line chart.
+function QuartileDonut({ byQuartile }: { byQuartile: ResearchResponse['byQuartile'] }) {
+  const rated = byQuartile.rated;
+  const cx = 120;
+  const cy = 80;
+  const R = 46;
+  const SW = 16;
+  const C = 2 * Math.PI * R;
+  // Tier 1 (top 10%) is a subset of Q1 — split it out as its own leading
+  // band (accent), then the rest of Q1 (positive), Q2, Q3, Q4. Together
+  // they still sum to `rated`.
+  const segs = [
+    { key: 'tier1' as const, label: 'Tier 1', n: byQuartile.top10, stroke: 'oklch(var(--color-accent-default))' },
+    { key: 'q1' as const, label: 'Q1', n: Math.max(0, byQuartile.q1 - byQuartile.top10), stroke: 'oklch(var(--color-data-positive))' },
+    { key: 'q2' as const, label: 'Q2', n: byQuartile.q2, stroke: 'oklch(var(--color-info-default))' },
+    { key: 'q3' as const, label: 'Q3', n: byQuartile.q3, stroke: 'oklch(var(--color-warning-default))' },
+    { key: 'q4' as const, label: 'Q4', n: byQuartile.q4, stroke: 'oklch(var(--color-danger-default))' },
+  ];
+  // Pre-compute each non-empty segment's fraction + cumulative start so
+  // arcs and call-outs share one accumulator.
+  const prepared: Array<{ key: string; label: string; n: number; stroke: string; f: number; start: number }> = [];
+  let acc = 0;
+  for (const s of segs) {
+    if (rated === 0 || s.n === 0) continue;
+    const f = s.n / rated;
+    prepared.push({ ...s, f, start: acc });
+    acc += f;
+  }
+  // Polar point with 12-o'clock = 0 (matches the -90° arc rotation).
+  const polar = (r: number, frac: number) => {
+    const a = (-90 + 360 * frac) * (Math.PI / 180);
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  };
+  return (
+    <svg viewBox="0 0 240 160" className="w-[95%]" role="img" aria-label="Quartile share donut">
+      {/* track */}
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="oklch(var(--color-surface-3))" strokeWidth={SW} />
+      {/* arcs */}
+      {prepared.map((s) => (
+        <circle
+          key={s.key}
+          cx={cx}
+          cy={cy}
+          r={R}
+          fill="none"
+          stroke={s.stroke}
+          strokeWidth={SW}
+          strokeDasharray={`${s.f * C} ${(1 - s.f) * C}`}
+          strokeDashoffset={-s.start * C}
+          transform={`rotate(-90 ${cx} ${cy})`}
+        >
+          <title>{`${s.label}: ${s.n.toLocaleString('en-US')} (${(s.f * 100).toFixed(1)}%)`}</title>
+        </circle>
+      ))}
+      {/* call-outs — leader line + tier label, count and share % */}
+      {prepared.map((s) => {
+        const mid = s.start + s.f / 2;
+        const onArc = polar(R + SW / 2, mid);
+        const elbow = polar(R + 16, mid);
+        const right = elbow.x >= cx;
+        const labelX = right ? elbow.x + 3 : elbow.x - 3;
+        const anchor = right ? 'start' : 'end';
+        return (
+          <g key={`co-${s.key}`}>
+            <line x1={onArc.x} y1={onArc.y} x2={elbow.x} y2={elbow.y} stroke={s.stroke} strokeWidth={1.25} />
+            <text x={labelX} y={elbow.y - 2} textAnchor={anchor} className="fill-text-primary text-[10px] font-semibold">
+              {`${s.label} · ${(s.f * 100).toFixed(0)}%`}
+            </text>
+            <text x={labelX} y={elbow.y + 8} textAnchor={anchor} className="fill-text-tertiary text-[9px] tabular-nums">
+              {`${s.n.toLocaleString('en-US')} papers`}
+            </text>
+          </g>
+        );
+      })}
+      <text x={cx} y={cy - 1} textAnchor="middle" className="fill-text-primary text-[15px] font-semibold tabular-nums">
+        {rated.toLocaleString('en-US')}
+      </text>
+      <text x={cx} y={cy + 12} textAnchor="middle" className="fill-text-tertiary text-[8px] uppercase tracking-wide">
+        rated
+      </text>
+    </svg>
+  );
+}
+
+// Publications-by-year, by tier — a scatter+line chart. One line per
+// quartile (Q1→Q4) plus a Tier 1 (top 10%) line, markers on every
+// year. Inline SVG; series colours are design-token CSS vars (the lint
+// rule allows oklch(var(--…)) wrappers, only literal hex/rgb is banned).
+// Series definitions. `count` series read off the left axis (paper
+// counts); `share` series read off the right axis (% of that year's
+// rated papers). All toggleable; the right % axis only renders when a
+// share series is visible.
+interface QSeries {
+  key: string;
+  label: string;
+  stroke: string;
+  dashed: boolean;
+  axis: 'left' | 'right';
+  value: (p: ResearchResponse['quartileByYear'][number]) => number;
+}
+const Q_SERIES: QSeries[] = [
+  { key: 'top10', label: 'Tier 1', stroke: 'oklch(var(--color-accent-default))', dashed: false, axis: 'left', value: (p) => p.top10 },
+  { key: 'q1', label: 'Q1', stroke: 'oklch(var(--color-data-positive))', dashed: false, axis: 'left', value: (p) => p.q1 },
+  { key: 'q2', label: 'Q2', stroke: 'oklch(var(--color-info-default))', dashed: false, axis: 'left', value: (p) => p.q2 },
+  { key: 'q3', label: 'Q3', stroke: 'oklch(var(--color-warning-default))', dashed: false, axis: 'left', value: (p) => p.q3 },
+  { key: 'q4', label: 'Q4', stroke: 'oklch(var(--color-danger-default))', dashed: false, axis: 'left', value: (p) => p.q4 },
+  { key: 'top10share', label: 'Tier 1 %', stroke: 'oklch(var(--color-accent-default))', dashed: true, axis: 'right', value: (p) => (p.rated > 0 ? (p.top10 / p.rated) * 100 : 0) },
+  { key: 'q1share', label: 'Q1 %', stroke: 'oklch(var(--color-data-positive))', dashed: true, axis: 'right', value: (p) => (p.rated > 0 ? (p.q1 / p.rated) * 100 : 0) },
+];
+
+function QuartileByYearChart({ data }: { data: ResearchResponse['quartileByYear'] }) {
+  const pts = data;
+  // Share series default OFF to keep the first read clean; counts on.
+  const [hidden, setHidden] = React.useState<Set<string>>(
+    () => new Set(['q1share', 'top10share']),
+  );
+  const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
+
+  const W = 760;
+  const H = 300;
+  const PAD = { top: 16, right: 44, bottom: 28, left: 40 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const n = pts.length;
+  const xAt = (i: number) => (n === 1 ? PAD.left + innerW / 2 : PAD.left + (i / (n - 1)) * innerW);
+
+  const visible = Q_SERIES.filter((s) => !hidden.has(s.key));
+  const leftVisible = visible.some((s) => s.axis === 'left');
+  const rightVisible = visible.some((s) => s.axis === 'right');
+  const leftMax = Math.max(
+    1,
+    ...pts.flatMap((p) => Q_SERIES.filter((s) => s.axis === 'left' && !hidden.has(s.key)).map((s) => s.value(p))),
+  );
+  const yLeft = (v: number) => PAD.top + innerH - (v / leftMax) * innerH;
+  const yRight = (v: number) => PAD.top + innerH - (v / 100) * innerH; // right axis 0-100%
+  const yFor = (s: QSeries, v: number) => (s.axis === 'right' ? yRight(v) : yLeft(v));
+
+  const ticks = 4;
+  const leftTicks = Array.from({ length: ticks + 1 }, (_, i) => Math.round((leftMax / ticks) * i));
+  const rightTicks = [0, 25, 50, 75, 100];
+  const labelEvery = n > 12 ? Math.ceil(n / 12) : 1;
+
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  return (
+    <div className="mt-3">
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full"
+          style={{ maxHeight: '340px' }}
+          role="img"
+          aria-label="Publications by year and quartile tier"
+          onMouseLeave={() => setHoverIdx(null)}
+          onMouseMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const svgX = ((e.clientX - rect.left) / rect.width) * W;
+            const i = Math.round(((svgX - PAD.left) / innerW) * (n - 1));
+            setHoverIdx(Math.max(0, Math.min(n - 1, i)));
+          }}
+        >
+          {/* Left axis gridlines + labels (counts) */}
+          {leftVisible &&
+            leftTicks.map((v) => (
+              <g key={`l${v}`}>
+                <line x1={PAD.left} y1={yLeft(v)} x2={W - PAD.right} y2={yLeft(v)} className="stroke-border-subtle" strokeWidth={1} />
+                <text x={PAD.left - 6} y={yLeft(v) + 3} textAnchor="end" className="fill-text-tertiary text-[10px] tabular-nums">{v}</text>
+              </g>
+            ))}
+          {/* Right axis labels (%) — only when a share series is shown */}
+          {rightVisible &&
+            rightTicks.map((v) => (
+              <text key={`r${v}`} x={W - PAD.right + 6} y={yRight(v) + 3} textAnchor="start" className="fill-text-tertiary text-[10px] tabular-nums">
+                {v}%
+              </text>
+            ))}
+          {/* X labels */}
+          {pts.map((p, i) =>
+            i % labelEvery === 0 ? (
+              <text key={p.year} x={xAt(i)} y={H - 8} textAnchor="middle" className="fill-text-tertiary text-[10px] tabular-nums">
+                {`'${String(p.year).slice(-2)}`}
+              </text>
+            ) : null,
+          )}
+          {/* Hover guide */}
+          {hoverIdx !== null && (
+            <line x1={xAt(hoverIdx)} y1={PAD.top} x2={xAt(hoverIdx)} y2={PAD.top + innerH} className="stroke-border-strong" strokeWidth={1} strokeDasharray="3 3" />
+          )}
+          {/* Series */}
+          {visible.map((s) => {
+            const path = pts
+              .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yFor(s, s.value(p)).toFixed(1)}`)
+              .join(' ');
+            return (
+              <g key={s.key}>
+                <path d={path} fill="none" stroke={s.stroke} strokeWidth={2} strokeDasharray={s.dashed ? '5 4' : undefined} />
+                {pts.map((p, i) => (
+                  <circle key={p.year} cx={xAt(i)} cy={yFor(s, s.value(p))} r={hoverIdx === i ? 3.5 : 2} fill={s.stroke} />
+                ))}
+              </g>
+            );
+          })}
+        </svg>
+        {/* Hover tooltip */}
+        {hoverIdx !== null && pts[hoverIdx] && (
+          <div
+            className="pointer-events-none absolute top-2 z-10 rounded-md border border-border-subtle bg-surface-1 p-2 text-xs shadow-md"
+            style={{ left: `${(xAt(hoverIdx) / W) * 100}%`, transform: 'translateX(-50%)' }}
+          >
+            <div className="mb-1 font-semibold tabular-nums">{pts[hoverIdx]!.year}</div>
+            {visible.map((s) => {
+              const v = s.value(pts[hoverIdx]!);
               return (
-                <div key={y.year} className="flex flex-1 flex-col items-center gap-1">
-                  <div
-                    className="flex w-full flex-col-reverse overflow-hidden rounded-sm"
-                    style={{ height: '3rem' }}
-                    title={`${y.year}: Q1 ${y.q1} · Q2 ${y.q2} · Q3 ${y.q3} · Q4 ${y.q4}`}
-                  >
-                    {QUARTILE_SEGMENTS.map((s) => {
-                      const n = y[s.key];
-                      if (tot === 0 || n === 0) return null;
-                      return <div key={s.key} className={s.cls} style={{ height: `${(n / tot) * 100}%` }} />;
-                    })}
-                  </div>
-                  <span className="text-[0.6rem] text-text-tertiary tabular-nums">{`'${String(y.year).slice(-2)}`}</span>
+                <div key={s.key} className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.stroke }} />
+                  <span className="text-text-secondary">{s.label}</span>
+                  <span className="ml-auto pl-2 font-tabular font-semibold">
+                    {s.axis === 'right' ? `${v.toFixed(0)}%` : v.toLocaleString('en-US')}
+                  </span>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+      {/* Clickable legend — toggle series on/off */}
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
+        {Q_SERIES.map((s) => {
+          const off = hidden.has(s.key);
+          return (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => toggle(s.key)}
+              className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-surface-2 ${off ? 'opacity-40' : ''}`}
+              title={off ? `Show ${s.label}` : `Hide ${s.label}`}
+            >
+              <svg width={18} height={8} aria-hidden>
+                <line x1={0} y1={4} x2={18} y2={4} stroke={s.stroke} strokeWidth={2.5} strokeDasharray={s.dashed ? '4 3' : undefined} />
+              </svg>
+              <span className="text-text-secondary">{s.label}</span>
+              {s.axis === 'right' && <span className="text-[0.6rem] text-text-tertiary">(%)</span>}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

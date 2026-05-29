@@ -85,7 +85,11 @@ const yearValidator = z
 const ResearchFilterSchema = z.object({
   facultyName: StringArray,
   sources: StringArray,
+  // Inclusive [yearFrom, yearTo] window driven by the UI range slider.
   yearFrom: yearValidator,
+  yearTo: yearValidator,
+  // Legacy single-year alias (older bookmarked URLs); the slider no
+  // longer emits it but the service still honours it.
   yearExact: yearValidator,
 });
 

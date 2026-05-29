@@ -1574,9 +1574,15 @@ model ResearchOutput {
   // the exact year is absent. Null for PubMed-sourced rows and Scopus
   // papers whose journal carries no CiteScore record.
   quartile            Int?           @map("quartile")
-  // CiteScore percentile (0-99) underlying the quartile — max across
-  // the journal's subject areas, matching the best-quartile pick.
+  // CiteScore percentile (0-99) underlying the quartile — the MAX
+  // across the journal's subject areas for the chosen year (the
+  // journal's strongest standing, which is what the top-10% tier keys
+  // off).
   citeScorePercentile Int?           @map("cite_score_percentile")
+  // True when the journal is in the CiteScore Top-10% of titles in ANY
+  // of its subject areas for the chosen year (≡ max percentile ≥ 90) —
+  // the finer "Tier 1" band inside Q1. Null when unrated.
+  top10Percent        Boolean?       @map("top_10_percent")
   // SCImago Journal Rank (SJR) for the chosen journal/year.
   sjr                 Float?         @map("sjr")
   // Raw author display name from the source — used for analyst

@@ -192,14 +192,18 @@ export class KkuResearchRealConnector extends ApiConnector {
         // dashboard within 5-10%.
         const scopusRows = await query<KkuPubScopusRow>(
           client,
-          // jm = journal metrics. LATERAL picks ONE scopus_citescores
-          // row for the paper's journal (source_id, both varchar):
-          // prefer the most recent metric year ≤ cover year, else the
-          // closest year, and among that year's per-ASJC rows take the
-          // BEST quartile (1 is best). source_id match covers ~94% of
-          // enabled 2015+ docs; exact-year-only would be ~49%, hence
-          // the nearest-year fallback. Journals with no CiteScore row
-          // yield NULLs.
+          // jm = journal metrics, aggregated per journal-year. The inner
+          // `yr` picks ONE target year for the paper's journal
+          // (source_id, both varchar): the most recent metric year ≤
+          // cover year, else the closest. The outer aggregate then rolls
+          // up ALL of that year's per-ASJC rows into the journal-level
+          // metrics: best quartile (MIN, 1 is best), MAX percentile (the
+          // journal's strongest standing), top-10% (bool_or — true if
+          // top-10% in any subject area, ≡ max percentile ≥ 90), and SJR
+          // (journal-level, repeated per ASJC row → MAX collapses it).
+          // source_id match covers ~94% of enabled 2015+ docs;
+          // exact-year-only would be ~49%, hence the nearest-year
+          // fallback. Journals with no CiteScore row yield NULLs.
           `SELECT
              d.document_id,
              d.eid,
@@ -211,6 +215,7 @@ export class KkuResearchRealConnector extends ApiConnector {
              d.aggregation_type,
              jm.quartile         AS quartile,
              jm.percentile       AS cite_score_percentile,
+             jm.top_10_percent   AS top_10_percent,
              jm.sjr              AS sjr,
              sa.author_id        AS scopus_author_id,
              sap.person_id       AS person_id,
@@ -226,15 +231,24 @@ export class KkuResearchRealConnector extends ApiConnector {
            JOIN scopus_author_people   sap ON sap.scopus_author_id = sa.id
            JOIN people                  p  ON p.id            = sap.person_id
            LEFT JOIN LATERAL (
-             SELECT cs.quartile, cs.percentile, cs.sjr
+             SELECT
+               MIN(cs.quartile)       AS quartile,
+               MAX(cs.percentile)     AS percentile,
+               bool_or(cs.top_10_percent) AS top_10_percent,
+               MAX(cs.sjr)            AS sjr
              FROM scopus_citescores cs
              WHERE cs.sourceid = d.source_id
                AND cs.quartile IS NOT NULL
-             ORDER BY
-               (cs.year <= EXTRACT(YEAR FROM d.cover_date)::int) DESC,
-               abs(cs.year - EXTRACT(YEAR FROM d.cover_date)::int) ASC,
-               cs.quartile ASC
-             LIMIT 1
+               AND cs.year = (
+                 SELECT cs2.year
+                 FROM scopus_citescores cs2
+                 WHERE cs2.sourceid = d.source_id
+                   AND cs2.quartile IS NOT NULL
+                 ORDER BY
+                   (cs2.year <= EXTRACT(YEAR FROM d.cover_date)::int) DESC,
+                   abs(cs2.year - EXTRACT(YEAR FROM d.cover_date)::int) ASC
+                 LIMIT 1
+               )
            ) jm ON true
            WHERE d.workflow_state = 'enabled'
              AND p.university_id  = 1
@@ -348,6 +362,7 @@ export class KkuResearchRealConnector extends ApiConnector {
             citations: r.cited_by_count ?? 0,
             quartile: r.quartile ?? null,
             citeScorePercentile: r.cite_score_percentile ?? null,
+            top10Percent: r.top_10_percent ?? null,
             sjr: r.sjr ?? null,
             facultyMemberId: resolution.facultyMemberId,
             kkuAuthorName: resolution.authorDisplayName,
@@ -476,6 +491,7 @@ export class KkuResearchRealConnector extends ApiConnector {
       // on PubMed rows.
       quartile?: number | null;
       citeScorePercentile?: number | null;
+      top10Percent?: boolean | null;
       sjr?: number | null;
       facultyMemberId: string | null;
       kkuAuthorName: string | null;
@@ -502,6 +518,7 @@ export class KkuResearchRealConnector extends ApiConnector {
       // CiteScore data is updated.
       quartile: p.quartile ?? null,
       citeScorePercentile: p.citeScorePercentile ?? null,
+      top10Percent: p.top10Percent ?? null,
       sjr: p.sjr ?? null,
       kkuAuthorName: p.kkuAuthorName,
       ingestionRunId: runId,

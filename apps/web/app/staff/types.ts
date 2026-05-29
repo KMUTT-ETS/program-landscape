@@ -150,10 +150,15 @@ export interface ResearchAuthor {
   isActive: boolean;
   employeeSource: 'kku-hr' | 'kku-publications' | 'other';
   facultyName: string | null;
+  facultyNameTh: string | null;
   departmentName: string | null;
   papers: number;
   citations: number;
   hIndex: number;
+  /** This author's Q1 / Q2 papers + the Top-10% subset. */
+  q1Papers: number;
+  q2Papers: number;
+  top10Papers: number;
   mostRecentYear: number | null;
   bySource: Record<string, number>;
 }
@@ -164,8 +169,13 @@ export interface ResearchFacultyRow {
   publishingStaff: number;
   papers: number;
   citations: number;
-  /** Distinct Q1 papers (Scopus CiteScore best-quartile = 1). */
+  /** Distinct papers per Scopus quartile + Top-10% subset + rated total. */
   q1Papers: number;
+  q2Papers: number;
+  q3Papers: number;
+  q4Papers: number;
+  top10Papers: number;
+  ratedPapers: number;
   bySource: Record<string, number>;
   byType: Record<string, number>;
 }
@@ -197,6 +207,10 @@ export interface ResearchResponse {
   /** When set, the window collapses to a single year. yearFrom is set to
    *  this value too so the existing chart axis logic keeps working. */
   yearExact: number | null;
+  /** Stable bounds for the year-range slider — the ingestion floor and
+   *  the current year, independent of the active filter window. */
+  yearMin: number;
+  yearMax: number;
   totalStaff: number;
   /** Faculty members with isActive=true in the filter set. Denominator
    *  for the "papers per active faculty" KPI — same active-count the
@@ -215,12 +229,24 @@ export interface ResearchResponse {
     q2: number;
     q3: number;
     q4: number;
+    /** Top-10% (Tier 1) papers — a SUBSET of q1, not an extra band. */
+    top10: number;
     unrated: number;
     rated: number;
     q1Share: number | null;
+    top10Share: number | null;
   };
-  /** Quartile mix per year (rated Scopus papers only). */
-  quartileByYear: Array<{ year: number; q1: number; q2: number; q3: number; q4: number }>;
+  /** Quartile mix per year (rated Scopus papers only) + Top-10% subset
+   *  + rated total — powers the by-year tier distribution chart. */
+  quartileByYear: Array<{
+    year: number;
+    q1: number;
+    q2: number;
+    q3: number;
+    q4: number;
+    top10: number;
+    rated: number;
+  }>;
   byYear: Array<{ year: number; scopus: number; pubmed: number; total: number }>;
   byFaculty: ResearchFacultyRow[];
   heatmap: ResearchHeatmapRow[];

@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Card, PageHeader } from '@kku/ui';
+import { PageHeader } from '@kku/ui';
 import { StaffBackLink } from '../back-link';
 import { ResearchClient } from './client';
 import type { FilterOptions, ResearchResponse } from '../types';
@@ -35,19 +35,21 @@ export default async function ResearchPage({
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);
   const sources = arr(sp.sources);
-  const yearFromRaw = one(sp.yearFrom);
-  const yearFrom = yearFromRaw && /^\d+$/.test(yearFromRaw) ? Number(yearFromRaw) : undefined;
-  const yearExactRaw = one(sp.yearExact);
-  const yearExact = yearExactRaw && /^\d+$/.test(yearExactRaw) ? Number(yearExactRaw) : undefined;
+  const num = (v: string | string[] | undefined): number | undefined => {
+    const raw = one(v);
+    return raw && /^\d+$/.test(raw) ? Number(raw) : undefined;
+  };
+  // Year-range slider drives yearFrom/yearTo. A legacy `yearExact` URL is
+  // folded into both ends so old bookmarks still resolve to one year.
+  const yearExact = num(sp.yearExact);
+  const yearFrom = yearExact ?? num(sp.yearFrom);
+  const yearTo = yearExact ?? num(sp.yearTo);
 
   const qs = new URLSearchParams();
   facultyName.forEach((v) => qs.append('facultyName', v));
   sources.forEach((v) => qs.append('sources', v));
-  if (yearExact) {
-    qs.set('yearExact', String(yearExact));
-  } else if (yearFrom) {
-    qs.set('yearFrom', String(yearFrom));
-  }
+  if (yearFrom !== undefined) qs.set('yearFrom', String(yearFrom));
+  if (yearTo !== undefined) qs.set('yearTo', String(yearTo));
 
   const dataRes = await apiFetchSafe<ResearchResponse>(
     `/staff-dashboard/research${qs.toString() ? `?${qs}` : ''}`,
@@ -65,7 +67,7 @@ export default async function ResearchPage({
         <ResearchClient
           data={dataRes.data}
           options={options}
-          initialFilters={{ facultyName, sources, yearFrom, yearExact }}
+          initialFilters={{ facultyName, sources, yearFrom, yearTo }}
         />
       ) : (
         <DiagnosticEmptyState

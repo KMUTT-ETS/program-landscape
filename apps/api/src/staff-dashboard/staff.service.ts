@@ -1062,12 +1062,29 @@ export class StaffService {
   async researchOutput(filter: {
     facultyName?: string[];
     sources?: string[];
+    /** Year-range filter (inclusive). The UI drives this via a range
+     *  slider; `yearMin`/`yearMax` in the response give it its bounds. */
     yearFrom?: number;
-    /** When set, restricts to papers in this exact year — wins over yearFrom. */
+    yearTo?: number;
+    /** Legacy single-year alias — maps to yearFrom = yearTo = yearExact.
+     *  Kept so older bookmarked URLs don't 400; the slider no longer
+     *  emits it. */
     yearExact?: number;
   }) {
-    const yearFrom = filter.yearFrom ?? Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
-    const yearExact = filter.yearExact;
+    // Stable slider bounds, independent of the current filter: the
+    // ingestion floor (earliest year the connector pulls) → this year.
+    const yearMin = Number(process.env.KKU_RESEARCH_YEAR_FROM ?? 2015);
+    const yearMax = new Date().getFullYear();
+    let yearFrom: number;
+    let yearTo: number;
+    if (filter.yearExact !== undefined) {
+      yearFrom = filter.yearExact;
+      yearTo = filter.yearExact;
+    } else {
+      yearFrom = filter.yearFrom ?? yearMin;
+      yearTo = filter.yearTo ?? yearMax;
+    }
+    if (yearFrom > yearTo) [yearFrom, yearTo] = [yearTo, yearFrom];
     const sourceFilter = filter.sources && filter.sources.length > 0
       ? filter.sources
       : ['kku-publications:scopus', 'kku-publications:pubmed'];
@@ -1075,24 +1092,26 @@ export class StaffService {
     // 5-minute cache. Publications data refreshes weekly via the
     // kku-research connector; 5 minutes is fresh enough for Council prep.
     // Fails open — Redis outage falls through to direct compute.
-    const cacheKey = CacheService.keyOf('staff:research-v2', {
+    const cacheKey = CacheService.keyOf('staff:research-v3', {
       facultyName: filter.facultyName?.sort() ?? [],
       sources: sourceFilter.slice().sort(),
       yearFrom,
-      yearExact: yearExact ?? null,
+      yearTo,
     });
     const cached = await this.cache?.get<unknown>(cacheKey);
     if (cached) return cached;
-    const result = await this.computeResearchOutput(filter, sourceFilter, yearFrom, yearExact);
+    const result = await this.computeResearchOutput(filter, sourceFilter, yearFrom, yearTo, yearMin, yearMax);
     await this.cache?.set(cacheKey, result, 60 * 5);
     return result;
   }
 
   private async computeResearchOutput(
-    filter: { facultyName?: string[]; sources?: string[]; yearFrom?: number; yearExact?: number },
+    filter: { facultyName?: string[]; sources?: string[] },
     sourceFilter: string[],
     yearFrom: number,
-    yearExact: number | undefined,
+    yearTo: number,
+    yearMin: number,
+    yearMax: number,
   ) {
 
     // FacultyMember snapshot — count EVERYONE who has authored on KKU's
@@ -1123,12 +1142,9 @@ export class StaffService {
     });
     const fmIds = fmRows.map((r) => r.id);
 
-    // Research output — filtered to FM IDs + source + year window
-    // yearExact (when present) wins over yearFrom — restricts to a single
-    // year rather than an accumulate-from-here window.
-    const yearWhere = yearExact !== undefined
-      ? { year: yearExact }
-      : { year: { gte: yearFrom } };
+    // Research output — filtered to FM IDs + source + the inclusive
+    // [yearFrom, yearTo] window the range slider selects.
+    const yearWhere = { year: { gte: yearFrom, lte: yearTo } };
     const papers =
       fmIds.length === 0
         ? []
@@ -1150,6 +1166,7 @@ export class StaffService {
               scopusId: true,
               pmid: true,
               quartile: true,
+              top10Percent: true,
             },
           });
 
@@ -1164,10 +1181,17 @@ export class StaffService {
       isActive: boolean;
       employeeSource: 'kku-hr' | 'kku-publications' | 'other';
       facultyName: string | null;
+      /** Thai faculty name — for Thai-labelled UI surfaces. */
+      facultyNameTh: string | null;
       departmentName: string | null;
       papers: number;
       citations: number;
       hIndex: number;
+      /** This author's papers per Q1/Q2 + the Top-10% subset — the
+       *  QS/THE-relevant quality signal per contributor. */
+      q1Papers: number;
+      q2Papers: number;
+      top10Papers: number;
       mostRecentYear: number | null;
       bySource: Record<string, number>;
     }
@@ -1201,11 +1225,17 @@ export class StaffService {
       const cites = authorCitations.get(fm.id) ?? [];
       const sourceCounts: Record<string, number> = {};
       const yearsSeen: number[] = [];
+      let q1Papers = 0;
+      let q2Papers = 0;
+      let top10Papers = 0;
       for (const p of papers) {
         if (p.facultyMemberId !== fm.id) continue;
         const src = p.source ?? 'unknown';
         sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
         yearsSeen.push(p.year);
+        if (p.quartile === 1) q1Papers += 1;
+        else if (p.quartile === 2) q2Papers += 1;
+        if (p.top10Percent) top10Papers += 1;
       }
       const totalCitations = cites.reduce((a, b) => a + b, 0);
       perAuthor.set(fm.id, {
@@ -1215,11 +1245,17 @@ export class StaffService {
         rank: fm.rank,
         isActive: fm.isActive,
         employeeSource: classifyEmployeeSource(fm.employeeCode),
-        facultyName: fm.faculty?.nameEn ?? fm.faculty?.nameTh ?? null,
+        // Thai-first for UI display (faculty names are shown in Thai
+        // across the dashboards); nameEn only as a last-resort fallback.
+        facultyName: fm.faculty?.nameTh ?? fm.faculty?.nameEn ?? null,
+        facultyNameTh: fm.faculty?.nameTh ?? null,
         departmentName: fm.department?.nameEn ?? fm.department?.nameTh ?? null,
         papers: cites.length,
         citations: totalCitations,
         hIndex: hIndex(cites),
+        q1Papers,
+        q2Papers,
+        top10Papers,
         mostRecentYear: yearsSeen.length > 0 ? Math.max(...yearsSeen) : null,
         bySource: sourceCounts,
       });
@@ -1246,6 +1282,8 @@ export class StaffService {
       // or a Scopus journal with no CiteScore record). All author rows
       // of one paper carry the same quartile, so first-seen wins.
       quartile: number | null;
+      // CiteScore Top-10% tier (the finer band inside Q1).
+      top10Percent: boolean | null;
       facultyNames: Set<string>; // every faculty that has ≥1 author on this paper
     }
     const paperMap = new Map<string, DistinctPaper>();
@@ -1264,12 +1302,13 @@ export class StaffService {
           venue: p.venue,
           citations: p.citations ?? 0,
           quartile: p.quartile ?? null,
+          top10Percent: p.top10Percent ?? null,
           facultyNames: new Set<string>(),
         };
         paperMap.set(key, entry);
       }
       const fm = fmById.get(p.facultyMemberId ?? '');
-      const fname = fm?.faculty?.nameEn ?? fm?.faculty?.nameTh ?? null;
+      const fname = fm?.faculty?.nameTh ?? fm?.faculty?.nameEn ?? null;
       if (fname) entry.facultyNames.add(fname);
     }
 
@@ -1285,14 +1324,21 @@ export class StaffService {
         publishingStaff: number;
         papers: number;
         citations: number;
-        /** Distinct Q1 papers (Scopus, best-quartile = 1). */
+        /** Distinct papers per Scopus quartile + the Top-10% subset +
+         *  the rated denominator — the QS/THE quality signal per
+         *  faculty. */
         q1Papers: number;
+        q2Papers: number;
+        q3Papers: number;
+        q4Papers: number;
+        top10Papers: number;
+        ratedPapers: number;
         bySource: Record<string, number>;
         byType: Record<string, number>;
       }
     >();
     for (const fm of fmRows) {
-      const fname = fm.faculty?.nameEn ?? fm.faculty?.nameTh ?? '(unmapped)';
+      const fname = fm.faculty?.nameTh ?? fm.faculty?.nameEn ?? '(unmapped)';
       const cell = byFaculty.get(fname) ?? {
         facultyName: fname,
         staffCount: 0,
@@ -1300,6 +1346,11 @@ export class StaffService {
         papers: 0,
         citations: 0,
         q1Papers: 0,
+        q2Papers: 0,
+        q3Papers: 0,
+        q4Papers: 0,
+        top10Papers: 0,
+        ratedPapers: 0,
         bySource: {},
         byType: {},
       };
@@ -1315,6 +1366,11 @@ export class StaffService {
         cell.papers += 1;
         cell.citations += paper.citations;
         if (paper.quartile === 1) cell.q1Papers += 1;
+        else if (paper.quartile === 2) cell.q2Papers += 1;
+        else if (paper.quartile === 3) cell.q3Papers += 1;
+        else if (paper.quartile === 4) cell.q4Papers += 1;
+        if (paper.quartile !== null) cell.ratedPapers += 1;
+        if (paper.top10Percent) cell.top10Papers += 1;
         cell.bySource[paper.source] = (cell.bySource[paper.source] ?? 0) + 1;
         cell.byType[paper.type] = (cell.byType[paper.type] ?? 0) + 1;
       }
@@ -1359,27 +1415,38 @@ export class StaffService {
     // journal carries no CiteScore record. `rated` is the denominator
     // for the quartile mix (Q1-share is computed against rated, not
     // total, so PubMed volume doesn't dilute it).
-    const byQuartile = { q1: 0, q2: 0, q3: 0, q4: 0, unrated: 0 };
+    // `top10` is the Top-10% tier — a SUBSET of q1 (journals in the
+    // CiteScore top 10% of their subject area). Tracked separately so
+    // the UI can highlight Tier 1 within Q1; it is NOT added to the
+    // q1+q2+q3+q4 = rated sum.
+    const byQuartile = { q1: 0, q2: 0, q3: 0, q4: 0, top10: 0, unrated: 0 };
     for (const paper of paperMap.values()) {
       if (paper.quartile === 1) byQuartile.q1 += 1;
       else if (paper.quartile === 2) byQuartile.q2 += 1;
       else if (paper.quartile === 3) byQuartile.q3 += 1;
       else if (paper.quartile === 4) byQuartile.q4 += 1;
       else byQuartile.unrated += 1;
+      if (paper.top10Percent) byQuartile.top10 += 1;
     }
     const ratedPapers = byQuartile.q1 + byQuartile.q2 + byQuartile.q3 + byQuartile.q4;
 
     // Quartile mix per year (Scopus-rated papers only) — feeds a
     // stacked-bar trend so the dashboard shows whether KKU's Q1 share is
     // rising. Keyed by year; PubMed / unrated excluded from these bars.
-    const quartileByYear = new Map<number, { q1: number; q2: number; q3: number; q4: number }>();
+    const quartileByYear = new Map<
+      number,
+      { q1: number; q2: number; q3: number; q4: number; top10: number; rated: number }
+    >();
     for (const paper of paperMap.values()) {
       if (!paper.quartile) continue;
-      const cell = quartileByYear.get(paper.year) ?? { q1: 0, q2: 0, q3: 0, q4: 0 };
+      const cell =
+        quartileByYear.get(paper.year) ?? { q1: 0, q2: 0, q3: 0, q4: 0, top10: 0, rated: 0 };
       if (paper.quartile === 1) cell.q1 += 1;
       else if (paper.quartile === 2) cell.q2 += 1;
       else if (paper.quartile === 3) cell.q3 += 1;
       else if (paper.quartile === 4) cell.q4 += 1;
+      cell.rated += 1;
+      if (paper.top10Percent) cell.top10 += 1;
       quartileByYear.set(paper.year, cell);
     }
 
@@ -1469,8 +1536,14 @@ export class StaffService {
     const activeStaff = fmRows.filter((fm) => fm.isActive).length;
     return {
       yearFrom,
-      yearTo: yearExact ?? new Date().getFullYear(),
-      yearExact: yearExact ?? null,
+      yearTo,
+      // Single-year selection (slider thumbs together) — kept so the
+      // existing "year X" vs "window X–Y" labels + by-year chart logic
+      // that read `yearExact` keep working unchanged.
+      yearExact: yearFrom === yearTo ? yearFrom : null,
+      // Stable bounds for the range slider (not the filtered window).
+      yearMin,
+      yearMax,
       totalStaff: fmRows.length,
       activeStaff,
       publishingStaff: authorList.length,
@@ -1485,6 +1558,9 @@ export class StaffService {
         ...byQuartile,
         rated: ratedPapers,
         q1Share: ratedPapers > 0 ? byQuartile.q1 / ratedPapers : null,
+        // Top-10% (Tier 1) share — against rated papers, same
+        // denominator as q1Share so the two read on the same base.
+        top10Share: ratedPapers > 0 ? byQuartile.top10 / ratedPapers : null,
       },
       quartileByYear: [...quartileByYear.entries()]
         .sort((a, b) => a[0] - b[0])
@@ -1534,6 +1610,7 @@ export class StaffService {
         'Scopus author resolution path (per KKU Library IT 2026-05-07): scopus_documents → scopus_author_documents → scopus_authors → scopus_author_people → people. The denormalised scopus_author_documents.person_id column is a stale cache (~3y backlog) and is no longer used.',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Journal quartile (Q1-Q4) is Scopus CiteScore-based, from kku-publications scopus_citescores — the best quartile across the journal’s subject areas for the paper’s year (nearest metric year ≤ publication year). PubMed papers and Scopus papers whose journal has no CiteScore record are "unrated"; the Q1 share is computed against rated papers only.',
+        'Top-10% (Tier 1) is the CiteScore Top-10% band — the journal is in the top decile of its subject area in any of its categories (≡ max percentile ≥ 90). It is a subset of Q1, tracked separately, not an additional quartile.',
         'Productivity-by-rank breakdown is restricted to kku-hr-sourced staff (employee_code prefix hr_). The 326 kkupub_-backfilled rows carry rank=LECTURER as a placeholder and are excluded from that section to keep the averages meaningful.',
       ],
     };

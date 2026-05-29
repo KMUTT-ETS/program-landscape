@@ -28,11 +28,13 @@ export interface KkuPubScopusRow {
   cited_by_count: number | null;
   doi: string | null;
   aggregation_type: string | null;
-  // From scopus_citescores via LATERAL — best quartile for the
-  // journal in the nearest metric year ≤ cover year. Null when the
-  // journal carries no CiteScore record.
+  // From scopus_citescores via LATERAL — journal-level metrics for the
+  // nearest metric year ≤ cover year: best quartile, MAX percentile,
+  // top-10% (any subject area), SJR. Null when the journal carries no
+  // CiteScore record.
   quartile: number | null;
   cite_score_percentile: number | null;
+  top_10_percent: boolean | null;
   sjr: number | null;
   // From scopus_author_documents
   scopus_author_id: string | null;
