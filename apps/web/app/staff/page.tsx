@@ -40,7 +40,7 @@ const TILES: Array<{
     icon: Users,
     title: 'Who works here',
     blurb:
-      'Headcount, age, tenure, recent hires and departures — plus a 5-year heads-up on who is nearing retirement. Side-by-side academic and support views.',
+      'How many people work at KKU and who they are — by age, years of service, and recent arrivals and departures. Includes a five-year heads-up on who is approaching retirement, with academic and support staff shown side by side.',
     Thumb: WorkforceThumb,
   },
   {
@@ -48,7 +48,7 @@ const TILES: Array<{
     icon: BookOpen,
     title: 'Programs and their staff',
     blurb:
-      'Drill from faculty into each program to see who teaches there. Programs with fewer than 5 อาจารย์ผู้รับผิดชอบหลักสูตร are flagged.',
+      'See which staff teach in each program, from faculty down to the individual program. Programs with fewer than five อาจารย์ผู้รับผิดชอบหลักสูตร (responsible instructors) are flagged for attention.',
     Thumb: FacultyByProgramThumb,
   },
   {
@@ -56,7 +56,7 @@ const TILES: Array<{
     icon: Microscope,
     title: 'Research and publications',
     blurb:
-      "All KKU staff publications (Scopus + PubMed, incl. retired) from the internal kku-publications mirror. Year-trend, faculty heatmap, source / output-type breakdowns, top venues, top-30 authors, productivity-by-rank, and Faculty → Author drill-down.",
+      'Every paper KKU staff have published, including retired faculty. Leads with journal-quality tiers — Tier 1 and Q1, the signal behind QS and THE rankings — then shows how output has grown year by year and which faculties and individuals contribute most.',
     Thumb: ResearchThumb,
   },
   {
@@ -64,7 +64,7 @@ const TILES: Array<{
     icon: Wallet,
     title: 'Salaries and funding',
     blurb:
-      "Where each person's salary comes from (government allocation vs university revenue) and the income-band mix per faculty. Numbers only shown where at least 5 people fall in a bucket.",
+      "Where each person's pay comes from — government budget versus university revenue — and the mix of income levels in each faculty. To protect privacy, figures appear only where at least five people share a category.",
     Thumb: CompensationThumb,
   },
   {
@@ -72,7 +72,7 @@ const TILES: Array<{
     icon: ClipboardList,
     title: 'Teaching workload',
     blurb:
-      "Contact hours per teacher per week, summed across every section they teach. A workload-distribution histogram surfaces the under- and over-loaded tails, a faculty pulse compares the houses, a students-taught chart shows reach, and a Faculty → Teacher drill-down ranks individuals.",
+      'How many teaching hours each instructor carries per week across all their classes. Spot who is over- and under-loaded, compare faculties, see how many students each one reaches, and explore the ranking right down to individual teachers.',
     Thumb: TeachingWorkloadThumb,
     programAware: true,
   },
@@ -81,7 +81,7 @@ const TILES: Array<{
     icon: MessageSquare,
     title: 'Teaching evaluations',
     blurb:
-      'Per-instructor student-evaluation scores from POWERBI.EVALUATE_INSTRUCTOR. Faculty roster with mean rating per person, plus drill-down into question-by-question heatmap and course-level breakdown. Program-scope users see their own record only; faculty users see their faculty.',
+      "What students think of their instructors, from the official course-evaluation survey. Browse every instructor's average rating, then open anyone to see results question by question and course by course. You see your own record (program staff) or your faculty's (faculty leaders).",
     Thumb: TeachingEvaluationsThumb,
     programAware: true,
   },
