@@ -168,11 +168,11 @@ export class DeepDiveController {
   @Provenance({
     sources: [
       {
-        id: 'kku-tcas-funnel',
-        name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID',
+        id: 'kku-admission-campaigns',
+        name: 'KKU Registry · POWERBI.ADMISSION_STAT',
       },
     ],
-    methodologyVersion: 'program-recruitment.v1',
+    methodologyVersion: 'program-recruitment.v2',
   })
   async recruitment(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);

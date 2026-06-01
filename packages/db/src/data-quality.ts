@@ -230,6 +230,7 @@ export const PROVENANCE_TRACKED_TABLES = [
   'kmitl_career_skill_demands',
   'kmitl_skill_growths',
   'tcas_admission_funnels',
+  'admission_campaign_stats',
   'program_demand_matches',
 ] as const;
 

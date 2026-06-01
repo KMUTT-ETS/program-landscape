@@ -528,6 +528,18 @@ export class KkuTcasFunnelConnector extends ApiConnector {
   }
 }
 
+export class KkuAdmissionCampaignsConnector extends ApiConnector {
+  readonly slug = 'kku-admission-campaigns';
+  readonly mocked = true;
+  async fetch(): Promise<RawRecord[]> { return []; }
+  async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
+    return [{ target: 'admission_campaign_stats', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked' } };
+  }
+}
+
 export class KkuEvaluationsConnector extends ApiConnector {
   readonly slug = 'kku-evaluations';
   readonly mocked = true;

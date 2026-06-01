@@ -51,6 +51,7 @@ import {
   prisma,
   PrismaAiInferenceRecorder,
   loadProgramRiskInputs,
+  programFunnelRoundRows,
   scoreProgramRisk,
   evaluateKris,
   normaliseImpactScores,
@@ -188,24 +189,18 @@ async function buildAiInput(
       aiReadinessAssessment: {
         select: { relevanceScore: true, methodVersion: true, payloadJson: true },
       },
-      tcasAdmissionFunnels: {
-        select: {
-          entryYearBE: true,
-          round: true,
-          planPerYear: true,
-          totalApplicants: true,
-          regReported: true,
-        },
-      },
     },
   });
   if (!program) return null;
+
+  // Recruitment funnel from ADMISSION_STAT via the adapter (per year × round).
+  const tcasFunnelRows = await programFunnelRoundRows(programId);
 
   const yearMap = new Map<
     number,
     { plan: number | null; applicants: number | null; reported: number | null }
   >();
-  for (const r of program.tcasAdmissionFunnels) {
+  for (const r of tcasFunnelRows) {
     const cur = yearMap.get(r.entryYearBE) ?? { plan: null, applicants: null, reported: null };
     if (r.planPerYear != null) cur.plan = Math.max(cur.plan ?? 0, r.planPerYear);
     if (r.totalApplicants != null) cur.applicants = (cur.applicants ?? 0) + r.totalApplicants;
@@ -250,12 +245,12 @@ async function buildAiInput(
       programId,
       level: program.level,
       status: 'ACTIVE',
-      tcasFunnel: program.tcasAdmissionFunnels.map((r) => ({
+      tcasFunnel: tcasFunnelRows.map((r) => ({
         entryYearBE: r.entryYearBE,
         round: r.round,
         planPerYear: r.planPerYear,
         totalApplicants: r.totalApplicants,
-        totalPassed: null,
+        totalPassed: r.totalPassed,
         regReported: r.regReported,
       })),
       enrollment: [],

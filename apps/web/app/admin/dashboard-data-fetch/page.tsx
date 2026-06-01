@@ -108,7 +108,7 @@ export default async function DashboardDataFetchPage() {
 
       <Section
         title="Education cubes"
-        description="POWERBI.VIEW_STUDENT_DETAIL_ALL (student/location/tuition/performance/entry-scores) + POWERBI.ADMISSION_STAT_CURRID (recruitment funnel)."
+        description="POWERBI.VIEW_STUDENT_DETAIL_ALL (student/location/tuition/performance/entry-scores) + POWERBI.ADMISSION_STAT (recruitment funnel — campaign grain, via kku-admission-campaigns)."
       >
         <Card>
           <EducationRefreshBar initialStatus={eduStatus} />

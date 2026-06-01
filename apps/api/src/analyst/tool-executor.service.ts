@@ -55,7 +55,7 @@ import {
   type Intervention,
   type ToolCall,
 } from '@kku/shared';
-import { listPortfolioRisk } from '@kku/db';
+import { listPortfolioRisk, scopeFunnelLatestYear } from '@kku/db';
 
 // ═════════════════════════════════════════════════════════════════════
 // Analyst tool executor
@@ -811,26 +811,15 @@ export class AnalystToolExecutor {
         }));
       }
       if (include.has('recruitment')) {
-        const latestYear = await prisma.tcasAdmissionFunnel.aggregate({
-          _max: { entryYearBE: true },
-        });
-        const year = latestYear._max.entryYearBE;
-        if (year !== null && year !== undefined) {
-          const totals = await prisma.tcasAdmissionFunnel.aggregate({
-            where: { entryYearBE: year },
-            _sum: {
-              planPerYear: true,
-              enrollSeats: true,
-              totalApplicants: true,
-              regReported: true,
-            },
-          });
-          out.recruitmentLatestYearBe = year;
+        // ADMISSION_STAT via the funnel adapter — latest COMPLETE year.
+        const totals = await scopeFunnelLatestYear('university', null);
+        if (totals.entryYearBE !== null) {
+          out.recruitmentLatestYearBe = totals.entryYearBE;
           out.recruitmentTotals = {
-            planPerYear: totals._sum?.planPerYear ?? 0,
-            enrollSeats: totals._sum?.enrollSeats ?? 0,
-            totalApplicants: totals._sum?.totalApplicants ?? 0,
-            regReported: totals._sum?.regReported ?? 0,
+            planPerYear: totals.planPerYear,
+            enrollSeats: totals.enrollSeats,
+            totalApplicants: totals.totalApplicants,
+            regReported: totals.regReported,
           };
         }
       }
@@ -948,58 +937,73 @@ export class AnalystToolExecutor {
 
     query_recruitment: async (input) => {
       const q = QueryRecruitmentInputSchema.parse(input);
-      const maxAgg = await prisma.tcasAdmissionFunnel.aggregate({
-        _max: { entryYearBE: true },
+      // ADMISSION_STAT: latest COMPLETE year, aggregated per program.
+      const nowCe = new Date().getUTCFullYear();
+      const yearRows = await prisma.admissionCampaignStat.findMany({
+        where: { programId: { not: null } },
+        select: { acadYearBE: true },
+        distinct: ['acadYearBE'],
+        orderBy: { acadYearBE: 'desc' },
       });
-      const latestYear = q.entryYearBe ?? maxAgg._max?.entryYearBE ?? null;
+      const latestYear =
+        q.entryYearBe ?? yearRows.map((r) => r.acadYearBE).find((y) => y - 543 < nowCe) ?? null;
       if (latestYear === null) return { count: 0, rows: [] };
-      const where: Prisma.TcasAdmissionFunnelWhereInput = {
-        entryYearBE: latestYear,
+      const where: Prisma.AdmissionCampaignStatWhereInput = {
+        acadYearBE: latestYear,
+        programId: { not: null },
       };
       if (q.programId) where.programId = q.programId;
-      const rows = await prisma.tcasAdmissionFunnel.findMany({
+      if (q.facultyId) where.facultyId = q.facultyId;
+      const rows = await prisma.admissionCampaignStat.findMany({
         where,
-        take: q.limit,
-        orderBy: { totalApplicants: 'desc' },
         select: {
-          entryYearBE: true,
-          round: true,
+          programId: true,
+          recruitmentProgramId: true,
           planPerYear: true,
           enrollSeats: true,
           totalApplicants: true,
           regReported: true,
-          program: {
-            select: {
-              id: true,
-              code: true,
-              nameEn: true,
-              facultyId: true,
-              faculty: { select: { id: true, nameEn: true } },
-            },
-          },
+          program: { select: { code: true, nameEn: true, faculty: { select: { nameEn: true } } } },
         },
       });
-      const facultyFiltered = q.facultyId
-        ? rows.filter((r) => r.program?.facultyId === q.facultyId)
-        : rows;
-      return {
-        count: facultyFiltered.length,
-        entryYearBe: latestYear,
-        rows: facultyFiltered.map((r) => ({
-          programCode: r.program?.code,
-          programNameEn: r.program?.nameEn,
-          facultyNameEn: r.program?.faculty?.nameEn,
-          round: r.round,
-          planPerYear: r.planPerYear,
-          enrollSeats: r.enrollSeats,
-          totalApplicants: r.totalApplicants,
-          regReported: r.regReported,
-          competitionRatio:
-            r.enrollSeats && r.enrollSeats > 0 && r.totalApplicants
-              ? Number((r.totalApplicants / r.enrollSeats).toFixed(2))
-              : null,
-        })),
+      // Roll campaign tracks up per program. Plan = Σ over sub-programs of MAX.
+      type Acc = {
+        programCode?: string; programNameEn?: string; facultyNameEn?: string;
+        seats: number; applicants: number; reported: number;
+        planBySub: Map<string, number>;
       };
+      const byProg = new Map<string, Acc>();
+      for (const r of rows) {
+        const key = r.programId!;
+        let a = byProg.get(key);
+        if (!a) {
+          a = { programCode: r.program?.code, programNameEn: r.program?.nameEn, facultyNameEn: r.program?.faculty?.nameEn, seats: 0, applicants: 0, reported: 0, planBySub: new Map() };
+          byProg.set(key, a);
+        }
+        a.seats += r.enrollSeats ?? 0;
+        a.applicants += r.totalApplicants ?? 0;
+        a.reported += r.regReported ?? 0;
+        if (r.planPerYear != null) {
+          a.planBySub.set(r.recruitmentProgramId, Math.max(a.planBySub.get(r.recruitmentProgramId) ?? 0, r.planPerYear));
+        }
+      }
+      const aggregated = [...byProg.values()]
+        .map((a) => {
+          const plan = [...a.planBySub.values()].reduce((s, v) => s + v, 0);
+          return {
+            programCode: a.programCode,
+            programNameEn: a.programNameEn,
+            facultyNameEn: a.facultyNameEn,
+            planPerYear: plan > 0 ? plan : null,
+            enrollSeats: a.seats,
+            totalApplicants: a.applicants,
+            regReported: a.reported,
+            competitionRatio: a.seats > 0 && a.applicants > 0 ? Number((a.applicants / a.seats).toFixed(2)) : null,
+          };
+        })
+        .sort((x, y) => y.totalApplicants - x.totalApplicants)
+        .slice(0, q.limit);
+      return { count: aggregated.length, entryYearBe: latestYear, rows: aggregated };
     },
   };
 }

@@ -35,6 +35,7 @@ export * from './student-status';
 export * from './imd-rankings';
 export * from './imd-materialize';
 export * from './program-recruitment';
+export * from './program-funnel';
 export * from './risk-scoring';
 export * from './risk-measure-rules';
 export * from './retention';

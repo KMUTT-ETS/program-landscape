@@ -17,6 +17,10 @@ import {
 } from '../common';
 import { EducationService, type ClassGpaFilters } from './education.service';
 import { RecruitmentService } from './recruitment.service';
+import {
+  AdmissionCampaignsService,
+  UNASSIGNED_FACULTY_ID,
+} from './admission-campaigns.service';
 import { ClassOfferingsService, type ClassOfferingsFilter } from './class-offerings.service';
 import { EvaluationsService } from './evaluations.service';
 import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
@@ -35,6 +39,18 @@ const RecruitmentQuerySchema = z.object({
   // '4.2'). Validated against the actual data at query time (an unknown
   // round simply returns empty aggregates).
   round: z.string().min(1).max(8).optional(),
+});
+
+// Actual recruitment campaigns (POWERBI.ADMISSION_STAT). facultyId accepts
+// the synthetic UNASSIGNED bucket value; round is free-form like the funnel.
+const CampaignsQuerySchema = z.object({
+  acadYearBE: z.coerce.number().int().min(2400).max(2700).optional(),
+  facultyId: z.string().min(1).optional(),
+  round: z.string().min(1).max(8).optional(),
+  unmappedOnly: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
 });
 
 // Express coerces a query param that appears once into a string and
@@ -178,6 +194,7 @@ export class EducationController {
     private readonly education: EducationService,
     private readonly refresher: EducationRefreshService,
     private readonly recruitment: RecruitmentService,
+    private readonly campaigns: AdmissionCampaignsService,
     private readonly classOfferings: ClassOfferingsService,
     private readonly evaluations: EvaluationsService,
     private readonly aiJobs: AiJobsQueueService,
@@ -202,6 +219,33 @@ export class EducationController {
       facultyId: clamped.facultyId,
       level: q.level ?? null,
       round: q.round ?? null,
+    });
+  }
+
+  @Get('recruitment-campaigns')
+  @Authorized('institution:read:dashboard')
+  async recruitmentCampaignsDashboard(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(CampaignsQuerySchema))
+    q: z.infer<typeof CampaignsQuerySchema>,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    // FACULTY_USER → clamp to own faculty. The synthetic UNASSIGNED bucket
+    // is university-wide only, so a scoped user can never select it (the
+    // clamp replaces it with the user's real faculty).
+    const clamped = await clampFacultyIdFilter(
+      { facultyId: q.facultyId === UNASSIGNED_FACULTY_ID ? null : (q.facultyId ?? null) },
+      user,
+    );
+    const facultyId =
+      q.facultyId === UNASSIGNED_FACULTY_ID && clamped.facultyId === null
+        ? UNASSIGNED_FACULTY_ID
+        : clamped.facultyId;
+    return this.campaigns.getDashboard({
+      acadYearBE: q.acadYearBE ?? null,
+      facultyId,
+      round: q.round ?? null,
+      unmappedOnly: q.unmappedOnly ?? null,
     });
   }
 

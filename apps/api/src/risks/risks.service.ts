@@ -15,7 +15,7 @@ import {
   type ProgramLevel,
   type PortfolioRiskRow,
 } from '@kku/db';
-import { listPortfolioRisk } from '@kku/db';
+import { listPortfolioRisk, programFunnelYears } from '@kku/db';
 
 /**
  * Risk module read-side service.
@@ -513,7 +513,7 @@ export class RisksService {
     const competRows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
       SELECT COUNT(DISTINCT p.id) AS count
       FROM programs p
-      JOIN tcas_admission_funnels t ON t.program_id = p.id
+      JOIN admission_campaign_stats t ON t.program_id = p.id
       WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
         AND ${realDataSql('t')}
       ${facultyClause}
@@ -533,27 +533,34 @@ export class RisksService {
       });
     }
 
-    // Competition ratio histogram (latest complete cycle).
+    // Competition ratio histogram (latest complete cycle). Source:
+    // admission_campaign_stats. Plan = Σ over sub-programs of MAX(plan).
     const ratioRows = await prisma.$queryRaw<Array<{ ratio: number }>>(Prisma.sql`
-      WITH latest AS (
-        SELECT p.id AS program_id, MAX(t.entry_year_be) AS year_be
-        FROM programs p
-        JOIN tcas_admission_funnels t ON t.program_id = p.id
+      WITH eligible AS (
+        SELECT c.program_id, c.recruitment_program_id, c.acad_year_be,
+               c.total_applicants, c.plan_per_year
+        FROM admission_campaign_stats c
+        JOIN programs p ON p.id = c.program_id
         WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
-          AND t.entry_year_be < (EXTRACT(YEAR FROM CURRENT_DATE)::int + 543)
-          AND ${realDataSql('t')}
-        GROUP BY p.id
+          AND c.acad_year_be < (EXTRACT(YEAR FROM CURRENT_DATE)::int + 543)
+          AND ${realDataSql('c')}
+          ${facultyClause}
+          ${programClause}
+      ),
+      latest AS (SELECT program_id, MAX(acad_year_be) AS y FROM eligible GROUP BY program_id),
+      scoped AS (SELECT e.* FROM eligible e JOIN latest l ON l.program_id = e.program_id AND e.acad_year_be = l.y),
+      plan_by_prog AS (
+        SELECT program_id, SUM(pp) AS plan FROM (
+          SELECT program_id, recruitment_program_id, MAX(plan_per_year) AS pp
+          FROM scoped GROUP BY program_id, recruitment_program_id
+        ) s GROUP BY program_id
+      ),
+      apps_by_prog AS (
+        SELECT program_id, SUM(COALESCE(total_applicants, 0))::float AS apps FROM scoped GROUP BY program_id
       )
-      SELECT
-        SUM(COALESCE(t.total_applicants, 0))::float / NULLIF(MAX(COALESCE(t.plan_per_year, 0)), 0) AS ratio
-      FROM programs p
-      JOIN latest l ON l.program_id = p.id
-      JOIN tcas_admission_funnels t ON t.program_id = p.id AND t.entry_year_be = l.year_be
-      WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
-        AND ${realDataSql('t')}
-      ${facultyClause}
-      ${programClause}
-      GROUP BY p.id
+      SELECT a.apps / NULLIF(pb.plan, 0) AS ratio
+      FROM apps_by_prog a JOIN plan_by_prog pb ON pb.program_id = a.program_id
+      WHERE pb.plan > 0
     `);
     const ratioBuckets = [
       { range: '<0.5', lo: 0, hi: 0.5, count: 0 },
@@ -835,28 +842,19 @@ export class RisksService {
       };
     });
 
-    // TCAS funnel rolled up per year for the sparkline.
-    const tcasRaw = await prisma.tcasAdmissionFunnel.findMany({
-      where: { programId, ...realDataWhere() },
-      select: { entryYearBE: true, planPerYear: true, totalApplicants: true, regReported: true },
-    });
-    const yearMap = new Map<number, { plan: number | null; applicants: number; reported: number }>();
-    for (const r of tcasRaw) {
-      const cur = yearMap.get(r.entryYearBE) ?? { plan: null, applicants: 0, reported: 0 };
-      if (r.planPerYear != null) cur.plan = Math.max(cur.plan ?? 0, r.planPerYear);
-      cur.applicants += r.totalApplicants ?? 0;
-      cur.reported += r.regReported ?? 0;
-      yearMap.set(r.entryYearBE, cur);
-    }
-    const tcasYears = [...yearMap.entries()]
-      .sort((a, b) => a[0] - b[0])
+    // Recruitment funnel rolled up per year for the sparkline. Source:
+    // ADMISSION_STAT via the adapter (plan = Σ over sub-programs).
+    const funnelYears = await programFunnelYears(programId);
+    const tcasYears = funnelYears
+      .slice()
+      .sort((a, b) => a.entryYearBE - b.entryYearBE)
       .slice(-5)
-      .map(([year, v]) => ({
-        year,
-        plan: v.plan,
-        applicants: v.applicants > 0 ? v.applicants : null,
-        reported: v.reported > 0 ? v.reported : null,
-        inProgress: isInProgressBE(year),
+      .map((y) => ({
+        year: y.entryYearBE,
+        plan: y.planPerYear,
+        applicants: y.totalApplicants > 0 ? y.totalApplicants : null,
+        reported: y.regReported > 0 ? y.regReported : null,
+        inProgress: isInProgressBE(y.entryYearBE),
       }));
 
     // Recompute L2 components live — gives the UI the per-component breakdown

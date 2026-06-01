@@ -22,13 +22,26 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-tcas-funnel',
-    name: 'KKU TCAS Admission Funnel',
+    name: 'KKU TCAS Admission Funnel (deprecated)',
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 4 * * *', // daily at 04:00 — after kku-registry
     ownerContact: 'KKU Registrar — Academic Office',
     notes:
-      'Full TCAS round 1–4 admission funnel from POWERBI.ADMISSION_STAT_CURRID — quota / applicants / passed / Clearinghouse send + confirm / registration reporting per program × round × year. Replaces the previous TCAS3-only data ingested into TcasAdmissionStat (KKU rows there are obsolete; peer-institution rows kept for benchmarking).',
+      'DEPRECATED 2026-05-31 — superseded by kku-admission-campaigns (POWERBI.ADMISSION_STAT), which is a richer superset. All scoring / deep-dive / risk / cockpit / analyst now read the new source. Schedule disabled; the connector + tcas_admission_funnels table are kept for a verification window, then removed. Historical: full TCAS round 1–4 funnel from POWERBI.ADMISSION_STAT_CURRID.',
+    mocked: false,
+    deprecated: true,
+    scheduleEnabled: false,
+  },
+  {
+    slug: 'kku-admission-campaigns',
+    name: 'KKU Actual Recruitment Campaigns',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '30 4 * * *', // daily at 04:30 — after kku-tcas-funnel
+    ownerContact: 'KKU Registrar — Academic Office',
+    notes:
+      'Practical recruitment grain from POWERBI.ADMISSION_STAT — one row per campaign TRACK (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Finer than the curriculum-level ADMISSION_STAT_CURRID. PROGRAMID is the recruitment-program code (≠ MHESI curr code), resolved to canonical programs via the LLM-assisted AdmissionStatProgramMapping bridge. Seat/plan columns populate once Registrar IT adds them (connector auto-detects).',
     mocked: false,
   },
   {

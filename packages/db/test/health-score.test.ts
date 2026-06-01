@@ -48,12 +48,15 @@ vi.mock('../src/index', async () => {
       },
       demographicProjection: { findFirst: mocks.demographicFindFirst },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
-      // health-score.ts uses $queryRaw for the year-window probe
-      // (line ~414) and the attractiveness-driver fetch (line ~649).
-      // The tests don't exercise the actual SQL — returning [] from the
-      // mock is the "no data → null score" baseline that matches the
-      // null-handling assertions.
+      // health-score.ts uses $queryRaw for the year-window probe + the
+      // scope attractiveness funnel aggregate (now admission_campaign_stats
+      // via scopeFunnelLatestYear), and $queryRawUnsafe in
+      // studentSatisfactionDriver. The tests don't exercise the actual SQL
+      // — returning [] is the "no data → null score" baseline that matches
+      // the null-handling assertions.
       $queryRaw: vi.fn().mockResolvedValue([]),
+      $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+      admissionCampaignStat: { findMany: vi.fn().mockResolvedValue([]) },
     },
   };
 });
@@ -104,10 +107,10 @@ describe('computeHealthScores — null handling', () => {
   });
 
   it('attractiveness scope-level: no TCAS-funnel data → score null + completeness 0', async () => {
-    // v3.4 attractiveness scope-level driver set is {tcas_competition_ratio,
+    // Attractiveness scope-level driver set is {tcas_competition_ratio,
     // tcas_fill_rate, tcas_registration_yield} — all read from
-    // `tcas_admission_funnels` via $queryRaw. When the mock returns no
-    // funnel rows (default `$queryRaw: vi.fn().mockResolvedValue([])`),
+    // `admission_campaign_stats` via scopeFunnelLatestYear ($queryRaw).
+    // When the mock returns no funnel rows (default `$queryRaw → []`),
     // all three drivers resolve to null → completeness 0, score null.
     // This is the canonical "every null → null, never 0" assertion at
     // the attractiveness scope-fallback path.

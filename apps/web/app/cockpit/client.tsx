@@ -42,7 +42,7 @@ import {
   FilterSearch,
   FilterSelect,
 } from '@/components/filter-rail';
-import type { RecruitmentDashboardPayload } from '../education/recruitment/client';
+import type { RecruitmentDashboardPayload } from './recruitment-payload';
 import {
   deleteSavedViewAction,
   generateBriefAction,
@@ -706,7 +706,7 @@ function RecruitmentPanel({ data }: { data: RecruitmentDashboardPayload | null }
       <Card accent="cockpit" padding="md">
         <p className="text-sm text-text-tertiary">
           No recruitment data at this scope. Try a faculty scope, or check{' '}
-          <Link href="/education/recruitment" className="text-accent-default hover:underline">
+          <Link href="/education/recruitment-campaigns" className="text-accent-default hover:underline">
             the full recruitment dashboard
           </Link>
           .
@@ -750,7 +750,7 @@ function RecruitmentPanel({ data }: { data: RecruitmentDashboardPayload | null }
           </p>
         </div>
         <Link
-          href={`/education/recruitment${
+          href={`/education/recruitment-campaigns${
             data.meta.appliedFilters.facultyId
               ? `?facultyId=${encodeURIComponent(data.meta.appliedFilters.facultyId)}`
               : ''

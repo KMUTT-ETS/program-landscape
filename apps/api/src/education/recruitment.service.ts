@@ -1,36 +1,38 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, prisma, realDataSql } from '@kku/db';
+import { prisma } from '@kku/db';
+import {
+  AdmissionCampaignsService,
+  type CampaignDashboardPayload,
+  type CampaignProgramRow,
+  type CampaignMetrics,
+} from './admission-campaigns.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Undergraduate recruitment dashboard — read-side helpers backed by
-// tcas_admission_funnels (POWERBI.ADMISSION_STAT_CURRID).
+// Undergraduate recruitment rollup — compatibility shim.
 //
-// Splits "complete" (every round in the year has reg_reported populated)
-// from "in-progress" (some rounds still pending). Scoring uses complete
-// only; the in-progress payload is informational, surfaced in a separate
-// banner on the dashboard.
-//
-// All endpoints honour optional filters: entryYearBE, facultyId, level.
+// The dedicated /education/recruitment dashboard (POWERBI.ADMISSION_STAT_CURRID
+// via tcas_admission_funnels) was retired. This service now DELEGATES to
+// AdmissionCampaignsService (POWERBI.ADMISSION_STAT) and re-shapes its payload
+// into the legacy RecruitmentDashboardPayload so the remaining consumers —
+// the cockpit recruitment panel and the AI-analyst recruitment-dashboard tool
+// — keep working unchanged, on the new data.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Kept for back-compat: callers that narrow to the unmapped bucket. Maps onto
+// AdmissionCampaignsService's UNASSIGNED bucket at the call boundary.
+export const UNDEFINED_FACULTY_ID = '__common_undefined__';
+const UNDEFINED_FACULTY_CODE = 'COMMON';
+const UNDEFINED_FACULTY_NAME_EN = 'Common / Undefined Program';
 
 export interface RecruitmentFilters {
   entryYearBE?: number | null;
   facultyId?: string | null;
   level?: string | null;
-  /** TCAS round (e.g. '1', '1.2', '2', '3', '4'). When set, every
-   *  aggregate — KPIs, funnel, faculty rollup, round breakdown, year
-   *  trend, program drill — narrows to that single round. Null /
-   *  absent = all rounds (the default cross-round comparison view). */
   round?: string | null;
 }
 
 export interface FunnelTotals {
-  /** Per-round ENROLLSEAT, summed. Intentionally over-allocated vs the
-   *  registrar's actual annual plan to compensate for no-show. */
   seats: number;
-  /** PLAN_PER_YEAR — the registrar's actual annual seat target.
-   *  Aggregated as SUM(MAX_per_program) so each program contributes
-   *  its plan once regardless of how many rounds it has. */
   planPerYear: number;
   applicants: number;
   passed: number;
@@ -74,9 +76,6 @@ export interface ProgramDrillRow {
   round: string;
   entryYearBE: number;
   enrollSeats: number | null;
-  /** Annual planned seats — same value across rounds of the same
-   *  (program × year), shown on every row so analyst can see the
-   *  per-round allocation against the year target. */
   planPerYear: number | null;
   totalApplicants: number | null;
   totalPassed: number | null;
@@ -85,11 +84,14 @@ export interface ProgramDrillRow {
   sendRegReported: number | null;
   regReported: number | null;
   competitionRatio: number | null;
-  /** Reported-in ÷ annual planned seats (PLAN_PER_YEAR). At round
-   *  level this is the round's contribution toward filling the annual
-   *  plan; summed across a program's rounds it reaches the program's
-   *  overall plan-fill. Null when there's no plan on file. */
   planYield: number | null;
+}
+
+export interface FacultyOption {
+  id: string;
+  code: string;
+  nameTh: string;
+  nameEn: string;
 }
 
 export interface RecruitmentDashboardPayload {
@@ -98,17 +100,13 @@ export interface RecruitmentDashboardPayload {
     latestYearOverall: number | null;
     inProgressYear: number | null;
     availableYears: number[];
-    /** Distinct TCAS rounds present for the selected year + faculty +
-     *  level scope, lexicographically sorted (orders 1, 1.2, 1.3, 2,
-     *  2.2, 3, 4, 4.2 correctly). Drives the round-filter dropdown. */
     availableRounds: string[];
     selectedYear: number | null;
-    /** Currently-applied round filter, or null for "all rounds". */
     selectedRound: string | null;
     appliedFilters: RecruitmentFilters;
-    /** True when the SELECTED year is in-progress — the UI shows a
-     *  partial-data banner. */
     selectedYearIsComplete: boolean;
+    facultiesWithData: FacultyOption[];
+    hasUndefinedBucket: boolean;
   };
   kpis: FunnelTotals & {
     competitionRatio: number | null;
@@ -119,603 +117,180 @@ export interface RecruitmentDashboardPayload {
   byRound: RoundRow[];
   byYear: YearTrendRow[];
   programs: ProgramDrillRow[];
-  /** When the selected year is COMPLETE, this carries the in-progress
-   *  year's partial totals for an info-only banner. Null when the
-   *  selected year IS the in-progress year (the KPIs already show it). */
   inProgressInfo: (FunnelTotals & { entryYearBE: number }) | null;
+}
+
+const ratio = (a: number, b: number): number | null => (b > 0 ? a / b : null);
+
+// CampaignMetrics → the legacy FunnelTotals shape.
+function toTotals(m: CampaignMetrics, programCount: number, rounds: number): FunnelTotals {
+  return {
+    seats: m.seats ?? 0,
+    planPerYear: m.plan ?? 0,
+    applicants: m.applicants,
+    passed: m.passed,
+    sendCh: m.sendCh,
+    confirmCh: m.confirmCh,
+    sendReg: m.sendReg,
+    regReported: m.enrolled,
+    rounds,
+    programCount,
+  };
+}
+
+function sumMetrics(items: CampaignMetrics[]): CampaignMetrics {
+  let plan: number | null = null;
+  let seats: number | null = null;
+  let applicants = 0, passed = 0, sendCh = 0, confirmCh = 0, sendReg = 0, enrolled = 0;
+  for (const m of items) {
+    if (m.plan != null) plan = (plan ?? 0) + m.plan;
+    if (m.seats != null) seats = (seats ?? 0) + m.seats;
+    applicants += m.applicants;
+    passed += m.passed;
+    sendCh += m.sendCh;
+    confirmCh += m.confirmCh;
+    sendReg += m.sendReg;
+    enrolled += m.enrolled;
+  }
+  return {
+    plan, seats, applicants, passed, sendCh, confirmCh, sendReg, enrolled,
+    percentAdmit: plan != null && plan > 0 ? enrolled / plan : null,
+    competitionRate: seats != null && seats > 0 ? applicants / seats : null,
+  };
 }
 
 @Injectable()
 export class RecruitmentService {
-  // ──────────────────────────────────────────────────────────────────
-  // Year status (complete vs in-progress).
-  //
-  // Calendar-based: a year is COMPLETE when its CE year (BE - 543) is
-  // strictly less than the current CE year. Thai TCAS rounds run
-  // Jan-Aug; registration wraps in Sep-Oct. By Jan 1 of the following
-  // calendar year, every round of the prior cohort is finished.
-  //
-  // We tried a per-row "every row has reg_reported > 0" heuristic
-  // first — that worked at program scope but failed at faculty/
-  // university scope because some rounds legitimately had 0 reportees
-  // (programs that simply didn't fill in a particular round). Calendar
-  // is robust to that and matches the operator mental model.
-  // ──────────────────────────────────────────────────────────────────
-  private isYearComplete(entryYearBE: number, now: Date = new Date()): boolean {
-    return entryYearBE - 543 < now.getUTCFullYear();
-  }
+  constructor(private readonly campaigns: AdmissionCampaignsService) {}
 
-  private async yearStatus(filters: RecruitmentFilters): Promise<{
-    available: number[];
-    latestComplete: number | null;
-    latestOverall: number | null;
-  }> {
-    const programFilter = this.programFilter(filters);
-    const rows = await prisma.$queryRaw<Array<{ entry_year_be: number }>>`
-      SELECT DISTINCT f.entry_year_be
-      FROM tcas_admission_funnels f
-      JOIN programs p ON p.id = f.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND ${realDataSql('f')}
-        ${programFilter}
-      ORDER BY f.entry_year_be DESC
-    `;
-    const available = rows.map((r) => r.entry_year_be);
-    const latestOverall = available[0] ?? null;
-    const latestComplete = available.find((y) => this.isYearComplete(y)) ?? null;
-    return { available, latestComplete, latestOverall };
-  }
+  async getDashboard(filters: RecruitmentFilters = {}): Promise<RecruitmentDashboardPayload> {
+    const c: CampaignDashboardPayload = await this.campaigns.getDashboard({
+      acadYearBE: filters.entryYearBE ?? null,
+      // The unmapped-bucket sentinel differs between services; translate it.
+      facultyId:
+        filters.facultyId === UNDEFINED_FACULTY_ID ? '__unassigned__' : (filters.facultyId ?? null),
+      round: filters.round ?? null,
+    });
 
-  // ──────────────────────────────────────────────────────────────────
-  // SQL filter fragment for the program scope (faculty + level).
-  // Returns Prisma.empty when no scope filter applies.
-  // ──────────────────────────────────────────────────────────────────
-  private programFilter(filters: RecruitmentFilters): Prisma.Sql {
-    const clauses: Prisma.Sql[] = [];
-    if (filters.facultyId) {
-      clauses.push(Prisma.sql`AND p.faculty_id = ${filters.facultyId}`);
-    }
-    if (filters.level) {
-      clauses.push(Prisma.sql`AND p.level::text = ${filters.level}`);
-    }
-    if (clauses.length === 0) return Prisma.empty;
-    return Prisma.join(clauses, ' ');
-  }
+    // Faculty code/name-en lookup (the campaign payload carries only id + Thai name).
+    const faculties = await prisma.faculty.findMany({ select: { id: true, code: true, nameEn: true } });
+    const facLookup = new Map(faculties.map((f) => [f.id, f]));
 
-  // Round filter fragment. References the funnel-table alias `f` — every
-  // raw query below either selects `FROM tcas_admission_funnels f` or
-  // wraps it in an `eligible` CTE that does, so `f.round` is always in
-  // scope where this is interpolated. Returns Prisma.empty for the
-  // all-rounds default.
-  private roundFilter(filters: RecruitmentFilters): Prisma.Sql {
-    return filters.round
-      ? Prisma.sql`AND f.round = ${filters.round}`
-      : Prisma.empty;
-  }
-
-  // Distinct rounds present in the selected-year + faculty + level
-  // scope. Round-independent (never narrowed by filters.round) so the
-  // dropdown always lists every selectable round. Lexicographic sort
-  // matches the schema's documented ordering.
-  private async availableRounds(
-    year: number,
-    filters: RecruitmentFilters,
-  ): Promise<string[]> {
-    const programFilter = this.programFilter(filters);
-    const rows = await prisma.$queryRaw<Array<{ round: string }>>`
-      SELECT DISTINCT f.round
-      FROM tcas_admission_funnels f
-      JOIN programs p ON p.id = f.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND f.entry_year_be = ${year}
-        AND ${realDataSql('f')}
-        ${programFilter}
-      ORDER BY f.round ASC
-    `;
-    return rows.map((r) => r.round);
-  }
-
-  // ──────────────────────────────────────────────────────────────────
-  // Aggregate funnel totals at scope × year.
-  // ──────────────────────────────────────────────────────────────────
-  private async totalsForYear(
-    year: number,
-    filters: RecruitmentFilters,
-  ): Promise<FunnelTotals> {
-    const programFilter = this.programFilter(filters);
-    const roundFilter = this.roundFilter(filters);
-    // PLAN_PER_YEAR must sum-MAX-by-program (not multi-count across
-    // rounds). Funnel columns sum across all rows. Two CTEs.
-    const rows = await prisma.$queryRaw<
-      Array<{
-        seats: bigint | null;
-        plan_per_year: bigint | null;
-        applicants: bigint | null;
-        passed: bigint | null;
-        send_ch: bigint | null;
-        confirm_ch: bigint | null;
-        send_reg: bigint | null;
-        reg_reported: bigint | null;
-        rounds: bigint;
-        programs: bigint;
-      }>
-    >`
-      WITH eligible AS (
-        SELECT f.*
-        FROM tcas_admission_funnels f
-        JOIN programs p ON p.id = f.program_id
-        WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-          AND f.entry_year_be = ${year}
-          AND ${realDataSql('f')}
-          ${programFilter}
-          ${roundFilter}
-      ),
-      per_program AS (
-        SELECT program_id, MAX(plan_per_year) AS plan_per_year
-        FROM eligible WHERE program_id IS NOT NULL GROUP BY program_id
-      ),
-      funnel AS (
-        SELECT
-          COALESCE(SUM(enroll_seats), 0)::bigint AS seats,
-          COALESCE(SUM(total_applicants), 0)::bigint AS applicants,
-          COALESCE(SUM(total_passed), 0)::bigint AS passed,
-          COALESCE(SUM(send_clearinghouse), 0)::bigint AS send_ch,
-          COALESCE(SUM(confirm_clearinghouse), 0)::bigint AS confirm_ch,
-          COALESCE(SUM(send_reg_reported), 0)::bigint AS send_reg,
-          COALESCE(SUM(reg_reported), 0)::bigint AS reg_reported,
-          COUNT(*)::bigint AS rounds,
-          COUNT(DISTINCT program_id)::bigint AS programs
-        FROM eligible
-      )
-      SELECT funnel.*,
-        (SELECT COALESCE(SUM(plan_per_year), 0)::bigint FROM per_program) AS plan_per_year
-      FROM funnel;
-    `;
-    const r = rows[0];
-    return {
-      seats: Number(r?.seats ?? 0n),
-      planPerYear: Number(r?.plan_per_year ?? 0n),
-      applicants: Number(r?.applicants ?? 0n),
-      passed: Number(r?.passed ?? 0n),
-      sendCh: Number(r?.send_ch ?? 0n),
-      confirmCh: Number(r?.confirm_ch ?? 0n),
-      sendReg: Number(r?.send_reg ?? 0n),
-      regReported: Number(r?.reg_reported ?? 0n),
-      rounds: Number(r?.rounds ?? 0n),
-      programCount: Number(r?.programs ?? 0n),
+    // ── KPIs ──
+    const k = c.kpis;
+    const kpis = {
+      ...toTotals(k, k.programs, k.campaigns),
+      competitionRatio: k.competitionRate,
+      fillRate: ratio(k.passed, k.seats ?? 0),
+      regYield: ratio(k.enrolled, k.sendCh),
     };
-  }
 
-  private async byFaculty(
-    year: number,
-    filters: RecruitmentFilters,
-  ): Promise<FacultyRow[]> {
-    const programFilter = this.programFilter(filters);
-    const roundFilter = this.roundFilter(filters);
-    // Two-stage aggregation: roll PLAN_PER_YEAR up by MAX-per-program,
-    // then SUM into the faculty bucket alongside the per-row funnel sums.
-    // Start from `faculties` (LEFT JOIN funnel data) so every academic
-    // faculty with at least one canonical-active program appears in
-    // the dashboard — even faculties with no admissions activity for
-    // the selected year (graduate-only faculties, faculties with no
-    // current cohort) show up with zero-count rows. Sorted by Thai
-    // name to match the rollup tree.
-    const facultyFilterScope: Prisma.Sql = filters.facultyId
-      ? Prisma.sql`AND fac.id = ${filters.facultyId}`
-      : Prisma.empty;
-    const rows = await prisma.$queryRaw<
-      Array<{
-        faculty_id: string;
-        faculty_code: string;
-        faculty_name_th: string;
-        faculty_name_en: string;
-        program_count: bigint;
-        seats: bigint | null;
-        plan_per_year: bigint | null;
-        applicants: bigint | null;
-        passed: bigint | null;
-        send_ch: bigint | null;
-        confirm_ch: bigint | null;
-        send_reg: bigint | null;
-        reg_reported: bigint | null;
-        rounds: bigint;
-      }>
-    >`
-      WITH eligible AS (
-        SELECT f.*, p.faculty_id AS faculty_id
-        FROM tcas_admission_funnels f
-        JOIN programs p ON p.id = f.program_id
-        WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-          AND f.entry_year_be = ${year}
-          AND ${realDataSql('f')}
-          ${programFilter}
-          ${roundFilter}
-      ),
-      per_program AS (
-        SELECT faculty_id, program_id, MAX(plan_per_year) AS plan_per_year
-        FROM eligible WHERE program_id IS NOT NULL
-        GROUP BY faculty_id, program_id
-      ),
-      plan_by_fac AS (
-        SELECT faculty_id, COALESCE(SUM(plan_per_year), 0)::bigint AS plan_per_year
-        FROM per_program GROUP BY faculty_id
-      ),
-      funnel_by_fac AS (
-        SELECT
-          e.faculty_id,
-          COUNT(DISTINCT e.program_id)::bigint AS program_count,
-          COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
-          COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
-          COALESCE(SUM(e.total_passed), 0)::bigint AS passed,
-          COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
-          COALESCE(SUM(e.confirm_clearinghouse), 0)::bigint AS confirm_ch,
-          COALESCE(SUM(e.send_reg_reported), 0)::bigint AS send_reg,
-          COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported,
-          COUNT(*)::bigint AS rounds
-        FROM eligible e GROUP BY e.faculty_id
-      )
-      SELECT
-        fac.id AS faculty_id,
-        fac.code AS faculty_code,
-        fac.name_th AS faculty_name_th,
-        fac.name_en AS faculty_name_en,
-        COALESCE(fb.program_count, 0)::bigint AS program_count,
-        COALESCE(fb.seats, 0)::bigint AS seats,
-        COALESCE(fb.applicants, 0)::bigint AS applicants,
-        COALESCE(fb.passed, 0)::bigint AS passed,
-        COALESCE(fb.send_ch, 0)::bigint AS send_ch,
-        COALESCE(fb.confirm_ch, 0)::bigint AS confirm_ch,
-        COALESCE(fb.send_reg, 0)::bigint AS send_reg,
-        COALESCE(fb.reg_reported, 0)::bigint AS reg_reported,
-        COALESCE(fb.rounds, 0)::bigint AS rounds,
-        COALESCE(pf.plan_per_year, 0)::bigint AS plan_per_year
-      FROM faculties fac
-      LEFT JOIN funnel_by_fac fb ON fb.faculty_id = fac.id
-      LEFT JOIN plan_by_fac pf ON pf.faculty_id = fac.id
-      WHERE fac.kind = 'ACADEMIC'
-        AND EXISTS (
-          SELECT 1 FROM programs p
-          WHERE p.faculty_id = fac.id
-            AND p.status = 'ACTIVE'
-            AND p.sequence_no_from_sheet IS NOT NULL
-        )
-        ${facultyFilterScope}
-      ORDER BY fac.name_th ASC;
-    `;
-    return rows.map((r) => ({
-      facultyId: r.faculty_id,
-      facultyCode: r.faculty_code,
-      facultyNameTh: r.faculty_name_th,
-      facultyNameEn: r.faculty_name_en,
-      programCount: Number(r.program_count),
-      totals: {
-        seats: Number(r.seats ?? 0n),
-        planPerYear: Number(r.plan_per_year ?? 0n),
-        applicants: Number(r.applicants ?? 0n),
-        passed: Number(r.passed ?? 0n),
-        sendCh: Number(r.send_ch ?? 0n),
-        confirmCh: Number(r.confirm_ch ?? 0n),
-        sendReg: Number(r.send_reg ?? 0n),
-        regReported: Number(r.reg_reported ?? 0n),
-        rounds: Number(r.rounds),
-        programCount: Number(r.program_count),
-      },
-    }));
-  }
-
-  private async byRound(
-    year: number,
-    filters: RecruitmentFilters,
-  ): Promise<RoundRow[]> {
-    const programFilter = this.programFilter(filters);
-    const roundFilter = this.roundFilter(filters);
-    const rows = await prisma.$queryRaw<
-      Array<{
-        round: string;
-        seats: bigint | null;
-        applicants: bigint | null;
-        passed: bigint | null;
-        send_ch: bigint | null;
-        confirm_ch: bigint | null;
-        send_reg: bigint | null;
-        reg_reported: bigint | null;
-        rounds: bigint;
-        programs: bigint;
-      }>
-    >`
-      SELECT
-        f.round,
-        COALESCE(SUM(f.enroll_seats), 0)::bigint AS seats,
-        COALESCE(SUM(f.total_applicants), 0)::bigint AS applicants,
-        COALESCE(SUM(f.total_passed), 0)::bigint AS passed,
-        COALESCE(SUM(f.send_clearinghouse), 0)::bigint AS send_ch,
-        COALESCE(SUM(f.confirm_clearinghouse), 0)::bigint AS confirm_ch,
-        COALESCE(SUM(f.send_reg_reported), 0)::bigint AS send_reg,
-        COALESCE(SUM(f.reg_reported), 0)::bigint AS reg_reported,
-        COUNT(*)::bigint AS rounds,
-        COUNT(DISTINCT f.program_id)::bigint AS programs
-      FROM tcas_admission_funnels f
-      JOIN programs p ON p.id = f.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND f.entry_year_be = ${year}
-        AND ${realDataSql('f')}
-        ${programFilter}
-        ${roundFilter}
-      GROUP BY f.round
-      ORDER BY f.round;
-    `;
-    return rows.map((r) => ({
+    // ── byRound / byYear ──
+    const byRound: RoundRow[] = c.byRound.map((r) => ({
       round: r.round,
-      totals: {
-        seats: Number(r.seats ?? 0n),
-        // PLAN_PER_YEAR is annual, not per-round — set 0 here. The
-        // round breakdown table doesn't render this column anyway.
-        planPerYear: 0,
-        applicants: Number(r.applicants ?? 0n),
-        passed: Number(r.passed ?? 0n),
-        sendCh: Number(r.send_ch ?? 0n),
-        confirmCh: Number(r.confirm_ch ?? 0n),
-        sendReg: Number(r.send_reg ?? 0n),
-        regReported: Number(r.reg_reported ?? 0n),
-        rounds: Number(r.rounds),
-        programCount: Number(r.programs),
-      },
+      totals: toTotals(r, r.programs, r.campaigns),
     }));
-  }
+    const byYear: YearTrendRow[] = c.byYear.map((y) => ({
+      entryYearBE: y.acadYearBE,
+      isComplete: y.isComplete,
+      totals: toTotals(y, y.programs, y.campaigns),
+    }));
 
-  private async byYear(
-    filters: RecruitmentFilters,
-  ): Promise<YearTrendRow[]> {
-    const programFilter = this.programFilter(filters);
-    const roundFilter = this.roundFilter(filters);
-    const rows = await prisma.$queryRaw<
-      Array<{
-        entry_year_be: number;
-        seats: bigint | null;
-        plan_per_year: bigint | null;
-        applicants: bigint | null;
-        passed: bigint | null;
-        send_ch: bigint | null;
-        confirm_ch: bigint | null;
-        send_reg: bigint | null;
-        reg_reported: bigint | null;
-        rounds: bigint;
-        programs: bigint;
-      }>
-    >`
-      WITH eligible AS (
-        SELECT f.*
-        FROM tcas_admission_funnels f
-        JOIN programs p ON p.id = f.program_id
-        WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-          AND ${realDataSql('f')}
-          ${programFilter}
-          ${roundFilter}
-      ),
-      per_program_year AS (
-        SELECT entry_year_be, program_id, MAX(plan_per_year) AS plan_per_year
-        FROM eligible WHERE program_id IS NOT NULL
-        GROUP BY entry_year_be, program_id
-      ),
-      plan_by_year AS (
-        SELECT entry_year_be, COALESCE(SUM(plan_per_year), 0)::bigint AS plan_per_year
-        FROM per_program_year GROUP BY entry_year_be
-      ),
-      funnel_by_year AS (
-        SELECT
-          e.entry_year_be,
-          COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
-          COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
-          COALESCE(SUM(e.total_passed), 0)::bigint AS passed,
-          COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
-          COALESCE(SUM(e.confirm_clearinghouse), 0)::bigint AS confirm_ch,
-          COALESCE(SUM(e.send_reg_reported), 0)::bigint AS send_reg,
-          COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported,
-          COUNT(*)::bigint AS rounds,
-          COUNT(DISTINCT e.program_id)::bigint AS programs
-        FROM eligible e GROUP BY e.entry_year_be
-      )
-      SELECT fy.*, COALESCE(py.plan_per_year, 0)::bigint AS plan_per_year
-      FROM funnel_by_year fy
-      LEFT JOIN plan_by_year py ON py.entry_year_be = fy.entry_year_be
-      ORDER BY fy.entry_year_be ASC;
-    `;
-    return rows.map((r) => {
-      const isComplete = this.isYearComplete(r.entry_year_be);
-      return {
-        entryYearBE: r.entry_year_be,
-        isComplete,
-        totals: {
-          seats: Number(r.seats ?? 0n),
-          planPerYear: Number(r.plan_per_year ?? 0n),
-          applicants: Number(r.applicants ?? 0n),
-          passed: Number(r.passed ?? 0n),
-          sendCh: Number(r.send_ch ?? 0n),
-          confirmCh: Number(r.confirm_ch ?? 0n),
-          sendReg: Number(r.send_reg ?? 0n),
-          regReported: Number(r.reg_reported ?? 0n),
-          rounds: Number(r.rounds),
-          programCount: Number(r.programs),
-        },
-      };
-    });
-  }
-
-  private async programDrill(
-    year: number,
-    filters: RecruitmentFilters,
-  ): Promise<ProgramDrillRow[]> {
-    const where: Prisma.TcasAdmissionFunnelWhereInput = {
-      entryYearBE: year,
-      programId: { not: null },
-      ...(filters.round ? { round: filters.round } : {}),
-      program: {
-        status: 'ACTIVE',
-        sequenceNoFromSheet: { not: null },
-        ...(filters.facultyId ? { facultyId: filters.facultyId } : {}),
-        ...(filters.level
-          ? { level: filters.level as 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA' }
-          : {}),
-      },
-    };
-    const rows = await prisma.tcasAdmissionFunnel.findMany({
-      where,
-      include: {
-        program: {
-          select: {
-            id: true,
-            code: true,
-            nameTh: true,
-            nameEn: true,
-            level: true,
-            faculty: { select: { code: true, nameTh: true } },
-          },
-        },
-      },
-      orderBy: [{ program: { code: 'asc' } }, { round: 'asc' }],
-      take: 2000,
-    });
-    return rows
-      .filter((r) => r.program !== null)
-      .map((r) => {
-        const ratio =
-          r.enrollSeats && r.enrollSeats > 0 && r.totalApplicants !== null
-            ? r.totalApplicants / r.enrollSeats
-            : null;
-        const planYield =
-          r.planPerYear && r.planPerYear > 0 && r.regReported !== null
-            ? r.regReported / r.planPerYear
-            : null;
+    // ── byFaculty — group the drill programs by faculty ──
+    const facGroups = new Map<string, { facultyId: string | null; facultyNameTh: string; programs: CampaignProgramRow[] }>();
+    for (const p of c.programs) {
+      const key = p.facultyId ?? '__undef__';
+      let g = facGroups.get(key);
+      if (!g) { g = { facultyId: p.facultyId, facultyNameTh: p.facultyNameTh, programs: [] }; facGroups.set(key, g); }
+      g.programs.push(p);
+    }
+    const byFaculty: FacultyRow[] = [...facGroups.values()]
+      .map((g) => {
+        const rounds = g.programs.reduce((s, p) => s + p.subPrograms.reduce((t, sp) => t + sp.roundCount, 0), 0);
+        const totals = toTotals(sumMetrics(g.programs), g.programs.length, rounds);
+        const fac = g.facultyId ? facLookup.get(g.facultyId) : undefined;
         return {
-          programId: r.program!.id,
-          programCode: r.program!.code,
-          facultyCode: r.program!.faculty.code,
-          facultyNameTh: r.program!.faculty.nameTh,
-          programNameTh: r.program!.nameTh,
-          programNameEn: r.program!.nameEn,
-          level: String(r.program!.level),
-          mhesiCurrId: r.mhesiCurrId,
-          round: r.round,
-          entryYearBE: r.entryYearBE,
-          enrollSeats: r.enrollSeats,
-          planPerYear: r.planPerYear,
-          totalApplicants: r.totalApplicants,
-          totalPassed: r.totalPassed,
-          sendClearinghouse: r.sendClearinghouse,
-          confirmClearinghouse: r.confirmClearinghouse,
-          sendRegReported: r.sendRegReported,
-          regReported: r.regReported,
-          competitionRatio: ratio,
-          planYield,
+          facultyId: g.facultyId ?? UNDEFINED_FACULTY_ID,
+          facultyCode: fac?.code ?? UNDEFINED_FACULTY_CODE,
+          facultyNameTh: g.facultyNameTh,
+          facultyNameEn: fac?.nameEn ?? UNDEFINED_FACULTY_NAME_EN,
+          programCount: g.programs.length,
+          totals,
         };
-      });
-  }
+      })
+      .sort((a, b) => b.totals.applicants - a.totals.applicants);
 
-  // ──────────────────────────────────────────────────────────────────
-  // Public entry point — single payload for the dashboard.
-  // ──────────────────────────────────────────────────────────────────
-  async getDashboard(
-    filters: RecruitmentFilters = {},
-  ): Promise<RecruitmentDashboardPayload> {
-    const status = await this.yearStatus(filters);
-    const selectedYear =
-      filters.entryYearBE ?? status.latestComplete ?? status.latestOverall;
-    const selectedYearIsComplete =
-      selectedYear !== null && selectedYear === status.latestComplete;
-
-    if (selectedYear === null) {
-      const empty: FunnelTotals = {
-        seats: 0,
-        planPerYear: 0,
-        applicants: 0,
-        passed: 0,
-        sendCh: 0,
-        confirmCh: 0,
-        sendReg: 0,
-        regReported: 0,
-        rounds: 0,
-        programCount: 0,
-      };
-      return {
-        meta: {
-          latestCompleteYear: null,
-          latestYearOverall: null,
-          inProgressYear: null,
-          availableYears: [],
-          availableRounds: [],
-          selectedYear: null,
-          selectedRound: filters.round ?? null,
-          appliedFilters: filters,
-          selectedYearIsComplete: false,
-        },
-        kpis: {
-          ...empty,
-          competitionRatio: null,
-          fillRate: null,
-          regYield: null,
-        },
-        byFaculty: [],
-        byRound: [],
-        byYear: [],
-        programs: [],
-        inProgressInfo: null,
-      };
+    // ── programs — flatten to per (program × round) drill rows ──
+    const programs: ProgramDrillRow[] = [];
+    for (const p of c.programs) {
+      const fac = p.facultyId ? facLookup.get(p.facultyId) : undefined;
+      const firstSub = p.subPrograms[0];
+      const byRoundMap = new Map<string, CampaignMetrics[]>();
+      for (const sub of p.subPrograms) for (const rd of sub.rounds) {
+        (byRoundMap.get(rd.round) ?? byRoundMap.set(rd.round, []).get(rd.round)!).push(rd);
+      }
+      for (const [round, metricsList] of byRoundMap) {
+        const m = sumMetrics(metricsList);
+        programs.push({
+          programId: p.programId ?? p.programKey,
+          programCode: firstSub?.recruitmentProgramId ?? '',
+          facultyCode: fac?.code ?? UNDEFINED_FACULTY_CODE,
+          facultyNameTh: p.facultyNameTh,
+          programNameTh: p.programNameTh,
+          programNameEn: p.programNameEn ?? '',
+          level: '',
+          mhesiCurrId: firstSub?.currId ?? '',
+          round,
+          entryYearBE: c.meta.selectedYear ?? 0,
+          enrollSeats: m.seats,
+          planPerYear: p.plan,
+          totalApplicants: m.applicants,
+          totalPassed: m.passed,
+          sendClearinghouse: m.sendCh,
+          confirmClearinghouse: m.confirmCh,
+          sendRegReported: m.sendReg,
+          regReported: m.enrolled,
+          competitionRatio: m.competitionRate,
+          planYield: p.plan != null && p.plan > 0 ? m.enrolled / p.plan : null,
+        });
+      }
     }
+    programs.sort((a, b) => (b.totalApplicants ?? 0) - (a.totalApplicants ?? 0));
 
-    // Run all aggregations in parallel. `availableRounds` is computed
-    // round-independent (it lists every round the dropdown can offer);
-    // every other aggregate honours filters.round when set.
-    const [totals, byFaculty, byRound, byYear, programs, availableRounds] =
-      await Promise.all([
-        this.totalsForYear(selectedYear, filters),
-        this.byFaculty(selectedYear, filters),
-        this.byRound(selectedYear, filters),
-        this.byYear(filters),
-        this.programDrill(selectedYear, filters),
-        this.availableRounds(selectedYear, filters),
-      ]);
-
+    // ── meta ──
+    const latestYearOverall = c.meta.availableYears[0] ?? null;
     const inProgressYear =
-      status.latestOverall !== null &&
-      status.latestComplete !== null &&
-      status.latestOverall > status.latestComplete
-        ? status.latestOverall
-        : status.latestOverall !== null && status.latestComplete === null
-          ? status.latestOverall
-          : null;
-
-    let inProgressInfo: (FunnelTotals & { entryYearBE: number }) | null = null;
-    if (
-      inProgressYear !== null &&
-      inProgressYear !== selectedYear // only show banner when user is on the complete year
-    ) {
-      const ipTotals = await this.totalsForYear(inProgressYear, filters);
-      inProgressInfo = { ...ipTotals, entryYearBE: inProgressYear };
-    }
+      latestYearOverall !== null &&
+      (c.meta.latestCompleteYear === null || latestYearOverall > c.meta.latestCompleteYear)
+        ? latestYearOverall
+        : null;
+    const facultiesWithData: FacultyOption[] = c.meta.facultiesWithData.map((f) => {
+      const fac = facLookup.get(f.id);
+      return { id: f.id, code: fac?.code ?? '', nameTh: f.nameTh, nameEn: fac?.nameEn ?? '' };
+    });
 
     return {
       meta: {
-        latestCompleteYear: status.latestComplete,
-        latestYearOverall: status.latestOverall,
-        inProgressYear,
-        availableYears: status.available,
-        availableRounds,
-        selectedYear,
-        selectedRound: filters.round ?? null,
+        latestCompleteYear: c.meta.latestCompleteYear,
+        latestYearOverall,
+        inProgressYear: inProgressYear !== c.meta.selectedYear ? inProgressYear : null,
+        availableYears: c.meta.availableYears,
+        availableRounds: c.meta.availableRounds,
+        selectedYear: c.meta.selectedYear,
+        selectedRound: c.meta.selectedRound,
         appliedFilters: filters,
-        selectedYearIsComplete,
+        selectedYearIsComplete: c.meta.selectedYearIsComplete,
+        facultiesWithData,
+        hasUndefinedBucket: c.meta.unmappedProgramCount > 0 || c.meta.hasUnassignedFaculty,
       },
-      kpis: {
-        ...totals,
-        competitionRatio: totals.seats > 0 ? totals.applicants / totals.seats : null,
-        fillRate: totals.seats > 0 ? totals.passed / totals.seats : null,
-        regYield: totals.sendCh > 0 ? totals.regReported / totals.sendCh : null,
-      },
+      kpis,
       byFaculty,
       byRound,
       byYear,
       programs,
-      inProgressInfo,
+      // In-progress banner totals are surfaced by the dedicated campaigns
+      // dashboard; the cockpit rollup omits the separate info banner.
+      inProgressInfo: null,
     };
   }
 }

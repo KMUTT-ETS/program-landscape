@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-program TCAS recruitment funnel — surfaces the full POWERBI.
-// ADMISSION_STAT_CURRID data for one program on the deep-dive page.
+// ADMISSION_STAT data (via the program-funnel adapter over
+// admission_campaign_stats) for one program on the deep-dive page.
+// (v2: migrated off the retired POWERBI.ADMISSION_STAT_CURRID.)
 //
 // Returns:
 //   - byYear: per-year totals (plan, allocated, applicants, passed,
@@ -11,8 +13,7 @@
 //   - methodologyVersion: stable for audit
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { prisma } from './index';
-import { realDataWhere } from './data-quality';
+import { programFunnelRoundRows } from './program-funnel';
 
 export interface ProgramRecruitmentRoundRow {
   round: string;
@@ -69,7 +70,7 @@ export interface ProgramRecruitmentResult {
   methodologyVersion: string;
 }
 
-const VERSION = 'program-recruitment.v1';
+const VERSION = 'program-recruitment.v2';
 
 function isYearComplete(yearBE: number, now: Date = new Date()): boolean {
   return yearBE - 543 < now.getUTCFullYear();
@@ -78,10 +79,9 @@ function isYearComplete(yearBE: number, now: Date = new Date()): boolean {
 export async function programRecruitment(
   programId: string,
 ): Promise<ProgramRecruitmentResult> {
-  const allRows = await prisma.tcasAdmissionFunnel.findMany({
-    where: { programId, ...realDataWhere() },
-    orderBy: [{ entryYearBE: 'desc' }, { round: 'asc' }],
-  });
+  // Sourced from admission_campaign_stats via the adapter — per (year ×
+  // round) rows with the program's annual plan replicated on each round.
+  const allRows = await programFunnelRoundRows(programId);
 
   // Group by year for the per-year totals.
   const byYearMap = new Map<number, typeof allRows>();

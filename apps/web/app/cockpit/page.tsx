@@ -15,7 +15,7 @@ import type {
   SavedView,
   ScopeBreadcrumbCrumb,
 } from './types';
-import type { RecruitmentDashboardPayload } from '../education/recruitment/client';
+import type { RecruitmentDashboardPayload } from './recruitment-payload';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Portfolio Cockpit' };

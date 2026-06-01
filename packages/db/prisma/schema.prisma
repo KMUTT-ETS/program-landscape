@@ -365,6 +365,7 @@ model Faculty {
   divergenceSnapshots    CrossScopeDivergenceSnapshot[]
   classOfferings         ClassOffering[]
   evaluationResponses    EvaluationResponseSummary[]
+  admissionCampaignStats AdmissionCampaignStat[]
 
   @@index([code])
   @@map("faculties")
@@ -489,6 +490,8 @@ model Program {
   riskAssessments       RiskAssessment[]
   riskIndicatorBreaches RiskIndicatorBreach[]
   programCourses        ProgramCourse[]
+  admissionStatMappings AdmissionStatProgramMapping[]
+  admissionCampaigns    AdmissionCampaignStat[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -1547,25 +1550,25 @@ model EmployerFeedback {
 // ══════════════════════════════════════════════════════════════════════════
 
 model ResearchOutput {
-  id              String             @id @default(cuid())
+  id                  String             @id @default(cuid())
   // Nullable so KKU-affiliated papers whose author can't be resolved
   // to a FacultyMember row still land for analyst triage. The
   // (openalexId, facultyMemberId) unique pair allows the same paper
   // to be linked once per matched KKU author.
-  facultyMemberId String?            @map("faculty_member_id")
-  year            Int
-  type            ResearchOutputType
-  title           String             @db.Text
-  venue           String?
-  citations       Int                @default(0)
-  scopusId        String?            @map("scopus_id")
-  openalexId      String?            @map("openalex_id")
+  facultyMemberId     String?            @map("faculty_member_id")
+  year                Int
+  type                ResearchOutputType
+  title               String             @db.Text
+  venue               String?
+  citations           Int                @default(0)
+  scopusId            String?            @map("scopus_id")
+  openalexId          String?            @map("openalex_id")
   // PubMed ID — populated by the kku-research connector when sourcing
   // medical / life-science papers from the kku-publications mirror.
-  pmid            String?            @map("pmid")
-  doi             String?
+  pmid                String?            @map("pmid")
+  doi                 String?
   // The connector that wrote / last updated this row.
-  source          String?
+  source              String?
   // Scopus journal quartile (1-4) for the paper's source in its
   // publication year — the BEST (lowest-number) quartile across the
   // journal's ASJC subject areas, from kku-publications
@@ -1573,26 +1576,26 @@ model ResearchOutput {
   // The nearest available metric year ≤ publication year is used when
   // the exact year is absent. Null for PubMed-sourced rows and Scopus
   // papers whose journal carries no CiteScore record.
-  quartile            Int?           @map("quartile")
+  quartile            Int?               @map("quartile")
   // CiteScore percentile (0-99) underlying the quartile — the MAX
   // across the journal's subject areas for the chosen year (the
   // journal's strongest standing, which is what the top-10% tier keys
   // off).
-  citeScorePercentile Int?           @map("cite_score_percentile")
+  citeScorePercentile Int?               @map("cite_score_percentile")
   // True when the journal is in the CiteScore Top-10% of titles in ANY
   // of its subject areas for the chosen year (≡ max percentile ≥ 90) —
   // the finer "Tier 1" band inside Q1. Null when unrated.
-  top10Percent        Boolean?       @map("top_10_percent")
+  top10Percent        Boolean?           @map("top_10_percent")
   // SCImago Journal Rank (SJR) for the chosen journal/year.
-  sjr                 Float?         @map("sjr")
+  sjr                 Float?             @map("sjr")
   // Raw author display name from the source — used for analyst
   // reconciliation when facultyMemberId is null. Multiple KKU authors
   // on one paper produce multiple rows, each carrying that author's
   // display name here.
-  kkuAuthorName   String?            @map("kku_author_name")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
-  ingestionRunId  String?            @map("ingestion_run_id")
+  kkuAuthorName       String?            @map("kku_author_name")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  ingestionRunId      String?            @map("ingestion_run_id")
 
   facultyMember FacultyMember? @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
   ingestionRun  IngestionRun?  @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
@@ -2660,6 +2663,7 @@ model IngestionRun {
   programCourses             ProgramCourse[]
   evaluationQuestions        EvaluationQuestion[]
   evaluationResponses        EvaluationResponseSummary[]
+  admissionCampaignStats     AdmissionCampaignStat[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
@@ -4213,29 +4217,29 @@ model AiModelOverride {
 model AiModelCatalog {
   /// Provider API model id — what we pass to the Google/Anthropic SDK
   /// (e.g. 'gemini-3.5-flash', 'claude-sonnet-4-6').
-  id              String   @id
+  id              String    @id
   provider        String
   /// 'flash' | 'pro' | 'sonnet' | 'haiku' | 'opus'.
   tier            String
   label           String
-  description     String   @db.Text
-  costInputPer1m  Float    @map("cost_input_per_1m")
-  costOutputPer1m Float    @map("cost_output_per_1m")
+  description     String    @db.Text
+  costInputPer1m  Float     @map("cost_input_per_1m")
+  costOutputPer1m Float     @map("cost_output_per_1m")
   /// 'openrouter' (cron-managed) | 'static' (seeded, never refreshed).
   source          String
   /// OpenRouter model id, e.g. 'google/gemini-3.5-flash'. Null for static rows.
-  openrouterId    String?  @map("openrouter_id")
+  openrouterId    String?   @map("openrouter_id")
   /// OpenRouter `created` timestamp — drives "2 latest" ordering.
   sourceCreatedAt DateTime? @map("source_created_at")
-  contextLength   Int?     @map("context_length")
+  contextLength   Int?      @map("context_length")
   /// Shown in the admin model picker. False = kept for cost lookup only.
-  isSelectable    Boolean  @default(true) @map("is_selectable")
+  isSelectable    Boolean   @default(true) @map("is_selectable")
   /// True when this is NOT the freshest model of its tier (UI badge).
-  legacy          Boolean  @default(false)
+  legacy          Boolean   @default(false)
   /// When the row was last written by the refresh / seed.
-  fetchedAt       DateTime @default(now()) @map("fetched_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  fetchedAt       DateTime  @default(now()) @map("fetched_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   @@index([source])
   @@index([isSelectable])
@@ -4536,6 +4540,120 @@ model TcasAdmissionFunnel {
   @@index([entryYearBE])
   @@index([ingestionRunId])
   @@map("tcas_admission_funnels")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Actual recruitment campaigns — POWERBI.ADMISSION_STAT.
+//
+// Where TcasAdmissionFunnel is the CURRICULUM-level rollup (one row per
+// MHESI curriculum × round × year), this table is the PRACTICAL recruitment
+// grain: one row per campaign TRACK — a specific competency / language /
+// exam option / quota type / branch-campus intake within a program × round
+// × year. The Oracle surrogate WPROGRAMID is unique per row.
+//
+// PROGRAMID (recruitmentProgramId) is a 12-digit recruitment code that is
+// NOT the MHESI curr code; it resolves to a canonical Program only through
+// AdmissionStatProgramMapping (LLM-assisted), joined at query time so a
+// mapping change takes effect without re-ingesting. facultyId IS resolved
+// at ingest (exact nameTh match) since FACULTYNAME ships inline.
+// ─────────────────────────────────────────────────────────────────────────────
+model AdmissionCampaignStat {
+  id                   String   @id @default(cuid())
+  /// WPROGRAMID — Oracle's unique per-row surrogate for one campaign-track
+  /// instance. The natural key for upserts.
+  wProgramId           String   @unique @map("w_program_id")
+  /// PROGRAMID — the recruitment-program code (≠ MHESI curr code). One
+  /// PROGRAMID groups many campaign tracks. Resolved to a canonical
+  /// Program via AdmissionStatProgramMapping. Length-1 / "0" values are
+  /// the source's not-yet-assigned ("convert") rows.
+  recruitmentProgramId String   @map("recruitment_program_id")
+  /// CURR_ID — the 14-digit MHESI curriculum code (added by Registrar IT
+  /// 2026-05-30). Authoritative link to the canonical program via
+  /// Program.mhesiCode ∪ ProgramMhesiAlias (same path the TCAS funnel
+  /// uses). PROGRAMID → CURR_ID is a function; one CURR_ID may span
+  /// several PROGRAMIDs (management classes: ภาคปกติ / โครงการพิเศษ …),
+  /// each of which can carry its own PLAN_PER_YEAER.
+  currId               String?  @map("curr_id")
+  /// Resolved canonical program — via CURR_ID → Program.mhesiCode ∪
+  /// ProgramMhesiAlias (authoritative), with the name-based
+  /// AdmissionStatProgramMapping bridge as fallback. Resolved + stored at
+  /// ingest so scoring / deep-dive / risk read it directly (drop-in for the
+  /// retired tcas_admission_funnels.program_id). Null = "to be assigned".
+  programId            String?  @map("program_id")
+  /// PROGRAMNAME — free-text campaign label; encodes the track / quota /
+  /// competency option / branch campus.
+  campaignName         String   @map("campaign_name") @db.Text
+  /// FACULTYID from source (KKU internal numbering). 0 = "ยังไม่ถูกกำหนด
+  /// - อยู่ในช่วง convert" (not yet assigned).
+  sourceFacultyId      Int?     @map("source_faculty_id")
+  /// FACULTYNAME (Thai) from source — authoritative for the campaign.
+  facultyNameTh        String   @map("faculty_name_th")
+  /// Resolved canonical Faculty (exact nameTh match). Nullable when the
+  /// source faculty is unassigned / unmatched.
+  facultyId            String?  @map("faculty_id")
+  /// ACADYEAR — Buddhist Era entry cohort year.
+  acadYearBE           Int      @map("acad_year_be")
+  /// TCAS round — String for parity with the funnel table (integer +
+  /// fractional sub-rounds 1.2, 2.2, 4.2…). Sort lexicographically.
+  round                String
+  /// ENROLLSEAT — per-track allocated seats (sums across tracks/rounds;
+  /// over-allocated vs the plan to absorb no-show). Null when unset.
+  enrollSeats          Int?     @map("enroll_seats")
+  /// PLAN_PER_YEAER (sic — Registrar's column spelling) — annual plan,
+  /// constant per (PROGRAMID, year). One CURR_ID may carry >1 distinct
+  /// plan across its management classes → aggregate as SUM(DISTINCT plan)
+  /// per CURR_ID. Null = "not yet assigned" → no-plan-on-file.
+  planPerYear          Int?     @map("plan_per_year")
+  totalApplicants      Int?     @map("total_applicants")
+  totalPassed          Int?     @map("total_passed")
+  sendClearinghouse    Int?     @map("send_clearinghouse")
+  confirmClearinghouse Int?     @map("confirm_clearinghouse")
+  sendRegReported      Int?     @map("send_reg_reported")
+  regReported          Int?     @map("reg_reported")
+  freshnessDate        DateTime @map("freshness_date") @db.Date
+  source               String   @default("kku-admission-campaigns")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  ingestionRunId       String?  @map("ingestion_run_id")
+
+  program      Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  faculty      Faculty?      @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@index([programId])
+  @@index([recruitmentProgramId])
+  @@index([currId])
+  @@index([facultyId])
+  @@index([acadYearBE])
+  @@index([ingestionRunId])
+  @@map("admission_campaign_stats")
+}
+
+// PROGRAMID → canonical Program bridge for ADMISSION_STAT (LLM-assisted).
+// One row per distinct recruitment-program code; the dashboard LEFT JOINs
+// this so unmapped codes fall into a "to be assigned" bucket.
+model AdmissionStatProgramMapping {
+  id                   String    @id @default(cuid())
+  /// PROGRAMID from POWERBI.ADMISSION_STAT.
+  recruitmentProgramId String    @unique @map("recruitment_program_id")
+  /// A representative PROGRAMNAME for analyst review of the mapping.
+  sampleCampaignName   String?   @map("sample_campaign_name") @db.Text
+  facultyNameTh        String?   @map("faculty_name_th")
+  programId            String    @map("program_id")
+  /// 0–1. 1.0 = deterministic exact / manual; LLM supplies its own.
+  confidence           Float     @default(1.0)
+  /// 'deterministic' | 'llm-assisted' | 'manual-reviewed'.
+  method               String    @default("llm-assisted")
+  notes                String?   @db.Text
+  reviewedBy           String?   @map("reviewed_by")
+  reviewedAt           DateTime? @map("reviewed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId])
+  @@map("admission_stat_program_mappings")
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

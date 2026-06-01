@@ -4,6 +4,7 @@ import type { ScopeLevel } from './scope';
 import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
 import { realDataWhere, realDataSql } from './data-quality';
+import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
 
 /** Annual tuition revenue target by program level (THB). Used by the
  *  health-score.v3.5 financial-dimension `revenue_scale` driver AND by
@@ -89,7 +90,7 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // the ceiling-biased distribution from kku-evaluations.v1 §"Score
 // scale"). Null when the program teaches no courses surveyed in
 // window (rare — most active programs have hundreds of cells).
-export const HEALTH_SCORE_VERSION = 'health-score.v3.7';
+export const HEALTH_SCORE_VERSION = 'health-score.v3.8';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -618,17 +619,11 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   // ~Oct of the cohort year, so by Jan 1 of the following CE year
   // every round is done. The in-progress current cohort stays in the
   // DB as informational data; scoring uses the latest COMPLETE year.
-  const currentCEYear = new Date().getUTCFullYear();
-  const yearRows = await prisma.$queryRaw<Array<{ entry_year_be: number }>>(Prisma.sql`
-    SELECT DISTINCT entry_year_be FROM tcas_admission_funnels t
-    WHERE program_id = ${programId}
-      AND ${realDataSql('t')}
-    ORDER BY entry_year_be DESC
-  `);
-  const availableYears = yearRows.map((r) => r.entry_year_be);
-  const latestYearOverall = availableYears[0] ?? null;
-  const latestCompleteYear =
-    availableYears.find((y) => y - 543 < currentCEYear) ?? null;
+  // Sourced from ADMISSION_STAT via the funnel adapter (per-year totals,
+  // realData-gated, canonical program_id). isComplete = (BE-543) < currentCE.
+  const funnelYears = await programFunnelYears(programId);
+  const latestYearOverall = funnelYears[0]?.entryYearBE ?? null;
+  const latestComplete = funnelYears.find((y) => y.isComplete) ?? null;
 
   let funnelTotals: {
     enrollSeats: number;
@@ -640,36 +635,20 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     year: number;
     inProgressYear: number | null;
   } | null = null;
-  if (latestCompleteYear !== null) {
-    const rows = await prisma.tcasAdmissionFunnel.findMany({
-      where: { programId, entryYearBE: latestCompleteYear, ...realDataWhere() },
-      select: {
-        enrollSeats: true,
-        totalApplicants: true,
-        totalPassed: true,
-        sendClearinghouse: true,
-        regReported: true,
-      },
-    });
-    funnelTotals = rows.reduce(
-      (acc, r) => ({
-        enrollSeats: acc.enrollSeats + (r.enrollSeats ?? 0),
-        applicants: acc.applicants + (r.totalApplicants ?? 0),
-        passed: acc.passed + (r.totalPassed ?? 0),
-        sendCh: acc.sendCh + (r.sendClearinghouse ?? 0),
-        regReported: acc.regReported + (r.regReported ?? 0),
-        rounds: acc.rounds + 1,
-        year: latestCompleteYear,
-        inProgressYear:
-          latestYearOverall !== null && latestYearOverall > latestCompleteYear
-            ? latestYearOverall
-            : null,
-      }),
-      {
-        enrollSeats: 0, applicants: 0, passed: 0, sendCh: 0, regReported: 0,
-        rounds: 0, year: latestCompleteYear, inProgressYear: null as number | null,
-      },
-    );
+  if (latestComplete !== null) {
+    funnelTotals = {
+      enrollSeats: latestComplete.enrollSeats,
+      applicants: latestComplete.totalApplicants,
+      passed: latestComplete.totalPassed,
+      sendCh: latestComplete.sendClearinghouse,
+      regReported: latestComplete.regReported,
+      rounds: latestComplete.rounds,
+      year: latestComplete.entryYearBE,
+      inProgressYear:
+        latestYearOverall !== null && latestYearOverall > latestComplete.entryYearBE
+          ? latestYearOverall
+          : null,
+    };
   }
 
   // Peer competition ratio for the latest complete year — TCAS3 peer
@@ -678,12 +657,12 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   // Program.nameTh (the new funnel doesn't carry programmeName).
   let peerMedianRatio: number | null = null;
   let peerCount = 0;
-  if (latestCompleteYear !== null && programRow?.nameTh) {
+  if (latestComplete !== null && programRow?.nameTh) {
     const subjectKey = extractSubjectSignature(programRow.nameTh);
     if (subjectKey.length >= 2) {
       const peerRows = await prisma.tcasAdmissionStat.findMany({
         where: {
-          entryYearBE: latestCompleteYear,
+          entryYearBE: latestComplete.entryYearBE,
           institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
           programmeName: { contains: subjectKey, mode: 'insensitive' },
           quota: { gt: 0 },
@@ -779,7 +758,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
             : null,
         peerMedianRatio,
         peerCount,
-        year: latestCompleteYear,
+        year: latestComplete?.entryYearBE ?? null,
       },
     },
     {
@@ -832,10 +811,10 @@ async function scoreAttractivenessScope(
   scope: ScopeLevel,
   scopeId: string,
 ): Promise<HealthScore> {
-  // Faculty/dept/uni attractiveness — aggregate the TCAS funnel across
-  // canonical+ACTIVE programs at the scope, latest entry year only.
-  // Source: tcas_admission_funnels (POWERBI.ADMISSION_STAT_CURRID).
-  // Replaces the legacy tcas_admission_stats reads (TCAS3-only).
+  // Faculty/dept/uni attractiveness — aggregate the recruitment funnel
+  // across canonical+ACTIVE programs at the scope, latest COMPLETE entry
+  // year only. Source: admission_campaign_stats (POWERBI.ADMISSION_STAT)
+  // via the funnel adapter.
   //
   // Three drivers (equal-weighted in summariseDrivers):
   //   - tcas_competition_ratio = applicants / enrollSeats
@@ -844,56 +823,12 @@ async function scoreAttractivenessScope(
   //       → 0.5+ : 100; linear below
   //   - tcas_registration_yield = regReported / sendClearinghouse
   //       → 0.85+ : 100; 0.5 = mid (50); linear below
-  const scopePredicate =
-    scope === 'faculty'
-      ? Prisma.sql`AND p.faculty_id = ${scopeId}`
-      : scope === 'department'
-        ? Prisma.sql`AND p.department_id = ${scopeId}`
-        : Prisma.empty;
-
-  // Pivot to the latest COMPLETE recruitment year — calendar-based:
-  // a BE year is complete when (BE - 543) < currentCEYear. The
-  // in-progress current cohort stays in the DB but isn't used for
-  // scoring.
-  const currentCEYear = new Date().getUTCFullYear();
-  const rows = await prisma.$queryRaw<
-    Array<{
-      applicants: bigint | null;
-      seats: bigint | null;
-      passed: bigint | null;
-      send_ch: bigint | null;
-      reg_reported: bigint | null;
-    }>
-  >(Prisma.sql`
-    WITH eligible AS (
-      SELECT
-        t.entry_year_be,
-        t.total_applicants, t.enroll_seats, t.total_passed,
-        t.send_clearinghouse, t.reg_reported
-      FROM tcas_admission_funnels t
-      JOIN programs p ON p.id = t.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND (t.entry_year_be - 543) < ${currentCEYear}
-        AND ${realDataSql('t')}
-        ${scopePredicate}
-    ),
-    latest_complete AS (SELECT MAX(entry_year_be) AS y FROM eligible)
-    SELECT
-      COALESCE(SUM(e.total_applicants), 0)::bigint AS applicants,
-      COALESCE(SUM(e.enroll_seats), 0)::bigint AS seats,
-      COALESCE(SUM(e.total_passed), 0)::bigint AS passed,
-      COALESCE(SUM(e.send_clearinghouse), 0)::bigint AS send_ch,
-      COALESCE(SUM(e.reg_reported), 0)::bigint AS reg_reported
-    FROM eligible e
-    JOIN latest_complete l ON e.entry_year_be = l.y;
-  `);
-
-  const r = rows[0];
-  const applicants = Number(r?.applicants ?? 0n);
-  const seats = Number(r?.seats ?? 0n);
-  const passed = Number(r?.passed ?? 0n);
-  const sendCh = Number(r?.send_ch ?? 0n);
-  const regReported = Number(r?.reg_reported ?? 0n);
+  const totals = await scopeFunnelLatestYear(scope, scope === 'university' ? null : scopeId);
+  const applicants = totals.totalApplicants;
+  const seats = totals.enrollSeats;
+  const passed = totals.totalPassed;
+  const sendCh = totals.sendClearinghouse;
+  const regReported = totals.regReported;
 
   const competitionRatio = seats > 0 ? applicants / seats : null;
   const fillRate = seats > 0 ? passed / seats : null;

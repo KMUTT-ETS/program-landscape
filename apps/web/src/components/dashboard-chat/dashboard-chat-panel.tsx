@@ -43,7 +43,7 @@ type Message = {
 
 const SURFACE_LABELS: Record<string, string> = {
   '/education': 'Education hub',
-  '/education/recruitment': 'Recruitment dashboard',
+  '/education/recruitment-campaigns': 'Recruitment dashboard',
   '/education/student-info': 'Student info dashboard',
   '/education/location': 'Student location dashboard',
   '/education/active-pivot': 'Active-students pivot',

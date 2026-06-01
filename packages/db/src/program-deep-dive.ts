@@ -13,6 +13,7 @@ import {
 } from './health-score';
 import { queryMetricByScope } from './scope';
 import { realDataWhere } from './data-quality';
+import { programFunnelYears } from './program-funnel';
 
 // Deep-dive aggregator — all reads a single program's page needs.
 // Each method corresponds to one section of the UI. Role-sensitive
@@ -270,8 +271,12 @@ export async function programDemandFunnel(programId: string) {
     select: { facultyId: true, durationYears: true },
   });
 
-  // Pull all the per-cohort data in parallel.
-  const [alumniRows, cohortRows, tcasRows] = await Promise.all([
+  // Pull all the per-cohort data in parallel. `funnelYears` is the
+  // ADMISSION_STAT all-rounds funnel (via the adapter) — preferred for the
+  // top-of-funnel "Applied"/"Passed" stages when it covers the anchor
+  // cohort year; the TCAS3 rows (peer/mytcas, wider year coverage) remain
+  // the fallback for older completed cohorts ADMISSION_STAT doesn't reach.
+  const [alumniRows, cohortRows, tcasRows, funnelYears] = await Promise.all([
     prisma.alumniCohortStatus.findMany({
       where: { programId, ...realDataWhere() },
       orderBy: [{ entryYearBE: 'asc' }, { statusBucket: 'asc' }],
@@ -284,7 +289,9 @@ export async function programDemandFunnel(programId: string) {
       where: { programId, ...realDataWhere() },
       orderBy: [{ entryYearBE: 'asc' }, { round: 'desc' }],
     }),
+    programFunnelYears(programId),
   ]);
+  const funnelByYear = new Map(funnelYears.map((y) => [y.entryYearBE, y]));
 
   // Bucket alumni by year.
   type CohortRoll = {
@@ -390,12 +397,20 @@ export async function programDemandFunnel(programId: string) {
     // ground-truth "admitted across all channels" — this is more
     // complete anyway since TCAS3 is only ~25-50% of admissions.
     const tcas = tcasByYear.get(anchorYear);
+    const funnel = anchorYear !== null ? funnelByYear.get(anchorYear) : undefined;
     const stagesRaw: Array<{ key: string; label: string; value: number }> = [];
-    if (tcas && tcas.applicants > 0) {
+    // Prefer ADMISSION_STAT (all rounds) for the top of funnel; fall back to
+    // TCAS3-round data for cohorts ADMISSION_STAT doesn't cover.
+    if (funnel && funnel.totalApplicants > 0) {
+      stagesRaw.push({ key: 'applied', label: 'Applied (all TCAS rounds)', value: funnel.totalApplicants });
+      if (funnel.totalPassed > 0) {
+        stagesRaw.push({ key: 'passed', label: 'Passed selection', value: funnel.totalPassed });
+      }
+    } else if (tcas && tcas.applicants > 0) {
       stagesRaw.push({ key: 'applied', label: 'Applied (TCAS3 round)', value: tcas.applicants });
-    }
-    if (tcas && tcas.admitted > 0) {
-      stagesRaw.push({ key: 'admitted_tcas', label: 'Admitted (TCAS3)', value: tcas.admitted });
+      if (tcas.admitted > 0) {
+        stagesRaw.push({ key: 'admitted_tcas', label: 'Admitted (TCAS3)', value: tcas.admitted });
+      }
     }
     stagesRaw.push({
       key: 'admitted',
@@ -2437,15 +2452,8 @@ export async function programDemographicOutlook(
   }
 
   // Recruitment-funnel baseline — Plan → Applicants → Reported in.
-  const funnelRows = await prisma.tcasAdmissionFunnel.findMany({
-    where: { programId, ...realDataWhere() },
-    select: {
-      entryYearBE: true,
-      planPerYear: true,
-      totalApplicants: true,
-      regReported: true,
-    },
-  });
+  // Sourced from ADMISSION_STAT via the adapter (per-year totals).
+  const funnelRows = await programFunnelYears(programId);
   // `+ 543` = current Buddhist-Era year; `- 1` drops the in-progress
   // admission cycle so the baseline uses the latest COMPLETE year.
   const funnelBaseline = buildFunnelBaseline(

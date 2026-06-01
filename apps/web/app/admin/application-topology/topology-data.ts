@@ -104,7 +104,7 @@ const externalNodes: TopologyNode[] = [
         "KKU's Oracle 19c registrar warehouse — the canonical source for admission funnels, class offerings, and per-student fee aggregates.",
       target: 'KKU_REGISTRY_DB (Oracle thin-mode)',
       notes: [
-        'POWERBI.ADMISSION_STAT_CURRID — TCAS round-by-round funnel',
+        'POWERBI.ADMISSION_STAT — actual recruitment campaigns (campaign × round × year); ADMISSION_STAT_CURRID retired',
         'POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER — every section the registrar opened',
         'POWERBI.VIEWSTUDENTENROLLFEE × VIEW_STUDENT_DETAIL_ALL — tuition aggregates',
       ],
@@ -322,13 +322,26 @@ const connectorNodes: TopologyNode[] = [
     id: 'con.kku-tcas-funnel',
     lane: 'connector',
     kind: 'connector',
-    label: 'kku-tcas-funnel',
-    subtitle: 'Daily 04:00',
+    label: 'kku-tcas-funnel (deprecated)',
+    subtitle: 'schedule off',
     details: {
       description:
-        'Pulls POWERBI.ADMISSION_STAT_CURRID and upserts one row per CURR_ID × ROUND × ACADYEAR. CURR_ID resolves to Program via mhesiCode (+ alias table).',
-      cadence: '0 4 * * * (daily 04:00 Asia/Bangkok)',
+        'DEPRECATED 2026-05-31 — superseded by kku-admission-campaigns (POWERBI.ADMISSION_STAT). Schedule disabled; connector + table kept for a verification window. Historical: pulled POWERBI.ADMISSION_STAT_CURRID, one row per CURR_ID × ROUND × ACADYEAR.',
+      cadence: 'disabled',
       sourceSlug: 'kku-tcas-funnel',
+    },
+  },
+  {
+    id: 'con.kku-admission-campaigns',
+    lane: 'connector',
+    kind: 'connector',
+    label: 'kku-admission-campaigns',
+    subtitle: 'Daily 04:30',
+    details: {
+      description:
+        'Pulls POWERBI.ADMISSION_STAT (campaign-track grain — one row per WPROGRAMID). CURR_ID resolves to Program via mhesiCode (+ alias table); program_id stored on each row. The recruitment source of record for scoring, deep-dive, risk, cockpit + the recruitment dashboard.',
+      cadence: '30 4 * * * (daily 04:30 Asia/Bangkok)',
+      sourceSlug: 'kku-admission-campaigns',
     },
   },
   {
@@ -745,12 +758,24 @@ const tableNodes: TopologyNode[] = [
     id: 'tab.tcas-admission-funnel',
     lane: 'table',
     kind: 'table',
-    label: 'TcasAdmissionFunnel',
-    subtitle: 'curr × round × year',
+    label: 'TcasAdmissionFunnel (deprecated)',
+    subtitle: 'retired — kept for window',
     details: {
       description:
-        'TCAS round-by-round funnel: quota → applicants → passed → clearinghouse confirm → registrar report.',
+        'DEPRECATED 2026-05-31 — replaced by AdmissionCampaignStat. No longer read by any surface; kept for a verification window then dropped.',
       prismaModel: 'TcasAdmissionFunnel',
+    },
+  },
+  {
+    id: 'tab.admission-campaign-stats',
+    lane: 'table',
+    kind: 'table',
+    label: 'AdmissionCampaignStat',
+    subtitle: 'campaign × round × year',
+    details: {
+      description:
+        'Actual recruitment campaigns from POWERBI.ADMISSION_STAT — one row per campaign track (WPROGRAMID): plan → seats → applicants → passed → clearinghouse send/confirm → registrar report. program_id + faculty_id resolved at ingest. The recruitment source of record.',
+      prismaModel: 'AdmissionCampaignStat',
     },
   },
 
@@ -1269,11 +1294,11 @@ const dashboardNodes: TopologyNode[] = [
     lane: 'dashboard',
     kind: 'dashboard',
     label: 'Undergraduate recruitment',
-    subtitle: '/education/recruitment',
-    href: '/education/recruitment',
+    subtitle: '/education/recruitment-campaigns',
+    href: '/education/recruitment-campaigns',
     details: {
       description:
-        'Full TCAS round 1–4 funnel — quota, applicants, passed, clearinghouse send + confirm, registrar reporting.',
+        'Full TCAS round 1–4 funnel at the campaign grain — plan → seats → applicants → passed → clearinghouse send + confirm → enrolled, with competition rate, declining tracks, and a Faculty → program → sub-program → round drill. (Replaced the curriculum-grained /education/recruitment.)',
     },
   },
   {
@@ -1615,6 +1640,7 @@ const ES: Scope = ['education', 'staff'];
 const edges: TopologyEdge[] = [
   // ── External → Connector ───────────────────────────────────────────
   { from: 'ext.oracle-powerbi', to: 'con.kku-tcas-funnel', scope: E },
+  { from: 'ext.oracle-powerbi', to: 'con.kku-admission-campaigns', scope: E },
   { from: 'ext.oracle-powerbi', to: 'scr.link-class-offerings', scope: ES },
   { from: 'ext.oracle-powerbi', to: 'con.kku-evaluations', scope: ES },
   { from: 'ext.mysql-unicon', to: 'con.unicon-ds1001', scope: E },
@@ -1630,6 +1656,7 @@ const edges: TopologyEdge[] = [
 
   // ── Connector → Table ──────────────────────────────────────────────
   { from: 'con.kku-tcas-funnel', to: 'tab.tcas-admission-funnel', scope: E },
+  { from: 'con.kku-admission-campaigns', to: 'tab.admission-campaign-stats', scope: E },
   { from: 'con.unicon-ds1001', to: 'tab.student-program-record', scope: E },
   { from: 'con.unicon-ds2001', to: 'tab.staff-master-record', scope: S },
   { from: 'con.unicon-ds2004', to: 'tab.staff-program-assignment', scope: S },
@@ -1654,7 +1681,9 @@ const edges: TopologyEdge[] = [
 
   // ── Table → Dashboard ──────────────────────────────────────────────
   // Recruitment
-  { from: 'tab.tcas-admission-funnel', to: 'dash.education-recruitment', scope: E },
+  { from: 'tab.admission-campaign-stats', to: 'dash.education-recruitment', scope: E },
+  { from: 'tab.admission-campaign-stats', to: 'dash.cockpit' },
+  { from: 'tab.admission-campaign-stats', to: 'dash.risk-portfolio' },
   { from: 'tab.program', to: 'dash.education-recruitment', scope: E },
   { from: 'tab.faculty', to: 'dash.education-recruitment', scope: E },
 
@@ -1826,7 +1855,7 @@ const edges: TopologyEdge[] = [
   { from: 'tab.risk-assessment', to: 'dash.program-deep-dive' },
   { from: 'tab.trend-signal', to: 'dash.program-deep-dive' },
   { from: 'tab.ai-inference', to: 'dash.program-deep-dive' },
-  { from: 'tab.tcas-admission-funnel', to: 'dash.program-deep-dive' },
+  { from: 'tab.admission-campaign-stats', to: 'dash.program-deep-dive' },
   { from: 'tab.staff-program-assignment', to: 'dash.program-deep-dive' },
 
   // Risk portfolio (composite tier overview)

@@ -130,9 +130,9 @@ export class CockpitController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-tcas-funnel', name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID' },
+      { id: 'kku-admission-campaigns', name: 'KKU Registry · POWERBI.ADMISSION_STAT' },
     ],
-    methodologyVersion: 'recruitment-rollup.v1',
+    methodologyVersion: 'recruitment-rollup.v2',
   })
   async recruitmentRollup(
     @AuthSession() user: SessionUser,

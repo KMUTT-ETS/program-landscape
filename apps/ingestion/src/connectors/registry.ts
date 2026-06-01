@@ -13,6 +13,7 @@ import {
   KkuRegistryConnector,
   KkuResearchConnector,
   KkuTcasFunnelConnector,
+  KkuAdmissionCampaignsConnector,
   KmitlSkillMappingConnector,
   MhesiCisaConnector,
   OpenAlexConnector,
@@ -29,6 +30,7 @@ import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
 import { KkuTcasFunnelRealConnector } from './sources/kku-tcas-funnel';
+import { KkuAdmissionCampaignsRealConnector } from './sources/kku-admission-campaigns';
 import { KkuResearchRealConnector } from './sources/kku-research';
 import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
 import { KkuHrProcessedRealConnector } from './sources/kku-hr-processed';
@@ -114,6 +116,11 @@ const ENTRIES: readonly ConnectorEntry[] = [
     slug: 'kku-tcas-funnel',
     mock: () => new KkuTcasFunnelConnector(),
     real: () => new KkuTcasFunnelRealConnector(),
+  },
+  {
+    slug: 'kku-admission-campaigns',
+    mock: () => new KkuAdmissionCampaignsConnector(),
+    real: () => new KkuAdmissionCampaignsRealConnector(),
   },
   {
     slug: 'kku-finance',

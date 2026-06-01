@@ -50,11 +50,11 @@ const TILES: Array<{
   programAware?: boolean;
 }> = [
   {
-    href: '/education/recruitment',
+    href: '/education/recruitment-campaigns',
     icon: Filter,
     title: 'Undergraduate recruitment',
     blurb:
-      'Full TCAS round 1–4 funnel — quota, applicants, passed, Clearinghouse send + confirm, registrar reporting. KPIs, year-over-year trend, faculty rollup, round-by-round, and a program × round drill-down table. Source: POWERBI.ADMISSION_STAT_CURRID.',
+      'Full TCAS round 1–4 funnel at the practical campaign grain — per intake / track (competency, language, exam option, quota type, branch-campus). Plan → seats → applicants → passed → Clearinghouse → enrolled, with competition rate, year-over-year trend, declining / empty tracks, and a Faculty → program → sub-program → round drill. Source: POWERBI.ADMISSION_STAT.',
     Thumb: RecruitmentThumb,
   },
   {

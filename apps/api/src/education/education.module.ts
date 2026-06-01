@@ -3,6 +3,7 @@ import { EducationController } from './education.controller';
 import { EducationService } from './education.service';
 import { EducationRefreshService } from './education-refresh.service';
 import { RecruitmentService } from './recruitment.service';
+import { AdmissionCampaignsService } from './admission-campaigns.service';
 import { ClassOfferingsService } from './class-offerings.service';
 import { EvaluationsService } from './evaluations.service';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
@@ -15,6 +16,7 @@ import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
     EducationService,
     EducationRefreshService,
     RecruitmentService,
+    AdmissionCampaignsService,
     ClassOfferingsService,
     EvaluationsService,
   ],
@@ -26,6 +28,7 @@ import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
     EducationService,
     EducationRefreshService,
     RecruitmentService,
+    AdmissionCampaignsService,
     ClassOfferingsService,
     EvaluationsService,
   ],

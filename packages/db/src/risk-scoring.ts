@@ -23,8 +23,10 @@
 import { Prisma, ProgramLevel, ProgramStatus, AutomationRisk, KkuRiskLevel, RiskTier } from '@prisma/client';
 import { prisma } from './index';
 import { programDemographicOutlook } from './program-deep-dive';
+import { programFunnelRoundRows } from './program-funnel';
+import { realDataSql } from './data-quality';
 
-export const RISK_SCORING_VERSION = 'risk-scoring.v1.11';
+export const RISK_SCORING_VERSION = 'risk-scoring.v1.12';
 
 // L2 (AI-disruption) is intentionally discounted in the COMPOSITE only.
 // Rationale: AI mitigation typically requires large multi-year investment
@@ -895,16 +897,6 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
       level: true,
       status: true,
       mhesiCode: true,
-      tcasAdmissionFunnels: {
-        select: {
-          entryYearBE: true,
-          round: true,
-          planPerYear: true,
-          totalApplicants: true,
-          totalPassed: true,
-          regReported: true,
-        },
-      },
       enrollmentMetrics: {
         select: {
           academicYear: true,
@@ -944,6 +936,10 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
   });
 
   if (!program) return null;
+
+  // 5-year recruitment funnel from ADMISSION_STAT via the adapter (per
+  // year × round; annual plan replicated per round). realData-gated.
+  const tcasFunnel = await programFunnelRoundRows(programId);
 
   const competitivenessPercentile = await computeCompetitivenessPercentile(programId, program.level);
 
@@ -1000,7 +996,7 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
     programId: program.id,
     level: program.level,
     status: program.status,
-    tcasFunnel: program.tcasAdmissionFunnels,
+    tcasFunnel,
     enrollment: program.enrollmentMetrics,
     skills: program.programSkills.map((ps) => ({
       skillId: ps.skill.id,
@@ -1035,31 +1031,37 @@ async function computeCompetitivenessPercentile(
   // Same in-progress-year exclusion as L1 + KRIs. The ratio is computed off
   // the latest COMPLETED cycle for fair cross-program comparison.
   const completeThroughBE = latestCompleteEntryYearBE();
+  // Competition ratio = applicants / plan, per program, for its latest
+  // complete cohort. Source: admission_campaign_stats (ADMISSION_STAT).
+  // Plan = Σ over sub-programs (PROGRAMID) of MAX(plan) — never MAX-across-
+  // rounds, which would undercount a program that runs several intakes.
   const rows = await prisma.$queryRaw<Array<{ program_id: string; ratio: number }>>(Prisma.sql`
-    WITH latest AS (
-      SELECT
-        p.id AS program_id,
-        MAX(t.entry_year_be) AS year_be
-      FROM programs p
-      JOIN tcas_admission_funnels t ON t.program_id = p.id
+    WITH eligible AS (
+      SELECT c.program_id, c.recruitment_program_id, c.acad_year_be,
+             c.total_applicants, c.plan_per_year
+      FROM admission_campaign_stats c
+      JOIN programs p ON p.id = c.program_id
       WHERE p.level = ${level}::"ProgramLevel"
         AND p.status = 'ACTIVE'
-        AND t.entry_year_be <= ${completeThroughBE}
-      GROUP BY p.id
+        AND c.acad_year_be <= ${completeThroughBE}
+        AND ${realDataSql('c')}
     ),
-    ratios AS (
-      SELECT
-        p.id AS program_id,
-        SUM(COALESCE(t.total_applicants, 0))::float / NULLIF(MAX(COALESCE(t.plan_per_year, 0)), 0) AS ratio
-      FROM programs p
-      JOIN latest l ON l.program_id = p.id
-      JOIN tcas_admission_funnels t
-        ON t.program_id = p.id AND t.entry_year_be = l.year_be
-      WHERE p.level = ${level}::"ProgramLevel"
-        AND p.status = 'ACTIVE'
-      GROUP BY p.id
+    latest AS (SELECT program_id, MAX(acad_year_be) AS y FROM eligible GROUP BY program_id),
+    scoped AS (
+      SELECT e.* FROM eligible e JOIN latest l ON l.program_id = e.program_id AND e.acad_year_be = l.y
+    ),
+    plan_by_prog AS (
+      SELECT program_id, SUM(pp) AS plan FROM (
+        SELECT program_id, recruitment_program_id, MAX(plan_per_year) AS pp
+        FROM scoped GROUP BY program_id, recruitment_program_id
+      ) s GROUP BY program_id
+    ),
+    apps_by_prog AS (
+      SELECT program_id, SUM(COALESCE(total_applicants, 0))::float AS apps FROM scoped GROUP BY program_id
     )
-    SELECT program_id, ratio FROM ratios WHERE ratio IS NOT NULL
+    SELECT a.program_id, a.apps / NULLIF(pb.plan, 0) AS ratio
+    FROM apps_by_prog a JOIN plan_by_prog pb ON pb.program_id = a.program_id
+    WHERE pb.plan > 0
   `);
 
   if (rows.length === 0) return null;

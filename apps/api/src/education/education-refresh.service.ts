@@ -4,12 +4,13 @@ import { lookupRegion } from '@kku/shared';
 import { configFromEnv, query, withConnection } from './oracle-client';
 import { IngestionQueueService } from '../data-sources/ingestion-queue.service';
 
-// Recruitment refresh delegates to the `kku-tcas-funnel` connector
-// (apps/ingestion) — the data lives in TcasAdmissionFunnel, not in a
-// hand-rolled education cube. We enqueue a manual run and project the
-// IngestionRun's status into the cube-refresh shape so the dashboard's
-// refresh-bar can show "X rows · Y s" without knowing it's a connector.
-const RECRUITMENT_CONNECTOR_SLUG = 'kku-tcas-funnel';
+// Recruitment refresh delegates to the `kku-admission-campaigns` connector
+// (apps/ingestion) — the data lives in AdmissionCampaignStat
+// (POWERBI.ADMISSION_STAT), not in a hand-rolled education cube. We enqueue a
+// manual run and project the IngestionRun's status into the cube-refresh
+// shape so the refresh-bar can show "X rows · Y s" without knowing it's a
+// connector. (Migrated off the retired kku-tcas-funnel / ADMISSION_STAT_CURRID.)
+const RECRUITMENT_CONNECTOR_SLUG = 'kku-admission-campaigns';
 
 // Education cube refresh — runs three Oracle queries against the
 // POWERBI warehouse and re-populates the three education cube tables.

@@ -72,6 +72,8 @@
     "imd:seed": "tsx apps/ingestion/src/scripts/seed-imd-rankings.ts",
     "imd:extract": "tsx apps/ingestion/src/scripts/extract-imd-pdf.ts",
     "tcas-funnel:probe": "tsx apps/ingestion/src/scripts/probe-tcas-funnel.ts",
+    "admission-stat:probe": "tsx apps/ingestion/src/scripts/probe-admission-stat.ts",
+    "admission-stat:map": "tsx apps/ingestion/src/scripts/map-admission-stat-programs.ts",
     "demographics:seed": "tsx apps/ingestion/src/scripts/seed-thailand-demographics.ts",
     "peers:seed-universities": "tsx apps/ingestion/src/scripts/seed-ranked-universities.ts",
     "peers:select": "tsx apps/ingestion/src/scripts/select-program-peers.ts",
