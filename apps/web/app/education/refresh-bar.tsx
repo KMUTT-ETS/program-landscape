@@ -32,7 +32,7 @@ function cubeLabel(n: string): string {
       tuition: 'Tuition revenue',
       performance: 'Performance (GPA)',
       entryScores: 'Entry test scores',
-      recruitment: 'Recruitment (TCAS funnel)',
+      recruitment: 'Recruitment (ADMISSION_STAT)',
     } as Record<string, string>)[n] ?? n
   );
 }
