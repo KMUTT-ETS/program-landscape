@@ -53,7 +53,12 @@ export async function generateExpertiseNarrative(
         },
         messages: buildExpertiseNarrativeMessages(input),
         methodVersion: EXPERTISE_NARRATIVE_VERSION,
-        maxOutputTokens: 1500,
+        // 8192, not 1500: the output is a bilingual TH+EN narrative plus
+        // two keyword arrays, and Thai is token-heavy. At 1500 the JSON
+        // gets cut off before it closes (or comes back empty on a thinking
+        // Flash tier), so extractStructured fails with "no json found" and
+        // the page falls back to the placeholder. 8192 leaves ample room.
+        maxOutputTokens: 8192,
       },
       ExpertiseNarrativeSchema,
     );
