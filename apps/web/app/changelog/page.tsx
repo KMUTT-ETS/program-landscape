@@ -26,6 +26,18 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-02',
+    version: 'v1.5.1 · Evaluation refresh reliability',
+    title:
+      'The bi-weekly student-evaluation refresh can no longer freeze the data-ingestion worker',
+    audience: ['Admin', 'Analyst'],
+    bullets: [
+      'Fixed a production issue where the scheduled student course-evaluation refresh could peg the ingestion worker at full CPU and leave the app unresponsive for hours every few days. The refresh moved ~986k evaluation cells one row at a time and held the whole dataset in memory twice, which starved the worker; it now loads in bulk batches with a single in-memory pass.',
+      'The refresh is now incremental — it only pulls evaluation rows the registrar has updated since the last successful load. Between registrar refreshes the scheduled run is a near-instant no-op instead of re-loading everything; a full reload is still available on demand.',
+      'Ingestion hardened against overlapping runs — a longer job lock, an automatic reaper for runs left stuck after a restart, and a guard that skips a connector if a run of it is already in progress. Together these stop the run-pile-up that amplified the original freeze.',
+    ],
+  },
+  {
     date: '2026-06-01',
     version: 'v1.5.0 · Recruitment rebuilt on POWERBI.ADMISSION_STAT',
     title:
