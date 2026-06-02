@@ -38,11 +38,11 @@ export function MethodologyContentEn() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'Methodology code', value: <><Code>health-score.v3.5</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.0' },
+              { label: 'Methodology code', value: <><Code>health-score.v3.8</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
+              { label: 'Document version', value: '1.1' },
               { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
-              { label: 'Date', value: '2026-05-07' },
+              { label: 'Date', value: '2026-06-01' },
             ]}
           />
         </div>
@@ -226,8 +226,12 @@ export function MethodologyContentEn() {
           <P>
             This structure is the result of a v3 redesign in May 2026 that replaced two previously
             placeholder dimensions (<Code>relevance</Code> and <Code>capability</Code>, both null in v2)
-            with real-data backed scorers. Earlier versions are retained for audit; current
-            computations stamp <Code>health-score.v3.5</Code>.
+            with real-data backed scorers. Two later revisions extended it without changing the
+            five-dimension shape: <Code>v3.7</Code> (May 2026) added a <Code>student_satisfaction</Code>{' '}
+            driver to the Outcomes dimension, and <Code>v3.8</Code> (June 2026) re-sourced the
+            recruitment funnel from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed —
+            the Attractiveness drivers and weights are unchanged. Earlier versions are retained for
+            audit; current computations stamp <Code>health-score.v3.8</Code>.
           </P>
         </DocSubsection>
 
@@ -245,7 +249,10 @@ export function MethodologyContentEn() {
                 Are students actively choosing this program over its alternatives, and does the choice
                 translate into enrolment?
               </Em>{' '}
-              Inputs are TCAS rounds 1–4 funnel data plus the registrar's enrolment series.
+              Inputs are the TCAS rounds 1–4 recruitment funnel — sourced from{' '}
+              <Code>POWERBI.ADMISSION_STAT</Code>, the registrar's campaign-grain admission feed
+              (one row per recruitment track within program × round × year) — plus the
+              registrar's enrolment series.
             </P>
             <Tbl>
               <THead>
@@ -259,7 +266,7 @@ export function MethodologyContentEn() {
                 <TR>
                   <TD mono>tcas_competition_ratio</TD>
                   <TD>Piecewise function of <Code>applicants / enrollSeats</Code>. ratio ≥ 10 → 100; 5 → 70; 2 → 40; 1 → 20; below 1 scales linearly to 0.</TD>
-                  <TD><Code>tcas_admission_funnels</Code> (latest <Strong>complete</Strong> entry-year, summed across rounds 1–4).</TD>
+                  <TD><Code>admission_campaign_stats</Code> (POWERBI.ADMISSION_STAT — latest <Strong>complete</Strong> entry-year, summed across rounds 1–4).</TD>
                 </TR>
                 <TR>
                   <TD mono>tcas_fill_rate</TD>
@@ -802,7 +809,7 @@ otherwise                                         → SUNSET`}</Pre>
             transferred). Inputs:
           </P>
           <UL>
-            <LI>TCAS rows (<Code>tcas_admission_stats</Code>) for the applied / admitted counts.</LI>
+            <LI>Recruitment rows (<Code>admission_campaign_stats</Code>, POWERBI.ADMISSION_STAT) summed across all TCAS rounds for the applied / admitted counts — with a TCAS3 fallback (<Code>tcas_admission_stats</Code>) when the campaign feed doesn't cover the anchor year.</LI>
             <LI><Code>student_cohort_distributions</Code> for currently-enrolled students.</LI>
             <LI><Code>alumni_cohort_status</Code> (<Code>AlumniCohortStatus</Code>) for graduated and dropped/renounced/transferred buckets.</LI>
           </UL>
@@ -833,9 +840,10 @@ otherwise                                         → SUNSET`}</Pre>
           </Tbl>
           <P>
             The funnel exposes raw counts only; conversion rates (e.g. % graduated of admitted) are
-            computed in the Deep-Dive UI from the same anchor cohort. When TCAS rows exist for the
-            same year at multiple rounds, the <Em>highest</Em> round is used (round 3.2 supersedes
-            3.1, etc.).
+            computed in the Deep-Dive UI from the same anchor cohort. Top-of-funnel applicant /
+            admitted counts are summed across all TCAS rounds for the anchor cohort year; the
+            legacy single-round TCAS3 score feed is used only as a fallback when the campaign feed
+            lacks that year.
           </P>
         </DocSubsection>
 
@@ -1404,7 +1412,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="7.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.5'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.8'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
             <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
           </UL>
           <P>
@@ -1599,6 +1607,26 @@ otherwise                                         → SUNSET`}</Pre>
           This appendix records substantive methodology revisions. Cosmetic edits (typo fixes, label
           rephrasings) are not listed.
         </P>
+        <P>
+          <Strong>Document revisions</Strong> — the revision history of this paper itself (distinct
+          from the methodology-code version history that follows):
+        </P>
+        <Tbl>
+          <THead>
+            <TR>
+              <TH width="22%">Document version</TH>
+              <TH width="14%">Date</TH>
+              <TH>Change</TH>
+            </TR>
+          </THead>
+          <tbody>
+            <TR><TD mono>1.0</TD><TD>2026-05-07</TD><TD>Initial public release — documents <Code>health-score.v3.5</Code> and <Code>lifecycle.v1.4</Code>.</TD></TR>
+            <TR><TD mono>1.1</TD><TD>2026-06-01</TD><TD>Re-issued for <Code>health-score.v3.8</Code> and <Code>risk-scoring.v1.12</Code>: the recruitment funnel feeding the Attractiveness dimension and the risk L1 / competitiveness-percentile inputs are re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code>). Also captures the interim <Code>health-score.v3.7</Code> (student-satisfaction driver) and <Code>risk-scoring.v1.11</Code> (forward demographic projection). Driver formulas and weights unchanged.</TD></TR>
+          </tbody>
+        </Tbl>
+        <P>
+          <Strong>Methodology-code version history</Strong> — the underlying scorer revisions:
+        </P>
         <Tbl>
           <THead>
             <TR>
@@ -1614,12 +1642,16 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>health-score.v3.0</TD><TD>2026-05-02</TD><TD>Five dimensions all real-data backed; <Code>demand</Code> → <Code>attractiveness</Code>; <Code>quality</Code> → <Code>outcomes</Code>; <Code>relevance</Code> and <Code>capability</Code> no longer placeholders.</TD></TR>
             <TR><TD mono>health-score.v3.4</TD><TD>2026-05-04</TD><TD>KKU intake-floor policy driver added; partial-current-year drop heuristic introduced for trend slopes; TCAS-funnel "complete year" filter introduced.</TD></TR>
             <TR><TD mono>health-score.v3.5</TD><TD>2026-05-12</TD><TD>Adds <Code>revenue_scale</Code> driver to the financial dimension — level-aware absolute revenue scaled 0-100 against per-level target (BACHELOR 8M, MASTER · DOCTORAL · HGD 2M THB/yr). Complements the existing per-student / coverage / trend ratio drivers with an absolute-scale signal. Lifecycle.v1.4 uses the same signal as both a first-class lifecycle driver (±10) AND a flagship-floor modifier gate.</TD></TR>
+            <TR><TD mono>health-score.v3.7</TD><TD>2026-05-19</TD><TD>Outcomes dimension gains a <Code>student_satisfaction</Code> driver — weighted-mean course-evaluation rating across the scope, anchored linearly to [3.5, 5.0] to counter the ceiling-biased distribution. Source: <Code>evaluation_response_summaries</Code> (POWERBI.EVALUATE_INSTRUCTOR via the <Code>kku-evaluations</Code> connector).</TD></TR>
+            <TR><TD mono>health-score.v3.8</TD><TD>2026-06-01</TD><TD>Re-sources the recruitment funnel from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (<Code>admission_campaign_stats</Code>), replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code>. Richer track-level grain (one row per recruitment track within program × round × year) with correct per-intake plan quotas; the Attractiveness drivers, formulas, and weights are unchanged. Companion bumps: <Code>program-recruitment.v2</Code>, <Code>recruitment-rollup.v2</Code>.</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>2026-05-01</TD><TD>Initial four-band classifier; eight drivers; content-modernity gate.</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2026-05-02</TD><TD>AI-readiness added as the heaviest driver (±25); two AI-readiness modifier gates introduced; health-overall driver weight reduced from ±25 to ±20 to make headroom.</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>2026-05-12</TD><TD>Exposes the gate counterfactual (gap #8 closure): result now carries <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> alongside the gated <Code>verdict</Code>, so Council readers can see when + why a modifier gate moved the verdict. No behavioural change to the gated verdict.</TD></TR>
             <TR><TD mono>lifecycle.v1.3</TD><TD>2026-05-12</TD><TD>Rebalances qualitative-vs-quantitative content signals after KKU-SEQ-0018 surfaced an over-weighted peer-review modernity verdict masking a 12.5% labour-market-alignment gap. <Code>content_modernity</Code> weight halved (±20 → ±10). New first-class driver <Code>labour_market_alignment</Code> (±15) sourced from the KMITL employer-demand share. Two new modifier gates (<Code>lowLabourMarketAlignmentStableCap</Code> at &lt;30, <Code>lowLabourMarketAlignmentFrontierCap</Code> at &lt;50) mirror the AI-readiness gate pattern — a program can't claim trajectory if it teaches a fraction of what employers demand.</TD></TR>
             <TR><TD mono>lifecycle.v1.4</TD><TD>2026-05-12</TD><TD>Bakes revenue-production potential into the verdict after KKU-SEQ-0291 (PhD Epi & Biostat, ~2M THB/yr, 4 students/cohort) landed at FRONTIER under v1.3. New <Code>revenue_scale</Code> driver (±10, level-aware against per-level revenue targets). New <Code>lowRevenuePotentialFrontierCap</Code> gate — annual revenue &lt; 3M THB/yr (universal flagship floor) caps FRONTIER at RISING regardless of level. Encodes the non-degree HRD shift squeezing post-graduate cohorts: FRONTIER is strategic-flagship, not academic-excellence.</TD></TR>
             <TR><TD mono>risk-scoring.v1.9</TD><TD>2026-05-08</TD><TD>Locked formula for the per-program risk scorer: three Likelihood drivers (L1 recruitment decay, L2 AI-disruption, L3 demographic ceiling), two Impact dimensions (direct revenue-at-risk, stranded cost). Composite = <Code>max(L1, L2 × 0.7, L3)</Code> over non-null drivers — L2 carries a 0.7 discount to avoid a single AI-disruption signal pushing composite into CRITICAL alone. Scope: undergraduate programs only. Companion to risk-management.v1.</TD></TR>
+            <TR><TD mono>risk-scoring.v1.11</TD><TD>2026-05-20</TD><TD>L3 demographic-ceiling driver gains a forward demographic projection — the Thailand 18-year-old cohort decline is projected onto the program's demographic headroom rather than scoring the current year alone. No change to the composite formula.</TD></TR>
+            <TR><TD mono>risk-scoring.v1.12</TD><TD>2026-06-01</TD><TD>L1 recruitment-decay inputs and the cross-program competitiveness percentile re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (<Code>admission_campaign_stats</Code>), replacing <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code>. No change to the composite formula or driver weights.</TD></TR>
             <TR><TD mono>risk-management.v1</TD><TD>2026-05-19</TD><TD>Workflow layer documented for the first time (§5 in this paper). Three operational layers: KRI alarms (5 indicators: application_seat_ratio, enrollment_fill_rate, late_round_dependency, skill_automation_index, bachelor_intake_floor), AI risk assessment pipeline (<Code>pnpm risks:assess</Code> producing RiskAssessment + 2–4 RiskMeasure rows per program), and the PROPOSED→ACCEPTED→IN_PROGRESS→COMPLETED measure lifecycle with optional binding to CouncilDecision. KKU 5×5 institutional matrix mapped from the composite formula. No formula change vs risk-scoring.v1.9.</TD></TR>
             <TR><TD mono>risk-management.v2 + risk-measure-rules.v1 + risk-assessment.v3</TD><TD>2026-05-19</TD><TD>Closes v1's biggest gap: <Strong>automated breach → measure link</Strong>. New deterministic rule engine in <Code>risk-measure-rules.v1</Code> (six rules across all five v1 KRIs, exact-severity matching) fires one candidate measure per matched (KRI × severity) pair BEFORE the AI runs. Additive migration <Code>20260519120000_risk_measure_trigger</Code> adds <Code>RiskMeasure.triggerIndicatorSlug</Code> + <Code>triggerSeverity</Code> columns for provenance. AI prompt bumped to <Code>risk-assessment.v3</Code> to accept candidates as input and echo back trigger fields. <Code>--no-ai</Code> path now also persists rule-derived candidates so Council never sees an empty mitigation list for a program with fired KRIs. No formula change vs risk-scoring.v1.9.</TD></TR>
           </tbody>

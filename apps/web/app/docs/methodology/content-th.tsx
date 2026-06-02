@@ -38,11 +38,11 @@ export function MethodologyContentTh() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.5</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.4</Code> (วงจรชีวิต)</> },
-              { label: 'เวอร์ชันเอกสาร', value: '1.0' },
+              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.8</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.4</Code> (วงจรชีวิต)</> },
+              { label: 'เวอร์ชันเอกสาร', value: '1.1' },
               { label: 'จัดทำโดย', value: 'สำนักงานข้อมูลและธรรมาภิบาลข้อมูล มข. — คณะทำงาน Curriculum Landscape' },
               { label: 'สถานะ', value: 'สาธารณะ — สำหรับเผยแพร่แก่สภามหาวิทยาลัย ผู้บริหาร คณบดี หัวหน้าภาควิชา ผู้รับผิดชอบหลักสูตร' },
-              { label: 'วันที่', value: '7 พฤษภาคม 2569 (พ.ศ.)' },
+              { label: 'วันที่', value: '1 มิถุนายน 2569 (พ.ศ.)' },
             ]}
           />
         </div>
@@ -176,7 +176,11 @@ export function MethodologyContentTh() {
           <P>
             โครงสร้างนี้เป็นผลของการออกแบบใหม่ในเดือนพฤษภาคม 2569 ซึ่งแทนที่สองมิติเดิมที่เคยเป็นค่าว่าง
             (<Code>relevance</Code> และ <Code>capability</Code> ซึ่งเป็นค่าว่างใน v2) ด้วยตัวคำนวณที่ใช้ข้อมูลจริง
-            เวอร์ชันก่อนหน้าเก็บไว้สำหรับการตรวจสอบย้อนกลับ การคำนวณปัจจุบันประทับ <Code>health-score.v3.5</Code>
+            การปรับสองครั้งถัดมาขยายโครงสร้างโดยไม่เปลี่ยนรูปห้ามิติ: <Code>v3.7</Code> (พ.ค. 2569)
+            เพิ่มตัวขับ <Code>student_satisfaction</Code> ในมิติ Outcomes และ <Code>v3.8</Code> (มิ.ย. 2569)
+            เปลี่ยนแหล่งข้อมูล funnel การรับเข้าไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code>
+            โดยตัวขับและน้ำหนักของมิติ Attractiveness ไม่เปลี่ยน
+            เวอร์ชันก่อนหน้าเก็บไว้สำหรับการตรวจสอบย้อนกลับ การคำนวณปัจจุบันประทับ <Code>health-score.v3.8</Code>
           </P>
         </DocSubsection>
 
@@ -201,7 +205,7 @@ export function MethodologyContentTh() {
                 </TR>
               </THead>
               <tbody>
-                <TR><TD mono>tcas_competition_ratio</TD><TD>ฟังก์ชันแบ่งช่วงของ <Code>applicants / enrollSeats</Code> อัตรา ≥ 10 → 100; 5 → 70; 2 → 40; 1 → 20; ต่ำกว่า 1 ลดเชิงเส้นไปยัง 0</TD><TD><Code>tcas_admission_funnels</Code> (ปีรับเข้าล่าสุดที่ <Strong>เสร็จสมบูรณ์</Strong> รวมข้ามรอบ 1–4)</TD></TR>
+                <TR><TD mono>tcas_competition_ratio</TD><TD>ฟังก์ชันแบ่งช่วงของ <Code>applicants / enrollSeats</Code> อัตรา ≥ 10 → 100; 5 → 70; 2 → 40; 1 → 20; ต่ำกว่า 1 ลดเชิงเส้นไปยัง 0</TD><TD><Code>admission_campaign_stats</Code> (POWERBI.ADMISSION_STAT — ปีรับเข้าล่าสุดที่ <Strong>เสร็จสมบูรณ์</Strong> รวมข้ามรอบ 1–4)</TD></TR>
                 <TR><TD mono>tcas_fill_rate</TD><TD><Code>min(passed / enrollSeats, 0.5) ÷ 0.5 × 100</Code></TD><TD>เช่นเดียวกับด้านบน</TD></TR>
                 <TR><TD mono>tcas_registration_yield</TD><TD>yield = <Code>regReported / sendClearinghouse</Code> ≥ 0.85 → 100; 0.5 → 50; ต่ำกว่า 0.5 ลดเชิงเส้นไปยัง 0</TD><TD>เช่นเดียวกับด้านบน</TD></TR>
                 <TR><TD mono>tcas_competition_vs_peers</TD><TD><Code>(kkuRatio / peerMedianRatio) × 50</Code> ตัดเข้าช่วง 0–100 ค่า 50 = เท่ากับค่ามัธยฐานของคู่เทียบไทย; 100 = สองเท่าของมัธยฐาน</TD><TD>funnel ของ มข. รวมกับแถว <Code>tcas_admission_stats</Code> ของคู่เทียบในสาขาเดียวกัน ปีเดียวกัน</TD></TR>
@@ -551,7 +555,7 @@ score >= 45                                       → STABLE
             Demand funnel คือการสร้างเส้นทางของ cohort หนึ่งใหม่ จาก สมัคร → รับเข้า → ลงทะเบียน → จบการศึกษา → สถานะปลายทางอื่น ๆ (สละสิทธิ์ ไม่รายงาน ตกออก โอนย้าย) ข้อมูลนำเข้า:
           </P>
           <UL>
-            <LI>แถว TCAS (<Code>tcas_admission_stats</Code>) สำหรับจำนวนสมัครและรับเข้า</LI>
+            <LI>แถวการรับเข้า (<Code>admission_campaign_stats</Code>, POWERBI.ADMISSION_STAT) รวมข้ามทุกรอบ TCAS สำหรับจำนวนสมัครและรับเข้า — โดยมี TCAS3 (<Code>tcas_admission_stats</Code>) เป็น fallback เมื่อฟีดแคมเปญไม่ครอบคลุมปีอ้างอิง</LI>
             <LI><Code>student_cohort_distributions</Code> สำหรับนักศึกษาที่ยังคงอยู่ในหลักสูตร</LI>
             <LI><Code>alumni_cohort_status</Code> (<Code>AlumniCohortStatus</Code>) สำหรับกลุ่มที่จบ ตกออก สละสิทธิ์ และโอนย้าย</LI>
           </UL>
@@ -1065,7 +1069,7 @@ score >= 45                                       → STABLE
         <DocSubsection number="7.1" title="นโยบายเวอร์ชัน">
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.5'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.8'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
             <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
           </UL>
           <P>
@@ -1249,6 +1253,25 @@ score >= 45                                       → STABLE
 
       <DocSection id="appendix-a" title="ภาคผนวก ก — ประวัติเวอร์ชัน">
         <P>ภาคผนวกนี้บันทึกการแก้ไขระเบียบวิธีที่เป็นสาระสำคัญ การแก้ไขเชิงรูปแบบไม่อยู่ในรายการ</P>
+        <P>
+          <Strong>การปรับปรุงเอกสาร</Strong> — ประวัติการแก้ไขของเอกสารฉบับนี้ (แยกจากประวัติเวอร์ชันระเบียบวิธีด้านล่าง):
+        </P>
+        <Tbl>
+          <THead>
+            <TR>
+              <TH width="22%">เวอร์ชันเอกสาร</TH>
+              <TH width="14%">วันที่</TH>
+              <TH>การเปลี่ยนแปลง</TH>
+            </TR>
+          </THead>
+          <tbody>
+            <TR><TD mono>1.0</TD><TD>7 พ.ค. 2569</TD><TD>เผยแพร่ครั้งแรก — อิงตาม <Code>health-score.v3.5</Code> และ <Code>lifecycle.v1.4</Code></TD></TR>
+            <TR><TD mono>1.1</TD><TD>1 มิ.ย. 2569</TD><TD>ออกใหม่สำหรับ <Code>health-score.v3.8</Code> และ <Code>risk-scoring.v1.12</Code>: funnel การรับเข้าที่ป้อนมิติ Attractiveness และอินพุต L1 / เปอร์เซ็นไทล์ความสามารถแข่งขันของความเสี่ยง เปลี่ยนแหล่งไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code> (แทน <Code>ADMISSION_STAT_CURRID</Code> ระดับหลักสูตร) พร้อมบันทึก <Code>health-score.v3.7</Code> (ตัวขับ student-satisfaction) และ <Code>risk-scoring.v1.11</Code> (การคาดการณ์ประชากรล่วงหน้า) สูตรและน้ำหนักของตัวขับไม่เปลี่ยน</TD></TR>
+          </tbody>
+        </Tbl>
+        <P>
+          <Strong>ประวัติเวอร์ชันระเบียบวิธี</Strong> — การแก้ไขตัวคำนวณที่อยู่เบื้องหลัง:
+        </P>
         <Tbl>
           <THead>
             <TR>
@@ -1264,12 +1287,16 @@ score >= 45                                       → STABLE
             <TR><TD mono>health-score.v3.0</TD><TD>2 พ.ค. 2569</TD><TD>ห้ามิติทั้งหมดมีข้อมูลจริงสนับสนุน <Code>demand</Code> → <Code>attractiveness</Code>; <Code>quality</Code> → <Code>outcomes</Code>; <Code>relevance</Code> และ <Code>capability</Code> ไม่ใช่ค่าว่างอีกต่อไป</TD></TR>
             <TR><TD mono>health-score.v3.4</TD><TD>4 พ.ค. 2569</TD><TD>เพิ่มตัวขับนโยบายฐานการรับเข้าของ มข. นำเอา heuristic การตัดปีปัจจุบันที่ยังไม่จบบนความชันแนวโน้มเข้ามาใช้ นำเอาตัวกรอง "ปีที่เสร็จสมบูรณ์" ของ funnel TCAS เข้ามา</TD></TR>
             <TR><TD mono>health-score.v3.5</TD><TD>12 พ.ค. 2569</TD><TD>เพิ่มตัวขับ <Code>revenue_scale</Code> ในมิติการเงิน — รายได้สัมบูรณ์เทียบกับเป้าระดับ (BACHELOR 8 ล้าน / MASTER · DOCTORAL · HGD 2 ล้านบาทต่อปี) เติมเต็มสัญญาณ "หลักสูตรเป็นแหล่งรายได้หลักของระดับนี้หรือไม่" เสริมตัวขับเชิงอัตราส่วน (กำไรต่อนักศึกษา / ความครอบคลุมรายได้ / ความชันแนวโน้มค่าเล่าเรียน) lifecycle.v1.4 ใช้สัญญาณเดียวกันเป็นทั้งตัวขับชั้นแรกและเกตพื้น flagship</TD></TR>
+            <TR><TD mono>health-score.v3.7</TD><TD>19 พ.ค. 2569</TD><TD>มิติ Outcomes เพิ่มตัวขับ <Code>student_satisfaction</Code> — ค่าเฉลี่ยถ่วงน้ำหนักของคะแนนประเมินรายวิชาทั่วขอบเขต ปรับเชิงเส้นเข้าช่วง [3.5, 5.0] เพื่อแก้การกระจุกตัวที่เพดาน แหล่งข้อมูล: <Code>evaluation_response_summaries</Code> (POWERBI.EVALUATE_INSTRUCTOR ผ่านคอนเนกเตอร์ <Code>kku-evaluations</Code>)</TD></TR>
+            <TR><TD mono>health-score.v3.8</TD><TD>1 มิ.ย. 2569</TD><TD>เปลี่ยนแหล่งข้อมูล funnel การรับเข้าไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code> (<Code>admission_campaign_stats</Code>) แทน <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code> ระดับหลักสูตร ได้ความละเอียดระดับ track (หนึ่งแถวต่อ track การรับเข้า ภายในหลักสูตร × รอบ × ปี) พร้อมจำนวนแผนรับต่อช่องทางที่ถูกต้อง ตัวขับ สูตร และน้ำหนักของมิติ Attractiveness ไม่เปลี่ยน บัมพ์คู่กัน: <Code>program-recruitment.v2</Code>, <Code>recruitment-rollup.v2</Code></TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>1 พ.ค. 2569</TD><TD>ตัวจัดประเภทสี่ระดับเริ่มต้น แปดตัวขับ เกตความทันสมัยของเนื้อหา</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2 พ.ค. 2569</TD><TD>เพิ่มตัวขับ AI readiness เป็นตัวที่หนักที่สุด (±25) เพิ่มเกตปรับเปลี่ยน AI readiness สองตัว ลดน้ำหนักตัวขับ health-overall จาก ±25 เป็น ±20 เพื่อให้พื้นที่</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>12 พ.ค. 2569</TD><TD>เปิดเผย counterfactual ของเกตปรับเปลี่ยน (gap #8): ผลลัพธ์ตอนนี้พกพา <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> ไปด้วยกับ <Code>verdict</Code> ที่ผ่านเกตแล้ว ให้ผู้อ่านสภาฯ มองเห็นได้ว่าเกตปรับเปลี่ยนใดทำให้คำตัดสินเปลี่ยน + ทำไม คำตัดสินที่ผ่านเกตยังคงเดิม</TD></TR>
             <TR><TD mono>lifecycle.v1.3</TD><TD>12 พ.ค. 2569</TD><TD>ปรับสมดุลสัญญาณเนื้อหาเชิงคุณภาพ-เชิงปริมาณ หลัง KKU-SEQ-0018 เผยให้เห็นว่าคำตัดสินความทันสมัยจาก AI peer review มีน้ำหนักเกินจริง บดบังช่องว่าง labour-market alignment ที่เพียง 12.5% ลดน้ำหนัก <Code>content_modernity</Code> ลงครึ่งหนึ่ง (±20 → ±10) เพิ่มตัวขับชั้นแรก <Code>labour_market_alignment</Code> (±15) ที่รับโดยตรงจากส่วนแบ่งอุปสงค์นายจ้าง KMITL เพิ่มเกตปรับเปลี่ยนสองตัว (<Code>lowLabourMarketAlignmentStableCap</Code> ที่ &lt;30 และ <Code>lowLabourMarketAlignmentFrontierCap</Code> ที่ &lt;50) สะท้อนรูปแบบเกต AI readiness — หลักสูตรไม่อาจอ้างแนวโน้มได้หากสอนทักษะเพียงเศษส่วนของที่นายจ้างต้องการ</TD></TR>
             <TR><TD mono>lifecycle.v1.4</TD><TD>12 พ.ค. 2569</TD><TD>นำศักยภาพการสร้างรายได้เข้ามาในคำตัดสิน หลัง KKU-SEQ-0291 (ดุษฎีบัณฑิตวิทยาการระบาดและชีวสถิติ ~2 ล้านบาท/ปี 4 คน/รุ่น) ได้ FRONTIER ใน v1.3 เพิ่มตัวขับ <Code>revenue_scale</Code> (±10 ตามระดับ เทียบกับเป้ารายได้ต่อระดับ) เพิ่มเกต <Code>lowRevenuePotentialFrontierCap</Code> — รายได้ค่าเล่าเรียนต่อปี &lt; 3 ล้านบาท (พื้น flagship สากล) ปิด FRONTIER เป็น RISING ไม่ขึ้นกับระดับ สะท้อนการเปลี่ยนแปลงสู่ HRD แบบไม่รับปริญญาที่กดดันรุ่นบัณฑิตศึกษา: FRONTIER หมายถึงเชิงกลยุทธ์-เรือธง ไม่ใช่ความเป็นเลิศทางวิชาการเดี่ยว</TD></TR>
             <TR><TD mono>risk-scoring.v1.9</TD><TD>8 พ.ค. 2569</TD><TD>ล็อกสูตรของ risk scorer ระดับหลักสูตร: ตัวขับ Likelihood สามตัว (L1 การเสื่อมของ TCAS, L2 ภัยจาก AI, L3 เพดานประชากร) มิติ Impact สองตัว (รายได้ตรงที่เสี่ยง, ต้นทุนค้างชำระ) Composite = <Code>max(L1, L2 × 0.7, L3)</Code> เหนือตัวขับที่ไม่เป็น null โดย L2 มีการลดน้ำหนัก 0.7 เพื่อไม่ให้สัญญาณ AI เพียงตัวเดียวดันคะแนนไปที่ CRITICAL ขอบเขต: หลักสูตรปริญญาตรีเท่านั้น คู่กับ risk-management.v1</TD></TR>
+            <TR><TD mono>risk-scoring.v1.11</TD><TD>20 พ.ค. 2569</TD><TD>ตัวขับ L3 เพดานประชากรเพิ่มการคาดการณ์ประชากรล่วงหน้า — ฉายการลดลงของรุ่นประชากรอายุ 18 ปีของไทยลงบนพื้นที่รับนักศึกษาของหลักสูตร แทนการให้คะแนนเฉพาะปีปัจจุบัน ไม่มีการเปลี่ยนสูตร composite</TD></TR>
+            <TR><TD mono>risk-scoring.v1.12</TD><TD>1 มิ.ย. 2569</TD><TD>อินพุตการเสื่อมการรับเข้า (L1) และเปอร์เซ็นไทล์ความสามารถแข่งขันข้ามหลักสูตร เปลี่ยนแหล่งไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code> (<Code>admission_campaign_stats</Code>) แทน <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code> ไม่มีการเปลี่ยนสูตร composite หรือน้ำหนักตัวขับ</TD></TR>
             <TR><TD mono>risk-management.v1</TD><TD>19 พ.ค. 2569</TD><TD>เริ่มจัดทำเอกสารชั้น workflow เป็นครั้งแรก (§5 ในเอกสารนี้) ชั้นปฏิบัติการสามชั้น: การเตือน KRI (5 ตัวชี้วัด: application_seat_ratio, enrollment_fill_rate, late_round_dependency, skill_automation_index, bachelor_intake_floor), ขั้นตอนการประเมินความเสี่ยงด้วย AI (<Code>pnpm risks:assess</Code> สร้าง RiskAssessment + RiskMeasure 2–4 แถวต่อหลักสูตร) และวงจรชีวิตของมาตรการ PROPOSED→ACCEPTED→IN_PROGRESS→COMPLETED พร้อมตัวเลือกผูกกับ CouncilDecision เมทริกซ์ 5×5 ของมหาวิทยาลัย ถูกแมปจากสูตร composite ไม่มีการเปลี่ยนสูตรเทียบกับ risk-scoring.v1.9</TD></TR>
             <TR><TD mono>risk-management.v2 + risk-measure-rules.v1 + risk-assessment.v3</TD><TD>19 พ.ค. 2569</TD><TD>ปิดช่องว่างใหญ่ที่สุดของ v1: <Strong>การเชื่อม breach → measure อัตโนมัติ</Strong> เพิ่ม rule engine แบบ deterministic ใหม่ใน <Code>risk-measure-rules.v1</Code> (หกกฎครอบคลุม KRI ทั้งห้าตัว จับคู่แบบ exact-severity) สร้าง candidate มาตรการหนึ่งข้อต่อ (KRI × ระดับความรุนแรง) ที่ตรงกัน ก่อน AI จะรัน Migration เพิ่ม <Code>20260519120000_risk_measure_trigger</Code> เพิ่มฟิลด์ <Code>RiskMeasure.triggerIndicatorSlug</Code> + <Code>triggerSeverity</Code> สำหรับ provenance เพิ่ม AI prompt เป็น <Code>risk-assessment.v3</Code> เพื่อรับ candidates เป็น input และ echo back ฟิลด์ trigger เส้นทาง <Code>--no-ai</Code> บันทึก candidates จาก rule engine ลง DB เช่นกัน เพื่อให้สภาไม่เห็นรายการมาตรการว่างเปล่าสำหรับหลักสูตรที่มี KRI ติดธง ไม่มีการเปลี่ยนสูตรเทียบกับ risk-scoring.v1.9</TD></TR>
           </tbody>

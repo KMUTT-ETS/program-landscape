@@ -26,6 +26,49 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-01',
+    version: 'v1.5.0 · Recruitment rebuilt on POWERBI.ADMISSION_STAT',
+    title:
+      'The whole recruitment layer moves to the registrar\'s campaign-grain admission feed — a richer superset of the old curriculum-level data — plus a new actual-recruitment dashboard',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New dashboard /education/recruitment-campaigns at the campaign-track grain — one row per recruitment track (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Recruitment funnel, year-over-year demand, by-TCAS-round breakdown, and a Faculty → program → sub-program → TCAS round → track drill-down with sortable headers and hover tooltips that show each cell\'s value, formula, and worked calculation.',
+      'Drill-down adds % Enrol yield (Enrolled ÷ Passed) alongside % Admit; the TCAS-round tier always reads top-to-bottom by round number regardless of the reader\'s column sort.',
+      'Recruitment data source migrated from POWERBI.ADMISSION_STAT_CURRID (curriculum grain) to POWERBI.ADMISSION_STAT (campaign grain) across the whole application — health scoring (Attractiveness), lifecycle verdict, the Health radar, the Program Deep-Dive recruitment funnel + demand funnel + demographic outlook, recruitment-vs-plan, and the Risk module\'s L1 recruitment-decay driver + competitiveness percentile now all read the new feed.',
+      'Plan quota is now counted correctly per intake (sum of each recruitment program\'s annual plan), fixing a prior undercount where majors that share one curriculum code collapsed onto a single quota.',
+      'Methodology versions bumped: health-score.v3.8, risk-scoring.v1.12, program-recruitment.v2, recruitment-rollup.v2. Drivers, formulas, and weights are unchanged — only the underlying source moved. The public Methodology paper (/docs/methodology) is updated to match.',
+      'The old TCAS-funnel connector (ADMISSION_STAT_CURRID) is deprecated; the admin Dashboard data-fetch and Application-topology surfaces now point at the new connector.',
+    ],
+  },
+  {
+    date: '2026-05-20',
+    version: 'v1.4.0 · Research quartiles + recruitment round analysis',
+    title: 'Scopus journal-quartile tiers on research; TCAS-round analysis + national demographic outlook on the deep-dive',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Scopus journal quartile (Q1–Q4) and a Top-10% (Tier 1) tier added to research outputs and the /staff/research dashboard — quartile-led redesign with a year-range slider.',
+      'TCAS-round analysis added to the recruitment dashboard.',
+      'Program Deep-Dive demographic outlook is now national- and funnel-aware; University + Faculty averages overlaid on the Health radar for context.',
+      'Risk L3 demographic-ceiling driver gains a forward demographic projection (risk-scoring.v1.11).',
+      'program-digest.v2 — generalised, English-keyed skill extraction from curriculum PDFs.',
+      'Sortable column headers across Education + Staff dashboard tables; a global navigation progress bar for slow transitions; the per-teacher deep dive becomes a Faculty → Program → Teacher drill-down.',
+      'Class-GPA + student-satisfaction dashboards scoped to the user\'s program for PROGRAM_USER.',
+    ],
+  },
+  {
+    date: '2026-05-19',
+    version: 'v1.3.0 · Student evaluations + class GPA + teaching',
+    title: 'Course-evaluation + class-GPA dashboards; risk breaches now auto-propose a mitigation measure',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New student course-evaluation and class-GPA dashboards; new /staff/teaching surface; application-topology updated for the new flows. The evaluation signal also feeds a new student_satisfaction driver in the health score (health-score.v3.7).',
+      'risk-management.v2 closes the breach → measure gap — a deterministic rule engine fires one candidate mitigation measure per matched (KRI × severity) pair before the AI runs, so a program with fired indicators never shows an empty mitigation list.',
+      'Sidebar drawer mode; Program Deep-Dive trimmed; staff-research enhancements; faster home-page first paint.',
+      'AI: dynamic OpenRouter model catalog with a gemini-3.5-flash default.',
+      'Pipeline: deduplicated PDF prep + parallelised phase 2b; class-offerings refresh added to the admin tools.',
+    ],
+  },
+  {
     date: '2026-05-18',
     version: 'v1.2.5 · Hotfix — Gemini tool-schema union rejection',
     title:

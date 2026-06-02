@@ -1,8 +1,22 @@
 # Health score methodology
 
-**Version:** `health-score.v3.7`
-**Reviewed:** 2026-05-19
+**Version:** `health-score.v3.8`
+**Reviewed:** 2026-06-01
 **Owner:** KKU Data Office
+
+**v3.8 (2026-06-01):** Re-sources the recruitment funnel that feeds the
+Attractiveness dimension from the campaign-grain `POWERBI.ADMISSION_STAT`
+feed (`admission_campaign_stats`, via the `kku-admission-campaigns`
+connector), replacing the curriculum-grain `POWERBI.ADMISSION_STAT_CURRID`
+/ `tcas_admission_funnels`. The new feed is a richer superset — one row
+per recruitment track (competency / language / exam option / quota type
+/ branch-campus intake) within a program × round × year — and carries
+correct per-intake plan quotas (Σ over each recruitment program of its
+annual plan, no longer collapsing majors that share a curriculum code).
+The Attractiveness drivers, formulas, and weights are **unchanged**; only
+the underlying source moved. Companion bumps: `program-recruitment.v2`,
+`recruitment-rollup.v2`. The `scopeFunnelLatestYear` / `programFunnelYears`
+adapters (`packages/db/src/program-funnel.ts`) are the single access point.
 
 **v3.7 (2026-05-19):** Outcomes dimension gains the `student_satisfaction`
 driver, sourced from POWERBI.EVALUATE_INSTRUCTOR via the new
@@ -24,7 +38,7 @@ the Outcomes table below.
 >
 > | Dimension | Council question | Drivers | Source tables (status) |
 > |---|---|---|---|
-> | **Attractiveness** | Q1: Do students choose this program? | tcas_competition_vs_peers · tcas_fill_rate · enrollment_trend_slope | `tcas_admission_stats` (REAL) · `enrollment_metrics` (REAL via kku-registry) |
+> | **Attractiveness** | Q1: Do students choose this program? | tcas_competition_vs_peers · tcas_fill_rate · enrollment_trend_slope | `admission_campaign_stats` (REAL, KKU funnel via kku-admission-campaigns) · `tcas_admission_stats` (REAL, peer rows) · `enrollment_metrics` (REAL via kku-registry) |
 > | **Financial** | Q2: Does it pay for itself? | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope | `financial_metrics` (REAL via link-financials) · `enrollment_metrics` (REAL) |
 > | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) |
 > | **Outcomes** | Q1+Q6: Do graduates thrive? | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (REAL) · `graduate_outcomes` (PENDING kku-alumni) · `employer_feedback` (PENDING) |
@@ -63,8 +77,8 @@ the Outcomes table below.
 
 | Driver | Formula | Data source |
 |---|---|---|
-| `tcas_competition_vs_peers` | `clamp((kku_ratio / peer_median_ratio) × 50)` — score 50 means parity, 100 means 2× peer median | `tcas_admission_stats` for KKU + same-subject peer rows |
-| `tcas_fill_rate` | `clamp(((admittedPass1 + admittedPass2) / quota) × 100)` | `tcas_admission_stats` (latest year+round) |
+| `tcas_competition_vs_peers` | `clamp((kku_ratio / peer_median_ratio) × 50)` — score 50 means parity, 100 means 2× peer median | `admission_campaign_stats` for KKU + `tcas_admission_stats` same-subject peer rows |
+| `tcas_fill_rate` | `clamp(((admittedPass1 + admittedPass2) / quota) × 100)` | `admission_campaign_stats` (latest complete year, summed across rounds) |
 | `enrollment_trend_slope` | Slope of `enrolled` per year over last 5 years; `clamp(50 + slope/maxSlope × 50)` | `enrollment_metrics` |
 
 ### Financial

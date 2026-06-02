@@ -156,7 +156,7 @@ function sumMetrics(items: CampaignMetrics[]): CampaignMetrics {
 
 type MetricKey =
   | 'plan' | 'seats' | 'applicants' | 'competitionRate' | 'passed'
-  | 'sendCh' | 'confirmCh' | 'sendReg' | 'enrolled' | 'percentAdmit';
+  | 'sendCh' | 'confirmCh' | 'sendReg' | 'enrolled' | 'percentAdmit' | 'enrolYield';
 
 interface MetricCol {
   key: MetricKey;
@@ -175,13 +175,19 @@ const METRIC_COLS: MetricCol[] = [
   { key: 'confirmCh', label: 'Confirm CH', source: 'CONFIRM_CLEARINGHOUSE' },
   { key: 'sendReg', label: 'Send Reg', source: 'SEND_REG_REPORTED' },
   { key: 'enrolled', label: 'Enrolled', source: 'REG_REPORTED' },
+  { key: 'enrolYield', label: '% Enrol yield', source: 'Enrolled ÷ Passed' },
   { key: 'percentAdmit', label: '% Admit', source: 'Enrolled ÷ Plan' },
 ];
 const COL_BY_KEY = new Map(METRIC_COLS.map((c) => [c.key, c]));
 
+// % Enrol yield = Enrolled ÷ Passed — derived, not stored on CampaignMetrics.
+const enrolYieldOf = (m: CampaignMetrics): number | null =>
+  m.passed > 0 ? m.enrolled / m.passed : null;
+
 function fmtMetric(key: MetricKey, m: CampaignMetrics): string {
   if (key === 'competitionRate') return compf(m.competitionRate);
   if (key === 'percentAdmit') return pct(m.percentAdmit);
+  if (key === 'enrolYield') return pct(enrolYieldOf(m));
   if (key === 'plan' || key === 'seats') return numf(m[key]);
   return (m[key] as number).toLocaleString('en-US');
 }
@@ -196,6 +202,9 @@ function MetricTip({ col, m }: { col: MetricCol; m: CampaignMetrics }) {
   } else if (col.key === 'percentAdmit') {
     formula = 'Enrolled ÷ Plan';
     calc = `${numf(m.enrolled)} ÷ ${numf(m.plan)} = ${pct(m.percentAdmit)}`;
+  } else if (col.key === 'enrolYield') {
+    formula = 'Enrolled ÷ Passed';
+    calc = `${numf(m.enrolled)} ÷ ${numf(m.passed)} = ${pct(enrolYieldOf(m))}`;
   } else if (col.key === 'plan') {
     formula = 'Σ over sub-programs of MAX(PLAN_PER_YEAER)';
   } else if (col.key === 'seats') {
@@ -240,13 +249,25 @@ function MetricCells({ m }: { m: CampaignMetrics }) {
 type DrillSortKey = MetricKey | 'name';
 interface DrillSort { key: DrillSortKey; dir: 'asc' | 'desc'; }
 
+// Numeric sort value for a metric key, incl. the derived enrolYield.
+function metricSortValue(m: CampaignMetrics, key: MetricKey): number {
+  if (key === 'enrolYield') return enrolYieldOf(m) ?? -Infinity;
+  return (m[key as keyof CampaignMetrics] as number | null) ?? -Infinity;
+}
+
+// TCAS rounds always order by round number (non-numeric sort last).
+function roundOrder(round: string): number {
+  const n = parseFloat(round);
+  return Number.isNaN(n) ? Number.POSITIVE_INFINITY : n;
+}
+
 function sortNodes<T extends CampaignMetrics>(items: T[], sort: DrillSort, nameOf: (t: T) => string): T[] {
   const arr = [...items];
   if (sort.key === 'name') {
     arr.sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'th'));
   } else {
     const k = sort.key;
-    arr.sort((a, b) => ((a[k] ?? -Infinity) as number) - ((b[k] ?? -Infinity) as number));
+    arr.sort((a, b) => metricSortValue(a, k) - metricSortValue(b, k));
   }
   if (sort.dir === 'desc') arr.reverse();
   return arr;
@@ -815,7 +836,12 @@ function ProgramGroup({ program: p, sort }: { program: CampaignProgramRow; sort:
 
 function SubProgramGroup({ node: n, sort }: { node: CampaignSubProgramNode; sort: DrillSort }) {
   const [open, setOpen] = React.useState(false);
-  const sorted = React.useMemo(() => sortNodes(n.rounds, sort, (r) => r.round), [n.rounds, sort]);
+  // Rounds always read top-to-bottom by round number — the reader's column
+  // sort applies to every other tier but not to the chronological round axis.
+  const sorted = React.useMemo(
+    () => [...n.rounds].sort((a, b) => roundOrder(a.round) - roundOrder(b.round)),
+    [n.rounds],
+  );
   return (
     <>
       <tr className="cursor-pointer bg-surface-2/30 hover:bg-surface-2" onClick={() => setOpen((o) => !o)}>
