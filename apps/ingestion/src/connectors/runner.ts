@@ -65,6 +65,57 @@ export class ConnectorRunner {
       );
     }
 
+    // ── Orphan reaper ───────────────────────────────────────────────────
+    // A run row is created RUNNING and only closed when the connector
+    // finishes. If the worker froze or was restarted mid-run (exactly the
+    // kku-evaluations freeze), the row is left RUNNING forever — it skews
+    // freshness AND would block the in-flight guard below indefinitely.
+    // Reap any RUNNING row for this source older than STALE_RUN_MS. No real
+    // connector runs anywhere near this long (the heaviest, kku-evaluations,
+    // is ~11 min), so the threshold can't catch a legitimately-live run.
+    const STALE_RUN_MS = 30 * 60_000;
+    const reaped = await prisma.ingestionRun.updateMany({
+      where: {
+        dataSourceId: dataSource.id,
+        status: 'RUNNING',
+        startedAt: { lt: new Date(Date.now() - STALE_RUN_MS) },
+      },
+      data: {
+        status: 'FAILED',
+        completedAt: new Date(),
+        errorCode: 'ORPHANED',
+        errorMessage:
+          'Run exceeded the max-duration ceiling without completing — reaped as orphaned ' +
+          '(worker froze or was restarted mid-run).',
+      },
+    });
+    if (reaped.count > 0) {
+      this.logger.warn(
+        `[${opts.dataSourceSlug}] reaped ${reaped.count} orphaned RUNNING run(s) older than ${STALE_RUN_MS / 60_000}m`,
+      );
+    }
+
+    // ── In-flight guard ─────────────────────────────────────────────────
+    // If a *recent* RUNNING row still exists, another execution of this
+    // same slug is already underway — a stalled-then-reclaimed copy, an
+    // overlapping cron fire, or a manual "Run now" racing the scheduler.
+    // Running a second copy is what amplified into the freeze, so skip.
+    // (Single-process worker: the find→create window is tiny, and the
+    //  30-min BullMQ lock now prevents the stall-requeue that drove most
+    //  overlaps in the first place.)
+    const inFlight = await prisma.ingestionRun.findFirst({
+      where: { dataSourceId: dataSource.id, status: 'RUNNING' },
+      orderBy: { startedAt: 'desc' },
+      select: { id: true, startedAt: true },
+    });
+    if (inFlight) {
+      this.logger.warn(
+        `[${opts.dataSourceSlug}] skipping — a run is already in flight ` +
+          `(run ${inFlight.id}, started ${inFlight.startedAt?.toISOString() ?? 'unknown'})`,
+      );
+      return { runId: inFlight.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
+    }
+
     const run = await prisma.ingestionRun.create({
       data: {
         dataSourceId: dataSource.id,

@@ -14,6 +14,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
+  runUpdateMany: vi.fn(),
+  runFindFirst: vi.fn(),
   dataSourceFindUnique: vi.fn(),
   dataSourceUpdate: vi.fn(),
 }));
@@ -22,7 +24,14 @@ vi.mock('@kku/db', () => ({
   Prisma: { JsonNull: null },
   prisma: {
     pdfDocument: { upsert: vi.fn() },
-    ingestionRun: { create: mocks.runCreate, update: mocks.runUpdate },
+    ingestionRun: {
+      create: mocks.runCreate,
+      update: mocks.runUpdate,
+      // Orphan reaper + in-flight guard added 2026-06-02 (kku-evaluations
+      // freeze fix). Defaults below make both no-ops.
+      updateMany: mocks.runUpdateMany,
+      findFirst: mocks.runFindFirst,
+    },
     dataSource: {
       findUnique: mocks.dataSourceFindUnique,
       update: mocks.dataSourceUpdate,
@@ -77,11 +86,17 @@ describe('ConnectorRunner — retry contract (BullMQ interplay)', () => {
   beforeEach(() => {
     mocks.runCreate.mockReset();
     mocks.runUpdate.mockReset();
+    mocks.runUpdateMany.mockReset();
+    mocks.runFindFirst.mockReset();
     mocks.dataSourceFindUnique.mockReset();
     mocks.dataSourceUpdate.mockReset();
 
     mocks.runCreate.mockResolvedValue({ id: 'run-x' });
     mocks.runUpdate.mockResolvedValue({});
+    // Reaper finds nothing stale; guard finds nothing in flight — the
+    // happy path for every existing test.
+    mocks.runUpdateMany.mockResolvedValue({ count: 0 });
+    mocks.runFindFirst.mockResolvedValue(null);
     mocks.dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('stub'));
     mocks.dataSourceUpdate.mockResolvedValue({});
   });
@@ -187,6 +202,44 @@ describe('ConnectorRunner — retry contract (BullMQ interplay)', () => {
       data: { attempt: number };
     };
     expect(createCall.data.attempt).toBe(1);
+  });
+
+  it('in-flight guard: a recent RUNNING row → SKIPPED, no new run created', async () => {
+    // Simulate a stalled-then-reclaimed copy (or an overlapping cron fire):
+    // a RUNNING row already exists for this source.
+    mocks.runFindFirst.mockResolvedValue({
+      id: 'run-already-running',
+      startedAt: new Date(),
+    });
+    const fetchImpl = vi.fn(async () => []);
+    const conn = new StubConnector(fetchImpl);
+    const runner = new ConnectorRunner(new Map([[conn.slug, conn]]));
+
+    const outcome = await runner.run({ dataSourceSlug: 'stub', trigger: 'SCHEDULED' });
+
+    expect(outcome.status).toBe('SKIPPED');
+    expect(outcome.runId).toBe('run-already-running');
+    // The whole point: we must NOT start a second overlapping execution.
+    expect(mocks.runCreate).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('orphan reaper: fails stale RUNNING rows for the source before running', async () => {
+    const conn = new StubConnector(async () => []);
+    const runner = new ConnectorRunner(new Map([[conn.slug, conn]]));
+
+    await runner.run({ dataSourceSlug: 'stub', trigger: 'SCHEDULED' });
+
+    expect(mocks.runUpdateMany).toHaveBeenCalledTimes(1);
+    const reapCall = mocks.runUpdateMany.mock.calls[0]?.[0] as {
+      where: { dataSourceId: string; status: string; startedAt: { lt: Date } };
+      data: { status: string; errorCode: string };
+    };
+    expect(reapCall.where.dataSourceId).toBe('ds-stub');
+    expect(reapCall.where.status).toBe('RUNNING');
+    expect(reapCall.where.startedAt.lt).toBeInstanceOf(Date);
+    expect(reapCall.data.status).toBe('FAILED');
+    expect(reapCall.data.errorCode).toBe('ORPHANED');
   });
 
   it('errorMessage truncated at 2000 chars (DB column safety)', async () => {

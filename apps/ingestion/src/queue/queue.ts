@@ -92,6 +92,16 @@ export function createIngestionWorker(
       // Rate-limits for real connectors (JobsDB API limits, Scopus
       // quotas) will land at per-queue level in prompt 14.
       concurrency: 4,
+      // lockDuration MUST exceed the longest a single connector run can
+      // hold the event loop between lock renewals. BullMQ's default is
+      // 30s — far too tight for heavy loaders (kku-evaluations moves
+      // ~986K cells). When a GC pause or a long batch delayed renewal
+      // past 30s, BullMQ declared the job "stalled", re-queued it, and a
+      // second copy started under concurrency:4 → overlapping full loads
+      // → memory spike → GC thrash → the worker froze. A 30-minute lock
+      // gives every real connector ample headroom; the per-slug in-flight
+      // guard + orphan reaper in ConnectorRunner backstop a true crash.
+      lockDuration: 30 * 60_000,
     },
   );
 }

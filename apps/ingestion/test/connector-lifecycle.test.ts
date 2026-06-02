@@ -9,16 +9,32 @@ const mocks = vi.hoisted(() => ({
   pdfUpsert: vi.fn(),
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
+  runUpdateMany: vi.fn(),
+  runFindFirst: vi.fn(),
   dataSourceFindUnique: vi.fn(),
   dataSourceUpdate: vi.fn(),
 }));
-const { pdfUpsert, runCreate, runUpdate, dataSourceFindUnique, dataSourceUpdate } = mocks;
+const {
+  pdfUpsert,
+  runCreate,
+  runUpdate,
+  runUpdateMany,
+  runFindFirst,
+  dataSourceFindUnique,
+  dataSourceUpdate,
+} = mocks;
 
 vi.mock('@kku/db', () => ({
   Prisma: { JsonNull: null },
   prisma: {
     pdfDocument: { upsert: mocks.pdfUpsert },
-    ingestionRun: { create: mocks.runCreate, update: mocks.runUpdate },
+    ingestionRun: {
+      create: mocks.runCreate,
+      update: mocks.runUpdate,
+      // Orphan reaper + in-flight guard (kku-evaluations freeze fix).
+      updateMany: mocks.runUpdateMany,
+      findFirst: mocks.runFindFirst,
+    },
     dataSource: { findUnique: mocks.dataSourceFindUnique, update: mocks.dataSourceUpdate },
   },
 }));
@@ -61,11 +77,16 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
     pdfUpsert.mockReset();
     runCreate.mockReset();
     runUpdate.mockReset();
+    runUpdateMany.mockReset();
+    runFindFirst.mockReset();
     dataSourceFindUnique.mockReset();
     dataSourceUpdate.mockReset();
 
     runCreate.mockResolvedValue({ id: 'run-123' });
     runUpdate.mockResolvedValue({});
+    // Reaper finds nothing stale; guard finds nothing in flight.
+    runUpdateMany.mockResolvedValue({ count: 0 });
+    runFindFirst.mockResolvedValue(null);
     dataSourceUpdate.mockResolvedValue({});
     pdfUpsert.mockResolvedValue({ id: 'pdf-999' });
   });
