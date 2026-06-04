@@ -25,14 +25,20 @@ import { scrubMessages } from '../scrub-messages';
 //     equally strong but the Anthropic API's Thai responses occasionally
 //     drop tone marks under high-temp settings
 //   - flash-lite tier is cost-effective for extractor pipelines
-//   - embedding model (text-embedding-004) is multilingual
+//   - embedding model (gemini-embedding-001) is multilingual
+//
+// SDK: @google/genai 2.x. thinkingConfig.thinkingBudget is honoured, so
+// thinking-native models (gemini-3.5-flash) can be told NOT to think — without
+// this, their variable reasoning eats the output budget and truncates JSON /
+// empties tool-synthesis turns. Every generateContent call sets a thinking
+// budget explicitly (0 for extraction/completion/tool-use; capped for Pro).
 //
 // Model choice per call. Resolution order (see pickModelForMethod):
 //   1. explicit `model:` on the request   (highest priority)
 //   2. per-method admin override          (ai_model_overrides table)
 //   3. static MODEL_BY_METHOD_PREFIX       (empty since 2026-05-20)
 //   4. DEFAULT_COMPLETION_MODEL            (provider default)
-//   embed always → 'text-embedding-004' (1536 dims — matches pgvector)
+//   embed always → 'gemini-embedding-001' (deferred backfill; reconcile dims)
 
 // Universal default (2026-05-20). gemini-3.5-flash is the default for
 // every Gemini call — extraction, narrative, and reasoning alike —
@@ -42,7 +48,11 @@ import { scrubMessages } from '../scrub-messages';
 // gemini-flash-latest. Pin a specific prompt back to Pro per-method on
 // the admin AI-settings page if a regression ever warrants it.
 const DEFAULT_COMPLETION_MODEL = 'gemini-3.5-flash';
-const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
+// gemini-embedding-001: text-embedding-004 is no longer exposed on the v1beta
+// model list (404s on embedContent). Output is 3072-dim by default; reconcile
+// with the pgvector column dimensionality when the (currently deferred)
+// embedding backfill is run.
+const DEFAULT_EMBEDDING_MODEL = 'gemini-embedding-001';
 
 // Per-1k-token prices in USD — FALLBACK ONLY. The authoritative cost
 // figures now live in the ai_model_catalog table (refreshed daily from
@@ -145,6 +155,10 @@ export class GoogleAiService implements AiService {
         systemInstruction: system,
         temperature: req.temperature ?? 0,
         maxOutputTokens: req.maxOutputTokens,
+        // gemini-3.5-flash is thinking-native; left on, its reasoning can
+        // consume the output budget and return empty/truncated text. These
+        // are plain synthesis/translation calls — disable thinking.
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
     const latencyMs = Date.now() - started;
@@ -184,7 +198,6 @@ export class GoogleAiService implements AiService {
         this.config.defaultCompletionModel ?? DEFAULT_COMPLETION_MODEL,
         this.config.modelOverrideResolver,
       );
-    const started = Date.now();
     const { system, userText } = splitSystemFromMessages(req.messages);
 
     // Build the contents array. When a file attachment is provided
@@ -520,6 +533,10 @@ export class GoogleAiService implements AiService {
           temperature: req.temperature ?? 0.3,
           maxOutputTokens: req.maxOutputTokens,
           tools: toolDeclarations,
+          // Disable thinking. gemini-3.5-flash's reasoning otherwise eats the
+          // synthesis turn's output budget and returns empty text. The agent
+          // is grounded in tool results, not a chain-of-thought trace.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       });
       const iterationLatency = Date.now() - iterationStarted;
