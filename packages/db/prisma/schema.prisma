@@ -4656,6 +4656,27 @@ model AdmissionStatProgramMapping {
   @@map("admission_stat_program_mappings")
 }
 
+/// Analyst override for a recruitment program (PROGRAMID) that isn't yet in the
+/// curriculum catalog — e.g. a brand-new intake the TCAS feed slots under
+/// another program's reused curr_id. Flagging it here makes the recruitment
+/// dashboard surface it as its own standalone "new program" (its curr_id is
+/// ignored for grouping) instead of folding it into that curr_id's program.
+model RecruitmentProgramOverride {
+  id                   String   @id @default(cuid())
+  /// PROGRAMID from POWERBI.ADMISSION_STAT.
+  recruitmentProgramId String   @unique @map("recruitment_program_id")
+  /// Discriminator. Today only 'NEW_PROGRAM' (standalone, uncatalogued).
+  kind                 String   @default("NEW_PROGRAM")
+  /// Optional display name; falls back to the campaign-derived label.
+  displayNameTh        String?  @map("display_name_th")
+  displayNameEn        String?  @map("display_name_en")
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("recruitment_program_overrides")
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Risk Management module (risk-scoring.v1)
 //

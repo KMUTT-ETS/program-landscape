@@ -142,6 +142,7 @@ function sumMetrics(items: CampaignMetrics[]): CampaignMetrics {
   let plan: number | null = null;
   let seats: number | null = null;
   let applicants = 0, passed = 0, sendCh = 0, confirmCh = 0, sendReg = 0, enrolled = 0;
+  let enrolledWithPlan = 0, planProgramsTotal = 0, planProgramsWithPlan = 0;
   for (const m of items) {
     if (m.plan != null) plan = (plan ?? 0) + m.plan;
     if (m.seats != null) seats = (seats ?? 0) + m.seats;
@@ -151,11 +152,15 @@ function sumMetrics(items: CampaignMetrics[]): CampaignMetrics {
     confirmCh += m.confirmCh;
     sendReg += m.sendReg;
     enrolled += m.enrolled;
+    enrolledWithPlan += m.enrolledWithPlan;
+    planProgramsTotal += m.planProgramsTotal;
+    planProgramsWithPlan += m.planProgramsWithPlan;
   }
   return {
-    plan, seats, applicants, passed, sendCh, confirmCh, sendReg, enrolled,
-    percentAdmit: plan != null && plan > 0 ? enrolled / plan : null,
+    plan, seats, applicants, passed, sendCh, confirmCh, sendReg, enrolled, enrolledWithPlan,
+    percentAdmit: plan != null && plan > 0 ? enrolledWithPlan / plan : null,
     competitionRate: seats != null && seats > 0 ? applicants / seats : null,
+    planProgramsTotal, planProgramsWithPlan,
   };
 }
 

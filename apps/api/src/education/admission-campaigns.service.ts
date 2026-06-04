@@ -51,10 +51,26 @@ export interface CampaignMetrics {
   /** Send Reg ← SEND_REG_REPORTED */
   sendReg: number;
   enrolled: number;
-  /** Enrolled ÷ Plan */
+  /**
+   * Enrolled restricted to programs that carry a plan — the numerator for
+   * `percentAdmit`. Equals `enrolled` when every program has a plan; smaller
+   * when some don't. Keeping numerator and denominator over the SAME program
+   * set is what makes a partial-plan `% Admit` correct rather than overstated.
+   */
+  enrolledWithPlan: number;
+  /** Enrolled (plan-bearing programs) ÷ Plan */
   percentAdmit: number | null;
   /** Applicants ÷ Seats — competition rate (applicants per seat) */
   competitionRate: number | null;
+  /**
+   * Plan coverage for this group: distinct PROGRAMIDs total vs those that
+   * carry a PLAN_PER_YEAER. When `withPlan < total`, `% Admit` covers only
+   * those `withPlan` programs (the rest are excluded from both sides). The UI
+   * surfaces this as a coverage caveat; only a fully-missing plan (`withPlan
+   * === 0`) leaves `% Admit` uncomputable.
+   */
+  planProgramsTotal: number;
+  planProgramsWithPlan: number;
 }
 
 export interface CampaignKpis extends CampaignMetrics {
@@ -110,6 +126,13 @@ export interface CampaignProgramRow extends CampaignMetrics {
   programNameTh: string;
   programNameEn: string | null;
   mappingMethod: string | null;
+  /**
+   * A brand-new program the TCAS feed slots under another program's reused
+   * curr_id, flagged via RecruitmentProgramOverride. Shown standalone with a
+   * "New program" badge rather than folded into the curr_id's program. Not yet
+   * in the curriculum catalog (no deep-dive / curriculum analysis).
+   */
+  isNewProgram: boolean;
   facultyId: string | null;
   facultyNameTh: string;
   subProgramCount: number;
@@ -218,6 +241,20 @@ export class AdmissionCampaignsService {
     const seats = this.seatSum(rows);
     const enrolled = rows.reduce((a, r) => a + num(r.regReported), 0);
     const applicants = rows.reduce((a, r) => a + num(r.totalApplicants), 0);
+    // Plan coverage: distinct PROGRAMIDs total vs those carrying a plan. A
+    // PROGRAMID counts as plan-bearing if ANY of its rows has a plan.
+    const pidsTotal = new Set<string>();
+    const pidsWithPlan = new Set<string>();
+    for (const r of rows) {
+      pidsTotal.add(r.recruitmentProgramId);
+      if (r.planPerYear !== null) pidsWithPlan.add(r.recruitmentProgramId);
+    }
+    // Numerator for % Admit: enrolled only from plan-bearing programs, so it
+    // sits over the same population as `plan` (the denominator).
+    const enrolledWithPlan = rows.reduce(
+      (a, r) => (pidsWithPlan.has(r.recruitmentProgramId) ? a + num(r.regReported) : a),
+      0,
+    );
     return {
       plan,
       seats,
@@ -227,8 +264,11 @@ export class AdmissionCampaignsService {
       confirmCh: rows.reduce((a, r) => a + num(r.confirmClearinghouse), 0),
       sendReg: rows.reduce((a, r) => a + num(r.sendRegReported), 0),
       enrolled,
-      percentAdmit: plan != null && plan > 0 ? enrolled / plan : null,
+      enrolledWithPlan,
+      percentAdmit: plan != null && plan > 0 ? enrolledWithPlan / plan : null,
       competitionRate: seats != null && seats > 0 ? applicants / seats : null,
+      planProgramsTotal: pidsTotal.size,
+      planProgramsWithPlan: pidsWithPlan.size,
     };
   }
 
@@ -237,7 +277,7 @@ export class AdmissionCampaignsService {
   }
 
   async getDashboard(filters: CampaignFilters = {}): Promise<CampaignDashboardPayload> {
-    const [allRows, mappings, programsRaw, aliasesRaw] = await Promise.all([
+    const [allRows, mappings, programsRaw, aliasesRaw, overridesRaw] = await Promise.all([
       prisma.admissionCampaignStat.findMany({
         where: { ingestionRunId: { not: null } },
         select: {
@@ -271,6 +311,9 @@ export class AdmissionCampaignsService {
         select: { id: true, nameTh: true, nameEn: true, mhesiCode: true },
       }),
       prisma.programMhesiAlias.findMany({ select: { mhesiCode: true, programId: true } }),
+      prisma.recruitmentProgramOverride.findMany({
+        select: { recruitmentProgramId: true, kind: true, displayNameTh: true, displayNameEn: true },
+      }),
     ]);
 
     const progById = new Map(programsRaw.map((p) => [p.id, p]));
@@ -287,14 +330,36 @@ export class AdmissionCampaignsService {
     for (const m of mappings) {
       bridgeByPid.set(m.recruitmentProgramId, { programId: m.program.id, nameTh: m.program.nameTh, nameEn: m.program.nameEn, method: 'llm' });
     }
+    // New-program overrides: recruitment programs flagged as standalone +
+    // uncatalogued. They DON'T resolve (their curr_id is ignored for grouping)
+    // and get a per-PROGRAMID key so they never fold into another program.
+    const newProgramByPid = new Map<string, { displayNameTh: string | null; displayNameEn: string | null }>();
+    for (const o of overridesRaw) {
+      if (o.kind === 'NEW_PROGRAM') {
+        newProgramByPid.set(o.recruitmentProgramId, { displayNameTh: o.displayNameTh, displayNameEn: o.displayNameEn });
+      }
+    }
     const resolve = (r: Row): ProgramRef | null => {
+      // A flagged new program is intentionally unmapped — skip curr_id/bridge.
+      if (newProgramByPid.has(r.recruitmentProgramId)) return null;
+      // Per-PROGRAMID bridge wins over curr_id. The bridge is the deliberate,
+      // analyst/LLM-curated mapping; it exists specifically to correct the
+      // recruitment feed reusing one curr_id across distinct programs (e.g.
+      // KKU-SEQ-0067's curr_id 25640034000456 is reused for the brand-new
+      // rail + semiconductor intakes). Checking curr_id first silently
+      // overrode 28 such corrections — so the bridge takes precedence.
+      const byBridge = bridgeByPid.get(r.recruitmentProgramId);
+      if (byBridge) return byBridge;
       if (r.currId) {
         const byCurr = currMap.get(r.currId);
         if (byCurr) return byCurr;
       }
-      return bridgeByPid.get(r.recruitmentProgramId) ?? null;
+      return null;
     };
     const programKey = (r: Row): string => {
+      // Standalone key so a flagged new program never bundles with another
+      // (even another row that shares its reused curr_id).
+      if (newProgramByPid.has(r.recruitmentProgramId)) return `new:${r.recruitmentProgramId}`;
       const ref = resolve(r);
       if (ref) return ref.programId;
       return r.currId ? `curr:${r.currId}` : `pid:${r.recruitmentProgramId}`;
@@ -338,7 +403,8 @@ export class AdmissionCampaignsService {
 
     const emptyKpis: CampaignKpis = {
       plan: null, seats: null, applicants: 0, passed: 0, sendCh: 0, confirmCh: 0, sendReg: 0,
-      enrolled: 0, percentAdmit: null, competitionRate: null,
+      enrolled: 0, enrolledWithPlan: 0, percentAdmit: null, competitionRate: null,
+      planProgramsTotal: 0, planProgramsWithPlan: 0,
       programs: 0, subPrograms: 0, campaigns: 0, overAlloc: null,
     };
 
@@ -388,7 +454,7 @@ export class AdmissionCampaignsService {
       kpis,
       byRound: this.groupRound(yearRows, programKey),
       byYear: this.groupYear(scoped, programKey),
-      programs: this.buildDrill(inScope, resolve, programKey),
+      programs: this.buildDrill(inScope, resolve, programKey, newProgramByPid),
       decliningPrograms: this.declining(scoped, resolve, programKey),
       zeroApplicantTrackCount: inScope.filter((r) => num(r.totalApplicants) === 0).length,
     };
@@ -416,6 +482,7 @@ export class AdmissionCampaignsService {
     rows: Row[],
     resolve: (r: Row) => ProgramRef | null,
     programKey: (r: Row) => string,
+    newProgramByPid: Map<string, { displayNameTh: string | null; displayNameEn: string | null }>,
   ): CampaignProgramRow[] {
     const progGroups = new Map<string, Row[]>();
     for (const r of rows) {
@@ -454,12 +521,21 @@ export class AdmissionCampaignsService {
           };
         })
         .sort((a, b) => b.applicants - a.applicants);
+      // New-program override: standalone, uncatalogued. Its key is per-PROGRAMID
+      // (`new:<pid>`), so the whole group shares one recruitmentProgramId.
+      const newOvr = newProgramByPid.get(grp[0]!.recruitmentProgramId);
+      const isNewProgram = key.startsWith('new:');
+      // Fallback display name = shortest campaign name in the group.
+      const derivedLabel = grp.reduce((a, r) => (r.campaignName.length < a.length ? r.campaignName : a), grp[0]!.campaignName);
       out.push({
         programKey: key,
         programId: ref?.programId ?? null,
-        programNameTh: ref?.nameTh ?? UNMAPPED_PROGRAM_LABEL_TH,
-        programNameEn: ref?.nameEn ?? null,
-        mappingMethod: ref?.method ?? null,
+        programNameTh: isNewProgram
+          ? (newOvr?.displayNameTh ?? derivedLabel)
+          : (ref?.nameTh ?? UNMAPPED_PROGRAM_LABEL_TH),
+        programNameEn: isNewProgram ? (newOvr?.displayNameEn ?? null) : (ref?.nameEn ?? null),
+        mappingMethod: isNewProgram ? 'new-program' : (ref?.method ?? null),
+        isNewProgram,
         facultyId: grp[0]!.facultyId,
         facultyNameTh: grp[0]!.facultyNameTh,
         subProgramCount: subGroups.size,

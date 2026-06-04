@@ -29,8 +29,15 @@ interface CampaignMetrics {
   confirmCh: number;
   sendReg: number;
   enrolled: number;
+  /** Enrolled from plan-bearing programs only — the % Admit numerator. */
+  enrolledWithPlan: number;
   percentAdmit: number | null;
   competitionRate: number | null;
+  // Plan coverage — distinct PROGRAMIDs total vs those carrying a plan.
+  // % Admit covers only the `withPlan` programs (the rest are excluded from
+  // both numerator and denominator); withPlan === 0 ⇒ % Admit not computable.
+  planProgramsTotal: number;
+  planProgramsWithPlan: number;
 }
 
 interface CampaignKpis extends CampaignMetrics {
@@ -78,6 +85,8 @@ interface CampaignProgramRow extends CampaignMetrics {
   programNameTh: string;
   programNameEn: string | null;
   mappingMethod: string | null;
+  /** Standalone new program (not yet in the curriculum catalog). */
+  isNewProgram: boolean;
   facultyId: string | null;
   facultyNameTh: string;
   subProgramCount: number;
@@ -135,6 +144,7 @@ function sumMetrics(items: CampaignMetrics[]): CampaignMetrics {
   let plan: number | null = null;
   let seats: number | null = null;
   let applicants = 0, passed = 0, sendCh = 0, confirmCh = 0, sendReg = 0, enrolled = 0;
+  let enrolledWithPlan = 0, planProgramsTotal = 0, planProgramsWithPlan = 0;
   for (const m of items) {
     if (m.plan != null) plan = (plan ?? 0) + m.plan;
     if (m.seats != null) seats = (seats ?? 0) + m.seats;
@@ -144,12 +154,40 @@ function sumMetrics(items: CampaignMetrics[]): CampaignMetrics {
     confirmCh += m.confirmCh;
     sendReg += m.sendReg;
     enrolled += m.enrolled;
+    enrolledWithPlan += m.enrolledWithPlan;
+    // PROGRAMIDs are disjoint across the items we roll up (each belongs to one
+    // program), so summing the counts keeps the coverage ratio honest.
+    planProgramsTotal += m.planProgramsTotal;
+    planProgramsWithPlan += m.planProgramsWithPlan;
   }
   return {
-    plan, seats, applicants, passed, sendCh, confirmCh, sendReg, enrolled,
-    percentAdmit: plan != null && plan > 0 ? enrolled / plan : null,
+    plan, seats, applicants, passed, sendCh, confirmCh, sendReg, enrolled, enrolledWithPlan,
+    // Numerator + denominator over the same (plan-bearing) program set.
+    percentAdmit: plan != null && plan > 0 ? enrolledWithPlan / plan : null,
     competitionRate: seats != null && seats > 0 ? applicants / seats : null,
+    planProgramsTotal, planProgramsWithPlan,
   };
+}
+
+// ─── Plan coverage ──────────────────────────────────────────────────────────
+// % Admit = Enrolled ÷ Plan, computed over plan-bearing programs only — both
+// the numerator (enrolledWithPlan) and denominator (plan) exclude programs with
+// no plan, so a partial-plan % Admit is correct but covers a subset. Only a
+// fully-missing plan leaves it uncomputable. Classify for the coverage caveat.
+type PlanState = 'complete' | 'partial' | 'missing';
+
+function planState(m: CampaignMetrics): PlanState {
+  if (m.planProgramsWithPlan === 0) return 'missing';
+  if (m.planProgramsWithPlan < m.planProgramsTotal) return 'partial';
+  return 'complete';
+}
+
+function planNote(m: CampaignMetrics): string | null {
+  const st = planState(m);
+  if (st === 'missing') return 'No plan data for these programs — % Admit cannot be computed.';
+  if (st === 'partial')
+    return `% Admit covers the ${m.planProgramsWithPlan} of ${m.planProgramsTotal} programs that have a plan; programs without a plan are excluded from both sides.`;
+  return null;
 }
 
 // ─── Metric columns: shared label / source / formula config ─────────────────
@@ -200,8 +238,8 @@ function MetricTip({ col, m }: { col: MetricCol; m: CampaignMetrics }) {
     formula = 'Applicants ÷ Seats';
     calc = `${numf(m.applicants)} ÷ ${numf(m.seats)} = ${compf(m.competitionRate)}`;
   } else if (col.key === 'percentAdmit') {
-    formula = 'Enrolled ÷ Plan';
-    calc = `${numf(m.enrolled)} ÷ ${numf(m.plan)} = ${pct(m.percentAdmit)}`;
+    formula = 'Enrolled (plan-bearing) ÷ Plan';
+    calc = `${numf(m.enrolledWithPlan)} ÷ ${numf(m.plan)} = ${pct(m.percentAdmit)}`;
   } else if (col.key === 'enrolYield') {
     formula = 'Enrolled ÷ Passed';
     calc = `${numf(m.enrolled)} ÷ ${numf(m.passed)} = ${pct(enrolYieldOf(m))}`;
@@ -212,11 +250,14 @@ function MetricTip({ col, m }: { col: MetricCol; m: CampaignMetrics }) {
   } else {
     formula = `Σ ${col.source}`;
   }
+  // Plan-completeness caveat — shown on plan-derived (% Admit) and the raw Plan.
+  const note = col.key === 'percentAdmit' || col.key === 'plan' ? planNote(m) : null;
   return (
     <div className="max-w-[18rem] text-xs">
       <div className="font-semibold">{col.label} <span className="font-normal text-text-tertiary">· {fmtMetric(col.key, m)}</span></div>
       <div className="mt-1 text-text-secondary">{formula}</div>
       {calc && <div className="mt-0.5 font-tabular text-text-secondary">{calc}</div>}
+      {note && <div className="mt-1 text-[11px] text-text-tertiary">{note}</div>}
       <div className="mt-1 text-[10px] text-text-tertiary">Source: POWERBI.ADMISSION_STAT · {col.source}</div>
     </div>
   );
@@ -225,10 +266,17 @@ function MetricTip({ col, m }: { col: MetricCol; m: CampaignMetrics }) {
 function MetricCell({ col, m }: { col: MetricCol; m: CampaignMetrics }) {
   const danger = col.key === 'percentAdmit' && m.percentAdmit !== null && m.percentAdmit < 1;
   const muted = col.key === 'plan' || col.key === 'seats';
+  // Mark % Admit with a muted '*' when its plan coverage is incomplete —
+  // partial (value covers a subset of programs) or missing (shown as '—').
+  // The cell value itself is correct; the marker + tooltip disclose coverage.
+  const ps = col.key === 'percentAdmit' ? planState(m) : 'complete';
   return (
     <td className={`px-2 py-1.5 text-right font-tabular ${col.key === 'percentAdmit' ? 'font-semibold' : ''} ${danger ? 'text-warning' : muted ? 'text-text-tertiary' : ''}`}>
       <HoverTooltip content={<MetricTip col={col} m={m} />}>
-        <span className="cursor-help border-b border-dotted border-transparent hover:border-border-subtle">{fmtMetric(col.key, m)}</span>
+        <span className="cursor-help border-b border-dotted border-transparent hover:border-border-subtle">
+          {fmtMetric(col.key, m)}
+          {ps !== 'complete' && <sup className="ml-0.5 text-text-tertiary">*</sup>}
+        </span>
       </HoverTooltip>
     </td>
   );
@@ -388,16 +436,25 @@ export function CampaignsClient({
         </Section>
       </div>
 
-      {/* By round — combo chart + breakdown table */}
-      <Section title={`By TCAS round — BE ${meta.selectedYear ?? '—'}`}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)] lg:items-start">
+      {/* Round histogram + % Admit year-trend — side by side */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Section title={`By TCAS round — competition — BE ${meta.selectedYear ?? '—'}`}>
           <Card padding="md">
             <RoundPerformanceChart rows={data.byRound} />
           </Card>
-          <Card padding="none">
-            <RoundTable rows={data.byRound} />
+        </Section>
+        <Section title="% Admit — year-over-year">
+          <Card padding="md">
+            <PercentAdmitTrendChart byYear={data.byYear} />
           </Card>
-        </div>
+        </Section>
+      </div>
+
+      {/* By TCAS round — full-width breakdown table */}
+      <Section title={`By TCAS round — breakdown — BE ${meta.selectedYear ?? '—'}`}>
+        <Card padding="none">
+          <RoundTable rows={data.byRound} />
+        </Card>
       </Section>
 
       {/* Drill pivot */}
@@ -435,9 +492,19 @@ function Banner({ tone, icon, children }: { tone: 'warning' | 'info'; icon?: Rea
 // ─── KPI strip ──────────────────────────────────────────────────────────────
 
 function KpiStrip({ kpis, year }: { kpis: CampaignKpis; year: number | null }) {
+  const admitPs = planState(kpis);
   const tiles: Array<{ label: string; value: string; sub?: string; tone?: 'positive' | 'warning' }> = [
     { label: 'Programs', value: kpis.programs.toLocaleString('en-US'), sub: `${kpis.subPrograms.toLocaleString('en-US')} sub-programs · ${kpis.campaigns.toLocaleString('en-US')} tracks` },
-    { label: 'Plan', value: numf(kpis.plan), sub: kpis.plan === null ? 'not yet assigned' : 'annual quota' },
+    {
+      label: 'Plan',
+      value: numf(kpis.plan),
+      sub:
+        admitPs === 'missing'
+          ? 'not yet assigned'
+          : admitPs === 'partial'
+            ? `${kpis.planProgramsWithPlan}/${kpis.planProgramsTotal} programs have a plan`
+            : 'annual quota',
+    },
     { label: 'Seats', value: numf(kpis.seats), sub: kpis.overAlloc !== null ? `${kpis.overAlloc.toFixed(2)}× over-allocated` : 'allocated across rounds' },
     { label: 'Applicants', value: kpis.applicants.toLocaleString('en-US'), sub: `${kpis.passed.toLocaleString('en-US')} passed` },
     { label: 'Confirm CH', value: kpis.confirmCh.toLocaleString('en-US'), sub: `${kpis.sendCh.toLocaleString('en-US')} sent CH` },
@@ -445,8 +512,18 @@ function KpiStrip({ kpis, year }: { kpis: CampaignKpis; year: number | null }) {
     {
       label: 'Percent Admit',
       value: pct(kpis.percentAdmit),
-      sub: 'Enrolled ÷ Plan',
-      tone: kpis.percentAdmit !== null && kpis.percentAdmit < 1 ? 'warning' : 'positive',
+      sub:
+        admitPs === 'missing'
+          ? 'no plan data — not computed'
+          : admitPs === 'partial'
+            ? `covers ${kpis.planProgramsWithPlan}/${kpis.planProgramsTotal} programs with a plan`
+            : 'Enrolled ÷ Plan',
+      tone:
+        kpis.percentAdmit !== null && kpis.percentAdmit < 1
+          ? 'warning'
+          : kpis.percentAdmit !== null
+            ? 'positive'
+            : undefined,
     },
   ];
   return (
@@ -474,67 +551,314 @@ function buildFunnel(kpis: CampaignKpis): FunnelStage[] {
   return stages.map(([label, value], i) => ({ key: `s-${i}`, label, value }));
 }
 
-// ─── Year trend (competition / fill / enrol yield) ──────────────────────────
+// ─── Year line chart (interactive: legend toggles + hover detail) ───────────
+// One reusable multi-line chart over the BE-year axis. Each series declares
+// its own axis ('ratio' = left "×" scale, 'pct' = 0–1 scale), formula, and a
+// worked-calculation string surfaced on hover. The legend doubles as a
+// show/hide toggle per line.
 
-function YearTrendChart({ byYear }: { byYear: CampaignYearRow[] }) {
+type YearAxis = 'ratio' | 'pct';
+
+interface YearSeries {
+  key: string;
+  label: string;
+  color: string;
+  dashed?: boolean;
+  axis: YearAxis;
+  valueOf: (r: CampaignYearRow) => number | null;
+  display: (v: number | null) => string;
+  formula: string;
+  calc: (r: CampaignYearRow) => string;
+}
+
+function YearLineChart({
+  byYear,
+  series,
+  pctReference,
+}: {
+  byYear: CampaignYearRow[];
+  series: YearSeries[];
+  pctReference?: { value: number; label: string };
+}) {
   const palette = useChartPalette();
+  const [hidden, setHidden] = React.useState<Set<string>>(() => new Set());
+  const [hoverYear, setHoverYear] = React.useState<number | null>(null);
+
   if (byYear.length === 0) return <p className="text-sm text-text-tertiary">No trend data.</p>;
-  const points = byYear.map((y) => ({
-    year: y.acadYearBE,
-    isComplete: y.isComplete,
-    ratio: y.seats != null && y.seats > 0 ? y.applicants / y.seats : 0,
-    fill: y.seats != null && y.seats > 0 ? y.passed / y.seats : 0,
-    yieldR: y.sendCh > 0 ? y.enrolled / y.sendCh : 0,
-  }));
-  const W = 560, H = 240, PAD = { top: 24, right: 24, bottom: 36, left: 48 };
+
+  const visible = series.filter((s) => !hidden.has(s.key));
+  const hasRatio = visible.some((s) => s.axis === 'ratio');
+  const hasPct = visible.some((s) => s.axis === 'pct');
+  const leftAxis: YearAxis = hasRatio ? 'ratio' : 'pct';
+  const rightAxis: YearAxis | null = hasRatio && hasPct ? 'pct' : null;
+
+  const W = 560, H = 240;
+  const PAD = { top: 16, right: rightAxis ? 44 : 18, bottom: 38, left: 48 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
-  const xMin = points[0]!.year, xMax = points[points.length - 1]!.year;
+
+  const years = byYear.map((y) => y.acadYearBE);
+  const xMin = years[0]!, xMax = years[years.length - 1]!;
   const xPx = (x: number) => PAD.left + (xMax === xMin ? innerW / 2 : ((x - xMin) / (xMax - xMin)) * innerW);
-  const maxRatio = Math.max(...points.map((p) => p.ratio), 5);
-  const yPxRatio = (v: number) => PAD.top + (1 - v / maxRatio) * innerH;
-  const yPxPct = (v: number) => PAD.top + (1 - v) * innerH;
+
+  const ratioMax = Math.max(
+    5,
+    ...visible.filter((s) => s.axis === 'ratio').flatMap((s) => byYear.map((r) => s.valueOf(r) ?? 0)),
+  );
+  const pctMax = Math.max(
+    1,
+    pctReference?.value ?? 0,
+    ...visible.filter((s) => s.axis === 'pct').flatMap((s) => byYear.map((r) => s.valueOf(r) ?? 0)),
+  );
+  const yRatio = (v: number) => PAD.top + (1 - v / ratioMax) * innerH;
+  const yPct = (v: number) => PAD.top + (1 - v / pctMax) * innerH;
+  const yOf = (s: YearSeries, v: number) => (s.axis === 'ratio' ? yRatio(v) : yPct(v));
+
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const leftLabel = (t: number) =>
+    leftAxis === 'ratio' ? `${(t * ratioMax).toFixed(ratioMax <= 2 ? 1 : 0)}×` : `${(t * pctMax * 100).toFixed(0)}%`;
+
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+
+  const hoverRow = hoverYear != null ? byYear.find((r) => r.acadYearBE === hoverYear) ?? null : null;
+  const hoverFrac = hoverRow ? xPx(hoverRow.acadYearBE) / W : 0;
+  const hoverAnchor = hoverFrac < 0.34 ? '0' : hoverFrac > 0.66 ? '-100%' : '-50%';
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">
-      {[0, maxRatio / 4, maxRatio / 2, (3 * maxRatio) / 4, maxRatio].map((v, i) => (
-        <g key={`r${i}`}>
-          <line x1={PAD.left} y1={yPxRatio(v)} x2={W - PAD.right} y2={yPxRatio(v)} stroke={palette.grid} strokeDasharray="2 4" strokeWidth={0.6} />
-          <text x={PAD.left - 6} y={yPxRatio(v) + 4} textAnchor="end" className="text-[10px] font-tabular" fill={palette.text} opacity={0.7}>{v.toFixed(0)}×</text>
-        </g>
-      ))}
-      {points.map((p) => (
-        <g key={p.year}>
-          <text x={xPx(p.year)} y={H - PAD.bottom + 16} textAnchor="middle" className="text-[10px] font-tabular" fill={palette.text} opacity={0.7}>BE {p.year}</text>
-          {!p.isComplete && (
-            <text x={xPx(p.year)} y={H - PAD.bottom + 28} textAnchor="middle" className="text-[9px]" fill={palette.text} opacity={0.55}>(in progress)</text>
+    <div>
+      {/* Legend — click a line to show/hide it */}
+      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1">
+        {series.map((s) => {
+          const off = hidden.has(s.key);
+          return (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => toggle(s.key)}
+              aria-pressed={!off}
+              title={off ? `Show ${s.label}` : `Hide ${s.label}`}
+              className={`flex items-center gap-1.5 text-[11px] transition-opacity hover:opacity-80 ${off ? 'opacity-40' : ''}`}
+            >
+              <svg width="16" height="8" aria-hidden className="shrink-0">
+                <line x1="0" y1="4" x2="14" y2="4" stroke={s.color} strokeWidth={2} strokeDasharray={s.dashed ? '4 3' : undefined} />
+              </svg>
+              <span className={off ? 'line-through' : ''}>{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="relative">
+        <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">
+          {/* gridlines + axis labels */}
+          {ticks.map((t, i) => {
+            const y = PAD.top + (1 - t) * innerH;
+            return (
+              <g key={`g${i}`}>
+                <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke={palette.grid} strokeDasharray="2 4" strokeWidth={0.6} />
+                <text x={PAD.left - 6} y={y + 4} textAnchor="end" className="text-[10px] font-tabular" fill={palette.text} opacity={0.7}>{leftLabel(t)}</text>
+                {rightAxis === 'pct' && (
+                  <text x={W - PAD.right + 6} y={y + 4} textAnchor="start" className="text-[10px] font-tabular" fill={palette.positive} opacity={0.8}>{`${(t * pctMax * 100).toFixed(0)}%`}</text>
+                )}
+              </g>
+            );
+          })}
+
+          {/* optional pct reference line (e.g. Plan = 100%) */}
+          {pctReference && (
+            <g>
+              <line x1={PAD.left} y1={yPct(pctReference.value)} x2={W - PAD.right} y2={yPct(pctReference.value)} stroke={palette.text} strokeDasharray="5 4" strokeWidth={1} opacity={0.45} />
+              <text x={W - PAD.right} y={yPct(pctReference.value) - 4} textAnchor="end" className="text-[9px]" fill={palette.text} opacity={0.65}>{pctReference.label}</text>
+            </g>
           )}
-        </g>
-      ))}
-      <polyline points={points.map((p) => `${xPx(p.year)},${yPxRatio(p.ratio)}`).join(' ')} fill="none" stroke={palette.series[0] ?? palette.text} strokeWidth={2} />
-      <polyline points={points.map((p) => `${xPx(p.year)},${yPxPct(p.fill)}`).join(' ')} fill="none" stroke={palette.series[2] ?? palette.text} strokeWidth={2} strokeDasharray="4 3" />
-      <polyline points={points.map((p) => `${xPx(p.year)},${yPxPct(p.yieldR)}`).join(' ')} fill="none" stroke={palette.positive} strokeWidth={2} />
-      {points.map((p) => (
-        <g key={`d-${p.year}`}>
-          <circle cx={xPx(p.year)} cy={yPxRatio(p.ratio)} r={3} fill={palette.series[0] ?? palette.text} opacity={p.isComplete ? 1 : 0.5} />
-          <circle cx={xPx(p.year)} cy={yPxPct(p.fill)} r={3} fill={palette.series[2] ?? palette.text} opacity={p.isComplete ? 1 : 0.5} />
-          <circle cx={xPx(p.year)} cy={yPxPct(p.yieldR)} r={3} fill={palette.positive} opacity={p.isComplete ? 1 : 0.5} />
-        </g>
-      ))}
-      <g transform={`translate(${PAD.left + 12}, ${PAD.top + 4})`}>
-        <LegendDot color={palette.series[0] ?? palette.text} label="Competition (apps / seats)" x={0} />
-        <LegendDot color={palette.series[2] ?? palette.text} label="Fill rate (passed / seats, 0–1)" x={170} dashed />
-        <LegendDot color={palette.positive} label="Enrol yield (enrolled / send CH, 0–1)" x={392} />
-      </g>
-    </svg>
+
+          {/* hover guide line */}
+          {hoverRow && (
+            <line x1={xPx(hoverRow.acadYearBE)} y1={PAD.top} x2={xPx(hoverRow.acadYearBE)} y2={PAD.top + innerH} stroke={palette.text} strokeWidth={1} opacity={0.25} />
+          )}
+
+          {/* x labels */}
+          {byYear.map((r) => (
+            <g key={`x${r.acadYearBE}`}>
+              <text x={xPx(r.acadYearBE)} y={H - PAD.bottom + 16} textAnchor="middle" className="text-[10px] font-tabular" fill={palette.text} opacity={hoverYear === r.acadYearBE ? 1 : 0.7}>BE {r.acadYearBE}</text>
+              {!r.isComplete && (
+                <text x={xPx(r.acadYearBE)} y={H - PAD.bottom + 28} textAnchor="middle" className="text-[9px]" fill={palette.text} opacity={0.5}>(in progress)</text>
+              )}
+            </g>
+          ))}
+
+          {/* series lines — segmented so a missing point breaks the line
+              instead of drawing a misleading bridge across the gap */}
+          {visible.map((s) => {
+            const segs: string[][] = [];
+            let cur: string[] = [];
+            for (const r of byYear) {
+              const v = s.valueOf(r);
+              if (v == null) {
+                if (cur.length) { segs.push(cur); cur = []; }
+                continue;
+              }
+              cur.push(`${xPx(r.acadYearBE)},${yOf(s, v)}`);
+            }
+            if (cur.length) segs.push(cur);
+            return segs.map((seg, i) => (
+              <polyline
+                key={`${s.key}-${i}`}
+                points={seg.join(' ')}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2}
+                strokeDasharray={s.dashed ? '4 3' : undefined}
+              />
+            ));
+          })}
+
+          {/* dots (enlarged on the hovered year) */}
+          {visible.map((s) =>
+            byYear.map((r) => {
+              const v = s.valueOf(r);
+              if (v == null) return null;
+              return (
+                <circle
+                  key={`${s.key}-${r.acadYearBE}`}
+                  cx={xPx(r.acadYearBE)}
+                  cy={yOf(s, v)}
+                  r={hoverYear === r.acadYearBE ? 4.5 : 3}
+                  fill={s.color}
+                  opacity={r.isComplete ? 1 : 0.5}
+                />
+              );
+            }),
+          )}
+
+          {/* invisible hover bands — one per year */}
+          {byYear.map((r, i) => {
+            const prevX = i === 0 ? PAD.left : (xPx(byYear[i - 1]!.acadYearBE) + xPx(r.acadYearBE)) / 2;
+            const nextX = i === byYear.length - 1 ? W - PAD.right : (xPx(r.acadYearBE) + xPx(byYear[i + 1]!.acadYearBE)) / 2;
+            return (
+              <rect
+                key={`ht${r.acadYearBE}`}
+                x={prevX}
+                y={PAD.top}
+                width={Math.max(0, nextX - prevX)}
+                height={innerH}
+                fill="transparent"
+                onMouseEnter={() => setHoverYear(r.acadYearBE)}
+                onMouseLeave={() => setHoverYear((y) => (y === r.acadYearBE ? null : y))}
+              />
+            );
+          })}
+        </svg>
+
+        {/* hover detail — value + formula + worked calculation per visible line */}
+        {hoverRow && visible.length > 0 && (
+          <div
+            className="pointer-events-none absolute top-1 z-10 w-max max-w-[17rem] rounded-md border border-border-subtle bg-surface-1 p-2 shadow-md"
+            style={{ left: `${hoverFrac * 100}%`, transform: `translateX(${hoverAnchor})` }}
+          >
+            <div className="mb-1 text-[11px] font-semibold">
+              BE {hoverRow.acadYearBE}
+              <span className="font-normal text-text-tertiary"> (CE {hoverRow.acadYearBE - 543})</span>
+              {!hoverRow.isComplete && <span className="font-normal text-text-tertiary"> · in progress</span>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {visible.map((s) => (
+                <div key={s.key} className="text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                    <span className="text-text-secondary">{s.label}</span>
+                    <span className="ml-auto font-tabular font-semibold">{s.display(s.valueOf(hoverRow))}</span>
+                  </div>
+                  <div className="pl-3 text-text-tertiary">{s.formula}</div>
+                  <div className="pl-3 font-tabular text-text-tertiary">{s.calc(hoverRow)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-function LegendDot({ color, label, x, dashed = false }: { color: string; label: string; x: number; dashed?: boolean }) {
+function YearTrendChart({ byYear }: { byYear: CampaignYearRow[] }) {
+  const palette = useChartPalette();
+  const series: YearSeries[] = [
+    {
+      key: 'comp',
+      label: 'Competition',
+      color: palette.series[0] ?? palette.text,
+      axis: 'ratio',
+      valueOf: (r) => r.competitionRate,
+      display: (v) => compf(v),
+      formula: 'Applicants ÷ Seats',
+      calc: (r) => `${numf(r.applicants)} ÷ ${numf(r.seats)} = ${compf(r.competitionRate)}`,
+    },
+    {
+      key: 'fill',
+      label: 'Fill rate',
+      color: palette.series[2] ?? palette.text,
+      dashed: true,
+      axis: 'pct',
+      valueOf: (r) => (r.seats != null && r.seats > 0 ? r.passed / r.seats : null),
+      display: (v) => (v == null ? '—' : `${(v * 100).toFixed(0)}%`),
+      formula: 'Passed ÷ Seats',
+      calc: (r) =>
+        `${numf(r.passed)} ÷ ${numf(r.seats)} = ${r.seats != null && r.seats > 0 ? `${((r.passed / r.seats) * 100).toFixed(0)}%` : '—'}`,
+    },
+    {
+      key: 'yield',
+      label: 'Enrol yield',
+      color: palette.positive,
+      axis: 'pct',
+      valueOf: (r) => (r.sendCh > 0 ? r.enrolled / r.sendCh : null),
+      display: (v) => (v == null ? '—' : `${(v * 100).toFixed(0)}%`),
+      formula: 'Enrolled ÷ Send CH',
+      calc: (r) =>
+        `${numf(r.enrolled)} ÷ ${numf(r.sendCh)} = ${r.sendCh > 0 ? `${((r.enrolled / r.sendCh) * 100).toFixed(0)}%` : '—'}`,
+    },
+  ];
+  return <YearLineChart byYear={byYear} series={series} />;
+}
+
+function PercentAdmitTrendChart({ byYear }: { byYear: CampaignYearRow[] }) {
+  const palette = useChartPalette();
+  // % Admit is computed over plan-bearing programs only, so partial-plan years
+  // are valid and plotted. Only years where NO program has a plan are dropped
+  // (uncomputable). Programs without a plan are excluded from the calc, not the
+  // whole year — so the rest of the data survives.
+  const omitted = byYear.filter((r) => planState(r) === 'missing').map((r) => r.acadYearBE);
+  const series: YearSeries[] = [
+    {
+      key: 'admit',
+      label: '% Admit',
+      color: palette.series[1] ?? palette.positive,
+      axis: 'pct',
+      valueOf: (r) => r.percentAdmit,
+      display: (v) => pct(v),
+      formula: 'Enrolled (plan-bearing) ÷ Plan',
+      calc: (r) =>
+        planState(r) === 'missing'
+          ? 'no plan data — not plotted'
+          : `${numf(r.enrolledWithPlan)} ÷ ${numf(r.plan)} = ${pct(r.percentAdmit)}` +
+            (planState(r) === 'partial' ? ` · covers ${r.planProgramsWithPlan}/${r.planProgramsTotal} programs` : ''),
+    },
+  ];
   return (
-    <g transform={`translate(${x}, 0)`}>
-      <line x1={0} y1={4} x2={14} y2={4} stroke={color} strokeWidth={2} strokeDasharray={dashed ? '4 3' : undefined} />
-      <text x={18} y={7} className="text-[10px]" fill="currentColor">{label}</text>
-    </g>
+    <div>
+      <YearLineChart byYear={byYear} series={series} pctReference={{ value: 1, label: 'Plan (100%)' }} />
+      {omitted.length > 0 && (
+        <p className="mt-2 text-[11px] text-text-tertiary">
+          Omitted — no plan data: {omitted.map((y) => `BE ${y}`).join(', ')}.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -776,6 +1100,13 @@ function CampaignDrill({ rows, zeroTrackCount }: { rows: CampaignProgramRow[]; z
           </tbody>
         </table>
       </div>
+      {rows.some((r) => planState(r) !== 'complete') && (
+        <p className="border-t border-border-subtle px-4 py-2 text-[11px] text-text-tertiary">
+          <span aria-hidden>*</span> % Admit covers only the programs that have a plan — programs without one are
+          excluded from both the numerator and the denominator (shown as “—” when none have a plan). Hover the
+          cell for the exact coverage.
+        </p>
+      )}
     </div>
   );
 }
@@ -812,9 +1143,13 @@ function ProgramGroup({ program: p, sort }: { program: CampaignProgramRow; sort:
           <div className="flex items-center gap-1">
             {open ? <ChevronUp className="h-3 w-3 text-text-tertiary" /> : <ChevronDown className="h-3 w-3 text-text-tertiary" />}
             <div>
-              <div className={`text-xs font-semibold ${isUnmappedProgram(p.programId) ? 'text-text-tertiary italic' : ''}`} lang="th">
+              <div className={`text-xs font-semibold ${isUnmappedProgram(p.programId) && !p.isNewProgram ? 'text-text-tertiary italic' : ''}`} lang="th">
                 {p.programNameTh}
-                {p.mappingMethod === 'llm' && <span className="ml-1 rounded bg-warning/15 px-1 text-[9px] font-normal text-warning">name-matched</span>}
+                {p.isNewProgram && (
+                  <span className="ml-1 rounded bg-info/15 px-1 text-[9px] font-normal text-info" title="Recruiting now; not yet in the curriculum catalog (no deep-dive yet)">
+                    New program
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-text-tertiary">{p.subProgramCount} sub-program{p.subProgramCount === 1 ? '' : 's'}</div>
             </div>
