@@ -26,6 +26,20 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-04',
+    version: 'v1.5.2 · Recruitment charts + correct % Admit; profile summary fix',
+    title:
+      'Year-over-year recruitment charts, plan-accurate % Admit, cleaner program mapping, and a fix for the profile expertise summary',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Recruitment dashboard: the year-over-year demand chart is now interactive — click a line in the legend to show/hide it, and hover any year for a card with each metric’s value, formula, and worked calculation. Overlapping lines/legend fixed; gaps in the data now break the line instead of bridging across.',
+      'New “% Admit — year-over-year” trend chart (with a Plan = 100% reference line), shown beside the by-TCAS-round histogram; the round breakdown table now spans the full panel width.',
+      '% Admit is now plan-accurate. It divides only over programs that actually have a plan, so an aggregate that mixes planned and not-yet-planned programs is no longer overstated. Tables and KPIs flag partial coverage (“covers X of Y programs”), and the % Admit trend omits only years with no plan data at all.',
+      'Program ↔ sub-program mapping corrected: a per-program mapping now takes precedence over a reused curriculum code, fixing 28 programs that were wrongly folded together (e.g. High-Speed Rail Engineering now stands alone, mapped to its own curriculum). Brand-new programs not yet in the catalogue (e.g. Semiconductor Engineering) show as their own “New program” instead of being folded under an unrelated one.',
+      'Fixed the /profile expertise summary, which on production fell back to a placeholder (“AI service is not yet configured”). Root cause was an outdated AI SDK that couldn’t disable model “thinking”, so reasoning-heavy profiles overran the response and produced no result. The AI SDK was upgraded so thinking control works across every AI feature (also makes the AI Analyst and curriculum digests more reliable).',
+    ],
+  },
+  {
     date: '2026-06-02',
     version: 'v1.5.1 · Evaluation refresh reliability',
     title:
