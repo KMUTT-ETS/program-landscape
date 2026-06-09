@@ -262,6 +262,26 @@ export interface ClassGpaByProgramResponse {
   yearsObserved: number[];
 }
 
+// Faculty × year GPA trend (university vs each faculty).
+export interface FacultyGpaTrendCell {
+  averageClassGpa: number | null;
+  gradedCount: number;
+  classCount: number;
+}
+
+export interface FacultyGpaTrendRow {
+  facultyName: string;
+  byYear: Record<string, FacultyGpaTrendCell>;
+  overall: FacultyGpaTrendCell;
+}
+
+export interface FacultyGpaTrendResponse {
+  yearsObserved: number[];
+  university: Record<string, FacultyGpaTrendCell>;
+  universityOverall: FacultyGpaTrendCell;
+  faculties: FacultyGpaTrendRow[];
+}
+
 export interface ClassGpaCourseRow {
   courseCode: string;
   courseNameTh: string | null;

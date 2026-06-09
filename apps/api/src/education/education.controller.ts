@@ -561,6 +561,19 @@ export class EducationController {
     return this.education.classGpaTrend(filters);
   }
 
+  @Get('performance/class-gpa/faculty-trend')
+  @Authorized('institution:read:dashboard')
+  async classGpaFacultyTrend(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const filters = await this.resolveClassGpaScope(user, q);
+    if (filters === null)
+      return this.education.classGpaFacultyTrend({ ...q, facultyName: ['__none__'] });
+    return this.education.classGpaFacultyTrend(filters);
+  }
+
   @Get('performance/class-gpa/by-program')
   @Authorized('institution:read:dashboard')
   async classGpaByProgram(

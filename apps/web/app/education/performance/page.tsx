@@ -9,6 +9,7 @@ import type {
   ClassGpaByProgramResponse,
   ClassGpaOverall,
   ClassGpaTrendRow,
+  FacultyGpaTrendResponse,
   EntryScoreResponse,
   PerformanceByLocationResponse,
   PerformanceByProgramResponse,
@@ -81,7 +82,7 @@ export default async function PerformancePage({
   classGpaTableQs.append('semester', '2');
   const classGpaTableQsString = `?${classGpaTableQs}`;
 
-  const [byProgram, byLocation, entryScores, classGpaOverall, classGpaTrend, classGpaByProgram] =
+  const [byProgram, byLocation, entryScores, classGpaOverall, classGpaTrend, classGpaByProgram, facultyGpaTrend] =
     await Promise.all([
       apiFetch<PerformanceByProgramResponse>(
         `/education/performance/by-program${qsString}`,
@@ -98,6 +99,9 @@ export default async function PerformancePage({
       ).catch(() => null),
       apiFetch<ClassGpaByProgramResponse>(
         `/education/performance/class-gpa/by-program${classGpaTableQsString}`,
+      ).catch(() => null),
+      apiFetch<FacultyGpaTrendResponse>(
+        `/education/performance/class-gpa/faculty-trend${classGpaOverallQsString}`,
       ).catch(() => null),
     ]);
 
@@ -117,6 +121,7 @@ export default async function PerformancePage({
           classGpaOverall={classGpaOverall}
           classGpaTrend={classGpaTrend}
           classGpaByProgram={classGpaByProgram}
+          facultyGpaTrend={facultyGpaTrend}
           initialFilters={{ facultyName, programLevel, programName, region }}
         />
       ) : (

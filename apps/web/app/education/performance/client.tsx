@@ -8,6 +8,7 @@ import type {
   ClassGpaByProgramResponse,
   ClassGpaOverall,
   ClassGpaTrendRow,
+  FacultyGpaTrendResponse,
   EntryScoreResponse,
   PerformanceByLocationResponse,
   PerformanceByProgramResponse,
@@ -16,6 +17,7 @@ import type {
 } from '../types';
 import { MultiSelectField } from '../multi-select';
 import { ClassGpaSection } from './class-gpa-section';
+import { FacultyGpaTrendSection } from './faculty-gpa-trend';
 
 interface Props {
   overall: PerformanceOverall;
@@ -25,6 +27,7 @@ interface Props {
   classGpaOverall: ClassGpaOverall | null;
   classGpaTrend: ClassGpaTrendRow[] | null;
   classGpaByProgram: ClassGpaByProgramResponse | null;
+  facultyGpaTrend: FacultyGpaTrendResponse | null;
   initialFilters: {
     facultyName: string[];
     programLevel: string[];
@@ -63,6 +66,7 @@ export function PerformanceClient({
   classGpaOverall,
   classGpaTrend,
   classGpaByProgram,
+  facultyGpaTrend,
   initialFilters,
 }: Props) {
   const router = useRouter();
@@ -268,6 +272,11 @@ export function PerformanceClient({
             this once the score view is reachable.
           </p>
         </Card>
+      )}
+
+      {/* ── University-vs-faculty GPA trend ────────────────────────── */}
+      {facultyGpaTrend && facultyGpaTrend.faculties.length > 0 && (
+        <FacultyGpaTrendSection data={facultyGpaTrend} />
       )}
 
       {/* ── Class GPA section (v1.2.9) ─────────────────────────────── */}

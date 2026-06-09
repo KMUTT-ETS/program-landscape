@@ -414,6 +414,34 @@ export interface ClassGpaCoursesResponse {
   yearsObserved: number[];
 }
 
+// ── Faculty × year GPA trend ──────────────────────────────────────────────
+// Credit-weighted class GPA grouped by (offering faculty × academic year) —
+// straight off class_offerings.faculty_id, NO course→program mapping. Drives
+// the university-vs-faculty GPA trend chart on /education/performance.
+export interface FacultyGpaTrendCell {
+  averageClassGpa: number | null;
+  gradedCount: number;
+  classCount: number;
+}
+
+export interface FacultyGpaTrendRow {
+  facultyName: string;
+  /** Keys = ACADYEAR_BE. Years with no graded data are omitted (UI gaps). */
+  byYear: Record<string, FacultyGpaTrendCell>;
+  /** Credit-weighted GPA across all years for this faculty. */
+  overall: FacultyGpaTrendCell;
+}
+
+export interface FacultyGpaTrendResponse {
+  /** Sorted ascending — the chart's x-axis. */
+  yearsObserved: number[];
+  /** University-wide credit-weighted GPA per year (all faculties combined). */
+  university: Record<string, FacultyGpaTrendCell>;
+  universityOverall: FacultyGpaTrendCell;
+  /** One line per faculty, sorted by faculty name. */
+  faculties: FacultyGpaTrendRow[];
+}
+
 /** Per-section drill — what the UI shows when an analyst clicks a program
  *  in the class-GPA breakdown. Limited to a single (program × year × sem)
  *  cell so the payload stays small (a program rarely has > 50 sections
@@ -1551,6 +1579,132 @@ export class EducationService {
    *  contributes to all N — accurate for a "what's the average GPA my
    *  curriculum's classes produce" reading. Sort defaults to averageClassGpa
    *  desc with NULLs sinking to the bottom. */
+  /** Credit-weighted class GPA per (offering faculty × academic year), plus a
+   *  university-wide rollup per year. Reads class_offerings directly via its
+   *  faculty_id — no course→program mapping. */
+  async classGpaFacultyTrend(filters: ClassGpaFilters): Promise<FacultyGpaTrendResponse> {
+    const sqlConditions: Prisma.Sql[] = [];
+    // Scope: faculty grant → faculty name (resolved or registrar's); program
+    // grant → course codes. Mixed scope → OR. Most callers (university /
+    // faculty execs) pass no scope and see every faculty.
+    const scopeConds: Prisma.Sql[] = [];
+    if (filters.facultyName && filters.facultyName.length > 0)
+      scopeConds.push(
+        Prisma.sql`(f."name_th" IN (${Prisma.join(filters.facultyName)}) OR co."registry_faculty_name" IN (${Prisma.join(filters.facultyName)}))`,
+      );
+    if (filters.courseCodes && filters.courseCodes.length > 0)
+      scopeConds.push(Prisma.sql`co."course_code" IN (${Prisma.join(filters.courseCodes)})`);
+    if (scopeConds.length > 0)
+      sqlConditions.push(Prisma.sql`(${Prisma.join(scopeConds, ' OR ')})`);
+    if (filters.levelName && filters.levelName.length > 0)
+      sqlConditions.push(Prisma.sql`co."level_name" IN (${Prisma.join(filters.levelName)})`);
+    if (filters.acadYearBE && filters.acadYearBE.length > 0)
+      sqlConditions.push(Prisma.sql`co."acad_year_be" IN (${Prisma.join(filters.acadYearBE)})`);
+    if (filters.semester && filters.semester.length > 0)
+      sqlConditions.push(Prisma.sql`co."semester" IN (${Prisma.join(filters.semester)})`);
+    if (filters.geOnly) sqlConditions.push(Prisma.sql`co."is_general_education" = TRUE`);
+    const where =
+      sqlConditions.length > 0
+        ? Prisma.sql`WHERE ${Prisma.join(sqlConditions, ' AND ')} AND co."graded_count" > 0`
+        : Prisma.sql`WHERE co."graded_count" > 0`;
+
+    // Group by (faculty × year). Faculty identity = resolved Faculty.name_th
+    // when the registrar's name matched a seeded faculty, else the registrar's
+    // raw name — so every graded class lands under exactly one faculty line and
+    // the per-year faculty cells sum cleanly to the university total.
+    const rows = await prisma.$queryRaw<
+      Array<{
+        faculty_name: string;
+        acad_year_be: number;
+        class_count: bigint;
+        graded_count: bigint;
+        weighted_numer: number | null;
+        weighted_denom: number | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        COALESCE(f."name_th", co."registry_faculty_name") AS faculty_name,
+        co."acad_year_be"                                 AS acad_year_be,
+        COUNT(co."id")::bigint                            AS class_count,
+        COALESCE(SUM(co."graded_count"), 0)::bigint       AS graded_count,
+        SUM(co."class_gpa" * co."graded_count" * COALESCE(co."credit_total", 1)) AS weighted_numer,
+        SUM(co."graded_count" * COALESCE(co."credit_total", 1))::float           AS weighted_denom
+      FROM "class_offerings" co
+      LEFT JOIN "faculties" f ON f."id" = co."faculty_id"
+      ${where}
+      GROUP BY COALESCE(f."name_th", co."registry_faculty_name"), co."acad_year_be"
+    `);
+
+    // The SQL already grouped by (faculty × year), so each row is one cell.
+    interface RawCell { numer: number; denom: number; gradedCount: number; classCount: number; }
+    const facData = new Map<string, Map<number, RawCell>>();
+    const uniGradedByYear = new Map<number, number>();
+    for (const r of rows) {
+      if (!r.faculty_name) continue;
+      const gradedCount = Number(r.graded_count);
+      const cell: RawCell = {
+        numer: r.weighted_numer ?? 0,
+        denom: r.weighted_denom ?? 0,
+        gradedCount,
+        classCount: Number(r.class_count),
+      };
+      const ym = facData.get(r.faculty_name) ?? new Map<number, RawCell>();
+      ym.set(r.acad_year_be, cell);
+      facData.set(r.faculty_name, ym);
+      uniGradedByYear.set(r.acad_year_be, (uniGradedByYear.get(r.acad_year_be) ?? 0) + gradedCount);
+    }
+
+    // Drop in-progress / partial academic years. A complete year has graded
+    // data for ~all of its classes; the current year in progress carries only
+    // a handful of fast-graded classes (often a single section), which yields
+    // an unrepresentative GPA spike. Keep a year only when its university-wide
+    // graded count is ≥ 25% of the busiest year — that excludes the partial
+    // current year without ever dropping a genuinely-complete past year.
+    const maxUniGraded = Math.max(0, ...uniGradedByYear.values());
+    const keptYears = [...uniGradedByYear.keys()]
+      .filter((y) => (uniGradedByYear.get(y) ?? 0) >= 0.25 * maxUniGraded)
+      .sort((a, b) => a - b);
+    const keptSet = new Set(keptYears);
+
+    const toCell = (c: RawCell): FacultyGpaTrendCell => ({
+      averageClassGpa: c.denom > 0 ? c.numer / c.denom : null,
+      gradedCount: c.gradedCount,
+      classCount: c.classCount,
+    });
+
+    const faculties: FacultyGpaTrendRow[] = [];
+    const uni = new Map<number, RawCell>();
+    for (const [facultyName, ym] of facData) {
+      const byYear: Record<string, FacultyGpaTrendCell> = {};
+      const o: RawCell = { numer: 0, denom: 0, gradedCount: 0, classCount: 0 };
+      for (const [year, c] of ym) {
+        if (!keptSet.has(year)) continue;
+        byYear[String(year)] = toCell(c);
+        o.numer += c.numer; o.denom += c.denom; o.gradedCount += c.gradedCount; o.classCount += c.classCount;
+        const u = uni.get(year) ?? { numer: 0, denom: 0, gradedCount: 0, classCount: 0 };
+        u.numer += c.numer; u.denom += c.denom; u.gradedCount += c.gradedCount; u.classCount += c.classCount;
+        uni.set(year, u);
+      }
+      if (Object.keys(byYear).length === 0) continue;
+      faculties.push({ facultyName, byYear, overall: toCell(o) });
+    }
+    faculties.sort((a, b) => a.facultyName.localeCompare(b.facultyName, 'th'));
+
+    const university: Record<string, FacultyGpaTrendCell> = {};
+    const uOverall: RawCell = { numer: 0, denom: 0, gradedCount: 0, classCount: 0 };
+    for (const [year, u] of uni) {
+      university[String(year)] = toCell(u);
+      uOverall.numer += u.numer; uOverall.denom += u.denom; uOverall.gradedCount += u.gradedCount; uOverall.classCount += u.classCount;
+    }
+
+    return {
+      yearsObserved: keptYears,
+      university,
+      universityOverall: toCell(uOverall),
+      faculties,
+    };
+  }
+
   async classGpaByProgram(filters: ClassGpaFilters): Promise<ClassGpaByProgramResponse> {
     // Raw query — joining ClassOffering ↔ ProgramCourse on courseCode +
     // ProgramCourse ↔ Program is the natural shape. The Prisma ORM
