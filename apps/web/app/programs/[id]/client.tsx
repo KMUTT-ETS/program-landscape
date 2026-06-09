@@ -136,6 +136,7 @@ const SECTIONS = [
 ];
 
 export function DeepDiveClient(props: Props) {
+  const router = useRouter();
   const [activeSection, setActiveSection] = React.useState('header');
   const [narrative, setNarrative] = React.useState<string | null>(null);
   const [narrativeBusy, setNarrativeBusy] = React.useState(false);
@@ -162,8 +163,14 @@ export function DeepDiveClient(props: Props) {
     const r = await regenerateNarrativeAction(props.programId, 'thai-narrative');
     setNarrativeBusy(false);
     if (r.ok) {
-      setNarrative(r.text);
+      // The narrative is regenerated through the same program-strategic-
+      // narrative prompt the pipeline uses and persisted server-side, so
+      // refresh to re-render the freshly-stored markdown (rather than the
+      // plain-text live override). revalidatePath already ran in the action.
+      setNarrative(null);
       setNarrativeAiId(r.aiInferenceId);
+      toast.success('Strategic narrative regenerated');
+      router.refresh();
     } else {
       toast.error(r.message);
     }

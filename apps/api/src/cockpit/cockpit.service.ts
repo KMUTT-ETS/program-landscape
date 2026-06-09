@@ -6,6 +6,7 @@ import {
   computeHealthScores,
   currentlyEnrolledStudents,
   queryMetricByScope,
+  generateProgramStrategicNarrative,
   HEALTH_SCORE_VERSION,
   realDataSql,
   type HealthScoreRow,
@@ -13,6 +14,7 @@ import {
 import {
   ApiError,
   createAiService,
+  PROGRAM_STRATEGIC_NARRATIVE_VERSION,
   type AiProviderId,
   type AiService,
   type ScopeLevel,
@@ -263,6 +265,55 @@ export class CockpitService implements OnModuleInit {
       tokens: resp.tokens,
       cost: resp.cost,
       methodologyVersion: HEALTH_SCORE_VERSION,
+    };
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // Program strategic narrative — regenerates via the SAME prompt the
+  // per-program pipeline uses (program-strategic-narrative), persisting to
+  // the programStrategicNarrative table so the deep-dive's pre-computed
+  // view picks it up. The deep-dive "Regenerate" button routes here.
+  //
+  // This is deliberately NOT generateBrief() — that is the cockpit Council
+  // brief, a different prompt. Routing regenerate through generateBrief was
+  // the bug that produced "the result seems to come from a different prompt".
+  // ────────────────────────────────────────────────────────────────────
+  async regenerateStrategicNarrative(programId: string, userId: string) {
+    const hasProvider = Boolean(
+      this.config.get<string>('GOOGLE_AI_API_KEY') ||
+        this.config.get<string>('ANTHROPIC_API_KEY'),
+    );
+    if (!hasProvider) {
+      throw new ApiError(
+        'AI_PROVIDER_ERROR',
+        'No AI provider configured — set GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY to generate the strategic narrative.',
+      );
+    }
+
+    const outcome = await generateProgramStrategicNarrative({
+      programId,
+      ai: this.ai,
+      triggeredByUserId: userId,
+    });
+
+    if (outcome.status === 'SKIPPED') {
+      throw new ApiError('NOT_FOUND', outcome.reason);
+    }
+    if (outcome.status !== 'SUCCEEDED') {
+      throw new ApiError(
+        'AI_PROVIDER_ERROR',
+        `Strategic narrative generation failed: ${outcome.reason}`,
+      );
+    }
+
+    return {
+      text: outcome.contentMarkdown,
+      model: 'program-strategic-narrative',
+      confidence: outcome.confidence,
+      aiInferenceId: outcome.aiInferenceId,
+      tokens: { input: outcome.tokensInput, output: outcome.tokensOutput },
+      cost: { usd: outcome.costUsd, model: 'program-strategic-narrative' },
+      methodologyVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
     };
   }
 

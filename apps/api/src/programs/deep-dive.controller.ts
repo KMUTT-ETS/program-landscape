@@ -328,10 +328,15 @@ export class DeepDiveController {
   }
 
   // ──────────────────────────────────────────────────────────────────
-  // POST /programs/:id/narrative — regenerate the AI narrative for the
-  // program. Reuses CockpitService.generateBrief with a per-program
-  // scope; that lives there because it already bundles the AI call +
-  // AiInference recorder wiring.
+  // POST /programs/:id/narrative — regenerate the program's strategic
+  // narrative. Routes through CockpitService.regenerateStrategicNarrative,
+  // which runs the SAME program-strategic-narrative prompt the per-program
+  // pipeline uses and persists to programStrategicNarrative — so the
+  // deep-dive's pre-computed view picks up the regenerated content.
+  //
+  // (Previously this called generateBrief — the cockpit Council brief, a
+  // DIFFERENT prompt. That mismatch made Regenerate produce output that
+  // "seemed to come from a different prompt".)
   // ──────────────────────────────────────────────────────────────────
   @Post('narrative')
   @Authorized('programs:read:all')
@@ -339,16 +344,10 @@ export class DeepDiveController {
   async regenerateNarrative(
     @AuthSession() user: SessionUser,
     @Param('programId') programId: string,
-    @Body(new ZodValidationPipe(NarrativeBodySchema)) body: NarrativeBody,
+    @Body(new ZodValidationPipe(NarrativeBodySchema)) _body: NarrativeBody,
   ) {
     await assertProgramAccessible(programId, user);
-    const r = await this.cockpit.generateBrief({
-      scope: 'program',
-      scopeId: programId,
-      style: body.style,
-      userId: user.userId,
-    });
-    return r;
+    return this.cockpit.regenerateStrategicNarrative(programId, user.userId);
   }
 
   // ──────────────────────────────────────────────────────────────────
