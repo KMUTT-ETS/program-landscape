@@ -26,6 +26,17 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-09',
+    version: 'v1.5.3 · Faculty GPA trend; deep-dive narrative regenerate fix',
+    title:
+      'A new university-vs-faculty GPA trend chart, and a fix so the deep-dive “Regenerate” button rewrites the program narrative with the correct prompt',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New “Average GPA by year — University vs faculty” chart on Student performance: one line per faculty against a distinguished university-overall line, with academic year on the x-axis. It is built straight from the registrar’s graded class offerings (credit-weighted, no course-to-program mapping needed). Click any name in the legend to show or hide its line, and hover a year to compare every visible faculty at once. The current in-progress academic year is excluded until enough of its classes are graded to be representative.',
+      'Fixed the program deep-dive “Regenerate” button on the Strategic narrative. It now reruns the exact same Council-brief prompt the per-program pipeline uses and saves the result — previously it silently ran a different prompt (the portfolio cockpit brief), so regenerating replaced the program’s narrative with a differently-styled write-up that didn’t match the one produced during processing.',
+    ],
+  },
+  {
     date: '2026-06-04',
     version: 'v1.5.2 · Recruitment charts + correct % Admit; profile summary fix',
     title:
