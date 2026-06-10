@@ -35,6 +35,7 @@ export interface PortfolioRiskRow {
   programCode: string;
   programNameTh: string;
   programNameEn: string;
+  curriculumYearBE: number | null;
   facultyId: string;
   facultyNameTh: string;
   facultyNameEn: string;

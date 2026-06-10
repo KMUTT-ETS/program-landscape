@@ -93,6 +93,7 @@ export interface DeepDiveOverview {
     level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
     status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
     yearEstablished: number | null;
+    curriculumYearBE: number | null;
     faculty: { id: string; nameEn: string; nameTh: string };
     department: { id: string; nameEn: string; nameTh: string } | null;
   };

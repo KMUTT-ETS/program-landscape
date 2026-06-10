@@ -7,22 +7,39 @@ import { Layers, Play, RefreshCw, Settings2 } from 'lucide-react';
 
 // Buttons on /admin/data-setup → "Full program documents" card.
 // Two run modes:
-//   • Full run    — all 6 phases on every canonical program (or just the
+//   • Full run    — all 9 phases on every canonical program (or just the
 //                   not-yet-narrated subset via Resume).
 //   • Partial run — pick which phases to run; expands a checkbox panel.
 //
-// Phase 6 (strategic narrative) is the "done" marker the pipeline
-// status uses — Resume mode skips programs that already have one.
+// Phase 7 (strategic narrative) is the "done" marker the pipeline status
+// uses — Resume mode skips programs that already have one.
+// Phase 5 is the AI benchmarking step (peer selection + peer review).
+//
+// Keep this list in sync with the 9 phases in
+// apps/ingestion/src/scripts/programs-pipeline.ts (+ ProgramPipelinePhase
+// in apps/api/src/ai-jobs/ai-jobs-queue.service.ts).
 
-type Phase = 'phase1' | 'phase2' | 'phase3' | 'phase4' | 'phase5' | 'phase6';
+type Phase =
+  | 'phase1'
+  | 'phase2'
+  | 'phase2b'
+  | 'phase3'
+  | 'phase4'
+  | 'phase5'
+  | 'phase6'
+  | 'phase7'
+  | 'phase8';
 
 const PHASES: Array<{ id: Phase; label: string; cost: string; hint: string }> = [
-  { id: 'phase1', label: 'PDF extraction', cost: '~$0.04', hint: 'digest + faculty + skills (parallel, Flash)' },
+  { id: 'phase1', label: 'PDF extraction', cost: '~$0.04', hint: 'digest + faculty + skills + pedagogy (parallel)' },
   { id: 'phase2', label: 'Approve + materialise', cost: 'free', hint: 'DB-only — writes ProgramSkill rows' },
+  { id: 'phase2b', label: 'Course-code extraction', cost: '~$0.02', hint: 'focused รายวิชา slice (parallel with phase 1)' },
   { id: 'phase3', label: 'Careers + demand match', cost: '~$0.02', hint: 'sequential, Flash' },
   { id: 'phase4', label: 'Oracle / MSSQL linkage', cost: 'free', hint: 'cohorts + alumni + financials (parallel)' },
-  { id: 'phase5', label: 'Peer comparison', cost: '~$0.20', hint: 'select + review (Pro reasoning)' },
-  { id: 'phase6', label: 'Strategic narrative', cost: '~$0.30', hint: 'Pro thinking — runs LAST, depends on 1-5' },
+  { id: 'phase5', label: 'AI benchmarking (peer comparison)', cost: '~$0.20', hint: 'peer select + peer review (Pro reasoning)' },
+  { id: 'phase6', label: 'AI readiness', cost: '~$0.05', hint: 'AI-readiness scorer (Pro) — runs before narrative' },
+  { id: 'phase7', label: 'Strategic narrative', cost: '~$0.30', hint: 'Pro thinking — runs LAST, depends on 1-6' },
+  { id: 'phase8', label: 'Risk analysis', cost: '~$0.10', hint: 'deterministic + Pro narrative — depends on 4-5' },
 ];
 
 export function ProgramsPipelineLauncher() {
@@ -79,8 +96,8 @@ export function ProgramsPipelineLauncher() {
     submit(
       'Full run',
       { resume: false },
-      'Run the FULL 6-phase pipeline on all 297 canonical programs?\n\n' +
-        'Each program takes ~5-10 min and ~$0.50 in LLM cost. Total ≈ $150 + 25h of worker time.\n\n' +
+      'Run the FULL 9-phase pipeline (incl. AI benchmarking + AI readiness) on all 297 canonical programs?\n\n' +
+        'Each program takes ~5-10 min and ~$0.70 in LLM cost. Total ≈ $210 + 30h of worker time.\n\n' +
         'For an incremental run that skips already-narrated programs, use "Resume" instead.',
     );
 
@@ -107,7 +124,8 @@ export function ProgramsPipelineLauncher() {
       { phases, resume: false },
       `Run ${phases.length} phase${phases.length === 1 ? '' : 's'} (${phases.join(', ')}) ` +
         `on all 297 canonical programs?\n\nNote: phases that depend on prior phases ` +
-        `will fail if the prior phase hasn't run yet (e.g. phase6 needs 1-5).`,
+        `will fail if the prior phase hasn't run yet (e.g. phase7 narrative needs 1-6; ` +
+        `phase5 AI benchmarking needs phase 2's materialised skills).`,
     );
   };
 

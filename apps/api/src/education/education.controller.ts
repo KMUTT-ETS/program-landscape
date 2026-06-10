@@ -15,7 +15,11 @@ import {
   clampFacultyNameFilter,
   resolveOfferingScope,
 } from '../common';
-import { EducationService, type ClassGpaFilters } from './education.service';
+import {
+  EducationService,
+  type ClassGpaFilters,
+  type FacultyGpaTrendResponse,
+} from './education.service';
 import { RecruitmentService } from './recruitment.service';
 import {
   AdmissionCampaignsService,
@@ -29,6 +33,15 @@ import {
   REFRESHABLE_CUBES,
   type RefreshableCube,
 } from './education-refresh.service';
+
+// Empty payload for the university-vs-faculty GPA trend when the caller is
+// not university-wide. faculties.length === 0 → the client hides the section.
+const EMPTY_FACULTY_GPA_TREND: FacultyGpaTrendResponse = {
+  yearsObserved: [],
+  university: {},
+  universityOverall: { averageClassGpa: null, gradedCount: 0, classCount: 0 },
+  faculties: [],
+};
 
 const RecruitmentQuerySchema = z.object({
   entryYearBE: z.coerce.number().int().min(2400).max(2700).optional(),
@@ -566,12 +579,23 @@ export class EducationController {
   async classGpaFacultyTrend(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ClassGpaQuerySchema)) q: ClassGpaQuery,
-  ) {
+  ): Promise<FacultyGpaTrendResponse> {
     await assertCanSeeFacultyDashboards(user);
-    const filters = await this.resolveClassGpaScope(user, q);
-    if (filters === null)
-      return this.education.classGpaFacultyTrend({ ...q, facultyName: ['__none__'] });
-    return this.education.classGpaFacultyTrend(filters);
+    // The "University" line is ALWAYS the true all-faculty benchmark — it
+    // never gets scope-clamped (that's what makes the comparison meaningful).
+    // The faculty LINES shown are clamped to the caller's scope:
+    //   university-wide → all faculties (or the page's facultyName filter)
+    //   FACULTY_USER    → their faculty
+    //   PROGRAM_USER    → their program's faculty (rolled up by name, NOT the
+    //                     course-code clamp the other class-GPA vizzes use —
+    //                     this viz is faculty-grain, so a program user sees
+    //                     their whole faculty's line against the university).
+    // No grant at all → empty (the client hides the section).
+    const clamped = await clampFacultyNameFilter(q, user);
+    if (clamped === null) return EMPTY_FACULTY_GPA_TREND;
+    const visibleFacultyNames =
+      clamped.facultyName.length > 0 ? clamped.facultyName : undefined;
+    return this.education.classGpaFacultyTrend(q, visibleFacultyNames);
   }
 
   @Get('performance/class-gpa/by-program')

@@ -108,6 +108,9 @@ export default async function RisksPage({
                           </Link>
                           <div className="text-xs text-text-tertiary">
                             <span className="font-mono">{r.programCode}</span> · {r.nameTh}
+                            {r.curriculumYearBE != null && (
+                              <span title="Curriculum revision year"> · Rev. BE {r.curriculumYearBE}</span>
+                            )}
                           </div>
                         </td>
                         <td className="py-2 pr-3 text-right font-mono text-xs">{r.currentGraduates}</td>

@@ -1582,20 +1582,18 @@ export class EducationService {
   /** Credit-weighted class GPA per (offering faculty × academic year), plus a
    *  university-wide rollup per year. Reads class_offerings directly via its
    *  faculty_id — no course→program mapping. */
-  async classGpaFacultyTrend(filters: ClassGpaFilters): Promise<FacultyGpaTrendResponse> {
+  async classGpaFacultyTrend(
+    filters: ClassGpaFilters,
+    visibleFacultyNames?: string[],
+  ): Promise<FacultyGpaTrendResponse> {
+    // The aggregation here is deliberately NOT scope-clamped by faculty/course
+    // — the "University" line must always be the true all-faculty benchmark.
+    // Only non-scope filters (level / year / semester / GE) narrow the window.
+    // `visibleFacultyNames` then restricts which faculty LINES are returned,
+    // leaving the university benchmark computed over every faculty. So a
+    // FACULTY_USER / PROGRAM_USER sees their faculty against the real
+    // university average, not against a clamped subset of itself.
     const sqlConditions: Prisma.Sql[] = [];
-    // Scope: faculty grant → faculty name (resolved or registrar's); program
-    // grant → course codes. Mixed scope → OR. Most callers (university /
-    // faculty execs) pass no scope and see every faculty.
-    const scopeConds: Prisma.Sql[] = [];
-    if (filters.facultyName && filters.facultyName.length > 0)
-      scopeConds.push(
-        Prisma.sql`(f."name_th" IN (${Prisma.join(filters.facultyName)}) OR co."registry_faculty_name" IN (${Prisma.join(filters.facultyName)}))`,
-      );
-    if (filters.courseCodes && filters.courseCodes.length > 0)
-      scopeConds.push(Prisma.sql`co."course_code" IN (${Prisma.join(filters.courseCodes)})`);
-    if (scopeConds.length > 0)
-      sqlConditions.push(Prisma.sql`(${Prisma.join(scopeConds, ' OR ')})`);
     if (filters.levelName && filters.levelName.length > 0)
       sqlConditions.push(Prisma.sql`co."level_name" IN (${Prisma.join(filters.levelName)})`);
     if (filters.acadYearBE && filters.acadYearBE.length > 0)
@@ -1690,6 +1688,8 @@ export class EducationService {
     }
     faculties.sort((a, b) => a.facultyName.localeCompare(b.facultyName, 'th'));
 
+    // University benchmark — computed over EVERY faculty (uni was summed from
+    // the unclamped aggregation above), regardless of visibleFacultyNames.
     const university: Record<string, FacultyGpaTrendCell> = {};
     const uOverall: RawCell = { numer: 0, denom: 0, gradedCount: 0, classCount: 0 };
     for (const [year, u] of uni) {
@@ -1697,11 +1697,18 @@ export class EducationService {
       uOverall.numer += u.numer; uOverall.denom += u.denom; uOverall.gradedCount += u.gradedCount; uOverall.classCount += u.classCount;
     }
 
+    // Restrict the returned faculty LINES to the caller's scope (the
+    // university line stays full). undefined → show every faculty.
+    const visibleSet = visibleFacultyNames ? new Set(visibleFacultyNames) : null;
+    const outFaculties = visibleSet
+      ? faculties.filter((f) => visibleSet.has(f.facultyName))
+      : faculties;
+
     return {
       yearsObserved: keptYears,
       university,
       universityOverall: toCell(uOverall),
-      faculties,
+      faculties: outFaculties,
     };
   }
 

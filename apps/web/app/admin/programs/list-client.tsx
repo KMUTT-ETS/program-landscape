@@ -134,7 +134,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   phase2b: 'Phase 2b · Courses-extract (focused course-code list)',
   phase3: 'Phase 3 · Careers + demand match',
   phase4: 'Phase 4 · Oracle / MSSQL data linkage',
-  phase5: 'Phase 5 · Peer select + peer review',
+  phase5: 'Phase 5 · AI benchmarking (peer select + review)',
   phase6: 'Phase 6 · AI readiness',
   phase7: 'Phase 7 · Strategic narrative',
   phase8: 'Phase 8 · Risk analysis',
@@ -158,7 +158,7 @@ const PIPELINE_PRESETS: PipelinePreset[] = [
     key: 'ai-only',
     label: 'AI-only refresh',
     description:
-      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · peers · AI readiness · narrative · risk. Skips Oracle/MSSQL.',
+      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · AI benchmarking · AI readiness · narrative · risk. Skips Oracle/MSSQL.',
     phases: ['phase1', 'phase2', 'phase2b', 'phase3', 'phase5', 'phase6', 'phase7', 'phase8'],
   },
   {
@@ -696,7 +696,7 @@ function PipelinePickerDialog({
             * preview otherwise so the operator sees what will run. */}
           <div className="flex flex-col gap-2">
             <Label>
-              Phases ({effectivePhases === null ? 'all 8' : effectivePhases.length})
+              Phases ({effectivePhases === null ? `all ${ALL_PHASES.length}` : effectivePhases.length})
               {!isCustom && <span className="ml-2 text-xs text-text-tertiary">(preview — pick Custom to edit)</span>}
             </Label>
             <div className="grid grid-cols-1 gap-1 rounded-md border border-border-subtle bg-surface-1 p-2 sm:grid-cols-2">

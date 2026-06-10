@@ -129,10 +129,11 @@ const SECTIONS = [
   { id: 'outcomes', label: 'Outcomes' },
   { id: 'curriculum', label: 'Curriculum & Faculty' },
   { id: 'financials', label: 'Financials' },
-  // 'External context' (Peers + Trends) removed from the deep-dive in
-  // v1.2.7 — those subjects live on /benchmarking and /trends. Data
-  // fetches for peers + trends remain in place so AI Analyst tools can
-  // still query them.
+  { id: 'benchmarking', label: 'Benchmarking' },
+  // Benchmarking (peer comparison) re-added to the deep-dive — a focused,
+  // standalone view also lives at /benchmarking/programs/[id]. Trends still
+  // live on /trends only; that data fetch remains in place so AI Analyst
+  // tools can still query it.
 ];
 
 export function DeepDiveClient(props: Props) {
@@ -265,6 +266,22 @@ export function DeepDiveClient(props: Props) {
         >
           <FinancialsSection data={props.financials} />
         </MacroGroup>
+
+        <MacroGroup
+          id="benchmarking"
+          title="Benchmarking"
+          subtitle="How this program compares to AI-selected peer programs across QS/THE-ranked universities — content modernity, strengths, gaps, and recommendations."
+        >
+          <div className="-mt-1 mb-1 text-xs">
+            <a
+              href={`/benchmarking/programs/${props.programId}`}
+              className="text-accent-default underline-offset-2 hover:underline"
+            >
+              Open the focused benchmarking view →
+            </a>
+          </div>
+          <PeersSection data={props.peers} aiPeers={props.aiPeers} />
+        </MacroGroup>
       </div>
     </div>
   );
@@ -363,6 +380,9 @@ function HeaderSection({
                   {overview.program.level}
                   {overview.program.yearEstablished
                     ? ` · est. ${overview.program.yearEstablished}`
+                    : ''}
+                  {overview.program.curriculumYearBE != null
+                    ? ` · curriculum rev. BE ${overview.program.curriculumYearBE} (CE ${overview.program.curriculumYearBE - 543})`
                     : ''}
                 </span>
               </div>

@@ -695,6 +695,9 @@ export function RisksPortfolioClient({
                             </div>
                             <div className="text-xs text-text-tertiary">
                               {r.programNameEn} · {r.programCode}
+                              {r.curriculumYearBE != null && (
+                                <span title="Curriculum revision year"> · Rev. BE {r.curriculumYearBE}</span>
+                              )}
                             </div>
                           </Link>
                         </td>
