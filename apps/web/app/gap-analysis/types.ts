@@ -25,6 +25,80 @@ export interface SkillGapResponse {
   lowConfidenceReason: string | null;
 }
 
+// ── Multi-lens Gap Analyzer (gap-lenses.v1) ────────────────────────────────
+export type GapLensKey = 'skill' | 'content' | 'aiReadiness' | 'recruitment' | 'staff' | 'demographic';
+
+export interface ProgramGapProfileDto {
+  programId: string;
+  code: string;
+  nameEn: string;
+  nameTh: string;
+  facultyId: string;
+  facultyNameEn: string;
+  content: { major: number; moderate: number; minor: number; total: number; reviewed: boolean };
+  ai: { curriculumIntegration: number | null; displaceableShare: number | null; aiNative: number; aiAugmented: number; aiDisplaceable: number; neutral: number };
+  recruitment: { entryYearBE: number; planPerYear: number; regReported: number; applicants: number; fillRateVsPlan: number; competitionRatio: number; registrationYield: number | null } | null;
+  staff: { active: number; seniorShare: number; successionRiskPct: number; avgAgeYears: number | null; pubsLast3y: number; pubsPerHead: number } | null;
+  demographic: { competitionNow: number; superCriticalYear: number | null; contraction15yPct: number } | null;
+  skill: { relevant: number; covered: number; gaps: number; coveragePct: number } | null;
+  subScores: Record<GapLensKey, number | null>;
+  composite: number | null;
+}
+
+export interface GapAnalysisResponse {
+  methodologyVersion: string;
+  scope: string;
+  scopeId: string | null;
+  generatedAt: string;
+  programCount: number;
+  composite: {
+    weights: Record<GapLensKey, number>;
+    rows: ProgramGapProfileDto[];
+    facultyHeatmap: Array<{ facultyId: string; facultyNameEn: string; programCount: number; avgComposite: number | null; subScores: Record<GapLensKey, number | null> }>;
+  };
+  content: {
+    reviewedPrograms: number;
+    severity: { major: number; moderate: number; minor: number };
+    topTopics: Array<{ topic: string; total: number; major: number; moderate: number; minor: number }>;
+    worstPrograms: Array<GapProgRefDto & { major: number; total: number }>;
+  };
+  aiReadiness: {
+    scoredPrograms: number;
+    avgResilience: number | null;
+    avgIntegration: number | null;
+    skillMix: { aiNative: number; aiAugmented: number; aiDisplaceable: number; neutral: number };
+    worstPrograms: Array<GapProgRefDto & { skillResilience: number; curriculumIntegration: number; aiNative: number; aiDisplaceable: number }>;
+  };
+  recruitment: {
+    coveredPrograms: number;
+    underFilling: Array<GapProgRefDto & { entryYearBE: number; fillRateVsPlan: number; competitionRatio: number; registrationYield: number | null }>;
+  };
+  staff: {
+    coveredPrograms: number;
+    atRisk: Array<GapProgRefDto & { active: number; successionRiskPct: number; avgAgeYears: number | null; seniorShare: number; pubsPerHead: number }>;
+  };
+  demographic: {
+    coveredPrograms: number;
+    contraction15yPct: number;
+    superCritical: Array<GapProgRefDto & { competitionNow: number; superCriticalYear: number | null }>;
+  };
+  whiteSpace: {
+    marketGaps: Array<{ skillId: string; nameEn: string; nameTh: string; demand: number; topCareers: string[] }>;
+    systemicTopics: Array<{ topic: string; programCount: number; majorCount: number; sampleFaculties: string[] }>;
+    minPrograms: number;
+    staffExpertiseNote: string;
+  };
+  skill: SkillGapResponse;
+}
+
+export interface GapProgRefDto {
+  programId: string;
+  code: string;
+  nameEn: string;
+  nameTh: string;
+  facultyNameEn: string;
+}
+
 export interface SectorGapRowDto {
   sectorId: string;
   sectorCode: string;
@@ -124,6 +198,7 @@ export interface RiskRowDto {
   programCode: string;
   nameTh: string;
   nameEn: string;
+  curriculumYearBE: number | null;
   currentGraduates: number;
   projectedSupply5yr: number;
   projectedSupplyAfterDemographic: number;

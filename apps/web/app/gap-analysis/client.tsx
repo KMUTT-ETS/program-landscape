@@ -2,420 +2,470 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Card, useChartPalette } from '@kku/ui';
-import {
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
-  Database,
-  Sparkles,
-  TrendingUp,
-} from 'lucide-react';
-import type {
-  OpportunityResponse,
-  ProgramDemandGapResponse,
-  SkillGapResponse,
-} from './types';
+import { Card } from '@kku/ui';
+import type { GapAnalysisResponse, GapLensKey, GapProgRefDto } from './types';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Demand-Supply Gap Analyzer — redesigned 2026-05-03 around real data only.
-//
-// Drops:
-//   - Region selector (no per-province data populated)
-//   - Horizon / forecast selector (ForecastRun is empty)
-//   - Comparison selector (per-capita / growth-adjusted: cosmetic, not real)
-//   - Occupation panel (OccupationDemand is 0 rows — never repointed after
-//     the JobThai/JobsDB→KMITL connector swap)
-//   - Sector panel (skillSectors → JobPostingSkill chain is empty)
-//   - Regional Thailand map (no province-level supply or demand data)
-//
-// Keeps + adds:
-//   - Hero KPIs anchored in reality (alumni coverage, KMITL coverage,
-//     overall gap counts)
-//   - Two-side skill split: shortage (need more grads) vs oversupply
-//     (too many grads for the demand signal we have)
-//   - Fastest-growing skills (KmitlSkillGrowth) with KKU coverage flag
-//   - Per-program demand-match gaps (NEW data — 1,282 AI-resolved
-//     discipline-relevant gaps across 207 programs)
-// ─────────────────────────────────────────────────────────────────────────────
+// Multi-lens Gap Analyzer — tabbed. Each lens is a 0–100 gap-severity view
+// (higher = wider gap); the Composite tab rolls them up per program.
 
-interface Filters {
-  scope: string;
-  scopeId: string;
+const LENS_LABEL: Record<GapLensKey, string> = {
+  skill: 'Skill',
+  content: 'Content',
+  aiReadiness: 'AI',
+  recruitment: 'Recruit',
+  staff: 'Staff',
+  demographic: 'Demo',
+};
+const LENS_ORDER: GapLensKey[] = ['skill', 'content', 'aiReadiness', 'recruitment', 'staff', 'demographic'];
+
+const TABS = [
+  { key: 'overview', label: 'Composite index' },
+  { key: 'skill', label: 'Skill / market' },
+  { key: 'content', label: 'Content' },
+  { key: 'ai', label: 'AI readiness' },
+  { key: 'recruitment', label: 'Recruitment' },
+  { key: 'staff', label: 'Staff capability' },
+  { key: 'demographic', label: 'Demographic' },
+  { key: 'whitespace', label: 'White-space' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
+
+function sevClasses(v: number | null): string {
+  if (v === null) return 'bg-surface-2 text-text-tertiary';
+  if (v >= 66) return 'bg-danger-subtle text-danger';
+  if (v >= 33) return 'bg-warning-subtle text-warning';
+  return 'bg-success-subtle text-success';
+}
+function GapCell({ v }: { v: number | null }) {
+  return (
+    <span className={`inline-flex min-w-[2.25rem] justify-center rounded px-1.5 py-0.5 font-tabular text-xs font-semibold ${sevClasses(v)}`}>
+      {v === null ? '—' : Math.round(v)}
+    </span>
+  );
 }
 
-interface PageData {
-  skillGap: SkillGapResponse | null;
-  opportunities: OpportunityResponse | null;
-  programGaps: ProgramDemandGapResponse | null;
+// Program reference cell — same name style + language as the /programs table:
+// English name (bold link), Thai name beneath, code in mono. Falls back to the
+// Thai name when English is blank (16 programs have no nameEn).
+function ProgRef({ p, faculty }: { p: GapProgRefDto; faculty?: boolean }) {
+  const primary = p.nameEn || p.nameTh;
+  return (
+    <div className="leading-tight">
+      <Link href={`/programs/${p.programId}`} className="font-medium text-text-primary hover:underline">
+        {primary}
+      </Link>
+      {p.nameEn && <div className="text-xs text-text-secondary" lang="th">{p.nameTh}</div>}
+      <div className="font-mono text-[10px] text-text-tertiary">
+        {p.code}
+        {faculty && p.facultyNameEn && <span className="ml-1.5 font-sans">· {p.facultyNameEn}</span>}
+      </div>
+    </div>
+  );
 }
 
-export function GapAnalysisClient({
-  initialFilters,
-  data,
-}: {
-  initialFilters: Filters;
-  data: PageData;
-}) {
-  const router = useRouter();
-  const [filters] = React.useState(initialFilters);
+export function GapAnalysisClient({ data }: { data: GapAnalysisResponse }) {
+  const [tab, setTab] = React.useState<TabKey>('overview');
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-1 border-b border-border-subtle">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`-mb-px rounded-t-md border-b-2 px-3 py-1.5 text-sm transition-colors ${
+              tab === t.key ? 'border-accent-default font-semibold text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'overview' && <OverviewTab data={data} />}
+      {tab === 'skill' && <SkillTab data={data} />}
+      {tab === 'content' && <ContentTab data={data} />}
+      {tab === 'ai' && <AiTab data={data} />}
+      {tab === 'recruitment' && <RecruitmentTab data={data} />}
+      {tab === 'staff' && <StaffTab data={data} />}
+      {tab === 'demographic' && <DemographicTab data={data} />}
+      {tab === 'whitespace' && <WhiteSpaceTab data={data} />}
+    </div>
+  );
+}
 
-  // Compute KPI inputs from the live responses.
-  const skillsRows = data.skillGap?.rows ?? [];
-  const shortages = skillsRows.filter((r) => r.gap > 0);
-  const oversupplies = skillsRows.filter((r) => r.gap < 0);
-  const programGaps = data.programGaps;
-  const opps = data.opportunities;
-  const totalProgramsAssessed = (programGaps?.rows.length ?? 0) + (programGaps?.uncoveredProgramCount ?? 0);
-  const programCoveragePct =
-    totalProgramsAssessed > 0
-      ? ((programGaps?.rows.length ?? 0) / totalProgramsAssessed) * 100
-      : null;
-  const topGrowthSkill = (opps?.rows ?? [])
-    .filter((r) => r.demandGrowthPct > 0)
-    .sort((a, b) => b.demandGrowthPct - a.demandGrowthPct)[0];
-
-  void router;
+// ── Composite — faculty → program drill-down ───────────────────────────────
+function OverviewTab({ data }: { data: GapAnalysisResponse }) {
+  const [open, setOpen] = React.useState<Set<string>>(() => new Set());
+  const progsByFaculty = React.useMemo(() => {
+    const m = new Map<string, GapAnalysisResponse['composite']['rows']>();
+    for (const p of data.composite.rows) {
+      const arr = m.get(p.facultyId) ?? [];
+      arr.push(p);
+      m.set(p.facultyId, arr);
+    }
+    return m;
+  }, [data]);
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Provenance line — replaces the fake-filter bar */}
-      <Card padding="sm" className="bg-surface-2/40">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary">
-          <span className="inline-flex items-center gap-1.5">
-            <Database className="h-3.5 w-3.5" aria-hidden />
-            <strong className="text-text-secondary">Demand</strong> · LinkedIn skill data (subscribed by MHESI; LinkedIn profiles × Thai job postings)
-          </span>
-          <span>·</span>
-          <span>
-            <strong className="text-text-secondary">Supply</strong> · KKU AlumniCohortStatus (real cohort outcomes) ·
-            fallback to admission-side enrolment proxy
-          </span>
-          <span>·</span>
-          <span>
-            <strong className="text-text-secondary">Per-program gaps</strong> · AI-resolved, discipline-filtered
-          </span>
-          <span>·</span>
-          <span title="transferable / language / soft skills are excluded because job-posting taxonomies systematically under-list them">
-            <strong className="text-text-secondary">Soft skills</strong> excluded
-          </span>
-          {filters.scope !== 'university' && (
-            <span className="ml-auto rounded bg-accent-subtle px-2 py-0.5 text-text-secondary">
-              Scope: {filters.scope}
-            </span>
-          )}
-        </div>
+    <div className="flex flex-col gap-4">
+      <Card padding="md">
+        <h3 className="text-sm font-semibold text-text-primary">Composite Gap Index</h3>
+        <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">
+          Each program scored 0–100 per lens (higher = wider gap), averaged across the lenses with data.
+          Click a faculty to expand its programs, sorted worst-first. Cells:
+          <span className="mx-1 rounded bg-success-subtle px-1 text-success">low</span>
+          <span className="mr-1 rounded bg-warning-subtle px-1 text-warning">moderate</span>
+          <span className="rounded bg-danger-subtle px-1 text-danger">wide</span>.
+        </p>
       </Card>
 
-      {/* Hero KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <HeroStat
-          tone="warning"
-          icon={<AlertTriangle />}
-          label="Skills in shortage"
-          value={shortages.length.toString()}
-          sub="demand > supply (top 20 considered)"
-        />
-        <HeroStat
-          tone="positive"
-          icon={<TrendingUp />}
-          label="Skills in oversupply"
-          value={oversupplies.length.toString()}
-          sub="supply > demand (re-balance candidates)"
-        />
-        <HeroStat
-          tone="default"
-          icon={<Sparkles />}
-          label="Top growth skill"
-          value={topGrowthSkill ? `+${topGrowthSkill.demandGrowthPct.toFixed(0)}%` : '—'}
-          sub={topGrowthSkill?.nameEn ?? 'no growth-tagged skills'}
-        />
-        <HeroStat
-          tone="default"
-          icon={<Database />}
-          label="Per-program coverage"
-          value={programCoveragePct === null ? '—' : `${programCoveragePct.toFixed(0)}%`}
-          sub={`${programGaps?.rows.length ?? 0} of ${totalProgramsAssessed} programs assessed`}
-        />
-      </div>
-
-      {/* Shortage + oversupply twin columns */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Panel
-          title="Need more graduates"
-          subtitle="Skills where labour demand exceeds KKU supply. Sorted by gap."
-          icon={<ArrowUpRight className="text-warning" />}
-          tone="warning"
-        >
-          <SkillGapList rows={shortages.slice(0, 10)} variant="shortage" />
-        </Panel>
-        <Panel
-          title="Too many graduates"
-          subtitle="Skills where KKU produces more than the demand signal. Re-balance candidates."
-          icon={<ArrowDownRight className="text-positive" />}
-          tone="positive"
-        >
-          <SkillGapList rows={oversupplies.slice(0, 10)} variant="oversupply" />
-        </Panel>
-      </div>
-
-      {/* Growth signal */}
-      <Panel
-        title="Fastest-growing skills (Thailand · LinkedIn job postings)"
-        subtitle="From the LinkedIn-derived labour-market growth signal (subscribed by MHESI). Green dot = at least one KKU program teaches it."
-        icon={<Sparkles className="text-accent" />}
-      >
-        <GrowthList rows={(opps?.rows ?? []).filter((r) => r.demandGrowthPct > 0).sort((a, b) => b.demandGrowthPct - a.demandGrowthPct).slice(0, 10)} />
-      </Panel>
-
-      {/* Per-program demand-match gaps */}
-      <Panel
-        title="Per-program demand-match gaps"
-        subtitle={
-          programGaps
-            ? `Programs with the largest curriculum gaps in their own discipline. ${programGaps.uncoveredProgramCount} programs excluded — AI demand-match hasn't run for them yet.`
-            : 'Loading…'
-        }
-        icon={<AlertTriangle className="text-warning" />}
-      >
-        <ProgramGapTable rows={programGaps?.rows.slice(0, 12) ?? []} />
-      </Panel>
-
-      {/* Footer disclosures */}
-      <Card padding="sm" className="text-[11px] text-text-tertiary">
-        <p>
-          This page renders only what is backed by populated tables. Region, occupation, sector,
-          and forecast horizon views are intentionally omitted because their underlying data
-          sources are not yet wired (OccupationDemand 0 rows; per-province alumni tracking
-          deferred; ForecastRun 0 rows). Soft / transferable / language skills are also
-          excluded — LinkedIn and other job-posting taxonomies under-list them, so including
-          them would create artificial "oversupply" rows (every program teaches teamwork;
-          no posting demands it by name).
-        </p>
-        {data.skillGap?.lowConfidenceReason && (
-          <p className="mt-1 text-warning">⚠ {data.skillGap.lowConfidenceReason}</p>
-        )}
-        <p className="mt-2 flex items-center gap-3">
-          <Link href="/gap-analysis/opportunities" className="underline hover:text-accent-default">
-            Opportunities (white-spaces) →
-          </Link>
-          <Link href="/gap-analysis/risks" className="underline hover:text-accent-default">
-            Risks (oversupply forecast) →
-          </Link>
-        </p>
+      <Card padding="none" className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-2 text-left text-[11px] uppercase tracking-wide text-text-tertiary [&_th]:whitespace-nowrap">
+              <tr>
+                <th className="px-4 py-2">Faculty / program</th>
+                <th className="py-2 text-center">Composite</th>
+                {LENS_ORDER.map((k) => (
+                  <th key={k} className="py-2 text-center">{LENS_LABEL[k]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.composite.facultyHeatmap.map((f) => {
+                const isOpen = open.has(f.facultyId);
+                const progs = progsByFaculty.get(f.facultyId) ?? [];
+                return (
+                  <React.Fragment key={f.facultyId}>
+                    <tr
+                      className="cursor-pointer border-t border-border-subtle bg-surface-1/60 hover:bg-surface-2/60"
+                      onClick={() => toggle(f.facultyId)}
+                    >
+                      <td className="px-4 py-2">
+                        <span className="flex items-center gap-2 font-medium">
+                          <span className="w-4 shrink-0 text-center text-xs text-text-tertiary">{isOpen ? '▾' : '▸'}</span>
+                          <span lang="th">{f.facultyNameEn}</span>
+                          <span className="font-tabular text-[11px] font-normal text-text-tertiary">· {f.programCount}</span>
+                        </span>
+                      </td>
+                      <td className="py-2 text-center"><GapCell v={f.avgComposite} /></td>
+                      {LENS_ORDER.map((k) => (
+                        <td key={k} className="py-2 text-center"><GapCell v={f.subScores[k]} /></td>
+                      ))}
+                    </tr>
+                    {isOpen &&
+                      progs.map((p) => (
+                        <tr key={p.programId} className="border-t border-border-subtle hover:bg-surface-2/40">
+                          <td className="py-1.5 pl-10 pr-4"><ProgRef p={p} /></td>
+                          <td className="py-1.5 text-center"><GapCell v={p.composite} /></td>
+                          {LENS_ORDER.map((k) => (
+                            <td key={k} className="py-1.5 text-center"><GapCell v={p.subScores[k]} /></td>
+                          ))}
+                        </tr>
+                      ))}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );
 }
 
-// ─── Building blocks ─────────────────────────────────────────────────────────
-
-function HeroStat({
-  tone,
-  icon,
-  label,
-  value,
-  sub,
-}: {
-  tone: 'default' | 'positive' | 'warning' | 'danger';
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-}) {
-  const valueClass = {
-    default: 'text-text-primary',
-    positive: 'text-positive',
-    warning: 'text-warning',
-    danger: 'text-danger',
-  }[tone];
+// ── building blocks ────────────────────────────────────────────────────────
+function Kpi({ label, value, hint, ink, tip }: { label: string; value: React.ReactNode; hint?: string; ink?: string; tip?: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-1 p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
-        <span className="text-text-tertiary">{icon}</span>
+    <Card padding="md" className={tip ? 'cursor-help' : undefined}>
+      <div className="flex items-center gap-1 text-xs text-text-tertiary" title={tip}>
+        {label}
+        {tip && <span className="text-[10px] opacity-60">ⓘ</span>}
       </div>
-      <p className={`font-tabular text-2xl font-semibold ${valueClass}`}>{value}</p>
-      <p className="line-clamp-2 text-[11px] text-text-tertiary">{sub}</p>
-    </div>
-  );
-}
-
-function Panel({
-  title,
-  subtitle,
-  icon,
-  tone,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  icon?: React.ReactNode;
-  tone?: 'warning' | 'positive';
-  children: React.ReactNode;
-}) {
-  const stripe =
-    tone === 'warning' ? 'border-l-warning/60' : tone === 'positive' ? 'border-l-positive/60' : 'border-l-border-default';
-  return (
-    <Card padding="md" className={`border-l-4 ${stripe}`}>
-      <header className="mb-3 flex items-start gap-2">
-        {icon && <span className="mt-0.5 h-4 w-4 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
-        <div className="flex-1">
-          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-          {subtitle && <p className="mt-0.5 text-xs text-text-tertiary">{subtitle}</p>}
-        </div>
-      </header>
-      {children}
+      <div className={`mt-1 font-tabular text-2xl font-bold ${ink ?? 'text-text-primary'}`} title={tip}>{value}</div>
+      {hint && <div className="mt-0.5 text-[11px] text-text-tertiary">{hint}</div>}
     </Card>
   );
 }
-
-function SkillGapList({
-  rows,
-  variant,
-}: {
-  rows: SkillGapResponse['rows'];
-  variant: 'shortage' | 'oversupply';
-}) {
-  if (rows.length === 0) {
-    return <p className="text-sm text-text-tertiary">No skills in this bucket.</p>;
-  }
-  // Find the bar baseline: largest abs(gap) in this list.
-  const maxAbsGap = Math.max(...rows.map((r) => Math.abs(r.gap)), 1);
+function SimpleTable({ head, children }: { head: React.ReactNode; children: React.ReactNode }) {
   return (
-    <ul className="flex flex-col gap-2.5">
-      {rows.map((r) => {
-        const widthPct = Math.max(4, (Math.abs(r.gap) / maxAbsGap) * 100);
-        const sign = variant === 'shortage' ? '+' : '−';
-        const toneClass = variant === 'shortage' ? 'bg-warning/70' : 'bg-positive/70';
-        const labelTone = variant === 'shortage' ? 'text-warning' : 'text-positive';
-        return (
-          <li key={r.skillId} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="truncate text-sm font-medium text-text-primary" title={r.nameTh}>
-                {r.nameEn}
-              </span>
-              <span className={`shrink-0 font-tabular text-xs font-semibold ${labelTone}`}>
-                {sign}
-                {Math.abs(r.gap).toFixed(0)}
-              </span>
-            </div>
-            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-              <div className={`h-full ${toneClass}`} style={{ width: `${widthPct}%` }} />
-            </div>
-            <div className="flex justify-between text-[10px] text-text-tertiary">
-              <span>demand {r.demand.toFixed(0)} · supply {r.supply.toFixed(0)}</span>
-              {r.topDemandingEmployers.length > 0 && (
-                <span className="truncate" title={r.topDemandingEmployers.join(' · ')}>
-                  top: {r.topDemandingEmployers.slice(0, 2).join(' · ')}
-                </span>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <Card padding="none" className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-2 text-left text-[11px] uppercase tracking-wide text-text-tertiary [&_th]:whitespace-nowrap">{head}</thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
+const RefCell = ({ p }: { p: GapProgRefDto }) => (
+  <td className="px-4 py-2"><ProgRef p={p} faculty /></td>
+);
 
-function GrowthList({ rows }: { rows: OpportunityResponse['rows'] }) {
-  const palette = useChartPalette();
-  if (rows.length === 0) {
-    return <p className="text-sm text-text-tertiary">No skills with positive growth in the current window.</p>;
-  }
-  const maxGrowth = Math.max(...rows.map((r) => r.demandGrowthPct), 1);
+// ── Skill / market ─────────────────────────────────────────────────────────
+function SkillTab({ data }: { data: GapAnalysisResponse }) {
+  // Only skills with a real demand signal (demand > 0). Skills with demand = 0
+  // are NOT measured by the labour-market feed, so calling them "oversupply"
+  // would be wrong — they're excluded. Soft skills are also excluded upstream.
+  const rows = data.skill.rows.filter((r) => r.demand > 0);
+  const shortage = rows.filter((r) => r.gap > 0).sort((a, b) => b.gap - a.gap).slice(0, 20);
+  const oversupply = rows.filter((r) => r.gap < 0).sort((a, b) => a.gap - b.gap).slice(0, 20);
   return (
-    <ul className="flex flex-col gap-2">
-      {rows.map((r) => {
-        const widthPct = Math.max(4, (r.demandGrowthPct / maxGrowth) * 100);
-        const isCovered = r.existingProgramCount > 0;
-        return (
-          <li key={r.skillId} className="flex items-center gap-3">
-            <span
-              title={isCovered ? `${r.existingProgramCount} KKU programs teach this` : 'No KKU coverage'}
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: isCovered ? palette.positive : palette.negative, opacity: 0.85 }}
-            />
-            <div className="flex flex-1 flex-col gap-0.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="truncate text-sm font-medium text-text-primary">{r.nameEn}</span>
-                <span className="font-tabular text-xs font-semibold text-accent">
-                  +{r.demandGrowthPct.toFixed(0)}%
-                </span>
-              </div>
-              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-                <div className="h-full bg-accent-default/70" style={{ width: `${widthPct}%` }} />
-              </div>
-              <div className="text-[10px] text-text-tertiary">
-                demand {r.recentDemand.toFixed(0)} · {isCovered
-                  ? `${r.existingProgramCount} KKU program${r.existingProgramCount === 1 ? '' : 's'}`
-                  : 'no KKU coverage'}
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function ProgramGapTable({ rows }: { rows: ProgramDemandGapResponse['rows'] }) {
-  if (rows.length === 0) {
-    return <p className="text-sm text-text-tertiary">No per-program gap data yet.</p>;
-  }
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-border-subtle text-left text-text-tertiary">
-            <th className="py-2 pr-3 font-normal">Program</th>
-            <th className="py-2 pr-3 font-normal">Faculty</th>
-            <th className="py-2 pr-3 text-right font-normal">Demand-relevant skills</th>
-            <th className="py-2 pr-3 text-right font-normal">Covered</th>
-            <th className="py-2 pr-3 text-right font-normal">Gaps</th>
-            <th className="py-2 pr-3 text-right font-normal">Coverage</th>
-            <th className="py-2 pr-3 font-normal">Top gap</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.programId} className="border-b border-border-subtle last:border-0 hover:bg-surface-2/40">
-              <td className="py-2 pr-3">
-                <Link
-                  href={`/programs/${r.programId}`}
-                  className="font-medium text-text-primary hover:text-accent-default"
-                >
-                  {(r.programNameEn || r.programNameTh).slice(0, 50)}
-                </Link>
-                <div className="text-[10px] text-text-tertiary font-tabular">{r.programCode}</div>
-              </td>
-              <td className="py-2 pr-3 text-text-secondary">{r.facultyCode}</td>
-              <td className="py-2 pr-3 text-right font-tabular">{r.relevantSkillCount}</td>
-              <td className="py-2 pr-3 text-right font-tabular text-positive">{r.coveredCount}</td>
-              <td className="py-2 pr-3 text-right font-tabular text-warning">{r.gapCount}</td>
-              <td className="py-2 pr-3 text-right">
-                <CoverageBar pct={r.coverageRatio * 100} />
-              </td>
-              <td className="py-2 pr-3 text-text-secondary">
-                {r.topGaps[0] ? r.topGaps[0].skillNameEn : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CoverageBar({ pct }: { pct: number }) {
-  const tone = pct >= 70 ? 'bg-positive/70' : pct >= 40 ? 'bg-warning/70' : 'bg-danger/70';
-  return (
-    <div className="inline-flex items-center gap-1.5 align-middle">
-      <span className="font-tabular text-[11px] text-text-secondary">{pct.toFixed(0)}%</span>
-      <div className="relative h-1.5 w-16 overflow-hidden rounded-full bg-surface-2">
-        <div className={`h-full ${tone}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+    <div className="flex flex-col gap-4">
+      <p className="text-xs leading-relaxed text-text-tertiary">
+        Labour-market skill demand (LinkedIn, subscribed by MHESI) vs KKU graduate supply, for the{' '}
+        <span className="font-medium text-text-secondary">{rows.length}</span> skills with a measured demand signal.
+        Skills the labour-market feed doesn&rsquo;t measure are excluded (we can&rsquo;t judge their gap), and
+        soft skills are excluded (postings systematically under-list them).
+      </p>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <h4 className="mb-1.5 text-sm font-semibold text-warning">Need more graduates (shortage)</h4>
+          {shortage.length === 0 ? <Empty /> : (
+            <SimpleTable head={<tr><th className="px-4 py-2">Skill</th><th className="py-2 text-right">Demand</th><th className="py-2 pr-4 text-right">Supply</th></tr>}>
+              {shortage.map((r) => (
+                <tr key={r.skillId} className="border-t border-border-subtle">
+                  <td className="px-4 py-1.5"><div className="leading-tight">{r.nameEn}<div className="text-[10px] text-text-tertiary" lang="th">{r.nameTh}</div></div></td>
+                  <td className="py-1.5 text-right font-tabular text-xs font-semibold text-warning">{Math.round(r.demand)}</td>
+                  <td className="py-1.5 pr-4 text-right font-tabular text-xs text-text-tertiary">{Math.round(r.supply)}</td>
+                </tr>
+              ))}
+            </SimpleTable>
+          )}
+        </div>
+        <div>
+          <h4 className="mb-1.5 text-sm font-semibold text-info">Too many graduates (oversupply)</h4>
+          {oversupply.length === 0 ? <Empty /> : (
+            <SimpleTable head={<tr><th className="px-4 py-2">Skill</th><th className="py-2 text-right">Supply</th><th className="py-2 pr-4 text-right">Demand</th></tr>}>
+              {oversupply.map((r) => (
+                <tr key={r.skillId} className="border-t border-border-subtle">
+                  <td className="px-4 py-1.5"><div className="leading-tight">{r.nameEn}<div className="text-[10px] text-text-tertiary" lang="th">{r.nameTh}</div></div></td>
+                  <td className="py-1.5 text-right font-tabular text-xs font-semibold text-info">{Math.round(r.supply)}</td>
+                  <td className="py-1.5 pr-4 text-right font-tabular text-xs text-text-tertiary">{Math.round(r.demand)}</td>
+                </tr>
+              ))}
+            </SimpleTable>
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+// ── Content ────────────────────────────────────────────────────────────────
+function ContentTab({ data }: { data: GapAnalysisResponse }) {
+  const c = data.content;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-text-tertiary">
+        Curriculum content gaps from the AI peer reviews ({c.reviewedPrograms} programs) — specific topics
+        where KKU lags the named peer programs.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kpi label="Reviewed programs" value={c.reviewedPrograms} />
+        <Kpi label="Major gaps" value={c.severity.major} ink="text-danger" />
+        <Kpi label="Moderate gaps" value={c.severity.moderate} ink="text-warning" />
+        <Kpi label="Minor gaps" value={c.severity.minor} />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <h4 className="mb-1.5 text-sm font-semibold text-text-primary">Most-flagged missing topics</h4>
+          <SimpleTable head={<tr><th className="px-4 py-2">Topic</th><th className="py-2 text-right">Major</th><th className="py-2 pr-4 text-right">Total</th></tr>}>
+            {c.topTopics.map((t) => (
+              <tr key={t.topic} className="border-t border-border-subtle">
+                <td className="px-4 py-1.5">{t.topic}</td>
+                <td className="py-1.5 text-right font-tabular text-xs text-danger">{t.major}</td>
+                <td className="py-1.5 pr-4 text-right font-tabular text-xs">{t.total}</td>
+              </tr>
+            ))}
+          </SimpleTable>
+        </div>
+        <div>
+          <h4 className="mb-1.5 text-sm font-semibold text-text-primary">Programs furthest behind</h4>
+          <SimpleTable head={<tr><th className="px-4 py-2">Program</th><th className="py-2 text-right">Major</th><th className="py-2 pr-4 text-right">Total</th></tr>}>
+            {c.worstPrograms.map((p) => (
+              <tr key={p.programId} className="border-t border-border-subtle hover:bg-surface-2/40">
+                <RefCell p={p} />
+                <td className="py-2 text-right font-tabular text-xs text-danger">{p.major}</td>
+                <td className="py-2 pr-4 text-right font-tabular text-xs">{p.total}</td>
+              </tr>
+            ))}
+          </SimpleTable>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AI readiness ───────────────────────────────────────────────────────────
+function AiTab({ data }: { data: GapAnalysisResponse }) {
+  const a = data.aiReadiness;
+  const m = a.skillMix;
+  const total = m.aiNative + m.aiAugmented + m.aiDisplaceable + m.neutral;
+  const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs leading-relaxed text-text-tertiary">
+        AI readiness measured from the curriculum skills ({a.scoredPrograms} programs). KKU curricula are
+        currently <span className="font-medium text-text-secondary">AI-thin</span>: across the whole portfolio
+        only <span className="font-medium text-text-secondary">{m.aiNative}</span> AI-native skills are taught,
+        so most programs sit at &ldquo;neutral&rdquo; resilience (50) — neither AI-native nor AI-displaceable.
+        The gap is the broad <em>absence</em> of AI content.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Kpi label="Avg resilience" value={`${a.avgResilience ?? '—'}`} hint="50 = neutral" tip="Skill resilience: 50 = neutral mix; above 50 = more AI-native/augmented than AI-displaceable skills; below 50 = curriculum skewed to AI-displaceable tasks." />
+        <Kpi label="AI-native skills" value={m.aiNative} hint={`${pct(m.aiNative)}% of skills`} ink="text-success" tip="Explicit AI/ML/DL/LLM/NLP/CV/data-science skills taught across the portfolio." />
+        <Kpi label="AI-augmented" value={m.aiAugmented} hint={`${pct(m.aiAugmented)}%`} ink="text-info" tip="Judgment / design / strategy skills that AI augments rather than replaces." />
+        <Kpi label="AI-displaceable" value={m.aiDisplaceable} hint={`${pct(m.aiDisplaceable)}%`} ink="text-warning" tip="Rote / repetitive skills most exposed to automation." />
+        <Kpi label="Avg AI integration" value={`${a.avgIntegration ?? '—'}`} hint="/ 100" tip="Weighted AI-native share of the curriculum (0 for programs that teach no AI skills). Near-zero across most programs — included for transparency." />
+      </div>
+      <div>
+        <h4 className="mb-1.5 text-sm font-semibold text-text-primary">Least AI-resilient programs</h4>
+        <SimpleTable head={<tr><th className="px-4 py-2">Program</th><th className="py-2 text-right">Resilience</th><th className="py-2 text-right">AI-native</th><th className="py-2 pr-4 text-right">AI-displaceable</th></tr>}>
+          {a.worstPrograms.map((p) => (
+            <tr key={p.programId} className="border-t border-border-subtle hover:bg-surface-2/40">
+              <RefCell p={p} />
+              <td className={`py-2 text-right font-tabular text-xs font-semibold ${p.skillResilience < 50 ? 'text-warning' : ''}`}>{p.skillResilience}</td>
+              <td className="py-2 text-right font-tabular text-xs text-success">{p.aiNative}</td>
+              <td className="py-2 pr-4 text-right font-tabular text-xs text-warning">{p.aiDisplaceable}</td>
+            </tr>
+          ))}
+        </SimpleTable>
+      </div>
+    </div>
+  );
+}
+
+// ── Recruitment ────────────────────────────────────────────────────────────
+function RecruitmentTab({ data }: { data: GapAnalysisResponse }) {
+  const r = data.recruitment;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-text-tertiary">
+        Recruitment health ({r.coveredPrograms} programs with admission-campaign data) — fill rate vs plan,
+        applicants per planned seat, and registration yield. Worst-first.
+      </p>
+      <SimpleTable head={<tr><th className="px-4 py-2">Program</th><th className="py-2 text-right">Year (BE)</th><th className="py-2 text-right">Fill vs plan</th><th className="py-2 text-right">Applicants/seat</th><th className="py-2 pr-4 text-right">Reg. yield</th></tr>}>
+        {r.underFilling.map((p) => (
+          <tr key={p.programId} className="border-t border-border-subtle hover:bg-surface-2/40">
+            <RefCell p={p} />
+            <td className="py-2 text-right font-tabular text-xs text-text-tertiary">{p.entryYearBE}</td>
+            <td className={`py-2 text-right font-tabular text-xs font-semibold ${p.fillRateVsPlan < 80 ? 'text-danger' : 'text-text-primary'}`}>{p.fillRateVsPlan}%</td>
+            <td className={`py-2 text-right font-tabular text-xs ${p.competitionRatio < 1.5 ? 'text-warning' : ''}`}>{p.competitionRatio.toFixed(2)}</td>
+            <td className="py-2 pr-4 text-right font-tabular text-xs">{p.registrationYield !== null ? `${p.registrationYield}%` : '—'}</td>
+          </tr>
+        ))}
+      </SimpleTable>
+    </div>
+  );
+}
+
+// ── Staff capability ───────────────────────────────────────────────────────
+function StaffTab({ data }: { data: GapAnalysisResponse }) {
+  const s = data.staff;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-text-tertiary">
+        Staff capability ({s.coveredPrograms} programs with roster data) — succession risk (retiring ≤5y),
+        ageing, senior-rank share, and 3-yr research output per active head. Worst-first.
+      </p>
+      <SimpleTable head={<tr><th className="px-4 py-2">Program</th><th className="py-2 text-right">Active</th><th className="py-2 text-right">Succession ≤5y</th><th className="py-2 text-right">Avg age</th><th className="py-2 text-right">Senior %</th><th className="py-2 pr-4 text-right">Pubs/head</th></tr>}>
+        {s.atRisk.map((p) => (
+          <tr key={p.programId} className="border-t border-border-subtle hover:bg-surface-2/40">
+            <RefCell p={p} />
+            <td className="py-2 text-right font-tabular text-xs text-text-tertiary">{p.active}</td>
+            <td className={`py-2 text-right font-tabular text-xs font-semibold ${p.successionRiskPct >= 30 ? 'text-danger' : ''}`}>{p.successionRiskPct}%</td>
+            <td className="py-2 text-right font-tabular text-xs">{p.avgAgeYears ?? '—'}</td>
+            <td className="py-2 text-right font-tabular text-xs">{p.seniorShare}%</td>
+            <td className={`py-2 pr-4 text-right font-tabular text-xs ${p.pubsPerHead < 1 ? 'text-warning' : ''}`}>{p.pubsPerHead.toFixed(1)}</td>
+          </tr>
+        ))}
+      </SimpleTable>
+    </div>
+  );
+}
+
+// ── Demographic ────────────────────────────────────────────────────────────
+function DemographicTab({ data }: { data: GapAnalysisResponse }) {
+  const d = data.demographic;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-text-tertiary">
+        Demographic ceiling ({d.coveredPrograms} programs with recruitment data) — projecting today&rsquo;s
+        applicants-per-seat against the shrinking 18–22 cohort (NESDC). &ldquo;Super-critical&rdquo; = falling
+        below 1.5 applicants/seat. The national 18–22 cohort contracts ~{Math.round(d.contraction15yPct)}% over 15 years.
+      </p>
+      <SimpleTable head={<tr><th className="px-4 py-2">Program</th><th className="py-2 text-right">Applicants/seat now</th><th className="py-2 pr-4 text-right">Super-critical year</th></tr>}>
+        {d.superCritical.map((p) => (
+          <tr key={p.programId} className="border-t border-border-subtle hover:bg-surface-2/40">
+            <RefCell p={p} />
+            <td className={`py-2 text-right font-tabular text-xs ${p.competitionNow < 1.5 ? 'text-danger' : ''}`}>{p.competitionNow.toFixed(2)}</td>
+            <td className="py-2 pr-4 text-right font-tabular text-xs font-semibold text-warning">
+              {p.superCriticalYear !== null ? `BE ${p.superCriticalYear + 543} (CE ${p.superCriticalYear})` : '—'}
+            </td>
+          </tr>
+        ))}
+      </SimpleTable>
+      {d.superCritical.length === 0 && (
+        <p className="text-sm text-text-tertiary">No program is projected to fall super-critical within 15 years on current applicant ratios.</p>
+      )}
+    </div>
+  );
+}
+
+// ── White-space ────────────────────────────────────────────────────────────
+function WhiteSpaceTab({ data }: { data: GapAnalysisResponse }) {
+  const w = data.whiteSpace;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs leading-relaxed text-text-tertiary">
+        White-spaces KKU could fill. Top: high labour-market demand (LinkedIn, subscribed by MHESI) that KKU
+        graduates barely supply — potential new program / track areas. Bottom: curriculum topics flagged as
+        gaps across ≥{w.minPrograms} programs (broad investment candidates).
+      </p>
+
+      <div>
+        <h4 className="mb-1.5 text-sm font-semibold text-text-primary">High market demand, little KKU supply</h4>
+        {w.marketGaps.length === 0 ? <Empty /> : (
+          <SimpleTable head={<tr><th className="px-4 py-2">Skill / field</th><th className="py-2 text-right">Demand</th><th className="py-2 pr-4">Top careers</th></tr>}>
+            {w.marketGaps.map((m) => (
+              <tr key={m.skillId} className="border-t border-border-subtle">
+                <td className="px-4 py-1.5"><div className="leading-tight font-medium text-text-primary">{m.nameEn}<div className="text-[10px] font-normal text-text-tertiary" lang="th">{m.nameTh}</div></div></td>
+                <td className="py-1.5 text-right font-tabular text-xs font-semibold text-warning">{m.demand}</td>
+                <td className="py-1.5 pr-4 text-[11px] text-text-tertiary">{m.topCareers.join(' · ') || '—'}</td>
+              </tr>
+            ))}
+          </SimpleTable>
+        )}
+      </div>
+
+      <div>
+        <h4 className="mb-1.5 text-sm font-semibold text-text-primary">Systemic content gaps (≥{w.minPrograms} programs)</h4>
+        <SimpleTable head={<tr><th className="px-4 py-2">Topic</th><th className="py-2 text-right">Programs</th><th className="py-2 text-right">Major</th><th className="py-2 pr-4">Faculties (sample)</th></tr>}>
+          {w.systemicTopics.map((t) => (
+            <tr key={t.topic} className="border-t border-border-subtle">
+              <td className="px-4 py-1.5 font-medium text-text-primary">{t.topic}</td>
+              <td className="py-1.5 text-right font-tabular text-xs font-semibold">{t.programCount}</td>
+              <td className="py-1.5 text-right font-tabular text-xs text-danger">{t.majorCount}</td>
+              <td className="py-1.5 pr-4 text-[11px] text-text-tertiary" lang="th">{t.sampleFaculties.join(' · ')}</td>
+            </tr>
+          ))}
+        </SimpleTable>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-text-tertiary">{w.staffExpertiseNote}</p>
+    </div>
+  );
+}
+
+function Empty() {
+  return <Card padding="md"><p className="text-center text-xs text-text-tertiary">No data.</p></Card>;
 }

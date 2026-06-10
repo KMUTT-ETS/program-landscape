@@ -10,6 +10,7 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import {
   computeForecastAccuracy,
+  computeGapAnalysis,
   computeOccupationGap,
   computeOpportunities,
   computeProgramDemandGaps,
@@ -80,6 +81,27 @@ export class GapController {
     @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
   ) {
     return computeSkillGap(await this.clampFilter(q, user));
+  }
+
+  // Multi-lens Gap Analyzer — all 7 lenses + composite for the scope.
+  @Get('analysis')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'kmitl-skill-demand', name: 'Skill demand (LinkedIn via MHESI)' },
+      { id: 'program-peer-reviews', name: 'AI peer reviews' },
+      { id: 'admission-campaign-stats', name: 'Admission campaigns' },
+      { id: 'faculty-members', name: 'Faculty + research' },
+      { id: 'demographic-projections', name: 'NESDC demographic projections' },
+    ],
+    methodologyVersion: 'gap-lenses.v1',
+  })
+  async analysis(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    const eff = await this.clampFilter(q, user);
+    return computeGapAnalysis(eff.scope, eff.scopeId ?? null);
   }
 
   @Get('occupations')

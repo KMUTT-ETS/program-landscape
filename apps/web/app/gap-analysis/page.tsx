@@ -1,19 +1,15 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetch, apiFetchSafe } from '@/lib/api-client';
+import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { GapAnalysisClient } from './client';
-import type {
-  OpportunityResponse,
-  ProgramDemandGapResponse,
-  SkillGapResponse,
-} from './types';
+import type { GapAnalysisResponse } from './types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Demand-Supply Gap Analyzer' };
+export const metadata = { title: 'Gap Analyzer' };
 
 export default async function GapAnalysisPage({
   searchParams,
@@ -25,36 +21,21 @@ export default async function GapAnalysisPage({
   if (!user?.userId) redirect('/signin');
 
   const sp = await searchParams;
-  const scope = sp.scope ?? 'university';
-  const scopeId = sp.scopeId ?? '';
+  const qs = new URLSearchParams({ scope: sp.scope ?? 'university' });
+  if (sp.scopeId) qs.set('scopeId', sp.scopeId);
 
-  const qs = new URLSearchParams({ scope, limit: '20' });
-  if (scopeId) qs.set('scopeId', scopeId);
-
-  // Three real-data fetches. skillGap is the canary — a failure on it
-  // means the user can't see anything useful, so we surface the
-  // diagnostic instead. opportunities + programGaps stay best-effort.
-  const skillGapRes = await apiFetchSafe<SkillGapResponse>(`/gap/skills?${qs}`);
-  const skillGap = skillGapRes.ok ? skillGapRes.data : null;
-  const skillGapError = skillGapRes.ok ? null : skillGapRes.error;
-  const [opportunities, programGaps] = await Promise.all([
-    apiFetch<OpportunityResponse>(`/gap/opportunities?${qs}`).catch(() => null),
-    apiFetch<ProgramDemandGapResponse>(`/gap/program-demand-gaps?${qs}`).catch(() => null),
-  ]);
+  const res = await apiFetchSafe<GapAnalysisResponse>(`/gap/analysis?${qs}`);
 
   return (
     <AuthedAppShell user={user}>
       <PageHeader
-        title="Demand-Supply Gap Analyzer"
-        subtitle="Where labour-market demand and KKU graduate supply diverge — LinkedIn-derived skill demand (subscribed by MHESI) × KKU alumni cohort outcomes."
+        title="Gap Analyzer"
+        subtitle="Seven gap lenses across the portfolio — skill/market, content, AI readiness, recruitment, staff capability, demographic ceiling, and systemic white-spaces — rolled up into a Composite Gap Index."
       />
-      {skillGapError ? (
-        <DiagnosticEmptyState surface="gap analysis" error={skillGapError} />
+      {res.ok ? (
+        <GapAnalysisClient data={res.data} />
       ) : (
-        <GapAnalysisClient
-          initialFilters={{ scope, scopeId }}
-          data={{ skillGap, opportunities, programGaps }}
-        />
+        <DiagnosticEmptyState surface="gap analysis" error={res.error} />
       )}
     </AuthedAppShell>
   );
