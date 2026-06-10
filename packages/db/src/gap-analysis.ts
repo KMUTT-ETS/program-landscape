@@ -640,6 +640,7 @@ export interface RiskRow {
   programCode: string;
   nameTh: string;
   nameEn: string;
+  curriculumYearBE: number | null;
   currentGraduates: number;
   projectedSupply5yr: number;
   projectedSupplyAfterDemographic: number;
@@ -659,7 +660,7 @@ export async function computeRisks(filter: GapFilterInput): Promise<RiskResult> 
   const programIds = await programIdsForScope(f.scope, f.scopeId);
   const programs = await prisma.program.findMany({
     where: programIds.length > 0 ? { id: { in: programIds } } : undefined,
-    select: { id: true, code: true, nameTh: true, nameEn: true },
+    select: { id: true, code: true, nameTh: true, nameEn: true, curriculumYearBE: true },
   });
   const enrollments = await prisma.enrollmentMetric.findMany({
     where: programIds.length > 0
@@ -709,6 +710,7 @@ export async function computeRisks(filter: GapFilterInput): Promise<RiskResult> 
       programCode: p.code,
       nameTh: p.nameTh,
       nameEn: p.nameEn,
+      curriculumYearBE: p.curriculumYearBE,
       currentGraduates: last,
       projectedSupply5yr: proj,
       projectedSupplyAfterDemographic: adjusted,
@@ -939,7 +941,7 @@ function isSoftSkill(category: string | null, nameEn: string | null): boolean {
   return false;
 }
 
-async function programIdsForScope(scope: ScopeLevel, scopeId: string | undefined): Promise<string[]> {
+export async function programIdsForScope(scope: ScopeLevel, scopeId: string | undefined): Promise<string[]> {
   // All branches restrict to canonical 297 (sheet-seeded) — gap
   // analysis is part of the curriculum-landscape universe; legacy
   // mock-seed Program rows must not contribute.

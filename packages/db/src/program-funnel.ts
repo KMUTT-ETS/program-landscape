@@ -15,8 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { prisma } from './index';
-import { realDataWhere, realDataSql } from './data-quality';
-import { Prisma } from '@prisma/client';
+import { realDataWhere, realDataSqlUnsafe } from './data-quality';
 
 export const PROGRAM_FUNNEL_VERSION = 'program-funnel.v1';
 
@@ -175,13 +174,6 @@ export interface ScopeFunnelTotals {
   regReported: number;
 }
 
-function scopeWhere(scope: FunnelScope, scopeId: string | null): Prisma.Sql {
-  if (scope === 'faculty' && scopeId) return Prisma.sql`AND p.faculty_id = ${scopeId}`;
-  if (scope === 'department' && scopeId) return Prisma.sql`AND p.department_id = ${scopeId}`;
-  if (scope === 'program' && scopeId) return Prisma.sql`AND p.id = ${scopeId}`;
-  return Prisma.empty;
-}
-
 /** Latest-complete-year aggregate funnel totals for a scope (university /
  *  faculty / department / program). Aggregates across canonical-ACTIVE
  *  programs. Plan = Σ over sub-programs of MAX(plan). */
@@ -191,52 +183,70 @@ export async function scopeFunnelLatestYear(
   now: Date = new Date(),
 ): Promise<ScopeFunnelTotals> {
   const nowCe = now.getUTCFullYear();
-  const where = scopeWhere(scope, scopeId);
+  // Built with $queryRawUnsafe + explicit positional params, NOT tagged-template
+  // fragments. Under the dev webpack build pnpm can load two @prisma/client
+  // module instances, so a nested Prisma.sql/Prisma.raw fragment fails its
+  // `instanceof Sql` check and Prisma mis-numbers the parameters →
+  // `syntax error at or near "$2"` (dev only; production `next build` dedupes to
+  // one instance, which is why prod is unaffected). $queryRawUnsafe sidesteps the
+  // fragment-nesting entirely. The realData subquery + scope COLUMN come from a
+  // fixed allowlist (no user input); scopeId is always a positional ($N) param.
+  const realData = realDataSqlUnsafe('c');
+  const scopeCol =
+    scope === 'faculty' ? 'p.faculty_id'
+      : scope === 'department' ? 'p.department_id'
+        : scope === 'program' ? 'p.id'
+          : null;
+  const scoped = Boolean(scopeCol && scopeId);
+
   // Latest entry year whose cohort has fully run.
-  const yearRows = await prisma.$queryRaw<Array<{ y: number }>>`
-    SELECT DISTINCT c.acad_year_be AS y
-    FROM admission_campaign_stats c
-    JOIN programs p ON p.id = c.program_id
-    WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-      AND ${realDataSql('c')}
-      ${where}
-    ORDER BY c.acad_year_be DESC
-  `;
+  const yearRows = await prisma.$queryRawUnsafe<Array<{ y: number }>>(
+    `SELECT DISTINCT c.acad_year_be AS y
+     FROM admission_campaign_stats c
+     JOIN programs p ON p.id = c.program_id
+     WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+       AND ${realData}
+       ${scoped ? `AND ${scopeCol} = $1` : ''}
+     ORDER BY c.acad_year_be DESC`,
+    ...(scoped ? [scopeId] : []),
+  );
   const year = yearRows.map((r) => r.y).find((y) => y - 543 < nowCe) ?? null;
   const empty: ScopeFunnelTotals = {
     entryYearBE: year, planPerYear: 0, enrollSeats: 0, totalApplicants: 0, totalPassed: 0,
     sendClearinghouse: 0, confirmClearinghouse: 0, sendRegReported: 0, regReported: 0,
   };
   if (year === null) return empty;
-  const rows = await prisma.$queryRaw<
+  const rows = await prisma.$queryRawUnsafe<
     Array<{
       seats: bigint; applicants: bigint; passed: bigint; send_ch: bigint;
       confirm_ch: bigint; send_reg: bigint; reg: bigint; plan: bigint;
     }>
-  >`
-    WITH scoped AS (
-      SELECT c.*
-      FROM admission_campaign_stats c
-      JOIN programs p ON p.id = c.program_id
-      WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
-        AND c.acad_year_be = ${year}
-        AND ${realDataSql('c')}
-        ${where}
-    ),
-    plan_per_sub AS (
-      SELECT recruitment_program_id, MAX(plan_per_year) AS pp FROM scoped GROUP BY recruitment_program_id
-    )
-    SELECT
-      COALESCE(SUM(enroll_seats), 0)::bigint AS seats,
-      COALESCE(SUM(total_applicants), 0)::bigint AS applicants,
-      COALESCE(SUM(total_passed), 0)::bigint AS passed,
-      COALESCE(SUM(send_clearinghouse), 0)::bigint AS send_ch,
-      COALESCE(SUM(confirm_clearinghouse), 0)::bigint AS confirm_ch,
-      COALESCE(SUM(send_reg_reported), 0)::bigint AS send_reg,
-      COALESCE(SUM(reg_reported), 0)::bigint AS reg,
-      (SELECT COALESCE(SUM(pp), 0)::bigint FROM plan_per_sub) AS plan
-    FROM scoped
-  `;
+  >(
+    `WITH scoped AS (
+       SELECT c.*
+       FROM admission_campaign_stats c
+       JOIN programs p ON p.id = c.program_id
+       WHERE p.status = 'ACTIVE' AND p.sequence_no_from_sheet IS NOT NULL
+         AND c.acad_year_be = $1
+         AND ${realData}
+         ${scoped ? `AND ${scopeCol} = $2` : ''}
+     ),
+     plan_per_sub AS (
+       SELECT recruitment_program_id, MAX(plan_per_year) AS pp FROM scoped GROUP BY recruitment_program_id
+     )
+     SELECT
+       COALESCE(SUM(enroll_seats), 0)::bigint AS seats,
+       COALESCE(SUM(total_applicants), 0)::bigint AS applicants,
+       COALESCE(SUM(total_passed), 0)::bigint AS passed,
+       COALESCE(SUM(send_clearinghouse), 0)::bigint AS send_ch,
+       COALESCE(SUM(confirm_clearinghouse), 0)::bigint AS confirm_ch,
+       COALESCE(SUM(send_reg_reported), 0)::bigint AS send_reg,
+       COALESCE(SUM(reg_reported), 0)::bigint AS reg,
+       (SELECT COALESCE(SUM(pp), 0)::bigint FROM plan_per_sub) AS plan
+     FROM scoped`,
+    year,
+    ...(scoped ? [scopeId] : []),
+  );
   const r = rows[0];
   if (!r) return empty;
   return {

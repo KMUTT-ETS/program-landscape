@@ -24,6 +24,7 @@ export * from './health-score';
 export * from './program-deep-dive';
 export * from './program-strategic-narrative-run';
 export * from './gap-analysis';
+export * from './gap-lenses';
 export * from './benchmarking';
 export * from './decisions';
 export * from './program-digest-materialize';

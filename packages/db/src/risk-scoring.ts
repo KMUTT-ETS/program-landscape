@@ -1081,6 +1081,7 @@ export interface PortfolioRiskRow {
   programCode: string;
   programNameTh: string;
   programNameEn: string;
+  curriculumYearBE: number | null;
   facultyId: string;
   facultyNameTh: string;
   facultyNameEn: string;
@@ -1148,6 +1149,7 @@ export async function listPortfolioRisk(opts?: {
       program_code: string;
       program_name_th: string;
       program_name_en: string;
+      program_curriculum_year_be: number | null;
       faculty_id: string;
       faculty_name_th: string;
       faculty_name_en: string;
@@ -1180,6 +1182,7 @@ export async function listPortfolioRisk(opts?: {
       p.code AS program_code,
       p.name_th AS program_name_th,
       p.name_en AS program_name_en,
+      p.curriculum_year_be AS program_curriculum_year_be,
       p.faculty_id,
       f.name_th AS faculty_name_th,
       f.name_en AS faculty_name_en,
@@ -1213,6 +1216,7 @@ export async function listPortfolioRisk(opts?: {
     programCode: r.program_code,
     programNameTh: r.program_name_th,
     programNameEn: r.program_name_en,
+    curriculumYearBE: r.program_curriculum_year_be,
     facultyId: r.faculty_id,
     facultyNameTh: r.faculty_name_th,
     facultyNameEn: r.faculty_name_en,

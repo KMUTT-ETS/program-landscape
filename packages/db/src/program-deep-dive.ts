@@ -40,6 +40,7 @@ export interface ProgramOverviewResult {
     level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
     status: 'ACTIVE' | 'PAUSED' | 'SUNSET';
     yearEstablished: number | null;
+    curriculumYearBE: number | null;
     faculty: { id: string; nameEn: string; nameTh: string };
     department: { id: string; nameEn: string; nameTh: string } | null;
   };
@@ -159,6 +160,7 @@ export async function programOverview(programId: string): Promise<ProgramOvervie
       level: program.level,
       status: program.status,
       yearEstablished: program.yearEstablished,
+      curriculumYearBE: program.curriculumYearBE,
       faculty: program.faculty,
       department: program.department,
     },
@@ -778,7 +780,7 @@ const AI_DISPLACEABLE_KEYWORDS = [
   'translation', 'copy editing', 'form filling',
 ];
 
-function classifySkill(name: string): 'aiNative' | 'aiAugmented' | 'aiDisplaceable' | 'neutral' {
+export function classifySkill(name: string): 'aiNative' | 'aiAugmented' | 'aiDisplaceable' | 'neutral' {
   const n = name.toLowerCase();
   if (AI_NATIVE_KEYWORDS.some((k) => n.includes(k))) return 'aiNative';
   if (AI_DISPLACEABLE_KEYWORDS.some((k) => n.includes(k))) return 'aiDisplaceable';

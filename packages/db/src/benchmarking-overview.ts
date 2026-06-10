@@ -82,8 +82,18 @@ export async function getBenchmarkingOverview(): Promise<BenchmarkingOverview> {
     prisma.program.count({
       where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
     }),
-    prisma.programPeerSelection.groupBy({ by: ['programId'] }).then((r) => r.length),
+    // Gate to ACTIVE canonical programs so the benchmarked / reviewed
+    // counts share the 297 denominator — peer data also exists for a few
+    // paused / non-canonical programs, which previously pushed this past
+    // totalActivePrograms (the "300 / 297" bug).
+    prisma.programPeerSelection
+      .groupBy({
+        by: ['programId'],
+        where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } },
+      })
+      .then((r) => r.length),
     prisma.programPeerReview.findMany({
+      where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } },
       orderBy: { generatedAt: 'desc' },
       include: {
         program: {
@@ -98,6 +108,7 @@ export async function getBenchmarkingOverview(): Promise<BenchmarkingOverview> {
       },
     }),
     prisma.programPeerSelection.findMany({
+      where: { program: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } } },
       include: {
         program: {
           select: {
