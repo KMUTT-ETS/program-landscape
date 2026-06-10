@@ -36,6 +36,7 @@ interface TrendDetail {
   } | null;
   programs: Array<{ id: string; code: string; nameEn: string; nameTh: string }>;
   skills: Array<{ id: string; nameEn: string; nameTh: string }>;
+  recommendedActions: Array<{ priority: 'high' | 'medium' | 'low'; actionTh: string; actionEn: string }>;
   annotations: Array<{
     id: string;
     kind: string;
@@ -207,14 +208,42 @@ export default async function TrendSignalPage({
             )}
           </Card>
           <Card>
-            <h4 className="mb-2 text-sm font-semibold">Actions</h4>
-            <ul className="flex flex-col gap-2 text-sm">
-              <li>
-                <Badge tone="neutral">
-                  "Add to scenario" lands with Scenario Planner (prompt 09)
-                </Badge>
-              </li>
-            </ul>
+            <h4 className="mb-2 text-sm font-semibold">
+              Recommended actions ({detail.recommendedActions.length})
+            </h4>
+            {detail.recommendedActions.length === 0 ? (
+              <p className="text-sm text-text-tertiary">
+                No AI analysis yet — run <span className="font-mono text-xs">pnpm trends:analyze {detail.signal.id}</span>.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2.5">
+                {detail.recommendedActions.map((a, i) => (
+                  <li
+                    key={i}
+                    className={`border-l-4 pl-3 ${
+                      a.priority === 'high'
+                        ? 'border-l-danger'
+                        : a.priority === 'medium'
+                          ? 'border-l-warning'
+                          : 'border-l-border-strong'
+                    }`}
+                  >
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <Badge
+                        tone={a.priority === 'high' ? 'danger' : a.priority === 'medium' ? 'warning' : 'neutral'}
+                        size="sm"
+                      >
+                        {a.priority}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-text-primary" lang="th">{a.actionTh}</p>
+                    {a.actionEn && (
+                      <p className="mt-0.5 text-xs text-text-tertiary">{a.actionEn}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

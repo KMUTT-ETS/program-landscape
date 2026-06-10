@@ -1718,6 +1718,10 @@ model TrendSignal {
   impactScore        Float      @map("impact_score")
   affectedProgramIds String[]   @map("affected_program_ids")
   affectedSkillIds   String[]   @map("affected_skill_ids")
+  // AI-derived recommended actions for KKU — array of
+  // { priority, actionTh, actionEn }. Written by trend-signal-analysis.v1
+  // alongside affectedProgramIds / affectedSkillIds / aiInferenceId.
+  recommendedActionsJson Json?  @map("recommended_actions_json")
   aiInferenceId      String?    @map("ai_inference_id")
   // Optional back-pointer to the Phase-5 ExternalAiSource that
   // produced this signal. NULL for legacy / pre-Phase-5 signals + the

@@ -187,6 +187,16 @@ export class TrendsController {
           })
         : Promise.resolve([]),
     ]);
+    // AI-derived recommended actions (trend-signal-analysis.v1).
+    const rawActions = Array.isArray(signal.recommendedActionsJson)
+      ? (signal.recommendedActionsJson as Array<{ priority?: string; actionTh?: string; actionEn?: string }>)
+      : [];
+    const recommendedActions = rawActions.map((a) => ({
+      priority: (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low' ? a.priority : 'medium') as 'high' | 'medium' | 'low',
+      actionTh: a.actionTh ?? '',
+      actionEn: a.actionEn ?? '',
+    }));
+
     return {
       signal: toDto(signal),
       aiInference: ai
@@ -201,6 +211,7 @@ export class TrendsController {
         : null,
       programs,
       skills,
+      recommendedActions,
       annotations: annotations.map((a) => ({
         id: a.id,
         kind: a.kind,
