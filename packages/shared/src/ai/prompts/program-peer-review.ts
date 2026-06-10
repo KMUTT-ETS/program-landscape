@@ -30,9 +30,20 @@ import type { AiMessage } from '../types';
 // floor should be "this many is plausible" (1), not "this many is
 // well-formed" (2-3) — the prompt still asks for 3-5 and Pro lands
 // there when the data supports it.
+//
+// v3 (2026-06-10) — DROP enrolment, financial (net-contribution /
+// per-student investment), and TCAS admission metrics from the
+// comparison. Peer institutions don't expose comparable enrolment /
+// tuition / admission data, so any such comparison misleads. The review
+// now focuses on the four dimensions where the comparison is fair and
+// defensible: CONTENT GAPS · PROGRAM RELEVANCE (labour-market / skill
+// demand) · MODERNIZATION (content spectrum) · AI READINESS. The KKU
+// AI-readiness scorer output is fed in as a first-class input. Output
+// schema is unchanged — only the input snapshot + the dimensions the
+// model is told to reason over.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_PEER_REVIEW_VERSION = 'program-peer-review.v2.1';
+export const PROGRAM_PEER_REVIEW_VERSION = 'program-peer-review.v3';
 
 const Bullet = z.object({
   /** ≤ 25-word claim, frank tone, references a specific peer or metric. */
@@ -70,15 +81,19 @@ export const PeerReviewPayloadSchema = z.object({
   contentGaps: z.array(
     z.object({
       /** Short topic name (e.g. "AI / ML in mechanical design",
-       *  "Additive manufacturing", "Sustainable materials"). */
+       *  "Additive manufacturing", "Sustainable materials"). The only
+       *  required field — a gap must at least be named. */
       topic: z.string().min(3).max(200),
-      /** Where KKU is on this topic today (≤30 words). */
-      kkuStatus: z.string().min(5).max(400),
+      /** Where KKU is on this topic today (≤30 words). Optional in v3 —
+       *  Pro occasionally omits a prose field on one gap; dropping the
+       *  whole review over a single missing string is worse than a gap
+       *  with a blank sub-field, so these tolerate omission. */
+      kkuStatus: z.string().max(400).optional().default(''),
       /** What peers do here (cite 1-3 institutions). */
-      peerExamples: z.string().min(5).max(400),
-      severity: z.enum(['major', 'moderate', 'minor']),
+      peerExamples: z.string().max(400).optional().default(''),
+      severity: z.enum(['major', 'moderate', 'minor']).default('moderate'),
       /** 1-2 sentence concrete recommendation for closing the gap. */
-      recommendation: z.string().min(10).max(500),
+      recommendation: z.string().max(500).optional().default(''),
     }),
   ).min(1).max(8),
   /** 1-7 actionable recommendations for closing the gap, in priority
@@ -114,20 +129,30 @@ export interface ProgramPeerReviewInput {
   /** Free-text subject hint (typically `Program.majors[0]`). */
   subjectHint: string;
 
-  /** KKU program data snapshot — the AI compares THIS against the peers. */
+  /** KKU program data snapshot — the AI compares THIS against the peers.
+   *  v3: enrolment / financial / TCAS-admission metrics deliberately
+   *  excluded — peers expose no comparable data, so comparing them
+   *  misleads. Staff capability via research performance (faculty count,
+   *  senior-rank share, publications) IS retained — bibliometrics are
+   *  comparable across institutions. */
   kkuSnapshot: {
-    enrolledLatest: number | null;
-    yearsObservedTcas: number[];
-    tcasCompetitionRatio: number | null;
-    tcasFillRate: number | null;
-    tcasMinScore: number | null;
     activeFacultyCount: number;
     seniorRankShareOfFaculty: number;
     publicationsLast3Years: number;
     skillsTaughtCount: number;
     labourMarketAlignmentPct: number | null;
-    netContributionPerStudentThb: number | null;
     yearEstablished: number | null;
+    /** KKU AI-readiness scorer output — a first-class v3 dimension. */
+    aiReadiness: {
+      overallScore: number; // 0-100
+      curriculumIntegration: number; // 0-100
+      skillResilience: number; // 0-100
+      researchPresence: number; // 0-100
+      aiNativeSkills: number;
+      aiAugmentedSkills: number;
+      aiDisplaceableSkills: number;
+      aiPublicationsLast3Years: number;
+    } | null;
   };
 
   /** KKU program's actual content — drives the contentModernity +
@@ -166,7 +191,8 @@ GROUND RULES:
 3. When data is missing or thin, say so — don't invent. Use phrases like "no comparable data available" rather than dodging.
 4. Recommendations must be **actionable** and tied to a concrete change KKU could make in 6-36 months.
 5. Council readers value bluntness over diplomacy. Don't soften — say "KKU's mechanical engineering program has 1/4 the publication output of NUS per faculty member" not "publication metrics suggest opportunity for enhancement."
-6. Output **strict JSON, no markdown fences, no prose outside JSON**.
+6. **Do NOT compare on enrolment numbers, tuition / financial figures, or TCAS admission scores.** Peer institutions don't publish comparable enrolment / tuition / admission data, so any such comparison is misleading and is OUT OF SCOPE. Keep the review on content, relevance, modernization, AI readiness, and research capability. (Staff research performance — publications, senior-rank share — IS comparable and fair to cite.)
+7. Output **strict JSON, no markdown fences, no prose outside JSON**.
 
 OUTPUT JSON SHAPE:
 {
@@ -220,14 +246,17 @@ CONTENT-GAP IDENTIFICATION:
 - Severity: 'major' = competitively damaging; 'moderate' = noticeable but not crippling; 'minor' = nice-to-have.
 - Each gap's recommendation should specify what to add and roughly how (course / module / collaboration / lab / track).
 
-DIMENSIONS TO COVER (use whichever the data supports):
-- Curriculum scope + structure (compared via peer rationales)
-- Faculty + research strength (publications, senior rank share)
-- Admissions / attractiveness (TCAS competition + min score)
-- Labour-market alignment (KKU skills coverage of demanded set)
-- Financial scale / per-student investment
-- Geographic + strategic fit (world / regional / national)
-- Subject-specific depth (where the AI selector flagged subject ranks)
+FOCUS DIMENSIONS (v3 — reason ONLY over these; enrolment, tuition/financials, and TCAS admission scores are intentionally absent and OUT OF SCOPE):
+- CONTENT GAPS (the core of this review): specific curriculum topics where KKU lags peers
+- MODERNIZATION: where the curriculum sits on the old-school → frontier spectrum (drives contentModernity)
+- PROGRAM RELEVANCE: alignment to labour-market / future skill demand, subject-area depth, strategic fit
+- AI READINESS: AI/ML curriculum integration, the AI-native vs AI-displaceable skill mix, AI research presence, and whether graduates are prepared for an AI-shaped labour market
+- STAFF CAPABILITY via research performance: publications + senior-rank share — comparable bibliometrics, fair to cite
+- Geographic + strategic fit (world / regional / national); subject-specific depth where the selector flagged subject ranks
+
+AI-READINESS RUBRIC:
+- Use KKU's AI-readiness scores (overall + curriculum integration + skill resilience + AI research presence + skill mix) as the KKU anchor; judge peers' AI posture from your knowledge of what they teach (AI/ML cores, computational tracks, AI-ethics, data-centric design).
+- Flag when KKU's curriculum is AI-thin (few AI-native skills, many AI-displaceable ones) relative to what world-tier peers now embed by default.
 
 PRIORITISATION (recommendations):
 - 'high' priority items: would meaningfully close gap to peers, achievable in ≤24 months
@@ -236,14 +265,25 @@ PRIORITISATION (recommendations):
 
 Be specific. Be frank. No platitudes.`;
 
-  const fmt = (v: number | string | null | undefined, suffix = ''): string =>
-    v === null || v === undefined ? 'n/d' : `${v}${suffix}`;
   const fmtPct = (v: number | null | undefined): string =>
     v === null || v === undefined ? 'n/d' : `${v.toFixed(1)}%`;
-  const fmtThb = (v: number | null | undefined): string =>
-    v === null || v === undefined ? 'n/d' : `฿${Math.round(v).toLocaleString()}`;
 
   const k = input.kkuSnapshot;
+  const air = k.aiReadiness;
+  const aiReadinessBlock = air
+    ? `
+KKU AI READINESS (KKU scorer — a focus dimension; peers have no equivalent number,
+so judge their AI posture from your knowledge of what they teach)
+  Overall AI-readiness score:      ${air.overallScore}/100
+  Curriculum AI integration:       ${air.curriculumIntegration}/100
+  Skill resilience to AI:          ${air.skillResilience}/100
+  AI research presence:            ${air.researchPresence}/100
+  Skill mix:                       ${air.aiNativeSkills} AI-native · ${air.aiAugmentedSkills} AI-augmented · ${air.aiDisplaceableSkills} AI-displaceable
+  AI/ML publications last 3y:      ${air.aiPublicationsLast3Years}`
+    : `
+KKU AI READINESS
+  (not scored yet for this program — infer AI posture from the curriculum content below)`;
+
   const kkuBlock = `
 KKU PROGRAM SNAPSHOT
   Degree:                          ${input.programDegree}
@@ -255,20 +295,15 @@ KKU PROGRAM SNAPSHOT
   Duration (years):                ${input.programDurationYears ?? 'n/d'}
   Year established:                ${k.yearEstablished ?? 'n/d'}
 
-  Active enrolment (latest):       ${fmt(k.enrolledLatest)}
-  TCAS3 years on file:             ${k.yearsObservedTcas.join(', ') || 'n/d'}
-  TCAS3 competition ratio:         ${fmt(k.tcasCompetitionRatio?.toFixed(2), 'x')}
-  TCAS3 fill rate:                 ${fmtPct(k.tcasFillRate ? k.tcasFillRate * 100 : null)}
-  TCAS3 min admission score:       ${fmt(k.tcasMinScore?.toFixed(2))}
-
+  STAFF CAPABILITY (research performance — comparable bibliometrics):
   Active faculty:                  ${k.activeFacultyCount}
   Senior rank share (Prof+Assoc):  ${fmtPct(k.seniorRankShareOfFaculty * 100)}
   Publications last 3y:            ${k.publicationsLast3Years}
 
+  PROGRAM RELEVANCE:
   Skills taught (program-skills):  ${k.skillsTaughtCount}
   Labour-market alignment:         ${fmtPct(k.labourMarketAlignmentPct)}
-
-  Net contribution per student:    ${fmtThb(k.netContributionPerStudentThb)}
+${aiReadinessBlock}
 `;
 
   // Content block — drives contentModernity + contentGaps assessment.

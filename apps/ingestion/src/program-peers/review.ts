@@ -1,4 +1,4 @@
-import { prisma } from '@kku/db';
+import { prisma, programAiReadiness } from '@kku/db';
 import {
   buildProgramPeerReviewMessages,
   ProgramPeerReviewSchema,
@@ -71,20 +71,12 @@ export async function generateProgramPeerReview(
     };
   }
 
-  // Snapshot KKU's current state for the AI to compare against. Keep
-  // this lean — every metric must be defensible (no extrapolation,
-  // no projection). Same data the Deep-Dive surfaces.
-  const [enrollment, tcas, programFaculty, programSkillRows, latestDigest] = await Promise.all([
-    prisma.enrollmentMetric.findMany({
-      where: { programId: program.id },
-      orderBy: { academicYear: 'desc' },
-      take: 2,
-      select: { academicYear: true, enrolled: true },
-    }),
-    prisma.tcasAdmissionStat.findFirst({
-      where: { programId: program.id },
-      orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
-    }),
+  // Snapshot KKU's current state for the AI to compare against. v3:
+  // enrolment / financial / TCAS-admission metrics are deliberately NOT
+  // fetched — peers expose no comparable data, so comparing them misleads.
+  // Retained: staff capability (faculty + research), program relevance
+  // (skills + labour-market alignment), and the AI-readiness scorer.
+  const [programFaculty, programSkillRows, latestDigest, aiReadiness] = await Promise.all([
     prisma.programFaculty.findMany({
       where: { programId: program.id },
       include: {
@@ -108,15 +100,9 @@ export async function generateProgramPeerReview(
       orderBy: { createdAt: 'desc' },
       select: { payloadJson: true },
     }),
+    programAiReadiness(program.id),
   ]);
   const programSkillCount = programSkillRows.length;
-
-  const yearsTcas = await prisma.tcasAdmissionStat.findMany({
-    where: { programId: program.id },
-    select: { entryYearBE: true },
-    distinct: ['entryYearBE'],
-    orderBy: { entryYearBE: 'asc' },
-  });
 
   const activeFaculty = programFaculty
     .filter((p) => p.facultyMember.isActive)
@@ -134,33 +120,6 @@ export async function generateProgramPeerReview(
         where: { facultyMemberId: { in: memberIds }, year: { gte: currentYear - 3 } },
       })
     : 0;
-
-  // Latest non-partial enrolment.
-  let enrolledLatest: number | null = null;
-  if (enrollment.length === 1) enrolledLatest = enrollment[0]!.enrolled;
-  else if (enrollment.length >= 2) {
-    const partial =
-      enrollment[1]!.enrolled > 0 &&
-      enrollment[0]!.enrolled < enrollment[1]!.enrolled * 0.3;
-    enrolledLatest = partial ? enrollment[1]!.enrolled : enrollment[0]!.enrolled;
-  }
-
-  // Net contribution per student (latest complete fiscal year).
-  const finRows = await prisma.financialMetric.findMany({
-    where: { programId: program.id },
-    orderBy: { fiscalYear: 'asc' },
-  });
-  let netContribPerStudent: number | null = null;
-  if (finRows.length > 0 && enrolledLatest && enrolledLatest > 0) {
-    let pickIndex = finRows.length - 1;
-    if (finRows.length >= 2) {
-      const last = Number(finRows[finRows.length - 1]!.tuitionRevenue);
-      const prior = Number(finRows[finRows.length - 2]!.tuitionRevenue);
-      if (prior > 0 && last < prior * 0.3) pickIndex = finRows.length - 2;
-    }
-    const net = Number(finRows[pickIndex]!.netContribution);
-    netContribPerStudent = net / enrolledLatest;
-  }
 
   // Labour-market alignment (% of program skills in the LinkedIn-via-MHESI
   // demanded set, fallback chain). Reuses the same approach the health
@@ -231,21 +190,22 @@ export async function generateProgramPeerReview(
     programDurationYears: program.durationYears,
     subjectHint: program.majors[0] ?? '',
     kkuSnapshot: {
-      enrolledLatest,
-      yearsObservedTcas: yearsTcas.map((y) => y.entryYearBE),
-      tcasCompetitionRatio: tcas && tcas.quota > 0 ? tcas.applicants / tcas.quota : null,
-      tcasFillRate:
-        tcas && tcas.quota > 0
-          ? (tcas.admittedPass1 + tcas.admittedPass2) / tcas.quota
-          : null,
-      tcasMinScore: tcas?.minScorePass1 ?? null,
       activeFacultyCount: activeFaculty.length,
       seniorRankShareOfFaculty: seniorRankShare,
       publicationsLast3Years: publicationsCount,
       skillsTaughtCount: programSkillCount,
       labourMarketAlignmentPct: labourMarketAlignment,
-      netContributionPerStudentThb: netContribPerStudent,
       yearEstablished: program.yearEstablished,
+      aiReadiness: {
+        overallScore: aiReadiness.overallScore,
+        curriculumIntegration: aiReadiness.subScores.curriculumIntegration,
+        skillResilience: aiReadiness.subScores.skillResilience,
+        researchPresence: aiReadiness.subScores.researchPresence,
+        aiNativeSkills: aiReadiness.skillBreakdown.aiNative,
+        aiAugmentedSkills: aiReadiness.skillBreakdown.aiAugmented,
+        aiDisplaceableSkills: aiReadiness.skillBreakdown.aiDisplaceable,
+        aiPublicationsLast3Years: aiReadiness.aiPublicationsLast3Years,
+      },
     },
     kkuContent: {
       skillsTaught,
