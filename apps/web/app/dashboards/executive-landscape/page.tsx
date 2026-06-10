@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
-import { getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
+import { getBenchmarkingOverview, getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
 import {
   Card,
   CardHeader,
@@ -21,6 +21,7 @@ import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
 import { LifecycleVerdictViz } from '@/components/dashboard/lifecycle-verdict';
 import { HealthByFaculty } from '@/components/dashboard/health-by-faculty';
+import { CurriculumModernity } from '@/components/dashboard/curriculum-modernity';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Executive Landscape · KKU' };
@@ -117,6 +118,12 @@ export default async function ExecutiveLandscapePage() {
 
   const strategicMatrix = await apiFetch<CockpitMatrix>(`/cockpit/matrix?${matrixQuery}`).catch(() => null);
 
+  // Portfolio-level curriculum-modernity counts (university-wide AI peer review)
+  // — sits beside the Strategic Matrix.
+  const modernityCounts = await getBenchmarkingOverview()
+    .then((o) => o.hero.modernityCounts)
+    .catch(() => null);
+
   // Scope label injected into every PanelFrame's provenance drawer so
   // the user can see which slice they're looking at.
   const provenanceScope: { level: 'university' | 'faculty' | 'program'; id: string | null } =
@@ -205,22 +212,39 @@ export default async function ExecutiveLandscapePage() {
             Same data, click-to-deep-dive, matches what users see when
             they navigate to /cockpit/matrix. */}
         {strategicMatrix && (
-          <PanelFrame
-            title="BCG-style Strategic Matrix"
-            description={`X = ${strategicMatrix.axisX.label} · Y = ${strategicMatrix.axisY.label}. Each dot is one program. Click any dot to open the program's deep-dive. Same view as the cockpit's Strategic Matrix at university scope.`}
-            freshnessDate={generatedAtIso}
-            provenanceMeta={{
-              freshnessDate: generatedAtIso,
-              sources: [
-                { id: 'health_score', name: 'KKU health score (drives axes)' },
-                { id: 'financial_metrics', name: 'KKU Finance · revenue & contribution' },
-              ],
-              methodologyVersion: strategicMatrix.methodologyVersion,
-              scope: provenanceScope,
-            }}
-          >
-            <StrategicMatrixHero matrix={strategicMatrix} />
-          </PanelFrame>
+          <div className={modernityCounts ? 'grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]' : ''}>
+            <PanelFrame
+              title="BCG-style Strategic Matrix"
+              description={`X = ${strategicMatrix.axisX.label} · Y = ${strategicMatrix.axisY.label}. Each dot is one program. Click any dot to open the program's deep-dive. Same view as the cockpit's Strategic Matrix at university scope.`}
+              freshnessDate={generatedAtIso}
+              provenanceMeta={{
+                freshnessDate: generatedAtIso,
+                sources: [
+                  { id: 'health_score', name: 'KKU health score (drives axes)' },
+                  { id: 'financial_metrics', name: 'KKU Finance · revenue & contribution' },
+                ],
+                methodologyVersion: strategicMatrix.methodologyVersion,
+                scope: provenanceScope,
+              }}
+            >
+              <StrategicMatrixHero matrix={strategicMatrix} />
+            </PanelFrame>
+            {modernityCounts && (
+              <PanelFrame
+                title="Curriculum modernity verdict"
+                description="Where KKU's AI-reviewed curricula sit on the old-school → frontier spectrum, judged against named peer programs."
+                freshnessDate={generatedAtIso}
+                provenanceMeta={{
+                  freshnessDate: generatedAtIso,
+                  sources: [{ id: 'peer_review', name: 'AI peer review · content modernity' }],
+                  methodologyVersion: 'program-peer-review.v3',
+                  scope: provenanceScope,
+                }}
+              >
+                <CurriculumModernity counts={modernityCounts} variant="compact" />
+              </PanelFrame>
+            )}
+          </div>
         )}
 
         {/* ROW: LIFECYCLE VERDICT + FACULTY HEALTH */}
