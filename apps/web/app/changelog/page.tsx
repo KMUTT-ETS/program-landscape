@@ -26,6 +26,22 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-10',
+    version: 'v1.6.0 · Benchmarking rebuilt, multi-lens Gap Analyzer, AI trend analysis',
+    title:
+      'A redesigned competitive-benchmarking experience with a per-program positioning view, a curriculum-modernity verdict, a seven-lens Gap Analyzer with a single composite index, AI analysis on every trend signal, and the curriculum revision year shown wherever a program is named',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Competitive Benchmarking refocused on curriculum content. The AI peer review (v3) now judges each program on content gaps, program relevance, modernization and AI readiness — with staff capability still reflected through research performance — and no longer factors in enrolment or finances, which belong to other modules. Picking a program opens a dedicated benchmarking view at /benchmarking/programs/[id] focused on content positioning, with every benchmark reference stated explicitly and linked to its source.',
+      'New “Curriculum modernity verdict” — a one-glance view of where KKU’s reviewed curricula sit on the old-school → frontier spectrum, AI-judged against the actual content of named peer programs. It appears on Competitive Benchmarking and beside the Strategic Matrix on the Executive Landscape dashboard.',
+      'The Gap Analyzer is rebuilt as a seven-lens analyzer (skills, modernization, AI readiness, market demand, program relevance, staff capability, systemic topics) rolled into a single Composite Gap Index per scope, with drill-down from faculty to the individual programs driving each gap.',
+      'Every trend signal now carries AI analysis: which KKU programs and skills it affects, and recommended actions — so a signal is actionable, not just informational.',
+      'Wherever a program is named — the Programs directory, Competitive Benchmarking, the Risk register, Gap-analysis risks, and the program deep-dive — the curriculum revision year is now shown (e.g. “Rev. BE 2566 (CE 2023)”), so readers always know which version of a curriculum a number refers to.',
+      'The university-vs-faculty GPA trend chart now respects the selected scope; a program-level reader sees their faculty’s line against the university benchmark.',
+      'Admin pipeline launchers now state the correct number of processing phases.',
+    ],
+  },
+  {
     date: '2026-06-09',
     version: 'v1.5.3 · Faculty GPA trend; deep-dive narrative regenerate fix',
     title:
