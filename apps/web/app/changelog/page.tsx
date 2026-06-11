@@ -26,6 +26,19 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-11',
+    version: 'v1.6.1 · Add signals from documents; job candidates & new-initiative ideas on the Trends Radar',
+    title:
+      'Turn any document or link into a trend signal, see the job positions each affected program feeds, and get AI-proposed re-skill/upskill offerings for demand KKU does not yet serve',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New “Add signal from document” (Analysts/Admins): upload a PDF — e.g. a manpower-demand or job-posting report — or paste a URL, and the AI reads it, drafts a trend signal, and publishes it to the Trends Radar already enriched with the KKU programs and skills it affects and recommended actions. Available from the Admin console and as a command-line tool.',
+      'Every trend signal’s “Affected programs” now shows the job positions each program’s graduates can fill, split into immediate roles (hireable now) and emerging roles (reachable in 1–3 years with curriculum adaptation or upskilling), each with the number of candidates — drawn from the program’s active student cohorts, the same source as the program page.',
+      'Recommended actions on each signal are richer: each carries a short title, a what/why/how detail, and one to three concrete example projects KKU could actually charter (a new course or track, an industry partnership, a micro-credential, a research lab, a co-op pipeline).',
+      'New “New initiatives — re-skill / upskill products” section: where a signal demands roles no KKU program currently supplies — a field KKU does not teach, or a vocational/sub-degree-level position — the system proposes a new product or service KKU could launch (a micro-credential, bootcamp, short course or non-degree certificate), with the unmet role it serves, the target audience to re-skill/upskill, and the delivery format.',
+    ],
+  },
+  {
     date: '2026-06-10',
     version: 'v1.6.0 · Benchmarking rebuilt, multi-lens Gap Analyzer, AI trend analysis',
     title:
