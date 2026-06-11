@@ -18,6 +18,7 @@ import {
 } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runImdRankingsExtract } from '../imd-rankings-extract/run';
+import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
 import type { AiJobKind, ProgramPipelinePhase } from './queue';
 
 // Each handler consumes one job, calls the AI service, writes an
@@ -230,6 +231,26 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         aiExtractionId: row.id,
         aiInferenceId: resp.aiInferenceId,
       };
+    },
+
+    // Uploaded PDF / pasted URL → a published TrendSignal on the radar.
+    // entityId is a TrendDocument id. The runner extracts text, drafts the
+    // signal, auto-publishes it, then runs the trend-signal-analysis pass.
+    ANALYZE_TREND_DOCUMENT: async ({ entityId, triggeredByUserId }) => {
+      const outcome = await runTrendDocumentIngest({
+        trendDocumentId: entityId,
+        ai: deps.ai,
+        storage: deps.storage,
+        triggeredByUserId,
+      });
+      if (outcome.status === 'SUCCEEDED') {
+        logger.log(
+          `ANALYZE_TREND_DOCUMENT doc=${entityId} signal=${outcome.trendSignalId} ` +
+            `type=${outcome.signalType} impact=${outcome.impactScore} analysis=${outcome.analysisOk ? 'ok' : 'skipped'}`,
+        );
+        return { status: 'SUCCEEDED', message: outcome.trendSignalId };
+      }
+      return { status: outcome.status, message: outcome.reason };
     },
 
     RUN_PROGRAM_DIGEST: async ({ entityId, triggeredByUserId }) => {

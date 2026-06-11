@@ -9,9 +9,15 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-signal AI analysis. For one TrendSignal, asks the model which KKU
 // programs + skills it affects and what KKU should do, then writes back:
-//   affectedProgramIds (validated against canonical programs),
-//   affectedSkillIds   (resolved from named skills by exact match),
-//   recommendedActionsJson, aiInferenceId.
+//   affectedProgramIds   (validated against canonical programs — flat list
+//                          kept in sync for all existing consumers),
+//   affectedProgramsJson  (per-program job-position candidates: immediate +
+//                          1-3yr roles + fit note),
+//   affectedSkillIds      (resolved from named skills by exact match),
+//   recommendedActionsJson,
+//   newInitiativesJson    (white-space re-skill/upskill product ideas for
+//                          demanded roles no KKU program supplies),
+//   aiInferenceId.
 // Idempotent — re-running overwrites the prior analysis.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -28,6 +34,7 @@ export type AnalyzeTrendSignalOutcome =
       affectedPrograms: number;
       affectedSkills: number;
       recommendedActions: number;
+      newInitiatives: number;
       confidence: number;
       costUsd: number;
     }
@@ -80,8 +87,16 @@ export async function analyzeTrendSignal(
   }
   const a = response.parsed;
 
-  // Validate affected programs against the canonical set.
-  const affectedProgramIds = [...new Set(a.affectedProgramIds.filter((id) => programIdSet.has(id)))];
+  // Validate affected programs against the canonical set, deduped by id
+  // (first occurrence wins, preserving the model's priority order). The flat
+  // affectedProgramIds array stays in sync for every existing consumer.
+  const seen = new Set<string>();
+  const affectedPrograms = a.affectedPrograms.filter((p) => {
+    if (!programIdSet.has(p.programId) || seen.has(p.programId)) return false;
+    seen.add(p.programId);
+    return true;
+  });
+  const affectedProgramIds = affectedPrograms.map((p) => p.programId);
 
   // Resolve named skills → Skill ids by exact (lowercased) name match.
   const names = a.affectedSkills.map((n) => n.trim()).filter(Boolean);
@@ -98,7 +113,9 @@ export async function analyzeTrendSignal(
     data: {
       affectedProgramIds,
       affectedSkillIds,
+      affectedProgramsJson: affectedPrograms as unknown as Prisma.InputJsonValue,
       recommendedActionsJson: a.recommendedActions as unknown as Prisma.InputJsonValue,
+      newInitiativesJson: a.newInitiatives as unknown as Prisma.InputJsonValue,
       aiInferenceId: response.aiInferenceId,
     },
   });
@@ -109,6 +126,7 @@ export async function analyzeTrendSignal(
     affectedPrograms: affectedProgramIds.length,
     affectedSkills: affectedSkillIds.length,
     recommendedActions: a.recommendedActions.length,
+    newInitiatives: a.newInitiatives.length,
     confidence: a.confidence,
     costUsd: response.cost.usd,
   };

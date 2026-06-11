@@ -54,7 +54,7 @@ async function main() {
     if (r.status === 'SUCCEEDED') {
       ok++;
       cost += r.costUsd;
-      console.log(`  ✓ ${id} — ${r.affectedPrograms} programs · ${r.affectedSkills} skills · ${r.recommendedActions} actions (conf ${r.confidence}, $${r.costUsd.toFixed(4)})`);
+      console.log(`  ✓ ${id} — ${r.affectedPrograms} programs · ${r.affectedSkills} skills · ${r.recommendedActions} actions · ${r.newInitiatives} new-initiatives (conf ${r.confidence}, $${r.costUsd.toFixed(4)})`);
     } else {
       failed++;
       console.log(`  ✗ ${id} — ${r.status}: ${'reason' in r ? r.reason : ''}`);

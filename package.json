@@ -78,6 +78,7 @@
     "peers:seed-universities": "tsx apps/ingestion/src/scripts/seed-ranked-universities.ts",
     "peers:select": "tsx apps/ingestion/src/scripts/select-program-peers.ts",
     "trends:analyze": "tsx apps/ingestion/src/scripts/analyze-trend-signals.ts",
+    "trends:ingest-doc": "tsx apps/ingestion/src/scripts/ingest-trend-document.ts",
     "skills:normalise": "tsx apps/ingestion/src/scripts/normalise-skill-names.ts",
     "skills:seed-automation-risk": "tsx apps/ingestion/src/scripts/seed-skill-automation-risk.ts",
     "risks:assess": "tsx apps/ingestion/src/scripts/risks-assess.ts",

@@ -672,6 +672,65 @@ export async function programStudentCohorts(
   };
 }
 
+// ── Candidate supply per program (for the Trends Radar) ────────────────
+// Splits a program's CURRENTLY-ACTIVE students (the same student_cohort_
+// distributions the /programs/[id] cohort chart uses) into:
+//   • immediate — students in/past their final nominal year, graduating
+//     now/soon → the pool that can fill immediate job roles today.
+//   • emerging  — the rest of the active pipeline (incoming + earlier on-track
+//     years) → graduate over the following ~1-3 years, mapping to emerging
+//     roles.
+// `immediate` = students whose yearInProgramme >= Program.durationYears
+// (final year + delayed); `emerging` = totalActive − immediate. When duration
+// isn't extracted yet the final year can't be identified, so durationKnown is
+// false and everything lands in `emerging`.
+export interface ProgramCandidateSupply {
+  programId: string;
+  immediate: number;
+  emerging: number;
+  totalActive: number;
+  durationKnown: boolean;
+}
+
+export async function programsCandidateSupply(
+  programIds: string[],
+  now: Date = new Date(),
+): Promise<Map<string, ProgramCandidateSupply>> {
+  const result = new Map<string, ProgramCandidateSupply>();
+  if (programIds.length === 0) return result;
+  const academicYearBE = currentAcademicYearBE(now);
+  const [programs, rows] = await Promise.all([
+    prisma.program.findMany({
+      where: { id: { in: programIds } },
+      select: { id: true, durationYears: true },
+    }),
+    prisma.studentCohortDistribution.findMany({
+      where: { programId: { in: programIds }, ...realDataWhere() },
+      select: { programId: true, entryYearBE: true, studentCount: true },
+    }),
+  ]);
+  const durationById = new Map(programs.map((p) => [p.id, p.durationYears]));
+  for (const id of programIds) {
+    result.set(id, {
+      programId: id,
+      immediate: 0,
+      emerging: 0,
+      totalActive: 0,
+      durationKnown: durationById.get(id) != null,
+    });
+  }
+  for (const r of rows) {
+    const entry = result.get(r.programId);
+    if (!entry) continue;
+    const duration = durationById.get(r.programId) ?? null;
+    const yearInProgramme = academicYearBE - r.entryYearBE + 1;
+    entry.totalActive += r.studentCount;
+    if (duration != null && yearInProgramme >= duration) entry.immediate += r.studentCount;
+    else entry.emerging += r.studentCount;
+  }
+  return result;
+}
+
 // ── Strategic narrative (pre-computed by pipeline) ─────────────────────
 export interface ProgramStrategicNarrativeResult {
   contentMarkdown: string;

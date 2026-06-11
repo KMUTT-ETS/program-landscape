@@ -20,6 +20,7 @@ import {
   Database,
   FileSearch,
   FileText,
+  FileUp,
   GitBranch,
   Globe2,
   Layers,
@@ -465,6 +466,13 @@ function buildGroups({
             return `${signals} signal${signals === 1 ? '' : 's'} from ${externalAi.length} feeds · 30d`;
           })()
         : undefined,
+    },
+    {
+      href: '/admin/trend-documents',
+      label: 'Add signal from document',
+      description:
+        'Upload a PDF (e.g. a manpower-demand / job-posting report) or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the KKU programs/skills it affects + recommended actions.',
+      icon: <FileUp className="h-6 w-6" />,
     },
     {
       href: '/admin/pdf-review',

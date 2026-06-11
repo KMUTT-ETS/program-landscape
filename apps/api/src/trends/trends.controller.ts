@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Prisma, prisma } from '@kku/db';
+import { Prisma, prisma, programsCandidateSupply } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -187,14 +187,124 @@ export class TrendsController {
           })
         : Promise.resolve([]),
     ]);
-    // AI-derived recommended actions (trend-signal-analysis.v1).
+    // AI-derived recommended actions. v2 carries title + detail + example
+    // projects; v1 carried only actionTh/actionEn — map those to the title so
+    // older signals still render.
+    type RawAction = {
+      priority?: string;
+      titleTh?: string;
+      titleEn?: string;
+      detailTh?: string;
+      detailEn?: string;
+      actionTh?: string;
+      actionEn?: string;
+      exampleProjects?: Array<{ titleTh?: string; titleEn?: string; descTh?: string; descEn?: string }>;
+    };
     const rawActions = Array.isArray(signal.recommendedActionsJson)
-      ? (signal.recommendedActionsJson as Array<{ priority?: string; actionTh?: string; actionEn?: string }>)
+      ? (signal.recommendedActionsJson as RawAction[])
       : [];
     const recommendedActions = rawActions.map((a) => ({
       priority: (a.priority === 'high' || a.priority === 'medium' || a.priority === 'low' ? a.priority : 'medium') as 'high' | 'medium' | 'low',
-      actionTh: a.actionTh ?? '',
-      actionEn: a.actionEn ?? '',
+      titleTh: a.titleTh ?? a.actionTh ?? '',
+      titleEn: a.titleEn ?? a.actionEn ?? '',
+      detailTh: a.detailTh ?? (a.titleTh ? '' : a.actionTh ?? ''),
+      detailEn: a.detailEn ?? (a.titleEn ? '' : a.actionEn ?? ''),
+      exampleProjects: Array.isArray(a.exampleProjects)
+        ? a.exampleProjects.map((p) => ({
+            titleTh: p.titleTh ?? '',
+            titleEn: p.titleEn ?? '',
+            descTh: p.descTh ?? null,
+            descEn: p.descEn ?? null,
+          }))
+        : [],
+    }));
+
+    // Per-program job-position candidates (trend-signal-analysis.v3). Older
+    // signals (v1/v2) have no affectedProgramsJson → programs render with empty
+    // role lists. Build a programId → roles map, then attach to each resolved
+    // program preserving the model's priority order (affectedProgramIds order).
+    type RawRole = { titleTh?: string; titleEn?: string };
+    type RawAffectedProgram = {
+      programId?: string;
+      immediateRoles?: RawRole[];
+      emergingRoles?: RawRole[];
+      fitNoteTh?: string;
+    };
+    const normRoles = (roles: RawRole[] | undefined) =>
+      Array.isArray(roles)
+        ? roles
+            .map((r) => ({ titleTh: r.titleTh ?? '', titleEn: r.titleEn ?? '' }))
+            .filter((r) => r.titleTh || r.titleEn)
+        : [];
+    const jobMap = new Map<string, { immediateRoles: RawRole[]; emergingRoles: RawRole[]; fitNoteTh: string | null }>();
+    if (Array.isArray(signal.affectedProgramsJson)) {
+      for (const raw of signal.affectedProgramsJson as RawAffectedProgram[]) {
+        if (!raw || typeof raw.programId !== 'string') continue;
+        jobMap.set(raw.programId, {
+          immediateRoles: normRoles(raw.immediateRoles),
+          emergingRoles: normRoles(raw.emergingRoles),
+          fitNoteTh: raw.fitNoteTh ?? null,
+        });
+      }
+    }
+    const programById = new Map(programs.map((p) => [p.id, p]));
+    // Candidate supply (immediate vs. emerging) from each program's active
+    // cohorts — the same student_cohort_distributions the /programs/[id] chart
+    // uses.
+    const supplyMap = await programsCandidateSupply(signal.affectedProgramIds);
+    const programsOut = signal.affectedProgramIds
+      .map((id) => {
+        const p = programById.get(id);
+        if (!p) return null;
+        const info = jobMap.get(id);
+        const supply = supplyMap.get(id);
+        return {
+          id: p.id,
+          code: p.code,
+          nameEn: p.nameEn,
+          nameTh: p.nameTh,
+          immediateRoles: info?.immediateRoles ?? [],
+          emergingRoles: info?.emergingRoles ?? [],
+          fitNoteTh: info?.fitNoteTh ?? null,
+          // Candidate supply from the program's active cohorts (same source as
+          // the /programs/[id] cohort chart). immediate = graduating soon;
+          // emerging = rest of the pipeline. cohortDataAvailable=false when the
+          // program has no real cohort rows → the UI omits the count.
+          immediateCandidates: supply?.immediate ?? 0,
+          emergingCandidates: supply?.emerging ?? 0,
+          cohortDataAvailable: (supply?.totalActive ?? 0) > 0,
+        };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+
+    // White-space new initiatives (re-skill/upskill products for demanded roles
+    // no KKU program supplies). Empty for older signals + when no gap was found.
+    type RawInitiative = {
+      titleTh?: string;
+      titleEn?: string;
+      unmetRoleTh?: string;
+      unmetRoleEn?: string;
+      audienceTh?: string;
+      audienceEn?: string;
+      formatTh?: string;
+      formatEn?: string;
+      detailTh?: string;
+      detailEn?: string;
+    };
+    const rawInitiatives = Array.isArray(signal.newInitiativesJson)
+      ? (signal.newInitiativesJson as RawInitiative[])
+      : [];
+    const newInitiatives = rawInitiatives.map((n) => ({
+      titleTh: n.titleTh ?? '',
+      titleEn: n.titleEn ?? '',
+      unmetRoleTh: n.unmetRoleTh ?? '',
+      unmetRoleEn: n.unmetRoleEn ?? '',
+      audienceTh: n.audienceTh ?? '',
+      audienceEn: n.audienceEn ?? '',
+      formatTh: n.formatTh ?? '',
+      formatEn: n.formatEn ?? '',
+      detailTh: n.detailTh ?? '',
+      detailEn: n.detailEn ?? '',
     }));
 
     return {
@@ -209,9 +319,10 @@ export class TrendsController {
             latencyMs: ai.latencyMs,
           }
         : null,
-      programs,
+      programs: programsOut,
       skills,
       recommendedActions,
+      newInitiatives,
       annotations: annotations.map((a) => ({
         id: a.id,
         kind: a.kind,

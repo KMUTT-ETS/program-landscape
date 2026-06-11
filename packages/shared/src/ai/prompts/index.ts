@@ -25,3 +25,4 @@ export * from './external-feed-summary';
 export * from './evaluation-question-translate';
 export * from './pdf-classify';
 export * from './trend-signal-analysis';
+export * from './trend-document-ingest';

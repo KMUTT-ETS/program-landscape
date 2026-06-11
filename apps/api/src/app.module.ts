@@ -51,6 +51,7 @@ import { AdminDataSetupModule } from './admin-data-setup/admin-data-setup.module
 import { EducationModule } from './education/education.module';
 import { StaffDashboardModule } from './staff-dashboard/staff.module';
 import { RisksModule } from './risks/risks.module';
+import { TrendDocumentsModule } from './trend-documents/trend-documents.module';
 
 import {
   AccessControlGuard,
@@ -117,6 +118,7 @@ import {
     EducationModule,
     StaffDashboardModule,
     RisksModule,
+    TrendDocumentsModule,
   ],
   exports: [CacheService],
   controllers: [
