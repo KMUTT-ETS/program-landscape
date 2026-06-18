@@ -116,9 +116,35 @@ function fmtDate(iso: string | null): string {
   });
 }
 
-function severityTone(s: ContentGap['severity']): 'danger' | 'warning' | 'neutral' {
-  return s === 'major' ? 'danger' : s === 'moderate' ? 'warning' : 'neutral';
-}
+// Severity → visual treatment for the "Content gaps vs peer curricula" panel.
+// `rank` drives the major-first sort; the rest are token-only utility classes
+// (no hardcoded colour) so light/dark both resolve.
+const GAP_SEVERITY: Record<
+  ContentGap['severity'],
+  { rank: number; spine: string; chip: string; dot: string; label: string }
+> = {
+  major: {
+    rank: 0,
+    spine: 'bg-danger',
+    chip: 'bg-danger-subtle text-danger',
+    dot: 'bg-danger',
+    label: 'major',
+  },
+  moderate: {
+    rank: 1,
+    spine: 'bg-warning',
+    chip: 'bg-warning-subtle text-warning',
+    dot: 'bg-warning',
+    label: 'moderate',
+  },
+  minor: {
+    rank: 2,
+    spine: 'bg-border-strong',
+    chip: 'bg-surface-3 text-text-secondary',
+    dot: 'bg-border-strong',
+    label: 'minor',
+  },
+};
 
 // Rubber-stamp visualisation of the curriculum-modernity verdict.
 function ModernityStamp({ verdict }: { verdict: Verdict }) {
@@ -132,6 +158,134 @@ function ModernityStamp({ verdict }: { verdict: Verdict }) {
       <span className="text-2xl font-black uppercase leading-none tracking-wider">{label}</span>
       <span className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.3em] opacity-70">Positioning</span>
     </div>
+  );
+}
+
+// ── Content gaps vs peer curricula ───────────────────────────────────────────
+// Reframes each gap as an ADOPTION OPPORTUNITY. The heaviest visual weight goes
+// to what leading peers actually do (the implementable insight the Council can
+// act on); KKU's current state is context; the recommendation is an explicit
+// "move to adopt" action. Gaps are sorted most-material first and carry a
+// severity spine + tally so the panel reads at a glance.
+function ContentGapsPanel({
+  gaps,
+  programName,
+}: {
+  gaps: ContentGap[];
+  programName: string;
+}) {
+  const sorted = [...gaps].sort(
+    (a, b) => GAP_SEVERITY[a.severity].rank - GAP_SEVERITY[b.severity].rank,
+  );
+  const tally = (['major', 'moderate', 'minor'] as const)
+    .map((s) => ({ s, n: gaps.filter((g) => g.severity === s).length }))
+    .filter((t) => t.n > 0);
+
+  return (
+    <Card padding="md">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-text-primary">
+          Content gaps vs peer curricula
+        </h3>
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-tertiary">
+          {gaps.length} {gaps.length === 1 ? 'gap' : 'gaps'}
+        </span>
+      </div>
+      <p className="text-xs leading-relaxed text-text-secondary">
+        What leading peer programmes teach that{' '}
+        <span className="font-medium text-text-primary">{programName}</span> could adopt —
+        ranked by how material the gap is.
+      </p>
+
+      {tally.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-y border-border-subtle py-2">
+          {tally.map(({ s, n }) => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1.5 text-[11px] text-text-secondary"
+            >
+              <span className={`h-2 w-2 rounded-full ${GAP_SEVERITY[s].dot}`} aria-hidden />
+              <span className="font-mono tabular-nums text-text-primary">{n}</span>
+              <span>{GAP_SEVERITY[s].label}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <ol className="mt-4 flex flex-col gap-3">
+        {sorted.map((g, i) => {
+          const sev = GAP_SEVERITY[g.severity];
+          return (
+            <li
+              key={i}
+              className="group relative overflow-hidden rounded-lg border border-border-subtle bg-surface-1 py-3 pl-4 pr-3.5 transition-colors hover:border-border-default"
+            >
+              {/* severity spine */}
+              <span className={`absolute inset-y-0 left-0 w-1 ${sev.spine}`} aria-hidden />
+
+              {/* topic + severity */}
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <span className="font-mono text-[11px] tabular-nums text-text-tertiary">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <h4 className="min-w-0 text-sm font-semibold leading-snug text-text-primary">
+                    {g.topic}
+                  </h4>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${sev.chip}`}
+                >
+                  {g.severity}
+                </span>
+              </div>
+
+              {/* KKU today — context */}
+              {g.kkuStatus && (
+                <p className="mb-2 text-xs leading-relaxed text-text-secondary">
+                  <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+                    KKU today
+                  </span>
+                  {g.kkuStatus}
+                </p>
+              )}
+
+              {/* What leading peers do — the implementable insight (hero) */}
+              {g.peerExamples && (
+                <div className="rounded-md border-l-2 border-accent-default bg-accent-subtle/40 px-3 py-2">
+                  <div className="mb-0.5 flex items-center gap-1.5">
+                    <span aria-hidden className="text-accent-default">
+                      ▸
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-default">
+                      What leading peers do
+                    </span>
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-text-primary">
+                    {g.peerExamples}
+                  </p>
+                </div>
+              )}
+
+              {/* Move to adopt — the action */}
+              {g.recommendation && (
+                <div className="mt-2 flex items-start gap-1.5">
+                  <span aria-hidden className="mt-px text-accent-default">
+                    →
+                  </span>
+                  <p className="text-xs leading-relaxed text-text-secondary">
+                    <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+                      Move to adopt
+                    </span>
+                    {g.recommendation}
+                  </p>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
   );
 }
 
@@ -387,38 +541,9 @@ export default async function ProgramBenchmarkingPage({
               </Card>
             </div>
 
-            {/* ── Content gaps ─────────────────────────────────────────── */}
+            {/* ── Content gaps vs peer curricula ───────────────────────── */}
             {review.contentGaps && review.contentGaps.length > 0 && (
-              <Card padding="md">
-                <h3 className="mb-2 text-sm font-semibold text-text-primary">
-                  Content gaps vs peer curricula
-                </h3>
-                <ul className="flex flex-col gap-3">
-                  {review.contentGaps.map((g, i) => (
-                    <li key={i} className="border-t border-border-subtle pt-3 first:border-t-0 first:pt-0">
-                      <div className="mb-1 flex items-baseline justify-between gap-2">
-                        <h4 className="text-sm font-medium text-text-primary">{g.topic}</h4>
-                        <Badge tone={severityTone(g.severity)} size="sm">
-                          {g.severity}
-                        </Badge>
-                      </div>
-                      {g.kkuStatus && (
-                        <p className="text-xs text-text-secondary">
-                          <span className="text-text-tertiary">KKU:</span> {g.kkuStatus}
-                        </p>
-                      )}
-                      {g.peerExamples && (
-                        <p className="text-xs text-text-secondary">
-                          <span className="text-text-tertiary">Peers:</span> {g.peerExamples}
-                        </p>
-                      )}
-                      {g.recommendation && (
-                        <p className="mt-0.5 text-xs text-text-tertiary">→ {g.recommendation}</p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
+              <ContentGapsPanel gaps={review.contentGaps} programName={program.nameEn} />
             )}
 
             {/* ── Skill distinctiveness (additional detail) ────────────── */}

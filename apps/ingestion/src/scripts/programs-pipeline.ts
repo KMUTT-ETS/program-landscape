@@ -28,13 +28,17 @@
 //      - programs:link-alumni               (Oracle)
 //      - programs:link-financials           (Oracle + MSSQL)
 //
+//   Phase 6 — AI readiness (Pro)   [EXECUTES BEFORE phase 5 — see below]
+//      - programs:ai-readiness              (gemini-3.1-pro-preview)
+//      Runs before BOTH the peer review (phase 5) and the narrative
+//      (phase 7) because both consume the AI-readiness score. Phase IDs
+//      kept stable for --only/--skip; only the run order is swapped.
+//
 //   Phase 5 — Peer comparison (SEQUENTIAL: select → review; both pro)
 //      - peers:select                       (gemini-3.1-pro-preview)
 //      - peers:review                       (gemini-3.1-pro-preview, thinking)
-//
-//   Phase 6 — AI readiness (Pro)
-//      - programs:ai-readiness              (gemini-3.1-pro-preview)
-//      Runs before narrative because narrative consumes the assessment.
+//      Consumes the phase-6 AI-readiness assessment so the comparative
+//      narrative cites the same score the Deep-Dive shows.
 //
 //   Phase 7 — Strategic narrative (Pro thinking)
 //      - programs:narrative                 (gemini-3.1-pro-preview)
@@ -458,7 +462,43 @@ async function processProgram(
     });
   }
 
+  // ── Phase 6 — AI readiness (Pro) ─────────────────────────────────
+  // EXECUTION-ORDER NOTE: phase 6 deliberately runs BEFORE phase 5
+  // (peer comparison). The AI-readiness OVERALL SCORE has TWO downstream
+  // consumers that bake it into cached LLM prose — the peer review
+  // (phase 5) and the strategic narrative (phase 7). `programAiReadiness()`
+  // only returns the discipline-aware LLM score once THIS
+  // ProgramAiReadinessAssessment row exists; without it the function
+  // falls back to the deterministic keyword score. Generating the
+  // assessment first keeps the peer-review narrative, the Deep-Dive
+  // AI-readiness panel, and the Benchmarking panel all citing the SAME
+  // number. (Previously phase 5 ran first, so the peer review captured
+  // the deterministic score while the Deep-Dive later showed the LLM
+  // score — they diverged.) Phase IDs are unchanged so --only/--skip
+  // and operator muscle-memory keep working. Force=true so a --force
+  // rerun always refreshes the assessment.
+  if (shouldRun('phase6')) {
+    const t = Date.now();
+    const r = await runProgramAiReadiness({ programId: program.id, ai, force: true }).catch(
+      (e) => ({ status: 'FAILED' as const, reason: String(e?.message ?? e) }),
+    );
+    phases.push({
+      name: 'phase6 AI readiness (Pro)',
+      durationMs: Date.now() - t,
+      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
+      ok: r.status !== 'FAILED',
+      notes:
+        r.status === 'SUCCEEDED'
+          ? `score ${r.relevanceScore.toFixed(0)} · ${r.gapCount} gaps · ${r.recommendationCount} recs · conf ${r.confidence.toFixed(2)}`
+          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
+    });
+  }
+
   // ── Phase 5 — Peer comparison (sequential; both Pro) ────────────
+  // Runs AFTER phase 6 (see the execution-order note above) so that
+  // generateProgramPeerReview() reads the freshly-persisted
+  // ProgramAiReadinessAssessment via programAiReadiness() and cites the
+  // SAME AI-readiness score the Deep-Dive renders.
   if (shouldRun('phase5')) {
     const t = Date.now();
     let cost = 0;
@@ -494,28 +534,6 @@ async function processProgram(
         annotate('select', select.status, 'reason' in select ? select.reason : undefined),
         annotate('review', reviewStatus, reviewReason),
       ].join(' '),
-    });
-  }
-
-  // ── Phase 6 — AI readiness (Pro) ─────────────────────────────────
-  // Runs BEFORE the narrative because the narrative reads the freshly-
-  // persisted ProgramAiReadinessAssessment row to fold AI-disruption
-  // signals into the Council brief. Force=true so a --force pipeline
-  // rerun gets a fresh assessment even when a prior one exists.
-  if (shouldRun('phase6')) {
-    const t = Date.now();
-    const r = await runProgramAiReadiness({ programId: program.id, ai, force: true }).catch(
-      (e) => ({ status: 'FAILED' as const, reason: String(e?.message ?? e) }),
-    );
-    phases.push({
-      name: 'phase6 AI readiness (Pro)',
-      durationMs: Date.now() - t,
-      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
-      ok: r.status !== 'FAILED',
-      notes:
-        r.status === 'SUCCEEDED'
-          ? `score ${r.relevanceScore.toFixed(0)} · ${r.gapCount} gaps · ${r.recommendationCount} recs · conf ${r.confidence.toFixed(2)}`
-          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
     });
   }
 

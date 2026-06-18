@@ -41,9 +41,20 @@ import type { AiMessage } from '../types';
 // AI-readiness scorer output is fed in as a first-class input. Output
 // schema is unchanged — only the input snapshot + the dimensions the
 // model is told to reason over.
+//
+// v4 (2026-06-18) — AI-readiness framing fix. The discipline-aware
+// OVERALL score is now presented as the single authoritative figure;
+// the deterministic keyword sub-scores (curriculum integration / skill
+// resilience / research presence) are NO LONGER surfaced as "X/100"
+// numbers, because the model was citing e.g. "0/100 curriculum AI
+// integration" as a headline finding that contradicted a higher overall
+// (the keyword scan under-counts disciplines where AI appears under
+// domain terms, and is noise on short skill lists). The skill mix +
+// AI-pub counts remain as DIRECTIONAL context only. Input interface is
+// unchanged (the extra sub-score fields are simply not rendered).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_PEER_REVIEW_VERSION = 'program-peer-review.v3';
+export const PROGRAM_PEER_REVIEW_VERSION = 'program-peer-review.v4';
 
 const Bullet = z.object({
   /** ≤ 25-word claim, frank tone, references a specific peer or metric. */
@@ -255,8 +266,10 @@ FOCUS DIMENSIONS (v3 — reason ONLY over these; enrolment, tuition/financials, 
 - Geographic + strategic fit (world / regional / national); subject-specific depth where the selector flagged subject ranks
 
 AI-READINESS RUBRIC:
-- Use KKU's AI-readiness scores (overall + curriculum integration + skill resilience + AI research presence + skill mix) as the KKU anchor; judge peers' AI posture from your knowledge of what they teach (AI/ML cores, computational tracks, AI-ethics, data-centric design).
-- Flag when KKU's curriculum is AI-thin (few AI-native skills, many AI-displaceable ones) relative to what world-tier peers now embed by default.
+- KKU's AUTHORITATIVE AI-readiness figure is the single Overall AI-readiness score. It is a discipline-aware assessment that already reconciles the raw curriculum keyword scan with how AI actually shows up in this field. ANCHOR every AI claim on the Overall score.
+- The skill mix (AI-native / AI-augmented / AI-displaceable counts) is DIRECTIONAL CONTEXT ONLY — a naive keyword scan of the program-skills list that under-counts disciplines where AI appears under domain-specific names and is unreliable when the skill list is short. NEVER cite a keyword sub-metric as an "X/100 score", and NEVER let it contradict the Overall score. If the scan looks AI-thin but the Overall is higher, explain it qualitatively (the discipline embeds AI under domain topics) instead of presenting a contradiction.
+- Describe AI curriculum presence QUALITATIVELY ("little explicitly AI-tagged content" / "an emerging AI track" / "an AI-native core"), grounded in the Overall score and the actual courses/skills listed below — do not invent a percentage.
+- Judge peers' AI posture from your knowledge of what they teach (AI/ML cores, computational tracks, AI-ethics, data-centric design).
 
 PRIORITISATION (recommendations):
 - 'high' priority items: would meaningfully close gap to peers, achievable in ≤24 months
@@ -272,14 +285,15 @@ Be specific. Be frank. No platitudes.`;
   const air = k.aiReadiness;
   const aiReadinessBlock = air
     ? `
-KKU AI READINESS (KKU scorer — a focus dimension; peers have no equivalent number,
-so judge their AI posture from your knowledge of what they teach)
-  Overall AI-readiness score:      ${air.overallScore}/100
-  Curriculum AI integration:       ${air.curriculumIntegration}/100
-  Skill resilience to AI:          ${air.skillResilience}/100
-  AI research presence:            ${air.researchPresence}/100
-  Skill mix:                       ${air.aiNativeSkills} AI-native · ${air.aiAugmentedSkills} AI-augmented · ${air.aiDisplaceableSkills} AI-displaceable
-  AI/ML publications last 3y:      ${air.aiPublicationsLast3Years}`
+KKU AI READINESS (peers have no equivalent number — judge their AI posture from
+what you know they teach)
+  AUTHORITATIVE — discipline-aware assessment:
+  Overall AI-readiness score:      ${air.overallScore}/100   ← anchor ALL AI commentary on THIS figure
+
+  DIRECTIONAL ONLY — curriculum keyword scan (NOT authoritative scores; do NOT cite as "X/100";
+  under-counts when AI appears under domain terms and is noisy on short skill lists):
+  · Skill mix:                     ${air.aiNativeSkills} AI-native · ${air.aiAugmentedSkills} AI-augmented · ${air.aiDisplaceableSkills} AI-displaceable
+  · AI/ML publications last 3y:    ${air.aiPublicationsLast3Years}`
     : `
 KKU AI READINESS
   (not scored yet for this program — infer AI posture from the curriculum content below)`;
