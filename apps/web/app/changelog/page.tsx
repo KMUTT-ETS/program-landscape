@@ -26,6 +26,18 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-18',
+    version: 'v1.6.2 · Office & web documents on the Trends Radar; benchmarking AI-readiness now matches the program page',
+    title:
+      'Add a trend signal from a Word, Excel, PowerPoint, HTML or CSV file — not just PDF — and read a benchmarking write-up that cites the same AI-readiness score as the program page, with a redesigned content-gaps panel focused on what peers do that the program could adopt',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Adding a signal from a document now accepts Office and web formats, not just PDF. Upload a Word document, Excel workbook, PowerPoint deck, HTML page, CSV or text file (or paste a link) and the system converts it to clean text before the AI reads it — so manpower-demand reports, spreadsheets and slide decks become trend signals as easily as PDFs did. If a document can’t be converted it falls back to the previous extraction, so nothing is lost.',
+      'On a program’s Competitive Benchmarking page, the AI write-up now uses the same AI-readiness score shown on the program’s own page. Previously the narrative could cite a contradictory curriculum sub-score (for example “0/100 AI integration”) next to a higher overall score, which was confusing; the review now anchors on the single authoritative, discipline-aware figure and describes curriculum AI content in words rather than a competing number. Newly processed programs also keep the two views in step.',
+      'The “Content gaps vs peer curricula” panel on the per-program benchmarking view is redesigned to highlight what leading peer institutions actually do that the program could adopt: each gap is ranked by how material it is, with the peer practice called out as the actionable insight and a clear “move to adopt” next step.',
+    ],
+  },
+  {
     date: '2026-06-11',
     version: 'v1.6.1 · Add signals from documents; job candidates & new-initiative ideas on the Trends Radar',
     title:
