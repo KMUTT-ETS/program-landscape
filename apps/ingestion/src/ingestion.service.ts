@@ -4,6 +4,7 @@ import type { Queue, QueueEvents, Worker } from 'bullmq';
 import {
   PipelineConfigSchema,
   S3Storage,
+  MarkitdownClient,
   createAiService,
   type AiProviderId,
   type AiService,
@@ -121,6 +122,16 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       secretAccessKey: this.required('MINIO_SECRET_KEY'),
       publicEndpoint: this.config.get<string>('MINIO_PUBLIC_ENDPOINT') || undefined,
     });
+    // markitdown sidecar — the trend-document ingest converts uploads/URLs
+    // (PDF/DOCX/XLSX/PPTX/HTML) to Markdown through this. Optional: when
+    // MARKITDOWN_URL is unset the runner falls back to pdfjs/html-strip.
+    const markitdownUrl = this.config.get<string>('MARKITDOWN_URL');
+    const markitdown = markitdownUrl
+      ? new MarkitdownClient({
+          baseUrl: markitdownUrl,
+          requestTimeoutMs: Number(this.config.get('MARKITDOWN_REQUEST_TIMEOUT_MS') ?? 60_000),
+        })
+      : undefined;
     // ── AI-jobs queue ──────────────────────────────────────────────────
     // Build the AI-jobs queue BEFORE the intake pipeline so the pipeline
     // can chain-enqueue ANALYZE_POLICY_DOC jobs for POLICY/REPORT PDFs.
@@ -140,6 +151,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       ai,
       autoApproveThreshold: Number(this.config.get('AI_AUTO_APPROVE_THRESHOLD') ?? 0),
       storage,
+      markitdown,
     });
 
     this.aiJobsQueue = createAiJobsQueue(aiJobsQueueConfig);

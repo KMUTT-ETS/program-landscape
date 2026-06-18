@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { requireSession } from '@/lib/auth/role-gate';
 
-// Proxy: browser POSTs a multipart PDF here; we forward it to NestJS with the
+// Proxy: browser POSTs a multipart document here; we forward it to NestJS with the
 // session bearer (the session cookie is HttpOnly, so the browser can't call
 // NestJS directly). Mirrors /api/admin-pdfs/upload.
 

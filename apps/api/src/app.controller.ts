@@ -27,6 +27,7 @@ import { Public } from './common';
 //   redis     — PING
 //   minio     — HeadBucket on MINIO_BUCKET_PDF_OUTPUT
 //   gotenberg — GET /health on GOTENBERG_URL
+//   markitdown— GET /health on MARKITDOWN_URL (informational; never gates)
 //   ai        — provider key present (not a call — no $$ on every probe)
 // Returns 503 with a per-dep verdict on any failure. Used by nginx to
 // gate traffic and by ops to diagnose outages.
@@ -92,6 +93,7 @@ export class AppController {
       this.checkRedis(),
       this.checkMinio(),
       this.checkGotenberg(),
+      this.checkMarkitdown(),
       this.checkAiProvider(),
     ]);
     // Live circuit-breaker snapshot — any OPEN breaker degrades /ready
@@ -211,6 +213,38 @@ export class AppController {
         latencyMs: Date.now() - started,
         detail: sanitiseDetail(
           err instanceof Error ? err.message.slice(0, 120) : String(err),
+        ),
+      };
+    }
+  }
+
+  // markitdown is an OPTIONAL dependency of the ingestion worker — the
+  // trend-document ingest falls back to pdfjs/html-strip when it's down — so
+  // this probe is INFORMATIONAL only and never gates API readiness (it always
+  // reports ok:true). Reachability is surfaced in `detail` for ops.
+  private async checkMarkitdown(): Promise<DepCheck> {
+    const started = Date.now();
+    const url = this.config.get<string>('MARKITDOWN_URL');
+    if (!url) {
+      return { name: 'markitdown', ok: true, detail: 'not configured (optional)' };
+    }
+    try {
+      const res = await fetch(new URL('/health', url).toString(), {
+        signal: AbortSignal.timeout(1500),
+      });
+      return {
+        name: 'markitdown',
+        ok: true,
+        latencyMs: Date.now() - started,
+        detail: res.ok ? 'reachable' : `degraded: HTTP ${res.status} (fallback active)`,
+      };
+    } catch (err) {
+      return {
+        name: 'markitdown',
+        ok: true,
+        latencyMs: Date.now() - started,
+        detail: sanitiseDetail(
+          `unreachable, fallback active: ${err instanceof Error ? err.message.slice(0, 80) : String(err)}`,
         ),
       };
     }

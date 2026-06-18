@@ -6,14 +6,31 @@ import { createHash } from 'node:crypto';
 import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 
 // Service backing /admin/trend-documents. Owns the MinIO client for storing
-// uploaded PDFs, creates TrendDocument rows, and enqueues the
+// uploaded documents, creates TrendDocument rows, and enqueues the
 // ANALYZE_TREND_DOCUMENT ai-job (consumed by the ingestion worker, which
-// extracts text → drafts the signal → publishes → enriches).
+// converts to Markdown via markitdown → drafts the signal → publishes →
+// enriches).
 //
 // Mirrors PdfIntakeService's storage setup, but writes to its own
 // `trend-documents/` key prefix and its own table.
 
 type SignalTypeHint = 'POLICY' | 'RESEARCH' | 'MARKET' | 'TECH' | 'NEWS';
+
+// Formats the markitdown sidecar converts. The extension is preserved on the
+// stored object so the ingestion runner can hand markitdown a correct hint.
+const SUPPORTED_UPLOAD_EXTS = ['pdf', 'docx', 'xlsx', 'pptx', 'html', 'htm', 'csv', 'txt', 'md'] as const;
+type SupportedUploadExt = (typeof SUPPORTED_UPLOAD_EXTS)[number];
+const UPLOAD_CONTENT_TYPES: Record<SupportedUploadExt, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  html: 'text/html',
+  htm: 'text/html',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  md: 'text/markdown',
+};
 
 export interface TrendDocumentRow {
   id: string;
@@ -50,8 +67,9 @@ export class TrendDocumentsService implements OnModuleInit {
     this.rawBucket = this.required('MINIO_BUCKET_PDF_RAW');
   }
 
-  // Upload a PDF file. Content-hash dedup against prior trend documents so the
-  // same PDF isn't re-analysed; a fresh upload of a new PDF always enqueues.
+  // Upload a document (PDF / DOCX / XLSX / PPTX / HTML / CSV / TXT / MD).
+  // Content-hash dedup against prior trend documents so the same file isn't
+  // re-analysed; a fresh upload of a new file always enqueues.
   async ingestFile(input: {
     originalFilename: string;
     bytes: Buffer;
@@ -59,11 +77,19 @@ export class TrendDocumentsService implements OnModuleInit {
     uploadedByUserId: string | null;
   }): Promise<{ trendDocumentId: string; deduplicated: boolean }> {
     const { bytes } = input;
-    if (
-      bytes.length < 5 ||
-      bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d
-    ) {
-      throw new ApiError('VALIDATION_FAILED', 'Uploaded file is not a PDF (missing %PDF- header signature).');
+    const ext = (input.originalFilename.split('.').pop() ?? '').toLowerCase();
+    if (!SUPPORTED_UPLOAD_EXTS.includes(ext as SupportedUploadExt)) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        `Unsupported file type "${ext || '(none)'}". Allowed: ${SUPPORTED_UPLOAD_EXTS.join(', ')}.`,
+      );
+    }
+    if (bytes.length < 4) {
+      throw new ApiError('VALIDATION_FAILED', 'Uploaded file is empty.');
+    }
+    // Defensive: a .pdf must actually be a PDF (cheap magic-byte check).
+    if (ext === 'pdf' && bytes.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      throw new ApiError('VALIDATION_FAILED', 'File is named .pdf but is not a PDF (missing %PDF- header).');
     }
     const contentHash = createHash('sha256').update(bytes).digest('hex');
     const existing = await prisma.trendDocument.findFirst({
@@ -72,12 +98,12 @@ export class TrendDocumentsService implements OnModuleInit {
     });
     if (existing) return { trendDocumentId: existing.id, deduplicated: true };
 
-    const key = `trend-documents/${contentHash}.pdf`;
+    const key = `trend-documents/${contentHash}.${ext}`;
     await this.storage.putObject({
       bucket: this.rawBucket,
       key,
       body: bytes,
-      contentType: 'application/pdf',
+      contentType: UPLOAD_CONTENT_TYPES[ext as SupportedUploadExt] ?? 'application/octet-stream',
       metadata: { originalFilename: input.originalFilename, uploader: input.uploadedByUserId ?? 'anonymous' },
     });
 

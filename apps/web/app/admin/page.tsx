@@ -471,7 +471,7 @@ function buildGroups({
       href: '/admin/trend-documents',
       label: 'Add signal from document',
       description:
-        'Upload a PDF (e.g. a manpower-demand / job-posting report) or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the KKU programs/skills it affects + recommended actions.',
+        'Upload a document — PDF, Word, Excel, PowerPoint or HTML (e.g. a manpower-demand / job-posting report) — or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the KKU programs/skills it affects + recommended actions.',
       icon: <FileUp className="h-6 w-6" />,
     },
     {

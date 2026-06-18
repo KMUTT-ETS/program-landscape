@@ -2,17 +2,20 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
-import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
+import { createAiService, S3Storage, MarkitdownClient, type AiProviderId } from '@kku/shared';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
 
-// CLI counterpart to the /admin/trend-documents upload UI. Turns a local PDF
-// file OR a URL into a published TrendSignal on the radar (extract → draft →
-// publish → enrich), the same path the ANALYZE_TREND_DOCUMENT ai-job runs.
+// CLI counterpart to the /admin/trend-documents upload UI. Turns a local
+// document (PDF/DOCX/XLSX/PPTX/HTML/CSV/TXT/MD) OR a URL into a published
+// TrendSignal on the radar (extract → draft → publish → enrich), the same
+// path the ANALYZE_TREND_DOCUMENT ai-job runs.
 //
-//   pnpm trends:ingest-doc /path/to/report.pdf [--type=MARKET]
+//   pnpm trends:ingest-doc /path/to/report.docx [--type=MARKET]
 //   pnpm trends:ingest-doc https://example.com/manpower-report [--type=POLICY]
 
 const SIGNAL_TYPES = ['POLICY', 'RESEARCH', 'MARKET', 'TECH', 'NEWS'] as const;
+// Formats the markitdown sidecar converts (matches the API upload allowlist).
+const SUPPORTED_EXTS = ['pdf', 'docx', 'xlsx', 'pptx', 'html', 'htm', 'csv', 'txt', 'md'];
 type Hint = (typeof SIGNAL_TYPES)[number];
 
 function env(key: string): string {
@@ -49,6 +52,12 @@ async function main() {
     publicEndpoint: process.env.MINIO_PUBLIC_ENDPOINT || undefined,
   });
   const rawBucket = env('MINIO_BUCKET_PDF_RAW');
+  const markitdown = process.env.MARKITDOWN_URL
+    ? new MarkitdownClient({
+        baseUrl: process.env.MARKITDOWN_URL,
+        requestTimeoutMs: Number(process.env.MARKITDOWN_REQUEST_TIMEOUT_MS ?? 60_000),
+      })
+    : undefined;
 
   const isUrl = /^https?:\/\//i.test(source);
   let trendDocumentId: string;
@@ -62,12 +71,16 @@ async function main() {
   } else {
     const abs = path.resolve(source);
     const bytes = await readFile(abs);
-    if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') {
-      throw new Error('file is not a PDF (missing %PDF- header)');
+    const ext = (path.extname(abs).slice(1) || 'bin').toLowerCase();
+    if (!SUPPORTED_EXTS.includes(ext)) {
+      throw new Error(`unsupported file type ".${ext}" — allowed: ${SUPPORTED_EXTS.join(', ')}`);
+    }
+    if (ext === 'pdf' && bytes.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      throw new Error('file is named .pdf but is not a PDF (missing %PDF- header)');
     }
     const contentHash = createHash('sha256').update(bytes).digest('hex');
-    const key = `trend-documents/${contentHash}.pdf`;
-    await storage.putObject({ bucket: rawBucket, key, body: bytes, contentType: 'application/pdf' });
+    const key = `trend-documents/${contentHash}.${ext}`;
+    await storage.putObject({ bucket: rawBucket, key, body: bytes, contentType: 'application/octet-stream' });
     const doc = await prisma.trendDocument.create({
       data: {
         sourceType: 'FILE',
@@ -84,11 +97,12 @@ async function main() {
   }
 
   console.log('Analysing…');
-  const outcome = await runTrendDocumentIngest({ trendDocumentId, ai, storage });
+  const outcome = await runTrendDocumentIngest({ trendDocumentId, ai, storage, markitdown });
   if (outcome.status === 'SUCCEEDED') {
     console.log(
       `\n✓ Published signal ${outcome.trendSignalId} — type=${outcome.signalType} ` +
-        `impact=${outcome.impactScore} enrichment=${outcome.analysisOk ? 'ok' : 'skipped'}`,
+        `impact=${outcome.impactScore} extraction=${outcome.extractionMethod} ` +
+        `enrichment=${outcome.analysisOk ? 'ok' : 'skipped'}`,
     );
     console.log(`  View on radar: /trends/${outcome.trendSignalId}`);
   } else {

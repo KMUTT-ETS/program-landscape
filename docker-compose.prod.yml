@@ -189,6 +189,8 @@ services:
         condition: service_healthy
       gotenberg:
         condition: service_healthy
+      markitdown:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'node dist/main.js' > /dev/null"]
       interval: 60s
@@ -354,6 +356,33 @@ services:
         limits:
           memory: 2G
           cpus: "1.5"
+    logging: *common-logging
+    networks:
+      - kku-internal
+
+  # markitdown sidecar — converts uploaded documents (PDF/DOCX/XLSX/PPTX/HTML)
+  # to Markdown for the trend-document ingest. The ingestion worker calls it
+  # over HTTP; it does no network I/O of its own (bytes are handed to it).
+  markitdown:
+    image: ghcr.io/khon-kaen-university/program-landscape-markitdown:${RELEASE_VERSION}
+    container_name: program-landscape-markitdown
+    restart: unless-stopped
+    # markitdown writes a short-lived temp file per conversion under /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp:size=512M
+    <<: *common-security
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
     logging: *common-logging
     networks:
       - kku-internal

@@ -115,7 +115,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
               mode === 'file' ? 'bg-surface-2 text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
             }`}
           >
-            <Upload className="h-4 w-4" /> Upload PDF
+            <Upload className="h-4 w-4" /> Upload file
           </button>
           <button
             type="button"
@@ -144,7 +144,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
             <input
               ref={fileInput}
               type="file"
-              accept="application/pdf"
+              accept=".pdf,.docx,.xlsx,.pptx,.html,.htm,.csv,.txt,.md"
               disabled={busy}
               onChange={(e) => submitFile(e.target.files)}
               className="hidden"
@@ -152,9 +152,9 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
             />
             <Button variant="primary" disabled={busy} onClick={() => fileInput.current?.click()}>
               <Upload className="h-4 w-4" />
-              {busy ? 'Uploading…' : 'Pick a PDF'}
+              {busy ? 'Uploading…' : 'Pick a file'}
             </Button>
-            <p className="text-xs text-text-tertiary">A job-posting / manpower-demand report, policy brief, industry report, etc. (PDF, ≤50 MB).</p>
+            <p className="text-xs text-text-tertiary">A job-posting / manpower-demand report, policy brief, industry report, etc. (PDF, Word, Excel, PowerPoint, HTML — ≤50 MB).</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -180,7 +180,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
         {rows.length === 0 ? (
           <Card padding="md">
             <p className="text-sm text-text-tertiary">
-              No documents yet. Upload a PDF or paste a URL above — the resulting signal appears on the{' '}
+              No documents yet. Upload a document or paste a URL above — the resulting signal appears on the{' '}
               <Link href="/trends" className="text-accent-default hover:underline">Trends Radar</Link> once analysis finishes.
             </p>
           </Card>

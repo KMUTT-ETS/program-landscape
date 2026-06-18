@@ -1,6 +1,7 @@
 export * from './auth';
 export * from './api';
 export * from './pdf';
+export * from './markitdown';
 export * from './storage';
 export * from './ingestion';
 export * from './pdf-intake';

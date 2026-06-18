@@ -110,6 +110,16 @@ const images: ImageBuild[] = [
     context: 'infra/gotenberg',
   },
   {
+    // markitdown sidecar: a thin FastAPI wrapper around Microsoft markitdown
+    // that converts uploaded documents → Markdown for the trend-document
+    // ingest. pip install runs at build time on the dev box and is baked in,
+    // so the air-gapped prod server (docker load) needs no network.
+    service: 'markitdown',
+    name: `${REPO}-markitdown`,
+    dockerfile: 'infra/markitdown/Dockerfile',
+    context: 'infra/markitdown',
+  },
+  {
     // Custom postgres image: postgis + pgvector + pg_trgm + btree_gin.
     // The upstream postgis/postgis:16-3.4 image lacks pgvector, which
     // breaks every CREATE TABLE that references vector(N) columns

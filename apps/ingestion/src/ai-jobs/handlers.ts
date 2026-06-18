@@ -15,6 +15,7 @@ import {
   buildPolicyDocAnalysisMessages,
   type AiService,
   type S3Storage,
+  type MarkitdownClient,
 } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runImdRankingsExtract } from '../imd-rankings-extract/run';
@@ -53,6 +54,10 @@ export interface AiJobHandlersDeps {
   // MinIO. Optional so unit tests of the other kinds don't need it
   // wired; the program-digest handler asserts presence at run time.
   storage?: S3Storage;
+  // ANALYZE_TREND_DOCUMENT converts uploads/URLs to Markdown via the
+  // markitdown sidecar. Optional — when absent the runner falls back to
+  // pdfjs/html-strip.
+  markitdown?: MarkitdownClient;
 }
 
 export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobHandler> {
@@ -241,12 +246,14 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         trendDocumentId: entityId,
         ai: deps.ai,
         storage: deps.storage,
+        markitdown: deps.markitdown,
         triggeredByUserId,
       });
       if (outcome.status === 'SUCCEEDED') {
         logger.log(
           `ANALYZE_TREND_DOCUMENT doc=${entityId} signal=${outcome.trendSignalId} ` +
-            `type=${outcome.signalType} impact=${outcome.impactScore} analysis=${outcome.analysisOk ? 'ok' : 'skipped'}`,
+            `type=${outcome.signalType} impact=${outcome.impactScore} ` +
+            `extraction=${outcome.extractionMethod} analysis=${outcome.analysisOk ? 'ok' : 'skipped'}`,
         );
         return { status: 'SUCCEEDED', message: outcome.trendSignalId };
       }

@@ -99,6 +99,26 @@ services:
       timeout: 10s
       retries: 3
 
+  # markitdown sidecar — converts uploaded documents (PDF/DOCX/XLSX/PPTX/HTML)
+  # to Markdown for the trend-document ingest. See infra/markitdown/README.md.
+  # Rebuild with `docker compose build markitdown`.
+  markitdown:
+    build:
+      context: ./infra/markitdown
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    image: program-landscape-markitdown:dev
+    container_name: program-landscape-markitdown
+    restart: unless-stopped
+    ports:
+      - "${MARKITDOWN_PORT:-8800}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres-data:
   redis-data:
