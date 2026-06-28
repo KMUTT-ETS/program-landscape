@@ -27,6 +27,18 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-06-28',
+    version: 'v1.6.4 · Academic-year rollover is now correct and configurable',
+    title:
+      'When a new academic year begins, the previous year’s intake is now correctly treated as complete across recruitment, the program funnel and risk — and an admin can set exactly when the year rolls over',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The platform now rolls the academic year over when the year actually starts (around June), not on 1 January. Previously, once an academic year had begun its intake still showed as “in progress” until the following January — so the most recently completed admission year was understated by one year. Now, when academic year 2569 starts, 2569 counts as a completed intake year and 2570 is shown as the one still recruiting. This corrects the “Entry year” filter on Recruitment Campaigns, the Recruitment funnel on each program page, and every risk and health figure that depends on the latest completed intake.',
+      'New “Academic year” page in the Admin console: set the date the next academic year begins. The platform derives the current/completed/in-progress years from it, and shows a reminder once that date has passed so it can be advanced for the new year. This replaces logic that was previously fixed in code.',
+      'For operators: the next deployment no longer needs the manual object-storage ownership and credential steps that the v1.6.3 upgrade required — that fix now travels inside the release.',
+    ],
+  },
+  {
+    date: '2026-06-28',
     version: 'v1.6.3 · Manage trend-document sources; hardened object storage',
     title:
       'Redesigned upload for adding trend signals from documents, a way to review and remove the source documents behind Trends Radar signals, and a maintained, security-hardened object-storage service',
