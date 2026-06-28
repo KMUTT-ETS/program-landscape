@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -18,6 +19,7 @@ import {
   ZodValidationPipe,
   assertProgramAccessible,
 } from '../common';
+import { TrendDocumentsService } from '../trend-documents/trend-documents.service';
 
 // Trends Radar API — feed, detail, by-program, by-skill, annotate,
 // mark-reviewed, weekly digest PDF.
@@ -43,6 +45,8 @@ type AnnotateBody = z.infer<typeof AnnotateBodySchema>;
 
 @Controller('/trends')
 export class TrendsController {
+  constructor(private readonly trendDocuments: TrendDocumentsService) {}
+
   @Get()
   @Authorized('programs:read:all')
   @Provenance({ sources: [{ id: 'trend-signals', name: 'Trend Signals' }] })
@@ -370,6 +374,16 @@ export class TrendsController {
         bodyEn: 'reviewed',
       },
     });
+  }
+
+  // Remove ANY radar signal — the TrendSignal, its inbox notifications, and (if
+  // a source document points at it) that document row + its stored MinIO object.
+  // Delegated to TrendDocumentsService, which already owns the storage client.
+  @Delete('signals/:id')
+  @Authorized('pdf:upload')
+  @AuditLog({ action: 'trend_signal.delete', entityType: 'TrendSignal' })
+  async deleteSignal(@Param('id') id: string) {
+    return this.trendDocuments.removeSignal(id);
   }
 }
 

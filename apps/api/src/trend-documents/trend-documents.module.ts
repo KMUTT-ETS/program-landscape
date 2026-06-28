@@ -7,5 +7,6 @@ import { TrendDocumentsService } from './trend-documents.service';
   imports: [AiJobsModule],
   controllers: [TrendDocumentsController],
   providers: [TrendDocumentsService],
+  exports: [TrendDocumentsService],
 })
 export class TrendDocumentsModule {}

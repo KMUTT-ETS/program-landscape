@@ -103,8 +103,11 @@ export interface CuratedReportRawData {
 }
 
 const FETCH_TIMEOUT_MS = 30_000;
+// Several upstreams (MHESI, WEF, OECD) 403/refuse a bot UA. A real browser
+// UA is required to download their public reports. (Verified: mhesi/wef PDFs
+// return 403/000 with the old UA, 200 with this one.)
 const FETCH_USER_AGENT =
-  'KKU-Curriculum-Landscape/1.0 (research; contact: denpong@kku.ac.th)';
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 export abstract class CuratedReportConnector extends BaseConnector {
   readonly inputFormat: DataSourceInputFormat = 'PDF';

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -44,6 +44,7 @@ export default async function TrendsPage({
       {feedRes.ok ? (
         <TrendsClient
           feed={feedRes.data}
+          canManageSignals={isAdminGrade(user.effectiveRole ?? user.role)}
           initialFilters={{
             signalType: sp.signalType ?? '',
             windowDays: sp.windowDays ?? '90',

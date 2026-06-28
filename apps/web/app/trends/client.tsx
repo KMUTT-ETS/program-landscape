@@ -3,6 +3,8 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { Trash2, Loader2, X } from 'lucide-react';
 import {
   Badge,
   Card,
@@ -36,9 +38,11 @@ const WINDOW_OPTIONS = [
 
 export function TrendsClient({
   feed,
+  canManageSignals = false,
   initialFilters,
 }: {
   feed: TrendsFeedResponse;
+  canManageSignals?: boolean;
   initialFilters: {
     signalType: string;
     windowDays: string;
@@ -49,6 +53,38 @@ export function TrendsClient({
   const router = useRouter();
   const [filters, setFilters] = React.useState(initialFilters);
   const [highlighted, setHighlighted] = React.useState<string | null>(null);
+  // Signals removed in this session — filtered out of both the feed and radar
+  // so the view updates without a round-trip.
+  const [removedIds, setRemovedIds] = React.useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  const [confirmId, setConfirmId] = React.useState<string | null>(null);
+  const [removingId, setRemovingId] = React.useState<string | null>(null);
+
+  const removeSignal = async (id: string) => {
+    setRemovingId(id);
+    try {
+      const res = await fetch(`/api/trends-signals/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: { message?: string };
+        };
+        throw new Error(json?.error?.message ?? `Remove failed (HTTP ${res.status})`);
+      }
+      toast.success('Signal removed from the radar.');
+      setRemovedIds((prev) => new Set(prev).add(id));
+      setConfirmId(null);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const visibleSignals = React.useMemo(
+    () => feed.signals.filter((s) => !removedIds.has(s.id)),
+    [feed.signals, removedIds],
+  );
 
   // `Date.now()` differs between SSR and hydration, which would change
   // every dot's radial position and trigger a hydration mismatch. Defer
@@ -68,14 +104,14 @@ export function TrendsClient({
 
   const dots: TrendDot[] = React.useMemo(() => {
     if (nowMs === null) return [];
-    return feed.signals.map((s) => ({
+    return visibleSignals.map((s) => ({
       id: s.id,
       title: s.title,
       signalType: s.signalType as TrendSignalType,
       detectedAtMsAgo: nowMs - new Date(s.detectedDate).getTime(),
       impactScore: s.impactScore,
     }));
-  }, [feed.signals, nowMs]);
+  }, [visibleSignals, nowMs]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,14 +177,14 @@ export function TrendsClient({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
         {/* Feed */}
         <div className="flex flex-col gap-2">
-          {feed.signals.length === 0 ? (
+          {visibleSignals.length === 0 ? (
             <Card>
               <p className="text-sm text-text-tertiary">
                 No signals match these filters. Widen the time window or lower the impact threshold.
               </p>
             </Card>
           ) : (
-            feed.signals.map((s) => (
+            visibleSignals.map((s) => (
               <Card
                 key={s.id}
                 onMouseEnter={() => setHighlighted(s.id)}
@@ -180,6 +216,54 @@ export function TrendsClient({
                     <ImpactBadge score={s.impactScore} />
                   </div>
                 </Link>
+
+                {canManageSignals && (
+                  <div className="mt-2 flex flex-col gap-1.5 border-t border-border-subtle pt-2">
+                    {confirmId === s.id ? (
+                      <>
+                        <p className="text-xs text-text-tertiary">
+                          Connector- or monitor-sourced signals may reappear on the next
+                          ingestion run; document signals stay removed.
+                        </p>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-xs text-text-secondary">Remove this signal?</span>
+                          <button
+                            type="button"
+                            disabled={removingId === s.id}
+                            onClick={() => removeSignal(s.id)}
+                            className="inline-flex items-center gap-1 rounded-md bg-danger-subtle px-2 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/15 disabled:opacity-60"
+                          >
+                            {removingId === s.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            disabled={removingId === s.id}
+                            onClick={() => setConfirmId(null)}
+                            className="inline-flex items-center rounded-md p-1 text-text-tertiary transition-colors hover:text-text-secondary"
+                            aria-label="Cancel"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmId(s.id)}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-tertiary transition-colors hover:bg-danger-subtle hover:text-danger"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
             ))
           )}

@@ -245,7 +245,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 6 * * *', // daily
     ownerContact: 'KKU Strategic Planning Office',
     notes: 'Ministry of Higher Education policy announcements — almost entirely PDF. Very noisy; the PDF intake pipeline filters.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'nesdc-reports',
@@ -256,7 +256,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 7 * * 1', // weekly Monday
     ownerContact: 'KKU Strategic Planning Office',
     notes: 'National Economic & Social Development Council — 5-year plans + quarterly economic outlooks. Long PDFs (200+ pages) routed through 03b.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'nxpo-reports',
@@ -267,7 +267,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 7 * * 3', // weekly Wednesday
     ownerContact: 'KKU Research & Innovation Office',
     notes: 'National Higher Education, Science, Research & Innovation Policy Council — R&D policy direction.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'boi-sectoral',
@@ -278,7 +278,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 8 5 * *', // monthly on the 5th
     ownerContact: 'KKU Industry Liaison Office',
     notes: 'Board of Investment — sector investment statistics. PDF reports + occasional Excel. Key input for S-curve + target industry analysis.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'eeco-reports',
@@ -289,7 +289,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 8 15 * *', // monthly on the 15th
     ownerContact: 'KKU Industry Liaison Office',
     notes: 'Eastern Economic Corridor Office — industrial development plans. Less relevant to Khon Kaen geographically, but workforce signals carry over.',
-    mocked: true,
+    mocked: false,
   },
 
   // ── Regional / international ───────────────────────────────────────────
@@ -302,7 +302,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 10 1 5 *', // annual (May — when WEF typically publishes)
     ownerContact: 'KKU Data Office',
     notes: 'World Economic Forum annual report. Foundational for future-skill taxonomies. Always a long PDF.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'oecd-reports',
@@ -313,7 +313,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 10 * * 1', // weekly Monday
     ownerContact: 'KKU Data Office',
     notes: 'OECD skills + education outlook + sectoral reports. Thailand-specific reports pulled preferentially.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'world-bank',
@@ -323,7 +323,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 11 * * 0', // weekly Sunday
     ownerContact: 'KKU Data Office',
     notes: 'Labor data, education indicators, demographic projections. World Bank has a free API + long-form PDFs for narrative reports.',
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'adb-gms',
@@ -334,7 +334,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 11 * * 4', // weekly Thursday
     ownerContact: 'KKU Data Office',
     notes: 'Asian Development Bank — Greater Mekong Subregion reports. Critical for Laos/Myanmar/Cambodia peer context for some KKU programs.',
-    mocked: true,
+    mocked: false,
   },
   {
     // SUPERSEDED 2026-05-07 — kku-research pivoted from public APIs

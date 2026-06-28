@@ -199,6 +199,41 @@ export class TrendDocumentsService implements OnModuleInit {
     return { removed: true, deletedSignal };
   }
 
+  // Remove ANY radar signal (keyed on the signal id, not the document). Deletes
+  // the TrendSignal, its inbox notifications, and — if a TrendDocument points at
+  // it — that document row + its stored MinIO object. Mirrors remove() above but
+  // anchored on the signal so signals with no backing document can also be
+  // dropped from the radar.
+  async removeSignal(signalId: string): Promise<{ removed: true; hadDocument: boolean }> {
+    const signal = await prisma.trendSignal.findUnique({ where: { id: signalId } });
+    if (!signal) throw new ApiError('NOT_FOUND', 'Trend signal not found');
+
+    await prisma.notification.deleteMany({ where: { entityId: signalId } });
+
+    const doc = await prisma.trendDocument.findFirst({ where: { trendSignalId: signalId } });
+    const hadDocument = doc !== null;
+    if (doc) {
+      // Best-effort: drop the stored object before the row. Content-hash dedup
+      // guarantees one document per object, so nothing else references this key.
+      if (doc.storageUrl?.startsWith('s3://')) {
+        try {
+          const without = doc.storageUrl.slice('s3://'.length);
+          const slash = without.indexOf('/');
+          if (slash > 0) {
+            await this.storage.deleteObject(without.slice(0, slash), without.slice(slash + 1));
+          }
+        } catch (e) {
+          this.logger.warn(`failed to delete stored object for trend document ${doc.id}: ${String(e)}`);
+        }
+      }
+      await prisma.trendDocument.delete({ where: { id: doc.id } });
+    }
+
+    await prisma.trendSignal.delete({ where: { id: signalId } });
+    this.logger.log(`removed trend signal ${signalId}${hadDocument ? ' + its source document' : ''}`);
+    return { removed: true, hadDocument };
+  }
+
   private async enqueue(trendDocumentId: string, userId: string | null): Promise<void> {
     await this.aiJobs.enqueue({
       kind: 'ANALYZE_TREND_DOCUMENT',
