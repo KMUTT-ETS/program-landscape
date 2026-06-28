@@ -17,7 +17,7 @@ export default async function AdminTrendDocumentsPage() {
   // ANALYST + admin-grade can upload (pdf:upload); everyone else redirected.
   if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
-  const initial = await apiFetchSafe<TrendDocumentRow[]>('/admin/trend-documents?limit=30');
+  const initial = await apiFetchSafe<TrendDocumentRow[]>('/admin/trend-documents?limit=100');
 
   return (
     <AuthedAppShell user={user}>

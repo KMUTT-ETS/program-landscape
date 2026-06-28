@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -22,6 +23,7 @@ import { TrendDocumentsService } from './trend-documents.service';
 // POST /admin/trend-documents/from-url (JSON { url })
 // GET  /admin/trend-documents          (recent, with status + signal link)
 // GET  /admin/trend-documents/:id      (single — for status polling)
+// DELETE /admin/trend-documents/:id    (remove source + its signal from radar)
 
 const SIGNAL_TYPES = ['POLICY', 'RESEARCH', 'MARKET', 'TECH', 'NEWS'] as const;
 
@@ -93,5 +95,13 @@ export class TrendDocumentsController {
   @Authorized('pdf:upload')
   async getOne(@Param('id') id: string) {
     return this.service.getOne(id);
+  }
+
+  // Remove the source document/URL and its published signal from the radar.
+  @Delete(':id')
+  @Authorized('pdf:upload')
+  @AuditLog({ action: 'trend_document.remove', entityType: 'TrendDocument' })
+  async remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 }

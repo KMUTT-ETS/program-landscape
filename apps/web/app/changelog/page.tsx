@@ -27,11 +27,13 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-06-28',
-    version: 'v1.6.3 · Hardened object storage',
+    version: 'v1.6.3 · Manage trend-document sources; hardened object storage',
     title:
-      'The object-storage service that holds uploaded PDFs, generated documents and profile photos moves to a maintained, security-hardened build — no change to how the application looks or works',
-    audience: ['Admin'],
+      'Redesigned upload for adding trend signals from documents, a way to review and remove the source documents behind Trends Radar signals, and a maintained, security-hardened object-storage service',
+    audience: ['Admin', 'Analyst'],
     bullets: [
+      'Adding a trend signal from a document is easier to use: a drag-and-drop upload panel with clear idle / dragging / uploading states and chips for the accepted formats (PDF, Word, Excel, PowerPoint, HTML, CSV, text), alongside the existing paste-a-link option.',
+      'New “Source documents & links” list on the Trend Documents admin page shows the documents and URLs that signals were created from. Each one has a two-step-confirm Remove that takes the resulting signal off the Trends Radar — it deletes the published signal, clears its inbox notifications, and removes the stored file — with a success confirmation. The list now shows up to 100 sources.',
       'Object storage (which keeps original PDFs, generated Council Pack and brief documents, and profile photos) now runs on a maintained, near-zero-known-vulnerability build, replacing the previous community image that the upstream project stopped publishing and has since retired. Stored files are unaffected and the change is invisible to everyday users — it only reduces the security and maintenance risk of running an unsupported component.',
       'For operators: the storage service now runs as a non-root user, and the deployment process automatically adjusts file ownership on the existing data store the first time the new build starts. The release bundle now also carries the storage, web-proxy and cache images so an offline production server needs no internet access during deployment.',
     ],

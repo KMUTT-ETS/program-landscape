@@ -165,6 +165,40 @@ export class TrendDocumentsService implements OnModuleInit {
     return serialize(row);
   }
 
+  // Remove a source document/URL AND its published signal from the Trends
+  // Radar. There are no FK constraints onto trend_signals, so we explicitly
+  // tidy the loose links: the signal row, any inbox notifications that point
+  // at it, the stored object (FILE sources), then the document row itself.
+  async remove(id: string): Promise<{ removed: true; deletedSignal: boolean }> {
+    const doc = await prisma.trendDocument.findUnique({ where: { id } });
+    if (!doc) throw new ApiError('NOT_FOUND', 'Trend document not found');
+
+    let deletedSignal = false;
+    if (doc.trendSignalId) {
+      await prisma.notification.deleteMany({ where: { entityId: doc.trendSignalId } });
+      const del = await prisma.trendSignal.deleteMany({ where: { id: doc.trendSignalId } });
+      deletedSignal = del.count > 0;
+    }
+
+    // Best-effort: drop the stored object. Content-hash dedup guarantees one
+    // document per object, so nothing else references this key.
+    if (doc.storageUrl?.startsWith('s3://')) {
+      try {
+        const without = doc.storageUrl.slice('s3://'.length);
+        const slash = without.indexOf('/');
+        if (slash > 0) {
+          await this.storage.deleteObject(without.slice(0, slash), without.slice(slash + 1));
+        }
+      } catch (e) {
+        this.logger.warn(`failed to delete stored object for trend document ${id}: ${String(e)}`);
+      }
+    }
+
+    await prisma.trendDocument.delete({ where: { id } });
+    this.logger.log(`removed trend document ${id}${deletedSignal ? ' + its signal' : ''}`);
+    return { removed: true, deletedSignal };
+  }
+
   private async enqueue(trendDocumentId: string, userId: string | null): Promise<void> {
     await this.aiJobs.enqueue({
       kind: 'ANALYZE_TREND_DOCUMENT',
