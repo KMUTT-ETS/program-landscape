@@ -185,10 +185,47 @@ if (skipBuildx) {
   }
 }
 
+// ── 1b. Bundle upstream images so the air-gapped host needs no registry ──
+// The prod box loads everything via `docker load` and shouldn't depend on
+// reaching a registry. Anything in the prod compose that we DON'T build
+// ourselves — nginx, redis, and Chainguard MinIO (upstream minio/minio is
+// EOL) — must therefore travel in images.tar too. Derive the list straight
+// from the prod compose `image:` lines (minus our own ghcr.io/<org> builds)
+// so it auto-tracks scripts/pin-image-digests.sh: whatever digest the
+// compose is pinned to is exactly what we pull + save here. No second list
+// to keep in sync. (Verified on Docker 29: save/load preserves the registry
+// digest, so a `name:tag@sha256:…`-pinned compose ref resolves to the
+// loaded image without a pull.)
+const prodComposeSrc = readFileSync(
+  path.join(REPO_ROOT, 'docker-compose.prod.yml'),
+  'utf8',
+);
+const externalImages = [
+  ...new Set(
+    prodComposeSrc
+      .split('\n')
+      .map((line) => line.match(/^\s*image:\s*(\S+)/)?.[1])
+      .filter(
+        (ref): ref is string => !!ref && !ref.includes(`ghcr.io/${ORG}/`),
+      ),
+  ),
+];
+console.log(
+  `\n--- bundling ${externalImages.length} upstream image(s): ${externalImages.join(', ')} ---`,
+);
+for (const ext of externalImages) {
+  console.log(`\n--- docker pull (external, for bundle) ${ext} ---`);
+  execSync(`docker pull --platform linux/amd64 "${ext}"`, {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+  });
+}
+
 // ── 2. Save images into a single tarball ───────────────────────────
 const imagesTar = path.join(releaseDir, 'images.tar');
+const saveRefs = [...tags, ...externalImages];
 console.log(`\n--- docker save → ${path.relative(REPO_ROOT, imagesTar)} ---`);
-execSync(`docker save -o "${imagesTar}" ${tags.map((t) => `"${t}"`).join(' ')}`, {
+execSync(`docker save -o "${imagesTar}" ${saveRefs.map((t) => `"${t}"`).join(' ')}`, {
   cwd: REPO_ROOT,
   stdio: 'inherit',
 });

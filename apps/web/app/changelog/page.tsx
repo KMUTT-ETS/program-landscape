@@ -26,6 +26,17 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-06-28',
+    version: 'v1.6.3 · Hardened object storage',
+    title:
+      'The object-storage service that holds uploaded PDFs, generated documents and profile photos moves to a maintained, security-hardened build — no change to how the application looks or works',
+    audience: ['Admin'],
+    bullets: [
+      'Object storage (which keeps original PDFs, generated Council Pack and brief documents, and profile photos) now runs on a maintained, near-zero-known-vulnerability build, replacing the previous community image that the upstream project stopped publishing and has since retired. Stored files are unaffected and the change is invisible to everyday users — it only reduces the security and maintenance risk of running an unsupported component.',
+      'For operators: the storage service now runs as a non-root user, and the deployment process automatically adjusts file ownership on the existing data store the first time the new build starts. The release bundle now also carries the storage, web-proxy and cache images so an offline production server needs no internet access during deployment.',
+    ],
+  },
+  {
     date: '2026-06-18',
     version: 'v1.6.2 · Office & web documents on the Trends Radar; benchmarking AI-readiness now matches the program page',
     title:

@@ -51,8 +51,17 @@ services:
       timeout: 3s
       retries: 10
 
+  # Chainguard MinIO (dev spike 2026-06-18). Upstream minio/minio is EOL —
+  # it stopped publishing community images on 2025-10-23 and the repo is
+  # archived. Chainguard rebuilds the AGPL source daily into a near-zero-CVE
+  # image. Two behavioural differences vs minio/minio captured here:
+  #   1. Runs as NON-ROOT UID 65532 (upstream ran as root). The data volume
+  #      must be owned by 65532 — on a volume with root-owned data the server
+  #      fails to start (see DEV-SPIKE migration note).
+  #   2. No curl/wget in the image, so the healthcheck uses the bundled `mc`
+  #      client (`mc ready local` works cred-free via a built-in alias).
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: program-landscape-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -65,7 +74,7 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 10s
       timeout: 5s
       retries: 5

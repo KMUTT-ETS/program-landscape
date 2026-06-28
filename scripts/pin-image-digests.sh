@@ -33,7 +33,7 @@ declare -a IMAGES=(
   "nginx:1.27-alpine"
   "postgis/postgis:16-3.4"
   "redis:7-alpine"
-  "minio/minio:RELEASE.2025-01-20T14-49-07Z"
+  "cgr.dev/chainguard/minio:latest"
   "gotenberg/gotenberg:8"
 )
 

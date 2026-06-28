@@ -297,8 +297,21 @@ services:
     networks:
       - kku-internal
 
+  # Chainguard MinIO. Upstream minio/minio is EOL (stopped publishing
+  # community images 2025-10-23; repo archived). Chainguard rebuilds the
+  # AGPL source daily into a near-zero-CVE image. Two migration notes:
+  #   1. Runs as NON-ROOT UID 65532 (upstream ran as root). The existing
+  #      minio-data volume holds root-owned data, so deploy.sh chowns it to
+  #      65532 BEFORE this service starts (one-time, idempotent). A fresh
+  #      volume inherits 65532 from the image and needs no migration.
+  #   2. No curl/wget in the image, so the healthcheck uses the bundled
+  #      `mc` client (`mc ready local` is cred-free via a built-in alias —
+  #      no need to thread the secret-file password into the check).
+  # Tag is pinned to a digest at release time by scripts/pin-image-digests.sh.
+  # The image travels in images.tar (see scripts/build-release.ts) so the
+  # air-gapped prod host loads it via `docker load` — it never pulls cgr.dev.
   minio:
-    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    image: cgr.dev/chainguard/minio:latest
     platform: linux/amd64
     container_name: program-landscape-minio
     restart: unless-stopped
@@ -308,16 +321,16 @@ services:
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_password
     volumes:
       - minio-data:/data
-    # MinIO writes its server config under $HOME/.minio at startup
-    # (read root-creds from secret files first). Read-only root would
-    # block that. Capability drop still applies; the server runs as
-    # the unprivileged `minio` user inside the container.
+    # MinIO writes its server config under $HOME/.minio at startup (reads
+    # root creds from the secret files first). Root FS stays writable for
+    # that. Capability drop still applies; the server runs as the
+    # unprivileged nonroot user (UID 65532) inside the container.
     <<: *common-security
     secrets:
       - minio_user
       - minio_password
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 30s
       timeout: 10s
       retries: 3

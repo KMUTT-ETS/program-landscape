@@ -150,6 +150,17 @@ fi
 cd "$STAGED_RELEASE"
 export RELEASE_VERSION="$VERSION"
 
+# MinIO migration: the Chainguard image runs as non-root UID 65532, but a
+# volume created by the old root-running minio/minio image holds root-owned
+# data, which makes the new server fail to init the backend. Chown the
+# minio-data volume to 65532 once, BEFORE starting minio. Uses the bundled
+# minio image itself (as root) so no extra image is needed on the air-gapped
+# host. Idempotent + cheap: a no-op on a fresh/already-65532 volume.
+log "Ensuring MinIO data volume is owned by nonroot (UID 65532)"
+docker compose run --rm --no-deps --user 0 --entrypoint /usr/bin/chown \
+  minio -R 65532:65532 /data \
+  || fail "MinIO volume chown failed — check the minio-data volume permissions"
+
 log "Starting infrastructure services (postgres/redis/minio/gotenberg)"
 docker compose up -d postgres redis minio gotenberg
 

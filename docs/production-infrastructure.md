@@ -96,7 +96,7 @@ at deploy time.
 | `program-landscape-postgres:<ver>` | `infra/postgres/Dockerfile` | `postgis/postgis:16-3.4` + `postgresql-16-pgvector` + init SQL for extensions + Thai locale. |
 | `nginx:alpine` | upstream | TLS termination + path routing. |
 | `redis:7-alpine` | upstream | BullMQ queue + cache. |
-| `minio/minio:RELEASE.<date>` | upstream | Object storage for PDFs, generated outputs, avatars. |
+| `cgr.dev/chainguard/minio:latest` | upstream | Object storage for PDFs, generated outputs, avatars. Chainguard rebuild (upstream `minio/minio` is EOL); runs as non-root UID 65532 — see deploy.sh volume chown. |
 | `gotenberg/gotenberg:8` | upstream | Headless Chromium PDF renderer with TH Sarabun New embedded (font dropped in at build time). |
 
 **All images are `linux/amd64`.** Dev builds on Apple Silicon must use
