@@ -1,11 +1,12 @@
 import { Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@kku/db';
+import { detectResearchTrends, type FacultyResearchRow } from './research-trends';
 
-// Six continuous trend monitors. Each produces zero-or-more
-// TrendSignal rows and fans them out as Notifications to matching
-// subscribers. Sources are MOCKED today (connectors in prompt 03
-// return sample data); prompt 14 replaces the bodies with real API
-// calls.
+// Six continuous trend monitors. Each scans internal data and emits
+// zero-or-more TrendSignal rows, fanned out as Notifications to matching
+// subscribers. `research` is LIVE; the other five are INERT (they emit
+// nothing — NOT mock data) until their real data source exists. See
+// docs/trend-monitors.md for each one's status + what's needed to build it.
 
 export type MonitorKind =
   | 'policy'
@@ -35,18 +36,14 @@ export const MONITOR_CADENCE: Record<MonitorKind, string> = {
 };
 
 // ──────────────────────────────────────────────────────────────────────────
-// Monitor implementations
-//
-// v1 SCAFFOLD: each monitor creates at most 1 synthetic signal per run
-// representing "I ran and found nothing new" — the seeded 29 signals
-// carry the feed. Prompt 14 replaces fetch bodies with real API/scrape
-// calls and real AI analysis (ANALYZE_POLICY_DOC is the obvious first
-// flip for MonitorPolicyDocs — pipe new PDFs through the existing
-// ai-jobs queue).
+// Monitor implementations. `research` is LIVE (real kku-publications data).
+// The other five are INERT no-ops until their real data source exists — they
+// emit nothing rather than fabricate signals (no-mock policy). Each one's
+// blocker + what's needed to build it is in docs/trend-monitors.md.
 // ──────────────────────────────────────────────────────────────────────────
 
 export async function runPolicyMonitor(): Promise<MonitorOutcome> {
-  logger.log('policy monitor: scanning MHESI / NESDC / NXPO / BOI / EECO (mocked)');
+  logger.log('policy monitor: inert — covered by curated connectors; see docs/trend-monitors.md');
   // Real: enqueue ANALYZE_POLICY_DOC for every PdfDocument with
   // sourceCategory=POLICY + processingStatus=COMPLETED that doesn't
   // yet have a TrendSignal linked. That AI path produces a real
@@ -55,29 +52,108 @@ export async function runPolicyMonitor(): Promise<MonitorOutcome> {
 }
 
 export async function runJobMarketMonitor(): Promise<MonitorOutcome> {
-  logger.log('job-market monitor: scanning JobThai + JobsDB (mocked)');
+  logger.log('job-market monitor: inert — no per-posting job source; see docs/trend-monitors.md');
   // Real: diff last N days of JobPosting rows against prior windows.
   // Detect anomalies → TrendSignal(signalType='MARKET').
   return { kind: 'job-market', signalsCreated: 0, notificationsSent: 0 };
 }
 
+// Faculty-level research trend monitor. Aggregates Scopus-Q1 ResearchOutput
+// counts per faculty for the latest COMPLETE year vs the prior year, and emits
+// a RESEARCH TrendSignal for each faculty with a notable rise. Real data from
+// the kku-publications mirror; see docs/trend-monitors.md.
 export async function runResearchMonitor(): Promise<MonitorOutcome> {
-  logger.log('research monitor: scanning OpenAlex + Scopus (mocked)');
-  return { kind: 'research', signalsCreated: 0, notificationsSent: 0 };
+  // Latest COMPLETE year: never the in-progress current calendar year (its
+  // partial counts would mask real rises). Y = min(max year in data, thisYear-1).
+  const maxRow = await prisma.$queryRaw<Array<{ maxy: number | null }>>(
+    Prisma.sql`SELECT MAX(year) AS maxy FROM research_outputs WHERE quartile = 1`,
+  );
+  const maxYear = maxRow[0]?.maxy ?? null;
+  if (maxYear === null) {
+    logger.log('research monitor: no Q1 research data — nothing to scan');
+    return { kind: 'research', signalsCreated: 0, notificationsSent: 0 };
+  }
+  const year = Math.min(maxYear, new Date().getUTCFullYear() - 1);
+  const prevYear = year - 1;
+
+  // Per-faculty Q1 counts for the two years, pivoted in JS.
+  const counts = await prisma.$queryRaw<
+    Array<{ faculty_id: string; name_en: string; name_th: string; year: number; q1: number }>
+  >(Prisma.sql`
+    SELECT f.id AS faculty_id, f.name_en, f.name_th, ro.year, COUNT(*)::int AS q1
+    FROM research_outputs ro
+    JOIN faculty_members fm ON fm.id = ro.faculty_member_id
+    JOIN faculties f ON f.id = fm.faculty_id
+    WHERE ro.quartile = 1 AND ro.year IN (${year}, ${prevYear})
+    GROUP BY f.id, f.name_en, f.name_th, ro.year
+  `);
+
+  const byFaculty = new Map<string, FacultyResearchRow>();
+  for (const c of counts) {
+    const cur = byFaculty.get(c.faculty_id) ?? {
+      facultyId: c.faculty_id,
+      facultyNameEn: c.name_en,
+      facultyNameTh: c.name_th,
+      yCount: 0,
+      prevCount: 0,
+    };
+    if (c.year === year) cur.yCount = c.q1;
+    else cur.prevCount = c.q1;
+    byFaculty.set(c.faculty_id, cur);
+  }
+
+  const trends = detectResearchTrends([...byFaculty.values()], year);
+
+  let signalsCreated = 0;
+  let notificationsSent = 0;
+  for (const t of trends) {
+    const title = `${t.facultyNameEn} — rise in high-quartile (Q1) research output (${prevYear}→${year})`;
+    // Dedup: deterministic title makes weekly re-runs idempotent.
+    const existing = await prisma.trendSignal.findFirst({
+      where: { signalType: 'RESEARCH', title },
+      select: { id: true },
+    });
+    if (existing) continue;
+
+    const pctText = t.pct === null ? '' : ` (+${t.pct}%)`;
+    const summaryEn =
+      `KKU's ${t.facultyNameEn} recorded ${t.yCount} Scopus-Q1 publications in ${year}, ` +
+      `up from ${t.prevCount} in ${prevYear}${pctText}.`;
+    const summaryTh =
+      `${t.facultyNameTh} ตีพิมพ์ผลงานระดับ Scopus Q1 จำนวน ${t.yCount} เรื่องในปี ${year} ` +
+      `เพิ่มขึ้นจาก ${t.prevCount} เรื่องในปี ${prevYear}${pctText}`;
+    const impactScore =
+      t.pct === null ? 0.55 : Math.min(0.85, 0.45 + t.pct / 200);
+
+    const { notificationsSent: sent } = await createSignal({
+      signalType: 'RESEARCH',
+      title,
+      summaryEn,
+      summaryTh,
+      impactScore,
+    });
+    signalsCreated += 1;
+    notificationsSent += sent;
+  }
+
+  logger.log(
+    `research monitor: ${year} vs ${prevYear} — ${trends.length} faculty rise(s), ${signalsCreated} new signal(s)`,
+  );
+  return { kind: 'research', signalsCreated, notificationsSent };
 }
 
 export async function runPeerProgramsMonitor(): Promise<MonitorOutcome> {
-  logger.log('peer-programs monitor: scanning peer catalogues (mocked)');
+  logger.log('peer-programs monitor: inert — no real peer-catalogue feed; see docs/trend-monitors.md');
   return { kind: 'peer-programs', signalsCreated: 0, notificationsSent: 0 };
 }
 
 export async function runTechSignalsMonitor(): Promise<MonitorOutcome> {
-  logger.log('tech-signals monitor: scanning vendor announcements (mocked)');
+  logger.log('tech-signals monitor: inert — no tech-news feed; see docs/trend-monitors.md');
   return { kind: 'tech-signals', signalsCreated: 0, notificationsSent: 0 };
 }
 
 export async function runPatentsMonitor(): Promise<MonitorOutcome> {
-  logger.log('patents monitor: scanning S-curve patent activity (mocked)');
+  logger.log('patents monitor: inert — no patent API; see docs/trend-monitors.md');
   return { kind: 'patents', signalsCreated: 0, notificationsSent: 0 };
 }
 
