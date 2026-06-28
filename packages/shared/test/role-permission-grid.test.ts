@@ -100,6 +100,10 @@ describe('Role → permission grid (canonical matrix)', () => {
       'risks:read:all',
       'risks:measures:edit',
       'institution:read:university',
+      // Granted to UNIVERSITY_USER alongside the other read-all roles
+      // (added in f9e26bf — scoped dashboard access). Scope filtering on
+      // the endpoint keeps it safe.
+      'institution:read:dashboard',
     ]);
 
     for (const p of PERMISSIONS) {
@@ -132,6 +136,9 @@ describe('Role → permission grid (canonical matrix)', () => {
       'decisions:read:all',
       'pdf:generate',
       'risks:read:all',
+      // Scoped dashboard access for FACULTY_USER (added in f9e26bf); the
+      // endpoint pins every filter to user.facultyId.
+      'institution:read:dashboard',
     ]);
 
     for (const p of PERMISSIONS) {
@@ -163,6 +170,10 @@ describe('Role → permission grid (canonical matrix)', () => {
       'decisions:read:all',
       'pdf:generate',
       'risks:read:all',
+      // Scoped dashboard access for PROGRAM_USER (added in f9e26bf —
+      // Education + Staff dashboards). Necessary-but-not-sufficient: the
+      // endpoint further restricts results to the user's own program.
+      'institution:read:dashboard',
     ]);
 
     for (const p of PERMISSIONS) {

@@ -23,11 +23,18 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 
+// Resolve the repo root from this script's own location (scripts/ai-eval.mjs)
+// so the runner works on any machine — dev, CI, prod — not just the path it
+// was authored on.
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 // Read .env.
-const envPath = '/home/denpong/projects/program-landscape/.env';
+const envPath = path.join(root, '.env');
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, 'utf8').split('\n')) {
     const m = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line);
@@ -39,8 +46,10 @@ const args = process.argv.slice(2);
 const moduleFilter = args.includes('--module') ? args[args.indexOf('--module') + 1] : null;
 const failIfRegressed = args.includes('--fail-if-regressed');
 
-const root = '/home/denpong/projects/program-landscape';
-const EVAL_FILE = `${root}/packages/shared/src/ai/eval/gold-questions.jsonl`;
+const EVAL_FILE = path.join(
+  root,
+  'packages/shared/src/ai/eval/gold-questions.jsonl',
+);
 const src = readFileSync(EVAL_FILE, 'utf8');
 const cases = src
   .split('\n')

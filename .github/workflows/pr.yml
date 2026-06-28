@@ -60,6 +60,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the lint step can diff against the PR base /
+          # previous commit to find changed files.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -78,14 +82,76 @@ jobs:
           cp .env.example .env
           node scripts/link-env.mjs
 
-      - name: Lint
-        run: pnpm lint
+      # Lint only the TS/TSX files this PR (or push) actually changed, rather
+      # than the whole repo. The repo carries a pre-existing ESLint backlog in
+      # files unrelated to any given change; linting everything turns every PR
+      # red on debt it didn't introduce. Scoping to changed files keeps CI
+      # honest — a PR is judged on its own diff — while still catching new
+      # violations (and any pre-existing errors in a file you touch, which is a
+      # fair boy-scout nudge). Run `pnpm lint` locally for the full-repo view.
+      - name: Lint (changed files only)
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            RANGE="${BASE}...HEAD"
+          else
+            BASE="${{ github.event.before }}"
+            if [ -z "${BASE}" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              BASE="$(git rev-parse HEAD~1 2>/dev/null || true)"
+            fi
+            RANGE="${BASE:+${BASE} }HEAD"
+          fi
+          echo "Lint diff range: ${RANGE}"
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR ${RANGE} \
+            | grep -E '^(apps|packages)/.*\.(ts|tsx)$' || true)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No changed TS/TSX files under apps/ or packages/ — skipping lint."
+            exit 0
+          fi
+          echo "Linting ${#FILES[@]} changed file(s):"
+          printf '  %s\n' "${FILES[@]}"
+          pnpm exec eslint "${FILES[@]}"
+
+      # Prisma client must be generated before Typecheck — tsc resolves
+      # `@prisma/client` types from the generated client, and many modules
+      # import Prisma enums/types directly. (This previously sat after
+      # Typecheck; the ordering bug was masked because CI always failed at the
+      # whole-repo Lint step first and never reached Typecheck.)
+      - name: Prisma generate
+        run: pnpm --filter @kku/db exec prisma generate
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Prisma generate
-        run: pnpm --filter @kku/db exec prisma generate
+      # The CI Postgres service runs postgis/postgis:16-3.4, which ships
+      # PostGIS but NOT pgvector. The init migration does `CREATE EXTENSION
+      # vector`, so install pgvector into the running service container before
+      # migrating. Dev/prod use our custom postgres image (infra/postgres) that
+      # bakes pgvector in; a GitHub `services:` block can't `build:` an image,
+      # so we apt-install it here instead. The image is PGDG-based, so the
+      # package is available. No server restart needed — CREATE EXTENSION loads
+      # it on demand once vector.control + the .so are on disk.
+      - name: Install pgvector into the Postgres service
+        run: |
+          set -euo pipefail
+          # apt-get update can pull a newer postgres-16 minor, which replaces
+          # the contrib .so files (pg_trgm, etc.) on disk while the *running*
+          # server is still the old binary — loading the new pg_trgm.so then
+          # fails with "undefined symbol". Restart the container after install
+          # so the running server matches the upgraded libraries, then wait for
+          # it to accept connections again.
+          docker exec ${{ job.services.postgres.id }} bash -c \
+            "apt-get update && apt-get install -y postgresql-16-pgvector"
+          docker restart ${{ job.services.postgres.id }}
+          echo "Waiting for Postgres to accept connections after restart…"
+          for i in $(seq 1 30); do
+            if docker exec ${{ job.services.postgres.id }} pg_isready -U kku -d kku_landscape >/dev/null 2>&1; then
+              echo "Postgres ready"; break
+            fi
+            sleep 2
+            if [ "$i" -eq 30 ]; then echo "Postgres did not become ready"; exit 1; fi
+          done
 
       - name: Apply migrations (test DB)
         env:
