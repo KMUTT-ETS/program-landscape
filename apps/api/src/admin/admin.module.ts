@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AcademicYearController } from './academic-year.controller';
+import { AcademicYearService } from './academic-year.service';
 import { AiCostController } from './ai-cost.controller';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 import { AiSettingsController } from './ai-settings.controller';
@@ -16,6 +18,7 @@ import { SystemStatusController } from './system-status.controller';
 @Module({
   imports: [AiJobsModule],
   controllers: [
+    AcademicYearController,
     SystemStatusController,
     DataQualityController,
     AiCostController,
@@ -25,7 +28,13 @@ import { SystemStatusController } from './system-status.controller';
     QueuesController,
     RegistryMappingController,
   ],
-  providers: [QueuesService, BackupVerificationService, AiSettingsService, ExternalAiService],
+  providers: [
+    AcademicYearService,
+    QueuesService,
+    BackupVerificationService,
+    AiSettingsService,
+    ExternalAiService,
+  ],
   exports: [QueuesService],
 })
 export class AdminModule {}

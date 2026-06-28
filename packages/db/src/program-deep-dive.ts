@@ -14,6 +14,7 @@ import {
 import { queryMetricByScope } from './scope';
 import { realDataWhere } from './data-quality';
 import { programFunnelYears } from './program-funnel';
+import { academicYearContextSync, getAcademicYearContext } from './academic-year';
 
 // Deep-dive aggregator — all reads a single program's page needs.
 // Each method corresponds to one section of the UI. Role-sensitive
@@ -375,7 +376,7 @@ export async function programDemandFunnel(programId: string) {
 
   // Compose the 5-stage funnel for the anchor cohort.
   let stages: Array<{ key: string; label: string; value: number }> = [];
-  let conversions: Array<{ fromKey: string; toKey: string; rate: number | null }> = [];
+  const conversions: Array<{ fromKey: string; toKey: string; rate: number | null }> = [];
   let alumniBreakdown: Array<{ bucket: string; count: number; pct: number }> = [];
   let stillEnrolledForAnchor = 0;
   let cohortCompleted = false;
@@ -588,14 +589,10 @@ export interface ProgramCohortDistribution {
   refreshedAt: string | null;
 }
 
-/** Compute KKU's active academic year. Term 1 starts June; before
- *  June 1, the active academic year is the prior BE year. */
+/** Active academic year (BE). Delegates to the configurable academic-year
+ *  boundary so deep-dive, recruitment, and risk all roll over together. */
 export function currentAcademicYearBE(now: Date = new Date()): number {
-  const ceYear = now.getUTCFullYear();
-  const monthZeroIndexed = now.getUTCMonth(); // 0=Jan ... 5=June
-  const startsInJune = monthZeroIndexed >= 5;
-  const beYear = ceYear + 543;
-  return startsInJune ? beYear : beYear - 1;
+  return academicYearContextSync(now).currentAcademicYearBE;
 }
 
 export async function programStudentCohorts(
@@ -613,6 +610,7 @@ export async function programStudentCohorts(
     }),
   ]);
   const programDurationYears = program?.durationYears ?? null;
+  await getAcademicYearContext(now);
   const academicYearBE = currentAcademicYearBE(now);
 
   if (rows.length === 0) {
@@ -698,6 +696,7 @@ export async function programsCandidateSupply(
 ): Promise<Map<string, ProgramCandidateSupply>> {
   const result = new Map<string, ProgramCandidateSupply>();
   if (programIds.length === 0) return result;
+  await getAcademicYearContext(now);
   const academicYearBE = currentAcademicYearBE(now);
   const [programs, rows] = await Promise.all([
     prisma.program.findMany({
@@ -2490,6 +2489,10 @@ export async function programDemographicOutlook(
   });
   if (!program) return null;
 
+  // Warm the academic-year cache so the sync accessor below honours any
+  // operator-set DB date for this request.
+  await getAcademicYearContext(now);
+
   const ageCohort = COHORT_FOR_LEVEL[program.level] ?? '18-22';
 
   // Latest non-partial Year-1 intake. Use the most recent enrollment-
@@ -2515,11 +2518,10 @@ export async function programDemographicOutlook(
   // Recruitment-funnel baseline — Plan → Applicants → Reported in.
   // Sourced from ADMISSION_STAT via the adapter (per-year totals).
   const funnelRows = await programFunnelYears(programId);
-  // `+ 543` = current Buddhist-Era year; `- 1` drops the in-progress
-  // admission cycle so the baseline uses the latest COMPLETE year.
+  // Latest COMPLETE entry year (drops the in-progress admission cycle).
   const funnelBaseline = buildFunnelBaseline(
     funnelRows,
-    now.getUTCFullYear() + 543 - 1,
+    academicYearContextSync(now).latestCompleteEntryYearBE,
   );
 
   // Demographic projection rows. Pin to the canonical NESDC-mid-

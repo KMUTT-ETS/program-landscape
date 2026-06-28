@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { programFunnelRoundRows } from './program-funnel';
+import { getAcademicYearContext, entryYearComplete } from './academic-year';
 
 export interface ProgramRecruitmentRoundRow {
   round: string;
@@ -72,16 +73,13 @@ export interface ProgramRecruitmentResult {
 
 const VERSION = 'program-recruitment.v2';
 
-function isYearComplete(yearBE: number, now: Date = new Date()): boolean {
-  return yearBE - 543 < now.getUTCFullYear();
-}
-
 export async function programRecruitment(
   programId: string,
 ): Promise<ProgramRecruitmentResult> {
   // Sourced from admission_campaign_stats via the adapter — per (year ×
   // round) rows with the program's annual plan replicated on each round.
   const allRows = await programFunnelRoundRows(programId);
+  const ay = await getAcademicYearContext();
 
   // Group by year for the per-year totals.
   const byYearMap = new Map<number, typeof allRows>();
@@ -109,7 +107,7 @@ export async function programRecruitment(
       return {
         entryYearBE: yearBE,
         entryYearCE: yearBE - 543,
-        isComplete: isYearComplete(yearBE),
+        isComplete: entryYearComplete(yearBE, ay),
         planPerYear,
         enrollSeats: seats,
         totalApplicants: apps,

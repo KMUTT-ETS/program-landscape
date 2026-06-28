@@ -25,8 +25,9 @@ import { prisma } from './index';
 import { programDemographicOutlook } from './program-deep-dive';
 import { programFunnelRoundRows } from './program-funnel';
 import { realDataSql } from './data-quality';
+import { academicYearContextSync } from './academic-year';
 
-export const RISK_SCORING_VERSION = 'risk-scoring.v1.12';
+export const RISK_SCORING_VERSION = 'risk-scoring.v1.13';
 
 // L2 (AI-disruption) is intentionally discounted in the COMPOSITE only.
 // Rationale: AI mitigation typically requires large multi-year investment
@@ -113,8 +114,13 @@ export function deriveKkuMatrix(
 // fill rate. Rule: only include rows whose entryYearBE is strictly less
 // than the BE equivalent of the current calendar year. Rolls forward each
 // January 1 automatically.
+// Latest BE entry year whose recruitment is COMPLETE. Delegates to the
+// configurable academic-year boundary (academic-year.ts) — previously a
+// hardcoded Jan-1 rollover (now.getFullYear()+543-1). Synchronous accessor:
+// uses the warmed setting if an async entry point loaded it, else the
+// June-16 default (which already yields the corrected current year).
 export function latestCompleteEntryYearBE(now: Date = new Date()): number {
-  return now.getFullYear() + 543 - 1;
+  return academicYearContextSync(now).latestCompleteEntryYearBE;
 }
 
 export function isInProgressBE(yearBE: number, now: Date = new Date()): boolean {

@@ -614,13 +614,13 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     select: { level: true, nameTh: true },
   });
 
-  // Latest COMPLETE year — calendar-based: a BE year is complete when
-  // (BE - 543) < currentCEYear. Thai TCAS finishes registration by
-  // ~Oct of the cohort year, so by Jan 1 of the following CE year
-  // every round is done. The in-progress current cohort stays in the
-  // DB as informational data; scoring uses the latest COMPLETE year.
+  // Latest COMPLETE year — a BE entry year is complete once its academic
+  // year has started (the configurable academic-year boundary; see
+  // packages/db/src/academic-year.ts). The in-progress current cohort stays
+  // in the DB as informational data; scoring uses the latest COMPLETE year.
   // Sourced from ADMISSION_STAT via the funnel adapter (per-year totals,
-  // realData-gated, canonical program_id). isComplete = (BE-543) < currentCE.
+  // realData-gated, canonical program_id); `isComplete` is set by
+  // `programFunnelYears`, which delegates to `entryYearComplete`.
   const funnelYears = await programFunnelYears(programId);
   const latestYearOverall = funnelYears[0]?.entryYearBE ?? null;
   const latestComplete = funnelYears.find((y) => y.isComplete) ?? null;

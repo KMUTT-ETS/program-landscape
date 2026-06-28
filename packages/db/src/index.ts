@@ -45,3 +45,4 @@ export * from './sign-in-lockout';
 export * from './data-quality';
 export * from './methodology-bundle';
 export * from './evaluations';
+export * from './academic-year';

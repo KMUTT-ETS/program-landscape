@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { prisma } from '@kku/db';
+import { prisma, getAcademicYearContext, academicYearContextSync, entryYearComplete } from '@kku/db';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Actual recruitment campaigns dashboard — POWERBI.ADMISSION_STAT, ingested
@@ -376,9 +376,8 @@ export class AdmissionCampaignsService {
     });
 
     const years = [...new Set(scoped.map((r) => r.acadYearBE))].sort((a, b) => b - a);
-    const nowCe = new Date().getUTCFullYear();
-    const isComplete = (y: number): boolean => y - 543 < nowCe;
-    const latestCompleteYear = years.find((y) => isComplete(y)) ?? null;
+    const ay = await getAcademicYearContext();
+    const latestCompleteYear = years.find((y) => entryYearComplete(y, ay)) ?? null;
     const selectedYear = filters.acadYearBE ?? latestCompleteYear ?? years[0] ?? null;
 
     const facMap = new Map<string, string>();
@@ -444,7 +443,7 @@ export class AdmissionCampaignsService {
         selectedRound: round,
         appliedFilters: filters,
         latestCompleteYear,
-        selectedYearIsComplete: isComplete(selectedYear),
+        selectedYearIsComplete: entryYearComplete(selectedYear, ay),
         facultiesWithData,
         hasUnassignedFaculty,
         seatDataAvailable,
@@ -469,11 +468,11 @@ export class AdmissionCampaignsService {
   }
 
   private groupYear(rows: Row[], programKey: (r: Row) => string): CampaignYearRow[] {
-    const nowCe = new Date().getUTCFullYear();
+    const ay = academicYearContextSync();
     const groups = new Map<number, Row[]>();
     for (const r of rows) (groups.get(r.acadYearBE) ?? groups.set(r.acadYearBE, []).get(r.acadYearBE)!).push(r);
     return [...groups.entries()]
-      .map(([year, grp]) => ({ acadYearBE: year, isComplete: year - 543 < nowCe, programs: this.distinctProgramKeys(grp, programKey), campaigns: grp.length, ...this.metrics(grp) }))
+      .map(([year, grp]) => ({ acadYearBE: year, isComplete: entryYearComplete(year, ay), programs: this.distinctProgramKeys(grp, programKey), campaigns: grp.length, ...this.metrics(grp) }))
       .sort((a, b) => a.acadYearBE - b.acadYearBE);
   }
 

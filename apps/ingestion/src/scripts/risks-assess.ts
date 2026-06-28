@@ -57,6 +57,7 @@ import {
   normaliseImpactScores,
   isInProgressBE,
   latestCompleteEntryYearBE,
+  getAcademicYearContext,
   RISK_INDICATOR_CATALOG,
   RISK_SCORING_VERSION,
   deriveRuleMeasures,
@@ -439,6 +440,9 @@ async function ensureIndicatorCatalog(): Promise<void> {
 async function main(): Promise<void> {
   console.log(`[risks-assess] mode=${dryRun ? 'DRY-RUN' : 'APPLY'}, ai=${noAi ? 'OFF' : 'ON'}`);
   console.log(`[risks-assess] log → ${LOG_PATH}\n`);
+
+  // Apply the operator-set academic-year boundary before scoring.
+  await getAcademicYearContext();
 
   if (!dryRun) {
     await ensureIndicatorCatalog();

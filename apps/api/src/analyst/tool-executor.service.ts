@@ -55,7 +55,7 @@ import {
   type Intervention,
   type ToolCall,
 } from '@kku/shared';
-import { listPortfolioRisk, scopeFunnelLatestYear } from '@kku/db';
+import { listPortfolioRisk, scopeFunnelLatestYear, getAcademicYearContext, entryYearComplete } from '@kku/db';
 
 // ═════════════════════════════════════════════════════════════════════
 // Analyst tool executor
@@ -938,7 +938,7 @@ export class AnalystToolExecutor {
     query_recruitment: async (input) => {
       const q = QueryRecruitmentInputSchema.parse(input);
       // ADMISSION_STAT: latest COMPLETE year, aggregated per program.
-      const nowCe = new Date().getUTCFullYear();
+      const ay = await getAcademicYearContext();
       const yearRows = await prisma.admissionCampaignStat.findMany({
         where: { programId: { not: null } },
         select: { acadYearBE: true },
@@ -946,7 +946,7 @@ export class AnalystToolExecutor {
         orderBy: { acadYearBE: 'desc' },
       });
       const latestYear =
-        q.entryYearBe ?? yearRows.map((r) => r.acadYearBE).find((y) => y - 543 < nowCe) ?? null;
+        q.entryYearBe ?? yearRows.map((r) => r.acadYearBE).find((y) => entryYearComplete(y, ay)) ?? null;
       if (latestYear === null) return { count: 0, rows: [] };
       const where: Prisma.AdmissionCampaignStatWhereInput = {
         acadYearBE: latestYear,

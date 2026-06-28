@@ -16,6 +16,7 @@
 
 import { prisma } from './index';
 import { realDataWhere, realDataSqlUnsafe } from './data-quality';
+import { getAcademicYearContext, entryYearComplete } from './academic-year';
 
 export const PROGRAM_FUNNEL_VERSION = 'program-funnel.v1';
 
@@ -66,10 +67,6 @@ interface RawRow {
   regReported: number | null;
 }
 
-function isYearComplete(yearBE: number, now: Date = new Date()): boolean {
-  return yearBE - 543 < now.getUTCFullYear();
-}
-
 const n = (v: number | null | undefined): number => v ?? 0;
 
 // Σ over sub-program (PROGRAMID) of MAX(plan) within the given rows.
@@ -110,6 +107,7 @@ async function loadProgramRows(programId: string): Promise<RawRow[]> {
 /** Per-year totals for a program — the shape scoring + demographic outlook want. */
 export async function programFunnelYears(programId: string): Promise<ProgramFunnelYear[]> {
   const rows = await loadProgramRows(programId);
+  const ay = await getAcademicYearContext();
   const byYear = new Map<number, RawRow[]>();
   for (const r of rows) (byYear.get(r.acadYearBE) ?? byYear.set(r.acadYearBE, []).get(r.acadYearBE)!).push(r);
   return [...byYear.entries()]
@@ -117,7 +115,7 @@ export async function programFunnelYears(programId: string): Promise<ProgramFunn
     .map(([yearBE, yr]) => ({
       entryYearBE: yearBE,
       entryYearCE: yearBE - 543,
-      isComplete: isYearComplete(yearBE),
+      isComplete: entryYearComplete(yearBE, ay),
       planPerYear: planSum(yr),
       enrollSeats: yr.reduce((s, r) => s + n(r.enrollSeats), 0),
       totalApplicants: yr.reduce((s, r) => s + n(r.totalApplicants), 0),
@@ -182,7 +180,7 @@ export async function scopeFunnelLatestYear(
   scopeId: string | null,
   now: Date = new Date(),
 ): Promise<ScopeFunnelTotals> {
-  const nowCe = now.getUTCFullYear();
+  const ay = await getAcademicYearContext(now);
   // Built with $queryRawUnsafe + explicit positional params, NOT tagged-template
   // fragments. Under the dev webpack build pnpm can load two @prisma/client
   // module instances, so a nested Prisma.sql/Prisma.raw fragment fails its
@@ -210,7 +208,7 @@ export async function scopeFunnelLatestYear(
      ORDER BY c.acad_year_be DESC`,
     ...(scoped ? [scopeId] : []),
   );
-  const year = yearRows.map((r) => r.y).find((y) => y - 543 < nowCe) ?? null;
+  const year = yearRows.map((r) => r.y).find((y) => entryYearComplete(y, ay)) ?? null;
   const empty: ScopeFunnelTotals = {
     entryYearBE: year, planPerYear: 0, enrollSeats: 0, totalApplicants: 0, totalPassed: 0,
     sendClearinghouse: 0, confirmClearinghouse: 0, sendRegReported: 0, regReported: 0,

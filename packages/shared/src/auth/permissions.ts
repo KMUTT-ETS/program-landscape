@@ -102,6 +102,11 @@ export const PERMISSIONS = [
   // impact; same posture as `queues:manage`.
   'ai_models:configure',
 
+  // Operator-tunable application settings (e.g. the academic-year rollover
+  // date). Admin-grade: SUPER_ADMIN + SYSTEM_ADMIN. Not super-only because
+  // managing the academic calendar is routine ops, unlike model dispatch.
+  'settings:configure',
+
   // University-wide dashboards (Education, Staff, System status). These
   // surfaces read every faculty's data by design — they're for Council
   // and university-management roles, not for FACULTY_USER / PROGRAM_USER

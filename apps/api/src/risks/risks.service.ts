@@ -6,6 +6,8 @@ import {
   RISK_SCORING_VERSION,
   Prisma,
   isInProgressBE,
+  getAcademicYearContext,
+  latestCompleteEntryYearBE,
   loadProgramRiskInputs,
   scoreL2AiDisruption,
   getUniversityAverages,
@@ -409,6 +411,11 @@ export class RisksService {
       severityCounts: { major: number; moderate: number; minor: number };
     };
   }> {
+    // Warm the academic-year boundary so the competition-ratio histogram
+    // below uses the same latest-complete entry year as the per-program L1
+    // scorer (risk-scoring.ts), honouring any operator-set start date.
+    await getAcademicYearContext();
+
     // Scope clauses — union of all granted faculty/program IDs.
     // Empty when admin-grade / UNIVERSITY_USER (caller passes nothing).
     const facultyIdSet = [
@@ -542,7 +549,7 @@ export class RisksService {
         FROM admission_campaign_stats c
         JOIN programs p ON p.id = c.program_id
         WHERE p.level = 'BACHELOR' AND p.status = 'ACTIVE'
-          AND c.acad_year_be < (EXTRACT(YEAR FROM CURRENT_DATE)::int + 543)
+          AND c.acad_year_be <= ${latestCompleteEntryYearBE()}
           AND ${realDataSql('c')}
           ${facultyClause}
           ${programClause}
@@ -770,6 +777,8 @@ export class RisksService {
     };
     universityAverages: UniversityAverages;
   }> {
+    // Apply the operator-set academic-year boundary before scoring.
+    await getAcademicYearContext();
     const program = await prisma.program.findUnique({
       where: { id: programId },
       select: {

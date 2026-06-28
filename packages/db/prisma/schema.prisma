@@ -4995,3 +4995,14 @@ model RiskMeasure {
   @@index([triggerIndicatorSlug])
   @@map("risk_measures")
 }
+
+/// Generic key-value application settings (operator-tunable, DB-backed).
+/// First use: academic_year.next_start_date. Keep keys dotted + namespaced.
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("system_settings")
+}

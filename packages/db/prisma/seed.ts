@@ -280,6 +280,16 @@ async function main() {
     },
   });
 
+  // Academic-year rollover boundary. Seed 2026-06-16 so BE 2569 reads
+  // complete + BE 2570 in-progress immediately, with a stale-warning that
+  // prompts the operator to set 2027-06-16 next. See
+  // docs/superpowers/specs/2026-06-28-academic-year-rollover-config-design.md
+  await prisma.systemSetting.upsert({
+    where: { key: 'academic_year.next_start_date' },
+    update: {},                       // never clobber an operator-set value on reseed
+    create: { key: 'academic_year.next_start_date', value: '2026-06-16' },
+  });
+
   // ── Faculties ───────────────────────────────────────────────────────────
   const facultyByCode = new Map<string, { id: string }>();
   for (const f of FACULTIES) {

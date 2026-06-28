@@ -15,6 +15,7 @@ import {
   Activity,
   ArrowUpRight,
   Building2,
+  CalendarClock,
   CircleDollarSign,
   ClipboardCheck,
   Database,
@@ -544,6 +545,14 @@ function buildGroups({
       meta: sysStatus
         ? `Today $ ${sysStatus.ai24h.costUsd.toFixed(2)} · ${sysStatus.ai24h.calls} calls`
         : undefined,
+    },
+    {
+      href: '/admin/app/academic-year',
+      label: 'Academic year',
+      description:
+        'Set when the academic year rolls over. Drives which entry year counts as complete vs in-progress across recruitment, the program funnel, and risk.',
+      icon: <CalendarClock className="h-6 w-6" />,
+      roles: ADMIN_GRADE,
     },
     {
       href: '/admin/queues',
