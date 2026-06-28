@@ -27,6 +27,19 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-06-28',
+    version: 'v1.6.5 · Trends Radar now shows real signals, plus a way to remove any signal',
+    title:
+      'The Trends Radar is now fed by real external sources and a new live monitor of KKU’s own research output, mock signals have been removed, and analysts/admins can remove any signal directly from the radar',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The radar now carries real signals only. Nine external sources — the World Bank and eight curated policy/economic report sources (MHESI, NESDC, NXPO, BOI, EECO, WEF Future of Jobs, OECD, ADB Greater Mekong) — were switched from sample data to live, and the previous sample/mock signals were cleared out. Document links were refreshed so the “view source” links work.',
+      'New live research monitor: the radar now surfaces KKU’s own research momentum. When a faculty’s high-quartile (Scopus Q1) publication output rises notably year over year, the radar shows a signal for it — for example, a faculty whose Q1 output climbed from one year to the next. These are faculty-level trends drawn from KKU’s publications data, refreshed automatically.',
+      'Analysts and admins can now remove any signal directly on the Trends Radar (two-step confirm). Previously only signals created from an uploaded document could be removed. A note explains that signals sourced from automated connectors may reappear on the next scheduled run, while document- and seed-sourced ones stay removed.',
+      'Some planned monitors (job-market, peer programs, technology, patents) remain intentionally empty until a real data source for each is available — the platform shows nothing rather than fabricated signals, in line with its no-mock-data policy.',
+    ],
+  },
+  {
+    date: '2026-06-28',
     version: 'v1.6.4 · Academic-year rollover is now correct and configurable',
     title:
       'When a new academic year begins, the previous year’s intake is now correctly treated as complete across recruitment, the program funnel and risk — and an admin can set exactly when the year rolls over',
