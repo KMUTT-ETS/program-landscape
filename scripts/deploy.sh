@@ -101,6 +101,16 @@ for name in postgres_user postgres_password minio_user minio_password; do
   [ -s "$SECRETS_DIR/$name" ] || fail "missing or empty secret: $SECRETS_DIR/$name"
 done
 
+# The Chainguard MinIO runs as non-root (UID 65532) and reads its root
+# credentials from file secrets. Unlike the old root-running minio/minio image,
+# it can't read 0600 root-owned secret files — it sees them empty and dies with
+# "Invalid credentials". Compose (non-swarm `docker compose up`) IGNORES the
+# secret `mode:`/`uid:` fields, so make the source files readable here. The
+# 0700 SECRETS_DIR still protects them on the host; only the in-container bind
+# mount exposes them to UID 65532. Postgres is unaffected (it reads its secrets
+# during a root entrypoint phase before dropping privileges).
+sudo chmod 0644 "$SECRETS_DIR/minio_user" "$SECRETS_DIR/minio_password"
+
 # ── 2. Load images ────────────────────────────────────────────────────
 if [ -f "$RELEASE_DIR/images.tar" ]; then
   log "docker load < images.tar"
@@ -153,13 +163,22 @@ export RELEASE_VERSION="$VERSION"
 # MinIO migration: the Chainguard image runs as non-root UID 65532, but a
 # volume created by the old root-running minio/minio image holds root-owned
 # data, which makes the new server fail to init the backend. Chown the
-# minio-data volume to 65532 once, BEFORE starting minio. Uses the bundled
-# minio image itself (as root) so no extra image is needed on the air-gapped
-# host. Idempotent + cheap: a no-op on a fresh/already-65532 volume.
+# minio-data volume to 65532 once, BEFORE starting minio.
+#
+# This MUST be done on the host (this script runs as root and has CAP_CHOWN),
+# NOT via `docker compose run`: the minio service drops all capabilities
+# (cap_drop: ALL via *common-security), so a chown inside it gets EPERM even as
+# --user 0 — CAP_CHOWN is required whenever the process uid differs from the
+# file owner. Idempotent: a no-op on a fresh/already-65532 volume.
 log "Ensuring MinIO data volume is owned by nonroot (UID 65532)"
-docker compose run --rm --no-deps --user 0 --entrypoint /usr/bin/chown \
-  minio -R 65532:65532 /data \
-  || fail "MinIO volume chown failed — check the minio-data volume permissions"
+MINIO_VOL="$(docker volume ls -q | grep -E '(^|_)minio-data$' | head -1 || true)"
+if [ -n "$MINIO_VOL" ]; then
+  MINIO_MP="$(docker volume inspect "$MINIO_VOL" --format '{{.Mountpoint}}')"
+  sudo chown -R 65532:65532 "$MINIO_MP" \
+    || fail "MinIO volume chown failed — check $MINIO_MP permissions"
+else
+  log "  minio-data volume not present yet (fresh host) — image inits it as 65532"
+fi
 
 log "Starting infrastructure services (postgres/redis/minio/gotenberg)"
 docker compose up -d postgres redis minio gotenberg
