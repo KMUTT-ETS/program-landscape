@@ -116,11 +116,30 @@ export class ConnectorRunner {
       return { runId: inFlight.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
     }
 
+    // Guard the FK: a triggeredByUserId that isn't a real users row would make
+    // ingestion_runs.create throw on ingestion_runs_triggered_by_user_id_fkey
+    // and fail the entire run before any work. Degrade to null (the run is still
+    // recorded + audited) rather than abort. Covers manual enqueues that pass a
+    // synthetic/ops id.
+    let triggeredByUserId = opts.triggeredByUserId ?? null;
+    if (triggeredByUserId) {
+      const triggerUser = await prisma.user.findUnique({
+        where: { id: triggeredByUserId },
+        select: { id: true },
+      });
+      if (!triggerUser) {
+        this.logger.warn(
+          `[${opts.dataSourceSlug}] triggeredByUserId ${triggeredByUserId} not found — recording run with null trigger user`,
+        );
+        triggeredByUserId = null;
+      }
+    }
+
     const run = await prisma.ingestionRun.create({
       data: {
         dataSourceId: dataSource.id,
         trigger: opts.trigger,
-        triggeredByUserId: opts.triggeredByUserId ?? null,
+        triggeredByUserId,
         status: 'RUNNING',
         startedAt: new Date(),
         attempt: opts.attempt ?? 1,

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   runFindFirst: vi.fn(),
   dataSourceFindUnique: vi.fn(),
   dataSourceUpdate: vi.fn(),
+  userFindUnique: vi.fn(),
 }));
 const {
   pdfUpsert,
@@ -22,6 +23,7 @@ const {
   runFindFirst,
   dataSourceFindUnique,
   dataSourceUpdate,
+  userFindUnique,
 } = mocks;
 
 vi.mock('@kku/db', () => ({
@@ -36,6 +38,7 @@ vi.mock('@kku/db', () => ({
       findFirst: mocks.runFindFirst,
     },
     dataSource: { findUnique: mocks.dataSourceFindUnique, update: mocks.dataSourceUpdate },
+    user: { findUnique: mocks.userFindUnique },
   },
 }));
 
@@ -81,6 +84,7 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
     runFindFirst.mockReset();
     dataSourceFindUnique.mockReset();
     dataSourceUpdate.mockReset();
+    userFindUnique.mockReset();
 
     runCreate.mockResolvedValue({ id: 'run-123' });
     runUpdate.mockResolvedValue({});
@@ -89,6 +93,8 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
     runFindFirst.mockResolvedValue(null);
     dataSourceUpdate.mockResolvedValue({});
     pdfUpsert.mockResolvedValue({ id: 'pdf-999' });
+    // FK guard: triggeredByUserId resolves to a real user by default.
+    userFindUnique.mockResolvedValue({ id: 'user-test' });
   });
 
   it('threads an API connector through healthCheck → fetch → transform → load, and writes SUCCEEDED', async () => {
@@ -116,6 +122,32 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
     expect(updateCall.data.recordsLoaded).toBe(2);
     // DataSource.lastSyncedAt bumped after success.
     expect(dataSourceUpdate).toHaveBeenCalledOnce();
+    // Valid trigger user passes the FK guard through unchanged.
+    const createCall = runCreate.mock.calls[0]?.[0] as {
+      data: { triggeredByUserId: string | null };
+    };
+    expect(createCall.data.triggeredByUserId).toBe('user-test');
+  });
+
+  it('FK guard: a non-existent triggeredByUserId is recorded as null, not failed', async () => {
+    dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('kku-registry'));
+    userFindUnique.mockResolvedValue(null); // bad/synthetic id — not in users
+
+    const connector = new KkuRegistryConnector();
+    const registry = new Map([[connector.slug, connector]]);
+    const runner = new ConnectorRunner(registry);
+
+    const outcome = await runner.run({
+      dataSourceSlug: 'kku-registry',
+      trigger: 'MANUAL',
+      triggeredByUserId: 'ops-rollout', // does not exist
+    });
+
+    expect(outcome.status).toBe('SUCCEEDED');
+    const createCall = runCreate.mock.calls[0]?.[0] as {
+      data: { triggeredByUserId: string | null };
+    };
+    expect(createCall.data.triggeredByUserId).toBeNull();
   });
 
   it('PDF-flagged connector routes through PdfDocument.upsert instead of extracting', async () => {
