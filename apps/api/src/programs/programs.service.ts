@@ -463,6 +463,16 @@ export class ProgramsService {
     void _ignore_level;
 
     return prisma.$transaction(async (tx) => {
+      // The master sheet is detached (2026-07-08) — admin-created programs are
+      // first-class. Assign the next sequence number so the new program is
+      // CANONICAL (withCanonical keys on sequenceNoFromSheet IS NOT NULL) and
+      // pipeline-eligible; without it the program would be invisible on
+      // Council surfaces and rejected by run-pipeline.
+      const maxSeq = await tx.program.aggregate({
+        _max: { sequenceNoFromSheet: true },
+      });
+      const nextSeq = (maxSeq._max.sequenceNoFromSheet ?? 0) + 1;
+
       const created = await tx.program.create({
         data: {
           code: input.code,
@@ -473,6 +483,7 @@ export class ProgramsService {
           level: input.level,
           yearEstablished: input.yearEstablished ?? null,
           ...extractionHeader,
+          sequenceNoFromSheet: nextSeq,
         },
       });
 
@@ -1304,11 +1315,12 @@ export class ProgramsService {
     });
     if (!program) throw new ApiError('NOT_FOUND', `program not found: ${programId}`);
     if (program.sequenceNoFromSheet === null) {
-      // The pipeline only runs on the canonical 297. Legacy/non-canonical
-      // Program rows are out-of-scope.
+      // The pipeline only runs on CANONICAL programs (sequenceNoFromSheet
+      // set). Admin-created programs get a sequence at create time (sheet
+      // detached 2026-07-08); only legacy/ingestion-side-effect rows lack one.
       throw new ApiError(
         'VALIDATION_FAILED',
-        'pipeline runs on the canonical 297 only; this program is not in the master sheet',
+        'pipeline runs on canonical programs only; this legacy row has no sequence number',
       );
     }
     this.assertCanManage(user, program.facultyId);

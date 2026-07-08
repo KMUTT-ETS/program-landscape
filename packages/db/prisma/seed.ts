@@ -318,34 +318,42 @@ async function main() {
     departmentByCode.set(d.code, { id: row.id, facultyId: faculty.id });
   }
 
-  // ── Programs ────────────────────────────────────────────────────────────
+  // ── Programs — gated (no-mock policy) ───────────────────────────────────
+  // The 30 bootstrap-era mock programs (EN-CPE-BSC, …) were purged 2026-05-08
+  // and must NEVER return on a plain `db:seed`: real programs came from the
+  // (now-detached) master-sheet bootstrap and are managed via /admin/programs.
+  // This block was ungated until 2026-07-08, silently resurrecting them on
+  // every seed run. With the map left empty, the mock curricula/courses loop
+  // below and the SEED_MOCKS-gated blocks that iterate it all no-op naturally.
   const programByCode = new Map<
     string,
     { id: string; facultyId: string; departmentId: string | null }
   >();
-  for (const p of PROGRAMS) {
-    const faculty = facultyByCode.get(p.facultyCode)!;
-    const department = departmentByCode.get(p.departmentCode)!;
-    const row = await prisma.program.upsert({
-      where: { code: p.code },
-      update: {},
-      create: {
-        code: p.code,
-        nameTh: p.nameTh,
-        nameEn: p.nameEn,
+  if (SEED_MOCKS) {
+    for (const p of PROGRAMS) {
+      const faculty = facultyByCode.get(p.facultyCode)!;
+      const department = departmentByCode.get(p.departmentCode)!;
+      const row = await prisma.program.upsert({
+        where: { code: p.code },
+        update: {},
+        create: {
+          code: p.code,
+          nameTh: p.nameTh,
+          nameEn: p.nameEn,
+          facultyId: faculty.id,
+          departmentId: department.id,
+          level: p.level,
+          status: p.status ?? 'ACTIVE',
+          yearEstablished: p.yearEstablished,
+        },
+      });
+      programByCode.set(p.code, {
+        id: row.id,
         facultyId: faculty.id,
         departmentId: department.id,
-        level: p.level,
-        status: p.status ?? 'ACTIVE',
-        yearEstablished: p.yearEstablished,
-      },
-    });
-    programByCode.set(p.code, {
-      id: row.id,
-      facultyId: faculty.id,
-      departmentId: department.id,
-    });
-  }
+      });
+    }
+  } // end if (SEED_MOCKS) — mock programs
 
   // ── Users ───────────────────────────────────────────────────────────────
   for (const u of USERS) {
