@@ -26,6 +26,19 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-07-08',
+    version: 'v1.6.6 · Programs are now managed in-app; admin-created programs are first-class',
+    title:
+      'The program catalogue is now maintained directly in the application — new and revised programs added through the Admin console appear on every Council surface and run through the full analysis pipeline, just like the original 297',
+    audience: ['Analyst', 'Admin'],
+    bullets: [
+      'The master spreadsheet that bootstrapped the 297-program catalogue has served its purpose and is now detached. From this release onward, new programs and curriculum revisions are added and updated in the Admin console (Admin → Programs), including uploading the curriculum PDF, which is read by the AI and turned into the program’s structured profile automatically.',
+      'Programs created through the Admin console are now first-class: they receive a catalogue sequence number automatically, appear on all Council-facing views (cockpit, portfolio, deep-dive), and can run the full analysis pipeline. Previously an admin-created program was invisible to those views and the pipeline refused to run on it.',
+      'Fixed an issue where re-running the development seed quietly re-created 30 retired sample programs (and ~210 sample courses) from the platform’s earliest build. They are removed again and can no longer return — in line with the platform’s no-mock-data policy.',
+      'For operators: manually queued connector runs no longer fail when the trigger reference isn’t a known user account — the run is recorded without one instead.',
+    ],
+  },
+  {
     date: '2026-06-28',
     version: 'v1.6.5 · Trends Radar now shows real signals, plus a way to remove any signal',
     title:
