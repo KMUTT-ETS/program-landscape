@@ -103,10 +103,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // 5xx (incl. unhandled) → error level. 4xx → warn (caller-fault is
     // not a system error). ApiError + HttpException both flow through
     // here so the level distinction stays consistent.
+    //
+    // IMPORTANT: embed ctx in the MESSAGE string. Passing it as a second
+    // arg (`logger.error(msg, JSON.stringify(ctx))`) silently DROPS it
+    // under nestjs-pino (extra string params are treated as context
+    // labels, not payload) — prod 500s logged with no message/stack for
+    // weeks because of exactly that (found 2026-07-09 debugging the
+    // /pdfs/upload failure).
+    const line = `[${code}] ${req.method} ${req.originalUrl ?? req.url} ${JSON.stringify(ctx)}`;
     if (status >= 500) {
-      this.logger.error(`[${code}] ${req.method} ${req.originalUrl ?? req.url}`, JSON.stringify(ctx));
+      this.logger.error(line);
     } else {
-      this.logger.warn(`[${code}] ${req.method} ${req.originalUrl ?? req.url}`, JSON.stringify(ctx));
+      this.logger.warn(line);
     }
   }
 }

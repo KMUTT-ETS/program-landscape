@@ -15,6 +15,25 @@ import type {
   SignedUrlRequest,
 } from './types';
 
+/**
+ * S3 user metadata travels as HTTP headers (`x-amz-meta-*`), and Node's HTTP
+ * client rejects any header value outside latin-1 with
+ * `ERR_INVALID_CHAR: Invalid character in header content` — BEFORE the request
+ * is even sent. Thai originalFilename values hit exactly this once the
+ * multipart-UTF-8 filename fix started delivering real Thai strings (found
+ * 2026-07-09: every net-new PDF upload with a Thai filename 500'd).
+ * URI-encode any value with non-ASCII content; plain-ASCII values pass
+ * through untouched so existing metadata (hashes, ids, 'anonymous') is
+ * unchanged. Readers that need the original text should decodeURIComponent.
+ */
+export function sanitizeMetadata(metadata: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(metadata)) {
+    out[k] = /^[\x20-\x7e]*$/.test(v) ? v : encodeURIComponent(v);
+  }
+  return out;
+}
+
 export interface S3StorageConfig {
   endpoint: string;           // http://localhost:9000 in dev, http://minio:9000 in compose
   region: string;             // any value works for MinIO; must be non-empty for the SDK
@@ -52,7 +71,7 @@ export class S3Storage implements ObjectStorage {
         Key: req.key,
         Body: req.body,
         ContentType: req.contentType,
-        Metadata: req.metadata,
+        Metadata: req.metadata ? sanitizeMetadata(req.metadata) : undefined,
       }),
     );
     return {
