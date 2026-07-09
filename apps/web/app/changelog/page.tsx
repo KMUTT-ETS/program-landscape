@@ -26,6 +26,18 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-07-09',
+    version: 'v1.6.7 · PDF uploads with Thai filenames fixed',
+    title:
+      'Uploading a curriculum or trend document whose filename is in Thai no longer fails — and server errors now carry full diagnostic detail in the logs',
+    audience: ['Analyst', 'Admin'],
+    bullets: [
+      'Fixed: uploading a new PDF with a Thai filename (for example “หลักสูตรศึกษาศาสตรบัณฑิต 2565.pdf”) failed with an internal server error. The filename is stored alongside the file in object storage, and the transport layer rejected non-Latin characters at that step. Thai (and any non-ASCII) filenames are now safely encoded before storage and work everywhere a PDF can be uploaded — program files, trend documents, and the PDF intake page.',
+      'Server errors are now fully diagnosable: a logging defect had been silently discarding the error message and stack trace from every 5xx log entry, which made production issues anonymous. Log lines now carry the complete detail.',
+      'For operators: the queue database (Redis) now uses the “noeviction” memory policy, so background jobs can never be silently discarded under memory pressure — writes fail loudly instead.',
+    ],
+  },
+  {
     date: '2026-07-08',
     version: 'v1.6.6 · Programs are now managed in-app; admin-created programs are first-class',
     title:

@@ -274,8 +274,13 @@ services:
       - "yes"
       - --maxmemory
       - "1gb"
+      # noeviction, NOT allkeys-lru: Redis backs BullMQ queues — under memory
+      # pressure lru would silently EVICT queue/job keys (lost jobs). With
+      # noeviction Redis errors on writes instead, which surfaces loudly.
+      # BullMQ itself warns about this at connect ("Eviction policy is
+      # allkeys-lru. It should be noeviction") — seen on prod 2026-07-09.
       - --maxmemory-policy
-      - "allkeys-lru"
+      - "noeviction"
     volumes:
       - redis-data:/data
     read_only: true
