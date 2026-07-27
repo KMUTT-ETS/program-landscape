@@ -26,6 +26,18 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-07-27',
+    version: 'v1.6.8 · Gentler connections to the registrar database',
+    title:
+      'Bulk data syncs against the KKU registrar now sign in once and reuse the connection, instead of opening hundreds of separate logins — preventing the registrar side from locking our database account mid-sync',
+    audience: ['Admin'],
+    bullets: [
+      'Fixed: portfolio-wide sync jobs (student cohort and alumni linking) opened a fresh registrar database login for every program — roughly 300 logins per run, which the registrar’s security policy read as a connection storm and answered by locking the platform’s database account. Those jobs now open a single connection per run and reuse it for every program.',
+      'If the connection drops mid-run, the sync reconnects once and continues; if the login itself is rejected, the job stops immediately rather than retrying — repeated failing logins are exactly what escalates into an account lock.',
+      'The nightly scheduled connectors were audited and already connect frugally (two logins per run); they are unaffected.',
+    ],
+  },
+  {
     date: '2026-07-09',
     version: 'v1.6.7 · PDF uploads with Thai filenames fixed',
     title:
@@ -90,7 +102,8 @@ const ENTRIES: ChangelogEntry[] = [
   },
   {
     date: '2026-06-18',
-    version: 'v1.6.2 · Office & web documents on the Trends Radar; benchmarking AI-readiness now matches the program page',
+    version:
+      'v1.6.2 · Office & web documents on the Trends Radar; benchmarking AI-readiness now matches the program page',
     title:
       'Add a trend signal from a Word, Excel, PowerPoint, HTML or CSV file — not just PDF — and read a benchmarking write-up that cites the same AI-readiness score as the program page, with a redesigned content-gaps panel focused on what peers do that the program could adopt',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
@@ -102,7 +115,8 @@ const ENTRIES: ChangelogEntry[] = [
   },
   {
     date: '2026-06-11',
-    version: 'v1.6.1 · Add signals from documents; job candidates & new-initiative ideas on the Trends Radar',
+    version:
+      'v1.6.1 · Add signals from documents; job candidates & new-initiative ideas on the Trends Radar',
     title:
       'Turn any document or link into a trend signal, see the job positions each affected program feeds, and get AI-proposed re-skill/upskill offerings for demand KKU does not yet serve',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
@@ -170,13 +184,13 @@ const ENTRIES: ChangelogEntry[] = [
     date: '2026-06-01',
     version: 'v1.5.0 · Recruitment rebuilt on POWERBI.ADMISSION_STAT',
     title:
-      'The whole recruitment layer moves to the registrar\'s campaign-grain admission feed — a richer superset of the old curriculum-level data — plus a new actual-recruitment dashboard',
+      "The whole recruitment layer moves to the registrar's campaign-grain admission feed — a richer superset of the old curriculum-level data — plus a new actual-recruitment dashboard",
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
-      'New dashboard /education/recruitment-campaigns at the campaign-track grain — one row per recruitment track (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Recruitment funnel, year-over-year demand, by-TCAS-round breakdown, and a Faculty → program → sub-program → TCAS round → track drill-down with sortable headers and hover tooltips that show each cell\'s value, formula, and worked calculation.',
-      'Drill-down adds % Enrol yield (Enrolled ÷ Passed) alongside % Admit; the TCAS-round tier always reads top-to-bottom by round number regardless of the reader\'s column sort.',
-      'Recruitment data source migrated from POWERBI.ADMISSION_STAT_CURRID (curriculum grain) to POWERBI.ADMISSION_STAT (campaign grain) across the whole application — health scoring (Attractiveness), lifecycle verdict, the Health radar, the Program Deep-Dive recruitment funnel + demand funnel + demographic outlook, recruitment-vs-plan, and the Risk module\'s L1 recruitment-decay driver + competitiveness percentile now all read the new feed.',
-      'Plan quota is now counted correctly per intake (sum of each recruitment program\'s annual plan), fixing a prior undercount where majors that share one curriculum code collapsed onto a single quota.',
+      "New dashboard /education/recruitment-campaigns at the campaign-track grain — one row per recruitment track (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Recruitment funnel, year-over-year demand, by-TCAS-round breakdown, and a Faculty → program → sub-program → TCAS round → track drill-down with sortable headers and hover tooltips that show each cell's value, formula, and worked calculation.",
+      "Drill-down adds % Enrol yield (Enrolled ÷ Passed) alongside % Admit; the TCAS-round tier always reads top-to-bottom by round number regardless of the reader's column sort.",
+      "Recruitment data source migrated from POWERBI.ADMISSION_STAT_CURRID (curriculum grain) to POWERBI.ADMISSION_STAT (campaign grain) across the whole application — health scoring (Attractiveness), lifecycle verdict, the Health radar, the Program Deep-Dive recruitment funnel + demand funnel + demographic outlook, recruitment-vs-plan, and the Risk module's L1 recruitment-decay driver + competitiveness percentile now all read the new feed.",
+      "Plan quota is now counted correctly per intake (sum of each recruitment program's annual plan), fixing a prior undercount where majors that share one curriculum code collapsed onto a single quota.",
       'Methodology versions bumped: health-score.v3.8, risk-scoring.v1.12, program-recruitment.v2, recruitment-rollup.v2. Drivers, formulas, and weights are unchanged — only the underlying source moved. The public Methodology paper (/docs/methodology) is updated to match.',
       'The old TCAS-funnel connector (ADMISSION_STAT_CURRID) is deprecated; the admin Dashboard data-fetch and Application-topology surfaces now point at the new connector.',
     ],
@@ -184,7 +198,8 @@ const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-05-20',
     version: 'v1.4.0 · Research quartiles + recruitment round analysis',
-    title: 'Scopus journal-quartile tiers on research; TCAS-round analysis + national demographic outlook on the deep-dive',
+    title:
+      'Scopus journal-quartile tiers on research; TCAS-round analysis + national demographic outlook on the deep-dive',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       'Scopus journal quartile (Q1–Q4) and a Top-10% (Tier 1) tier added to research outputs and the /staff/research dashboard — quartile-led redesign with a year-range slider.',
@@ -193,13 +208,14 @@ const ENTRIES: ChangelogEntry[] = [
       'Risk L3 demographic-ceiling driver gains a forward demographic projection (risk-scoring.v1.11).',
       'program-digest.v2 — generalised, English-keyed skill extraction from curriculum PDFs.',
       'Sortable column headers across Education + Staff dashboard tables; a global navigation progress bar for slow transitions; the per-teacher deep dive becomes a Faculty → Program → Teacher drill-down.',
-      'Class-GPA + student-satisfaction dashboards scoped to the user\'s program for PROGRAM_USER.',
+      "Class-GPA + student-satisfaction dashboards scoped to the user's program for PROGRAM_USER.",
     ],
   },
   {
     date: '2026-05-19',
     version: 'v1.3.0 · Student evaluations + class GPA + teaching',
-    title: 'Course-evaluation + class-GPA dashboards; risk breaches now auto-propose a mitigation measure',
+    title:
+      'Course-evaluation + class-GPA dashboards; risk breaches now auto-propose a mitigation measure',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       'New student course-evaluation and class-GPA dashboards; new /staff/teaching surface; application-topology updated for the new flows. The evaluation signal also feeds a new student_satisfaction driver in the health score (health-score.v3.7).',
@@ -229,7 +245,7 @@ const ENTRIES: ChangelogEntry[] = [
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       '80-scenario test plan + runnable harness — `docs/dashboard-chatbot-tests.md` enumerates 50 Education + 30 Staff multi-turn scenarios with pass criteria + sanity bounds. `pnpm dash-chatbot:eval` walks all 240 turns against a local dev server, scans every answer for sanity violations, refusal regressions, and redirect expectations. 8 systematic weaknesses found in the walkthrough and patched in v1.4.',
-      'dash_compute v2 — adds 4 new ops: `rank_bottom` (worst/lowest), `min`, `max`, `year_over_year` (Δ + %Δ per period + total CAGR). Plus a new `sanityMin` parameter (mirror of sanityMax — catches negative GPAs, sub-1900 years, etc.). System prompt v1.4 spells out the bottom-N and trend patterns explicitly so the LLM doesn\'t fall back to head-math.',
+      "dash_compute v2 — adds 4 new ops: `rank_bottom` (worst/lowest), `min`, `max`, `year_over_year` (Δ + %Δ per period + total CAGR). Plus a new `sanityMin` parameter (mirror of sanityMax — catches negative GPAs, sub-1900 years, etc.). System prompt v1.4 spells out the bottom-N and trend patterns explicitly so the LLM doesn't fall back to head-math.",
       'Cross-term guards now ship on `dash_education_tuition`, `dash_education_class_offerings`, `dash_education_active_pivot` (in addition to teaching_workload). Each tool result carries an `appliedFilter` block telling the bot what slice the number actually covers — eliminates the "spans multiple terms but labelled as per-week" bug class across the catalog.',
       'GPA sanity check at the tool layer — `dash_education_performance` now flags any reported `averageGpa` / `averageEntryGpa` / `averageEnglishGpa` > 4.0 (or < 0) with a `dataQualityWarning` that the system prompt forbids reporting.',
       'Safety gate v3 — refuses Thai student IDs (`รหัสนักศึกษา <8-13 digits>`), KKU employee codes (`hr_*`, `kkupub_*`), "this student / นักศึกษาคนนี้" identification asks, and "show me <Name>\'s record" patterns. Tested negative on revenue figures and population numbers (no false positives). 39/39 safety tests pass (19 strategic + 10 dashboard + 10 personal-info v3).',
@@ -241,9 +257,9 @@ const ENTRIES: ChangelogEntry[] = [
       'New side-panel widget on every Education + Staff page — floating chat FAB at the bottom-right, slide-in drawer with the current sub-dashboard as a context hint. ⌘/Ctrl+/ to toggle, Esc to close, "Open full view" link deep-links into /analyst/dashboards.',
       '16 dashboard-scoped tools wrap the same EducationService / StaffService / TeachingWorkloadService / RecruitmentService / ClassOfferingsService methods the dashboards already use — the chat numbers always match what the dashboards show, no second source of truth.',
       'Every drill-down is reachable via a `view` parameter — 37 view options across 10 tools. Education: by_location (overview/provinces/schools), active_pivot (university/faculty), international (overview/faculty_drill), tuition (overview/by_year/faculty_drill), performance (overall/by_program/by_location/entry_scores — by_location ranks schools by GPA with ≥5-student floor), recruitment (kpis/programs/by_round/by_year + sortBy applicants/competition/fill/yield), class_offerings (summary/distribution/ge/heatmap/deep_dive). Staff: teaching_workload (summary/histogram/by_faculty/teachers/students_by_faculty), research (overview/top_authors/top_venues/by_faculty/heatmap/by_rank/by_year), faculty_by_program (overview/faculty_drill).',
-      'System prompt (analyst-dashboard-system.v1.2) enumerates every tool\'s views + spells out the drill-down playbook: dash_filter_options first → overview → drill into a specific row.',
+      "System prompt (analyst-dashboard-system.v1.2) enumerates every tool's views + spells out the drill-down playbook: dash_filter_options first → overview → drill into a specific row.",
       'Separate conversation history per surface — strategic Council conversations stay in /analyst, operational dashboard conversations stay in /analyst/dashboards. New AnalystConversation.kind column (STRATEGIC | DASHBOARD) with a (user, kind, updated_at) index for the list query.',
-      'New dash_filter_options tool the bot calls first when it needs an exact Thai faculty / program name — prevents the model from inventing labels that won\'t match the cube\'s WHERE clause.',
+      "New dash_filter_options tool the bot calls first when it needs an exact Thai faculty / program name — prevents the model from inventing labels that won't match the cube's WHERE clause.",
       'New dash_data_freshness tool answers "is this data current?" against each cube\'s refreshedAt without making the bot consult the connector tools.',
       'Server-side scope guards flow through unchanged — FACULTY_USER + PROGRAM_USER see only their reach; spatial clamps run BEFORE the tool dispatches.',
     ],
@@ -267,7 +283,8 @@ const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-05-15',
     version: 'v1.2.0 · Class offerings + teaching workload + teaching profile',
-    title: 'Two new dashboards on registrar class-offerings; teaching summary on every profile; program-user access across Education + Staff',
+    title:
+      'Two new dashboards on registrar class-offerings; teaching summary on every profile; program-user access across Education + Staff',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       'New dashboard /education/class-offerings — every class section the registrar opened, with seat-fill heatmap (faculty × semester, all 5 years × 4 terms once they’ve run), section utilisation distribution, dedicated general-education view (GE Institute + Language Institute), and a faculty → program-level → course drill-down table with sortable columns. Source: POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER (~122k sections, BE 2565–2569).',
@@ -288,8 +305,8 @@ const ENTRIES: ChangelogEntry[] = [
       'Multi-scope session model — a user whose primary role is PROGRAM_USER but who holds a UserScope grant of UNIVERSITY_USER (or FACULTY_USER) is now treated at the elevated tier in every module. The JWT carries the highest-rank grant; the DB row keeps the original assignment as audit. Applies to risks, cockpit, executive landscape, /programs directory, education + staff dashboards, and the admin gates. Multi-scope SSO users who are auto-assigned to N programs see one of those programs in single-scope views (cockpit, executive landscape, /programs) and the union across all of them in risks.',
       'Strategic Matrix (BCG) on Executive Landscape — hover now shows a floating tooltip card next to the cursor with axis values, size, and contribution. Edge-aware: flips left/up near the right/bottom edges.',
       'Likelihood-drivers radar on /risks/[id] — compact L1/L2/L3 axis markers replace the longer labels that overlapped the right-side KPI cards.',
-      'Risk Management drivers chart\'s automation-risk panel now shows only skills taught by programs in scope (was the global skill taxonomy regardless of scope). Indicator histograms + severity counts clamp consistently with the breach list.',
-      'Top-bar scope dropdown removed — scope is now entirely role-driven from the session, so the dropdown wasn\'t the source of truth for any module\'s data fetch. The command-palette search trigger now fills the row.',
+      "Risk Management drivers chart's automation-risk panel now shows only skills taught by programs in scope (was the global skill taxonomy regardless of scope). Indicator histograms + severity counts clamp consistently with the breach list.",
+      "Top-bar scope dropdown removed — scope is now entirely role-driven from the session, so the dropdown wasn't the source of truth for any module's data fetch. The command-palette search trigger now fills the row.",
     ],
   },
   {
@@ -341,7 +358,7 @@ const ENTRIES: ChangelogEntry[] = [
     title: 'kkuscholar publications mirror replaces public APIs',
     audience: ['Analyst', 'Admin'],
     bullets: [
-      'Research connector pivoted from OpenAlex + Scopus public APIs to KKU Library\'s internal publications warehouse (kkuscholar).',
+      "Research connector pivoted from OpenAlex + Scopus public APIs to KKU Library's internal publications warehouse (kkuscholar).",
       'Coverage: Scopus 29.9k + PubMed 29.5k = 59.4k unique (paper × KKU author) pairs spanning 1948–2026.',
       'FacultyMember rows backfilled from kkuscholar.people (1,375 new researchers across 36 faculties).',
       'Match rate 57% → 99.6% — virtually every KKU-authored paper now links to a person + faculty.',
@@ -425,7 +442,7 @@ const ENTRIES: ChangelogEntry[] = [
       '12 tools wrapping modules 5-10 compute helpers.',
       '7 pre-built Council briefs (state-of-portfolio, programs-at-risk, demographic-stress, etc.).',
       'Rule-based safety gate refuses personal info / salary asks / decision commitments / prompt injection.',
-      'Bilingual — mirrors the user\'s language (Thai or English).',
+      "Bilingual — mirrors the user's language (Thai or English).",
     ],
   },
   {
@@ -435,7 +452,7 @@ const ENTRIES: ChangelogEntry[] = [
     audience: ['Executive', 'Analyst'],
     bullets: [
       '3 seeded peer sets: Thai Top-10, ASEAN Top-20, Global Subject Leaders.',
-      'White-space detection: skills peers teach we don\'t.',
+      "White-space detection: skills peers teach we don't.",
       'Distinctiveness score per KKU program.',
     ],
   },
