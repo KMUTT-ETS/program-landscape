@@ -40,10 +40,7 @@ function loadDotEnv(envPath: string): void {
 
 import { prisma, type ProgramLevel } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
-import {
-  withConnection,
-  configFromEnv,
-} from '../lib/oracle-client';
+import { OracleSession, configFromEnv } from '../lib/oracle-client';
 import {
   bucketAlumniStatus,
   type AlumniStatusBucket,
@@ -70,7 +67,9 @@ function parseArgs(argv: string[]): CliArgs {
   const limit = limitArg ? parseInt(limitArg.split('=')[1] ?? '0', 10) : null;
   const apply = !argv.includes('--dry-run');
   if (!positional && !all) {
-    console.error('Usage: pnpm programs:link-alumni <code|mhesi|seq|id> | --all [--limit=N] [--dry-run]');
+    console.error(
+      'Usage: pnpm programs:link-alumni <code|mhesi|seq|id> | --all [--limit=N] [--dry-run]',
+    );
     process.exit(1);
   }
   return { programArg: positional, all, limit, apply };
@@ -94,7 +93,11 @@ async function resolveProgramIds(args: CliArgs): Promise<ProgramRow[]> {
         majors: { isEmpty: false },
       },
       select: {
-        id: true, code: true, nameTh: true, level: true, majors: true,
+        id: true,
+        code: true,
+        nameTh: true,
+        level: true,
+        majors: true,
         faculty: { select: { nameTh: true } },
       },
       orderBy: { code: 'asc' },
@@ -113,7 +116,11 @@ async function resolveProgramIds(args: CliArgs): Promise<ProgramRow[]> {
       ],
     },
     select: {
-      id: true, code: true, nameTh: true, level: true, majors: true,
+      id: true,
+      code: true,
+      nameTh: true,
+      level: true,
+      majors: true,
       faculty: { select: { nameTh: true } },
     },
   });
@@ -128,6 +135,7 @@ interface AlumniRawRow {
 }
 
 async function fetchAlumniCounts(
+  session: OracleSession,
   facultyNameTh: string,
   majorPattern: string,
   levelPattern: string,
@@ -146,7 +154,9 @@ async function fetchAlumniCounts(
     GROUP BY TO_NUMBER(SUBSTR(STUDENTCODE, 1, 2)), STUDENTSTATUS
     ORDER BY 1, 3 DESC
   `;
-  return withConnection(configFromEnv('KKU_REGISTRY_DB'), async (conn) => {
+  // Shared invocation-wide session — one login for all programs, not
+  // one per program (per-call logins are what got the account locked).
+  return session.run(async (conn) => {
     const result = await conn.execute<AlumniRawRow>(
       sql,
       {
@@ -164,11 +174,12 @@ async function processProgram(
   program: ProgramRow,
   apply: boolean,
   runId: string,
+  session: OracleSession,
 ): Promise<{ rows: number; total: number }> {
   const major = program.majors[0] ?? '';
   if (!major) return { rows: 0, total: 0 };
   const levelTh = LEVEL_TO_THAI[program.level];
-  const raw = await fetchAlumniCounts(program.faculty.nameTh, major, levelTh);
+  const raw = await fetchAlumniCounts(session, program.faculty.nameTh, major, levelTh);
 
   // Bucket per (entry_year_be × bucket) and convert BE prefix → full BE year.
   // Skip entries newer than the next academic year (BE 2599 etc. are
@@ -177,7 +188,10 @@ async function processProgram(
   const isBeforeJune = new Date().getUTCMonth() < 5;
   const currentAcademicBE = nowCE + 543 - (isBeforeJune ? 1 : 0);
   const maxEntryBE = currentAcademicBE + 1;
-  const aggregated = new Map<string, { entryYearBE: number; bucket: AlumniStatusBucket; count: number }>();
+  const aggregated = new Map<
+    string,
+    { entryYearBE: number; bucket: AlumniStatusBucket; count: number }
+  >();
   let skippedFutureYears = 0;
   for (const r of raw) {
     const yr = 2500 + r.ENTRY_YEAR_BE;
@@ -192,14 +206,18 @@ async function processProgram(
     else aggregated.set(key, { entryYearBE: yr, bucket, count: Number(r.N) });
   }
   if (skippedFutureYears > 0) {
-    console.log(`  ⚠ Skipped ${skippedFutureYears} record(s) with entry year > BE ${maxEntryBE} (next academic year)`);
+    console.log(
+      `  ⚠ Skipped ${skippedFutureYears} record(s) with entry year > BE ${maxEntryBE} (next academic year)`,
+    );
   }
   const enriched = [...aggregated.values()].sort(
     (a, b) => a.entryYearBE - b.entryYearBE || a.bucket.localeCompare(b.bucket),
   );
   const total = enriched.reduce((s, r) => s + r.count, 0);
 
-  console.log(`  ${program.code}: ${enriched.length} (year × bucket) cells · ${total} alumni records`);
+  console.log(
+    `  ${program.code}: ${enriched.length} (year × bucket) cells · ${total} alumni records`,
+  );
   // Show by-year totals for visibility
   const byYear = new Map<number, number>();
   for (const e of enriched) byYear.set(e.entryYearBE, (byYear.get(e.entryYearBE) ?? 0) + e.count);
@@ -236,31 +254,38 @@ async function main(): Promise<void> {
   // its provenance maps to the kku-registry DataSource. The synthetic run
   // tags every alumni_cohort_statuses row this script writes so they survive
   // the data-quality.v2 STRICT-mode filter (see docs/evaluation-pipeline.md §13).
-  await withScriptRun('kku-registry', async ({ runId, setRecordsLoaded }) => {
-    let succeeded = 0;
-    let failed = 0;
-    let totalRows = 0;
-    let totalRecords = 0;
+  // One Oracle login for the whole invocation — shared across every
+  // program (see OracleSession in lib/oracle-client.ts).
+  const session = new OracleSession(configFromEnv('KKU_REGISTRY_DB'));
+  try {
+    await withScriptRun('kku-registry', async ({ runId, setRecordsLoaded }) => {
+      let succeeded = 0;
+      let failed = 0;
+      let totalRows = 0;
+      let totalRecords = 0;
 
-    for (const p of programs) {
-      try {
-        const { rows, total } = await processProgram(p, args.apply, runId);
-        if (rows > 0) succeeded++;
-        totalRows += rows;
-        totalRecords += total;
-      } catch (err) {
-        failed++;
-        console.error(`  ✗ ${p.code} failed:`, err instanceof Error ? err.message : err);
+      for (const p of programs) {
+        try {
+          const { rows, total } = await processProgram(p, args.apply, runId, session);
+          if (rows > 0) succeeded++;
+          totalRows += rows;
+          totalRecords += total;
+        } catch (err) {
+          failed++;
+          console.error(`  ✗ ${p.code} failed:`, err instanceof Error ? err.message : err);
+        }
       }
-    }
 
-    setRecordsLoaded(totalRows);
-    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`Programs with alumni data: ${succeeded} / ${programs.length}`);
-    console.log(`Failed:                    ${failed}`);
-    console.log(`Total (year × bucket) cells: ${totalRows}`);
-    console.log(`Total alumni records:        ${totalRecords.toLocaleString()}`);
-  });
+      setRecordsLoaded(totalRows);
+      console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      console.log(`Programs with alumni data: ${succeeded} / ${programs.length}`);
+      console.log(`Failed:                    ${failed}`);
+      console.log(`Total (year × bucket) cells: ${totalRows}`);
+      console.log(`Total alumni records:        ${totalRecords.toLocaleString()}`);
+    });
+  } finally {
+    await session.close();
+  }
 }
 
 main()

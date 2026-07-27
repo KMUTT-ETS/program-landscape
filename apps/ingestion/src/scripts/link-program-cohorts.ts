@@ -35,7 +35,10 @@ function loadDotEnv(envPath: string): void {
     if (eq === -1) continue;
     const key = line.slice(0, eq).trim();
     let value = line.slice(eq + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     if (!(key in process.env)) process.env[key] = value;
@@ -44,10 +47,7 @@ function loadDotEnv(envPath: string): void {
 
 import { prisma, type ProgramLevel } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
-import {
-  withConnection as oracleWithConnection,
-  configFromEnv as oracleConfigFromEnv,
-} from '../lib/oracle-client';
+import { OracleSession, configFromEnv as oracleConfigFromEnv } from '../lib/oracle-client';
 
 const LEVEL_TO_THAI: Record<ProgramLevel, string> = {
   BACHELOR: 'ปริญญาตรี',
@@ -120,6 +120,7 @@ interface CohortRow {
 }
 
 async function fetchCohortDistribution(
+  session: OracleSession,
   facultyNameTh: string,
   majorPattern: string,
   levelPattern: string,
@@ -144,7 +145,10 @@ async function fetchCohortDistribution(
     GROUP BY TO_NUMBER(SUBSTR(STUDENTCODE, 1, 2))
     ORDER BY 1
   `;
-  return oracleWithConnection(oracleConfigFromEnv('KKU_REGISTRY_DB'), async (conn) => {
+  // Runs on the invocation-wide shared session — do NOT open a fresh
+  // connection here; in --all mode this function fires once per program
+  // (~300×) and per-call logins are what got the registry account locked.
+  return session.run(async (conn) => {
     const result = await conn.execute<CohortRow>(
       sql,
       {
@@ -158,7 +162,12 @@ async function fetchCohortDistribution(
   });
 }
 
-async function processProgram(program: ProgramRow, apply: boolean, runId: string): Promise<{
+async function processProgram(
+  program: ProgramRow,
+  apply: boolean,
+  runId: string,
+  session: OracleSession,
+): Promise<{
   rows: number;
   total: number;
 }> {
@@ -168,7 +177,7 @@ async function processProgram(program: ProgramRow, apply: boolean, runId: string
     return { rows: 0, total: 0 };
   }
   const levelTh = LEVEL_TO_THAI[program.level];
-  const cohorts = await fetchCohortDistribution(program.faculty.nameTh, major, levelTh);
+  const cohorts = await fetchCohortDistribution(session, program.faculty.nameTh, major, levelTh);
 
   // Convert 2-digit BE prefix to full BE year (e.g., 65 → 2565). Skip
   // entries newer than the next academic year — those are clearly
@@ -213,66 +222,75 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}`);
 
-  // Cohort data is derived from the registrar's student records → kku-registry.
-  await withScriptRun('kku-registry', async ({ runId, setRecordsLoaded }) => {
-    if (args.all) {
-      const programs = await prisma.program.findMany({
-        where: {
-          // Canonical 297 only — cohort linking is part of the curriculum
-          // pipeline and does not run against legacy/non-canonical rows.
-          sequenceNoFromSheet: { not: null },
-          majors: { isEmpty: false },
-        },
-        select: {
-          id: true,
-          code: true,
-          nameTh: true,
-          level: true,
-          majors: true,
-          faculty: { select: { nameTh: true } },
-        },
-        orderBy: { code: 'asc' },
-      });
-      console.log(`Programs to process: ${programs.length}\n`);
-      let succeeded = 0;
-      let failed = 0;
-      let totalRows = 0;
-      let totalStudents = 0;
-      for (const p of programs) {
-        try {
-          const { rows, total } = await processProgram(p, args.apply, runId);
-          if (rows > 0) succeeded++;
-          totalRows += rows;
-          totalStudents += total;
-        } catch (err) {
-          failed++;
-          console.error(`  ✗ ${p.code} failed:`, err instanceof Error ? err.message : err);
+  // One Oracle login for the whole invocation — shared across every
+  // program in --all mode (see OracleSession in lib/oracle-client.ts).
+  const session = new OracleSession(oracleConfigFromEnv('KKU_REGISTRY_DB'));
+  try {
+    // Cohort data is derived from the registrar's student records → kku-registry.
+    await withScriptRun('kku-registry', async ({ runId, setRecordsLoaded }) => {
+      if (args.all) {
+        const programs = await prisma.program.findMany({
+          where: {
+            // Canonical 297 only — cohort linking is part of the curriculum
+            // pipeline and does not run against legacy/non-canonical rows.
+            sequenceNoFromSheet: { not: null },
+            majors: { isEmpty: false },
+          },
+          select: {
+            id: true,
+            code: true,
+            nameTh: true,
+            level: true,
+            majors: true,
+            faculty: { select: { nameTh: true } },
+          },
+          orderBy: { code: 'asc' },
+        });
+        console.log(`Programs to process: ${programs.length}\n`);
+        let succeeded = 0;
+        let failed = 0;
+        let totalRows = 0;
+        let totalStudents = 0;
+        for (const p of programs) {
+          try {
+            const { rows, total } = await processProgram(p, args.apply, runId, session);
+            if (rows > 0) succeeded++;
+            totalRows += rows;
+            totalStudents += total;
+          } catch (err) {
+            failed++;
+            console.error(`  ✗ ${p.code} failed:`, err instanceof Error ? err.message : err);
+          }
         }
+        setRecordsLoaded(totalRows);
+        console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`Programs with cohort data: ${succeeded} / ${programs.length}`);
+        console.log(`Programs failed: ${failed}`);
+        console.log(`Total cohort-year rows: ${totalRows}`);
+        console.log(`Total active students: ${totalStudents.toLocaleString()}`);
+        return;
       }
-      setRecordsLoaded(totalRows);
-      console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      console.log(`Programs with cohort data: ${succeeded} / ${programs.length}`);
-      console.log(`Programs failed: ${failed}`);
-      console.log(`Total cohort-year rows: ${totalRows}`);
-      console.log(`Total active students: ${totalStudents.toLocaleString()}`);
-      return;
-    }
 
-    const program = await resolveProgram(args.programArg!);
-    console.log(`Program: ${program.code} · ${program.nameTh}`);
-    console.log(`Faculty: ${program.faculty.nameTh}`);
-    console.log(`Filter:  MAJOR LIKE '%${program.majors[0]}%' AND PROGRAMLEVEL LIKE '%${LEVEL_TO_THAI[program.level]}%'\n`);
-    const { rows } = await processProgram(program, args.apply, runId);
-    setRecordsLoaded(rows);
-    if (args.apply) {
-      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      const stored = await prisma.studentCohortDistribution.findMany({
-        where: { programId: program.id },
-        orderBy: { entryYearBE: 'asc' },
-      });
-      console.log(`Stored ${stored.length} StudentCohortDistribution rows`);
-    }
-  });
+      const program = await resolveProgram(args.programArg!);
+      console.log(`Program: ${program.code} · ${program.nameTh}`);
+      console.log(`Faculty: ${program.faculty.nameTh}`);
+      console.log(
+        `Filter:  MAJOR LIKE '%${program.majors[0]}%' AND PROGRAMLEVEL LIKE '%${LEVEL_TO_THAI[program.level]}%'\n`,
+      );
+      const { rows } = await processProgram(program, args.apply, runId, session);
+      setRecordsLoaded(rows);
+      if (args.apply) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        const stored = await prisma.studentCohortDistribution.findMany({
+          where: { programId: program.id },
+          orderBy: { entryYearBE: 'asc' },
+        });
+        console.log(`Stored ${stored.length} StudentCohortDistribution rows`);
+      }
+    });
+  } finally {
+    await session.close();
+  }
 }
 
 main()
