@@ -382,7 +382,7 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
   - `pnpm programs:seed-from-sheet [--dry-run]` — wipe + re-seed from KKU master sheet; walks `/home/denpong/kku_programs` and links via the **original** substring matcher (not the smarter one).
   - `pnpm programs:digest <code|mhesi|seq>` — single-program digest.
   - `pnpm programs:digest-bulk [--limit N] [--level X]` — bulk runner.
-  - `pnpm programs:link-orphan-pdfs [--apply]` — non-destructive smart-matcher.
+  - ~~`pnpm programs:link-orphan-pdfs [--apply]` — non-destructive smart-matcher.~~ **RETIRED 2026-07-29** — the fuzzy filename match produced ~30 mislinked programs (found by the 2026-07-09 content-based link audit). Script deleted; attach PDFs via `/admin/programs/[id]?tab=files`.
   - `pnpm programs:approve-pending` — bulk approval + materialisation.
   - `apps/ingestion/src/scripts/diagnose-orphan-pdfs.ts` — read-only diagnostic.
 - **Residual gaps + follow-ups:** 69 programs without PDFs (acquisition needed — these are mostly medical specialty programs + new programs added after the bulk archive); 3502 PROPOSED_SKILL extractions awaiting analyst review (the Skill taxonomy bottleneck — until reviewed, ProgramSkill coverage stays at 23 distinct skills); no per-program-digest validation against a hand-graded gold set yet (~10-program audit would calibrate confidence claims); rerun via `pnpm programs:seed-from-sheet --apply` is destructive (wipes existing programs + cascades to all 228 digests + 228 ProgramSkill rows + 3502 PROPOSED_SKILLs) — re-seed strategy needs a "smart-merge" mode that preserves digests for unchanged sequence_no_from_sheet rows.

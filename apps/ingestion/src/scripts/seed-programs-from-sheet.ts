@@ -25,7 +25,9 @@
 // Sheet columns (8):
 //   ลำดับหลักสูตร | สถานะ | คณะ | ชื่อปริญญา | ชื่อสาขา | ระดับ | ปี พ.ศ. | รหัสหลักสูตร อว.
 //
-// PDF linking is delegated to `link-orphan-pdfs.ts` (run separately).
+// PDF linking is NOT done here. The fuzzy filename matcher that used to do it
+// (`link-orphan-pdfs.ts`) was retired 2026-07-29 — it mislinked ~30 programs.
+// PDFs are attached per-program via /admin/programs/[id]?tab=files.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -443,7 +445,7 @@ async function main(): Promise<void> {
   console.log(`  Programs with sheet_remark:        ${programWithRemark}`);
   console.log(`  CURRENT_CURRICULUM links:          ${pdfLinkCount}`);
   console.log(`  Programs without curriculum PDF:   ${programsWithoutPdf}`);
-  console.log('\nNext: pnpm programs:link-orphan-pdfs --apply');
+  console.log('\nNext: attach curriculum PDFs via /admin/programs/[id]?tab=files');
 }
 
 main()
