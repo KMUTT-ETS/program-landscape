@@ -17,7 +17,6 @@ import { facultyLevelReviewTemplate } from './templates/faculty-level-review/tem
 export { baseCss } from './styles/base-css';
 
 // Re-export print-safe chart primitives.
-export * from './components/chart-for-print';
 export * from './components/cover';
 export * from './components/section';
 export * from './components/provenance-appendix';

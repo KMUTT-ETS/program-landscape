@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@kku/shared": "workspace:*",
-    "recharts": "^2.15.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
