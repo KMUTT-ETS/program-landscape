@@ -671,10 +671,6 @@ export const LABEL = {
 } as const;
 ```
 
-> **Note for the implementer:** the line reading `usa          xmlns=...` above is a typo introduced
-> in this plan — write it as `xmlns="http://www.w3.org/2000/svg"`. If you paste blindly, typecheck
-> will catch it.
-
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `pnpm --filter @kku/pdf-templates test -- chart-frame`
