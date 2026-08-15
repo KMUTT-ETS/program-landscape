@@ -163,6 +163,24 @@ describe('Waterfall', () => {
     expect(total.y + total.height).toBeCloseTo(zeroY, 6);
   });
 
+  // Content-driven rotation, same escape hatch as Matrix's column headers
+  // and BarsStacked's category labels: realistic Thai TCAS round names had
+  // NO working columnWidthMm before this fix — narrow widths hit fitLabel's
+  // 85% floor, wide-enough widths blew the neededWidth > widthMm guard.
+  it('renders realistic Thai TCAS round names by rotating instead of throwing', () => {
+    const tcasBars = [
+      { label: 'รอบที่ 1 : แฟ้มสะสมผลงาน (Portfolio)', delta: 40 },
+      { label: 'รอบที่ 2 : โควตา (Quota)', delta: 30 },
+      { label: 'รอบที่ 3 : Admission', delta: 25 },
+      { label: 'รอบที่ 4 : รับตรงอิสระ', delta: 15, isTotal: true },
+    ];
+    const html = renderToStaticMarkup(
+      <Waterfall bars={tcasBars} provenance={PROV} title="TCAS rounds" labelHeightMm={34} />,
+    );
+    expect(html).toMatch(/class="waterfall-category-label"[^>]*transform="rotate\(/);
+    for (const b of tcasBars) expect(html).toContain(b.label);
+  });
+
   // A columnWidthMm wide enough that bars don't fit within widthMm must
   // fail loudly, not silently overflow the page width — same posture as
   // BarsStacked's identical guard.

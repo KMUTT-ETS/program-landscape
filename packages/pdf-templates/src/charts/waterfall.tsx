@@ -1,5 +1,6 @@
 import * as React from 'react';
 
+import { needsRotatedLabels, ROTATE_ANGLE_DEG, ROTATED_LABEL_GAP_MM, rotatedLabelBudgetMm } from './axis-labels';
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
 import { fitLabel } from './fit-label';
 import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
@@ -108,7 +109,8 @@ export function Waterfall({
     MARGIN_MM + VALUE_LABEL_BAND_MM + plotHeightMm + VALUE_LABEL_BAND_MM + labelHeightMm + MARGIN_MM;
   const plotTopY = MARGIN_MM + VALUE_LABEL_BAND_MM;
   const plotBottomY = plotTopY + plotHeightMm;
-  const categoryLabelY = plotBottomY + VALUE_LABEL_BAND_MM + labelHeightMm * 0.78;
+  const labelBandTopY = plotBottomY + VALUE_LABEL_BAND_MM;
+  const categoryLabelY = labelBandTopY + labelHeightMm * 0.78;
 
   // SVG y grows downward, so (like LineTrend) the range is inverted
   // relative to the domain: the larger domain value maps to the SMALLER
@@ -119,6 +121,17 @@ export function Waterfall({
 
   const barWidth = columnWidthMm * BAR_WIDTH_RATIO;
   const barXFor = (index: number): number => MARGIN_MM + index * columnWidthMm + (columnWidthMm - barWidth) / 2;
+
+  // Same content-driven escape hatch as Matrix's column headers and
+  // BarsStacked's category labels (see axis-labels.ts): a bar label too wide
+  // to fit upright in its column slot rotates into the label band below the
+  // plot, rather than being forced through fitLabel's squeeze-or-throw path
+  // alone. Decided once across all bars so the row reads as one consistent
+  // treatment.
+  const rotateLabels = needsRotatedLabels(bars.map((b) => b.label), columnWidthMm, LABEL.axis);
+  // Diagonal run length available in the label band — same geometry Matrix
+  // uses above its grid, mirrored below the plot instead.
+  const rotatedBudgetMm = rotatedLabelBudgetMm(labelHeightMm, ROTATED_LABEL_GAP_MM);
 
   return (
     <ChartFrame title={title} ledeTh={ledeTh} provenance={provenance} widthMm={widthMm} heightMm={heightMm}>
@@ -155,8 +168,24 @@ export function Waterfall({
 
         // Bar labels sit in the fixed columnWidthMm slot below the plot —
         // the same fixed-width-column situation fitLabel was built for (see
-        // bars-stacked.tsx's category label).
-        const labelFit = fitLabel(c.bar.label, columnWidthMm, LABEL.axis);
+        // bars-stacked.tsx's category label). When the label doesn't fit
+        // upright, it rotates into the label band instead (see axis-labels.ts).
+        const anchorX = columnX + columnWidthMm / 2;
+        const categoryLabel = rotateLabels ? (
+          <text key="label" className="waterfall-category-label" x={anchorX} y={labelBandTopY + ROTATED_LABEL_GAP_MM}
+                textAnchor="end"
+                transform={`rotate(${ROTATE_ANGLE_DEG} ${anchorX} ${labelBandTopY + ROTATED_LABEL_GAP_MM})`}
+                fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.axis}
+                {...fitLabel(c.bar.label, rotatedBudgetMm, LABEL.axis)}>
+            {c.bar.label}
+          </text>
+        ) : (
+          <text key="label" className="waterfall-category-label" x={anchorX} y={categoryLabelY} textAnchor="middle"
+                fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.axis}
+                {...fitLabel(c.bar.label, columnWidthMm, LABEL.axis)}>
+            {c.bar.label}
+          </text>
+        );
 
         // Connector between this bar's end and the next bar's start. They
         // are always the same value by construction (see walkRunningTotal)
@@ -181,10 +210,7 @@ export function Waterfall({
                   fontFamily={LABEL.fontFamily} fill={INK.axis}>
               {displayValue}
             </text>
-            <text x={columnX + columnWidthMm / 2} y={categoryLabelY} textAnchor="middle"
-                  fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.axis} {...labelFit}>
-              {c.bar.label}
-            </text>
+            {categoryLabel}
             {connector}
           </g>
         );

@@ -1,5 +1,6 @@
 import * as React from 'react';
 
+import { needsRotatedLabels, ROTATE_ANGLE_DEG, ROTATED_LABEL_GAP_MM, rotatedLabelBudgetMm } from './axis-labels';
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
 import { fitLabel } from './fit-label';
 import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
@@ -133,6 +134,19 @@ export function BarsStacked({
   const categoryLabelY = baselineY + labelHeightMm * 0.78;
   const legendY = baselineY + labelHeightMm + legendRowHeightMm * 0.7;
 
+  // Same content-driven escape hatch as Matrix's column headers (see
+  // axis-labels.ts): a category label too wide to fit upright in its column
+  // slot rotates into the label band below the baseline, rather than being
+  // forced through fitLabel's squeeze-or-throw path alone. Decided once
+  // across all categories so the row reads as one consistent treatment.
+  const rotate = needsRotatedLabels(categories.map((cat) => cat.category), columnWidthMm, LABEL.axis);
+  // Rotated labels read diagonally from a fixed anchor at the plot/label-band
+  // seam, so the available run length is the diagonal of the label band
+  // (labelHeightMm minus the small gap to the baseline), not the band height
+  // itself — the same geometry Matrix uses, mirrored below the baseline
+  // instead of above the grid.
+  const rotatedBudgetMm = rotatedLabelBudgetMm(labelHeightMm, ROTATED_LABEL_GAP_MM);
+
   return (
     <ChartFrame title={title} ledeTh={ledeTh} provenance={provenance}
                 widthMm={widthMm} heightMm={heightMm}>
@@ -140,9 +154,29 @@ export function BarsStacked({
         const columnX = MARGIN_MM + i * columnWidthMm;
         const barWidth = columnWidthMm * BAR_WIDTH_RATIO;
         const barX = columnX + (columnWidthMm - barWidth) / 2;
-        const labelFit = fitLabel(cat.category, columnWidthMm, LABEL.axis);
+        const anchorX = columnX + columnWidthMm / 2;
 
         let cumulative = 0;
+        const categoryLabel = rotate ? (
+          // text-anchor="end" plants the label's end at the anchor point
+          // (the baseline seam for this column), then the rotation swings
+          // the run down-and-left from that fixed point into the label
+          // band — the conventional orientation for a rotated below-axis
+          // category label.
+          <text key="label" className="category-label" x={anchorX} y={baselineY + ROTATED_LABEL_GAP_MM}
+                textAnchor="end" transform={`rotate(${ROTATE_ANGLE_DEG} ${anchorX} ${baselineY + ROTATED_LABEL_GAP_MM})`}
+                fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.axis}
+                {...fitLabel(cat.category, rotatedBudgetMm, LABEL.axis)}>
+            {cat.category}
+          </text>
+        ) : (
+          <text key="label" className="category-label" x={anchorX} y={categoryLabelY} textAnchor="middle"
+                fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.axis}
+                {...fitLabel(cat.category, columnWidthMm, LABEL.axis)}>
+            {cat.category}
+          </text>
+        );
+
         return (
           // Keyed by index, not cat.category: entry years repeat cleanly,
           // but this is a generic primitive and callers may pass duplicate
@@ -161,11 +195,7 @@ export function BarsStacked({
                       width={barWidth} height={segHeight} fill={seriesColour(j)} />
               );
             })}
-            <text x={columnX + columnWidthMm / 2} y={categoryLabelY} textAnchor="middle"
-                  fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.axis}
-                  {...labelFit}>
-              {cat.category}
-            </text>
+            {categoryLabel}
           </g>
         );
       })}

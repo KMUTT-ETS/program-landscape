@@ -133,6 +133,50 @@ describe('BarsStacked', () => {
     ).toThrow(RangeError);
   });
 
+  // Content-driven rotation, same escape hatch as Matrix's column headers:
+  // realistic Thai TCAS round names had NO working columnWidthMm before this
+  // fix — narrow widths hit fitLabel's 85% floor, wide-enough widths blew
+  // the neededWidth > widthMm guard. A caller who cannot satisfy both guards
+  // at once needs a rotated category axis, not a wider column that just
+  // trades one throw for the other.
+  it('renders realistic Thai TCAS round names by rotating instead of throwing', () => {
+    const tcasCategories = [
+      {
+        category: 'รอบที่ 1 : แฟ้มสะสมผลงาน (Portfolio)',
+        segments: [
+          { label: 'Active', value: 40 },
+          { label: 'Graduated', value: 10 },
+        ],
+      },
+      {
+        category: 'รอบที่ 2 : โควตา (Quota)',
+        segments: [
+          { label: 'Active', value: 30 },
+          { label: 'Graduated', value: 20 },
+        ],
+      },
+      {
+        category: 'รอบที่ 3 : Admission',
+        segments: [
+          { label: 'Active', value: 25 },
+          { label: 'Graduated', value: 5 },
+        ],
+      },
+      {
+        category: 'รอบที่ 4 : รับตรงอิสระ',
+        segments: [
+          { label: 'Active', value: 15 },
+          { label: 'Graduated', value: 8 },
+        ],
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <BarsStacked categories={tcasCategories} provenance={PROV} title="TCAS rounds" labelHeightMm={34} />,
+    );
+    expect(html).toMatch(/class="category-label"[^>]*transform="rotate\(/);
+    for (const cat of tcasCategories) expect(html).toContain(cat.category);
+  });
+
   // Segment order must be consistent across categories, because colour and
   // legend are both keyed by array index. A caller that drops a missing
   // status instead of zero-filling it (rather than the correct discipline
