@@ -115,9 +115,12 @@ describe('Matrix', () => {
     expect(withNull.match(/class="matrix-cell-null"/g) ?? []).toHaveLength(1);
   });
 
-  // Horizontal headers collide past about a dozen columns at the default
-  // width — past that point headers must rotate; below it they must not.
-  it('rotates column headers past 12 columns, but not at 5', () => {
+  // Rotation is content-driven: 13 columns of short "Skill N" headers (each
+  // wider than the default 10mm columnWidthMm once you include the digit)
+  // must rotate, while the 5 short abbreviated headers in COLUMNS (which fit
+  // upright at 10mm) must not — regardless of the fact that one fixture has
+  // more than 12 columns and the other fewer than 12.
+  it('rotates headers that do not fit upright, not headers past a column-count threshold', () => {
     const columns13 = Array.from({ length: 13 }, (_, i) => `Skill ${i + 1}`);
     const rows13 = [{ label: 'Peer A', cells: Array.from({ length: 13 }, (_, i) => i * 5) }];
     const wide = renderToStaticMarkup(<Matrix columns={columns13} rows={rows13} provenance={PROV} title="Peer coverage" />);
@@ -158,5 +161,33 @@ describe('Matrix', () => {
     expect(() =>
       renderToStaticMarkup(<Matrix columns={COLUMNS} rows={badRows} provenance={PROV} title="Peer coverage" />),
     ).toThrow(RangeError);
+  });
+
+  // The rotation decision is content-driven (does the longest header fit
+  // upright in its column?), not count-driven. Six columns of realistic full
+  // skill names — short enough in count to have stayed upright under the old
+  // ROTATE_COLUMN_THRESHOLD > 12 rule — must still rotate here because the
+  // labels themselves (including a Thai phrase) are too wide for the default
+  // columnWidthMm. Before the fix this fixture had NO working columnWidthMm:
+  // narrow widths hit fitLabel's 85% floor, wide-enough widths blew the
+  // neededWidth > widthMm guard.
+  it('rotates headers for few columns with long realistic names, including Thai', () => {
+    const realisticColumns = [
+      'Machine learning',
+      'Data engineering',
+      'ทักษะการวิเคราะห์ข้อมูล',
+      'Cloud infrastructure',
+      'UX research',
+      'Change management',
+    ];
+    const realisticRows: readonly MatrixRow[] = [
+      { label: 'KKU-SEQ-0001', cells: [80, 60, 40, 20, 10, 90] },
+      { label: 'KKU-SEQ-0002', cells: [30, null, 70, 50, 20, 10] },
+    ];
+    const html = renderToStaticMarkup(
+      <Matrix columns={realisticColumns} rows={realisticRows} provenance={PROV} title="Skill coverage" />,
+    );
+    expect(html).toMatch(/class="matrix-column-header"[^>]*transform="rotate\(/);
+    for (const column of realisticColumns) expect(html).toContain(column);
   });
 });

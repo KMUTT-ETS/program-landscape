@@ -1,5 +1,6 @@
 import * as React from 'react';
 
+import { needsRotatedLabels, ROTATE_ANGLE_DEG, ROTATED_LABEL_GAP_MM, rotatedLabelBudgetMm } from './axis-labels';
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
 import { fitLabel } from './fit-label';
 import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
@@ -26,14 +27,6 @@ export interface MatrixProps extends Omit<ChartCommonProps, 'heightMm'> {
   headerHeightMm?: number;
 }
 
-/**
- * Column count past which horizontal headers collide at this width — see
- * the rotated-header block below. Below this count headers stay upright,
- * which reads faster at a glance than a diagonal run.
- */
-const ROTATE_COLUMN_THRESHOLD = 12;
-const ROTATE_ANGLE_DEG = -45;
-const HEADER_LABEL_GAP_MM = 1.5;
 /** Breathing room inside each cell slot so adjacent cells read as distinct cells, not one solid block. */
 const CELL_GAP_MM = 0.5;
 
@@ -153,12 +146,22 @@ export function Matrix({
   // everywhere rather than NaN.
   const intensity = linear([0, domainMax], [0, 1]);
 
-  const rotate = columns.length > ROTATE_COLUMN_THRESHOLD;
+  // Content-driven, not count-driven: rotate whenever the longest header
+  // would not fit upright in its column slot, regardless of how many columns
+  // there are. A column-count threshold (the previous rule here) is
+  // orthogonal to the actual constraint — 5 columns of long skill phrases
+  // need to rotate just as readily as 13 columns of short ones, and a count
+  // threshold alone can gate a caller into a dead end: at columnWidthMm
+  // narrow enough to fit many columns within widthMm, fitLabel's 85% floor
+  // rejects long upright labels; at columnWidthMm wide enough to satisfy
+  // fitLabel, the neededWidth guard above rejects the layout. Rotating
+  // whenever content demands it (not counting columns) removes that trap.
+  const rotate = needsRotatedLabels(columns, columnWidthMm, LABEL.axis);
   // Rotated labels read diagonally from a fixed anchor at the header/grid
   // seam, so the available run length is the diagonal of the header band
   // (headerHeightMm minus the small gap to the grid), not the header
   // height itself.
-  const rotatedBudgetMm = (headerHeightMm - HEADER_LABEL_GAP_MM) * Math.SQRT2;
+  const rotatedBudgetMm = rotatedLabelBudgetMm(headerHeightMm, ROTATED_LABEL_GAP_MM);
 
   return (
     <ChartFrame title={title} ledeTh={ledeTh} provenance={provenance} widthMm={widthMm} heightMm={heightMm}>
@@ -167,7 +170,7 @@ export function Matrix({
         const anchorX = columnX + columnWidthMm / 2;
 
         if (rotate) {
-          const anchorY = gridTopY - HEADER_LABEL_GAP_MM;
+          const anchorY = gridTopY - ROTATED_LABEL_GAP_MM;
           const labelFit = fitLabel(column, rotatedBudgetMm, LABEL.axis);
           return (
             // text-anchor="end" plants the label's end (not its start) at
