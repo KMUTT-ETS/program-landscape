@@ -27,7 +27,17 @@ export interface WaterfallProps extends Omit<ChartCommonProps, 'heightMm'> {
   plotHeightMm?: number;
   /** Width in mm reserved for each bar column, including its gap to the next. */
   columnWidthMm?: number;
-  /** Height in mm reserved below the plot for bar labels. */
+  /**
+   * Height in mm reserved below the plot for bar labels.
+   *
+   * The default (9mm) is sized for upright labels; it is NOT enough for a
+   * rotated bar label (see `needsRotatedLabels` in axis-labels.ts) — the
+   * diagonal budget a rotated label gets is derived from this value, so a
+   * realistic Thai TCAS round name (e.g. "รอบที่ 1 : แฟ้มสะสมผลงาน
+   * (Portfolio)") needs roughly 34mm here once it rotates. Widen this
+   * explicitly for long bar labels; see charts/README.md's "Sizing for real
+   * KKU data" section.
+   */
   labelHeightMm?: number;
 }
 

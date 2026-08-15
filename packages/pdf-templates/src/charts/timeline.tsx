@@ -19,7 +19,18 @@ export interface TimelineProps extends Omit<ChartCommonProps, 'heightMm'> {
   events: readonly TimelineEvent[];
   /** Height in mm of each stacked slot, used when same-date events fan out. */
   rowHeightMm?: number;
-  /** Width in mm reserved for each event's date+label text. */
+  /**
+   * Width in mm reserved for each event's date+label text.
+   *
+   * The default (60mm) suits short labels. It is NOT tuned to real KKU
+   * data: a realistic Thai milestone description (e.g. "เสนอสภามหาวิทยาลัย
+   * พิจารณาอนุมัติหลักสูตร") throws at the default and needs roughly 90mm to
+   * render — verified against `fitLabel`'s 85% squeeze floor, and the
+   * rendered text also includes the formatted date prefix (e.g.
+   * "15 Aug 2026 · "), which eats into the same budget. Widen this
+   * explicitly when labelling full milestone sentences; see
+   * charts/README.md's "Sizing for real KKU data" section.
+   */
   labelWidthMm?: number;
 }
 

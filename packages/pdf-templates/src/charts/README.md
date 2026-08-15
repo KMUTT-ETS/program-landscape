@@ -93,3 +93,31 @@ the new file actually exports, don't assume.
 
 Edit `packages/design/src/css/tokens.css` **and** `palette.ts` in the same commit — see rule 7
 above. There is no runtime link between them to catch a missed one.
+
+## Sizing for real KKU data
+
+Every primitive's numeric layout props (`labelWidthMm`, `columnWidthMm`, `labelHeightMm`, …)
+ship with a default tuned for SHORT labels — abbreviations, single English words, skill names.
+None of the defaults are tuned to real KKU strings, which run much longer: full bilingual
+program names, Thai TCAS round names, full milestone sentences. Passing real data at a
+primitive's default can throw a `RangeError` from `fitLabel`'s 85% squeeze floor (rule 6/rule 5
+above) — that is the primitive doing its job, not a bug, but it is worth knowing the actual
+numbers up front rather than discovering them one throw at a time:
+
+- **`BarsH.labelWidthMm`** (default 55mm) — a full Thai program name (e.g. "หลักสูตร
+  วิทยาศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์และปัญญาประดิษฐ์ (หลักสูตรนานาชาติ)") throws at the
+  default; **~100mm** works.
+- **`Timeline.labelWidthMm`** (default 60mm) — a realistic Thai milestone description (e.g.
+  "เสนอสภามหาวิทยาลัยพิจารณาอนุมัติหลักสูตร") throws at the default; **~90mm** works. The
+  rendered text also includes the formatted date prefix ("15 Aug 2026 · "), which eats into the
+  same budget.
+- **`BarsStacked.labelHeightMm`** / **`Waterfall.labelHeightMm`** (default 9mm) — these only
+  matter once a category/bar label is long enough to rotate (see `needsRotatedLabels` in
+  `axis-labels.ts`); the diagonal budget a rotated label gets is derived directly from this
+  value. A realistic Thai TCAS round name (e.g. "รอบที่ 1 : แฟ้มสะสมผลงาน (Portfolio)") needs
+  **~34mm** here once rotated.
+
+None of these defaults were changed to fix the numbers above — that would silently reflow every
+existing chart already calling these primitives at their defaults. Widen the relevant prop
+explicitly when a caller knows it is labelling full KKU program names, Thai round names, or full
+milestone sentences, rather than discovering the throw in production.

@@ -21,7 +21,19 @@ export interface BarRow {
 
 export interface BarsHProps extends Omit<ChartCommonProps, 'heightMm'> {
   rows: readonly BarRow[];
-  /** Width in mm reserved for row labels. */
+  /**
+   * Width in mm reserved for row labels.
+   *
+   * The default (55mm) suits short labels — abbreviations, skill names,
+   * single English words. It is NOT tuned to real KKU data: a full Thai
+   * program name (e.g. "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิศวกรรม
+   * คอมพิวเตอร์และปัญญาประดิษฐ์ (หลักสูตรนานาชาติ)") throws at the default and
+   * needs roughly 100mm to render — verified against `fitLabel`'s 85% squeeze
+   * floor. Widen this explicitly when labelling full program names; the
+   * default was deliberately left as-is here (see charts/README.md's
+   * "Sizing for real KKU data" section) rather than silently reflowing every
+   * existing chart that already calls BarsH with the default.
+   */
   labelWidthMm?: number;
   /** Height of each bar row in mm, including its gap. */
   rowHeightMm?: number;

@@ -36,7 +36,17 @@ export interface BarsStackedProps extends Omit<ChartCommonProps, 'heightMm'> {
    * below when categories don't fit.
    */
   columnWidthMm?: number;
-  /** Height in mm reserved below the plot for category labels. */
+  /**
+   * Height in mm reserved below the plot for category labels.
+   *
+   * The default (9mm) is sized for upright labels; it is NOT enough for a
+   * rotated category label (see `needsRotatedLabels` in axis-labels.ts) —
+   * the diagonal budget a rotated label gets is derived from this value, so
+   * a realistic Thai TCAS round name (e.g. "รอบที่ 1 : แฟ้มสะสมผลงาน
+   * (Portfolio)") needs roughly 34mm here once it rotates. Widen this
+   * explicitly for long category labels; see charts/README.md's "Sizing for
+   * real KKU data" section.
+   */
   labelHeightMm?: number;
   /** Height in mm reserved for the one-row segment legend. */
   legendRowHeightMm?: number;
