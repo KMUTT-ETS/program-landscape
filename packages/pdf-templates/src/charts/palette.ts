@@ -34,5 +34,13 @@ export const INK = {
 
 /** Series colour by index, wrapping when there are more series than colours. */
 export function seriesColour(index: number): string {
-  return PRINT_PALETTE[index % PRINT_PALETTE.length] as string;
+  if (!Number.isInteger(index) || index < 0) {
+    throw new RangeError(
+      `seriesColour expects a non-negative integer index, received ${index}. ` +
+        'A negative index usually means an unguarded Array.findIndex() result.',
+    );
+  }
+  const colour = PRINT_PALETTE[index % PRINT_PALETTE.length];
+  if (colour === undefined) throw new RangeError(`No series colour for index ${index}`);
+  return colour;
 }
