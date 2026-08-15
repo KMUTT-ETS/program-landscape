@@ -297,3 +297,13 @@ building a release bundle is a separate, explicitly-requested step.
   needs a real refactor to share. Revisit once the template has proven itself.
 - **Retire the print view entirely** — the cheaper alternative to the above, if the browser preview
   turns out to be unused.
+- **Enforce the PDF colour ↔ design-token sync.** `charts/palette.ts` mirrors the light-mode values of
+  `packages/design/src/css/tokens.css` by hand, guarded only by a comment. Nothing fails when they
+  drift. This project has a logged instance of exactly this failure class — a token mismatch that
+  rendered as a black box in SVG (`feedback-design-tokens-naming`). A script that parses the
+  light-theme `oklch()` values out of `tokens.css`, converts to hex and asserts equality against
+  `PRINT_PALETTE` / `SEMANTIC` / `INK` would close it; even a manually-run `pnpm tokens:check-pdf-sync`
+  beats a comment. Raised by the Task 3 code-quality review.
+- **Docs still reference the deleted `ChartForPrint`** — `CLAUDE.md`, `docs/pdf-generation.md` and
+  `prompts/x-02c-pdf-generation.md` name it as the print-chart mechanism. Correct them to point at
+  `charts/` once the primitive library is complete, so the doc pass happens once rather than per task.

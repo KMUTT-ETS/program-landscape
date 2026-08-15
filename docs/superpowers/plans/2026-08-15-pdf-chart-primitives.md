@@ -786,7 +786,14 @@ import type { ChartCommonProps } from './types';
 export interface BarRow {
   label: string;
   value: number;
-  /** Series index for colour. Defaults to 0 (indigo). */
+  /**
+   * Series index for colour. Defaults to 0 (indigo).
+   * MUST be a non-negative integer — `seriesColour` throws otherwise, by
+   * design, so a stray `-1` from `Array.findIndex()` fails loudly instead of
+   * silently rendering a plausible-but-wrong colour. Validate this at the
+   * template's Zod boundary too; the throw is a backstop, not the first line
+   * of defence.
+   */
   series?: number;
 }
 
