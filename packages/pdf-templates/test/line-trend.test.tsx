@@ -111,6 +111,46 @@ describe('LineTrend', () => {
     expect(solid).toHaveLength(1);
   });
 
+  // Radar marks a null axis with a hollow dashed marker; Matrix hatches a
+  // null cell. LineTrend's break-the-path treatment is legible on close
+  // inspection but wasn't part of that same visual vocabulary — a missing
+  // year previously rendered as simply an absent point and a gap, with no
+  // mark AT the missing x telling the reader "there was a year here with no
+  // data" as opposed to "this chart skips that year entirely" (e.g. a
+  // biennial survey). A dashed LINE across the gap was rejected: this file's
+  // own subpaths logic exists specifically so a null is "never bridged by a
+  // line segment — that would draw a value nobody observed" (see the `runs`
+  // comment above), and a connector line would silently violate that same
+  // rule this fix is meant to reinforce. A hollow marker sitting ON the axis
+  // (not at any y, since no y is known) cannot be misread as a value the way
+  // a connector line could.
+  it('marks a null point with a hollow marker on the axis, not a bridging line', () => {
+    const html = renderToStaticMarkup(
+      <LineTrend
+        points={[
+          { x: 1, y: 10 },
+          { x: 2, y: 20 },
+          { x: 3, y: null },
+          { x: 4, y: 40 },
+        ]}
+        provenance={PROV}
+        title="Outcomes"
+      />,
+    );
+    const nullMarkers = [...html.matchAll(/<circle class="linetrend-null-marker"[^>]*cx="([\d.]+)"[^>]*cy="([\d.]+)"/g)];
+    expect(nullMarkers).toHaveLength(1);
+    // Sits at the null point's own x — same x scale as the real markers.
+    const realMarkerCx = [...html.matchAll(/<circle class="point"[^>]*cx="([\d.]+)"/g)].map((m) => Number(m[1]));
+    const nullCx = Number(nullMarkers[0]?.[1]);
+    // x=3 is exactly between x=2 and x=4's real markers on a linear x scale.
+    expect(nullCx).toBeGreaterThan(realMarkerCx[1] ?? NaN);
+    expect(nullCx).toBeLessThan(realMarkerCx[2] ?? NaN);
+    // Hollow (surface fill), not a filled data mark — same "hollow = not
+    // observed" vocabulary as Radar's null-axis marker and this file's own
+    // projected-point treatment.
+    expect(html).toMatch(/<circle class="linetrend-null-marker"[^>]*fill="#F6F4F0"/);
+  });
+
   // A leftGutterMm wide enough to eat the whole plot area must fail loudly,
   // not render a line squeezed into (or past) negative width.
   it('throws when leftGutterMm leaves no room to plot', () => {

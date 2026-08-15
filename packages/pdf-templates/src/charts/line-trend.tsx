@@ -32,6 +32,11 @@ const MARKER_RADIUS_MM = 1.1;
 const LINE_STROKE_WIDTH_MM = pt(1.1);
 /** Long enough to read clearly as "dashed" at print scale, not a fine stipple. */
 const PROJECTED_DASH = `${pt(2.2)},${pt(1.6)}`;
+/** Slightly larger than a real vertex, same rationale as Radar's
+ * NULL_MARKER_RADIUS_MM — the hollow "no data" mark should read as a
+ * deliberate marker, not a smaller/lesser version of a real point. */
+const NULL_MARKER_RADIUS_MM = 1.4;
+const NULL_MARKER_DASH = `${pt(1.4)},${pt(1)}`;
 
 function isPlottable(point: TrendPoint): point is TrendPoint & { y: number } {
   return point.y !== null;
@@ -205,6 +210,25 @@ export function LineTrend({
                   fill={dashed ? INK.surface : colour} stroke={colour} strokeWidth={pt(0.6)} />
         );
       })}
+
+      {/* A null y is never bridged by a line segment (see the `runs` comment
+          above) — a connector line across the gap would draw a value nobody
+          observed, exactly what this library exists to prevent. But leaving
+          the gap as a bare absence was easy to miss on close inspection and
+          wasn't part of the same visual vocabulary Radar's null-axis marker
+          and Matrix's hatched null cell already use. A hollow marker sitting
+          ON the x-axis at the missing x — never at a y, since no y is known
+          — flags the gap without implying any value: "hollow = not
+          observed" is the same rule as this file's own projected-point
+          treatment above, just anchored to the axis instead of a data
+          point. */}
+      {points.map((p, i) =>
+        p.y === null ? (
+          <circle key={`null-${i}`} className="linetrend-null-marker" cx={x(p.x)} cy={plotBottomY}
+                  r={NULL_MARKER_RADIUS_MM} fill={INK.surface} stroke={INK.muted} strokeWidth={pt(0.7)}
+                  strokeDasharray={NULL_MARKER_DASH} />
+        ) : null,
+      )}
     </ChartFrame>
   );
 }
