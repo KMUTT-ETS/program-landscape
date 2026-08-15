@@ -35,6 +35,7 @@ export function niceTicks(min: number, max: number, count = 5): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return [];
   if (min === max) return [min];
   if (min > max) return niceTicks(max, min, count);
+  if (!Number.isFinite(count) || count <= 0) return [];
 
   const rawStep = (max - min) / count;
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));
@@ -42,11 +43,16 @@ export function niceTicks(min: number, max: number, count = 5): number[] {
   const niceStep =
     (normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 5 ? 5 : 10) * magnitude;
 
-  const ticks: number[] = [];
+  // Each tick is computed independently from `first` rather than accumulated,
+  // so float error cannot compound across iterations. That in turn means the
+  // loop bound is an integer count instead of a float comparison needing a
+  // hand-tuned epsilon. toPrecision trims the residue of `first + i * step`.
   const first = Math.ceil(min / niceStep) * niceStep;
-  // Epsilon guards against float drift dropping the final tick.
-  for (let v = first; v <= max + niceStep * 1e-9; v += niceStep) {
-    ticks.push(Number(v.toPrecision(12)));
+  const steps = Math.floor((max - first) / niceStep + 1e-9);
+
+  const ticks: number[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    ticks.push(Number((first + i * niceStep).toPrecision(12)));
   }
   return ticks;
 }

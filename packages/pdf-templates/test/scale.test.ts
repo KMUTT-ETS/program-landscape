@@ -58,3 +58,26 @@ describe('niceTicks', () => {
     expect(niceTicks(0, Number.POSITIVE_INFINITY)).toEqual([]);
   });
 });
+
+describe('niceTicks — hardening', () => {
+  it('returns nothing for a non-positive or non-finite count', () => {
+    expect(niceTicks(0, 100, 0)).toEqual([]);
+    expect(niceTicks(0, 100, -5)).toEqual([]);
+    expect(niceTicks(0, 100, Number.NaN)).toEqual([]);
+  });
+
+  it('does not drop the final tick to float drift', () => {
+    // 0.1-sized steps are the classic accumulation trap.
+    expect(niceTicks(0, 1, 10)).toEqual([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]);
+    expect(niceTicks(0, 0.3, 3)).toEqual([0, 0.1, 0.2, 0.3]);
+  });
+
+  it('stays within bounds — no tick beyond max', () => {
+    for (const [lo, hi] of [[0, 100], [12, 47], [-30, 30], [0, 1], [3, 3.7]] as const) {
+      for (const t of niceTicks(lo, hi)) {
+        expect(t).toBeGreaterThanOrEqual(lo);
+        expect(t).toBeLessThanOrEqual(hi);
+      }
+    }
+  });
+});
