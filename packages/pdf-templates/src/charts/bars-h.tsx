@@ -23,7 +23,8 @@ export interface BarsHProps extends Omit<ChartCommonProps, 'heightMm'> {
   labelWidthMm?: number;
   /** Height of each bar row in mm, including its gap. */
   rowHeightMm?: number;
-  emptyNote?: string;
+  /** Width in mm reserved to the right of each bar for its value label. */
+  valueGutterMm?: number;
 }
 
 /**
@@ -43,6 +44,7 @@ export function BarsH({
   widthMm = DEFAULT_WIDTH_MM,
   labelWidthMm = 55,
   rowHeightMm = 9,
+  valueGutterMm = 14,
   emptyNote,
 }: BarsHProps): React.ReactElement {
   if (rows.length === 0) {
@@ -55,12 +57,25 @@ export function BarsH({
   const heightMm = Math.max(rowHeightMm * rows.length + 4, 12);
 
   // Value labels sit to the right of each bar, so reserve room for them.
-  const valueGutterMm = 14;
   const plotWidth = widthMm - labelWidthMm - valueGutterMm;
+  if (plotWidth <= 0) {
+    // A silent negative/zero plot width would map every value to a
+    // non-rendering (or wrong-direction) <rect> — SVG drops negative-width
+    // rects with no error — which reads to a Council viewer as "every row
+    // scored zero." Fail loudly instead, same posture as seriesColour().
+    throw new RangeError(
+      `BarsH: no room to plot — widthMm ${widthMm} minus labelWidthMm ${labelWidthMm} ` +
+        `and valueGutterMm ${valueGutterMm} leaves ${plotWidth}mm. Widen widthMm or narrow the label column.`,
+    );
+  }
   const max = Math.max(...rows.map((r) => r.value), 0);
   // linear() collapses a zero-width domain to the range start, so an
   // all-zero series yields width 0 rather than NaN.
   const x = linear([0, max], [0, plotWidth]);
+  // Bars are inset within their row band (rowHeightMm) rather than filling
+  // it edge-to-edge, so adjacent rows read as distinct bars, not one solid
+  // block. 0.62 leaves a visible gap above/below while staying thick enough
+  // to read as a bar rather than a hairline at typical rowHeightMm values.
   const barHeight = rowHeightMm * 0.62;
 
   return (

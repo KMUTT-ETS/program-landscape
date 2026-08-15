@@ -54,4 +54,20 @@ describe('BarsH', () => {
     expect(renderToStaticMarkup(<BarsH rows={ROWS} provenance={PROV} title="Skills" />))
       .toMatchSnapshot();
   });
+
+  // A labelWidthMm wide enough to eat the whole plot area must fail loudly,
+  // not render bars with negative width that SVG silently drops — that would
+  // read to a Council viewer as "every row scored zero."
+  it('throws when labelWidthMm leaves no room to plot', () => {
+    expect(() =>
+      renderToStaticMarkup(<BarsH rows={ROWS} provenance={PROV} title="Skills" labelWidthMm={170} />),
+    ).toThrow(RangeError);
+  });
+
+  it('renders three bars with a non-default but valid labelWidthMm', () => {
+    const html = renderToStaticMarkup(
+      <BarsH rows={ROWS} provenance={PROV} title="Skills" labelWidthMm={90} />,
+    );
+    expect(html.match(/<rect[^>]*class="bar"/g) ?? []).toHaveLength(3);
+  });
 });
