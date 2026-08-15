@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
+import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
 import { INK, seriesColour } from './palette';
 import { linear, niceTicks, pt } from './scale';
 import type { ChartCommonProps } from './types';
@@ -26,12 +27,6 @@ export interface LineTrendProps extends Omit<ChartCommonProps, 'heightMm'> {
   /** Ticks requested from niceTicks() for the y axis. */
   yTickCount?: number;
 }
-
-/** Same rationale as BarsH's EMPTY_HEIGHT_MM: tall enough for a wrapped emptyNote. */
-const EMPTY_HEIGHT_MM = 24;
-
-/** Inset from the SVG top/bottom edges, mirroring BarsH's "2" inset. */
-const MARGIN_MM = 2;
 
 const MARKER_RADIUS_MM = 1.1;
 const LINE_STROKE_WIDTH_MM = pt(1.1);
@@ -182,6 +177,10 @@ export function LineTrend({
       <line x1={leftGutterMm} y1={plotBottomY} x2={leftGutterMm + plotWidth} y2={plotBottomY}
             stroke={INK.rule} strokeWidth={pt(0.5)} />
 
+      {/* x-axis labels. Like the y ticks above, no fitLabel: TrendPoint.x is
+          typed `number`, so it can never carry a long arbitrary string — the
+          overflow problem fitLabel solves for caller-supplied categorical
+          text does not apply here. */}
       {points.map((p, i) => (
         <text key={i} x={x(p.x)} y={plotBottomY + bottomAxisHeightMm * 0.7} textAnchor="middle"
               fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.muted}>

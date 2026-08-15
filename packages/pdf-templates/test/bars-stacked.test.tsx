@@ -132,4 +132,35 @@ describe('BarsStacked', () => {
       ),
     ).toThrow(RangeError);
   });
+
+  // Segment order must be consistent across categories, because colour and
+  // legend are both keyed by array index. A caller that drops a missing
+  // status instead of zero-filling it (rather than the correct discipline
+  // the CATEGORIES fixture follows) would silently paint one year's
+  // 'Dropout' in another year's 'Active' colour — the exact
+  // confidently-wrong failure mode this library exists to prevent.
+  it('throws when two categories disagree on the label at the same segment index', () => {
+    const mismatched = [
+      {
+        category: '2567',
+        segments: [
+          { label: 'Active', value: 40 },
+          { label: 'Graduated', value: 10 },
+          { label: 'Dropout', value: 5 },
+        ],
+      },
+      {
+        // 'Dropout' dropped instead of zero-filled — index 1 is now
+        // 'Active' here but 'Graduated' in 2567.
+        category: '2568',
+        segments: [
+          { label: 'Dropout', value: 55 },
+          { label: 'Active', value: 8 },
+        ],
+      },
+    ];
+    expect(() =>
+      renderToStaticMarkup(<BarsStacked categories={mismatched} provenance={PROV} title="Cohort" />),
+    ).toThrow(RangeError);
+  });
 });

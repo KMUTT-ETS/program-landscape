@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
 import { fitLabel } from './fit-label';
+import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
 import { INK, seriesColour } from './palette';
 import { linear, pt } from './scale';
 import type { ChartCommonProps } from './types';
@@ -40,12 +41,6 @@ export interface BarsStackedProps extends Omit<ChartCommonProps, 'heightMm'> {
   legendRowHeightMm?: number;
 }
 
-/** Same rationale as BarsH's EMPTY_HEIGHT_MM: tall enough for a wrapped emptyNote. */
-const EMPTY_HEIGHT_MM = 24;
-
-/** Inset from the SVG edges, mirroring BarsH's "2" top/bottom inset. */
-const MARGIN_MM = 2;
-
 /** Bar width as a fraction of its column slot — same ratio BarsH uses for row height. */
 const BAR_WIDTH_RATIO = 0.62;
 
@@ -56,14 +51,35 @@ const LEGEND_GAP_MM = 1.5;
 /**
  * Legend entries by segment index, taking each label from the first category
  * that defines a segment at that index. Categories are expected to share the
- * same segment shape (see StackedCategory doc); this is a defensive fallback
- * for the rare case one category's array is short.
+ * same segment shape (see StackedCategory doc), including for segments that
+ * are locally zero — a caller must send a zero-value segment, not omit it,
+ * to keep every category's array aligned by index.
+ *
+ * That contract is enforced here, not just documented: two categories
+ * disagreeing on the label at a shared index means colour and legend have
+ * silently come apart — e.g. one year's data as [Active, Graduated,
+ * Dropout] and another's as [Dropout, Active, Graduated] would paint
+ * "Dropout" in the "Active" swatch colour for one of the two years, with no
+ * visual sign anything is wrong. That is exactly the confidently-wrong
+ * failure mode this library exists to prevent, so it fails loudly instead.
  */
 function buildLegend(categories: readonly StackedCategory[]): string[] {
   const legend: string[] = [];
+  const seenAt: string[] = []; // category label that first set legend[i], for the error message
   for (const cat of categories) {
     cat.segments.forEach((seg, i) => {
-      if (legend[i] === undefined) legend[i] = seg.label;
+      const existing = legend[i];
+      if (existing === undefined) {
+        legend[i] = seg.label;
+        seenAt[i] = cat.category;
+      } else if (existing !== seg.label) {
+        throw new RangeError(
+          `BarsStacked: segment index ${i} is labelled "${existing}" in category ` +
+            `"${seenAt[i]}" but "${seg.label}" in category "${cat.category}". Segment order ` +
+            'must be consistent across every category — reorder or zero-fill the mismatched ' +
+            'category instead of omitting a segment.',
+        );
+      }
     });
   }
   return legend;

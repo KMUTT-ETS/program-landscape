@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
+import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
 import { INK, seriesColour } from './palette';
 import { linear, pt } from './scale';
 import type { ChartCommonProps } from './types';
@@ -26,15 +27,6 @@ export interface BarsHProps extends Omit<ChartCommonProps, 'heightMm'> {
   /** Width in mm reserved to the right of each bar for its value label. */
   valueGutterMm?: number;
 }
-
-/**
- * Minimum height for the empty-state block, independent of the
- * `rowHeightMm * rows.length` formula used for the populated chart. A height
- * derived from zero rows collapses to a box too short to hold a wrapped
- * `emptyNote` at ChartFrame's 13pt empty-state type size without visibly
- * overflowing its border.
- */
-const EMPTY_HEIGHT_MM = 24;
 
 export function BarsH({
   rows,
@@ -82,7 +74,7 @@ export function BarsH({
     <ChartFrame title={title} ledeTh={ledeTh} provenance={provenance}
                 widthMm={widthMm} heightMm={heightMm}>
       {rows.map((row, i) => {
-        const yTop = 2 + i * rowHeightMm;
+        const yTop = MARGIN_MM + i * rowHeightMm;
         const barWidth = x(row.value);
         return (
           // Keyed by index, not row.label: this is a generic primitive and
@@ -103,7 +95,7 @@ export function BarsH({
           </g>
         );
       })}
-      <line x1={labelWidthMm} y1={2} x2={labelWidthMm} y2={heightMm - 2}
+      <line x1={labelWidthMm} y1={MARGIN_MM} x2={labelWidthMm} y2={heightMm - MARGIN_MM}
             stroke={INK.rule} strokeWidth={pt(0.5)} />
     </ChartFrame>
   );
