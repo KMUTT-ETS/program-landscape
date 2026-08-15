@@ -1,3 +1,11 @@
+/* eslint-disable no-restricted-syntax --
+ * Hex literals are correct here. CSS custom-property tokens are not
+ * available in a Gotenberg-rendered document — the markup has no
+ * <html data-theme> to resolve them against. PDFs are light-theme only.
+ * Keep these in sync with the light-mode values in
+ * packages/design/src/css/tokens.css.
+ */
+
 import type { TemplateDefinition } from '@kku/shared';
 
 import { Section } from '../../components/section';
