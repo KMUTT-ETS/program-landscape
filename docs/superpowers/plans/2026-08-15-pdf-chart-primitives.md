@@ -885,6 +885,36 @@ git commit -m "feat(pdf-templates): add BarsH print chart primitive"
 
 ---
 
+## Task 5b: `fitLabel` — shared label fitting for categorical axes
+
+**Added mid-execution.** The Task 5 review established that long Thai labels overflow their column —
+SVG `<text>` does not wrap — and that every categorical primitive (`BarsStacked`, `Funnel`,
+`DotRange`, `Matrix`, `Timeline`) hits it. Solving it inside one primitive would bury it, so it gets
+its own module and tests before the remaining eight are written.
+
+**Decision, and why the alternatives were rejected:**
+
+- **Truncate with an ellipsis — rejected.** A shortened Thai program name in a printed document, with
+  no hover to recover the full string, risks attributing a bar to the wrong program. In a document
+  used for closure decisions that is a correctness failure, not a cosmetic one.
+- **`<foreignObject>` with wrapping HTML — rejected as the default.** Wrapping needs the row height
+  known before render to avoid bleeding into the next row, and there is no text measurement available
+  in a `renderToStaticMarkup`-only SSR path. "How many lines will this wrap to" can only be guessed.
+- **Adopted: bounded `textLength` + `lengthAdjust="spacingAndGlyphs"`.** Squeeze overflowing text to
+  fit the column, but never below ~85% of natural glyph width. Nothing is ever dropped, so the reader
+  always sees the whole name. Past that bound the label genuinely does not fit and the primitive
+  fails loudly, telling the caller to widen the column — consistent with `seriesColour` and the
+  `plotWidth` guard.
+
+**Files:** `src/charts/fit-label.ts`, `test/fit-label.test.ts`.
+
+The natural-width estimate is necessarily a heuristic (no measurement in SSR): estimate per-character
+advance from the font size, with a wider factor for Thai codepoints than Latin. It only needs to be
+good enough to decide *whether* to compress and by how much — `textLength` does the actual fitting in
+Chromium, which does have real metrics.
+
+---
+
 ## Tasks 6–13: the remaining eight primitives
 
 Each follows Task 5 exactly: failing test → run → implement → run → read snapshot → commit. Per
