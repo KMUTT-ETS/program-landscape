@@ -16,6 +16,11 @@ import { facultyLevelReviewTemplate } from './templates/faculty-level-review/tem
 // and only for admin-tooling-style use) can match the rest of the system.
 export { baseCss } from './styles/base-css';
 
+// Re-export the print-first SVG chart primitives (rules in
+// src/charts/README.md) — the rebuilt program deep-dive PDF and future
+// templates consume these directly.
+export * from './charts';
+
 // Re-export print-safe chart primitives.
 export * from './components/cover';
 export * from './components/section';
