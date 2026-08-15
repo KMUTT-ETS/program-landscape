@@ -234,6 +234,45 @@ programs (0089, 0140, 0182, 0237, 0301). The sparse one is the real test, becaus
 fail ugly when half the sections are empty. Human review of those three before merge. If page count
 lands near 45 rather than 28–34, the design is not working and gets adjusted rather than shipped.
 
+## Spike result — 2026-08-15: **PASS**
+
+Thai renders correctly inside SVG `<text>` through Gotenberg/Chromium. The hand-rolled SVG primitive
+approach is confirmed. All four pass criteria met:
+
+1. Tone marks sit above their consonant — `ที่` stacks ◌ี and ◌่ correctly; `ค้าง` places ◌้ correctly.
+2. Upper and lower vowels are correctly positioned — `ปี`, `ศึ`, `อั`, `มี` all render properly.
+3. No tofu boxes.
+4. Physical size is exact — a `180mm` SVG measures 680px, precisely 96 dpi. A controlled test pinning
+   the font family on both paths shows **SVG `<text>` and HTML render identically** at the same pt
+   size.
+
+Text is real embedded glyphs (four font resources referenced), not outlined paths.
+
+**Verification method.** No PDF rasteriser exists on the dev machine (`pdftoppm`, ImageMagick,
+`mutool`, `gs` all absent) and installing one needs sudo. Instead the same HTML was rendered through
+Gotenberg's `/forms/chromium/screenshot/html` route (available in 8.32.0) with
+`emulatedMediaType=print` — same Chromium, same fonts, same font stack — and inspected as PNG,
+including a 4× CSS-transform magnification of the vector output. Reusable for future visual checks;
+note the form file **must** be named `index.html`.
+
+### Four findings to carry into implementation
+
+1. **Pin `'TH Sarabun New'` in charts — do not rely on the fallback stack.** `Sarabun` is *not*
+   installed in the Gotenberg image. The stack `'TH Sarabun New','Sarabun',sans-serif` works only
+   because the first entry resolves. If it ever went missing, the silent fallback is a substantially
+   larger, bolder face that would wreck any layout sized for Sarabun metrics. The Dockerfile's
+   `fc-list | grep -ci sarabun` check is therefore load-bearing, not belt-and-braces.
+2. **TH Sarabun New is optically small.** Its x-height relative to em is low, so 8pt reads much
+   smaller than 8pt in a Latin face. Chart label sizes should start around **9–10pt**, not the 8pt a
+   Latin-typography instinct suggests. Tune against a printed page, not a screen.
+3. **Chart text will not be reliably copy-pasteable.** Extracting text from SVG blocks returns
+   decomposed, reordered fragments — combining marks separated from their bases, `ทำ` as `ทํา` — while
+   the HTML control round-trips cleanly. Visual rendering is correct; only extraction is affected.
+   Accept this, or keep any label a reader may need to copy in the appendix tables.
+4. **The render-timeout risk is real, not theoretical.** A near-empty single page took **20.7s**
+   against a 55s ceiling. Most of that is Chromium cold start rather than per-page cost, but it must
+   be measured with the full ~30-page document before release.
+
 ## Risks
 
 - **Thai text inside SVG `<text>` is an unproven path in this app.** SVG text does not inherit the
