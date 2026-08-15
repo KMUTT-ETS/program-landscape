@@ -93,20 +93,23 @@ describe('Radar', () => {
     expect(renderToStaticMarkup(<Radar axes={AXES} provenance={PROV} title="Health score" />)).toMatchSnapshot();
   });
 
-  // A radar needs at least a triangle — two axes would render a degenerate
-  // line, not a recognisable polygon web.
-  it('renders the empty state for exactly 2 axes (below the triangle minimum)', () => {
+  // The boundary from the other side: exactly 3 axes — the minimum for a
+  // triangle — must render normally, not fall into the empty state. This
+  // was previously only covered indirectly via the 5-axis golden snapshot.
+  it('renders normally for exactly 3 axes (the triangle minimum)', () => {
     const html = renderToStaticMarkup(
       <Radar
         axes={[
           { label: 'a', value: 10, max: 100 },
           { label: 'b', value: 20, max: 100 },
+          { label: 'c', value: 30, max: 100 },
         ]}
         provenance={PROV}
         title="Health score"
       />,
     );
-    expect(html).not.toContain('class="radar-value"');
+    expect(html).toContain('class="radar-value"');
+    expect(html).not.toContain('chart-empty');
   });
 
   // The value polygon must close — first and last point coincide, either via

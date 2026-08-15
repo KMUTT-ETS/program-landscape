@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
+import { fitLabel } from './fit-label';
 import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
 import { INK, seriesColour } from './palette';
 import { linear, pt } from './scale';
@@ -76,13 +77,21 @@ export function BarsH({
       {rows.map((row, i) => {
         const yTop = MARGIN_MM + i * rowHeightMm;
         const barWidth = x(row.value);
+        // Row labels sit in the fixed labelWidthMm gutter to the left of
+        // the bars — the same fixed-width-column situation fitLabel was
+        // built for (see bars-stacked.tsx's category label, radar.tsx's
+        // axis label). Full KKU program names in Thai routinely overflow
+        // a 55mm column; truncation-with-ellipsis would silently attribute
+        // a bar to the wrong program in a printed document, so this must
+        // compress-or-throw rather than clip.
+        const labelFit = fitLabel(row.label, labelWidthMm, LABEL.axis);
         return (
           // Keyed by index, not row.label: this is a generic primitive and
           // callers (e.g. two AI-readiness sub-scores that legitimately
           // share a name at different scopes) may pass duplicate labels.
           <g key={i}>
             <text x={0} y={yTop + barHeight * 0.78} fontSize={LABEL.axis}
-                  fontFamily={LABEL.fontFamily} fill={INK.axis}>
+                  fontFamily={LABEL.fontFamily} fill={INK.axis} {...labelFit}>
               {row.label}
             </text>
             <rect className="bar" x={labelWidthMm} y={yTop}

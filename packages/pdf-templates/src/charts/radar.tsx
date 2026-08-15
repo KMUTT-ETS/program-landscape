@@ -38,10 +38,12 @@ const VERTEX_RADIUS_MM = 1.3;
  * a deliberate marker, not a smaller/lesser version of a real point. */
 const NULL_MARKER_RADIUS_MM = 1.7;
 /** Where the null marker sits along its axis. Deliberately NOT at the
- * perimeter (which would read as "high") or the centre (which would read
- * as "zero") — parked at the midpoint so its position carries no value
- * information at all. */
-const NULL_MARKER_FRACTION = 0.5;
+ * perimeter (which would read as "high"), the centre (which would read as
+ * "zero"), or on any of the RING_STEPS grid rings (25/50/75/100%) — landing
+ * exactly on a ring would let a reader who has internalised "this ring is
+ * this fraction of max" misread the marker's distance as an actual value.
+ * 0.6 sits squarely between the 50% and 75% rings, on no gridline at all. */
+const NULL_MARKER_FRACTION = 0.6;
 const VALUE_STROKE_WIDTH_MM = pt(1.1);
 const VALUE_FILL_OPACITY = 0.22;
 const GRID_STROKE_WIDTH_MM = pt(0.4);
@@ -64,6 +66,13 @@ function pointAt(cx: number, cy: number, angle: number, r: number): Point {
 
 function closedPathD(points: readonly Point[]): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + ' Z';
+}
+
+/** Narrows away the null case without an `as` cast — the only other `as` in
+ * this library is `as const`, and this predicate is the mechanical way to
+ * keep it that way here. */
+function hasPlot<T extends { plot: Point | null }>(c: T): c is T & { plot: Point } {
+  return c.plot !== null;
 }
 
 /** SVG text-anchor for a label planted along the direction (ux, uy) from centre. */
@@ -149,7 +158,7 @@ export function Radar({
     return { axis, angle, outer, plot };
   });
 
-  const plottedPoints = computed.filter((c) => c.plot !== null).map((c) => c.plot as Point);
+  const plottedPoints = computed.filter(hasPlot).map((c) => c.plot);
   const anyPlotted = plottedPoints.length > 0;
 
   return (

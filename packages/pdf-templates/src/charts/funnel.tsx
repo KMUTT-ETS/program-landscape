@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
+import { fitLabel } from './fit-label';
 import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
 import { INK, SEMANTIC, seriesColour } from './palette';
 import { linear } from './scale';
@@ -119,10 +120,18 @@ export function Funnel({
         const fill = isAnomalous ? SEMANTIC.warning : seriesColour(0);
         const textFill = isAnomalous ? SEMANTIC.warning : INK.axis;
 
+        // Stage labels sit in the fixed labelWidthMm gutter to the left of
+        // the bands — the same fixed-width-column situation fitLabel was
+        // built for (see bars-stacked.tsx's category label, radar.tsx's
+        // axis label). At the tighter 40mm default here, a Thai TCAS round
+        // name or an occupation label can overflow more readily than in
+        // BarsH's wider 55mm gutter.
+        const labelFit = fitLabel(stage.label, labelWidthMm, LABEL.axis);
+
         return (
           <g key={i}>
             <text x={0} y={yTop + bandHeight * 0.78} fontSize={LABEL.axis}
-                  fontFamily={LABEL.fontFamily} fill={INK.axis}>
+                  fontFamily={LABEL.fontFamily} fill={INK.axis} {...labelFit}>
               {stage.label}
             </text>
             <rect className={isAnomalous ? 'funnel-band anomalous' : 'funnel-band'} x={bandX} y={yTop}
