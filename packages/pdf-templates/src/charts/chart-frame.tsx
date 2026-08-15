@@ -18,7 +18,7 @@ export function ChartFrame({
   children,
 }: ChartFrameProps): React.ReactElement {
   return (
-    <figure className="chart-frame avoid-break" style={{ margin: '6pt 0 12pt 0' }}>
+    <figure className="chart-frame avoid-break">
       <div className="chart-title">{title}</div>
       {/* `.chart-lede` has no rule in base-css.ts yet — magazine-css.ts adds one
           in plan 2. Inline style keeps it correct standalone until then. */}
@@ -59,7 +59,7 @@ export function ChartFrame({
         </svg>
       )}
 
-      <figcaption className="chart-caption" style={{ fontSize: '12pt', color: INK.muted }}>
+      <figcaption className="chart-caption">
         <strong>Source</strong> {provenance.source} · {provenance.runDate}
         {provenance.table ? ` · ${provenance.table}` : ''}
         {' · '}
