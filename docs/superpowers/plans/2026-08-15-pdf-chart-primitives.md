@@ -207,9 +207,17 @@ import { describe, expect, it } from 'vitest';
 import { linear, niceTicks, pt } from '../src/charts/scale';
 
 describe('pt', () => {
+  // Anchor on exact inch fractions — these are unambiguous and independent
+  // of any rounded constant.
   it('converts points to millimetres', () => {
-    expect(pt(72)).toBeCloseTo(25.4, 4);   // 72pt = 1 inch = 25.4mm
-    expect(pt(16)).toBeCloseTo(5.6448, 4); // Cabinet body size
+    expect(pt(72)).toBeCloseTo(25.4, 10);  // 1 inch
+    expect(pt(36)).toBeCloseTo(12.7, 10);  // 1/2 inch
+    expect(pt(0)).toBe(0);
+  });
+
+  it('gives the Cabinet body size in mm', () => {
+    // 16 × 25.4/72 = 5.64444…  NOT 5.6448 (that is 16 × the rounded 0.3528).
+    expect(pt(16)).toBeCloseTo(5.6444, 3);
   });
 });
 
