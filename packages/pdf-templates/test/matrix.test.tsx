@@ -171,6 +171,66 @@ describe('Matrix', () => {
   // columnWidthMm. Before the fix this fixture had NO working columnWidthMm:
   // narrow widths hit fitLabel's 85% floor, wide-enough widths blew the
   // neededWidth > widthMm guard.
+  // Gotenberg renders a static PDF — the <title> tooltip a reader might rely
+  // on in a browser never appears there. A Council reader must be able to
+  // recover a number from the printed page by looking, not hovering.
+  it('renders each cell value as visible text, not only inside a <title>', () => {
+    const html = renderToStaticMarkup(<Matrix columns={COLUMNS} rows={ROWS} provenance={PROV} title="Peer coverage" />);
+    // Every non-null cell value appears as its own visible text node, i.e.
+    // as `>80<` in the markup — not merely somewhere inside a <title> tag
+    // (which also contains the number, e.g. "Chulalongkorn University ×
+    // Python: 80", but that text is never rendered/visible in the PDF).
+    for (const row of ROWS) {
+      for (const value of row.cells) {
+        if (value === null) continue;
+        expect(html).toContain(`>${value}<`);
+      }
+    }
+    // Confirms the values are living outside the <title> elements: stripping
+    // every <title>...</title> block must still leave every value visible.
+    const withoutTitles = html.replace(/<title>.*?<\/title>/g, '');
+    expect(withoutTitles).toContain('>80<');
+    expect(withoutTitles).toContain('>40<');
+  });
+
+  // A reader who can see relative shading but has no scale to calibrate it
+  // against cannot recover what a shade means — the exact failure this
+  // legend exists to prevent.
+  it('renders a colour-scale legend spanning the domain the ramp uses', () => {
+    const html = renderToStaticMarkup(<Matrix columns={COLUMNS} rows={ROWS} provenance={PROV} title="Peer coverage" />);
+    expect(html).toContain('matrix-legend');
+    // The ramp's domain is [0, domain max] (90, from Mahidol's ML cell) —
+    // the legend must show both ends with their swatches, not an arbitrary
+    // or truncated range.
+    expect(html).toContain('>0<');
+    expect(html).toContain('>90<');
+    // At least two swatch rects in the legend (min + max), distinct from the
+    // per-cell matrix-cell rects.
+    const legendMatch = /<g class="matrix-legend">([\s\S]*?)<\/g>/.exec(html);
+    if (!legendMatch?.[1]) throw new Error('fixture bug: no matrix-legend group found');
+    expect(legendMatch[1].match(/<rect/g) ?? []).toHaveLength(2);
+  });
+
+  // A cell value that genuinely cannot fit its slot (an unrealistically
+  // narrow column) is omitted rather than overflowing or corrupting layout —
+  // the <title> still carries it, so nothing is silently lost, only the
+  // in-cell rendering is skipped when it would not read cleanly.
+  it('omits the in-cell text (but keeps the title) when a value genuinely does not fit', () => {
+    const html = renderToStaticMarkup(
+      <Matrix columns={['A', 'B']} rows={[{ label: 'Row', cells: [123456789, 2] }]}
+              provenance={PROV} title="Peer coverage" columnWidthMm={3} labelWidthMm={4} />,
+    );
+    expect(html).not.toContain('NaN');
+    expect(html).toContain('<title>Row × A: 123456789</title>'); // still present, via <title>
+    // Not rendered as visible cell text specifically — the legend's own max
+    // label legitimately renders the same number as its own <text>, so the
+    // assertion must be scoped to the per-cell "matrix-cell-value" class
+    // rather than a blanket substring check across the whole document.
+    expect(html).not.toMatch(/class="matrix-cell-value"[^>]*>123456789</);
+    // The other cell's short value DOES fit and must still render in-cell.
+    expect(html).toMatch(/class="matrix-cell-value"[^>]*>2</);
+  });
+
   it('rotates headers for few columns with long realistic names, including Thai', () => {
     const realisticColumns = [
       'Machine learning',

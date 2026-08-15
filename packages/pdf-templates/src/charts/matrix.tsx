@@ -2,7 +2,7 @@ import * as React from 'react';
 
 import { needsRotatedLabels, ROTATE_ANGLE_DEG, ROTATED_LABEL_GAP_MM, rotatedLabelBudgetMm } from './axis-labels';
 import { ChartFrame, DEFAULT_WIDTH_MM, LABEL } from './chart-frame';
-import { fitLabel } from './fit-label';
+import { estimateTextWidthMm, fitLabel } from './fit-label';
 import { EMPTY_HEIGHT_MM, MARGIN_MM } from './layout';
 import { INK, seriesColour } from './palette';
 import { linear, pt } from './scale';
@@ -29,6 +29,22 @@ export interface MatrixProps extends Omit<ChartCommonProps, 'heightMm'> {
 
 /** Breathing room inside each cell slot so adjacent cells read as distinct cells, not one solid block. */
 const CELL_GAP_MM = 0.5;
+/** Padding kept clear on either side of an in-cell value so its glyphs never
+ * touch the cell's border stroke. */
+const VALUE_TEXT_PADDING_MM = 0.3;
+/** A cell fill at or above this fraction of the domain is dark enough that
+ * dark (INK.axis) text loses contrast against it — switch to the light
+ * (near-white) ink instead. 0.55 sits just past the ramp's midpoint, which
+ * is where PRINT_PALETTE's indigo becomes the visually dominant channel. */
+const DARK_FILL_TEXT_THRESHOLD = 0.55;
+/** Height in mm reserved below the grid for the colour-scale legend — a
+ * Gotenberg-rendered PDF is static, so a reader has no hover to recover what
+ * a shade means; the legend is what lets them calibrate it by eye instead. */
+const LEGEND_BAND_HEIGHT_MM = 10;
+const LEGEND_SWATCH_SIZE_MM = LABEL.legend;
+const LEGEND_GAP_MM = 1.5;
+/** Horizontal space between the "min" swatch+label pair and the "max" pair. */
+const LEGEND_ITEM_GAP_MM = 10;
 
 /**
  * Parse a `#RRGGBB` string into channels. This only ever sees
@@ -130,10 +146,14 @@ export function Matrix({
     );
   }
 
-  const heightMm = MARGIN_MM + headerHeightMm + rowHeightMm * rows.length + MARGIN_MM;
+  const heightMm =
+    MARGIN_MM + headerHeightMm + rowHeightMm * rows.length + LEGEND_BAND_HEIGHT_MM + MARGIN_MM;
   const gridTopY = MARGIN_MM + headerHeightMm;
   const gridWidth = columnWidthMm * columns.length;
   const gridHeight = rowHeightMm * rows.length;
+  const gridBottomY = gridTopY + gridHeight;
+  const legendY = gridBottomY + LEGEND_BAND_HEIGHT_MM * 0.65;
+  const legendSwatchY = legendY - LEGEND_SWATCH_SIZE_MM;
 
   // Domain spans the WHOLE matrix, not each row independently — like
   // DotRange's shared x domain, two cells with the same value anywhere in
@@ -145,6 +165,17 @@ export function Matrix({
   // all-null-or-all-zero matrix yields fraction 0 (the palest tint)
   // everywhere rather than NaN.
   const intensity = linear([0, domainMax], [0, 1]);
+
+  // Legend label x-positions are computed from the min label's own
+  // estimated width (not a fixed offset) so a multi-digit domainMax never
+  // collides with the min swatch/label pair to its left.
+  const legendMinLabel = '0';
+  const legendMaxLabel = String(domainMax);
+  const legendMinSwatchX = labelWidthMm;
+  const legendMinLabelX = legendMinSwatchX + LEGEND_SWATCH_SIZE_MM + LEGEND_GAP_MM;
+  const legendMaxSwatchX =
+    legendMinLabelX + estimateTextWidthMm(legendMinLabel, LABEL.legend) + LEGEND_ITEM_GAP_MM;
+  const legendMaxLabelX = legendMaxSwatchX + LEGEND_SWATCH_SIZE_MM + LEGEND_GAP_MM;
 
   // Content-driven, not count-driven: rotate whenever the longest header
   // would not fit upright in its column slot, regardless of how many columns
@@ -236,11 +267,36 @@ export function Matrix({
                 );
               }
 
+              // A cell's number is Council-load-bearing content, not
+              // decoration — the <title> tooltip below is real (it helps a
+              // reader who DOES have a mouse, e.g. reviewing the PDF on
+              // screen before print), but it must never be the ONLY place
+              // the value appears: Gotenberg renders a static PDF with no
+              // hover, so a tooltip-only value is invisible in the delivered
+              // artifact. Rendered in-cell only when it actually fits —
+              // never truncated or overlapping — with the <title> as the
+              // permanent fallback either way.
+              const fraction = intensity(value);
+              const fill = intensityColour(fraction);
+              const displayValue = String(value);
+              const valueTextWidthMm = estimateTextWidthMm(displayValue, LABEL.value);
+              const valueFits = valueTextWidthMm <= cellW - 2 * VALUE_TEXT_PADDING_MM;
+              // A saturated (high-value) fill is dark enough that dark text
+              // loses contrast — flip to the light ink past the threshold so
+              // the number stays legible across the whole ramp, not just its
+              // pale end.
+              const valueFill = fraction >= DARK_FILL_TEXT_THRESHOLD ? INK.surface : INK.axis;
               return (
                 <g key={j}>
                   <title>{`${row.label} × ${columnLabel}: ${value}`}</title>
                   <rect className="matrix-cell" x={cellX} y={cellY} width={cellW} height={cellH}
-                        fill={intensityColour(intensity(value))} stroke={INK.rule} strokeWidth={pt(0.4)} />
+                        fill={fill} stroke={INK.rule} strokeWidth={pt(0.4)} />
+                  {valueFits && (
+                    <text className="matrix-cell-value" x={cellX + cellW / 2} y={cellY + cellH / 2 + LABEL.value * 0.35}
+                          textAnchor="middle" fontSize={LABEL.value} fontFamily={LABEL.fontFamily} fill={valueFill}>
+                      {displayValue}
+                    </text>
+                  )}
                 </g>
               );
             })}
@@ -250,6 +306,28 @@ export function Matrix({
 
       <rect className="matrix-grid-border" x={labelWidthMm} y={gridTopY} width={gridWidth} height={gridHeight}
             fill="none" stroke={INK.rule} strokeWidth={pt(0.5)} />
+
+      {/* Colour-scale legend. Without it a reader sees relative shading with
+          nothing to calibrate against — this is what lets them recover what
+          a shade actually means. Two swatches (the ramp's floor and ceiling,
+          [0, domainMax] — the same domain `intensity` uses above, not the
+          data's own min/max) with their numeric values; label x-positions
+          are computed from the min label's own estimated width so a
+          multi-digit domainMax never collides with the min swatch. */}
+      <g className="matrix-legend">
+        <rect className="matrix-legend-swatch" x={legendMinSwatchX} y={legendSwatchY}
+              width={LEGEND_SWATCH_SIZE_MM} height={LEGEND_SWATCH_SIZE_MM}
+              fill={intensityColour(0)} stroke={INK.rule} strokeWidth={pt(0.4)} />
+        <text x={legendMinLabelX} y={legendY} fontSize={LABEL.legend} fontFamily={LABEL.fontFamily} fill={INK.axis}>
+          {legendMinLabel}
+        </text>
+        <rect className="matrix-legend-swatch" x={legendMaxSwatchX} y={legendSwatchY}
+              width={LEGEND_SWATCH_SIZE_MM} height={LEGEND_SWATCH_SIZE_MM}
+              fill={intensityColour(1)} stroke={INK.rule} strokeWidth={pt(0.4)} />
+        <text x={legendMaxLabelX} y={legendY} fontSize={LABEL.legend} fontFamily={LABEL.fontFamily} fill={INK.axis}>
+          {legendMaxLabel}
+        </text>
+      </g>
     </ChartFrame>
   );
 }
