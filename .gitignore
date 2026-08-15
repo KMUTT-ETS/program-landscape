@@ -69,3 +69,4 @@ apps/web/public/pdf.worker.*.mjs
 logs/
 .preflight/
 gold-labels/
+.superpowers/
