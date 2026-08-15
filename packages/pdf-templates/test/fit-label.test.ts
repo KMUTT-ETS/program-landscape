@@ -39,14 +39,16 @@ describe('estimateTextWidthMm', () => {
     expect(withMarks).toBeGreaterThan(0);
     expect(withMarks).toBeLessThan(allBase);
 
-    const ratio = withMarks / allBase;
-    // 2 advance-bearing code points out of 5 for 'ปีที่' vs 5 of 5 for
-    // 'ปปปปป' puts the ratio at 2/5 = 0.4. Asserted as a range (not an
-    // exact fraction) because the point of this test is "materially less
-    // than 1, in the ballpark of the code-point ratio" — not to pin an
-    // over-precise number to the estimation model.
-    expect(ratio).toBeGreaterThan(0.3);
-    expect(ratio).toBeLessThan(0.7);
+    // The computation is fully deterministic — pin it rather than bound it.
+    // A loose range here would let a partial regression through: if
+    // combining-mark detection broke for just the tone-mark range
+    // (U+0E47–0E4E) but not the vowel range (U+0E34–0E3A), 'ปีที่' would
+    // gain one spurious advance-bearing code point, the ratio would move to
+    // 3/5 = 0.6, and a `>0.3 && <0.7` bound would let it pass silently —
+    // exactly the regression this test exists to catch.
+    expect(withMarks / allBase).toBeCloseTo(0.4, 5);
+    expect(withMarks).toBeCloseTo(3.12, 5);
+    expect(allBase).toBeCloseTo(7.8, 5);
   });
 });
 
