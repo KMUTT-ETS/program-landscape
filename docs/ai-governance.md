@@ -21,7 +21,9 @@ merger, new launch. AI helps analysts get there; it does not decide.
    `packages/shared/src/ai/prompts/*`, versioned via a `METHOD_VERSION`
    constant exported from each file. `AiExtraction.methodVersion`
    captures the version that produced each row so we can bulk-reprocess
-   after a prompt change.
+   after a prompt change. Prompt content rules live in
+   `docs/prompt-standard.md`; conformance is enforced by
+   `packages/shared/test/prompt-standard-conformance.test.ts`.
 5. **Human-in-the-loop for every consequential extraction.** LLM
    outputs below the auto-approve threshold land in
    `/admin/extraction-review`; approvals are the only path into domain

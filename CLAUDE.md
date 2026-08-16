@@ -48,7 +48,7 @@ Implementation rules:
 ## Language strategy
 
 - **UI labels** (menus, buttons, headers, form fields, errors): **English only**
-- **Analysis content** (AI narratives, briefs, summaries, recommendations): **Thai primary** with on-demand English translation toggle
+- **Analysis content** (AI narratives, briefs, summaries, recommendations): **English-only** per `docs/prompt-standard.md` — reversed from Thai-primary on 2026-08-16; Thai survives only in the standard's exemption list (product-data fields)
 - **Data labels** (program/faculty/course names): both `nameTh` and `nameEn` stored, both displayed where space allows
 - Charts: axis labels in English, data labels in Thai
 - All Council Pack PDFs default to Thai with optional English appendix
