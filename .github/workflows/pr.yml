@@ -164,6 +164,17 @@ jobs:
           NODE_ENV: test
         run: pnpm --filter @kku/db seed
 
+      # Runs immediately after the seed on purpose. prisma/seed.ts writes both
+      # `status` and `mocked` from SOURCE_CATALOG, so this asserts the seed
+      # produced a state realDataWhere() can actually see. A connector left
+      # `mocked: true` in the catalog after being flipped real silently hides
+      # every row it ever loaded — that regression went unnoticed for over a
+      # month and surfaced only as a blank health-radar dimension.
+      - name: Data-sources flag audit
+        env:
+          DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
+        run: pnpm data-sources:audit
+
       - name: Test
         env:
           DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public

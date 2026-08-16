@@ -18,7 +18,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 2 * * *', // daily at 02:00
     ownerContact: 'KKU Registrar — Academic Office',
     notes: 'Programs, courses, enrollment, degree completion. Master source for student-body demographics.',
-    mocked: true,
+    // Flipped real — see CLAUDE.md prompt-14 session log. This MUST stay
+    // false: prisma/seed.ts writes `status` and `mocked` from this field on
+    // every seed, so a stale `true` here silently re-mocks the connector and
+    // realDataWhere() then discards every row it ever loaded.
+    mocked: false,
   },
   {
     slug: 'kku-tcas-funnel',
@@ -52,7 +56,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 3 1 * *', // monthly on the 1st
     ownerContact: 'KKU Finance Office',
     notes: 'Program revenue, direct + shared cost allocation. Sensitive — restricted RBAC.',
-    mocked: true,
+    // Flipped real — see CLAUDE.md prompt-14 session log. This MUST stay
+    // false: prisma/seed.ts writes `status` and `mocked` from this field on
+    // every seed, so a stale `true` here silently re-mocks the connector and
+    // realDataWhere() then discards every row it ever loaded.
+    mocked: false,
   },
   {
     slug: 'kku-hr',
@@ -62,7 +70,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 4 * * 1', // weekly on Monday
     ownerContact: 'KKU HR Office',
     notes: 'Faculty member list with rank, department, appointment date, retirement projections.',
-    mocked: true,
+    // Flipped real — see CLAUDE.md prompt-14 session log. This MUST stay
+    // false: prisma/seed.ts writes `status` and `mocked` from this field on
+    // every seed, so a stale `true` here silently re-mocks the connector and
+    // realDataWhere() then discards every row it ever loaded.
+    mocked: false,
   },
   {
     slug: 'kku-alumni',
@@ -94,7 +106,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // ISI + TCI are stale (last updated 2022 / 2019) and deferred.
     notes:
       'Publications via the internal kku-publications mirror (Scopus + PubMed authorships, KKU author resolution by person_id). ISI + TCI deferred — stale upstream.',
-    mocked: true,
+    // Flipped real — see CLAUDE.md prompt-14 session log. This MUST stay
+    // false: prisma/seed.ts writes `status` and `mocked` from this field on
+    // every seed, so a stale `true` here silently re-mocks the connector and
+    // realDataWhere() then discards every row it ever loaded.
+    mocked: false,
   },
   {
     slug: 'digital-transcript',
@@ -212,7 +228,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 6 * * 1', // weekly Monday 06:00
     ownerContact: 'MHESI subscribes the LinkedIn data; KMITL operates the API. CLIENT_ID issued by KMITL under the MHESI agreement.',
     notes: 'Aggregated skill-demand intelligence sourced from LinkedIn (profiles + Thai job postings + university grad data). Subscribed by MHESI under a national agreement; KMITL hosts the API endpoint that aggregates and serves the data. Returns percentages at career/group/sub-group level — no per-posting rows, no salary, no province granularity. Replaces jobthai + jobsdb.',
-    mocked: true,
+    // Flipped real — see CLAUDE.md prompt-14 session log. This MUST stay
+    // false: prisma/seed.ts writes `status` and `mocked` from this field on
+    // every seed, so a stale `true` here silently re-mocks the connector and
+    // realDataWhere() then discards every row it ever loaded.
+    mocked: false,
   },
   {
     slug: 'jobthai',
