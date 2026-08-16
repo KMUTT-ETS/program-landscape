@@ -56,7 +56,7 @@ describe('renderPeersSection', () => {
     expect(/[฀-๿]/.test(lede)).toBe(true);
   });
 
-  it('renders one row per non-empty tier and one column per curated institution', () => {
+  it('renders a table, not a heatmap, with one row per peer entry — nothing capped', () => {
     const data = parse({
       peers: {
         ...PEERS_BASE,
@@ -66,6 +66,8 @@ describe('renderPeersSection', () => {
             entries: [
               { rank: 1, institution: 'Massachusetts Institute of Technology', country: 'United States', qsWorld: 1, programme: 'BSc Civil Engineering' },
               { rank: 2, institution: 'Delft University of Technology', country: 'Netherlands', qsWorld: 50, programme: 'BSc Civil Engineering' },
+              { rank: 3, institution: 'University of California, Berkeley', country: 'United States', qsWorld: 12, programme: 'BSc Civil Engineering' },
+              { rank: 4, institution: 'Imperial College London', country: 'United Kingdom', qsWorld: 2, programme: 'BEng Civil Engineering' },
             ],
           },
           {
@@ -79,45 +81,61 @@ describe('renderPeersSection', () => {
       },
     });
     const html = renderToStaticMarkup(renderPeersSection(data) as React.ReactElement);
-    // 2 non-empty tiers -> 2 rows; empty "Asia tier" is not shown as a row.
+    expect(html).toContain('<table');
+    expect(html).not.toContain('<svg');
+    expect(html).not.toContain('class="matrix-cell"');
+    // World tier had 4 curated entries — the old Matrix rescue capped this
+    // to 3 and dropped Imperial College London. All 4 must be present now.
+    expect(html).toContain('Massachusetts Institute of Technology');
+    expect(html).toContain('Delft University of Technology');
+    expect(html).toContain('University of California, Berkeley');
+    expect(html).toContain('Imperial College London');
+    expect(html).toContain('Chulalongkorn University');
     expect(html).toContain('World tier');
     expect(html).toContain('Thailand');
+    // Empty "Asia tier" contributes no row.
     expect(html).not.toContain('>Asia tier<');
-    expect(html).toContain('Massachusetts Institute of Technology');
-    expect(html).toContain('Chulalongkorn University');
-    // World tier contributes 2 measured cells (MIT, Delft), Thailand
-    // contributes 1 (Chulalongkorn) — 3 total, not 2, since MIT and Delft
-    // are both real, distinct columns in the same row.
-    expect(html.match(/class="matrix-cell"/g) ?? []).toHaveLength(3);
+    // 5 curated entries total across the two non-empty tiers, plus 1 header row.
+    expect((html.match(/<tr>/g) ?? []).length).toBe(6);
   });
 
-  // Long institution names are exactly the case Matrix's column-header
-  // rotation exists for — this must actually trigger, not just fit by luck.
-  it('rotates long institution-name column headers', () => {
+  it('states "lower is better" in the lede rather than inverting the shared intensity idiom', () => {
     const data = parse({
       peers: {
         ...PEERS_BASE,
         tiers: [
           {
-            tier: 'Asia tier',
+            tier: 'World tier',
+            entries: [{ rank: 1, institution: 'ETH Zurich', country: 'Switzerland', qsWorld: 7, programme: 'BSc Civil Engineering' }],
+          },
+        ],
+      },
+    });
+    const html = renderToStaticMarkup(renderPeersSection(data) as React.ReactElement);
+    const lede = /class="chart-lede"[^>]*>([^<]*)</.exec(html)?.[1] ?? '';
+    expect(lede).toContain('น้อย');
+  });
+
+  it('renders a null rank or QS World rank as an em dash, not a dropped row', () => {
+    const data = parse({
+      peers: {
+        ...PEERS_BASE,
+        tiers: [
+          {
+            tier: 'World tier',
             entries: [
-              {
-                rank: 1,
-                institution: "King Mongkut's Institute of Technology Ladkrabang",
-                country: 'Thailand',
-                qsWorld: 401,
-                programme: 'BEng Civil Engineering',
-              },
+              { rank: null, institution: 'Unranked University', country: 'Testland', qsWorld: null, programme: 'BSc Civil Engineering' },
             ],
           },
         ],
       },
     });
     const html = renderToStaticMarkup(renderPeersSection(data) as React.ReactElement);
-    expect(html).toContain('rotate(-45');
+    expect(html).toContain('Unranked University');
+    expect(html).toContain('—');
   });
 
-  it('returns null — not a placeholder chart — when peers was never computed', () => {
+  it('returns null — not a placeholder table — when peers was never computed', () => {
     const data = parse({ peers: null });
     expect(renderPeersSection(data)).toBeNull();
   });
@@ -128,8 +146,8 @@ describe('renderPeersSection', () => {
     });
     const html = renderToStaticMarkup(renderPeersSection(data) as React.ReactElement);
     expect(html).toContain('class="section-title"');
-    expect(html).not.toContain('class="matrix-cell"');
-    expect(html).toContain('class="chart-empty"');
+    expect(html).not.toContain('<table');
+    expect(html).toContain('No peer tiers curated');
   });
 
   it('carries real provenance — the subject signature, ranking year and report date', () => {
@@ -153,11 +171,19 @@ describe('renderPeersSection', () => {
     expect(html).toContain('12 Aug 2026');
   });
 
-  it('renders from the real captured fixture (KKU-SEQ-0065) without throwing', () => {
+  it('renders from the real captured fixture (KKU-SEQ-0065) without throwing, and drops nothing', () => {
     const data = ProgramDetailDataSchema.parse(FIXTURE);
     expect(data.peers).not.toBeNull();
+    const totalCuratedEntries = (data.peers?.tiers ?? []).reduce(
+      (sum, t) => sum + t.entries.length,
+      0,
+    );
+    expect(totalCuratedEntries).toBeGreaterThan(0);
     expect(() => renderToStaticMarkup(renderPeersSection(data) as React.ReactElement)).not.toThrow();
     const html = renderToStaticMarkup(renderPeersSection(data) as React.ReactElement);
-    expect(html).toContain('class="matrix-cell"');
+    expect(html).toContain('<table');
+    // Every curated peer entry is a table row — nothing capped per tier —
+    // plus 1 header row.
+    expect((html.match(/<tr>/g) ?? []).length).toBe(totalCuratedEntries + 1);
   });
 });
