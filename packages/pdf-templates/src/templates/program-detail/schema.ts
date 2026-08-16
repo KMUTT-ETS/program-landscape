@@ -223,13 +223,19 @@ const TcasSchema = z.object({
   history: z
     .array(
       z.object({
-        yearRound: z.string(),
-        quota: z.string(),
-        applicants: z.string(),
-        competition: z.string(),
-        fillRate: z.string(),
-        minScore: z.string(),
-        maxScore: z.string(),
+        // Was a single compound string ("BE 2567 R2"). Split into the
+        // year (numeric axis value) and round (stays a string — see the
+        // note on `latestRounds[].round` above).
+        yearBE: z.number().finite().nullable(),
+        round: z.string(),
+        quota: z.number().finite().nullable(),
+        applicants: z.number().finite().nullable(),
+        // Raw ratio, not a percentage.
+        competition: z.number().finite().nullable(),
+        // Percentage (0–100 scale).
+        fillRate: z.number().finite().nullable(),
+        minScore: z.number().finite().nullable(),
+        maxScore: z.number().finite().nullable(),
       }),
     )
     .default([]),
@@ -239,10 +245,10 @@ const TcasSchema = z.object({
         match: z.string(),
         institution: z.string(),
         programme: z.string(),
-        quota: z.string(),
-        applicants: z.string(),
-        competition: z.string(),
-        minScore: z.string(),
+        quota: z.number().finite().nullable(),
+        applicants: z.number().finite().nullable(),
+        competition: z.number().finite().nullable(),
+        minScore: z.number().finite().nullable(),
       }),
     )
     .default([]),

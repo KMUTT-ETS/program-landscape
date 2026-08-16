@@ -724,4 +724,139 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── TCAS: history[].yearBE (split from the old compound "BE 2567 R2") ──
+  describe('tcas.history[].yearBE', () => {
+    function fixtureWith(yearBE: unknown): unknown {
+      const tcas = (FIXTURE as { tcas: { history: unknown[] } }).tcas;
+      const history = tcas.history;
+      return {
+        ...FIXTURE,
+        tcas: { ...tcas, history: [{ ...(history[0] as object), yearBE }, ...history.slice(1)] },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2567)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old compound "BE 2567 R2" string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('BE 2567 R2')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // TCAS round stays a DISPLAY string — sub-rounds like "3.1"/"3.2" are
+  // genuine upstream strings, not lightly-formatted numbers. This is a
+  // deliberate non-conversion, guarded here against a future naive
+  // "field name contains 'round'" pattern-match.
+  describe('tcas.history[].round', () => {
+    function fixtureWith(round: unknown): unknown {
+      const tcas = (FIXTURE as { tcas: { history: unknown[] } }).tcas;
+      const history = tcas.history;
+      return {
+        ...FIXTURE,
+        tcas: { ...tcas, history: [{ ...(history[0] as object), round }, ...history.slice(1)] },
+      };
+    }
+
+    it('accepts a genuine sub-round string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('3.2')).success).toBe(true);
+    });
+
+    it('rejects a bare number — round must stay a string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(3.2)).success).toBe(false);
+    });
+  });
+
+  // ── TCAS: history[].fillRate ─────────────────────────────────────────
+  describe('tcas.history[].fillRate', () => {
+    function fixtureWith(fillRate: unknown): unknown {
+      const tcas = (FIXTURE as { tcas: { history: unknown[] } }).tcas;
+      const history = tcas.history;
+      return {
+        ...FIXTURE,
+        tcas: { ...tcas, history: [{ ...(history[0] as object), fillRate }, ...history.slice(1)] },
+      };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(200)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('200.0%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── TCAS: history[].minScore ─────────────────────────────────────────
+  describe('tcas.history[].minScore', () => {
+    function fixtureWith(minScore: unknown): unknown {
+      const tcas = (FIXTURE as { tcas: { history: unknown[] } }).tcas;
+      const history = tcas.history;
+      return {
+        ...FIXTURE,
+        tcas: { ...tcas, history: [{ ...(history[0] as object), minScore }, ...history.slice(1)] },
+      };
+    }
+
+    it('accepts a raw score', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(40.79)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('40.79')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── TCAS: peers[].competition ────────────────────────────────────────
+  describe('tcas.peers[].competition', () => {
+    function fixtureWith(competition: unknown): unknown {
+      const tcas = (FIXTURE as { tcas: { peers: unknown[] } }).tcas;
+      const peers = tcas.peers;
+      return {
+        ...FIXTURE,
+        tcas: { ...tcas, peers: [{ ...(peers[0] as object), competition }, ...peers.slice(1)] },
+      };
+    }
+
+    it('accepts a raw ratio', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(79.06)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "79.06×" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('79.06×')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

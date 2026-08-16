@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 4:28 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:29 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -494,58 +494,64 @@
   "tcas": {
     "history": [
       {
-        "yearRound": "BE 2568 R3.2",
-        "quota": "12",
-        "applicants": "330",
-        "competition": "27.50×",
-        "fillRate": "200.0%",
-        "minScore": "40.79",
-        "maxScore": "50.46"
+        "yearBE": 2568,
+        "round": "3.2",
+        "quota": 12,
+        "applicants": 330,
+        "competition": 27.5,
+        "fillRate": 200,
+        "minScore": 40.7916,
+        "maxScore": 50.4582
       },
       {
-        "yearRound": "BE 2568 R3.1",
-        "quota": "12",
-        "applicants": "330",
-        "competition": "27.50×",
-        "fillRate": "0.0%",
-        "minScore": "—",
-        "maxScore": "—"
+        "yearBE": 2568,
+        "round": "3.1",
+        "quota": 12,
+        "applicants": 330,
+        "competition": 27.5,
+        "fillRate": 0,
+        "minScore": null,
+        "maxScore": null
       },
       {
-        "yearRound": "BE 2567 R3",
-        "quota": "27",
-        "applicants": "182",
-        "competition": "6.74×",
-        "fillRate": "0.0%",
-        "minScore": "—",
-        "maxScore": "—"
+        "yearBE": 2567,
+        "round": "3",
+        "quota": 27,
+        "applicants": 182,
+        "competition": 6.7407407407407405,
+        "fillRate": 0,
+        "minScore": null,
+        "maxScore": null
       },
       {
-        "yearRound": "BE 2564 R3",
-        "quota": "5",
-        "applicants": "213",
-        "competition": "42.60×",
-        "fillRate": "0.0%",
-        "minScore": "—",
-        "maxScore": "—"
+        "yearBE": 2564,
+        "round": "3",
+        "quota": 5,
+        "applicants": 213,
+        "competition": 42.6,
+        "fillRate": 0,
+        "minScore": null,
+        "maxScore": null
       },
       {
-        "yearRound": "BE 2563 R3",
-        "quota": "10",
-        "applicants": "156",
-        "competition": "15.60×",
-        "fillRate": "0.0%",
-        "minScore": "—",
-        "maxScore": "—"
+        "yearBE": 2563,
+        "round": "3",
+        "quota": 10,
+        "applicants": 156,
+        "competition": 15.6,
+        "fillRate": 0,
+        "minScore": null,
+        "maxScore": null
       },
       {
-        "yearRound": "BE 2562 R3",
-        "quota": "143",
-        "applicants": "935",
-        "competition": "6.54×",
-        "fillRate": "0.0%",
-        "minScore": "—",
-        "maxScore": "—"
+        "yearBE": 2562,
+        "round": "3",
+        "quota": 143,
+        "applicants": 935,
+        "competition": 6.538461538461538,
+        "fillRate": 0,
+        "minScore": null,
+        "maxScore": null
       }
     ],
     "peers": [
@@ -553,136 +559,136 @@
         "match": "subject",
         "institution": "มหาวิทยาลัยเกษตรศาสตร์",
         "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
-        "quota": "18",
-        "applicants": "1,423",
-        "competition": "79.06×",
-        "minScore": "56.73"
+        "quota": 18,
+        "applicants": 1423,
+        "competition": 79.05555555555556,
+        "minScore": 56.7332
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยธรรมศาสตร์",
         "programme": "วศ.บ.สาขาวิชาวิศวกรรมโยธา",
-        "quota": "46",
-        "applicants": "1,494",
-        "competition": "32.48×",
-        "minScore": "40.80"
+        "quota": 46,
+        "applicants": 1494,
+        "competition": 32.47826086956522,
+        "minScore": 40.8
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยพะเยา",
         "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
-        "quota": "10",
-        "applicants": "178",
-        "competition": "17.80×",
-        "minScore": "49.06"
+        "quota": 10,
+        "applicants": 178,
+        "competition": 17.8,
+        "minScore": 49.061
       },
       {
         "match": "subject",
         "institution": "จุฬาลงกรณ์มหาวิทยาลัย",
         "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
-        "quota": "10",
-        "applicants": "176",
-        "competition": "17.60×",
-        "minScore": "66.02"
+        "quota": 10,
+        "applicants": 176,
+        "competition": 17.6,
+        "minScore": 66.022
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยนเรศวร",
         "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
-        "quota": "50",
-        "applicants": "838",
-        "competition": "16.76×",
-        "minScore": "46.49"
+        "quota": 50,
+        "applicants": 838,
+        "competition": 16.76,
+        "minScore": 46.4886
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยศรีนครินทรวิโรฒ",
         "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
-        "quota": "31",
-        "applicants": "297",
-        "competition": "9.58×",
-        "minScore": "38.15"
+        "quota": 31,
+        "applicants": 297,
+        "competition": 9.580645161290322,
+        "minScore": 38.1499
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยเกษตรศาสตร์",
         "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
-        "quota": "25",
-        "applicants": "204",
-        "competition": "8.16×",
-        "minScore": "44.18"
+        "quota": 25,
+        "applicants": 204,
+        "competition": 8.16,
+        "minScore": 44.1832
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยเทคโนโลยีราชมงคลกรุงเทพ",
         "programme": "วศ.บ. (วิศวกรรมโยธา)",
-        "quota": "30",
-        "applicants": "222",
-        "competition": "7.40×",
-        "minScore": "88.00"
+        "quota": 30,
+        "applicants": 222,
+        "competition": 7.4,
+        "minScore": 88
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยเกษตรศาสตร์",
         "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
-        "quota": "30",
-        "applicants": "192",
-        "competition": "6.40×",
-        "minScore": "66.74"
+        "quota": 30,
+        "applicants": 192,
+        "competition": 6.4,
+        "minScore": 66.736
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยศรีปทุม",
         "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
-        "quota": "20",
-        "applicants": "111",
-        "competition": "5.55×",
-        "minScore": "69.75"
+        "quota": 20,
+        "applicants": 111,
+        "competition": 5.55,
+        "minScore": 69.75
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยนราธิวาสราชนครินทร์",
         "programme": "วิศวกรรมโยธา",
-        "quota": "15",
-        "applicants": "82",
-        "competition": "5.47×",
-        "minScore": "85.25"
+        "quota": 15,
+        "applicants": 82,
+        "competition": 5.466666666666667,
+        "minScore": 85.25
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยมหิดล",
         "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
-        "quota": "55",
-        "applicants": "248",
-        "competition": "4.51×",
-        "minScore": "35.58"
+        "quota": 55,
+        "applicants": 248,
+        "competition": 4.509090909090909,
+        "minScore": 35.575
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยเกษตรศาสตร์",
         "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
-        "quota": "35",
-        "applicants": "111",
-        "competition": "3.17×",
-        "minScore": "33.82"
+        "quota": 35,
+        "applicants": 111,
+        "competition": 3.1714285714285713,
+        "minScore": 33.8222
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยสยาม",
         "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
-        "quota": "20",
-        "applicants": "25",
-        "competition": "1.25×",
-        "minScore": "63.75"
+        "quota": 20,
+        "applicants": 25,
+        "competition": 1.25,
+        "minScore": 63.75
       },
       {
         "match": "subject",
         "institution": "มหาวิทยาลัยราชภัฏเชียงใหม่",
         "programme": "วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
-        "quota": "29",
-        "applicants": "3",
-        "competition": "0.10×",
-        "minScore": "21.00"
+        "quota": 29,
+        "applicants": 3,
+        "competition": 0.10344827586206896,
+        "minScore": 21
       }
     ],
     "peerMatchKey": "วิศวกรรมโยธา"

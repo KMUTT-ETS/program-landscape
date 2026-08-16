@@ -640,13 +640,14 @@ export async function buildProgramDetailData(
                 b.entryYearBE - a.entryYearBE || b.round.localeCompare(a.round),
             )
             .map((h) => ({
-              yearRound: `BE ${h.entryYearBE} R${h.round}`,
-              quota: fmtNum(h.quota),
-              applicants: fmtNum(h.applicants),
-              competition: `${h.competitionRatio.toFixed(2)}×`,
-              fillRate: fmtRatePct(h.fillRate, 1),
-              minScore: h.minScorePass1 !== null ? h.minScorePass1.toFixed(2) : '—',
-              maxScore: h.maxScorePass1 !== null ? h.maxScorePass1.toFixed(2) : '—',
+              yearBE: h.entryYearBE,
+              round: h.round,
+              quota: h.quota,
+              applicants: h.applicants,
+              competition: h.competitionRatio,
+              fillRate: h.fillRate * 100,
+              minScore: h.minScorePass1,
+              maxScore: h.maxScorePass1,
             })),
           peers: [...tcasStats.peers]
             .sort((a, b) => b.competitionRatio - a.competitionRatio)
@@ -655,11 +656,10 @@ export async function buildProgramDetailData(
               match: p.matchTier,
               institution: p.institutionName,
               programme: p.programmeName,
-              quota: fmtNum(p.quota),
-              applicants: fmtNum(p.applicants),
-              competition: `${p.competitionRatio.toFixed(2)}×`,
-              minScore:
-                p.minScorePass1 !== null ? p.minScorePass1.toFixed(2) : '—',
+              quota: p.quota,
+              applicants: p.applicants,
+              competition: p.competitionRatio,
+              minScore: p.minScorePass1,
             })),
           peerMatchKey: tcasStats.peerMatchKey ?? '',
         }
