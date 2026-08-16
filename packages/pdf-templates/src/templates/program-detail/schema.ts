@@ -329,20 +329,36 @@ const DemographicSchema = z.object({
 });
 
 const OutcomesSchema = z.object({
-  surveyYear: z.string(),
+  surveyYear: z.number().finite().nullable(),
   methodologyVersion: z.string(),
   freshnessDate: z.string(),
-  sampleSize: z.string(),
+  sampleSize: z.number().finite().nullable(),
+  // Display-only KV rows, stays a KvRowSchema array per the decision at
+  // the top of this file — these 4 rows are heterogeneous in unit
+  // (percentage / currency / percentage / percentage), so a generic
+  // numeric companion array (label + value) would lose the unit; the
+  // named fields below are more useful to a chart than re-parsing the
+  // label.
   summary: z.array(KvRowSchema).default([]),
+  employmentRatePct: z.number().finite().nullable(),
+  averageSalary: z.number().finite().nullable(),
+  jobRelevanceScorePct: z.number().finite().nullable(),
+  furtherStudyRatePct: z.number().finite().nullable(),
   salaryTrajectory: z
-    .array(z.object({ year: z.string(), salary: z.string() }))
+    .array(
+      z.object({
+        year: z.number().finite().nullable(),
+        salary: z.number().finite().nullable(),
+      }),
+    )
     .default([]),
   topEmployers: z
     .array(
       z.object({
         employer: z.string(),
-        year: z.string(),
-        satisfaction: z.string(),
+        year: z.number().finite().nullable(),
+        // Percentage (0–100 scale).
+        satisfaction: z.number().finite().nullable(),
       }),
     )
     .default([]),

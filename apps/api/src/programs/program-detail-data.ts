@@ -738,10 +738,14 @@ export async function buildProgramDetailData(
   const outcomesData: ProgramDetailData['outcomes'] =
     outcomes?.latest
       ? {
-          surveyYear: String(outcomes.latest.graduationYear),
+          surveyYear: outcomes.latest.graduationYear,
           methodologyVersion: outcomes.latest.methodologyVersion,
           freshnessDate: fmtDate(outcomes.latest.freshnessDate),
-          sampleSize: fmtNum(outcomes.latest.sampleSize),
+          sampleSize: outcomes.latest.sampleSize,
+          // `summary` stays the display-only KV table (unchanged);
+          // dedicated numeric fields below are the chart-facing
+          // companions — heterogeneous units (%, THB, %, %) don't fit
+          // one generic label/value array without losing the unit.
           summary: [
             {
               metric: 'Employment rate',
@@ -764,14 +768,18 @@ export async function buildProgramDetailData(
               notes: 'enrolled in postgraduate study',
             },
           ],
+          employmentRatePct: outcomes.latest.employmentRate * 100,
+          averageSalary: outcomes.latest.averageSalary,
+          jobRelevanceScorePct: outcomes.latest.jobRelevanceScore * 100,
+          furtherStudyRatePct: outcomes.latest.furtherStudyRate * 100,
           salaryTrajectory: outcomes.salaryTrajectory.map((p) => ({
-            year: String(p.graduationYear),
-            salary: fmtNum(p.averageSalary),
+            year: p.graduationYear,
+            salary: p.averageSalary,
           })),
           topEmployers: outcomes.topEmployers.slice(0, 15).map((e) => ({
             employer: e.name,
-            year: String(e.year),
-            satisfaction: fmtRatePct(e.satisfactionScore, 0),
+            year: e.year,
+            satisfaction: e.satisfactionScore * 100,
           })),
         }
       : null;

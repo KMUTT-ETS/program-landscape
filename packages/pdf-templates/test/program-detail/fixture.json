@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 4:32 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:33 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -733,10 +733,10 @@
     ]
   },
   "outcomes": {
-    "surveyYear": "2023",
+    "surveyYear": 2023,
     "methodologyVersion": "graduate-employment-survey.v1",
     "freshnessDate": "2026-05-04",
-    "sampleSize": "439",
+    "sampleSize": 439,
     "summary": [
       {
         "metric": "Employment rate",
@@ -759,34 +759,38 @@
         "notes": "enrolled in postgraduate study"
       }
     ],
+    "employmentRatePct": 67.43,
+    "averageSalary": 0,
+    "jobRelevanceScorePct": 72.3,
+    "furtherStudyRatePct": 10.71,
     "salaryTrajectory": [
       {
-        "year": "2019",
-        "salary": "0"
+        "year": 2019,
+        "salary": 0
       },
       {
-        "year": "2020",
-        "salary": "0"
+        "year": 2020,
+        "salary": 0
       },
       {
-        "year": "2021",
-        "salary": "0"
+        "year": 2021,
+        "salary": 0
       },
       {
-        "year": "2022",
-        "salary": "0"
+        "year": 2022,
+        "salary": 0
       },
       {
-        "year": "2023",
-        "salary": "0"
+        "year": 2023,
+        "salary": 0
       },
       {
-        "year": "2024",
-        "salary": "25,000"
+        "year": 2024,
+        "salary": 25000
       },
       {
-        "year": "2025",
-        "salary": "24,716"
+        "year": 2025,
+        "salary": 24716
       }
     ],
     "topEmployers": []

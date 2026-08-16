@@ -1198,4 +1198,225 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Outcomes ──────────────────────────────────────────────────────
+  describe('outcomes.surveyYear', () => {
+    function fixtureWith(surveyYear: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return { ...FIXTURE, outcomes: { ...outcomes, surveyYear } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2023)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('2023')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('outcomes.sampleSize', () => {
+    function fixtureWith(sampleSize: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return { ...FIXTURE, outcomes: { ...outcomes, sampleSize } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(439)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('439')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Outcomes: dedicated numeric fields alongside the display-only
+  //    `summary` KV table (heterogeneous units — %, THB, %, % — so a
+  //    generic label/value companion array would lose the unit). ───────
+  describe('outcomes.employmentRatePct', () => {
+    function fixtureWith(employmentRatePct: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return { ...FIXTURE, outcomes: { ...outcomes, employmentRatePct } };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(67.4)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('67.4%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('outcomes.averageSalary', () => {
+    function fixtureWith(averageSalary: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return { ...FIXTURE, outcomes: { ...outcomes, averageSalary } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(25000)).success).toBe(true);
+    });
+
+    it('accepts a genuine zero without collapsing it to "no data"', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(0)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('25,000')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('outcomes.jobRelevanceScorePct', () => {
+    function fixtureWith(jobRelevanceScorePct: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return { ...FIXTURE, outcomes: { ...outcomes, jobRelevanceScorePct } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(72.3)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('72%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('outcomes.furtherStudyRatePct', () => {
+    function fixtureWith(furtherStudyRatePct: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return { ...FIXTURE, outcomes: { ...outcomes, furtherStudyRatePct } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(10.71)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('11%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('outcomes.salaryTrajectory[].year / .salary', () => {
+    // Declared inline inside the array wrapper — the naive grep in the
+    // inventory's Step 1 missed these two fields; verified directly
+    // against the schema/builder instead.
+    function fixtureWith(year: unknown, salary: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: { salaryTrajectory: unknown[] } }).outcomes;
+      const salaryTrajectory = outcomes.salaryTrajectory;
+      return {
+        ...FIXTURE,
+        outcomes: {
+          ...outcomes,
+          salaryTrajectory: [
+            { ...(salaryTrajectory[0] as object), year, salary },
+            ...salaryTrajectory.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts numbers', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2024, 25000)).success).toBe(true);
+    });
+
+    it('accepts a genuine zero salary without collapsing it to "no data"', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2024, 0)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null, null)).success).toBe(true);
+    });
+
+    it('rejects formatted strings', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('2024', '25,000')).success).toBe(
+        false,
+      );
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN, 25000)).success).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('outcomes.topEmployers[].satisfaction', () => {
+    // Empty in the captured fixture (this program has no employer-feedback
+    // rows) — synthetic single-row array.
+    function fixtureWith(satisfaction: unknown): unknown {
+      const outcomes = (FIXTURE as { outcomes: object }).outcomes;
+      return {
+        ...FIXTURE,
+        outcomes: {
+          ...outcomes,
+          topEmployers: [{ employer: 'Example Co.', year: 2024, satisfaction }],
+        },
+      };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(85)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('85%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });
