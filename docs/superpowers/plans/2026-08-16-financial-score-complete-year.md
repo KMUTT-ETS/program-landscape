@@ -4,11 +4,94 @@
 > Raised by the user: the current year's tuition is still being collected, so scoring on it
 > understates every affected program.
 
+## FIRST — a naming hazard that has to be stated before anything else
+
+In Thailand these are **different periods**:
+
+- **Fiscal year** — 1 Oct to 30 Sep
+- **Academic year** — ~Jun to May
+
+`FinancialMetric.fiscalYear` is named for the first and **actually contains the second**. Verified in
+the connector, not inferred:
+
+| column | actual calendar | written from |
+|---|---|---|
+| `FinancialMetric.fiscalYear` | **academic** (Jun–May) | `f.ACADYEAR AS COHORT_YEAR_BE` → `kku-finance/connector.ts:79` → `:317`; also `link-program-financials.ts:123` → `:342` |
+| `FacultyBudget.fiscalYear` | **fiscal** (Oct–Sep) | `q2.FISCAL_YEAR_BE` → `kku-finance/connector.ts:340` |
+
+The same connector writes both, 23 lines apart, under the same column name. Anyone reading
+`fiscalYear` will reasonably assume Oct–Sep and be wrong for tuition and right for budget.
+
+Two pieces of corroboration that this is a naming problem and not a data problem:
+
+- `EnrollmentMetric.academicYear` (`schema.prisma:1311`) already uses the **correct** name for the
+  **same** calendar. The two tables describe the same period under different names.
+- The materialized views already union `financial_metrics.fiscal_year` with
+  `enrollment_metrics.academic_year` onto one `year` axis and join on it
+  (`20260505010000_canonical_programs_in_mvs/migration.sql:34, 74, 99`). Every rollup in the product
+  therefore *already assumes* these are the same calendar — correctly, but silently.
+
+**This is why the fix below is allowed to use the academic-year calendar** — not because the two
+calendars are interchangeable, but because the tuition year genuinely *is* an academic year. Had it
+been a true fiscal year, `academic-year.ts` would have been the wrong authority entirely and the rule
+would need an Oct–Sep completeness test instead.
+
+Two related observations, recorded rather than silently carried:
+
+- `allocatedFacultyCost` is a **point-in-time salary snapshot** (`SUM(SALARY) FROM EmployeeDetail`,
+  `link-program-financials.ts:11-13`) with no year dimension at all — the same figure is written
+  against every year row. It is deliberately **excluded from `netContribution`** (`:327-330`, salary
+  is government-funded and not netted), so it does not corrupt the score. But it is not a
+  year-specific cost and should not be read as one.
+- `directCost` is what `netContribution` actually subtracts. Its calendar basis should be confirmed
+  before anyone treats `netContribution` as a same-period figure.
+
+## How tuition actually accrues — and why 47% is exactly what it should be
+
+An academic year's tuition **straddles two fiscal years**:
+
+| AY 2026 (Jun 2026 – May 2027) | billed | falls in |
+|---|---|---|
+| Semester 1 | ~Jun 2026 | **FY2026** (Oct 2025 – Sep 2026) |
+| Semester 2 | ~Nov 2026 | **FY2027** (Oct 2026 – Sep 2027) |
+| Summer term | ~Apr 2027 | FY2027 |
+
+Today is Aug 2026. AY2026 has therefore billed **only semester 1**, which is why its tuition reads
+~47% of AY2025. **That is not an anomaly — it is exactly one semester of two.** A ratio-based
+"partial year" test is trying to detect, statistically, something the calendar already tells us
+deterministically.
+
+Measured against the 184 programs carrying both AY2025 and AY2026 rows:
+
+| statistic | AY2026 ÷ AY2025 |
+|---|---|
+| median | **0.437** — one semester of two, as predicted |
+| mean | 0.789 — pulled up by outliers |
+
+The median confirms the mechanism. **The gap between median and mean is the argument against any
+ratio rule:** a substantial tail of programs already reads near or above 100% of last year while
+still being only one semester billed — growing intakes, fee changes, a partial prior year. A
+threshold test waves every one of those through as "complete", and no choice of threshold fixes it,
+because the ratio simply does not carry the information.
+
+**This also defines when an academic year is revenue-complete:** not when it begins, and not when
+recruitment for it closes, but only after its final term has been billed — roughly a **full year
+after it starts**. AY2025 (Jun 2025 – May 2026) finished billing by ~Apr 2026 and is complete now;
+AY2026 will not be complete until ~mid-2027.
+
+**Consequence for the rule — read this before implementing.**
+`AcademicYearContext.latestCompleteEntryYearBE` means *recruitment* is finished, which happens at the
+**start** of an academic year. That is roughly a year earlier than *revenue* completeness. Using it
+directly would still select a half-billed year. The rule must therefore be expressed in terms of the
+in-flight year: **score on the latest academic year strictly before `currentAcademicYearBE`** — i.e.
+skip the year currently being taught. Today that yields AY2025, which is fully billed. Encode this
+reasoning in the helper's doc comment so nobody later "optimises" it back to the current year once it
+looks nearly full in May.
+
 ## The problem, measured
 
-`financial_metrics.fiscalYear` is the **academic** year (the kku-finance connector aggregates tuition
-per `ACADYEAR`, BE→CE converted). The current academic year is therefore *in flight*, and its tuition
-row only contains what has been collected so far.
+`financial_metrics.fiscalYear` holds the **academic** year (see above). The current academic year is
+therefore *in flight*, and its tuition row only contains what has been collected so far.
 
 Measured on the dev database today:
 
@@ -184,7 +267,31 @@ Project rule: a formula change bumps the methodology version, and the doc is ver
 
 ---
 
-## Task 5: Surface the choice to the reader
+## Task 5: Remove the fiscal-vs-academic ambiguity
+
+The bug above was possible because a column named `fiscalYear` holds an academic year. Leaving that
+in place guarantees someone re-derives the same wrong assumption — including a future session of
+mine, which is exactly how this plan's first draft got it right only by luck.
+
+Pick one, in order of preference:
+
+- [ ] **Preferred — rename the field to what it is.** `FinancialMetric.fiscalYear` →
+      `academicYear`, matching `EnrollmentMetric.academicYear` which already uses the correct name
+      for the same calendar. This is an additive-then-cutover migration touching the Prisma model,
+      the connector, `link-program-financials.ts`, both scorers, the MVs (`mv_*_metrics` select
+      `fiscal_year AS year`), the PDF schema and the deep-dive. Non-trivial — size it before
+      committing to it.
+- [ ] **Minimum — document it at every read site.** A doc comment on the Prisma field and on
+      `FacultyBudget.fiscalYear` stating which calendar each holds and that they differ. Cheap, and
+      strictly better than the current silence.
+
+Do **not** rename `FacultyBudget.fiscalYear` — that one is correctly named.
+
+- [ ] **Commit** — `refactor(db): name the academic-year column for the calendar it holds`
+
+---
+
+## Task 6: Surface the choice to the reader
 
 - [ ] **Step 1:** Deep-dive financials section: state which academic year the figures are from and,
       when one exists, that a later year is still in progress with its collected-so-far figure shown
