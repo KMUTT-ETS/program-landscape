@@ -38,6 +38,46 @@ describe('program-strategic-narrative v2 builder', () => {
     expect(u).toContain('GRADUATE OUTCOMES: data not available');
   });
 
+  it('renders EVERY nullable channel — including the 8 v1-era ones — as explicitly unavailable when null, never silently dropped', () => {
+    const allNull = {
+      ...FIXTURE_INPUT,
+      lifecycle: null,
+      health: null,
+      aiReadiness: null,
+      tcas: null,
+      financial: null,
+      demand: null,
+      demographic: null,
+      peerReview: null,
+      outcomes: null,
+      demandMatch: null,
+      trendSignals: [],
+      risk: null,
+      cohorts: null,
+    };
+    const u = buildProgramStrategicNarrativeMessages(allNull).find((m) => m.role === 'user')!
+      .content;
+    for (const header of [
+      'LIFECYCLE',
+      'HEALTH SCORE',
+      'AI READINESS',
+      'TCAS3 ADMISSIONS',
+      'FINANCIAL',
+      'DEMAND FUNNEL',
+      'DEMOGRAPHIC OUTLOOK',
+      'AI PEER REVIEW',
+      'GRADUATE OUTCOMES',
+      'LABOUR-MARKET DEMAND',
+      'TREND SIGNALS',
+      'RISK',
+      'COHORT',
+    ]) {
+      expect(u, `${header} should render "data not available" when null`).toContain(
+        `${header}: data not available`,
+      );
+    }
+  });
+
   it('keeps the hard structural rules from v1', () => {
     for (const marker of [
       'No greetings, no closings',

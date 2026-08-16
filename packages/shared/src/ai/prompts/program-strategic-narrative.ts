@@ -239,6 +239,8 @@ No prose outside the JSON. No markdown fences around the JSON.`;
     blocks.push(`LIFECYCLE
   Verdict:         ${input.lifecycle.verdict}
   Trajectory:      ${input.lifecycle.trajectoryScore.toFixed(0)} / 100`);
+  } else {
+    blocks.push('LIFECYCLE: data not available');
   }
   if (input.health) {
     blocks.push(`HEALTH SCORE (v3.0, ${input.health.completenessPct.toFixed(0)}% data)
@@ -248,6 +250,8 @@ No prose outside the JSON. No markdown fences around the JSON.`;
   Capability:      ${fmt(input.health.capability)}
   Outcomes:        ${fmt(input.health.outcomes)}
   Relevance:       ${fmt(input.health.relevance)}`);
+  } else {
+    blocks.push('HEALTH SCORE: data not available');
   }
   if (input.aiReadiness) {
     blocks.push(`AI READINESS (v1)
@@ -256,18 +260,24 @@ No prose outside the JSON. No markdown fences around the JSON.`;
   Skill resilience:        ${input.aiReadiness.skillResilience.toFixed(0)}
   Research presence:       ${input.aiReadiness.researchPresence.toFixed(0)}
   AI-native skills:        ${input.aiReadiness.aiSkillCount} of ${input.aiReadiness.totalSkills}`);
+  } else {
+    blocks.push('AI READINESS: data not available');
   }
   if (input.tcas) {
     blocks.push(`TCAS3 ADMISSIONS (BE ${input.tcas.latestYearBE})
   Competition ratio:  ${input.tcas.competitionRatio.toFixed(2)}x
   Fill rate:          ${(input.tcas.fillRate * 100).toFixed(1)}%
   Min admission:      ${fmt(input.tcas.minScore, '', 2)}`);
+  } else {
+    blocks.push('TCAS3 ADMISSIONS: data not available');
   }
   if (input.financial) {
     blocks.push(`FINANCIAL (FY ${input.financial.fiscalYear})
   Tuition revenue:           THB ${fmtInt(input.financial.tuitionRevenueThb)}
   Net contrib / student:     THB ${fmtInt(input.financial.netContributionPerStudent)}
   Government salary subsidy: THB ${fmtInt(input.financial.governmentFacultySubsidyThb)} / yr`);
+  } else {
+    blocks.push('FINANCIAL: data not available');
   }
   if (input.demand) {
     blocks.push(`DEMAND FUNNEL (anchor cohort BE ${input.demand.anchorEntryYearBE})
@@ -276,12 +286,16 @@ No prose outside the JSON. No markdown fences around the JSON.`;
   Graduated:       ${input.demand.graduated}
   Dropped:         ${input.demand.droppedTotal}
   Still enrolled:  ${input.demand.stillEnrolled}`);
+  } else {
+    blocks.push('DEMAND FUNNEL: data not available');
   }
   if (input.demographic) {
     blocks.push(`DEMOGRAPHIC OUTLOOK (${input.demographic.regionLabel})
   +10y required share:       ${input.demographic.requiredShareAt10Y === null ? 'n/d' : (input.demographic.requiredShareAt10Y * 100).toFixed(3) + '%'}
   +15y cohort contraction:   ${input.demographic.fifteenYearContractionPct.toFixed(1)}%
   Risk level:                ${input.demographic.riskLevel}`);
+  } else {
+    blocks.push('DEMOGRAPHIC OUTLOOK: data not available');
   }
   if (input.peerReview) {
     blocks.push(`AI PEER REVIEW
@@ -289,6 +303,8 @@ No prose outside the JSON. No markdown fences around the JSON.`;
   Top strength claim:        ${input.peerReview.topStrength}
   Top weakness claim:        ${input.peerReview.topWeakness}
   Subject benchmark summary: ${input.peerReview.subjectBenchmarkSummary}`);
+  } else {
+    blocks.push('AI PEER REVIEW: data not available');
   }
 
   if (input.outcomes) {
