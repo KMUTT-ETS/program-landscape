@@ -159,6 +159,25 @@ describe('LineTrend', () => {
     ).toThrow(RangeError);
   });
 
+  // Opt-in tick formatting — added for series with large magnitudes (e.g.
+  // cohort population in the millions), where a raw tick value like
+  // '3500000' is unreadable on paper. Default (no formatTick) must stay
+  // byte-identical to the pre-existing behaviour — see the golden snapshot
+  // test above, which passes formatTick undefined.
+  it('formats y-axis ticks through formatTick when supplied', () => {
+    const html = renderToStaticMarkup(
+      <LineTrend
+        points={POINTS}
+        provenance={PROV}
+        title="Outcomes"
+        formatTick={(v) => `${v}!!`}
+      />,
+    );
+    const yValues = POINTS.map((p) => p.y);
+    const expectedTicks = niceTicks(Math.min(...yValues), Math.max(...yValues), 5);
+    for (const t of expectedTicks) expect(html).toContain(`>${t}!!<`);
+  });
+
   // Every point present but every y null: genuinely nothing to plot — same
   // "data gap, not zero" posture as the empty-array case, not a flat line at 0.
   it('renders the empty state when every y is null', () => {

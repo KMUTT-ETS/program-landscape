@@ -26,6 +26,14 @@ export interface LineTrendProps extends Omit<ChartCommonProps, 'heightMm'> {
   bottomAxisHeightMm?: number;
   /** Ticks requested from niceTicks() for the y axis. */
   yTickCount?: number;
+  /**
+   * Formats each y-axis tick value for display. Defaults to the tick's raw
+   * number (this primitive's original behaviour) — pass this when the axis
+   * spans large magnitudes (e.g. cohort population in the millions) so
+   * ticks read '3.5M' rather than '3500000'. Opt-in so existing callers at
+   * the default are unaffected.
+   */
+  formatTick?: (value: number) => string;
 }
 
 const MARKER_RADIUS_MM = 1.1;
@@ -83,6 +91,7 @@ export function LineTrend({
   leftGutterMm = 14,
   bottomAxisHeightMm = 8,
   yTickCount = 5,
+  formatTick,
   emptyNote,
 }: LineTrendProps): React.ReactElement {
   if (points.length === 0) {
@@ -173,7 +182,7 @@ export function LineTrend({
                 stroke={INK.rule} strokeWidth={pt(0.5)} />
           <text x={leftGutterMm - 2.5} y={y(t) + LABEL.axis * 0.35} textAnchor="end"
                 fontSize={LABEL.axis} fontFamily={LABEL.fontFamily} fill={INK.muted}>
-            {t}
+            {formatTick ? formatTick(t) : t}
           </text>
         </g>
       ))}

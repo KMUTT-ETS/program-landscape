@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatCohortChangePct,
+  formatCompactNumber,
   formatCount,
   formatPct,
   formatScore,
@@ -122,5 +123,40 @@ describe('formatCount', () => {
 
   it('renders a real zero count as "0", not an em dash', () => {
     expect(formatCount(0)).toBe('0');
+  });
+});
+
+// The regression this exists for: LineTrend rendered raw cohort-population
+// ticks as '3500000' — unreadable on a printed axis. Values here are drawn
+// from real fixture magnitudes (demographic.projections[].cohortPopulation).
+describe('formatCompactNumber', () => {
+  it('abbreviates millions to two decimal places', () => {
+    expect(formatCompactNumber(1_250_000)).toBe('1.25M');
+    expect(formatCompactNumber(3_982_000)).toBe('3.98M');
+  });
+
+  it('abbreviates thousands to one decimal place', () => {
+    expect(formatCompactNumber(12_400)).toBe('12.4K');
+  });
+
+  it('renders sub-thousand values as a plain rounded integer', () => {
+    expect(formatCompactNumber(940)).toBe('940');
+  });
+
+  it('drops fake trailing precision on a round number', () => {
+    expect(formatCompactNumber(2_000_000)).toBe('2M');
+    expect(formatCompactNumber(5_000)).toBe('5K');
+  });
+
+  it('renders an em dash for null, never "0" or the literal "null"', () => {
+    expect(formatCompactNumber(null)).toBe('—');
+  });
+
+  it('renders an em dash for non-finite input rather than "NaN"', () => {
+    expect(formatCompactNumber(Number.NaN)).toBe('—');
+  });
+
+  it('renders a real zero as "0", not an em dash', () => {
+    expect(formatCompactNumber(0)).toBe('0');
   });
 });

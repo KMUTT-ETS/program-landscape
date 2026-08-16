@@ -58,3 +58,25 @@ export function formatCount(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return EM_DASH;
   return Math.round(value).toLocaleString('en-US');
 }
+
+/** Rounds to 3 significant figures and drops any fake trailing precision
+ * (`toPrecision` pads with zeros — `parseFloat` strips them back off, so a
+ * round number like 2,000,000 reads '2M', not '2.00M'). */
+function threeSigFigs(n: number): string {
+  return String(parseFloat(n.toPrecision(3)));
+}
+
+// A large magnitude (cohort population, budget figures) abbreviated with a
+// K/M suffix — '1250000' as '1.25M', not six raw digits a Council reader has
+// to count. Distinct from `formatCount`, which is for headcounts small
+// enough that thousands-separated digits are still the more readable form
+// (a table of 12 applicants doesn't want '12'; a chart axis spanning
+// millions doesn't want '3500000'). Used at render time by charts whose
+// y-axis spans this range — see `LineTrend`'s `formatTick` prop.
+export function formatCompactNumber(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return EM_DASH;
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${threeSigFigs(value / 1_000_000)}M`;
+  if (abs >= 1_000) return `${threeSigFigs(value / 1_000)}K`;
+  return String(Math.round(value));
+}
