@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatCohortChangePct } from '../../src/templates/program-detail/format';
+import {
+  formatCohortChangePct,
+  formatCount,
+  formatPct,
+  formatScore,
+} from '../../src/templates/program-detail/format';
 
 // `cohortDeclinePct` = ((anchor - population) / anchor) * 100.
 // POSITIVE means the cohort is shrinking; NEGATIVE means it is growing.
@@ -41,5 +46,81 @@ describe('formatCohortChangePct', () => {
   it('returns an em dash rather than "NaN%" for non-finite input', () => {
     expect(formatCohortChangePct(Number.NaN)).toBe('—');
     expect(formatCohortChangePct(Number.POSITIVE_INFINITY)).toBe('—');
+  });
+});
+
+// The shared render-time formatters every section reuses from here on —
+// health/lifecycle/AI-readiness dimension scores, percentages, counts.
+// The rule that matters for all three: null is an em dash, never '0' and
+// never the literal string 'null' — a null score means the methodology
+// deliberately excluded that dimension from the average (see the
+// null-handling rule at the top of schema.ts), and this document is used
+// to close programs, so a substituted 0 asserts a measurement that was
+// never taken.
+describe('formatScore', () => {
+  it('renders a whole-number score', () => {
+    expect(formatScore(72)).toBe('72');
+  });
+
+  it('rounds a fractional score', () => {
+    expect(formatScore(71.6)).toBe('72');
+    expect(formatScore(71.4)).toBe('71');
+  });
+
+  it('renders an em dash for null, never "0" or the literal "null"', () => {
+    expect(formatScore(null)).toBe('—');
+  });
+
+  it('renders an em dash for non-finite input rather than "NaN"', () => {
+    expect(formatScore(Number.NaN)).toBe('—');
+    expect(formatScore(Number.POSITIVE_INFINITY)).toBe('—');
+  });
+
+  it('renders a real zero as "0", not an em dash — a measured zero is data', () => {
+    expect(formatScore(0)).toBe('0');
+  });
+});
+
+describe('formatPct', () => {
+  it('renders a whole-number percentage by default', () => {
+    expect(formatPct(45.6)).toBe('46%');
+  });
+
+  it('honours an explicit decimal-place count', () => {
+    expect(formatPct(45.649, 1)).toBe('45.6%');
+  });
+
+  it('renders an em dash for null, never "0%" or the literal "null"', () => {
+    expect(formatPct(null)).toBe('—');
+  });
+
+  it('renders an em dash for non-finite input', () => {
+    expect(formatPct(Number.NaN)).toBe('—');
+  });
+
+  it('renders a real zero percent as "0%", not an em dash', () => {
+    expect(formatPct(0)).toBe('0%');
+  });
+});
+
+describe('formatCount', () => {
+  it('renders a thousands-separated integer', () => {
+    expect(formatCount(12345)).toBe('12,345');
+  });
+
+  it('rounds a fractional count', () => {
+    expect(formatCount(1234.6)).toBe('1,235');
+  });
+
+  it('renders an em dash for null, never "0" or the literal "null"', () => {
+    expect(formatCount(null)).toBe('—');
+  });
+
+  it('renders an em dash for non-finite input', () => {
+    expect(formatCount(Number.NaN)).toBe('—');
+  });
+
+  it('renders a real zero count as "0", not an em dash', () => {
+    expect(formatCount(0)).toBe('0');
   });
 });

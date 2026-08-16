@@ -136,11 +136,71 @@ export const magazineCss = `
   color: #9c1d2e;
   line-height: 1.1;
 }
+/* A null figure (a dimension the methodology deliberately excluded, or a
+   section with no data yet) is still 28pt/700 — same weight and size as
+   a real one, so the triage read stays fast — but muted grey rather than
+   cardinal, so it doesn't read as a measured value. Needs its own rule:
+   .stat-value and .muted (base-css.ts) are equal-specificity single-
+   class selectors, and .stat-value's cardinal color would otherwise
+   win the cascade since magazine-css.ts loads after base-css.ts. */
+.stat-block .stat-value.muted {
+  color: #555;
+}
 .stat-block .stat-label {
   margin-top: 3pt;
   font-size: 11pt;
   color: #555;
   text-align: center;
+}
+
+/* ── Deep-dive cover identity band ─────────────────────────────── */
+/* Program-detail's cover carries its identity on a KKU Cardinal band —
+   distinct from the plain, centered .cover-page used by council-pack
+   etc. Reuses .cover-page's outer page shell and .title-th/.title-en
+   typography from base-css.ts (only overriding color for contrast
+   against the band); everything else here is new. */
+.cover-band {
+  width: 100%;
+  background: #9c1d2e;
+  color: #fff;
+  padding: 30pt 20pt;
+  border-radius: 4pt;
+}
+.cover-band .title-th,
+.cover-band .title-en {
+  color: #fff;
+}
+.cover-kicker {
+  font-size: 11pt;
+  font-weight: 500;
+  letter-spacing: 0.5pt;
+  text-transform: uppercase;
+  color: #f2d9dd;
+  margin: 0 0 12pt 0;
+}
+.cover-code {
+  font-size: 13pt;
+  font-weight: 600;
+  letter-spacing: 0.5pt;
+  margin: 12pt 0 0 0;
+}
+.cover-faculty {
+  font-size: 13pt;
+  color: #f2d9dd;
+  margin: 4pt 0 0 0;
+}
+.cover-standfirst {
+  font-size: 14pt;
+  line-height: 1.7;
+  color: #333;
+  max-width: 140mm;
+  margin: 18pt auto 0 auto;
+}
+.cover-foot {
+  margin-top: 24pt;
+}
+.cover-foot p {
+  margin: 2pt 0;
 }
 
 /* ── Appendix ───────────────────────────────────────────────────── */
