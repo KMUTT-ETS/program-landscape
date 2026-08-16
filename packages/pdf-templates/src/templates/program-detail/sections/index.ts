@@ -1,0 +1,63 @@
+import * as React from 'react';
+
+import type { ProgramDetailData } from '../schema';
+import { renderAiReadinessSection } from './ai-readiness';
+import { renderCohortDistributionSection } from './cohort-distribution';
+import { renderCoursesSection } from './courses';
+import { renderDecisionsSection } from './decisions';
+import { renderDemandFunnelSection } from './demand-funnel';
+import { renderDemographicOutlookSection } from './demographic-outlook';
+import { renderFacultySection } from './faculty';
+import { renderFinancialsSection } from './financials';
+import { renderHealthScoreSection } from './health-score';
+import { renderLifecycleSection } from './lifecycle';
+import { renderOutcomesSection } from './outcomes';
+import { renderPeersSection } from './peers';
+import { renderRecruitmentSection } from './recruitment';
+import { renderSkillsSection } from './skills';
+import { renderStrategicNarrativeSection } from './strategic-narrative';
+import { renderTcasSection } from './tcas';
+import { renderTrendsSection } from './trends';
+
+export interface NumberedSection {
+  id: string;
+  /**
+   * True for the 11 sections whose body is chart-led (a chart carries the
+   * interpretive load; the exact figures move to the back-matter
+   * appendix). False for the 2 prose sections and the 4 reference-table
+   * sections (course list, trend exposure, council decisions, peer
+   * institutions) — those already show every figure in the body, so they
+   * contribute nothing to the appendix (see appendix.tsx).
+   */
+  chartLed: boolean;
+  render(data: ProgramDetailData): React.ReactElement | null;
+}
+
+// Single source of truth for the deep-dive's numbered section sequence —
+// every section here (cover excluded; it has no `.section-opener` and is
+// never numbered) renders inside the shared `.program-body` counter scope
+// in this exact order. Both `template.tsx` (body assembly, Task 7) and
+// `appendix.tsx` (back-matter index computation, Task 6) import this same
+// array so the two can never drift out of sync — a reordered or newly
+// null-returning section renumbers both the body's §NN and the appendix's
+// B.NN cross-references automatically, because both derive the same
+// running index from the same call to the same `render()` function.
+export const SECTIONS: NumberedSection[] = [
+  { id: 'health-score', chartLed: true, render: renderHealthScoreSection },
+  { id: 'lifecycle', chartLed: false, render: renderLifecycleSection },
+  { id: 'strategic-narrative', chartLed: false, render: renderStrategicNarrativeSection },
+  { id: 'ai-readiness', chartLed: true, render: renderAiReadinessSection },
+  { id: 'demand-funnel', chartLed: true, render: renderDemandFunnelSection },
+  { id: 'recruitment', chartLed: true, render: renderRecruitmentSection },
+  { id: 'tcas', chartLed: true, render: renderTcasSection },
+  { id: 'cohort-distribution', chartLed: true, render: renderCohortDistributionSection },
+  { id: 'demographic-outlook', chartLed: true, render: renderDemographicOutlookSection },
+  { id: 'outcomes', chartLed: true, render: renderOutcomesSection },
+  { id: 'skills', chartLed: true, render: renderSkillsSection },
+  { id: 'courses', chartLed: false, render: renderCoursesSection },
+  { id: 'faculty', chartLed: true, render: renderFacultySection },
+  { id: 'financials', chartLed: true, render: renderFinancialsSection },
+  { id: 'peers', chartLed: false, render: renderPeersSection },
+  { id: 'trends', chartLed: false, render: renderTrendsSection },
+  { id: 'decisions', chartLed: false, render: renderDecisionsSection },
+];
