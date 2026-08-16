@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 2:07 AM",
+  "generatedAtLabel": "August 16, 2026 at 2:08 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -275,7 +275,7 @@
     "generatedAt": "2026-05-03"
   },
   "aiReadiness": {
-    "overallScore": "35",
+    "overallScore": 35,
     "verdict": "Low AI readiness",
     "summary": "Strategic awareness of AI exists, but technical implementation in the core curriculum appears limited.",
     "methodologyVersion": "program-ai-readiness.v2",
@@ -301,26 +301,44 @@
         "notes": "data not yet collected"
       }
     ],
+    "subScoreValues": [
+      {
+        "label": "Curriculum integration",
+        "score": 0
+      },
+      {
+        "label": "Skill resilience",
+        "score": 83.33333333333333
+      },
+      {
+        "label": "AI research presence",
+        "score": 0
+      },
+      {
+        "label": "Pedagogical readiness",
+        "score": null
+      }
+    ],
     "skillBreakdown": [
       {
         "category": "AI-native",
-        "count": "0",
-        "share": "0%"
+        "count": 0,
+        "share": 0
       },
       {
         "category": "AI-augmented",
-        "count": "4",
-        "share": "67%"
+        "count": 4,
+        "share": 67
       },
       {
         "category": "Neutral",
-        "count": "2",
-        "share": "33%"
+        "count": 2,
+        "share": 33
       },
       {
         "category": "AI-displaceable",
-        "count": "0",
-        "share": "0%"
+        "count": 0,
+        "share": 0
       }
     ],
     "gaps": [

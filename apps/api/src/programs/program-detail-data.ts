@@ -426,7 +426,7 @@ export async function buildProgramDetailData(
         const horizonLabel = (h: 'short' | 'medium' | 'long') =>
           h === 'short' ? '< 12 months' : h === 'medium' ? '12–24 months' : '24–36 months';
         return {
-          overallScore: String(Math.round(aiReadiness.overallScore)),
+          overallScore: Math.round(aiReadiness.overallScore),
           verdict,
           summary: aiReadiness.summary ?? '',
           methodologyVersion: aiReadiness.methodologyVersion,
@@ -467,39 +467,57 @@ export async function buildProgramDetailData(
                   : 'how staff and students adopt AI tools',
             },
           ],
+          // Dedicated numeric companion to `subScores` above, same row
+          // order, for the chart-led rebuild. null for the 'no data'
+          // sentinel case (Pedagogical readiness today) instead of a
+          // string a chart axis can't consume.
+          subScoreValues: [
+            {
+              label: 'Curriculum integration',
+              score: aiReadiness.subScores.curriculumIntegration,
+            },
+            {
+              label: 'Skill resilience',
+              score: aiReadiness.subScores.skillResilience,
+            },
+            {
+              label: 'AI research presence',
+              score: aiReadiness.subScores.researchPresence,
+            },
+            {
+              label: 'Pedagogical readiness',
+              score: aiReadiness.subScores.pedagogicalReadiness,
+            },
+          ],
           skillBreakdown:
             totalSkills > 0
               ? [
                   {
                     category: 'AI-native',
-                    count: String(aiReadiness.skillBreakdown.aiNative),
-                    share: fmtPct(
+                    count: aiReadiness.skillBreakdown.aiNative,
+                    share: Math.round(
                       (aiReadiness.skillBreakdown.aiNative / totalSkills) * 100,
-                      0,
                     ),
                   },
                   {
                     category: 'AI-augmented',
-                    count: String(aiReadiness.skillBreakdown.aiAugmented),
-                    share: fmtPct(
+                    count: aiReadiness.skillBreakdown.aiAugmented,
+                    share: Math.round(
                       (aiReadiness.skillBreakdown.aiAugmented / totalSkills) * 100,
-                      0,
                     ),
                   },
                   {
                     category: 'Neutral',
-                    count: String(aiReadiness.skillBreakdown.neutral),
-                    share: fmtPct(
+                    count: aiReadiness.skillBreakdown.neutral,
+                    share: Math.round(
                       (aiReadiness.skillBreakdown.neutral / totalSkills) * 100,
-                      0,
                     ),
                   },
                   {
                     category: 'AI-displaceable',
-                    count: String(aiReadiness.skillBreakdown.aiDisplaceable),
-                    share: fmtPct(
+                    count: aiReadiness.skillBreakdown.aiDisplaceable,
+                    share: Math.round(
                       (aiReadiness.skillBreakdown.aiDisplaceable / totalSkills) * 100,
-                      0,
                     ),
                   },
                 ]

@@ -59,17 +59,33 @@ const StrategicNarrativeSchema = z.object({
 });
 
 const AiReadinessSchema = z.object({
-  overallScore: z.string(),
+  overallScore: z.number().finite().nullable(),
   verdict: z.string(),
   summary: z.string().default(''),
   methodologyVersion: z.string(),
+  // Display-only KV rows (metric label + pre-formatted value + note) —
+  // stays a KvRowSchema array per the decision at the top of this file.
+  // `value` on this array carries the literal 'no data' sentinel string
+  // for the unmeasured Pedagogical-readiness row today; it is text, not
+  // parsed back out.
   subScores: z.array(KvRowSchema).default([]),
+  // Dedicated numeric companion to `subScores` above, in row order, for
+  // the chart-led rebuild (BarsH). `score` is null for the 'no data'
+  // case instead of the sentinel string.
+  subScoreValues: z
+    .array(
+      z.object({
+        label: z.string(),
+        score: z.number().finite().nullable(),
+      }),
+    )
+    .default([]),
   skillBreakdown: z
     .array(
       z.object({
         category: z.string(),
-        count: z.string(),
-        share: z.string(),
+        count: z.number().finite().nullable(),
+        share: z.number().finite().nullable(),
       }),
     )
     .default([]),

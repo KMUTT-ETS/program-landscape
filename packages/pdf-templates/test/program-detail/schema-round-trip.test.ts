@@ -234,4 +234,134 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── AI readiness: overallScore ──────────────────────────────────────
+  describe('aiReadiness.overallScore', () => {
+    function fixtureWith(overallScore: unknown): unknown {
+      const aiReadiness = (FIXTURE as { aiReadiness: object }).aiReadiness;
+      return { ...FIXTURE, aiReadiness: { ...aiReadiness, overallScore } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(62)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('62')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── AI readiness: skillBreakdown[].count / share ────────────────────
+  describe('aiReadiness.skillBreakdown[].count', () => {
+    function fixtureWith(count: unknown): unknown {
+      const aiReadiness = (FIXTURE as { aiReadiness: { skillBreakdown: unknown[] } }).aiReadiness;
+      const breakdown = aiReadiness.skillBreakdown;
+      return {
+        ...FIXTURE,
+        aiReadiness: {
+          ...aiReadiness,
+          skillBreakdown: [{ ...(breakdown[0] as object), count }, ...breakdown.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(4)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('4')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('aiReadiness.skillBreakdown[].share', () => {
+    function fixtureWith(share: unknown): unknown {
+      const aiReadiness = (FIXTURE as { aiReadiness: { skillBreakdown: unknown[] } }).aiReadiness;
+      const breakdown = aiReadiness.skillBreakdown;
+      return {
+        ...FIXTURE,
+        aiReadiness: {
+          ...aiReadiness,
+          skillBreakdown: [{ ...(breakdown[0] as object), share }, ...breakdown.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(67)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('67%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── AI readiness: subScoreValues[].score — new dedicated numeric field.
+  //    KvRowSchema subScores[] stays a display-only row per the decision
+  //    not to split KvRowSchema; the fixture's real payload already has
+  //    a genuine null here (Pedagogical readiness — the 'no data' case)
+  //    and genuine zeros (Curriculum integration, AI research presence)
+  //    side by side, which is exactly the zero-vs-null distinction this
+  //    refactor exists to preserve. ───────────────────────────────────
+  describe('aiReadiness.subScoreValues[].score', () => {
+    function fixtureWith(score: unknown): unknown {
+      const aiReadiness = (FIXTURE as { aiReadiness: { subScoreValues: unknown[] } }).aiReadiness;
+      const values = aiReadiness.subScoreValues;
+      return {
+        ...FIXTURE,
+        aiReadiness: {
+          ...aiReadiness,
+          subScoreValues: [{ ...(values[0] as object), score }, ...values.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(48)).success).toBe(true);
+    });
+
+    it('accepts null (the "no data" sentinel case)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('accepts a genuine zero without collapsing it to "no data"', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(0)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('48')).success).toBe(false);
+    });
+
+    it('rejects the "no data" sentinel string itself', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('no data')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });
