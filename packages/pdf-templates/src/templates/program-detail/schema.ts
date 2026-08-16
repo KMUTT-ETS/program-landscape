@@ -428,7 +428,7 @@ export const ProgramDetailDataSchema = z.object({
   facultyEn: z.string(),
   departmentTh: z.string().default(''),
   departmentEn: z.string().default(''),
-  yearEstablished: z.string().default(''),
+  yearEstablished: z.number().finite().nullable().default(null),
   dateLabel: z.string(),
   generatedAtLabel: z.string(),
   methodologyVersion: z.string(),

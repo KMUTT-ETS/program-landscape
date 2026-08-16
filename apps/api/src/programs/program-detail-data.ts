@@ -255,9 +255,7 @@ export async function buildProgramDetailData(
     facultyEn: overview.program.faculty.nameEn,
     departmentTh: overview.program.department?.nameTh ?? '',
     departmentEn: overview.program.department?.nameEn ?? '',
-    yearEstablished: overview.program.yearEstablished
-      ? String(overview.program.yearEstablished)
-      : '',
+    yearEstablished: overview.program.yearEstablished ?? null,
     dateLabel: fmtDate(overview.health?.latestFreshness ?? generatedAt),
     generatedAtLabel: generatedAt.toLocaleString('en-US', {
       dateStyle: 'long',

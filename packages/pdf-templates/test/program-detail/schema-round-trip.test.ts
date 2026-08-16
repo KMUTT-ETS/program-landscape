@@ -22,4 +22,27 @@ describe('ProgramDetailDataSchema', () => {
     if (!parsed.success) console.error(parsed.error.issues.slice(0, 10));
     expect(parsed.success).toBe(true);
   });
+
+  // ── Cover: yearEstablished ─────────────────────────────────────────
+  describe('cover.yearEstablished', () => {
+    function fixtureWith(yearEstablished: unknown): unknown {
+      return { ...FIXTURE, yearEstablished };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(1998)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('1998')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

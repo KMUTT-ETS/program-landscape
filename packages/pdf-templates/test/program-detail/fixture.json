@@ -8,9 +8,9 @@
   "facultyEn": "Faculty of Engineering",
   "departmentTh": "",
   "departmentEn": "",
-  "yearEstablished": "",
+  "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 2:02 AM",
+  "generatedAtLabel": "August 16, 2026 at 2:03 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
