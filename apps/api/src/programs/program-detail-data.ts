@@ -1045,13 +1045,17 @@ export async function buildProgramDetailData(
   const trendsData: ProgramDetailData['trends'] = trends
     ? trends.signals.map((s) => {
         const rec = trendRecommendation(s);
-        const impactWord =
+        const impactBucket =
           s.impactScore > 0.7 ? 'High' : s.impactScore > 0.4 ? 'Moderate' : 'Low';
         return {
           title: s.title,
           type: SIGNAL_KIND_LABEL[s.signalType] ?? s.signalType,
           targeted: s.isTargetedAtProgram ? 'Targets this program' : 'Sector-wide',
-          impact: `${(s.impactScore * 100).toFixed(0)} (${impactWord})`,
+          // impactScore is a 0–1 fraction upstream; × 100 to match this
+          // schema's percentage-scale convention. See the schema.ts
+          // comment on impactScorePct before touching this again.
+          impactScorePct: s.impactScore * 100,
+          impactBucket,
           recommendation: rec.label,
           detected: fmtDate(s.detectedDate),
           rationale: rec.rationale,

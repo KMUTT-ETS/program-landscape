@@ -1974,4 +1974,48 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Trends ────────────────────────────────────────────────────────
+  describe('trends[].impactScorePct (split from the old compound "72 (High)")', () => {
+    // impactScore is a 0–1 fraction upstream and MUST be × 100 here to
+    // land on this schema's percentage-scale convention. This guards
+    // against exactly the double-scaling bug batch 2 found on
+    // alumniBreakdown[].share (already 0–100, run through a ×100 helper
+    // anyway, rendering 12.3% as "1230.0%").
+    function fixtureWith(impactScorePct: unknown): unknown {
+      const trends = (FIXTURE as { trends: unknown[] }).trends;
+      return { ...FIXTURE, trends: [{ ...(trends[0] as object), impactScorePct }, ...trends.slice(1)] };
+    }
+
+    it('accepts a 0–100-scale number (upstream fraction × 100)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(82)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old compound "72 (High)" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('72 (High)')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('trends[].impactBucket (split from the old compound field, stays DISPLAY)', () => {
+    function fixtureWith(impactBucket: unknown): unknown {
+      const trends = (FIXTURE as { trends: unknown[] }).trends;
+      return { ...FIXTURE, trends: [{ ...(trends[0] as object), impactBucket }, ...trends.slice(1)] };
+    }
+
+    it('accepts the bucket label', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('High')).success).toBe(true);
+    });
+
+    it('rejects a number — this field stays a display label', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(82)).success).toBe(false);
+    });
+  });
 });

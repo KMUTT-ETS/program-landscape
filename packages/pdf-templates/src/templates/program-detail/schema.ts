@@ -564,8 +564,19 @@ const PeersSchema = z.object({
 const TrendsRowSchema = z.object({
   title: z.string(),
   type: z.string(),
+  // Binary label derived from the boolean `isTargetedAtProgram`. Stays
+  // DISPLAY per the schema inventory — a convenience discriminator, not
+  // a number wearing a string costume.
   targeted: z.string(),
-  impact: z.string(),
+  // Was a single compound string ("72 (High)"). Split into the numeric
+  // score and the bucket label. `impactScore` is a 0–1 fraction
+  // upstream; this is × 100 here to match the rest of the schema's
+  // percentage-scale convention (0–100) — do NOT multiply again at
+  // render time. That exact double-scaling mistake is what batch 2
+  // found and fixed on `demandFunnel.alumniBreakdown[].share`, which
+  // was already 0–100 and got run through a ×100 helper anyway.
+  impactScorePct: z.number().finite().nullable(),
+  impactBucket: z.string(),
   recommendation: z.string(),
   detected: z.string(),
   rationale: z.string().default(''),
