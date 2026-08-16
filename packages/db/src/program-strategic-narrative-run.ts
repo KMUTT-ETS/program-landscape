@@ -6,6 +6,7 @@ import {
 } from '@kku/shared';
 import { prisma } from './index';
 import { computeHealthScores } from './health-score';
+import { realDataWhere } from './data-quality';
 import {
   programAiReadiness,
   programDemandFunnel,
@@ -13,6 +14,9 @@ import {
   programLifecycleVerdict,
   programTcasStats,
   programFinancials,
+  programOutcomes,
+  programTrends,
+  programStudentCohorts,
 } from './program-deep-dive';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +81,11 @@ export async function generateProgramStrategicNarrative(
     demand,
     demographic,
     peerReviewRow,
+    outcomes,
+    trends,
+    cohorts,
+    demandMatchSummary,
+    riskRow,
   ] = await Promise.all([
     computeHealthScores('program', program.id),
     programAiReadiness(program.id),
@@ -86,6 +95,22 @@ export async function generateProgramStrategicNarrative(
     programDemandFunnel(program.id),
     programDemographicOutlook(program.id),
     prisma.programPeerReview.findUnique({ where: { programId: program.id } }),
+    programOutcomes(program.id),
+    programTrends(program.id),
+    programStudentCohorts(program.id),
+    fetchDemandMatchSummary(program.id),
+    prisma.riskAssessment.findFirst({
+      where: { programId: program.id },
+      orderBy: { assessedAt: 'desc' },
+      select: {
+        compositeScore: true,
+        l1RecruitmentScore: true,
+        l2AiDisruptionScore: true,
+        l3DemographicScore: true,
+        directRevenueAtRiskThb: true,
+        strandedCostThb: true,
+      },
+    }),
   ]);
 
   const health = healthRows[0] ?? null;
@@ -198,6 +223,44 @@ export async function generateProgramStrategicNarrative(
           subjectBenchmarkSummary: peerReviewPayload.subjectBenchmarkSummary ?? '',
         }
       : null,
+    // outcomes.latest is graduationYear-anchored (programOutcomes() doesn't
+    // return a distinct surveyYear on the latest row); rendered in the
+    // prompt as "cohort graduation year" so the label stays accurate.
+    outcomes: outcomes.latest
+      ? {
+          surveyYear: outcomes.latest.graduationYear,
+          // GraduateOutcome.employmentRate / furtherStudyRate are stored
+          // 0..1 (same convention health-score.ts's outcomes driver
+          // converts from) — scaled to 0..100 for the prompt.
+          employmentRatePct: outcomes.latest.employmentRate * 100,
+          averageSalaryThb: outcomes.latest.averageSalary,
+          furtherStudyRatePct: outcomes.latest.furtherStudyRate * 100,
+          sampleSize: outcomes.latest.sampleSize,
+        }
+      : null,
+    demandMatch: demandMatchSummary,
+    trendSignals: trends.signals.slice(0, 5).map((s) => ({
+      title: s.title,
+      signalType: s.signalType,
+      impactScorePct: s.impactScore * 100,
+      recommendation: s.summaryEn ?? s.summaryTh ?? 'no recommendation on file',
+    })),
+    risk:
+      riskRow && riskRow.compositeScore !== null
+        ? {
+            compositeScore: riskRow.compositeScore,
+            topLikelihoodDriver: describeTopLikelihoodDriver(riskRow),
+            topImpactDimension: describeTopImpactDimension(riskRow),
+          }
+        : null,
+    cohorts:
+      cohorts.refreshedAt !== null
+        ? {
+            totalActive: cohorts.totalActive,
+            delayedSharePct:
+              cohorts.totalActive > 0 ? (cohorts.delayedCount / cohorts.totalActive) * 100 : null,
+          }
+        : null,
   });
 
   const response = await params.ai.extractStructured(
@@ -244,4 +307,79 @@ export async function generateProgramStrategicNarrative(
     contentLength: response.parsed.contentMarkdown.length,
     contentMarkdown: response.parsed.contentMarkdown,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LABOUR-MARKET DEMAND channel — reuses the same table + filter the
+// health-score relevance driver reads (scoreRelevanceProgram() in
+// health-score.ts: ProgramDemandMatch rows where relevant=true, gated by
+// realDataWhere()). Null when there are no relevant-demand rows for this
+// program yet (data gap, not zero demand).
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchDemandMatchSummary(programId: string): Promise<{
+  matchedDemanded: number;
+  relevantDemanded: number;
+  topUnmatchedSkills: string[];
+} | null> {
+  const rows = await prisma.programDemandMatch.findMany({
+    where: { programId, relevant: true, ...realDataWhere() },
+    select: { matched: true, skillId: true },
+  });
+  if (rows.length === 0) return null;
+
+  const matchedDemanded = rows.filter((r) => r.matched).length;
+  const unmatchedSkillIds = rows
+    .filter((r) => !r.matched)
+    .map((r) => r.skillId)
+    .slice(0, 5);
+  const skills = unmatchedSkillIds.length
+    ? await prisma.skill.findMany({
+        where: { id: { in: unmatchedSkillIds } },
+        select: { id: true, nameEn: true },
+      })
+    : [];
+  const nameById = new Map(skills.map((s) => [s.id, s.nameEn]));
+  const topUnmatchedSkills = unmatchedSkillIds.map((id) => nameById.get(id) ?? id);
+
+  return { matchedDemanded, relevantDemanded: rows.length, topUnmatchedSkills };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RISK channel derivation — picks the highest-scoring of the three
+// likelihood drivers and the larger of the two impact dimensions off the
+// latest RiskAssessment row. Both return a "no X computed" label rather
+// than throwing when every candidate is null (a data gap within an
+// otherwise-present risk row, not an absent channel).
+// ─────────────────────────────────────────────────────────────────────────────
+type RiskRowForNarrative = {
+  compositeScore: number | null;
+  l1RecruitmentScore: number | null;
+  l2AiDisruptionScore: number | null;
+  l3DemographicScore: number | null;
+  directRevenueAtRiskThb: unknown;
+  strandedCostThb: unknown;
+};
+
+function describeTopLikelihoodDriver(row: RiskRowForNarrative): string {
+  const drivers: Array<[string, number | null]> = [
+    ['L1 recruitment/TCAS competition decay', row.l1RecruitmentScore],
+    [
+      'L2 AI-disruption (share of taught skills at high automation risk)',
+      row.l2AiDisruptionScore,
+    ],
+    ['L3 demographic ceiling', row.l3DemographicScore],
+  ];
+  const present = drivers.filter((d): d is [string, number] => d[1] !== null);
+  const top = present.sort((a, b) => b[1] - a[1])[0];
+  return top ? top[0] : 'no likelihood driver computed';
+}
+
+function describeTopImpactDimension(row: RiskRowForNarrative): string {
+  const revenue = row.directRevenueAtRiskThb === null ? null : Number(row.directRevenueAtRiskThb);
+  const stranded = row.strandedCostThb === null ? null : Number(row.strandedCostThb);
+  if (revenue === null && stranded === null) return 'no impact dimension computed';
+  if (stranded === null || (revenue !== null && revenue >= stranded)) {
+    return 'direct revenue at risk';
+  }
+  return 'stranded cost';
 }

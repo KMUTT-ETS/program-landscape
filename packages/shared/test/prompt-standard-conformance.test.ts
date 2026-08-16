@@ -30,7 +30,6 @@ const NOT_YET_CONFORMANT = new Set<string>([
   'program-peer-review.ts',
   'program-peer-selection.ts',
   'program-skills-detailed.ts',
-  'program-strategic-narrative.ts',
   'risk-assessment.ts',
   'scenario-insights.ts',
   'skill-name-normaliser.ts',
