@@ -1676,4 +1676,183 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
     });
   });
+
+  // ── Financials ────────────────────────────────────────────────────
+  // This program's fixture has `financials: null` (no linked financial
+  // rows for KKU-SEQ-0065) — build a synthetic full object for the
+  // nested-field tests below, same approach as `cohortDistribution`.
+  function fixtureWithFinancials(overrides: Record<string, unknown>): unknown {
+    return {
+      ...FIXTURE,
+      financials: {
+        methodologyVersion: 'cost-allocation.v1',
+        headlineFiscalYear: 2568,
+        partialCurrentYearNote: '',
+        kpis: [{ metric: 'Tuition revenue', value: '1,000,000 THB', notes: '' }],
+        waterfall: [
+          { step: 'Tuition revenue', kind: 'positive', value: 1_000_000, isTotal: false },
+          { step: 'Direct program cost', kind: 'negative', value: -400_000, isTotal: false },
+          { step: 'Net contribution', kind: 'total', value: 600_000, isTotal: true },
+        ],
+        sensitivity: {
+          tuitionPlus5Pct: { tuitionRevenue: 1_050_000, netContribution: 650_000 },
+        },
+        trend: [{ year: 2568, tuition: 1_000_000, subsidy: 300_000, net: 600_000 }],
+        ...overrides,
+      },
+    };
+  }
+
+  describe('financials.headlineFiscalYear', () => {
+    it('accepts a number', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithFinancials({ headlineFiscalYear: 2568 }))
+          .success,
+      ).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithFinancials({ headlineFiscalYear: null }))
+          .success,
+      ).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithFinancials({ headlineFiscalYear: '2568' }))
+          .success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWithFinancials({ headlineFiscalYear: Number.NaN }),
+        ).success,
+      ).toBe(false);
+    });
+  });
+
+  describe('financials.waterfall[].value / .isTotal', () => {
+    // The Waterfall chart primitive's core input. `value` was pre-signed
+    // with a literal '−' prefix and Math.abs()'d for display; the sign
+    // now lives directly in the number. `isTotal` is new — the primitive
+    // draws a total bar from zero rather than continuing the running
+    // total, so the data must say which bars are totals.
+    function fixtureWith(value: unknown, isTotal: unknown): unknown {
+      return fixtureWithFinancials({
+        waterfall: [{ step: 'Direct program cost', kind: 'negative', value, isTotal }],
+      });
+    }
+
+    it('accepts a negative delta (a cost, not pre-absolute-valued)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(-400000, false)).success).toBe(true);
+    });
+
+    it('accepts a positive delta', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(1000000, false)).success).toBe(true);
+    });
+
+    it('accepts isTotal: true for a closing total bar', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(600000, true)).success).toBe(true);
+    });
+
+    it('accepts a null value', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null, false)).success).toBe(true);
+    });
+
+    it('rejects the old "−400,000" pre-signed formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('−400,000', false)).success).toBe(
+        false,
+      );
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN, false)).success).toBe(
+        false,
+      );
+    });
+
+    it('rejects a non-boolean isTotal', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(600000, 'total')).success).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('financials.sensitivity (split from the old narrative sentence)', () => {
+    it('accepts the two numbers', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWithFinancials({
+            sensitivity: {
+              tuitionPlus5Pct: { tuitionRevenue: 1050000, netContribution: 650000 },
+            },
+          }),
+        ).success,
+      ).toBe(true);
+    });
+
+    it('accepts null (no sensitivity computed)', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithFinancials({ sensitivity: null })).success,
+      ).toBe(true);
+    });
+
+    it('rejects the old narrative-sentence string', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWithFinancials({
+            sensitivity:
+              'Sensitivity — if tuition rose 5%, net contribution becomes 650,000 THB (revenue 1,050,000 THB).',
+          }),
+        ).success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN inside the nested numbers', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWithFinancials({
+            sensitivity: {
+              tuitionPlus5Pct: { tuitionRevenue: Number.NaN, netContribution: 650000 },
+            },
+          }),
+        ).success,
+      ).toBe(false);
+    });
+  });
+
+  describe('financials.trend[].year / .tuition / .subsidy / .net', () => {
+    function fixtureWith(overrides: Record<string, unknown>): unknown {
+      return fixtureWithFinancials({
+        trend: [{ year: 2568, tuition: 1000000, subsidy: 300000, net: 600000, ...overrides }],
+      });
+    }
+
+    it('accepts numbers', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith({})).success).toBe(true);
+    });
+
+    it('accepts null on the value fields', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWith({ tuition: null, subsidy: null, net: null }),
+        ).success,
+      ).toBe(true);
+    });
+
+    it('rejects formatted strings', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWith({ tuition: '1,000,000' })).success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith({ net: Number.NaN })).success).toBe(
+        false,
+      );
+    });
+  });
 });

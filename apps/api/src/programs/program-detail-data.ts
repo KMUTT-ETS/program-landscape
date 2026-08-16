@@ -932,10 +932,7 @@ export async function buildProgramDetailData(
           const subsidy = financials.governmentFacultySubsidy ?? 0;
           return {
             methodologyVersion: financials.costMethodologyVersion,
-            headlineFiscalYear:
-              financials.latestFiscalYear !== null
-                ? String(financials.latestFiscalYear)
-                : '—',
+            headlineFiscalYear: financials.latestFiscalYear,
             partialCurrentYearNote: financials.partialCurrentYearAvailable
               ? 'a more recent partial year is in progress'
               : '',
@@ -963,20 +960,24 @@ export async function buildProgramDetailData(
             waterfall: financials.waterfall.map((s) => ({
               step: s.label,
               kind: s.kind,
-              value: `${s.kind === 'negative' ? '−' : ''}${fmtNum(Math.abs(s.value))}`,
+              value: s.value,
+              isTotal: s.kind === 'total',
             })),
             sensitivity: financials.sensitivity
-              ? `Sensitivity — if tuition rose 5%, net contribution becomes ${fmtNum(financials.sensitivity.tuitionPlus5Pct.netContribution)} THB (revenue ${fmtNum(financials.sensitivity.tuitionPlus5Pct.tuitionRevenue)} THB).`
-              : '',
+              ? {
+                  tuitionPlus5Pct: {
+                    tuitionRevenue:
+                      financials.sensitivity.tuitionPlus5Pct.tuitionRevenue,
+                    netContribution:
+                      financials.sensitivity.tuitionPlus5Pct.netContribution,
+                  },
+                }
+              : null,
             trend: financials.trend.map((t) => ({
-              year: String(t.year),
-              tuition: t.tuitionRevenue !== null ? fmtNum(t.tuitionRevenue) : '—',
-              subsidy:
-                t.facultyCostSubsidy !== null
-                  ? fmtNum(t.facultyCostSubsidy)
-                  : '—',
-              net:
-                t.netContribution !== null ? fmtNum(t.netContribution) : '—',
+              year: t.year,
+              tuition: t.tuitionRevenue,
+              subsidy: t.facultyCostSubsidy,
+              net: t.netContribution,
             })),
           };
         })()

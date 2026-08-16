@@ -462,26 +462,53 @@ const FacultySchema = z.object({
 
 const FinancialsSchema = z.object({
   methodologyVersion: z.string(),
-  headlineFiscalYear: z.string(),
+  headlineFiscalYear: z.number().finite().nullable(),
   partialCurrentYearNote: z.string().default(''),
+  // Display-only KV rows, stays a KvRowSchema array per the decision at
+  // the top of this file — including "Government investment / student",
+  // which now correctly uses a `!== null` guard rather than a truthy
+  // check (see program-detail-data.ts / program-deep-dive.ts — a
+  // measured 0 must survive as 0, not collapse to '—').
   kpis: z.array(KvRowSchema).default([]),
   waterfall: z
     .array(
       z.object({
         step: z.string(),
         kind: z.string(),
-        value: z.string(),
+        // Raw signed contribution — maps directly onto the Waterfall
+        // chart primitive's `delta`. Was pre-signed with a literal '−'
+        // prefix and Math.abs()'d for display; the sign now lives in the
+        // number itself.
+        value: z.number().finite().nullable(),
+        // Whether this bar is an absolute total (drawn from zero) rather
+        // than a delta continuing from the running total — the Waterfall
+        // primitive's own `isTotal` concept. True for the closing "Net
+        // contribution" bar (kind === 'total').
+        isTotal: z.boolean(),
       }),
     )
     .default([]),
-  sensitivity: z.string().default(''),
+  // Was one narrative sentence embedding two numbers ("...net
+  // contribution becomes X THB (revenue Y THB)."). Split into the two
+  // numbers that already exist upstream, rather than retyped — a
+  // sentence can't become a single z.number() without dropping
+  // information.
+  sensitivity: z
+    .object({
+      tuitionPlus5Pct: z.object({
+        tuitionRevenue: z.number().finite().nullable(),
+        netContribution: z.number().finite().nullable(),
+      }),
+    })
+    .nullable()
+    .default(null),
   trend: z
     .array(
       z.object({
-        year: z.string(),
-        tuition: z.string(),
-        subsidy: z.string(),
-        net: z.string(),
+        year: z.number().finite().nullable(),
+        tuition: z.number().finite().nullable(),
+        subsidy: z.number().finite().nullable(),
+        net: z.number().finite().nullable(),
       }),
     )
     .default([]),
