@@ -206,7 +206,25 @@ git commit -m "refactor(pdf): program-detail <section> schema emits numbers, not
 ```
 
 Repeat Steps 2–5 for each section. **The template will not compile mid-way through** — that is
-expected and fine; it is rewritten in Task 5. Typecheck of `apps/api` must stay green throughout.
+expected and fine; it is rewritten in Task 5.
+
+**Correction, found during batch 1 — `apps/api` typecheck does NOT stay green, and cannot.**
+`packages/pdf-templates/package.json` points `main`/`types` at `./src/index.ts`, and that barrel
+re-exports `programDetailTemplate` from `template.tsx`. Because `apps/api` imports
+`@kku/pdf-templates` source-linked rather than built, `tsc --noEmit` on `apps/api` type-checks the
+whole reachable pdf-templates graph — `template.tsx` included. So from the first converted section
+until Task 7 rewrites it, **both** `pnpm --filter api typecheck` and
+`pnpm --filter @kku/pdf-templates typecheck` are red.
+
+The real constraint is therefore:
+
+> Every typecheck error must be **inside `template.tsx`**. Check with
+> `pnpm --filter api typecheck 2>&1 | grep "error TS" | sed -E 's|\(.*||' | sort | uniq -c`
+> — one line, `template.tsx`, and nothing else. A single error in any other file means you have
+> broken a real consumer and must stop.
+
+`pnpm --filter api test` (runtime, not `tsc`) must stay green throughout — that is the signal that
+still means something during this stretch.
 
 ---
 
