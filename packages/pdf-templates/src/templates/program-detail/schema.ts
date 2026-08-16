@@ -15,15 +15,19 @@ const KvRowSchema = z.object({
 
 const HealthDimRowSchema = z.object({
   dimension: z.string(),
-  score: z.string(),
-  dataCompleteness: z.string(),
-  topDriver: z.string(),
+  score: z.number().finite().nullable(),
+  dataCompleteness: z.number().finite().nullable(),
+  // Was a single compound string ("TCAS fill rate (72)"). Split into a
+  // display label and a dedicated numeric value — a chart-blocking
+  // compound field, not a display-vs-numeric ambiguity.
+  topDriverLabel: z.string().nullable(),
+  topDriverValue: z.number().finite().nullable(),
 });
 
 const HealthDriverRowSchema = z.object({
   dimension: z.string(),
   driver: z.string(),
-  value: z.string(),
+  value: z.number().finite().nullable(),
 });
 
 const LifecycleSchema = z.object({

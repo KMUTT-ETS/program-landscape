@@ -45,4 +45,112 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Health score: healthDimensions[].score ──────────────────────────
+  describe('healthDimensions[].score', () => {
+    function fixtureWith(score: unknown): unknown {
+      const dims = (FIXTURE as { healthDimensions: unknown[] }).healthDimensions;
+      return {
+        ...FIXTURE,
+        healthDimensions: [{ ...(dims[0] as object), score }, ...dims.slice(1)],
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(62)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('62')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Health score: healthDimensions[].dataCompleteness ───────────────
+  describe('healthDimensions[].dataCompleteness', () => {
+    function fixtureWith(dataCompleteness: unknown): unknown {
+      const dims = (FIXTURE as { healthDimensions: unknown[] }).healthDimensions;
+      return {
+        ...FIXTURE,
+        healthDimensions: [{ ...(dims[0] as object), dataCompleteness }, ...dims.slice(1)],
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(50)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('50%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Health score: healthDimensions[].topDriverValue (split field) ──
+  describe('healthDimensions[].topDriverValue', () => {
+    function fixtureWith(topDriverValue: unknown): unknown {
+      const dims = (FIXTURE as { healthDimensions: unknown[] }).healthDimensions;
+      return {
+        ...FIXTURE,
+        healthDimensions: [{ ...(dims[0] as object), topDriverValue }, ...dims.slice(1)],
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(72)).success).toBe(true);
+    });
+
+    it('accepts null (no top driver for this dimension)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('72')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Health score: healthDrivers[].value ─────────────────────────────
+  describe('healthDrivers[].value', () => {
+    function fixtureWith(value: unknown): unknown {
+      const drivers = (FIXTURE as { healthDrivers: unknown[] }).healthDrivers;
+      return {
+        ...FIXTURE,
+        healthDrivers: [{ ...(drivers[0] as object), value }, ...drivers.slice(1)],
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(41)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('41')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

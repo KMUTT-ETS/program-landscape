@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 2:03 AM",
+  "generatedAtLabel": "August 16, 2026 at 2:04 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -42,160 +42,165 @@
   "healthDimensions": [
     {
       "dimension": "Attractiveness",
-      "score": "90",
-      "dataCompleteness": "50%",
-      "topDriver": "tcas competition ratio (100)"
+      "score": 90,
+      "dataCompleteness": 50,
+      "topDriverLabel": "tcas competition ratio",
+      "topDriverValue": 100
     },
     {
       "dimension": "Financial",
-      "score": "—",
-      "dataCompleteness": "0%",
-      "topDriver": "—"
+      "score": null,
+      "dataCompleteness": 0,
+      "topDriverLabel": null,
+      "topDriverValue": null
     },
     {
       "dimension": "Capability",
-      "score": "61",
-      "dataCompleteness": "75%",
-      "topDriver": "Senior-rank faculty share (100)"
+      "score": 61,
+      "dataCompleteness": 75,
+      "topDriverLabel": "Senior-rank faculty share",
+      "topDriverValue": 100
     },
     {
       "dimension": "Outcomes",
-      "score": "67",
-      "dataCompleteness": "83%",
-      "topDriver": "Further-study share (100)"
+      "score": 67,
+      "dataCompleteness": 83,
+      "topDriverLabel": "Further-study share",
+      "topDriverValue": 100
     },
     {
       "dimension": "Relevance",
-      "score": "50",
-      "dataCompleteness": "20%",
-      "topDriver": "strategic sector alignment (50)"
+      "score": 50,
+      "dataCompleteness": 20,
+      "topDriverLabel": "strategic sector alignment",
+      "topDriverValue": 50
     }
   ],
   "healthDrivers": [
     {
       "dimension": "Attractiveness",
       "driver": "tcas competition ratio",
-      "value": "100"
+      "value": 100
     },
     {
       "dimension": "Attractiveness",
       "driver": "TCAS fill rate",
-      "value": "100"
+      "value": 100
     },
     {
       "dimension": "Attractiveness",
       "driver": "tcas registration yield",
-      "value": "69"
+      "value": 69
     },
     {
       "dimension": "Attractiveness",
       "driver": "TCAS competition vs peers",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Attractiveness",
       "driver": "Enrolment trend (3-yr slope)",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Attractiveness",
       "driver": "KKU intake-floor policy",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Financial",
       "driver": "Net contribution / student",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Financial",
       "driver": "revenue coverage program direct",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Financial",
       "driver": "tuition trend slope",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Financial",
       "driver": "revenue scale",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Capability",
       "driver": "Senior-rank faculty share",
-      "value": "100"
+      "value": 100
     },
     {
       "dimension": "Capability",
       "driver": "Publications per faculty (3 yr)",
-      "value": "0"
+      "value": 0
     },
     {
       "dimension": "Capability",
       "driver": "5-yr retirement headroom",
-      "value": "83"
+      "value": 83
     },
     {
       "dimension": "Capability",
       "driver": "Student / faculty ratio",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Outcomes",
       "driver": "tcas min score percentile",
-      "value": "27"
+      "value": 27
     },
     {
       "dimension": "Outcomes",
       "driver": "Employment rate",
-      "value": "67"
+      "value": 67
     },
     {
       "dimension": "Outcomes",
       "driver": "Job relevance",
-      "value": "72"
+      "value": 72
     },
     {
       "dimension": "Outcomes",
       "driver": "Average starting salary",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Outcomes",
       "driver": "Further-study share",
-      "value": "100"
+      "value": 100
     },
     {
       "dimension": "Outcomes",
       "driver": "student satisfaction",
-      "value": "69"
+      "value": 69
     },
     {
       "dimension": "Relevance",
       "driver": "labour market alignment",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Relevance",
       "driver": "demand match filled",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Relevance",
       "driver": "demographic resilience",
-      "value": "—"
+      "value": null
     },
     {
       "dimension": "Relevance",
       "driver": "strategic sector alignment",
-      "value": "50"
+      "value": 50
     },
     {
       "dimension": "Relevance",
       "driver": "pedagogical fit",
-      "value": "—"
+      "value": null
     }
   ],
   "healthMethodologyVersion": "health-score.v3.8",

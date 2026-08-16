@@ -365,17 +365,16 @@ export async function buildProgramDetailData(
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0];
       healthDimensions.push({
         dimension: label,
-        score: cell.score === null ? '—' : String(Math.round(cell.score)),
-        dataCompleteness: `${Math.round(cell.dataCompletenessPct)}%`,
-        topDriver: top
-          ? `${fmtDriverLabel(top.label)} (${top.value === null ? '—' : Math.round(top.value)})`
-          : '—',
+        score: cell.score === null ? null : Math.round(cell.score),
+        dataCompleteness: Math.round(cell.dataCompletenessPct),
+        topDriverLabel: top ? fmtDriverLabel(top.label) : null,
+        topDriverValue: top && top.value !== null ? Math.round(top.value) : null,
       });
       for (const d of cell.drivers) {
         healthDrivers.push({
           dimension: label,
           driver: fmtDriverLabel(d.label),
-          value: d.value === null ? '—' : String(Math.round(d.value)),
+          value: d.value === null ? null : Math.round(d.value),
         });
       }
     }
