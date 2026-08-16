@@ -364,4 +364,208 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Demand funnel: anchorEntryYearBE / anchorEntryYearCE (split from
+  //    the old compound "BE 2564 (CE 2021)" string) ────────────────────
+  describe('demandFunnel.anchorEntryYearBE', () => {
+    function fixtureWith(anchorEntryYearBE: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return { ...FIXTURE, demandFunnel: { ...demandFunnel, anchorEntryYearBE } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2564)).success).toBe(true);
+    });
+
+    it('accepts null (no completed anchor cohort yet)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old compound-label string', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWith('BE 2564 (CE 2021)')).success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demandFunnel.anchorEntryYearCE', () => {
+    function fixtureWith(anchorEntryYearCE: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return { ...FIXTURE, demandFunnel: { ...demandFunnel, anchorEntryYearCE } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2021)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('2021')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demandFunnel.programDurationYears', () => {
+    function fixtureWith(programDurationYears: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return { ...FIXTURE, demandFunnel: { ...demandFunnel, programDurationYears } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(4)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('4')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // `stages` / `conversions` / `alumniBreakdown` / `cohortTrend` are empty
+  // arrays in the captured fixture (this program's demand funnel has no
+  // completed anchor cohort) — build a synthetic single-row array so the
+  // nested numeric fields are still exercised against the schema.
+  describe('demandFunnel.stages[].value', () => {
+    function fixtureWith(value: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return {
+        ...FIXTURE,
+        demandFunnel: { ...demandFunnel, stages: [{ stage: 'Applied', value }] },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(120)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('120')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demandFunnel.conversions[].rate', () => {
+    function fixtureWith(rate: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return {
+        ...FIXTURE,
+        demandFunnel: {
+          ...demandFunnel,
+          conversions: [{ from: 'applied', to: 'admitted', rate }],
+        },
+      };
+    }
+
+    it('accepts a percentage-scaled number (the fraction × 100 conversion is preserved, only the string formatting is dropped)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(82.4)).success).toBe(true);
+    });
+
+    it('accepts null (no prior-stage value to divide by)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('82.4%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demandFunnel.alumniBreakdown[].share', () => {
+    // This field carried a real display bug pre-conversion: the builder
+    // called `fmtRatePct` (a ×100-for-fractions formatter) on `b.pct`,
+    // which was ALREADY on a 0–100 scale — doubling the percentage on
+    // screen (a true 12.3% share rendered as "1230.0%"). The fix is
+    // passing the raw number straight through with no multiplication.
+    function fixtureWith(share: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return {
+        ...FIXTURE,
+        demandFunnel: {
+          ...demandFunnel,
+          alumniBreakdown: [{ bucket: 'GRADUATED', count: 10, share }],
+        },
+      };
+    }
+
+    it('accepts a 0–100-scale number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(12.3)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('12.3%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demandFunnel.cohortTrend[].cohortBE', () => {
+    function fixtureWith(cohortBE: unknown): unknown {
+      const demandFunnel = (FIXTURE as { demandFunnel: object }).demandFunnel;
+      return {
+        ...FIXTURE,
+        demandFunnel: {
+          ...demandFunnel,
+          cohortTrend: [
+            {
+              cohortBE,
+              admitted: 100,
+              enrolled: 95,
+              graduated: 80,
+              dropped: 10,
+              completed: 'complete',
+            },
+          ],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2560)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('2560')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

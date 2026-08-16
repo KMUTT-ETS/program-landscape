@@ -541,37 +541,38 @@ export async function buildProgramDetailData(
   // ── Demand funnel ────────────────────────────────────────────────
   const demandFunnelData: ProgramDetailData['demandFunnel'] = demandFunnel
     ? {
-        anchorEntryYearLabel:
-          demandFunnel.anchorEntryYearBE !== null
-            ? `BE ${demandFunnel.anchorEntryYearBE} (CE ${demandFunnel.anchorEntryYearCE})`
-            : '—',
+        anchorEntryYearBE: demandFunnel.anchorEntryYearBE,
+        anchorEntryYearCE: demandFunnel.anchorEntryYearCE,
         cohortStatus: demandFunnel.cohortCompleted
           ? 'lifecycle complete'
           : 'in-progress cohort',
-        programDurationYears:
-          demandFunnel.programDurationYears !== null
-            ? String(demandFunnel.programDurationYears)
-            : '—',
+        programDurationYears: demandFunnel.programDurationYears,
         methodologyVersion: demandFunnel.methodologyVersion,
         stages: demandFunnel.stages
           .filter((s) => s.value > 0)
-          .map((s) => ({ stage: s.label, value: fmtNum(s.value) })),
+          .map((s) => ({ stage: s.label, value: s.value })),
         conversions: demandFunnel.conversions.map((c) => ({
           from: c.fromKey,
           to: c.toKey,
-          rate: c.rate === null ? '—' : fmtRatePct(c.rate, 1),
+          rate: c.rate === null ? null : c.rate * 100,
         })),
+        // `b.pct` is already computed on a 0–100 scale upstream — the
+        // previous string formatter ran it through `fmtRatePct`, which
+        // multiplies by 100 AGAIN (that helper is for 0..1 fractions).
+        // That was a real display bug (a true 12.3% share rendered as
+        // "1230.0%"); passing the raw number through fixes it as a side
+        // effect of dropping the formatter, not a separate edit.
         alumniBreakdown: demandFunnel.alumniBreakdown.map((b) => ({
           bucket: b.bucket,
-          count: fmtNum(b.count),
-          share: fmtRatePct(b.pct, 1),
+          count: b.count,
+          share: b.pct,
         })),
         cohortTrend: demandFunnel.cohortTrend.slice(-8).map((c) => ({
-          cohortBE: String(c.entryYearBE),
-          admitted: fmtNum(c.admittedTotal),
-          enrolled: fmtNum(c.enrolled),
-          graduated: fmtNum(c.graduated),
-          dropped: fmtNum(c.droppedTotal),
+          cohortBE: c.entryYearBE,
+          admitted: c.admittedTotal,
+          enrolled: c.enrolled,
+          graduated: c.graduated,
+          dropped: c.droppedTotal,
           completed: c.cohortCompleted ? 'complete' : 'in progress',
         })),
       }

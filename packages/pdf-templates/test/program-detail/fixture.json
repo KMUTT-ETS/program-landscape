@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 2:08 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:26 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -383,9 +383,10 @@
     ]
   },
   "demandFunnel": {
-    "anchorEntryYearLabel": "—",
+    "anchorEntryYearBE": null,
+    "anchorEntryYearCE": null,
     "cohortStatus": "in-progress cohort",
-    "programDurationYears": "4",
+    "programDurationYears": 4,
     "methodologyVersion": "demand-funnel.v2",
     "stages": [],
     "conversions": [],

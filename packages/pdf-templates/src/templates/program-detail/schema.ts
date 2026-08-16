@@ -122,15 +122,21 @@ const AiReadinessSchema = z.object({
 });
 
 const DemandFunnelSchema = z.object({
-  anchorEntryYearLabel: z.string(),
+  // Was a single compound string ("BE 2564 (CE 2021)"). Split into the two
+  // numbers that already exist upstream by these names.
+  anchorEntryYearBE: z.number().finite().nullable(),
+  anchorEntryYearCE: z.number().finite().nullable(),
+  // Binary label derived from the boolean `cohortCompleted`. Stays DISPLAY
+  // per the schema inventory — it's a convenience discriminator, not a
+  // number wearing a string costume.
   cohortStatus: z.string(),
-  programDurationYears: z.string(),
+  programDurationYears: z.number().finite().nullable(),
   methodologyVersion: z.string(),
   stages: z
     .array(
       z.object({
         stage: z.string(),
-        value: z.string(),
+        value: z.number().finite().nullable(),
       }),
     )
     .default([]),
@@ -139,7 +145,7 @@ const DemandFunnelSchema = z.object({
       z.object({
         from: z.string(),
         to: z.string(),
-        rate: z.string(),
+        rate: z.number().finite().nullable(),
       }),
     )
     .default([]),
@@ -147,19 +153,21 @@ const DemandFunnelSchema = z.object({
     .array(
       z.object({
         bucket: z.string(),
-        count: z.string(),
-        share: z.string(),
+        count: z.number().finite().nullable(),
+        share: z.number().finite().nullable(),
       }),
     )
     .default([]),
   cohortTrend: z
     .array(
       z.object({
-        cohortBE: z.string(),
-        admitted: z.string(),
-        enrolled: z.string(),
-        graduated: z.string(),
-        dropped: z.string(),
+        cohortBE: z.number().finite().nullable(),
+        admitted: z.number().finite().nullable(),
+        enrolled: z.number().finite().nullable(),
+        graduated: z.number().finite().nullable(),
+        dropped: z.number().finite().nullable(),
+        // Binary label derived from the per-row boolean `cohortCompleted`.
+        // Stays DISPLAY, same rationale as `cohortStatus` above.
         completed: z.string(),
       }),
     )
