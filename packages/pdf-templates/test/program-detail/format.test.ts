@@ -4,6 +4,7 @@ import {
   formatCohortChangePct,
   formatCompactNumber,
   formatCount,
+  formatGpa,
   formatPct,
   formatScore,
 } from '../../src/templates/program-detail/format';
@@ -158,5 +159,36 @@ describe('formatCompactNumber', () => {
 
   it('renders a real zero as "0", not an em dash', () => {
     expect(formatCompactNumber(0)).toBe('0');
+  });
+});
+
+// The regression this exists for: the course list's `classGpa` arrived
+// full-precision (e.g. `1.8822341857335128`) straight from the SQL
+// aggregate — a 4.00-scale figure, not a 0-100 score or a percentage, so
+// none of the other formatters above are the right shape for it.
+describe('formatGpa', () => {
+  it('renders to two decimal places by default', () => {
+    expect(formatGpa(1.8822341857335128)).toBe('1.88');
+    expect(formatGpa(3.3363363363363367)).toBe('3.34');
+  });
+
+  it('pads a whole number to the decimal scale', () => {
+    expect(formatGpa(2)).toBe('2.00');
+  });
+
+  it('honours an explicit decimal-place count', () => {
+    expect(formatGpa(1.8822341857335128, 1)).toBe('1.9');
+  });
+
+  it('renders an em dash for null, never "0.00" or the literal "null"', () => {
+    expect(formatGpa(null)).toBe('—');
+  });
+
+  it('renders an em dash for non-finite input', () => {
+    expect(formatGpa(Number.NaN)).toBe('—');
+  });
+
+  it('renders a real zero GPA as "0.00", not an em dash', () => {
+    expect(formatGpa(0)).toBe('0.00');
   });
 });

@@ -59,6 +59,16 @@ export function formatCount(value: number | null): string {
   return Math.round(value).toLocaleString('en-US');
 }
 
+// A 4.00-scale class GPA (`courses.rows[].classGpa`, always a real average of
+// graded students — never a percentage, never the 0-100 score scale the rest
+// of this file's helpers assume). Real values arrive full-precision
+// (e.g. `1.8822341857335128`) — this is the fix for that exact class of raw-
+// float leak, on a scale none of the other formatters here cover.
+export function formatGpa(value: number | null, decimals = 2): string {
+  if (value === null || !Number.isFinite(value)) return EM_DASH;
+  return value.toFixed(decimals);
+}
+
 /** Rounds to 3 significant figures and drops any fake trailing precision
  * (`toPrecision` pads with zeros — `parseFloat` strips them back off, so a
  * round number like 2,000,000 reads '2M', not '2.00M'). */
