@@ -153,4 +153,61 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Lifecycle: trajectoryScore ───────────────────────────────────────
+  describe('lifecycle.trajectoryScore', () => {
+    function fixtureWith(trajectoryScore: unknown): unknown {
+      const lifecycle = (FIXTURE as { lifecycle: object }).lifecycle;
+      return { ...FIXTURE, lifecycle: { ...lifecycle, trajectoryScore } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(58)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('58')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Lifecycle: drivers[].contribution (signed) ──────────────────────
+  describe('lifecycle.drivers[].contribution', () => {
+    function fixtureWith(contribution: unknown): unknown {
+      const lifecycle = (FIXTURE as { lifecycle: { drivers: unknown[] } }).lifecycle;
+      return {
+        ...FIXTURE,
+        lifecycle: {
+          ...lifecycle,
+          drivers: [
+            { ...(lifecycle.drivers[0] as object), contribution },
+            ...lifecycle.drivers.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts a signed number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(-3.2)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string (the old "+3.2" / "-1.5" pre-signed form)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('+3.2')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

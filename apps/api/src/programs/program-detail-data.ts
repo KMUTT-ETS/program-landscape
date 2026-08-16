@@ -384,15 +384,14 @@ export async function buildProgramDetailData(
   const lifecycleData: ProgramDetailData['lifecycle'] = lifecycle
     ? {
         verdict: lifecycle.verdict,
-        trajectoryScore: String(Math.round(lifecycle.trajectoryScore)),
+        trajectoryScore: Math.round(lifecycle.trajectoryScore),
         methodologyVersion: lifecycle.methodologyVersion,
         generatedAt: fmtDate(lifecycle.generatedAt),
         narrative: lifecycle.narrative,
         drivers: lifecycle.drivers.map((d) => ({
           direction: d.contribution >= 0 ? 'lifting' : 'drag',
           label: fmtDriverPhrase(d.label),
-          contribution:
-            (d.contribution > 0 ? '+' : '') + d.contribution.toFixed(1),
+          contribution: Number(d.contribution.toFixed(1)),
         })),
       }
     : null;

@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 2:04 AM",
+  "generatedAtLabel": "August 16, 2026 at 2:06 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -206,7 +206,7 @@
   "healthMethodologyVersion": "health-score.v3.8",
   "lifecycle": {
     "verdict": "SUNSET",
-    "trajectoryScore": "34",
+    "trajectoryScore": 34,
     "methodologyVersion": "lifecycle.v1.4",
     "generatedAt": "2026-08-16",
     "narrative": "Sunset risk (trajectory 34/100) — multiple signals declining; closure / merger / radical restructure on the table. Lifting forces: overall health, faculty capability. Drag: curriculum modernity, major content gaps vs peers.",
@@ -214,57 +214,57 @@
       {
         "direction": "drag",
         "label": "Curriculum modernity",
-        "contribution": "-10.0"
+        "contribution": -10
       },
       {
         "direction": "drag",
         "label": "Major content gaps vs peers",
-        "contribution": "-8.0"
+        "contribution": -8
       },
       {
         "direction": "drag",
         "label": "AI readiness",
-        "contribution": "-7.5"
+        "contribution": -7.5
       },
       {
         "direction": "lifting",
         "label": "Overall health",
-        "contribution": "+6.8"
+        "contribution": 6.8
       },
       {
         "direction": "lifting",
         "label": "Faculty capability",
-        "contribution": "+3.0"
+        "contribution": 3
       },
       {
         "direction": "lifting",
         "label": "Enrolment growth",
-        "contribution": "0.0"
+        "contribution": 0
       },
       {
         "direction": "lifting",
         "label": "Tuition growth",
-        "contribution": "0.0"
+        "contribution": 0
       },
       {
         "direction": "lifting",
         "label": "labour market alignment",
-        "contribution": "0.0"
+        "contribution": 0
       },
       {
         "direction": "lifting",
         "label": "revenue scale",
-        "contribution": "0.0"
+        "contribution": 0
       },
       {
         "direction": "lifting",
         "label": "Demographic resilience",
-        "contribution": "0.0"
+        "contribution": 0
       },
       {
         "direction": "lifting",
         "label": "Delayed-graduation share",
-        "contribution": "0.0"
+        "contribution": 0
       }
     ]
   },

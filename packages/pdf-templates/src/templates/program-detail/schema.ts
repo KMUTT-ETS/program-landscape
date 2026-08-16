@@ -32,16 +32,20 @@ const HealthDriverRowSchema = z.object({
 
 const LifecycleSchema = z.object({
   verdict: z.string(),
-  trajectoryScore: z.string(),
+  trajectoryScore: z.number().finite().nullable(),
   methodologyVersion: z.string(),
   generatedAt: z.string(),
   narrative: z.string().default(''),
   drivers: z
     .array(
       z.object({
+        // Redundant with the sign of `contribution` once it's a real
+        // signed number — kept as a convenience discriminator for
+        // icon/color selection so the template doesn't have to branch on
+        // sign itself. Leans DISPLAY per the schema inventory.
         direction: z.enum(['lifting', 'drag']),
         label: z.string(),
-        contribution: z.string(),
+        contribution: z.number().finite().nullable(),
       }),
     )
     .default([]),
