@@ -2919,7 +2919,11 @@ export async function programFinancials(programId: string) {
     /// compat with surfaces that haven't migrated yet.
     governmentFacultySubsidy: latest ? Number(latest.allocatedFacultyCost) : null,
     /// Government investment per enrolled student per year.
-    costPerStudent: latest?.costPerStudent ? Number(latest.costPerStudent) : null,
+    // `!= null` deliberately, not a truthy check: a genuine cost of 0 is a
+    // measured value and must survive as 0. A truthy test turned it into
+    // null, which every downstream surface renders as "no data".
+    costPerStudent:
+      latest?.costPerStudent != null ? Number(latest.costPerStudent) : null,
     /// Enrolment-weighted, faculty-rank-aware breakdown of salary cost
     /// by funding source (เงินงบประมาณ / เงินรายได้ / 50:50 / etc.).
     /// Sourced from staff_compensation_cube via salary-by-fund.v1.
