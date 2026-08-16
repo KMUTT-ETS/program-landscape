@@ -859,4 +859,159 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Cohort distribution ────────────────────────────────────────────
+  // This program's fixture has `cohortDistribution: null` (no linked
+  // cohort data for KKU-SEQ-0065) — build a synthetic full object for the
+  // nested-field tests below.
+  function fixtureWithCohortDistribution(overrides: Record<string, unknown>): unknown {
+    return {
+      ...FIXTURE,
+      cohortDistribution: {
+        totalActive: 200,
+        currentAcademicYearBE: 2569,
+        programDurationYears: 4,
+        summary: [{ metric: 'Incoming', value: '50', notes: '' }],
+        summaryValues: [{ label: 'Incoming', count: 50, sharePct: 25 }],
+        rows: [
+          {
+            cohortBE: 2569,
+            cohortCE: 2026,
+            yearInProgram: 1,
+            status: 'On track',
+            students: 50,
+            share: 25,
+          },
+        ],
+        ...overrides,
+      },
+    };
+  }
+
+  describe('cohortDistribution.totalActive', () => {
+    it('accepts a number', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithCohortDistribution({ totalActive: 200 }))
+          .success,
+      ).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithCohortDistribution({ totalActive: null }))
+          .success,
+      ).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWithCohortDistribution({ totalActive: '200' }))
+          .success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWithCohortDistribution({ totalActive: Number.NaN }),
+        ).success,
+      ).toBe(false);
+    });
+  });
+
+  describe('cohortDistribution.summaryValues[].sharePct', () => {
+    function fixtureWith(sharePct: unknown): unknown {
+      return fixtureWithCohortDistribution({
+        summaryValues: [{ label: 'Incoming', count: 50, sharePct }],
+      });
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(25)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('25%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('cohortDistribution.rows[].cohortBE / cohortCE (split from the old compound "BE 2567 (CE 2024)")', () => {
+    function fixtureWith(cohortBE: unknown, cohortCE: unknown): unknown {
+      return fixtureWithCohortDistribution({
+        rows: [
+          {
+            cohortBE,
+            cohortCE,
+            yearInProgram: 1,
+            status: 'On track',
+            students: 50,
+            share: 25,
+          },
+        ],
+      });
+    }
+
+    it('accepts numbers', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2569, 2026)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null, null)).success).toBe(true);
+    });
+
+    it('rejects the old compound "BE 2569 (CE 2026)" string', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWith('BE 2569 (CE 2026)', 2026)).success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN, 2026)).success).toBe(false);
+    });
+  });
+
+  describe('cohortDistribution.rows[].yearInProgram', () => {
+    function fixtureWith(yearInProgram: unknown): unknown {
+      return fixtureWithCohortDistribution({
+        rows: [
+          {
+            cohortBE: 2569,
+            cohortCE: 2026,
+            yearInProgram,
+            status: 'On track',
+            students: 50,
+            share: 25,
+          },
+        ],
+      });
+    }
+
+    it('accepts the raw int (was rendered as "Year N")', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(1)).success).toBe(true);
+    });
+
+    it('accepts 0 (was "Year 0" — a genuine incoming cohort, not missing data)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(0)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "Year 1" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('Year 1')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

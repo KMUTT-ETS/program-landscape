@@ -673,12 +673,11 @@ export async function buildProgramDetailData(
           const statusLabel = (s: 'incoming' | 'on-track' | 'delayed') =>
             s === 'incoming' ? 'Incoming' : s === 'delayed' ? 'Delayed' : 'On track';
           return {
-            totalActive: fmtNum(studentCohorts.totalActive),
-            currentAcademicYearBE: String(studentCohorts.currentAcademicYearBE),
-            programDurationYears:
-              studentCohorts.programDurationYears !== null
-                ? String(studentCohorts.programDurationYears)
-                : '—',
+            totalActive: studentCohorts.totalActive,
+            currentAcademicYearBE: studentCohorts.currentAcademicYearBE,
+            programDurationYears: studentCohorts.programDurationYears,
+            // `summary` stays the display-only KV table (unchanged);
+            // `summaryValues` is the chart-facing numeric companion.
             summary: [
               {
                 metric: 'Incoming',
@@ -700,15 +699,32 @@ export async function buildProgramDetailData(
                   : `${fmtPct((studentCohorts.delayedCount / total) * 100, 1)}`,
               },
             ],
+            summaryValues: [
+              {
+                label: 'Incoming',
+                count: studentCohorts.incomingCount,
+                sharePct: (studentCohorts.incomingCount / total) * 100,
+              },
+              {
+                label: 'On-track',
+                count: studentCohorts.onTrackCount,
+                sharePct: (studentCohorts.onTrackCount / total) * 100,
+              },
+              {
+                label: 'Delayed',
+                count: studentCohorts.delayedCount,
+                sharePct: (studentCohorts.delayedCount / total) * 100,
+              },
+            ],
             rows: [...studentCohorts.cohorts]
               .sort((a, b) => b.entryYearBE - a.entryYearBE)
               .map((c) => ({
-                cohort: `BE ${c.entryYearBE} (CE ${c.entryYearCE})`,
-                yearInProgram:
-                  c.yearInProgramme <= 0 ? 'Year 0' : `Year ${c.yearInProgramme}`,
+                cohortBE: c.entryYearBE,
+                cohortCE: c.entryYearCE,
+                yearInProgram: c.yearInProgramme,
                 status: statusLabel(c.status),
-                students: fmtNum(c.studentCount),
-                share: fmtPct((c.studentCount / total) * 100, 1),
+                students: c.studentCount,
+                share: (c.studentCount / total) * 100,
               })),
           };
         })()

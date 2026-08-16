@@ -256,18 +256,36 @@ const TcasSchema = z.object({
 });
 
 const CohortDistributionSchema = z.object({
-  totalActive: z.string(),
-  currentAcademicYearBE: z.string(),
-  programDurationYears: z.string(),
+  totalActive: z.number().finite().nullable(),
+  currentAcademicYearBE: z.number().finite().nullable(),
+  programDurationYears: z.number().finite().nullable(),
+  // Display-only KV rows (Incoming / On-track / Delayed), stays a
+  // KvRowSchema array per the decision at the top of this file.
   summary: z.array(KvRowSchema).default([]),
+  // Dedicated numeric companion to `summary` above, same row order, for
+  // the chart-led rebuild — same pattern as `aiReadiness.subScoreValues`.
+  summaryValues: z
+    .array(
+      z.object({
+        label: z.string(),
+        count: z.number().finite().nullable(),
+        sharePct: z.number().finite().nullable(),
+      }),
+    )
+    .default([]),
   rows: z
     .array(
       z.object({
-        cohort: z.string(),
-        yearInProgram: z.string(),
+        // Was a single compound string ("BE 2567 (CE 2024)"). Split into
+        // the two numbers, same pattern as `demandFunnel.anchorEntryYear*`.
+        cohortBE: z.number().finite().nullable(),
+        cohortCE: z.number().finite().nullable(),
+        // Was "Year 0" / "Year N" built from the raw int. Emit the raw
+        // int; the template adds the "Year " prefix.
+        yearInProgram: z.number().finite().nullable(),
         status: z.string(),
-        students: z.string(),
-        share: z.string(),
+        students: z.number().finite().nullable(),
+        share: z.number().finite().nullable(),
       }),
     )
     .default([]),
