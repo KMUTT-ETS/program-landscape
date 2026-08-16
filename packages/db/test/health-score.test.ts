@@ -22,6 +22,11 @@ const mocks = vi.hoisted(() => ({
   demographicFindFirst: vi.fn(),
   kmitlCareerFindMany: vi.fn(),
   queryMetricByScope: vi.fn(),
+  systemSettingFindUnique: vi.fn(),
+  graduateOutcomeFindFirst: vi.fn(),
+  enrollmentMetricFindFirst: vi.fn(),
+  facultyFindFirst: vi.fn(),
+  programPedagogyAssessmentFindUnique: vi.fn(),
 }));
 
 vi.mock('../src/index', async () => {
@@ -29,7 +34,7 @@ vi.mock('../src/index', async () => {
   return {
     ...actual,
     prisma: {
-      faculty: { findMany: mocks.facultyFindMany },
+      faculty: { findMany: mocks.facultyFindMany, findFirst: mocks.facultyFindFirst },
       department: { findMany: mocks.departmentFindMany },
       program: {
         findMany: mocks.programFindMany,
@@ -38,7 +43,10 @@ vi.mock('../src/index', async () => {
       kmitlCareerSkillDemand: { findMany: mocks.kmitlDemandFindMany },
       programSkill: { findMany: mocks.programSkillFindMany },
       financialMetric: { findMany: mocks.financialMetricFindMany },
-      enrollmentMetric: { findMany: mocks.enrollmentMetricFindMany },
+      enrollmentMetric: {
+        findMany: mocks.enrollmentMetricFindMany,
+        findFirst: mocks.enrollmentMetricFindFirst,
+      },
       programFaculty: { findMany: mocks.programFacultyFindMany },
       researchOutput: { count: mocks.researchOutputCount },
       programDemandMatch: { findMany: mocks.programDemandMatchFindMany },
@@ -48,6 +56,14 @@ vi.mock('../src/index', async () => {
       },
       demographicProjection: { findFirst: mocks.demographicFindFirst },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
+      graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
+      programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
+      // Backs getAcademicYearContext() (packages/db/src/academic-year.ts),
+      // exercised for the first time by the tuition_trend_slope tests
+      // below. Default (null → no stored override) below picks the
+      // computed June-16 boundary, same as production with no operator
+      // override configured.
+      systemSetting: { findUnique: mocks.systemSettingFindUnique },
       // health-score.ts uses $queryRaw for the year-window probe + the
       // scope attractiveness funnel aggregate (now admission_campaign_stats
       // via scopeFunnelLatestYear), and $queryRawUnsafe in
@@ -70,8 +86,14 @@ vi.mock('../src/scope', async () => {
 });
 
 import { computeHealthScores, HEALTH_SCORE_VERSION } from '../src/health-score';
+import {
+  deriveAcademicYear,
+  defaultNextStartDate,
+  invalidateAcademicYearCache,
+} from '../src/academic-year';
 
 beforeEach(() => {
+  invalidateAcademicYearCache();
   for (const fn of Object.values(mocks)) fn.mockReset();
   // Defaults — every data source empty → all drivers null. Per-test
   // overrides drive specific scenarios.
@@ -86,6 +108,11 @@ beforeEach(() => {
   mocks.tcasFindMany.mockResolvedValue([]);
   mocks.demographicFindFirst.mockResolvedValue(null);
   mocks.kmitlCareerFindMany.mockResolvedValue([]);
+  mocks.systemSettingFindUnique.mockResolvedValue(null);
+  mocks.graduateOutcomeFindFirst.mockResolvedValue(null);
+  mocks.enrollmentMetricFindFirst.mockResolvedValue(null);
+  mocks.facultyFindFirst.mockResolvedValue(null);
+  mocks.programPedagogyAssessmentFindUnique.mockResolvedValue(null);
   // collectProgramIdsForScope hits prisma.program.findMany at uni
   // scope — empty array means relevance/capability scope-aggregations
   // fall through cleanly.
@@ -149,5 +176,133 @@ describe('computeHealthScores — null handling', () => {
       'outcomes',
       'relevance',
     ]);
+  });
+});
+
+describe('financial dimension — tuition_trend_slope ignores the in-flight academic year', () => {
+  it('excludes the in-progress year even though its ratio to the prior year would pass the 30% guard', async () => {
+    // Mirrors the real shape measured in the plan: an in-progress year
+    // reading ~47% of the prior complete year — comfortably above the
+    // old 30% "obviously truncated" ratio, so the pre-fix code kept it
+    // and let it drag the slope toward a manufactured decline.
+    const ctx = deriveAcademicYear(defaultNextStartDate());
+    const currentYearCE = ctx.currentAcademicYearBE - 543;
+    const priorYearCE = currentYearCE - 1;
+    const twoYearsAgoCE = currentYearCE - 2;
+
+    mocks.programFindUnique.mockResolvedValue({
+      id: 'p1',
+      nameEn: 'Test Program',
+      nameTh: 'หลักสูตรทดสอบ',
+      departmentId: null,
+      level: null,
+      kmitlCareerIds: [],
+    });
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.financialMetricFindMany.mockResolvedValue([
+      {
+        fiscalYear: twoYearsAgoCE,
+        tuitionRevenue: 3_000_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 3_000_000,
+      },
+      {
+        fiscalYear: priorYearCE,
+        tuitionRevenue: 4_000_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 4_000_000,
+      },
+      {
+        // In-flight academic year — one semester billed (~47% of prior,
+        // matching the plan's measured median). Must never enter the
+        // slope regression, regardless of its ratio to the prior year.
+        fiscalYear: currentYearCE,
+        tuitionRevenue: 1_880_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 1_880_000,
+      },
+    ]);
+
+    const rows = await computeHealthScores('program', 'p1');
+    const financial = rows[0]?.dimensions.financial;
+    const slopeDriver = financial?.drivers.find((d) => d.label === 'tuition_trend_slope');
+
+    // Only twoYearsAgoCE → priorYearCE (a rising +1,000,000/yr trend)
+    // should feed the slope. If the in-flight year had leaked in, the
+    // regression would swing negative (its value sits far below both
+    // complete years) and the driver would clamp near 0 instead of 100.
+    expect(slopeDriver).toBeDefined();
+    expect(slopeDriver?.value).toBe(100);
+  });
+
+  it('still applies the ratio guard to the latest COMPLETE year once the in-flight year is excluded', async () => {
+    const ctx = deriveAcademicYear(defaultNextStartDate());
+    const currentYearCE = ctx.currentAcademicYearBE - 543;
+    const priorYearCE = currentYearCE - 1; // latest complete year
+    const twoYearsAgoCE = currentYearCE - 2;
+    const threeYearsAgoCE = currentYearCE - 3;
+
+    mocks.programFindUnique.mockResolvedValue({
+      id: 'p2',
+      nameEn: 'Truncated Ingestion Program',
+      nameTh: 'หลักสูตรข้อมูลไม่ครบ',
+      departmentId: null,
+      level: null,
+      kmitlCareerIds: [],
+    });
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.financialMetricFindMany.mockResolvedValue([
+      {
+        fiscalYear: threeYearsAgoCE,
+        tuitionRevenue: 2_000_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 2_000_000,
+      },
+      {
+        fiscalYear: twoYearsAgoCE,
+        tuitionRevenue: 3_000_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 3_000_000,
+      },
+      {
+        // The latest COMPLETE year, but obviously truncated (< 30% of
+        // the year before it) — e.g. a failed/partial ingestion. The
+        // secondary ratio guard should still fall back one further,
+        // even though this row is not in-flight by the calendar test.
+        fiscalYear: priorYearCE,
+        tuitionRevenue: 500_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 500_000,
+      },
+      {
+        fiscalYear: currentYearCE,
+        tuitionRevenue: 1_880_000,
+        directCost: 0,
+        allocatedFacilityCost: 0,
+        allocatedOverhead: 0,
+        netContribution: 1_880_000,
+      },
+    ]);
+
+    const rows = await computeHealthScores('program', 'p2');
+    const financial = rows[0]?.dimensions.financial;
+    const slopeDriver = financial?.drivers.find((d) => d.label === 'tuition_trend_slope');
+
+    // Series after exclusion: [threeYearsAgo=2M, twoYearsAgo=3M, priorYear=0.5M].
+    // The ratio guard drops the truncated priorYear row, leaving only
+    // [2M, 3M] → a rising +1,000,000/yr slope → clamp(100).
+    expect(slopeDriver?.value).toBe(100);
   });
 });

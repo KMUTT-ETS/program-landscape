@@ -908,7 +908,7 @@ async function scoreFinancialProgram(
   // ~44% of the prior complete year, but with a long tail above 90%).
   const academicYearCtx = await getAcademicYearContext();
   const currentAcademicYearCE = academicYearCtx.currentAcademicYearBE - 543;
-  const pick = pickFinancialYear(rows, currentAcademicYearCE, num);
+  const pick = pickFinancialYear(rows, currentAcademicYearCE, (row) => num(row.tuitionRevenue));
   if (!pick.row) {
     return emptyScore([
       'net_contribution_per_student',
@@ -952,8 +952,16 @@ async function scoreFinancialProgram(
     {
       label: 'tuition_trend_slope',
       value: (() => {
+        // Exclude the in-progress academic year BEFORE the ratio-based
+        // applyPartialYearDrop runs — a half-billed year drags the slope
+        // toward a manufactured decline no matter its ratio to the prior
+        // year (see excludeInProgressYear's doc comment). This mirrors
+        // the head-selection rule in pickFinancialYear above.
         const series = applyPartialYearDrop(
-          rows.map((r) => ({ year: r.fiscalYear, value: num(r.tuitionRevenue) })),
+          excludeInProgressYear(
+            rows.map((r) => ({ year: r.fiscalYear, value: num(r.tuitionRevenue) })),
+            currentAcademicYearCE,
+          ),
         );
         if (series.length < 2) return null;
         const slope = linearSlope(series);
@@ -1848,6 +1856,30 @@ function normaliseSubjectKey(s: string): string {
 }
 
 interface SeriesPoint { year: number; value: number }
+
+/**
+ * Drops any point at or after `currentAcademicYearCE` — the academic year
+ * still being taught and billed — from a trend series. ONLY the tuition
+ * driver (`tuition_trend_slope`) calls this. It deliberately does NOT run
+ * on the enrolment-based series feeding `enrollment_trend_slope` /
+ * `kku_intake_policy` a few lines above: those two calendars diverge
+ * within the same academic year. Recruitment for an academic year is
+ * finished at that year's START, so the in-progress year's headcount can
+ * be a real, complete figure. Tuition for that same year is billed across
+ * TWO fiscal-year cycles and isn't fully collected until roughly a year
+ * AFTER it starts — see `packages/db/src/financial-year.ts` for the full
+ * reasoning and `pickFinancialYear`, which this mirrors for head
+ * selection. Do not "unify" this with `applyPartialYearDrop` below without
+ * re-deriving that distinction first.
+ */
+function excludeInProgressYear(series: SeriesPoint[], currentAcademicYearCE: number): SeriesPoint[] {
+  return series.filter((p) => p.year < currentAcademicYearCE);
+}
+
+// Ratio-based partial-year guard. Used AS-IS (no year exclusion) by the
+// enrolment drivers above; used by the tuition driver only AFTER
+// excludeInProgressYear has already removed the in-progress year — see
+// that function's doc comment for why the two call sites differ.
 function applyPartialYearDrop(series: SeriesPoint[]): SeriesPoint[] {
   if (series.length < 2) return series;
   const last = series[series.length - 1]!.value;
