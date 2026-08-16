@@ -24,6 +24,15 @@ export interface DotRangeProps extends Omit<ChartCommonProps, 'heightMm'> {
   rowHeightMm?: number;
   /** Width in mm reserved to the right of the range for its value/range text. */
   valueGutterMm?: number;
+  /**
+   * Formats each number (the row's own value, and its peer min/max) in the
+   * value/range text. Defaults to the raw number stringified (this
+   * primitive's original behaviour) — pass this to render rounded scores
+   * rather than full-precision floats (peer TCAS score ranges routinely
+   * carry many decimal places upstream). Opt-in so existing callers at the
+   * default are unaffected.
+   */
+  formatValue?: (v: number) => string;
 }
 
 const RANGE_STROKE_WIDTH_MM = pt(1.4);
@@ -42,6 +51,7 @@ export function DotRange({
   labelWidthMm = 55,
   rowHeightMm = 10,
   valueGutterMm = 44,
+  formatValue,
   emptyNote,
 }: DotRangeProps): React.ReactElement {
   if (rows.length === 0) {
@@ -74,6 +84,7 @@ export function DotRange({
   }
 
   const heightMm = Math.max(rowHeightMm * rows.length + 4, 12);
+  const fv = (n: number): string => (formatValue ? formatValue(n) : String(n));
 
   // The shared axis must include every row's peer range AND every row's
   // value — an out-of-range value EXPANDS the domain rather than being
@@ -103,7 +114,7 @@ export function DotRange({
         const dotX = labelWidthMm + x(row.value);
 
         const dotFill = outOfRange ? SEMANTIC.warning : seriesColour(0);
-        const rangeText = `${row.value} (peer ${row.min}${RANGE_DASH}${row.max})`;
+        const rangeText = `${fv(row.value)} (peer ${fv(row.min)}${RANGE_DASH}${fv(row.max)})`;
 
         return (
           <g key={i}>

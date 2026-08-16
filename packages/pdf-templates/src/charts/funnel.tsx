@@ -26,6 +26,15 @@ export interface FunnelProps extends Omit<ChartCommonProps, 'heightMm'> {
   labelWidthMm?: number;
   /** Width in mm reserved to the right of each band for its value/conversion label. */
   valueGutterMm?: number;
+  /**
+   * Formats each stage's value in the value/conversion label. Defaults to
+   * the stage's raw number (this primitive's original behaviour) — pass
+   * this to render a rounded score/count rather than a full-precision float.
+   * Opt-in so existing callers at the default are unaffected. The conversion
+   * percentage alongside it is already rounded by this primitive and is not
+   * affected by this prop.
+   */
+  formatValue?: (v: number) => string;
 }
 
 /** Band height as a fraction of its row slot — same ratio BarsH/BarsStacked use. */
@@ -50,6 +59,7 @@ export function Funnel({
   rowHeightMm = 11,
   labelWidthMm = 40,
   valueGutterMm = 60,
+  formatValue,
   emptyNote,
 }: FunnelProps): React.ReactElement {
   if (stages.length === 0) {
@@ -115,7 +125,7 @@ export function Funnel({
 
         const pct = previous !== undefined ? conversionPct(stage.value, previous.value) : null;
         const pctLabel = previous === undefined ? '' : pct === null ? ' · —' : ` · ${Math.round(pct)}%`;
-        const valueText = `${stage.value}${pctLabel}`;
+        const valueText = `${formatValue ? formatValue(stage.value) : stage.value}${pctLabel}`;
 
         const fill = isAnomalous ? SEMANTIC.warning : seriesColour(0);
         const textFill = isAnomalous ? SEMANTIC.warning : INK.axis;

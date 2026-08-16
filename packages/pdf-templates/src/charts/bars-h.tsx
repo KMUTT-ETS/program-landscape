@@ -39,6 +39,15 @@ export interface BarsHProps extends Omit<ChartCommonProps, 'heightMm'> {
   rowHeightMm?: number;
   /** Width in mm reserved to the right of each bar for its value label. */
   valueGutterMm?: number;
+  /**
+   * Formats each bar's value label. Defaults to the row's raw number (this
+   * primitive's original behaviour) — pass this to render a score/percentage/
+   * count rather than a full-precision float (e.g. a health-score average
+   * like `83.33333333333333`, which is real content this document uses to
+   * close programs, not a rounding nicety). Opt-in so existing callers at the
+   * default are unaffected.
+   */
+  formatValue?: (v: number) => string;
 }
 
 export function BarsH({
@@ -50,6 +59,7 @@ export function BarsH({
   labelWidthMm = 55,
   rowHeightMm = 9,
   valueGutterMm = 14,
+  formatValue,
   emptyNote,
 }: BarsHProps): React.ReactElement {
   if (rows.length === 0) {
@@ -111,7 +121,7 @@ export function BarsH({
                   fill={seriesColour(row.series ?? 0)} />
             <text x={labelWidthMm + barWidth + 2} y={yTop + barHeight * 0.78}
                   fontSize={LABEL.value} fontFamily={LABEL.fontFamily} fill={INK.axis}>
-              {row.value}
+              {formatValue ? formatValue(row.value) : row.value}
             </text>
           </g>
         );

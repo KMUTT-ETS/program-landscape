@@ -25,6 +25,14 @@ export interface MatrixProps extends Omit<ChartCommonProps, 'heightMm'> {
   rowHeightMm?: number;
   /** Height in mm reserved above the grid for column headers. */
   headerHeightMm?: number;
+  /**
+   * Formats each non-null cell value, and the two legend endpoint labels
+   * (`0` and the domain max). Defaults to the raw number stringified (this
+   * primitive's original behaviour) — pass this to render rounded values
+   * rather than full-precision floats. Opt-in so existing callers at the
+   * default are unaffected.
+   */
+  formatValue?: (v: number) => string;
 }
 
 /** Breathing room inside each cell slot so adjacent cells read as distinct cells, not one solid block. */
@@ -96,6 +104,7 @@ export function Matrix({
   columnWidthMm = 10,
   rowHeightMm = 8,
   headerHeightMm = 26,
+  formatValue,
   emptyNote,
 }: MatrixProps): React.ReactElement {
   if (rows.length === 0 || columns.length === 0) {
@@ -165,12 +174,13 @@ export function Matrix({
   // all-null-or-all-zero matrix yields fraction 0 (the palest tint)
   // everywhere rather than NaN.
   const intensity = linear([0, domainMax], [0, 1]);
+  const fv = (n: number): string => (formatValue ? formatValue(n) : String(n));
 
   // Legend label x-positions are computed from the min label's own
   // estimated width (not a fixed offset) so a multi-digit domainMax never
   // collides with the min swatch/label pair to its left.
-  const legendMinLabel = '0';
-  const legendMaxLabel = String(domainMax);
+  const legendMinLabel = fv(0);
+  const legendMaxLabel = fv(domainMax);
   const legendMinSwatchX = labelWidthMm;
   const legendMinLabelX = legendMinSwatchX + LEGEND_SWATCH_SIZE_MM + LEGEND_GAP_MM;
   const legendMaxSwatchX =
@@ -278,7 +288,7 @@ export function Matrix({
               // permanent fallback either way.
               const fraction = intensity(value);
               const fill = intensityColour(fraction);
-              const displayValue = String(value);
+              const displayValue = fv(value);
               const valueTextWidthMm = estimateTextWidthMm(displayValue, LABEL.value);
               const valueFits = valueTextWidthMm <= cellW - 2 * VALUE_TEXT_PADDING_MM;
               // A saturated (high-value) fill is dark enough that dark text
@@ -288,7 +298,7 @@ export function Matrix({
               const valueFill = fraction >= DARK_FILL_TEXT_THRESHOLD ? INK.surface : INK.axis;
               return (
                 <g key={j}>
-                  <title>{`${row.label} × ${columnLabel}: ${value}`}</title>
+                  <title>{`${row.label} × ${columnLabel}: ${fv(value)}`}</title>
                   <rect className="matrix-cell" x={cellX} y={cellY} width={cellW} height={cellH}
                         fill={fill} stroke={INK.rule} strokeWidth={pt(0.4)} />
                   {valueFits && (

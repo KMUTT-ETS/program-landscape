@@ -39,6 +39,14 @@ export interface WaterfallProps extends Omit<ChartCommonProps, 'heightMm'> {
    * KKU data" section.
    */
   labelHeightMm?: number;
+  /**
+   * Formats each bar's magnitude in its value label (before the '+' sign
+   * this primitive itself prepends for a rising non-total bar). Defaults to
+   * the bar's raw number stringified (this primitive's original behaviour)
+   * — pass this to render a rounded value rather than a full-precision
+   * float. Opt-in so existing callers at the default are unaffected.
+   */
+  formatValue?: (v: number) => string;
 }
 
 /** Bar width as a fraction of its column slot — same ratio BarsH/BarsStacked/Funnel use. */
@@ -86,6 +94,7 @@ export function Waterfall({
   plotHeightMm = 55,
   columnWidthMm = 26,
   labelHeightMm = 9,
+  formatValue,
   emptyNote,
 }: WaterfallProps): React.ReactElement {
   if (bars.length === 0) {
@@ -173,8 +182,12 @@ export function Waterfall({
         // Totals show their absolute value plainly — they are not a "gain"
         // relative to anything, so no leading '+'. Non-total bars show a
         // signed contribution; Number's own toString already prefixes '-'
-        // for negative deltas, only the '+' needs adding by hand.
-        const displayValue = isTotal ? String(c.bar.delta) : `${c.bar.delta > 0 ? '+' : ''}${c.bar.delta}`;
+        // for negative deltas, only the '+' needs adding by hand. formatValue
+        // (when given) formats the magnitude only — the sign/prefix logic
+        // here stays in charge of the leading '+', so a caller's formatter
+        // (e.g. rounding) never has to reimplement it.
+        const magnitude = formatValue ? formatValue(c.bar.delta) : String(c.bar.delta);
+        const displayValue = isTotal ? magnitude : `${c.bar.delta > 0 ? '+' : ''}${magnitude}`;
 
         // Bar labels sit in the fixed columnWidthMm slot below the plot —
         // the same fixed-width-column situation fitLabel was built for (see

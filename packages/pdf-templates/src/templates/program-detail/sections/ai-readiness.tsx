@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { BarsH, type BarRow } from '../../../charts';
+import { formatScore } from '../format';
 import type { ProgramDetailData } from '../schema';
 
 // §2 — AI readiness. `BarRow.value` is a plain, non-nullable `number` —
@@ -49,6 +50,7 @@ export function renderAiReadinessSection(data: ProgramDetailData): React.ReactEl
         rows={scoredRows}
         labelWidthMm={62}
         rowHeightMm={14}
+        formatValue={formatScore}
         emptyNote="No AI-readiness sub-scores are available yet for this program."
         provenance={{
           source: 'program-digest · kku-research',

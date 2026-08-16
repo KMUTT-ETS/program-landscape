@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { Funnel } from '../../../charts';
+import { formatCount } from '../format';
 import type { ProgramDetailData } from '../schema';
 
 // §3 — Demand funnel. Funnel computes each stage's own conversion badge
@@ -40,6 +41,7 @@ export function renderDemandFunnelSection(data: ProgramDetailData): React.ReactE
           .map((s) => ({ label: s.stage, value: s.value }))}
         rowHeightMm={14}
         labelWidthMm={45}
+        formatValue={formatCount}
         emptyNote="No cohort funnel data — run kku-registry + alumni links to populate admission-to-graduation stages."
         provenance={{
           source: 'kku-registry · tcas · kku-alumni',
