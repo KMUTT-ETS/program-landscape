@@ -17,58 +17,24 @@ const STANDFIRST_TH =
   'รายงานฉบับนี้รวบรวมคะแนนสุขภาพหลักสูตร แนวโน้มวงจรชีวิต อุปสงค์และอุปทานตลาดแรงงาน ' +
   'ผลลัพธ์บัณฑิต และสถานะการเงินของหลักสูตรไว้ในฉบับเดียว สำหรับใช้ประกอบการทบทวนเชิงกลยุทธ์ของคณะกรรมการ';
 
-interface OverallHealth {
-  score: number | null;
-  completenessPct: number | null;
-}
-
-// `ProgramDetailData` carries the per-dimension health breakdown
-// (`healthDimensions`) but no pre-computed *overall* score or
-// completeness figure. The only place an overall number exists today is
-// `executiveSnapshot`'s display-only `KvRowSchema` row — and schema.ts's
-// own top-of-file comment forbids parsing that back into a number
-// ("never charted, never parsed back out"). That same comment names the
-// sanctioned fix for exactly this situation: "add a separate, dedicated
-// numeric field next to the KV row" (the pattern already used for
-// `aiReadiness.subScoreValues`, `cohortDistribution.summaryValues`,
-// `faculty.seniorRankSharePct`). Adding that field means touching
-// schema.ts and program-detail-data.ts, which this task is explicitly
-// scoped to leave alone.
-//
-// Pending that follow-up, this mirrors the exact formula the backend
-// already uses for the composite — `combineDimensions()` in
-// `packages/db/src/health-score.ts`: the mean of the non-null dimension
-// scores (dimensions with no data are excluded, never treated as 0),
-// and completeness averaged across all dimensions (0 counts here — an
-// unmeasured dimension is 0% complete, a true measured value, not a
-// missing one). It runs against numbers already on this payload
-// (`healthDimensions`), so nothing is invented — but because those
-// numbers are already rounded per-dimension by the builder, the result
-// can drift by about a point from the backend's own `overall.score`
-// (computed from unrounded inputs before rounding). See the Task 4
-// implementation report for the recommended schema addition that would
-// remove this drift entirely.
-function deriveOverallHealth(dimensions: ProgramDetailData['healthDimensions']): OverallHealth {
-  if (dimensions.length === 0) return { score: null, completenessPct: null };
-
-  const scored = dimensions.filter((d) => d.score !== null);
-  const score =
-    scored.length === 0
-      ? null
-      : Math.round(scored.reduce((sum, d) => sum + (d.score ?? 0), 0) / scored.length);
-
-  const completenessSum = dimensions.reduce((sum, d) => sum + (d.dataCompleteness ?? 0), 0);
-  const completenessPct = Math.round(completenessSum / dimensions.length);
-
-  return { score, completenessPct };
-}
-
+// The cover's health-score and data-completeness stats are read straight
+// off `data.healthOverallScore` / `data.healthOverallCompletenessPct` —
+// dedicated numeric companions the builder computes once, directly from
+// `overview.health.overall.{score,dataCompletenessPct}`
+// (apps/api/src/programs/program-detail-data.ts). This component must
+// NOT re-derive the composite from `healthDimensions` (e.g. averaging
+// the per-dimension scores itself) — that would be a second, template-
+// side implementation of the health-score methodology that can silently
+// drift from the backend's own number, and nobody reading the PDF would
+// be able to tell which figure was right. A template displays; it does
+// not compute.
 function statValueClass(isNull: boolean): string {
   return isNull ? 'stat-value muted' : 'stat-value';
 }
 
 export function renderCoverPage(data: ProgramDetailData): React.ReactElement {
-  const overall = deriveOverallHealth(data.healthDimensions);
+  const healthScore = data.healthOverallScore;
+  const completenessPct = data.healthOverallCompletenessPct;
   const verdict = data.lifecycle?.verdict ?? null;
   const trajectoryScore = data.lifecycle?.trajectoryScore ?? null;
 
@@ -88,9 +54,7 @@ export function renderCoverPage(data: ProgramDetailData): React.ReactElement {
 
       <div className="stat-block">
         <div className="stat" data-stat="health">
-          <span className={statValueClass(overall.score === null)}>
-            {formatScore(overall.score)}
-          </span>
+          <span className={statValueClass(healthScore === null)}>{formatScore(healthScore)}</span>
           <span className="stat-label">Health score / 100</span>
         </div>
 
@@ -103,8 +67,8 @@ export function renderCoverPage(data: ProgramDetailData): React.ReactElement {
         </div>
 
         <div className="stat" data-stat="completeness">
-          <span className={statValueClass(overall.completenessPct === null)}>
-            {formatPct(overall.completenessPct)}
+          <span className={statValueClass(completenessPct === null)}>
+            {formatPct(completenessPct)}
           </span>
           <span className="stat-label">Data completeness</span>
         </div>

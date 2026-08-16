@@ -357,6 +357,19 @@ export async function buildProgramDetailData(
       }
     }
   }
+  // The composite the cover's stat block needs — read straight off the
+  // same `overview.health.overall` the executiveSnapshot row above
+  // already stringifies, not re-derived from `healthDimensions`. `score`
+  // stays null when the methodology had no non-null dimension to average
+  // (never coerced to 0); `dataCompletenessPct` is non-nullable upstream
+  // (`HealthScoreSchema` in packages/db/src/health-score.ts) but this
+  // still guards on `overview.health` being present at all.
+  const healthOverallScore: ProgramDetailData['healthOverallScore'] =
+    overview.health && overview.health.overall.score !== null
+      ? Math.round(overview.health.overall.score)
+      : null;
+  const healthOverallCompletenessPct: ProgramDetailData['healthOverallCompletenessPct'] =
+    overview.health ? Math.round(overview.health.overall.dataCompletenessPct) : null;
 
   // ── Lifecycle verdict ────────────────────────────────────────────
   const lifecycleData: ProgramDetailData['lifecycle'] = lifecycle
@@ -1082,6 +1095,8 @@ export async function buildProgramDetailData(
     healthDimensions,
     healthDrivers,
     healthMethodologyVersion: overview.health?.methodologyVersion ?? '',
+    healthOverallScore,
+    healthOverallCompletenessPct,
     lifecycle: lifecycleData,
     strategicNarrative: strategicNarrativeData,
     aiReadiness: aiReadinessData,

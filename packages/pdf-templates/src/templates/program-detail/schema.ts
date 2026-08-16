@@ -616,6 +616,23 @@ export const ProgramDetailDataSchema = z.object({
   healthDimensions: z.array(HealthDimRowSchema).default([]),
   healthDrivers: z.array(HealthDriverRowSchema).default([]),
   healthMethodologyVersion: z.string().default(''),
+  // Dedicated numeric companions to the "Overall health score" /
+  // "data completeness" figures that otherwise only exist pre-formatted
+  // inside `executiveSnapshot`'s display-only KV row (which this file's
+  // header comment explicitly forbids parsing back into a number). Same
+  // pattern as `aiReadiness.subScoreValues` / `cohortDistribution.
+  // summaryValues` — a chart (here, the cover's stat block) needs the
+  // raw composite, not the per-dimension breakdown in `healthDimensions`
+  // and not a re-derivation of it. Sourced directly from
+  // `overview.health.overall.{score,dataCompletenessPct}` in the
+  // builder — no new methodology, just exposed as a number.
+  // `healthOverallScore` is null when the methodology has no non-null
+  // dimension to average (never 0). `healthOverallCompletenessPct` is
+  // not null in practice (the upstream value is a non-nullable 0–100)
+  // but stays nullable here for the same defensive reason as
+  // `healthDimensions[].dataCompleteness`.
+  healthOverallScore: z.number().finite().nullable().default(null),
+  healthOverallCompletenessPct: z.number().finite().nullable().default(null),
   lifecycle: LifecycleSchema.nullable().default(null),
   strategicNarrative: StrategicNarrativeSchema.nullable().default(null),
   aiReadiness: AiReadinessSchema.nullable().default(null),

@@ -48,22 +48,8 @@ describe('renderCoverPage', () => {
 
   it('renders all three stats when the data is present', () => {
     const data = parse({
-      healthDimensions: [
-        {
-          dimension: 'Attractiveness',
-          score: 90,
-          dataCompleteness: 50,
-          topDriverLabel: null,
-          topDriverValue: null,
-        },
-        {
-          dimension: 'Capability',
-          score: 60,
-          dataCompleteness: 75,
-          topDriverLabel: null,
-          topDriverValue: null,
-        },
-      ],
+      healthOverallScore: 75,
+      healthOverallCompletenessPct: 63,
       lifecycle: {
         verdict: 'GROWTH',
         trajectoryScore: 80,
@@ -75,19 +61,50 @@ describe('renderCoverPage', () => {
     });
     const html = renderToStaticMarkup(renderCoverPage(data));
 
-    // health score: mean(90, 60) = 75
     expect(statBlock(html, 'health')).toContain('75');
     // lifecycle verdict, plus its trajectory score
     expect(statBlock(html, 'lifecycle')).toContain('GROWTH');
     expect(statBlock(html, 'lifecycle')).toContain('80');
-    // data completeness: mean(50, 75) = 62.5 -> 63
     expect(statBlock(html, 'completeness')).toContain('63');
   });
 
+  // The regression this test exists for: cover.tsx used to average
+  // `healthDimensions` itself instead of reading the payload's own
+  // composite. Set `healthOverallScore` to a value the dimension average
+  // deliberately disagrees with (dimensions here average to 62; the
+  // payload's own score is 77) and assert the cover shows the payload's
+  // number. A template displays what it is given; it does not compute
+  // its own version of a scoring methodology.
+  it('displays the score on the payload, not a mean of healthDimensions', () => {
+    const data = parse({
+      healthOverallScore: 77,
+      healthDimensions: [
+        {
+          dimension: 'Attractiveness',
+          score: 50,
+          dataCompleteness: 100,
+          topDriverLabel: null,
+          topDriverValue: null,
+        },
+        {
+          dimension: 'Capability',
+          score: 74,
+          dataCompleteness: 100,
+          topDriverLabel: null,
+          topDriverValue: null,
+        },
+      ], // mean = 62 — deliberately not 77
+    });
+    const html = renderToStaticMarkup(renderCoverPage(data));
+    const health = statBlock(html, 'health');
+    expect(health).toContain('77');
+    expect(health).not.toContain('62');
+  });
+
   it('renders a null health score as an em dash, never "0" or the literal "null"', () => {
-    // MINIMAL_BASE has no healthDimensions and no lifecycle — both fall
-    // back to schema defaults ([] and null), which is the genuine
-    // "no data yet" case, not a fabricated zero.
+    // MINIMAL_BASE has no healthOverallScore/healthOverallCompletenessPct
+    // and no lifecycle — all fall back to schema defaults (null), which
+    // is the genuine "no data yet" case, not a fabricated zero.
     const html = renderToStaticMarkup(renderCoverPage(parse()));
     const health = statBlock(html, 'health');
     expect(health).toContain('—');
@@ -99,9 +116,6 @@ describe('renderCoverPage', () => {
     expect(lifecycle).not.toMatch(/null/);
 
     const completeness = statBlock(html, 'completeness');
-    // An empty healthDimensions array is "no dimensions were computed at
-    // all" and must also be an em dash — not the 0% a naive
-    // sum-over-empty-array division would silently produce.
     expect(completeness).toContain('—');
     expect(completeness).not.toMatch(/>0%</);
   });
