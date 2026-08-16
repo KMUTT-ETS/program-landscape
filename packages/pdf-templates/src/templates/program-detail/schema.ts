@@ -365,19 +365,22 @@ const OutcomesSchema = z.object({
 });
 
 const SkillsSchema = z.object({
-  matchScore: z.string(),
+  matchScore: z.number().finite().nullable(),
   demandSource: z.string(),
   demandTier: z.string(),
-  careerFilterCount: z.string(),
-  totalTaught: z.string(),
-  ploCount: z.string(),
+  careerFilterCount: z.number().finite().nullable(),
+  totalTaught: z.number().finite().nullable(),
+  ploCount: z.number().finite().nullable(),
   major: z
     .array(
       z.object({
         skill: z.string(),
-        plo: z.string(),
-        compulsoryWeight: z.string(),
-        electiveWeight: z.string(),
+        // Was the string 'Yes' / '' — a boolean mis-encoded as a string,
+        // not a display label. Per the schema inventory: neither NUMERIC
+        // nor prose DISPLAY, so pass the real boolean through.
+        plo: z.boolean(),
+        compulsoryWeight: z.number().finite().nullable(),
+        electiveWeight: z.number().finite().nullable(),
         evidence: z.string().default(''),
       }),
     )
@@ -386,7 +389,7 @@ const SkillsSchema = z.object({
     .array(
       z.object({
         skill: z.string(),
-        electiveWeight: z.string(),
+        electiveWeight: z.number().finite().nullable(),
       }),
     )
     .default([]),
@@ -394,9 +397,16 @@ const SkillsSchema = z.object({
     .array(
       z.object({
         skill: z.string(),
-        peakDemand: z.string(),
-        careerCount: z.string(),
-        match: z.string(),
+        peakDemand: z.number().finite().nullable(),
+        careerCount: z.number().finite().nullable(),
+        // Tri-state pass-through of the upstream `curriculumMatched:
+        // boolean | null`. Deliberately NOT collapsed to a plain boolean —
+        // per the schema inventory, `null` ("no AI match decision yet") is
+        // semantically distinct from `false` ("confirmed gap"), and
+        // collapsing them would be the same zero-looks-like-missing
+        // failure mode this refactor exists to avoid, on a boolean instead
+        // of a number.
+        match: z.boolean().nullable(),
       }),
     )
     .default([]),
@@ -404,8 +414,8 @@ const SkillsSchema = z.object({
     .array(
       z.object({
         skill: z.string(),
-        peakDemand: z.string(),
-        careerCount: z.string(),
+        peakDemand: z.number().finite().nullable(),
+        careerCount: z.number().finite().nullable(),
       }),
     )
     .default([]),

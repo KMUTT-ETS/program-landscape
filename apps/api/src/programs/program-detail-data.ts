@@ -805,21 +805,17 @@ export async function buildProgramDetailData(
           )
           .slice(0, 25);
         return {
-          matchScore: String(Math.round(skills.matchScore)),
+          matchScore: skills.matchScore,
           demandSource: skills.demandSource,
           demandTier: skills.demandTier,
-          careerFilterCount: String(skills.careerFilterCount),
-          totalTaught: String(skills.taught.length),
-          ploCount: String(skills.ploSkillCount),
+          careerFilterCount: skills.careerFilterCount,
+          totalTaught: skills.taught.length,
+          ploCount: skills.ploSkillCount,
           major: major.map((s) => ({
             skill: s.nameEn || s.nameTh,
-            plo: s.pickedFromPlo ? 'Yes' : '',
-            compulsoryWeight:
-              s.compulsoryWeight === null
-                ? '—'
-                : s.compulsoryWeight.toFixed(2),
-            electiveWeight:
-              s.electiveWeight === null ? '—' : s.electiveWeight.toFixed(2),
+            plo: s.pickedFromPlo,
+            compulsoryWeight: s.compulsoryWeight,
+            electiveWeight: s.electiveWeight,
             evidence: s.evidenceQuote
               ? s.evidenceQuote.length > 90
                 ? `"${s.evidenceQuote.slice(0, 90)}…"`
@@ -828,24 +824,18 @@ export async function buildProgramDetailData(
           })),
           minor: minor.map((s) => ({
             skill: s.nameEn || s.nameTh,
-            electiveWeight:
-              s.electiveWeight === null ? '—' : s.electiveWeight.toFixed(2),
+            electiveWeight: s.electiveWeight,
           })),
           demanded: skills.demanded.slice(0, 20).map((s) => ({
             skill: s.nameEn || s.nameTh,
-            peakDemand: fmtPct(s.peakDemandPct, 0),
-            careerCount: String(s.careerCount),
-            match:
-              s.curriculumMatched === true
-                ? 'taught'
-                : s.curriculumMatched === false
-                  ? 'gap'
-                  : '—',
+            peakDemand: s.peakDemandPct,
+            careerCount: s.careerCount,
+            match: s.curriculumMatched,
           })),
           gaps: skills.gaps.slice(0, 15).map((g) => ({
             skill: g.nameEn || g.nameTh,
-            peakDemand: fmtPct(g.peakDemandPct, 0),
-            careerCount: String(g.careerCount),
+            peakDemand: g.peakDemandPct,
+            careerCount: g.careerCount,
           })),
         };
       })()

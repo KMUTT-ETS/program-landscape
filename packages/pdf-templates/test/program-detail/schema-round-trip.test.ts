@@ -1419,4 +1419,149 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Skills ────────────────────────────────────────────────────────
+  describe('skills.matchScore', () => {
+    function fixtureWith(matchScore: unknown): unknown {
+      const skills = (FIXTURE as { skills: object }).skills;
+      return { ...FIXTURE, skills: { ...skills, matchScore } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(38)).success).toBe(true);
+    });
+
+    it('accepts a genuine zero without collapsing it to "no data"', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(0)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('38')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('skills.major[].plo', () => {
+    // Was the string 'Yes' / '' — a boolean mis-encoded as a string, not a
+    // display label. Passes the real boolean through instead.
+    function fixtureWith(plo: unknown): unknown {
+      const skills = (FIXTURE as { skills: { major: unknown[] } }).skills;
+      const major = skills.major;
+      return {
+        ...FIXTURE,
+        skills: { ...skills, major: [{ ...(major[0] as object), plo }, ...major.slice(1)] },
+      };
+    }
+
+    it('accepts a boolean', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(true)).success).toBe(true);
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(false)).success).toBe(true);
+    });
+
+    it('rejects the old "Yes" / "" string encoding', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('Yes')).success).toBe(false);
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('')).success).toBe(false);
+    });
+  });
+
+  describe('skills.major[].compulsoryWeight', () => {
+    function fixtureWith(compulsoryWeight: unknown): unknown {
+      const skills = (FIXTURE as { skills: { major: unknown[] } }).skills;
+      const major = skills.major;
+      return {
+        ...FIXTURE,
+        skills: {
+          ...skills,
+          major: [{ ...(major[0] as object), compulsoryWeight }, ...major.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a raw 0..1 fraction', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(0.9)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "0.90" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('0.90')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('skills.demanded[].match', () => {
+    // Empty in the captured fixture (this program has no demand-vs-taught
+    // matches computed yet) — synthetic single-row array. Tri-state
+    // pass-through of `curriculumMatched: boolean | null`: `null` ("no AI
+    // decision yet") must stay distinct from `false` ("confirmed gap").
+    function fixtureWith(match: unknown): unknown {
+      const skills = (FIXTURE as { skills: object }).skills;
+      return {
+        ...FIXTURE,
+        skills: {
+          ...skills,
+          demanded: [{ skill: 'Data analysis', peakDemand: 40, careerCount: 3, match }],
+        },
+      };
+    }
+
+    it('accepts true (confirmed taught)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(true)).success).toBe(true);
+    });
+
+    it('accepts false (confirmed gap) — distinct from null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(false)).success).toBe(true);
+    });
+
+    it('accepts null (no AI match decision yet)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "taught" / "gap" / "—" formatted strings', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('taught')).success).toBe(false);
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('gap')).success).toBe(false);
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('—')).success).toBe(false);
+    });
+  });
+
+  describe('skills.demanded[].peakDemand', () => {
+    function fixtureWith(peakDemand: unknown): unknown {
+      const skills = (FIXTURE as { skills: object }).skills;
+      return {
+        ...FIXTURE,
+        skills: {
+          ...skills,
+          demanded: [{ skill: 'Data analysis', peakDemand, careerCount: 3, match: null }],
+        },
+      };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(63.5)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('64%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

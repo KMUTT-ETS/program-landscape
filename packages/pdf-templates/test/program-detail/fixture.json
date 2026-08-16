@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 4:33 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:48 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -796,53 +796,53 @@
     "topEmployers": []
   },
   "skills": {
-    "matchScore": "0",
+    "matchScore": 0,
     "demandSource": "linkedin-via-mhesi",
     "demandTier": "none",
-    "careerFilterCount": "7",
-    "totalTaught": "6",
-    "ploCount": "6",
+    "careerFilterCount": 7,
+    "totalTaught": 6,
+    "ploCount": 6,
     "major": [
       {
         "skill": "Civil engineering",
-        "plo": "Yes",
-        "compulsoryWeight": "1.00",
-        "electiveWeight": "0.60",
+        "plo": true,
+        "compulsoryWeight": 1,
+        "electiveWeight": 0.6,
         "evidence": "\"PLO 5.5 สามารถใช้เครื่องมือการคำนวณและเครื่องมือทางวิศวกรรม เพื่อประกอบวิชาชีพในสาขาวิศวกร…\""
       },
       {
         "skill": "Construction Management",
-        "plo": "Yes",
-        "compulsoryWeight": "0.90",
-        "electiveWeight": "0.80",
+        "plo": true,
+        "compulsoryWeight": 0.9,
+        "electiveWeight": 0.8,
         "evidence": "\"EN 114 101 การจัดการงานก่อสร้าง... การวางแผนโครงการ การวางผังโครงการก่อสร้าง เทคโนโลยีการก…\""
       },
       {
         "skill": "English Communication",
-        "plo": "Yes",
-        "compulsoryWeight": "0.80",
-        "electiveWeight": "0.20",
+        "plo": true,
+        "compulsoryWeight": 0.8,
+        "electiveWeight": 0.2,
         "evidence": "\"PLO 4.1 สามารถสื่อสารกับกลุ่มคนที่หลากหลาย และสามารถสนทนาทั้งภาษาไทยและภาษาต่างประเทศได้อย…\""
       },
       {
         "skill": "Engineering Ethics",
-        "plo": "Yes",
-        "compulsoryWeight": "0.70",
-        "electiveWeight": "0.30",
+        "plo": true,
+        "compulsoryWeight": 0.7,
+        "electiveWeight": 0.3,
         "evidence": "\"PLO 1.5 มีจรรยาบรรณทางวิชาการและวิชาชีพ และมีความรับผิดชอบในฐานะผู้ประกอบวิชาชีพ\""
       },
       {
         "skill": "Teamwork and Leadership",
-        "plo": "Yes",
-        "compulsoryWeight": "0.60",
-        "electiveWeight": "0.40",
+        "plo": true,
+        "compulsoryWeight": 0.6,
+        "electiveWeight": 0.4,
         "evidence": "\"PLO 1.3 มี ภาวะความเป็นผู้นำและผู้ตาม สามารถทำงานเป็นหมู่คณะ สามารถแก้ไขข้อขัดแย้งตามลำดับ…\""
       },
       {
         "skill": "Entrepreneurship",
-        "plo": "Yes",
-        "compulsoryWeight": "0.60",
-        "electiveWeight": "0.00",
+        "plo": true,
+        "compulsoryWeight": 0.6,
+        "electiveWeight": 0,
         "evidence": "\"PLO 3.4 ...มีแนวคิดและทักษะของการเป็นผู้ประกอบการนวัตกรรม\""
       }
     ],
