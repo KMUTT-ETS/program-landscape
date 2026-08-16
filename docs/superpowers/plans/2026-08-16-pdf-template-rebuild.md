@@ -264,9 +264,26 @@ describe('magazineCss', () => {
 - [ ] **Step 3: Implement**
 
 Rules to provide, at minimum: `.section-opener` (number, rule, title), `.chart-lede`,
-`.running-head`, `.folio`, `.appendix-table`, `.pull-quote`, `.stat-block`. Use CSS counters for
-section and appendix numbering so renumbering cannot drift. **Do not restate anything `base-css.ts`
-already defines** — a review already caught a caption silently overriding it.
+`.appendix-table`, `.pull-quote`, `.stat-block`. Use CSS counters for section and appendix numbering
+so renumbering cannot drift. **Do not restate anything `base-css.ts` already defines** — a review
+already caught a caption silently overriding it.
+
+**Correction — running heads and folios are NOT CSS.** The plan originally listed `.running-head`
+and `.folio` here. That is wrong: Chromium does not support `@page` margin boxes, and Gotenberg
+renders page headers/footers as **separate, isolated HTML documents** that do not inherit the main
+document's CSS or fonts. See `src/components/footer-template.ts`, which already does this for other
+templates and carries the constraints:
+
+- The file must NOT import React — Chromium renders it, not our server.
+- Replacement tokens: `<span class="pageNumber">`, `totalPages`, `date`, `title`, `url`.
+- Fonts must be declared in the header/footer's own `<style>`; the main document's are unavailable.
+  Pin `'TH Sarabun New'` explicitly — `Sarabun` is not installed in the Gotenberg image, so a
+  fallback silently substitutes a larger, bolder face.
+
+So the running head (program code + section) and folio (page number) belong in a
+`buildDeepDiveHeaderHtml` / `buildDeepDiveFooterHtml` pair alongside `footer-template.ts`, passed
+through `RenderHtmlOptions.headerTemplate` / `.footerTemplate`. That is part of Task 7's assembly,
+not Task 3 — but build the pair here while the constraint is fresh, and test the emitted strings.
 
 - [ ] **Step 4: Run — expect PASS. Then commit**
 
