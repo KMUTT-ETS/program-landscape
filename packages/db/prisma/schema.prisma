@@ -1482,6 +1482,19 @@ model CostMethodology {
 model FinancialMetric {
   id                    String   @id @default(cuid())
   programId             String   @map("program_id")
+  /// MISNAMED — despite the column name, this holds an ACADEMIC year
+  /// (Jun-May), not a fiscal year (Oct-Sep). Sourced from POWERBI's
+  /// ACADYEAR column (kku-finance/connector.ts) via ingestion's
+  /// COHORT_YEAR_BE. One academic year's tuition straddles TWO fiscal-year
+  /// billing cycles — semester 1 bills in the fiscal year the academic
+  /// year starts in, semester 2 (and any summer term) bills in the next
+  /// one — so the currently-running academic year only ever has semester 1
+  /// collected, regardless of the calendar date. See
+  /// packages/db/src/financial-year.ts for the scoring rule this implies,
+  /// and EnrollmentMetric.academicYear for the CORRECTLY-named field on
+  /// the same calendar. FacultyBudget.fiscalYear below shares this exact
+  /// column name but is a true Oct-Sep fiscal year — the two are NOT on
+  /// the same axis despite the identical name.
   fiscalYear            Int      @map("fiscal_year")
   tuitionRevenue        Decimal  @map("tuition_revenue") @db.Decimal(14, 2)
   otherRevenue          Decimal  @default(0) @map("other_revenue") @db.Decimal(14, 2)
@@ -3334,6 +3347,12 @@ model FacultyBudget {
   facultyId          String?  @map("faculty_id")
   divisionName       String   @map("division_name") @db.Text
   fundCategory       String   @map("fund_category")
+  /// This one IS a true fiscal year (Oct-Sep), sourced from BudgetData's
+  /// FISCAL_YEAR_BE column (kku-finance/connector.ts). Do NOT confuse with
+  /// FinancialMetric.fiscalYear above, which shares this exact column name
+  /// but actually holds an ACADEMIC year (Jun-May) — the two columns are
+  /// on different calendars despite the identical name and must not be
+  /// treated as the same axis.
   fiscalYear         Int      @map("fiscal_year")
   snapshotName       String?  @map("snapshot_name")
   totalBudget        Decimal  @map("total_budget") @db.Decimal(16, 2)
