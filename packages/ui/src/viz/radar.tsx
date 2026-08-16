@@ -52,6 +52,57 @@ export interface RadarChartSmallProps {
 
 const NO_DATA_SUFFIX = ' · n/d';
 
+/**
+ * Horizontal room reserved on each side for axis labels, in px.
+ *
+ * Sized against the longest side label at fontSize 11 ('Relevance',
+ * ~55px) plus a little slack. Recharts derives its outerRadius from the
+ * box left after margins, so raising this shrinks the polygon — do not
+ * raise it further without checking the radar still reads at 280px wide.
+ */
+const LABEL_GUTTER_PX = 56;
+
+interface AngleTickProps {
+  x?: number;
+  y?: number;
+  cx?: number;
+  payload?: { value?: string | number };
+  fill: string;
+}
+
+/**
+ * Axis label for the radar.
+ *
+ * Two things Recharts' default tick does not do for us:
+ *
+ *  1. Anchors the text AWAY from the centre — labels on the right start
+ *     at the vertex and run right, labels on the left end at it and run
+ *     left. With a single shared anchor the outermost labels overhang the
+ *     SVG and get clipped mid-word.
+ *  2. Puts the ' · n/d' missing-data suffix on its own smaller line, so an
+ *     empty dimension does not make its label ~30px wider than the gutter
+ *     was sized for.
+ */
+function AngleTick({ x, y, cx, payload, fill }: AngleTickProps): React.ReactElement | null {
+  if (x === undefined || y === undefined) return null;
+  const raw = String(payload?.value ?? '');
+  const isEmpty = raw.endsWith(NO_DATA_SUFFIX);
+  const label = isEmpty ? raw.slice(0, -NO_DATA_SUFFIX.length) : raw;
+  // A near-zero horizontal offset means top/bottom — centre those.
+  const offset = cx === undefined ? 0 : x - cx;
+  const anchor = Math.abs(offset) < 8 ? 'middle' : offset > 0 ? 'start' : 'end';
+  return (
+    <text x={x} y={y} textAnchor={anchor} fill={fill} fontSize={11} dominantBaseline="middle">
+      <tspan>{label}</tspan>
+      {isEmpty && (
+        <tspan x={x} dy="1.15em" fontSize={9} opacity={0.75}>
+          {NO_DATA_SUFFIX.trim()}
+        </tspan>
+      )}
+    </text>
+  );
+}
+
 export function RadarChartSmall({
   points,
   width = 280,
@@ -118,15 +169,34 @@ export function RadarChartSmall({
   // Make room for the legend when overlays are present.
   const chartHeight = hasComparisons ? height + 28 : height;
   return (
-    <RadarChart width={width} height={chartHeight} data={data}>
+    <RadarChart
+      width={width}
+      height={chartHeight}
+      data={data}
+      /* Without a horizontal margin Recharts centres the polygon in the
+       * full width and the axis labels render past both edges, where the
+       * SVG clips them — 'Relevance' lost its leading 'R', 'Financial'
+       * its trailing 'l'. The margin reserves label room; Recharts derives
+       * a smaller outerRadius from the remaining box automatically.
+       * LABEL_GUTTER_PX must stay >= the widest label at fontSize 11,
+       * including the ' · n/d' suffix an empty dimension carries. */
+      margin={{ top: 8, right: LABEL_GUTTER_PX, bottom: 8, left: LABEL_GUTTER_PX }}
+    >
       <PolarGrid stroke={palette.grid} />
       <PolarAngleAxis
         dataKey="subject"
         stroke={palette.axis}
-        tick={{ fill: palette.text, fontSize: 11 }}
+        tick={<AngleTick fill={palette.text} />}
       />
+      {/* The scale ray must not sit on a spoke. Recharts puts the first
+        * data point at 90° (straight up) and steps 72° per axis, so
+        * angle={90} drew the 0–100 tick labels directly under
+        * 'Attractiveness' and the two collided. 54° is the midpoint
+        * between the first two spokes — empty space at every radius.
+        * If the dimension count ever changes from 5, re-derive this:
+        * it wants to be half a step off a spoke, i.e. 90 - (360/n)/2. */}
       <PolarRadiusAxis
-        angle={90}
+        angle={54}
         domain={[0, 100]}
         tick={{ fill: palette.axis, fontSize: 10 }}
         stroke={palette.grid}
