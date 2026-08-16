@@ -1,0 +1,1438 @@
+{
+  "programCode": "KKU-SEQ-0065",
+  "nameTh": "วิศวกรรมศาสตรบัณฑิต (วิศวกรรมโยธา)",
+  "nameEn": "Bachelor of Engineering Program in Civil Engineering",
+  "level": "Bachelor",
+  "status": "ACTIVE",
+  "facultyTh": "คณะวิศวกรรมศาสตร์",
+  "facultyEn": "Faculty of Engineering",
+  "departmentTh": "",
+  "departmentEn": "",
+  "yearEstablished": "",
+  "dateLabel": "2026-06-18",
+  "generatedAtLabel": "August 16, 2026 at 2:02 AM",
+  "methodologyVersion": "health-score.v3.8",
+  "executiveSnapshot": [
+    {
+      "metric": "Overall health score",
+      "value": "67 / 100",
+      "notes": "data 46% complete"
+    },
+    {
+      "metric": "Lifecycle verdict",
+      "value": "SUNSET",
+      "notes": "trajectory 34 / 100"
+    },
+    {
+      "metric": "AI readiness",
+      "value": "35 / 100",
+      "notes": "Low"
+    },
+    {
+      "metric": "Latest employment rate",
+      "value": "67.4%",
+      "notes": "439 graduates surveyed · 2023 cohort"
+    },
+    {
+      "metric": "Currently teaching staff",
+      "value": "18",
+      "notes": "3 retiring within 5 years (17%)"
+    }
+  ],
+  "healthDimensions": [
+    {
+      "dimension": "Attractiveness",
+      "score": "90",
+      "dataCompleteness": "50%",
+      "topDriver": "tcas competition ratio (100)"
+    },
+    {
+      "dimension": "Financial",
+      "score": "—",
+      "dataCompleteness": "0%",
+      "topDriver": "—"
+    },
+    {
+      "dimension": "Capability",
+      "score": "61",
+      "dataCompleteness": "75%",
+      "topDriver": "Senior-rank faculty share (100)"
+    },
+    {
+      "dimension": "Outcomes",
+      "score": "67",
+      "dataCompleteness": "83%",
+      "topDriver": "Further-study share (100)"
+    },
+    {
+      "dimension": "Relevance",
+      "score": "50",
+      "dataCompleteness": "20%",
+      "topDriver": "strategic sector alignment (50)"
+    }
+  ],
+  "healthDrivers": [
+    {
+      "dimension": "Attractiveness",
+      "driver": "tcas competition ratio",
+      "value": "100"
+    },
+    {
+      "dimension": "Attractiveness",
+      "driver": "TCAS fill rate",
+      "value": "100"
+    },
+    {
+      "dimension": "Attractiveness",
+      "driver": "tcas registration yield",
+      "value": "69"
+    },
+    {
+      "dimension": "Attractiveness",
+      "driver": "TCAS competition vs peers",
+      "value": "—"
+    },
+    {
+      "dimension": "Attractiveness",
+      "driver": "Enrolment trend (3-yr slope)",
+      "value": "—"
+    },
+    {
+      "dimension": "Attractiveness",
+      "driver": "KKU intake-floor policy",
+      "value": "—"
+    },
+    {
+      "dimension": "Financial",
+      "driver": "Net contribution / student",
+      "value": "—"
+    },
+    {
+      "dimension": "Financial",
+      "driver": "revenue coverage program direct",
+      "value": "—"
+    },
+    {
+      "dimension": "Financial",
+      "driver": "tuition trend slope",
+      "value": "—"
+    },
+    {
+      "dimension": "Financial",
+      "driver": "revenue scale",
+      "value": "—"
+    },
+    {
+      "dimension": "Capability",
+      "driver": "Senior-rank faculty share",
+      "value": "100"
+    },
+    {
+      "dimension": "Capability",
+      "driver": "Publications per faculty (3 yr)",
+      "value": "0"
+    },
+    {
+      "dimension": "Capability",
+      "driver": "5-yr retirement headroom",
+      "value": "83"
+    },
+    {
+      "dimension": "Capability",
+      "driver": "Student / faculty ratio",
+      "value": "—"
+    },
+    {
+      "dimension": "Outcomes",
+      "driver": "tcas min score percentile",
+      "value": "27"
+    },
+    {
+      "dimension": "Outcomes",
+      "driver": "Employment rate",
+      "value": "67"
+    },
+    {
+      "dimension": "Outcomes",
+      "driver": "Job relevance",
+      "value": "72"
+    },
+    {
+      "dimension": "Outcomes",
+      "driver": "Average starting salary",
+      "value": "—"
+    },
+    {
+      "dimension": "Outcomes",
+      "driver": "Further-study share",
+      "value": "100"
+    },
+    {
+      "dimension": "Outcomes",
+      "driver": "student satisfaction",
+      "value": "69"
+    },
+    {
+      "dimension": "Relevance",
+      "driver": "labour market alignment",
+      "value": "—"
+    },
+    {
+      "dimension": "Relevance",
+      "driver": "demand match filled",
+      "value": "—"
+    },
+    {
+      "dimension": "Relevance",
+      "driver": "demographic resilience",
+      "value": "—"
+    },
+    {
+      "dimension": "Relevance",
+      "driver": "strategic sector alignment",
+      "value": "50"
+    },
+    {
+      "dimension": "Relevance",
+      "driver": "pedagogical fit",
+      "value": "—"
+    }
+  ],
+  "healthMethodologyVersion": "health-score.v3.8",
+  "lifecycle": {
+    "verdict": "SUNSET",
+    "trajectoryScore": "34",
+    "methodologyVersion": "lifecycle.v1.4",
+    "generatedAt": "2026-08-16",
+    "narrative": "Sunset risk (trajectory 34/100) — multiple signals declining; closure / merger / radical restructure on the table. Lifting forces: overall health, faculty capability. Drag: curriculum modernity, major content gaps vs peers.",
+    "drivers": [
+      {
+        "direction": "drag",
+        "label": "Curriculum modernity",
+        "contribution": "-10.0"
+      },
+      {
+        "direction": "drag",
+        "label": "Major content gaps vs peers",
+        "contribution": "-8.0"
+      },
+      {
+        "direction": "drag",
+        "label": "AI readiness",
+        "contribution": "-7.5"
+      },
+      {
+        "direction": "lifting",
+        "label": "Overall health",
+        "contribution": "+6.8"
+      },
+      {
+        "direction": "lifting",
+        "label": "Faculty capability",
+        "contribution": "+3.0"
+      },
+      {
+        "direction": "lifting",
+        "label": "Enrolment growth",
+        "contribution": "0.0"
+      },
+      {
+        "direction": "lifting",
+        "label": "Tuition growth",
+        "contribution": "0.0"
+      },
+      {
+        "direction": "lifting",
+        "label": "labour market alignment",
+        "contribution": "0.0"
+      },
+      {
+        "direction": "lifting",
+        "label": "revenue scale",
+        "contribution": "0.0"
+      },
+      {
+        "direction": "lifting",
+        "label": "Demographic resilience",
+        "contribution": "0.0"
+      },
+      {
+        "direction": "lifting",
+        "label": "Delayed-graduation share",
+        "contribution": "0.0"
+      }
+    ]
+  },
+  "strategicNarrative": {
+    "contentMarkdown": "## Executive summary\nThe Bachelor of Engineering in Civil Engineering faces a SUNSET lifecycle verdict with a trajectory score of 30/100, driven by severe curriculum obsolescence and poor graduate outcomes despite exceptionally high domestic demand.\n\n## Strategic position\n- The program demonstrates exceptional attractiveness with a TCAS3 competition ratio of **27.50x** and a fill rate of **200.0%** for BE 2568.\n- Overall health scores **70.7**, anchored by a perfect capability score of **100.0**, but severely dragged down by an outcomes score of **26.7**.\n- FY 2025 tuition revenue totals **THB 11,599,000**, supported by a government salary subsidy of **THB 15,678,840**, though the net contribution per student operates at a deficit of **THB -46,525**.\n- AI readiness is critically low at **30/100**, with curriculum integration scoring **0** and **0 of 6** AI-native skills present.\n\n## Critical risks\n- The curriculum is classified as OLD_SCHOOL, directly correlating with the low outcomes score of **26.7** and poor alignment with modern labor market demands compared to international peers.\n- The program operates at a per-student financial loss, evidenced by the net contribution per student of **THB -46,525**.\n- The BE 2564 cohort shows delayed completion, with **15** students still enrolled and **13** dropped out from the initial **97** admitted.\n\n## Opportunities\n- The program possesses a high skill resilience score of **83**, providing a strong foundational base to integrate digital and AI competencies without discarding core engineering principles.\n- With a low demographic risk requiring only a **0.003%** share over 10 years and a current **27.50x** competition ratio, the program can selectively admit higher-caliber students to improve the minimum admission score of **40.79**.\n\n## Recommended actions\n1. Overhaul the curriculum to integrate digital engineering tools and AI-native skills within **12 months** to elevate the AI readiness curriculum integration score above 0 and align with Chulalongkorn benchmarks.\n2. Restructure program delivery costs and tuition fee models within **6 months** to eliminate the **THB -46,525** per-student deficit and achieve financial sustainability.\n3. Implement targeted academic interventions for the **15** delayed students from the BE 2564 cohort within **3 months** to improve the graduation rate and overall outcomes score.\n4. Reduce the TCAS3 intake target to match actual capacity rather than operating at a **200.0%** fill rate within **9 months** to improve the minimum admission score and reduce instructional strain.",
+    "methodVersion": "program-strategic-narrative.v1",
+    "confidencePct": "95%",
+    "generatedAt": "2026-05-03"
+  },
+  "aiReadiness": {
+    "overallScore": "35",
+    "verdict": "Low AI readiness",
+    "summary": "Strategic awareness of AI exists, but technical implementation in the core curriculum appears limited.",
+    "methodologyVersion": "program-ai-readiness.v2",
+    "subScores": [
+      {
+        "metric": "Curriculum integration",
+        "value": "0",
+        "notes": "AI/ML coverage in program skills"
+      },
+      {
+        "metric": "Skill resilience",
+        "value": "83",
+        "notes": "AI-augmented vs displaceable balance"
+      },
+      {
+        "metric": "AI research presence",
+        "value": "0",
+        "notes": "0/0 publications (3y)"
+      },
+      {
+        "metric": "Pedagogical readiness",
+        "value": "no data",
+        "notes": "data not yet collected"
+      }
+    ],
+    "skillBreakdown": [
+      {
+        "category": "AI-native",
+        "count": "0",
+        "share": "0%"
+      },
+      {
+        "category": "AI-augmented",
+        "count": "4",
+        "share": "67%"
+      },
+      {
+        "category": "Neutral",
+        "count": "2",
+        "share": "33%"
+      },
+      {
+        "category": "AI-displaceable",
+        "count": "0",
+        "share": "0%"
+      }
+    ],
+    "gaps": [
+      {
+        "topic": "Lack of Foundational Data/Computational Skills",
+        "severity": "major",
+        "observation": "While the program claims to integrate AI and GIS, the top skills listed do not include programming (e.g., Python), data analytics, or applied statistics. Without these foundational skills, students cannot meaningfully apply AI to civil engineering problems; they can only act as passive users of black-box software.",
+        "peerReference": "National University of Singapore (NUS)"
+      },
+      {
+        "topic": "Traditional Construction Management Focus",
+        "severity": "moderate",
+        "observation": "Construction Management is listed as a highly weighted skill (0.90), but there is no indication that this includes modern AI-driven methodologies. Modern construction management relies heavily on predictive scheduling algorithms, generative scheduling, and computer vision for site monitoring, which appear absent from the current skill profile.",
+        "peerReference": "Stanford University (CIFE)"
+      },
+      {
+        "topic": "Absence of BIM and Generative Design",
+        "severity": "major",
+        "observation": "Building Information Modeling (BIM) is the primary vehicle for AI in structural design and lifecycle management. The snapshot does not highlight BIM or generative design competencies, which are critical prerequisites for applying AI in structural engineering.",
+        "peerReference": "ETH Zurich"
+      }
+    ],
+    "recommendations": [
+      {
+        "priority": "high",
+        "title": "Introduce 'Data Science for Civil Engineers'",
+        "detail": "Add a mandatory 3-credit course focusing on Python programming, spatial data analysis (GeoAI), and basic machine learning applied to civil engineering datasets (e.g., predicting concrete compressive strength, analyzing traffic data).",
+        "effortHorizon": "< 12 months"
+      },
+      {
+        "priority": "high",
+        "title": "Modernize Construction Management with AI Tools",
+        "detail": "Update the existing Construction Management coursework to include modules on AI-driven project management. Introduce students to platforms like ALICE Technologies for generative scheduling and demonstrate computer vision applications for site safety.",
+        "effortHorizon": "12–24 months"
+      },
+      {
+        "priority": "medium",
+        "title": "Integrate AI-Augmented BIM",
+        "detail": "Embed AI and generative design modules into structural design courses. Transition from traditional CAD to advanced BIM platforms (e.g., Autodesk Revit with Dynamo/Generative Design) to teach algorithmic optimization of structures.",
+        "effortHorizon": "12–24 months"
+      }
+    ]
+  },
+  "demandFunnel": {
+    "anchorEntryYearLabel": "—",
+    "cohortStatus": "in-progress cohort",
+    "programDurationYears": "4",
+    "methodologyVersion": "demand-funnel.v2",
+    "stages": [],
+    "conversions": [],
+    "alumniBreakdown": [],
+    "cohortTrend": []
+  },
+  "recruitment": {
+    "methodologyVersion": "program-recruitment.v2",
+    "inProgressNote": "",
+    "byYear": [
+      {
+        "yearBE": "BE 2569",
+        "status": "complete",
+        "planPerYear": "80",
+        "seats": "80",
+        "overAllocation": "",
+        "applicants": "1,200",
+        "competition": "15.00×",
+        "passed": "135",
+        "confirmCh": "83",
+        "reported": "80",
+        "vsPlan": "100%"
+      },
+      {
+        "yearBE": "BE 2568",
+        "status": "complete",
+        "planPerYear": "80",
+        "seats": "96",
+        "overAllocation": "1.20×",
+        "applicants": "1,729",
+        "competition": "18.01×",
+        "passed": "129",
+        "confirmCh": "80",
+        "reported": "79",
+        "vsPlan": "99%"
+      },
+      {
+        "yearBE": "BE 2567",
+        "status": "complete",
+        "planPerYear": "80",
+        "seats": "104",
+        "overAllocation": "1.30×",
+        "applicants": "1,668",
+        "competition": "16.04×",
+        "passed": "145",
+        "confirmCh": "84",
+        "reported": "81",
+        "vsPlan": "101%"
+      },
+      {
+        "yearBE": "BE 2566",
+        "status": "complete",
+        "planPerYear": "80",
+        "seats": "83",
+        "overAllocation": "",
+        "applicants": "1,418",
+        "competition": "17.08×",
+        "passed": "116",
+        "confirmCh": "79",
+        "reported": "79",
+        "vsPlan": "99%"
+      },
+      {
+        "yearBE": "BE 2565",
+        "status": "complete",
+        "planPerYear": "—",
+        "seats": "80",
+        "overAllocation": "",
+        "applicants": "1,382",
+        "competition": "17.27×",
+        "passed": "103",
+        "confirmCh": "80",
+        "reported": "78",
+        "vsPlan": "—"
+      }
+    ],
+    "latestRoundsYear": "BE 2569",
+    "latestRounds": [
+      {
+        "round": "1",
+        "seats": "28",
+        "applicants": "302",
+        "passed": "63",
+        "confirmCh": "29",
+        "reported": "29"
+      },
+      {
+        "round": "2",
+        "seats": "40",
+        "applicants": "716",
+        "passed": "44",
+        "confirmCh": "27",
+        "reported": "26"
+      },
+      {
+        "round": "3",
+        "seats": "12",
+        "applicants": "182",
+        "passed": "28",
+        "confirmCh": "27",
+        "reported": "25"
+      }
+    ]
+  },
+  "tcas": {
+    "history": [
+      {
+        "yearRound": "BE 2568 R3.2",
+        "quota": "12",
+        "applicants": "330",
+        "competition": "27.50×",
+        "fillRate": "200.0%",
+        "minScore": "40.79",
+        "maxScore": "50.46"
+      },
+      {
+        "yearRound": "BE 2568 R3.1",
+        "quota": "12",
+        "applicants": "330",
+        "competition": "27.50×",
+        "fillRate": "0.0%",
+        "minScore": "—",
+        "maxScore": "—"
+      },
+      {
+        "yearRound": "BE 2567 R3",
+        "quota": "27",
+        "applicants": "182",
+        "competition": "6.74×",
+        "fillRate": "0.0%",
+        "minScore": "—",
+        "maxScore": "—"
+      },
+      {
+        "yearRound": "BE 2564 R3",
+        "quota": "5",
+        "applicants": "213",
+        "competition": "42.60×",
+        "fillRate": "0.0%",
+        "minScore": "—",
+        "maxScore": "—"
+      },
+      {
+        "yearRound": "BE 2563 R3",
+        "quota": "10",
+        "applicants": "156",
+        "competition": "15.60×",
+        "fillRate": "0.0%",
+        "minScore": "—",
+        "maxScore": "—"
+      },
+      {
+        "yearRound": "BE 2562 R3",
+        "quota": "143",
+        "applicants": "935",
+        "competition": "6.54×",
+        "fillRate": "0.0%",
+        "minScore": "—",
+        "maxScore": "—"
+      }
+    ],
+    "peers": [
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยเกษตรศาสตร์",
+        "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
+        "quota": "18",
+        "applicants": "1,423",
+        "competition": "79.06×",
+        "minScore": "56.73"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยธรรมศาสตร์",
+        "programme": "วศ.บ.สาขาวิชาวิศวกรรมโยธา",
+        "quota": "46",
+        "applicants": "1,494",
+        "competition": "32.48×",
+        "minScore": "40.80"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยพะเยา",
+        "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
+        "quota": "10",
+        "applicants": "178",
+        "competition": "17.80×",
+        "minScore": "49.06"
+      },
+      {
+        "match": "subject",
+        "institution": "จุฬาลงกรณ์มหาวิทยาลัย",
+        "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
+        "quota": "10",
+        "applicants": "176",
+        "competition": "17.60×",
+        "minScore": "66.02"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยนเรศวร",
+        "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
+        "quota": "50",
+        "applicants": "838",
+        "competition": "16.76×",
+        "minScore": "46.49"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยศรีนครินทรวิโรฒ",
+        "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
+        "quota": "31",
+        "applicants": "297",
+        "competition": "9.58×",
+        "minScore": "38.15"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยเกษตรศาสตร์",
+        "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
+        "quota": "25",
+        "applicants": "204",
+        "competition": "8.16×",
+        "minScore": "44.18"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยเทคโนโลยีราชมงคลกรุงเทพ",
+        "programme": "วศ.บ. (วิศวกรรมโยธา)",
+        "quota": "30",
+        "applicants": "222",
+        "competition": "7.40×",
+        "minScore": "88.00"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยเกษตรศาสตร์",
+        "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
+        "quota": "30",
+        "applicants": "192",
+        "competition": "6.40×",
+        "minScore": "66.74"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยศรีปทุม",
+        "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
+        "quota": "20",
+        "applicants": "111",
+        "competition": "5.55×",
+        "minScore": "69.75"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยนราธิวาสราชนครินทร์",
+        "programme": "วิศวกรรมโยธา",
+        "quota": "15",
+        "applicants": "82",
+        "competition": "5.47×",
+        "minScore": "85.25"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยมหิดล",
+        "programme": "หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
+        "quota": "55",
+        "applicants": "248",
+        "competition": "4.51×",
+        "minScore": "35.58"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยเกษตรศาสตร์",
+        "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
+        "quota": "35",
+        "applicants": "111",
+        "competition": "3.17×",
+        "minScore": "33.82"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยสยาม",
+        "programme": "วศ.บ. สาขาวิชาวิศวกรรมโยธา",
+        "quota": "20",
+        "applicants": "25",
+        "competition": "1.25×",
+        "minScore": "63.75"
+      },
+      {
+        "match": "subject",
+        "institution": "มหาวิทยาลัยราชภัฏเชียงใหม่",
+        "programme": "วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมโยธา",
+        "quota": "29",
+        "applicants": "3",
+        "competition": "0.10×",
+        "minScore": "21.00"
+      }
+    ],
+    "peerMatchKey": "วิศวกรรมโยธา"
+  },
+  "cohortDistribution": null,
+  "demographic": {
+    "catchment": "Thailand",
+    "ageCohort": "18-22",
+    "source": "NESDC-PopProj-2010-2040",
+    "baselineYearOneIntake": "—",
+    "fifteenYearContraction": "−27.1%",
+    "riskLevel": "LOW",
+    "projections": [
+      {
+        "year": "2026 (today)",
+        "cohortPopulation": "3.98M",
+        "decline": "0.0%",
+        "shareNeeded": "—"
+      },
+      {
+        "year": "2031",
+        "cohortPopulation": "3.55M",
+        "decline": "−10.7%",
+        "shareNeeded": "—"
+      },
+      {
+        "year": "2036",
+        "cohortPopulation": "3.19M",
+        "decline": "−19.9%",
+        "shareNeeded": "—"
+      },
+      {
+        "year": "2041",
+        "cohortPopulation": "2.90M",
+        "decline": "−27.1%",
+        "shareNeeded": "—"
+      }
+    ]
+  },
+  "outcomes": {
+    "surveyYear": "2023",
+    "methodologyVersion": "graduate-employment-survey.v1",
+    "freshnessDate": "2026-05-04",
+    "sampleSize": "439",
+    "summary": [
+      {
+        "metric": "Employment rate",
+        "value": "67.4%",
+        "notes": "~1 year after graduation"
+      },
+      {
+        "metric": "Average starting salary",
+        "value": "0 THB / month",
+        "notes": "self-reported"
+      },
+      {
+        "metric": "Job matches field of study",
+        "value": "72%",
+        "notes": "graduates working in their discipline"
+      },
+      {
+        "metric": "Further study",
+        "value": "11%",
+        "notes": "enrolled in postgraduate study"
+      }
+    ],
+    "salaryTrajectory": [
+      {
+        "year": "2019",
+        "salary": "0"
+      },
+      {
+        "year": "2020",
+        "salary": "0"
+      },
+      {
+        "year": "2021",
+        "salary": "0"
+      },
+      {
+        "year": "2022",
+        "salary": "0"
+      },
+      {
+        "year": "2023",
+        "salary": "0"
+      },
+      {
+        "year": "2024",
+        "salary": "25,000"
+      },
+      {
+        "year": "2025",
+        "salary": "24,716"
+      }
+    ],
+    "topEmployers": []
+  },
+  "skills": {
+    "matchScore": "0",
+    "demandSource": "linkedin-via-mhesi",
+    "demandTier": "none",
+    "careerFilterCount": "7",
+    "totalTaught": "6",
+    "ploCount": "6",
+    "major": [
+      {
+        "skill": "Civil engineering",
+        "plo": "Yes",
+        "compulsoryWeight": "1.00",
+        "electiveWeight": "0.60",
+        "evidence": "\"PLO 5.5 สามารถใช้เครื่องมือการคำนวณและเครื่องมือทางวิศวกรรม เพื่อประกอบวิชาชีพในสาขาวิศวกร…\""
+      },
+      {
+        "skill": "Construction Management",
+        "plo": "Yes",
+        "compulsoryWeight": "0.90",
+        "electiveWeight": "0.80",
+        "evidence": "\"EN 114 101 การจัดการงานก่อสร้าง... การวางแผนโครงการ การวางผังโครงการก่อสร้าง เทคโนโลยีการก…\""
+      },
+      {
+        "skill": "English Communication",
+        "plo": "Yes",
+        "compulsoryWeight": "0.80",
+        "electiveWeight": "0.20",
+        "evidence": "\"PLO 4.1 สามารถสื่อสารกับกลุ่มคนที่หลากหลาย และสามารถสนทนาทั้งภาษาไทยและภาษาต่างประเทศได้อย…\""
+      },
+      {
+        "skill": "Engineering Ethics",
+        "plo": "Yes",
+        "compulsoryWeight": "0.70",
+        "electiveWeight": "0.30",
+        "evidence": "\"PLO 1.5 มีจรรยาบรรณทางวิชาการและวิชาชีพ และมีความรับผิดชอบในฐานะผู้ประกอบวิชาชีพ\""
+      },
+      {
+        "skill": "Teamwork and Leadership",
+        "plo": "Yes",
+        "compulsoryWeight": "0.60",
+        "electiveWeight": "0.40",
+        "evidence": "\"PLO 1.3 มี ภาวะความเป็นผู้นำและผู้ตาม สามารถทำงานเป็นหมู่คณะ สามารถแก้ไขข้อขัดแย้งตามลำดับ…\""
+      },
+      {
+        "skill": "Entrepreneurship",
+        "plo": "Yes",
+        "compulsoryWeight": "0.60",
+        "electiveWeight": "0.00",
+        "evidence": "\"PLO 3.4 ...มีแนวคิดและทักษะของการเป็นผู้ประกอบการนวัตกรรม\""
+      }
+    ],
+    "minor": [],
+    "demanded": [],
+    "gaps": []
+  },
+  "courses": {
+    "methodVersion": "program-digest.v1",
+    "total": 8,
+    "extractedCount": 8,
+    "rows": [
+      {
+        "courseCode": "EN001200",
+        "courseNameTh": "สถิตยศาสตร์",
+        "courseNameEn": "Statics",
+        "credits": 3,
+        "classCount": 43,
+        "gradedCount": 2229,
+        "classGpa": 1.8822341857335128,
+        "byYear": {
+          "2565": {
+            "classCount": 11,
+            "gradedCount": 605,
+            "averageClassGpa": 1.912396694214876
+          },
+          "2566": {
+            "classCount": 10,
+            "gradedCount": 546,
+            "averageClassGpa": 1.6675824175824177
+          },
+          "2567": {
+            "classCount": 11,
+            "gradedCount": 504,
+            "averageClassGpa": 1.9216269841269842
+          },
+          "2568": {
+            "classCount": 11,
+            "gradedCount": 574,
+            "averageClassGpa": 2.020034843205575
+          }
+        }
+      },
+      {
+        "courseCode": "EN112303",
+        "courseNameTh": "กำลังวัสดุ",
+        "courseNameEn": "Strength of Materials",
+        "credits": 4,
+        "classCount": 9,
+        "gradedCount": 241,
+        "classGpa": 2.08298755186722,
+        "byYear": {
+          "2566": {
+            "classCount": 3,
+            "gradedCount": 74,
+            "averageClassGpa": 2.2635135135135136
+          },
+          "2567": {
+            "classCount": 3,
+            "gradedCount": 81,
+            "averageClassGpa": 2.04320987654321
+          },
+          "2568": {
+            "classCount": 3,
+            "gradedCount": 86,
+            "averageClassGpa": 1.9651162790697674
+          }
+        }
+      },
+      {
+        "courseCode": "EN112402",
+        "courseNameTh": "การสำรวจ",
+        "courseNameEn": "Surveying",
+        "credits": 3,
+        "classCount": 5,
+        "gradedCount": 333,
+        "classGpa": 3.3363363363363367,
+        "byYear": {
+          "2566": {
+            "classCount": 1,
+            "gradedCount": 72,
+            "averageClassGpa": 3.1666666666666674
+          },
+          "2567": {
+            "classCount": 2,
+            "gradedCount": 148,
+            "averageClassGpa": 3.398648648648649
+          },
+          "2568": {
+            "classCount": 2,
+            "gradedCount": 113,
+            "averageClassGpa": 3.3628318584070795
+          }
+        }
+      },
+      {
+        "courseCode": "EN112602",
+        "courseNameTh": "กลศาสตร์ของไหล",
+        "courseNameEn": "Fluid Mechanics",
+        "credits": 3,
+        "classCount": 6,
+        "gradedCount": 319,
+        "classGpa": 2.169278996865203,
+        "byYear": {
+          "2566": {
+            "classCount": 2,
+            "gradedCount": 99,
+            "averageClassGpa": 2.3484848484848477
+          },
+          "2567": {
+            "classCount": 2,
+            "gradedCount": 112,
+            "averageClassGpa": 2.1696428571428568
+          },
+          "2568": {
+            "classCount": 2,
+            "gradedCount": 108,
+            "averageClassGpa": 2.0046296296296298
+          }
+        }
+      },
+      {
+        "courseCode": "EN113201",
+        "courseNameTh": "ปฐพีกลศาสตร์",
+        "courseNameEn": "Soil Mechanics",
+        "credits": 3,
+        "classCount": 8,
+        "gradedCount": 353,
+        "classGpa": 2.461756373937677,
+        "byYear": {
+          "2565": {
+            "classCount": 2,
+            "gradedCount": 97,
+            "averageClassGpa": 2.3556701030927836
+          },
+          "2566": {
+            "classCount": 2,
+            "gradedCount": 96,
+            "averageClassGpa": 2.2864583333333335
+          },
+          "2567": {
+            "classCount": 2,
+            "gradedCount": 79,
+            "averageClassGpa": 2.5126582278481013
+          },
+          "2568": {
+            "classCount": 2,
+            "gradedCount": 81,
+            "averageClassGpa": 2.7469135802469142
+          }
+        }
+      },
+      {
+        "courseCode": "EN113306",
+        "courseNameTh": "การออกแบบคอนกรีตเสริมเหล็ก",
+        "courseNameEn": "Reinforced Concrete Design & Practice",
+        "credits": 4,
+        "classCount": 4,
+        "gradedCount": 148,
+        "classGpa": 2.222972972972973,
+        "byYear": {
+          "2567": {
+            "classCount": 2,
+            "gradedCount": 61,
+            "averageClassGpa": 2.434426229508196
+          },
+          "2568": {
+            "classCount": 2,
+            "gradedCount": 87,
+            "averageClassGpa": 2.0747126436781604
+          }
+        }
+      },
+      {
+        "courseCode": "EN113307",
+        "courseNameTh": "การออกแบบโครงสร้างเหล็กและไม้",
+        "courseNameEn": "Steel and Timber Design & Practice",
+        "credits": 4,
+        "classCount": 3,
+        "gradedCount": 121,
+        "classGpa": 2.260330578512397,
+        "byYear": {
+          "2567": {
+            "classCount": 1,
+            "gradedCount": 62,
+            "averageClassGpa": 2.290322580645161
+          },
+          "2568": {
+            "classCount": 2,
+            "gradedCount": 59,
+            "averageClassGpa": 2.2288135593220337
+          }
+        }
+      },
+      {
+        "courseCode": "EN114101",
+        "courseNameTh": "การจัดการงานก่อสร้าง",
+        "courseNameEn": "Construction Management",
+        "credits": 3,
+        "classCount": 10,
+        "gradedCount": 382,
+        "classGpa": 2.975130890052356,
+        "byYear": {
+          "2565": {
+            "classCount": 4,
+            "gradedCount": 92,
+            "averageClassGpa": 2.766304347826087
+          },
+          "2566": {
+            "classCount": 2,
+            "gradedCount": 98,
+            "averageClassGpa": 3.1224489795918373
+          },
+          "2567": {
+            "classCount": 2,
+            "gradedCount": 133,
+            "averageClassGpa": 3.0037593984962405
+          },
+          "2568": {
+            "classCount": 2,
+            "gradedCount": 59,
+            "averageClassGpa": 2.9915254237288136
+          }
+        }
+      }
+    ],
+    "yearsObserved": [
+      2565,
+      2566,
+      2567,
+      2568
+    ],
+    "windowYearsBE": {
+      "start": 2565,
+      "end": 2568
+    },
+    "semestersApplied": [
+      1,
+      2
+    ]
+  },
+  "faculty": {
+    "rosterScope": "program-specific roster",
+    "visibility": "full detail",
+    "kpis": [
+      {
+        "metric": "Currently teaching",
+        "value": "18",
+        "notes": "active staff members"
+      },
+      {
+        "metric": "Publications (3 yr)",
+        "value": "775",
+        "notes": "across teaching staff"
+      },
+      {
+        "metric": "Average age",
+        "value": "49 years",
+        "notes": "all teaching ranks"
+      },
+      {
+        "metric": "Retiring within 5 years",
+        "value": "17%",
+        "notes": "3 of 18 staff"
+      },
+      {
+        "metric": "Senior share (Prof + Assoc Prof)",
+        "value": "16/18 (89%)",
+        "notes": "healthy senior centre of gravity"
+      }
+    ],
+    "rankDistribution": [
+      {
+        "rank": "Associate Professor",
+        "count": "13",
+        "share": "72%"
+      },
+      {
+        "rank": "Professor",
+        "count": "3",
+        "share": "17%"
+      },
+      {
+        "rank": "Assistant Professor",
+        "count": "2",
+        "share": "11%"
+      }
+    ],
+    "roster": [
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2035-10-01"
+      },
+      {
+        "rank": "Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2038-10-01"
+      },
+      {
+        "rank": "Assistant Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2038-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2048-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2050-10-01"
+      },
+      {
+        "rank": "Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2038-10-01"
+      },
+      {
+        "rank": "Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2028-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2029-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2037-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2028-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2039-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2037-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2036-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2034-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2036-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2043-10-01"
+      },
+      {
+        "rank": "Associate Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2033-10-01"
+      },
+      {
+        "rank": "Assistant Professor",
+        "name": "REDACTED",
+        "specialization": "",
+        "retires": "2040-10-01"
+      }
+    ]
+  },
+  "financials": null,
+  "peers": {
+    "subjectSignature": "engineering-civil",
+    "rankingYear": "2025",
+    "tiers": [
+      {
+        "tier": "World tier",
+        "entries": [
+          {
+            "rank": "1",
+            "institution": "Massachusetts Institute of Technology",
+            "country": "United States",
+            "qsWorld": "1",
+            "programme": "Bachelor of Science in Civil Engineering"
+          },
+          {
+            "rank": "2",
+            "institution": "Delft University of Technology",
+            "country": "Netherlands",
+            "qsWorld": "50",
+            "programme": "BSc in Civil Engineering"
+          },
+          {
+            "rank": "3",
+            "institution": "University of California, Berkeley",
+            "country": "United States",
+            "qsWorld": "12",
+            "programme": "Bachelor of Science in Civil Engineering"
+          },
+          {
+            "rank": "4",
+            "institution": "Imperial College London",
+            "country": "United Kingdom",
+            "qsWorld": "2",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "5",
+            "institution": "ETH Zurich",
+            "country": "Switzerland",
+            "qsWorld": "7",
+            "programme": "Bachelor's in Civil Engineering"
+          }
+        ]
+      },
+      {
+        "tier": "Asia tier",
+        "entries": [
+          {
+            "rank": "1",
+            "institution": "Tsinghua University",
+            "country": "China",
+            "qsWorld": "20",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "2",
+            "institution": "National University of Singapore",
+            "country": "Singapore",
+            "qsWorld": "8",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "3",
+            "institution": "Nanyang Technological University",
+            "country": "Singapore",
+            "qsWorld": "15",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "4",
+            "institution": "University of Tokyo",
+            "country": "Japan",
+            "qsWorld": "32",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "5",
+            "institution": "Hong Kong University of Science and Technology",
+            "country": "Hong Kong SAR",
+            "qsWorld": "47",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          }
+        ]
+      },
+      {
+        "tier": "Southeast Asia",
+        "entries": [
+          {
+            "rank": "1",
+            "institution": "Universiti Teknologi Malaysia",
+            "country": "Malaysia",
+            "qsWorld": "188",
+            "programme": "Bachelor of Civil Engineering"
+          },
+          {
+            "rank": "2",
+            "institution": "Universiti Malaya",
+            "country": "Malaysia",
+            "qsWorld": "60",
+            "programme": "Bachelor of Civil Engineering"
+          },
+          {
+            "rank": "3",
+            "institution": "Institut Teknologi Bandung",
+            "country": "Indonesia",
+            "qsWorld": "256",
+            "programme": "Bachelor in Civil Engineering"
+          },
+          {
+            "rank": "4",
+            "institution": "Universitas Indonesia",
+            "country": "Indonesia",
+            "qsWorld": "206",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          }
+        ]
+      },
+      {
+        "tier": "Thailand",
+        "entries": [
+          {
+            "rank": "1",
+            "institution": "Chulalongkorn University",
+            "country": "Thailand",
+            "qsWorld": "229",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "2",
+            "institution": "King Mongkut's University of Technology Thonburi",
+            "country": "Thailand",
+            "qsWorld": "601",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "3",
+            "institution": "King Mongkut's Institute of Technology Ladkrabang",
+            "country": "Thailand",
+            "qsWorld": "711",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          },
+          {
+            "rank": "4",
+            "institution": "Chiang Mai University",
+            "country": "Thailand",
+            "qsWorld": "571",
+            "programme": "Bachelor of Engineering in Civil Engineering"
+          }
+        ]
+      }
+    ],
+    "aiReview": {
+      "confidencePct": "95%",
+      "strengths": [
+        {
+          "claim": "KKU maintains a highly qualified senior academic staff profile."
+        },
+        {
+          "claim": "Faculty research productivity is highly competitive regionally."
+        }
+      ],
+      "weaknesses": [
+        {
+          "claim": "The curriculum completely lacks modern AI/ML integration."
+        },
+        {
+          "claim": "The program has low labor-market alignment."
+        }
+      ],
+      "contentModernity": {
+        "verdict": "OLD SCHOOL",
+        "narrative": "The curriculum is dominated by pre-2010 civil engineering fundamentals such as Statics, Strength of Materials, and basic Soil Mechanics. It completely lacks modern, post-2020 industry standards such as Building Information Modeling (BIM), computational structural design, and sustainable infrastructure materials which are standard at peers like Imperial College London and NUS."
+      },
+      "summary": "KKU Civil Engineering possesses a highly qualified, research-active faculty that performs well in traditional academic output. However, its undergraduate curriculum is severely outdated, lacking critical modern competencies in BIM, sustainability, and AI integration, leaving graduates poorly prepared for the digital transformation of the global construction industry."
+    },
+    "curatedPeers": []
+  },
+  "trends": [
+    {
+      "title": "อว. เปิดตัวโครงการ THAILAND² ผนึกกำลัง 5 กระทรวงหลักมุ่งยกระดับทุนมนุษย์และเศรษฐกิจไทยสู่อนาคต",
+      "type": "Policy / regulation",
+      "targeted": "Sector-wide",
+      "impact": "82 (High)",
+      "recommendation": "Take action",
+      "detected": "2026-08-06",
+      "rationale": "Regulatory or policy change at this impact level rarely stays sector-wide. Confirm scope; treat as an action item if the program is in scope.",
+      "summary": "MHESI has partnered with five key ministries to launch the 'THAILAND²' initiative, aimed at upgrading human capital and driving the national economy through science, technology, and innovation. Alongside this, the ministry is pushing the 'TECHWAR 1440' policy, leveraging the Thai MOOC platform for lifelong learning and electronic vocational training (E-Training). This collaborative framework signals a strategic shift for universities to align curricula with high-competency workforce demands."
+    },
+    {
+      "title": "MHESI Agencies Accelerate National Standards in Microplastics, Biofuels, and Global Trade Compliance",
+      "type": "Policy / regulation",
+      "targeted": "Sector-wide",
+      "impact": "75 (High)",
+      "recommendation": "Take action",
+      "detected": "2026-08-06",
+      "rationale": "Regulatory or policy change at this impact level rarely stays sector-wide. Confirm scope; treat as an action item if the program is in scope.",
+      "summary": "MHESI has announced key initiatives to elevate national industrial standards to meet global trade and environmental regulations. Key developments include the Department of Science Service upgrading microplastic analysis laboratories to international standards, and NSTDA launching a biomass and biofuel database to support Net Zero goals. These movements signal a critical demand for higher education to produce graduates skilled in advanced laboratory testing, green technology, and international trade compliance."
+    },
+    {
+      "title": "OECD Framework for Future of Education and Skills: Key Policy Areas for Global Higher Education",
+      "type": "Policy / regulation",
+      "targeted": "Sector-wide",
+      "impact": "65 (Moderate)",
+      "recommendation": "Monitor",
+      "detected": "2026-08-01",
+      "rationale": "Policy direction worth tracking even though the program is not directly named — review again if a follow-up regulation lands.",
+      "summary": "The OECD's education and skills framework highlights critical policy areas including adult skills, the future of work, and the economic and social outcomes of education. It emphasizes the need for educational quality assurance, leadership, and equity in learning environments. These focus areas serve as a global benchmark for higher education institutions to align their curricula with emerging labor market demands and lifelong learning policies."
+    },
+    {
+      "title": "AUN-TEPL Drives Generative AI and Online Credit Transfer Integration in ASEAN Higher Education",
+      "type": "Policy / regulation",
+      "targeted": "Sector-wide",
+      "impact": "75 (High)",
+      "recommendation": "Take action",
+      "detected": "2026-08-01",
+      "rationale": "Regulatory or policy change at this impact level rarely stays sector-wide. Confirm scope; treat as an action item if the program is in scope.",
+      "summary": "The ASEAN University Network (AUN), through its AUN-TEPL thematic network, is actively driving the integration of Generative AI, online credit transfer systems, and global resource-sharing platforms to enhance personalised learning. Concurrently, the network is updating its AUN-QA guidelines and implementing CALOHEA student workload measurement tools to facilitate seamless regional student mobility and curriculum recognition across ASEAN higher education institutions."
+    },
+    {
+      "title": "UNESCO Global Initiatives on AI Governance and Technical Skills Development for Future Workforces",
+      "type": "Policy / regulation",
+      "targeted": "Sector-wide",
+      "impact": "65 (Moderate)",
+      "recommendation": "Monitor",
+      "detected": "2026-08-01",
+      "rationale": "Policy direction worth tracking even though the program is not directly named — review again if a follow-up regulation lands.",
+      "summary": "UNESCO is driving global initiatives focused on AI governance to ensure equitable technology deployment, alongside promoting technical and vocational training to jumpstart youth careers. The upcoming Transforming Education Summit +4 will bring together global leaders to address the education crisis and shape the post-2030 educational agenda, emphasizing climate resilience and digital transformation."
+    }
+  ],
+  "decisions": []
+}
