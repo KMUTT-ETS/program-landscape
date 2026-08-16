@@ -1014,4 +1014,188 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Demographic: fifteenYearContraction ──────────────────────────────
+  // Signed, raw — POSITIVE means the cohort shrinks, NEGATIVE means it
+  // grows. Both are reachable and must be preserved exactly (no
+  // normalising, clamping, or abs()). Formatting moved to
+  // `../../src/templates/program-detail/format.ts`.
+  describe('demographic.fifteenYearContraction', () => {
+    function fixtureWith(fifteenYearContraction: unknown): unknown {
+      const demographic = (FIXTURE as { demographic: object }).demographic;
+      return { ...FIXTURE, demographic: { ...demographic, fifteenYearContraction } };
+    }
+
+    it('accepts a positive number (shrinking cohort)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(27.07)).success).toBe(true);
+    });
+
+    it('accepts a negative number (growing cohort) — the sign must survive', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(-5.2)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "−27.1%" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('−27.1%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demographic.baselineYearOneIntake', () => {
+    function fixtureWith(baselineYearOneIntake: unknown): unknown {
+      const demographic = (FIXTURE as { demographic: object }).demographic;
+      return { ...FIXTURE, demographic: { ...demographic, baselineYearOneIntake } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(300)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('300')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demographic.projections[].isCurrentYear (new split field)', () => {
+    // Was baked into the year string as " (today)" on the first row.
+    function fixtureWith(isCurrentYear: unknown): unknown {
+      const demographic = (FIXTURE as { demographic: { projections: unknown[] } }).demographic;
+      const projections = demographic.projections;
+      return {
+        ...FIXTURE,
+        demographic: {
+          ...demographic,
+          projections: [
+            { ...(projections[0] as object), isCurrentYear },
+            ...projections.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts a boolean', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(true)).success).toBe(true);
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(false)).success).toBe(true);
+    });
+
+    it('rejects the old " (today)" suffix string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('today')).success).toBe(false);
+    });
+  });
+
+  describe('demographic.projections[].cohortPopulation', () => {
+    // Was pre-divided by 1,000,000 and rounded for display ("2.35M"). Now
+    // the raw population count — the template owns the "M" formatting.
+    function fixtureWith(cohortPopulation: unknown): unknown {
+      const demographic = (FIXTURE as { demographic: { projections: unknown[] } }).demographic;
+      const projections = demographic.projections;
+      return {
+        ...FIXTURE,
+        demographic: {
+          ...demographic,
+          projections: [
+            { ...(projections[0] as object), cohortPopulation },
+            ...projections.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts the raw population count', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(3982000)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "3.98M" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('3.98M')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demographic.projections[].decline', () => {
+    function fixtureWith(decline: unknown): unknown {
+      const demographic = (FIXTURE as { demographic: { projections: unknown[] } }).demographic;
+      const projections = demographic.projections;
+      return {
+        ...FIXTURE,
+        demographic: {
+          ...demographic,
+          projections: [{ ...(projections[0] as object), decline }, ...projections.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a positive number (shrinking)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(10.75)).success).toBe(true);
+    });
+
+    it('accepts a negative number (growing) — the old code collapsed this to "0.0%"', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(-3.4)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('10.8%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('demographic.projections[].shareNeeded', () => {
+    function fixtureWith(shareNeeded: unknown): unknown {
+      const demographic = (FIXTURE as { demographic: { projections: unknown[] } }).demographic;
+      const projections = demographic.projections;
+      return {
+        ...FIXTURE,
+        demographic: {
+          ...demographic,
+          projections: [
+            { ...(projections[0] as object), shareNeeded },
+            ...projections.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(0.012)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('0.012%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

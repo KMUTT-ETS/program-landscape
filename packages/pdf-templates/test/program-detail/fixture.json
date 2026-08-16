@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 4:30 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:32 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -698,33 +698,37 @@
     "catchment": "Thailand",
     "ageCohort": "18-22",
     "source": "NESDC-PopProj-2010-2040",
-    "baselineYearOneIntake": "—",
-    "fifteenYearContraction": "−27.1%",
+    "baselineYearOneIntake": null,
+    "fifteenYearContraction": 27.071823204419886,
     "riskLevel": "LOW",
     "projections": [
       {
-        "year": "2026 (today)",
-        "cohortPopulation": "3.98M",
-        "decline": "0.0%",
-        "shareNeeded": "—"
+        "year": 2026,
+        "isCurrentYear": true,
+        "cohortPopulation": 3982000,
+        "decline": 0,
+        "shareNeeded": null
       },
       {
-        "year": "2031",
-        "cohortPopulation": "3.55M",
-        "decline": "−10.7%",
-        "shareNeeded": "—"
+        "year": 2031,
+        "isCurrentYear": false,
+        "cohortPopulation": 3554000,
+        "decline": 10.748367654445003,
+        "shareNeeded": null
       },
       {
-        "year": "2036",
-        "cohortPopulation": "3.19M",
-        "decline": "−19.9%",
-        "shareNeeded": "—"
+        "year": 2036,
+        "isCurrentYear": false,
+        "cohortPopulation": 3190000,
+        "decline": 19.88950276243094,
+        "shareNeeded": null
       },
       {
-        "year": "2041",
-        "cohortPopulation": "2.90M",
-        "decline": "−27.1%",
-        "shareNeeded": "—"
+        "year": 2041,
+        "isCurrentYear": false,
+        "cohortPopulation": 2904000,
+        "decline": 27.071823204419886,
+        "shareNeeded": null
       }
     ]
   },

@@ -295,16 +295,34 @@ const DemographicSchema = z.object({
   catchment: z.string(),
   ageCohort: z.string(),
   source: z.string(),
-  baselineYearOneIntake: z.string(),
-  fifteenYearContraction: z.string(),
+  baselineYearOneIntake: z.number().finite().nullable(),
+  // Signed, raw. `.nullable()` even though the upstream interface
+  // (`ProgramDemographicOutlook.fifteenYearContraction`) is a plain
+  // `number` today — no site in the builder guarded it, which the schema
+  // inventory flagged as a live risk if that upstream contract ever
+  // loosens. Formatting (the em-dash / sign convention) moved to
+  // `format.ts` — the builder no longer touches this value.
+  fifteenYearContraction: z.number().finite().nullable(),
   riskLevel: z.string(),
   projections: z
     .array(
       z.object({
-        year: z.string(),
-        cohortPopulation: z.string(),
-        decline: z.string(),
-        shareNeeded: z.string(),
+        year: z.number().finite().nullable(),
+        // Was baked into the year string as " (today)" on the first row.
+        // Split out so the template can badge it without string matching.
+        isCurrentYear: z.boolean(),
+        // Raw population count. Was pre-divided by 1,000,000 and rounded
+        // to 2dp for display ("2.35M") — the template now owns that
+        // formatting.
+        cohortPopulation: z.number().finite().nullable(),
+        // Signed, raw — `cohortDeclinePct` is POSITIVE when the cohort
+        // shrinks and NEGATIVE when it grows. Do not normalise, clamp or
+        // absolute this; see `format.ts` for the render-time convention.
+        decline: z.number().finite().nullable(),
+        // Percentage (0–100 scale) — the fraction × 100 conversion is
+        // preserved from the original formatter, only the string
+        // formatting (toFixed + '%') is dropped.
+        shareNeeded: z.number().finite().nullable(),
       }),
     )
     .default([]),

@@ -175,28 +175,6 @@ function trendRecommendation(s: {
 // Main entry point.
 // ---------------------------------------------------------------------------
 
-/**
- * Formats a cohort-change percentage with an honest sign.
- *
- * `cohortDeclinePct` is `((anchor - population) / anchor) * 100`, so it is
- * POSITIVE when the cohort shrinks and NEGATIVE when it grows. Both happen:
- * the anchor is the current year, and a later year can exceed it.
- *
- * The previous formatting collapsed every non-positive value to the literal
- * '0.0%', so a growing cohort was reported as flat — understating in exactly
- * the direction that matters for a demographic-pressure argument. A separate
- * site unconditionally prefixed '−', which rendered growth as '−-2.3%'.
- */
-export function formatCohortChangePct(declinePct: number): string {
-  if (!Number.isFinite(declinePct)) return '—';
-  // Round first, so a value like -0.04 does not render as '+0.0%'.
-  const rounded = Number(declinePct.toFixed(1));
-  if (rounded === 0) return '0.0%';
-  return rounded > 0
-    ? `−${rounded.toFixed(1)}%` // shrinking
-    : `+${Math.abs(rounded).toFixed(1)}%`; // growing
-}
-
 export async function buildProgramDetailData(
   programId: string,
   facultyVisibility: 'full' | 'aggregates-only',
@@ -731,6 +709,9 @@ export async function buildProgramDetailData(
       : null;
 
   // ── Demographic outlook ──────────────────────────────────────────
+  // Formatting (sign convention + em-dash on non-finite) moved to
+  // packages/pdf-templates/src/templates/program-detail/format.ts —
+  // this builder now emits the raw signed numbers untouched.
   const demographicData: ProgramDetailData['demographic'] = demographic
     ? {
         catchment:
@@ -739,20 +720,16 @@ export async function buildProgramDetailData(
             : 'Thailand',
         ageCohort: demographic.ageCohort,
         source: demographic.source,
-        baselineYearOneIntake:
-          demographic.baselineYearOneIntake !== null
-            ? fmtNum(demographic.baselineYearOneIntake)
-            : '—',
-        fifteenYearContraction: formatCohortChangePct(demographic.fifteenYearContraction),
+        baselineYearOneIntake: demographic.baselineYearOneIntake,
+        fifteenYearContraction: demographic.fifteenYearContraction,
         riskLevel: demographic.riskLevel.toUpperCase(),
         projections: demographic.projections.map((p, i) => ({
-          year: i === 0 ? `${p.year} (today)` : String(p.year),
-          cohortPopulation: `${(p.cohortPopulation / 1_000_000).toFixed(2)}M`,
-          decline: formatCohortChangePct(p.cohortDeclinePct),
+          year: p.year,
+          isCurrentYear: i === 0,
+          cohortPopulation: p.cohortPopulation,
+          decline: p.cohortDeclinePct,
           shareNeeded:
-            p.requiredShareOfCohort !== null
-              ? `${(p.requiredShareOfCohort * 100).toFixed(3)}%`
-              : '—',
+            p.requiredShareOfCohort !== null ? p.requiredShareOfCohort * 100 : null,
         })),
       }
     : null;
