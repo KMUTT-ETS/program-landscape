@@ -5,6 +5,8 @@ import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
 import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
+import { getAcademicYearContext } from './academic-year';
+import { pickFinancialYear } from './financial-year';
 
 /** Annual tuition revenue target by program level (THB). Used by the
  *  health-score.v3.5 financial-dimension `revenue_scale` driver AND by
@@ -900,15 +902,22 @@ async function scoreFinancialProgram(
   const num = (v: { toNumber: () => number } | unknown): number =>
     typeof v === 'number' ? v : (v as { toNumber: () => number }).toNumber();
 
-  // Drop most-recent year if partial (tuition < 30% of prior).
-  const PARTIAL = 0.3;
-  let pickIndex = rows.length - 1;
-  if (rows.length >= 2) {
-    const last = num(rows[rows.length - 1]!.tuitionRevenue);
-    const prior = num(rows[rows.length - 2]!.tuitionRevenue);
-    if (prior > 0 && last < prior * PARTIAL) pickIndex = rows.length - 2;
+  // Score on the latest COMPLETE academic year — never the year still
+  // being billed. See packages/db/src/financial-year.ts for why a ratio
+  // test alone can't detect "in progress" (median in-progress year reads
+  // ~44% of the prior complete year, but with a long tail above 90%).
+  const academicYearCtx = await getAcademicYearContext();
+  const currentAcademicYearCE = academicYearCtx.currentAcademicYearBE - 543;
+  const pick = pickFinancialYear(rows, currentAcademicYearCE, num);
+  if (!pick.row) {
+    return emptyScore([
+      'net_contribution_per_student',
+      'revenue_coverage_program_direct',
+      'tuition_trend_slope',
+      'revenue_scale',
+    ]);
   }
-  const head = rows[pickIndex]!;
+  const head = pick.row;
   const tuition = num(head.tuitionRevenue);
   const direct = num(head.directCost);
   const facility = num(head.allocatedFacilityCost);

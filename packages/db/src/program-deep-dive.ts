@@ -15,6 +15,7 @@ import { queryMetricByScope } from './scope';
 import { realDataWhere } from './data-quality';
 import { programFunnelYears } from './program-funnel';
 import { academicYearContextSync, getAcademicYearContext } from './academic-year';
+import { pickFinancialYear } from './financial-year';
 
 // Deep-dive aggregator — all reads a single program's page needs.
 // Each method corresponds to one section of the UI. Role-sensitive
@@ -2844,29 +2845,19 @@ export async function programFinancials(programId: string) {
     orderBy: { fiscalYear: 'asc' },
   });
 
-  // Pick the latest COMPLETE fiscal year — i.e., skip a partial in-
-  // progress year. Heuristic: if the most recent year's tuition is
-  // less than 30% of the prior year, treat it as partial (academic
-  // term in flight, not all students have paid yet). For SEQ-0062 in
-  // 2026-05, FY 2026 shows 220K (11 students enrolled so far) vs FY
-  // 2025's 11.6M (full year) — the partial year is excluded.
-  const PARTIAL_YEAR_RATIO = 0.3;
-  let latest: typeof rawRows[number] | undefined;
-  let displayedYearIsPartial = false;
-  if (rawRows.length >= 2) {
-    const last = rawRows[rawRows.length - 1]!;
-    const prior = rawRows[rawRows.length - 2]!;
-    const lastTuition = Number(last.tuitionRevenue);
-    const priorTuition = Number(prior.tuitionRevenue);
-    if (priorTuition > 0 && lastTuition < priorTuition * PARTIAL_YEAR_RATIO) {
-      latest = prior;
-      displayedYearIsPartial = true;
-    } else {
-      latest = last;
-    }
-  } else {
-    latest = rawRows.at(-1);
-  }
+  // Pick the latest COMPLETE academic year — i.e., skip the year still
+  // being billed (an academic year's tuition straddles two fiscal years;
+  // the in-progress year has only semester 1 collected). See
+  // packages/db/src/financial-year.ts for the full reasoning and why a
+  // ratio test alone can't tell "in progress" apart from a genuine
+  // decline. For SEQ-0062 in 2026-05, FY 2026 showed 220K (11 students
+  // enrolled so far) vs FY 2025's 11.6M (full year) — the in-progress
+  // year is excluded, not scored.
+  const academicYearCtx = await getAcademicYearContext();
+  const currentAcademicYearCE = academicYearCtx.currentAcademicYearBE - 543;
+  const pick = pickFinancialYear(rawRows, currentAcademicYearCE, (r) => Number(r.tuitionRevenue));
+  const latest = pick.row ?? undefined;
+  const displayedYearIsPartial = pick.excludedInProgressYear !== null;
   const trend = rawRows.slice(-5).map((r) => ({
     year: r.fiscalYear,
     tuitionRevenue: Number(r.tuitionRevenue),
@@ -2909,8 +2900,10 @@ export async function programFinancials(programId: string) {
     trend,
     /// The FY (CE) the headline numbers are sourced from.
     latestFiscalYear: latest?.fiscalYear ?? null,
-    /// True when the connector wrote a more recent FY but the heuristic
-    /// classified it as partial/in-progress. UI surfaces a small note.
+    /// True when the connector has a row for a more recent academic year
+    /// that is still being billed (excluded from scoring by
+    /// pickFinancialYear). UI surfaces a small note that a partial year
+    /// exists alongside the complete year the figures are drawn from.
     partialCurrentYearAvailable: displayedYearIsPartial,
     /// Annual salary subsidy the government pays for this program's
     /// faculty — sourced from `EmployeeDetail.SALARY × 12` for the staff
