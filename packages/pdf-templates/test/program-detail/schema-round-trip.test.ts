@@ -210,4 +210,28 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Strategic narrative: confidencePct ──────────────────────────────
+  describe('strategicNarrative.confidencePct', () => {
+    function fixtureWith(confidencePct: unknown): unknown {
+      const narrative = (FIXTURE as { strategicNarrative: object }).strategicNarrative;
+      return { ...FIXTURE, strategicNarrative: { ...narrative, confidencePct } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(85)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('85%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

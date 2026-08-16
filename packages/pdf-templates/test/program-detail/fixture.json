@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 2:06 AM",
+  "generatedAtLabel": "August 16, 2026 at 2:07 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -271,7 +271,7 @@
   "strategicNarrative": {
     "contentMarkdown": "## Executive summary\nThe Bachelor of Engineering in Civil Engineering faces a SUNSET lifecycle verdict with a trajectory score of 30/100, driven by severe curriculum obsolescence and poor graduate outcomes despite exceptionally high domestic demand.\n\n## Strategic position\n- The program demonstrates exceptional attractiveness with a TCAS3 competition ratio of **27.50x** and a fill rate of **200.0%** for BE 2568.\n- Overall health scores **70.7**, anchored by a perfect capability score of **100.0**, but severely dragged down by an outcomes score of **26.7**.\n- FY 2025 tuition revenue totals **THB 11,599,000**, supported by a government salary subsidy of **THB 15,678,840**, though the net contribution per student operates at a deficit of **THB -46,525**.\n- AI readiness is critically low at **30/100**, with curriculum integration scoring **0** and **0 of 6** AI-native skills present.\n\n## Critical risks\n- The curriculum is classified as OLD_SCHOOL, directly correlating with the low outcomes score of **26.7** and poor alignment with modern labor market demands compared to international peers.\n- The program operates at a per-student financial loss, evidenced by the net contribution per student of **THB -46,525**.\n- The BE 2564 cohort shows delayed completion, with **15** students still enrolled and **13** dropped out from the initial **97** admitted.\n\n## Opportunities\n- The program possesses a high skill resilience score of **83**, providing a strong foundational base to integrate digital and AI competencies without discarding core engineering principles.\n- With a low demographic risk requiring only a **0.003%** share over 10 years and a current **27.50x** competition ratio, the program can selectively admit higher-caliber students to improve the minimum admission score of **40.79**.\n\n## Recommended actions\n1. Overhaul the curriculum to integrate digital engineering tools and AI-native skills within **12 months** to elevate the AI readiness curriculum integration score above 0 and align with Chulalongkorn benchmarks.\n2. Restructure program delivery costs and tuition fee models within **6 months** to eliminate the **THB -46,525** per-student deficit and achieve financial sustainability.\n3. Implement targeted academic interventions for the **15** delayed students from the BE 2564 cohort within **3 months** to improve the graduation rate and overall outcomes score.\n4. Reduce the TCAS3 intake target to match actual capacity rather than operating at a **200.0%** fill rate within **9 months** to improve the minimum admission score and reduce instructional strain.",
     "methodVersion": "program-strategic-narrative.v1",
-    "confidencePct": "95%",
+    "confidencePct": 95,
     "generatedAt": "2026-05-03"
   },
   "aiReadiness": {

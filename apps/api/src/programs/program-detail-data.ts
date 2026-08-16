@@ -402,7 +402,7 @@ export async function buildProgramDetailData(
       ? {
           contentMarkdown: strategicNarrative.contentMarkdown,
           methodVersion: strategicNarrative.methodVersion,
-          confidencePct: `${(strategicNarrative.confidence * 100).toFixed(0)}%`,
+          confidencePct: Math.round(strategicNarrative.confidence * 100),
           generatedAt: fmtDate(strategicNarrative.generatedAt),
         }
       : null;

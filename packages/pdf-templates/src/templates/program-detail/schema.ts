@@ -54,7 +54,7 @@ const LifecycleSchema = z.object({
 const StrategicNarrativeSchema = z.object({
   contentMarkdown: z.string(),
   methodVersion: z.string(),
-  confidencePct: z.string(),
+  confidencePct: z.number().finite().nullable(),
   generatedAt: z.string(),
 });
 
