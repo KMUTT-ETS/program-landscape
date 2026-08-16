@@ -290,11 +290,15 @@ export async function buildProgramDetailData(
     const tuition = headlineRow?.tuitionRevenue;
     if (tuition !== null && tuition !== undefined) {
       executiveSnapshot.push({
-        metric: `Tuition revenue · FY ${financials.latestFiscalYear ?? '—'}`,
+        metric: `Tuition revenue · FY ${financials.latestFiscalYear ?? '—'} (last complete year)`,
         value: `${fmtNum(tuition)} THB`,
         notes:
           financials.partialCurrentYearAvailable
-            ? 'partial in-progress year exists in source data'
+            ? `FY ${financials.partialFiscalYear} is still in progress — ${
+                financials.partialTuitionRevenueSoFar !== null
+                  ? `${fmtNum(financials.partialTuitionRevenueSoFar)} THB collected so far, informational only`
+                  : 'collected-so-far figure unavailable'
+              }`
             : '',
       });
     }
@@ -947,7 +951,11 @@ export async function buildProgramDetailData(
             methodologyVersion: financials.costMethodologyVersion,
             headlineFiscalYear: financials.latestFiscalYear,
             partialCurrentYearNote: financials.partialCurrentYearAvailable
-              ? 'a more recent partial year is in progress'
+              ? `FY ${financials.partialFiscalYear} is still being billed (${
+                  financials.partialTuitionRevenueSoFar !== null
+                    ? `${fmtNum(financials.partialTuitionRevenueSoFar)} THB collected so far`
+                    : 'figure unavailable'
+                }) — shown for information only and excluded from the figures above.`
               : '',
             kpis: [
               {

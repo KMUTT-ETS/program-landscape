@@ -2130,7 +2130,19 @@ function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
       {data.partialCurrentYearAvailable && (
         <Card padding="sm" tone="quiet" className="mb-3">
           <p className="text-xs text-text-secondary">
-            Headline KPIs use <span className="font-semibold text-text-primary">FY {data.latestFiscalYear}</span> (latest complete year). A more recent year exists in the registrar data but is in-progress (academic term still collecting tuition) — see the trend table for the partial number.
+            Figures below are for{' '}
+            <span className="font-semibold text-text-primary">FY {data.latestFiscalYear}</span>, the
+            most recent academic year that has finished billing.{' '}
+            <span className="font-semibold text-text-primary">FY {data.partialFiscalYear}</span> is
+            still in progress — the registrar has collected{' '}
+            <span className="font-tabular font-semibold text-text-primary">
+              {data.partialTuitionRevenueSoFar !== null
+                ? data.partialTuitionRevenueSoFar.toLocaleString('en-US')
+                : '—'}
+            </span>{' '}
+            THB so far this year. That figure is informational only — an academic year&apos;s
+            tuition is billed across two terms, so it is not comparable to a full year and is
+            excluded from the score above.
           </p>
         </Card>
       )}

@@ -2858,6 +2858,14 @@ export async function programFinancials(programId: string) {
   const pick = pickFinancialYear(rawRows, currentAcademicYearCE, (r) => Number(r.tuitionRevenue));
   const latest = pick.row ?? undefined;
   const displayedYearIsPartial = pick.excludedInProgressYear !== null;
+  // The in-progress row itself — surfaced to the UI as clearly-labelled
+  // informational data (never used in the score, the waterfall, or the
+  // sensitivity figures above) so a reader can see "here's what's been
+  // billed so far" without it being read as a complete-year number.
+  const partialRow =
+    pick.excludedInProgressYear !== null
+      ? rawRows.find((r) => r.fiscalYear === pick.excludedInProgressYear)
+      : undefined;
   const trend = rawRows.slice(-5).map((r) => ({
     year: r.fiscalYear,
     tuitionRevenue: Number(r.tuitionRevenue),
@@ -2905,6 +2913,16 @@ export async function programFinancials(programId: string) {
     /// pickFinancialYear). UI surfaces a small note that a partial year
     /// exists alongside the complete year the figures are drawn from.
     partialCurrentYearAvailable: displayedYearIsPartial,
+    /// The academic year (CE) currently being billed, when one exists in
+    /// the data. Null when there is none. Excluded from scoring — see
+    /// `partialCurrentYearAvailable` above and financial-year.ts.
+    partialFiscalYear: pick.excludedInProgressYear,
+    /// That in-progress year's tuition collected SO FAR — informational
+    /// only. Never enters the score, the waterfall, or the sensitivity
+    /// figures above; it is roughly one semester of a full year's tuition
+    /// by construction (see financial-year.ts), not a "this program
+    /// declined" signal.
+    partialTuitionRevenueSoFar: partialRow ? Number(partialRow.tuitionRevenue) : null,
     /// Annual salary subsidy the government pays for this program's
     /// faculty — sourced from `EmployeeDetail.SALARY × 12` for the staff
     /// in `ProgramFaculty`. Informational only; NOT netted from tuition.

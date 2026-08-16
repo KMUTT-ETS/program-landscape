@@ -336,13 +336,24 @@ export interface DeepDiveFinancials {
     facultyCostSubsidy: number | null;
     netContribution: number | null;
   }>;
-  /** The fiscal year (CE) the headline KPIs are sourced from.
-   *  Excludes partial in-progress years. */
+  /** The academic year (CE) the headline KPIs are sourced from — the
+   *  latest one that has finished billing. Excludes the in-progress
+   *  academic year (health-score.v3.9 / financial-year.ts). */
   latestFiscalYear: number | null;
-  /** True when a more recent fiscal year exists in the data but was
-   *  classified as partial/in-progress (signaled by tuition < 30% of
-   *  prior year). UI surfaces an "in progress" hint. */
+  /** True when a more recent academic year exists in the data but is
+   *  still being billed — an academic year's tuition straddles two
+   *  fiscal-year cycles, so the in-progress year never has more than
+   *  ~one semester collected regardless of how healthy the program is.
+   *  Never promoted to `latestFiscalYear`; see `partialFiscalYear` +
+   *  `partialTuitionRevenueSoFar` for the informational figure. */
   partialCurrentYearAvailable: boolean;
+  /** The in-progress academic year (CE), when `partialCurrentYearAvailable`
+   *  is true. Null otherwise. */
+  partialFiscalYear: number | null;
+  /** That in-progress year's tuition collected so far. Informational
+   *  only — never enters the score or any figure above. Null when
+   *  `partialCurrentYearAvailable` is false. */
+  partialTuitionRevenueSoFar: number | null;
   /** Annual government-funded faculty salary subsidy for this program.
    *  Informational — NOT netted from tuition (Thai public university
    *  model: salaries paid from the government block grant).
