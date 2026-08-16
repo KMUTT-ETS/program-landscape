@@ -1564,4 +1564,116 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Faculty ───────────────────────────────────────────────────────
+  // `kpis` (the KV table) stays a display-only row — including the
+  // "Senior share (Prof + Assoc Prof)" row, which compounds three numbers
+  // into one string ("16/18 (89%)"). The three dedicated numeric
+  // companions below are what the chart-led rebuild actually binds to.
+  describe('faculty.seniorRankCount / totalRankedCount / seniorRankSharePct', () => {
+    function fixtureWith(overrides: Record<string, unknown>): unknown {
+      const faculty = (FIXTURE as { faculty: object }).faculty;
+      return { ...FIXTURE, faculty: { ...faculty, ...overrides } };
+    }
+
+    it('accepts numbers', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWith({ seniorRankCount: 16, totalRankedCount: 18, seniorRankSharePct: 88.9 }),
+        ).success,
+      ).toBe(true);
+    });
+
+    it('accepts null on all three (no faculty roster resolved)', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(
+          fixtureWith({
+            seniorRankCount: null,
+            totalRankedCount: null,
+            seniorRankSharePct: null,
+          }),
+        ).success,
+      ).toBe(true);
+    });
+
+    it('accepts a genuine zero seniorRankCount without collapsing it to "no data"', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWith({ seniorRankCount: 0 })).success,
+      ).toBe(true);
+    });
+
+    it('rejects the old "16/18 (89%)" compound formatted string', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWith({ seniorRankCount: '16/18 (89%)' }))
+          .success,
+      ).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(
+        ProgramDetailDataSchema.safeParse(fixtureWith({ seniorRankSharePct: Number.NaN }))
+          .success,
+      ).toBe(false);
+    });
+  });
+
+  describe('faculty.rankDistribution[].count / .share', () => {
+    function fixtureWith(count: unknown, share: unknown): unknown {
+      const faculty = (FIXTURE as { faculty: { rankDistribution: unknown[] } }).faculty;
+      const rankDistribution = faculty.rankDistribution;
+      return {
+        ...FIXTURE,
+        faculty: {
+          ...faculty,
+          rankDistribution: [
+            { ...(rankDistribution[0] as object), count, share },
+            ...rankDistribution.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts numbers', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(13, 72.2)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null, null)).success).toBe(true);
+    });
+
+    it('rejects formatted strings', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('13', '72%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN, 72.2)).success).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('faculty.roster[].name', () => {
+    // Was `m.nameEn || m.nameTh || '—'` — the em-dash sentinel becomes a
+    // genuine null. Stays a DISPLAY field (this is not a numeric
+    // conversion), just without a fake string standing in for "no name".
+    function fixtureWith(name: unknown): unknown {
+      const faculty = (FIXTURE as { faculty: { roster: unknown[] } }).faculty;
+      const roster = faculty.roster;
+      return {
+        ...FIXTURE,
+        faculty: {
+          ...faculty,
+          roster: [{ ...(roster[0] as object), name }, ...roster.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('REDACTED')).success).toBe(true);
+    });
+
+    it('accepts null (no name available under COUNCIL-gated visibility)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+  });
 });

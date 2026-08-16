@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 4:48 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:50 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -1114,21 +1114,24 @@
         "notes": "healthy senior centre of gravity"
       }
     ],
+    "seniorRankCount": 16,
+    "totalRankedCount": 18,
+    "seniorRankSharePct": 88.88888888888889,
     "rankDistribution": [
       {
         "rank": "Associate Professor",
-        "count": "13",
-        "share": "72%"
+        "count": 13,
+        "share": 72.22222222222221
       },
       {
         "rank": "Professor",
-        "count": "3",
-        "share": "17%"
+        "count": 3,
+        "share": 16.666666666666664
       },
       {
         "rank": "Assistant Professor",
-        "count": "2",
-        "share": "11%"
+        "count": 2,
+        "share": 11.11111111111111
       }
     ],
     "roster": [

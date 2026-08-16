@@ -424,13 +424,24 @@ const SkillsSchema = z.object({
 const FacultySchema = z.object({
   rosterScope: z.string(),
   visibility: z.string(),
+  // Display-only KV rows, stays a KvRowSchema array per the decision at
+  // the top of this file. The "Senior share (Prof + Assoc Prof)" row is
+  // the hardest case the schema inventory flagged: it concatenates three
+  // numbers into one compound string ("8/24 (33%)"). Rather than splitting
+  // KvRowSchema's polymorphism for this one row, the KV row stays as the
+  // display string it is and the three numbers get dedicated companions
+  // below — same pattern as `aiReadiness.subScoreValues` /
+  // `cohortDistribution.summaryValues`.
   kpis: z.array(KvRowSchema).default([]),
+  seniorRankCount: z.number().finite().nullable(),
+  totalRankedCount: z.number().finite().nullable(),
+  seniorRankSharePct: z.number().finite().nullable(),
   rankDistribution: z
     .array(
       z.object({
         rank: z.string(),
-        count: z.string(),
-        share: z.string(),
+        count: z.number().finite().nullable(),
+        share: z.number().finite().nullable(),
       }),
     )
     .default([]),
@@ -438,7 +449,10 @@ const FacultySchema = z.object({
     .array(
       z.object({
         rank: z.string(),
-        name: z.string(),
+        // Was `m.nameEn || m.nameTh || '—'`. Stays DISPLAY, but the
+        // em-dash "no name available" sentinel becomes a genuine null
+        // rather than a fake string value.
+        name: z.string().nullable(),
         specialization: z.string().default(''),
         retires: z.string().default(''),
       }),

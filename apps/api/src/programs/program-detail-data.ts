@@ -895,19 +895,22 @@ export async function buildProgramDetailData(
               notes: seniorNote,
             },
           ],
+          seniorRankCount: seniorCount,
+          totalRankedCount: faculty.totalActive,
+          seniorRankSharePct: seniorPct,
           rankDistribution: Object.entries(faculty.ranks)
             .filter(([, n]) => n > 0)
             .sort((a, b) => b[1] - a[1])
             .map(([rank, count]) => ({
               rank: RANK_LABELS[rank] ?? rank,
-              count: String(count),
-              share: fmtPct((count / total) * 100, 0),
+              count,
+              share: (count / total) * 100,
             })),
           roster:
             faculty.visibility === 'full'
               ? faculty.members.slice(0, 40).map((m) => ({
                   rank: RANK_LABELS[m.rank] ?? m.rank,
-                  name: m.nameEn || m.nameTh || '—',
+                  name: m.nameEn || m.nameTh || null,
                   specialization: m.specialization ?? '',
                   retires: m.retirementDate ? fmtDate(m.retirementDate) : '',
                 }))
