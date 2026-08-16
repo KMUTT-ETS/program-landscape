@@ -46,3 +46,4 @@ export * from './data-quality';
 export * from './methodology-bundle';
 export * from './evaluations';
 export * from './academic-year';
+export * from './financial-year';
