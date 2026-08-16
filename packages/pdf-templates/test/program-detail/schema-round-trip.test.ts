@@ -568,4 +568,160 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
     });
   });
+
+  // ── Recruitment: byYear[].yearBE ─────────────────────────────────────
+  describe('recruitment.byYear[].yearBE', () => {
+    function fixtureWith(yearBE: unknown): unknown {
+      const recruitment = (FIXTURE as { recruitment: { byYear: unknown[] } }).recruitment;
+      const byYear = recruitment.byYear;
+      return {
+        ...FIXTURE,
+        recruitment: {
+          ...recruitment,
+          byYear: [{ ...(byYear[0] as object), yearBE }, ...byYear.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2569)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "BE 2569" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('BE 2569')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Recruitment: byYear[].overAllocation ─────────────────────────────
+  describe('recruitment.byYear[].overAllocation', () => {
+    // The old string was '' both when the factor was ≤ 1.05 (measured but
+    // unremarkable) and when it was null (never measured) — two different
+    // facts that were indistinguishable. This must now be a genuine
+    // nullable number carrying the raw factor either way.
+    function fixtureWith(overAllocation: unknown): unknown {
+      const recruitment = (FIXTURE as { recruitment: { byYear: unknown[] } }).recruitment;
+      const byYear = recruitment.byYear;
+      return {
+        ...FIXTURE,
+        recruitment: {
+          ...recruitment,
+          byYear: [{ ...(byYear[0] as object), overAllocation }, ...byYear.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a measured-but-unremarkable factor (≤ 1.05)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(1.02)).success).toBe(true);
+    });
+
+    it('accepts a genuinely over-allocated factor', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(1.3)).success).toBe(true);
+    });
+
+    it('accepts null (never measured — distinct from "measured, ≤ 1.05")', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "1.23×" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('1.23×')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Recruitment: byYear[].vsPlan ─────────────────────────────────────
+  describe('recruitment.byYear[].vsPlan', () => {
+    function fixtureWith(vsPlan: unknown): unknown {
+      const recruitment = (FIXTURE as { recruitment: { byYear: unknown[] } }).recruitment;
+      const byYear = recruitment.byYear;
+      return {
+        ...FIXTURE,
+        recruitment: {
+          ...recruitment,
+          byYear: [{ ...(byYear[0] as object), vsPlan }, ...byYear.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(98.75)).success).toBe(true);
+    });
+
+    it('accepts null (no plan to compare against)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('99%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Recruitment: latestRoundsYear ────────────────────────────────────
+  describe('recruitment.latestRoundsYear', () => {
+    function fixtureWith(latestRoundsYear: unknown): unknown {
+      const recruitment = (FIXTURE as { recruitment: object }).recruitment;
+      return { ...FIXTURE, recruitment: { ...recruitment, latestRoundsYear } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2569)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "BE 2569" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('BE 2569')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  // ── Recruitment: latestRounds[].seats ────────────────────────────────
+  describe('recruitment.latestRounds[].seats', () => {
+    function fixtureWith(seats: unknown): unknown {
+      const recruitment = (FIXTURE as { recruitment: { latestRounds: unknown[] } }).recruitment;
+      const latestRounds = recruitment.latestRounds;
+      return {
+        ...FIXTURE,
+        recruitment: {
+          ...recruitment,
+          latestRounds: [{ ...(latestRounds[0] as object), seats }, ...latestRounds.slice(1)],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(28)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('28')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

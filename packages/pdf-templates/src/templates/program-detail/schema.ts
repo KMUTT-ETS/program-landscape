@@ -180,30 +180,40 @@ const RecruitmentSchema = z.object({
   byYear: z
     .array(
       z.object({
-        yearBE: z.string(),
+        yearBE: z.number().finite().nullable(),
         status: z.string(),
-        planPerYear: z.string(),
-        seats: z.string(),
-        overAllocation: z.string(),
-        applicants: z.string(),
-        competition: z.string(),
-        passed: z.string(),
-        confirmCh: z.string(),
-        reported: z.string(),
-        vsPlan: z.string(),
+        planPerYear: z.number().finite().nullable(),
+        seats: z.number().finite().nullable(),
+        // The raw over-allocation factor (e.g. 1.23), always emitted when
+        // measured. The old string was '' both when the factor was ≤ 1.05
+        // (measured but unremarkable) AND when it was null (never
+        // measured) — those are different facts; the template now decides
+        // its own highlight threshold against a real nullable number.
+        overAllocation: z.number().finite().nullable(),
+        applicants: z.number().finite().nullable(),
+        // Raw ratio (e.g. 1.23), not a percentage.
+        competition: z.number().finite().nullable(),
+        passed: z.number().finite().nullable(),
+        confirmCh: z.number().finite().nullable(),
+        reported: z.number().finite().nullable(),
+        // Percentage (0–100 scale), matching the rest of the schema's
+        // percentage fields.
+        vsPlan: z.number().finite().nullable(),
       }),
     )
     .default([]),
-  latestRoundsYear: z.string().default(''),
+  latestRoundsYear: z.number().finite().nullable().default(null),
   latestRounds: z
     .array(
       z.object({
+        // Genuinely a string upstream — TCAS sub-rounds like "3.1"/"3.2"
+        // exist, so this is not a lightly-formatted number. Do not cast.
         round: z.string(),
-        seats: z.string(),
-        applicants: z.string(),
-        passed: z.string(),
-        confirmCh: z.string(),
-        reported: z.string(),
+        seats: z.number().finite().nullable(),
+        applicants: z.number().finite().nullable(),
+        passed: z.number().finite().nullable(),
+        confirmCh: z.number().finite().nullable(),
+        reported: z.number().finite().nullable(),
       }),
     )
     .default([]),
