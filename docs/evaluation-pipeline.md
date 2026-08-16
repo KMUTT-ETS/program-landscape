@@ -66,7 +66,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
                        ┌──────────────────┴──────────────────┐
                        ▼                                      ▼
             AI NARRATIVE / VERDICT LAYER                 PRE-COMPUTED CACHES
-            (22 prompt templates, see § 6)               program_lifecycle_snapshots
+            (28 prompt templates, see § 6)               program_lifecycle_snapshots
                                                           program_ai_readiness_assessments
                                                           program_peer_reviews
                                                           program_peer_selections
@@ -283,50 +283,69 @@ Rule-based fallback at `pnpm risks:seed-measures` generates 2–4 horizon-balanc
 
 ---
 
-## 6. The 22 AI prompts (by purpose)
+## 6. The 28 AI prompts (by purpose)
 
-Code: `packages/shared/src/ai/prompts/*.ts` · All routed through `AiService` (which writes `AiInference` audit row per call). Every prompt has a `*_VERSION` constant. Edit policy: behaviour change = bump version; never edit a published version in place.
+Code: `packages/shared/src/ai/prompts/*.ts` · 28 prompt builders plus one `index.ts` barrel that
+re-exports all of them (29 files total in the directory — `index.ts` itself defines no prompt). All
+routed through `AiService` (which writes `AiInference` audit row per call). Every prompt has a
+`*_VERSION` constant. Edit policy: behaviour change = bump version (major-only per
+`docs/prompt-standard.md`); never edit a published version in place. Content rules (language,
+grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live in
+`docs/prompt-standard.md`; the full per-prompt conformance audit is
+`docs/superpowers/notes/2026-08-16-prompt-audit.md`.
 
-### 6.1 Extraction (PDF / structured-text → typed payload)
+### 6.1 Extraction (PDF / structured-text → typed payload) — 9 prompts
 
 | Prompt | Output materialises into | When fired |
 |---|---|---|
-| `program-digest.v1` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
+| `program-digest.v2` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
+| `program-courses-extract.v2.3` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section; patch-style version, to regularise to `v3` at next behaviour bump |
 | `program-faculty-extraction.v1` | `ProgramFaculty` curated roster links | Manual analyst trigger |
-| `program-skills-detailed.v?` | Deeper `ProgramSkill` enrichment beyond program-digest | Manual |
-| `course-skill-extraction.v?` | `CourseSkill` rows | On course-description AiExtraction approval |
-| `job-posting-skill-extraction.v?` | `JobPostingSkill` rows | On job-posting AiExtraction approval |
-| `graduate-employment-survey.v?` | Structured graduate-outcome rows | Survey-PDF intake |
-| `imd-rankings-extract.v?` | `ImdSnapshot` rows | PDF intake for IMD World Competitiveness rankings |
-| `policy-doc-analysis.v?` | `PolicyDocument` narrative + tags | Policy-PDF intake via ai-jobs queue |
+| `program-skills-detailed.v2` | Deeper `ProgramSkill` enrichment beyond program-digest (compulsory/elective weight split, PLO linkage) | Manual |
+| `course-skill-extraction.v1` (`course-skills.v1`) | `CourseSkill` rows | On course-description AiExtraction approval |
+| `job-posting-skill-extraction.v1` (`job-posting-skills.v1`) | `JobPostingSkill` rows | On job-posting AiExtraction approval |
+| `graduate-employment-survey.v1` | Structured graduate-outcome rows | Survey-PDF intake |
+| `imd-rankings-extract.v1` (`imd-rankings.v1`) | `ImdSnapshot` rows | PDF intake for IMD World Competitiveness rankings |
+| `policy-doc-analysis.v1` (`policy-doc.v1`) | `PolicyDocument` narrative + tags | Policy-PDF intake via ai-jobs queue |
 
-### 6.2 Classification / mapping
+### 6.2 Classification / mapping — 5 prompts
 
 | Prompt | Purpose |
 |---|---|
-| `career-kmitl-mapping.v?` | Map a Program → ≤N `kmitlCareerIds` (used by Deep-Dive Skills + relevance driver) |
-| `demand-skill-match.v?` | Pre-compute `program_demand_matches` — `(matchedDemanded, relevantDemanded)` per program × career → drives Relevance's `demand_match_filled` |
-| `program-peer-selection.v1` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v2` |
-| `skill-name-normaliser.v?` | Resolve `PROPOSED_SKILL` rows against `Skill.nameEn`/`nameTh` (taxonomy growth path) |
+| `career-kmitl-mapping.v1` | Map a Program → ≤N `kmitlCareerIds` (used by Deep-Dive Skills + relevance driver) |
+| `demand-skill-match.v2` | Pre-compute `program_demand_matches` — `(matchedDemanded, relevantDemanded)` per program × career → drives Relevance's `demand_match_filled` |
+| `program-peer-selection.v1` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v4` |
+| `skill-name-normaliser.v1` | Resolve `PROPOSED_SKILL` rows against `Skill.nameEn`/`nameTh` (taxonomy growth path); has an explicit `AMBIGUOUS` abstain path |
+| `pdf-classify.v1` | Classifies an intake PDF into `sourceCategory` (POLICY / REPORT / CURRICULUM / PEER_PROGRAM / SURVEY / COMMITTEE_MINUTES / JOB_POSTINGS_BATCH / OTHER) so the right extractor routes |
 
-### 6.3 Verdict / assessment (the Council-affecting ones)
+### 6.3 Verdict / assessment (the Council-affecting ones) — 5 prompts
 
 | Prompt | Materialises into | What it contributes |
 |---|---|---|
-| `program-peer-review.v2` | `program_peer_reviews.payloadJson` | **Drives lifecycle drivers 5+6** (`contentModernity.verdict` + `contentGaps[severity='major']`); feeds Deep-Dive Peer Comparison section; feeds AI-readiness gaps/recs (AI-filtered subset) |
-| `program-ai-readiness.v2` | `program_ai_readiness_assessments.payloadJson` | Discipline-aware override of deterministic AI readiness (Path B in §4); feeds Risk L2 (readiness deficit + disruption signal); also feeds Deep-Dive |
-| `risk-assessment.v2` | `RiskAssessment` AI columns (narrative + measures + caveats) | Council-facing risk narrative + named mitigation measures |
-| `decision-review.v?` (`outcome-review.v1` per methodology doc) | `DecisionOutcomeReview.payloadJson` | Fires at 6mo/1y/3y horizons after decision approval; produces actual-vs-projected narrative |
+| `program-peer-review.v4` | `program_peer_reviews.payloadJson` | **Drives lifecycle drivers 5+6** (`contentModernity.verdict` + `contentGaps[severity='major']`); feeds Deep-Dive Peer Comparison section; feeds AI-readiness gaps/recs (AI-filtered subset) |
+| `program-ai-readiness.v4` | `program_ai_readiness_assessments.payloadJson` | Discipline-aware override of deterministic AI readiness (Path B in §4), now with Human-Agency-Scale + automation-zone task-family analysis; feeds Risk L2 (readiness deficit + disruption signal); also feeds Deep-Dive |
+| `risk-assessment.v3` | `RiskAssessment` AI columns (narrative + measures + caveats) | Council-facing risk narrative + named mitigation measures; reconciles rule-derived candidate measures from `risk-measure-rules.v1` (the deterministic engine, NOT a prompt file — don't confuse with an AI prompt when searching) |
+| `program-pedagogy.v1.1` | `ProgramPedagogyAssessment` → health-score `pedagogical_fit` relevance driver | Discipline-aware pedagogy fit (PBL/clinical/capstone/etc. vs discipline norms) + QA-system scoring, grounded in verbatim PDF quotes |
+| `decision-review.ts` (exports `outcome-review.v1`) | `DecisionOutcomeReview.payloadJson` | Fires at 6mo/1y/3y horizons after decision approval; produces actual-vs-projected narrative. File/constant name mismatch (`decision-review.ts` ↔ `outcome-review.v1`) — regularise at next bump |
 
-### 6.4 Narrative (Council-readable prose)
+### 6.4 Narrative (Council-readable prose) — 8 prompts
 
 | Prompt | Surface | Notes |
 |---|---|---|
-| `program-strategic-narrative.v1` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt |
-| `expertise-narrative.v2` | `user_expertise_narratives` (profile page only) | Pure expertise extraction from education + publication titles; bilingual TH+EN keyword arrays |
-| `gap-insights.v?` | `/gap-analysis` AI panel | 3 modes: strategic-top-5 · program-skills-to-add · sector-brief |
-| `scenario-insights.v?` | `/scenarios` AI panel | 5 modes incl. devils-advocate (argues *against* apparent-best scenario) |
-| `benchmarking-insights.v?` | `/benchmarking` AI panel | 4 modes: suggest-peers · curriculum-gap · distinctiveness · positioning-brief |
+| `program-strategic-narrative.v1` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt. Never sees graduate outcomes, demand match, trend signals, risk, or cohort data — the largest single grounding gap in the estate (see prompt audit) |
+| `expertise-narrative.v2` | `user_expertise_narratives` (profile page only) | Pure expertise extraction from education + publication titles; bilingual TH+EN narrative + parallel keyword arrays |
+| `gap-insights.v1` | `/gap-analysis` AI panel | 3 modes: strategic-top-5 · program-skills-to-add · sector-brief. On-demand, not stored per program |
+| `scenario-insights.v1` | `/scenarios` AI panel | 5 modes incl. devils-advocate (argues *against* apparent-best scenario). On-demand, not stored |
+| `benchmarking-insights.v1` | `/benchmarking` AI panel | 4 modes: suggest-peers · curriculum-gap · distinctiveness · positioning-brief. On-demand, not stored |
+| `trend-signal-analysis.v3` | `trend_signals` (affected programs + roles + recommended actions + white-space initiatives) | Runs on every trend signal, whether monitor-sourced or document-sourced; per-program job-role candidates (immediate vs. 1-3yr emerging) |
+| `trend-document-ingest.v1` | Drafts one `TrendSignal` from an uploaded/URL document | Runner immediately chains into `trend-signal-analysis` on the drafted signal — the two should stay language-consistent with each other |
+| `external-feed-summary.v1` | `trend_signals` (monitor-fetched items) | Distils one fetched URL/feed item into a TrendSignal-ready payload; monitors are currently stubs (real wiring is prompt-14 scope), so this fires rarely in practice today |
+
+### 6.4b Translation utility (exempt from the English-only rule) — 1 prompt
+
+| Prompt | Purpose |
+|---|---|
+| `evaluation-question-translate.v1` | Translates KKU teaching-evaluation questionnaire items Thai → English for the international-faculty-facing UI. The entire output is exempt from `docs/prompt-standard.md`'s English-only rule because translation *is* the job — and its output is English by construction, making it the one prompt in the estate already conformant on language today. |
 
 ### 6.5 Cross-prompt dependency chain (lifecycle critical path)
 
@@ -338,12 +357,12 @@ ProgramSkill rows + faculty roster + research_outputs ─▶ programAiReadiness 
                                                                        │
                                        (deterministic, always runs)    │
                                                                        ▼
-program-peer-selection.v1 picks 3-5 peers/tier ─▶ program-peer-review.v2 ─▶ ProgramPeerReview
+program-peer-selection.v1 picks 3-5 peers/tier ─▶ program-peer-review.v4 ─▶ ProgramPeerReview
                                                                        │
                                   (contentModernity.verdict             │
                                    + contentGaps[major])                │
                                                                        ▼
-program-ai-readiness.v2 (uses peer-review AI gaps) ─▶ ProgramAiReadinessAssessment
+program-ai-readiness.v4 (uses peer-review AI gaps) ─▶ ProgramAiReadinessAssessment
                                                                        │
                        (overrides Path A's overallScore + gaps + recs) │
                                                                        ▼
