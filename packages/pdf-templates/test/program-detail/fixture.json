@@ -10,7 +10,7 @@
   "departmentEn": "",
   "yearEstablished": null,
   "dateLabel": "2026-06-18",
-  "generatedAtLabel": "August 16, 2026 at 4:52 AM",
+  "generatedAtLabel": "August 16, 2026 at 4:53 AM",
   "methodologyVersion": "health-score.v3.8",
   "executiveSnapshot": [
     {
@@ -1248,44 +1248,44 @@
   "financials": null,
   "peers": {
     "subjectSignature": "engineering-civil",
-    "rankingYear": "2025",
+    "rankingYear": 2025,
     "tiers": [
       {
         "tier": "World tier",
         "entries": [
           {
-            "rank": "1",
+            "rank": 1,
             "institution": "Massachusetts Institute of Technology",
             "country": "United States",
-            "qsWorld": "1",
+            "qsWorld": 1,
             "programme": "Bachelor of Science in Civil Engineering"
           },
           {
-            "rank": "2",
+            "rank": 2,
             "institution": "Delft University of Technology",
             "country": "Netherlands",
-            "qsWorld": "50",
+            "qsWorld": 50,
             "programme": "BSc in Civil Engineering"
           },
           {
-            "rank": "3",
+            "rank": 3,
             "institution": "University of California, Berkeley",
             "country": "United States",
-            "qsWorld": "12",
+            "qsWorld": 12,
             "programme": "Bachelor of Science in Civil Engineering"
           },
           {
-            "rank": "4",
+            "rank": 4,
             "institution": "Imperial College London",
             "country": "United Kingdom",
-            "qsWorld": "2",
+            "qsWorld": 2,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "5",
+            "rank": 5,
             "institution": "ETH Zurich",
             "country": "Switzerland",
-            "qsWorld": "7",
+            "qsWorld": 7,
             "programme": "Bachelor's in Civil Engineering"
           }
         ]
@@ -1294,38 +1294,38 @@
         "tier": "Asia tier",
         "entries": [
           {
-            "rank": "1",
+            "rank": 1,
             "institution": "Tsinghua University",
             "country": "China",
-            "qsWorld": "20",
+            "qsWorld": 20,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "2",
+            "rank": 2,
             "institution": "National University of Singapore",
             "country": "Singapore",
-            "qsWorld": "8",
+            "qsWorld": 8,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "3",
+            "rank": 3,
             "institution": "Nanyang Technological University",
             "country": "Singapore",
-            "qsWorld": "15",
+            "qsWorld": 15,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "4",
+            "rank": 4,
             "institution": "University of Tokyo",
             "country": "Japan",
-            "qsWorld": "32",
+            "qsWorld": 32,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "5",
+            "rank": 5,
             "institution": "Hong Kong University of Science and Technology",
             "country": "Hong Kong SAR",
-            "qsWorld": "47",
+            "qsWorld": 47,
             "programme": "Bachelor of Engineering in Civil Engineering"
           }
         ]
@@ -1334,31 +1334,31 @@
         "tier": "Southeast Asia",
         "entries": [
           {
-            "rank": "1",
+            "rank": 1,
             "institution": "Universiti Teknologi Malaysia",
             "country": "Malaysia",
-            "qsWorld": "188",
+            "qsWorld": 188,
             "programme": "Bachelor of Civil Engineering"
           },
           {
-            "rank": "2",
+            "rank": 2,
             "institution": "Universiti Malaya",
             "country": "Malaysia",
-            "qsWorld": "60",
+            "qsWorld": 60,
             "programme": "Bachelor of Civil Engineering"
           },
           {
-            "rank": "3",
+            "rank": 3,
             "institution": "Institut Teknologi Bandung",
             "country": "Indonesia",
-            "qsWorld": "256",
+            "qsWorld": 256,
             "programme": "Bachelor in Civil Engineering"
           },
           {
-            "rank": "4",
+            "rank": 4,
             "institution": "Universitas Indonesia",
             "country": "Indonesia",
-            "qsWorld": "206",
+            "qsWorld": 206,
             "programme": "Bachelor of Engineering in Civil Engineering"
           }
         ]
@@ -1367,38 +1367,38 @@
         "tier": "Thailand",
         "entries": [
           {
-            "rank": "1",
+            "rank": 1,
             "institution": "Chulalongkorn University",
             "country": "Thailand",
-            "qsWorld": "229",
+            "qsWorld": 229,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "2",
+            "rank": 2,
             "institution": "King Mongkut's University of Technology Thonburi",
             "country": "Thailand",
-            "qsWorld": "601",
+            "qsWorld": 601,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "3",
+            "rank": 3,
             "institution": "King Mongkut's Institute of Technology Ladkrabang",
             "country": "Thailand",
-            "qsWorld": "711",
+            "qsWorld": 711,
             "programme": "Bachelor of Engineering in Civil Engineering"
           },
           {
-            "rank": "4",
+            "rank": 4,
             "institution": "Chiang Mai University",
             "country": "Thailand",
-            "qsWorld": "571",
+            "qsWorld": 571,
             "programme": "Bachelor of Engineering in Civil Engineering"
           }
         ]
       }
     ],
     "aiReview": {
-      "confidencePct": "95%",
+      "confidencePct": 95,
       "strengths": [
         {
           "claim": "KKU maintains a highly qualified senior academic staff profile."

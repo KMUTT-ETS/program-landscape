@@ -519,10 +519,10 @@ const PeerTierSchema = z.object({
   entries: z
     .array(
       z.object({
-        rank: z.string(),
+        rank: z.number().finite().nullable(),
         institution: z.string(),
         country: z.string(),
-        qsWorld: z.string(),
+        qsWorld: z.number().finite().nullable(),
         programme: z.string(),
       }),
     )
@@ -531,11 +531,14 @@ const PeerTierSchema = z.object({
 
 const PeersSchema = z.object({
   subjectSignature: z.string().default(''),
-  rankingYear: z.string().default(''),
+  rankingYear: z.number().finite().nullable().default(null),
   tiers: z.array(PeerTierSchema).default([]),
   aiReview: z
     .object({
-      confidencePct: z.string(),
+      // Percentage (0–100 scale) — the fraction × 100 conversion is
+      // preserved from the original formatter, only the toFixed + '%'
+      // string formatting is dropped.
+      confidencePct: z.number().finite().nullable(),
       strengths: z.array(z.object({ claim: z.string() })).default([]),
       weaknesses: z.array(z.object({ claim: z.string() })).default([]),
       contentModernity: z
@@ -552,7 +555,7 @@ const PeersSchema = z.object({
         institution: z.string(),
         country: z.string(),
         programName: z.string(),
-        ranking: z.string(),
+        ranking: z.number().finite().nullable(),
       }),
     )
     .default([]),

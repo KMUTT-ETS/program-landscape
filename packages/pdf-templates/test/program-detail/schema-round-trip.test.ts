@@ -1855,4 +1855,123 @@ describe('ProgramDetailDataSchema', () => {
       );
     });
   });
+
+  // ── Peers ─────────────────────────────────────────────────────────
+  describe('peers.rankingYear', () => {
+    function fixtureWith(rankingYear: unknown): unknown {
+      const peers = (FIXTURE as { peers: object }).peers;
+      return { ...FIXTURE, peers: { ...peers, rankingYear } };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2025)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('2025')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('peers.tiers[].entries[].rank / .qsWorld', () => {
+    function fixtureWith(rank: unknown, qsWorld: unknown): unknown {
+      const peers = (FIXTURE as { peers: { tiers: unknown[] } }).peers;
+      const tiers = peers.tiers as Array<{ tier: string; entries: unknown[] }>;
+      return {
+        ...FIXTURE,
+        peers: {
+          ...peers,
+          tiers: [
+            {
+              ...tiers[0],
+              entries: [{ ...(tiers[0]!.entries[0] as object), rank, qsWorld }],
+            },
+            ...tiers.slice(1),
+          ],
+        },
+      };
+    }
+
+    it('accepts numbers', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2, 50)).success).toBe(true);
+    });
+
+    it('accepts a null qsWorld (peer institution not QS-ranked)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2, null)).success).toBe(true);
+    });
+
+    it('rejects the old "50" formatted-as-string qsWorld', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(2, '50')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN, 50)).success).toBe(false);
+    });
+  });
+
+  describe('peers.aiReview.confidencePct', () => {
+    function fixtureWith(confidencePct: unknown): unknown {
+      const peers = (FIXTURE as { peers: { aiReview: object } }).peers;
+      return {
+        ...FIXTURE,
+        peers: { ...peers, aiReview: { ...peers.aiReview, confidencePct } },
+      };
+    }
+
+    it('accepts a percentage-scaled number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(95)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects the old "95%" formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('95%')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
+
+  describe('peers.curatedPeers[].ranking', () => {
+    // Empty in the captured fixture (this program has no curated
+    // peer-programs rows) — synthetic single-row array.
+    function fixtureWith(ranking: unknown): unknown {
+      const peers = (FIXTURE as { peers: object }).peers;
+      return {
+        ...FIXTURE,
+        peers: {
+          ...peers,
+          curatedPeers: [
+            { institution: 'Example University', country: 'Thailand', programName: 'Example', ranking },
+          ],
+        },
+      };
+    }
+
+    it('accepts a number', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(3)).success).toBe(true);
+    });
+
+    it('accepts null', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+
+    it('rejects a formatted string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('3')).success).toBe(false);
+    });
+
+    it('rejects NaN', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(Number.NaN)).success).toBe(false);
+    });
+  });
 });

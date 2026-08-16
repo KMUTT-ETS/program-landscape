@@ -988,7 +988,7 @@ export async function buildProgramDetailData(
     aiPeers || (peers && peers.peers.length > 0)
       ? {
           subjectSignature: aiPeers?.subjectSignature ?? '',
-          rankingYear: aiPeers?.rankingYear ? String(aiPeers.rankingYear) : '',
+          rankingYear: aiPeers?.rankingYear ?? null,
           tiers: aiPeers
             ? (
                 [
@@ -1000,17 +1000,17 @@ export async function buildProgramDetailData(
               ).map(([label, entries]) => ({
                 tier: label,
                 entries: entries.map((p) => ({
-                  rank: String(p.rankInTier),
+                  rank: p.rankInTier,
                   institution: p.institutionName,
                   country: p.country,
-                  qsWorld: p.qsWorldRank !== null ? String(p.qsWorldRank) : '—',
+                  qsWorld: p.qsWorldRank,
                   programme: p.peerProgramName,
                 })),
               }))
             : [],
           aiReview: aiPeers?.review
             ? {
-                confidencePct: `${(aiPeers.review.confidence * 100).toFixed(0)}%`,
+                confidencePct: aiPeers.review.confidence * 100,
                 strengths: aiPeers.review.strengths.map((s) => ({
                   claim: s.claim,
                 })),
@@ -1035,7 +1035,7 @@ export async function buildProgramDetailData(
                 institution: p.institution,
                 country: p.country,
                 programName: p.programName,
-                ranking: p.ranking !== null ? String(p.ranking) : '—',
+                ranking: p.ranking,
               }))
             : [],
         }
