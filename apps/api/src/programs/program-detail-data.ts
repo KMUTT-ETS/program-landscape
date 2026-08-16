@@ -1071,7 +1071,7 @@ export async function buildProgramDetailData(
         status: d.status,
         decidedBy: d.decidedBy,
         createdAt: fmtDate(d.createdAt),
-        effectiveDate: d.effectiveDate ? fmtDate(d.effectiveDate) : '',
+        effectiveDate: d.effectiveDate ? fmtDate(d.effectiveDate) : null,
         rationale: d.rationaleEn || d.rationaleTh || '',
       }))
     : [];

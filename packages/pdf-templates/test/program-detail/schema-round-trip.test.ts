@@ -2018,4 +2018,35 @@ describe('ProgramDetailDataSchema', () => {
       expect(ProgramDetailDataSchema.safeParse(fixtureWith(82)).success).toBe(false);
     });
   });
+
+  // ── Decisions ─────────────────────────────────────────────────────
+  describe('decisions[].effectiveDate', () => {
+    // Empty in the captured fixture (this program has no council
+    // decisions recorded) — synthetic single-row array. Was
+    // `.default('')`; a decision with no effective date yet is a real
+    // fact, not an empty string.
+    function fixtureWith(effectiveDate: unknown): unknown {
+      return {
+        ...FIXTURE,
+        decisions: [
+          {
+            decisionType: 'RESTRUCTURE',
+            status: 'PROPOSED',
+            decidedBy: 'REDACTED',
+            createdAt: '2026-01-15',
+            effectiveDate,
+            rationale: '',
+          },
+        ],
+      };
+    }
+
+    it('accepts an ISO date string', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith('2026-08-01')).success).toBe(true);
+    });
+
+    it('accepts null (no effective date set yet — not decided when)', () => {
+      expect(ProgramDetailDataSchema.safeParse(fixtureWith(null)).success).toBe(true);
+    });
+  });
 });

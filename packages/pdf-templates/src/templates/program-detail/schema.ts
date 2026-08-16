@@ -588,7 +588,10 @@ const DecisionsRowSchema = z.object({
   status: z.string(),
   decidedBy: z.string(),
   createdAt: z.string(),
-  effectiveDate: z.string().default(''),
+  // ISO date, DISPLAY (dates stay display strings per the plan) — was
+  // `.default('')` when absent; a decision with no effective date yet is
+  // a real "not decided when" fact, not an empty string.
+  effectiveDate: z.string().nullable(),
   rationale: z.string().default(''),
 });
 
