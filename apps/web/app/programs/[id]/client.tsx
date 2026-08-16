@@ -22,6 +22,7 @@ import {
   regenerateNarrativeAction,
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
+import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -1876,12 +1877,12 @@ function DemographicOutlookSection({
             +15y cohort contraction
           </div>
           <div className="mt-1 font-tabular text-2xl font-semibold">
-            −{data.fifteenYearContraction.toFixed(1)}%
+            {formatCohortChangePct(data.fifteenYearContraction)}
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
             <div
               className="h-full bg-warning/70 transition-all"
-              style={{ width: `${Math.min(100, data.fifteenYearContraction)}%` }}
+              style={{ width: contractionMeterWidth(data.fifteenYearContraction) }}
             />
           </div>
           <div className="mt-1 text-xs text-text-tertiary">
@@ -1935,9 +1936,12 @@ function DemographicOutlookSection({
                   />
                   <span className="absolute inset-0 flex items-center px-2 text-xs font-tabular">
                     {(p.cohortPopulation / 1_000_000).toFixed(2)}M
-                    {p.cohortDeclinePct > 0 && (
+                    {/* Suppress only a genuinely flat 0.0% (the anchor row is
+                        zero by definition). The old `> 0` guard also hid
+                        cohort GROWTH, which is real and worth seeing. */}
+                    {formatCohortChangePct(p.cohortDeclinePct) !== '0.0%' && (
                       <span className="ml-2 text-text-tertiary">
-                        −{p.cohortDeclinePct.toFixed(1)}%
+                        {formatCohortChangePct(p.cohortDeclinePct)}
                       </span>
                     )}
                   </span>
@@ -1979,7 +1983,7 @@ function DemographicOutlookSection({
                     : '—'}
                 </td>
                 <td className="py-1.5 text-right font-tabular text-text-secondary">
-                  {p.cohortDeclinePct > 0 ? `−${p.cohortDeclinePct.toFixed(1)}%` : '0.0%'}
+                  {formatCohortChangePct(p.cohortDeclinePct)}
                 </td>
                 <td className="py-1.5 text-right font-tabular">
                   {p.requiredShareOfCohort !== null

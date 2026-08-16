@@ -22,6 +22,7 @@ import type {
   DeepDiveTcasStats,
   DeepDiveTrends,
 } from '../types';
+import { formatCohortChangePct } from '@/lib/format-cohort';
 import { PrintButton } from './print-button';
 
 export const dynamic = 'force-dynamic';
@@ -1663,7 +1664,7 @@ function DemographicBlock({ data }: { data: DeepDiveDemographicOutlook }) {
         />
         <KpiTile
           label="+15y cohort contraction"
-          value={`−${data.fifteenYearContraction.toFixed(1)}%`}
+          value={formatCohortChangePct(data.fifteenYearContraction)}
           valueTone={data.fifteenYearContraction > 30 ? 'text-warning' : ''}
           subtitle={`${data.catchmentRegion === 'Northeast' ? 'Northeast' : 'Thailand'} ${data.ageCohort} cohort`}
         />
@@ -1711,7 +1712,7 @@ function DemographicBlock({ data }: { data: DeepDiveDemographicOutlook }) {
                   {(p.cohortPopulation / 1_000_000).toFixed(2)}M
                 </td>
                 <td className="py-1 text-right font-tabular text-text-secondary">
-                  {p.cohortDeclinePct > 0 ? `−${p.cohortDeclinePct.toFixed(1)}%` : '0.0%'}
+                  {formatCohortChangePct(p.cohortDeclinePct)}
                 </td>
                 <td className="py-1 text-right font-tabular">
                   {p.requiredShareOfCohort !== null
