@@ -1,8 +1,98 @@
 # Health score methodology
 
-**Version:** `health-score.v3.8`
-**Reviewed:** 2026-06-01
+**Version:** `health-score.v3.9`
+**Reviewed:** 2026-08-16
 **Owner:** KKU Data Office
+
+**v3.9 (2026-08-16): score financials on the last COMPLETE academic year.**
+
+`FinancialMetric.fiscalYear` is named for the fiscal year (Oct–Sep) but
+actually holds the **academic** year (Jun–May) — verified in the
+connector (`f.ACADYEAR AS COHORT_YEAR_BE`, `kku-finance/connector.ts`).
+`FacultyBudget.fiscalYear`, on the same connector, 23 lines away, holds
+the true fiscal year. Same column name, two different calendars.
+
+An academic year's tuition is billed across **two** fiscal-year cycles —
+semester 1 lands in the fiscal year the academic year starts in,
+semester 2 (+ any summer term) lands in the next one. So the
+currently-running academic year has, by construction, only ever
+collected semester 1's tuition, no matter how late in the year you
+check and no matter how healthy the program is.
+
+**The old rule:** drop the latest financial row only if its tuition was
+below 30% of the prior row (`PARTIAL = 0.3`, duplicated identically in
+`health-score.ts` and `program-deep-dive.ts`). This was meant to catch
+"obviously partial" years but was applied as the *only* test.
+
+**Why the ratio failed.** Measured across the 184 programs carrying
+both the in-progress year and the prior complete year: the in-progress
+year reads a **median of 0.437** of the prior year (one semester of
+two, exactly as the billing calendar predicts) — comfortably above the
+30% guard. But the **mean is 0.789**, pulled up by a substantial tail of
+programs that already read near or above 100% of the prior year while
+still only one semester billed (growing intake, a fee change, a weak
+prior year). **No ratio threshold separates "half-billed" from
+"genuinely healthy/declining"** — raising it to catch the median would
+wave the entire tail through as "complete"; the ratio simply does not
+carry the information needed to make this call. A ratio-based fix was
+considered and rejected for this reason.
+
+**The new rule: ask the calendar, not the ratio.** Score on the latest
+academic year strictly before the currently-running one
+(`AcademicYearContext.currentAcademicYearBE`, `packages/db/src/
+academic-year.ts`) — i.e. the in-progress year is **never** selected,
+regardless of its ratio to the prior year. The 30% ratio guard is
+retained, but demoted to a **secondary** sanity check that can only
+ever pull the picked year *further into the past* (catching a
+truncated/failed ingestion of an otherwise-complete year) — it can
+never promote a year the calendar says is in progress. A genuine
+revenue decline in a complete year, even a steep one, is left alone and
+scored as-is: that is the signal this dimension exists to surface, not
+an artefact to explain away.
+
+Implemented once in `packages/db/src/financial-year.ts`
+(`pickFinancialYear()`) and called from both scorers — `health-score.ts`
+for head selection AND (after filtering the series to complete years)
+for `tuition_trend_slope`; `program-deep-dive.ts` for the deep-dive's
+headline figures. The enrolment-based drivers
+(`enrollment_trend_slope`, `kku_intake_policy`) are **deliberately
+unchanged** — recruitment for an academic year finishes at that year's
+START, a different calendar question from tuition completeness, which
+isn't settled until roughly a year *after* the year starts.
+
+**Measured impact (263 programs with real financial rows, run under
+`currentAcademicYearBE=2569`/CE 2026, `isStale=false`):**
+
+| | financial dimension | overall composite |
+|---|---|---|
+| rose | 147 | 150 |
+| fell | 5 | 5 |
+| unchanged | 108 | 108 |
+| newly unscored (no complete year exists yet) | 3 | 0 |
+| mean Δ (scored-both-sides subset) | +9.5 | +2.0 |
+| median Δ | +4.0 | +0.9 |
+| min Δ | −8.2 | −1.6 |
+| max Δ | +51.9 | +10.4 |
+
+Direction confirms the hypothesis: a large majority of programs **rise**
+because the half-billed in-progress year was dragging their financial
+score down. The **5 fell cases** (max −8.2 on the financial dimension,
+max −1.6 overall) are members of the long tail described above — cases
+where the old rule's partial year happened to read close to or above
+the prior complete year, inflating the old score; the new rule corrects
+that inflation rather than introducing a new problem. The **3 newly
+unscored** programs (`KKU-SEQ-0058`, `KKU-SEQ-0066`, `KKU-SEQ-0231`)
+have exactly one financial row, dated the in-progress year — i.e. they
+are new programs with no billing history yet. Financial correctly
+returns `null` (no complete year exists) rather than fabricating a
+score from a single half-billed semester; their overall composite is
+unaffected because `combineDimensions` already excludes null
+dimensions from the average. No large or widespread fall occurred —
+the 108 "unchanged" programs are ones without an in-progress-year row
+yet, where old and new head selection necessarily coincide.
+
+Old rows stay stamped `health-score.v3.8` — the version is what keeps
+historical Council-facing scores interpretable after this change.
 
 **v3.8 (2026-06-01):** Re-sources the recruitment funnel that feeds the
 Attractiveness dimension from the campaign-grain `POWERBI.ADMISSION_STAT`
@@ -85,9 +175,9 @@ the Outcomes table below.
 
 | Driver | Formula | Data source |
 |---|---|---|
-| `net_contribution_per_student` | `(net_contribution / enrolled)`. 100K THB/student → 100; 0 → 50; negative scales toward 0 | `financial_metrics` + `enrollment_metrics` (latest complete year, partial-year-aware) |
-| `revenue_coverage_program_direct` | `tuition / (direct + facility + overhead)` (gov salary subsidy excluded). 1.0 → 80, 1.2+ → 100 | `financial_metrics` |
-| `tuition_trend_slope` | Linear-regression slope of tuition over last 5 years; positive = growing | `financial_metrics` |
+| `net_contribution_per_student` | `(net_contribution / enrolled)`. 100K THB/student → 100; 0 → 50; negative scales toward 0 | `financial_metrics` + `enrollment_metrics` (v3.9: last COMPLETE academic year only — see §v3.9 above) |
+| `revenue_coverage_program_direct` | `tuition / (direct + facility + overhead)` (gov salary subsidy excluded). 1.0 → 80, 1.2+ → 100 | `financial_metrics` (v3.9: last COMPLETE academic year only) |
+| `tuition_trend_slope` | Linear-regression slope of tuition over the available history; positive = growing | `financial_metrics` (v3.9: in-progress academic year excluded from the series before the trend is computed — see §v3.9 above) |
 
 ### Capability
 

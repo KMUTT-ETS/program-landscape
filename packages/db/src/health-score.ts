@@ -92,7 +92,23 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // the ceiling-biased distribution from kku-evaluations.v1 §"Score
 // scale"). Null when the program teaches no courses surveyed in
 // window (rare — most active programs have hundreds of cells).
-export const HEALTH_SCORE_VERSION = 'health-score.v3.8';
+// v3.9 (2026-08-16) — financial dimension scores on the last COMPLETE
+// academic year, never the one still being billed. `FinancialMetric.
+// fiscalYear` holds an academic year (Jun–May) whose tuition is billed
+// across TWO fiscal-year cycles — the in-progress year therefore only
+// ever has semester 1 billed (median ~44-47% of the prior year), no
+// matter how healthy the program is. The old 30%-ratio-only guard let
+// most of those through. Head selection (`net_contribution_per_student`,
+// `revenue_coverage_program_direct`, `revenue_scale`) now goes through
+// `pickFinancialYear()`; `tuition_trend_slope` excludes the in-progress
+// year from its series before the (retained, secondary) ratio guard
+// runs. See `packages/db/src/financial-year.ts` and
+// `docs/methodologies/health-score.md` §v3.9 for the full reasoning and
+// the measured before/after impact. Enrolment-based drivers
+// (`enrollment_trend_slope`, `kku_intake_policy`) are unaffected —
+// recruitment for an academic year finishes at its START, a different
+// calendar question from tuition completeness.
+export const HEALTH_SCORE_VERSION = 'health-score.v3.9';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
