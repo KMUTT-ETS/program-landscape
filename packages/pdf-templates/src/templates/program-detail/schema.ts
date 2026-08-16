@@ -7,6 +7,16 @@ import { z } from 'zod';
 // scanning. The controller pre-formats every field as a string so the
 // template stays minimal.
 
+// KvRowSchema is a display-only summary row (metric name / value / note),
+// reused across six sections (executive snapshot, AI-readiness sub-scores,
+// cohort summary, outcomes summary, faculty KPIs, financials KPIs) that
+// each mean something different under the same shape. These rows are
+// rendered as text in a table — never charted, never parsed back out as a
+// number. Do not retype `value` to a number: a single `string → number`
+// flip cannot serve six unrelated concrete meanings (score / verdict label
+// / currency / compound fraction, etc.) at once. Where a chart genuinely
+// needs one of these numbers, add a separate, dedicated numeric field next
+// to the KV row instead — see `aiReadiness.subScoreValues` for the pattern.
 const KvRowSchema = z.object({
   metric: z.string(),
   value: z.string(),
