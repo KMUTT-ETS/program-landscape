@@ -20,6 +20,7 @@ import {
   programOverview,
   programPeers,
   programRecruitment,
+  programResearchExpertise,
   programSkills,
   programStrategicNarrative,
   programStudentCohorts,
@@ -199,6 +200,7 @@ export async function buildProgramDetailData(
     financials,
     peers,
     aiPeers,
+    researchExpertiseResult,
     trends,
     decisions,
   ] = await Promise.all([
@@ -216,6 +218,7 @@ export async function buildProgramDetailData(
     programFinancials(programId).catch(() => null),
     programPeers(programId).catch(() => null),
     programAiPeers(programId).catch(() => null),
+    programResearchExpertise(programId).catch(() => null),
     programTrends(programId).catch(() => null),
     programDecisions(programId).catch(() => null),
   ]);
@@ -1062,6 +1065,59 @@ export async function buildProgramDetailData(
         }
       : null;
 
+  // ── Research expertise ───────────────────────────────────────────
+  // `programResearchExpertise` is a single indexed `findFirst` + JSON parse
+  // (same cost class as `programStrategicNarrative` above) — cheap enough
+  // to sit in the main fan-out. Deliberately NOT also calling
+  // `researchExpertiseReadiness` here: that helper runs 3 extra queries
+  // (a roster fetch + a raw `COUNT(DISTINCT ...)` over research_outputs) to
+  // give the interactive deep-dive a 3-way "why is this empty" verdict
+  // (no-roster / thin / not-generated) — a UI-only affordance per the
+  // implementation plan's Task 6 note. No other section in this builder
+  // pays for a companion "why absent" query (courses, strategicNarrative,
+  // peers all just omit or show a generic explained-empty note), so this
+  // section follows the same cheapest-honest convention: absent means "not
+  // yet analysed," stated once, without needing to know which of the three
+  // reasons applies.
+  const researchExpertiseData: ProgramDetailData['researchExpertise'] = researchExpertiseResult
+    ? {
+        methodVersion: researchExpertiseResult.methodVersion,
+        generatedAt: fmtDate(researchExpertiseResult.generatedAt),
+        analysedPaperCount: researchExpertiseResult.analysedPaperCount,
+        totalDistinctPapers: researchExpertiseResult.totalDistinctPapers,
+        confidencePct: Math.round(researchExpertiseResult.payload.confidence * 100),
+        themes: researchExpertiseResult.payload.themes.map((t) => ({
+          name: t.name,
+          paperCount: t.paperCount,
+          exampleTitles: t.exampleTitles,
+          yearSpan: t.yearSpan,
+          trend: t.trend,
+          evidenceNote: t.evidenceNote,
+        })),
+        recommendations: {
+          curriculum: researchExpertiseResult.payload.recommendations.curriculum.map((r) => ({
+            action: r.action,
+            rationale: r.rationale,
+            horizonMonths: r.horizonMonths,
+            themeRefs: r.themeRefs,
+          })),
+          positioning: researchExpertiseResult.payload.recommendations.positioning.map((r) => ({
+            action: r.action,
+            rationale: r.rationale,
+            horizonMonths: r.horizonMonths,
+            themeRefs: r.themeRefs,
+          })),
+          research: researchExpertiseResult.payload.recommendations.research.map((r) => ({
+            action: r.action,
+            rationale: r.rationale,
+            horizonMonths: r.horizonMonths,
+            themeRefs: r.themeRefs,
+          })),
+        },
+        caveats: researchExpertiseResult.payload.caveats,
+      }
+    : null;
+
   // ── Trends ───────────────────────────────────────────────────────
   const trendsData: ProgramDetailData['trends'] = trends
     ? trends.signals.map((s) => {
@@ -1119,6 +1175,7 @@ export async function buildProgramDetailData(
     faculty: facultyData,
     financials: financialsData,
     peers: peersData,
+    researchExpertise: researchExpertiseData,
     trends: trendsData,
     decisions: decisionsData,
   };

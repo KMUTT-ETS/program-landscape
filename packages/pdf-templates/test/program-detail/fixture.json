@@ -1425,6 +1425,100 @@
     },
     "curatedPeers": []
   },
+  "researchExpertise": {
+    "methodVersion": "program-research-expertise.v2",
+    "generatedAt": "2026-08-17",
+    "analysedPaperCount": 150,
+    "totalDistinctPapers": 259,
+    "confidencePct": 95,
+    "themes": [
+      {
+        "name": "Fly Ash Geopolymer and Sustainable Concrete Technology",
+        "paperCount": 35,
+        "exampleTitles": [
+          "Influence of rice husk ash on mechanical properties and fire resistance of recycled aggregate high-calcium fly ash geopolymer concrete",
+          "Enhancement of mechanical properties of fly ash geopolymer containing fine recycled concrete aggregate with micro carbon fiber",
+          "Natural fiber reinforced high calcium fly ash geopolymer mortar"
+        ],
+        "yearSpan": "2016–2026",
+        "trend": "steady",
+        "evidenceNote": "This theme represents the program's most highly cited research concentration, focusing on industrial waste valorization (fly ash, rice husk ash, and recycled aggregates) in geopolymer concrete. The publication volume remains steady across the 10-year window, with continuous outputs extending into 2025 and 2026."
+      },
+      {
+        "name": "Motorcycle Rider Behavior and Urban Traffic Safety",
+        "paperCount": 18,
+        "exampleTitles": [
+          "Red light running by young motorcyclists: Factors and beliefs influencing intentions and behavior",
+          "Modeling of safety helmet use intention among students in urban and rural Thailand based on the theory of planned behavior and Locus of Control",
+          "Factors influencing wrong way driving behavior of motorcycle riders in Thailand"
+        ],
+        "yearSpan": "2017–2026",
+        "trend": "steady",
+        "evidenceNote": "This research cluster investigates traffic psychology, safety interventions, and rider behaviors specifically within the Southeast Asian context. The publication output is steady, with consistent contributions from 2017 through scheduled 2026 releases."
+      },
+      {
+        "name": "Hydrological Modeling and Climate-Induced Water Resource Risks",
+        "paperCount": 12,
+        "exampleTitles": [
+          "Flood hazard assessment under climate change scenarios in the Yang River Basin, Thailand",
+          "Evaluation and hydrological application of TRMM and GPM precipitation products in a tropical monsoon basin of Thailand",
+          "Integrating Hydrological Models for Improved Flash Flood Risk Assessment and Mitigation Strategies in Northeastern Thailand"
+        ],
+        "yearSpan": "2017–2025",
+        "trend": "steady",
+        "evidenceNote": "This theme addresses regional water management, drought severity, and flood hazards under climate change projections. The publication frequency has remained steady, providing localized environmental modeling for Thailand and neighboring regions."
+      },
+      {
+        "name": "Structural Engineering and Seismic Vulnerability Assessment",
+        "paperCount": 10,
+        "exampleTitles": [
+          "Strut-and-tie model for predicting shear strength of squat shear walls under earthquake loads",
+          "Empirical seismic fragility functions based on field survey data after the 5 May 2014 Mae Lao (Northern Thailand) earthquake",
+          "Seismic damage and comparison of fragility functions of public and residential buildings damaged by the 2014 Mae Lao (Northern Thailand) earthquake"
+        ],
+        "yearSpan": "2016–2026",
+        "trend": "steady",
+        "evidenceNote": "This theme covers structural modeling, particularly strut-and-tie formulations and empirical seismic fragility assessments of buildings in Thailand. The output has maintained a steady presence throughout the 10-year period."
+      }
+    ],
+    "recommendations": {
+      "curriculum": [
+        {
+          "action": "Integrate a dedicated module on alkali-activated materials and circular economy principles into the core concrete technology course.",
+          "rationale": "The program has exceptional, highly cited expertise in geopolymer concrete and waste recycling, which should be directly transferred to undergraduate students to prepare them for green construction trends.",
+          "horizonMonths": 12,
+          "themeRefs": [
+            "Fly Ash Geopolymer and Sustainable Concrete Technology"
+          ]
+        }
+      ],
+      "positioning": [
+        {
+          "action": "Position the department as a regional hub for Southeast Asian motorcycle safety and smart traffic enforcement solutions.",
+          "rationale": "The faculty has a distinct, localized research strength in motorcycle rider psychology, helmet compliance, and automated detection systems that can be marketed to municipal governments and regional transport authorities.",
+          "horizonMonths": 18,
+          "themeRefs": [
+            "Motorcycle Rider Behavior and Urban Traffic Safety"
+          ]
+        }
+      ],
+      "research": [
+        {
+          "action": "Establish a multidisciplinary research initiative linking hydrological modeling with sustainable infrastructure design to address climate resilience.",
+          "rationale": "Combining the program's established strengths in climate-induced flood/drought modeling with its expertise in sustainable materials can foster high-impact, grant-competitive proposals on climate-resilient infrastructure.",
+          "horizonMonths": 24,
+          "themeRefs": [
+            "Hydrological Modeling and Climate-Induced Water Resource Risks",
+            "Fly Ash Geopolymer and Sustainable Concrete Technology"
+          ]
+        }
+      ]
+    },
+    "caveats": [
+      "Analysis covers publications of the curated program roster (AI-extracted, analyst-reviewed); roster gaps or errors propagate to these findings.",
+      "Approximately 56% of the publications in this dataset are not assessed for journal quartiles, which represents a coverage gap in the enrichment pipeline rather than a reflection of research quality."
+    ]
+  },
   "trends": [
     {
       "title": "อว. เปิดตัวโครงการ THAILAND² ผนึกกำลัง 5 กระทรวงหลักมุ่งยกระดับทุนมนุษย์และเศรษฐกิจไทยสู่อนาคต",

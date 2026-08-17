@@ -15,8 +15,9 @@ import { SECTIONS } from './sections';
 //
 // Prose sections (lifecycle, strategic narrative) and reference-table
 // sections (course list, trend exposure, council decisions, peer
-// institutions) contribute nothing — their body IS the full-figure table
-// or the full narrative already; there is nothing left to move here.
+// institutions, research expertise) contribute nothing — their body IS the
+// full-figure table or the full narrative already; there is nothing left
+// to move here.
 //
 // Numbering: `magazine-css.ts` gives every `.appendix-entry` its own
 // `appendix-item` counter, seeded per-entry via an inline `counter-reset`

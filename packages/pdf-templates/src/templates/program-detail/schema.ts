@@ -561,6 +561,67 @@ const PeersSchema = z.object({
     .default([]),
 });
 
+// A single recommendation item inside one of the three research-expertise
+// lanes (curriculum / positioning / research strategy). `horizonMonths` is
+// the AI-authored action horizon (1–60 upstream) — a plain count, not a
+// percentage or score, so it renders via `formatCount`, not `formatScore`.
+const ResearchExpertiseRecommendationSchema = z.object({
+  action: z.string(),
+  rationale: z.string(),
+  horizonMonths: z.number().finite().nullable(),
+  themeRefs: z.array(z.string()).default([]),
+});
+
+// Research expertise — reference-table shape, no chart (see
+// sections/research-expertise.tsx). Sourced from `ProgramResearchExpertise`
+// (packages/db/src/program-deep-dive.ts's `programResearchExpertise()`), an
+// INSERT-ONLY table the ops runner (`pnpm expertise:generate`) accretes —
+// this schema captures the LATEST row's payload plus its accompanying
+// input-stats snapshot (`analysedPaperCount` / `totalDistinctPapers`), not
+// every historical run.
+//
+// `confidence` arrived from the read helper as a bare 0–1 fraction
+// (`ProgramResearchExpertiseSchema.confidence` in
+// packages/shared/src/ai/prompts/program-research-expertise.ts). Renamed to
+// `confidencePct` and pre-multiplied ×100 here, matching every other
+// confidence field in this schema (`strategicNarrative.confidencePct`,
+// `peers.aiReview.confidencePct`) — the "percentage fields are 0–100" rule
+// documented on those fields applies here too; do not multiply again at
+// render time.
+const ResearchExpertiseSchema = z.object({
+  methodVersion: z.string(),
+  generatedAt: z.string(),
+  // The counts-basis pair the section's caption line must state explicitly
+  // ("theme counts refer to the N most significant papers analysed, of M
+  // total") — `paperCount` on each theme below counts WITHIN the analysed
+  // set, never the full roster total, and a reader who isn't told the basis
+  // could easily misread it as a full-roster figure.
+  analysedPaperCount: z.number().finite(),
+  totalDistinctPapers: z.number().finite(),
+  confidencePct: z.number().finite(),
+  themes: z
+    .array(
+      z.object({
+        name: z.string(),
+        paperCount: z.number().finite().nullable(),
+        exampleTitles: z.array(z.string()).default([]),
+        // Genuinely a display string upstream ("2018–2026"), not two years
+        // to be split — see `ProgramResearchExpertiseSchema.themes[].yearSpan`
+        // in the prompt template. Do not parse this back into numbers.
+        yearSpan: z.string(),
+        trend: z.enum(['rising', 'steady', 'fading']),
+        evidenceNote: z.string().default(''),
+      }),
+    )
+    .default([]),
+  recommendations: z.object({
+    curriculum: z.array(ResearchExpertiseRecommendationSchema).default([]),
+    positioning: z.array(ResearchExpertiseRecommendationSchema).default([]),
+    research: z.array(ResearchExpertiseRecommendationSchema).default([]),
+  }),
+  caveats: z.array(z.string()).default([]),
+});
+
 const TrendsRowSchema = z.object({
   title: z.string(),
   type: z.string(),
@@ -688,6 +749,13 @@ export const ProgramDetailDataSchema = z.object({
   faculty: FacultySchema.nullable().default(null),
   financials: FinancialsSchema.nullable().default(null),
   peers: PeersSchema.nullable().default(null),
+  // v2026-08-17: research-expertise brief. Null when the ops runner
+  // (`pnpm expertise:generate`) hasn't produced a row for this program yet
+  // — a real, expected state for `no-roster`/`thin` programs and for any
+  // program the bulk run hasn't reached — the section renders an explained
+  // empty note rather than omitting itself, so a Council reader can tell
+  // "not yet analysed" apart from a PDF that silently dropped the section.
+  researchExpertise: ResearchExpertiseSchema.nullable().default(null),
   trends: z.array(TrendsRowSchema).default([]),
   decisions: z.array(DecisionsRowSchema).default([]),
 });

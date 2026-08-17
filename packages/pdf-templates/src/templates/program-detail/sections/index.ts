@@ -14,6 +14,7 @@ import { renderLifecycleSection } from './lifecycle';
 import { renderOutcomesSection } from './outcomes';
 import { renderPeersSection } from './peers';
 import { renderRecruitmentSection } from './recruitment';
+import { renderResearchExpertiseSection } from './research-expertise';
 import { renderSkillsSection } from './skills';
 import { renderStrategicNarrativeSection } from './strategic-narrative';
 import { renderTcasSection } from './tcas';
@@ -24,10 +25,11 @@ export interface NumberedSection {
   /**
    * True for the 11 sections whose body is chart-led (a chart carries the
    * interpretive load; the exact figures move to the back-matter
-   * appendix). False for the 2 prose sections and the 4 reference-table
+   * appendix). False for the 2 prose sections and the 5 reference-table
    * sections (course list, trend exposure, council decisions, peer
-   * institutions) — those already show every figure in the body, so they
-   * contribute nothing to the appendix (see appendix.tsx).
+   * institutions, research expertise) — those already show every figure in
+   * the body, so they contribute nothing to the appendix (see
+   * appendix.tsx).
    */
   chartLed: boolean;
   render(data: ProgramDetailData): React.ReactElement | null;
@@ -58,6 +60,11 @@ export const SECTIONS: NumberedSection[] = [
   { id: 'faculty', chartLed: true, render: renderFacultySection },
   { id: 'financials', chartLed: true, render: renderFinancialsSection },
   { id: 'peers', chartLed: false, render: renderPeersSection },
+  // After peers (both are "how does this program compare externally"
+  // reference tables) and before trends (a forward-looking radar, whereas
+  // this section is retrospective — grounded in the roster's last 10
+  // years of actual publications).
+  { id: 'research-expertise', chartLed: false, render: renderResearchExpertiseSection },
   { id: 'trends', chartLed: false, render: renderTrendsSection },
   { id: 'decisions', chartLed: false, render: renderDecisionsSection },
 ];
