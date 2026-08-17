@@ -1,3 +1,4 @@
+import type { ResearchExpertiseInput } from '@kku/shared';
 import { prisma } from './index';
 import { realDataWhere } from './data-quality';
 
@@ -17,6 +18,25 @@ import { realDataWhere } from './data-quality';
 // Papers: FacultyMember → ResearchOutput, windowed to the last 10 years
 // (relative to the CURRENT year, never a literal), gated by realDataWhere()
 // so mock/untagged rows never reach this analysis.
+//
+// Dependency direction: `@kku/db` depends on `@kku/shared`, never the
+// reverse (the shared barrel is imported by client components too — see the
+// `feedback_kku_shared_barrel_client` memory — so it must stay leaf-most).
+// `ResearchExpertiseInput` — the exact envelope the prompt builder in
+// `@kku/shared/ai/prompts/program-research-expertise` consumes — is
+// therefore DEFINED in that file and imported here, mirroring how
+// `program-strategic-narrative-run.ts` imports `ProgramStrategicNarrativeInput`
+// from `@kku/shared` rather than redeclaring it. `ExpertiseReadiness` /
+// `ScoredPaper` / `ExpertiseStats` below stay LOCAL to this file: they are
+// this module's internal assembly types (ScoredPaper here also carries the
+// external IDs used for dedup + is asserted on directly in this package's
+// pure-function tests), and they are each structurally identical to their
+// same-named counterparts in the shared prompt file, so a value built from
+// the local types satisfies `ResearchExpertiseInput`'s shape without any
+// cast — TypeScript's structural typing (not a shared import) is what makes
+// the two sides agree on `ExpertiseReadiness` / `ExpertiseStats`, and
+// `ScoredPaper` here is a strict superset (adds doi/openalexId/scopusId/
+// pmid) of the shared prompt's slimmer display-only `ScoredPaper`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ExpertiseReadiness = 'ok' | 'thin' | 'no-roster';
@@ -47,15 +67,6 @@ export interface ExpertiseStats {
   totalDistinct: number;
   rosterSize: number;
   notShownCount: number;
-}
-
-export interface ResearchExpertiseInput {
-  readiness: ExpertiseReadiness;
-  topPapers: ScoredPaper[];
-  stats: ExpertiseStats;
-  programNameEn: string;
-  programLevel: string;
-  facultyNameEn: string;
 }
 
 /** Distinct papers below this floor make theme claims numerology, not
