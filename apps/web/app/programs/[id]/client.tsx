@@ -2600,7 +2600,10 @@ function CoursesSection({
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deliberate deps: selectedSemesters is identity-unstable per render, so
+    // we depend on its joined string. (No eslint directive — react-hooks is
+    // not registered in this repo's flat config, and naming an unregistered
+    // rule is itself a lint error that turned CI red on 2026-08-16.)
   }, [selectedSemesters.join(','), programId]);
 
   if (!data || data.total === 0) {
