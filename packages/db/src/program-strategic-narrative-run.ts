@@ -7,6 +7,7 @@ import {
   lintBannedTells,
   type AiService,
   type ProgramStrategicNarrativeInput,
+  extractStructuredWithParseRetry,
 } from '@kku/shared';
 import { prisma } from './index';
 import { computeHealthScores } from './health-score';
@@ -284,9 +285,11 @@ export async function generateProgramStrategicNarrative(
     maxOutputTokens: 50000,
   };
 
-  let response = await params.ai.extractStructured(
+  let response = await extractStructuredWithParseRetry(
+    params.ai,
     { ...extractionParams, messages },
     ProgramStrategicNarrativeSchema,
+    'program-strategic-narrative',
   );
 
   // FIX 2 (docs/prompt-standard.md `## Banned AI tells`): the prompt-level
@@ -307,9 +310,11 @@ export async function generateProgramStrategicNarrative(
           .join(', ')}. Rewrite the ENTIRE brief without any of these words or their close paraphrases — keep the same structure, length cap, and grounding rules. Return the corrected JSON in the same format as before.`,
       },
     ];
-    const retryResponse = await params.ai.extractStructured(
+    const retryResponse = await extractStructuredWithParseRetry(
+      params.ai,
       { ...extractionParams, messages: correctionMessages },
       ProgramStrategicNarrativeSchema,
+      'program-strategic-narrative',
     );
     const retryViolations = lintBannedTells(retryResponse.parsed.contentMarkdown);
     if (retryViolations.length > 0) {
