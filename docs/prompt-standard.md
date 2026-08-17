@@ -76,6 +76,11 @@ existing verbatim in the shipped system prompt is what lets a reviewer audit a r
 against the stated condition — see finding 2 in the audit's discovery notes (`program-digest`
 returned a uniform 0.95 across 228 programs, which is compliance with a field, not measurement).
 
+Callers of narrative/verdict prompts SHOULD enforce the bands with a deterministic ceiling computed
+from the input — the self-report is a floor-signal, never trusted upward. See
+`narrativeConfidenceCeiling()` / `countMissingNarrativeChannels()` in `program-strategic-narrative.ts`
+for the reference implementation, wired into `packages/db/src/program-strategic-narrative-run.ts`.
+
 ## Banned AI tells
 
 Humanizing a prompt means removing AI writing tells — it does **not** mean softening the terse,

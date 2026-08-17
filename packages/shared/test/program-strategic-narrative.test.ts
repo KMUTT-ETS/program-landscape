@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProgramStrategicNarrativeMessages,
+  countMissingNarrativeChannels,
+  narrativeConfidenceCeiling,
   PROGRAM_STRATEGIC_NARRATIVE_VERSION,
+  type ProgramStrategicNarrativeInput,
 } from '../src/ai/prompts/program-strategic-narrative';
 import { FIXTURE_INPUT } from './fixtures/strategic-narrative-input';
 
@@ -87,5 +90,55 @@ describe('program-strategic-narrative v2 builder', () => {
     ]) {
       expect(system).toContain(marker);
     }
+  });
+});
+
+describe('countMissingNarrativeChannels', () => {
+  it('counts 0 missing on the full fixture', () => {
+    expect(countMissingNarrativeChannels(FIXTURE_INPUT)).toBe(0);
+  });
+
+  it('counts all 13 channels missing when everything is nulled/empty', () => {
+    const allMissing: ProgramStrategicNarrativeInput = {
+      ...FIXTURE_INPUT,
+      lifecycle: null,
+      health: null,
+      aiReadiness: null,
+      tcas: null,
+      financial: null,
+      demand: null,
+      demographic: null,
+      peerReview: null,
+      outcomes: null,
+      demandMatch: null,
+      trendSignals: [],
+      risk: null,
+      cohorts: null,
+    };
+    expect(countMissingNarrativeChannels(allMissing)).toBe(13);
+  });
+
+  it('counts trendSignals as missing only when the array is empty', () => {
+    const withOneMissing: ProgramStrategicNarrativeInput = {
+      ...FIXTURE_INPUT,
+      trendSignals: [],
+    };
+    expect(countMissingNarrativeChannels(withOneMissing)).toBe(1);
+  });
+});
+
+describe('narrativeConfidenceCeiling', () => {
+  it('bands the ceiling per the rubric edges', () => {
+    expect(narrativeConfidenceCeiling(0)).toBe(1.0);
+    expect(narrativeConfidenceCeiling(1)).toBe(0.89);
+    expect(narrativeConfidenceCeiling(3)).toBe(0.69);
+    expect(narrativeConfidenceCeiling(5)).toBe(0.55);
+    expect(narrativeConfidenceCeiling(6)).toBe(0.49);
+    expect(narrativeConfidenceCeiling(13)).toBe(0.49);
+  });
+
+  it('bands the 2-3 and 4-5 midpoints too', () => {
+    expect(narrativeConfidenceCeiling(2)).toBe(0.69);
+    expect(narrativeConfidenceCeiling(4)).toBe(0.55);
   });
 });

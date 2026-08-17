@@ -2,7 +2,10 @@ import {
   buildProgramStrategicNarrativeMessages,
   ProgramStrategicNarrativeSchema,
   PROGRAM_STRATEGIC_NARRATIVE_VERSION,
+  countMissingNarrativeChannels,
+  narrativeConfidenceCeiling,
   type AiService,
+  type ProgramStrategicNarrativeInput,
 } from '@kku/shared';
 import { prisma } from './index';
 import { computeHealthScores } from './health-score';
@@ -128,7 +131,10 @@ export async function generateProgramStrategicNarrative(
     | null
     | undefined;
 
-  const messages = buildProgramStrategicNarrativeMessages({
+  // Kept as its own const (rather than inlined into the builder call) so
+  // it can also be handed to countMissingNarrativeChannels() below — see
+  // FIX 1.
+  const narrativeInput: ProgramStrategicNarrativeInput = {
     programNameTh: program.nameTh,
     programNameEn: program.nameEn,
     programLevel: program.level as 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
@@ -261,7 +267,9 @@ export async function generateProgramStrategicNarrative(
               cohorts.totalActive > 0 ? (cohorts.delayedCount / cohorts.totalActive) * 100 : null,
           }
         : null,
-  });
+  };
+
+  const messages = buildProgramStrategicNarrativeMessages(narrativeInput);
 
   const response = await params.ai.extractStructured(
     {
@@ -279,19 +287,35 @@ export async function generateProgramStrategicNarrative(
     ProgramStrategicNarrativeSchema,
   );
 
+  // FIX 1 (docs/prompt-standard.md `## Confidence rubric`): the model's
+  // self-report is a floor-signal only — clamp it to a deterministic
+  // ceiling computed from how many of the 13 input channels are missing.
+  // The gate showed the model self-report 0.75 with 6 of 13 channels
+  // missing, where the rubric's own bands say <0.5 — prose can't fix
+  // self-grading, so this is enforced mechanically.
+  const missingChannelCount = countMissingNarrativeChannels(narrativeInput);
+  const ceiling = narrativeConfidenceCeiling(missingChannelCount);
+  let confidence = response.parsed.confidence;
+  if (confidence > ceiling) {
+    console.warn(
+      `[program-strategic-narrative] confidence clamped for program ${program.id}: reported=${confidence} ceiling=${ceiling} (missingChannels=${missingChannelCount})`,
+    );
+    confidence = ceiling;
+  }
+
   await prisma.programStrategicNarrative.upsert({
     where: { programId: program.id },
     create: {
       programId: program.id,
       methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
       contentMarkdown: response.parsed.contentMarkdown,
-      confidence: response.parsed.confidence,
+      confidence,
       generatedByAiInferenceId: response.aiInferenceId,
     },
     update: {
       methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
       contentMarkdown: response.parsed.contentMarkdown,
-      confidence: response.parsed.confidence,
+      confidence,
       generatedAt: new Date(),
       generatedByAiInferenceId: response.aiInferenceId,
     },
@@ -300,7 +324,7 @@ export async function generateProgramStrategicNarrative(
   return {
     status: 'SUCCEEDED',
     aiInferenceId: response.aiInferenceId,
-    confidence: response.parsed.confidence,
+    confidence,
     tokensInput: response.tokens.input,
     tokensOutput: response.tokens.output,
     costUsd: response.cost.usd,

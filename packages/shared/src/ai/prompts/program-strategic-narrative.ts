@@ -156,6 +156,54 @@ export interface ProgramStrategicNarrativeInput {
   } | null;
 }
 
+/**
+ * Count how many of the 13 input channels are absent. The 12 nullable
+ * object-shaped channels count as missing when `null`; `trendSignals`
+ * (an array, not nullable) counts as missing when empty. `programme`
+ * identity fields are always present and are not counted.
+ *
+ * This is the deterministic half of FIX 1 (see docs/prompt-standard.md
+ * `## Confidence rubric`) — the model's self-reported confidence is a
+ * floor-signal only; this function plus `narrativeConfidenceCeiling()`
+ * enforce the rubric's bands mechanically rather than trusting the
+ * model to grade itself against them.
+ */
+export function countMissingNarrativeChannels(input: ProgramStrategicNarrativeInput): number {
+  const nullableChannels: unknown[] = [
+    input.lifecycle,
+    input.health,
+    input.aiReadiness,
+    input.tcas,
+    input.financial,
+    input.demand,
+    input.demographic,
+    input.peerReview,
+    input.outcomes,
+    input.demandMatch,
+    input.risk,
+    input.cohorts,
+  ];
+  const missingObjectChannels = nullableChannels.filter((c) => c === null).length;
+  const missingTrendSignals = input.trendSignals.length === 0 ? 1 : 0;
+  return missingObjectChannels + missingTrendSignals;
+}
+
+/**
+ * Deterministic ceiling on self-reported confidence, enforcing the
+ * rubric's bands mechanically. All channels weigh equally in v1 of this
+ * clamp — materiality weighting is a future refinement, recorded in
+ * docs/prompt-standard.md.
+ *
+ *   0 missing → 1.00 · 1 → 0.89 · 2–3 → 0.69 · 4–5 → 0.55 · 6+ → 0.49
+ */
+export function narrativeConfidenceCeiling(missingCount: number): number {
+  if (missingCount <= 0) return 1.0;
+  if (missingCount === 1) return 0.89;
+  if (missingCount <= 3) return 0.69;
+  if (missingCount <= 5) return 0.55;
+  return 0.49;
+}
+
 export function buildProgramStrategicNarrativeMessages(
   input: ProgramStrategicNarrativeInput,
 ): AiMessage[] {
