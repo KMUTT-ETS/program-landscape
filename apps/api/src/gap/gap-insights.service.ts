@@ -12,8 +12,11 @@ import {
 import {
   buildGapInsightsMessages,
   createAiService,
+  extractStructuredWithParseRetry,
   GAP_INSIGHTS_VERSION,
   GapInsightsOutputSchema,
+  lintBannedTells,
+  type AiMessage,
   type AiProviderId,
   type AiService,
   type GapInsightsInput,
@@ -96,14 +99,7 @@ export class GapInsightsService implements OnModuleInit {
         'Thailand 18–22 cohort projected to shrink ~1.8%/year through 2035. Supply forecasts apply demographic multiplier accordingly.',
     };
 
-    const messages = buildGapInsightsMessages(input);
-    const resp = await this.ai.complete({
-      ctx: { module: 'gap-analysis', kind: 'strategic-top-5', userId: params.userId },
-      messages,
-      temperature: 0.3,
-      maxOutputTokens: 2500,
-    });
-    return this.parseAndPackage(resp.text, resp);
+    return this.generateAndPackage(input, 'strategic-top-5', { temperature: 0.3, maxOutputTokens: 2500 }, params.userId);
   }
 
   async generateProgramSkillsToAdd(params: { programId: string; userId: string }) {
@@ -135,14 +131,12 @@ export class GapInsightsService implements OnModuleInit {
         demandEvidence: `demand=${m.demand.toFixed(1)}, top employers: ${m.topDemandingEmployers.slice(0, 2).join(', ')}`,
       })),
     };
-    const messages = buildGapInsightsMessages(input);
-    const resp = await this.ai.complete({
-      ctx: { module: 'gap-analysis', kind: 'program-skills-to-add', userId: params.userId },
-      messages,
-      temperature: 0.3,
-      maxOutputTokens: 1800,
-    });
-    return this.parseAndPackage(resp.text, resp);
+    return this.generateAndPackage(
+      input,
+      'program-skills-to-add',
+      { temperature: 0.3, maxOutputTokens: 1800 },
+      params.userId,
+    );
   }
 
   async generateSectorBrief(params: { sectorCode: string; userId: string }) {
@@ -168,6 +162,13 @@ export class GapInsightsService implements OnModuleInit {
       take: 3,
     });
 
+    // NEW (gap-insights.v2, closing the audit's channel gap): topSkills/
+    // topEmployers used to always be sent empty even though the prompt's
+    // rubric already told the model to cite them by name. Derive both
+    // from the same computeSkillGap() rows the Gap Analyzer module uses,
+    // restricted to this sector's member skills (SkillSector join).
+    const { topSkills, topEmployers } = await this.sectorDemandDetail(sector.id);
+
     const input: GapInsightsInput = {
       mode: 'sector-brief',
       sectorCode: sector.code,
@@ -175,8 +176,8 @@ export class GapInsightsService implements OnModuleInit {
       family: sector.family,
       demandSnapshot: {
         totalDemand: row?.demandIndex ?? 0,
-        topSkills: [],
-        topEmployers: [],
+        topSkills,
+        topEmployers,
       },
       supplySnapshot: {
         totalSupply: row?.supplyIndex ?? 0,
@@ -184,44 +185,127 @@ export class GapInsightsService implements OnModuleInit {
       },
       recentPolicySignals: recentPolicy.map((p) => p.title),
     };
-    const messages = buildGapInsightsMessages(input);
-    const resp = await this.ai.complete({
-      ctx: { module: 'gap-analysis', kind: 'sector-brief', userId: params.userId },
-      messages,
-      temperature: 0.4,
-      maxOutputTokens: 2500,
-    });
-    return this.parseAndPackage(resp.text, resp);
+    return this.generateAndPackage(input, 'sector-brief', { temperature: 0.4, maxOutputTokens: 2500 }, params.userId);
   }
 
-  private parseAndPackage(raw: string, resp: { model: string; aiInferenceId: string | null; tokens: { input: number; output: number }; cost: { usd: number; model: string } }) {
-    // Strip code fences the model sometimes injects despite instructions.
-    const cleaned = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-    let parsed: GapInsightsOutput | null = null;
-    try {
-      parsed = GapInsightsOutputSchema.parse(JSON.parse(cleaned));
-    } catch (err) {
-      this.logger.warn(`gap-insights parse failed: ${(err as Error).message}`);
+  /** Top 5 demanded skill names + top 5 employer names for a sector,
+   *  derived from computeSkillGap() rows whose skill belongs to the
+   *  sector (SkillSector join), sorted by demand. See CHANNEL MANIFEST
+   *  in the prompt file for why this replaced two permanently-empty
+   *  arrays in v1. */
+  private async sectorDemandDetail(
+    sectorId: string,
+  ): Promise<{ topSkills: string[]; topEmployers: string[] }> {
+    const memberSkillIds = new Set(
+      (await prisma.skillSector.findMany({ where: { sectorId }, select: { skillId: true } })).map(
+        (s) => s.skillId,
+      ),
+    );
+    if (memberSkillIds.size === 0) return { topSkills: [], topEmployers: [] };
+
+    const skillGap = await computeSkillGap({
+      scope: 'university',
+      horizon: 0,
+      comparison: 'absolute',
+      region: 'TH',
+      limit: 200,
+    });
+    const sectorRows = skillGap.rows
+      .filter((r) => memberSkillIds.has(r.skillId) && r.demand > 0)
+      .sort((a, b) => b.demand - a.demand);
+
+    const topSkills = sectorRows.slice(0, 5).map((r) => r.nameEn);
+    const topEmployers = [
+      ...new Set(sectorRows.flatMap((r) => r.topDemandingEmployers)),
+    ].slice(0, 5);
+    return { topSkills, topEmployers };
+  }
+
+  /** Structured extraction + a corrective retry on parse failure
+   *  (extractStructuredWithParseRetry), then a banned-tell lint pass
+   *  over the free-text fields with one corrective retry — mirrors
+   *  program-strategic-narrative-run.ts's two-fix pattern, adapted for
+   *  a multi-field structured payload instead of one markdown string. */
+  private async generateAndPackage(
+    input: GapInsightsInput,
+    kind: GapInsightsOutput['mode'],
+    modelParams: { temperature: number; maxOutputTokens: number },
+    userId: string,
+  ) {
+    const messages = buildGapInsightsMessages(input);
+    const extractionParams = {
+      ctx: { module: 'gap-analysis', kind, userId },
+      methodVersion: GAP_INSIGHTS_VERSION,
+      maxOutputTokens: modelParams.maxOutputTokens,
+    };
+
+    let response = await extractStructuredWithParseRetry(
+      this.ai,
+      { ...extractionParams, messages },
+      GapInsightsOutputSchema,
+      `gap-insights.${kind}`,
+    );
+
+    const violations = lintBannedTells(collectFreeText(response.parsed));
+    if (violations.length > 0) {
+      const correctionMessages: AiMessage[] = [
+        ...messages,
+        { role: 'assistant', content: response.rawText },
+        {
+          role: 'user',
+          content: `Your draft used banned phrase(s): ${violations
+            .map((v) => `"${v.phrase}"`)
+            .join(', ')}. Rewrite the ENTIRE JSON without any of these words or their close paraphrases — keep the same structure and grounding rules. Return the corrected JSON in the same format as before.`,
+        },
+      ];
+      const retry = await extractStructuredWithParseRetry(
+        this.ai,
+        { ...extractionParams, messages: correctionMessages },
+        GapInsightsOutputSchema,
+        `gap-insights.${kind}`,
+      );
+      const retryViolations = lintBannedTells(collectFreeText(retry.parsed));
+      if (retryViolations.length > 0) {
+        this.logger.warn(
+          `gap-insights banned-tell lint still failing after retry (kind=${kind}): ${retryViolations.map((v) => v.phrase).join(', ')}`,
+        );
+      }
+      response = retry;
     }
+
     return {
-      output: parsed,
-      rawText: raw,
-      model: resp.model,
-      aiInferenceId: resp.aiInferenceId,
-      tokens: resp.tokens,
-      cost: resp.cost,
+      output: response.parsed,
+      rawText: response.rawText,
+      model: response.model,
+      aiInferenceId: response.aiInferenceId,
+      tokens: response.tokens,
+      cost: response.cost,
       methodologyVersion: GAP_INSIGHTS_VERSION,
-      confidence: parsed ? 0.7 : 0.2,
+      confidence: response.confidence,
     };
   }
+}
+
+/** Free-text prose fields per mode, joined for the banned-tell lint. */
+function collectFreeText(output: GapInsightsOutput): string {
+  if (output.mode === 'strategic-top-5') {
+    return output.gaps.map((g) => `${g.title} ${g.rationale}`).join(' ');
+  }
+  if (output.mode === 'program-skills-to-add') {
+    return output.result.skillsToAdd.map((s) => s.evidence).join(' ');
+  }
+  return [
+    output.brief.title,
+    output.brief.body,
+    output.brief.strategicImplications.join(' '),
+    output.brief.headlineMetrics.map((m) => m.label).join(' '),
+  ].join(' ');
 }
 
 function placeholder(mode: GapInsightsOutput['mode']) {
   return {
     output: null,
-    rawText:
-      'ไม่พบการตั้งค่า AI provider — กรุณากำหนดค่า GOOGLE_AI_API_KEY หรือ ANTHROPIC_API_KEY เพื่อสร้าง Gap insights ที่แท้จริง\n\n' +
-      `(No AI provider configured — set GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY to generate ${mode} insights.)`,
+    rawText: `No AI provider configured — set GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY to generate ${mode} insights.`,
     model: 'none',
     aiInferenceId: null,
     tokens: { input: 0, output: 0 },
