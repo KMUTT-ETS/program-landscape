@@ -216,7 +216,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'policy-doc',
-    currentVersion: 'policy-doc.v1',
+    currentVersion: 'policy-doc.v2',
     label: 'Policy document analysis',
     description: 'Extracts narrative + topic tags + sector relevance from policy PDFs.',
     module: 'ingestion',
