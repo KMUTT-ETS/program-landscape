@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
+import { PROGRAM_STRATEGIC_NARRATIVE_VERSION } from '@kku/shared';
 import { Prisma, prisma } from '@kku/db';
 import {
   programCourses,
@@ -182,8 +183,10 @@ export class DeepDiveController {
   @Get('strategic-narrative')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'strategic-narrative', name: 'Strategic narrative v1' }],
-    methodologyVersion: 'program-strategic-narrative.v1',
+    // Version comes from the prompt constant so the provenance drawer can
+    // never disagree with what the stored rows actually carry.
+    sources: [{ id: 'strategic-narrative', name: 'Strategic narrative' }],
+    methodologyVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
   })
   async strategicNarrative(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
