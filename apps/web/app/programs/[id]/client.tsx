@@ -2861,6 +2861,18 @@ function ResearchExpertiseSection({ data }: { data: DeepDiveResearchExpertise | 
             (10y): <span className="font-tabular">{readiness.distinctPaperCount}</span>
           </span>
         )}
+        {/* v2 basis statement: theme paperCounts are counts WITHIN the
+            analysed set, never full-roster estimates — say so where the
+            numbers are read. */}
+        <span className="text-xs text-text-tertiary">
+          Theme counts refer to the{' '}
+          <span className="font-tabular">{result.analysedPaperCount}</span> most significant papers
+          analysed
+          {result.totalDistinctPapers > result.analysedPaperCount && (
+            <> (of <span className="font-tabular">{result.totalDistinctPapers}</span> total)</>
+          )}
+          .
+        </span>
       </Card>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

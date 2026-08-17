@@ -766,10 +766,22 @@ export async function programStrategicNarrative(
 // INSERT-ONLY — a program can accrete multiple rows over time (re-runs
 // via `pnpm expertise:generate`) — so this reads the LATEST by
 // generatedAt rather than a unique-per-program row.
+// Minimal view of the runner-persisted stats block — only the two fields
+// the read path needs; extra keys pass through unvalidated by design.
+const InputStatsSchema = z.object({
+  totalDistinct: z.number().int().nonnegative(),
+  notShownCount: z.number().int().nonnegative(),
+});
+
 export interface ProgramResearchExpertiseResult {
   payload: ProgramResearchExpertise;
   methodVersion: string;
   generatedAt: string;
+  /** How many papers the model actually analysed vs the roster's total —
+   *  paperCounts are counts WITHIN the analysed set (v2 rule), and the UI
+   *  must state that basis rather than implying full-roster counts. */
+  analysedPaperCount: number;
+  totalDistinctPapers: number;
 }
 
 export async function programResearchExpertise(
@@ -780,6 +792,10 @@ export async function programResearchExpertise(
     orderBy: { generatedAt: 'desc' },
   });
   if (!row) return null;
+  // inputStatsJson was written by the runner from the deterministic stats
+  // block; totalDistinct/notShownCount reconstruct the analysed-set size
+  // without a magic constant in any consumer.
+  const stats = InputStatsSchema.parse(row.inputStatsJson);
   return {
     // Parsed (not cast) — payloadJson is a Prisma Json column with no
     // static shape; running it back through the same schema the runner
@@ -788,6 +804,8 @@ export async function programResearchExpertise(
     payload: ProgramResearchExpertiseSchema.parse(row.payloadJson),
     methodVersion: row.methodVersion,
     generatedAt: row.generatedAt.toISOString(),
+    analysedPaperCount: stats.totalDistinct - stats.notShownCount,
+    totalDistinctPapers: stats.totalDistinct,
   };
 }
 

@@ -43,6 +43,8 @@ export interface DeepDiveResearchExpertiseResult {
   payload: DeepDiveResearchExpertisePayload;
   methodVersion: string;
   generatedAt: string;
+  analysedPaperCount: number;
+  totalDistinctPapers: number;
 }
 
 export type DeepDiveResearchExpertiseVerdict = 'ok' | 'thin' | 'no-roster';

@@ -37,7 +37,12 @@ import type { AiMessage } from '../types';
 //     months, and cite the theme(s) (by name) they build on.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_RESEARCH_EXPERTISE_VERSION = 'program-research-expertise.v1';
+// v2 (2026-08-17): paperCount constrained to the analysed (shown) set only.
+// v1 allowed extrapolating counts to the full roster volume — the 3-program
+// gate showed theme counts summing to 1,050 when only 150 titles were shown,
+// which the UI would render as fact. A Council-facing number must be
+// verifiable against the input; estimates live in prose, not numbers.
+export const PROGRAM_RESEARCH_EXPERTISE_VERSION = 'program-research-expertise.v2';
 
 /** Verbatim caveat the schema requires every payload's `caveats` array to
  *  include — the roster itself is AI-extracted (program-faculty.v1) and
@@ -177,7 +182,7 @@ HARD CONSTRAINTS:
 7. **Write in English.** All analysis prose (theme names, evidence notes, recommendation actions/rationales, caveats) is English-only.
 
 GROUNDING RULES:
-- A theme's paperCount is your best count of how many papers in the FULL roster (not just the papers shown to you) plausibly belong to that theme, reasoned from the titles you can see plus the overall volume in PUBLICATION STATS — state your reasoning in evidenceNote when the count extends beyond the titles literally shown.
+- A theme's paperCount counts ONLY papers listed in TOP PAPERS — the set you were actually shown. Never extrapolate to the full roster volume in PUBLICATION STATS; that block is context for trends and coverage honesty, not licence to inflate counts. Every paperCount must be verifiable by a reader counting matching titles in the analysed set. When PUBLICATION STATS shows more papers exist beyond the shown set, you may note in evidenceNote that the theme likely extends further — as prose, never as a number.
 - Causal claims (e.g. "this trend reflects growing institutional focus on X") are hypotheses unless the input states the mechanism. Use "consistent with" or "may reflect" — never assert "because" from correlation alone.
 - The roster itself is AI-extracted and analyst-reviewed (not a fully verified faculty list) — this analysis covers ONLY the curated roster's publications, and roster gaps/errors propagate into every finding below. Your caveats array MUST include this exact sentence, verbatim, as one of its entries: "${ROSTER_PROVENANCE_CAVEAT}"
 

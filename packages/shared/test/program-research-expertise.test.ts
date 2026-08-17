@@ -12,17 +12,23 @@ import {
   NO_ROSTER_FIXTURE_INPUT,
 } from './fixtures/research-expertise-input';
 
-describe('program-research-expertise v1 builder', () => {
+describe('program-research-expertise v2 builder', () => {
   const messages = buildProgramResearchExpertiseMessages(FIXTURE_INPUT);
   const system = messages.find((m) => m.role === 'system')?.content ?? '';
   const user = messages.find((m) => m.role === 'user')?.content ?? '';
 
   it('is version 1', () => {
-    expect(PROGRAM_RESEARCH_EXPERTISE_VERSION).toBe('program-research-expertise.v1');
+    expect(PROGRAM_RESEARCH_EXPERTISE_VERSION).toBe('program-research-expertise.v2');
   });
 
   it('demands English output explicitly', () => {
     expect(system).toMatch(/Write in English/);
+  });
+
+  it('constrains paperCount to the analysed set — the v2 rule', () => {
+    expect(system).toContain('counts ONLY papers listed in TOP PAPERS');
+    expect(system).toContain('Never extrapolate to the full roster volume');
+    expect(system).toContain('as prose, never as a number');
   });
 
   it('carries the confidence rubric verbatim and the tell ban', () => {
