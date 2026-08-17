@@ -12,17 +12,22 @@ import {
   NO_ROSTER_FIXTURE_INPUT,
 } from './fixtures/research-expertise-input';
 
-describe('program-research-expertise v2 builder', () => {
+describe('program-research-expertise v3 builder', () => {
   const messages = buildProgramResearchExpertiseMessages(FIXTURE_INPUT);
   const system = messages.find((m) => m.role === 'system')?.content ?? '';
   const user = messages.find((m) => m.role === 'user')?.content ?? '';
 
   it('is version 1', () => {
-    expect(PROGRAM_RESEARCH_EXPERTISE_VERSION).toBe('program-research-expertise.v2');
+    expect(PROGRAM_RESEARCH_EXPERTISE_VERSION).toBe('program-research-expertise.v3');
   });
 
   it('demands English output explicitly', () => {
     expect(system).toMatch(/Write in English/);
+  });
+
+  it('tells the model what to do with a single-paper outlier — the v3 rule', () => {
+    expect(system).toContain('A single-paper cluster is NOT a theme');
+    expect(system).toContain('never pad the theme count');
   });
 
   it('constrains paperCount to the analysed set — the v2 rule', () => {

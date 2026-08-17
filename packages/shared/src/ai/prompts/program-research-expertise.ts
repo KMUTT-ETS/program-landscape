@@ -42,7 +42,12 @@ import type { AiMessage } from '../types';
 // gate showed theme counts summing to 1,050 when only 150 titles were shown,
 // which the UI would render as fact. A Council-facing number must be
 // verifiable against the input; estimates live in prose, not numbers.
-export const PROGRAM_RESEARCH_EXPERTISE_VERSION = 'program-research-expertise.v2';
+// v3 (2026-08-17): single-paper clusters must not become themes. KKU-SEQ-0077
+// (3 papers: 2 folklore + 1 animation) failed schema validation four times
+// across two runs because the model kept promoting the lone animation paper
+// to a theme it could never evidence with 2 titles. The schema was right;
+// the prompt never said what to DO with a one-paper outlier. Now it does.
+export const PROGRAM_RESEARCH_EXPERTISE_VERSION = 'program-research-expertise.v3';
 
 /** Verbatim caveat the schema requires every payload's `caveats` array to
  *  include — the roster itself is AI-extracted (program-faculty.v1) and
@@ -174,7 +179,7 @@ export function buildProgramResearchExpertiseMessages(
 
 HARD CONSTRAINTS:
 1. **Titles-only input — no abstracts.** You are shown paper titles, venues, years, citation counts, and journal quartile where available. You were NOT shown abstracts, methods sections, or findings. Never claim what a paper found, how it was conducted, or its methodological quality — you cannot know this from a title. Thematic clustering (what subject area a paper belongs to) is a title-supportable claim; findings/methods claims are not.
-2. **Every theme must cite 2-3 VERBATIM example titles from the TOP PAPERS list below.** Copy the title text exactly as given — no paraphrasing, no summarising, no combining two titles into one. A theme you cannot evidence with verbatim titles you were actually shown does not exist; do not report it.
+2. **Every theme must cite 2-3 VERBATIM example titles from the TOP PAPERS list below.** Copy the title text exactly as given — no paraphrasing, no summarising, no combining two titles into one. A theme you cannot evidence with verbatim titles you were actually shown does not exist; do not report it. **A single-paper cluster is NOT a theme** — when one paper stands alone (a genuine outlier in a small portfolio), do not force it into its own theme: fold it into the closest theme's evidenceNote, or note it in caveats. With very small portfolios, ONE theme — even a loose one — is the correct answer; never pad the theme count.
 3. **Quartile absence is "not assessed", never "low quality".** Roughly two-thirds of papers in this dataset carry no quartile value — this is a coverage gap in the enrichment pipeline, not a signal about that paper's rigor. Do not describe unassessed papers as weaker, lower-tier, or less rigorous than quartile-rated ones.
 4. **Trend labels must follow the PUBLICATION STATS papers-per-year table, not an impression from the visible titles.** A theme trend of "rising" requires the per-year counts to actually show growth in recent years; "fading" requires an actual decline; otherwise use "steady".
 5. **Numbers come from the input snapshot only.** Never invent or estimate a paper count, year, or citation figure not present in the input.
