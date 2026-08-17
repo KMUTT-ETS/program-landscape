@@ -489,6 +489,7 @@ model Program {
   peerReview            ProgramPeerReview?
   strategicNarrative    ProgramStrategicNarrative?
   aiReadinessAssessment ProgramAiReadinessAssessment?
+  researchExpertise     ProgramResearchExpertise[]
   pedagogyAssessment    ProgramPedagogyAssessment?
   lifecycleSnapshot     ProgramLifecycleSnapshot?
   verdictSnapshots      VerdictSnapshot[]
@@ -1996,6 +1997,33 @@ model ProgramAiReadinessAssessment {
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@map("program_ai_readiness_assessments")
+}
+
+/// Demonstrated research-expertise brief per program, derived from the
+/// program's curated faculty roster's last-10-years publications (see
+/// @kku/db's assembleResearchExpertiseInput / program-research-expertise-run.ts).
+/// UNLIKE ProgramStrategicNarrative/ProgramAiReadinessAssessment above, this
+/// is NOT upserted — every run INSERTs a new row so history is preserved;
+/// readers take the latest by `generatedAt`.
+model ProgramResearchExpertise {
+  id             String   @id @default(cuid())
+  programId      String   @map("program_id")
+  /// Full assessment payload — typed at the Zod schema layer
+  /// (`ProgramResearchExpertiseSchema`). Stored as JSONB so the schema can
+  /// evolve without per-bump migrations.
+  payloadJson    Json     @map("payload_json")
+  /// Deterministic input stats snapshot (`ExpertiseStats`) — lets a reader
+  /// audit the payload's theme/trend claims without recomputing them.
+  inputStatsJson Json     @map("input_stats_json")
+  /// Method version stamp (e.g. `program-research-expertise.v1`).
+  methodVersion  String   @map("method_version")
+  aiInferenceId  String?  @map("ai_inference_id")
+  generatedAt    DateTime @default(now()) @map("generated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId, generatedAt])
+  @@map("program_research_expertise")
 }
 
 /// Per-program pedagogical-readiness assessment. Reads the curriculum
