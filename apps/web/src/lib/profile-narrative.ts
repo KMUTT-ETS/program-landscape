@@ -75,22 +75,19 @@ export async function generateExpertiseNarrative(
 
 function placeholderNarrative(input: ExpertiseNarrativeInput): ExpertiseNarrative {
   const themes = inferFallbackThemes(input.publicationTitles);
-  const themesTh = themes.length > 0 ? themes.join(', ') : 'ไม่สามารถระบุได้';
   const themesEn = themes.length > 0 ? themes.join(', ') : 'unable to determine';
-
-  const narrativeTh =
-    `จากชื่อผลงานตีพิมพ์ ความเชี่ยวชาญที่สังเกตได้ครอบคลุม ${themesTh} ` +
-    `(หมายเหตุ: บทสรุปนี้สร้างจากข้อมูลพื้นฐานเท่านั้น เนื่องจากระบบ AI ยังไม่ได้กำหนดค่า — ติดต่อผู้ดูแลระบบเพื่อเปิดใช้งานการสรุปอัตโนมัติ)`;
 
   const narrativeEn =
     `Based on publication titles, observable expertise spans ${themesEn}. ` +
     `(Note: this summary is generated from basic record data only — the AI service is not yet configured. Contact the system administrator to enable automatic narrative generation.)`;
 
   return {
-    narrativeTh,
     narrativeEn,
     expertiseKeywordsEn: themes.slice(0, 5),
-    expertiseKeywordsTh: themes.slice(0, 5),
+    // No AI call was made, so there is no Thai translation to offer —
+    // the exempt keyword-chip array stays empty rather than echoing the
+    // English words as fake Thai.
+    expertiseKeywordsTh: [],
     confidence: 0,
   };
 }

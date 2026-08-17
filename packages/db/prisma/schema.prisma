@@ -647,7 +647,13 @@ model UserExpertiseNarrative {
   id                  String   @id @default(cuid())
   userId              String   @map("user_id")
   methodVersion       String   @map("method_version")
-  narrativeTh         String   @map("narrative_th") @db.Text
+  // Nullable as of expertise-narrative.v3 (docs/prompt-standard.md —
+  // analysis prose is English-only; the Thai KEYWORD arrays below stay,
+  // they're the standard's documented exemption, but this full paragraph
+  // isn't). v3+ rows write null here; older rows keep their historical
+  // Thai content for audit — see the migration note in
+  // 20260817130000_expertise_narrative_th_nullable.
+  narrativeTh         String?  @map("narrative_th") @db.Text
   narrativeEn         String   @map("narrative_en") @db.Text
   expertiseKeywordsTh String[] @map("expertise_keywords_th")
   expertiseKeywordsEn String[] @map("expertise_keywords_en")
@@ -1736,39 +1742,39 @@ model PolicyDocument {
 }
 
 model TrendSignal {
-  id                 String     @id @default(cuid())
-  signalType         SignalType @map("signal_type")
-  title              String     @db.Text
-  summaryTh          String?    @map("summary_th") @db.Text
-  summaryEn          String?    @map("summary_en") @db.Text
-  sourceUrl          String?    @map("source_url")
-  detectedDate       DateTime   @map("detected_date") @db.Date
-  impactScore        Float      @map("impact_score")
-  affectedProgramIds String[]   @map("affected_program_ids")
-  affectedSkillIds   String[]   @map("affected_skill_ids")
+  id                     String     @id @default(cuid())
+  signalType             SignalType @map("signal_type")
+  title                  String     @db.Text
+  summaryTh              String?    @map("summary_th") @db.Text
+  summaryEn              String?    @map("summary_en") @db.Text
+  sourceUrl              String?    @map("source_url")
+  detectedDate           DateTime   @map("detected_date") @db.Date
+  impactScore            Float      @map("impact_score")
+  affectedProgramIds     String[]   @map("affected_program_ids")
+  affectedSkillIds       String[]   @map("affected_skill_ids")
   // AI-derived recommended actions for KKU — array of
   // { priority, actionTh, actionEn }. Written by trend-signal-analysis.v1
   // alongside affectedProgramIds / affectedSkillIds / aiInferenceId.
-  recommendedActionsJson Json?  @map("recommended_actions_json")
+  recommendedActionsJson Json?      @map("recommended_actions_json")
   // Per-affected-program job-position candidates — array of
   // { programId, immediateRoles[], emergingRoles[], fitNoteTh }. immediateRoles
   // are jobs a current graduate can fill in response to the signal; emergingRoles
   // are roles reachable in 1-3 years if the program adapts / graduates upskill.
   // The flat affectedProgramIds above is kept in sync for all existing consumers.
-  affectedProgramsJson   Json?  @map("affected_programs_json")
+  affectedProgramsJson   Json?      @map("affected_programs_json")
   // White-space "new initiative" product/service ideas — array of offerings
   // (re-skill / upskill micro-credentials, bootcamps, short courses) for
   // demanded roles KKU has NO current program supply for (incl. vocational-level
   // positions). Empty when existing programs already cover the demand.
   // Both written by trend-signal-analysis.v3.
-  newInitiativesJson     Json?  @map("new_initiatives_json")
-  aiInferenceId      String?    @map("ai_inference_id")
+  newInitiativesJson     Json?      @map("new_initiatives_json")
+  aiInferenceId          String?    @map("ai_inference_id")
   // Optional back-pointer to the Phase-5 ExternalAiSource that
   // produced this signal. NULL for legacy / pre-Phase-5 signals + the
   // 6 seeded connector-driven monitors.
-  externalAiSourceId String?    @map("external_ai_source_id")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
+  externalAiSourceId     String?    @map("external_ai_source_id")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
 
   aiInference      AiInference?      @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
   externalAiSource ExternalAiSource? @relation(fields: [externalAiSourceId], references: [id], onDelete: SetNull)

@@ -14,6 +14,7 @@
 // than fabricating content.
 
 import { Prisma, prisma } from '@kku/db';
+import { EXPERTISE_NARRATIVE_VERSION } from '@kku/shared';
 import type {
   AuthorName,
   FacultyRankCode,
@@ -120,17 +121,24 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
     }
   }
 
-  // Cached AI narrative — keyed by (userId, methodVersion). We pick
-  // the latest row for this user regardless of method version so a
-  // version bump doesn't blank the page; new requests will write a
-  // fresh row with the current method.
+  // Cached AI narrative — keyed by (userId, methodVersion). Filtered to
+  // the CURRENT method version (fixed 2026-08-17): the model's own doc
+  // comment on UserExpertiseNarrative claims a version bump "shadows"
+  // the old row on the next profile view, but the query previously read
+  // "most recent row for this user, ANY version" — a user with a cached
+  // v2 (Thai) row would keep seeing it indefinitely after the v3
+  // (English-only) bump, since ExpertiseNarrativeSection only auto-fires
+  // regeneration when NO cached row exists at all. Filtering here is
+  // what actually makes the "shadows the old" claim true: an old-version
+  // row is now treated as absent, so the profile page's existing
+  // auto-fire-on-no-cache logic regenerates it under the new method on
+  // next view, with no client-side changes needed.
   const cachedNarrativeRow = await prisma.userExpertiseNarrative.findFirst({
-    where: { userId: user.id },
+    where: { userId: user.id, methodVersion: EXPERTISE_NARRATIVE_VERSION },
     orderBy: { generatedAt: 'desc' },
   });
   const cachedNarrative = cachedNarrativeRow
     ? {
-        narrativeTh: cachedNarrativeRow.narrativeTh,
         narrativeEn: cachedNarrativeRow.narrativeEn,
         expertiseKeywordsTh: cachedNarrativeRow.expertiseKeywordsTh,
         expertiseKeywordsEn: cachedNarrativeRow.expertiseKeywordsEn,

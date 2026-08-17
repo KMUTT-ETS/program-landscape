@@ -13,7 +13,6 @@ const NOT_YET_CONFORMANT = new Set<string>([
   'decision-review.ts',
   'demand-skill-match.ts',
   'evaluation-question-translate.ts',
-  'expertise-narrative.ts',
   'external-feed-summary.ts',
   'graduate-employment-survey.ts',
   'imd-rankings-extract.ts',

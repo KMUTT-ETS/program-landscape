@@ -68,6 +68,12 @@ export async function POST(): Promise<NextResponse> {
   // path (no AI key); we still cache it so the page doesn't auto-fire
   // a guaranteed-empty regeneration on every visit.
   try {
+    // narrativeTh is intentionally omitted — expertise-narrative.v3 no
+    // longer generates Thai analysis prose (docs/prompt-standard.md);
+    // the column is nullable as of migration
+    // 20260817130000_expertise_narrative_th_nullable and v3+ rows leave
+    // it null. Historical v1/v2 rows (different methodVersion, so a
+    // different upsert key) keep their Thai content untouched.
     await prisma.userExpertiseNarrative.upsert({
       where: {
         userId_methodVersion: {
@@ -76,7 +82,6 @@ export async function POST(): Promise<NextResponse> {
         },
       },
       update: {
-        narrativeTh: narrative.narrativeTh,
         narrativeEn: narrative.narrativeEn,
         expertiseKeywordsTh: narrative.expertiseKeywordsTh,
         expertiseKeywordsEn: narrative.expertiseKeywordsEn,
@@ -86,7 +91,6 @@ export async function POST(): Promise<NextResponse> {
       create: {
         userId: user.userId,
         methodVersion: EXPERTISE_NARRATIVE_VERSION,
-        narrativeTh: narrative.narrativeTh,
         narrativeEn: narrative.narrativeEn,
         expertiseKeywordsTh: narrative.expertiseKeywordsTh,
         expertiseKeywordsEn: narrative.expertiseKeywordsEn,

@@ -25,7 +25,9 @@ type Lang = 'th' | 'en';
 
 interface NarrativeResponse {
   narrative: {
-    narrativeTh: string;
+    // English-only as of expertise-narrative.v3 (docs/prompt-standard.md).
+    // The Thai keyword array is the standard's documented exemption and
+    // stays bilingual.
     narrativeEn: string;
     expertiseKeywordsTh: string[];
     expertiseKeywordsEn: string[];
@@ -533,7 +535,6 @@ function ExpertiseNarrativeSection({
   const [data, setData] = React.useState<NarrativeResponse['narrative'] | null>(
     initial
       ? {
-          narrativeTh: initial.narrativeTh,
           narrativeEn: initial.narrativeEn,
           expertiseKeywordsTh: initial.expertiseKeywordsTh,
           expertiseKeywordsEn: initial.expertiseKeywordsEn,
@@ -641,8 +642,13 @@ function ExpertiseNarrativeSection({
 
         {data && !loading && (
           <div className="space-y-4">
+            {/* narrativeEn is the sole narrative field as of
+                expertise-narrative.v3 — rendered regardless of the page's
+                TH/EN toggle. The expertise KEYWORD chips below stay
+                bilingual (the standard's documented exemption) and still
+                follow the toggle. */}
             <p className="whitespace-pre-line text-[0.95rem] leading-relaxed text-text-primary">
-              {lang === 'th' ? data.narrativeTh : data.narrativeEn}
+              {data.narrativeEn}
             </p>
             {((lang === 'th' ? data.expertiseKeywordsTh : data.expertiseKeywordsEn) ?? [])
               .length > 0 && (

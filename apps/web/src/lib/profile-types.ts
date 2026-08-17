@@ -111,7 +111,9 @@ export interface PublicationEntry {
 }
 
 export interface CachedExpertiseNarrative {
-  narrativeTh: string;
+  /** English-only as of expertise-narrative.v3 (docs/prompt-standard.md).
+   *  The Thai KEYWORD arrays below are the standard's documented
+   *  exemption and stay bilingual. */
   narrativeEn: string;
   expertiseKeywordsTh: string[];
   expertiseKeywordsEn: string[];
