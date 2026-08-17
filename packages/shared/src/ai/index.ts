@@ -5,3 +5,4 @@ export * from './prompts';
 export * from './method-catalog';
 export * from './openrouter-catalog';
 export * from './scrub-messages';
+export * from './lint-tells';

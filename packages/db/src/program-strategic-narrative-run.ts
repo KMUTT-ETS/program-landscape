@@ -4,6 +4,7 @@ import {
   PROGRAM_STRATEGIC_NARRATIVE_VERSION,
   countMissingNarrativeChannels,
   narrativeConfidenceCeiling,
+  lintBannedTells,
   type AiService,
   type ProgramStrategicNarrativeInput,
 } from '@kku/shared';
@@ -271,21 +272,53 @@ export async function generateProgramStrategicNarrative(
 
   const messages = buildProgramStrategicNarrativeMessages(narrativeInput);
 
-  const response = await params.ai.extractStructured(
-    {
-      ctx: {
-        module: 'programs',
-        kind: 'program-strategic-narrative',
-        userId: params.triggeredByUserId ?? null,
-        traceId: `narrative-${program.id}`,
-      },
-      messages,
-      methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
-      // Bumped 4096 → 50000 on 2026-05-13 — see program-digest/run.ts.
-      maxOutputTokens: 50000,
+  const extractionParams = {
+    ctx: {
+      module: 'programs',
+      kind: 'program-strategic-narrative',
+      userId: params.triggeredByUserId ?? null,
+      traceId: `narrative-${program.id}`,
     },
+    methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
+    // Bumped 4096 → 50000 on 2026-05-13 — see program-digest/run.ts.
+    maxOutputTokens: 50000,
+  };
+
+  let response = await params.ai.extractStructured(
+    { ...extractionParams, messages },
     ProgramStrategicNarrativeSchema,
   );
+
+  // FIX 2 (docs/prompt-standard.md `## Banned AI tells`): the prompt-level
+  // ban is not airtight — the audit reproduced "robust" verbatim twice on
+  // the same snapshot. Post-generation lint with exactly one corrective
+  // retry; if the retry still violates, persist the retry's output anyway
+  // and log a warning (no schema change — the bulk-run report surfaces
+  // violation counts from these log lines).
+  const initialTellViolations = lintBannedTells(response.parsed.contentMarkdown);
+  if (initialTellViolations.length > 0) {
+    const correctionMessages = [
+      ...messages,
+      { role: 'assistant' as const, content: response.rawText },
+      {
+        role: 'user' as const,
+        content: `Your draft used banned phrase(s): ${initialTellViolations
+          .map((v) => `"${v.phrase}"`)
+          .join(', ')}. Rewrite the ENTIRE brief without any of these words or their close paraphrases — keep the same structure, length cap, and grounding rules. Return the corrected JSON in the same format as before.`,
+      },
+    ];
+    const retryResponse = await params.ai.extractStructured(
+      { ...extractionParams, messages: correctionMessages },
+      ProgramStrategicNarrativeSchema,
+    );
+    const retryViolations = lintBannedTells(retryResponse.parsed.contentMarkdown);
+    if (retryViolations.length > 0) {
+      console.warn(
+        `[program-strategic-narrative] banned-tell lint still failing after retry for program ${program.id}: ${retryViolations.map((v) => v.phrase).join(', ')}`,
+      );
+    }
+    response = retryResponse;
+  }
 
   // FIX 1 (docs/prompt-standard.md `## Confidence rubric`): the model's
   // self-report is a floor-signal only — clamp it to a deterministic
