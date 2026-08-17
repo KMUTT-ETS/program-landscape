@@ -8,7 +8,6 @@ const PROMPTS_DIR = path.join(__dirname, '..', 'src', 'ai', 'prompts');
 // rewrites land — never add to this list. A new prompt file must conform
 // from birth (it will fail here until it does).
 const NOT_YET_CONFORMANT = new Set<string>([
-  'benchmarking-insights.ts',
   'career-kmitl-mapping.ts',
   'course-skill-extraction.ts',
   'decision-review.ts',

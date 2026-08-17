@@ -18,8 +18,10 @@ import {
   computeWhiteSpaces,
   listPeerSets,
   prisma,
+  programOutcomes,
+  realDataWhere,
 } from '@kku/db';
-import type { SessionUser } from '@kku/shared';
+import type { BenchmarkingInsightsInput, KmitlDemandMatchSummary, SessionUser } from '@kku/shared';
 import {
   AiCall,
   AuthSession,
@@ -79,6 +81,12 @@ const SuggestPeersBodySchema = z.object({
   region: z.enum(['TH', 'ASEAN', 'GLOBAL']).default('ASEAN'),
 });
 type SuggestPeersBody = z.infer<typeof SuggestPeersBodySchema>;
+
+const CurriculumGapBodySchema = z.object({
+  peerSetId: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+});
+type CurriculumGapBody = z.infer<typeof CurriculumGapBodySchema>;
 
 @Controller('/benchmarking')
 export class BenchmarkingController {
@@ -207,4 +215,103 @@ export class BenchmarkingController {
       user.userId,
     );
   }
+
+  // NEW endpoint (benchmarking-insights.v2): curriculum-gap had a builder
+  // + schema but no controller route before this bump — see the prompt
+  // file's header comment. Mirrors suggestPeers' shape; additionally
+  // wires GRADUATE OUTCOMES + LABOUR-MARKET DEMAND so the mode that
+  // argues curriculum gaps can weigh them against real outcomes/demand
+  // rather than skill-coverage counts alone.
+  @Post('programs/:id/curriculum-gap')
+  @Authorized('programs:read:all')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'benchmarking' })
+  @AiCall({ module: 'benchmarking' })
+  async curriculumGap(
+    @AuthSession() user: SessionUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CurriculumGapBodySchema)) body: CurriculumGapBody,
+  ) {
+    await assertProgramAccessible(id, user);
+    const program = await prisma.program.findUnique({
+      where: { id },
+      include: { programSkills: { include: { skill: { select: { nameEn: true, nameTh: true } } } } },
+    });
+    if (!program) throw new NotFoundException();
+
+    const peersResult = await computeProgramPeers(id, body.peerSetId ?? null, body.limit);
+    const peerIds = peersResult.peers.map((p) => p.id);
+
+    const peerSkillRows =
+      peerIds.length > 0
+        ? await prisma.peerProgramSkill.findMany({
+            where: { peerProgramId: { in: peerIds } },
+            include: { skill: { select: { id: true, nameEn: true, nameTh: true } } },
+          })
+        : [];
+    const peerCountBySkillId = new Map<string, number>();
+    const skillMetaById = new Map<string, { nameEn: string; nameTh: string }>();
+    for (const row of peerSkillRows) {
+      peerCountBySkillId.set(row.skillId, (peerCountBySkillId.get(row.skillId) ?? 0) + 1);
+      skillMetaById.set(row.skillId, { nameEn: row.skill.nameEn, nameTh: row.skill.nameTh });
+    }
+    const peerSkillCoverage = [...peerCountBySkillId.entries()]
+      .map(([skillId, peerCount]) => ({ ...(skillMetaById.get(skillId) ?? { nameEn: skillId, nameTh: skillId }), peerCount }))
+      .sort((a, b) => b.peerCount - a.peerCount)
+      .slice(0, 20);
+
+    const [outcomes, demandMatch] = await Promise.all([
+      programOutcomes(id),
+      fetchDemandMatchSummary(id),
+    ]);
+
+    const input: BenchmarkingInsightsInput = {
+      mode: 'curriculum-gap',
+      programId: id,
+      programName: { en: program.nameEn, th: program.nameTh },
+      kkuSkills: program.programSkills.map((ps) => ({ nameEn: ps.skill.nameEn, nameTh: ps.skill.nameTh })),
+      peerSkillCoverage,
+      peerInstitutions: peersResult.peers.map((p) => p.institution),
+      graduateOutcomes: outcomes.latest
+        ? {
+            surveyYear: outcomes.latest.graduationYear,
+            employmentRatePct: outcomes.latest.employmentRate * 100,
+            averageSalaryThb: outcomes.latest.averageSalary,
+            sampleSize: outcomes.latest.sampleSize,
+          }
+        : null,
+      kmitlDemandMatch: demandMatch,
+    };
+
+    return this.insights.generate(input, user.userId);
+  }
+}
+
+// Same source + realDataWhere()-filter as
+// program-strategic-narrative-run.ts's LABOUR-MARKET DEMAND channel and
+// health-score.ts's scoreRelevanceProgram() driver — kept local (not
+// exported there) since duplicating a small query is cheaper than a
+// cross-package export for a single caller.
+async function fetchDemandMatchSummary(programId: string): Promise<KmitlDemandMatchSummary | null> {
+  const rows = await prisma.programDemandMatch.findMany({
+    where: { programId, relevant: true, ...realDataWhere() },
+    select: { matched: true, skillId: true },
+  });
+  if (rows.length === 0) return null;
+
+  const matchedDemanded = rows.filter((r) => r.matched).length;
+  const unmatchedSkillIds = rows
+    .filter((r) => !r.matched)
+    .map((r) => r.skillId)
+    .slice(0, 5);
+  const skills = unmatchedSkillIds.length
+    ? await prisma.skill.findMany({
+        where: { id: { in: unmatchedSkillIds } },
+        select: { id: true, nameEn: true },
+      })
+    : [];
+  const nameById = new Map(skills.map((s) => [s.id, s.nameEn]));
+  const topUnmatchedSkills = unmatchedSkillIds.map((id) => nameById.get(id) ?? id);
+
+  return { matchedDemanded, relevantDemanded: rows.length, topUnmatchedSkills };
 }
