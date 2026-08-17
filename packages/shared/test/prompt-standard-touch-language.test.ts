@@ -3,18 +3,16 @@ import { buildProgramDigestMessages } from '../src/ai/prompts/program-digest';
 import { buildProgramCoursesExtractMessages } from '../src/ai/prompts/program-courses-extract';
 import { buildProgramFacultyMessages } from '../src/ai/prompts/program-faculty-extraction';
 import { buildProgramSkillsDetailedMessages } from '../src/ai/prompts/program-skills-detailed';
+import { buildCareerKmitlMappingMessages } from '../src/ai/prompts/career-kmitl-mapping';
 
-// docs/superpowers/notes/2026-08-16-prompt-audit.md #16-#19: TOUCH prompts
-// whose `caveats`/`reasoning` meta-field was Thai in practice (the system
-// prompt instructed Thai) even though the field is analysis prose, not a
-// data label — not on docs/prompt-standard.md's exemption list. Each was
-// flipped to an explicit English-output instruction. These are narrow
+// docs/superpowers/notes/2026-08-16-prompt-audit.md #16-#19, #24: TOUCH
+// prompts whose `caveats`/`reasoning` meta-field was Thai in practice (the
+// system prompt instructed Thai) even though the field is analysis prose,
+// not a data label — not on docs/prompt-standard.md's exemption list. Each
+// was flipped to an explicit English-output instruction. These are narrow
 // language-contract regression tests, not full builder-behaviour suites —
 // the conformance ratchet (prompt-standard-conformance.test.ts) already
 // covers marker presence for every file in this batch.
-//
-// career-kmitl-mapping (audit #24, same fix) lands in the classification
-// batch's commit — see the second describe block appended there.
 
 function systemOf(messages: ReturnType<typeof buildProgramDigestMessages>): string {
   return messages.find((m) => m.role === 'system')?.content ?? '';
@@ -82,4 +80,15 @@ describe('TOUCH prompts — flipped caveats/reasoning fields are instructed in E
     expect(system).toMatch(/reasoning.*MUST be written in English/i);
   });
 
+  it('career-kmitl-mapping: reasoning must be English (audit #24)', () => {
+    const system = systemOf(
+      buildCareerKmitlMappingMessages({
+        programDegree: 'วิศวกรรมศาสตรบัณฑิต',
+        programFaculty: 'คณะวิศวกรรมศาสตร์',
+        programCareers: ['วิศวกรเครื่องกล'],
+        kmitlCareers: [{ id: 1, name: 'Mechanical Engineer', group: 'Engineer', subGroup: 'Mechanic' }],
+      }),
+    );
+    expect(system).toMatch(/reasoning.*MUST be written in English/i);
+  });
 });

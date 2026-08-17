@@ -21,15 +21,27 @@ import type { AiMessage } from '../types';
 // Single batched call. Input is the FULL KMITL career list (~400 rows ×
 // ~50 chars = ~20K tokens). Output is the mapping. Cost ~$0.01-0.03 per
 // program depending on careers count.
+//
+// v2 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #24): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST; `reasoning` was Thai in practice —
+// flipped to English. `careerLabel` stays Thai (verbatim echo of the
+// program's own career string, per the standard's exemption list). No
+// mapping-logic change.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const CAREER_KMITL_MAPPING_VERSION = 'career-kmitl-mapping.v1';
+export const CAREER_KMITL_MAPPING_VERSION = 'career-kmitl-mapping.v2';
 
 export const CareerKmitlMappingSchema = z.object({
   mappings: z.array(
     z.object({
       careerLabel: z.string(),
       kmitlCareerIds: z.array(z.number().int()),
+      /** English — analysis prose, not a data label, so it is NOT on
+       *  the Thai exemption list (docs/prompt-standard.md).
+       *  `careerLabel` above IS exempt: it's a verbatim echo of the
+       *  program's own Thai career string, not model-generated
+       *  analysis. */
       reasoning: z
         .union([z.string(), z.null()])
         .transform((v) => v ?? '')
@@ -66,7 +78,7 @@ export function buildCareerKmitlMappingMessages(input: CareerKmitlMappingInput):
     {
       "careerLabel": "<อาชีพจาก program (verbatim)>",
       "kmitlCareerIds": [<number>, <number>, ...],
-      "reasoning": "<หนึ่งประโยคอธิบายว่าทำไมเลือก KMITL careers เหล่านี้>",
+      "reasoning": "<one sentence, in English, explaining why these KMITL careers were chosen>",
       "noKmitlMatch": false
     }
   ],
@@ -81,6 +93,30 @@ export function buildCareerKmitlMappingMessages(input: CareerKmitlMappingInput):
    - "อาจารย์มหาวิทยาลัย" → KMITL ไม่มีหมวด Academic → []
 4. ห้ามจับคู่หลวมๆ — ถ้า "วิศวกรยานยนต์" ไม่มีใน KMITL ก็ไม่จับ ไม่ลาก "Mechanical Engineer" มาแทน
 5. confidence ระดับ overall ของการจับคู่ทั้งชุด
+
+LANGUAGE RULE (English-only free text):
+- \`reasoning\` MUST be written in English.
+- \`careerLabel\` stays Thai — it is a verbatim echo of the program's own
+  career string (an exempt data label per docs/prompt-standard.md), not
+  model-generated analysis.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in reasoning):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 ตัวอย่าง:
 
@@ -102,10 +138,10 @@ export function buildCareerKmitlMappingMessages(input: CareerKmitlMappingInput):
 
 [Output]
 {"mappings":[
-  {"careerLabel":"วิศวกรเครื่องกลในโรงงานอุตสาหกรรม","kmitlCareerIds":[312,313,314],"reasoning":"Direct match to all three Mechanic-subgroup careers","noKmitlMatch":false},
-  {"careerLabel":"วิศวกรในอุตสาหกรรมการผลิตไฟฟ้าและพลังงานทดแทน","kmitlCareerIds":[303,304,305],"reasoning":"Power Engineer + Power Plant + Renewable cover both fossil and renewable energy","noKmitlMatch":false},
-  {"careerLabel":"นักวิจัยและพัฒนาด้านหุ่นยนต์","kmitlCareerIds":[291,443],"reasoning":"Robotics Engineer is direct match; Automation Engineer for adjacent industrial automation","noKmitlMatch":false},
-  {"careerLabel":"ผู้ประกอบการนวัตกรรม","kmitlCareerIds":[],"reasoning":"KMITL taxonomy has no Entrepreneur category — route to external grounded search","noKmitlMatch":true}
+  {"careerLabel":"วิศวกรเครื่องกลในโรงงานอุตสาหกรรม","kmitlCareerIds":[312,313,314],"reasoning":"Direct match to all three Mechanic-subgroup careers.","noKmitlMatch":false},
+  {"careerLabel":"วิศวกรในอุตสาหกรรมการผลิตไฟฟ้าและพลังงานทดแทน","kmitlCareerIds":[303,304,305],"reasoning":"Power Engineer + Power Plant + Renewable cover both fossil and renewable energy.","noKmitlMatch":false},
+  {"careerLabel":"นักวิจัยและพัฒนาด้านหุ่นยนต์","kmitlCareerIds":[291,443],"reasoning":"Robotics Engineer is a direct match; Automation Engineer covers adjacent industrial automation.","noKmitlMatch":false},
+  {"careerLabel":"ผู้ประกอบการนวัตกรรม","kmitlCareerIds":[],"reasoning":"KMITL taxonomy has no Entrepreneur category — route to external grounded search.","noKmitlMatch":true}
 ],"confidence":0.92}`;
 
   const careersBlock = input.programCareers.map((c, i) => `${i + 1}. ${c}`).join('\n');
@@ -130,3 +166,27 @@ ${kmitlBlock}
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - programCareers — the program's own free-text career list (from
+//     program-digest's careerPathsTh, verbatim).
+//   - kmitlCareers — the FULL KMITL career taxonomy (id, name, group,
+//     sub-group). THE closed-world label set this prompt classifies
+//     against (per the standard's Classification addendum — the model
+//     may only emit ids that were offered here).
+//   - programDegree / programFaculty — identity context only, not used
+//     to derive any mapping decision beyond framing.
+//
+// Deliberately omitted, with reason:
+//   - ISCO-08 crosswalk — KMITL careers aren't ISCO-08 codes; a
+//     hand-mapped `KmitlCareer.iscoCode` crosswalk is a separate,
+//     analyst-driven enrichment tracked elsewhere, not something this
+//     prompt derives.
+//   - Labour-market demand volume (KmitlCareerSkillDemand) — this
+//     prompt only resolves WHICH KMITL careers a program's stated
+//     careers correspond to; how much each career is in demand is read
+//     downstream by the caller, not needed here.
+// ─────────────────────────────────────────────────────────────────────────────

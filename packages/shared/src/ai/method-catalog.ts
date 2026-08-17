@@ -225,7 +225,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'pdf-classify',
-    currentVersion: 'pdf-classify.v1',
+    currentVersion: 'pdf-classify.v2',
     label: 'PDF classifier (intake)',
     description: 'Reads the first ~3 pages of an uploaded PDF and picks sourceCategory + language + confidence. Replaces the prior stub that silently dropped uploads into OTHER.',
     module: 'ingestion',
@@ -234,7 +234,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'skill-name-normaliser',
-    currentVersion: 'skill-name-normaliser.v1',
+    currentVersion: 'skill-name-normaliser.v2',
     label: 'Skill name normaliser',
     description: 'Resolves free-text skill names to the canonical taxonomy (low-stakes classification).',
     module: 'ingestion',
@@ -243,7 +243,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'demand-match',
-    currentVersion: 'demand-match.v2',
+    currentVersion: 'demand-match.v3',
     label: 'Demand → skill match',
     description: 'Cross-references labour-market demand strings against the KKU skill taxonomy.',
     module: 'ingestion',
@@ -252,7 +252,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'career-kmitl-mapping',
-    currentVersion: 'career-kmitl-mapping.v1',
+    currentVersion: 'career-kmitl-mapping.v2',
     label: 'KMITL career mapping',
     description: 'Maps KMITL skill-mapping careers to ISCO-08 + program affinity.',
     module: 'ingestion',

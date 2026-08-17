@@ -21,9 +21,16 @@ import type { AiMessage } from '../types';
 //   - matchSource: 'plo' | 'course' | 'extracted-skill' | 'unmatched'
 //   - relatedness: 0..1 (1.0 = explicit verbatim PLO match)
 //   - evidenceQuote: verbatim text from where it was found
+//
+// v3 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #25): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST + explicit English rule. This prompt has
+// no free-text analysis field beyond exempt verbatim/data-label fields
+// (evidenceQuote, matchedTaughtSkillName, skillName) — no language
+// change, markers only.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const DEMAND_MATCH_VERSION = 'demand-match.v2';
+export const DEMAND_MATCH_VERSION = 'demand-match.v3';
 
 export const DemandMatchEntrySchema = z.object({
   /** Skill.id from the demand list — used to update ProgramDemandMatch. */
@@ -101,7 +108,32 @@ Rules:
 3. matched=false: decide relevant separately. Mech Eng program: "C++/Python/Maintenance/CAD" relevant=true; "Civil engineering/Digital marketing/Nursing" relevant=false (other discipline).
 4. matchSource priority: extracted-skill > plo > course > unmatched. Set relatedness 1.0 / 0.9 / 0.7 / 0.2 respectively.
 5. evidenceQuote: verbatim from source (Thai if Thai), ≤200 chars. Empty when unmatched.
-6. Use semantic match: "Renewable Energy" ↔ "พลังงานทดแทน"; "Programming" ↔ "การเขียนโปรแกรม".`;
+6. Use semantic match: "Renewable Energy" ↔ "พลังงานทดแทน"; "Programming" ↔ "การเขียนโปรแกรม".
+
+LANGUAGE RULE (English-only free text): this prompt has no free-text
+analysis field beyond exempt data-label/verbatim fields — evidenceQuote
+is a verbatim quote in the source's own language (a structural
+extraction requirement, not a language exemption call); skillName and
+matchedTaughtSkillName are data labels. There is nothing else to write
+prose in.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in any free text you produce):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"`;
 
   const ploBlock = input.programLearningOutcomes.length > 0
     ? input.programLearningOutcomes.map((p, i) => `PLO ${i + 1}: ${p}`).join('\n')
@@ -144,3 +176,28 @@ ${demandedBlock}
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - programLearningOutcomes — PLOs verbatim, captured by
+//     program-skills-detailed.
+//   - courses — course list + descriptions, captured by program-digest
+//     (capped at 80 by appearance for context budget).
+//   - extractedSkills — skills already on file for the program, with
+//     evidence, so a demanded skill can match via prior extraction
+//     rather than only PLO/course text.
+//   - demandedSkills — the labour-market-demanded skill list to check
+//     against (the thing this prompt is inverse-searching for).
+//   - programDegree / programFaculty — identity/discipline context used
+//     for the relevantToCurriculum judgement (rule B).
+//
+// Deliberately omitted, with reason:
+//   - Peer-program curricula — this prompt answers "does THIS program's
+//     own curriculum teach the demanded skill," not a comparative
+//     question; peer comparison is program-peer-review's job.
+//   - Full Skill taxonomy — only extractedSkills (this program's own
+//     already-resolved skills) is sent, not the full ~561-skill
+//     taxonomy; taxonomy-wide matching is skill-name-normaliser's job.
+// ─────────────────────────────────────────────────────────────────────────────

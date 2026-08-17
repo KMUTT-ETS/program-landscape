@@ -25,9 +25,16 @@ import type { AiMessage } from '../types';
 // Version-bumping rule: any change to the system prompt, examples, output
 // schema, or matching heuristic = bump VERSION. SkillAlias.methodVersion
 // captures it. Backfill re-processes rows whose method version is older.
+//
+// v2 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #26): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST + explicit English rule. Output was
+// already English (canonicalNameTh is the one exempt data-label field)
+// and AMBIGUOUS was already a conformant abstain path — no matching
+// logic change, markers only.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const SKILL_NAME_NORMALISER_VERSION = 'skill-name-normaliser.v1';
+export const SKILL_NAME_NORMALISER_VERSION = 'skill-name-normaliser.v2';
 
 export const SkillNormaliserDecisionSchema = z.discriminatedUnion('decision', [
   z.object({
@@ -121,6 +128,29 @@ Rules:
 7. AMBIGUOUS when the raw text could plausibly be 2+ taxonomy entries (e.g., "Marketing" → "Digital marketing" OR "Marketing strategy"). Prefer MATCH with lower confidence over AMBIGUOUS unless truly unclear.
 8. confidence: ≥0.85 = certain. 0.6–0.85 = probable. <0.6 = uncertain (use AMBIGUOUS instead). For NEW_PROPOSED, confidence reflects how confident you are it's NOT already in the taxonomy.
 9. ${sourceHint}
+10. LANGUAGE RULE (English-only free text): \`reasoning\` MUST be written in English. \`canonicalNameTh\` stays Thai — it's a data label (the proposed skill's Thai name), not analysis prose. \`rawName\` is preserved verbatim regardless of language.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+(This prompt's own confidence bands in rule 8 are the operative per-decision
+routing thresholds — MATCH/NEW_PROPOSED/AMBIGUOUS confidence semantics
+predate and stay compatible with the rubric above; grade holistically
+against both.)
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in reasoning):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 Examples:
 
@@ -157,3 +187,23 @@ Return the JSON.`;
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - rawNames — the free-text skill names to resolve (up to 50/batch).
+//   - taxonomy — the FULL Skill taxonomy (id, nameEn, nameTh, category).
+//     THE closed-world label set this prompt classifies against (per
+//     the standard's Classification addendum — MATCH may only pick an
+//     id offered here).
+//   - sourceContext — a free-text discriminator (linkedin / program_digest
+//     / job_posting / course_skill / manual) that biases the model
+//     toward source-appropriate matching conventions.
+//
+// Deliberately omitted, with reason:
+//   - SkillAlias cache rows — callers check the cache BEFORE invoking
+//     this prompt (same (rawName, sourceContext) pair short-circuits to
+//     the cached decision); this prompt only ever sees cache-miss names,
+//     so prior decisions are not re-fed in as a channel.
+// ─────────────────────────────────────────────────────────────────────────────
