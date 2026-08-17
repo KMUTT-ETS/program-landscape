@@ -1,10 +1,53 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { AiService } from '@kku/shared';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mocks prisma (via '../src/index', same pattern as health-score.test.ts /
+// ai-jobs.test.ts) so the runner's skip-path tests below run without a DB
+// and without ever reaching the AiService. The AI path itself is NOT
+// tested here — per the plan, that's covered by the 3-program live gate,
+// not mocked theater.
+// ─────────────────────────────────────────────────────────────────────────────
+const mocks = vi.hoisted(() => ({
+  programFindUnique: vi.fn(),
+  programFacultyFindMany: vi.fn(),
+  researchOutputFindMany: vi.fn(),
+  programResearchExpertiseCreate: vi.fn(),
+}));
+
+vi.mock('../src/index', async () => {
+  const actual = await vi.importActual<typeof import('../src/index')>('../src/index');
+  return {
+    ...actual,
+    prisma: {
+      program: { findUnique: mocks.programFindUnique },
+      programFaculty: { findMany: mocks.programFacultyFindMany },
+      researchOutput: { findMany: mocks.researchOutputFindMany },
+      programResearchExpertise: { create: mocks.programResearchExpertiseCreate },
+    },
+  };
+});
+
 import {
   dedupAndScorePapers,
   buildExpertiseStats,
   readinessFor,
   type PaperRow,
 } from '../src/program-research-expertise';
+import { buildLintableText, generateProgramResearchExpertise } from '../src/program-research-expertise-run';
+
+/** An AiService whose every method is a spy that must never be called —
+ *  used to assert the no-roster / not-found skip paths make ZERO AI calls. */
+function unreachableAi(): AiService {
+  return {
+    providerId: 'mock',
+    complete: vi.fn(),
+    embed: vi.fn(),
+    extractStructured: vi.fn(),
+    translate: vi.fn(),
+    vision: vi.fn(),
+  };
+}
 
 const paper = (over: Partial<PaperRow>): PaperRow => ({
   title: 'Recycled aggregate concrete',
@@ -144,5 +187,103 @@ describe('buildExpertiseStats', () => {
   it('notShownCount floors at 0 when keptN exceeds totalDistinct', () => {
     const stats = buildExpertiseStats(papers, 150, 11);
     expect(stats.notShownCount).toBe(0);
+  });
+});
+
+describe('buildLintableText', () => {
+  const payload = {
+    themes: [
+      { name: 'Concrete durability', evidenceNote: 'Grounded in P1 and P2.' },
+      { name: 'Battery recycling', evidenceNote: 'Rising per the per-year table.' },
+    ],
+    recommendations: {
+      curriculum: [{ action: 'Add a materials-durability elective.', rationale: 'Builds on the theme.' }],
+      positioning: [{ action: 'Market the concrete-durability niche.', rationale: 'Distinct from peers.' }],
+      research: [{ action: 'Seek a battery-recycling grant.', rationale: 'Rising trend.' }],
+    },
+    caveats: ['Analysis covers publications of the curated program roster.'],
+  };
+
+  it('joins theme names + evidence notes, every recommendation action + rationale across all three lanes, and the caveats into one string', () => {
+    const text = buildLintableText(payload);
+    expect(text).toContain('Concrete durability');
+    expect(text).toContain('Grounded in P1 and P2.');
+    expect(text).toContain('Battery recycling');
+    expect(text).toContain('Rising per the per-year table.');
+    expect(text).toContain('Add a materials-durability elective.');
+    expect(text).toContain('Builds on the theme.');
+    expect(text).toContain('Market the concrete-durability niche.');
+    expect(text).toContain('Distinct from peers.');
+    expect(text).toContain('Seek a battery-recycling grant.');
+    expect(text).toContain('Rising trend.');
+    expect(text).toContain('Analysis covers publications of the curated program roster.');
+  });
+
+  it('produces an empty string for an empty payload rather than throwing', () => {
+    const text = buildLintableText({
+      themes: [],
+      recommendations: { curriculum: [], positioning: [], research: [] },
+      caveats: [],
+    });
+    expect(text).toBe('');
+  });
+
+  it('does not cross-contaminate between recommendation lanes (each lane only contributes its own entries)', () => {
+    const text = buildLintableText({
+      themes: [],
+      recommendations: {
+        curriculum: [{ action: 'CURRICULUM_ONLY_ACTION', rationale: 'CURRICULUM_ONLY_RATIONALE' }],
+        positioning: [],
+        research: [],
+      },
+      caveats: [],
+    });
+    expect(text).toContain('CURRICULUM_ONLY_ACTION');
+    expect(text).toContain('CURRICULUM_ONLY_RATIONALE');
+  });
+});
+
+describe('generateProgramResearchExpertise — skip paths', () => {
+  beforeEach(() => {
+    for (const fn of Object.values(mocks)) fn.mockReset();
+  });
+
+  it('skips with zero AI calls and nothing stored when the program does not exist', async () => {
+    mocks.programFindUnique.mockResolvedValue(null);
+    const ai = unreachableAi();
+
+    const outcome = await generateProgramResearchExpertise({ programId: 'nonexistent-id', ai });
+
+    expect(outcome.status).toBe('SKIPPED');
+    if (outcome.status === 'SKIPPED') {
+      expect(outcome.reason).toContain('program not found');
+      expect(outcome.readiness).toBeNull();
+    }
+    expect(ai.extractStructured).not.toHaveBeenCalled();
+    expect(mocks.programResearchExpertiseCreate).not.toHaveBeenCalled();
+  });
+
+  it("skips with zero AI calls and nothing stored when readiness is 'no-roster'", async () => {
+    mocks.programFindUnique.mockResolvedValue({
+      nameEn: 'Test Program',
+      level: 'BACHELOR',
+      faculty: { nameEn: 'Test Faculty' },
+    });
+    mocks.programFacultyFindMany.mockResolvedValue([]); // zero roster members
+    const ai = unreachableAi();
+
+    const outcome = await generateProgramResearchExpertise({ programId: 'p-empty-roster', ai });
+
+    expect(outcome.status).toBe('SKIPPED');
+    if (outcome.status === 'SKIPPED') {
+      expect(outcome.reason).toBe('no-roster');
+      expect(outcome.readiness).toBe('no-roster');
+    }
+    // Zero roster members means assembleResearchExpertiseInput() never
+    // even queries researchOutput — the empty-array short-circuit in that
+    // function, not just the runner's early return.
+    expect(mocks.researchOutputFindMany).not.toHaveBeenCalled();
+    expect(ai.extractStructured).not.toHaveBeenCalled();
+    expect(mocks.programResearchExpertiseCreate).not.toHaveBeenCalled();
   });
 });
