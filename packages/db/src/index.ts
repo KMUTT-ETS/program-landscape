@@ -23,6 +23,7 @@ export * from './external-ai-runner';
 export * from './health-score';
 export * from './program-deep-dive';
 export * from './program-strategic-narrative-run';
+export * from './program-research-expertise';
 export * from './gap-analysis';
 export * from './gap-lenses';
 export * from './benchmarking';
