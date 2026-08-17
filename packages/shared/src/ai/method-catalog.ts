@@ -104,7 +104,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-peer-selection',
-    currentVersion: 'program-peer-selection.v1',
+    currentVersion: 'program-peer-selection.v2',
     label: 'Peer selection',
     description: 'Picks the 5 most-comparable peer programs from a candidate set.',
     module: 'pipeline',

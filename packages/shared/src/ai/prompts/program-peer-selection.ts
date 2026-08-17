@@ -17,9 +17,20 @@ import type { AiMessage } from '../types';
 //
 // Output is a flat list of selections, each tagged with its tier. The
 // downstream materialiser writes one ProgramPeerSelection row per pick.
+//
+// v2 (2026-08-17) — surgical hotfix only, NOT a full docs/prompt-standard.md
+// rewrite (this file stays on that standard's conformance allowlist).
+// Instruction 7 previously told the model "if you don't know the exact
+// name, write a defensible estimate based on naming conventions" — i.e.
+// instructed fabrication of official-sounding programme titles, flagged
+// by the 2026-08-16 prompt audit (docs/superpowers/notes/2026-08-16-prompt-audit.md).
+// Rewritten so an unconfident pick gets a plainly descriptive,
+// non-official-sounding name instead, with the confidence noted in
+// `rationale`. No schema change; existing v1-stamped rows are untouched —
+// peer regeneration + its cascade into peer-review is plan 2's job.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_PEER_SELECTION_VERSION = 'program-peer-selection.v1';
+export const PROGRAM_PEER_SELECTION_VERSION = 'program-peer-selection.v2';
 
 export const PeerSelectionTierSchema = z.enum([
   'WORLD',
@@ -120,7 +131,7 @@ Selection rules:
 4. **For THAILAND_PEER**: candidates are Thai universities ranked at or above KKU. Pick the ones with the strongest match to this program's subject + level.
 5. **For SOUTHEAST_ASIA**: pick Singapore / Malaysia / Indonesia / Vietnam / Philippines candidates with strong subject programs.
 6. **For ASIA + WORLD**: pick the highest-fit candidates considering subject + level. Prefer institutions known for this discipline.
-7. Each \`peerProgramName\` should be the **likely actual program name** (e.g. "Bachelor of Engineering in Mechanical Engineering" at NUS, "BSc in Mechanical Engineering" at MIT). If you don't know the exact name, write a defensible estimate based on naming conventions.
+7. \`peerProgramName\` must be the institution's **actual programme title ONLY when you are confident it is real** (e.g. "Bachelor of Engineering in Mechanical Engineering" at NUS, "BSc in Mechanical Engineering" at MIT). When you are not confident, write a plainly descriptive, non-official-sounding name instead — e.g. "Undergraduate mechanical engineering programme" — never invent an official-sounding title you are not sure exists. State in \`rationale\` whether the name is verified or descriptive.
 8. \`rationale\` should mention WHY this is a peer: subject ranking, geographic relevance, curriculum approach, research strength, etc.
 9. \`subjectArea\` should be a lowercased kebab-case slug (e.g. "engineering-mechanical", "computer-science", "agriculture-food-science").
 10. KKU is the source program — never select Khon Kaen University as its own peer (filter out if it appears in candidates).`;

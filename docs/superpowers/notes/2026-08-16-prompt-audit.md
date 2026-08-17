@@ -148,7 +148,7 @@ so a future reader doesn't conflate "verbatim quote in Thai" with "unexempted Th
 | 12 | `trend-document-ingest` | v1 | Narrative | Same bilingual-not-exempt issue; `rationaleTh` again has no English mirror; feeds the same downstream `trend-signal-analysis` pass. |
 | 13 | `external-feed-summary` | v1 | Narrative | Bilingual not exempt; title language is explicitly "Thai OR English, whichever fits" — non-deterministic language choice is itself a standard violation. |
 | 14 | `policy-doc-analysis` | v1 | Extraction | `summaryTh` explicitly instructed as Thai-primary "not a translation" — not exempt (this is an analysis summary of policy impact, not a data label); no rubric/manifest. |
-| 15 | `program-peer-selection` | v1 | Classification | Explicit "write a defensible estimate" instruction invites fabricated peer program names with no estimated-flag (finding 9); feeds `program-peer-review`, so this is upstream of the #1 REWRITE item and should land first or alongside it. |
+| 15 | `program-peer-selection` | v1 → v2 | Classification | Explicit "write a defensible estimate" instruction invites fabricated peer program names with no estimated-flag (finding 9); feeds `program-peer-review`, so this is upstream of the #1 REWRITE item and should land first or alongside it. **Status (2026-08-17): fabrication line fixed in v2 (surgical hotfix — instruction rewrite only, no rubric/manifest/tell-ban); full standard rewrite still pending for plan 2.** |
 
 ### TOUCH (13) — mechanical: add rubric + manifest + English line, no input changes
 
