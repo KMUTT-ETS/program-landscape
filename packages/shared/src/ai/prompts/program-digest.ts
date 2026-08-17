@@ -30,9 +30,17 @@ import type { AiMessage } from '../types';
 // primary actionable phrases (was verbatim curriculum fragments), 2
 // categories (technical / cognitive, was a 5-value free-text bucket),
 // deduplicated, and scoped to objectives + PLOs + course descriptions.
+//
+// v3 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #16): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST; `caveats` was Thai in practice (the
+// system prompt instructed Thai) — flipped to English. No other
+// behaviour change. `recruitmentSummaryTh` + every `*Th` field stay
+// Thai — they're on the standard's exemption list (marketing copy /
+// data labels), not analysis prose.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_DIGEST_VERSION = 'program-digest.v2';
+export const PROGRAM_DIGEST_VERSION = 'program-digest.v3';
 
 const ProgramSkillExtractionSchema = z.object({
   // Thai rendering of the canonical skill.
@@ -108,7 +116,8 @@ export const ProgramDigestSchema = z.object({
   // PDF is mostly scanned, terse, or in a non-standard format.
   confidence: z.number().min(0).max(1),
   // Anything the digester couldn't determine, surface here so reviewers
-  // know what to fill in manually.
+  // know what to fill in manually. English — analysis prose, not a data
+  // label, so it is NOT on the Thai exemption list (docs/prompt-standard.md).
   caveats: z.array(z.string()).default([]),
 });
 export type ProgramDigest = z.infer<typeof ProgramDigestSchema>;
@@ -210,8 +219,31 @@ export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage
    - ครอบคลุม: หลักสูตรนี้คืออะไร, ความโดดเด่น, สิ่งที่นักศึกษาจะได้เรียนรู้, อาชีพที่ทำได้หลังจบ, ทำไมจึงน่าสนใจ
    - ห้าม: ใช้คำเกินจริง ("ดีที่สุดในประเทศ"), เปรียบเทียบกับสถาบันอื่น, ใช้ภาษา marketing ที่ฟ้องเสียงปลอม
    - น้ำเสียง: ชัดเจน เป็นมิตร น่าเชื่อถือ
-7. **Caveats**: ระบุทุกประเด็นที่เอกสารไม่ชัดเจน (เช่น ไม่พบจำนวนหน่วยกิต, สแกนคุณภาพต่ำในบางหน้า, ภาษาผสม) เพื่อให้ผู้ตรวจทราบ
-8. **Confidence**: ต่ำลง (0.4-0.7) เมื่อเอกสารไม่ครบหรือสแกนคุณภาพต่ำ; สูง (0.85+) เมื่อเอกสาร format ปกติและครบถ้วน
+7. **Caveats**: ระบุทุกประเด็นที่เอกสารไม่ชัดเจน (เช่น ไม่พบจำนวนหน่วยกิต, สแกนคุณภาพต่ำในบางหน้า, ภาษาผสม) เพื่อให้ผู้ตรวจทราบ — **เขียนเป็นภาษาอังกฤษ** (ทุกข้อความใน caveats)
+8. **Confidence**: ให้คะแนนตาม CONFIDENCE RUBRIC ด้านล่าง
+
+LANGUAGE RULE (English-only free text):
+- \`caveats\` entries MUST be written in English.
+- Every other field named with a "Th" suffix (programNameTh, degreeNameTh, degreeAbbrTh, courses[].nameTh/descriptionTh/learningOutcomesTh, extractedSkills[].nameTh, recruitmentSummaryTh, careerPathsTh) stays Thai — data labels and marketing copy on the standard's exemption list, not analysis prose.
+- extractedSkills[].evidenceQuote is a VERBATIM quote from the source document — keep it in the source's own language (Thai if the source is Thai). This is a structural extraction requirement, not a language exemption judgement call.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in caveats):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 ออก JSON ตรงๆ ไม่มี markdown fences ไม่มีคำอธิบายล่วงหน้า
 
@@ -310,3 +342,28 @@ function buildSystemFactsBlock(ctx: ProgramSystemFacts | undefined): string {
 
   return '\n' + lines.join('\n');
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - programMetaFromSheet — the master-sheet row (faculty, level, degree,
+//     major, curriculum year, MHESI code). Ground-truth anchor the model
+//     must not contradict without surfacing the disagreement in caveats.
+//   - pdfText — the full extracted curriculum (มคอ.2) PDF text. THE
+//     source document for every field in this prompt; there is no other
+//     channel for course/skill/recruitment content.
+//   - systemContext (optional) — live staff + student facts from
+//     DS2004/DS2003/DS1001/kku-hr, injected as an authoritative override
+//     block so the recruitment summary + caveats don't repeat stale PDF
+//     numbers.
+//
+// Deliberately omitted, with reason:
+//   - Graduate outcomes / employment data — this prompt runs at PDF-intake
+//     time, before a program has graduates; outcomes live in their own
+//     pipeline stage (graduate-employment-survey) and reach the program
+//     record separately.
+//   - Trend / demand signals (KMITL, TrendSignal) — this is a supply-side
+//     extraction (what the curriculum teaches); demand-side matching is a
+//     separate downstream prompt (demand-skill-match).
+// ─────────────────────────────────────────────────────────────────────────────

@@ -23,9 +23,15 @@ import type { AiMessage } from '../types';
 // PDF is sent via Gemini File API (no inline tokens). Missing fields →
 // null. Unknown economies → still extracted; the analyst maps unknown
 // codes to ImdEconomy rows during review.
+//
+// v2 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #23): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST + explicit English rule for caveatNote.
+// Output was already English (economyName / rawValue are exempt
+// verbatim data-label fields) — no language change, markers only.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const IMD_RANKINGS_EXTRACT_VERSION = 'imd-rankings.v1';
+export const IMD_RANKINGS_EXTRACT_VERSION = 'imd-rankings.v2';
 export const IMD_RANKINGS_EXTRACTION_KIND = 'IMD_RANKINGS';
 
 const ImdRowSchema = z.object({
@@ -118,6 +124,29 @@ GROUND RULES:
 
 9. DO NOT invent rows. If an economy isn't in the published table, omit it.
 
+LANGUAGE RULE (English-only free text):
+- \`caveatNote\` MUST be written in English.
+- economyName / rawValue are verbatim data-label fields — preserve
+  exactly as printed in the source, per the standard's exemption list.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in caveatNote):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
+
 Output: a single JSON object matching the schema below.`;
 
 const USER_PROMPT = (input: ImdRankingsExtractInput) => `Extract IMD rankings from this PDF.
@@ -161,3 +190,20 @@ export function buildImdRankingsExtractMessages(
     { role: 'user', content: USER_PROMPT(input) },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - The full IMD summary PDF, via Gemini File API (not inline text —
+//     sent out-of-band by the caller). THE source for every ranking
+//     row; there is no other channel.
+//   - datasetHint / yearHint (optional) — filename-derived hints; the
+//     model overrides them when the document's own text disagrees.
+//
+// Deliberately omitted, with reason:
+//   - ImdEconomy reference table — this prompt deliberately extracts
+//     whatever economy codes/names the PDF prints verbatim; mapping
+//     unknown codes to our ImdEconomy rows is an analyst review step
+//     downstream, not something fed back into this extraction.
+// ─────────────────────────────────────────────────────────────────────────────

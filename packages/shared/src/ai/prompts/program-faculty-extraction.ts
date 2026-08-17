@@ -20,9 +20,16 @@ import type { AiMessage } from '../types';
 // staff record to a FacultyMember row by exact name match — no fuzzy
 // matching, no transliteration. Unmatched names are flagged for analyst
 // review rather than silently dropped.
+//
+// v2 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #18): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST; `reasoning` was Thai in practice —
+// flipped to English. nameTh / qualifications / specialization stay
+// Thai (data-label / verbatim extraction fields, per the standard's
+// exemption list). No extraction-logic change.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_FACULTY_VERSION = 'program-faculty.v1';
+export const PROGRAM_FACULTY_VERSION = 'program-faculty.v2';
 
 export const ProgramFacultyRoleSchema = z.enum([
   'COORDINATOR', // อาจารย์ผู้รับผิดชอบหลักสูตร
@@ -70,6 +77,8 @@ export const ProgramFacultyExtractionSchema = z.object({
   /** 0..1 — confidence in the overall extraction. Low if the PDF text
    *  was sparse / OCR-degraded / no staff section was clearly visible. */
   confidence: z.number().min(0).max(1),
+  /** English — analysis prose, not a data label, so it is NOT on the
+   *  Thai exemption list (docs/prompt-standard.md). */
   reasoning: z.string().optional(),
 });
 export type ProgramFacultyExtraction = z.infer<typeof ProgramFacultyExtractionSchema>;
@@ -108,7 +117,7 @@ export function buildProgramFacultyMessages(
     }
   ],
   "confidence": 0.0-1.0,
-  "reasoning": "<คำอธิบายสั้นๆ>"
+  "reasoning": "<short explanation, in English>"
 }
 
 กฎ:
@@ -119,6 +128,31 @@ export function buildProgramFacultyMessages(
 - หากเอกสารไม่มีรายชื่ออาจารย์ที่ระบุชัด ให้ส่ง staff เป็น array ว่างพร้อม confidence ต่ำ
 - qualifications: หนึ่งบรรทัดต่อปริญญา เช่น ["ปร.ด. (วิศวกรรมเครื่องกล), จุฬาลงกรณ์มหาวิทยาลัย, 2553", "วศ.ม., มหาวิทยาลัยขอนแก่น, 2548"]
 - ระวังตัวเลขที่ไม่ใช่ชื่อ (เช่น เลขประจำตัว 13 หลัก, ปี พ.ศ., รหัสตำแหน่ง) — อย่าดึงมาเป็นชื่อ
+
+LANGUAGE RULE (English-only free text):
+- \`reasoning\` MUST be written in English.
+- titlePrefix / nameTh / nameEn / qualifications / specialization are
+  data-label / verbatim extraction fields — these stay in whatever
+  language the document uses (per docs/prompt-standard.md's exemption
+  list), never translated or paraphrased.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in reasoning):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 ตัวอย่าง:
 
@@ -136,7 +170,7 @@ export function buildProgramFacultyMessages(
   {"role":"COORDINATOR","titlePrefix":"รศ.ดร.","nameTh":"วิชัย รักงาน","nameEn":"","qualifications":["Ph.D. (Mechanical Engineering), University of Tokyo, 2548"],"specialization":""},
   {"role":"CORE","titlePrefix":"ดร.","nameTh":"สุดา ขยันเรียน","nameEn":"","qualifications":[],"specialization":""},
   {"role":"CORE","titlePrefix":"อ.","nameTh":"ปรีชา ตั้งใจ","nameEn":"","qualifications":[],"specialization":""}
-],"confidence":0.95,"reasoning":"ส่วนที่ 3 ระบุรายชื่อชัดเจน 4 ท่าน"}`;
+],"confidence":0.95,"reasoning":"Section 3 clearly lists 4 named staff members."}`;
 
   const user = `[ข้อมูลหลักสูตรจาก sheet]
 - คณะ: ${input.programMetaFromSheet.facultyNameTh}
@@ -153,3 +187,20 @@ ${input.pdfText}
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - pdfText — the full curriculum (มคอ.2) PDF text. THE source for
+//     every staff record; there is no other channel.
+//   - programMetaFromSheet — faculty / level / degree name context only,
+//     not used to derive any staff-record field.
+//
+// Deliberately omitted, with reason:
+//   - FacultyMember / kku-hr rows — this prompt's job is to read what
+//     the CURRICULUM DOCUMENT claims about its staff, not to reconcile
+//     against HR records. Resolution against FacultyMember happens
+//     downstream in apps/ingestion/src/program-faculty/run.ts by exact
+//     name match, after this extraction — never fed back in here.
+// ─────────────────────────────────────────────────────────────────────────────

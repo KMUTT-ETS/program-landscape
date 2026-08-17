@@ -37,7 +37,7 @@ import type { AiMessage } from '../types';
 // empty class-offerings join and is corrected on the next pipeline run).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v2.3';
+export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v3';
 
 // credits.max(60): inherited v1's max(20) but that rejected entire
 // extractions on prod for any program whose curriculum lists a
@@ -73,6 +73,15 @@ export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v2.3';
 // slice to the LLM + regex pre-scan + regex fallback. If the section
 // can't be located the run is SKIPPED with a clear reason — better
 // than silently extracting the wrong codes.
+//
+// v3 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #17): version scheme regularised from the patch-style
+// v2.3 to the standard's major-only convention (this is the file's
+// first behaviour-carrying bump since v2.3, so the regularisation
+// lands here rather than as a separate rename-only commit, per the
+// standard's Versioning section). Added CONFIDENCE RUBRIC (verbatim) +
+// BANNED PHRASES + CHANNEL MANIFEST; `caveats` was Thai in practice —
+// flipped to English. No extraction-logic change.
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
    *  Materialiser normalises again before insert so EN241100 == "EN 241 100". */
@@ -86,7 +95,9 @@ export type ProgramCoursesExtractCourse = z.infer<typeof CourseSchema>;
 export const ProgramCoursesExtractSchema = z.object({
   courses: z.array(CourseSchema).min(0),
   /** Free-form list of anything the AI couldn't extract — scan quality,
-   *  missing sections, ambiguous course-list formatting. */
+   *  missing sections, ambiguous course-list formatting. English —
+   *  analysis prose, not a data label, so it is NOT on the Thai
+   *  exemption list (docs/prompt-standard.md). */
   caveats: z.array(z.string()).default([]),
   confidence: z.number().min(0).max(1),
 });
@@ -305,7 +316,7 @@ runner จะ post-process ผลลัพธ์ของคุณกับ cand
       "nameEn": "<ชื่อวิชาภาษาอังกฤษ ถ้ามี>",
       "credits": <จำนวนหน่วยกิต | null> }
   ],
-  "caveats": ["<ถ้ามีหน้าที่อ่านไม่ได้ หรือชื่อวิชาขาด หรือ format แปลก>"],
+  "caveats": ["<English only — e.g. unreadable page, missing course name, unusual format>"],
   "confidence": <0.0-1.0>
 }
 
@@ -314,10 +325,29 @@ runner จะ post-process ผลลัพธ์ของคุณกับ cand
 - ห้ามคิดรหัสเอง ถ้ามีชื่อวิชาแต่ไม่มีรหัส ให้ข้าม
 - รหัสซ้ำในเอกสารหลายที่ ให้ใส่ครั้งเดียว
 
-กฎ confidence:
-- 0.9+ เมื่อเอกสารปกติ ตารางแผนการเรียนชัดเจน
-- 0.7-0.85 เมื่อบางหน้าสแกนคุณภาพต่ำหรือ format ไม่ปกติ
-- 0.4-0.6 เมื่อเอกสารไม่ครบ ขาดส่วนสำคัญ
+LANGUAGE RULE (English-only free text):
+- \`caveats\` entries MUST be written in English, even though the rest of
+  this prompt (and the courses[].nameTh field) is Thai.
+- courses[].nameTh / nameEn are data-label fields (course names as they
+  appear in the source) — these stay in whatever language the document uses.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in caveats):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 ออก JSON ตรงๆ ตัวเดียว`;
 
@@ -337,3 +367,28 @@ ${input.pdfText}
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - pdfText — the รายวิชา-section slice of the curriculum PDF (see
+//     extractCourseListSection above). THE source for every course row;
+//     there is no other channel.
+//   - candidateCodes — a deterministic regex pre-scan of the SAME slice
+//     (extractCandidateCourseCodes), shown as a recall hint/count, not
+//     as ground truth the model must reproduce verbatim.
+//   - programCode / programNameTh / programNameEn / facultyNameTh /
+//     levelTh — identity context only, used to set the level-appropriate
+//     expected-code-count hint (LEVEL_TARGET).
+//
+// Deliberately omitted, with reason:
+//   - Appendices (curriculum-revision comparison, faculty teaching-load)
+//     — deliberately excluded per the v2.3 finding above: the model
+//     quoted stale pre-revision codes from these sections and tagged
+//     them as active. Excluding the slice is the fix, not a prompt rule.
+//   - คำอธิบายรายวิชา (course-description section) — duplicates the
+//     course list but adds a paragraph of prose per row that bloats the
+//     LLM input for no additional code-recall benefit; program-digest
+//     and program-skills-detailed read descriptions separately.
+// ─────────────────────────────────────────────────────────────────────────────

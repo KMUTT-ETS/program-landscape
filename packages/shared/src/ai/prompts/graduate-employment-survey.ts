@@ -19,9 +19,15 @@ import type { AiMessage } from '../types';
 // PDF is sent via Gemini File API (no inline tokens). The AI reads
 // the whole document and returns one row per program it can identify.
 // Missing fields → null.
+//
+// v2 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #22): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST. Output was already English
+// (facultyNameTh / programNameTh are exempt data-label fields) — no
+// language change, markers only.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const GRADUATE_EMPLOYMENT_SURVEY_VERSION = 'graduate-employment-survey.v1';
+export const GRADUATE_EMPLOYMENT_SURVEY_VERSION = 'graduate-employment-survey.v2';
 
 const ProgramOutcomeRowSchema = z.object({
   /** Verbatim Thai faculty name as it appears in the report
@@ -113,6 +119,30 @@ GROUND RULES:
     rather than guessing. Lower the overall \`confidence\` accordingly.
 11. DO NOT invent rows. If a program isn't named in the report, omit it.
 
+LANGUAGE RULE (English-only free text): this prompt has no free-text
+analysis field beyond the exempt data labels — facultyNameTh and
+programNameTh are verbatim data labels (preserve exactly as printed,
+per the standard's exemption list); programNameEn is already English.
+There is nothing else to translate or write prose in.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in any free text you produce):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
+
 Output: a single JSON object matching the schema below.`;
 
 const USER_PROMPT = (input: GraduateEmploymentSurveyInput) => {
@@ -165,3 +195,24 @@ export function buildGraduateEmploymentSurveyMessages(
     { role: 'user', content: USER_PROMPT(input) },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - The full survey PDF, via Gemini File API (not inline text — sent
+//     out-of-band by the caller). THE source for every outcome row;
+//     there is no other channel.
+//   - surveyYearHint — filename-derived year, used only to bound
+//     ambiguous year extraction inside the document.
+//   - knownFacultyNamesTh (optional) — canonical KKU faculty Thai
+//     spellings, offered so the model prefers the canonical form when
+//     the report itself uses inconsistent spelling variants.
+//
+// Deliberately omitted, with reason:
+//   - Program master-sheet rows / RegistryProgramMapping — this
+//     extraction deliberately reports whatever program names the
+//     SURVEY uses; reconciling survey program names against our
+//     canonical Program rows happens downstream at materialisation,
+//     not by biasing the extraction toward known names.
+// ─────────────────────────────────────────────────────────────────────────────

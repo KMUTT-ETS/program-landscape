@@ -28,9 +28,16 @@ import type { AiMessage } from '../types';
 //
 // Version-bump rule: any change to the system prompt / examples /
 // output schema = bump VERSION. AiExtraction.methodVersion captures it.
+//
+// v3 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #19): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST; `reasoning` was Thai in practice —
+// flipped to English. Skill nameTh / evidenceQuote / PLO fields stay
+// Thai (data-label / verbatim extraction fields, per the standard's
+// exemption list). No extraction-logic change.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_SKILLS_DETAILED_VERSION = 'program-skills-detailed.v2';
+export const PROGRAM_SKILLS_DETAILED_VERSION = 'program-skills-detailed.v3';
 
 const SkillEntrySchema = z.object({
   /** Thai name (verbatim from curriculum where possible). */
@@ -76,6 +83,8 @@ export const ProgramSkillsDetailedSchema = z.object({
   compulsoryCourseCount: z.number().int().min(0).default(0),
   electiveCourseCount: z.number().int().min(0).default(0),
   confidence: z.number().min(0).max(1),
+  /** English — analysis prose, not a data label, so it is NOT on the
+   *  Thai exemption list (docs/prompt-standard.md). */
   reasoning: z.string().optional(),
 });
 export type ProgramSkillsDetailed = z.infer<typeof ProgramSkillsDetailedSchema>;
@@ -123,7 +132,7 @@ export function buildProgramSkillsDetailedMessages(
   "compulsoryCourseCount": <int>,
   "electiveCourseCount": <int>,
   "confidence": 0.0-1.0,
-  "reasoning": "<one sentence>"
+  "reasoning": "<one sentence, in English>"
 }
 
 กฎสำคัญ:
@@ -135,6 +144,31 @@ export function buildProgramSkillsDetailedMessages(
 - ระบุครบทุกทักษะ — ทั้ง hard skills (Python, Thermodynamics), methodological skills (research methods, design thinking), professional skills (engineering ethics, project management), soft skills (teamwork, communication), domain knowledge (mechanical engineering, public health)
 - เลือก nameEn จากเอกสารเท่านั้น ห้ามแปลเอง
 - evidenceQuote ใช้ภาษาเดียวกับเอกสาร (ไทยถ้าเอกสารเป็นไทย) ความยาวไม่เกิน 200 ตัวอักษร
+
+LANGUAGE RULE (English-only free text):
+- \`reasoning\` MUST be written in English.
+- nameTh / category / evidenceQuote / programLearningOutcomes are
+  data-label / verbatim extraction fields — these stay in whatever
+  language the document uses (per docs/prompt-standard.md's exemption
+  list), never translated or paraphrased.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in reasoning):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 ตัวอย่าง:
 
@@ -155,7 +189,7 @@ EN013 491 หัวข้อพิเศษ (3 หน่วยกิต) - **เ
   {"nameTh":"การออกแบบระบบกล","nameEn":"Mechanical system design","category":"technical","pickedFromPlo":true,"compulsoryContribution":0.95,"electiveContribution":0.4,"contributingCourseCount":8,"evidenceQuote":"PLO 1: บัณฑิตสามารถออกแบบและวิเคราะห์ระบบกล"},
   {"nameTh":"เทอร์โมไดนามิกส์","nameEn":"Thermodynamics","category":"domain","pickedFromPlo":false,"compulsoryContribution":1.0,"electiveContribution":0.0,"contributingCourseCount":2,"evidenceQuote":"หลักของกฎข้อที่หนึ่งและสองของเทอร์โมไดนามิกส์"},
   {"nameTh":"การทำงานเป็นทีม","nameEn":"Teamwork","category":"soft","pickedFromPlo":true,"compulsoryContribution":0.5,"electiveContribution":0.2,"contributingCourseCount":3,"evidenceQuote":"PLO 3: บัณฑิตทำงานเป็นทีมในโครงการวิศวกรรม"}
-],"programLearningOutcomes":["PLO 1: ...","PLO 2: ...","PLO 3: ..."],"compulsoryCourseCount":42,"electiveCourseCount":18,"confidence":0.88,"reasoning":"PLO ชัดเจน 5 ข้อ; วิชาบังคับ 42 วิชา"}`;
+],"programLearningOutcomes":["PLO 1: ...","PLO 2: ...","PLO 3: ..."],"compulsoryCourseCount":42,"electiveCourseCount":18,"confidence":0.88,"reasoning":"5 clearly stated PLOs; 42 compulsory courses."}`;
 
   const user = `[ข้อมูลหลักสูตรจาก sheet]
 - คณะ: ${input.programMetaFromSheet.facultyNameTh}
@@ -173,3 +207,24 @@ ${input.pdfText}
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - pdfText — the full curriculum (มคอ.2) PDF text: PLOs + course
+//     descriptions + compulsory/elective markers. THE source for every
+//     skill row; there is no other channel.
+//   - programMetaFromSheet — faculty / level / degree / major context
+//     only, not used to derive any skill-record field.
+//
+// Deliberately omitted, with reason:
+//   - Existing Skill taxonomy — this prompt deliberately extracts
+//     free-form skill names FROM the curriculum; taxonomy matching is a
+//     separate downstream step (materialiseProgramDigest /
+//     skill-name-normaliser), not fed back in here, so this prompt's
+//     output isn't biased toward whatever the taxonomy already contains.
+//   - Labour-market demand data (KMITL, job postings) — this is a
+//     supply-side extraction (what the curriculum builds); demand-side
+//     matching is demand-skill-match, a separate prompt.
+// ─────────────────────────────────────────────────────────────────────────────

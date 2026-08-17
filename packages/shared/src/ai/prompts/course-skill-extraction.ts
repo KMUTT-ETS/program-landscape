@@ -11,8 +11,14 @@ import type { AiMessage } from '../types';
 // Version bumping rule: change any of the system prompt, examples, or
 // output schema? Bump VERSION. AiExtraction.methodVersion captures it
 // so we can re-run old extractions against the new prompt deliberately.
+//
+// v2 (2026-08-17, docs/prompt-standard.md conformance — mechanical
+// TOUCH, audit #20): added CONFIDENCE RUBRIC (verbatim) + BANNED
+// PHRASES + CHANNEL MANIFEST + explicit English rule. Output was
+// already English (nameTh / evidence are exempt data-label / verbatim
+// fields) — no language change, markers only.
 
-export const COURSE_SKILL_EXTRACTION_VERSION = 'course-skills.v1';
+export const COURSE_SKILL_EXTRACTION_VERSION = 'course-skills.v2';
 
 export const CourseSkillExtractionSchema = z.object({
   skills: z.array(
@@ -86,6 +92,25 @@ Rules:
 - evidence MUST be a verbatim phrase from the course description, translated to the description's language. If description is Thai, evidence is Thai.
 - confidence reflects how well you understood the course. Low when the description is terse or ambiguous.
 - Thai curriculum descriptions are common. Handle Thai naturally without translating into English first.
+- Write \`reasoning\` and \`proposedSkills[].rationale\` in English. \`evidence\` stays verbatim in the source's own language (a structural extraction requirement, not a language exemption call) — nameTh / nameEn fields are data labels and also stay as written.
+
+CONFIDENCE RUBRIC (report one number):
+  0.90-1.00  every key input channel present and mutually consistent
+  0.70-0.89  one material channel missing, or a noted inconsistency
+  0.50-0.69  verdict rests on a single channel, or inputs conflict materially
+  below 0.50 best effort over sparse input — flag for human review
+Grade against the bands. Do not default to 0.95.
+
+BANNED PHRASES (do not use these words/phrases or their close paraphrases in reasoning/rationale):
+- "delve"
+- "leverage" (as a verb)
+- "robust"
+- "landscape" (in its metaphorical sense — not literal geography)
+- "tapestry"
+- "furthermore"
+- "moreover"
+- "it is important to note"
+- "in today's rapidly evolving"
 
 Examples:
 
@@ -122,3 +147,22 @@ Return the JSON.`;
     { role: 'user', content: user },
   ];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANNEL MANIFEST
+//
+// Consumed:
+//   - course (code, nameTh/nameEn, descriptionTh/descriptionEn, credits)
+//     — THE source text this prompt maps to skills.
+//   - candidateSkills — a vector-similarity shortlist (~30) from the
+//     existing Skill taxonomy. The model matches against these first;
+//     proposedSkills is the escape hatch when nothing fits.
+//
+// Deliberately omitted, with reason:
+//   - Full taxonomy (~561 skills) — only the vector-scored candidate
+//     shortlist is sent; the full list would dilute the match and blow
+//     the context budget for a per-course, high-volume ai-jobs handler.
+//   - Program-level context (which program this course belongs to) —
+//     this prompt is intentionally course-scoped; program-level skill
+//     rollup happens downstream, not by widening this prompt's input.
+// ─────────────────────────────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   // ── Program pipeline (heaviest cost cluster) ─────────────────────────
   {
     methodPrefix: 'program-digest',
-    currentVersion: 'program-digest.v2',
+    currentVersion: 'program-digest.v3',
     label: 'Program digest (PDF → structured)',
     description: 'Single-shot extraction of program metadata, courses, skills, and recruitment summary from curriculum PDF.',
     module: 'pipeline',
@@ -68,7 +68,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-faculty',
-    currentVersion: 'program-faculty.v1',
+    currentVersion: 'program-faculty.v2',
     label: 'Program faculty extraction',
     description: 'Pulls academic staff roster from curriculum PDF (names, ranks, ORCID, areas).',
     module: 'pipeline',
@@ -77,7 +77,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-courses-extract',
-    currentVersion: 'program-courses-extract.v2.3',
+    currentVersion: 'program-courses-extract.v3',
     label: 'Program courses (exhaustive)',
     description: 'Regex-anchored course-code extractor scoped to the รายวิชา section (3 หมวด). Distinct from program-digest — focused, complete course list. Was locked to Pro under v2/v2.2 (Flash truncated on the full-PDF + embedded-candidate-list prompt); v2.3 narrowed the input to a ~20KB slice and Flash now returns the same result ~2× faster.',
     module: 'pipeline',
@@ -86,7 +86,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-skills-detailed',
-    currentVersion: 'program-skills-detailed.v2',
+    currentVersion: 'program-skills-detailed.v3',
     label: 'Program skills (per-course)',
     description: 'Per-course skill extraction with weight + verbatim evidence quote per skill.',
     module: 'pipeline',
@@ -189,7 +189,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   // ── Ingestion / classification (lighter workload) ────────────────────
   {
     methodPrefix: 'course-skills',
-    currentVersion: 'course-skills.v1',
+    currentVersion: 'course-skills.v2',
     label: 'Course → skill extraction',
     description: 'Maps a course description to its taxonomy skills (ai-jobs queue).',
     module: 'ingestion',
@@ -198,7 +198,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'job-posting-skills',
-    currentVersion: 'job-posting-skills.v1',
+    currentVersion: 'job-posting-skills.v2',
     label: 'Job posting → skill extraction',
     description: 'Maps a job posting to its taxonomy skills (labour-market path).',
     module: 'ingestion',
@@ -261,7 +261,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'imd-rankings',
-    currentVersion: 'imd-rankings.v1',
+    currentVersion: 'imd-rankings.v2',
     label: 'IMD rankings extract',
     description: 'Extracts country ranking rows from the annual IMD World Competitiveness PDF.',
     module: 'ingestion',
@@ -270,7 +270,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'graduate-employment-survey',
-    currentVersion: 'graduate-employment-survey.v1',
+    currentVersion: 'graduate-employment-survey.v2',
     label: 'Graduate employment survey',
     description: 'Extracts structured outcomes from KKU graduate-employment-survey PDFs.',
     module: 'ingestion',
