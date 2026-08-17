@@ -40,6 +40,18 @@
 //      Consumes the phase-6 AI-readiness assessment so the comparative
 //      narrative cites the same score the Deep-Dive shows.
 //
+//   Phase RE — Research expertise (Pro)
+//      - expertise:generate                  (gemini-3.1-pro-preview)
+//      Runs after Phase 1's faculty extraction has populated the curated
+//      ProgramFaculty roster and before Phase 7 (narrative). UNLIKE every
+//      other AI phase here, generateProgramResearchExpertise() is
+//      INSERT-ONLY — every successful run adds a new program_research_
+//      expertise row rather than upserting (history accretes by design,
+//      see program-research-expertise-run.ts). The pipeline therefore
+//      enforces its own skip-if-exists check: a program that already has
+//      a row is never regenerated here, no --force override. Re-running
+//      is an explicit operator action via `pnpm expertise:generate`.
+//
 //   Phase 7 — Strategic narrative (Pro thinking)
 //      - programs:narrative                 (gemini-3.1-pro-preview)
 //      Runs LAST among the narrative chain — consumes every prior phase.
@@ -95,7 +107,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { spawn } from 'node:child_process';
-import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
+import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore, generateProgramResearchExpertise } from '@kku/db';
 import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runProgramCoursesExtract } from '../program-courses-extract/run';
@@ -117,6 +129,7 @@ type Phase =
   | 'phase4'
   | 'phase5'
   | 'phase6'
+  | 'phaseRE'
   | 'phase7'
   | 'phase8';
 const ALL_PHASES: Phase[] = [
@@ -127,6 +140,7 @@ const ALL_PHASES: Phase[] = [
   'phase4',
   'phase5',
   'phase6',
+  'phaseRE',
   'phase7',
   'phase8',
 ];
@@ -535,6 +549,50 @@ async function processProgram(
         annotate('review', reviewStatus, reviewReason),
       ].join(' '),
     });
+  }
+
+  // ── Phase RE — Research expertise (Pro) ──────────────────────────
+  // Depends only on Phase 1's faculty extraction (the curated
+  // ProgramFaculty roster) — no dependency on phase3/4/5/6's outputs.
+  // Placed here (after phase5, before phase7) purely to keep it ahead of
+  // the narrative chain; it does not currently feed phase7's prompt.
+  //
+  // INSERT-ONLY runner (see the phase-list header comment above): the
+  // pipeline enforces skip-if-exists itself so an unattended --all rerun
+  // never accretes duplicate rows for a program that's already been
+  // analysed. No --force override for this phase — re-analysis is an
+  // explicit `pnpm expertise:generate --only <code>` operator action.
+  if (shouldRun('phaseRE')) {
+    const t = Date.now();
+    const existing = await prisma.programResearchExpertise.findFirst({
+      where: { programId: program.id },
+      select: { id: true },
+    });
+    if (existing) {
+      phases.push({
+        name: 'phaseRE research expertise (Pro)',
+        durationMs: Date.now() - t,
+        costUsd: 0,
+        ok: true,
+        notes: 'skipped: row already exists',
+      });
+    } else {
+      const r = await generateProgramResearchExpertise({ programId: program.id, ai }).catch((e) => ({
+        status: 'FAILED' as const, reason: String(e?.message ?? e),
+      }));
+      phases.push({
+        name: 'phaseRE research expertise (Pro)',
+        durationMs: Date.now() - t,
+        costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
+        ok: r.status !== 'FAILED',
+        notes:
+          r.status === 'SUCCEEDED'
+            ? `readiness=${r.readiness} · ${r.themeCount} themes · ${r.totalDistinct} papers · conf ${r.confidence.toFixed(2)}`
+            : r.status === 'SKIPPED'
+              ? `skipped: ${r.reason}`
+              : `failed: ${r.reason}`,
+      });
+    }
   }
 
   // ── Phase 7 — Strategic narrative (Pro thinking) ─────────────────
