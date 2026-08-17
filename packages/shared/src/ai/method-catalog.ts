@@ -281,7 +281,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   // ── External AI search & synthesis (Phase 5) ─────────────────────────
   {
     methodPrefix: 'external-feed-summary',
-    currentVersion: 'external-feed-summary.v1',
+    currentVersion: 'external-feed-summary.v2',
     label: 'External feed summary',
     description: 'Distils a fetched URL or search result into a TrendSignal payload (Phase-5 admin source catalog).',
     module: 'ingestion',
