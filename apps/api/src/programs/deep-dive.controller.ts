@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
-import { PROGRAM_STRATEGIC_NARRATIVE_VERSION } from '@kku/shared';
+import {
+  PROGRAM_STRATEGIC_NARRATIVE_VERSION,
+  PROGRAM_RESEARCH_EXPERTISE_VERSION,
+} from '@kku/shared';
 import { Prisma, prisma } from '@kku/db';
 import {
   programCourses,
@@ -31,6 +34,8 @@ import {
   programAiReadiness,
   programLifecycleVerdict,
   programStrategicNarrative,
+  programResearchExpertise,
+  researchExpertiseReadiness,
   programTrends,
 } from '@kku/db';
 import {
@@ -191,6 +196,33 @@ export class DeepDiveController {
   async strategicNarrative(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
     return programStrategicNarrative(programId);
+  }
+
+  // Latest persisted `program-research-expertise` brief plus a light
+  // readiness verdict (roster size + distinct-paper count) so the UI can
+  // explain an empty section — no-roster / thin / not-yet-generated are
+  // three different reasons and read differently to a Council reader.
+  // Version comes from the prompt constant, same discipline as
+  // strategic-narrative above — a hardcoded provenance literal already
+  // bit this controller once (see program-narrative's `fix(api):
+  // narrative provenance version from the constant, not a stale literal`).
+  @Get('research-expertise')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'kku-research', name: 'KKU Publications mirror (kku-research)' },
+      { id: 'program-faculty', name: 'Curated program faculty roster' },
+    ],
+    methodologyVersion: PROGRAM_RESEARCH_EXPERTISE_VERSION,
+  })
+  async researchExpertise(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
+    await assertProgramAccessible(programId, user);
+    const [result, readiness] = await Promise.all([
+      programResearchExpertise(programId),
+      researchExpertiseReadiness(programId),
+    ]);
+    if (!readiness) throw new NotFoundException();
+    return { result, readiness };
   }
 
   @Get('ai-readiness')

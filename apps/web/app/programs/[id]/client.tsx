@@ -28,6 +28,8 @@ import type {
   DeepDiveAiPeers,
   DeepDiveAiReadiness,
   DeepDiveStrategicNarrative,
+  DeepDiveResearchExpertise,
+  DeepDiveResearchExpertiseRecommendation,
   DeepDiveCourses,
   DeepDiveDemandFunnel,
   DeepDiveDemographicOutlook,
@@ -61,6 +63,7 @@ interface Props {
   aiReadiness: DeepDiveAiReadiness | null;
   lifecycle: DeepDiveLifecycle | null;
   strategicNarrative: DeepDiveStrategicNarrative | null;
+  researchExpertise: DeepDiveResearchExpertise | null;
   demographicOutlook: DeepDiveDemographicOutlook | null;
   financials: DeepDiveFinancials | null;
   skills: DeepDiveSkills | null;
@@ -258,6 +261,7 @@ export function DeepDiveClient(props: Props) {
           <SkillsSection data={props.skills} programId={props.programId} />
           <CoursesSection data={props.courses} programId={props.programId} />
           <FacultySection data={props.faculty} />
+          <ResearchExpertiseSection data={props.researchExpertise} />
         </MacroGroup>
 
         <MacroGroup
@@ -2797,6 +2801,145 @@ function FacultySection({ data }: { data: DeepDiveFaculty | null }) {
         )}
       </Card>
     </Section>
+  );
+}
+
+// Demonstrated research expertise (program-research-expertise.v1) — the
+// roster's last-10-years publications, clustered into evidenced themes
+// with three lanes of grounded recommendations. Pre-computed during the
+// per-program pipeline / `pnpm expertise:generate`, same posture as the
+// strategic narrative above: the deep-dive reads a persisted row, it
+// never triggers generation on page load.
+const RESEARCH_TREND_TONE: Record<'rising' | 'steady' | 'fading', 'success' | 'neutral' | 'warning'> = {
+  rising: 'success',
+  steady: 'neutral',
+  fading: 'warning',
+};
+
+function ResearchExpertiseSection({ data }: { data: DeepDiveResearchExpertise | null }) {
+  if (!data) {
+    return <EmptyCard title="Research expertise" note="Research expertise data unavailable." />;
+  }
+
+  const { result, readiness } = data;
+
+  // Three distinct empty reasons — a Council reader needs to know WHICH
+  // one applies (no roster to analyse vs. roster too thin vs. simply
+  // hasn't run yet), not just "no data".
+  if (!result) {
+    let description: string;
+    if (!readiness || readiness.readiness === 'no-roster') {
+      description =
+        'No curated faculty roster yet — run pnpm programs:extract-faculty <code> to link teaching staff before a research-expertise brief can be generated.';
+    } else if (readiness.readiness === 'thin') {
+      description = `Only ${readiness.distinctPaperCount} paper${readiness.distinctPaperCount === 1 ? '' : 's'} found for this roster in the last 10 years — below the analysis threshold (10).`;
+    } else {
+      description = 'Not yet analysed — run pnpm expertise:generate --only <code> to generate the brief.';
+    }
+    return (
+      <Section id="research-expertise" title="Research expertise">
+        <Card>
+          <EmptyState title="Research expertise" description={description} />
+        </Card>
+      </Section>
+    );
+  }
+
+  const { payload } = result;
+
+  return (
+    <Section id="research-expertise" title="Research expertise">
+      <Card padding="sm" tone="quiet" className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+          <span>{result.methodVersion}</span>
+          <ConfidenceBadge value={payload.confidence} />
+          <FreshnessBadge freshnessDate={result.generatedAt} label="brief generated" />
+        </div>
+        {readiness && (
+          <span className="text-xs text-text-tertiary">
+            Roster: <span className="font-tabular">{readiness.rosterSize}</span> · Distinct papers
+            (10y): <span className="font-tabular">{readiness.distinctPaperCount}</span>
+          </span>
+        )}
+      </Card>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {payload.themes.map((t) => (
+          <Card key={t.name} padding="md">
+            <div className="flex items-start justify-between gap-2">
+              <h4 className="text-sm font-semibold text-text-primary">{t.name}</h4>
+              <Badge tone={RESEARCH_TREND_TONE[t.trend]} size="sm">
+                {t.trend}
+              </Badge>
+            </div>
+            <div className="mt-1 text-xs text-text-tertiary">
+              <span className="font-tabular">{t.paperCount}</span> paper{t.paperCount === 1 ? '' : 's'} ·{' '}
+              {t.yearSpan}
+            </div>
+            <p className="mt-2 text-sm text-text-secondary">{t.evidenceNote}</p>
+            <ul className="mt-2 flex flex-col gap-1 border-t border-border-subtle pt-2">
+              {t.exampleTitles.map((title) => (
+                <li key={title} className="text-xs italic text-text-tertiary">
+                  &ldquo;{title}&rdquo;
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <ResearchRecommendationLane title="Curriculum" items={payload.recommendations.curriculum} />
+        <ResearchRecommendationLane title="Positioning" items={payload.recommendations.positioning} />
+        <ResearchRecommendationLane title="Research strategy" items={payload.recommendations.research} />
+      </div>
+
+      {payload.caveats.length > 0 && (
+        <Card padding="sm" tone="quiet">
+          <ul className="flex flex-col gap-1">
+            {payload.caveats.map((c) => (
+              <li key={c} className="text-xs text-text-tertiary">
+                {c}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </Section>
+  );
+}
+
+function ResearchRecommendationLane({
+  title,
+  items,
+}: {
+  title: string;
+  items: DeepDiveResearchExpertiseRecommendation[];
+}) {
+  return (
+    <Card padding="md">
+      <h4 className="mb-2 text-sm font-semibold">{title}</h4>
+      {items.length === 0 ? (
+        <p className="text-xs text-text-tertiary">No recommendations.</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {items.map((r) => (
+            <li key={r.action} className="text-sm">
+              <div className="font-medium text-text-primary">{r.action}</div>
+              <div className="mt-0.5 text-xs text-text-secondary">{r.rationale}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-text-tertiary">
+                <span className="font-tabular">{r.horizonMonths}mo horizon</span>
+                {r.themeRefs.map((ref) => (
+                  <Badge key={ref} tone="neutral" size="sm">
+                    {ref}
+                  </Badge>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

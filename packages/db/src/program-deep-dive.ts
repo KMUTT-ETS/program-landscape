@@ -1,5 +1,9 @@
 import { Prisma, type ProgramLifecycleVerdict } from '@prisma/client';
 import { z } from 'zod';
+import {
+  ProgramResearchExpertiseSchema,
+  type ProgramResearchExpertise,
+} from '@kku/shared';
 import { prisma } from './index';
 import {
   computeHealthScores,
@@ -12,10 +16,11 @@ import {
   type ProgramDimensionMeans,
 } from './health-score';
 import { queryMetricByScope } from './scope';
-import { realDataWhere } from './data-quality';
+import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears } from './program-funnel';
 import { academicYearContextSync, getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
+import { readinessFor, type ExpertiseReadiness } from './program-research-expertise';
 
 // Deep-dive aggregator — all reads a single program's page needs.
 // Each method corresponds to one section of the UI. Role-sensitive
@@ -751,6 +756,91 @@ export async function programStrategicNarrative(
     confidence: row.confidence,
     methodVersion: row.methodVersion,
     generatedAt: row.generatedAt.toISOString(),
+  };
+}
+
+// ── Research expertise ────────────────────────────────────────────────
+// Reads the persisted `program-research-expertise` brief (see
+// program-research-expertise-run.ts) for the deep-dive section. UNLIKE
+// programStrategicNarrative above, ProgramResearchExpertise is
+// INSERT-ONLY — a program can accrete multiple rows over time (re-runs
+// via `pnpm expertise:generate`) — so this reads the LATEST by
+// generatedAt rather than a unique-per-program row.
+export interface ProgramResearchExpertiseResult {
+  payload: ProgramResearchExpertise;
+  methodVersion: string;
+  generatedAt: string;
+}
+
+export async function programResearchExpertise(
+  programId: string,
+): Promise<ProgramResearchExpertiseResult | null> {
+  const row = await prisma.programResearchExpertise.findFirst({
+    where: { programId },
+    orderBy: { generatedAt: 'desc' },
+  });
+  if (!row) return null;
+  return {
+    // Parsed (not cast) — payloadJson is a Prisma Json column with no
+    // static shape; running it back through the same schema the runner
+    // validated it against at write time is what makes the deep-dive's
+    // typed read honest rather than an unchecked `as`.
+    payload: ProgramResearchExpertiseSchema.parse(row.payloadJson),
+    methodVersion: row.methodVersion,
+    generatedAt: row.generatedAt.toISOString(),
+  };
+}
+
+export interface ProgramResearchExpertiseReadinessResult {
+  rosterSize: number;
+  distinctPaperCount: number;
+  readiness: ExpertiseReadiness;
+}
+
+/**
+ * Cheap readiness verdict for the deep-dive's empty states — roster size
+ * + a single scalar `COUNT(DISTINCT ...)` computed in Postgres. Deliberately
+ * NOT `assembleResearchExpertiseInput()` (program-research-expertise.ts),
+ * which additionally fetches every row's title/venue/citations/quartile to
+ * score, rank, and build the full stats block — work this helper has no
+ * need for and must not pay on every page view. `readinessFor()` is the
+ * SAME pure function the runner uses, so the verdict here can never diverge
+ * from what a generation run would have computed.
+ */
+export async function researchExpertiseReadiness(
+  programId: string,
+): Promise<ProgramResearchExpertiseReadinessResult | null> {
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { id: true },
+  });
+  if (!program) return null;
+
+  const roster = await prisma.programFaculty.findMany({
+    where: { programId },
+    select: { facultyMemberId: true },
+  });
+  const rosterSize = roster.length;
+  if (rosterSize === 0) {
+    return { rosterSize: 0, distinctPaperCount: 0, readiness: 'no-roster' };
+  }
+
+  const memberIds = roster.map((r) => r.facultyMemberId);
+  const currentYear = new Date().getUTCFullYear();
+
+  const rows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+    SELECT COUNT(DISTINCT COALESCE(ro.doi, ro.openalex_id, ro.scopus_id, ro.pmid, LOWER(ro.title))) AS count
+    FROM research_outputs ro
+    WHERE ro.faculty_member_id = ANY(${memberIds}::text[])
+      AND ro.year >= ${currentYear - 10}
+      AND ${realDataSql('ro')}
+  `);
+  const distinctPaperCount = Number(rows[0]?.count ?? 0n);
+
+  return {
+    rosterSize,
+    distinctPaperCount,
+    readiness: readinessFor(rosterSize, distinctPaperCount),
   };
 }
 

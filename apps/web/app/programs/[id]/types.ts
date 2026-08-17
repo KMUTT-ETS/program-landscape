@@ -8,6 +8,59 @@ export interface DeepDiveStrategicNarrative {
   generatedAt: string;
 }
 
+// ─── Research expertise (program-research-expertise.v1) ─────────────────
+
+export interface DeepDiveResearchExpertiseTheme {
+  name: string;
+  paperCount: number;
+  /** 2-3 verbatim titles drawn from the roster's actual publications. */
+  exampleTitles: string[];
+  yearSpan: string;
+  trend: 'rising' | 'steady' | 'fading';
+  evidenceNote: string;
+}
+
+export interface DeepDiveResearchExpertiseRecommendation {
+  action: string;
+  rationale: string;
+  horizonMonths: number;
+  /** Theme name(s) (matching a `themes[].name`) this recommendation builds on. */
+  themeRefs: string[];
+}
+
+export interface DeepDiveResearchExpertisePayload {
+  themes: DeepDiveResearchExpertiseTheme[];
+  recommendations: {
+    curriculum: DeepDiveResearchExpertiseRecommendation[];
+    positioning: DeepDiveResearchExpertiseRecommendation[];
+    research: DeepDiveResearchExpertiseRecommendation[];
+  };
+  caveats: string[];
+  confidence: number;
+}
+
+export interface DeepDiveResearchExpertiseResult {
+  payload: DeepDiveResearchExpertisePayload;
+  methodVersion: string;
+  generatedAt: string;
+}
+
+export type DeepDiveResearchExpertiseVerdict = 'ok' | 'thin' | 'no-roster';
+
+export interface DeepDiveResearchExpertiseReadiness {
+  rosterSize: number;
+  distinctPaperCount: number;
+  readiness: DeepDiveResearchExpertiseVerdict;
+}
+
+/** GET /programs/:id/research-expertise — `result` is null until a brief
+ *  has been generated (`pnpm expertise:generate`); `readiness` explains
+ *  why (no curated roster / roster too thin / just not generated yet). */
+export interface DeepDiveResearchExpertise {
+  result: DeepDiveResearchExpertiseResult | null;
+  readiness: DeepDiveResearchExpertiseReadiness | null;
+}
+
 export interface DeepDiveAiReadinessGap {
   topic: string;
   severity: 'major' | 'moderate' | 'minor';
