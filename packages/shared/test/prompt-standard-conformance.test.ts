@@ -9,7 +9,6 @@ const PROMPTS_DIR = path.join(__dirname, '..', 'src', 'ai', 'prompts');
 // from birth (it will fail here until it does).
 const NOT_YET_CONFORMANT = new Set<string>([
   'decision-review.ts',
-  'evaluation-question-translate.ts',
   'external-feed-summary.ts',
   'policy-doc-analysis.ts',
   'program-ai-readiness.ts',

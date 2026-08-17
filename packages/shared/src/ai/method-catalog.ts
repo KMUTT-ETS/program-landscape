@@ -207,7 +207,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'evaluation-question-translate',
-    currentVersion: 'evaluation-question-translate.v1',
+    currentVersion: 'evaluation-question-translate.v2',
     label: 'Evaluation questions TH → EN',
     description: 'Translates the POWERBI.EVALUATE_INSTRUCTOR student-evaluation question catalog (Thai authoritative source) to English for the courtesy UI watermark. One batched call per catalog refresh; DEAN / ADMIN can override per row.',
     module: 'ingestion',
