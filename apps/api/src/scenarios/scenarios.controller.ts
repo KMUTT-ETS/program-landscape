@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
+import { prisma } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -24,6 +25,7 @@ import { ScenarioInsightsService } from './scenario-insights.service';
 import {
   InterventionSchema,
   ScenarioAssumptionsSchema,
+  type ExistingRiskAssessmentSummary,
   type Intervention,
   type ScenarioInsightsInput,
 } from '@kku/shared';
@@ -245,13 +247,18 @@ export class ScenariosController {
       sensitivity: Array<{ assumptionKey: string; lowOutcomeDelta: number; highOutcomeDelta: number }>;
     } | undefined;
 
+    // Resolved from Scenario.affectedProgramIds (was hard-coded to `[]`
+    // pre-v2 — every mode's system prompt referenced "affected programs"
+    // while the caller never actually supplied any).
+    const affectedProgramNames = await resolveProgramNames(scenario.affectedProgramIds);
+
     const ctx = {
       id: scenario.id,
       name: scenario.name,
       scenarioType: scenario.scenarioType,
       horizonYears: scenario.horizonYears,
       assumptions: scenario.assumptionsJson as Record<string, number>,
-      affectedProgramNames: [], // pulled via join in a future iteration
+      affectedProgramNames,
       totalNetContribution: projection?.scenario.totalNetContribution,
       totalRevenue: projection?.scenario.totalRevenue,
       totalCost: projection?.scenario.totalCost,
@@ -277,7 +284,13 @@ export class ScenariosController {
         currentAssumptions: ctx.assumptions,
       };
     } else if (body.mode === 'identify-risks') {
-      input = { mode: 'identify-risks', scenario: ctx };
+      // NEW channel (scenario-insights.v2): the latest RiskAssessment row
+      // per affected program, so the model builds on the platform's own
+      // deterministic risk-scoring output instead of re-deriving it blind.
+      const existingRiskAssessments = await resolveExistingRiskAssessments(
+        scenario.affectedProgramIds,
+      );
+      input = { mode: 'identify-risks', scenario: ctx, existingRiskAssessments };
     } else if (body.mode === 'compare-narrative') {
       if (!body.scenarioIds || body.scenarioIds.length === 0) {
         throw new Error('scenarioIds required for compare-narrative');
@@ -294,7 +307,7 @@ export class ScenariosController {
             scenarioType: s.scenarioType,
             horizonYears: s.horizonYears,
             assumptions: s.assumptionsJson as Record<string, number>,
-            affectedProgramNames: [],
+            affectedProgramNames: await resolveProgramNames(s.affectedProgramIds),
             totalNetContribution: proj?.scenario.totalNetContribution,
             monteCarloCi80: proj?.monteCarlo.totalNetContributionCi80,
           };
@@ -312,4 +325,79 @@ export class ScenariosController {
     }
     return this.insights.generate(input, user.userId);
   }
+}
+
+async function resolveProgramNames(programIds: string[]): Promise<string[]> {
+  if (programIds.length === 0) return [];
+  const rows = await prisma.program.findMany({
+    where: { id: { in: programIds } },
+    select: { nameEn: true },
+  });
+  return rows.map((r) => r.nameEn);
+}
+
+/** Latest RiskAssessment summary per affected program — see
+ *  ExistingRiskAssessmentSummary in scenario-insights.ts for the shape
+ *  identify-risks consumes. Skips programs with no assessment on file
+ *  (a data gap, not a zero-risk signal). */
+async function resolveExistingRiskAssessments(
+  programIds: string[],
+): Promise<ExistingRiskAssessmentSummary[]> {
+  if (programIds.length === 0) return [];
+  const programs = await prisma.program.findMany({
+    where: { id: { in: programIds } },
+    select: { id: true, nameEn: true },
+  });
+  const nameById = new Map(programs.map((p) => [p.id, p.nameEn]));
+
+  const rows = await Promise.all(
+    programIds.map((programId) =>
+      prisma.riskAssessment.findFirst({
+        where: { programId },
+        orderBy: { assessedAt: 'desc' },
+        select: {
+          tier: true,
+          compositeScore: true,
+          l1RecruitmentScore: true,
+          l2AiDisruptionScore: true,
+          l3DemographicScore: true,
+          narrativeEn: true,
+        },
+      }),
+    ),
+  );
+
+  const summaries: ExistingRiskAssessmentSummary[] = [];
+  rows.forEach((row, i) => {
+    if (!row) return; // no assessment on file for this program — omitted, not zeroed
+    const programId = programIds[i]!;
+    summaries.push({
+      programName: nameById.get(programId) ?? programId,
+      compositeScore: row.compositeScore,
+      tier: row.tier,
+      topLikelihoodDriver: describeTopLikelihoodDriver(row),
+      narrative: row.narrativeEn,
+    });
+  });
+  return summaries;
+}
+
+/** Same driver-selection logic as
+ *  packages/db/src/program-strategic-narrative-run.ts's
+ *  describeTopLikelihoodDriver — kept local (not exported there) since
+ *  duplicating a ~10-line pure function is cheaper than a cross-package
+ *  export for a single caller. */
+function describeTopLikelihoodDriver(row: {
+  l1RecruitmentScore: number | null;
+  l2AiDisruptionScore: number | null;
+  l3DemographicScore: number | null;
+}): string | null {
+  const drivers: Array<[string, number | null]> = [
+    ['L1 recruitment/TCAS competition decay', row.l1RecruitmentScore],
+    ['L2 AI-disruption (share of taught skills at high automation risk)', row.l2AiDisruptionScore],
+    ['L3 demographic ceiling', row.l3DemographicScore],
+  ];
+  const present = drivers.filter((d): d is [string, number] => d[1] !== null);
+  if (present.length === 0) return null;
+  return present.sort((a, b) => b[1] - a[1])[0]![0];
 }
