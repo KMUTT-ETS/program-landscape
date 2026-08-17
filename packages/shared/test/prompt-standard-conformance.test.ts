@@ -17,7 +17,6 @@ const NOT_YET_CONFORMANT = new Set<string>([
   'program-peer-selection.ts',
   'risk-assessment.ts',
   'trend-document-ingest.ts',
-  'trend-signal-analysis.ts',
 ]);
 
 const REQUIRED_MARKERS: Array<{ name: string; pattern: RegExp }> = [

@@ -54,6 +54,12 @@ export async function analyzeTrendSignal(
   });
   const programIdSet = new Set(programs.map((p) => p.id));
 
+  // Grounding fix (docs/prompt-standard.md, audit #11): role-fit claims about
+  // a specific program must cite that program's OWN taught skills, not the
+  // model's general knowledge of "what such a program typically teaches."
+  // One batched query across every candidate program, top N by weight each.
+  const topSkillsByProgram = await fetchTopSkillsByProgram(programIdSet);
+
   const messages = buildTrendSignalAnalysisMessages({
     signal: {
       signalType: signal.signalType,
@@ -63,7 +69,13 @@ export async function analyzeTrendSignal(
       sourceUrl: signal.sourceUrl,
       impactScore: signal.impactScore,
     },
-    programs: programs.map((p) => ({ id: p.id, nameEn: p.nameEn, nameTh: p.nameTh, faculty: p.faculty?.nameEn ?? '—' })),
+    programs: programs.map((p) => ({
+      id: p.id,
+      nameEn: p.nameEn,
+      nameTh: p.nameTh,
+      faculty: p.faculty?.nameEn ?? '—',
+      topSkills: topSkillsByProgram.get(p.id) ?? [],
+    })),
   });
 
   let response;
@@ -130,4 +142,34 @@ export async function analyzeTrendSignal(
     confidence: a.confidence,
     costUsd: response.cost.usd,
   };
+}
+
+/** Top ~6 taught skills per program, by ProgramSkill weight desc, preferring
+ *  the English name. One query across every candidate program id rather than
+ *  N+1 — this runs once per signal analysis, not once per program. Programs
+ *  with zero ProgramSkill rows are simply absent from the returned map; the
+ *  caller treats a missing key the same as an empty array (`?? []`), which
+ *  the prompt renders as an explicit "no skill data" label. */
+const TOP_SKILLS_PER_PROGRAM = 6;
+
+async function fetchTopSkillsByProgram(programIds: Iterable<string>): Promise<Map<string, string[]>> {
+  const ids = [...programIds];
+  const out = new Map<string, string[]>();
+  if (ids.length === 0) return out;
+  const rows = await prisma.programSkill.findMany({
+    where: { programId: { in: ids } },
+    select: { programId: true, weight: true, skill: { select: { nameEn: true, nameTh: true } } },
+    orderBy: { weight: 'desc' },
+  });
+  for (const row of rows) {
+    const list = out.get(row.programId);
+    const name = row.skill.nameEn || row.skill.nameTh;
+    if (!name) continue;
+    if (list) {
+      if (list.length < TOP_SKILLS_PER_PROGRAM && !list.includes(name)) list.push(name);
+    } else {
+      out.set(row.programId, [name]);
+    }
+  }
+  return out;
 }
