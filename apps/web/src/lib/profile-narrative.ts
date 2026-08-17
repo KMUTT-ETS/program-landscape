@@ -111,7 +111,7 @@ function inferFallbackThemes(titles: string[]): string[] {
   for (const title of titles.slice(0, 30)) {
     const words = title
       .toLowerCase()
-      .replace(/[^a-z\s\-]/g, ' ')
+      .replace(/[^a-z\s-]/g, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 4 && !stopwords.has(w));
     for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);

@@ -160,7 +160,7 @@ export function extractCourseListSection(text: string): {
   }
   // End: take the earliest subsequent major-section marker.
   const endPatterns = [
-    /ค[\s฿]*[ำาํ][\s฿]*อธิบายรายวิชา/g, // คำอธิบายรายวิชา (with broken sara-am)
+    /ค[\s฿]*(?:ำ|า|ํ)[\s฿]*อธิบายรายวิชา/g, // คำอธิบายรายวิชา (with broken sara-am)
     /ภาคผนวก/g,
     /Appendix[\s:]/gi,
     /ตัวอย่างแผนการศึกษา/g, // 3.4 (comes between 3.3 and 3.5 in standard มคอ.2)

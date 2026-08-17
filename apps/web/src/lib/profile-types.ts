@@ -218,7 +218,7 @@ export function formatAuthorApa(a: AuthorName): string {
   if (a.given && a.given.trim()) {
     const initials = a.given
       .trim()
-      .split(/[\s.\-]+/)
+      .split(/[\s.-]+/)
       .filter(Boolean)
       .map((part) => {
         // Hyphenated given names: "Jean-Pierre" → "J.-P." per APA 7.

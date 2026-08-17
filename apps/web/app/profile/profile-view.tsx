@@ -344,7 +344,8 @@ function ProfileHero({
         aria-hidden
         className="pointer-events-none absolute right-5 top-5 z-10 flex items-start"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* plain <img>: avatar/logo from MinIO; next/image gains nothing here.
+            (No eslint directive — @next/next is not registered in the flat config.) */}
         <img
           src="/brand/kku-logo-light.png"
           alt=""
@@ -352,7 +353,8 @@ function ProfileHero({
           height={75}
           className="block h-20 w-auto opacity-90 dark:hidden"
         />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* plain <img>: avatar/logo from MinIO; next/image gains nothing here.
+            (No eslint directive — @next/next is not registered in the flat config.) */}
         <img
           src="/brand/kku-logo-dark.png"
           alt=""
@@ -388,7 +390,6 @@ function ProfileHero({
           }`}
         >
           {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={avatarUrl}
               alt=""
