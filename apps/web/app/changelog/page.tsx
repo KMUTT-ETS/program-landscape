@@ -26,6 +26,23 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-08-17',
+    version: 'v1.7.0 · Rebuilt program report, research expertise, honest financial scores',
+    title:
+      'The program deep-dive PDF is rebuilt as a chart-led A4 report; a new Research Expertise section analyses each program’s decade of publications; financial scores now use the last complete academic year — most rose, and every AI analysis now writes in English with an honest confidence number',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The "Export PDF" on every program page now produces a redesigned A4 report: charts lead each section, every exact figure moves to a data appendix (nothing is lost — it only moves), every chart carries its source, data date and methodology, and the course list — assembled but never printed by the old report — finally appears.',
+      'New "Research expertise" section on the program page and in the PDF: the last 10 years of the teaching roster’s publications, deduplicated and analysed into named research themes with verbatim example paper titles, plus recommended actions for curriculum, positioning and research strategy. Programs without a curated roster or with too few papers say so plainly instead of showing an empty box.',
+      'Financial scores are now computed on the last COMPLETE academic year. Tuition for the current year is still being billed (semester 1 lands in one fiscal year, later semesters in the next), so scoring on it understated most programs — 147 of 263 financial scores rose when the half-billed year was excluded, and 3 brand-new programs correctly show "no data" instead of a score built on half a semester.',
+      'A month-long data-visibility fault was found and fixed: five real data connectors were still flagged as mock data, which silently hid all enrollment, financial and research rows from every score. An automated audit now runs in CI so this class of fault cannot recur silently.',
+      'Several wrong numbers were corrected: cohort GROWTH was displayed as flat 0.0% (and in one place as a double negative); an alumni share could display as "1230.0%" instead of 12.3%; a measured cost of 0 displayed as "no data"; the health radar no longer clips its labels or overlaps the scale.',
+      'AI analyses (strategic narrative, insights panels, research expertise) now write in English, follow a written prompt standard with a banned-phrase list, and report confidence honestly: the number is capped by how much data was actually available, so a sparse program can no longer show 95% confidence. Thai program names, recruitment copy and data labels are unchanged.',
+      'For analysts: every chart in the new PDF states its provenance; theme paper-counts refer only to the papers actually analysed (stated on the page); AI outputs that fail format or use banned phrasing are automatically retried once and flagged if they persist.',
+      'For operators: `pnpm data-sources:audit` (drift detection + repair), `pnpm narratives:regenerate`, `pnpm expertise:generate`, and a new research-expertise phase in the programs pipeline. One additive DB migration (program_research_expertise). No new environment variables.',
+    ],
+  },
+  {
     date: '2026-07-27',
     version: 'v1.6.8 · Gentler connections to the registrar database',
     title:
