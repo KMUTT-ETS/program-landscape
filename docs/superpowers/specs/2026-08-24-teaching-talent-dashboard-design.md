@@ -138,10 +138,15 @@ years:
 
 | threshold | talents |
 |---|---|
-| 4.00 | 1,243 |
-| 4.25 | 1,078 |
-| 4.50 | 592 |
-| 4.75 | 139 |
+| 4.00 | 1,244 |
+| 4.25 | 1,082 |
+| 4.50 | 601 |
+| 4.75 | 145 |
+
+(Measured against the shipped implementation. The counts are a few higher than a
+raw-float comparison would give — 1,243 / 1,078 / 592 / 139 — because the rule compares
+the 2-decimal value the UI prints, so someone whose weakest year is 3.995 and displays
+4.00 is badged. That is the intended semantics, not drift.)
 
 Staff with one or two years of data are listed with their available years and a
 `2/3 years` marker, never badged. The distinction between "new arrival" and

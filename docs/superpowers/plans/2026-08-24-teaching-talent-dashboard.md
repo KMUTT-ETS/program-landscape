@@ -810,7 +810,7 @@ Expected (measured 2026-08-24 on dev):
 ```
 years [ 2566, 2567, 2568 ] windowComplete true
 instructors 1695
-talents@4.0 1243
+talents@4.0 1244
 unmatched teachers 271
 unattributable rows 34566
 ```
@@ -1589,7 +1589,7 @@ render the badge. The `<td>` becomes:
             <span
               className={`ml-2 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-medium ${
                 row.badge.tone === 'success'
-                  ? 'bg-success-subtle text-success-default'
+                  ? 'bg-success-subtle text-success'
                   : 'bg-surface-2 text-text-tertiary'
               }`}
             >
@@ -1599,8 +1599,14 @@ render the badge. The `<td>` becomes:
         </td>
 ```
 
-Note the token names: `--color-success-default` exists, plain `--color-success` does
-not — a wrong token renders as a black block.
+Token-name trap, verified against `packages/design/src/tailwind-preset.ts`: the CSS
+variable is `--color-success-default`, but the Tailwind utility is **`text-success`** —
+the `success` family is declared with Tailwind's special `DEFAULT` key, which maps to
+the bare class. Only families built through `mapColor()` (e.g. `accent`, whose token
+object has a literal lowercase `default` key) accept the `-default` suffix. A wrong
+name is silently dropped by the JIT, so the text keeps its inherited colour with no
+error anywhere. Counted in the app today: `text-success` 67 uses, `text-success-default`
+5 — all five of those are broken.
 
 - [ ] **Step 4: Typecheck**
 
@@ -2204,7 +2210,7 @@ Start the stack if it is not running: `pnpm dev` (repo root). Sign in, then open
 `http://localhost:3000/staff/teaching-talent`.
 
 Check all of the following:
-1. The KPI strip reads **Talents 1243 · Eligible 1339 · Instructors assessed 1695 ·
+1. The KPI strip reads **Talents 1244 · Eligible 1339 · Instructors assessed 1695 ·
    Window BE 2566–2568** (an admin / university-wide account, no faculty filter).
    **If "Instructors assessed" reads 1130, a curriculum join crept in — stop.**
 2. Clicking `4.50` changes Talents to **592** without a full page reload flash.
@@ -2347,7 +2353,7 @@ browser check produced in Task 7 if they differ.
     bullets: [
       'New "Teaching and learning talent" dashboard (Staff → Teaching and learning talent): drill from faculty to individual staff, showing each person’s overall student-evaluation score, how many students answered, and their score in each of the last three completed academic years.',
       'A talent is someone who scored at or above the chosen bar in EVERY one of those three years — sustained quality, not one good semester. Someone with only two years of evidence is shown with their years and marked "2/3 years", never badged, so a new arrival is never mistaken for an underperformer.',
-      'The bar is adjustable (4.00, 4.25, 4.50, 4.75) because Thai evaluation scores cluster high: at 4.00 the list runs to 1,243 people, at 4.50 to 592, at 4.75 to 139. The filter, the bar and the talents-only toggle all live in the page address, so a particular view can be shared as a link.',
+      'The bar is adjustable (4.00, 4.25, 4.50, 4.75) because Thai evaluation scores cluster high: at 4.00 the list runs to 1,244 people, at 4.50 to 592, at 4.75 to 139. The filter, the bar and the talents-only toggle all live in the page address, so a particular view can be shared as a link.',
       'This dashboard counts every evaluated instructor — 1,695 of them — where Teaching evaluations shows only the 1,130 whose courses are mapped to a program. A third of the teaching roster was invisible to that view; it is not invisible here.',
       'Export to Excel: the qualifying staff with faculty, academic rank, first and last name, email and overall score, ready for HR, awards and development programmes.',
       'The page reports its own coverage rather than hiding it: 271 teachers were evaluated but match no HR record (98 of whom would qualify), and a further body of evaluation rows is credited to no identifiable person. They are listed as a reconciliation worklist on the page and in the export, so the gap can be fixed at source.',
