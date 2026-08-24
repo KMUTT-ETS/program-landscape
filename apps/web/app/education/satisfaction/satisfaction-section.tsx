@@ -4,7 +4,7 @@
 //
 // Course-aggregated only (no per-instructor names). Per-instructor data
 // lives on /staff/teaching with tiered visibility. Sections:
-//   - KPI strip (overall mean rating, respondents, courses, instructors)
+//   - KPI strip (overall mean rating, responses, courses, instructors)
 //   - Trend chart (window-wide rating per (year × sem))
 //   - Faculty → Program Level → Program → Course pivot table with year
 //     columns, semester filter, and per-course hover tooltip showing
@@ -294,7 +294,6 @@ function CellTooltipContent({
     // scope is rebuilt every render but its stringified form is stable —
     // depend on the key explicitly so React doesn't re-fetch on every
     // render of the parent.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey(scope, qs)]);
 
   if (loading) {
@@ -519,11 +518,11 @@ export function SatisfactionSection({
         <div className="text-xs text-text-tertiary">out of 5</div>
       </Card>
       <Card className="p-3">
-        <div className="text-xs uppercase tracking-wide text-text-tertiary">Students who responded</div>
+        <div className="text-xs uppercase tracking-wide text-text-tertiary">Responses</div>
         <div className="mt-1 text-2xl font-medium text-text-primary">
           {fmt(overall.totalRespondents)}
         </div>
-        <div className="text-xs text-text-tertiary">in this window</div>
+        <div className="text-xs text-text-tertiary">question answers, not students</div>
       </Card>
       <Card className="p-3">
         <div className="text-xs uppercase tracking-wide text-text-tertiary">Anonymous cells</div>
@@ -876,7 +875,7 @@ export function SatisfactionSection({
                   type="monotone"
                   dataKey="rating"
                   name="Mean rating"
-                  stroke="oklch(0.65 0.20 145)"
+                  stroke="oklch(var(--color-success-default))"
                   strokeWidth={2}
                   dot={{ r: 3 }}
                 />
@@ -943,12 +942,12 @@ export function SatisfactionSection({
                 <SortHeader
                   k="overall"
                   label="Overall"
-                  title="Weighted by respondent count across all years in the window"
+                  title="Weighted by responses across all years in the window"
                 />
                 <SortHeader
                   k="n"
-                  label="Respondents"
-                  title="Σ student respondents across all cells"
+                  label="Responses"
+                  title="Σ answers across all question cells — individual question answers, not a headcount of students"
                 />
                 {yearCols.map((y) => (
                   <SortHeader
@@ -962,7 +961,7 @@ export function SatisfactionSection({
                         </span>
                       </span>
                     }
-                    title={`Academic year ${y} BE (${beToCe(y)} CE) — Σ respondents weighted average`}
+                    title={`Academic year ${y} BE (${beToCe(y)} CE) — response-weighted average`}
                   />
                 ))}
               </tr>
@@ -1300,7 +1299,7 @@ export function SatisfactionSection({
                   </div>
                 </Card>
                 <Card className="p-2">
-                  <div className="text-[10px] uppercase text-text-tertiary">Respondents</div>
+                  <div className="text-[10px] uppercase text-text-tertiary">Responses</div>
                   <div className="text-lg font-medium">
                     {fmt(courseDetail.summary.totalRespondents)}
                   </div>
@@ -1363,7 +1362,7 @@ export function SatisfactionSection({
                         <Line
                           type="monotone"
                           dataKey="rating"
-                          stroke="oklch(0.65 0.20 145)"
+                          stroke="oklch(var(--color-success-default))"
                           strokeWidth={2}
                           dot={{ r: 3 }}
                         />

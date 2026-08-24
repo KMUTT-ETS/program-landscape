@@ -319,7 +319,8 @@ function CellTooltipContent({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deps are the SERIALISED scope key, not the scope/qs objects: those
+  // are new identities on every render and would refetch in a loop.
   }, [scopeKey(scope, qs)]);
   if (loading) {
     return <div className="p-3 text-xs text-text-tertiary">Loading question detail…</div>;
@@ -781,10 +782,11 @@ export function TeachingSection({
         <div className="text-xs text-text-tertiary">out of 5</div>
       </Card>
       <Card className="p-3">
-        <div className="text-xs uppercase tracking-wide text-text-tertiary">Students who responded</div>
+        <div className="text-xs uppercase tracking-wide text-text-tertiary">Responses</div>
         <div className="mt-1 text-2xl font-medium text-text-primary">
           {fmt(overall.totalRespondents)}
         </div>
+        <div className="text-xs text-text-tertiary">question answers, not students</div>
       </Card>
       <Card className="p-3">
         <div className="text-xs uppercase tracking-wide text-text-tertiary">Anonymous cells</div>
@@ -904,7 +906,7 @@ export function TeachingSection({
               <div className="text-lg font-medium">{fmtRating(personal.summary.ratingAvg)}</div>
             </Card>
             <Card className="p-2">
-              <div className="text-[10px] uppercase text-text-tertiary">Respondents</div>
+              <div className="text-[10px] uppercase text-text-tertiary">Responses</div>
               <div className="text-lg font-medium">{fmt(personal.summary.totalRespondents)}</div>
             </Card>
             <Card className="p-2">
@@ -952,7 +954,7 @@ export function TeachingSection({
                   <Line
                     type="monotone"
                     dataKey="rating"
-                    stroke="oklch(0.65 0.20 145)"
+                    stroke="oklch(var(--color-success-default))"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                   />
@@ -1105,12 +1107,12 @@ export function TeachingSection({
                   <SortHeader
                     k="overall"
                     label="Overall"
-                    title="Weighted by respondent count across all years in the window"
+                    title="Weighted by responses across all years in the window"
                   />
                   <SortHeader
                     k="n"
-                    label="Respondents"
-                    title="Σ student respondents across all cells"
+                    label="Responses"
+                    title="Σ answers across all question cells — individual question answers, not a headcount of students"
                   />
                   {yearCols.map((y) => (
                     <SortHeader
