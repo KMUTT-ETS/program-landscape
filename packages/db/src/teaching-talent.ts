@@ -278,17 +278,18 @@ export function overallFromYears(byYear: Record<string, TalentYearCell>): number
  * travel to the caller so the UI can re-badge without a refetch, and the
  * export applies `classifyTalent()` to the same numbers.
  */
-export async function teachingTalentRoster(
-  filter: TeachingTalentFilter | undefined,
-  opts: TeachingTalentOptions = {},
-): Promise<TeachingTalentResult> {
-  const facultyNames =
-    filter?.facultyName && filter.facultyName.length > 0 ? filter.facultyName : undefined;
-
+/**
+ * Resolve the assessment window: the most recent completed academic years
+ * that carry data, capped at `TALENT_WINDOW_YEARS`.
+ *
+ * Shared by the roster and by the single-person stamp on /profile. They
+ * MUST assess the same years — a profile that claimed a badge the
+ * dashboard withholds (or vice versa) would be worse than no badge at
+ * all. Deliberately global, never faculty-clamped, so every caller sees
+ * the same window.
+ */
+async function resolveWindow(): Promise<{ years: number[]; windowComplete: boolean }> {
   const { currentAcademicYearBE } = await getAcademicYearContext();
-
-  // ── 1. Resolve the window ────────────────────────────────────────────
-  // Global (not faculty-clamped) so every user sees the same columns.
   const yearRows = await prisma.$queryRaw<Array<{ acad_year_be: number }>>`
     SELECT DISTINCT e.acad_year_be
     FROM evaluation_response_summaries e
@@ -308,7 +309,18 @@ export async function teachingTalentRoster(
     yearRows.map((r) => r.acad_year_be),
     currentAcademicYearBE,
   );
-  const windowComplete = years.length === TALENT_WINDOW_YEARS;
+  return { years, windowComplete: years.length === TALENT_WINDOW_YEARS };
+}
+
+export async function teachingTalentRoster(
+  filter: TeachingTalentFilter | undefined,
+  opts: TeachingTalentOptions = {},
+): Promise<TeachingTalentResult> {
+  const facultyNames =
+    filter?.facultyName && filter.facultyName.length > 0 ? filter.facultyName : undefined;
+
+  // ── 1. Resolve the window ────────────────────────────────────────────
+  const { years, windowComplete } = await resolveWindow();
 
   if (years.length === 0) {
     return {
@@ -541,5 +553,89 @@ export async function teachingTalentRoster(
       teachers,
       unattributableRowCount: Number(unattributable?.c ?? 0),
     },
+  };
+}
+
+// ── Single-person verdict — the /profile stamp ────────────────────────────
+
+export interface TeachingTalentStamp {
+  methodologyVersion: string;
+  /** The assessment window, ascending. Same years the dashboard uses. */
+  years: number[];
+  windowComplete: boolean;
+  /** True only when the person cleared `threshold` in EVERY window year. */
+  isTalent: boolean;
+  yearsWithData: number;
+  minYearRating: number | null;
+  overallRating: number | null;
+  /** Individual answers to evaluation questions, NOT a student headcount —
+   *  the source table is one row per (year, semester, class, question,
+   *  instructor). See the same caveat on the dashboard and the export. */
+  totalResponses: number;
+  threshold: number;
+}
+
+/**
+ * Whether one staff member is a Teaching and Learning Talent.
+ *
+ * Same rule, same window and same provenance gate as
+ * `teachingTalentRoster()`, but a single-person aggregate rather than the
+ * ~1,700-row roster — /profile needs one verdict, not a table. The rule
+ * itself is `classifyTalent()` in both paths, so the stamp on a profile
+ * and the badge on the dashboard cannot disagree.
+ *
+ * Returns `null` when the person has no evaluation rows in the window at
+ * all: "we have no evidence" is a different statement from "assessed and
+ * did not qualify", and the caller renders nothing for it either way.
+ */
+export async function teachingTalentForFacultyMember(
+  facultyMemberId: string,
+): Promise<TeachingTalentStamp | null> {
+  const { years, windowComplete } = await resolveWindow();
+  if (years.length === 0) return null;
+
+  const rows = await prisma.$queryRaw<
+    Array<{ acad_year_be: number; rating_avg: number | null; responses: bigint }>
+  >`
+    SELECT
+      e.acad_year_be                                         AS acad_year_be,
+      (SUM(e.rating_avg::numeric * e.respondent_count)
+         / NULLIF(SUM(e.respondent_count), 0))::float        AS rating_avg,
+      COALESCE(SUM(e.respondent_count), 0)::bigint           AS responses
+    FROM evaluation_response_summaries e
+    JOIN ingestion_runs ir ON ir.id = e.ingestion_run_id
+    JOIN data_sources ds ON ds.id = ir.data_source_id
+    WHERE ds.mocked = false
+      AND e.faculty_member_id = ${facultyMemberId}
+      AND e.acad_year_be = ANY(${years}::int[])
+    GROUP BY e.acad_year_be
+  `;
+  if (rows.length === 0) return null;
+
+  const byYear: Record<string, number | null> = {};
+  let totalResponses = 0;
+  let weighted = 0;
+  let weightedResponses = 0;
+  for (const row of rows) {
+    byYear[String(row.acad_year_be)] = row.rating_avg;
+    const responses = Number(row.responses);
+    totalResponses += responses;
+    if (row.rating_avg !== null) {
+      weighted += row.rating_avg * responses;
+      weightedResponses += responses;
+    }
+  }
+
+  const classified = classifyTalent(byYear, years, TALENT_DEFAULT_THRESHOLD);
+  return {
+    methodologyVersion: TEACHING_TALENT_METHODOLOGY_VERSION,
+    years,
+    windowComplete,
+    isTalent: windowComplete && classified.isTalent,
+    yearsWithData: classified.yearsWithData,
+    minYearRating: classified.minYearRating,
+    overallRating: weightedResponses > 0 ? weighted / weightedResponses : null,
+    totalResponses,
+    threshold: TALENT_DEFAULT_THRESHOLD,
   };
 }

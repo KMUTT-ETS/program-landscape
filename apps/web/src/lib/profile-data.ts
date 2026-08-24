@@ -13,7 +13,7 @@
 // profile page renders graceful "no record yet" placeholders rather
 // than fabricating content.
 
-import { Prisma, prisma } from '@kku/db';
+import { Prisma, prisma, teachingTalentForFacultyMember } from '@kku/db';
 import { EXPERTISE_NARRATIVE_VERSION } from '@kku/shared';
 import type {
   AuthorName,
@@ -159,6 +159,7 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
       curriculum: [],
       publications: [],
       teaching: null,
+      talent: null,
       cachedNarrative,
     };
   }
@@ -296,10 +297,12 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
 
   const research = summariseResearch(publications);
   const basic = buildBasicInfo(user, member, education, avatarUrl);
-  const teaching = await summariseTeaching({
-    id: member.id,
-    kkuEmail: member.kkuEmail,
-  });
+  // Both read the evaluation/registrar cubes for this one person; run
+  // them together rather than serially.
+  const [teaching, talent] = await Promise.all([
+    summariseTeaching({ id: member.id, kkuEmail: member.kkuEmail }),
+    teachingTalentForFacultyMember(member.id),
+  ]);
 
   return {
     hasFacultyMemberRecord: true,
@@ -309,6 +312,7 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
     curriculum,
     publications,
     teaching,
+    talent,
     cachedNarrative,
   };
 }

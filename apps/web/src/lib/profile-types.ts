@@ -4,6 +4,13 @@
 // Prisma + @kku/db barrel — the latter pulls `node:crypto`, which
 // webpack can't bundle for the browser.
 
+// `import type` only — erased at compile time, so the barrel never
+// reaches the browser bundle. Re-declaring the shape locally would risk
+// it drifting from the query that produces it.
+import type { TeachingTalentStamp } from '@kku/db';
+
+export type { TeachingTalentStamp };
+
 export type FacultyRankCode =
   | 'PROF'
   | 'ASSOC_PROF'
@@ -197,6 +204,12 @@ export interface ProfileData {
    *  when the user is unmatched to a FacultyMember — same posture as
    *  research/curriculum. */
   teaching: TeachingProfile | null;
+  /** Teaching and Learning Talent verdict — drives the rubber stamp on the
+   *  name panel. Null when the user has no FacultyMember record or no
+   *  evaluations in the assessment window at all ("no evidence" is not the
+   *  same claim as "assessed and did not qualify"). `isTalent` false means
+   *  assessed but not qualifying; the stamp renders for neither. */
+  talent: TeachingTalentStamp | null;
   /** Pre-computed AI expertise summary, when one has been generated.
    *  Null when never generated — the client component auto-fires the
    *  generation request on first mount in that case. */

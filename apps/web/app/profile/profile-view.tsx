@@ -86,6 +86,10 @@ const T = {
     coursesLabel: 'รายวิชา',
     languageToggle: 'EN',
     languageToggleAria: 'เปลี่ยนเป็นภาษาอังกฤษ',
+    talentStampCaption: (threshold: string) =>
+      `ได้คะแนนประเมินการสอนจากนักศึกษาไม่ต่ำกว่า ${threshold} ทุกปีในสามปีการศึกษาที่ผ่านมา`,
+    talentStampTooltip: (threshold: string, window: string) =>
+      `Teaching and Learning Talent — คะแนนประเมินเฉลี่ยถ่วงน้ำหนักไม่ต่ำกว่า ${threshold} ทุกปีในช่วง ${window}`,
   },
   en: {
     pageTitle: 'My profile',
@@ -137,6 +141,10 @@ const T = {
     coursesLabel: 'courses',
     languageToggle: 'TH',
     languageToggleAria: 'Switch to Thai',
+    talentStampCaption: (threshold: string) =>
+      `Rated ${threshold} or above by students in every one of the last three completed academic years.`,
+    talentStampTooltip: (threshold: string, window: string) =>
+      `Teaching and Learning Talent — a respondent-weighted evaluation score of at least ${threshold} in every year of ${window}`,
   },
 } as const;
 
@@ -227,6 +235,7 @@ export function ProfileView({
         scopusAuthorId={profile.basic.scopusAuthorId}
         openalexAuthorId={profile.basic.openalexAuthorId}
         avatarUrl={profile.basic.avatarUrl}
+        talent={profile.talent}
         t={t}
         publicMode={publicMode}
       />
@@ -297,6 +306,7 @@ function ProfileHero({
   scopusAuthorId,
   openalexAuthorId,
   avatarUrl,
+  talent,
   t,
   publicMode = false,
 }: {
@@ -309,6 +319,7 @@ function ProfileHero({
   scopusAuthorId: string | null;
   openalexAuthorId: string | null;
   avatarUrl: string | null;
+  talent: ProfileData['talent'];
   t: (typeof T)[Lang];
   publicMode?: boolean;
 }) {
@@ -512,9 +523,57 @@ function ProfileHero({
               </>
             )}
           </dl>
+
+          {talent?.isTalent && <TalentStamp talent={talent} t={t} />}
         </div>
       </div>
     </Card>
+  );
+}
+
+// Rubber-stamp recognition for a Teaching and Learning Talent: someone
+// whose student-evaluation score cleared the bar in EVERY one of the last
+// three completed academic years. Rendered only when earned — there is no
+// "not yet" state, because a blank space says nothing about a person while
+// a grey stamp would.
+//
+// Visual anatomy deliberately mirrors ModernityStamp in
+// apps/web/app/benchmarking/programs/[id]/page.tsx (rotated, double-ruled,
+// star eyebrow). Kept as a separate component rather than extracted into
+// @kku/ui: the two stamps say different kinds of thing and may well
+// diverge, and a shared abstraction over two instances would be premature.
+function TalentStamp({
+  talent,
+  t,
+}: {
+  talent: NonNullable<ProfileData['talent']>;
+  t: (typeof T)[Lang];
+}) {
+  // Not `window` — that shadows the global in a client component.
+  const windowLabel =
+    talent.years.length > 0
+      ? `BE ${talent.years[0]}\u2013${talent.years[talent.years.length - 1]}`
+      : '';
+  return (
+    <div className="mt-5 flex items-center gap-3 border-t border-border-subtle pt-4">
+      <div
+        className="relative inline-flex shrink-0 -rotate-[8deg] select-none flex-col items-center rounded-xl border-[3px] border-current px-4 py-2 text-success ring-1 ring-inset ring-current"
+        title={t.talentStampTooltip(talent.threshold.toFixed(2), windowLabel)}
+      >
+        <span className="text-[8px] font-bold uppercase tracking-[0.3em] opacity-70">
+          ★ Teaching ★
+        </span>
+        <span className="text-xl font-black uppercase leading-none tracking-wider">
+          T&amp;L Talent
+        </span>
+        <span className="mt-0.5 font-tabular text-[8px] font-bold uppercase tracking-[0.25em] opacity-70">
+          {windowLabel}
+        </span>
+      </div>
+      <p className="text-xs leading-relaxed text-text-secondary">
+        {t.talentStampCaption(talent.threshold.toFixed(2))}
+      </p>
+    </div>
   );
 }
 
