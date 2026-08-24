@@ -1,3 +1,9 @@
+/* eslint-disable no-restricted-syntax -- These are fixed SVG illustrations with a
+   deliberately theme-independent palette: each thumb renders onto a constant paper
+   background and must look identical in light and dark mode, so the design tokens
+   (which follow the theme) are the wrong tool here. Applies to PALETTE and the
+   per-thumb heat scales only; real UI in this app uses tokens. */
+
 // Hand-stylised SVG thumbnails for the four Staff dashboard tiles.
 // 240×120 viewBox = 2:1 — matches the Education hub aspect ratio.
 
