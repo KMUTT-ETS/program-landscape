@@ -38,7 +38,7 @@ const ENTRIES: ChangelogEntry[] = [
       'This dashboard counts every evaluated instructor — 1,695 of them — where Teaching evaluations shows only the 1,130 whose courses are mapped to a program. A third of the teaching roster was invisible to that view; it is not invisible here.',
       'Export to Excel: the qualifying staff with faculty, academic rank, first and last name, email and overall score, ready for HR, awards and development programmes.',
       'The page reports its own coverage rather than hiding it: 271 teachers were evaluated but match no HR record (98 of whom would qualify), and a further body of evaluation rows is credited to no identifiable person. They are listed as a reconciliation worklist on the page and in the export, so the gap can be fixed at source.',
-      'All semesters count, including summer and special terms, and every score is weighted by how many students answered.',
+      'All semesters count, including summer and special terms, and every score is weighted by how many responses it rests on.',
     ],
   },
   {
