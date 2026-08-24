@@ -117,12 +117,25 @@ export function buildTalentWorkbook(
   // The reconciliation worklist. These teachers were evaluated but have no
   // HR record, so they cannot be named or exported as talents. Fixing this
   // means adding them to the kku-hr roster, not editing this dashboard.
+  //
+  // 'Responses', NOT 'Respondents': the underlying figure is
+  // SUM(respondent_count) over evaluation_response_summaries, whose
+  // natural key includes question_id_registrar — one row per (year,
+  // semester, class, QUESTION, instructor). It counts question-answers,
+  // not students. Measured live: the top instructor has 1,755 rows across
+  // 63 classes and 29 distinct questions, summing to 175,320. A column
+  // headed 'Respondents' reading 175,320 for one lecturer would be read as
+  // students and is indefensible. The About sheet defines the term; the
+  // arithmetic is unchanged.
   const unmatchedRows: Array<Array<string | number>> = [
     [
       'Email',
+      // 'class owner' is load-bearing, not decoration — see the About
+      // sheet's 'Populations' row. This column is the faculty that owned
+      // the CLASS, which is not necessarily the teacher's home faculty.
       'Faculty (class owner)',
       ...years.map((y) => `BE ${y}`),
-      'Respondents',
+      'Responses',
       'Overall score',
       'Would qualify',
     ],
@@ -181,6 +194,16 @@ export function buildTalentWorkbook(
     ['Threshold', threshold],
     ['Semesters included', 'All (1, 2, summer and special terms)'],
     ['Faculty filter', facultyFilterLabel(opts.facultyName)],
+    [
+      'Responses',
+      'Individual answers to evaluation questions, not students — a class evaluated on 29 questions contributes 29 responses per student.',
+    ],
+    [
+      // The two counts below are NOT measured the same way, and printed
+      // adjacently they invite the reader to compare them directly.
+      'Populations',
+      'Instructors assessed are grouped by their HOME faculty, so all of their teaching counts. Teachers with no HR record are grouped by the faculty that owned the CLASS, so under a faculty filter only that faculty’s classes count. The two rows below are therefore not directly comparable.',
+    ],
     ['Instructors assessed', result.rows.length],
     ['Talents exported', talents.length],
     ['Evaluated teachers with no HR record', unmatched.teachers.length],

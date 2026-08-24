@@ -191,7 +191,9 @@ describe('buildTalentWorkbook', () => {
       'BE 2566',
       'BE 2567',
       'BE 2568',
-      'Respondents',
+      // 'Responses', not 'Respondents' — the figure counts question-answers,
+      // not students. The About sheet defines it.
+      'Responses',
       'Overall score',
       'Would qualify',
     ]);

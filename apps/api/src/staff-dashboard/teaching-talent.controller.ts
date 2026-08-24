@@ -68,9 +68,61 @@ type TalentExportBody = z.infer<typeof TalentExportSchema>;
 //     Anyone above PROGRAM_USER therefore does receive those addresses.
 // ────────────────────────────────────────────────────────────────────
 
+interface ResolvedFacultyScope {
+  facultyName: string[];
+  /** True only when the clamp was a genuine pass-through. */
+  unclamped: boolean;
+}
+
 @Controller('/staff/teaching-talent')
 export class TeachingTalentController {
   constructor(private readonly talent: TeachingTalentService) {}
+
+  /**
+   * Clamp to the caller's grants, then honour their own faculty pick
+   * WITHIN that clamp.
+   *
+   * `clampFacultyNameFilter` REPLACES the requested list with every
+   * faculty the caller is granted. For a dean with a single grant that is
+   * invisible, but for anyone holding two or more it silently disables the
+   * page's faculty multi-select: they pick one faculty, the URL changes,
+   * and the table does not. Intersecting the request with the clamp
+   * restores the control.
+   *
+   * Safe by construction: every element of the intersection is taken from
+   * the CLAMPED set, so this can only ever narrow it, never widen it — no
+   * posted value can reach a faculty the caller was not already granted.
+   *
+   * An empty intersection means they asked for a faculty they cannot see.
+   * That falls back to the full clamped set rather than blanking the page:
+   * showing what they CAN see is the honest answer to an out-of-scope
+   * request, and the `scope: 'scoped'` label already says it is clamped.
+   *
+   * Used by BOTH routes so the page and the exported file always describe
+   * the same population.
+   */
+  private async resolveFacultyScope(
+    requested: string[],
+    user: SessionUser,
+  ): Promise<ResolvedFacultyScope | null> {
+    const filter = { facultyName: requested };
+    const clamped = await clampFacultyNameFilter(filter, user);
+    if (clamped === null) return null;
+    // Pass-through = unclamped. clampFacultyNameFilter's 'all' branch is
+    // `return filter`; every clamped branch builds a new object. The role
+    // check alone would mislabel a FACULTY_USER holding a UNIVERSITY_USER
+    // UserScope grant as clamped.
+    if (clamped === filter) return { facultyName: requested, unclamped: true };
+    if (requested.length === 0) {
+      return { facultyName: clamped.facultyName, unclamped: false };
+    }
+    const granted = new Set(clamped.facultyName);
+    const intersection = requested.filter((name) => granted.has(name));
+    return {
+      facultyName: intersection.length > 0 ? intersection : clamped.facultyName,
+      unclamped: false,
+    };
+  }
 
   @Get()
   @Authorized('institution:read:dashboard')
@@ -109,8 +161,8 @@ export class TeachingTalentController {
     // clamped roster must never be labelled university-wide on a
     // Council-facing surface. 'all' only when the clamp was a genuine
     // pass-through.
-    const clamped = await clampFacultyNameFilter(q, user);
-    if (clamped === null) {
+    const scope = await this.resolveFacultyScope(q.facultyName, user);
+    if (scope === null) {
       // No grants resolve — return an honest empty rather than everything.
       return {
         ...(await this.talent.roster({ facultyName: ['__none__'] }, { includeUnmatched: true })),
@@ -118,21 +170,25 @@ export class TeachingTalentController {
       };
     }
     const result = await this.talent.roster(
-      { facultyName: clamped.facultyName },
+      { facultyName: scope.facultyName },
       { includeUnmatched: true },
     );
-    // Pass-through = unclamped. Either the role sees everything, or
-    // clampFacultyNameFilter handed back the very object it was given
-    // (its 'all' branch is `return filter`; every clamped branch builds a
-    // new object). The role check alone would mislabel a FACULTY_USER who
-    // holds a UNIVERSITY_USER UserScope grant as clamped.
-    const unclamped = seesAllScopes(user.role) || clamped === q;
+    const unclamped = seesAllScopes(user.role) || scope.unclamped;
     return { ...result, scope: unclamped ? ('all' as const) : ('scoped' as const) };
   }
 
-  // POST, not GET: the AuditLogInterceptor records request.body, so the
-  // audit row captures exactly which filter and threshold produced the
-  // file. Same posture as POST /programs/:id/export-detail-pdf.
+  // POST, not GET: AuditLogInterceptor persists the redacted request BODY,
+  // so the audit row records the faculty filter and threshold the caller
+  // REQUESTED. Same posture as POST /programs/:id/export-detail-pdf.
+  //
+  // Precisely what that row does and does not prove: it does not record
+  // the EFFECTIVE scope. A FACULTY_USER posts `facultyName: []`, gets
+  // clamped to their grants, and the row still reads `[]` — indistinguishable
+  // from an unrestricted export by a university-wide account. The effective
+  // scope is the caller's grants at the time of the request; reconstructing
+  // it means reading their UserScope rows alongside this row. Logging it
+  // directly would mean re-plumbing the shared interceptor to see handler
+  // output, which is out of scope here.
   @Post('export')
   @Authorized('institution:read:dashboard')
   @AuditLog({ action: 'export.teaching_talent', entityType: 'StaffExport' })
@@ -145,8 +201,10 @@ export class TeachingTalentController {
       // A single-row talent export has no use, and the button is hidden.
       throw new ForbiddenException('Talent export requires faculty scope');
     }
-    const clamped = await clampFacultyNameFilter({ facultyName: body.facultyName }, user);
-    const facultyName = clamped === null ? ['__none__'] : clamped.facultyName;
+    // Same resolution as the GET route, so the file describes exactly the
+    // population the page showed.
+    const scope = await this.resolveFacultyScope(body.facultyName, user);
+    const facultyName = scope === null ? ['__none__'] : scope.facultyName;
     return this.talent.export({ facultyName, threshold: body.threshold });
   }
 }

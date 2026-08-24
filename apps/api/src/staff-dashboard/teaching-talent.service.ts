@@ -42,9 +42,15 @@ export class TeachingTalentService {
       threshold: args.threshold,
       facultyName: args.facultyName,
     });
-    // rowCount counts talents, not spreadsheet rows — it is what the audit
-    // log and the About sheet both report. Reuses the workbook's own
-    // selection so the count can never disagree with the file's contents.
+    // rowCount counts talents, not spreadsheet rows — the same number the
+    // About sheet reports as 'Talents exported'. It does NOT reach the
+    // audit log: AuditLogInterceptor persists the redacted request body
+    // only and never sees a handler's return value.
+    //
+    // This calls selectTalents a second time (buildTalentWorkbook ran it
+    // to fill the sheet); the cost is one pass over an in-memory roster,
+    // and sharing the one predicate is what stops the count and the file
+    // from ever disagreeing.
     return {
       filename: talentWorkbookFilename(result.years, args.threshold),
       base64: buffer.toString('base64'),
