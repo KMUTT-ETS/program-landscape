@@ -24,9 +24,15 @@ export const TALENT_WINDOW_YEARS = 3;
 
 /** Round to the 2 decimals the UI prints. Talent comparisons run on this
  *  value, never on the raw float — a printed "4.00" beside a missing
- *  badge is not explainable to a dean. */
+ *  badge is not explainable to a dean.
+ *
+ *  Defined via toFixed because the UI prints with toFixed(2): this
+ *  function's whole job is to compare on the value the reader SEES.
+ *  Math.round(v * 100) / 100 is not equivalent — it disagrees at
+ *  4.005 (4.01 vs the printed 4.00) — and "more correct rounding"
+ *  would be the wrong goal here. */
 export function displayRating(value: number): number {
-  return Math.round(value * 100) / 100;
+  return Number(value.toFixed(2));
 }
 
 /**
@@ -73,14 +79,21 @@ export function classifyTalent(
   years: number[],
   threshold: number,
 ): TalentClassification {
+  // Dedupe first: real call sites always pass years from
+  // resolveTalentYears() (already deduped), but this function is
+  // exported to three planned call sites. Without this, a duplicated
+  // year (e.g. [2566, 2566, 2568] when 2567 is genuinely missing) would
+  // let `present.length` reach TALENT_WINDOW_YEARS on only two distinct
+  // years, forging a complete window and a false isTalent: true.
+  const windowYears = [...new Set(years)];
   const present: number[] = [];
-  for (const year of years) {
+  for (const year of windowYears) {
     const value = byYear[String(year)];
     if (value !== null && value !== undefined) present.push(displayRating(value));
   }
   const minYearRating = present.length > 0 ? Math.min(...present) : null;
   const isTalent =
-    years.length === TALENT_WINDOW_YEARS &&
+    windowYears.length === TALENT_WINDOW_YEARS &&
     present.length === TALENT_WINDOW_YEARS &&
     minYearRating !== null &&
     minYearRating >= threshold;
@@ -98,5 +111,6 @@ export function classifyTalent(
 export function splitPersonName(fullName: string): { first: string; last: string } {
   const tokens = fullName.trim().split(/\s+/).filter((t) => t.length > 0);
   if (tokens.length === 0) return { first: '', last: '' };
+  // Safe: the length check above guarantees at least one token exists.
   return { first: tokens[0]!, last: tokens.slice(1).join(' ') };
 }

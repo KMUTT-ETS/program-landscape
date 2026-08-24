@@ -3,6 +3,7 @@ import {
   TALENT_DEFAULT_THRESHOLD,
   TALENT_WINDOW_YEARS,
   classifyTalent,
+  displayRating,
   resolveTalentYears,
   splitPersonName,
 } from '../src/teaching-talent';
@@ -117,6 +118,20 @@ describe('classifyTalent', () => {
     const r = classifyTalent({}, years, 4.0);
     expect(r.minYearRating).toBeNull();
     expect(r.isTalent).toBe(false);
+  });
+
+  it('does not let a duplicated year forge a complete window', () => {
+    const r = classifyTalent({ '2566': 4.9, '2568': 4.9 }, [2566, 2566, 2568], 4.0);
+    expect(r.isTalent).toBe(false);
+    expect(r.yearsWithData).toBe(2);
+  });
+});
+
+describe('displayRating', () => {
+  it('agrees with the toFixed(2) the UI prints, including at 4.005', () => {
+    for (const v of [4.005, 4.145, 3.995, 4.245, 1.005]) {
+      expect(displayRating(v).toFixed(2)).toBe(v.toFixed(2));
+    }
   });
 });
 
