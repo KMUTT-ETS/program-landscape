@@ -43,9 +43,13 @@ export default async function TeachingTalentPage({
   return (
     <AuthedAppShell user={user}>
       <StaffBackLink />
+      {/* The subtitle describes the METHOD, not the coverage: a faculty-
+          scoped reader sees only their own faculties, so it must not
+          promise that every KKU instructor is on the page. The client
+          marks a scoped roster explicitly beside the KPI strip. */}
       <PageHeader
         title="Teaching and learning talent"
-        subtitle="Instructors students rate highly year after year. A talent cleared the threshold in every one of the last three completed academic years — sustained quality, not one good semester. Every evaluated instructor is included, whether or not their courses are mapped to a curriculum."
+        subtitle="Instructors students rate highly year after year. A talent cleared the threshold in every one of the last three completed academic years — sustained quality, not one good semester. Curriculum mapping does not gate this list: an instructor is included on the strength of their evaluations, whether or not their courses are mapped to a curriculum."
       />
       {res.ok ? (
         <TeachingTalentClient

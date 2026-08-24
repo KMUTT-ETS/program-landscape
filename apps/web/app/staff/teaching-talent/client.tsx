@@ -15,7 +15,7 @@ import { DrillDownPivot, type DrillColumn, type DrillRow } from '../drill-down-p
 
 const THRESHOLDS = [4, 4.25, 4.5, 4.75] as const;
 /** Mirrors TALENT_WINDOW_YEARS in @kku/db. Duplicated for the same reason
- *  isTalent() below is: importing from @kku/db in a client component pulls
+ *  qualifies() below is: importing from @kku/db in a client component pulls
  *  a barrel with no exports map that reaches node:crypto. */
 const WINDOW_YEARS = 3;
 
@@ -66,26 +66,32 @@ export interface TalentResponse {
   scope?: 'own' | 'scoped' | 'all' | 'none';
 }
 
-/** Mirrors classifyTalent() in @kku/db — compare on the displayed value.
- *  (Duplicated deliberately: @kku/shared and @kku/db have no exports map,
- *  so a runtime import from a client component pulls a node:crypto barrel
- *  and breaks the build. Same posture as apps/web/src/lib/format-cohort.ts.)
+/**
+ * Apply the threshold to a row the server already classified.
  *
- *  The rounding is `Number(v.toFixed(2))`, exactly as displayRating() does
- *  it — NOT Math.round(v * 100) / 100, which disagrees at 4.005 and would
- *  put an unbadged row next to a printed "4.00".
- *
- *  The dedupe mirrors classifyTalent() too: a duplicated year would let a
- *  two-distinct-year list forge a complete window. */
-function isTalent(byYear: Record<string, YearCell>, years: number[], threshold: number): boolean {
-  const ys = [...new Set(years)];
-  if (ys.length !== WINDOW_YEARS) return false;
-  for (const year of ys) {
-    const rating = byYear[String(year)]?.ratingAvg;
-    if (rating === null || rating === undefined) return false;
-    if (Number(rating.toFixed(2)) < threshold) return false;
-  }
-  return true;
+ * This page does NOT re-implement the talent rule. `classifyTalent()` in
+ * @kku/db already walked the window and wrote its verdict into three
+ * threshold-independent fields that ride on every row:
+ *   - `windowComplete` — the window has all WINDOW_YEARS distinct years
+ *   - `yearsWithData`  — how many of them this person actually scored in
+ *   - `minYearRating`  — the minimum of those scores, ALREADY rounded to
+ *                        the 2 decimals the UI prints (displayRating)
+ * Since `min(rounded) >= t` is exactly `every(rounded) >= t`, comparing
+ * the stored minimum reproduces the server's verdict at any threshold —
+ * with no duplicated rounding, dedupe or window logic to drift out of
+ * step with the export.
+ */
+function qualifies(
+  row: { yearsWithData: number; minYearRating: number | null },
+  windowComplete: boolean,
+  threshold: number,
+): boolean {
+  return (
+    windowComplete &&
+    row.yearsWithData === WINDOW_YEARS &&
+    row.minYearRating !== null &&
+    row.minYearRating >= threshold
+  );
 }
 
 function weightedMean(values: Array<{ rating: number | null; respondents: number }>): number | null {
@@ -114,8 +120,10 @@ export function TeachingTalentClient({
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState<string | null>(null);
 
-  const { years, rows, unmatched } = data;
+  const { years, rows, unmatched, windowComplete } = data;
   const ownScope = data.scope === 'own';
+  const facultyScoped = data.scope === 'scoped';
+  const noGrants = data.scope === 'none';
 
   const push = (next: { faculty?: string[]; threshold?: number; talentsOnly?: boolean }) => {
     const params = new URLSearchParams();
@@ -128,17 +136,17 @@ export function TeachingTalentClient({
 
   const talentIds = React.useMemo(() => {
     const set = new Set<string>();
-    for (const r of rows) if (isTalent(r.byYear, years, threshold)) set.add(r.facultyMemberId);
+    for (const r of rows) if (qualifies(r, windowComplete, threshold)) set.add(r.facultyMemberId);
     return set;
-  }, [rows, years, threshold]);
+  }, [rows, windowComplete, threshold]);
 
   const eligibleCount = React.useMemo(
     () => rows.filter((r) => r.yearsWithData === WINDOW_YEARS).length,
     [rows],
   );
   const unmatchedQualifying = React.useMemo(
-    () => unmatched.teachers.filter((t) => isTalent(t.byYear, years, threshold)).length,
-    [unmatched.teachers, years, threshold],
+    () => unmatched.teachers.filter((t) => qualifies(t, windowComplete, threshold)).length,
+    [unmatched.teachers, windowComplete, threshold],
   );
 
   const facultyOptions = React.useMemo(
@@ -149,13 +157,41 @@ export function TeachingTalentClient({
   const columns: DrillColumn[] = React.useMemo(
     () => [
       { key: 'overall', label: 'Overall', format: 'decimal2' },
-      { key: 'respondents', label: 'Respondents', format: 'int' },
+      // "Responses", not "Respondents": the underlying sum counts one row
+      // per evaluation QUESTION, so it is answers, not students. Defined
+      // in the methodology footnote at the bottom of the page.
+      { key: 'respondents', label: 'Responses', format: 'int' },
       ...years.map((y): DrillColumn => ({ key: `y${y}`, label: `BE ${y}`, format: 'decimal2' })),
     ],
     [years],
   );
 
   const drillRows: DrillRow[] = React.useMemo(() => {
+    const toMemberRow = (m: InstructorRow): DrillRow => {
+      const metrics: DrillRow['metrics'] = {
+        overall: m.overallRating,
+        respondents: m.totalRespondents,
+      };
+      for (const y of years) metrics[`y${y}`] = m.byYear[String(y)]?.ratingAvg ?? null;
+      const talent = talentIds.has(m.facultyMemberId);
+      return {
+        label: `${RANK_ABBREV_TH[m.rank] ?? ''} ${m.nameTh}`.trim(),
+        emphasis: talent ? 'success' : undefined,
+        badge: talent
+          ? { text: 'Talent', tone: 'success' }
+          : m.yearsWithData < WINDOW_YEARS
+            ? { text: `${m.yearsWithData}/${WINDOW_YEARS} years`, tone: 'muted' }
+            : undefined,
+        metrics,
+      };
+    };
+
+    // On the own-row path there is exactly one person, so a faculty header
+    // above them would state a faculty average and a "1 talent / 1 eligible"
+    // rate computed from a single row. Render the person alone instead —
+    // no faculty-level claim is made from n=1.
+    if (ownScope) return rows.map(toMemberRow);
+
     // Group EVERY member, filtered or not. The faculty row's metrics and
     // badge must describe the whole faculty — computing them from the
     // talents-only subset would make the badge read a fake "N/N" and turn
@@ -196,24 +232,7 @@ export function TeachingTalentClient({
           children: members
             .filter((m) => !talentsOnly || talentIds.has(m.facultyMemberId))
             .sort((a, b) => (b.overallRating ?? 0) - (a.overallRating ?? 0))
-            .map((m): DrillRow => {
-              const metrics: DrillRow['metrics'] = {
-                overall: m.overallRating,
-                respondents: m.totalRespondents,
-              };
-              for (const y of years) metrics[`y${y}`] = m.byYear[String(y)]?.ratingAvg ?? null;
-              const talent = talentIds.has(m.facultyMemberId);
-              return {
-                label: `${RANK_ABBREV_TH[m.rank] ?? ''} ${m.nameTh}`.trim(),
-                emphasis: talent ? 'success' : undefined,
-                badge: talent
-                  ? { text: 'Talent', tone: 'success' }
-                  : m.yearsWithData < WINDOW_YEARS
-                    ? { text: `${m.yearsWithData}/${WINDOW_YEARS} years`, tone: 'muted' }
-                    : undefined,
-                metrics,
-              };
-            }),
+            .map(toMemberRow),
         };
       })
       // Deliberate: under "Talents only", a faculty with no talent has
@@ -221,7 +240,7 @@ export function TeachingTalentClient({
       // header. With the toggle off `children` is always non-empty, so
       // this never hides a faculty from the unfiltered view.
       .filter((row) => row.children.length > 0);
-  }, [rows, years, talentIds, talentsOnly]);
+  }, [rows, years, talentIds, talentsOnly, ownScope]);
 
   async function runExport() {
     setExporting(true);
@@ -254,9 +273,26 @@ export function TeachingTalentClient({
   const windowLabel =
     years.length > 0 ? `BE ${years[0]}–${years[years.length - 1]}` : 'no complete years';
 
+  // A roster of zeroes looks identical to "this faculty has no talents",
+  // so say what actually happened. Wording matches the export's About
+  // sheet for the same state (facultyFilterLabel in
+  // apps/api/src/staff-dashboard/teaching-talent-workbook.ts).
+  if (noGrants) {
+    return (
+      <Card>
+        <p className="text-sm font-medium">No faculty grants on your account</p>
+        <p className="mt-1 text-xs text-text-secondary">
+          Your account has no faculty grants, so there is no roster to show — this is an access
+          gap, not a finding about anyone&apos;s teaching. Ask an administrator to grant you a
+          faculty scope, then reload this page.
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {!data.windowComplete && (
+      {!windowComplete && (
         <Card>
           <p className="text-xs text-warning">
             The talent rule needs {WINDOW_YEARS} completed academic years. Only {years.length}{' '}
@@ -345,6 +381,16 @@ export function TeachingTalentClient({
         {exportError && <p className="mt-2 text-xs text-danger">{exportError}</p>}
       </Card>
 
+      {/* The API clamps a scoped user's roster to their granted faculties.
+          Say so beside the counts — a dean must never read a clamped
+          "Instructors assessed" as a university-wide figure. */}
+      {facultyScoped && (
+        <p className="text-xs text-text-tertiary">
+          Showing your faculty only — every count and average below covers your granted
+          faculties, not the whole university.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi
           label="Talents"
@@ -368,7 +414,7 @@ export function TeachingTalentClient({
         <DrillDownPivot
           rows={drillRows}
           columns={columns}
-          rowHeaderLabel="Faculty / staff"
+          rowHeaderLabel={ownScope ? 'Staff' : 'Faculty / staff'}
           maxDepth={2}
         />
       </Card>
@@ -389,12 +435,22 @@ export function TeachingTalentClient({
             {unmatchedQualifying > 0 && `, ${unmatchedQualifying} of whom would qualify`}
           </button>
           <p className="mt-2 text-xs text-text-secondary">
-            {rows.length} evaluated instructors are in the table above. A further{' '}
+            {rows.length} evaluated instructors were assessed. A further{' '}
             {unmatched.teachers.length} teachers were evaluated but match no HR record, so they
             cannot be named or exported.{' '}
             {unmatched.unattributableRowCount.toLocaleString('en-US')} evaluation rows are
             credited to no identifiable person. Fixing this means adding these people to the
             HR-sourced roster (the <code>kku-hr</code> connector), not editing this dashboard.
+            {faculty.length > 0 && (
+              <>
+                {' '}
+                Note that under a faculty filter the two lists are not directly comparable: a
+                named instructor is matched on their home faculty, so their scores cover all
+                their teaching, whereas these unmatched teachers are matched on the class&apos;s
+                owning faculty, so their scores cover only classes owned by the faculty you
+                filtered to.
+              </>
+            )}
           </p>
           {coverageOpen && (
             <div className="mt-3 overflow-x-auto">
@@ -408,7 +464,7 @@ export function TeachingTalentClient({
                         BE {y}
                       </th>
                     ))}
-                    <th className="px-2 py-1.5 text-right font-medium">Respondents</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Responses</th>
                     <th className="px-2 py-1.5 text-right font-medium">Overall</th>
                     <th className="px-2 py-1.5 font-medium">Would qualify</th>
                   </tr>
@@ -416,8 +472,8 @@ export function TeachingTalentClient({
                 <tbody>
                   {[...unmatched.teachers]
                     .sort((a, b) => {
-                      const aq = isTalent(a.byYear, years, threshold) ? 1 : 0;
-                      const bq = isTalent(b.byYear, years, threshold) ? 1 : 0;
+                      const aq = qualifies(a, windowComplete, threshold) ? 1 : 0;
+                      const bq = qualifies(b, windowComplete, threshold) ? 1 : 0;
                       return bq - aq || (b.overallRating ?? 0) - (a.overallRating ?? 0);
                     })
                     .map((t) => (
@@ -436,7 +492,7 @@ export function TeachingTalentClient({
                           {t.overallRating?.toFixed(2) ?? '—'}
                         </td>
                         <td className="px-2 py-1">
-                          {isTalent(t.byYear, years, threshold) ? 'yes' : 'no'}
+                          {qualifies(t, windowComplete, threshold) ? 'yes' : 'no'}
                         </td>
                       </tr>
                     ))}
@@ -449,10 +505,12 @@ export function TeachingTalentClient({
 
       <p className="text-xs text-text-tertiary">
         A talent scored {threshold.toFixed(2)} or above in every one of the last {WINDOW_YEARS}{' '}
-        completed academic years ({windowLabel}), across all semesters, respondent-weighted.
-        Grouped by the instructor&apos;s home faculty — curriculum mapping does not gate this
-        list. Methodology {data.methodologyVersion}. For the question-by-question detail behind
-        any rating, see Teaching evaluations.
+        completed academic years ({windowLabel}), across all semesters, weighted by responses.
+        Responses counts individual answers to evaluation questions, not students — a class
+        evaluated on 29 questions contributes 29 responses per student. Grouped by the
+        instructor&apos;s home faculty — curriculum mapping does not gate this list. Methodology{' '}
+        {data.methodologyVersion}. For the question-by-question detail behind any rating, see
+        Teaching evaluations.
       </p>
     </div>
   );
