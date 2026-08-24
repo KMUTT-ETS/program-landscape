@@ -217,6 +217,32 @@ describe('buildTalentWorkbook', () => {
     expect(flat).toContain('34566');
   });
 
+  it('states the three-year rule and flags the shortfall on a thin window', () => {
+    // Only two completed years carry data. classifyTalent badges nobody —
+    // and the About sheet must not imply that nobody cleared the bar over
+    // two years, which is a different and alarming claim.
+    const thin: TeachingTalentResult = {
+      ...FIXTURE,
+      years: [2567, 2568],
+      windowComplete: false,
+      rows: [
+        {
+          ...FIXTURE.rows[0]!,
+          byYear: { '2567': cell(4.6), '2568': cell(4.7) },
+          yearsWithData: 2,
+          minYearRating: 4.6,
+        },
+      ],
+    };
+    const wb = read(buildTalentWorkbook(thin, { threshold: 4.0, facultyName: [] }));
+    const about = wb.rows('About').map((r) => r.join('='));
+    expect(about.join('\n')).toContain('the last 3 completed academic years');
+    expect(about.join('\n')).not.toContain('the last 2 completed academic years');
+    const windowRow = about.find((r) => r.startsWith('Window complete='));
+    expect(windowRow).toContain('no — only 2 of 3 completed years carry data');
+    expect(wb.rows('Talent')).toHaveLength(1); // header only — nobody qualifies
+  });
+
   it('returns header-only sheets rather than throwing when nobody qualifies', () => {
     const wb = read(buildTalentWorkbook(FIXTURE, { threshold: 4.75, facultyName: [] }));
     expect(wb.rows('Talent')).toHaveLength(1);

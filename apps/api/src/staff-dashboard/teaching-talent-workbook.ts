@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import {
+  TALENT_WINDOW_YEARS,
   classifyTalent,
   displayRating,
   splitPersonName,
@@ -34,6 +35,43 @@ function score(value: number | null): number | string {
   return value === null ? '' : displayRating(value);
 }
 
+/** The sentinel the controller passes when a user's grants resolve to
+ *  nothing. It is an internal token; it must never be printed raw on a
+ *  sheet a dean reads. Kept in sync with the controller's clamp branch. */
+const NO_GRANTS_SENTINEL = '__none__';
+
+function facultyFilterLabel(facultyName: string[]): string {
+  if (facultyName.length === 0) return 'All faculties';
+  if (facultyName.every((n) => n === NO_GRANTS_SENTINEL)) {
+    return 'None — your account has no faculty grants';
+  }
+  return facultyName.join(', ');
+}
+
+/**
+ * The single definition of who is in the file.
+ *
+ * Exported because the service also needs the count for its audit payload.
+ * Deriving that count from a second copy of this predicate is exactly where
+ * the page, the file and the log would drift apart — the one thing this
+ * feature promises they never do.
+ *
+ * Returned sorted in sheet order: faculty (Thai collation), then strongest
+ * overall first.
+ */
+export function selectTalents(
+  result: TeachingTalentResult,
+  threshold: number,
+): TeachingTalentResult['rows'] {
+  return result.rows
+    .filter((r) => classifyTalent(ratingsOf(r.byYear), result.years, threshold).isTalent)
+    .sort(
+      (a, b) =>
+        a.facultyName.localeCompare(b.facultyName, 'th') ||
+        (b.overallRating ?? 0) - (a.overallRating ?? 0),
+    );
+}
+
 export function buildTalentWorkbook(
   result: TeachingTalentResult,
   opts: TalentWorkbookOptions,
@@ -44,13 +82,7 @@ export function buildTalentWorkbook(
     years.length > 0 ? `BE ${years[0]}–${years[years.length - 1]}` : 'no complete years';
 
   // ── Sheet 1: Talent ──────────────────────────────────────────────────
-  const talents = result.rows
-    .filter((r) => classifyTalent(ratingsOf(r.byYear), years, threshold).isTalent)
-    .sort(
-      (a, b) =>
-        a.facultyName.localeCompare(b.facultyName, 'th') ||
-        (b.overallRating ?? 0) - (a.overallRating ?? 0),
-    );
+  const talents = selectTalents(result, threshold);
 
   const talentRows: Array<Array<string | number>> = [
     [
@@ -95,19 +127,26 @@ export function buildTalentWorkbook(
       'Would qualify',
     ],
   ];
-  const sortedUnmatched = [...unmatched.teachers].sort((a, b) => {
-    const aq = classifyTalent(ratingsOf(a.byYear), years, threshold).isTalent ? 1 : 0;
-    const bq = classifyTalent(ratingsOf(b.byYear), years, threshold).isTalent ? 1 : 0;
-    return bq - aq || (b.overallRating ?? 0) - (a.overallRating ?? 0);
-  });
-  for (const t of sortedUnmatched) {
+  // Classify once per teacher, then sort and write off the precomputed
+  // flag — a comparator that classifies runs the rule O(n log n) times.
+  const sortedUnmatched = unmatched.teachers
+    .map((teacher) => ({
+      teacher,
+      qualifies: classifyTalent(ratingsOf(teacher.byYear), years, threshold).isTalent,
+    }))
+    .sort(
+      (a, b) =>
+        Number(b.qualifies) - Number(a.qualifies) ||
+        (b.teacher.overallRating ?? 0) - (a.teacher.overallRating ?? 0),
+    );
+  for (const { teacher: t, qualifies } of sortedUnmatched) {
     unmatchedRows.push([
       t.kkuEmail,
       t.facultyName ?? '',
       ...years.map((y) => score(t.byYear[String(y)]?.ratingAvg ?? null)),
       t.totalRespondents,
       score(t.overallRating),
-      classifyTalent(ratingsOf(t.byYear), years, threshold).isTalent ? 'yes' : 'no',
+      qualifies ? 'yes' : 'no',
     ]);
   }
   const unmatchedSheet = XLSX.utils.aoa_to_sheet(unmatchedRows);
@@ -122,13 +161,26 @@ export function buildTalentWorkbook(
     ['Field', 'Value'],
     ['Report', 'KKU Teaching and Learning Talent'],
     [
+      // TALENT_WINDOW_YEARS, never years.length. The rule is always
+      // three years; years.length is how many the DATA supports. On thin
+      // data (0-2 years) interpolating the latter would print "in every
+      // one of the last 2 completed academic years" beside "Talents
+      // exported: 0" — reading as "nobody at KKU cleared this over two
+      // years", which is false. The 'Window complete' row below is where
+      // the shortfall gets stated.
       'Rule',
-      `Student-evaluation score of at least ${threshold.toFixed(2)} in every one of the last ${years.length} completed academic years`,
+      `Student-evaluation score of at least ${threshold.toFixed(2)} in every one of the last ${TALENT_WINDOW_YEARS} completed academic years`,
     ],
     ['Assessment window', windowLabel],
+    [
+      'Window complete',
+      result.windowComplete
+        ? 'yes'
+        : `no — only ${years.length} of ${TALENT_WINDOW_YEARS} completed years carry data; nobody qualifies`,
+    ],
     ['Threshold', threshold],
     ['Semesters included', 'All (1, 2, summer and special terms)'],
-    ['Faculty filter', opts.facultyName.length > 0 ? opts.facultyName.join(', ') : 'All faculties'],
+    ['Faculty filter', facultyFilterLabel(opts.facultyName)],
     ['Instructors assessed', result.rows.length],
     ['Talents exported', talents.length],
     ['Evaluated teachers with no HR record', unmatched.teachers.length],

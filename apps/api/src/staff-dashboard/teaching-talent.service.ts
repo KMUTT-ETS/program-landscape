@@ -2,13 +2,16 @@ import { Injectable } from '@nestjs/common';
 import {
   TALENT_THRESHOLD_OPTIONS,
   TEACHING_TALENT_METHODOLOGY_VERSION,
-  classifyTalent,
   teachingTalentRoster,
   type TeachingTalentFilter,
   type TeachingTalentOptions,
   type TeachingTalentResult,
 } from '@kku/db';
-import { buildTalentWorkbook, talentWorkbookFilename } from './teaching-talent-workbook';
+import {
+  buildTalentWorkbook,
+  selectTalents,
+  talentWorkbookFilename,
+} from './teaching-talent-workbook';
 
 /** Re-exported for the controller's Zod schema. A threshold outside this
  *  list (a crafted `0`) would export the whole roster as "talent". */
@@ -40,19 +43,12 @@ export class TeachingTalentService {
       facultyName: args.facultyName,
     });
     // rowCount counts talents, not spreadsheet rows — it is what the audit
-    // log and the About sheet both report.
-    const rowCount = result.rows.filter(
-      (r) =>
-        classifyTalent(
-          Object.fromEntries(Object.entries(r.byYear).map(([y, c]) => [y, c.ratingAvg])),
-          result.years,
-          args.threshold,
-        ).isTalent,
-    ).length;
+    // log and the About sheet both report. Reuses the workbook's own
+    // selection so the count can never disagree with the file's contents.
     return {
       filename: talentWorkbookFilename(result.years, args.threshold),
       base64: buffer.toString('base64'),
-      rowCount,
+      rowCount: selectTalents(result, args.threshold).length,
       byteSize: buffer.byteLength,
     };
   }
