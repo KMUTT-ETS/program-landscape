@@ -26,6 +26,22 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-08-24',
+    version: 'v1.8.0 · Teaching and learning talent',
+    title:
+      'A new Staff dashboard identifies instructors students rate highly year after year — and, unlike the evaluation dashboard, it covers every evaluated instructor rather than only those whose courses are mapped to a curriculum',
+    audience: ['Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New "Teaching and learning talent" dashboard (Staff → Teaching and learning talent): drill from faculty to individual staff, showing each person’s overall student-evaluation score, how many students answered, and their score in each of the last three completed academic years.',
+      'A talent is someone who scored at or above the chosen bar in EVERY one of those three years — sustained quality, not one good semester. Someone with only two years of evidence is shown with their years and marked "2/3 years", never badged, so a new arrival is never mistaken for an underperformer.',
+      'The bar is adjustable (4.00, 4.25, 4.50, 4.75) because Thai evaluation scores cluster high: at 4.00 the list runs to 1,244 people, at 4.50 to 592, at 4.75 to 139. The filter, the bar and the talents-only toggle all live in the page address, so a particular view can be shared as a link.',
+      'This dashboard counts every evaluated instructor — 1,695 of them — where Teaching evaluations shows only the 1,130 whose courses are mapped to a program. A third of the teaching roster was invisible to that view; it is not invisible here.',
+      'Export to Excel: the qualifying staff with faculty, academic rank, first and last name, email and overall score, ready for HR, awards and development programmes.',
+      'The page reports its own coverage rather than hiding it: 271 teachers were evaluated but match no HR record (98 of whom would qualify), and a further body of evaluation rows is credited to no identifiable person. They are listed as a reconciliation worklist on the page and in the export, so the gap can be fixed at source.',
+      'All semesters count, including summer and special terms, and every score is weighted by how many students answered.',
+    ],
+  },
+  {
     date: '2026-08-17',
     version: 'v1.7.0 · Rebuilt program report, research expertise, honest financial scores',
     title:
