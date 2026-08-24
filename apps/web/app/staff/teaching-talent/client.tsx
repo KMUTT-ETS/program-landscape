@@ -14,6 +14,9 @@ import { MultiSelectField } from '../multi-select';
 import { DrillDownPivot, type DrillColumn, type DrillRow } from '../drill-down-pivot';
 
 const THRESHOLDS = [4, 4.25, 4.5, 4.75] as const;
+/** Mirrors TALENT_WINDOW_YEARS in @kku/db. Duplicated for the same reason
+ *  isTalent() below is: importing from @kku/db in a client component pulls
+ *  a barrel with no exports map that reaches node:crypto. */
 const WINDOW_YEARS = 3;
 
 const RANK_ABBREV_TH: Record<string, string> = {
@@ -60,7 +63,7 @@ export interface TalentResponse {
   windowComplete: boolean;
   rows: InstructorRow[];
   unmatched: { teachers: UnmatchedRow[]; unattributableRowCount: number };
-  scope?: 'own' | 'scoped' | 'full';
+  scope?: 'own' | 'scoped' | 'all' | 'none';
 }
 
 /** Mirrors classifyTalent() in @kku/db — compare on the displayed value.
@@ -70,10 +73,14 @@ export interface TalentResponse {
  *
  *  The rounding is `Number(v.toFixed(2))`, exactly as displayRating() does
  *  it — NOT Math.round(v * 100) / 100, which disagrees at 4.005 and would
- *  put an unbadged row next to a printed "4.00". */
+ *  put an unbadged row next to a printed "4.00".
+ *
+ *  The dedupe mirrors classifyTalent() too: a duplicated year would let a
+ *  two-distinct-year list forge a complete window. */
 function isTalent(byYear: Record<string, YearCell>, years: number[], threshold: number): boolean {
-  if (years.length !== WINDOW_YEARS) return false;
-  for (const year of years) {
+  const ys = [...new Set(years)];
+  if (ys.length !== WINDOW_YEARS) return false;
+  for (const year of ys) {
     const rating = byYear[String(year)]?.ratingAvg;
     if (rating === null || rating === undefined) return false;
     if (Number(rating.toFixed(2)) < threshold) return false;
@@ -149,9 +156,13 @@ export function TeachingTalentClient({
   );
 
   const drillRows: DrillRow[] = React.useMemo(() => {
+    // Group EVERY member, filtered or not. The faculty row's metrics and
+    // badge must describe the whole faculty — computing them from the
+    // talents-only subset would make the badge read a fake "N/N" and turn
+    // the faculty's Overall into the best people's mean. `talentsOnly`
+    // only ever narrows the children.
     const byFaculty = new Map<string, InstructorRow[]>();
     for (const r of rows) {
-      if (talentsOnly && !talentIds.has(r.facultyMemberId)) continue;
       const list = byFaculty.get(r.facultyName) ?? [];
       list.push(r);
       byFaculty.set(r.facultyName, list);
@@ -183,6 +194,7 @@ export function TeachingTalentClient({
           },
           metrics: facultyMetrics,
           children: members
+            .filter((m) => !talentsOnly || talentIds.has(m.facultyMemberId))
             .sort((a, b) => (b.overallRating ?? 0) - (a.overallRating ?? 0))
             .map((m): DrillRow => {
               const metrics: DrillRow['metrics'] = {
@@ -203,7 +215,12 @@ export function TeachingTalentClient({
               };
             }),
         };
-      });
+      })
+      // Deliberate: under "Talents only", a faculty with no talent has
+      // nothing to show, so it is dropped rather than left as a childless
+      // header. With the toggle off `children` is always non-empty, so
+      // this never hides a faculty from the unfiltered view.
+      .filter((row) => row.children.length > 0);
   }, [rows, years, talentIds, talentsOnly]);
 
   async function runExport() {
@@ -295,6 +312,24 @@ export function TeachingTalentClient({
             />
             Talents only
           </label>
+          {/* The faculty dropdown is built from `rows`, which the server has
+              already clamped to the selected faculties — so once a faculty is
+              picked it is the only option left. This is the way back out.
+              Same affordance as /staff/compensation. */}
+          {(faculty.length > 0 || threshold !== 4 || talentsOnly) && (
+            <button
+              type="button"
+              className="rounded border border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
+              onClick={() => {
+                setFaculty([]);
+                setThreshold(4);
+                setTalentsOnly(false);
+                router.push('/staff/teaching-talent');
+              }}
+            >
+              Clear filters
+            </button>
+          )}
           {!ownScope && (
             <button
               type="button"
