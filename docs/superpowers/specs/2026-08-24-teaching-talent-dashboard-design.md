@@ -248,8 +248,11 @@ panel.)
 `includeUnmatched` defaults to **false** — the roster route sets it for every role
 except `PROGRAM_USER`, and the export sets it always.
 
-Three `$queryRaw` calls inside one function:
+Four `$queryRaw` calls inside one function:
 
+0. a `SELECT DISTINCT acad_year_be` that resolves the window before anything can be
+   filtered by it — run globally, never faculty-clamped, so every user sees the same
+   columns;
 1. the `(faculty_member_id × acad_year_be)` rollup for the resolved window, joined
    `evaluation_response_summaries → faculty_members → faculties` — **no
    `program_courses`, no `program_faculties`**;
@@ -472,6 +475,9 @@ The test names that consequence in its failure message.
 - `packages/db/src/teaching-talent.ts`
 - `packages/db/test/teaching-talent.test.ts`
 - `apps/api/src/staff-dashboard/teaching-talent.service.ts`
+- `apps/api/src/staff-dashboard/teaching-talent-workbook.ts` — the workbook builder as a
+  pure function over a `TeachingTalentResult`, so it is testable without a database or
+  an HTTP request
 - `apps/api/src/staff-dashboard/teaching-talent.controller.ts`
 - `apps/api/test/teaching-talent-export.test.ts`
 - `apps/web/app/staff/teaching-talent/page.tsx`
