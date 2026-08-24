@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
   TALENT_DEFAULT_THRESHOLD,
@@ -161,5 +163,33 @@ describe('splitPersonName', () => {
   it('returns two blanks for an empty name', () => {
     expect(splitPersonName('')).toEqual({ first: '', last: '' });
     expect(splitPersonName('   ')).toEqual({ first: '', last: '' });
+  });
+});
+
+describe('population guard', () => {
+  // This is a source-level assertion on purpose. The realistic failure
+  // mode is a future contributor "reusing" the /staff/teaching pivot for
+  // consistency — which joins program_courses and would silently delete
+  // 565 of 1,695 evaluated instructors (33%) from a talent list.
+  const source = readFileSync(
+    join(__dirname, '..', 'src', 'teaching-talent.ts'),
+    'utf8',
+  );
+  // Strip comments so the explanatory prose above (which names the tables)
+  // does not trip the assertion.
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  it('never joins program_courses — that join drops a third of the roster', () => {
+    expect(code).not.toContain('program_courses');
+  });
+
+  it('never joins program_faculties — curriculum mapping must not gate the roster', () => {
+    expect(code).not.toContain('program_faculties');
+  });
+
+  it('gates on real data only', () => {
+    expect(code).toContain('ds.mocked = false');
   });
 });
