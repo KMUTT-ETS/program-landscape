@@ -266,3 +266,46 @@ export function TeachingEvaluationsThumb() {
     </Frame>
   );
 }
+
+export function TeachingTalentThumb() {
+  // Three years of bars per person; the middle person clears the line in
+  // all three, so they carry the star.
+  const people = [
+    { x: 24, bars: [30, 22, 34], star: false },
+    { x: 92, bars: [40, 44, 42], star: true },
+    { x: 160, bars: [20, 34, 16], star: false },
+  ];
+  return (
+    <Frame>
+      <text x={120} y={14} textAnchor="middle" fontSize="9" fontWeight="600" fill={PALETTE.ink} opacity={0.7}>
+        Three years above the bar
+      </text>
+      {/* Threshold line */}
+      <line x1={12} y1={70} x2={228} y2={70} stroke={PALETTE.ink} strokeWidth={0.8} strokeDasharray="3 2" opacity={0.5} />
+      {people.map((p) => (
+        <g key={p.x}>
+          {p.bars.map((h, i) => (
+            <rect
+              key={i}
+              x={p.x + i * 16}
+              y={100 - h}
+              width={12}
+              height={h}
+              rx={2}
+              fill={p.star ? PALETTE.accent : PALETTE.ink}
+              opacity={p.star ? 0.85 : 0.3}
+            />
+          ))}
+          {p.star && (
+            <polygon
+              points="0,-4 1.2,-1.3 4,-1.3 1.7,0.6 2.6,3.6 0,1.8 -2.6,3.6 -1.7,0.6 -4,-1.3 -1.2,-1.3"
+              transform={`translate(${p.x + 22}, 40)`}
+              fill={PALETTE.warm}
+              opacity={0.95}
+            />
+          )}
+        </g>
+      ))}
+    </Frame>
+  );
+}

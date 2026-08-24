@@ -9,7 +9,7 @@ import {
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
-import { Users, BookOpen, Microscope, Wallet, ClipboardList, MessageSquare } from 'lucide-react';
+import { Users, BookOpen, Microscope, Wallet, ClipboardList, MessageSquare, Award } from 'lucide-react';
 // StaffRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
 // The component still lives in ./refresh-bar — the admin page imports
 // it from there.
@@ -20,6 +20,7 @@ import {
   CompensationThumb,
   TeachingWorkloadThumb,
   TeachingEvaluationsThumb,
+  TeachingTalentThumb,
 } from './thumbnails';
 
 export const dynamic = 'force-dynamic';
@@ -83,6 +84,15 @@ const TILES: Array<{
     blurb:
       "What students think of their instructors, from the official course-evaluation survey. Browse every instructor's average rating, then open anyone to see results question by question and course by course. You see your own record (program staff) or your faculty's (faculty leaders).",
     Thumb: TeachingEvaluationsThumb,
+    programAware: true,
+  },
+  {
+    href: '/staff/teaching-talent',
+    icon: Award,
+    title: 'Teaching and learning talent',
+    blurb:
+      'Who students rate highly year after year. A talent cleared the chosen bar in every one of the last three completed academic years — sustained quality, not one good semester. Covers every evaluated instructor, mapped to a curriculum or not, and exports the qualifying list to Excel.',
+    Thumb: TeachingTalentThumb,
     programAware: true,
   },
 ];
