@@ -137,6 +137,7 @@ export interface TalentInstructorRow {
   isActive: boolean;
   overallRating: number | null;
   totalRespondents: number;
+  /** Peak distinct courses in a single window year — NOT distinct across the window. */
   courseCount: number;
   byYear: Record<string, TalentYearCell>;
   yearsWithData: number;
@@ -185,10 +186,40 @@ export interface TeachingTalentOptions {
   includeUnmatched?: boolean;
 }
 
+/**
+ * Faculty-name WHERE fragment, built FRESH at every call site.
+ *
+ * Do not hoist this into a shared `const` and splice the same object into
+ * several `$queryRaw` calls: this repo has an incident on exactly that
+ * pattern — intermittent `syntax error at or near "$1"` from parameter-index
+ * drift in Prisma's SQL builder (see `dashboard-overview.ts:184-189`). The
+ * sibling `evaluations.ts` `scopeClause()` is the house pattern.
+ *
+ * `facultyNameColumn` also has to be per-call because the alias `f` does
+ * NOT mean the same thing everywhere: in the matched query it is the
+ * instructor's HOME faculty (via `faculty_members.faculty_id`), in the
+ * unmatched/unattributable queries it is the CLASS's owning faculty (via
+ * `evaluation_response_summaries.faculty_id`). Naming the column at each
+ * site makes each query state what it clamps on.
+ *
+ * `facultyNameColumn` is a trusted literal written by this module, never
+ * user input — the faculty NAMES are parameterised.
+ */
+function facultyClauseFor(
+  names: string[] | undefined,
+  facultyNameColumn: string,
+): Prisma.Sql {
+  if (!names) return Prisma.empty;
+  return Prisma.sql`AND ${Prisma.raw(facultyNameColumn)} = ANY(${names}::text[])`;
+}
+
 /** Fold (person × year) aggregate rows into one row per person. Shared by
  *  the matched and unmatched paths — the arithmetic is identical, only the
- *  identity columns differ. */
-function foldYearCells(
+ *  identity columns differ.
+ *
+ *  Exported for test: the merge branch (same key, same year, two source
+ *  rows) is only reachable on the unmatched path in production. */
+export function foldYearCells(
   cells: Array<{ key: string; year: number; ratingAvg: number | null; respondents: number }>,
 ): Map<string, { byYear: Record<string, TalentYearCell>; totalRespondents: number }> {
   const out = new Map<string, { byYear: Record<string, TalentYearCell>; totalRespondents: number }>();
@@ -227,7 +258,7 @@ function foldYearCells(
 /** Respondent-weighted mean across a person's year cells. Equals the
  *  row-level weighted mean over the window, because each year cell is
  *  itself a weighted mean over its own rows. */
-function overallFromYears(byYear: Record<string, TalentYearCell>): number | null {
+export function overallFromYears(byYear: Record<string, TalentYearCell>): number | null {
   let weighted = 0;
   let respondents = 0;
   for (const cell of Object.values(byYear)) {
@@ -253,9 +284,6 @@ export async function teachingTalentRoster(
 ): Promise<TeachingTalentResult> {
   const facultyNames =
     filter?.facultyName && filter.facultyName.length > 0 ? filter.facultyName : undefined;
-  const facultyClause = facultyNames
-    ? Prisma.sql`AND f.name_th = ANY(${facultyNames}::text[])`
-    : Prisma.empty;
 
   const { currentAcademicYearBE } = await getAcademicYearContext();
 
@@ -268,6 +296,11 @@ export async function teachingTalentRoster(
     JOIN data_sources ds ON ds.id = ir.data_source_id
     WHERE ds.mocked = false
       AND e.acad_year_be < ${currentAcademicYearBE}
+      -- Explicit lower bound: DISTINCT resolves before LIMIT, so without a
+      -- range predicate a hash-aggregate plan scans the whole table to learn
+      -- three integers. Twelve years is far more history than the 3-year
+      -- window needs, so this can never truncate the answer.
+      AND e.acad_year_be >= ${currentAcademicYearBE - 12}
     ORDER BY e.acad_year_be DESC
     LIMIT 12
   `;
@@ -327,7 +360,7 @@ export async function teachingTalentRoster(
     WHERE ds.mocked = false
       AND e.faculty_member_id IS NOT NULL
       AND e.acad_year_be = ANY(${years}::int[])
-      ${facultyClause}
+      ${facultyClauseFor(facultyNames, 'f.name_th')}
     GROUP BY fm.id, fm.name_th, fm.name_en, fm.rank, fm.kku_email,
              f.id, f.name_th, fm.is_active, e.acad_year_be
     ORDER BY f.name_th, fm.name_th
@@ -393,6 +426,14 @@ export async function teachingTalentRoster(
   // populated independently of faculty_member_id. When the caller is
   // faculty-clamped, the ANY() predicate drops NULL-faculty rows on its
   // own — a scoped user must not see a person who may belong elsewhere.
+  //
+  // Arithmetic consequence of that clamp, worth stating plainly: a matched
+  // instructor keeps ALL their rows no matter which faculty owned the
+  // class (they are clamped on their HOME faculty), whereas an unmatched
+  // teacher is clamped on the CLASS's faculty. So under a faculty filter
+  // the two populations on this page are measured over different
+  // denominators — matched ratings are university-wide per person,
+  // unmatched ratings cover only the filtered faculty's classes.
   const unmatchedCells = await prisma.$queryRaw<
     Array<{
       kku_email: string;
@@ -417,8 +458,9 @@ export async function teachingTalentRoster(
       AND e.faculty_member_id IS NULL
       AND e.kkumail_raw IS NOT NULL
       AND e.acad_year_be = ANY(${years}::int[])
-      ${facultyClause}
+      ${facultyClauseFor(facultyNames, 'f.name_th')}
     GROUP BY lower(trim(e.kkumail_raw)), f.name_th, e.acad_year_be
+    ORDER BY f.name_th, lower(trim(e.kkumail_raw))
   `;
 
   const unmatchedFolded = foldYearCells(
@@ -430,14 +472,29 @@ export async function teachingTalentRoster(
     })),
   );
   // A teacher may appear under two class faculties; show the one that
-  // carries the most respondents.
-  const facultyByEmail = new Map<string, { name: string | null; respondents: number }>();
+  // carries the most respondents. Totals are accumulated ACROSS the
+  // window's years before comparing — comparing single (faculty × year)
+  // cells would let 1 year × 50 respondents beat 3 years × 40.
+  const facultyTotals = new Map<string, Map<string | null, number>>();
   for (const r of unmatchedCells) {
-    const current = facultyByEmail.get(r.kku_email);
-    const respondents = Number(r.respondents);
-    if (!current || respondents > current.respondents) {
-      facultyByEmail.set(r.kku_email, { name: r.faculty_name, respondents });
+    let perFaculty = facultyTotals.get(r.kku_email);
+    if (!perFaculty) {
+      perFaculty = new Map<string | null, number>();
+      facultyTotals.set(r.kku_email, perFaculty);
     }
+    perFaculty.set(r.faculty_name, (perFaculty.get(r.faculty_name) ?? 0) + Number(r.respondents));
+  }
+  const facultyByEmail = new Map<string, string | null>();
+  for (const [email, perFaculty] of facultyTotals) {
+    let best: string | null = null;
+    let bestRespondents = -1;
+    for (const [name, respondents] of perFaculty) {
+      if (respondents > bestRespondents) {
+        best = name;
+        bestRespondents = respondents;
+      }
+    }
+    facultyByEmail.set(email, best);
   }
 
   const teachers: UnmatchedTeacherRow[] = [];
@@ -447,7 +504,7 @@ export async function teachingTalentRoster(
     const cls = classifyTalent(ratings, years, TALENT_DEFAULT_THRESHOLD);
     teachers.push({
       kkuEmail,
-      facultyName: facultyByEmail.get(kkuEmail)?.name ?? null,
+      facultyName: facultyByEmail.get(kkuEmail) ?? null,
       overallRating: overallFromYears(folded.byYear),
       totalRespondents: folded.totalRespondents,
       byYear: folded.byYear,
@@ -457,15 +514,22 @@ export async function teachingTalentRoster(
   }
 
   // ── 4. Rows attributable to nobody ───────────────────────────────────
+  // Clamped on the CLASS's faculty, exactly like the unmatched query above
+  // (same NULL-faculty trade-off). This panel's whole job is honest
+  // coverage, so a dean scoped to one faculty must not read a
+  // university-wide "credited to nobody" figure beside their own clamped
+  // roster.
   const [unattributable] = await prisma.$queryRaw<Array<{ c: bigint }>>`
     SELECT COUNT(*)::bigint AS c
     FROM evaluation_response_summaries e
     JOIN ingestion_runs ir ON ir.id = e.ingestion_run_id
     JOIN data_sources ds ON ds.id = ir.data_source_id
+    LEFT JOIN faculties f ON f.id = e.faculty_id
     WHERE ds.mocked = false
       AND e.faculty_member_id IS NULL
       AND e.kkumail_raw IS NULL
       AND e.acad_year_be = ANY(${years}::int[])
+      ${facultyClauseFor(facultyNames, 'f.name_th')}
   `;
 
   return {

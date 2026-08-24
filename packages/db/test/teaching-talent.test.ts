@@ -6,6 +6,8 @@ import {
   TALENT_WINDOW_YEARS,
   classifyTalent,
   displayRating,
+  foldYearCells,
+  overallFromYears,
   resolveTalentYears,
   splitPersonName,
 } from '../src/teaching-talent';
@@ -191,5 +193,74 @@ describe('population guard', () => {
 
   it('gates on real data only', () => {
     expect(code).toContain('ds.mocked = false');
+  });
+});
+
+describe('foldYearCells', () => {
+  it('combines two rows for one person-year respondent-weighted, not as a naive mean', () => {
+    // Same teacher, same year, two source rows (classes owned by two
+    // faculties). The naive mean of 4.0 and 5.0 is 4.5; the honest answer
+    // is 4.9, because 90 of the 100 respondents gave the 5.0.
+    const folded = foldYearCells([
+      { key: 'somchai@kku.ac.th', year: 2568, ratingAvg: 4.0, respondents: 10 },
+      { key: 'somchai@kku.ac.th', year: 2568, ratingAvg: 5.0, respondents: 90 },
+    ]);
+    const entry = folded.get('somchai@kku.ac.th');
+    expect(entry).toBeDefined();
+    expect(entry!.byYear['2568']!.ratingAvg).toBeCloseTo(4.9, 10);
+    expect(entry!.byYear['2568']!.respondentCount).toBe(100);
+    expect(entry!.totalRespondents).toBe(100);
+  });
+
+  it('keeps separate people and separate years apart', () => {
+    const folded = foldYearCells([
+      { key: 'a', year: 2567, ratingAvg: 3.0, respondents: 5 },
+      { key: 'a', year: 2568, ratingAvg: 4.0, respondents: 7 },
+      { key: 'b', year: 2568, ratingAvg: 5.0, respondents: 9 },
+    ]);
+    expect(folded.size).toBe(2);
+    expect(folded.get('a')!.byYear['2567']!.ratingAvg).toBe(3.0);
+    expect(folded.get('a')!.byYear['2568']!.ratingAvg).toBe(4.0);
+    expect(folded.get('a')!.totalRespondents).toBe(12);
+    expect(folded.get('b')!.byYear['2568']!.ratingAvg).toBe(5.0);
+  });
+
+  it('carries a null rating through and lets a later real rating replace it', () => {
+    // A null cell holds no weight, so it must not drag the merged value.
+    const folded = foldYearCells([
+      { key: 'a', year: 2568, ratingAvg: null, respondents: 0 },
+      { key: 'a', year: 2568, ratingAvg: 4.5, respondents: 8 },
+    ]);
+    expect(folded.get('a')!.byYear['2568']!.ratingAvg).toBe(4.5);
+    expect(folded.get('a')!.byYear['2568']!.respondentCount).toBe(8);
+  });
+});
+
+describe('overallFromYears', () => {
+  it('equals the row-level weighted mean across the window', () => {
+    // (3.0*10 + 4.0*20 + 5.0*70) / 100 = 4.6 — the same number you get by
+    // weighting the underlying rows directly, which is the claim the
+    // function's comment makes.
+    const overall = overallFromYears({
+      '2566': { ratingAvg: 3.0, respondentCount: 10 },
+      '2567': { ratingAvg: 4.0, respondentCount: 20 },
+      '2568': { ratingAvg: 5.0, respondentCount: 70 },
+    });
+    expect(overall).toBeCloseTo(4.6, 10);
+  });
+
+  it('ignores null years rather than counting them as zero', () => {
+    const overall = overallFromYears({
+      '2567': { ratingAvg: null, respondentCount: 40 },
+      '2568': { ratingAvg: 4.25, respondentCount: 10 },
+    });
+    expect(overall).toBe(4.25);
+  });
+
+  it('returns null when no year carries a rating', () => {
+    expect(overallFromYears({})).toBeNull();
+    expect(
+      overallFromYears({ '2568': { ratingAvg: null, respondentCount: 12 } }),
+    ).toBeNull();
   });
 });
