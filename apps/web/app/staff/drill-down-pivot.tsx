@@ -202,7 +202,7 @@ function PivotRow({
             <span
               className={`ml-2 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-medium ${
                 row.badge.tone === 'success'
-                  ? 'bg-success-subtle text-success-default'
+                  ? 'bg-success-subtle text-success'
                   : 'bg-surface-2 text-text-tertiary'
               }`}
             >
