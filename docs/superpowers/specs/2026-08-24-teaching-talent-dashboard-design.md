@@ -15,12 +15,61 @@ The dashboard is a two-level drill-down (Faculty → staff member) over raw
 `evaluation_response_summaries` data, plus an XLSX export of the qualifying staff for
 HR / awards / development-programme use.
 
+## Population — who is in scope, and why it differs from `/staff/teaching`
+
+**This dashboard is roster-complete over evaluated instructors. `/staff/teaching` is
+not, and that is the main reason its queries cannot be reused.**
+
+`instructorsByProgram()` — the query behind the `/staff/teaching` table — joins
+`program_courses pc ON pc.course_code = e.course_code`. Any instructor whose courses
+are not mapped to a program simply does not exist in that result. Measured on the
+BE 2566–2568 window:
+
+| population | count |
+|---|---|
+| instructors with evaluations resolvable to a `FacultyMember` | **1,695** |
+| of those, visible in `/staff/teaching`'s program pivot | 1,130 |
+| **dropped by the `program_courses` join** | **565 (33%)** |
+
+All 1,695 are in scope here. The only reuse from `/staff/teaching` is its *access
+control* helpers and the weighted-mean formula — not its row set. The rollup query is
+written fresh against `evaluation_response_summaries → faculty_members → faculties`
+with **no `program_courses` join and no `ProgramFaculty` join**, so curriculum mapping
+can never gate who appears. This is the load-bearing property of the whole feature; the
+implementation plan must include a test that asserts it.
+
+### Teachers with no HR record — surfaced, not silently dropped
+
+A second population sits below even that. 27% of evaluation rows in the window
+(154,574 of 569,812) carry `faculty_member_id IS NULL`: the registrar credited a
+`@kku.ac.th` address that matches no `FacultyMember`. That is **271 distinct teachers,
+102 of whom have all three years and 98 of whom would qualify at 4.00**.
+
+This is not a matching bug — none of the 271 match any `faculty_members.kku_email`,
+even on the local part alone. They are KKU teachers genuinely absent from the
+HR-sourced roster.
+
+They are **excluded from the table and from the talent export** — we hold their email
+and the owning faculty of the class, but no name, rank or department, so an HR-facing
+roster row would be blank where it matters, and some may be guest lecturers or staff
+from other institutions.
+
+They are **not hidden**. The page carries a reconciliation panel (design below) and the
+export carries an `Unmatched` sheet, so the gap is visible to whoever can fix it at
+source. A dashboard that quietly discards a third of its evidence is worse than one
+that reports the discard.
+
+A further 34,566 rows in the window carry neither a resolved id nor an email. They
+cannot be attributed to any person and are excluded from every count; the methodology
+note states how many.
+
 ## Non-goals
 
 - **No curriculum mapping.** Staff are grouped by their home faculty
   (`FacultyMember.facultyId`), not by the programs whose courses they teach. This is
   deliberately different from `/staff/teaching`, whose pivot attributes each instructor
-  to every program that teaches their course.
+  to every program that teaches their course — and whose join drops a third of the
+  evaluated roster (above).
 - **No new evaluation ingestion.** The dashboard reads what the `kku-evaluations`
   connector already lands.
 - **No per-question or per-course drill.** That already exists on `/staff/teaching`;
@@ -53,10 +102,12 @@ states that the three-year rule cannot yet be evaluated; no one is badged.
 
 ### Provenance gate
 
-Every query filters `data_sources.mocked = false` (joined through
-`ingestion_runs`) and `faculty_member_id IS NOT NULL` — identical to
-`instructorRoster()` in `packages/db/src/evaluations.ts`. Rows the registrar could not
-attribute to a resolvable `FacultyMember` are out of scope; they cannot be named.
+Every query filters `data_sources.mocked = false`, joined through `ingestion_runs` —
+the standard real-data posture. The main rollup additionally requires
+`faculty_member_id IS NOT NULL`; the reconciliation aggregate takes exactly the
+complement (`faculty_member_id IS NULL AND kkumail_raw IS NOT NULL`). Between them the
+two queries account for every attributable row, which is what lets the page state its
+own coverage honestly.
 
 ### Scores
 
@@ -156,27 +207,59 @@ export interface TalentInstructorRow {
   minYearRating: number | null;
 }
 
+/** Registrar-credited teacher with no FacultyMember row. Identified only by
+ *  the email the registrar recorded; `facultyName` is the owning faculty of
+ *  the classes they taught, not a home faculty. */
+export interface UnmatchedTeacherRow {
+  kkuEmail: string;                 // lower(trim(kkumail_raw))
+  facultyName: string | null;       // via ClassOffering → Faculty, null for 35 of them
+  overallRating: number | null;
+  totalRespondents: number;
+  byYear: Record<string, { ratingAvg: number | null; respondentCount: number }>;
+  yearsWithData: number;
+  minYearRating: number | null;
+}
+
 export interface TeachingTalentResult {
   methodologyVersion: string;
   years: number[];           // e.g. [2566, 2567, 2568], ascending
   windowComplete: boolean;   // false when fewer than 3 completed years carry data
   rows: TalentInstructorRow[];
+  /** Coverage disclosure — see "Teachers with no HR record". */
+  unmatched: {
+    teachers: UnmatchedTeacherRow[];
+    /** Rows with neither a resolved id nor an email — attributable to nobody. */
+    unattributableRowCount: number;
+  };
 }
 
 export async function teachingTalentRoster(
   filter: { facultyName?: string[] } | undefined,
-  opts?: { includeContact?: boolean },
+  opts?: { includeContact?: boolean; includeUnmatched?: boolean },
 ): Promise<TeachingTalentResult>;
 ```
 
-`includeContact` defaults to **false**, in which case `kkuEmail` comes back `null`.
-Only the export path sets it — the dashboard has no use for staff email addresses, so
-they never travel to the browser.
+`includeContact` defaults to **false**, in which case `kkuEmail` comes back `null` on
+`TalentInstructorRow`. Only the export path sets it — the dashboard has no use for
+staff email addresses, so they never travel to the browser. (`UnmatchedTeacherRow.kkuEmail`
+is different: there the email *is* the only identifier, and it is the point of the
+panel.)
 
-One `$queryRaw` produces `(faculty_member_id × acad_year_be)` aggregates for the
-resolved window plus the identity columns; the per-instructor rollup, `overallRating`
-(recomputed from the weighted sums, not averaged from year figures) and the
-classification fields are assembled in TypeScript.
+`includeUnmatched` defaults to **false** — the roster route sets it for every role
+except `PROGRAM_USER`, and the export sets it always.
+
+Three `$queryRaw` calls inside one function:
+
+1. the `(faculty_member_id × acad_year_be)` rollup for the resolved window, joined
+   `evaluation_response_summaries → faculty_members → faculties` — **no
+   `program_courses`, no `program_faculties`**;
+2. the complement aggregate keyed on `lower(trim(kkumail_raw))`, left-joined to
+   `faculties` through `evaluation_response_summaries.faculty_id` (the class's owning
+   faculty, populated independently of `faculty_member_id`);
+3. a single `COUNT(*)` of unattributable rows.
+
+Per-instructor rollup, `overallRating` (recomputed from the weighted sums, not averaged
+from year figures) and the classification fields are assembled in TypeScript.
 
 **The threshold is not baked into the roster response.** `minYearRating` and
 `yearsWithData` travel to the client, which re-badges instantly when the selector
@@ -192,9 +275,16 @@ logic is introduced:
 
 | role | sees |
 |---|---|
-| `UNIVERSITY_USER` / `EXECUTIVE` / `COUNCIL` / `ADMIN` | every instructor |
-| `FACULTY_USER` | instructors whose home faculty is granted to them |
-| `PROGRAM_USER` | their own row only |
+| `UNIVERSITY_USER` / `EXECUTIVE` / `COUNCIL` / `ADMIN` | every instructor, and the full unmatched panel |
+| `FACULTY_USER` | instructors whose home faculty is granted to them, and unmatched teachers whose *class* faculty is granted to them |
+| `PROGRAM_USER` | their own row only; no unmatched panel |
+
+Unmatched teachers have no `FacultyMember` and therefore no home faculty to clamp on.
+Their clamp runs on the owning faculty of the classes they taught
+(`evaluation_response_summaries.faculty_id`, resolved via `ClassOffering`). The 35
+unmatched teachers whose rows carry no faculty at all are visible only to
+university-wide roles — a `FACULTY_USER` cannot be shown a person who may belong to
+another faculty.
 
 **`GET /staff/teaching-talent?facultyName=…`** → `TeachingTalentResult`. Guarded with
 `@Authorized('institution:read:dashboard')`.
@@ -258,6 +348,21 @@ fewer than three years get `badge: { text: '2/3 years', tone: 'muted' }`.
 Rank labels reuse the existing Thai abbreviation map pattern
 (`apps/web/src/lib/display-name.ts`: `ผศ.` / `รศ.` / `ศ.`).
 
+**Coverage panel** — a collapsed `Card` beneath the table, hidden for `PROGRAM_USER`:
+
+> **Coverage** — 1,695 evaluated instructors are in this table. A further **271
+> teachers** were evaluated but have no HR record, **98 of whom would qualify** at the
+> current threshold; they cannot be named or exported. 34,566 evaluation rows are
+> credited to no identifiable person.
+
+Expanding it lists the unmatched teachers — email, class faculty, per-year scores,
+respondents, would-qualify flag — sorted by would-qualify then Overall descending. The
+qualifying count recomputes with the threshold selector, like every other count on the
+page. The panel restates that fixing this means adding the person to the HR-sourced
+roster (`kku-hr`), not editing this dashboard.
+
+The numbers above are today's; every figure renders from the response, never hard-coded.
+
 **Methodology note** under the table: the rule in one sentence, the resolved window,
 `teaching-talent.v1`, and a link to `/staff/teaching` for the per-question detail —
 matching how the other staff dashboards surface `methodologyVersion` (they do not use
@@ -295,10 +400,18 @@ First name and leaves Last name blank; three or more tokens keep token 1 as Firs
 and the rest as Last name. Names are stored without an honorific prefix in this data
 set, and the rank column carries the title separately.
 
-**Sheet 2 — `About`.** Key/value rows: methodology version, assessment window,
-threshold, semesters included, faculty filter applied, row count, generated-at
-timestamp, and the one-line rule statement. An exported list of named staff that
-travels without its criteria is a liability.
+**Sheet 2 — `Unmatched`.** The reconciliation worklist: email, class faculty, one
+column per window year, respondents, overall, and `Would qualify` (yes/no at the
+requested threshold). Same rows the coverage panel shows, clamped identically. A
+header note states these teachers have no HR record and must be added to the `kku-hr`
+roster before they can appear in `Talent`. Shipping the worklist in the same file
+means whoever receives the talent list also receives its coverage gap.
+
+**Sheet 3 — `About`.** Key/value rows: methodology version, assessment window,
+threshold, semesters included, faculty filter applied, talent row count, unmatched
+teacher count, unattributable row count, generated-at timestamp, and the one-line rule
+statement. An exported list of named staff that travels without its criteria — or
+without its coverage — is a liability.
 
 Filename: `kku-teaching-talent-BE2566-2568-min4.00.xlsx`.
 
@@ -331,13 +444,24 @@ Filename: `kku-teaching-talent-BE2566-2568-min4.00.xlsx`.
 - `splitPersonName` — two tokens, one token, three tokens, extra whitespace, empty
   string.
 
+**Population guard — the test that protects the whole point of this feature.** A
+source-level assertion over `packages/db/src/teaching-talent.ts` that its SQL contains
+no `program_courses` and no `program_faculties` reference. Crude, and deliberately so:
+the failure mode being defended against is a future contributor "reusing" the
+`/staff/teaching` pivot for consistency and silently deleting a third of the roster.
+The test names that consequence in its failure message.
+
 **`apps/api/test/teaching-talent-export.test.ts`:**
-- Workbook round-trip via `XLSX.read` on the returned buffer — sheet names, header row,
-  column order, a known talent row, numeric (not string) score cells.
+- Workbook round-trip via `XLSX.read` on the returned buffer — the three sheet names in
+  order, header rows, column order, a known talent row, numeric (not string) score
+  cells.
 - Talents-only filtering and threshold sensitivity: the same fixture at 4.00 and 4.50
-  yields different row counts.
-- Zero-talent export produces a header-only sheet, not an error.
-- `About` sheet carries the window, threshold and row count.
+  yields different row counts in `Talent` **and** different `Would qualify` values in
+  `Unmatched`.
+- An unmatched teacher never leaks into the `Talent` sheet, and a matched instructor
+  never appears in `Unmatched`.
+- Zero-talent export produces header-only sheets, not an error.
+- `About` sheet carries window, threshold, both row counts and the unattributable count.
 
 **Existing suites must stay green** — in particular nothing in `evaluations.ts` or the
 `/staff/teaching` endpoints is modified by this work.
@@ -364,6 +488,11 @@ Filename: `kku-teaching-talent-BE2566-2568-min4.00.xlsx`.
 
 ## Deferred
 
+- **Closing the 271-teacher HR gap.** This dashboard reports the gap; it cannot fix it.
+  The fix belongs with the `kku-hr` connector (or a targeted backfill of registrar
+  emails that resolve to no `FacultyMember`, in the shape of the earlier
+  `backfill-faculty-from-publications` script). Worth scheduling once the coverage panel
+  shows the operator how large it is.
 - **Relative (per-faculty percentile) thresholds.** Rating cultures differ by faculty;
   an absolute bar favours the generous ones. Revisit if deans push back on the
   absolute rule.
