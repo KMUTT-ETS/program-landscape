@@ -9,9 +9,16 @@ import { ChevronRight } from 'lucide-react';
 // one numeric dimension spread across columns) — here every column is
 // a distinct metric (publications / citations / h-index / etc).
 
+export interface DrillRowBadge {
+  text: string;
+  tone: 'success' | 'muted';
+}
+
 export interface DrillRow {
   label: string;
   emphasis?: 'warn' | 'success' | 'muted';
+  /** Optional chip rendered after the label — e.g. a Talent marker. */
+  badge?: DrillRowBadge;
   metrics: Record<string, number | null>;
   children?: DrillRow[];
 }
@@ -19,7 +26,7 @@ export interface DrillRow {
 export interface DrillColumn {
   key: string;
   label: string;
-  format?: 'int' | 'decimal1' | 'thb' | 'raw';
+  format?: 'int' | 'decimal1' | 'decimal2' | 'thb' | 'raw';
   align?: 'left' | 'right';
 }
 
@@ -39,6 +46,7 @@ interface SortState {
 function fmt(value: number | null | undefined, format: DrillColumn['format'] = 'int'): string {
   if (value === null || value === undefined) return '—';
   if (format === 'decimal1') return value.toFixed(1);
+  if (format === 'decimal2') return value.toFixed(2);
   if (format === 'thb') return '฿' + Math.round(value).toLocaleString('en-US');
   if (format === 'raw') return String(value);
   return Math.round(value).toLocaleString('en-US');
@@ -188,6 +196,17 @@ function PivotRow({
           ) : (
             <span className="ml-4 truncate" title={row.label}>
               {row.label}
+            </span>
+          )}
+          {row.badge && (
+            <span
+              className={`ml-2 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-medium ${
+                row.badge.tone === 'success'
+                  ? 'bg-success-subtle text-success-default'
+                  : 'bg-surface-2 text-text-tertiary'
+              }`}
+            >
+              {row.badge.text}
             </span>
           )}
         </td>
