@@ -271,7 +271,7 @@ export function TeachingTalentThumb() {
   // Three years of bars per person; the middle person clears the line in
   // all three, so they carry the star.
   const people = [
-    { x: 24, bars: [30, 22, 34], star: false },
+    { x: 24, bars: [26, 22, 34], star: false },
     { x: 92, bars: [40, 44, 42], star: true },
     { x: 160, bars: [20, 34, 16], star: false },
   ];
