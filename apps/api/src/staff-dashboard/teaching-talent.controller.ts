@@ -1,7 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import {
+  AuditLog,
   AuthSession,
   Authorized,
   ZodValidationPipe,
@@ -10,7 +11,7 @@ import {
   resolveOwnFacultyMember,
   seesAllScopes,
 } from '../common';
-import { TeachingTalentService } from './teaching-talent.service';
+import { ALLOWED_TALENT_THRESHOLDS, TeachingTalentService } from './teaching-talent.service';
 
 // Express coerces query strings differently for single vs repeated params.
 // Normalise to string[] at the schema layer.
@@ -30,6 +31,16 @@ const StringArray = z
 
 const TalentQuerySchema = z.object({ facultyName: StringArray });
 type TalentQuery = z.infer<typeof TalentQuerySchema>;
+
+const TalentExportSchema = z.object({
+  facultyName: z.array(z.string()).default([]),
+  // Constrained to the published options — a crafted `threshold: 0` would
+  // otherwise export the entire roster as "talent".
+  threshold: z.number().refine((n) => ALLOWED_TALENT_THRESHOLDS.includes(n), {
+    message: 'threshold must be one of 4, 4.25, 4.5, 4.75',
+  }),
+});
+type TalentExportBody = z.infer<typeof TalentExportSchema>;
 
 // ────────────────────────────────────────────────────────────────────
 // /staff/teaching-talent — sustained student-evaluation quality.
@@ -117,5 +128,25 @@ export class TeachingTalentController {
     // holds a UNIVERSITY_USER UserScope grant as clamped.
     const unclamped = seesAllScopes(user.role) || clamped === q;
     return { ...result, scope: unclamped ? ('all' as const) : ('scoped' as const) };
+  }
+
+  // POST, not GET: the AuditLogInterceptor records request.body, so the
+  // audit row captures exactly which filter and threshold produced the
+  // file. Same posture as POST /programs/:id/export-detail-pdf.
+  @Post('export')
+  @Authorized('institution:read:dashboard')
+  @AuditLog({ action: 'export.teaching_talent', entityType: 'StaffExport' })
+  async exportXlsx(
+    @AuthSession() user: SessionUser,
+    @Body(new ZodValidationPipe(TalentExportSchema)) body: TalentExportBody,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    if (user.role === 'PROGRAM_USER') {
+      // A single-row talent export has no use, and the button is hidden.
+      throw new ForbiddenException('Talent export requires faculty scope');
+    }
+    const clamped = await clampFacultyNameFilter({ facultyName: body.facultyName }, user);
+    const facultyName = clamped === null ? ['__none__'] : clamped.facultyName;
+    return this.talent.export({ facultyName, threshold: body.threshold });
   }
 }
