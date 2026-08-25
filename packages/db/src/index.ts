@@ -50,3 +50,4 @@ export * from './evaluations';
 export * from './academic-year';
 export * from './financial-year';
 export * from './teaching-talent';
+export * from './student-dq';
