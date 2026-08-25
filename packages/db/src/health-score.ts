@@ -7,7 +7,14 @@ import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
 import { getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
-import { dqCompetencyByScope, dqDriverScore } from './student-dq';
+import {
+  dqCompetencyByScope,
+  dqDriverScore,
+  DQ_BAND_CEILING,
+  DQ_BAND_FLOOR,
+  DQ_BAND_PASS,
+  DQ_ELIGIBLE_LEVEL,
+} from './student-dq';
 
 /** Annual tuition revenue target by program level (THB). Used by the
  *  health-score.v3.5 financial-dimension `revenue_scale` driver AND by
@@ -1375,7 +1382,7 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
     orderBy: [{ surveyYear: 'desc' }, { graduationYear: 'desc' }],
   });
 
-  const drivers = [
+  const drivers: HealthScore['drivers'] = [
     {
       label: 'tcas_min_score_percentile',
       value: percentile !== null ? clamp(percentile) : null,
@@ -1445,11 +1452,14 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
     // v3.7: student-satisfaction driver — POWERBI.EVALUATE_INSTRUCTOR
     // weighted mean rating, normalised to the [3.5, 5.0] band.
     await studentSatisfactionDriver({ scope: 'program', scopeId: programId }),
-    // v4.0: DQ digital competency. Null for every non-bachelor program
-    // and for any bachelor program under the 5-student floor — the
-    // dimension excludes nulls, so those programs are unaffected.
-    await dqCompetencyDriver({ scope: 'program', scopeId: programId }),
   ];
+
+  // v4.0: DQ digital competency. Returns null — meaning "omit", not
+  // "no data" — for non-bachelor programs, which keep the six drivers
+  // above and their completeness with them. See `dqCompetencyDriver`.
+  const dq = await dqCompetencyDriver({ scope: 'program', scopeId: programId });
+  if (dq) drivers.push(dq);
+
   return summariseDrivers(drivers);
 }
 
@@ -1481,11 +1491,15 @@ async function scoreOutcomesScope(
       raw: row?.averageSalaryWeighted,
     },
     await studentSatisfactionDriver({ scope, scopeId }),
-    // v4.0 — see the note on the program scorer above. At faculty /
-    // university scope the mean is computed from the cube AT THAT
-    // SCOPE, never by averaging program scores.
-    await dqCompetencyDriver({ scope, scopeId }),
   ];
+
+  // v4.0 — the mean is computed from the cube AT THIS SCOPE, never by
+  // averaging program scores. Faculty / department / university always
+  // carry the driver (they contain bachelor programs); the omission
+  // branch only fires if this is ever called at program scope.
+  const dq = await dqCompetencyDriver({ scope, scopeId });
+  if (dq) drivers.push(dq);
+
   return summariseDrivers(drivers);
 }
 
@@ -1616,14 +1630,44 @@ async function studentSatisfactionDriver(args: {
 // `studentSatisfactionDriver` above, for the same reason — this is one
 // of the concurrent call sites that provoked the `$1` mis-binding.
 //
-// Null, never 0, for the 199 non-bachelor programs and for bachelor
-// programs under the floor: a program with no DQ evidence has not
-// scored zero. `summariseDrivers` excludes nulls from the dimension
-// mean and reflects them in `dataCompletenessPct`.
+// Two different absences, deliberately handled differently — this is
+// the difference between "we don't know" and "the question doesn't
+// apply", and `dataCompletenessPct` is Council-facing (the cockpit
+// bands it at 75/50, the deep-dive header prints it, verdict snapshots
+// store it):
+//
+//   * A NON-BACHELOR program returns null from here and the driver is
+//     OMITTED from the array entirely. DQ is an undergraduate
+//     instrument; a doctoral program is not *missing* a DQ score, DQ
+//     does not apply to it. Appending a null would put a driver that
+//     can never apply into its denominator and report it as having
+//     less complete data than before purely because an undergraduate
+//     instrument exists (measured: 2.4-14.3 points of false loss across
+//     all 199). Same distinction the deep-dive section draws between
+//     `not-applicable` and `no-data`.
+//   * A BACHELOR program with no DQ rows, or under the 5-student
+//     floor, gets the driver with a NULL value. There the evidence is
+//     genuinely missing, and it SHOULD count against completeness.
+//     Never 0 either way: a program with no DQ evidence has not scored
+//     zero. `summariseDrivers` excludes nulls from the dimension mean.
+//
+// Faculty / department / university scopes always carry the driver:
+// they legitimately contain bachelor programs, and the cube's own join
+// applies the level gate inside the aggregate.
 async function dqCompetencyDriver(args: {
   scope: ScopeLevel;
   scopeId: string;
-}): Promise<HealthScore['drivers'][number]> {
+}): Promise<HealthScore['drivers'][number] | null> {
+  if (args.scope === 'program') {
+    const program = await prisma.program.findUnique({
+      where: { id: args.scopeId },
+      select: { level: true },
+    });
+    // Only a POSITIVELY known ineligible level omits the driver. An
+    // unknown program keeps it (null-valued) rather than silently
+    // shrinking its denominator on a lookup miss.
+    if (program && program.level !== DQ_ELIGIBLE_LEVEL) return null;
+  }
   const dq = await dqCompetencyByScope({ scope: args.scope, scopeId: args.scopeId });
   return {
     label: 'dq_digital_competency',
@@ -1638,20 +1682,19 @@ async function dqCompetencyDriver(args: {
             rawMean: dq.rawMean,
             scoredStudents: dq.scoredStudents,
             programCount: dq.programCount,
-            passMark: DQ_PASS_MARK,
-            band: '≤50 → 0, 70 → 50, ≥90 → 100 (anchored on the pass mark)',
+            // Both of these reach Council through the provenance
+            // drawer, so both are built from the SAME constants
+            // `dqDriverScore` applies — never restated as literals
+            // here, which would be a second source for the band.
+            passMark: DQ_BAND_PASS,
+            band:
+              `≤${DQ_BAND_FLOOR} → 0, ${DQ_BAND_PASS} → 50, ` +
+              `≥${DQ_BAND_CEILING} → 100 (anchored on the pass mark)`,
             modulesCounted: 'theory 1-12 (module 13 excluded — uneven rollout)',
             source: 'student-dq.v1',
           },
   };
 }
-
-/** KKU's DQ pass mark, and the midpoint of the driver band — reported
- *  in `raw` so a reader can see what a driver value of 50 means without
- *  opening the methodology doc. Mirrors `DQ_BAND_PASS` in
- *  `student-dq.ts`, which owns the band and is not exported; the band
- *  itself is applied there, never recomputed here. */
-const DQ_PASS_MARK = 70;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Relevance — labour-market alignment + demand-match + demographic +

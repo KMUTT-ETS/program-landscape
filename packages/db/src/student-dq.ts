@@ -643,12 +643,17 @@ async function resolveScopeLabel(scope: DqRadarScope): Promise<string> {
 export const DQ_ELIGIBLE_LEVEL = 'BACHELOR';
 
 /** Raw DQ means below this score 0; the band's lower half exists so a
- *  failing programme is visible rather than clipped at the floor. */
-const DQ_BAND_FLOOR = 50;
+ *  failing programme is visible rather than clipped at the floor.
+ *
+ *  The three band anchors are exported because the health-score driver
+ *  reports them to Council in its provenance `raw` — a driver that
+ *  restated "70" as its own literal would be a second source for the
+ *  band and could drift from the one `dqDriverScore` actually applies. */
+export const DQ_BAND_FLOOR = 50;
 /** KKU's own pass mark, and the middle of the driver scale. */
-const DQ_BAND_PASS = 70;
+export const DQ_BAND_PASS = 70;
 /** Above this the driver saturates. */
-const DQ_BAND_CEILING = 90;
+export const DQ_BAND_CEILING = 90;
 
 /**
  * Convert a raw programme DQ mean (0-100) into a health-driver score.

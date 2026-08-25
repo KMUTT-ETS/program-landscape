@@ -47,11 +47,34 @@ Revisit when uptake is uniform.
   the score renders `n` beside it — a thin score is visibly thin rather
   than silently equal to a robust one.
 
-Failing either gate yields **`null`, never `0`** — a programme with no DQ
-evidence has not scored zero. Per the null-handling rule below, a null
-driver is excluded from the dimension's mean and lowers its
-`dataCompletenessPct`; the 199 non-bachelor programmes are therefore
-untouched by this change.
+A programme that fails either gate is **never scored `0`** — it has no DQ
+evidence, which is not the same as having scored nothing. But the two
+gates fail differently, and the difference is visible in
+`dataCompletenessPct`:
+
+- **Not applicable → the driver is omitted entirely.** A non-bachelor
+  programme carries the six Outcomes drivers it carried at v3.9, not
+  seven-with-a-null. DQ is an undergraduate instrument: a doctoral
+  programme is not *missing* a DQ score, the question does not apply to
+  it. Appending a null would place a driver that can never apply into its
+  denominator and report it as having less complete data than before
+  purely because an undergraduate instrument exists — measured at 2.4 to
+  14.3 points of false loss across all 199 before this was corrected.
+  `dataCompletenessPct` is Council-facing (the cockpit bands it at 75/50,
+  the deep-dive header prints it, verdict snapshots store it), so this is
+  a reported fact, not an internal detail. It is the same distinction the
+  deep-dive's Digital-competency section draws between `not-applicable`
+  and `no-data`.
+- **Applicable but unmeasured → the driver is present with a `null`
+  value.** A bachelor programme with no DQ rows, or one under the
+  5-student floor, genuinely lacks evidence we would expect to have. Per
+  the null-handling rule below it is excluded from the dimension's mean
+  **and** counts against `dataCompletenessPct` — which is the honest
+  reading: we ought to know this and do not.
+
+Faculty, department and university scopes always carry the driver: they
+legitimately contain bachelor programmes, and the level gate is applied
+inside the aggregate by the cube's join to `programs`.
 
 **The band, anchored on KKU's own pass mark:**
 
@@ -94,7 +117,10 @@ moved has a DQ driver (81 of 81), and no programme without one moved.**
 Outcomes rises for 78 and falls for 3; mean change +3.27 points, median
 +3.24, range −1.21 to +13.36. Driver values run 62.8 (raw mean 75.1) to
 100 (raw ≥ 90) with a median of 87.4, and no programme sits in the band's
-lower half. Composites move by at most 2.67 points. The three fallers are
+lower half. Composites move by at most 2.67 points. `dataCompletenessPct`
+is **unchanged for all 199 non-bachelor programmes** (verified identical
+to the v3.9 value, not merely close) and falls only for the 21 bachelor
+programmes whose evidence is genuinely absent. The three fallers are
 programmes whose other Outcomes drivers already scored above their DQ
 result — the driver pulling a strong dimension down slightly is the band
 working, not a defect. Old rows stay stamped `health-score.v3.9` — the
