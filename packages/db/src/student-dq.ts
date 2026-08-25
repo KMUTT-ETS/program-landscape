@@ -193,6 +193,39 @@ function dqWhere(f: DqFilter | undefined, alias: string): Prisma.Sql {
   return parts.length === 0 ? Prisma.empty : Prisma.sql`AND ${Prisma.join(parts, ' AND ')}`;
 }
 
+/**
+ * The programme dimension as this dashboard displays it: a column read
+ * through this helper is NULL unless the row's programme is a bachelor
+ * programme.
+ *
+ * The 30 non-bachelor programmes carrying DQ rows hold 10 scored
+ * students between them — undergraduates who sat the test and later
+ * enrolled in a master's, caught by the current-enrolment join. Every
+ * other DQ surface already excludes them (see `dqIsEligible`); folding
+ * them here applies the same rule to the dashboard, and it describes
+ * those students correctly: people we cannot attribute to a current
+ * undergraduate programme, which is exactly the faculty's existing
+ * "Program not identified" bucket.
+ *
+ * A fold, never a filter. The students keep every headcount they had and
+ * only change bucket — the portfolio totals read 24,777 tested / 19,601
+ * scored on both sides of this change. Anything that made a student
+ * disappear here would be a bug, not a stricter gate.
+ *
+ * Requires the calling query to have joined `programs p` on the row's
+ * `program_id`; a LEFT JOIN, so a programme the cube names but our
+ * `programs` table no longer carries also lands in the bucket rather
+ * than being dropped.
+ *
+ * Fresh Prisma.Sql per call site, for the reason on `dqWhere`.
+ */
+function bachelorOnly(column: string): Prisma.Sql {
+  const col = Prisma.raw(column); // trusted literal, never user input
+  // `::text` because `programs.level` is a Postgres enum and the level
+  // rides as a bound parameter: enum = text has no operator without it.
+  return Prisma.sql`CASE WHEN p.level::text = ${DQ_ELIGIBLE_LEVEL} THEN ${col} END`;
+}
+
 interface ModuleAggregateRow {
   module_key: string;
   module_no: number;
@@ -282,7 +315,10 @@ export async function dqDrill(
 ): Promise<{ methodologyVersion: string; rows: DqDrillRow[] }> {
   // Two grouped scans — students and modules — folded together in TS.
   // Grouping collapses the cohort dimension, which is a filter here, not
-  // a display level.
+  // a display level. Both scans read the programme dimension through
+  // `bachelorOnly`, so a non-bachelor programme's students group into
+  // their faculty's "Program not identified" bucket instead of standing
+  // as a programme row of their own.
   const students = await prisma.$queryRaw<
     Array<{
       faculty_name: string;
@@ -294,12 +330,20 @@ export async function dqDrill(
       passed: bigint;
     }>
   >`
+    WITH s AS (
+      SELECT c.faculty_name, c.faculty_id, c.cohort_year_be,
+             c.students_tested, c.students_with_scores, c.students_all_passed,
+             ${bachelorOnly('c.program_id')}   AS program_id,
+             ${bachelorOnly('c.program_name')} AS program_name
+      FROM dq_student_cube c
+      LEFT JOIN programs p ON p.id = c.program_id
+    )
     SELECT s.faculty_name, MAX(s.faculty_id) AS faculty_id, s.program_id,
            MAX(s.program_name) AS program_name,
            SUM(s.students_tested)::bigint      AS tested,
            SUM(s.students_with_scores)::bigint AS scored,
            SUM(s.students_all_passed)::bigint  AS passed
-    FROM dq_student_cube s
+    FROM s
     WHERE true ${dqWhere(filter, 's')}
     GROUP BY s.faculty_name, s.program_id
     ORDER BY s.faculty_name
@@ -308,11 +352,18 @@ export async function dqDrill(
   const modules = await prisma.$queryRaw<
     Array<ModuleAggregateRow & { faculty_name: string; program_id: string | null }>
   >`
+    WITH m AS (
+      SELECT c.faculty_name, c.cohort_year_be, c.module_key, c.module_no, c.module_kind,
+             c.taken_count, c.score_sum, c.students_in_scope,
+             ${bachelorOnly('c.program_id')} AS program_id
+      FROM dq_module_cube c
+      LEFT JOIN programs p ON p.id = c.program_id
+    )
     SELECT m.faculty_name, m.program_id, m.module_key, m.module_no, m.module_kind,
            SUM(m.taken_count)::bigint       AS taken,
            SUM(m.score_sum)::float          AS score_sum,
            SUM(m.students_in_scope)::bigint AS in_scope
-    FROM dq_module_cube m
+    FROM m
     WHERE true ${dqWhere(filter, 'm')}
     GROUP BY m.faculty_name, m.program_id, m.module_key, m.module_no, m.module_kind
   `;
@@ -452,6 +503,13 @@ export async function dqOverview(filter?: DqFilter): Promise<DqOverview> {
       unplaced: bigint;
     }>
   >`
+    WITH s AS (
+      SELECT c.faculty_name, c.cohort_year_be,
+             c.students_tested, c.students_with_scores, c.students_all_passed,
+             ${bachelorOnly('c.program_id')} AS program_id
+      FROM dq_student_cube c
+      LEFT JOIN programs p ON p.id = c.program_id
+    )
     SELECT COALESCE(SUM(s.students_tested), 0)::bigint      AS tested,
            COALESCE(SUM(s.students_with_scores), 0)::bigint AS scored,
            COALESCE(SUM(s.students_all_passed), 0)::bigint  AS passed,
@@ -459,7 +517,7 @@ export async function dqOverview(filter?: DqFilter): Promise<DqOverview> {
            COUNT(DISTINCT s.program_id)::bigint             AS programs,
            COALESCE(SUM(s.students_tested)
              FILTER (WHERE s.program_id IS NULL), 0)::bigint AS unplaced
-    FROM dq_student_cube s
+    FROM s
     WHERE true ${dqWhere(filter, 's')}
   `;
 
@@ -491,7 +549,9 @@ export async function dqOverview(filter?: DqFilter): Promise<DqOverview> {
     facultyCount: Number(totals?.faculties ?? 0),
     // COUNT(DISTINCT program_id) ignores NULLs, so this is the number of
     // real programs — the "Program not identified" bucket is the
-    // `studentsUnplaced` headcount beside it, not a program.
+    // `studentsUnplaced` headcount beside it, not a program. Read through
+    // `bachelorOnly`, so it counts the same programmes the drill shows and
+    // the students behind the rest land in `studentsUnplaced`.
     programsResolved: Number(totals?.programs ?? 0),
     studentsUnplaced: Number(totals?.unplaced ?? 0),
     modules: suppressed ? cells.map(suppressCell) : cells,
@@ -508,6 +568,13 @@ export async function dqOverview(filter?: DqFilter): Promise<DqOverview> {
  * module missing from the cube has to appear as a null axis in BOTH
  * arrays rather than being dropped from one and not the other — which
  * would silently rotate one series against the other.
+ *
+ * No non-bachelor fold here, unlike `dqDrill`: `programId` reaches this
+ * function from a drill row, and the drill no longer offers a
+ * non-bachelor programme as a row to click. A hand-written URL still
+ * could, and the ≥5 gate below already withholds every score on those
+ * rows — 30 programmes hold 10 scored students between them, so none of
+ * them clears the floor.
  *
  * The `scope` series carries the same ≥5 gate the drill applies. It is
  * the narrowest route into the cubes — `programId` and `cohortYearBE`
