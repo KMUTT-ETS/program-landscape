@@ -206,3 +206,61 @@ export interface RiskRowDto {
   oversupplyPct: number;
   recommendationHint: 'reduce-intake' | 'rebalance' | 'repurpose' | 'watch';
 }
+
+// ── Digital-competency attainment lens (dq-skill-lens.v1) ─────────────────
+// A separate axis beside the gap output, never a modifier on it: nothing
+// above this comment reads any of the fields below.
+
+export type DqSkillConfidenceDto = 'exact' | 'near' | 'none';
+
+export interface DqLensDemandDto {
+  demand: number;
+  careerCount: number;
+  topCareers: string[];
+}
+
+export interface DqLensProgramRowDto {
+  programId: string;
+  code: string;
+  nameEn: string;
+  nameTh: string;
+  mean: number;
+  takenCount: number;
+}
+
+export interface DqSkillLensRowDto {
+  moduleNo: number;
+  moduleKey: string;
+  moduleNameEn: string;
+  moduleNameTh: string | null;
+  moduleShortEn: string;
+  domain: string;
+  confidence: DqSkillConfidenceDto;
+  note: string;
+  skillId: string | null;
+  skillNameEn: string | null;
+  demandThailand: DqLensDemandDto | null;
+  demandGlobal: DqLensDemandDto | null;
+  mean: number | null;
+  takenCount: number;
+  studentsInScope: number;
+  coveragePct: number | null;
+  weakestPrograms: DqLensProgramRowDto[];
+}
+
+export interface DqSkillLensResponse {
+  scope: string;
+  scopeId: string | null;
+  rows: DqSkillLensRowDto[];
+  counts: {
+    exact: number;
+    near: number;
+    none: number;
+    withThailandDemand: number;
+    withGlobalDemand: number;
+  };
+  thailandQuadrantRows: number;
+  dqRefreshedAt: string | null;
+  methodologyVersion: string;
+  asOf: string;
+}

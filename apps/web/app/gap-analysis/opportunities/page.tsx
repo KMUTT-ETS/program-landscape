@@ -52,6 +52,12 @@ export default async function OpportunitiesPage({
           <Link href="/gap-analysis/risks" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
             Risks →
           </Link>
+          <Link
+            href="/gap-analysis/digital-competency"
+            className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2"
+          >
+            Digital competency →
+          </Link>
         </div>
 
         <Card padding="md">

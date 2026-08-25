@@ -9,6 +9,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import {
+  computeDqSkillLens,
   computeForecastAccuracy,
   computeGapAnalysis,
   computeOccupationGap,
@@ -169,6 +170,32 @@ export class GapController {
     @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
   ) {
     return computeProgramDemandGaps(await this.clampFilter(q, user));
+  }
+
+  // Digital-competency attainment lens. A SEPARATE axis beside the gap
+  // output, never a modifier on it: every other endpoint on this
+  // controller returns exactly what it returned before this route
+  // existed. Attainment measures what students demonstrably acquired,
+  // where the rest of the analyzer infers supply from what is taught.
+  @Get('digital-competency')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'kku-dq', name: 'KKU Digital Intelligence (DQ) test · LTIC' },
+      {
+        id: 'kmitl-skill-mapping',
+        name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)',
+      },
+      { id: 'dq-module-skills', name: 'Curated DQ module → skill-taxonomy mapping' },
+    ],
+    methodologyVersion: 'dq-skill-lens.v1',
+  })
+  async digitalCompetency(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+  ) {
+    const eff = await this.clampFilter(q, user);
+    return computeDqSkillLens({ scope: eff.scope, scopeId: eff.scopeId ?? null });
   }
 
   @Get('forecast-accuracy')
