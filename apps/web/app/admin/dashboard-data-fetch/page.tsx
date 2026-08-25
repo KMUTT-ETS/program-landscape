@@ -11,6 +11,7 @@ import { StaffRefreshBar } from '../../staff/refresh-bar';
 import { SatisfactionRefreshBar } from './satisfaction-refresh-bar';
 import { ClassOfferingsRefreshBar } from './class-offerings-refresh-bar';
 import { ResearchRefreshBar } from './research-refresh-bar';
+import { StudentDqRefreshBar } from './student-dq-refresh-bar';
 import type { RefreshStatus } from '../../education/types';
 import type { RefreshStatus as StaffRefreshStatus } from '../../staff/types';
 
@@ -83,7 +84,7 @@ export default async function DashboardDataFetchPage() {
   // top-strip placement on /education and /staff.
   if (!isUniversityWide(role)) redirect('/no-access');
 
-  const [eduStatus, staffStatus, evalsSource, researchSource, classOfferingsStatus] =
+  const [eduStatus, staffStatus, evalsSource, researchSource, dqSource, classOfferingsStatus] =
     await Promise.all([
       apiFetch<RefreshStatus>('/education/refresh/status').catch(() => null),
       apiFetch<StaffRefreshStatus>('/staff-dashboard/refresh/status').catch(() => null),
@@ -93,9 +94,10 @@ export default async function DashboardDataFetchPage() {
       // fast and avoids one-off API endpoints for display.
       loadSourceStatus('kku-evaluations').catch(() => null),
       loadSourceStatus('kku-research').catch(() => null),
-      apiFetch<ClassOfferingsRefreshStatus>(
-        '/education/class-offerings/refresh/status',
-      ).catch(() => null),
+      loadSourceStatus('kku-dq').catch(() => null),
+      apiFetch<ClassOfferingsRefreshStatus>('/education/class-offerings/refresh/status').catch(
+        () => null,
+      ),
     ]);
 
   return (
@@ -136,6 +138,13 @@ export default async function DashboardDataFetchPage() {
         description="POWERBI.EVALUATE_INSTRUCTOR — pre-aggregated student ratings of every (class × question × instructor) cell with TOTAL_STUDENT ≥ 5. Powers /education/satisfaction and /staff/teaching. Refresh is bi-weekly because the dataset is large (986K cells, ~110 min load); force a manual refresh when a Council meeting needs the latest semester's data before the next scheduled run."
       >
         <SatisfactionRefreshBar initial={evalsSource} />
+      </Section>
+
+      <Section
+        title="Student DQ (digital competency test)"
+        description="dq.kku.ac.th export — every undergraduate's Digital Intelligence competency result across 13 theory modules and 4 workshops, pass mark 70. Students are matched to a current programme in memory and only aggregates are stored; no student names or ID numbers are written to the database. Powers /education/student-dq. Runs weekly; force a refresh after a testing round closes."
+      >
+        <StudentDqRefreshBar initial={dqSource} />
       </Section>
 
       <Section
