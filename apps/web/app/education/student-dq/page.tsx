@@ -5,6 +5,11 @@ import {
   DQ_PASS_MARK,
   type SessionUser,
 } from '@kku/shared';
+// Server component, so the suppression floor is read from the one place
+// the query layer defines it rather than written into the page copy —
+// three UI strings quote it, and if the floor moves they must move with
+// it. Passed down as a prop; `@kku/db` never reaches the client.
+import { DQ_MIN_CELL_STUDENTS } from '@kku/db';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -14,9 +19,15 @@ import { EducationBackLink } from '../back-link';
 import {
   StudentDqClient,
   type DqDrillResponse,
-  type DqModuleKindFilter,
   type DqOverviewResponse,
 } from './client';
+
+interface DqFilterOptionsResponse {
+  methodologyVersion: string;
+  facultyNames: string[];
+  /** Ascending, and only the cohorts the cube actually holds. */
+  cohortYearsBE: number[];
+}
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Student DQ — Education' };
@@ -25,24 +36,6 @@ type SP = Record<string, string | string[] | undefined>;
 function arr(v: string | string[] | undefined): string[] {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
-}
-
-/**
- * Cohort options.
- *
- * No endpoint exposes the cube's distinct `cohortYearBE` values (the
- * drill queries group them away — cohort is a filter here, not a display
- * level), so the list is the full window `cohortFromStudentId` in
- * `@kku/shared` will accept: BE 2550 up to the current Buddhist-era
- * year. That means every cohort the cube can possibly hold is offerable;
- * a year with no rows returns an empty table rather than a wrong one.
- */
-const COHORT_MIN_BE = 2550;
-function cohortOptions(): number[] {
-  const currentBE = new Date().getFullYear() + 543;
-  const years: number[] = [];
-  for (let y = currentBE; y >= COHORT_MIN_BE; y -= 1) years.push(y);
-  return years;
 }
 
 export default async function StudentDqPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -54,47 +47,60 @@ export default async function StudentDqPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const facultyName = arr(sp.facultyName);
   const cohortYearBE = arr(sp.cohortYearBE).map(Number).filter(Number.isFinite);
-  const kind: DqModuleKindFilter = arr(sp.kind).includes('WORKSHOP') ? 'WORKSHOP' : 'THEORY';
+  const anyFilter = facultyName.length > 0 || cohortYearBE.length > 0;
 
   const qs = new URLSearchParams();
   facultyName.forEach((v) => qs.append('facultyName', v));
   cohortYearBE.forEach((v) => qs.append('cohortYearBE', String(v)));
   const qsString = qs.toString() ? `?${qs}` : '';
 
-  const [overviewRes, drillRes] = await Promise.all([
+  // Cohort options cascade from the faculty selection (a faculty's own
+  // cohorts, not the institution's) — but NOT from the cohort selection,
+  // or picking a year would shrink the list it was picked from. The
+  // faculty list therefore has to come from an unnarrowed call, so a
+  // faculty selection can be swapped and not only narrowed. Both calls
+  // are one grouped scan and both are clamped by the API.
+  const cascadeQs = new URLSearchParams();
+  facultyName.forEach((v) => cascadeQs.append('facultyName', v));
+  const cascadeQsString = cascadeQs.toString() ? `?${cascadeQs}` : '';
+
+  const [overviewRes, drillRes, cascadeRes] = await Promise.all([
     apiFetchSafe<DqOverviewResponse>(`/education/student-dq/overview${qsString}`),
     apiFetchSafe<DqDrillResponse>(`/education/student-dq/drill${qsString}`),
+    apiFetchSafe<DqFilterOptionsResponse>(
+      `/education/student-dq/filter-options${cascadeQsString}`,
+    ),
   ]);
+  const facultyListRes =
+    facultyName.length > 0
+      ? await apiFetchSafe<DqFilterOptionsResponse>('/education/student-dq/filter-options')
+      : cascadeRes;
 
-  // The faculty dropdown must list every faculty the caller may see, not
-  // just those surviving the current filter — otherwise a selection can
-  // only ever be narrowed, never swapped. One extra unfiltered call, and
-  // only when a filter is actually applied; the API clamps it to the
-  // caller's scope exactly as it clamps the filtered one.
-  const anyFilter = facultyName.length > 0 || cohortYearBE.length > 0;
-  const optionsRes = anyFilter
-    ? await apiFetchSafe<DqDrillResponse>('/education/student-dq/drill')
-    : drillRes;
-  const facultyOptions = optionsRes.ok
-    ? optionsRes.data.faculties.map((f) => f.facultyName)
-    : drillRes.ok
-      ? drillRes.data.faculties.map((f) => f.facultyName)
-      : [];
+  const facultyOptions = facultyListRes.ok ? facultyListRes.data.facultyNames : facultyName;
+  // Newest intake first: it is the cohort a reader reaches for.
+  const cohortOptions = cascadeRes.ok
+    ? [...cascadeRes.data.cohortYearsBE].sort((a, b) => b - a)
+    : [];
 
   const loaded = overviewRes.ok && drillRes.ok;
   // Zero faculty rows means the cubes are empty — the connector has
-  // never completed a run (or ran with no token). That is a different
-  // failure from a 500, and the empty state says so.
-  const hasRows = drillRes.ok && drillRes.data.faculties.length > 0;
+  // never completed a run (or ran with no token). ONLY true when nothing
+  // is filtered: under a filter, zero rows means the filter matched
+  // nothing, and diagnosing that as "the connector never ran" is both
+  // false and a trap — the empty state replaces the client, so the rail
+  // that set the filter disappears with it and the only way back is to
+  // edit the URL. Filtered-and-empty renders the client, which says so
+  // in the table with the rail still on screen.
+  const cubesEmpty = drillRes.ok && !anyFilter && drillRes.data.faculties.length === 0;
 
   return (
     <AuthedAppShell user={user}>
       <EducationBackLink />
       <PageHeader
         title="Student DQ"
-        subtitle="How KKU undergraduates perform on the university's Digital Intelligence competency test. Drill from faculty down to a programme, with a column for every module. Scores are withheld on rows with fewer than 5 scored students."
+        subtitle={`How KKU undergraduates perform on the university's Digital Intelligence competency test. Drill from faculty down to a programme, with a column for every module. Scores are withheld on rows with fewer than ${DQ_MIN_CELL_STUDENTS} scored students.`}
       />
-      {loaded && hasRows ? (
+      {loaded && !cubesEmpty ? (
         <StudentDqClient
           overview={overviewRes.data}
           drill={drillRes.data}
@@ -104,9 +110,9 @@ export default async function StudentDqPage({ searchParams }: { searchParams: Pr
           // and passed down. Same for DQ_PASS_MARK.
           modules={[...DQ_MODULES]}
           passMark={DQ_PASS_MARK}
+          minCellStudents={DQ_MIN_CELL_STUDENTS}
           facultyOptions={facultyOptions}
-          cohortOptions={cohortOptions()}
-          initialFilters={{ facultyName, cohortYearBE, kind }}
+          cohortOptions={cohortOptions}
         />
       ) : (
         <DiagnosticEmptyState

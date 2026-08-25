@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@kku/ui';
 // TYPE-ONLY import. The `@kku/shared` barrel re-exports subpaths that
 // pull `node:crypto`, which breaks the client bundle — so the module
@@ -14,6 +14,7 @@ import {
   DrillDownPivot,
   type DrillColumn,
   type DrillRow,
+  type DrillRowBadge,
 } from '../../staff/drill-down-pivot';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -92,24 +93,45 @@ interface Props {
   modules: DqModule[];
   /** Pass mark (70) from `@kku/shared`, for the methodology note. */
   passMark: number;
-  /** Every faculty the caller may see, so narrowing the filter never
-   *  shrinks the list you can widen it back with. */
+  /** `DQ_MIN_CELL_STUDENTS` from `@kku/db` — the scored-student floor
+   *  below which scores are withheld. Rendered rather than written into
+   *  the copy, so moving the floor cannot leave the page claiming a
+   *  number the query layer no longer uses. */
+  minCellStudents: number;
+  /** Every faculty the caller may see, unnarrowed by the current filter,
+   *  so a selection can be swapped and not only narrowed. */
   facultyOptions: string[];
+  /** Cohorts present in the cube under the current faculty selection —
+   *  the rail never offers a cut with no data behind it. */
   cohortOptions: number[];
-  initialFilters: {
-    facultyName: string[];
-    cohortYearBE: number[];
-    kind: DqModuleKindFilter;
-  };
 }
 
 const TH_COLLATOR = new Intl.Collator('th', { numeric: true, sensitivity: 'base' });
 
-/** Suppressed rows come back with null means and a visible headcount.
- *  The badge says WHY the dashes are there — a reader must not read a
- *  withheld score as a zero one. */
-const SUPPRESSED_BADGE = { text: 'n<5', tone: 'muted' } as const;
-const UNPLACED_BADGE = { text: 'unplaced', tone: 'muted' } as const;
+/**
+ * The chip after a row label.
+ *
+ * Suppressed rows come back with null means and visible headcounts, so
+ * the chip has to say WHY the dashes are there — a withheld score must
+ * not read as a zero one. It names `scored` explicitly because that is
+ * the column suppression keys on: a row can read "13 tested" and still
+ * be withheld on 4 scored, and without the word the badge looks like a
+ * bug sitting next to the headcount.
+ *
+ * An unplaced row that is ALSO suppressed carries both facts: dropping
+ * the suppression half would leave its dashes unexplained, which is the
+ * exact ambiguity the chip exists to remove.
+ */
+function rowBadge(
+  opts: { suppressed: boolean; unplaced: boolean },
+  minCellStudents: number,
+): DrillRowBadge | undefined {
+  const withheld = `n<${minCellStudents} scored`;
+  if (opts.unplaced) {
+    return { text: opts.suppressed ? `unplaced · ${withheld}` : 'unplaced', tone: 'muted' };
+  }
+  return opts.suppressed ? { text: withheld, tone: 'muted' } : undefined;
+}
 
 function num(n: number): string {
   return n.toLocaleString('en-US');
@@ -141,6 +163,10 @@ function metricsFor(row: DqDrillRowDto, modules: DqModule[]): Record<string, num
     overall: row.overallMean,
     passedPct: passedPct(row),
     tested: row.studentsTested,
+    // Never suppressed, and on screen next to Tested: it is the number
+    // the ≥N gate actually tests, so a reader can see why a row with a
+    // healthy Tested count is still withheld.
+    scored: row.studentsWithScores,
     ...moduleMetrics(row, modules),
   };
 }
@@ -150,16 +176,22 @@ export function StudentDqClient({
   drill,
   modules,
   passMark,
+  minCellStudents,
   facultyOptions,
   cohortOptions,
-  initialFilters,
 }: Props) {
   const router = useRouter();
-  const [faculty, setFaculty] = React.useState<string[]>(initialFilters.facultyName);
-  const [cohort, setCohort] = React.useState<string[]>(
-    initialFilters.cohortYearBE.map(String),
-  );
-  const [kind, setKind] = React.useState<DqModuleKindFilter>(initialFilters.kind);
+  const searchParams = useSearchParams();
+
+  // The URL is the single source of truth for the rail. Seeding
+  // `useState` from props and never re-syncing leaves the chips showing
+  // a stale selection after Back/Forward: the soft navigation re-renders
+  // with new data, but a state initialiser only runs on mount, so the
+  // table and the chips disagree about what is filtered.
+  const faculty = React.useMemo(() => searchParams.getAll('facultyName'), [searchParams]);
+  const cohort = React.useMemo(() => searchParams.getAll('cohortYearBE'), [searchParams]);
+  const kind: DqModuleKindFilter =
+    searchParams.get('kind') === 'WORKSHOP' ? 'WORKSHOP' : 'THEORY';
 
   const apply = (next: {
     faculty?: string[];
@@ -197,7 +229,7 @@ export function StudentDqClient({
       return {
         label: unplaced ? 'Program not identified' : (p.programName ?? '(unnamed program)'),
         emphasis: unplaced ? 'muted' : undefined,
-        badge: unplaced ? UNPLACED_BADGE : p.suppressed ? SUPPRESSED_BADGE : undefined,
+        badge: rowBadge({ suppressed: p.suppressed, unplaced }, minCellStudents),
         metrics: metricsFor(p, modules),
       };
     };
@@ -217,7 +249,7 @@ export function StudentDqClient({
 
     const facultyRows: DrillRow[] = drill.faculties.map((f) => ({
       label: f.facultyName,
-      badge: f.suppressed ? SUPPRESSED_BADGE : undefined,
+      badge: rowBadge({ suppressed: f.suppressed, unplaced: false }, minCellStudents),
       metrics: metricsFor(f, modules),
       children: buildChildren(f.facultyName),
     }));
@@ -229,12 +261,12 @@ export function StudentDqClient({
     const orphans: DrillRow[] = [...childrenByFaculty.entries()].map(([name, kids]) => ({
       label: `${name} — no faculty row returned`,
       emphasis: 'warn' as const,
-      metrics: { overall: null, passedPct: null, tested: null },
+      metrics: { overall: null, passedPct: null, tested: null, scored: null },
       children: kids.map(childRow),
     }));
 
     return [...facultyRows, ...orphans];
-  }, [drill, modules]);
+  }, [drill, modules, minCellStudents]);
 
   // Framework order, straight from DQ_MODULES. Theory and workshop
   // modules 5-8 share a `shortEn`, so workshop headers carry a suffix —
@@ -244,6 +276,7 @@ export function StudentDqClient({
       { key: 'overall', label: 'Overall', format: 'decimal1' },
       { key: 'passedPct', label: 'Passed %', format: 'decimal1' },
       { key: 'tested', label: 'Tested', format: 'int' },
+      { key: 'scored', label: 'Scored', format: 'int' },
       ...modules.map(
         (m): DrillColumn => ({
           key: m.key,
@@ -270,6 +303,11 @@ export function StudentDqClient({
 
   const axisCount = modules.filter((m) => m.kind === kind).length;
   const refreshed = overview.refreshedAt ? new Date(overview.refreshedAt) : null;
+  // Distinct from `overview.programsResolved`, which counts distinct
+  // programmes: one programme taught to students recorded under two
+  // faculty names is two rows here and one programme there. Both
+  // figures are labelled so the difference reads as a difference.
+  const placedRowCount = drill.programs.filter((p) => p.programId !== null).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -280,10 +318,7 @@ export function StudentDqClient({
             label="Faculty"
             options={facultyOptions.map((f) => ({ value: f, label: f }))}
             selected={faculty}
-            onChange={(vs) => {
-              setFaculty(vs);
-              apply({ faculty: vs });
-            }}
+            onChange={(vs) => apply({ faculty: vs })}
           />
           <MultiSelectField
             label="Cohort (admission year)"
@@ -293,23 +328,17 @@ export function StudentDqClient({
               hint: `CE ${y - 543}`,
             }))}
             selected={cohort}
-            onChange={(vs) => {
-              setCohort(vs);
-              apply({ cohort: vs });
-            }}
+            onChange={(vs) => apply({ cohort: vs })}
             preserveOrder
           />
           <div className="flex flex-col gap-1">
             <span className="text-xs text-text-tertiary">Radar axes</span>
-            <div className="inline-flex overflow-hidden rounded border border-subtle">
+            <div className="inline-flex overflow-hidden rounded-md border border-subtle">
               {(['THEORY', 'WORKSHOP'] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
-                  onClick={() => {
-                    setKind(k);
-                    apply({ kind: k });
-                  }}
+                  onClick={() => apply({ kind: k })}
                   className={
                     kind === k
                       ? 'bg-surface-3 px-3 py-1 text-xs font-medium text-text-primary'
@@ -324,12 +353,12 @@ export function StudentDqClient({
           {anyFilter && (
             <button
               type="button"
-              className="rounded border border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
-              onClick={() => {
-                setFaculty([]);
-                setCohort([]);
-                router.push('/education/student-dq');
-              }}
+              className="rounded-md border border-subtle bg-surface-1 px-3 py-1 text-xs text-text-secondary hover:bg-surface-2"
+              // Clears the data filters and leaves the Theory/Workshop
+              // view where the reader put it — and goes through `apply`
+              // so the URL it pushes and the chips it clears can never
+              // describe different things.
+              onClick={() => apply({ faculty: [], cohort: [] })}
             >
               Clear filters
             </button>
@@ -339,7 +368,7 @@ export function StudentDqClient({
             <span className="px-1">·</span>
             {num(overview.facultyCount)} faculties
             <span className="px-1">·</span>
-            {num(overview.programsResolved)} programs matched
+            {num(overview.programsResolved)} distinct programmes matched
           </span>
         </div>
       </Card>
@@ -368,7 +397,7 @@ export function StudentDqClient({
             // share a caption: one is "we will not say", the other is
             // "there is nothing to say".
             overview.suppressed && overview.studentsWithScores > 0
-              ? `withheld — fewer than 5 scored students in this selection (${num(
+              ? `withheld — fewer than ${minCellStudents} scored students in this selection (${num(
                   overview.studentsWithScores,
                 )})`
               : passPct === null
@@ -402,36 +431,52 @@ export function StudentDqClient({
             Digital Intelligence results by faculty and program
           </h3>
           <span className="text-xs text-text-tertiary">
-            {num(drill.faculties.length)} faculties
+            {num(drill.faculties.length)} faculty rows
             <span className="px-1">·</span>
-            {num(drill.programs.filter((p) => p.programId !== null).length)} program rows
+            {num(placedRowCount)} faculty &times; programme rows
           </span>
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
-          Click a faculty to open its programs. Overall is the weighted mean across the
-          theory modules; Passed % is the share of scored students DQ itself marks as
-          having passed. A dash means the figure is not available — either nobody took
-          that module, or the row holds fewer than 5 scored students and its scores are
-          withheld (marked <span className="font-medium">n&lt;5</span>). Dashes are never
-          zeros.
+          Click a faculty to open its programs. Overall is the weighted mean across
+          theory modules 1&ndash;12 &mdash; module 13 keeps its own column but stays out
+          of the headline, because its rollout has reached faculties unevenly and the
+          headline is the one figure faculties are compared on. Passed % is the share of
+          scored students DQ itself marks as having passed. Tested counts everyone who
+          sat the test; Scored counts those whose result carries module scores, and it is
+          Scored that decides whether a row is withheld. A dash means the figure is not
+          available &mdash; either nobody took that module, or the row holds fewer than{' '}
+          {minCellStudents} scored students and its scores are withheld (marked{' '}
+          <span className="font-medium">n&lt;{minCellStudents} scored</span>). Dashes are
+          never zeros.
         </p>
         <div className="mt-3">
-          <DrillDownPivot
-            rowHeaderLabel="Faculty / program"
-            rows={rows}
-            columns={columns}
-            maxDepth={2}
-          />
+          {rows.length === 0 ? (
+            // An empty result under a filter is a fact about the filter,
+            // not about the connector — and the rail above stays on
+            // screen so the reader can widen it again.
+            <p className="rounded-md border border-subtle bg-surface-2 px-3 py-6 text-center text-xs text-text-secondary">
+              No rows match this filter. Widen the faculty or cohort selection above, or
+              clear the filters.
+            </p>
+          ) : (
+            <DrillDownPivot
+              rowHeaderLabel="Faculty / program"
+              rows={rows}
+              columns={columns}
+              maxDepth={2}
+            />
+          )}
         </div>
         <p className="mt-3 text-xs text-text-tertiary">
           Pass mark is {passMark} on every module. A score of 0 is treated as
           &ldquo;not taken&rdquo; and excluded from every average, so a module that has
           only just rolled out reads as thin coverage rather than as poor performance.
           Faculty figures are aggregated at faculty scope from the source sums, never
-          averaged from the program rows beneath them. Rows headed &ldquo;Program not
-          identified&rdquo; are students the DQ export could not be matched to a current
-          programme — mostly past cohorts and the newest intake — and are a coverage
-          statement, not a programme.
+          averaged from the program rows beneath them. Scores and the pass verdict are
+          withheld on any row with fewer than {minCellStudents} scored students. Rows
+          headed &ldquo;Program not identified&rdquo; are students the DQ export could
+          not be matched to a current programme — mostly past cohorts and the newest
+          intake — and are a coverage statement, not a programme.
         </p>
         <p className="mt-1 text-xs text-text-tertiary">
           Methodology <span className="font-medium">{drill.methodologyVersion}</span>

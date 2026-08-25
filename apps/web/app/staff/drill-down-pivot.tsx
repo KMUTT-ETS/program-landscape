@@ -52,10 +52,30 @@ function fmt(value: number | null | undefined, format: DrillColumn['format'] = '
   return Math.round(value).toLocaleString('en-US');
 }
 
-function compareNullable(a: number | null | undefined, b: number | null | undefined): number {
-  if (a === null || a === undefined) return 1;
-  if (b === null || b === undefined) return -1;
-  return a - b;
+/**
+ * Numeric comparison that keeps missing values at the bottom in BOTH
+ * directions.
+ *
+ * Returning a plain sign and letting the caller negate it for `desc`
+ * flipped the nulls to the top — and the first click on any column is
+ * `desc`, so on a null-dense table (a dash for every withheld or
+ * untaken figure) the first click filled the screen with dashes. A
+ * missing value is not the largest value; it is not a value. The
+ * direction is applied here so it can only ever affect the rows that
+ * have something to compare.
+ */
+function compareNullable(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  dir: SortDir,
+): number {
+  const aMissing = a === null || a === undefined;
+  const bMissing = b === null || b === undefined;
+  if (aMissing || bMissing) {
+    if (aMissing && bMissing) return 0;
+    return aMissing ? 1 : -1;
+  }
+  return dir === 'asc' ? a - b : b - a;
 }
 
 function sortRows(rows: DrillRow[], sort: SortState | null): DrillRow[] {
@@ -67,8 +87,7 @@ function sortRows(rows: DrillRow[], sort: SortState | null): DrillRow[] {
     }
     const av = a.metrics[sort.key] ?? null;
     const bv = b.metrics[sort.key] ?? null;
-    const c = compareNullable(av, bv);
-    return sort.dir === 'asc' ? c : -c;
+    return compareNullable(av, bv, sort.dir);
   });
   return sorted.map((r) => (r.children ? { ...r, children: sortRows(r.children, sort) } : r));
 }
