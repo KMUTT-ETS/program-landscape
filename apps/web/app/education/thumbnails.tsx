@@ -484,6 +484,93 @@ export function RecruitmentThumb() {
   );
 }
 
+// Dashboard — Student DQ: a module radar (polygon score profile) against
+// a dashed pass-mark ring, next to a faculty → program drill preview.
+export function StudentDqThumb() {
+  const cx = 62;
+  const cy = 62;
+  const axes = 8;
+  const rOuter = 38;
+  // A score profile that dips on one axis (the new module, mirrors the
+  // real module-13 rollout dip) so the shape reads as "mostly passing,
+  // one soft spot" rather than a uniform blob.
+  const values = [0.86, 0.78, 0.92, 0.7, 0.8, 0.42, 0.88, 0.75];
+  const passRatio = 0.68; // pass-mark ring, short of the outer edge
+
+  const pt = (i: number, ratio: number) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / axes;
+    return [cx + Math.cos(a) * rOuter * ratio, cy + Math.sin(a) * rOuter * ratio];
+  };
+
+  const profilePoints = values.map((v, i) => pt(i, v).join(',')).join(' ');
+  const passRingPoints = values.map((_, i) => pt(i, passRatio).join(',')).join(' ');
+
+  return (
+    <Frame>
+      {/* Axis spokes */}
+      {values.map((_, i) => {
+        const [x, y] = pt(i, 1);
+        return (
+          <line
+            key={i}
+            x1={cx}
+            y1={cy}
+            x2={x}
+            y2={y}
+            stroke={COLORS.muted}
+            strokeWidth="0.6"
+            opacity="0.4"
+          />
+        );
+      })}
+      {/* Pass-mark ring (dashed) */}
+      <polygon
+        points={passRingPoints}
+        fill="none"
+        stroke={COLORS.accent}
+        strokeWidth="1"
+        strokeDasharray="3,2"
+        opacity="0.6"
+      />
+      {/* Score profile */}
+      <polygon points={profilePoints} fill={COLORS.primary} opacity="0.35" />
+      <polygon points={profilePoints} fill="none" stroke={COLORS.primary} strokeWidth="1.4" />
+      {values.map((v, i) => {
+        const [x, y] = pt(i, v);
+        return (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r="2.6"
+            fill={v < passRatio ? COLORS.accent : COLORS.green}
+          />
+        );
+      })}
+
+      {/* Drill preview on the right: faculty → program rows */}
+      <g transform="translate(150, 20)">
+        <rect width="76" height="10" fill={COLORS.muted} opacity="0.3" rx="2" />
+        <g transform="translate(6, 16)">
+          <rect width="64" height="8" fill={COLORS.primary} opacity="0.7" rx="2" />
+        </g>
+        <g transform="translate(12, 28)">
+          <rect width="56" height="8" fill={COLORS.primary} opacity="0.45" rx="2" />
+        </g>
+        <g transform="translate(12, 40)">
+          <rect width="56" height="8" fill={COLORS.primary} opacity="0.45" rx="2" />
+        </g>
+      </g>
+      <text x={188} y={78} textAnchor="middle" fontSize="8" fill={COLORS.ink} opacity="0.6">
+        Faculty → Program
+      </text>
+      <text x={62} y={112} textAnchor="middle" fontSize="9" fontWeight="600" fill={COLORS.ink} opacity="0.55">
+        Module radar · pass 70
+      </text>
+    </Frame>
+  );
+}
+
 // Dashboard — Student evaluations: speech-bubble star-rating glyph next
 // to a per-question score heatmap row.
 export function SatisfactionThumb() {

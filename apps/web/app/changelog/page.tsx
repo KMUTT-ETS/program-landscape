@@ -26,6 +26,21 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-08-25',
+    version: 'v1.9.0 · Student DQ',
+    title:
+      'A new dashboard drills every undergraduate’s Digital Intelligence competency-test results from faculty down to programme, module by module — reporting the source’s own pass/fail verdict rather than substituting a rule of its own',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New "Student DQ" dashboard (Education → Student DQ): 24,777 students in the export, 19,601 of them carrying module scores. Faculty → programme drill-down across 13 theory modules and 4 workshops, pass mark 70 on every module, plus a module-by-module radar for any faculty or programme.',
+      'Module 13 (Generative AI) is new and its rollout is still catching up — only 57% of scored students have taken it, averaging 67.6. A score of 0 means "not taken", so zeros are excluded from every average; counting them would have shown the module near 40 and read as a competency crisis that is really an incomplete rollout.',
+      'About 40% of tested students are past cohorts or the newest intake who cannot yet be matched to a current programme. They are shown under "Program not identified" rather than dropped, so faculty totals still cover everyone who was tested.',
+      'Figures are withheld for any faculty or programme with fewer than 5 scored students, so no individual’s result can be inferred from a small cell.',
+      'The pass/fail flag shown is the test provider’s own, and it does not apply one consistent rule to module 13: 164 students who clear 70 on every module 1–12 but score below 70 on module 13 are marked failed, while 3,183 with the same profile are marked passed. The dashboard reports that verdict as given and states the discrepancy rather than recomputing its own pass/fail rule.',
+      'No student names or ID numbers are stored — the source export carries them, but the connector aggregates in memory and only the aggregates are written to the database.',
+    ],
+  },
+  {
     date: '2026-08-24',
     version: 'v1.8.0 · Teaching and learning talent',
     title:

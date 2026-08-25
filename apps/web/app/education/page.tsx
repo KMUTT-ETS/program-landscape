@@ -19,6 +19,7 @@ import {
   Filter,
   CalendarRange,
   MessageSquare,
+  Radar,
 } from 'lucide-react';
 // EducationRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
 // The component still lives in ./refresh-bar — the admin page imports
@@ -31,6 +32,7 @@ import {
   PerformanceThumb,
   RecruitmentThumb,
   SatisfactionThumb,
+  StudentDqThumb,
   StudentInfoThumb,
   TuitionThumb,
 } from './thumbnails';
@@ -104,6 +106,14 @@ const TILES: Array<{
     blurb:
       'Undergraduate GPAs and entry test scores. Faculty → Program drill-down on average GPA, plus a Region → Province → School → Faculty → Program location view, plus a per-subject score pivot.',
     Thumb: PerformanceThumb,
+  },
+  {
+    href: '/education/student-dq',
+    icon: Radar,
+    title: 'Student DQ',
+    blurb:
+      "Every undergraduate's results on the university's Digital Intelligence competency test, drilled from faculty down to programme, with a module-by-module radar.",
+    Thumb: StudentDqThumb,
   },
   {
     href: '/education/class-offerings',
