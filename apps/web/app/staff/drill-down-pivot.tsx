@@ -21,6 +21,16 @@ export interface DrillRow {
   badge?: DrillRowBadge;
   metrics: Record<string, number | null>;
   children?: DrillRow[];
+  /**
+   * Opaque identifier the consumer reads back in `onSelect`. Its presence
+   * is also what makes a row selectable: a table can carry rows that
+   * name no scope (a coverage bucket, an orphan grouping), and those keep
+   * the plain label rather than offering a click that would do nothing.
+   *
+   * Rows are otherwise identified only by their label, which repeats —
+   * the same programme name appears under two faculties in the DQ table.
+   */
+  selectionKey?: string;
 }
 
 export interface DrillColumn {
@@ -35,6 +45,17 @@ export interface DrillDownPivotProps {
   columns: DrillColumn[];
   rowHeaderLabel?: string;
   maxDepth?: number;
+  /**
+   * Fires when a row carrying a `selectionKey` has its label clicked.
+   *
+   * Optional and strictly additive: without it the table behaves exactly
+   * as it always has — the whole label, chevron included, is one
+   * expand/collapse target. With it, a selectable row splits that into
+   * two: the chevron expands, the label selects. Selection and expansion
+   * are separate acts on a row that can do both, so they get separate
+   * targets rather than one click that has to guess which was meant.
+   */
+  onSelect?: (row: DrillRow) => void;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -104,6 +125,7 @@ export function DrillDownPivot({
   columns,
   rowHeaderLabel = 'Row',
   maxDepth = 3,
+  onSelect,
 }: DrillDownPivotProps) {
   const [sort, setSort] = React.useState<SortState | null>(null);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -162,6 +184,7 @@ export function DrillDownPivot({
               expanded={expanded}
               toggle={toggle}
               maxDepth={maxDepth}
+              onSelect={onSelect}
             />
           ))}
         </tbody>
@@ -178,6 +201,7 @@ function PivotRow({
   expanded,
   toggle,
   maxDepth,
+  onSelect,
 }: {
   row: DrillRow;
   columns: DrillColumn[];
@@ -186,10 +210,15 @@ function PivotRow({
   expanded: Set<string>;
   toggle: (key: string) => void;
   maxDepth: number;
+  onSelect?: (row: DrillRow) => void;
 }) {
   const hasChildren = row.children && row.children.length > 0 && depth + 1 < maxDepth;
   const isOpen = expanded.has(path);
   const padPx = depth === 0 ? 0 : depth === 1 ? 24 : 56;
+  // Both halves must be true: a consumer that passes no handler gets the
+  // original single-target label, and a row the consumer gave no key
+  // keeps it too rather than offering a click that lands nowhere.
+  const selectable = onSelect !== undefined && row.selectionKey !== undefined;
 
   return (
     <>
@@ -199,7 +228,38 @@ function PivotRow({
         }`}
       >
         <td className="px-2 py-1" style={{ paddingLeft: 8 + padPx }}>
-          {hasChildren ? (
+          {selectable ? (
+            // Two targets, side by side: the chevron owns expand/collapse
+            // and the label owns selection. Neither is nested inside the
+            // other, so no click is ambiguous and neither needs to stop
+            // the other's propagation.
+            <span className="inline-flex items-center gap-1">
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggle(path)}
+                  aria-label={isOpen ? `Collapse ${row.label}` : `Expand ${row.label}`}
+                  aria-expanded={isOpen}
+                  className="hover:text-accent-default"
+                >
+                  <ChevronRight
+                    className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                  />
+                </button>
+              ) : (
+                // Keeps a leaf's label on the same left edge as a parent's.
+                <span className="ml-4" />
+              )}
+              <button
+                type="button"
+                onClick={() => onSelect?.(row)}
+                className="truncate text-left underline decoration-dotted underline-offset-2 hover:text-accent-default"
+                title={row.label}
+              >
+                {row.label}
+              </button>
+            </span>
+          ) : hasChildren ? (
             <button
               type="button"
               onClick={() => toggle(path)}
@@ -250,6 +310,7 @@ function PivotRow({
             expanded={expanded}
             toggle={toggle}
             maxDepth={maxDepth}
+            onSelect={onSelect}
           />
         ))}
     </>

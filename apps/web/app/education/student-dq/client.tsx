@@ -315,6 +315,11 @@ export function StudentDqClient({
         emphasis: unplaced ? 'muted' : undefined,
         badge: rowBadge({ suppressed: p.suppressed, unplaced }, minCellStudents),
         metrics: metricsFor(p, modules),
+        // The unplaced bucket gets no key: it is students the export
+        // could not match to a programme, not a scope the radar can plot.
+        // Carrying the faculty alongside the id is what keeps a row that
+        // appears under two faculties pointing at its own population.
+        selectionKey: unplaced ? undefined : `p:${p.programId}|${p.facultyName}`,
       };
     };
 
@@ -336,6 +341,7 @@ export function StudentDqClient({
       badge: rowBadge({ suppressed: f.suppressed, unplaced: false }, minCellStudents),
       metrics: metricsFor(f, modules),
       children: buildChildren(f.facultyName),
+      selectionKey: `f:${f.facultyName}`,
     }));
 
     // Both arrays come from the same cube scan, so every program's
@@ -582,7 +588,9 @@ export function StudentDqClient({
           </span>
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
-          Click a faculty to open its programs. Overall is the weighted mean across
+          Click the arrow beside a faculty to open its programs, or click a name to plot
+          that faculty or programme on the module profile below. Overall is the weighted
+          mean across
           theory modules 1&ndash;12 &mdash; module 13 keeps its own column but stays out
           of the headline, because its rollout has reached faculties unevenly and the
           headline is the one figure faculties are compared on. Passed % is the share of
@@ -609,6 +617,11 @@ export function StudentDqClient({
               rows={rows}
               columns={columns}
               maxDepth={2}
+              // Same URL state the radar's own picker writes, so the two
+              // controls cannot disagree about what is plotted.
+              onSelect={(row) => {
+                if (row.selectionKey) apply({ radarTarget: row.selectionKey });
+              }}
             />
           )}
         </div>
@@ -641,10 +654,15 @@ export function StudentDqClient({
           <h3 className="text-sm font-semibold">
             Module profile &mdash; {kind === 'THEORY' ? 'theory' : 'workshop'} modules
           </h3>
-          <label className="flex items-center gap-2 text-xs text-text-tertiary">
+          <label className="flex min-w-0 items-center gap-2 text-xs text-text-tertiary">
             Scope
             <select
-              className="rounded-md border border-subtle bg-surface-1 px-2 py-1 text-xs text-text-primary"
+              // A select sizes itself to its longest option, and these are
+              // full Thai programme names — left alone it was 500px wide
+              // and pushed the page into horizontal scroll on a narrow
+              // viewport. Capped here; the native control clips the text
+              // and the full name stays readable once the list is open.
+              className="max-w-[16rem] rounded-md border border-subtle bg-surface-1 px-2 py-1 text-xs text-text-primary"
               value={targetParamValue}
               onChange={(e) => apply({ radarTarget: e.target.value })}
             >
@@ -698,28 +716,37 @@ export function StudentDqClient({
             )}
           </p>
         ) : (
-          <div className="mt-3 flex justify-center">
-            <RadarChartSmall
-              points={toPoints(radar.scope)}
-              // Verbatim from the API. It states exactly which population
-              // the ring covers; it is not the caller's scope wearing the
-              // word "University".
-              comparisons={
-                comparisonIsScope
-                  ? []
-                  : [{ label: radar.comparisonLabel, points: toPoints(radar.university) }]
-              }
-              seriesLabel={`${radar.scopeLabel}${cohortNote}`}
-              // 13 theory axes at fontSize 11: the primitive's label
-              // gutter is fixed at 56px, so the outer radius has to come
-              // from the HEIGHT (Recharts takes 80% of the smaller side)
-              // for the widest labels — 'Collaboration', 'Presentation' —
-              // to have room beyond the polygon. 720 x 420 leaves the
-              // labels clear at every vertex; narrowing the box or
-              // squaring it off puts them back over the grid.
-              width={720}
-              height={420}
-            />
+          // The chart is a fixed 720px and the shared primitive takes no
+          // responsive sizing, so on a narrow card it must scroll inside
+          // its own box — the page body never scrolls sideways. The inner
+          // `min-w-fit` is what makes that work with centring: without it
+          // the centred row would be clipped on its left edge, out of
+          // reach of the scrollbar, once the content exceeds the box.
+          <div className="mt-3 overflow-x-auto">
+            <div className="flex min-w-fit justify-center">
+              <RadarChartSmall
+                points={toPoints(radar.scope)}
+                // Verbatim from the API. It states exactly which
+                // population the ring covers; it is not the caller's
+                // scope wearing the word "University".
+                comparisons={
+                  comparisonIsScope
+                    ? []
+                    : [{ label: radar.comparisonLabel, points: toPoints(radar.university) }]
+                }
+                seriesLabel={`${radar.scopeLabel}${cohortNote}`}
+                // 13 theory axes at fontSize 11: the primitive's label
+                // gutter is fixed at 56px, so the outer radius has to
+                // come from the HEIGHT (Recharts takes 80% of the
+                // smaller side) for the widest labels — 'Collaboration',
+                // 'Presentation' — to have room beyond the polygon.
+                // 720 x 420 leaves the labels clear at every vertex;
+                // narrowing the box or squaring it off puts them back
+                // over the grid.
+                width={720}
+                height={420}
+              />
+            </div>
           </div>
         )}
 
