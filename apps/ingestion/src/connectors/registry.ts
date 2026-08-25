@@ -26,6 +26,7 @@ import {
   WorldBankConnector,
 } from './sources/kku-connectors';
 import { KkuEvaluationsRealConnector } from './sources/kku-evaluations';
+import { KkuDqConnector, KkuDqRealConnector } from './sources/kku-dq';
 import { KkuFinanceRealConnector } from './sources/kku-finance';
 import { KkuHrRealConnector } from './sources/kku-hr';
 import { KkuRegistryRealConnector } from './sources/kku-registry';
@@ -142,6 +143,13 @@ const ENTRIES: readonly ConnectorEntry[] = [
     slug: 'kku-evaluations',
     mock: () => new KkuEvaluationsConnector(),
     real: () => new KkuEvaluationsRealConnector(),
+  },
+  {
+    // Real from day one — the mock is a deliberate no-op (no sample data
+    // exists and fabricating DQ scores is not allowed). See connector.ts.
+    slug: 'kku-dq',
+    mock: () => new KkuDqConnector(),
+    real: () => new KkuDqRealConnector(),
   },
   { slug: 'digital-transcript', mock: () => new DigitalTranscriptConnector() },
 

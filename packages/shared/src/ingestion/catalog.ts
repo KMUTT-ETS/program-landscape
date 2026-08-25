@@ -144,6 +144,22 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Real connector wired 2026-05-19; 30-day green-history countdown to 2026-06-18.',
     mocked: false,
   },
+  {
+    slug: 'kku-dq',
+    name: 'KKU Digital Intelligence (DQ) Student Scores',
+    kind: 'API',
+    inputFormat: 'JSON',
+    // Weekly. The whole export is one 13.7 MB response served in ~3.4 s,
+    // so there is no pagination to manage — and results only move as
+    // students sit the test.
+    cadenceCron: '0 3 * * 1',
+    ownerContact: 'KKU LTIC — Learning & Digital Support (ltic.psli@kku.ac.th)',
+    notes:
+      'Per-student DQ competency results (13 theory + 4 workshop modules, pass mark 70). ' +
+      'Aggregated in memory to two cubes; no student names or ids are persisted. ' +
+      'Powers /education/student-dq.',
+    mocked: false,
+  },
 
   // ── National Thai ──────────────────────────────────────────────────────
   {
