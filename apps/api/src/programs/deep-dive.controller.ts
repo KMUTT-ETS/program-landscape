@@ -32,11 +32,13 @@ import {
   programRecruitment,
   programAiPeers,
   programAiReadiness,
+  programDigitalCompetency,
   programLifecycleVerdict,
   programStrategicNarrative,
   programResearchExpertise,
   researchExpertiseReadiness,
   programTrends,
+  STUDENT_DQ_METHODOLOGY_VERSION,
 } from '@kku/db';
 import {
   AuditLog,
@@ -303,6 +305,24 @@ export class DeepDiveController {
   async outcomes(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
     return programOutcomes(programId);
+  }
+
+  // Digital Intelligence (DQ) competency. Renders for bachelor
+  // programmes only — the helper returns `not-applicable` for every
+  // other level, which the UI treats as "render nothing", distinct from
+  // a bachelor programme that has no DQ rows.
+  @Get('dq')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [{ id: 'kku-dq', name: 'KKU Digital Intelligence competency test' }],
+    methodologyVersion: STUDENT_DQ_METHODOLOGY_VERSION,
+  })
+  async digitalCompetency(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+  ) {
+    await assertProgramAccessible(programId, user);
+    return programDigitalCompetency(programId);
   }
 
   @Get('faculty')

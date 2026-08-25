@@ -21,6 +21,15 @@ import { programFunnelYears } from './program-funnel';
 import { academicYearContextSync, getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
 import { readinessFor, type ExpertiseReadiness } from './program-research-expertise';
+import {
+  DQ_ELIGIBLE_LEVEL,
+  OVERALL_MEAN_MAX_MODULE_NO,
+  STUDENT_DQ_METHODOLOGY_VERSION,
+  dqCompetencyByScope,
+  dqDriverScore,
+  dqIsEligible,
+  dqRadar,
+} from './student-dq';
 
 // Deep-dive aggregator — all reads a single program's page needs.
 // Each method corresponds to one section of the UI. Role-sensitive
@@ -3506,6 +3515,148 @@ export async function programOutcomes(programId: string) {
     })),
     // Thailand geographic heatmap deferred (needs a per-graduate
     // location field we don't collect yet). UI shows a placeholder.
+  };
+}
+
+// ── Digital competency (DQ) ───────────────────────────────────────────
+
+export interface ProgramDigitalCompetencyModule {
+  moduleKey: string;
+  moduleNo: number;
+  /** This programme's weighted mean, or null when the module was never
+   *  taken here — and null on every module when the figure is withheld. */
+  mean: number | null;
+  coveragePct: number | null;
+  /** The same module computed over every faculty. Never withheld: it is
+   *  an institution-wide mean attributable to nobody. */
+  universityMean: number | null;
+}
+
+export interface ProgramDigitalCompetency {
+  /** 'not-applicable' for non-bachelor programmes: the section does not
+   *  render at all, which is different from having no data. */
+  status: 'ok' | 'below-floor' | 'no-data' | 'not-applicable';
+  rawMean: number | null;
+  driverScore: number | null;
+  /** Always populated when known — the floor is deliberately low, so
+   *  every surface that shows the score must show how thin it is. Zero
+   *  on `not-applicable`: whatever DQ rows a non-bachelor programme
+   *  carries are the current-enrolment join's artefact, not students
+   *  this programme tested. */
+  scoredStudents: number;
+  passRatePct: number | null;
+  /** All 13 theory modules for the radar, plus the university series. */
+  modules: ProgramDigitalCompetencyModule[];
+  /** Named weakest modules — the actionable part. */
+  weakest: Array<{ moduleKey: string; mean: number }>;
+  methodologyVersion: string;
+}
+
+/** How many modules the section names as weakest. Three is enough to
+ *  point a programme chair somewhere without reading as a ranking of
+ *  all thirteen. */
+const DQ_WEAKEST_COUNT = 3;
+
+/**
+ * The programme's Digital Intelligence competency section.
+ *
+ * Four distinct states, because collapsing any two of them would lie:
+ *   - `not-applicable` — any non-bachelor programme. DQ is an
+ *     undergraduate instrument; the non-bachelor programmes carrying DQ
+ *     rows hold 10 students between them, all undergraduates who later
+ *     enrolled, caught by the current-enrolment join. A master's
+ *     programme must show no score AND no empty box.
+ *   - `no-data` — a bachelor programme the DQ export never covered.
+ *   - `below-floor` — 1-4 scored students. The score and the pass rate
+ *     are withheld (see DQ_MIN_CELL_STUDENTS), but the COUNT is
+ *     returned, so the UI can say why rather than leave a reader to
+ *     guess at the dashes. Telling a programme with four tested
+ *     students that it has never been tested is the error this
+ *     distinction exists to prevent.
+ *   - `ok` — a bachelor programme with ≥5 scored students.
+ */
+export async function programDigitalCompetency(
+  programId: string,
+): Promise<ProgramDigitalCompetency> {
+  const blank = {
+    rawMean: null,
+    driverScore: null,
+    passRatePct: null,
+    modules: [] as ProgramDigitalCompetencyModule[],
+    weakest: [] as Array<{ moduleKey: string; mean: number }>,
+    methodologyVersion: STUDENT_DQ_METHODOLOGY_VERSION,
+  };
+
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { level: true },
+  });
+  // A missing programme takes the same branch as a master's: the section
+  // renders nothing either way, and the 404 is the caller's to raise.
+  if (!program || program.level !== DQ_ELIGIBLE_LEVEL) {
+    return { status: 'not-applicable', scoredStudents: 0, ...blank };
+  }
+
+  // Bachelor-only and floor-aware by construction — the same query the
+  // health driver reads, so the two can never disagree.
+  const scope = await dqCompetencyByScope({ scope: 'program', scopeId: programId });
+  if (scope.scoredStudents === 0) {
+    return { status: 'no-data', scoredStudents: 0, ...blank };
+  }
+
+  const withheld = !dqIsEligible(program.level, scope.scoredStudents);
+
+  // Both series come out of `dqRadar`'s reindex against the framework's
+  // 13 theory axes, so a module absent from the cube is a null on the
+  // same axis in both — never dropped from one series and not the other.
+  const radar = await dqRadar({ programId, kind: 'THEORY' });
+  const universityByKey = new Map(radar.university.map((c) => [c.moduleKey, c.mean]));
+  const modules: ProgramDigitalCompetencyModule[] = radar.scope.map((c) => ({
+    moduleKey: c.moduleKey,
+    moduleNo: c.moduleNo,
+    mean: c.mean,
+    coveragePct: c.coveragePct,
+    universityMean: universityByKey.get(c.moduleKey) ?? null,
+  }));
+
+  if (withheld) {
+    // `dqRadar` has already blanked every scope mean; the counts and the
+    // university overlay survive.
+    return { status: 'below-floor', scoredStudents: scope.scoredStudents, ...blank, modules };
+  }
+
+  // Pass rate is DQ's own `allPassed` flag passed through unchanged —
+  // the source's inconsistency about module 13 is noted where it is
+  // rendered, not silently corrected here.
+  const passed = await prisma.dqStudentCube.aggregate({
+    where: { programId },
+    _sum: { studentsWithScores: true, studentsAllPassed: true },
+  });
+  const scoredInCube = passed._sum.studentsWithScores ?? 0;
+  const allPassed = passed._sum.studentsAllPassed ?? 0;
+
+  // Weakest is drawn from the modules the headline mean averages over.
+  // Module 13's uptake varies two-fold between faculties, so it is
+  // excluded here for the same reason it is excluded from the score
+  // printed beside it — see OVERALL_MEAN_MAX_MODULE_NO.
+  const weakest = modules
+    .filter(
+      (m): m is ProgramDigitalCompetencyModule & { mean: number } =>
+        m.moduleNo <= OVERALL_MEAN_MAX_MODULE_NO && m.mean !== null,
+    )
+    .sort((a, b) => a.mean - b.mean)
+    .slice(0, DQ_WEAKEST_COUNT)
+    .map((m) => ({ moduleKey: m.moduleKey, mean: m.mean }));
+
+  return {
+    status: 'ok',
+    rawMean: scope.rawMean,
+    driverScore: dqDriverScore(scope.rawMean),
+    scoredStudents: scope.scoredStudents,
+    passRatePct: scoredInCube > 0 ? (100 * allPassed) / scoredInCube : null,
+    modules,
+    weakest,
+    methodologyVersion: STUDENT_DQ_METHODOLOGY_VERSION,
   };
 }
 
