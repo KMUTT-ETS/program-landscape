@@ -639,6 +639,181 @@ async function resolveScopeLabel(scope: DqRadarScope): Promise<string> {
   return 'University';
 }
 
+/** DQ is an undergraduate instrument. See dqIsEligible. */
+export const DQ_ELIGIBLE_LEVEL = 'BACHELOR';
+
+/** Raw DQ means below this score 0; the band's lower half exists so a
+ *  failing programme is visible rather than clipped at the floor. */
+const DQ_BAND_FLOOR = 50;
+/** KKU's own pass mark, and the middle of the driver scale. */
+const DQ_BAND_PASS = 70;
+/** Above this the driver saturates. */
+const DQ_BAND_CEILING = 90;
+
+/**
+ * Convert a raw programme DQ mean (0-100) into a health-driver score.
+ *
+ * Anchored on the pass mark rather than on the observed spread:
+ *   ≤50 → 0 · 70 → 50 · ≥90 → 100, linear between.
+ *
+ * Why not pass the raw mean straight through: programme means span only
+ * 75.1-90.7 (median 85.0, half within 3.8 points) and NO programme is
+ * below the pass mark, so a raw value would put every programme in the
+ * top quarter of the driver and differentiate almost nothing — the same
+ * failure the DQ radar had against a 0-100 axis.
+ *
+ * Why not fit the band to the observed min/max: that moves one
+ * programme's score when a DIFFERENT programme's data changes, and it
+ * shifts on every refresh. Anchoring on 70 also makes the number
+ * readable — 50 means the average student just passes.
+ *
+ * Returns null for a null mean. A programme with no DQ evidence has not
+ * scored zero, and the health score excludes nulls from its average.
+ */
+export function dqDriverScore(rawMean: number | null): number | null {
+  if (rawMean === null || !Number.isFinite(rawMean)) return null;
+  if (rawMean <= DQ_BAND_FLOOR) return 0;
+  if (rawMean >= DQ_BAND_CEILING) return 100;
+  if (rawMean <= DQ_BAND_PASS) {
+    return ((rawMean - DQ_BAND_FLOOR) / (DQ_BAND_PASS - DQ_BAND_FLOOR)) * 50;
+  }
+  return 50 + ((rawMean - DQ_BAND_PASS) / (DQ_BAND_CEILING - DQ_BAND_PASS)) * 50;
+}
+
+/**
+ * Whether a programme may carry a DQ score at all.
+ *
+ * Two gates. The level gate is absolute: the 30 non-bachelor programmes
+ * holding DQ rows total 10 students between them — undergraduates who
+ * sat the test and later enrolled in a master's, caught by the
+ * current-enrolment join. A score there would describe the join.
+ *
+ * The 5-student floor matches the dashboard's suppression floor so one
+ * rule governs the whole feature. It is deliberately low, so every
+ * surface that renders the score must render `n` beside it.
+ */
+export function dqIsEligible(level: string, scoredStudents: number): boolean {
+  return level === DQ_ELIGIBLE_LEVEL && scoredStudents >= DQ_MIN_CELL_STUDENTS;
+}
+
+export interface DqCompetencyScope {
+  /** Respondent-weighted mean across theory modules 1-12, or null. */
+  rawMean: number | null;
+  /** Scored students behind it — rendered beside the score everywhere. */
+  scoredStudents: number;
+  /** Eligible programmes contributing, for faculty/university scopes. */
+  programCount: number;
+}
+
+/**
+ * The programme DQ score, and the same figure rolled up to a department,
+ * a faculty or the university — the one query the health driver, the
+ * deep-dive section and the gap lens all read through.
+ *
+ * The mean is SUM(score_sum) / SUM(taken_count) computed AT THE SCOPE
+ * ASKED FOR, never an average of programme scores. The cubes store sums
+ * and counts precisely so a 900-student programme cannot be weighted the
+ * same as a 12-student one; the DQ work already measured that error at
+ * 0.8 points on module 1 (86.708 weighted against 87.544 mean-of-means).
+ *
+ * Theory modules 1-12 only. Module 13 (Generative AI) is excluded for
+ * the reason it is already excluded from the dashboard's Overall column
+ * — see OVERALL_MEAN_MAX_MODULE_NO.
+ *
+ * Bachelor rows only, at every scope: the join to `programs` is what
+ * enforces the level gate of `dqIsEligible`, and it also drops the
+ * "Program not identified" bucket (`program_id IS NULL`), whose level is
+ * unknowable. The ≥5 floor is then applied to the scope's own scored
+ * headcount — a faculty with 400 scored students is not a small cell
+ * however many of its programmes individually are, and excluding those
+ * programmes' students from the faculty numerator would be the
+ * mean-of-means trap wearing a different hat (see `dqFacultyRows`).
+ * `programCount` reports how many programmes clear the floor on their
+ * own, so a caller can caption the rollup honestly.
+ */
+export async function dqCompetencyByScope(args: {
+  scope: 'program' | 'department' | 'faculty' | 'university';
+  scopeId: string;
+}): Promise<DqCompetencyScope> {
+  // $queryRawUnsafe + plain SQL + positional params — same pattern as
+  // `studentSatisfactionDriver` in health-score.ts. Passing a Prisma.Sql
+  // fragment here under concurrent Promise.all execution intermittently
+  // produces `syntax error at or near "$1"`, because Prisma's Sql-object
+  // instanceof check fails across async contexts and the parameter
+  // mis-binds. This function is called from exactly that context.
+  //
+  // Only `scopeId` is ever user-supplied and it rides as a positional
+  // parameter; the module-number, level and floor constants are
+  // interpolated because they are module literals, never input.
+  let scopeSql: string;
+  const scopeParams: unknown[] = [];
+  if (args.scope === 'program') {
+    scopeSql = 'AND p.id = $1';
+    scopeParams.push(args.scopeId);
+  } else if (args.scope === 'faculty') {
+    scopeSql = 'AND p.faculty_id = $1';
+    scopeParams.push(args.scopeId);
+  } else if (args.scope === 'department') {
+    scopeSql = 'AND p.department_id = $1';
+    scopeParams.push(args.scopeId);
+  } else {
+    // university — no scope filter (Σ across every bachelor programme).
+    scopeSql = '';
+  }
+
+  const rows = await prisma.$queryRawUnsafe<
+    Array<{ raw_mean: number | null; scored: bigint; programs: bigint }>
+  >(
+    `
+    SELECT
+      (
+        SELECT SUM(m.score_sum) / NULLIF(SUM(m.taken_count), 0)
+        FROM dq_module_cube m
+        JOIN programs p ON p.id = m.program_id
+        WHERE m.module_kind = 'THEORY'
+          AND m.module_no <= ${OVERALL_MEAN_MAX_MODULE_NO}
+          AND p.level = '${DQ_ELIGIBLE_LEVEL}'
+          ${scopeSql}
+      )::float AS raw_mean,
+      (
+        SELECT COALESCE(SUM(s.students_with_scores), 0)
+        FROM dq_student_cube s
+        JOIN programs p ON p.id = s.program_id
+        WHERE p.level = '${DQ_ELIGIBLE_LEVEL}'
+          ${scopeSql}
+      )::bigint AS scored,
+      (
+        SELECT COUNT(*)
+        FROM (
+          SELECT s.program_id
+          FROM dq_student_cube s
+          JOIN programs p ON p.id = s.program_id
+          WHERE p.level = '${DQ_ELIGIBLE_LEVEL}'
+            ${scopeSql}
+          GROUP BY s.program_id
+          HAVING SUM(s.students_with_scores) >= ${DQ_MIN_CELL_STUDENTS}
+        ) q
+      )::bigint AS programs
+    `,
+    ...scopeParams,
+  );
+
+  const row = rows[0];
+  const scoredStudents = Number(row?.scored ?? 0);
+  const mean = row?.raw_mean;
+  return {
+    // The floor, applied at the scope asked for. A thin scope reports
+    // null, never a computed mean and never 0 — a scope with no DQ
+    // evidence has not scored zero.
+    rawMean:
+      scoredStudents >= DQ_MIN_CELL_STUDENTS && typeof mean === 'number' && Number.isFinite(mean)
+        ? mean
+        : null,
+    scoredStudents,
+    programCount: Number(row?.programs ?? 0),
+  };
+}
+
 /**
  * Freshness + coverage from the run that wrote the current cubes.
  *
