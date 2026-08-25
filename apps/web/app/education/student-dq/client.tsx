@@ -62,7 +62,11 @@ export interface DqOverviewResponse {
   methodologyVersion: string;
   studentsTested: number;
   studentsWithScores: number;
-  studentsAllPassed: number;
+  /** Null when the selection is suppressed — fewer than 5 scored
+   *  students, so the pass verdict and every module mean are withheld.
+   *  Counts stay visible. */
+  studentsAllPassed: number | null;
+  suppressed: boolean;
   facultyCount: number;
   programsResolved: number;
   studentsUnplaced: number;
@@ -252,7 +256,10 @@ export function StudentDqClient({
   );
 
   const scoredPct = pctOf(overview.studentsWithScores, overview.studentsTested);
-  const passPct = pctOf(overview.studentsAllPassed, overview.studentsWithScores);
+  const passPct =
+    overview.studentsAllPassed === null
+      ? null
+      : pctOf(overview.studentsAllPassed, overview.studentsWithScores);
 
   // Module 13 in the framework table is the Generative AI module; find
   // it by domain rather than by hardcoding a key here.
@@ -355,11 +362,18 @@ export function StudentDqClient({
         />
         <KpiTile
           label="Passed (DQ verdict)"
-          value={num(overview.studentsAllPassed)}
+          value={overview.studentsAllPassed === null ? '—' : num(overview.studentsAllPassed)}
           subtitle={
-            passPct === null
-              ? 'no scored students in this selection'
-              : `${passPct.toFixed(1)}% of scored students, as flagged by DQ`
+            // Suppressed and empty are different states and must not
+            // share a caption: one is "we will not say", the other is
+            // "there is nothing to say".
+            overview.suppressed && overview.studentsWithScores > 0
+              ? `withheld — fewer than 5 scored students in this selection (${num(
+                  overview.studentsWithScores,
+                )})`
+              : passPct === null
+                ? 'no scored students in this selection'
+                : `${passPct.toFixed(1)}% of scored students, as flagged by DQ`
           }
         />
         <KpiTile

@@ -61,6 +61,21 @@ export class StudentDqController {
     return this.dq.overview(clamped);
   }
 
+  @Get('filter-options')
+  @Authorized('institution:read:dashboard')
+  async filterOptions(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(DqQuerySchema)) q: DqQuery,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    // Faculty selection cascades into the cohort list; the cohort
+    // selection deliberately does NOT travel, or choosing a cohort would
+    // shrink the list it was chosen from and there would be no way back.
+    const facultyName = clamped === null ? ['__none__'] : clamped.facultyName;
+    return this.dq.filterOptions({ facultyName });
+  }
+
   @Get('drill')
   @Authorized('institution:read:dashboard')
   async drill(

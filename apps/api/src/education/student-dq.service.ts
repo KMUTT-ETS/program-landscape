@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import {
   dqDrill,
   dqFacultyRows,
+  dqFilterOptions,
   dqOverview,
   dqRadar,
   STUDENT_DQ_METHODOLOGY_VERSION,
   type DqDrillRow,
   type DqFilter,
+  type DqFilterOptions,
   type DqOverview,
   type DqRadarResult,
   type DqRadarScope,
@@ -36,6 +38,18 @@ export class StudentDqService {
 
   overview(filter: DqFilter): Promise<DqOverview> {
     return dqOverview(filter);
+  }
+
+  /**
+   * The values the filter rail may offer.
+   *
+   * Read from the cube rather than generated from a BE range, so the
+   * rail cannot offer a cohort with no data behind it. The caller's
+   * clamp is passed through: a FACULTY_USER is offered their faculty's
+   * cohorts, not the institution's.
+   */
+  filterOptions(filter: DqFilter): Promise<DqFilterOptions> {
+    return dqFilterOptions(filter);
   }
 
   /**
