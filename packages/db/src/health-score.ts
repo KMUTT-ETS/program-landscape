@@ -7,6 +7,7 @@ import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
 import { getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
+import { dqCompetencyByScope, dqDriverScore } from './student-dq';
 
 /** Annual tuition revenue target by program level (THB). Used by the
  *  health-score.v3.5 financial-dimension `revenue_scale` driver AND by
@@ -108,7 +109,20 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // (`enrollment_trend_slope`, `kku_intake_policy`) are unaffected —
 // recruitment for an academic year finishes at its START, a different
 // calendar question from tuition completeness.
-export const HEALTH_SCORE_VERSION = 'health-score.v3.9';
+//
+// v4.0 (2026-08-25) — the Outcomes dimension gains
+// `dq_digital_competency`, the respondent-weighted mean over DQ theory
+// modules 1-12, banded on KKU's pass mark (≤50 → 0, 70 → 50, ≥90 →
+// 100). Bachelor programmes with ≥5 scored students only; every other
+// programme gets null, which the dimension excludes from its mean — so
+// the 199 non-bachelor programmes are untouched. Module 13 is out
+// because its uptake runs 48.7%-96.7% by faculty and including it would
+// score programmes on how far the rollout reached them. See
+// `dqCompetencyDriver` below, `packages/db/src/student-dq.ts` for the
+// band and the eligibility gates, and
+// `docs/methodologies/health-score.md` §v4.0 for the reasoning and the
+// measured drift across all 301 programmes.
+export const HEALTH_SCORE_VERSION = 'health-score.v4.0';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -1431,6 +1445,10 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
     // v3.7: student-satisfaction driver — POWERBI.EVALUATE_INSTRUCTOR
     // weighted mean rating, normalised to the [3.5, 5.0] band.
     await studentSatisfactionDriver({ scope: 'program', scopeId: programId }),
+    // v4.0: DQ digital competency. Null for every non-bachelor program
+    // and for any bachelor program under the 5-student floor — the
+    // dimension excludes nulls, so those programs are unaffected.
+    await dqCompetencyDriver({ scope: 'program', scopeId: programId }),
   ];
   return summariseDrivers(drivers);
 }
@@ -1463,6 +1481,10 @@ async function scoreOutcomesScope(
       raw: row?.averageSalaryWeighted,
     },
     await studentSatisfactionDriver({ scope, scopeId }),
+    // v4.0 — see the note on the program scorer above. At faculty /
+    // university scope the mean is computed from the cube AT THAT
+    // SCOPE, never by averaging program scores.
+    await dqCompetencyDriver({ scope, scopeId }),
   ];
   return summariseDrivers(drivers);
 }
@@ -1572,6 +1594,64 @@ async function studentSatisfactionDriver(args: {
     },
   };
 }
+
+// ── dq_digital_competency driver (added v4.0) ────────────────────────
+//
+// KKU's Digital Intelligence test is a competency every undergraduate
+// sits, so how a program's students score is evidence of what that
+// program develops in them. The driver is the respondent-weighted mean
+// over theory modules 1-12, banded on KKU's own pass mark:
+// ≤50 → 0 · 70 → 50 · ≥90 → 100.
+//
+// Everything that decides the number lives in `student-dq.ts`, beside
+// the cubes and the dashboard that share the same rules:
+//   - `dqCompetencyByScope` computes SUM/SUM AT THE SCOPE ASKED FOR,
+//     never a mean of program means (the cube exists for that reason:
+//     the mean-of-means error is 0.8 points on module 1 at university
+//     scope), excludes module 13 (uptake 48.7%-96.7% by faculty, so it
+//     would score the rollout rather than the students), restricts to
+//     `level = 'BACHELOR'`, and applies the ≥5 scored-student floor;
+//   - `dqDriverScore` applies the band.
+// It carries the same `$queryRawUnsafe` discipline as
+// `studentSatisfactionDriver` above, for the same reason — this is one
+// of the concurrent call sites that provoked the `$1` mis-binding.
+//
+// Null, never 0, for the 199 non-bachelor programs and for bachelor
+// programs under the floor: a program with no DQ evidence has not
+// scored zero. `summariseDrivers` excludes nulls from the dimension
+// mean and reflects them in `dataCompletenessPct`.
+async function dqCompetencyDriver(args: {
+  scope: ScopeLevel;
+  scopeId: string;
+}): Promise<HealthScore['drivers'][number]> {
+  const dq = await dqCompetencyByScope({ scope: args.scope, scopeId: args.scopeId });
+  return {
+    label: 'dq_digital_competency',
+    value: dqDriverScore(dq.rawMean),
+    // `raw` carries the evidence, `scoredStudents` above all: the
+    // 5-student floor is low by decision, so every surface that renders
+    // this score must be able to show how thin it is.
+    raw:
+      dq.rawMean === null
+        ? null
+        : {
+            rawMean: dq.rawMean,
+            scoredStudents: dq.scoredStudents,
+            programCount: dq.programCount,
+            passMark: DQ_PASS_MARK,
+            band: '≤50 → 0, 70 → 50, ≥90 → 100 (anchored on the pass mark)',
+            modulesCounted: 'theory 1-12 (module 13 excluded — uneven rollout)',
+            source: 'student-dq.v1',
+          },
+  };
+}
+
+/** KKU's DQ pass mark, and the midpoint of the driver band — reported
+ *  in `raw` so a reader can see what a driver value of 50 means without
+ *  opening the methodology doc. Mirrors `DQ_BAND_PASS` in
+ *  `student-dq.ts`, which owns the band and is not exported; the band
+ *  itself is applied there, never recomputed here. */
+const DQ_PASS_MARK = 70;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Relevance — labour-market alignment + demand-match + demographic +

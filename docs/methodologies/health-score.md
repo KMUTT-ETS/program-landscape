@@ -1,8 +1,104 @@
 # Health score methodology
 
-**Version:** `health-score.v3.9`
-**Reviewed:** 2026-08-16
+**Version:** `health-score.v4.0`
+**Reviewed:** 2026-08-25
 **Owner:** KKU Data Office
+
+**v4.0 (2026-08-25): the Outcomes dimension gains `dq_digital_competency`.**
+
+KKU's Digital Intelligence (DQ) test is a competency instrument every
+undergraduate sits. How a programme's students score is evidence of what
+that programme develops in them, so it joins the Outcomes dimension as a
+sixth driver, sourced from the `dq_module_cube` / `dq_student_cube` cubes
+written by the `kku-dq` connector.
+
+**What it measures.** The respondent-weighted mean across **theory
+modules 1–12**, computed as `SUM(score_sum) / SUM(taken_count)` **at the
+scope being scored** — never an average of programme means. The cubes
+store sums and counts precisely so a 900-student programme cannot be
+weighted the same as a 12-student one; the DQ work measured that error at
+0.8 points on module 1 at university scope (86.708 weighted against
+87.544 mean-of-means). Faculty and university figures are therefore
+computed directly from the cube at that scope, not rolled up from
+programme scores.
+
+**Module 13 (Generative AI) is excluded**, for the same reason it is
+excluded from the DQ dashboard's Overall column: measured uptake runs
+48.7%–96.7% across the faculties with more than 200 scored students,
+because the module arrived after most students had already sat the test.
+Including it would score a programme on how far the rollout happened to
+have reached it rather than on what its students can do. It keeps its own
+column, its own radar axis and its own place on the deep-dive, so nothing
+is hidden — it is only kept out of the number programmes are compared by.
+Revisit when uptake is uniform.
+
+**Eligibility — two gates, both hard:**
+
+- `level = 'BACHELOR'`. DQ is an undergraduate instrument. The 30
+  non-bachelor programmes carrying DQ rows hold **ten students between
+  them** — undergraduates who sat the test and later enrolled in a
+  master's, caught by the current-enrolment join. A score there would
+  describe the join, not the programme.
+- **≥ 5 scored students** (`DQ_MIN_CELL_STUDENTS`), the same suppression
+  floor the DQ dashboard already applies, so one rule governs the whole
+  feature. It is deliberately low, and its cost is volatility: a
+  five-student mean moves on one student. The mitigation is that the
+  driver's `raw` carries `scoredStudents`, and every surface that renders
+  the score renders `n` beside it — a thin score is visibly thin rather
+  than silently equal to a robust one.
+
+Failing either gate yields **`null`, never `0`** — a programme with no DQ
+evidence has not scored zero. Per the null-handling rule below, a null
+driver is excluded from the dimension's mean and lowers its
+`dataCompletenessPct`; the 199 non-bachelor programmes are therefore
+untouched by this change.
+
+**The band, anchored on KKU's own pass mark:**
+
+| raw DQ mean | driver score |
+|---|---|
+| ≤ 50 | 0 |
+| 50 → 70 | 0 → 50 (linear) |
+| **70 (pass mark)** | **50** |
+| 70 → 90 | 50 → 100 (linear) |
+| ≥ 90 | 100 |
+
+Not a raw pass-through: programme means span only 75.1–90.7 (median 85.0,
+half of all programmes within 3.8 points of each other) and **no
+programme is below the pass mark**, so passing the raw value through would
+put every programme in the top quarter of the driver and differentiate
+almost nothing — the same failure the DQ radar had against a 0–100 axis.
+
+Not fitted to the observed spread either, which is the more important
+choice: a band fitted to today's min and max would move **one programme's
+score when a different programme's data changed**, and would shift on
+every refresh. Anchoring on 70 fixes the scale to an external, stable,
+institutionally-meaningful point and makes the number readable — **50
+means the average student just passes**. The lower half of the band is
+unused today; it exists so that a genuinely failing programme is visible
+rather than clipped at the floor, and so the scale does not have to change
+the day one appears.
+
+Chosen as a driver inside Outcomes rather than as a sixth dimension: a
+sixth dimension would re-weight the composite for all 301 programmes (each
+dimension falling from ⅕ to ⅙) and assert that digital competency ranks
+alongside finance and capability. As a driver it moves one dimension, for
+bachelor programmes only.
+
+**Measured impact at v4.0 (2026-08-25, all 301 programmes).** 81
+programmes receive a driver — the bachelor programmes clearing the
+5-student floor; 21 bachelor programmes and all 199 non-bachelor
+programmes receive `null`, and no non-bachelor programme receives a value.
+The change reconciles exactly: **every programme whose Outcomes score
+moved has a DQ driver (81 of 81), and no programme without one moved.**
+Outcomes rises for 78 and falls for 3; mean change +3.27 points, median
++3.24, range −1.21 to +13.36. Driver values run 62.8 (raw mean 75.1) to
+100 (raw ≥ 90) with a median of 87.4, and no programme sits in the band's
+lower half. Composites move by at most 2.67 points. The three fallers are
+programmes whose other Outcomes drivers already scored above their DQ
+result — the driver pulling a strong dimension down slightly is the band
+working, not a defect. Old rows stay stamped `health-score.v3.9` — the
+version is what keeps them readable.
 
 **v3.9 (2026-08-16): score financials on the last COMPLETE academic year.**
 
@@ -197,6 +293,7 @@ the Outcomes table below.
 | `average_salary` | Anchored: ฿15k → 0, ฿20k → 40, ฿25k → 70, ฿35k+ → 100 (`(salary − 15_000) / 200`) | `graduate_outcomes` | REAL |
 | `further_study_rate` | Sweet-spot scoring: 0% → 50, 5-15% → 100, 30%+ → 30. Both extremes are negative signals (program-level only) | `graduate_outcomes` | REAL |
 | `student_satisfaction` (v3.7) | `clamp(((rating − 3.5) / 1.5) × 100)` — weighted-mean rating across the scope's courses' surveyed cells (semesters 1+2, all observed years), anchored linear to [3.5, 5.0]. Captures the ceiling-biased distribution: 87% of cells score ≥ 4.0, so a naive [1, 5] → [0, 100] would compress every program into 75-100. See `docs/methodologies/evaluations.md` §"Score scale" | `evaluation_response_summaries` (POWERBI.EVALUATE_INSTRUCTOR via `kku-evaluations` connector) | REAL |
+| `dq_digital_competency` (v4.0) | Respondent-weighted mean over DQ **theory modules 1–12** at the scope being scored (`SUM(score_sum) / SUM(taken_count)`, never a mean of programme means), banded on KKU's pass mark: ≤50 → 0, 70 → 50, ≥90 → 100, linear between. **Bachelor only**, and only with ≥5 scored students; otherwise null, never 0. Module 13 excluded (uneven rollout — uptake 48.7%–96.7% by faculty). See §v4.0 above | `dq_module_cube` + `dq_student_cube` (`kku-dq` connector; `student-dq.v1`) | REAL |
 
 ### Relevance
 
