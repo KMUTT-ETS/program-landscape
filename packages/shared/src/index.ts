@@ -12,6 +12,7 @@ export * from './scenarios';
 export * from './analyst';
 export * from './programs';
 export * from './geo/thailand-regions';
+export * from './dq/modules';
 export * from './identity';
 export * from './observability';
 export * from './resilience';
