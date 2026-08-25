@@ -14,10 +14,16 @@ import {
   FunnelPipeline,
   Input,
   RadarChartSmall,
+  type RadarPoint,
   Section,
   Waterfall,
 } from '@kku/ui';
-import type { SessionUser } from '@kku/shared';
+// TYPE-ONLY. The `@kku/shared` barrel re-exports subpaths that pull
+// `node:crypto`, which breaks the client bundle — so the DQ module table
+// (`DQ_MODULES`, plain data) is read by the SERVER page and handed down
+// as the `dqModules` prop. Nothing here reaches into `@kku/shared` or
+// `@kku/db` at runtime.
+import type { DqModule, SessionUser } from '@kku/shared';
 import {
   regenerateNarrativeAction,
   submitDisagreementAction,
@@ -51,6 +57,37 @@ import type {
 // column scrolls. IntersectionObserver highlights the current section
 // in the left rail.
 
+// ─────────────────────────────────────────────────────────────────────
+// Digital Intelligence (DQ) competency — mirrors `ProgramDigitalCompetency`
+// in `packages/db/src/program-deep-dive.ts`. Declared here rather than in
+// `./types` and imported as a type by the server page, the same
+// arrangement `/education/student-dq` uses for its own payloads.
+// ─────────────────────────────────────────────────────────────────────
+
+export interface DeepDiveDigitalCompetencyModule {
+  moduleKey: string;
+  moduleNo: number;
+  /** Null when nobody here took the module — and null on EVERY module
+   *  when the figure is withheld. Never render it as 0. */
+  mean: number | null;
+  coveragePct: number | null;
+  /** The same module over the whole DQ population — every level, every
+   *  faculty. Not a bachelor-only figure, and must not be labelled one. */
+  universityMean: number | null;
+}
+
+export interface DeepDiveDigitalCompetency {
+  /** `not-applicable` renders nothing at all — see DigitalCompetencySection. */
+  status: 'ok' | 'below-floor' | 'no-data' | 'not-applicable';
+  rawMean: number | null;
+  driverScore: number | null;
+  scoredStudents: number;
+  passRatePct: number | null;
+  modules: DeepDiveDigitalCompetencyModule[];
+  weakest: Array<{ moduleKey: string; mean: number }>;
+  methodologyVersion: string;
+}
+
 interface Props {
   user: SessionUser;
   programId: string;
@@ -75,6 +112,15 @@ interface Props {
   peers: DeepDivePeers | null;
   trends: DeepDiveTrends | null;
   healthBenchmarks: DeepDiveHealthBenchmarks | null;
+  digitalCompetency: DeepDiveDigitalCompetency | null;
+  /** DQ theory modules 1–13, for the radar's axis labels and the names
+   *  of the weakest modules. Server-supplied — see the import note. */
+  dqModules: DqModule[];
+  /** The suppression floor (`DQ_MIN_CELL_STUDENTS`), quoted in the copy
+   *  so it moves with the query layer rather than being written twice. */
+  dqMinCellStudents: number;
+  /** KKU's own DQ pass mark, quoted where the radial floor is disclosed. */
+  dqPassMark: number;
 }
 
 /**
@@ -251,6 +297,17 @@ export function DeepDiveClient(props: Props) {
           subtitle="Where graduates land — employment, salary, sector and first-job destinations."
         >
           <OutcomesSection data={props.outcomes} />
+          {/* Digital competency sits in Outcomes because that is the
+              health dimension its driver feeds (health-score.v4.0). It
+              renders NOTHING for a non-bachelor programme — see the
+              component. */}
+          <DigitalCompetencySection
+            data={props.digitalCompetency}
+            modules={props.dqModules}
+            minCellStudents={props.dqMinCellStudents}
+            passMark={props.dqPassMark}
+            programId={props.programId}
+          />
         </MacroGroup>
 
         <MacroGroup
@@ -2541,6 +2598,285 @@ function OutcomesSection({ data }: { data: DeepDiveOutcomes | null }) {
         <p className="text-sm text-text-tertiary">
           A Thailand province map is planned, but per-graduate home province is not yet collected.
           This view will populate once the KKU-Alumni connector adds province data.
+        </p>
+      </Card>
+    </Section>
+  );
+}
+
+/**
+ * Radial floor for the DQ radar, mirroring `radarDomain` on
+ * `/education/student-dq`.
+ *
+ * DQ means cluster hard against the top of the scale — university-wide
+ * the 13 theory modules span roughly 68-90 — so a 0-100 radar draws
+ * every module at almost the same radius and the shape says nothing.
+ * The floor drops to the plotted data's decade, computed across BOTH
+ * series so neither is clipped to the centre, and is capped at 60 so
+ * programmes stay comparable with each other; an outlier widens the
+ * axis instead of lying about where it sits.
+ *
+ * A non-zero floor magnifies differences, which is exactly how radar
+ * charts mislead — the section states the floor in words underneath.
+ * That disclosure is not optional.
+ */
+const DQ_RADAR_FLOOR_CAP = 60;
+
+function dqRadarDomain(modules: DeepDiveDigitalCompetencyModule[]): [number, number] {
+  const values = modules
+    .flatMap((m) => [m.mean, m.universityMean])
+    .filter((v): v is number => v !== null);
+  if (values.length === 0) return [0, 100];
+  const floor = Math.floor(Math.min(...values) / 10) * 10;
+  return [Math.max(0, Math.min(DQ_RADAR_FLOOR_CAP, floor)), 100];
+}
+
+/**
+ * Digital Intelligence (DQ) competency.
+ *
+ * Four states, all distinct, because collapsing any two of them would
+ * misrepresent the programme:
+ *   - `not-applicable` → nothing renders. No card, no heading.
+ *   - `no-data`        → an empty state pointing at the connector.
+ *   - `below-floor`    → the count, and why the figure is withheld.
+ *   - `ok`             → the full section.
+ */
+function DigitalCompetencySection({
+  data,
+  modules,
+  minCellStudents,
+  passMark,
+  programId,
+}: {
+  data: DeepDiveDigitalCompetency | null;
+  modules: DqModule[];
+  minCellStudents: number;
+  passMark: number;
+  programId: string;
+}) {
+  // A non-bachelor programme renders NOTHING — not an empty card, not a
+  // heading. DQ is an undergraduate instrument; the DQ rows a master's
+  // programme carries are undergraduates who later enrolled, caught by
+  // the current-enrolment join. An empty box here would say the test
+  // ought to have covered this programme and did not.
+  if (data?.status === 'not-applicable') return null;
+  // A null payload is a FAILED FETCH, not an absent one — the endpoint
+  // answers for every programme the reader can open. Going quiet here
+  // would be indistinguishable from not-applicable.
+  if (!data) {
+    return (
+      <EmptyCard
+        title="Digital competency"
+        note="The Digital Intelligence section could not be loaded. Reload the page; if it persists, /programs/:id/dq is failing."
+      />
+    );
+  }
+
+  // The DQ dashboard's radar takes a programme id straight from the URL,
+  // so the link lands on this programme's own module profile.
+  const dashboardHref = `/education/student-dq?radarProgram=${encodeURIComponent(programId)}`;
+  const moduleByKey = new Map(modules.map((m) => [m.key, m]));
+  const students = (n: number) => `${n.toLocaleString('en-US')} scored student${n === 1 ? '' : 's'}`;
+
+  if (data.status === 'no-data') {
+    return (
+      <Section id="digital-competency" title="Digital competency (DQ)">
+        <Card>
+          <p className="text-sm text-text-secondary">
+            No Digital Intelligence results for this programme. Nobody currently enrolled here
+            appears in the DQ export — this is an absence of results, not a figure held back at a
+            small size.
+          </p>
+          <p className="mt-2 text-xs text-text-tertiary">
+            If that looks wrong, re-run the <code className="font-mono">kku-dq</code> connector from{' '}
+            <Link
+              href="/admin/data-sources/kku-dq"
+              className="text-accent-default underline-offset-2 hover:underline"
+            >
+              /admin/data-sources/kku-dq
+            </Link>{' '}
+            and check the programme match rate on{' '}
+            <Link href="/education/student-dq" className="text-accent-default underline-offset-2 hover:underline">
+              the DQ dashboard
+            </Link>
+            .
+          </p>
+        </Card>
+      </Section>
+    );
+  }
+
+  if (data.status === 'below-floor') {
+    return (
+      <Section id="digital-competency" title="Digital competency (DQ)">
+        <Card>
+          <p className="text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">Score withheld</span> — this programme
+            has {students(data.scoredStudents)}, fewer than the {minCellStudents} needed to publish
+            a per-programme figure. Its students <span className="font-medium">were</span> tested;
+            the mean, the pass rate and the module profile are not published at this size. Nothing
+            here is a zero.
+          </p>
+          <p className="mt-2 text-xs text-text-tertiary">
+            Faculty and university figures cover the same students at a size that clears the floor —{' '}
+            <Link href="/education/student-dq" className="text-accent-default underline-offset-2 hover:underline">
+              open the DQ dashboard
+            </Link>
+            .
+          </p>
+        </Card>
+      </Section>
+    );
+  }
+
+  // ── status === 'ok' ───────────────────────────────────────────────
+  // Both series arrive on the framework's 13 theory axes in the same
+  // order, so they are mapped straight through and stay aligned by
+  // index; reordering or filtering one would rotate it against the
+  // other and the overlay would compare a module with its neighbour.
+  const axisLabel = (key: string) => moduleByKey.get(key)?.shortEn ?? key;
+  const programPoints: RadarPoint[] = data.modules.map((m) => ({
+    label: axisLabel(m.moduleKey),
+    // Null stays null — the primitive draws a gap and marks the axis
+    // '· n/d'. A 0 would spike into the centre and read as "they scored
+    // nothing" rather than "nobody took it".
+    value: m.mean,
+  }));
+  const universityPoints: RadarPoint[] = data.modules.map((m) => ({
+    label: axisLabel(m.moduleKey),
+    value: m.universityMean,
+  }));
+  const domain = dqRadarDomain(data.modules);
+  const hasUniversity = universityPoints.some((p) => p.value !== null);
+
+  return (
+    <Section
+      id="digital-competency"
+      title="Digital competency (DQ)"
+      description={`How this programme's students score on KKU's Digital Intelligence test. ${data.methodologyVersion}.`}
+    >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Card>
+          <div className="text-xs uppercase tracking-wide text-text-tertiary">
+            Digital competency mean
+          </div>
+          <div className="mt-1 font-tabular text-2xl font-semibold">
+            {data.rawMean === null ? '—' : data.rawMean.toFixed(1)}
+          </div>
+          <div className="text-xs text-text-tertiary">
+            theory modules 1&ndash;12, out of 100
+            <span className="px-1">·</span>
+            from {students(data.scoredStudents)}
+          </div>
+        </Card>
+        <Card>
+          <div className="text-xs uppercase tracking-wide text-text-tertiary">
+            Health driver (Outcomes)
+          </div>
+          <div className="mt-1 font-tabular text-2xl font-semibold">
+            {data.driverScore === null ? '—' : data.driverScore.toFixed(0)}
+          </div>
+          <div className="text-xs text-text-tertiary">
+            the mean banded on the {passMark} pass mark ({passMark} &rarr; 50)
+            <span className="px-1">·</span>
+            from the same {students(data.scoredStudents)}
+          </div>
+        </Card>
+        <Card>
+          <div className="text-xs uppercase tracking-wide text-text-tertiary">
+            Passed (DQ verdict)
+          </div>
+          <div className="mt-1 font-tabular text-2xl font-semibold">
+            {data.passRatePct === null ? '—' : `${data.passRatePct.toFixed(1)}%`}
+          </div>
+          <div className="text-xs text-text-tertiary">
+            share of {students(data.scoredStudents)} the source itself flags as passed
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <h4 className="text-sm font-semibold">Module profile</h4>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Solid ring is this programme ({students(data.scoredStudents)}); the dashed ring is the{' '}
+          <span className="font-medium">university-wide DQ profile</span> &mdash; every scored
+          student in the export, at every level, not a bachelor-only average and not this
+          programme&rsquo;s faculty. The mean and driver above are bachelor-only; the overlay is
+          not, so read it as the institutional backdrop rather than as a like-for-like peer figure.
+          An axis marked <span className="font-medium">&middot; n/d</span> is a module nobody here
+          has taken; the polygon skips it rather than dropping to zero.
+        </p>
+        {/* The primitive takes a fixed pixel width, so on a narrow column
+            it scrolls inside its own box — the page body never scrolls
+            sideways. `min-w-fit` keeps the centred row reachable once the
+            content exceeds the box. */}
+        <div className="mt-3 overflow-x-auto">
+          <div className="flex min-w-fit justify-center">
+            <RadarChartSmall
+              points={programPoints}
+              comparisons={
+                hasUniversity ? [{ label: 'University-wide DQ profile', points: universityPoints }] : []
+              }
+              seriesLabel="This programme"
+              // 13 axes at fontSize 11: the primitive's label gutter is
+              // fixed at 56px, so the outer radius has to come from the
+              // HEIGHT for the widest labels ('Collaboration',
+              // 'Presentation') to clear the polygon.
+              width={720}
+              height={420}
+              // Not the default 0-100 — see dqRadarDomain.
+              domain={domain}
+            />
+          </div>
+        </div>
+        {domain[0] > 0 && (
+          <p className="mt-2 text-xs text-text-tertiary">
+            The axis runs {domain[0]}&ndash;100, not 0&ndash;100. DQ scores cluster near the top of
+            the scale, so a full-scale plot draws every module at almost the same radius; starting
+            at {domain[0]} makes the differences legible, but it also magnifies them &mdash; read
+            the shape as relative and the ring labels for the actual values.
+            {domain[0] < passMark && ` The pass mark, ${passMark}, sits inside the chart.`}
+          </p>
+        )}
+      </Card>
+
+      <Card>
+        <h4 className="text-sm font-semibold">Weakest modules</h4>
+        {data.weakest.length === 0 ? (
+          <p className="mt-1 text-sm text-text-tertiary">
+            No module means to rank &mdash; nobody here has taken a theory module 1&ndash;12.
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-text-tertiary">
+              This programme&rsquo;s lowest-scoring modules among theory 1&ndash;12. Module 13
+              (Generative AI) is excluded here for the same reason it is out of the headline mean:
+              its rollout has reached faculties unevenly.
+            </p>
+            <ul className="mt-2 flex flex-col gap-1 text-sm">
+              {data.weakest.map((w) => (
+                <li key={w.moduleKey} className="flex items-baseline justify-between gap-3">
+                  <span>{moduleByKey.get(w.moduleKey)?.nameEn ?? w.moduleKey}</span>
+                  {/* Explicit separator, not a gap: a bare padding put
+                      "80.8out of 100" on screen as one token. */}
+                  <span className="shrink-0">
+                    <span className="font-tabular tabular-nums text-text-secondary">
+                      {w.mean.toFixed(1)}
+                    </span>
+                    <span className="text-xs text-text-tertiary">
+                      {' · '}
+                      {w.mean < passMark ? `below the ${passMark} pass mark` : 'out of 100'}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="mt-3 text-xs">
+          <Link href={dashboardHref} className="text-accent-default underline-offset-2 hover:underline">
+            Open this programme on the DQ dashboard &rarr;
+          </Link>
         </p>
       </Card>
     </Section>

@@ -1,13 +1,19 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+// DQ_MODULES / DQ_PASS_MARK are plain data, but importing them in the
+// client component pulls the `@kku/shared` barrel (and `node:crypto`)
+// into the browser bundle — so they are read here, on the server, and
+// passed down. Same for the suppression floor out of `@kku/db`, which
+// the DQ copy quotes: one definition, not two.
+import { DQ_MODULES, DQ_PASS_MARK, type SessionUser } from '@kku/shared';
+import { DQ_MIN_CELL_STUDENTS } from '@kku/db';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Button, Card, PageHeader } from '@kku/ui';
 import { ChevronRight, FileText, Home, Printer } from 'lucide-react';
-import { DeepDiveClient } from './client';
+import { DeepDiveClient, type DeepDiveDigitalCompetency } from './client';
 import type {
   DeepDiveOverview,
   DeepDiveDemandFunnel,
@@ -72,6 +78,7 @@ export default async function ProgramDeepDivePage({
     peers,
     trends,
     healthBenchmarks,
+    digitalCompetency,
   ] = await Promise.all([
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
     apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
@@ -91,6 +98,9 @@ export default async function ProgramDeepDivePage({
     apiFetch<DeepDivePeers>(`/programs/${id}/peers`).catch(() => null),
     apiFetch<DeepDiveTrends>(`/programs/${id}/trends`).catch(() => null),
     apiFetch<DeepDiveHealthBenchmarks>(`/programs/${id}/health-benchmarks`).catch(() => null),
+    // Answers for every programme — a non-bachelor one comes back
+    // `not-applicable`, which the client renders as nothing at all.
+    apiFetch<DeepDiveDigitalCompetency>(`/programs/${id}/dq`).catch(() => null),
   ]);
 
   if (!overview) {
@@ -215,6 +225,10 @@ export default async function ProgramDeepDivePage({
         peers={peers}
         trends={trends}
         healthBenchmarks={healthBenchmarks}
+        digitalCompetency={digitalCompetency}
+        dqModules={DQ_MODULES.filter((m) => m.kind === 'THEORY')}
+        dqMinCellStudents={DQ_MIN_CELL_STUDENTS}
+        dqPassMark={DQ_PASS_MARK}
       />
     </AuthedAppShell>
   );
