@@ -20,6 +20,7 @@ import {
   StudentDqClient,
   type DqDrillResponse,
   type DqOverviewResponse,
+  type DqRadarResponse,
 } from './client';
 
 interface DqFilterOptionsResponse {
@@ -64,12 +65,39 @@ export default async function StudentDqPage({ searchParams }: { searchParams: Pr
   facultyName.forEach((v) => cascadeQs.append('facultyName', v));
   const cascadeQsString = cascadeQs.toString() ? `?${cascadeQs}` : '';
 
-  const [overviewRes, drillRes, cascadeRes] = await Promise.all([
+  // ── Radar scope ──────────────────────────────────────────────────
+  //
+  // The radar plots ONE scope, so its target is its own URL state and not
+  // the rail's multi-select: `radarFaculty` / `radarProgram` are set by
+  // the picker on the chart. With no target it falls back to the current
+  // selection — which it can only represent when that selection is a
+  // single faculty or none, because `dqRadar` takes one faculty name.
+  // Under a multi-faculty filter it therefore shows the university, and
+  // the chart says so rather than labelling the union it is not.
+  const kind = sp.kind === 'WORKSHOP' ? 'WORKSHOP' : 'THEORY';
+  const radarProgramId = typeof sp.radarProgram === 'string' ? sp.radarProgram : undefined;
+  const radarFacultyName =
+    typeof sp.radarFaculty === 'string'
+      ? sp.radarFaculty
+      : facultyName.length === 1
+        ? facultyName[0]
+        : undefined;
+
+  const radarQs = new URLSearchParams();
+  if (radarFacultyName) radarQs.append('facultyName', radarFacultyName);
+  // The cohort filter travels with the scope series (the API applies it),
+  // but NOT into `scopeLabel` — the client appends it to the legend.
+  cohortYearBE.forEach((v) => radarQs.append('cohortYearBE', String(v)));
+  if (radarProgramId) radarQs.append('programId', radarProgramId);
+  radarQs.append('kind', kind);
+
+  const [overviewRes, drillRes, cascadeRes, radarRes] = await Promise.all([
     apiFetchSafe<DqOverviewResponse>(`/education/student-dq/overview${qsString}`),
     apiFetchSafe<DqDrillResponse>(`/education/student-dq/drill${qsString}`),
     apiFetchSafe<DqFilterOptionsResponse>(
       `/education/student-dq/filter-options${cascadeQsString}`,
     ),
+    apiFetchSafe<DqRadarResponse>(`/education/student-dq/radar?${radarQs}`),
   ]);
   const facultyListRes =
     facultyName.length > 0
@@ -111,6 +139,18 @@ export default async function StudentDqPage({ searchParams }: { searchParams: Pr
           modules={[...DQ_MODULES]}
           passMark={DQ_PASS_MARK}
           minCellStudents={DQ_MIN_CELL_STUDENTS}
+          // A radar failure is a failure of one card, not of the page:
+          // the table above carries the same per-module figures, so the
+          // client renders a note in place of the chart rather than the
+          // whole surface collapsing to an empty state.
+          radar={radarRes.ok ? radarRes.data : null}
+          // The RESOLVED target — the client uses it to tell "this scope
+          // is the comparison population" from "this scope sits inside
+          // it", which the raw URL params alone cannot answer.
+          radarScope={{
+            facultyName: radarFacultyName ?? null,
+            programId: radarProgramId ?? null,
+          }}
           facultyOptions={facultyOptions}
           cohortOptions={cohortOptions}
         />

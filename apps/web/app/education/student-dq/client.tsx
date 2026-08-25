@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card } from '@kku/ui';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Card, RadarChartSmall, type RadarPoint } from '@kku/ui';
 // TYPE-ONLY import. The `@kku/shared` barrel re-exports subpaths that
 // pull `node:crypto`, which breaks the client bundle — so the module
 // table itself (`DQ_MODULES`, plain data) is imported by the SERVER
@@ -83,11 +84,55 @@ export interface DqOverviewResponse {
   } | null;
 }
 
+/** `DqRadarResult` + the service's `comparisonLabel`. Both series are
+ *  already aligned against `DQ_MODULES` of the requested kind and share
+ *  an index, which is what `RadarChartSmall.comparisons` requires. */
+export interface DqRadarResponse {
+  methodologyVersion: string;
+  /** What the scope series covers, resolved by the API (a programme
+   *  name, a faculty name, or 'University'). It does NOT encode the
+   *  cohort filter — the legend adds that. */
+  scopeLabel: string;
+  /** What the comparison series covers, in words. Rendered verbatim:
+   *  the ring is computed over the whole institution regardless of the
+   *  caller's clamp, and a legend reading "University" when it meant
+   *  something else is the exact bug this field exists to prevent. */
+  comparisonLabel: string;
+  scope: DqModuleCellDto[];
+  university: DqModuleCellDto[];
+  studentsWithScores: number;
+  suppressed: boolean;
+}
+
+/** The radar target the server resolved for this render. */
+export interface DqRadarScopeDto {
+  facultyName: string | null;
+  programId: string | null;
+}
+
 export type DqModuleKindFilter = 'THEORY' | 'WORKSHOP';
+
+/**
+ * A module taken by fewer than this share of the scope's scored students
+ * is called out beneath the chart: its mean describes the people who
+ * took it, not the scope.
+ *
+ * Set from the measured shape of the data rather than picked round. At
+ * university scope modules 1-12 sit at ~94% coverage and module 13
+ * (Generative AI, still rolling out) at 57% — the one module on the
+ * chart whose mean must not be read as the cohort's. A 50% line would
+ * clear all thirteen and disclose nothing; 75% separates a
+ * still-arriving module from a fully-taken one with room on both sides.
+ */
+const THIN_COVERAGE_PCT = 75;
 
 interface Props {
   overview: DqOverviewResponse;
   drill: DqDrillResponse;
+  /** Null when the radar request failed — the card says so; the table
+   *  above carries the same per-module figures either way. */
+  radar: DqRadarResponse | null;
+  radarScope: DqRadarScopeDto;
   /** `DQ_MODULES` from `@kku/shared`, in framework order — see the
    *  import note above for why it arrives as a prop. */
   modules: DqModule[];
@@ -174,6 +219,8 @@ function metricsFor(row: DqDrillRowDto, modules: DqModule[]): Record<string, num
 export function StudentDqClient({
   overview,
   drill,
+  radar,
+  radarScope,
   modules,
   passMark,
   minCellStudents,
@@ -193,16 +240,53 @@ export function StudentDqClient({
   const kind: DqModuleKindFilter =
     searchParams.get('kind') === 'WORKSHOP' ? 'WORKSHOP' : 'THEORY';
 
+  // The radar's target, as the URL carries it — NOT as the server
+  // resolved it. The picker reads "Whole selection" while no target is
+  // set, even though the server may have resolved that to a single
+  // filtered faculty; re-emitting the resolution as an explicit target
+  // would leave two places deciding the default and eventually
+  // disagreeing about it. `radarScope` (resolved) drives the wording
+  // below; this drives the control.
+  const radarFacultyParam = searchParams.get('radarFaculty');
+  const radarProgramParam = searchParams.get('radarProgram');
+  const targetParamValue = radarProgramParam
+    ? `p:${radarProgramParam}|${radarFacultyParam ?? ''}`
+    : radarFacultyParam
+      ? `f:${radarFacultyParam}`
+      : '';
+
   const apply = (next: {
     faculty?: string[];
     cohort?: string[];
     kind?: DqModuleKindFilter;
+    /** '' = whole selection, `f:<facultyName>`, `p:<programId>|<facultyName>`. */
+    radarTarget?: string;
   }) => {
     const params = new URLSearchParams();
     (next.faculty ?? faculty).forEach((v) => params.append('facultyName', v));
     (next.cohort ?? cohort).forEach((v) => params.append('cohortYearBE', v));
     const k = next.kind ?? kind;
     if (k !== 'THEORY') params.append('kind', k);
+    // Changing the data filter clears the radar target: the faculty or
+    // programme it pointed at may not be in the new selection at all, and
+    // a chart aimed outside the table beneath it is worse than one aimed
+    // at the whole selection. Switching Theory/Workshop keeps it — that
+    // is a change of axes, not of population.
+    const filterChanged = next.faculty !== undefined || next.cohort !== undefined;
+    const target = next.radarTarget ?? (filterChanged ? '' : targetParamValue);
+    if (target.startsWith('p:')) {
+      const rest = target.slice(2);
+      const sep = rest.indexOf('|');
+      const programId = sep === -1 ? rest : rest.slice(0, sep);
+      const targetFaculty = sep === -1 ? '' : rest.slice(sep + 1);
+      params.append('radarProgram', programId);
+      // The faculty travels with the programme so the radar reads the
+      // same cube rows the drill row does: one programme can appear under
+      // two faculty names, and those are two different populations.
+      if (targetFaculty) params.append('radarFaculty', targetFaculty);
+    } else if (target.startsWith('f:')) {
+      params.append('radarFaculty', target.slice(2));
+    }
     router.push(`/education/student-dq${params.toString() ? `?${params}` : ''}`);
   };
 
@@ -301,7 +385,68 @@ export function StudentDqClient({
     ? overview.modules.find((m) => m.moduleKey === genAi.key)
     : undefined;
 
-  const axisCount = modules.filter((m) => m.kind === kind).length;
+  // ── Radar ────────────────────────────────────────────────────────
+  //
+  // Both series arrive aligned against the framework's module list for
+  // the requested kind, so they are mapped straight through: reordering
+  // or filtering either one here would rotate it against the other and
+  // the overlay would compare a module with its neighbour.
+  const moduleByKey = React.useMemo(
+    () => new Map(modules.map((m) => [m.key, m])),
+    [modules],
+  );
+  const toPoints = React.useCallback(
+    (cells: DqModuleCellDto[]): RadarPoint[] =>
+      cells.map((c) => ({
+        label: moduleByKey.get(c.moduleKey)?.shortEn ?? c.moduleKey,
+        // Null stays null. The primitive draws a gap and suffixes the
+        // axis with '· n/d'; a 0 would draw a spike into the centre and
+        // read as "they scored nothing" rather than "nobody took it".
+        value: c.mean,
+      })),
+    [moduleByKey],
+  );
+
+  // The API's scopeLabel names the faculty/programme but knows nothing of
+  // the cohort filter, which the API nonetheless applies to the series.
+  // Appending it here keeps the legend equal to what is plotted.
+  const cohortNote = cohort.length > 0 ? ` · BE ${cohort.join(', ')}` : '';
+  // When nothing narrows the scope, the two series are the same
+  // population and the dashed overlay would sit exactly on the filled
+  // one — a benchmark that benchmarks against itself. Say so instead.
+  const comparisonIsScope =
+    radarScope.facultyName === null && radarScope.programId === null && cohort.length === 0;
+  const thinlyTaken = (radar?.scope ?? []).filter(
+    (c) => c.coveragePct !== null && c.coveragePct < THIN_COVERAGE_PCT,
+  );
+
+  // Faculties and their programmes, as targets for the chart. Built from
+  // the same drill payload the table renders, so the picker can only
+  // offer a scope that is on screen beneath it.
+  const scopeGroups = React.useMemo(
+    () =>
+      drill.faculties.map((f) => ({
+        facultyName: f.facultyName,
+        programs: drill.programs
+          .filter((p) => p.facultyName === f.facultyName && p.programId !== null)
+          .sort((a, b) => TH_COLLATOR.compare(a.programName ?? '', b.programName ?? '')),
+      })),
+    [drill],
+  );
+  const scopeValues = React.useMemo(() => {
+    const set = new Set<string>(['']);
+    for (const g of scopeGroups) {
+      set.add(`f:${g.facultyName}`);
+      for (const p of g.programs) set.add(`p:${p.programId}|${g.facultyName}`);
+    }
+    return set;
+  }, [scopeGroups]);
+  // A target left over from a wider filter still drives the chart (the
+  // server fetched it), so it gets an option of its own rather than the
+  // control quietly reading "Whole selection" while the chart shows a
+  // programme.
+  const targetIsOffList = targetParamValue !== '' && !scopeValues.has(targetParamValue);
+
   const refreshed = overview.refreshedAt ? new Date(overview.refreshedAt) : null;
   // Distinct from `overview.programsResolved`, which counts distinct
   // programmes: one programme taught to students recorded under two
@@ -490,22 +635,260 @@ export function StudentDqClient({
         </p>
       </Card>
 
-      {/* ─────────────────────────────────────────────────────────
-          RADAR PLACEHOLDER — the module-profile radar (scope vs
-          university, driven by the Theory/Workshop toggle above) is a
-          separate piece of work and is deliberately not rendered here.
-          Replace this card with `RadarChartSmall` from @kku/ui.
-          ───────────────────────────────────────────────────────── */}
+      {/* ── Module profile radar ────────────────────────────────── */}
       <Card>
-        <h3 className="text-sm font-semibold text-text-secondary">Module profile radar</h3>
-        <p className="mt-1 text-xs text-text-tertiary">
-          Not yet available. When it lands it will plot the {axisCount}{' '}
-          {kind === 'THEORY' ? 'theory' : 'workshop'} modules for the selected scope
-          against the university profile. Until then the table above carries the same
-          per-module figures.
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h3 className="text-sm font-semibold">
+            Module profile &mdash; {kind === 'THEORY' ? 'theory' : 'workshop'} modules
+          </h3>
+          <label className="flex items-center gap-2 text-xs text-text-tertiary">
+            Scope
+            <select
+              className="rounded-md border border-subtle bg-surface-1 px-2 py-1 text-xs text-text-primary"
+              value={targetParamValue}
+              onChange={(e) => apply({ radarTarget: e.target.value })}
+            >
+              <option value="">Whole selection</option>
+              {targetIsOffList && (
+                <option value={targetParamValue}>
+                  {radar ? radar.scopeLabel : 'Current target'} &mdash; outside the current
+                  filter
+                </option>
+              )}
+              {scopeGroups.map((g) => (
+                <optgroup key={g.facultyName} label={g.facultyName}>
+                  <option value={`f:${g.facultyName}`}>{g.facultyName} &mdash; all programmes</option>
+                  {g.programs.map((p) => (
+                    <option key={p.programId} value={`p:${p.programId}|${g.facultyName}`}>
+                      {p.programName ?? '(unnamed program)'}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {radar === null ? (
+          <p className="mt-3 rounded-md border border-subtle bg-surface-2 px-3 py-6 text-center text-xs text-text-secondary">
+            The module profile could not be loaded. The per-module figures in the table
+            above are unaffected &mdash; they come from a separate request.
+          </p>
+        ) : radar.suppressed ? (
+          // Every scope mean is withheld here, so the chart would be a
+          // ring of gaps. Drawing it would look like a measured profile
+          // that happens to be empty; it is a refusal to publish one.
+          <p className="mt-3 rounded-md border border-subtle bg-surface-2 px-3 py-6 text-center text-xs text-text-secondary">
+            {radar.studentsWithScores === 0 ? (
+              // "We will not say" and "there is nothing to say" are
+              // different states and must not share a caption — the same
+              // distinction the Passed KPI draws above.
+              <>
+                No profile for <span className="font-medium">{radar.scopeLabel}</span>
+                {cohortNote}: nobody in this scope has a result carrying module scores.
+              </>
+            ) : (
+              <>
+                Scores withheld for <span className="font-medium">{radar.scopeLabel}</span>
+                {cohortNote}. This scope holds {num(radar.studentsWithScores)} scored{' '}
+                {radar.studentsWithScores === 1 ? 'student' : 'students'}, fewer than the{' '}
+                {minCellStudents} needed to publish per-module means. Widen the scope or the
+                cohort filter to see a profile.
+              </>
+            )}
+          </p>
+        ) : (
+          <div className="mt-3 flex justify-center">
+            <RadarChartSmall
+              points={toPoints(radar.scope)}
+              // Verbatim from the API. It states exactly which population
+              // the ring covers; it is not the caller's scope wearing the
+              // word "University".
+              comparisons={
+                comparisonIsScope
+                  ? []
+                  : [{ label: radar.comparisonLabel, points: toPoints(radar.university) }]
+              }
+              seriesLabel={`${radar.scopeLabel}${cohortNote}`}
+              // 13 theory axes at fontSize 11: the primitive's label
+              // gutter is fixed at 56px, so the outer radius has to come
+              // from the HEIGHT (Recharts takes 80% of the smaller side)
+              // for the widest labels — 'Collaboration', 'Presentation' —
+              // to have room beyond the polygon. 720 x 420 leaves the
+              // labels clear at every vertex; narrowing the box or
+              // squaring it off puts them back over the grid.
+              width={720}
+              height={420}
+            />
+          </div>
+        )}
+
+        {radar !== null && !radar.suppressed && (
+          <>
+            {thinlyTaken.length > 0 && (
+              <p className="mt-2 text-xs text-warning">
+                Thinly taken:{' '}
+                {thinlyTaken
+                  .map(
+                    (c) =>
+                      `${moduleByKey.get(c.moduleKey)?.nameEn ?? c.moduleKey} (${c.coveragePct!.toFixed(
+                        0,
+                      )}% of scored students)`,
+                  )
+                  .join(', ')}
+                . Fewer than {THIN_COVERAGE_PCT}% of this scope&rsquo;s scored students have
+                taken these, so each mean describes the students who took the module, not
+                the scope &mdash; a thinly-taken module is not a strong one.
+              </p>
+            )}
+            <p className="mt-2 text-xs text-text-tertiary">
+              {comparisonIsScope ? (
+                <>
+                  No comparison ring: nothing narrows this selection, so the scope{' '}
+                  <span className="font-medium">is</span> the comparison population (
+                  {radar.comparisonLabel}). Pick a faculty or programme above to see it
+                  against the institution.
+                </>
+              ) : (
+                <>
+                  Solid ring is{' '}
+                  <span className="font-medium">
+                    {radar.scopeLabel}
+                    {cohortNote}
+                  </span>{' '}
+                  ({num(radar.studentsWithScores)} scored students); the dashed ring is{' '}
+                  <span className="font-medium">{radar.comparisonLabel}</span> &mdash; it is
+                  not recomputed inside the current filter. Click either legend entry to
+                  hide it.
+                </>
+              )}{' '}
+              An axis marked <span className="font-medium">&middot; n/d</span> is a module
+              nobody in this scope has taken; the polygon skips it rather than dropping to
+              zero.
+            </p>
+            {radarScope.facultyName === null &&
+              radarScope.programId === null &&
+              faculty.length > 1 && (
+                <p className="mt-1 text-xs text-warning">
+                  {faculty.length} faculties are selected, and the radar plots one scope at
+                  a time &mdash; it is showing {radar.scopeLabel}, not the union of the
+                  selected faculties. Pick one above to see it on its own.
+                </p>
+              )}
+          </>
+        )}
       </Card>
+
+      {/* ── Coverage: what this dashboard does not cover ─────────── */}
+      {overview.coverage && (
+        <CoveragePanel coverage={overview.coverage} minCellStudents={minCellStudents} />
+      )}
     </div>
+  );
+}
+
+/**
+ * What the refresh could not place, sized.
+ *
+ * Every figure here describes the whole DQ export as the connector last
+ * read it — NOT the current filter. That is the point: the reader needs
+ * to know how much of the source never reaches the table above, and a
+ * filtered version of that answer would move every time the rail moved.
+ * The panel says so in its first line rather than letting the numbers be
+ * mistaken for the selection's.
+ */
+function CoveragePanel({
+  coverage,
+  minCellStudents,
+}: {
+  coverage: NonNullable<DqOverviewResponse['coverage']>;
+  minCellStudents: number;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const noScores = coverage.fetched - coverage.withScores;
+  const scoredPct = pctOf(coverage.withScores, coverage.fetched);
+
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 text-left text-xs font-medium hover:text-accent-default"
+      >
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+        Coverage &mdash; {num(coverage.withScores)} of {num(coverage.fetched)} exported
+        students carry module scores
+        {scoredPct !== null && ` (${scoredPct.toFixed(1)}%)`}, and{' '}
+        {coverage.matchRatePct.toFixed(1)}% match a current programme
+      </button>
+      {open && (
+        <div className="mt-3 flex flex-col gap-3 text-xs text-text-secondary">
+          <p className="text-text-tertiary">
+            These figures describe the whole DQ export at the last refresh, not the
+            selection above &mdash; they are what the source contains, before any filter.
+          </p>
+          <div>
+            <div className="font-medium text-text-primary">
+              Tested {num(coverage.fetched)} &middot; scored {num(coverage.withScores)}
+            </div>
+            <p className="mt-1">
+              {num(noScores)}{' '}
+              {noScores === 1 ? 'student reports a result' : 'students report a result'} with
+              no module scores at all. They are counted as tested and are absent from every
+              mean, and it is the scored count &mdash; not the tested one &mdash; that
+              decides whether a row clears the {minCellStudents}-student floor.
+            </p>
+          </div>
+          <div>
+            <div className="font-medium text-text-primary">
+              Programme match rate {coverage.matchRatePct.toFixed(1)}%
+            </div>
+            <p className="mt-1">
+              The export is cumulative &mdash; every cohort that has ever sat the test &mdash;
+              while the enrolment snapshot we match against is current-year. Past cohorts
+              have left it and the newest intake has not yet entered it, so neither can be
+              matched to a programme; they appear under &ldquo;Program not identified&rdquo;
+              in the table above. The unmatched students are in the faculty figures, just
+              not under a programme.
+            </p>
+          </div>
+          <div>
+            <div className="font-medium text-text-primary">
+              {num(coverage.unmatchedFacultyNames.length)} faculty{' '}
+              {coverage.unmatchedFacultyNames.length === 1 ? 'name' : 'names'} we do not
+              carry
+            </div>
+            <p className="mt-1">
+              Students recorded under these names are shown under the name the export gave,
+              with no link to a faculty record &mdash; campus faculties, service units and
+              abbreviations the export uses in place of a full name:{' '}
+              <span className="text-text-tertiary">
+                {coverage.unmatchedFacultyNames.join(', ')}
+              </span>
+              .
+            </p>
+          </div>
+          <div>
+            <div className="font-medium text-text-primary">
+              {num(coverage.allPassedInconsistent)} students marked passed despite failing a
+              module
+            </div>
+            <p className="mt-1">
+              The pass verdict is DQ&rsquo;s own flag, passed through unchanged &mdash; this
+              dashboard never recomputes it. The source applies no single rule to it:{' '}
+              {num(coverage.allPassedInconsistent)} students are flagged as passed while
+              scoring below the pass mark on module 13, and others with that same profile are
+              flagged as failed. Read &ldquo;Passed %&rdquo; as the source&rsquo;s verdict,
+              not as a test against the pass mark.
+            </p>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
