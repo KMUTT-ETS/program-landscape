@@ -208,14 +208,20 @@ export function RadarChartSmall({
         tick={<AngleTick fill={palette.text} />}
       />
       {/* The scale ray must not sit on a spoke. Recharts puts the first
-        * data point at 90° (straight up) and steps 72° per axis, so
-        * angle={90} drew the 0–100 tick labels directly under
-        * 'Attractiveness' and the two collided. 54° is the midpoint
-        * between the first two spokes — empty space at every radius.
-        * If the dimension count ever changes from 5, re-derive this:
-        * it wants to be half a step off a spoke, i.e. 90 - (360/n)/2. */}
+        * data point at 90° (straight up) and steps 360/n per axis, so
+        * angle={90} drew the tick labels directly under the first axis
+        * label and the two collided. Half a step off a spoke is empty
+        * space at every radius.
+        *
+        * Derived rather than hardcoded: this used to be a literal 54,
+        * correct for the 5-dimension health radar it was written for
+        * (90 - 36). The DQ radars plot 13 and 4 axes, where 54° lands
+        * back ON a spoke and the tick labels crowd it. The formula is
+        * the one the original comment instructed a later reader to
+        * apply; n=5 still yields exactly 54, so the health radar is
+        * unchanged. */}
       <PolarRadiusAxis
-        angle={54}
+        angle={points.length > 0 ? 90 - 360 / points.length / 2 : 54}
         domain={domain}
         tick={{ fill: palette.axis, fontSize: 10 }}
         stroke={palette.grid}
