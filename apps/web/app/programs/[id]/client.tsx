@@ -29,6 +29,9 @@ import {
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
+// Shared with /education/student-dq so both DQ radars mean the same
+// thing by a floor of 60 — see the helper for why it is not 0.
+import { dqRadarDomain } from '@/lib/dq-radar-domain';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -121,6 +124,10 @@ interface Props {
   dqMinCellStudents: number;
   /** KKU's own DQ pass mark, quoted where the radial floor is disclosed. */
   dqPassMark: number;
+  /** `OVERALL_MEAN_MAX_MODULE_NO` — the highest module the headline mean
+   *  averages over. Every sentence naming the module window derives from
+   *  it rather than hardcoding "1–12" / "module 13". */
+  dqHeadlineMaxModuleNo: number;
 }
 
 /**
@@ -306,6 +313,7 @@ export function DeepDiveClient(props: Props) {
             modules={props.dqModules}
             minCellStudents={props.dqMinCellStudents}
             passMark={props.dqPassMark}
+            headlineMaxModuleNo={props.dqHeadlineMaxModuleNo}
             programId={props.programId}
           />
         </MacroGroup>
@@ -2605,33 +2613,6 @@ function OutcomesSection({ data }: { data: DeepDiveOutcomes | null }) {
 }
 
 /**
- * Radial floor for the DQ radar, mirroring `radarDomain` on
- * `/education/student-dq`.
- *
- * DQ means cluster hard against the top of the scale — university-wide
- * the 13 theory modules span roughly 68-90 — so a 0-100 radar draws
- * every module at almost the same radius and the shape says nothing.
- * The floor drops to the plotted data's decade, computed across BOTH
- * series so neither is clipped to the centre, and is capped at 60 so
- * programmes stay comparable with each other; an outlier widens the
- * axis instead of lying about where it sits.
- *
- * A non-zero floor magnifies differences, which is exactly how radar
- * charts mislead — the section states the floor in words underneath.
- * That disclosure is not optional.
- */
-const DQ_RADAR_FLOOR_CAP = 60;
-
-function dqRadarDomain(modules: DeepDiveDigitalCompetencyModule[]): [number, number] {
-  const values = modules
-    .flatMap((m) => [m.mean, m.universityMean])
-    .filter((v): v is number => v !== null);
-  if (values.length === 0) return [0, 100];
-  const floor = Math.floor(Math.min(...values) / 10) * 10;
-  return [Math.max(0, Math.min(DQ_RADAR_FLOOR_CAP, floor)), 100];
-}
-
-/**
  * Digital Intelligence (DQ) competency.
  *
  * Four states, all distinct, because collapsing any two of them would
@@ -2641,17 +2622,21 @@ function dqRadarDomain(modules: DeepDiveDigitalCompetencyModule[]): [number, num
  *   - `below-floor`    → the count, and why the figure is withheld.
  *   - `ok`             → the full section.
  */
+const DQ_SECTION_TITLE = 'Digital competency (DQ)';
+
 function DigitalCompetencySection({
   data,
   modules,
   minCellStudents,
   passMark,
+  headlineMaxModuleNo,
   programId,
 }: {
   data: DeepDiveDigitalCompetency | null;
   modules: DqModule[];
   minCellStudents: number;
   passMark: number;
+  headlineMaxModuleNo: number;
   programId: string;
 }) {
   // A non-bachelor programme renders NOTHING — not an empty card, not a
@@ -2663,24 +2648,38 @@ function DigitalCompetencySection({
   // A null payload is a FAILED FETCH, not an absent one — the endpoint
   // answers for every programme the reader can open. Going quiet here
   // would be indistinguishable from not-applicable.
+  //
+  // The route that failed goes to the console, not onto the page: this
+  // surface is read by Council, and `/programs/:id/dq` means nothing to
+  // them while telling anyone else where to poke.
   if (!data) {
     return (
       <EmptyCard
-        title="Digital competency"
-        note="The Digital Intelligence section could not be loaded. Reload the page; if it persists, /programs/:id/dq is failing."
+        title={DQ_SECTION_TITLE}
+        note="The Digital Intelligence section could not be loaded. Reload the page; if it keeps happening, tell an administrator."
       />
     );
   }
 
-  // The DQ dashboard's radar takes a programme id straight from the URL,
-  // so the link lands on this programme's own module profile.
+  // The DQ dashboard's radar takes a programme id straight from the URL.
+  // No `radarFaculty`: this programme's students may be filed under a
+  // faculty spelling we cannot derive here, and guessing would aim the
+  // dashboard's chart at a narrower population than the figures above.
   const dashboardHref = `/education/student-dq?radarProgram=${encodeURIComponent(programId)}`;
   const moduleByKey = new Map(modules.map((m) => [m.key, m]));
   const students = (n: number) => `${n.toLocaleString('en-US')} scored student${n === 1 ? '' : 's'}`;
+  // Both derived from `OVERALL_MEAN_MAX_MODULE_NO`, not written into the
+  // copy: when the headline's module window moves, every sentence that
+  // quotes it moves with it.
+  const headlineRange = `theory modules 1–${headlineMaxModuleNo}`;
+  const excludedModules = modules.filter((m) => m.no > headlineMaxModuleNo);
+  const excludedLabel = excludedModules
+    .map((m) => `module ${m.no} (${m.nameEn})`)
+    .join(', ');
 
   if (data.status === 'no-data') {
     return (
-      <Section id="digital-competency" title="Digital competency (DQ)">
+      <Section id="digital-competency" title={DQ_SECTION_TITLE}>
         <Card>
           <p className="text-sm text-text-secondary">
             No Digital Intelligence results for this programme. Nobody currently enrolled here
@@ -2708,7 +2707,7 @@ function DigitalCompetencySection({
 
   if (data.status === 'below-floor') {
     return (
-      <Section id="digital-competency" title="Digital competency (DQ)">
+      <Section id="digital-competency" title={DQ_SECTION_TITLE}>
         <Card>
           <p className="text-sm text-text-secondary">
             <span className="font-medium text-text-primary">Score withheld</span> — this programme
@@ -2746,13 +2745,37 @@ function DigitalCompetencySection({
     label: axisLabel(m.moduleKey),
     value: m.universityMean,
   }));
-  const domain = dqRadarDomain(data.modules);
+  const domain = dqRadarDomain([
+    data.modules.map((m) => ({ mean: m.mean })),
+    data.modules.map((m) => ({ mean: m.universityMean })),
+  ]);
   const hasUniversity = universityPoints.some((p) => p.value !== null);
+
+  // ── Coverage ──────────────────────────────────────────────────────
+  // Each axis is a mean among the students who TOOK that module, so the
+  // axes do not all rest on the same population. That is the concrete
+  // fact behind the "uneven rollout" the copy warns about, and the
+  // payload carries it — stating it in the abstract while holding the
+  // numbers would be the weaker half of the disclosure.
+  const pctRange = (
+    cells: DeepDiveDigitalCompetencyModule[],
+  ): { lo: number; hi: number } | null => {
+    const vs = cells.map((m) => m.coveragePct).filter((v): v is number => v !== null);
+    if (vs.length === 0) return null;
+    return { lo: Math.min(...vs), hi: Math.max(...vs) };
+  };
+  const headlineCoverage = pctRange(data.modules.filter((m) => m.moduleNo <= headlineMaxModuleNo));
+  const excludedCoverage = data.modules
+    .filter((m) => m.moduleNo > headlineMaxModuleNo && m.coveragePct !== null)
+    .map(
+      (m) =>
+        `${moduleByKey.get(m.moduleKey)?.nameEn ?? m.moduleKey} rests on ${m.coveragePct!.toFixed(1)}%`,
+    );
 
   return (
     <Section
       id="digital-competency"
-      title="Digital competency (DQ)"
+      title={DQ_SECTION_TITLE}
       description={`How this programme's students score on KKU's Digital Intelligence test. ${data.methodologyVersion}.`}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -2764,7 +2787,7 @@ function DigitalCompetencySection({
             {data.rawMean === null ? '—' : data.rawMean.toFixed(1)}
           </div>
           <div className="text-xs text-text-tertiary">
-            theory modules 1&ndash;12, out of 100
+            {headlineRange}, out of 100
             <span className="px-1">·</span>
             from {students(data.scoredStudents)}
           </div>
@@ -2792,6 +2815,20 @@ function DigitalCompetencySection({
           <div className="text-xs text-text-tertiary">
             share of {students(data.scoredStudents)} the source itself flags as passed
           </div>
+          {/* Load-bearing, and more so here than on the dashboard: the
+              card immediately to the left says the mean is banded on the
+              {passMark} pass mark, so "{'{'}pass rate{'}'}% passed" invites
+              the reader to conclude the rest scored under {passMark}.
+              They did not. The source applies no single rule to the
+              flag. Wording kept in step with /education/student-dq so
+              the two surfaces say one thing. */}
+          <div className="mt-1.5 text-xs text-warning">
+            This is DQ&rsquo;s own verdict, passed through unchanged &mdash; never recomputed here,
+            and not a test against the {passMark} pass mark. The source applies no single rule to
+            it: some students are flagged as passed while scoring below the pass mark on{' '}
+            {excludedLabel || `module ${headlineMaxModuleNo + 1}`}, and others with that same
+            profile are flagged as failed.
+          </div>
         </Card>
       </div>
 
@@ -2806,6 +2843,25 @@ function DigitalCompetencySection({
           An axis marked <span className="font-medium">&middot; n/d</span> is a module nobody here
           has taken; the polygon skips it rather than dropping to zero.
         </p>
+        {headlineCoverage && (
+          <p className="mt-1.5 text-xs text-text-tertiary">
+            Each axis is the mean among the students who took that module, not across the whole
+            cohort. Over {headlineRange} that is{' '}
+            {headlineCoverage.lo.toFixed(1)}
+            {headlineCoverage.hi - headlineCoverage.lo >= 0.05 && (
+              <>&ndash;{headlineCoverage.hi.toFixed(1)}</>
+            )}
+            % of this programme&rsquo;s {students(data.scoredStudents)}.
+            {excludedCoverage.length > 0 && (
+              <>
+                {' '}
+                By contrast, {excludedCoverage.join(', ')} &mdash; the uneven uptake that keeps it
+                out of the headline mean.
+              </>
+            )}{' '}
+            A thinly-taken module is not a strong one.
+          </p>
+        )}
         {/* The primitive takes a fixed pixel width, so on a narrow column
             it scrolls inside its own box — the page body never scrolls
             sideways. `min-w-fit` keeps the centred row reachable once the
@@ -2844,14 +2900,20 @@ function DigitalCompetencySection({
         <h4 className="text-sm font-semibold">Weakest modules</h4>
         {data.weakest.length === 0 ? (
           <p className="mt-1 text-sm text-text-tertiary">
-            No module means to rank &mdash; nobody here has taken a theory module 1&ndash;12.
+            No module means to rank &mdash; nobody here has taken a module in the {headlineRange}{' '}
+            window.
           </p>
         ) : (
           <>
             <p className="mt-1 text-xs text-text-tertiary">
-              This programme&rsquo;s lowest-scoring modules among theory 1&ndash;12. Module 13
-              (Generative AI) is excluded here for the same reason it is out of the headline mean:
-              its rollout has reached faculties unevenly.
+              This programme&rsquo;s lowest-scoring modules among {headlineRange}.
+              {excludedLabel && (
+                <>
+                  {' '}
+                  Excluded: {excludedLabel} &mdash; for the same reason it is out of the headline
+                  mean, its rollout has reached faculties unevenly.
+                </>
+              )}
             </p>
             <ul className="mt-2 flex flex-col gap-1 text-sm">
               {data.weakest.map((w) => (

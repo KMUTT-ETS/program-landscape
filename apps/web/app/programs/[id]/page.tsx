@@ -6,7 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 // passed down. Same for the suppression floor out of `@kku/db`, which
 // the DQ copy quotes: one definition, not two.
 import { DQ_MODULES, DQ_PASS_MARK, type SessionUser } from '@kku/shared';
-import { DQ_MIN_CELL_STUDENTS } from '@kku/db';
+import { DQ_MIN_CELL_STUDENTS, OVERALL_MEAN_MAX_MODULE_NO } from '@kku/db';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -229,6 +229,7 @@ export default async function ProgramDeepDivePage({
         dqModules={DQ_MODULES.filter((m) => m.kind === 'THEORY')}
         dqMinCellStudents={DQ_MIN_CELL_STUDENTS}
         dqPassMark={DQ_PASS_MARK}
+        dqHeadlineMaxModuleNo={OVERALL_MEAN_MAX_MODULE_NO}
       />
     </AuthedAppShell>
   );

@@ -10,6 +10,7 @@ import { Card, RadarChartSmall, type RadarPoint } from '@kku/ui';
 // component and handed down as the `modules` prop. Nothing here reaches
 // into `@kku/shared` at runtime.
 import type { DqModule } from '@kku/shared';
+import { dqRadarDomain } from '@/lib/dq-radar-domain';
 import { MultiSelectField } from '../multi-select';
 import {
   DrillDownPivot,
@@ -412,36 +413,14 @@ export function StudentDqClient({
   );
 
   // ── Radial scale ────────────────────────────────────────────────────
-  // DQ scores cluster hard against the top of the scale: university-wide
-  // the 13 theory means span 67.6-89.7, and a faculty is much the same.
-  // Plotted on a 0-100 axis every one of them sits in the outer quarter
-  // of the radius and the polygon reads as a circle — the shape carries
-  // no information, which is the whole point of a radar.
-  //
-  // So the axis floor drops to the plotted data's decade instead of 0.
-  // Two constraints make that honest rather than flattering:
-  //
-  //  1. The floor is computed across BOTH series. Using the scope's own
-  //     minimum would clip the comparison ring wherever the university
-  //     scores lower, silently drawing it at the centre.
-  //  2. It is never raised above FLOOR_CAP. Programme-level cells go as
-  //     low as 5.6 in this data (30 cells below 60, 9 below 50); a fixed
-  //     60 floor would render a programme scoring 5.6 exactly like one
-  //     scoring 60. When the data goes low, the axis follows it down.
-  //
-  // In the common case this yields 60-100 for every scope, so faculties
-  // stay comparable with each other; an outlier scope widens instead of
-  // lying. The floor is stated in words beneath the chart — the axis
-  // ticks show it, but nobody scanning shapes reads axis ticks.
-  const FLOOR_CAP = 60;
-  const radarDomain = React.useMemo((): [number, number] => {
-    const values = [...(radar?.scope ?? []), ...(radar?.university ?? [])]
-      .map((c) => c.mean)
-      .filter((v): v is number => v !== null);
-    if (values.length === 0) return [0, 100];
-    const floor = Math.floor(Math.min(...values) / 10) * 10;
-    return [Math.max(0, Math.min(FLOOR_CAP, floor)), 100];
-  }, [radar]);
+  // Shared with the programme deep-dive's DQ section — see
+  // `dqRadarDomain` for why the floor is not 0 and why it is capped.
+  // The floor is stated in words beneath the chart, which that helper
+  // requires of every caller.
+  const radarDomain = React.useMemo(
+    (): [number, number] => dqRadarDomain([radar?.scope ?? [], radar?.university ?? []]),
+    [radar],
+  );
 
   // The API's scopeLabel names the faculty/programme but knows nothing of
   // the cohort filter, which the API nonetheless applies to the series.
@@ -486,7 +465,48 @@ export function StudentDqClient({
   // server fetched it), so it gets an option of its own rather than the
   // control quietly reading "Whole selection" while the chart shows a
   // programme.
-  const targetIsOffList = targetParamValue !== '' && !scopeValues.has(targetParamValue);
+  //
+  // `?radarProgram=<id>` WITHOUT a faculty is on-list, not off it. The
+  // programme deep-dive links here that way deliberately — it knows the
+  // programme id but not which of the export's faculty spellings the
+  // cube filed those students under, and guessing would aim the chart at
+  // a different population than the figures it links from. Resolve the
+  // bare id to its own option so arriving from the deep-dive does not
+  // read "outside the current filter" when the programme is right there
+  // in the list.
+  // The faculty-less form the deep-dive links with.
+  const bareProgramId =
+    targetParamValue.startsWith('p:') && targetParamValue.endsWith('|')
+      ? targetParamValue.slice(2, -1)
+      : null;
+  // Which faculty names the table files that programme under. One
+  // programme can appear under several — the export spells faculties
+  // inconsistently and some students land in '(unknown)'.
+  const bareOwners = React.useMemo(
+    () =>
+      bareProgramId === null
+        ? []
+        : scopeGroups.filter((g) => g.programs.some((p) => p.programId === bareProgramId)),
+    [bareProgramId, scopeGroups],
+  );
+  // Display-only: the URL and the chart keep the bare id. Re-emitting a
+  // resolved faculty into the URL would narrow the population the API
+  // reads, and the deep-dive links here bare precisely to avoid that.
+  // Resolve only when exactly one faculty holds the programme — picking
+  // the first of several would mislabel the chart as one faculty's when
+  // it is the union.
+  const resolvedTargetValue =
+    bareProgramId !== null && bareOwners.length === 1
+      ? `p:${bareProgramId}|${bareOwners[0]!.facultyName}`
+      : targetParamValue;
+  const targetIsOffList = resolvedTargetValue !== '' && !scopeValues.has(resolvedTargetValue);
+  // A bare id that IS in the table is not "outside the current filter" —
+  // it is wider than any single option, because the programme is filed
+  // under more than one faculty name. Saying "outside the filter" to a
+  // reader who just arrived from that programme's deep-dive is simply
+  // false, and it is the one case this pseudo-option gets on every visit
+  // from there.
+  const targetSpansFaculties = bareOwners.length > 1;
 
   const refreshed = overview.refreshedAt ? new Date(overview.refreshedAt) : null;
   // Distinct from `overview.programsResolved`, which counts distinct
@@ -696,13 +716,16 @@ export function StudentDqClient({
               // viewport. Capped here; the native control clips the text
               // and the full name stays readable once the list is open.
               className="max-w-[16rem] rounded-md border border-subtle bg-surface-1 px-2 py-1 text-xs text-text-primary"
-              value={targetParamValue}
+              value={resolvedTargetValue}
               onChange={(e) => apply({ radarTarget: e.target.value })}
             >
               <option value="">Whole selection</option>
               {targetIsOffList && (
-                <option value={targetParamValue}>
-                  {radar ? radar.scopeLabel : 'Current target'} &mdash; outside the current filter
+                <option value={resolvedTargetValue}>
+                  {radar ? radar.scopeLabel : 'Current target'}
+                  {targetSpansFaculties
+                    ? ` — all ${bareOwners.length} faculty filings`
+                    : ' — outside the current filter'}
                 </option>
               )}
               {scopeGroups.map((g) => (
