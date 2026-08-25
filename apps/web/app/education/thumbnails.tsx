@@ -1,3 +1,9 @@
+/* eslint-disable no-restricted-syntax -- These are fixed SVG illustrations with a
+   deliberately theme-independent palette: each thumb renders onto a constant paper
+   background and must look identical in light and dark mode, so the design tokens
+   (which follow the theme) are the wrong tool here. Applies to COLORS and the
+   per-thumb heat scales only; real UI in this app uses tokens. */
+
 // Hand-stylised SVG illustrations for the Education hub tiles. They
 // stand in for AI-generated thumbnails — composable inline SVGs render
 // crisply at any DPI, ship zero bytes of binary, and stay in sync with
