@@ -1385,7 +1385,13 @@ Expected: an `UNAUTHORIZED` envelope — proving the route is registered and gua
 - 13 theory axes by default; the theory/workshop toggle switches to the 4 workshop axes.
 - `value` is the module mean or `null` — the primitive already suffixes null axes with `· n/d`, which is exactly the "not taken" signal this dashboard needs.
 - Clicking a drill-down row sets the radar scope (faculty or program) and its label; the default scope is the whole (filtered) university.
-- Beneath the chart, a coverage line listing any axis whose `coveragePct` is below 50, e.g. "Thinly taken: Generative AI (57% of students)". A thinly-taken module must not read as a strong one.
+- Beneath the chart, a coverage line listing any axis whose `coveragePct` is below the
+  thin-coverage floor, e.g. "Thinly taken: Generative AI (57% of students)". A thinly-taken
+  module must not read as a strong one. **The floor is 75%, not 50%** — coverage on this
+  data is bimodal (modules 1–12 near 94%, module 13 at 57% university-wide and 49% in
+  Engineering), so a 50% line would flag nothing at all, including the one module that
+  needs flagging. Interpolate the floor into the on-screen sentence so the reader sees the
+  number rather than inferring it.
 
 **Check the primitive's label gutter before assuming 13 axes fit** — `LABEL_GUTTER_PX` is sized for ~8 dimensions at 280px wide. Render it, look at it, and if labels collide, raise the width/height rather than truncating labels. Report what you saw.
 

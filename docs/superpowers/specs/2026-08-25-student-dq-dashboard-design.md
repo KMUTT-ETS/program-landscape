@@ -207,8 +207,11 @@ so it reads as a data-coverage note rather than a programme.
 **Radar** below the table: 13 axes in framework order, plotting the selected scope
 against the university mean as a second series. Selecting a table row targets the radar
 at that scope; the theory/workshop toggle switches to the 4-axis workshop view. Axes
-whose coverage is below a stated floor are drawn but marked, so a thinly-taken module
-cannot masquerade as a strong one. Built on the existing `packages/ui` radar primitive —
+whose coverage is below **75%** are drawn but marked, so a thinly-taken module cannot
+masquerade as a strong one. That floor is not arbitrary and is deliberately not 50%:
+coverage here is bimodal — modules 1–12 sit near 94% while module 13 is at 57%
+university-wide and 49% in Engineering — so a 50% line would flag nothing at all,
+including the one module that needs flagging. Built on the existing `packages/ui` radar primitive —
 no new charting library, per the platform rule.
 
 **Coverage panel**, in the discipline used by the teaching-talent dashboard: students
