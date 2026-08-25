@@ -77,6 +77,10 @@ export interface DqOverviewResponse {
   refreshedAt: string | null;
   coverage: {
     fetched: number;
+    /** Students the source flags `hasResult` — wider than `withScores`,
+     *  because a result can carry no module payload. Null when the
+     *  refresh that wrote the cubes predates the counter. */
+    withResult: number | null;
     withScores: number;
     matchRatePct: number;
     unmatchedFacultyNames: string[];
@@ -422,8 +426,13 @@ export function StudentDqClient({
   // one — a benchmark that benchmarks against itself. Say so instead.
   const comparisonIsScope =
     radarScope.facultyName === null && radarScope.programId === null && cohort.length === 0;
+  // `mean !== null` is load-bearing, not defensive: a module nobody took
+  // has a coverage of 0, which clears the threshold trivially and put
+  // "thinly taken (0% of scored students) … each mean describes the
+  // students who took the module" on screen for a module with no mean at
+  // all. Nobody-took-it is already said on the axis, as `· n/d`.
   const thinlyTaken = (radar?.scope ?? []).filter(
-    (c) => c.coveragePct !== null && c.coveragePct < THIN_COVERAGE_PCT,
+    (c) => c.mean !== null && c.coveragePct !== null && c.coveragePct < THIN_COVERAGE_PCT,
   );
 
   // Faculties and their programmes, as targets for the chart. Built from
@@ -622,6 +631,7 @@ export function StudentDqClient({
               onSelect={(row) => {
                 if (row.selectionKey) apply({ radarTarget: row.selectionKey });
               }}
+              selectHint="Plot on the module profile"
             />
           )}
         </div>
@@ -771,9 +781,14 @@ export function StudentDqClient({
             <p className="mt-2 text-xs text-text-tertiary">
               {comparisonIsScope ? (
                 <>
-                  No comparison ring: nothing narrows this selection, so the scope{' '}
+                  {/* Scoped to the radar deliberately: the multi-faculty
+                      note below says the table IS narrowed, and an
+                      unqualified "nothing narrows this selection" beside
+                      it reads as a contradiction rather than as two
+                      statements about two different things. */}
+                  No comparison ring: nothing narrows the radar&rsquo;s scope, so it{' '}
                   <span className="font-medium">is</span> the comparison population (
-                  {radar.comparisonLabel}). Pick a faculty or programme above to see it
+                  {radar.comparisonLabel}). Pick a faculty or programme above to see one
                   against the institution.
                 </>
               ) : (
@@ -832,6 +847,10 @@ function CoveragePanel({
   minCellStudents: number;
 }) {
   const [open, setOpen] = React.useState(false);
+  // Tested minus scored. NOT "students whose result carries no scores" —
+  // that is only the part of this gap where a result exists at all, and
+  // conflating the two was a false claim on a panel whose job is the
+  // opposite. `withResult` is what splits it.
   const noScores = coverage.fetched - coverage.withScores;
   const scoredPct = pctOf(coverage.withScores, coverage.fetched);
 
@@ -863,11 +882,28 @@ function CoveragePanel({
               Tested {num(coverage.fetched)} &middot; scored {num(coverage.withScores)}
             </div>
             <p className="mt-1">
-              {num(noScores)}{' '}
-              {noScores === 1 ? 'student reports a result' : 'students report a result'} with
-              no module scores at all. They are counted as tested and are absent from every
-              mean, and it is the scored count &mdash; not the tested one &mdash; that
-              decides whether a row clears the {minCellStudents}-student floor.
+              {coverage.withResult === null ? (
+                // The refresh that wrote these cubes predates the
+                // `hasResult` counter, so the gap cannot be split. Say
+                // its size and stop there rather than attributing all of
+                // it to one of the two states.
+                <>
+                  {num(noScores)} of the tested students carry no module scores. This
+                  refresh did not record how many of them have a result on file at all, so
+                  the gap is not broken down here; re-run the connector to populate it.
+                </>
+              ) : (
+                <>
+                  The gap is two different things, not one.{' '}
+                  {num(coverage.fetched - coverage.withResult)} of the tested students have
+                  no result on file at all, and a further{' '}
+                  {num(coverage.withResult - coverage.withScores)} have a result that
+                  carries no module scores.
+                </>
+              )}{' '}
+              Both are counted as tested and both are absent from every mean, and it is the
+              scored count &mdash; not the tested one &mdash; that decides whether a row
+              clears the {minCellStudents}-student floor.
             </p>
           </div>
           <div>

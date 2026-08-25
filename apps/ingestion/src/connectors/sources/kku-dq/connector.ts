@@ -54,6 +54,9 @@ interface RunState {
   fetched: number;
   parsed: number;
   parseFailed: number;
+  /** Items the source flags `hasResult`. Strictly wider than `withScores`:
+   *  a result can exist and carry no module payload at all. */
+  withResult: number;
   withScores: number;
   matchedProgram: number;
   unmatchedFacultyNames: Set<string>;
@@ -122,6 +125,7 @@ export class KkuDqRealConnector extends ApiConnector {
       fetched: envelope.items.length,
       parsed: 0,
       parseFailed: 0,
+      withResult: 0,
       withScores: 0,
       matchedProgram: 0,
       unmatchedFacultyNames: new Set<string>(),
@@ -182,6 +186,13 @@ export class KkuDqRealConnector extends ApiConnector {
       if (programId) state.matchedProgram += 1;
       const program = programId ? programById.get(programId) : undefined;
 
+      // Two distinct populations, and the gap between them is the point:
+      // `hasResult` says the student has a result on file, the payload
+      // says whether that result carries any module scores. Reporting
+      // only the second leaves "tested minus scored" to be read as one
+      // group when it is two — students with no result at all, and
+      // students whose result is empty.
+      if (item.hasResult) state.withResult += 1;
       if (Object.keys(item.modules ?? {}).length > 0) state.withScores += 1;
 
       // Track the source's self-contradiction so the dashboard can state
@@ -292,6 +303,7 @@ export class KkuDqRealConnector extends ApiConnector {
         studentsFetched: state.fetched,
         studentsParsed: state.parsed,
         studentsParseFailed: state.parseFailed,
+        studentsWithResult: state.withResult,
         studentsWithScores: state.withScores,
         studentsMatchedProgram: state.matchedProgram,
         programMatchRatePct: matchRatePct,

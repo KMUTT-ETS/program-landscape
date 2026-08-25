@@ -56,6 +56,17 @@ export interface DrillDownPivotProps {
    * targets rather than one click that has to guess which was meant.
    */
   onSelect?: (row: DrillRow) => void;
+  /**
+   * What selecting a row DOES, as a verb phrase — "Plot on the module
+   * profile". The pivot builds the label button's accessible name from
+   * it: `<hint>: <row label>`.
+   *
+   * Supplied by the consumer because only the consumer knows; without it
+   * a screen-reader user meets two adjacent controls on the same row
+   * announced "Expand COLA" and "COLA", with nothing saying what the
+   * second one is for.
+   */
+  selectHint?: string;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -126,6 +137,7 @@ export function DrillDownPivot({
   rowHeaderLabel = 'Row',
   maxDepth = 3,
   onSelect,
+  selectHint,
 }: DrillDownPivotProps) {
   const [sort, setSort] = React.useState<SortState | null>(null);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -185,6 +197,7 @@ export function DrillDownPivot({
               toggle={toggle}
               maxDepth={maxDepth}
               onSelect={onSelect}
+              selectHint={selectHint}
             />
           ))}
         </tbody>
@@ -202,6 +215,7 @@ function PivotRow({
   toggle,
   maxDepth,
   onSelect,
+  selectHint,
 }: {
   row: DrillRow;
   columns: DrillColumn[];
@@ -211,6 +225,7 @@ function PivotRow({
   toggle: (key: string) => void;
   maxDepth: number;
   onSelect?: (row: DrillRow) => void;
+  selectHint?: string;
 }) {
   const hasChildren = row.children && row.children.length > 0 && depth + 1 < maxDepth;
   const isOpen = expanded.has(path);
@@ -235,24 +250,33 @@ function PivotRow({
             // the other's propagation.
             <span className="inline-flex items-center gap-1">
               {hasChildren ? (
+                // 24x24 hit area around a 6px glyph, per WCAG 2.5.8.
+                // NOTE the scale: this design system replaces Tailwind's
+                // spacing, so `3` is 6px and `12` is 24px — `h-6 w-6`
+                // here would be a 12px target, not 24.
                 <button
                   type="button"
                   onClick={() => toggle(path)}
                   aria-label={isOpen ? `Collapse ${row.label}` : `Expand ${row.label}`}
                   aria-expanded={isOpen}
-                  className="hover:text-accent-default"
+                  className="-my-4 flex h-12 w-12 shrink-0 items-center justify-center hover:text-accent-default"
                 >
                   <ChevronRight
                     className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-90' : ''}`}
                   />
                 </button>
               ) : (
-                // Keeps a leaf's label on the same left edge as a parent's.
-                <span className="ml-4" />
+                // Same width as the button above, so a leaf's label sits
+                // on the same left edge as a parent's.
+                <span className="w-12 shrink-0" />
               )}
               <button
                 type="button"
                 onClick={() => onSelect?.(row)}
+                // Two adjacent controls on one row: the chevron announces
+                // "Expand <label>", so this one has to say what it does
+                // rather than just repeating the label.
+                aria-label={selectHint ? `${selectHint}: ${row.label}` : undefined}
                 className="truncate text-left underline decoration-dotted underline-offset-2 hover:text-accent-default"
                 title={row.label}
               >
@@ -311,6 +335,7 @@ function PivotRow({
             toggle={toggle}
             maxDepth={maxDepth}
             onSelect={onSelect}
+            selectHint={selectHint}
           />
         ))}
     </>

@@ -120,6 +120,11 @@ export interface DqOverview {
   /** From the connector run's metadata — see the coverage panel. */
   coverage: {
     fetched: number;
+    /** Students the source flags `hasResult`. Wider than `withScores` —
+     *  a result can carry no module payload. Null when the refresh that
+     *  wrote the cubes predates the counter, so a consumer can say "not
+     *  reported" rather than print a zero that means "unknown". */
+    withResult: number | null;
     withScores: number;
     matchRatePct: number;
     unmatchedFacultyNames: string[];
@@ -665,6 +670,10 @@ async function latestDqRun(): Promise<{
       : undefined;
 
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  // Distinct from `num`: absent means "this refresh did not count it",
+  // which is not the same claim as "it counted zero".
+  const numOrNull = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
   const names = Array.isArray(meta?.unmatchedFacultyNames)
     ? meta.unmatchedFacultyNames.filter((n): n is string => typeof n === 'string')
     : [];
@@ -674,6 +683,7 @@ async function latestDqRun(): Promise<{
     coverage: meta
       ? {
           fetched: num(meta.studentsFetched),
+          withResult: numOrNull(meta.studentsWithResult),
           withScores: num(meta.studentsWithScores),
           matchRatePct: num(meta.programMatchRatePct),
           unmatchedFacultyNames: names,
