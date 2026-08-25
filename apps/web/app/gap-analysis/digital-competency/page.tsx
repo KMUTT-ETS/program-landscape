@@ -7,6 +7,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, Card, PageHeader } from '@kku/ui';
 import type {
+  DqLensDemandDto,
   DqSkillConfidenceDto,
   DqSkillLensResponse,
   DqSkillLensRowDto,
@@ -141,12 +142,13 @@ export default async function DigitalCompetencyPage({
                 />
               </div>
               <p className="mt-3 text-xs leading-relaxed text-text-secondary">
-                The Thailand × job-postings quadrant — the one the Gap Analyzer&rsquo;s demand
-                figures read — holds{' '}
+                In the Thailand × job-postings quadrant — the one the Gap Analyzer&rsquo;s demand
+                figures read —{' '}
                 <span className="font-medium text-text-primary">
-                  {data.thailandQuadrantRows.toLocaleString()} skill rows
-                </span>{' '}
-                in total, and none of them is one of the mapped digital skills. The global
+                  {data.thailandQuadrantSkillRows.toLocaleString()} rows resolved to a taxonomy
+                  skill, of {data.thailandQuadrantRows.toLocaleString()} in the quadrant
+                </span>
+                , and none of those resolved rows is one of the mapped digital skills. The global
                 quadrant is shown alongside it so that an empty Thailand reading is legible as a
                 sample-size fact rather than as absent demand. Neither figure is substituted for
                 the other.
@@ -315,17 +317,12 @@ function ModuleRows({
           <>
             <td className="py-2 pr-3 text-right align-top">
               <DemandCell
-                demand={row.demandThailand?.demand ?? null}
-                careerCount={row.demandThailand?.careerCount ?? 0}
+                reading={row.demandThailand}
                 emptyLabel="No rows in the Thailand sample"
               />
             </td>
             <td className="py-2 pr-3 text-right align-top">
-              <DemandCell
-                demand={row.demandGlobal?.demand ?? null}
-                careerCount={row.demandGlobal?.careerCount ?? 0}
-                emptyLabel="Not in the global sample"
-              />
+              <DemandCell reading={row.demandGlobal} emptyLabel="Not in the global sample" />
             </td>
           </>
         )}
@@ -375,24 +372,37 @@ function ModuleRows({
   );
 }
 
+/**
+ * A demand figure with the careers it came from named underneath.
+ *
+ * The API contract is aggregate-only and carries no employer names, so
+ * the careers are the only way a reader can check that the number is
+ * about the competency they think it is — a demand figure with no
+ * inspectable sample is a figure nobody can challenge.
+ */
 function DemandCell({
-  demand,
-  careerCount,
+  reading,
   emptyLabel,
 }: {
-  demand: number | null;
-  careerCount: number;
+  reading: DqLensDemandDto | null;
   emptyLabel: string;
 }) {
-  if (demand === null) {
+  if (reading === null) {
     return <span className="text-xs text-text-tertiary">{emptyLabel}</span>;
   }
   return (
     <>
-      <div className="font-mono text-sm text-text-primary">{demand.toFixed(2)}</div>
+      <div className="font-mono text-sm text-text-primary">{reading.demand.toFixed(2)}</div>
       <div className="text-xs text-text-tertiary">
-        across {careerCount.toLocaleString()} {careerCount === 1 ? 'career' : 'careers'}
+        across {reading.careerCount.toLocaleString()}{' '}
+        {reading.careerCount === 1 ? 'career' : 'careers'}
       </div>
+      {reading.topCareers.length > 0 && (
+        <div className="mt-1 text-xs leading-snug text-text-tertiary">
+          {reading.topCareers.join(' · ')}
+          {reading.careerCount > reading.topCareers.length && ' · …'}
+        </div>
+      )}
     </>
   );
 }
@@ -425,10 +435,13 @@ function WeakestCard({ row }: { row: DqSkillLensRowDto }) {
               >
                 {p.nameEn}
               </Link>
+              {/* Explicit separator, not a margin: `75.6` and `n = 14`
+                  set with only spacing between them read — and copy —
+                  as the single token `75.6n = 14`. */}
               <span className="shrink-0 text-right">
                 <span className="font-mono text-xs text-text-primary">{p.mean.toFixed(1)}</span>
-                <span className="ml-2 text-xs text-text-tertiary">
-                  n = {p.takenCount.toLocaleString()}
+                <span className="text-xs text-text-tertiary">
+                  {' · '}n = {p.takenCount.toLocaleString()}
                 </span>
               </span>
             </li>

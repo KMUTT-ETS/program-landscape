@@ -233,8 +233,6 @@ export interface DqSkillLensRowDto {
   moduleKey: string;
   moduleNameEn: string;
   moduleNameTh: string | null;
-  moduleShortEn: string;
-  domain: string;
   confidence: DqSkillConfidenceDto;
   note: string;
   skillId: string | null;
@@ -260,6 +258,7 @@ export interface DqSkillLensResponse {
     withGlobalDemand: number;
   };
   thailandQuadrantRows: number;
+  thailandQuadrantSkillRows: number;
   dqRefreshedAt: string | null;
   methodologyVersion: string;
   asOf: string;

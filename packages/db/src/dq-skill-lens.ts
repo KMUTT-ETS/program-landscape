@@ -30,12 +30,16 @@
  * 2. **The Thailand job-postings quadrant is thin.** It is the quadrant
  *    the gap analyzer's `demandSource: 'kmitl'` path reads, so it is the
  *    primary demand figure here; measured 2026-08-25 it holds 353
- *    (career × skill) rows and none of them is one of the eight mapped
- *    skills. Reporting only that quadrant would render the whole demand
- *    axis blank with no way to tell "not demanded" from "sample too
- *    small", so the global quadrant is returned alongside it, each
- *    labelled with the quadrant it came from. Neither is silently
- *    substituted for the other.
+ *    (career × skill) rows, of which 301 resolve to a taxonomy skill —
+ *    and none of those 301 is one of the eight mapped digital skills.
+ *    Both counts are returned (`thailandQuadrantRows` and
+ *    `thailandQuadrantSkillRows`) because they answer different
+ *    questions: how much the source carries, and how much of it this
+ *    platform can join to. Reporting only that quadrant would render the
+ *    whole demand axis blank with no way to tell "not demanded" from
+ *    "sample too small", so the global quadrant is returned alongside
+ *    it, each labelled with the quadrant it came from. Neither is
+ *    silently substituted for the other.
  *
  * Attribution: the demand data is LinkedIn, subscribed by MHESI. KMITL
  * hosts the API and nothing else — never describe it as KMITL's data.
@@ -95,8 +99,6 @@ export interface DqSkillLensRow {
   moduleKey: string;
   moduleNameEn: string;
   moduleNameTh: string | null;
-  moduleShortEn: string;
-  domain: string;
 
   /** Mapping verdict from the curated table. `none` means the taxonomy
    *  has no defensible counterpart — not that none was looked for. */
@@ -142,9 +144,14 @@ export interface DqSkillLensResult {
     /** Mapped modules carrying a global job-postings reading. */
     withGlobalDemand: number;
   };
-  /** Rows in the Thailand × job-postings quadrant overall — the
-   *  sample-size caveat, stated rather than implied. */
+  /** Every (career × skill) row the source carries in the Thailand ×
+   *  job-postings quadrant, resolved to a taxonomy skill or not. */
   thailandQuadrantRows: number;
+  /** Of those, the ones that resolve to a taxonomy skill — the subset
+   *  this lens could possibly match a DQ module against. Reported beside
+   *  the total because "the quadrant is thin" and "we can only join to
+   *  part of it" are separate facts and only the pair is honest. */
+  thailandQuadrantSkillRows: number;
   /** When the DQ cubes were last written, or null if never. */
   dqRefreshedAt: string | null;
   methodologyVersion: string;
@@ -203,10 +210,12 @@ function scopeClause(scope: DqLensScope, scopeId: string | null): {
  * students measurably score on the matching DQ module.
  *
  * All thirteen modules come back, mapped or not. Weakest programmes are
- * computed for every module including the unmapped ones: the two lowest
- * competencies university-wide (Word Processing and Presentation) are
- * both unmapped, and withholding the actionable part of a lens because
- * the taxonomy is missing a row would be the wrong trade.
+ * computed for every module including the unmapped ones: measured
+ * 2026-08-25 the university means run Generative AI 67.7 (mapped
+ * `exact`) < Presentation 79.8 (mapped `near`) < Word Processing 80.1
+ * (unmapped) < Spreadsheet 81.0 (unmapped), so the weakest competencies
+ * straddle both groups and withholding the actionable part of a lens
+ * because the taxonomy is missing a row would be the wrong trade.
  */
 export async function computeDqSkillLens(args: {
   scope?: DqLensScope;
@@ -220,7 +229,14 @@ export async function computeDqSkillLens(args: {
     (id): id is string => id !== null,
   );
 
-  const [moduleAgg, weakest, demandRows, thailandQuadrantRows, dqRun] = await Promise.all([
+  const [
+    moduleAgg,
+    weakest,
+    demandRows,
+    thailandQuadrantRows,
+    thailandQuadrantSkillRows,
+    dqRun,
+  ] = await Promise.all([
     prisma.$queryRawUnsafe<ModuleAggRow[]>(
       `
       SELECT
@@ -298,6 +314,18 @@ export async function computeDqSkillLens(args: {
           mappedSkillIds,
         ),
 
+    // Two counts, deliberately: the quadrant's whole size, and the part
+    // of it that resolves to a taxonomy skill. Reporting only the second
+    // as "the quadrant" would understate the source and overstate what
+    // this platform can join to, in the same sentence.
+    prisma.kmitlCareerSkillDemand.count({
+      where: {
+        dataScope: 'THAILAND',
+        dataSource: 'JOB_POSTINGS',
+        ...realDataWhere(),
+      },
+    }),
+
     prisma.kmitlCareerSkillDemand.count({
       where: {
         dataScope: 'THAILAND',
@@ -352,8 +380,6 @@ export async function computeDqSkillLens(args: {
       moduleKey: mod.key,
       moduleNameEn: mod.nameEn,
       moduleNameTh: mod.nameTh,
-      moduleShortEn: mod.shortEn,
-      domain: mod.domain,
       confidence: mapping?.confidence ?? 'none',
       note: mapping?.note ?? 'No mapping row for this module.',
       skillId: mapping?.skillId ?? null,
@@ -388,6 +414,7 @@ export async function computeDqSkillLens(args: {
       withGlobalDemand: rows.filter((r) => r.demandGlobal !== null).length,
     },
     thailandQuadrantRows,
+    thailandQuadrantSkillRows,
     dqRefreshedAt: dqRun ? dqRun.toISOString() : null,
     methodologyVersion: DQ_SKILL_LENS_VERSION,
     asOf: new Date().toISOString(),
