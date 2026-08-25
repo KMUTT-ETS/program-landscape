@@ -48,6 +48,24 @@ export interface RadarChartSmallProps {
   height?: number;
   seriesLabel?: string;
   comparisons?: RadarComparison[];
+  /**
+   * Radial axis range. Defaults to the full [0, 100] health scale.
+   *
+   * Pass a narrower range ONLY when a full-scale plot would be
+   * unreadable — e.g. student-evaluation or competency scores, which
+   * cluster in a 20-point band near the top and render as an almost
+   * perfect circle against a 0-100 axis.
+   *
+   * A non-zero floor exaggerates differences, which is exactly how
+   * radar charts mislead. If you pass one, two obligations follow:
+   * the floor must sit at or below the smallest plotted value across
+   * EVERY series (otherwise points are silently clipped to the centre
+   * and a very low score becomes indistinguishable from a mediocre
+   * one), and the surrounding UI must state the floor in words. The
+   * axis ticks show it, but a reader scanning shapes will not read
+   * them.
+   */
+  domain?: [number, number];
 }
 
 const NO_DATA_SUFFIX = ' · n/d';
@@ -109,6 +127,7 @@ export function RadarChartSmall({
   height = 240,
   seriesLabel = 'Health',
   comparisons = [],
+  domain = [0, 100],
 }: RadarChartSmallProps) {
   const palette = useChartPalette();
   // Mount-guard: Recharts internals can produce slightly different
@@ -197,7 +216,7 @@ export function RadarChartSmall({
         * it wants to be half a step off a spoke, i.e. 90 - (360/n)/2. */}
       <PolarRadiusAxis
         angle={54}
-        domain={[0, 100]}
+        domain={domain}
         tick={{ fill: palette.axis, fontSize: 10 }}
         stroke={palette.grid}
       />

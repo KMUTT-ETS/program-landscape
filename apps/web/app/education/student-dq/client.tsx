@@ -241,8 +241,7 @@ export function StudentDqClient({
   // table and the chips disagree about what is filtered.
   const faculty = React.useMemo(() => searchParams.getAll('facultyName'), [searchParams]);
   const cohort = React.useMemo(() => searchParams.getAll('cohortYearBE'), [searchParams]);
-  const kind: DqModuleKindFilter =
-    searchParams.get('kind') === 'WORKSHOP' ? 'WORKSHOP' : 'THEORY';
+  const kind: DqModuleKindFilter = searchParams.get('kind') === 'WORKSHOP' ? 'WORKSHOP' : 'THEORY';
 
   // The radar's target, as the URL carries it — NOT as the server
   // resolved it. The picker reads "Whole selection" while no target is
@@ -391,9 +390,7 @@ export function StudentDqClient({
   // Module 13 in the framework table is the Generative AI module; find
   // it by domain rather than by hardcoding a key here.
   const genAi = modules.find((m) => m.kind === 'THEORY' && m.domain === 'GENERATIVE_AI');
-  const genAiCell = genAi
-    ? overview.modules.find((m) => m.moduleKey === genAi.key)
-    : undefined;
+  const genAiCell = genAi ? overview.modules.find((m) => m.moduleKey === genAi.key) : undefined;
 
   // ── Radar ────────────────────────────────────────────────────────
   //
@@ -401,10 +398,7 @@ export function StudentDqClient({
   // the requested kind, so they are mapped straight through: reordering
   // or filtering either one here would rotate it against the other and
   // the overlay would compare a module with its neighbour.
-  const moduleByKey = React.useMemo(
-    () => new Map(modules.map((m) => [m.key, m])),
-    [modules],
-  );
+  const moduleByKey = React.useMemo(() => new Map(modules.map((m) => [m.key, m])), [modules]);
   const toPoints = React.useCallback(
     (cells: DqModuleCellDto[]): RadarPoint[] =>
       cells.map((c) => ({
@@ -416,6 +410,38 @@ export function StudentDqClient({
       })),
     [moduleByKey],
   );
+
+  // ── Radial scale ────────────────────────────────────────────────────
+  // DQ scores cluster hard against the top of the scale: university-wide
+  // the 13 theory means span 67.6-89.7, and a faculty is much the same.
+  // Plotted on a 0-100 axis every one of them sits in the outer quarter
+  // of the radius and the polygon reads as a circle — the shape carries
+  // no information, which is the whole point of a radar.
+  //
+  // So the axis floor drops to the plotted data's decade instead of 0.
+  // Two constraints make that honest rather than flattering:
+  //
+  //  1. The floor is computed across BOTH series. Using the scope's own
+  //     minimum would clip the comparison ring wherever the university
+  //     scores lower, silently drawing it at the centre.
+  //  2. It is never raised above FLOOR_CAP. Programme-level cells go as
+  //     low as 5.6 in this data (30 cells below 60, 9 below 50); a fixed
+  //     60 floor would render a programme scoring 5.6 exactly like one
+  //     scoring 60. When the data goes low, the axis follows it down.
+  //
+  // In the common case this yields 60-100 for every scope, so faculties
+  // stay comparable with each other; an outlier scope widens instead of
+  // lying. The floor is stated in words beneath the chart — the axis
+  // ticks show it, but nobody scanning shapes reads axis ticks.
+  const FLOOR_CAP = 60;
+  const radarDomain = React.useMemo((): [number, number] => {
+    const values = [...(radar?.scope ?? []), ...(radar?.university ?? [])]
+      .map((c) => c.mean)
+      .filter((v): v is number => v !== null);
+    if (values.length === 0) return [0, 100];
+    const floor = Math.floor(Math.min(...values) / 10) * 10;
+    return [Math.max(0, Math.min(FLOOR_CAP, floor)), 100];
+  }, [radar]);
 
   // The API's scopeLabel names the faculty/programme but knows nothing of
   // the cohort filter, which the API nonetheless applies to the series.
@@ -597,19 +623,17 @@ export function StudentDqClient({
           </span>
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
-          Click the arrow beside a faculty to open its programs, or click a name to plot
-          that faculty or programme on the module profile below. Overall is the weighted
-          mean across
-          theory modules 1&ndash;12 &mdash; module 13 keeps its own column but stays out
-          of the headline, because its rollout has reached faculties unevenly and the
-          headline is the one figure faculties are compared on. Passed % is the share of
-          scored students DQ itself marks as having passed. Tested counts everyone who
-          sat the test; Scored counts those whose result carries module scores, and it is
-          Scored that decides whether a row is withheld. A dash means the figure is not
-          available &mdash; either nobody took that module, or the row holds fewer than{' '}
-          {minCellStudents} scored students and its scores are withheld (marked{' '}
-          <span className="font-medium">n&lt;{minCellStudents} scored</span>). Dashes are
-          never zeros.
+          Click the arrow beside a faculty to open its programs, or click a name to plot that
+          faculty or programme on the module profile below. Overall is the weighted mean across
+          theory modules 1&ndash;12 &mdash; module 13 keeps its own column but stays out of the
+          headline, because its rollout has reached faculties unevenly and the headline is the one
+          figure faculties are compared on. Passed % is the share of scored students DQ itself marks
+          as having passed. Tested counts everyone who sat the test; Scored counts those whose
+          result carries module scores, and it is Scored that decides whether a row is withheld. A
+          dash means the figure is not available &mdash; either nobody took that module, or the row
+          holds fewer than {minCellStudents} scored students and its scores are withheld (marked{' '}
+          <span className="font-medium">n&lt;{minCellStudents} scored</span>). Dashes are never
+          zeros.
         </p>
         <div className="mt-3">
           {rows.length === 0 ? (
@@ -617,8 +641,8 @@ export function StudentDqClient({
             // not about the connector — and the rail above stays on
             // screen so the reader can widen it again.
             <p className="rounded-md border border-subtle bg-surface-2 px-3 py-6 text-center text-xs text-text-secondary">
-              No rows match this filter. Widen the faculty or cohort selection above, or
-              clear the filters.
+              No rows match this filter. Widen the faculty or cohort selection above, or clear the
+              filters.
             </p>
           ) : (
             <DrillDownPivot
@@ -636,14 +660,13 @@ export function StudentDqClient({
           )}
         </div>
         <p className="mt-3 text-xs text-text-tertiary">
-          Pass mark is {passMark} on every module. A score of 0 is treated as
-          &ldquo;not taken&rdquo; and excluded from every average, so a module that has
-          only just rolled out reads as thin coverage rather than as poor performance.
-          Faculty figures are aggregated at faculty scope from the source sums, never
-          averaged from the program rows beneath them. Scores and the pass verdict are
-          withheld on any row with fewer than {minCellStudents} scored students. Rows
-          headed &ldquo;Program not identified&rdquo; are students the DQ export could
-          not be matched to a current programme — mostly past cohorts and the newest
+          Pass mark is {passMark} on every module. A score of 0 is treated as &ldquo;not
+          taken&rdquo; and excluded from every average, so a module that has only just rolled out
+          reads as thin coverage rather than as poor performance. Faculty figures are aggregated at
+          faculty scope from the source sums, never averaged from the program rows beneath them.
+          Scores and the pass verdict are withheld on any row with fewer than {minCellStudents}{' '}
+          scored students. Rows headed &ldquo;Program not identified&rdquo; are students the DQ
+          export could not be matched to a current programme — mostly past cohorts and the newest
           intake — and are a coverage statement, not a programme.
         </p>
         <p className="mt-1 text-xs text-text-tertiary">
@@ -679,13 +702,14 @@ export function StudentDqClient({
               <option value="">Whole selection</option>
               {targetIsOffList && (
                 <option value={targetParamValue}>
-                  {radar ? radar.scopeLabel : 'Current target'} &mdash; outside the current
-                  filter
+                  {radar ? radar.scopeLabel : 'Current target'} &mdash; outside the current filter
                 </option>
               )}
               {scopeGroups.map((g) => (
                 <optgroup key={g.facultyName} label={g.facultyName}>
-                  <option value={`f:${g.facultyName}`}>{g.facultyName} &mdash; all programmes</option>
+                  <option value={`f:${g.facultyName}`}>
+                    {g.facultyName} &mdash; all programmes
+                  </option>
                   {g.programs.map((p) => (
                     <option key={p.programId} value={`p:${p.programId}|${g.facultyName}`}>
                       {p.programName ?? '(unnamed program)'}
@@ -699,8 +723,8 @@ export function StudentDqClient({
 
         {radar === null ? (
           <p className="mt-3 rounded-md border border-subtle bg-surface-2 px-3 py-6 text-center text-xs text-text-secondary">
-            The module profile could not be loaded. The per-module figures in the table
-            above are unaffected &mdash; they come from a separate request.
+            The module profile could not be loaded. The per-module figures in the table above are
+            unaffected &mdash; they come from a separate request.
           </p>
         ) : radar.suppressed ? (
           // Every scope mean is withheld here, so the chart would be a
@@ -720,8 +744,8 @@ export function StudentDqClient({
                 Scores withheld for <span className="font-medium">{radar.scopeLabel}</span>
                 {cohortNote}. This scope holds {num(radar.studentsWithScores)} scored{' '}
                 {radar.studentsWithScores === 1 ? 'student' : 'students'}, fewer than the{' '}
-                {minCellStudents} needed to publish per-module means. Widen the scope or the
-                cohort filter to see a profile.
+                {minCellStudents} needed to publish per-module means. Widen the scope or the cohort
+                filter to see a profile.
               </>
             )}
           </p>
@@ -755,6 +779,8 @@ export function StudentDqClient({
                 // over the grid.
                 width={720}
                 height={420}
+                // Not the default 0-100: see radarDomain above.
+                domain={radarDomain}
               />
             </div>
           </div>
@@ -762,6 +788,16 @@ export function StudentDqClient({
 
         {radar !== null && !radar.suppressed && (
           <>
+            {radarDomain[0] > 0 && (
+              <p className="mt-2 text-xs text-text-tertiary">
+                The axis runs {radarDomain[0]}&ndash;100, not 0&ndash;100. DQ scores cluster near
+                the top of the scale, so a full-scale plot draws every module at almost the same
+                radius; starting at {radarDomain[0]} makes the differences legible, but it also
+                magnifies them &mdash; read the shape as relative, and the ring labels for the
+                actual values.
+                {radarDomain[0] < passMark && ` The pass mark, ${passMark}, sits inside the chart.`}
+              </p>
+            )}
             {thinlyTaken.length > 0 && (
               <p className="mt-2 text-xs text-warning">
                 Thinly taken:{' '}
@@ -773,9 +809,9 @@ export function StudentDqClient({
                       )}% of scored students)`,
                   )
                   .join(', ')}
-                . Fewer than {THIN_COVERAGE_PCT}% of this scope&rsquo;s scored students have
-                taken these, so each mean describes the students who took the module, not
-                the scope &mdash; a thinly-taken module is not a strong one.
+                . Fewer than {THIN_COVERAGE_PCT}% of this scope&rsquo;s scored students have taken
+                these, so each mean describes the students who took the module, not the scope
+                &mdash; a thinly-taken module is not a strong one.
               </p>
             )}
             <p className="mt-2 text-xs text-text-tertiary">
@@ -788,8 +824,8 @@ export function StudentDqClient({
                       statements about two different things. */}
                   No comparison ring: nothing narrows the radar&rsquo;s scope, so it{' '}
                   <span className="font-medium">is</span> the comparison population (
-                  {radar.comparisonLabel}). Pick a faculty or programme above to see one
-                  against the institution.
+                  {radar.comparisonLabel}). Pick a faculty or programme above to see one against the
+                  institution.
                 </>
               ) : (
                 <>
@@ -799,22 +835,20 @@ export function StudentDqClient({
                     {cohortNote}
                   </span>{' '}
                   ({num(radar.studentsWithScores)} scored students); the dashed ring is{' '}
-                  <span className="font-medium">{radar.comparisonLabel}</span> &mdash; it is
-                  not recomputed inside the current filter. Click either legend entry to
-                  hide it.
+                  <span className="font-medium">{radar.comparisonLabel}</span> &mdash; it is not
+                  recomputed inside the current filter. Click either legend entry to hide it.
                 </>
               )}{' '}
-              An axis marked <span className="font-medium">&middot; n/d</span> is a module
-              nobody in this scope has taken; the polygon skips it rather than dropping to
-              zero.
+              An axis marked <span className="font-medium">&middot; n/d</span> is a module nobody in
+              this scope has taken; the polygon skips it rather than dropping to zero.
             </p>
             {radarScope.facultyName === null &&
               radarScope.programId === null &&
               faculty.length > 1 && (
                 <p className="mt-1 text-xs text-warning">
-                  {faculty.length} faculties are selected, and the radar plots one scope at
-                  a time &mdash; it is showing {radar.scopeLabel}, not the union of the
-                  selected faculties. Pick one above to see it on its own.
+                  {faculty.length} faculties are selected, and the radar plots one scope at a time
+                  &mdash; it is showing {radar.scopeLabel}, not the union of the selected faculties.
+                  Pick one above to see it on its own.
                 </p>
               )}
           </>
@@ -861,21 +895,17 @@ function CoveragePanel({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-1.5 text-left text-xs font-medium hover:text-accent-default"
       >
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5" />
-        )}
-        Coverage &mdash; {num(coverage.withScores)} of {num(coverage.fetched)} exported
-        students carry module scores
+        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        Coverage &mdash; {num(coverage.withScores)} of {num(coverage.fetched)} exported students
+        carry module scores
         {scoredPct !== null && ` (${scoredPct.toFixed(1)}%)`}, and{' '}
         {coverage.matchRatePct.toFixed(1)}% match a current programme
       </button>
       {open && (
         <div className="mt-3 flex flex-col gap-3 text-xs text-text-secondary">
           <p className="text-text-tertiary">
-            These figures describe the whole DQ export at the last refresh, not the
-            selection above &mdash; they are what the source contains, before any filter.
+            These figures describe the whole DQ export at the last refresh, not the selection above
+            &mdash; they are what the source contains, before any filter.
           </p>
           <div>
             <div className="font-medium text-text-primary">
@@ -888,22 +918,22 @@ function CoveragePanel({
                 // its size and stop there rather than attributing all of
                 // it to one of the two states.
                 <>
-                  {num(noScores)} of the tested students carry no module scores. This
-                  refresh did not record how many of them have a result on file at all, so
-                  the gap is not broken down here; re-run the connector to populate it.
+                  {num(noScores)} of the tested students carry no module scores. This refresh did
+                  not record how many of them have a result on file at all, so the gap is not broken
+                  down here; re-run the connector to populate it.
                 </>
               ) : (
                 <>
                   The gap is two different things, not one.{' '}
-                  {num(coverage.fetched - coverage.withResult)} of the tested students have
-                  no result on file at all, and a further{' '}
-                  {num(coverage.withResult - coverage.withScores)} have a result that
-                  carries no module scores.
+                  {num(coverage.fetched - coverage.withResult)} of the tested students have no
+                  result on file at all, and a further{' '}
+                  {num(coverage.withResult - coverage.withScores)} have a result that carries no
+                  module scores.
                 </>
               )}{' '}
-              Both are counted as tested and both are absent from every mean, and it is the
-              scored count &mdash; not the tested one &mdash; that decides whether a row
-              clears the {minCellStudents}-student floor.
+              Both are counted as tested and both are absent from every mean, and it is the scored
+              count &mdash; not the tested one &mdash; that decides whether a row clears the{' '}
+              {minCellStudents}-student floor.
             </p>
           </div>
           <div>
@@ -911,24 +941,22 @@ function CoveragePanel({
               Programme match rate {coverage.matchRatePct.toFixed(1)}%
             </div>
             <p className="mt-1">
-              The export is cumulative &mdash; every cohort that has ever sat the test &mdash;
-              while the enrolment snapshot we match against is current-year. Past cohorts
-              have left it and the newest intake has not yet entered it, so neither can be
-              matched to a programme; they appear under &ldquo;Program not identified&rdquo;
-              in the table above. The unmatched students are in the faculty figures, just
-              not under a programme.
+              The export is cumulative &mdash; every cohort that has ever sat the test &mdash; while
+              the enrolment snapshot we match against is current-year. Past cohorts have left it and
+              the newest intake has not yet entered it, so neither can be matched to a programme;
+              they appear under &ldquo;Program not identified&rdquo; in the table above. The
+              unmatched students are in the faculty figures, just not under a programme.
             </p>
           </div>
           <div>
             <div className="font-medium text-text-primary">
               {num(coverage.unmatchedFacultyNames.length)} faculty{' '}
-              {coverage.unmatchedFacultyNames.length === 1 ? 'name' : 'names'} we do not
-              carry
+              {coverage.unmatchedFacultyNames.length === 1 ? 'name' : 'names'} we do not carry
             </div>
             <p className="mt-1">
-              Students recorded under these names are shown under the name the export gave,
-              with no link to a faculty record &mdash; campus faculties, service units and
-              abbreviations the export uses in place of a full name:{' '}
+              Students recorded under these names are shown under the name the export gave, with no
+              link to a faculty record &mdash; campus faculties, service units and abbreviations the
+              export uses in place of a full name:{' '}
               <span className="text-text-tertiary">
                 {coverage.unmatchedFacultyNames.join(', ')}
               </span>
@@ -937,16 +965,15 @@ function CoveragePanel({
           </div>
           <div>
             <div className="font-medium text-text-primary">
-              {num(coverage.allPassedInconsistent)} students marked passed despite failing a
-              module
+              {num(coverage.allPassedInconsistent)} students marked passed despite failing a module
             </div>
             <p className="mt-1">
               The pass verdict is DQ&rsquo;s own flag, passed through unchanged &mdash; this
               dashboard never recomputes it. The source applies no single rule to it:{' '}
-              {num(coverage.allPassedInconsistent)} students are flagged as passed while
-              scoring below the pass mark on module 13, and others with that same profile are
-              flagged as failed. Read &ldquo;Passed %&rdquo; as the source&rsquo;s verdict,
-              not as a test against the pass mark.
+              {num(coverage.allPassedInconsistent)} students are flagged as passed while scoring
+              below the pass mark on module 13, and others with that same profile are flagged as
+              failed. Read &ldquo;Passed %&rdquo; as the source&rsquo;s verdict, not as a test
+              against the pass mark.
             </p>
           </div>
         </div>
@@ -955,15 +982,7 @@ function CoveragePanel({
   );
 }
 
-function KpiTile({
-  label,
-  value,
-  subtitle,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-}) {
+function KpiTile({ label, value, subtitle }: { label: string; value: string; subtitle?: string }) {
   return (
     <Card>
       <div className="text-xs uppercase tracking-wide text-text-tertiary">{label}</div>
