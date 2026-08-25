@@ -257,6 +257,88 @@ export async function dqDrill(
 }
 
 /**
+ * Faculty-level rows — the same shape as `dqDrill`, grouped one level up.
+ *
+ * These are deliberately NOT derived by re-aggregating `dqDrill`'s leaf
+ * rows. Suppression nulls `overallMean`, `studentsAllPassed` and every
+ * module mean on any `(faculty × program)` cell with fewer than
+ * DQ_MIN_CELL_STUDENTS scored students, so a faculty total assembled
+ * from its children would quietly omit exactly those students' scores —
+ * the mean-of-means trap wearing a different hat. Grouping by
+ * `faculty_name` in SQL keeps every scored student in both the numerator
+ * and the denominator, and applies the ≥5 gate where it actually belongs
+ * (a faculty with <5 scored students is itself a small cell; a faculty
+ * with 400 is not, however many of its programs are suppressed).
+ */
+export async function dqFacultyRows(
+  filter?: DqFilter,
+): Promise<{ methodologyVersion: string; rows: DqDrillRow[] }> {
+  const students = await prisma.$queryRaw<
+    Array<{
+      faculty_name: string;
+      faculty_id: string | null;
+      tested: bigint;
+      scored: bigint;
+      passed: bigint;
+    }>
+  >`
+    SELECT s.faculty_name, MAX(s.faculty_id) AS faculty_id,
+           SUM(s.students_tested)::bigint      AS tested,
+           SUM(s.students_with_scores)::bigint AS scored,
+           SUM(s.students_all_passed)::bigint  AS passed
+    FROM dq_student_cube s
+    WHERE true ${dqWhere(filter, 's')}
+    GROUP BY s.faculty_name
+    ORDER BY s.faculty_name
+  `;
+
+  const modules = await prisma.$queryRaw<Array<ModuleAggregateRow & { faculty_name: string }>>`
+    SELECT m.faculty_name, m.module_key, m.module_no, m.module_kind,
+           SUM(m.taken_count)::bigint       AS taken,
+           SUM(m.score_sum)::float          AS score_sum,
+           SUM(m.students_in_scope)::bigint AS in_scope
+    FROM dq_module_cube m
+    WHERE true ${dqWhere(filter, 'm')}
+    GROUP BY m.faculty_name, m.module_key, m.module_no, m.module_kind
+  `;
+
+  const cells = new Map<string, DqModuleCell[]>();
+  for (const r of modules) {
+    const list = cells.get(r.faculty_name) ?? [];
+    list.push(toCell(r));
+    cells.set(r.faculty_name, list);
+  }
+
+  const rows: DqDrillRow[] = students.map((s) => {
+    const mods = (cells.get(s.faculty_name) ?? []).sort((a, b) => a.moduleNo - b.moduleNo);
+    // Same overall-mean construction as dqDrill: one weighted mean over
+    // the THEORY modules, rebuilt from sums so it agrees with the
+    // per-module figures printed beside it.
+    const theory = mods.filter((m) => m.moduleKind === 'THEORY');
+    const takenTotal = theory.reduce((a, m) => a + m.takenCount, 0);
+    const sumTotal = theory.reduce((a, m) => a + (m.mean ?? 0) * m.takenCount, 0);
+    const scored = Number(s.scored);
+    const suppressed = scored < DQ_MIN_CELL_STUDENTS;
+    return {
+      facultyName: s.faculty_name,
+      facultyId: s.faculty_id,
+      // A faculty row is not a program; the page keys the tree off these
+      // being null rather than off which array a row arrived in.
+      programId: null,
+      programName: null,
+      studentsTested: Number(s.tested),
+      studentsWithScores: scored,
+      studentsAllPassed: suppressed ? null : Number(s.passed),
+      overallMean: suppressed ? null : dqModuleMean(sumTotal, takenTotal),
+      suppressed,
+      modules: suppressed ? mods.map(suppressCell) : mods,
+    };
+  });
+
+  return { methodologyVersion: STUDENT_DQ_METHODOLOGY_VERSION, rows };
+}
+
+/**
  * Portfolio-level KPI figures plus the university module profile.
  *
  * The same two scans as `dqDrill` without the GROUP BY dimensions — the
