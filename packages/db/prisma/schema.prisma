@@ -2775,6 +2775,8 @@ model IngestionRun {
   evaluationQuestions        EvaluationQuestion[]
   evaluationResponses        EvaluationResponseSummary[]
   admissionCampaignStats     AdmissionCampaignStat[]
+  dqStudentCubes             DqStudentCube[]
+  dqModuleCubes              DqModuleCube[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
@@ -5066,7 +5068,7 @@ model SystemSetting {
 /// Resolution to a program happens in memory during the connector run.
 ///
 /// No unique constraint on the dimension tuple: programId and
-/// cohortYearBE are nullable, and Postgres does not enforce uniqueness
+/// cohortYearBe are nullable, and Postgres does not enforce uniqueness
 /// across NULLs. The connector replaces the whole cube per run, so
 /// uniqueness is a property of the writer, not of the schema.
 model DqStudentCube {
@@ -5078,7 +5080,7 @@ model DqStudentCube {
   /// Null = the explicit "Program not identified" bucket.
   programId          String?  @map("program_id")
   programName        String?  @map("program_name")
-  cohortYearBE       Int?     @map("cohort_year_be")
+  cohortYearBe       Int?     @map("cohort_year_be")
   studentsTested     Int      @map("students_tested")
   studentsWithScores Int      @map("students_with_scores")
   /// DQ's own allPassed flag, passed through unchanged. The source is
@@ -5087,6 +5089,12 @@ model DqStudentCube {
   studentsAllPassed  Int      @map("students_all_passed")
   ingestionRunId     String   @map("ingestion_run_id")
   createdAt          DateTime @default(now()) @map("created_at")
+
+  /// Restrict, like every other non-null ingestion_run_id in this schema:
+  /// a cube row that outlives its run is unprovenanced, and the query
+  /// layer's realDataWhere() join would silently drop it — the documented
+  /// empty-dashboard failure mode.
+  ingestionRun IngestionRun @relation(fields: [ingestionRunId], references: [id], onDelete: Restrict)
 
   @@index([facultyName])
   @@index([programId])
@@ -5105,7 +5113,7 @@ model DqModuleCube {
   facultyId       String?  @map("faculty_id")
   programId       String?  @map("program_id")
   programName     String?  @map("program_name")
-  cohortYearBE    Int?     @map("cohort_year_be")
+  cohortYearBe    Int?     @map("cohort_year_be")
   /// Export key, e.g. 'THEORY_MODULE_7'.
   moduleKey       String   @map("module_key")
   moduleNo        Int      @map("module_no")
@@ -5118,6 +5126,9 @@ model DqModuleCube {
   studentsInScope Int      @map("students_in_scope")
   ingestionRunId  String   @map("ingestion_run_id")
   createdAt       DateTime @default(now()) @map("created_at")
+
+  /// Restrict — see the note on DqStudentCube.ingestionRun.
+  ingestionRun IngestionRun @relation(fields: [ingestionRunId], references: [id], onDelete: Restrict)
 
   @@index([facultyName])
   @@index([programId])

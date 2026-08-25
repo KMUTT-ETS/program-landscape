@@ -62,29 +62,15 @@ interface RunState {
   acc: DqAccumulator;
 }
 
-/**
- * Coerce the one wire quirk the schema's defaults cannot absorb.
- *
- * Measured on the live export: 2,404 of 24,777 students carry
- * `allPassed: null` — every one of them a student with no result yet.
- * Zod's `.default()` fires on `undefined` only, so a bare `safeParse`
- * rejects them, and rejecting them would drop 2,404 students from the
- * TESTED count (24,777 → 22,373, exactly the `hasResult: true` figure).
- * A null verdict is "no verdict", which is not a pass.
- *
- * This lives here rather than in `DqExportItemSchema` only to keep this
- * task's diff inside the connector; the durable home for it is a
- * `.nullable()` on that field.
- */
-function normaliseExportItem(raw: unknown): unknown {
-  if (raw === null || typeof raw !== 'object') return raw;
-  const item = raw as Record<string, unknown>;
-  if (item['allPassed'] !== null && item['hasResult'] !== null) return raw;
-  return {
-    ...item,
-    ...(item['allPassed'] === null ? { allPassed: false } : {}),
-    ...(item['hasResult'] === null ? { hasResult: false } : {}),
-  };
+// The export sends `hasResult` / `allPassed` as null (not absent) for
+// students with no result. That is absorbed by `DqExportItemSchema`
+// itself — see the note there; this connector does no pre-normalisation.
+
+/** Diagnostic counter maps → the biggest-first list the run reports. */
+function topCounts(counter: ReadonlyMap<string, number>, limit: number): Record<string, number> {
+  return Object.fromEntries(
+    [...counter.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit),
+  );
 }
 
 function chunk<T>(rows: readonly T[], size: number): T[][] {
@@ -149,7 +135,7 @@ export class KkuDqRealConnector extends ApiConnector {
     // past the aggregation loop below.
     const items: DqExportItem[] = [];
     for (const raw of envelope.items) {
-      const parsed = DqExportItemSchema.safeParse(normaliseExportItem(raw));
+      const parsed = DqExportItemSchema.safeParse(raw);
       if (parsed.success) items.push(parsed.data);
       else state.parseFailed += 1;
     }
@@ -210,8 +196,27 @@ export class KkuDqRealConnector extends ApiConnector {
         facultyId,
         programId,
         programName: program ? (program.nameTh || program.nameEn) : null,
-        cohortYearBE: cohortFromStudentId(item.studentId),
+        cohortYearBe: cohortFromStudentId(item.studentId),
       });
+    }
+
+    // A score key the framework does not know would otherwise be dropped
+    // by `accumulate` without a trace. Say it out loud: module 13 arrived
+    // unannounced once already and skewed every mean until someone found
+    // it. Keys only — these are module names, never student data.
+    if (state.acc.unknownModuleKeys.size > 0) {
+      ctx.log.warn(
+        `DQ export carries ${state.acc.unknownModuleKeys.size} module key(s) the framework ` +
+          `does not know: ${[...state.acc.unknownModuleKeys.keys()].sort().slice(0, 20).join(', ')} ` +
+          `— add them to DQ_MODULES in @kku/shared or they stay out of every cube`,
+      );
+    }
+    if (state.acc.outOfRangeScores.size > 0) {
+      const total = [...state.acc.outOfRangeScores.values()].reduce((a, b) => a + b, 0);
+      ctx.log.warn(
+        `${total} module score(s) fell outside 0-100 and were skipped ` +
+          `(affected modules: ${[...state.acc.outOfRangeScores.keys()].sort().join(', ')})`,
+      );
     }
 
     this.runState = state;
@@ -293,6 +298,13 @@ export class KkuDqRealConnector extends ApiConnector {
         unmatchedFacultyStudents: state.unmatchedFacultyStudents,
         unmatchedFacultyNames: [...state.unmatchedFacultyNames].sort().slice(0, 50),
         allPassedInconsistent: state.allPassedInconsistent,
+        // Same posture as kku-research's unmatchedAuthorSamples and
+        // kmitl's unmappedSkillSamples: a sized, capped worklist rather
+        // than a silent drop. Both are counts by key, biggest first.
+        unknownModuleKeyCount: state.acc.unknownModuleKeys.size,
+        unknownModuleKeySamples: topCounts(state.acc.unknownModuleKeys, 20),
+        outOfRangeScoreCount: [...state.acc.outOfRangeScores.values()].reduce((a, b) => a + b, 0),
+        outOfRangeScoresByModule: topCounts(state.acc.outOfRangeScores, 20),
         studentCubeRows: students.length,
         moduleCubeRows: modules.length,
         notes:
@@ -300,7 +312,10 @@ export class KkuDqRealConnector extends ApiConnector {
           'NOT TAKEN and is excluded from takenCount/scoreSum. `allPassed` is the source’s ' +
           'own verdict, passed through unchanged — allPassedInconsistent sizes its ' +
           'module-13 contradiction. Program match is cohort-shaped: student_program_record ' +
-          'is an AY 2568 enrolment snapshot while this export is cumulative.',
+          'is an AY 2568 enrolment snapshot while this export is cumulative. ' +
+          'unknownModuleKeySamples lists score keys absent from DQ_MODULES — they are in no ' +
+          'cube until the framework table is extended; outOfRangeScoresByModule lists scores ' +
+          'outside 0-100, which are skipped rather than averaged in.',
       },
     };
 

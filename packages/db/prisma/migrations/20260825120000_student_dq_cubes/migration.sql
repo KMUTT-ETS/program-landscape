@@ -55,3 +55,9 @@ CREATE INDEX "dq_module_cube_module_key_idx" ON "dq_module_cube"("module_key");
 
 -- CreateIndex
 CREATE INDEX "dq_module_cube_ingestion_run_id_idx" ON "dq_module_cube"("ingestion_run_id");
+
+-- AddForeignKey
+ALTER TABLE "dq_student_cube" ADD CONSTRAINT "dq_student_cube_ingestion_run_id_fkey" FOREIGN KEY ("ingestion_run_id") REFERENCES "ingestion_runs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "dq_module_cube" ADD CONSTRAINT "dq_module_cube_ingestion_run_id_fkey" FOREIGN KEY ("ingestion_run_id") REFERENCES "ingestion_runs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
