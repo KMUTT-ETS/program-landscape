@@ -38,11 +38,11 @@ export function MethodologyContentTh() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v3.8</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.4</Code> (วงจรชีวิต)</> },
-              { label: 'เวอร์ชันเอกสาร', value: '1.1' },
+              { label: 'รหัสระเบียบวิธี', value: <><Code>health-score.v4.0</Code> (คะแนนสุขภาพ) · <Code>lifecycle.v1.4</Code> (วงจรชีวิต)</> },
+              { label: 'เวอร์ชันเอกสาร', value: '1.2' },
               { label: 'จัดทำโดย', value: 'สำนักงานข้อมูลและธรรมาภิบาลข้อมูล มข. — คณะทำงาน Curriculum Landscape' },
               { label: 'สถานะ', value: 'สาธารณะ — สำหรับเผยแพร่แก่สภามหาวิทยาลัย ผู้บริหาร คณบดี หัวหน้าภาควิชา ผู้รับผิดชอบหลักสูตร' },
-              { label: 'วันที่', value: '1 มิถุนายน 2569 (พ.ศ.)' },
+              { label: 'วันที่', value: '25 สิงหาคม 2569 (พ.ศ.)' },
             ]}
           />
         </div>
@@ -176,11 +176,14 @@ export function MethodologyContentTh() {
           <P>
             โครงสร้างนี้เป็นผลของการออกแบบใหม่ในเดือนพฤษภาคม 2569 ซึ่งแทนที่สองมิติเดิมที่เคยเป็นค่าว่าง
             (<Code>relevance</Code> และ <Code>capability</Code> ซึ่งเป็นค่าว่างใน v2) ด้วยตัวคำนวณที่ใช้ข้อมูลจริง
-            การปรับสองครั้งถัดมาขยายโครงสร้างโดยไม่เปลี่ยนรูปห้ามิติ: <Code>v3.7</Code> (พ.ค. 2569)
-            เพิ่มตัวขับ <Code>student_satisfaction</Code> ในมิติ Outcomes และ <Code>v3.8</Code> (มิ.ย. 2569)
+            การปรับถัดมาขยายโครงสร้างโดยไม่เปลี่ยนรูปห้ามิติ: <Code>v3.7</Code> (พ.ค. 2569)
+            เพิ่มตัวขับ <Code>student_satisfaction</Code> ในมิติ Outcomes, <Code>v3.8</Code> (มิ.ย. 2569)
             เปลี่ยนแหล่งข้อมูล funnel การรับเข้าไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code>
-            โดยตัวขับและน้ำหนักของมิติ Attractiveness ไม่เปลี่ยน
-            เวอร์ชันก่อนหน้าเก็บไว้สำหรับการตรวจสอบย้อนกลับ การคำนวณปัจจุบันประทับ <Code>health-score.v3.8</Code>
+            โดยตัวขับและน้ำหนักของมิติ Attractiveness ไม่เปลี่ยน, <Code>v3.9</Code> (ส.ค. 2569)
+            เปลี่ยนมิติ Financial ให้คิดคะแนนจากปีการศึกษาที่ <Strong>สมบูรณ์</Strong> ปีล่าสุด และ{' '}
+            <Code>v4.0</Code> (ส.ค. 2569) เพิ่มตัวขับ <Code>dq_digital_competency</Code> ในมิติ Outcomes
+            สำหรับหลักสูตรระดับปริญญาตรี
+            เวอร์ชันก่อนหน้าเก็บไว้สำหรับการตรวจสอบย้อนกลับ การคำนวณปัจจุบันประทับ <Code>health-score.v4.0</Code>
           </P>
         </DocSubsection>
 
@@ -1069,7 +1072,7 @@ score >= 45                                       → STABLE
         <DocSubsection number="7.1" title="นโยบายเวอร์ชัน">
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.8'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v4.0'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
             <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
           </UL>
           <P>
@@ -1267,6 +1270,7 @@ score >= 45                                       → STABLE
           <tbody>
             <TR><TD mono>1.0</TD><TD>7 พ.ค. 2569</TD><TD>เผยแพร่ครั้งแรก — อิงตาม <Code>health-score.v3.5</Code> และ <Code>lifecycle.v1.4</Code></TD></TR>
             <TR><TD mono>1.1</TD><TD>1 มิ.ย. 2569</TD><TD>ออกใหม่สำหรับ <Code>health-score.v3.8</Code> และ <Code>risk-scoring.v1.12</Code>: funnel การรับเข้าที่ป้อนมิติ Attractiveness และอินพุต L1 / เปอร์เซ็นไทล์ความสามารถแข่งขันของความเสี่ยง เปลี่ยนแหล่งไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code> (แทน <Code>ADMISSION_STAT_CURRID</Code> ระดับหลักสูตร) พร้อมบันทึก <Code>health-score.v3.7</Code> (ตัวขับ student-satisfaction) และ <Code>risk-scoring.v1.11</Code> (การคาดการณ์ประชากรล่วงหน้า) สูตรและน้ำหนักของตัวขับไม่เปลี่ยน</TD></TR>
+            <TR><TD mono>1.2</TD><TD>25 ส.ค. 2569</TD><TD>ออกใหม่สำหรับ <Code>health-score.v4.0</Code>: มิติ Outcomes เพิ่มตัวขับ <Code>dq_digital_competency</Code> จากแบบทดสอบสมรรถนะดิจิทัล (DQ) เฉพาะหลักสูตรระดับปริญญาตรี พร้อมบันทึก <Code>health-score.v3.9</Code> (มิติ Financial คิดคะแนนจากปีการศึกษาที่สมบูรณ์ปีล่าสุด) ห้ามิติ น้ำหนักของแต่ละมิติ และคำตัดสินวงจรชีวิตไม่เปลี่ยน</TD></TR>
           </tbody>
         </Tbl>
         <P>
@@ -1289,6 +1293,8 @@ score >= 45                                       → STABLE
             <TR><TD mono>health-score.v3.5</TD><TD>12 พ.ค. 2569</TD><TD>เพิ่มตัวขับ <Code>revenue_scale</Code> ในมิติการเงิน — รายได้สัมบูรณ์เทียบกับเป้าระดับ (BACHELOR 8 ล้าน / MASTER · DOCTORAL · HGD 2 ล้านบาทต่อปี) เติมเต็มสัญญาณ "หลักสูตรเป็นแหล่งรายได้หลักของระดับนี้หรือไม่" เสริมตัวขับเชิงอัตราส่วน (กำไรต่อนักศึกษา / ความครอบคลุมรายได้ / ความชันแนวโน้มค่าเล่าเรียน) lifecycle.v1.4 ใช้สัญญาณเดียวกันเป็นทั้งตัวขับชั้นแรกและเกตพื้น flagship</TD></TR>
             <TR><TD mono>health-score.v3.7</TD><TD>19 พ.ค. 2569</TD><TD>มิติ Outcomes เพิ่มตัวขับ <Code>student_satisfaction</Code> — ค่าเฉลี่ยถ่วงน้ำหนักของคะแนนประเมินรายวิชาทั่วขอบเขต ปรับเชิงเส้นเข้าช่วง [3.5, 5.0] เพื่อแก้การกระจุกตัวที่เพดาน แหล่งข้อมูล: <Code>evaluation_response_summaries</Code> (POWERBI.EVALUATE_INSTRUCTOR ผ่านคอนเนกเตอร์ <Code>kku-evaluations</Code>)</TD></TR>
             <TR><TD mono>health-score.v3.8</TD><TD>1 มิ.ย. 2569</TD><TD>เปลี่ยนแหล่งข้อมูล funnel การรับเข้าไปใช้ฟีดระดับแคมเปญ <Code>POWERBI.ADMISSION_STAT</Code> (<Code>admission_campaign_stats</Code>) แทน <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code> ระดับหลักสูตร ได้ความละเอียดระดับ track (หนึ่งแถวต่อ track การรับเข้า ภายในหลักสูตร × รอบ × ปี) พร้อมจำนวนแผนรับต่อช่องทางที่ถูกต้อง ตัวขับ สูตร และน้ำหนักของมิติ Attractiveness ไม่เปลี่ยน บัมพ์คู่กัน: <Code>program-recruitment.v2</Code>, <Code>recruitment-rollup.v2</Code></TD></TR>
+            <TR><TD mono>health-score.v3.9</TD><TD>16 ส.ค. 2569</TD><TD>มิติ Financial คิดคะแนนจากปีการศึกษาที่ <Strong>สมบูรณ์</Strong> ปีล่าสุด แทนแถวข้อมูลล่าสุดที่มี เนื่องจาก <Code>FinancialMetric.fiscalYear</Code> เก็บปีการศึกษา (มิ.ย.–พ.ค.) และค่าเล่าเรียนของหนึ่งปีการศึกษาถูกเรียกเก็บคร่อมสองปีงบประมาณ ปีที่กำลังดำเนินอยู่จึงเก็บได้เพียงภาคเรียนที่ 1 โดยนิยาม — วัดได้ที่มัธยฐาน 0.437 เท่าของปีก่อนหน้าจาก 184 หลักสูตรที่มีทั้งสองปี เกณฑ์เดิม (ตัดทิ้งเมื่อต่ำกว่า 30% ของปีก่อนหน้า) แยก "เก็บได้ครึ่งเดียว" ออกจาก "รายได้ลดลงจริง" ไม่ได้ (ค่าเฉลี่ย 0.789 และมีหางยาวเกิน 100%) จึงลดบทบาทเหลือเป็นการตรวจสอบรอง ซึ่งเลื่อนปีที่เลือกให้ย้อนหลังได้เท่านั้น สูตรและน้ำหนักของตัวขับไม่เปลี่ยน</TD></TR>
+            <TR><TD mono>health-score.v4.0</TD><TD>25 ส.ค. 2569</TD><TD>มิติ Outcomes เพิ่มตัวขับ <Code>dq_digital_competency</Code> — ค่าเฉลี่ยถ่วงน้ำหนักตามจำนวนผู้ทำแบบทดสอบสมรรถนะดิจิทัล (DQ) ในโมดูลทฤษฎีที่ 1–12 คำนวณ ณ ขอบเขตที่กำลังให้คะแนน และปรับเข้าช่วงโดยยึดเกณฑ์ผ่านของ มข. เป็นหลัก (≤50 → 0, 70 → 50, ≥90 → 100 เชิงเส้นระหว่างจุด) ดังนั้น 50 หมายถึงนักศึกษาโดยเฉลี่ยผ่านเกณฑ์พอดี ไม่รวมโมดูลที่ 13 (Generative AI) ระหว่างที่การใช้งานยังไม่ทั่วถึง (สัดส่วนผู้ทำ 48.7%–96.7% ตามคณะ) ใช้ <Strong>เฉพาะหลักสูตรระดับปริญญาตรี</Strong> และต้องมีนักศึกษาที่มีคะแนนอย่างน้อย 5 คน นอกนั้นตัวขับเป็นค่าว่างเสมอ ไม่ใช่ 0 ส่วนหลักสูตรที่ไม่ใช่ปริญญาตรีจะไม่มีตัวขับนี้เลย เพื่อไม่ให้ <Code>dataCompletenessPct</Code> ถูกหักจากเครื่องมือที่ใช้กับหลักสูตรนั้นไม่ได้ มี 81 หลักสูตรได้รับตัวขับนี้ คะแนนมิติ Outcomes ขยับที่มัธยฐาน +3.2 คะแนน และคะแนนรวมขยับไม่เกิน 2.7 คะแนน แหล่งข้อมูล: <Code>dq_module_cube</Code> / <Code>dq_student_cube</Code> (คอนเนกเตอร์ <Code>kku-dq</Code>) น้ำหนักของมิติไม่เปลี่ยน</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>1 พ.ค. 2569</TD><TD>ตัวจัดประเภทสี่ระดับเริ่มต้น แปดตัวขับ เกตความทันสมัยของเนื้อหา</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2 พ.ค. 2569</TD><TD>เพิ่มตัวขับ AI readiness เป็นตัวที่หนักที่สุด (±25) เพิ่มเกตปรับเปลี่ยน AI readiness สองตัว ลดน้ำหนักตัวขับ health-overall จาก ±25 เป็น ±20 เพื่อให้พื้นที่</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>12 พ.ค. 2569</TD><TD>เปิดเผย counterfactual ของเกตปรับเปลี่ยน (gap #8): ผลลัพธ์ตอนนี้พกพา <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> ไปด้วยกับ <Code>verdict</Code> ที่ผ่านเกตแล้ว ให้ผู้อ่านสภาฯ มองเห็นได้ว่าเกตปรับเปลี่ยนใดทำให้คำตัดสินเปลี่ยน + ทำไม คำตัดสินที่ผ่านเกตยังคงเดิม</TD></TR>

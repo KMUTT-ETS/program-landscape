@@ -38,11 +38,11 @@ export function MethodologyContentEn() {
         <div className="mt-4 max-w-2xl">
           <MetaTable
             rows={[
-              { label: 'Methodology code', value: <><Code>health-score.v3.8</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.1' },
+              { label: 'Methodology code', value: <><Code>health-score.v4.0</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
+              { label: 'Document version', value: '1.2' },
               { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
-              { label: 'Date', value: '2026-06-01' },
+              { label: 'Date', value: '2026-08-25' },
             ]}
           />
         </div>
@@ -228,10 +228,13 @@ export function MethodologyContentEn() {
             placeholder dimensions (<Code>relevance</Code> and <Code>capability</Code>, both null in v2)
             with real-data backed scorers. Two later revisions extended it without changing the
             five-dimension shape: <Code>v3.7</Code> (May 2026) added a <Code>student_satisfaction</Code>{' '}
-            driver to the Outcomes dimension, and <Code>v3.8</Code> (June 2026) re-sourced the
+            driver to the Outcomes dimension, <Code>v3.8</Code> (June 2026) re-sourced the
             recruitment funnel from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed —
-            the Attractiveness drivers and weights are unchanged. Earlier versions are retained for
-            audit; current computations stamp <Code>health-score.v3.8</Code>.
+            the Attractiveness drivers and weights are unchanged — <Code>v3.9</Code> (August 2026)
+            moved the Financial dimension onto the last <Strong>complete</Strong> academic year, and{' '}
+            <Code>v4.0</Code> (August 2026) added a <Code>dq_digital_competency</Code> driver to the
+            Outcomes dimension for bachelor programs. Earlier versions are retained for
+            audit; current computations stamp <Code>health-score.v4.0</Code>.
           </P>
         </DocSubsection>
 
@@ -1412,7 +1415,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="7.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v3.8'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v4.0'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
             <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
           </UL>
           <P>
@@ -1622,6 +1625,7 @@ otherwise                                         → SUNSET`}</Pre>
           <tbody>
             <TR><TD mono>1.0</TD><TD>2026-05-07</TD><TD>Initial public release — documents <Code>health-score.v3.5</Code> and <Code>lifecycle.v1.4</Code>.</TD></TR>
             <TR><TD mono>1.1</TD><TD>2026-06-01</TD><TD>Re-issued for <Code>health-score.v3.8</Code> and <Code>risk-scoring.v1.12</Code>: the recruitment funnel feeding the Attractiveness dimension and the risk L1 / competitiveness-percentile inputs are re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code>). Also captures the interim <Code>health-score.v3.7</Code> (student-satisfaction driver) and <Code>risk-scoring.v1.11</Code> (forward demographic projection). Driver formulas and weights unchanged.</TD></TR>
+            <TR><TD mono>1.2</TD><TD>2026-08-25</TD><TD>Re-issued for <Code>health-score.v4.0</Code>: the Outcomes dimension gains a <Code>dq_digital_competency</Code> driver from the Digital Intelligence (DQ) test, bachelor programs only. Also captures the interim <Code>health-score.v3.9</Code> (financial dimension scored on the last complete academic year). The five dimensions, their weights, and the lifecycle verdict are unchanged.</TD></TR>
           </tbody>
         </Tbl>
         <P>
@@ -1644,6 +1648,8 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>health-score.v3.5</TD><TD>2026-05-12</TD><TD>Adds <Code>revenue_scale</Code> driver to the financial dimension — level-aware absolute revenue scaled 0-100 against per-level target (BACHELOR 8M, MASTER · DOCTORAL · HGD 2M THB/yr). Complements the existing per-student / coverage / trend ratio drivers with an absolute-scale signal. Lifecycle.v1.4 uses the same signal as both a first-class lifecycle driver (±10) AND a flagship-floor modifier gate.</TD></TR>
             <TR><TD mono>health-score.v3.7</TD><TD>2026-05-19</TD><TD>Outcomes dimension gains a <Code>student_satisfaction</Code> driver — weighted-mean course-evaluation rating across the scope, anchored linearly to [3.5, 5.0] to counter the ceiling-biased distribution. Source: <Code>evaluation_response_summaries</Code> (POWERBI.EVALUATE_INSTRUCTOR via the <Code>kku-evaluations</Code> connector).</TD></TR>
             <TR><TD mono>health-score.v3.8</TD><TD>2026-06-01</TD><TD>Re-sources the recruitment funnel from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (<Code>admission_campaign_stats</Code>), replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code>. Richer track-level grain (one row per recruitment track within program × round × year) with correct per-intake plan quotas; the Attractiveness drivers, formulas, and weights are unchanged. Companion bumps: <Code>program-recruitment.v2</Code>, <Code>recruitment-rollup.v2</Code>.</TD></TR>
+            <TR><TD mono>health-score.v3.9</TD><TD>2026-08-16</TD><TD>Financial dimension is scored on the last <Strong>complete</Strong> academic year instead of the latest row available. <Code>FinancialMetric.fiscalYear</Code> holds the academic year (Jun–May), and an academic year's tuition is billed across two fiscal cycles, so the currently-running year has by construction collected only semester 1 — measured at a median of 0.437 of the prior year across the 184 programs carrying both. The former 30%-of-prior-year ratio guard could not separate "half-billed" from "genuinely declining" (mean 0.789, long tail above 100%); it is retained only as a secondary check that can pull the chosen year further into the past, never promote an in-progress one. Driver formulas and weights unchanged.</TD></TR>
+            <TR><TD mono>health-score.v4.0</TD><TD>2026-08-25</TD><TD>Outcomes dimension gains a <Code>dq_digital_competency</Code> driver — the respondent-weighted mean of the Digital Intelligence (DQ) test across theory modules 1–12, computed at the scope being scored and banded on KKU's own pass mark (≤50 → 0, 70 → 50, ≥90 → 100, linear between), so 50 means the average student just passes. Module 13 (Generative AI) is excluded while its rollout is uneven (uptake 48.7%–96.7% by faculty). <Strong>Bachelor programs only</Strong> and only with ≥5 scored students; elsewhere the driver is null, never 0, and for non-bachelor programs it is omitted entirely so <Code>dataCompletenessPct</Code> is not penalised for an instrument that cannot apply. 81 programs receive it; their Outcomes scores move by a median of +3.2 points and their composites by at most 2.7. Source: <Code>dq_module_cube</Code> / <Code>dq_student_cube</Code> (<Code>kku-dq</Code> connector). Dimension weights unchanged.</TD></TR>
             <TR><TD mono>lifecycle.v1.0</TD><TD>2026-05-01</TD><TD>Initial four-band classifier; eight drivers; content-modernity gate.</TD></TR>
             <TR><TD mono>lifecycle.v1.1</TD><TD>2026-05-02</TD><TD>AI-readiness added as the heaviest driver (±25); two AI-readiness modifier gates introduced; health-overall driver weight reduced from ±25 to ±20 to make headroom.</TD></TR>
             <TR><TD mono>lifecycle.v1.2</TD><TD>2026-05-12</TD><TD>Exposes the gate counterfactual (gap #8 closure): result now carries <Code>ungatedVerdict</Code> + <Code>gatesApplied[]</Code> alongside the gated <Code>verdict</Code>, so Council readers can see when + why a modifier gate moved the verdict. No behavioural change to the gated verdict.</TD></TR>
