@@ -5059,3 +5059,69 @@ model SystemSetting {
 
   @@map("system_settings")
 }
+
+/// Aggregate cube for the Student DQ dashboard — one row per
+/// (faculty × program × cohort). Deliberately aggregate-only: the DQ
+/// export carries student names and ids, and NONE of them are persisted.
+/// Resolution to a program happens in memory during the connector run.
+///
+/// No unique constraint on the dimension tuple: programId and
+/// cohortYearBE are nullable, and Postgres does not enforce uniqueness
+/// across NULLs. The connector replaces the whole cube per run, so
+/// uniqueness is a property of the writer, not of the schema.
+model DqStudentCube {
+  id                 String   @id @default(cuid())
+  facultyName        String   @map("faculty_name")
+  /// Resolved against Faculty.nameTh; null for names we do not carry
+  /// (Nong Khai campus faculties, one college, blanks).
+  facultyId          String?  @map("faculty_id")
+  /// Null = the explicit "Program not identified" bucket.
+  programId          String?  @map("program_id")
+  programName        String?  @map("program_name")
+  cohortYearBE       Int?     @map("cohort_year_be")
+  studentsTested     Int      @map("students_tested")
+  studentsWithScores Int      @map("students_with_scores")
+  /// DQ's own allPassed flag, passed through unchanged. The source is
+  /// inconsistent about module 13 — see docs/superpowers/specs/
+  /// 2026-08-25-student-dq-dashboard-design.md.
+  studentsAllPassed  Int      @map("students_all_passed")
+  ingestionRunId     String   @map("ingestion_run_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([facultyName])
+  @@index([programId])
+  @@index([ingestionRunId])
+  @@map("dq_student_cube")
+}
+
+/// Per-module aggregate for the Student DQ dashboard.
+/// `scoreSum` + `takenCount` rather than a stored mean: that is what
+/// makes a faculty or university figure a true weighted mean instead of
+/// a mean of means. A score of 0 in the source means NOT TAKEN and is
+/// excluded from both columns.
+model DqModuleCube {
+  id              String   @id @default(cuid())
+  facultyName     String   @map("faculty_name")
+  facultyId       String?  @map("faculty_id")
+  programId       String?  @map("program_id")
+  programName     String?  @map("program_name")
+  cohortYearBE    Int?     @map("cohort_year_be")
+  /// Export key, e.g. 'THEORY_MODULE_7'.
+  moduleKey       String   @map("module_key")
+  moduleNo        Int      @map("module_no")
+  /// 'THEORY' | 'WORKSHOP' — stored so the UI groups without parsing keys.
+  moduleKind      String   @map("module_kind")
+  /// Students in this dimension tuple who actually took the module.
+  takenCount      Int      @map("taken_count")
+  scoreSum        Float    @map("score_sum")
+  /// Students in the tuple who had ANY scores — the coverage denominator.
+  studentsInScope Int      @map("students_in_scope")
+  ingestionRunId  String   @map("ingestion_run_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([facultyName])
+  @@index([programId])
+  @@index([moduleKey])
+  @@index([ingestionRunId])
+  @@map("dq_module_cube")
+}
