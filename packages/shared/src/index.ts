@@ -14,6 +14,7 @@ export * from './programs';
 export * from './geo/thailand-regions';
 export * from './dq/modules';
 export * from './dq/module-skills';
+export * from './aunqa/criteria';
 export * from './identity';
 export * from './observability';
 export * from './resilience';
