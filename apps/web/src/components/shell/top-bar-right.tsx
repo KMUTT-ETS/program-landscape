@@ -96,6 +96,11 @@ export function TopBarRight({
               className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-accent-default shadow-glow-accent"
             >
               {avatarUrl ? (
+                // Stays a plain <img>: /api/profile/avatar/[userId] is
+                // session-gated (401 without a cookie), and the
+                // /_next/image optimizer fetches the source server-side
+                // without the user's cookies — next/image would render a
+                // broken avatar for every signed-in user.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={avatarUrl}

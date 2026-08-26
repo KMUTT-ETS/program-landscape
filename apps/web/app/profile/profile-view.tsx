@@ -355,8 +355,9 @@ function ProfileHero({
         aria-hidden
         className="pointer-events-none absolute right-5 top-5 z-10 flex items-start"
       >
-        {/* plain <img>: avatar/logo from MinIO; next/image gains nothing here.
-            (No eslint directive — @next/next is not registered in the flat config.) */}
+        {/* Static brand mark, already sized to its render box — next/image
+            would add an optimizer round-trip for no gain. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/kku-logo-light.png"
           alt=""
@@ -364,8 +365,9 @@ function ProfileHero({
           height={75}
           className="block h-20 w-auto opacity-90 dark:hidden"
         />
-        {/* plain <img>: avatar/logo from MinIO; next/image gains nothing here.
-            (No eslint directive — @next/next is not registered in the flat config.) */}
+        {/* Static brand mark, already sized to its render box — next/image
+            would add an optimizer round-trip for no gain. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/kku-logo-dark.png"
           alt=""
@@ -401,6 +403,11 @@ function ProfileHero({
           }`}
         >
           {avatarUrl ? (
+            // next/image can't serve this one: /api/profile/avatar/[userId]
+            // is session-gated (401 without a cookie) and the /_next/image
+            // optimizer fetches the source server-side without the user's
+            // cookies, so it would only ever get a 401.
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={avatarUrl}
               alt=""

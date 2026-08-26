@@ -9,6 +9,8 @@
 
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import nextPlugin from '@next/eslint-plugin-next';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 // Match literal colours — NOT wrappers around CSS variables. `oklch(var(--x))`
 // is the intended token-consumer form and must pass. We match:
@@ -40,6 +42,36 @@ export default [
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // `next lint` runs eslint-config-next, which registers these two plugins;
+  // this flat config never did. App code carries
+  // `eslint-disable-next-line react-hooks/exhaustive-deps` and
+  // `@next/next/no-img-element` comments written against that setup, and an
+  // eslint-disable naming a rule the linter has never heard of is itself an
+  // error ("Definition for rule … was not found"). Registering the plugins
+  // makes those names resolve, and enabling the rules keeps the disables
+  // load-bearing rather than decorative.
+  //
+  // The plugin versions are pinned here rather than inherited from
+  // eslint-config-next@14.2.20: that package pins an ESLint-8-era pair
+  // (@next/eslint-plugin-next@14.2.20, eslint-plugin-react-hooks@5.0.0-canary)
+  // which throws `context.getScope is not a function` under the ESLint 9 this
+  // repo runs. 5.2.0 / 15.5.24 are the first flat-config-and-ESLint-9-safe
+  // releases of each.
+  //
+  // Only the two rules the codebase references are turned on. The rest of
+  // `nextPlugin.configs.recommended` is deliberately left off — enabling it
+  // is a separate decision with its own backlog.
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    plugins: {
+      '@next/next': nextPlugin,
+      'react-hooks': reactHooks,
+    },
+    rules: {
+      '@next/next/no-img-element': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
