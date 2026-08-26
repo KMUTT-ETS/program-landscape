@@ -1,7 +1,11 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import {
+  AiCall,
+  AiQuota,
+  AuditLog,
   AuthSession,
   Authorized,
   ZodValidationPipe,
@@ -11,6 +15,7 @@ import {
 } from '../common';
 import {
   AunqaService,
+  type AunqaCriterionNarrativeResult,
   type AunqaFacultyOverview,
   type AunqaProgramAnalysis,
 } from './aunqa.service';
@@ -51,6 +56,29 @@ export class AunqaController {
     // unknown programme, 403 for one outside the caller's scopes.
     await assertProgramAccessible(programId, user);
     return this.aunqa.programAnalysis(programId);
+  }
+
+  // Drafts the self-assessment paragraph for ONE criterion, on demand.
+  //
+  // ONE criterion per call, deliberately: there is no bulk endpoint and no
+  // `--all` script. 301 programmes × 6 criteria has no reader and a real
+  // cost, and a QA officer writes up one criterion at a time.
+  //
+  // The response is a DRAFT to edit, never a rating — see the constraints in
+  // packages/shared/src/ai/prompts/aunqa-criterion-narrative.ts.
+  @Post('program/:programId/criterion/:criterionId/narrative')
+  @Authorized('institution:read:dashboard')
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'aunqa' })
+  @AiCall({ module: 'aunqa' })
+  @AuditLog({ action: 'aunqa.criterion-narrative', entityType: 'AunqaCriterionNarrative' })
+  async criterionNarrative(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+    @Param('criterionId') criterionId: string,
+  ): Promise<AunqaCriterionNarrativeResult> {
+    await assertProgramAccessible(programId, user);
+    return this.aunqa.criterionNarrative(programId, criterionId, user.userId);
   }
 
   @Get('faculty-overview')

@@ -491,6 +491,7 @@ model Program {
   aiReadinessAssessment ProgramAiReadinessAssessment?
   researchExpertise     ProgramResearchExpertise[]
   pedagogyAssessment    ProgramPedagogyAssessment?
+  aunqaNarratives       AunqaCriterionNarrative[]
   lifecycleSnapshot     ProgramLifecycleSnapshot?
   verdictSnapshots      VerdictSnapshot[]
   financialMetrics      FinancialMetric[]
@@ -2069,6 +2070,55 @@ model ProgramPedagogyAssessment {
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@map("program_pedagogy_assessments")
+}
+
+/// AI-drafted self-assessment paragraph for ONE AUN-QA v4 criterion of one
+/// programme (`aunqa-criterion-narrative.v1`), generated on demand for a QA
+/// officer to edit. NOT a rating and not a compliance claim — the row records
+/// what evidence the platform held when it was drafted, and the gaps it could
+/// not evidence.
+///
+/// Keyed `(program_id, criterion_id, method_version)`, the same shadowing
+/// pattern as `program_pedagogy_assessments` / `user_expertise_narratives`: a
+/// prompt-version bump writes alongside the old drafts rather than
+/// overwriting them, so a draft can always be traced to the prompt that
+/// produced it. Regenerating at the SAME version upserts in place.
+///
+/// `criterion_id` holds the registry's AUN-QA number ('1', '4', '8', …) as an
+/// opaque key. The criterion's title and sub-criteria live in
+/// packages/shared/src/aunqa/criteria.ts and are deliberately NOT duplicated
+/// here — correcting the criteria list against the official guide must stay
+/// an edit to that one table.
+model AunqaCriterionNarrative {
+  id                      String   @id @default(cuid())
+  programId               String   @map("program_id")
+  criterionId             String   @map("criterion_id")
+  methodVersion           String   @map("method_version")
+  /// The draft prose. Short by design when the evidence is thin.
+  paragraph               String   @db.Text
+  /// `{ subCriterionId, missing }[]` — what the draft could not evidence.
+  /// JSONB so the shape can follow the prompt schema without a migration.
+  gapsJson                Json     @map("gaps_json")
+  /// Readiness band at generation time ('well-evidenced' |
+  /// 'partly-evidenced' | 'no-evidence'). A statement about our data, never
+  /// about the programme.
+  band                    String
+  /// Evidence counts at generation time, so a reader of an old draft can see
+  /// how much backed it without re-resolving today's evidence.
+  subCriteriaTotal        Int      @map("sub_criteria_total")
+  subCriteriaWithEvidence Int      @map("sub_criteria_with_evidence")
+  /// Post-clamp confidence — never the model's raw self-report if that
+  /// exceeded `aunqaCriterionConfidenceCeiling()`.
+  confidence              Float
+  aiInferenceId           String?  @map("ai_inference_id")
+  generatedAt             DateTime @default(now()) @map("generated_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, criterionId, methodVersion])
+  @@index([programId])
+  @@map("aunqa_criterion_narratives")
 }
 
 /// Persisted per-program lifecycle verdict snapshot. Computed by

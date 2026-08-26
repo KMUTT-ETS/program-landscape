@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
+  PrismaAiInferenceRecorder,
   aunqaCompletenessForPrograms,
   aunqaReadinessForProgram,
+  generateAunqaCriterionNarrative,
+  getAiModelOverrideStore,
   prisma,
+  type AunqaCriterionNarrativeGap,
   type CriterionCompleteness,
   type CriterionReadiness,
   type ReadinessBand,
@@ -10,6 +15,10 @@ import {
 import {
   AUNQA_CRITERIA,
   AUNQA_UNEVIDENCED_CRITERIA,
+  ApiError,
+  createAiService,
+  type AiProviderId,
+  type AiService,
   type AunqaUnevidencedCriterion,
 } from '@kku/shared';
 
@@ -87,8 +96,97 @@ function toSummary(row: ProgramRow): AunqaProgramSummary {
   };
 }
 
+/** An AI-drafted self-assessment paragraph for one criterion, plus the gaps
+ *  it could not evidence. A DRAFT for a QA officer to edit — not a rating,
+ *  not a compliance claim. */
+export interface AunqaCriterionNarrativeResult {
+  programId: string;
+  criterionId: string;
+  criterionTitle: string;
+  paragraph: string;
+  gaps: AunqaCriterionNarrativeGap[];
+  band: string;
+  subCriteriaTotal: number;
+  subCriteriaWithEvidence: number;
+  confidence: number;
+  methodVersion: string;
+  aiInferenceId: string | null;
+}
+
 @Injectable()
-export class AunqaService {
+export class AunqaService implements OnModuleInit {
+  private ai!: AiService;
+
+  constructor(private readonly config: ConfigService) {}
+
+  onModuleInit(): void {
+    const providerId = (this.config.get<string>('AI_PROVIDER') ?? 'google') as AiProviderId;
+    const intelSphereUrl = this.config.get<string>('KKU_INTELSPHERE_URL');
+    const intelSphereKey = this.config.get<string>('KKU_INTELSPHERE_API_KEY');
+    this.ai = createAiService({
+      recorder: new PrismaAiInferenceRecorder(),
+      providerId,
+      apiKeys: {
+        google: this.config.get<string>('GOOGLE_AI_API_KEY'),
+        anthropic: this.config.get<string>('ANTHROPIC_API_KEY'),
+        openrouter: this.config.get<string>('OPENROUTER_API_KEY'),
+        intelSphere:
+          intelSphereUrl && intelSphereKey
+            ? { url: intelSphereUrl, apiKey: intelSphereKey }
+            : undefined,
+      },
+      modelOverrideResolver: getAiModelOverrideStore(),
+    });
+  }
+
+  /**
+   * Drafts the self-assessment paragraph for ONE criterion, on demand.
+   *
+   * One criterion per call by design — there is no bulk path. The caller has
+   * already run `assertProgramAccessible`.
+   */
+  async criterionNarrative(
+    programId: string,
+    criterionId: string,
+    userId: string,
+  ): Promise<AunqaCriterionNarrativeResult> {
+    const hasProvider = Boolean(
+      this.config.get<string>('GOOGLE_AI_API_KEY') ||
+        this.config.get<string>('ANTHROPIC_API_KEY'),
+    );
+    if (!hasProvider) {
+      throw new ApiError(
+        'AI_PROVIDER_ERROR',
+        'No AI provider configured — set GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY to draft an AUN-QA self-assessment.',
+      );
+    }
+
+    const outcome = await generateAunqaCriterionNarrative({
+      programId,
+      criterionId,
+      ai: this.ai,
+      triggeredByUserId: userId,
+    });
+    // SKIPPED here means an unknown criterion number (the programme was
+    // already checked by `assertProgramAccessible`), which is a 404 on the
+    // path parameter, not a generation failure.
+    if (outcome.status === 'SKIPPED') throw new NotFoundException(outcome.reason);
+
+    return {
+      programId: outcome.programId,
+      criterionId: outcome.criterionId,
+      criterionTitle: outcome.criterionTitle,
+      paragraph: outcome.paragraph,
+      gaps: outcome.gaps,
+      band: outcome.band,
+      subCriteriaTotal: outcome.subCriteriaTotal,
+      subCriteriaWithEvidence: outcome.subCriteriaWithEvidence,
+      confidence: outcome.confidence,
+      methodVersion: outcome.methodVersion,
+      aiInferenceId: outcome.aiInferenceId,
+    };
+  }
+
   /** One programme, every binding resolved. The caller has already run
    *  `assertProgramAccessible`. */
   async programAnalysis(programId: string): Promise<AunqaProgramAnalysis> {

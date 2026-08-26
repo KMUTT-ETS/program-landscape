@@ -54,3 +54,4 @@ export * from './teaching-talent';
 export * from './student-dq';
 export * from './aunqa-evidence';
 export * from './aunqa-readiness';
+export * from './aunqa-criterion-narrative-run';
