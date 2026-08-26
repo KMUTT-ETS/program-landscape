@@ -126,9 +126,9 @@ export function WorldCountryMap({ byCountry, onCountryClick }: Props) {
   );
 
   const tint = (count: number): string => {
-    if (count === 0) return 'rgba(229, 224, 207, 0.5)';
+    if (count === 0) return 'oklch(var(--color-surface-3))';
     const intensity = 0.2 + (count / max) * 0.75;
-    return `rgba(102, 51, 153, ${intensity})`;
+    return `oklch(var(--color-chart-8) / ${intensity})`;
   };
 
   const reset = () => setPosition({ coordinates: [20, 20], zoom: 1 });
@@ -179,8 +179,6 @@ export function WorldCountryMap({ byCountry, onCountryClick }: Props) {
                   <Geography
                     key={geo.rsmKey}
                     geography={geo}
-                    fill={tint(count)}
-                    stroke="#888"
                     strokeWidth={0.3}
                     onMouseEnter={(e) => {
                       setHovered({
@@ -192,14 +190,27 @@ export function WorldCountryMap({ byCountry, onCountryClick }: Props) {
                     }}
                     onMouseLeave={() => setHovered(null)}
                     onClick={() => count > 0 && onCountryClick?.(en)}
+                    // Paint via `style` rather than the `fill`/`stroke`
+                    // presentation attributes: CSS var() is only honoured
+                    // in a CSS property, and the tokens are what make the
+                    // choropleth follow the light/dark theme.
                     style={{
-                      default: { outline: 'none' },
+                      default: {
+                        fill: tint(count),
+                        stroke: 'oklch(var(--color-border-default))',
+                        outline: 'none',
+                      },
                       hover: {
-                        fill: 'rgba(166, 25, 46, 0.55)',
+                        fill: 'oklch(var(--color-brand-cardinal) / 0.55)',
+                        stroke: 'oklch(var(--color-border-default))',
                         outline: 'none',
                         cursor: count > 0 ? 'pointer' : 'default',
                       },
-                      pressed: { outline: 'none' },
+                      pressed: {
+                        fill: tint(count),
+                        stroke: 'oklch(var(--color-border-default))',
+                        outline: 'none',
+                      },
                     }}
                   />
                 );

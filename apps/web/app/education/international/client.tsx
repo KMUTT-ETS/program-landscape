@@ -79,13 +79,15 @@ export function InternationalClient({ data }: Props) {
                   </span>
                   <div
                     className="relative h-4 overflow-hidden rounded-sm"
-                    style={{ background: 'rgba(120,120,120,0.18)' }}
+                    style={{ background: 'oklch(var(--color-surface-3))' }}
                   >
                     <div
                       className="h-full"
                       style={{
                         width: `${Math.max(widthPct, 0.5)}%`,
-                        background: '#664073',
+                        // Same purple as the country choropleth on this
+                        // page, so the bar list and the map read as one.
+                        background: 'oklch(var(--color-chart-8))',
                       }}
                     />
                   </div>

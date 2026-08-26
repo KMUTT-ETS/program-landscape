@@ -149,9 +149,9 @@ export function StyleguideCatalog() {
           <EdgeGlow
             inline
             colors={[
-              'oklch(72% 0.155 150)',
-              'oklch(78% 0.140 130)',
-              'oklch(82% 0.130 95)',
+              'oklch(var(--color-success-default))',
+              'oklch(var(--color-chart-4))',
+              'oklch(var(--color-chart-3))',
             ]}
           >
             <Button variant="default" size="lg">

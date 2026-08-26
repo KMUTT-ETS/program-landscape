@@ -93,7 +93,7 @@ export function TopBarRight({
                 profile-page hero (served via /api/profile/avatar). */}
             <div
               aria-hidden
-              className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-accent-default shadow-[0_2px_10px_-2px_rgb(255_140_70/0.55)]"
+              className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-accent-default shadow-glow-accent"
             >
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

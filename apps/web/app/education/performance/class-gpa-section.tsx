@@ -11,7 +11,7 @@
 // component (overall window — never filtered by semester).
 
 import * as React from 'react';
-import { Card } from '@kku/ui';
+import { Card, useChartPalette } from '@kku/ui';
 import { ChevronRight } from 'lucide-react';
 import {
   CartesianGrid,
@@ -46,11 +46,15 @@ const fmtCount = (n: number): string => n.toLocaleString('en-US');
 const fmtGpa = (n: number | null): string => (n === null ? '—' : n.toFixed(2));
 const fmtPct = (n: number | null): string => (n === null ? '—' : (n * 100).toFixed(1) + '%');
 
+// Four semesters are peer series, not a scale — each takes a slot on the
+// chart colour scale. Indices are spread across the ramp (blue / green /
+// amber / red-orange) so the lines stay separable, and resolving through
+// the palette means dark mode gets its own contrast-tuned variants.
 const SEM_LINES = [
-  { key: 'sem1', label: 'Semester 1', stroke: 'oklch(0.65 0.22 250)' },
-  { key: 'sem2', label: 'Semester 2', stroke: 'oklch(0.65 0.20 145)' },
-  { key: 'sem3', label: 'Summer (3)', stroke: 'oklch(0.70 0.18 60)' },
-  { key: 'sem4', label: 'Intersession (4)', stroke: 'oklch(0.60 0.22 30)' },
+  { key: 'sem1', label: 'Semester 1', seriesIndex: 6 },
+  { key: 'sem2', label: 'Semester 2', seriesIndex: 3 },
+  { key: 'sem3', label: 'Summer (3)', seriesIndex: 1 },
+  { key: 'sem4', label: 'Intersession (4)', seriesIndex: 10 },
 ] as const;
 
 const SEM_OPTIONS = [
@@ -76,6 +80,7 @@ export function ClassGpaSection({ overall, trend, byProgram: initialByProgram, f
   const [selectedSemesters, setSelectedSemesters] = React.useState<number[]>([1, 2]);
   const [byProgram, setByProgram] = React.useState<ClassGpaByProgramResponse>(initialByProgram);
   const [tableLoading, setTableLoading] = React.useState(false);
+  const palette = useChartPalette();
 
   // Refetch whenever filter changes. Skip the initial render where state
   // matches the SSR payload — main-terms filter (1+2) doesn't match the
@@ -169,7 +174,7 @@ export function ClassGpaSection({ overall, trend, byProgram: initialByProgram, f
                 type="monotone"
                 dataKey={s.key}
                 name={s.label}
-                stroke={s.stroke}
+                stroke={palette.series[s.seriesIndex]}
                 strokeWidth={2}
                 dot={{ r: 3 }}
                 activeDot={{ r: 5 }}
@@ -271,15 +276,19 @@ function GradeDistributionBar({
 }) {
   const total = Object.values(dist).reduce((a, b) => a + b, 0);
   if (total === 0) return <div className="text-xs text-text-tertiary">No graded data.</div>;
+  // Letter grades are an ordinal good → bad scale, so they read off the
+  // three semantic data tokens rather than the categorical chart scale.
+  // Alpha separates the bands inside each family (A darkest green → B
+  // lightest; D+ lightest red → F darkest), matching the original ramp.
   const segments = [
-    { key: 'A', label: 'A', count: dist.A, color: 'oklch(0.66 0.18 145)' },
-    { key: 'BPLUS', label: 'B+', count: dist.BPLUS, color: 'oklch(0.72 0.17 145)' },
-    { key: 'B', label: 'B', count: dist.B, color: 'oklch(0.78 0.14 145)' },
-    { key: 'CPLUS', label: 'C+', count: dist.CPLUS, color: 'oklch(0.78 0.14 90)' },
-    { key: 'C', label: 'C', count: dist.C, color: 'oklch(0.75 0.16 60)' },
-    { key: 'DPLUS', label: 'D+', count: dist.DPLUS, color: 'oklch(0.70 0.17 40)' },
-    { key: 'D', label: 'D', count: dist.D, color: 'oklch(0.65 0.20 30)' },
-    { key: 'F', label: 'F', count: dist.F, color: 'oklch(0.55 0.22 25)' },
+    { key: 'A', label: 'A', count: dist.A, color: 'oklch(var(--color-data-positive))' },
+    { key: 'BPLUS', label: 'B+', count: dist.BPLUS, color: 'oklch(var(--color-data-positive) / 0.75)' },
+    { key: 'B', label: 'B', count: dist.B, color: 'oklch(var(--color-data-positive) / 0.5)' },
+    { key: 'CPLUS', label: 'C+', count: dist.CPLUS, color: 'oklch(var(--color-warning-default) / 0.6)' },
+    { key: 'C', label: 'C', count: dist.C, color: 'oklch(var(--color-warning-default))' },
+    { key: 'DPLUS', label: 'D+', count: dist.DPLUS, color: 'oklch(var(--color-danger-default) / 0.5)' },
+    { key: 'D', label: 'D', count: dist.D, color: 'oklch(var(--color-danger-default) / 0.75)' },
+    { key: 'F', label: 'F', count: dist.F, color: 'oklch(var(--color-danger-default))' },
   ];
   return (
     <div className="flex flex-col gap-1.5">

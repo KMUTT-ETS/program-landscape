@@ -82,11 +82,19 @@ function IndicatorCard({
   const pctWarn = totalProgs > 0 ? (indicator.latestBreaches.warn / totalProgs) * 100 : 0;
   const pctOk = totalProgs > 0 ? (indicator.latestBreaches.ok / totalProgs) * 100 : 0;
   const issueCount = indicator.latestBreaches.critical + indicator.latestBreaches.warn;
-  const SEVERITY_FILL: Record<'OK' | 'WARN' | 'CRITICAL', string> = {
-    OK: 'rgb(16 185 129)',
-    WARN: 'rgb(234 179 8)',
-    CRITICAL: 'rgb(244 63 94)',
+  // This is a server component, so there is no chart palette to read —
+  // the tokens go in as CSS var() references and the browser resolves
+  // them per theme. `sev(severity, alpha)` replaces the previous
+  // `SEVERITY_FILL.X + '66'` hex-suffix trick, which silently produced
+  // invalid CSS (the literals were rgb(), not hex) and so painted the
+  // count chips with no border or background at all.
+  const SEVERITY_TOKEN: Record<'OK' | 'WARN' | 'CRITICAL', string> = {
+    OK: '--color-data-positive',
+    WARN: '--color-warning-default',
+    CRITICAL: '--color-danger-default',
   };
+  const sev = (severity: 'OK' | 'WARN' | 'CRITICAL', alpha?: number): string =>
+    `oklch(var(${SEVERITY_TOKEN[severity]})${alpha == null ? '' : ` / ${alpha}`})`;
 
   // Top-5 critical/warn programs from the detail breach list — sorted by
   // severity then most recently observed.
@@ -128,9 +136,9 @@ function IndicatorCard({
           <span
             className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5"
             style={{
-              borderColor: SEVERITY_FILL.CRITICAL + '66',
-              background: SEVERITY_FILL.CRITICAL + '15',
-              color: SEVERITY_FILL.CRITICAL,
+              borderColor: sev('CRITICAL', 0.4),
+              background: sev('CRITICAL', 0.08),
+              color: sev('CRITICAL'),
             }}
           >
             <ShieldAlert className="size-icon-xs" />
@@ -140,9 +148,9 @@ function IndicatorCard({
           <span
             className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5"
             style={{
-              borderColor: SEVERITY_FILL.WARN + '66',
-              background: SEVERITY_FILL.WARN + '15',
-              color: SEVERITY_FILL.WARN,
+              borderColor: sev('WARN', 0.4),
+              background: sev('WARN', 0.08),
+              color: sev('WARN'),
             }}
           >
             <AlertTriangle className="size-icon-xs" />
@@ -152,9 +160,9 @@ function IndicatorCard({
           <span
             className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5"
             style={{
-              borderColor: SEVERITY_FILL.OK + '66',
-              background: SEVERITY_FILL.OK + '15',
-              color: SEVERITY_FILL.OK,
+              borderColor: sev('OK', 0.4),
+              background: sev('OK', 0.08),
+              color: sev('OK'),
             }}
           >
             <CheckCircle2 className="size-icon-xs" />
@@ -177,19 +185,19 @@ function IndicatorCard({
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2">
               {pctCritical > 0 && (
                 <div
-                  style={{ width: `${pctCritical}%`, background: SEVERITY_FILL.CRITICAL }}
+                  style={{ width: `${pctCritical}%`, background: sev('CRITICAL') }}
                   title={`Critical: ${indicator.latestBreaches.critical}`}
                 />
               )}
               {pctWarn > 0 && (
                 <div
-                  style={{ width: `${pctWarn}%`, background: SEVERITY_FILL.WARN }}
+                  style={{ width: `${pctWarn}%`, background: sev('WARN') }}
                   title={`Warn: ${indicator.latestBreaches.warn}`}
                 />
               )}
               {pctOk > 0 && (
                 <div
-                  style={{ width: `${pctOk}%`, background: SEVERITY_FILL.OK + 'aa' }}
+                  style={{ width: `${pctOk}%`, background: sev('OK', 0.67) }}
                   title={`OK: ${indicator.latestBreaches.ok}`}
                 />
               )}
@@ -215,7 +223,7 @@ function IndicatorCard({
                         className="w-full rounded-t-sm transition-opacity hover:opacity-100"
                         style={{
                           height: `${h}px`,
-                          background: SEVERITY_FILL[b.severity],
+                          background: sev(b.severity),
                           opacity: b.count > 0 ? 0.85 : 0.15,
                         }}
                       />
@@ -273,7 +281,7 @@ function IndicatorCard({
                       </span>
                       <span
                         className="text-[10px] font-semibold uppercase"
-                        style={{ color: SEVERITY_FILL[b.severity] }}
+                        style={{ color: sev(b.severity) }}
                       >
                         {b.severity}
                       </span>
@@ -284,7 +292,7 @@ function IndicatorCard({
                     {b.value != null && (
                       <div className="mt-0.5 text-[10px] tabular-nums text-text-secondary">
                         Value{' '}
-                        <span className="font-semibold" style={{ color: SEVERITY_FILL[b.severity] }}>
+                        <span className="font-semibold" style={{ color: sev(b.severity) }}>
                           {b.value < 1 ? b.value.toFixed(2) : b.value.toFixed(1)}
                         </span>{' '}
                         · threshold{' '}

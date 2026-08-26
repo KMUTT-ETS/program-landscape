@@ -105,7 +105,7 @@ export default async function NoAccessPage({
           {/* Soft "what to do" card — avoids the "denied!" tone in
               favour of next steps. Two paths: try a page they can
               probably see, or write to the Office for access. */}
-          <div className="mt-8 w-full rounded-2xl border border-border-subtle bg-surface-0 p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+          <div className="mt-8 w-full rounded-2xl border border-border-subtle bg-surface-0 p-5 shadow-elevation-1">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
               What to do
             </div>

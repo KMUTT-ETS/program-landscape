@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useChartPalette } from '@kku/ui';
 import type { RiskTier, RiskIndicatorSeverity } from './types';
 import { TIER_FILL_HEX } from './types';
 
@@ -608,6 +609,11 @@ export function DriverRadar({
   l3: number | null;
   universityAverages?: { l1: number | null; l2: number | null; l3: number | null; programCount: number } | null;
 }) {
+  const palette = useChartPalette();
+  // This program's own polygon is series-identity, not a judgement — the
+  // indigo chart token keeps it visually distinct from the danger/warning
+  // encodings used elsewhere on the page.
+  const programColor = palette.series[6]!;
   const cx = 130;
   const cy = 120;
   const radius = 92;
@@ -665,20 +671,21 @@ export function DriverRadar({
           <g>
             <polygon
               points={uniPolygon}
-              fill="rgb(100 116 139 / 0.12)"
-              stroke="rgb(100 116 139)"
+              fill={palette.neutral}
+              fillOpacity={0.12}
+              stroke={palette.neutral}
               strokeWidth={1.2}
               strokeDasharray="3 3"
             />
             {uniPoints.map(
-              (p, i) => p.score != null && <circle key={i} cx={p.x} cy={p.y} r={2} fill="rgb(100 116 139)" />,
+              (p, i) => p.score != null && <circle key={i} cx={p.x} cy={p.y} r={2} fill={palette.neutral} />,
             )}
           </g>
         )}
         {/* Program polygon */}
-        <polygon points={polygon} fill="rgb(99 102 241 / 0.28)" stroke="rgb(99 102 241)" strokeWidth={1.8} />
+        <polygon points={polygon} fill={programColor} fillOpacity={0.28} stroke={programColor} strokeWidth={1.8} />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="rgb(99 102 241)" />
+          <circle key={i} cx={p.x} cy={p.y} r={3.5} fill={programColor} />
         ))}
         {axes.map((a, i) => {
           // Compact "L1/L2/L3" markers at each axis tip. Full labels +
@@ -711,13 +718,13 @@ export function DriverRadar({
           <div key={a.label} className="rounded-md border border-border-subtle bg-surface-1 px-3 py-1.5">
             <div className="text-[10px] uppercase text-text-tertiary">{a.label}</div>
             <div className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold tabular-nums" style={{ color: 'rgb(99 102 241)' }}>
+              <span className="text-lg font-semibold tabular-nums" style={{ color: programColor }}>
                 {points[i]!.score?.toFixed(0) ?? '–'}
               </span>
               {hasUniOverlay && (
                 <span className="text-[10px] text-text-tertiary">
                   univ avg{' '}
-                  <span className="tabular-nums" style={{ color: 'rgb(100 116 139)' }}>
+                  <span className="tabular-nums" style={{ color: palette.neutral }}>
                     {a.uni?.toFixed(0) ?? '–'}
                   </span>
                 </span>
@@ -727,7 +734,7 @@ export function DriverRadar({
         ))}
         {hasUniOverlay && universityAverages?.programCount && (
           <div className="text-[10px] text-text-tertiary">
-            <span className="inline-block h-0.5 w-3 align-middle" style={{ background: 'rgb(100 116 139)' }} />{' '}
+            <span className="inline-block h-0.5 w-3 align-middle" style={{ background: palette.neutral }} />{' '}
             University average across {universityAverages.programCount} undergraduate programs
           </div>
         )}
@@ -822,11 +829,12 @@ export function SkillAutomationBar({
 }: {
   shares: { LOW: number; MEDIUM: number; HIGH: number; UNKNOWN: number };
 }) {
+  const palette = useChartPalette();
   const segs = [
-    { label: 'LOW automation risk', share: shares.LOW, color: 'rgb(16 185 129)' },
-    { label: 'MEDIUM', share: shares.MEDIUM, color: 'rgb(251 191 36)' },
-    { label: 'HIGH', share: shares.HIGH, color: 'rgb(244 63 94)' },
-    { label: 'UNKNOWN', share: shares.UNKNOWN, color: 'rgb(100 116 139)' },
+    { label: 'LOW automation risk', share: shares.LOW, color: palette.positive },
+    { label: 'MEDIUM', share: shares.MEDIUM, color: palette.warning },
+    { label: 'HIGH', share: shares.HIGH, color: palette.negative },
+    { label: 'UNKNOWN', share: shares.UNKNOWN, color: palette.neutral },
   ];
   return (
     <div className="space-y-2">
@@ -867,6 +875,8 @@ export function TcasSparkline({
     inProgress?: boolean;
   }>;
 }) {
+  // Hook must run before the empty-data early return below.
+  const palette = useChartPalette();
   if (years.length === 0) {
     return <div className="text-xs text-text-tertiary">No TCAS funnel data.</div>;
   }
@@ -899,9 +909,9 @@ export function TcasSparkline({
   }
 
   const series = [
-    { field: 'plan' as const, label: 'Plan', color: 'rgb(100 116 139)', dash: '3 3' },
-    { field: 'applicants' as const, label: 'Applicants', color: 'rgb(99 102 241)' },
-    { field: 'reported' as const, label: 'Reported', color: 'rgb(16 185 129)' },
+    { field: 'plan' as const, label: 'Plan', color: palette.neutral, dash: '3 3' },
+    { field: 'applicants' as const, label: 'Applicants', color: palette.series[6]! },
+    { field: 'reported' as const, label: 'Reported', color: palette.positive },
   ];
 
   const inProgressYears = years.filter((y) => y.inProgress);
@@ -916,7 +926,8 @@ export function TcasSparkline({
             y={pad.t}
             width={W - pad.r - x(lastCompleteIdx) - 1}
             height={H - pad.t - pad.b}
-            fill="rgb(251 191 36 / 0.08)"
+            fill={palette.warning}
+            fillOpacity={0.08}
           />
         )}
         {/* Y gridlines */}
@@ -1184,24 +1195,23 @@ export function KkuScoreBadge({
 
 // ── L2 component breakdown (skill / readiness / disruption) ──────────────
 
+// Colour is resolved from the live theme inside the component (see
+// `componentColor` below) — the meta table itself carries only static text.
 const L2_COMPONENT_META: Record<
   'skillPressure' | 'readinessDeficit' | 'disruptionSignal',
-  { label: string; sub: string; color: string }
+  { label: string; sub: string }
 > = {
   skillPressure: {
     label: 'Skill pressure',
     sub: 'Weighted share of HIGH/MEDIUM automation-risk skills',
-    color: 'rgb(244 63 94)',
   },
   readinessDeficit: {
     label: 'Readiness deficit',
     sub: '100 − discipline-aware AI readiness score',
-    color: 'rgb(168 85 247)',
   },
   disruptionSignal: {
     label: 'Disruption signal',
     sub: 'Severity-weighted gaps + priority-weighted recommendations',
-    color: 'rgb(236 72 153)',
   },
 };
 
@@ -1216,6 +1226,15 @@ export function L2ComponentBreakdown({
     weight: number;
   }>;
 }) {
+  const palette = useChartPalette();
+  // The three L2 sub-scores are components of one composite, not a
+  // good/bad scale — they take distinct series colours so the stacked
+  // contribution reads as a breakdown rather than a severity ranking.
+  const componentColor: Record<typeof composition[number]['key'], string> = {
+    skillPressure: palette.series[10]!,
+    readinessDeficit: palette.series[7]!,
+    disruptionSignal: palette.series[9]!,
+  };
   if (composition.length === 0) {
     return (
       <div className="text-xs text-text-tertiary">
@@ -1258,7 +1277,7 @@ export function L2ComponentBreakdown({
               <div className="relative h-2 overflow-hidden rounded-full bg-surface-2">
                 <div
                   className="h-full rounded-full"
-                  style={{ width: `${Math.min(100, c.value)}%`, background: meta.color, opacity: 0.85 }}
+                  style={{ width: `${Math.min(100, c.value)}%`, background: componentColor[c.key], opacity: 0.85 }}
                 />
               </div>
               <div className="mt-0.5 text-[10px] text-text-tertiary">{meta.sub}</div>

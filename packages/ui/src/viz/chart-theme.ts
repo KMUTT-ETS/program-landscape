@@ -17,6 +17,13 @@ import * as React from 'react';
 // packages/design/src/css/tokens.css) as the SSR / pre-mount seed.
 
 // ── Static light-mode evaluation of the palette tokens ────────────────
+//
+// This block is the one place in the app that is *allowed* to spell colours
+// out: it exists precisely because there is no document to read tokens from
+// during SSR. It mirrors packages/design/src/css/tokens.css and is exempt
+// from the no-hardcoded-colour rule for the same reason that file is —
+// everywhere else, resolve through `useChartPalette()` or a CSS var.
+/* eslint-disable no-restricted-syntax */
 // Sourced literally from packages/design/src/css/tokens.css under
 // [data-theme='light']. Using oklch() strings instead of approximated
 // hex means the SSR/pre-mount paint matches the live CSS exactly — no
@@ -47,7 +54,9 @@ const FALLBACK_PALETTE: ChartPalette = {
   positive: 'oklch(56.0% 0.155 150)',
   negative: 'oklch(58.0% 0.205 25)',
   neutral: 'oklch(60.0% 0.018 60)',
+  warning: 'oklch(70.0% 0.170 75)',
 };
+/* eslint-enable no-restricted-syntax */
 
 function resolveColor(varName: string): string {
   if (typeof window === 'undefined') return 'currentColor';
@@ -66,6 +75,10 @@ export interface ChartPalette {
   positive: string;
   negative: string;
   neutral: string;
+  // The middle band of a good/caution/bad encoding. `positive` and
+  // `negative` alone can't express a three-state severity scale
+  // (OK / WARN / CRITICAL, LOW / MEDIUM / HIGH automation risk).
+  warning: string;
 }
 
 export function readChartPalette(): ChartPalette {
@@ -95,6 +108,7 @@ export function readChartPalette(): ChartPalette {
     positive: resolveColor('--color-data-positive'),
     negative: resolveColor('--color-data-negative'),
     neutral: resolveColor('--color-data-neutral'),
+    warning: resolveColor('--color-warning-default'),
   };
 }
 

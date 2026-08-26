@@ -22,7 +22,7 @@ import {
   type ConcentrationBar,
   type DriverMixSlice,
 } from './viz';
-import { Badge } from '@kku/ui';
+import { Badge, useChartPalette } from '@kku/ui';
 import {
   FilterCrossLink,
   FilterCrossLinkGroup,
@@ -101,8 +101,9 @@ export function RisksPortfolioClient({
 }) {
   const router = useRouter();
   const sp = useSearchParams();
+  const palette = useChartPalette();
 
-  const updateFilter = (key: 'erm' | 'faculty', value: string): void => {
+  const updateFilter =(key: 'erm' | 'faculty', value: string): void => {
     const next = new URLSearchParams(sp.toString());
     if (value) next.set(key, value);
     else next.delete(key);
@@ -205,18 +206,20 @@ export function RisksPortfolioClient({
       if (!d) counts.none += 1;
       else counts[d] += 1;
     }
+    // L1/L2/L3 are three peer categories, not a severity ranking — they
+    // take distinct series colours; the "no data" slice is neutral.
     const slices: DriverMixSlice[] = [
-      { label: 'L1 — Recruitment decay', count: counts.L1, color: 'rgb(99 102 241)' },
-      { label: 'L2 — AI disruption', count: counts.L2, color: 'rgb(236 72 153)' },
-      { label: 'L3 — Demographic', count: counts.L3, color: 'rgb(249 115 22)' },
+      { label: 'L1 — Recruitment decay', count: counts.L1, color: palette.series[6]! },
+      { label: 'L2 — AI disruption', count: counts.L2, color: palette.series[9]! },
+      { label: 'L3 — Demographic', count: counts.L3, color: palette.series[1]! },
     ];
     // Only surface the "no driver data" slice when it actually has members,
     // so the donut total matches the at-risk program count exactly.
     if (counts.none > 0) {
-      slices.push({ label: 'No driver data', count: counts.none, color: 'rgb(148 163 184)' });
+      slices.push({ label: 'No driver data', count: counts.none, color: palette.neutral });
     }
     return slices;
-  }, [portfolio.rows]);
+  }, [portfolio.rows, palette]);
 
   // Top concentration by revenue at risk. Filter + colour key both use ERM
   // level (kkuRiskLevel) for consistency with the rest of the page. Bar
