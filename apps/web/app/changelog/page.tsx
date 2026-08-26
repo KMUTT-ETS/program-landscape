@@ -27,26 +27,9 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-08-25',
-    version: 'v1.10.0 · Digital competency in program health',
+    version: 'v1.8.1 · Student DQ, and digital competency in program health',
     title:
-      'A programme’s Digital Intelligence results now count towards its health score — anchored on the pass mark, so 50 means the average student just passes — and the same figure appears on the programme page and as a separate lens in the gap analyzer',
-    audience: ['Council', 'Executive', 'Analyst'],
-    bullets: [
-      'The DQ competency test now contributes to program health as one driver inside the Outcomes dimension. 81 bachelor programmes have enough DQ evidence to receive it; a programme with too little is left without the driver rather than scored zero, because having no evidence is not the same as scoring badly.',
-      'Graduate programmes are excluded, and are excluded everywhere in this feature. DQ is an undergraduate test: the 30 graduate programmes that appeared to have DQ data held 10 students between them — all undergraduates who sat the test and later enrolled in a master’s. On the Student DQ dashboard those students now appear under their faculty’s "Program not identified" row, which is what they are; the dashboard’s totals are unchanged at 24,777 tested and 19,601 scored.',
-      'The score is anchored on KKU’s own pass mark rather than on the spread of this year’s results: 50 means the average student just passes, 100 means an average of 90 or better. That makes the number readable instead of an arbitrary index, and it does not move one programme’s score when a different programme’s data changes.',
-      'What moved: 81 programmes’ Outcomes scores changed, by a median of +3.2 points and at most +13.4; three fell slightly, where the programme’s other outcome measures already scored above its DQ result. Composite health scores moved by at most 2.7 points. Nothing else in the score changed — the five dimensions and their weights are the same.',
-      'The programme page gains a "Digital competency" section showing the programme’s result against the university, module by module, with the number of scored students beside it. It shows nothing at all for a graduate programme.',
-      'The gap analyzer gains a digital-competency attainment lens — how well students perform on skills they have been taught, alongside the existing view of which skills are taught at all. It changes no existing gap figure.',
-      'Worth stating plainly: 5 of the 13 DQ competencies have no counterpart in the skill taxonomy, which is built from curriculum documents rather than from the test. The lens shows those five as unmapped instead of implying the curriculum covers them.',
-      'The published methodology paper (Docs → Methodology, Thai and English) is reissued for health-score.v4.0 and now also records v3.9, the change that moved financial scoring onto the last complete academic year.',
-    ],
-  },
-  {
-    date: '2026-08-25',
-    version: 'v1.9.0 · Student DQ',
-    title:
-      'A new dashboard drills every undergraduate’s Digital Intelligence competency-test results from faculty down to programme, module by module — reporting the source’s own pass/fail verdict rather than substituting a rule of its own',
+      'A new dashboard drills every undergraduate’s Digital Intelligence competency-test results from faculty down to programme, and that result now counts towards the programme’s health score — anchored on the pass mark, so 50 means the average student just passes',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       'New "Student DQ" dashboard (Education → Student DQ): 24,777 students in the export, 19,601 of them carrying module scores. Faculty → programme drill-down across 13 theory modules and 4 workshops, pass mark 70 on every module, plus a module-by-module radar for any faculty or programme.',
@@ -55,6 +38,13 @@ const ENTRIES: ChangelogEntry[] = [
       'Figures are withheld for any faculty or programme with fewer than 5 scored students, so no individual’s result can be inferred from a small cell.',
       'The pass/fail flag shown is the test provider’s own, and it does not apply one consistent rule to module 13: 164 students who clear 70 on every module 1–12 but score below 70 on module 13 are marked failed, while 3,183 with the same profile are marked passed. The dashboard reports that verdict as given and states the discrepancy rather than recomputing its own pass/fail rule.',
       'No student names or ID numbers are stored — the source export carries them, but the connector aggregates in memory and only the aggregates are written to the database.',
+      'The DQ result now also contributes to program health, as one driver inside the Outcomes dimension. 81 bachelor programmes have enough DQ evidence to receive it; a programme with too little is left without the driver rather than scored zero, because having no evidence is not the same as scoring badly.',
+      'Graduate programmes are excluded from DQ everywhere. It is an undergraduate test: the 30 graduate programmes that appeared to have DQ data held 10 students between them — all undergraduates who sat the test and later enrolled in a master’s. Those students now appear under their faculty’s "Program not identified" row, which is what they are; the dashboard’s totals are unchanged.',
+      'The health contribution is anchored on KKU’s own pass mark rather than on the spread of this year’s results: 50 means the average student just passes, 100 means an average of 90 or better. That makes the number readable instead of an arbitrary index, and it does not move one programme’s score when a different programme’s data changes.',
+      'What moved: 81 programmes’ Outcomes scores changed, by a median of +3.2 points and at most +13.4; three fell slightly, where the programme’s other outcome measures already scored above its DQ result. Composite health scores moved by at most 2.7 points. Nothing else in the score changed — the five dimensions and their weights are the same.',
+      'The programme page gains a "Digital competency" section showing the programme’s result against the university, module by module, with the number of scored students beside it. It shows nothing at all for a graduate programme.',
+      'The gap analyzer gains a digital-competency attainment lens — how well students perform on skills they have been taught, alongside the existing view of which skills are taught at all. It changes no existing gap figure. Worth stating plainly: 5 of the 13 DQ competencies have no counterpart in the skill taxonomy, which is built from curriculum documents rather than from the test, and the lens shows those five as unmapped instead of implying the curriculum covers them.',
+      'The published methodology paper (Docs → Methodology, Thai and English) is reissued for health-score.v4.0 and now also records v3.9, the change that moved financial scoring onto the last complete academic year.',
     ],
   },
   {
