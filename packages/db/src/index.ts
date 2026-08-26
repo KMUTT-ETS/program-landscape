@@ -53,3 +53,4 @@ export * from './financial-year';
 export * from './teaching-talent';
 export * from './student-dq';
 export * from './aunqa-evidence';
+export * from './aunqa-readiness';

@@ -52,6 +52,7 @@ import { EducationModule } from './education/education.module';
 import { StaffDashboardModule } from './staff-dashboard/staff.module';
 import { RisksModule } from './risks/risks.module';
 import { TrendDocumentsModule } from './trend-documents/trend-documents.module';
+import { AunqaModule } from './aunqa/aunqa.module';
 
 import {
   AccessControlGuard,
@@ -119,6 +120,7 @@ import {
     StaffDashboardModule,
     RisksModule,
     TrendDocumentsModule,
+    AunqaModule,
   ],
   exports: [CacheService],
   controllers: [
