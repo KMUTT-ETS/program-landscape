@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   programCourseAggregate: vi.fn(),
   programFindUnique: vi.fn(),
   enrollmentFindFirst: vi.fn(),
+  enrollmentFindMany: vi.fn(),
   pedagogyFindUnique: vi.fn(),
   programSkills: vi.fn(),
   programCourses: vi.fn(),
@@ -28,7 +29,10 @@ vi.mock('../src/index', () => ({
     programSkill: { aggregate: mocks.programSkillAggregate },
     programCourse: { aggregate: mocks.programCourseAggregate },
     program: { findUnique: mocks.programFindUnique },
-    enrollmentMetric: { findFirst: mocks.enrollmentFindFirst },
+    enrollmentMetric: {
+      findFirst: mocks.enrollmentFindFirst,
+      findMany: mocks.enrollmentFindMany,
+    },
     programPedagogyAssessment: { findUnique: mocks.pedagogyFindUnique },
   },
 }));
@@ -51,6 +55,7 @@ import { allEvidenceBindings, type EvidenceBinding } from '@kku/shared';
 import {
   resolveEvidenceForProgram,
   type CohortProgressionValue,
+  type EnrollmentMetricValue,
   type EvaluationThemeValue,
   type StaffResearchValue,
 } from '../src/aunqa-evidence';
@@ -60,6 +65,7 @@ import {
 function everyBinding(): EvidenceBinding[] {
   const extras: EvidenceBinding[] = [
     { kind: 'graduate-outcome', field: 'furtherStudy' },
+    { kind: 'enrollment-metric', field: 'enrolled' },
     { kind: 'cohort-progression' },
   ];
   return [...allEvidenceBindings(), ...extras];
@@ -77,6 +83,7 @@ function emptyEverything(): void {
   });
   mocks.programFindUnique.mockResolvedValue({ totalCredits: null, durationYears: null });
   mocks.enrollmentFindFirst.mockResolvedValue(null);
+  mocks.enrollmentFindMany.mockResolvedValue([]);
   mocks.pedagogyFindUnique.mockResolvedValue(null);
   mocks.programSkills.mockResolvedValue({
     taught: [],
@@ -150,6 +157,11 @@ function fullEverything(): void {
     enrolled: 400,
     freshnessDate: new Date('2026-04-01'),
   });
+  mocks.enrollmentFindMany.mockResolvedValue([
+    { academicYear: 2026, enrolled: 81, dropouts: 0, freshnessDate: new Date('2026-08-23') },
+    { academicYear: 2025, enrolled: 80, dropouts: 8, freshnessDate: new Date('2026-08-23') },
+    { academicYear: 2024, enrolled: 100, dropouts: 1, freshnessDate: new Date('2026-08-23') },
+  ]);
   mocks.pedagogyFindUnique.mockResolvedValue({
     disciplineFitScore: 72,
     qaScore: 65,
@@ -299,6 +311,33 @@ describe('resolveEvidenceForProgram — a binding with data', () => {
     expect(mocks.programSkills).toHaveBeenCalledTimes(1);
   });
 
+  it('resolves dropouts with the cohort they came from, not a bare count', async () => {
+    const [row] = await resolveEvidenceForProgram('p-1', [
+      { kind: 'enrollment-metric', field: 'dropouts' },
+    ]);
+    expect(row?.available).toBe(true);
+    const value = row?.value as EnrollmentMetricValue;
+    // Anchored on the latest year with an intake, and the denominator
+    // travels with the numerator — a dropout count alone says nothing.
+    expect(value.academicYear).toBe(2026);
+    expect(value.value).toBe(0);
+    expect(value.enrolled).toBe(81);
+    expect(value.series.map((y) => y.academicYear)).toEqual([2024, 2025, 2026]);
+    expect(value.series[1]?.dropoutPct).toBeCloseTo(10);
+    // The most recent year is still accruing dropouts; the caveat says so
+    // rather than letting its 0 read as perfect retention.
+    expect(row?.caveat).toMatch(/accumulate/);
+  });
+
+  it('resolves the intake on its own without the dropout caveat', async () => {
+    const [row] = await resolveEvidenceForProgram('p-1', [
+      { kind: 'enrollment-metric', field: 'enrolled' },
+    ]);
+    expect(row?.available).toBe(true);
+    expect((row?.value as EnrollmentMetricValue).value).toBe(81);
+    expect(row?.caveat).toBeNull();
+  });
+
   it('treats a measured zero as evidence — a known roster with no publications', async () => {
     mocks.programFaculty.mockResolvedValue({
       totalActive: 12,
@@ -371,6 +410,81 @@ describe('resolveEvidenceForProgram — a binding with no data', () => {
     ]);
     expect(rows.map((r) => r.available)).toEqual([false, false]);
     expect(rows[0]?.caveat).toMatch(/peer-review\.v1/);
+  });
+});
+
+describe('resolveEvidenceForProgram — dropouts, where zero is a finding', () => {
+  beforeEach(fullEverything);
+
+  it('reports a cohort that lost nobody as available with a zero', async () => {
+    // 2,052 of the 4,641 enrolment rows say exactly this. Reporting it as
+    // unavailable would tell a QA officer we hold no retention data for a
+    // programme whose retention we measured as complete — the opposite
+    // finding.
+    mocks.enrollmentFindMany.mockResolvedValue([
+      { academicYear: 2025, enrolled: 6, dropouts: 0, freshnessDate: new Date('2026-08-23') },
+      { academicYear: 2024, enrolled: 6, dropouts: 0, freshnessDate: new Date('2026-08-23') },
+    ]);
+    const [row] = await resolveEvidenceForProgram('p-perfect', [
+      { kind: 'enrollment-metric', field: 'dropouts' },
+    ]);
+    expect(row?.available).toBe(true);
+    const value = row?.value as EnrollmentMetricValue;
+    expect(value.value).toBe(0);
+    expect(value.dropoutPct).toBe(0);
+    expect(value.enrolled).toBe(6);
+  });
+
+  it('reports a programme with no enrolment record as unavailable', async () => {
+    mocks.enrollmentFindMany.mockResolvedValue([]);
+    const [row] = await resolveEvidenceForProgram('p-none', [
+      { kind: 'enrollment-metric', field: 'dropouts' },
+    ]);
+    expect(row?.available).toBe(false);
+    expect(row?.value).toBeNull();
+  });
+
+  it('does not read a year with no intake as perfect retention', async () => {
+    // 81 rows carry enrolled = 0 alongside dropouts = 0. That is a year
+    // with no cohort, and a rate over a zero denominator is undefined —
+    // not 0%.
+    mocks.enrollmentFindMany.mockResolvedValue([
+      { academicYear: 2026, enrolled: 0, dropouts: 0, freshnessDate: new Date('2026-08-23') },
+      { academicYear: 2025, enrolled: 0, dropouts: 0, freshnessDate: new Date('2026-08-23') },
+    ]);
+    const [row] = await resolveEvidenceForProgram('p-nointake', [
+      { kind: 'enrollment-metric', field: 'dropouts' },
+    ]);
+    expect(row?.available).toBe(false);
+    expect(row?.caveat).toMatch(/no year on it records an intake/);
+  });
+
+  it('anchors past an empty final year to the last year with a cohort', async () => {
+    mocks.enrollmentFindMany.mockResolvedValue([
+      { academicYear: 2026, enrolled: 0, dropouts: 0, freshnessDate: new Date('2026-08-23') },
+      { academicYear: 2025, enrolled: 40, dropouts: 3, freshnessDate: new Date('2026-08-23') },
+    ]);
+    const [row] = await resolveEvidenceForProgram('p-gap', [
+      { kind: 'enrollment-metric', field: 'dropouts' },
+    ]);
+    const value = row?.value as EnrollmentMetricValue;
+    expect(row?.available).toBe(true);
+    expect(value.academicYear).toBe(2025);
+    expect(value.dropoutPct).toBeCloseTo(7.5);
+    expect(value.series).toHaveLength(1);
+  });
+
+  it('never surfaces a graduate count under this binding', async () => {
+    const [row] = await resolveEvidenceForProgram('p-1', [
+      { kind: 'enrollment-metric', field: 'dropouts' },
+    ]);
+    const keys = Object.keys(row?.value as object);
+    expect(keys.some((k) => /graduat/i.test(k))).toBe(false);
+    expect(row?.sourceLabel).not.toMatch(/graduat/i);
+    // The select list is the guard: graduatedOnTime holds TOTAL graduates
+    // despite its name, so it is never asked for.
+    const select = mocks.enrollmentFindMany.mock.calls[0]?.[0]?.select ?? {};
+    expect(Object.keys(select).some((k) => /graduat/i.test(k))).toBe(false);
   });
 });
 

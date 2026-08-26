@@ -35,12 +35,10 @@
  *    of completion lag and is labelled as exactly that, never as a measured
  *    time to graduate.
  *
- * Known gap, flagged rather than papered over: sub-criterion 8.1 is "pass
- * AND dropout rates", and its only binding is `class-gpa-distribution`,
- * which evidences the pass half only. `enrollment_metrics.dropouts` is the
- * honest source for the other half but has no binding kind; adding one is a
- * registry change, not a resolver change, and is left to whoever owns that
- * decision rather than smuggled in under an unrelated kind.
+ * Sub-criterion 8.1 asks for pass AND dropout rates. `class-gpa-distribution`
+ * evidences the pass half; `enrollment-metric` with field `dropouts` — a kind
+ * added for exactly this, rather than smuggled into an unrelated one —
+ * evidences the other. Neither reads any graduation column.
  */
 
 import type { EvidenceBinding } from '@kku/shared';
@@ -142,6 +140,31 @@ export interface ClassGpaDistributionValue {
   /** Courses per GPA band — the distribution, not just its centre. */
   bands: Array<{ band: string; lo: number; hi: number; courses: number }>;
   yearsObserved: number[];
+}
+
+export interface EnrollmentYear {
+  academicYear: number;
+  enrolled: number;
+  dropouts: number;
+  /** Dropouts as a share of that year's intake. */
+  dropoutPct: number;
+}
+
+export interface EnrollmentMetricValue {
+  field: 'dropouts' | 'enrolled';
+  /** The headline figure for the anchor year — a dropout count or an
+   *  intake count. Zero is a measurement here, not an absence. */
+  value: number;
+  /** Latest year on record that recorded an intake. */
+  academicYear: number;
+  /** Both halves of the ratio, always: a dropout count without the
+   *  cohort it came from says nothing. */
+  enrolled: number;
+  dropouts: number;
+  dropoutPct: number;
+  /** Up to five years, oldest first. The series is what makes an
+   *  in-progress final year visible as the artefact it is. */
+  series: EnrollmentYear[];
 }
 
 export interface StaffRatioValue {
@@ -573,6 +596,85 @@ async function resolveClassGpaDistribution(programId: string): Promise<ResolverO
   };
 }
 
+/** How many years of the enrolment record the value carries. Five spans a
+ *  bachelor cohort's life, which is what makes a rising dropout trend
+ *  legible rather than a single year's noise. */
+const ENROLMENT_SERIES_YEARS = 5;
+
+/**
+ * Retention from the registrar's enrolment record.
+ *
+ * Availability turns on whether a year with an intake exists, NOT on
+ * whether anyone dropped out. `dropouts = 0` against a real cohort is a
+ * measurement — 2,052 of the 4,641 rows say exactly that — and reporting it
+ * as unavailable would tell a QA officer we hold no retention data for a
+ * programme whose retention we have in fact measured as complete. "Nobody
+ * dropped out" and "we have no retention data" are opposite findings.
+ *
+ * Anchored on the latest year that recorded an intake: 81 rows carry
+ * `enrolled = 0` alongside `dropouts = 0`, which is a year with no cohort
+ * rather than a year with perfect retention, and a rate over a zero
+ * denominator is undefined, not 0%.
+ *
+ * Reads `enrolled` and `dropouts` only. `graduated_on_time` holds TOTAL
+ * graduates despite its name and `graduated_late` is empty on every row, so
+ * no completion figure is derived here under any label.
+ */
+async function resolveEnrollmentMetric(
+  programId: string,
+  field: 'dropouts' | 'enrolled',
+): Promise<ResolverOutput> {
+  const sourceLabel = 'Registrar enrolment record (enrollment_metrics)';
+  const rows = await prisma.enrollmentMetric.findMany({
+    where: { programId },
+    orderBy: { academicYear: 'desc' },
+    take: ENROLMENT_SERIES_YEARS,
+    select: {
+      academicYear: true,
+      enrolled: true,
+      dropouts: true,
+      freshnessDate: true,
+    },
+  });
+  if (rows.length === 0) return { ...UNAVAILABLE, sourceLabel, caveat: null };
+  const withIntake = rows.filter((r) => r.enrolled > 0);
+  const anchor = withIntake[0];
+  if (!anchor) {
+    return {
+      ...UNAVAILABLE,
+      sourceLabel,
+      caveat: 'The enrolment record exists but no year on it records an intake.',
+    };
+  }
+  const series: EnrollmentYear[] = withIntake
+    .map((r) => ({
+      academicYear: r.academicYear,
+      enrolled: r.enrolled,
+      dropouts: r.dropouts,
+      dropoutPct: (r.dropouts / r.enrolled) * 100,
+    }))
+    .sort((a, b) => a.academicYear - b.academicYear);
+  const value: EnrollmentMetricValue = {
+    field,
+    value: field === 'dropouts' ? anchor.dropouts : anchor.enrolled,
+    academicYear: anchor.academicYear,
+    enrolled: anchor.enrolled,
+    dropouts: anchor.dropouts,
+    dropoutPct: (anchor.dropouts / anchor.enrolled) * 100,
+    series,
+  };
+  return {
+    available: true,
+    value,
+    sourceLabel,
+    freshness: anchor.freshnessDate ?? null,
+    caveat:
+      field === 'dropouts'
+        ? 'Dropouts accumulate over a cohort\'s life, so the most recent year understates them; read the series, not the last figure alone.'
+        : null,
+  };
+}
+
 async function resolveStaffRatio(programId: string): Promise<ResolverOutput> {
   const sourceLabel = 'Staff roster (faculty_members) × latest enrolment (enrollment_metrics)';
   const [roster, enrolment] = await Promise.all([
@@ -836,6 +938,7 @@ function bindingKey(binding: EvidenceBinding): string {
   if (binding.kind === 'evaluation-theme') return `evaluation-theme:${binding.theme}`;
   if (
     binding.kind === 'graduate-outcome' ||
+    binding.kind === 'enrollment-metric' ||
     binding.kind === 'staff-metric' ||
     binding.kind === 'curriculum' ||
     binding.kind === 'pedagogy-assessment' ||
@@ -858,6 +961,8 @@ function dispatch(programId: string, binding: EvidenceBinding): Promise<Resolver
       return resolveGraduateOutcome(programId, binding.field);
     case 'class-gpa-distribution':
       return resolveClassGpaDistribution(programId);
+    case 'enrollment-metric':
+      return resolveEnrollmentMetric(programId, binding.field);
     case 'cohort-progression':
       return resolveCohortProgression(programId);
     case 'staff-metric':

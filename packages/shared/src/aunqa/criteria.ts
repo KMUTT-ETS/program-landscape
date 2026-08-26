@@ -39,6 +39,15 @@ export type EvidenceBinding =
       field: 'employmentRate' | 'jobRelevance' | 'furtherStudy' | 'salary';
     }
   | { kind: 'class-gpa-distribution' }
+  /** Registrar enrolment record at programme scope. `dropouts` is the
+   *  measured retention half of sub-criterion 8.1; `enrolled` is the
+   *  cohort it is measured against — the dropout value carries it
+   *  inline, so `enrolled` is bound by nothing today and exists for
+   *  sub-criteria that may need the intake on its own.
+   *  Deliberately NOT extended to graduation: `graduated_late` is 0 on
+   *  all 4,641 rows and `graduated_on_time` holds TOTAL graduates
+   *  despite its name, so no on-time completion figure is derivable. */
+  | { kind: 'enrollment-metric'; field: 'dropouts' | 'enrolled' }
   /** Where a cohort has piled up by year in programme. Indicative of
    *  completion lag — NOT a measured time to graduate, which the
    *  platform does not hold: `enrollment_metrics.graduated_late` is 0
@@ -249,7 +258,14 @@ export const AUNQA_CRITERIA: readonly AunqaCriterion[] = [
       {
         id: '8.1',
         title: 'Pass and dropout rates',
-        evidence: [{ kind: 'class-gpa-distribution' }],
+        // Two halves, two bindings: class GPA evidences the pass half,
+        // `enrollment_metrics.dropouts` the dropout half. Binding only
+        // the first would have shown 8.1 as evidenced while half of what
+        // it asks for went unreported.
+        evidence: [
+          { kind: 'class-gpa-distribution' },
+          { kind: 'enrollment-metric', field: 'dropouts' },
+        ],
       },
       {
         id: '8.2',
