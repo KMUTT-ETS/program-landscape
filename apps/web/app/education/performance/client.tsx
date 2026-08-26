@@ -844,14 +844,17 @@ function EntryScoreTable({ data }: { data: EntryScoreResponse }) {
       return n;
     });
 
-  const valueOf = (
-    r: { studentCount: number; cells: Record<string, number> },
-  ): number | null => {
-    if (sort?.key === 'studentCount') return r.studentCount;
-    if (!sort) return null;
-    const v = r.cells[sort.key];
-    return v === undefined ? null : v;
-  };
+  // Memoised on `sort` — its only free variable — so the sort memo below
+  // can depend on it honestly instead of suppressing the dependency check.
+  const valueOf = React.useCallback(
+    (r: { studentCount: number; cells: Record<string, number> }): number | null => {
+      if (sort?.key === 'studentCount') return r.studentCount;
+      if (!sort) return null;
+      const v = r.cells[sort.key];
+      return v === undefined ? null : v;
+    },
+    [sort],
+  );
 
   const sortedRows = React.useMemo(() => {
     if (!sort) return data.rows;
@@ -863,8 +866,7 @@ function EntryScoreTable({ data }: { data: EntryScoreResponse }) {
         ),
       }))
       .sort((a, b) => sortNullable(valueOf(a), valueOf(b), sort.dir));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.rows, sort]);
+  }, [data.rows, sort, valueOf]);
   return (
     <div className="overflow-x-auto rounded-md border border-border-subtle">
       <table className="w-full text-sm">

@@ -82,6 +82,14 @@ export function ClassGpaSection({ overall, trend, byProgram: initialByProgram, f
   const [tableLoading, setTableLoading] = React.useState(false);
   const palette = useChartPalette();
 
+  // Every fetch below is keyed on the *contents* of these two arrays, not
+  // their identity — the parent hands `facultyNameFilter` a fresh array on
+  // each render, so depending on the array would refetch on every render.
+  // Naming the joined keys here keeps the dependency arrays statically
+  // checkable (an inline `.join(',')` is opaque to react-hooks).
+  const semesterKey = selectedSemesters.join(',');
+  const facultyKey = facultyNameFilter.join(',');
+
   // Refetch whenever filter changes. Skip the initial render where state
   // matches the SSR payload — main-terms filter (1+2) doesn't match the
   // server's no-semester-filter default, so we trigger immediately.
@@ -105,8 +113,11 @@ export function ClassGpaSection({ overall, trend, byProgram: initialByProgram, f
       })
       .finally(() => setTableLoading(false));
     return () => ctrl.abort();
+    // The arrays and `initialByProgram` are read but deliberately not
+    // depended on: this must fire on filter *content* change only. Adding
+    // them would refetch on every parent render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSemesters.join(','), facultyNameFilter.join(',')]);
+  }, [semesterKey, facultyKey]);
 
   const chartData = React.useMemo(
     () =>
@@ -367,6 +378,10 @@ function PivotTable({
   yearsObserved: number[];
   selectedSemesters: number[];
 }) {
+  // Course fetches below re-run on the semester *contents*, not the array
+  // identity — same reasoning as in ClassGpaSection.
+  const semesterKey = selectedSemesters.join(',');
+
   // Faculty → Program Level → Program rollup. Merge per-year cells at
   // each tier using credit-weighted averaging (approximated via
   // gradedCount at the client side; the back-end has the exact value).
@@ -502,18 +517,18 @@ function PivotTable({
           });
         });
     },
-    // Re-create when the semester set changes so the closure captures
-    // the new value. eslint-disable for the .join() pattern — depending
-    // on the array itself would re-create on every render.
+    // Re-create when the semester set changes so the closure captures the
+    // new value. Keyed on `semesterKey` rather than `selectedSemesters`:
+    // depending on the array would re-create this callback on every
+    // render, which in turn re-fires the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedSemesters.join(',')],
+    [semesterKey],
   );
 
   // Refetch any currently-open programs whenever the semester filter
   // changes. Effect runs only on the filter change — adding openPrograms
   // to the deps would re-fire whenever the user opens a new row,
   // duplicating the toggle-handler's own fetch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (openPrograms.size === 0) {
       // No open rows — just wipe the now-stale cache so the next
@@ -524,8 +539,9 @@ function PivotTable({
     for (const programId of openPrograms) {
       fetchCoursesForProgram(programId);
     }
+    // `openPrograms` is read but not depended on — see the note above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSemesters.join(','), fetchCoursesForProgram]);
+  }, [semesterKey, fetchCoursesForProgram]);
 
   const toggleFaculty = (fname: string) => {
     setOpenFaculties((prev) => {

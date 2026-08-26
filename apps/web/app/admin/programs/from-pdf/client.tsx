@@ -369,6 +369,11 @@ function FillStep({
         prev.facultyId || (matchFacultyId(payload.facultyNameTh, faculties) ?? ''),
       level: payload.level ?? prev.level,
     }));
+    // Deliberately keyed on the extraction id alone. `seededIdRef` already
+    // enforces "seed once per extraction", and `payload` is a fresh object
+    // literal on every render (`extraction?.payloadJson ?? {}`) — putting it
+    // or `faculties` in the deps would re-run this on every render for no
+    // gain. `setForm`'s updater reads `prev`, so nothing here goes stale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extraction?.id]);
 
