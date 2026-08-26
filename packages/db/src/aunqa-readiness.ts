@@ -210,18 +210,27 @@ export async function aunqaReadinessForProgram(
 // page. The programme page, which resolves properly, is the authority
 // whenever the two disagree.
 //
+// WHAT ENFORCES THAT: `packages/db/test/aunqa-overview-mirror.test.ts`
+// resolves a fixed sample of real programmes down BOTH paths and fails,
+// naming the binding kind, when a mirror is missing or drifts from its
+// resolver. It needs a live database. If you have just added a binding
+// kind, that test is the one that will tell you the overview does not
+// know about it yet.
+//
 // Why not just call the resolvers per programme: measured 487 ms per
 // programme at concurrency 8, i.e. ~147 s for the university-wide
 // caller's 301 programmes. Completeness needs no values, so it does not
 // pay for them.
 // ──────────────────────────────────────────────────────────────────────
 
-type AvailabilityKey = string;
+/** One binding's identity for availability purposes: same kind and same
+ *  field/theme means the same question. */
+export type AvailabilityKey = string;
 
 /** Mirrors `bindingKey` in `aunqa-evidence.ts`. Local because that one is
  *  private, and because a kind this file has no mirror for must still get
  *  a key rather than throw. */
-function availabilityKey(binding: EvidenceBinding): AvailabilityKey {
+export function aunqaAvailabilityKey(binding: EvidenceBinding): AvailabilityKey {
   switch (binding.kind) {
     case 'evaluation-theme':
       return `evaluation-theme:${binding.theme}`;
@@ -267,7 +276,7 @@ function num(value: unknown): number | null {
  * document. Only programme ids ride as parameters; the rest are module
  * constants.
  */
-async function availabilityByProgram(
+export async function aunqaOverviewAvailability(
   programIds: string[],
 ): Promise<Map<string, Set<AvailabilityKey>>> {
   const available = new Map<string, Set<AvailabilityKey>>();
@@ -612,11 +621,11 @@ async function availabilityByProgram(
 export async function aunqaCompletenessForPrograms(
   programIds: string[],
 ): Promise<ProgramAunqaCompleteness[]> {
-  const availability = await availabilityByProgram(programIds);
+  const availability = await aunqaOverviewAvailability(programIds);
   return programIds.map((programId) => {
     const keys = availability.get(programId) ?? new Set<AvailabilityKey>();
     const criteria = AUNQA_CRITERIA.map((criterion) =>
-      criterionCompletenessFrom(criterion, (binding) => keys.has(availabilityKey(binding))),
+      criterionCompletenessFrom(criterion, (binding) => keys.has(aunqaAvailabilityKey(binding))),
     );
     return { programId, criteria, ...rollUp(criteria) };
   });
