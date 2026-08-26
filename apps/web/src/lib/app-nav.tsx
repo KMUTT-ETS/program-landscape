@@ -89,12 +89,6 @@ const dashboardItemsFacultyAware = [
     icon: createElement(Users),
     moduleKey: 'neutral' as const,
   },
-  {
-    href: '/teaching-learning',
-    label: 'Teaching & Learning',
-    icon: createElement(ClipboardCheck),
-    moduleKey: 'neutral' as const,
-  },
 ];
 
 function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
@@ -111,22 +105,39 @@ function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
   };
 }
 
-const analysisSection: NavSection = {
-  label: 'Analysis',
-  items: [
-    { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), moduleKey: 'programs' },
-    { href: '/risks', label: 'Risk Management', icon: createElement(ShieldAlert), moduleKey: 'neutral' },
-    { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles), moduleKey: 'trends' },
-    { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
-    { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
-    { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
-    { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
-    // /analyst/dashboards is still mounted (used by the FAB's "Open full
-    // view" deep-link for conversation history), but no longer surfaces
-    // as a top-level menu entry — the floating chat widget on every
-    // authenticated page is the primary entry point.
-  ],
+// Teaching & Learning is a deep analytical surface (AUN-QA criteria per
+// programme), not a raw dashboard — so it lives here rather than under
+// Dashboards. It stays behind canSeeProgramAwareDashboards() because the
+// page itself guards with assertCanSeeFacultyDashboards; showing it to a
+// role that can't open it would just route them to an error page.
+const teachingLearningItem = {
+  href: '/teaching-learning',
+  label: 'Teaching & Learning',
+  icon: createElement(ClipboardCheck),
+  moduleKey: 'neutral' as const,
 };
+
+function analysisSectionFor(user: SessionUser | undefined): NavSection {
+  // Same effectiveRole-over-role resolution as dashboardsSectionFor().
+  const role = user?.effectiveRole ?? user?.role;
+  return {
+    label: 'Analysis',
+    items: [
+      { href: '/programs', label: 'Program Deep-Dive', icon: createElement(Building2), moduleKey: 'programs' },
+      ...(canSeeProgramAwareDashboards(role) ? [teachingLearningItem] : []),
+      { href: '/risks', label: 'Risk Management', icon: createElement(ShieldAlert), moduleKey: 'neutral' },
+      { href: '/trends', label: 'Trends Radar', icon: createElement(Sparkles), moduleKey: 'trends' },
+      { href: '/gap-analysis', label: 'Gap Analyzer', icon: createElement(SplitSquareVertical), moduleKey: 'gap' },
+      { href: '/benchmarking', label: 'Benchmarking', icon: createElement(LineChart), moduleKey: 'benchmarking' },
+      { href: '/scenarios', label: 'Scenario Planner', icon: createElement(GitCompare), moduleKey: 'scenarios' },
+      { href: '/analyst', label: 'AI Analyst', icon: createElement(Microscope), moduleKey: 'analyst' },
+      // /analyst/dashboards is still mounted (used by the FAB's "Open full
+      // view" deep-link for conversation history), but no longer surfaces
+      // as a top-level menu entry — the floating chat widget on every
+      // authenticated page is the primary entry point.
+    ],
+  };
+}
 
 // Admin — single sidebar entry pointing at /admin. The landing page
 // expands into three groups (Programs / External data / Application)
@@ -171,7 +182,7 @@ export function appNavSectionsFor(user: SessionUser | undefined): NavSection[] {
   const sections: NavSection[] = [
     homeSection,
     dashboardsSectionFor(user),
-    analysisSection,
+    analysisSectionFor(user),
   ];
   if (isAdminGrade(user?.role)) {
     sections.push(adminSection);
