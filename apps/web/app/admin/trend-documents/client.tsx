@@ -263,7 +263,13 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                 placeholder="https://example.com/manpower-report"
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitUrl()}
-                className="w-full rounded-md border border-border-default bg-surface-1 py-2 pl-9 pr-3 text-sm text-text-primary outline-none transition-colors focus:border-accent-default"
+                // pl-16 = 32px on this project's half-scale spacing
+                // (see filter-rail.tsx FilterSearch for the arithmetic):
+                // the icon's right edge is at left-3 (6px) + 16px = 22px,
+                // so the text starts 10px clear of it. The previous pl-9
+                // emitted no CSS at all — 9 is not a step on this scale —
+                // leaving the text at zero inset under the icon.
+                className="w-full rounded-md border border-border-default bg-surface-1 py-2 pl-16 pr-3 text-sm text-text-primary outline-none transition-colors focus:border-accent-default"
               />
             </div>
             <Button variant="primary" disabled={busy || !url.trim()} onClick={submitUrl}>

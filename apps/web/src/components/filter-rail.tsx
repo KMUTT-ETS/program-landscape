@@ -154,11 +154,21 @@ export type FilterSearchProps =
 
 export function FilterSearch(props: FilterSearchProps) {
   const isControlled = 'value' in props;
-  // Icon centred vertically (top-1/2 + -translate-y-1/2) at the same
-  // 12px left inset as Input's px-3. pl-10 leaves 16px of breathing
-  // room between icon (right edge at 28px) and the text caret — safe
-  // for Thai glyphs with side-bearings and for placeholder italics
-  // that would otherwise touch the icon.
+  // Arithmetic below is on THIS project's spacing scale, which is half
+  // of Tailwind's default (packages/design/src/tokens/spacing.ts):
+  // `3` = 6px, `10` = 20px, `16` = 32px. Icon sizes come from the
+  // separate `size-icon-*` scale, so `size-icon-md` is a true 16px.
+  //
+  // Icon: left-3 = 6px inset — the same inset as the Input's own
+  // px-3 text padding — centred vertically via top-1/2 plus
+  // -translate-y-1/2. Its right edge therefore lands at 6 + 16 = 22px.
+  // Input: pl-16 = 32px, leaving 10px of clearance between the icon
+  // and the text caret — enough for Thai glyph side-bearings and for
+  // placeholder italics that would otherwise lean into the icon.
+  //
+  // The previous pl-10 was 20px on this scale, i.e. the caret started
+  // 2px INSIDE the icon. It only ever looked correct while icons were
+  // rendering at half size (8px) off the spacing scale.
   return (
     <div className="relative">
       <Search
@@ -172,7 +182,7 @@ export function FilterSearch(props: FilterSearchProps) {
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           placeholder={props.placeholder}
-          className="pl-10"
+          className="pl-16"
         />
       ) : (
         <Input
@@ -180,7 +190,7 @@ export function FilterSearch(props: FilterSearchProps) {
           name={props.name}
           defaultValue={props.defaultValue}
           placeholder={props.placeholder}
-          className="pl-10"
+          className="pl-16"
         />
       )}
     </div>

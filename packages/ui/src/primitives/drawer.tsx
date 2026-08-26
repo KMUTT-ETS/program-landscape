@@ -48,7 +48,11 @@ export const DrawerContent = React.forwardRef<
         {children}
         <DialogPrimitive.Close
           aria-label="Close"
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-text-tertiary ring-1 ring-inset ring-transparent transition-[background-color,color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
+          // h-12 w-12 is 24x24px on this project's half-scale spacing —
+          // the WCAG 2.5.8 (AA) minimum target size. This is a button hit
+          // area, not an icon, so it stays on the spacing scale; only the
+          // <X> inside it uses size-icon-*.
+          className="absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-full text-text-tertiary ring-1 ring-inset ring-transparent transition-[background-color,color,box-shadow,ring-color] duration-fast hover:bg-accent-subtle hover:text-accent-default hover:ring-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default/40"
         >
           <X className="size-icon-md" aria-hidden />
         </DialogPrimitive.Close>

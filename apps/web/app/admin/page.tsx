@@ -282,15 +282,28 @@ function Tile({ tile }: { tile: ConsoleTile }) {
           </div>
 
           <div className="min-w-0 flex-1">
+            {/* The count chip and the hover arrow both belong to the
+                tile's top-right. They used to compete for it — the arrow
+                was absolutely positioned at the card corner and, once
+                icons rendered at their true 16px, its box ran over the
+                chip's digits. Rendering both in the same flex cluster
+                makes the collision structurally impossible at any card
+                width or chip length. */}
             <div className="flex items-center justify-between gap-2">
               <div className="text-[15px] font-medium text-text-primary">
                 {tile.label}
               </div>
-              {tile.badge && (
-                <Badge tone={tile.badge.tone ?? 'neutral'} className="tabular-nums">
-                  {tile.badge.label}
-                </Badge>
-              )}
+              <div className="flex flex-shrink-0 items-center gap-2">
+                {tile.badge && (
+                  <Badge tone={tile.badge.tone ?? 'neutral'} className="tabular-nums">
+                    {tile.badge.label}
+                  </Badge>
+                )}
+                <ArrowUpRight
+                  className="size-icon-md text-text-tertiary opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-accent-default"
+                  aria-hidden
+                />
+              </div>
             </div>
             <div className="mt-1.5 text-[12.5px] leading-relaxed text-text-tertiary line-clamp-3">
               {tile.description}
@@ -302,10 +315,6 @@ function Tile({ tile }: { tile: ConsoleTile }) {
             )}
           </div>
 
-          <ArrowUpRight
-            className="absolute right-3 top-3 size-icon-md text-text-tertiary opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-accent-default"
-            aria-hidden
-          />
         </div>
       </Card>
     </Link>
