@@ -26,6 +26,21 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-08-26',
+    version: 'v1.8.2 · Teaching & Learning analysis (AUN-QA)',
+    title:
+      'A new Teaching & Learning section organises what the platform already knows about each programme along the AUN-QA v4 criteria — reporting how much evidence is on file, not a quality rating — with an on-demand AI draft of each criterion’s self-assessment paragraph',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New "Teaching & Learning" section: a faculty readiness overview and a per-programme analysis, both organised along the AUN-QA v4 accreditation criteria.',
+      'The platform reports evidence completeness, never a quality rating — for example "14 of 21 sub-criteria evidenced". It does not award an AUN-QA 1–7 score; that judgement belongs to accreditation assessors. "No evidence yet" means the platform cannot yet show that programme’s evidence for a sub-criterion, not that the programme teaches badly.',
+      'Six of the eight AUN-QA criteria have data behind them today. Criteria 6 (Student Support Services) and 7 (Facilities & Infrastructure) have none, and are named on the page rather than hidden, so a reader is not misled that six criteria are all there are.',
+      'On demand, an AI drafts a short self-assessment paragraph for a chosen criterion from the evidence actually on file. It is labelled a draft to edit, not a submission, and it states plainly what it could not evidence rather than padding the paragraph with generic curriculum language.',
+      'Across all 301 programmes at university scope: 273 are well-evidenced, 28 partly evidenced, none with no evidence at all.',
+      'The Teaching and Learning Approach criterion (3), which had evidence for only a handful of programmes, is being restored: a schema bug had rejected the short method-name acronyms real disciplines use — PBL, OSCE, EBM — which had excluded most medical and science programmes from that assessment. Re-running it with the bug fixed had reached 134 programmes at time of writing, and a bulk run in progress is still adding more.',
+    ],
+  },
+  {
     date: '2026-08-25',
     version: 'v1.8.1 · Student DQ, and digital competency in program health',
     title:
