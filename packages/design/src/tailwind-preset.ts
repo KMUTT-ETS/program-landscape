@@ -2,6 +2,7 @@ import type { Config } from 'tailwindcss';
 import { colorTokens } from './tokens/colors';
 import { fontFamily, fontSize } from './tokens/typography';
 import { spacing } from './tokens/spacing';
+import { iconSize } from './tokens/icon';
 import { radius } from './tokens/radius';
 import { shadow } from './tokens/shadow';
 
@@ -136,6 +137,17 @@ const preset: Partial<Config> = {
     fontSize,
     boxShadow: shadow,
     extend: {
+      // `theme.size` defaults to `theme.spacing`, so this MUST extend —
+      // replacing it would delete every existing `size-*` utility.
+      // Emits `size-icon-xs` … `size-icon-xl` (width + height in one
+      // class). See tokens/icon.ts for why icons don't use `spacing`.
+      size: {
+        'icon-xs': iconSize.xs,
+        'icon-sm': iconSize.sm,
+        'icon-md': iconSize.md,
+        'icon-lg': iconSize.lg,
+        'icon-xl': iconSize.xl,
+      },
       transitionDuration: {
         fast: '100ms',
         base: '150ms',
