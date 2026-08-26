@@ -39,6 +39,14 @@ export type EvidenceBinding =
       field: 'employmentRate' | 'jobRelevance' | 'furtherStudy' | 'salary';
     }
   | { kind: 'class-gpa-distribution' }
+  /** Where a cohort has piled up by year in programme. Indicative of
+   *  completion lag — NOT a measured time to graduate, which the
+   *  platform does not hold: `enrollment_metrics.graduated_late` is 0
+   *  on all 4,641 rows because the registrar connector's on-time/late
+   *  split was deferred, leaving `graduated_on_time` holding TOTAL
+   *  graduates under a name that says otherwise. Any surface rendering
+   *  this binding must carry that distinction in its label. */
+  | { kind: 'cohort-progression' }
   | {
       kind: 'staff-metric';
       field: 'studentFacultyRatio' | 'rankMix' | 'workload' | 'research';
@@ -246,13 +254,17 @@ export const AUNQA_CRITERIA: readonly AunqaCriterion[] = [
       {
         id: '8.2',
         title: 'Time to graduate',
-        // Bound to the progression record rather than to a direct
-        // time-to-graduate series, which the platform does not hold as
-        // its own metric. Cohort progression exists in the data but the
-        // binding vocabulary has no kind for it; if one is added later,
-        // rebind this sub-criterion rather than reading more into GPA
-        // distributions than they say.
-        evidence: [{ kind: 'class-gpa-distribution' }],
+        // NOT a measured time to graduate — the platform holds none.
+        // `enrollment_metrics.graduated_late` is 0 across all 4,641 rows
+        // (the registrar connector's on-time/late split was deferred, so
+        // `graduated_on_time` in fact holds TOTAL graduates), so no
+        // on-time completion figure exists anywhere to bind to.
+        // `student_cohort_distributions` carries year in programme,
+        // which shows where a cohort has piled up: genuinely indicative
+        // of completion lag, and the honest evidence for 8.2. The
+        // resolver labels it as such; that label is the guard against
+        // reading it as a completion time.
+        evidence: [{ kind: 'cohort-progression' }],
       },
       {
         id: '8.3',

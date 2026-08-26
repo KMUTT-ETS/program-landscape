@@ -40,8 +40,8 @@ describe('AUNQA_CRITERIA', () => {
   it('uses only binding kinds a resolver exists for', () => {
     const known = new Set([
       'evaluation-theme', 'dq-module-profile', 'dq-program-score', 'graduate-outcome',
-      'class-gpa-distribution', 'staff-metric', 'curriculum', 'pedagogy-assessment',
-      'peer-review',
+      'class-gpa-distribution', 'cohort-progression', 'staff-metric', 'curriculum',
+      'pedagogy-assessment', 'peer-review',
     ]);
     for (const b of allEvidenceBindings()) expect(known.has(b.kind)).toBe(true);
   });
