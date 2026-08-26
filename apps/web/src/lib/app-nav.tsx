@@ -28,6 +28,7 @@ function canSeeProgramAwareDashboards(role: string | undefined | null): boolean 
 import {
   BookOpen,
   Building2,
+  ClipboardCheck,
   GitCompare,
   GraduationCap,
   History,
@@ -86,6 +87,12 @@ const dashboardItemsFacultyAware = [
     href: '/staff',
     label: 'Staff',
     icon: createElement(Users),
+    moduleKey: 'neutral' as const,
+  },
+  {
+    href: '/teaching-learning',
+    label: 'Teaching & Learning',
+    icon: createElement(ClipboardCheck),
     moduleKey: 'neutral' as const,
   },
 ];
