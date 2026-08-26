@@ -27,9 +27,9 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-08-26',
-    version: 'v1.8.2 · Teaching & Learning analysis (AUN-QA)',
+    version: 'v1.8.2 · Teaching & Learning analysis (AUN-QA), and a display-wide sizing fix',
     title:
-      'A new Teaching & Learning section organises what the platform already knows about each programme along the AUN-QA v4 criteria — reporting how much evidence is on file, not a quality rating — with an on-demand AI draft of each criterion’s self-assessment paragraph',
+      'A new Teaching & Learning section organises what the platform already knows about each programme along the AUN-QA v4 criteria — reporting how much evidence is on file, not a quality rating — with an on-demand AI draft of each criterion’s self-assessment paragraph. Separately, icons and spacing across the whole platform now render at their intended size',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
       'New "Teaching & Learning" section: a faculty readiness overview and a per-programme analysis, both organised along the AUN-QA v4 accreditation criteria.',
@@ -37,7 +37,12 @@ const ENTRIES: ChangelogEntry[] = [
       'Six of the eight AUN-QA criteria have data behind them today. Criteria 6 (Student Support Services) and 7 (Facilities & Infrastructure) have none, and are named on the page rather than hidden, so a reader is not misled that six criteria are all there are.',
       'On demand, an AI drafts a short self-assessment paragraph for a chosen criterion from the evidence actually on file. It is labelled a draft to edit, not a submission, and it states plainly what it could not evidence rather than padding the paragraph with generic curriculum language.',
       'Across all 301 programmes at university scope: 273 are well-evidenced, 28 partly evidenced, none with no evidence at all.',
-      'The Teaching and Learning Approach criterion (3), which had evidence for only a handful of programmes, is being restored: a schema bug had rejected the short method-name acronyms real disciplines use — PBL, OSCE, EBM — which had excluded most medical and science programmes from that assessment. Re-running it with the bug fixed had reached 134 programmes at time of writing, and a bulk run in progress is still adding more.',
+      'The Teaching and Learning Approach criterion (3), which had evidence for only 13 programmes, is restored: a schema bug had rejected the short method-name acronyms real disciplines use — PBL, OSCE, EBM — which had excluded most medical and science programmes from that assessment. With the bug fixed, the assessment now covers 277 programmes. Three programmes failed on a transient upstream error and will be picked up on the next run.',
+      'Teaching & Learning sits under Analysis in the menu, beside Program Deep-Dive, rather than under Dashboards — it is an analytical surface rather than a dashboard.',
+      'Icons across the whole platform now render at the size they were designed for. A gap in the design system meant the shared sizing scale was half its intended values, so most icons had been drawing at half size — a 16-pixel icon at 8 — while one common size drew at 24 because its rule was missing entirely and browsers fell back to the image’s own dimensions. 433 icons are corrected.',
+      'The same gap left several spacing values producing no effect at all, which is why small labelled tags sat flush against one another with no padding or separation. Those now space correctly everywhere they appear, and two places whose layout had been tuned around the old half-size icons — the search boxes and an admin tile — are corrected to match.',
+      'Six chart surfaces (risk views, class-GPA distributions, the international and Thailand maps, and the style guide) had colours written as fixed values rather than theme colours, so they rendered identically in dark mode. They now follow the theme. Two related display faults surfaced and were fixed in the process: severity count chips on the risk-indicators page had been drawing with no background or border at all, and both maps were passing colour in a way the browser ignored.',
+      'Close buttons on dialogs and side panels are enlarged to meet the 24-pixel minimum target size in the accessibility guidelines.',
     ],
   },
   {
