@@ -53,7 +53,7 @@ export function AlertColumn({ tone, alerts, title, emptyHint }: Props) {
                   className={`group flex items-start gap-3 rounded-lg border border-border-subtle bg-surface-1 p-3 ring-1 ring-transparent transition hover:${ring} hover:bg-surface-2`}
                 >
                   <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${dotBg}`}>
-                    <Icon className={`h-4 w-4 ${accent}`} aria-hidden />
+                    <Icon className={`size-icon-md ${accent}`} aria-hidden />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <p className="truncate text-sm font-medium text-text-primary group-hover:text-accent-default">

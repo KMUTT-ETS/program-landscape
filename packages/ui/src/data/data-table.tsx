@@ -96,11 +96,11 @@ export function DataTable<T>({
                   const sortDir = header.column.getIsSorted();
                   const sortIcon =
                     sortDir === 'asc' ? (
-                      <ArrowUp className="h-3 w-3 text-accent-default" aria-hidden />
+                      <ArrowUp className="size-icon-xs text-accent-default" aria-hidden />
                     ) : sortDir === 'desc' ? (
-                      <ArrowDown className="h-3 w-3 text-accent-default" aria-hidden />
+                      <ArrowDown className="size-icon-xs text-accent-default" aria-hidden />
                     ) : (
-                      <ArrowUpDown className="h-3 w-3 opacity-60" aria-hidden />
+                      <ArrowUpDown className="size-icon-xs opacity-60" aria-hidden />
                     );
                   return (
                     <th
@@ -212,7 +212,7 @@ export function DataTable<T>({
                   {showDrillCol && (
                     <td className="w-8 px-1 align-middle">
                       <ChevronRight
-                        className="h-4 w-4 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100"
+                        className="size-icon-md text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100"
                         aria-hidden
                       />
                     </td>
@@ -251,7 +251,7 @@ function DataTablePagination<T>({ table }: { table: TableInstance<T> }) {
           disabled={!table.getCanPreviousPage()}
           aria-label="Previous page"
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden />
+          <ChevronLeft className="size-icon-md" aria-hidden />
         </Button>
         <Button
           variant="ghost"
@@ -260,7 +260,7 @@ function DataTablePagination<T>({ table }: { table: TableInstance<T> }) {
           disabled={!table.getCanNextPage()}
           aria-label="Next page"
         >
-          <ChevronRight className="h-4 w-4" aria-hidden />
+          <ChevronRight className="size-icon-md" aria-hidden />
         </Button>
       </div>
     </div>

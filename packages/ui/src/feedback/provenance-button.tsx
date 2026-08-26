@@ -30,7 +30,7 @@ export function ProvenanceButton({
   size = 'sm',
 }: ProvenanceButtonProps) {
   const prov = useProvenance();
-  const sizeClass = size === 'xs' ? 'h-3.5 w-3.5' : 'h-4 w-4';
+  const sizeClass = size === 'xs' ? 'size-icon-sm' : 'size-icon-md';
   return (
     <Tooltip>
       <TooltipTrigger asChild>

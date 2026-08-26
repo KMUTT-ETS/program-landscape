@@ -9,7 +9,7 @@ export function EducationBackLink() {
       href="/education"
       className="mb-2 inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary"
     >
-      <ArrowLeft className="h-3 w-3" />
+      <ArrowLeft className="size-icon-xs" />
       <span>Back to Education hub</span>
     </Link>
   );

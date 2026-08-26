@@ -90,7 +90,7 @@ export function ProvenanceDrawer() {
                           className="inline-flex items-center gap-1 text-xs text-accent-default hover:underline"
                         >
                           Open
-                          <ExternalLink className="h-3 w-3" aria-hidden />
+                          <ExternalLink className="size-icon-xs" aria-hidden />
                         </a>
                       )}
                     </li>

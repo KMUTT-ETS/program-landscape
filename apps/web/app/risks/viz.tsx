@@ -22,7 +22,7 @@ export function RisksBackNav({
         href="/risks"
         className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface-1 px-2 py-1 transition-colors hover:bg-surface-2 hover:text-text-primary"
       >
-        <ArrowLeft className="h-3 w-3" /> Risk Management
+        <ArrowLeft className="size-icon-xs" /> Risk Management
       </Link>
       <span aria-hidden>·</span>
       <span className="text-text-secondary">{current}</span>

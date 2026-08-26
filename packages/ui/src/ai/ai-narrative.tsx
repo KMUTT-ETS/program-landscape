@@ -73,7 +73,7 @@ export function AiNarrative({
             onClick={toggle}
             disabled={translating}
           >
-            <Languages className="mr-1 h-3 w-3" aria-hidden />
+            <Languages className="mr-1 size-icon-xs" aria-hidden />
             {translating ? 'Translating…' : lang === 'TH' ? 'Show in English' : 'Show in Thai'}
           </Button>
         </div>

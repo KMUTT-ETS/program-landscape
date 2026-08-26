@@ -94,7 +94,7 @@ export default async function RawDatasetPage({
           <span className="flex items-center gap-2">
             <Link href="/admin/data-setup" className="hover:underline">
               <span className="inline-flex items-center gap-1">
-                <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Data setup hub
+                <ArrowLeft className="size-icon-sm" aria-hidden /> Data setup hub
               </span>
             </Link>
             <span>·</span>

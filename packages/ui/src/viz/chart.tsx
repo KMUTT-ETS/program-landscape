@@ -71,7 +71,7 @@ export function ChartFrame({
             aria-pressed={showData}
             title="Show underlying data"
           >
-            <Table className="mr-1 h-3 w-3" aria-hidden />
+            <Table className="mr-1 size-icon-xs" aria-hidden />
             {showData ? 'Hide data' : 'Show data'}
           </Button>
         </div>

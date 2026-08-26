@@ -33,7 +33,7 @@ export function ConfidenceBadge({ value, className, rationale }: ConfidenceBadge
           className,
         )}
       >
-        <Sparkles className="h-3 w-3" aria-hidden />
+        <Sparkles className="size-icon-xs" aria-hidden />
         No confidence
       </span>
     );
@@ -50,7 +50,7 @@ export function ConfidenceBadge({ value, className, rationale }: ConfidenceBadge
             className,
           )}
         >
-          <Sparkles className="h-3 w-3" aria-hidden />
+          <Sparkles className="size-icon-xs" aria-hidden />
           {level} <span className="font-tabular opacity-80">({pct}%)</span>
         </span>
       </TooltipTrigger>

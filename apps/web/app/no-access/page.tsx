@@ -133,7 +133,7 @@ export default async function NoAccessPage({
                     )}`}
                     className="inline-flex items-center gap-1 font-medium text-accent-default underline-offset-4 hover:underline"
                   >
-                    <Mail className="h-3.5 w-3.5" aria-hidden />
+                    <Mail className="size-icon-sm" aria-hidden />
                     Office of the Vice President for Education and Digital
                   </a>
                   {' '}with a short note about what you need to see.
@@ -147,7 +147,7 @@ export default async function NoAccessPage({
               href="/"
               className="inline-flex items-center gap-1.5 rounded-xl border border-border-default bg-surface-0 px-4 py-2 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2 hover:border-border-strong"
             >
-              <Home className="h-3.5 w-3.5" aria-hidden />
+              <Home className="size-icon-sm" aria-hidden />
               Home
             </Link>
             <Link

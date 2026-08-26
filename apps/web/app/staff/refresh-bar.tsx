@@ -97,7 +97,7 @@ export function StaffRefreshBar({ initialStatus }: Props) {
           size="sm"
           className="gap-2"
         >
-          <RefreshCw className={`h-5 w-5 ${busy && busySlug === null ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-icon-lg ${busy && busySlug === null ? 'animate-spin' : ''}`} />
           <span>{busy && busySlug === null ? 'Refreshing…' : 'Refresh all'}</span>
         </Button>
         <span className="text-xs text-text-tertiary">
@@ -125,8 +125,8 @@ export function StaffRefreshBar({ initialStatus }: Props) {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {s.status === 'SUCCEEDED' && <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
-                  {s.status === 'FAILED' && <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
+                  {s.status === 'SUCCEEDED' && <CheckCircle2 className="size-icon-sm text-success" />}
+                  {s.status === 'FAILED' && <AlertTriangle className="size-icon-sm text-warning" />}
                   <Badge
                     tone={
                       s.status === 'SUCCEEDED'
@@ -146,7 +146,7 @@ export function StaffRefreshBar({ initialStatus }: Props) {
                     aria-label={`Refresh ${sourceLabel(s.slug)}`}
                     className="rounded p-1 text-text-tertiary hover:bg-surface-2 hover:text-text-primary disabled:opacity-50"
                   >
-                    <RotateCw className={`h-4 w-4 ${slugBusy ? 'animate-spin' : ''}`} />
+                    <RotateCw className={`size-icon-md ${slugBusy ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
               </div>

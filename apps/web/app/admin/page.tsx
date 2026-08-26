@@ -168,7 +168,7 @@ function Hero({
       }
       title={`${tod}, ${greetingName}`}
       subtitle="Operational tools for keeping the curriculum-landscape data fresh, accurate, and trustworthy. Tile visibility tracks your role's permissions."
-      icon={<Wrench className="h-6 w-6" aria-hidden />}
+      icon={<Wrench className="size-icon-xl" aria-hidden />}
       right={<RoleChip role={greetingFor.role} />}
       stats={stats}
     />
@@ -194,7 +194,7 @@ function RoleChip({ role }: { role: SessionUser['role'] }) {
             : 'Program user';
   return (
     <Badge tone={tone} className="hidden items-center gap-1 sm:inline-flex">
-      <ShieldCheck className="h-3 w-3" aria-hidden />
+      <ShieldCheck className="size-icon-xs" aria-hidden />
       {label}
     </Badge>
   );
@@ -303,7 +303,7 @@ function Tile({ tile }: { tile: ConsoleTile }) {
           </div>
 
           <ArrowUpRight
-            className="absolute right-3 top-3 h-4 w-4 text-text-tertiary opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-accent-default"
+            className="absolute right-3 top-3 size-icon-md text-text-tertiary opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 group-hover:text-accent-default"
             aria-hidden
           />
         </div>
@@ -348,13 +348,13 @@ function buildHeroStats(
       label: 'KKU programs',
       value: data.programs.total.toLocaleString(),
       hint: `${data.programs.withCurriculumPdf} with curriculum PDF`,
-      icon: <Building2 className="h-3.5 w-3.5" />,
+      icon: <Building2 className="size-icon-sm" />,
     });
     stats.push({
       label: 'Live data feeds',
       value: `${data.dataFeeds.live} / ${data.dataFeeds.total}`,
       hint: `${data.dataFeeds.mocked} still mocked`,
-      icon: <Database className="h-3.5 w-3.5" />,
+      icon: <Database className="size-icon-sm" />,
     });
   }
   if (sys) {
@@ -362,13 +362,13 @@ function buildHeroStats(
       label: 'Pending review',
       value: sys.pendingExtractions.toLocaleString(),
       hint: 'AI extractions awaiting approval',
-      icon: <ClipboardCheck className="h-3.5 w-3.5" />,
+      icon: <ClipboardCheck className="size-icon-sm" />,
     });
     stats.push({
       label: 'AI spend · 24h',
       value: `$ ${sys.ai24h.costUsd.toFixed(2)}`,
       hint: `${sys.ai24h.calls.toLocaleString()} calls`,
-      icon: <CircleDollarSign className="h-3.5 w-3.5" />,
+      icon: <CircleDollarSign className="size-icon-sm" />,
     });
   }
   // If both endpoints failed, fall back to a single placeholder card.
@@ -404,7 +404,7 @@ function buildGroups({
       label: 'Program list',
       description:
         'Full table of the 297 KKU programs — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch), add new program via PDF upload.',
-      icon: <Building2 className="h-6 w-6" />,
+      icon: <Building2 className="size-icon-xl" />,
       badge: dataStats
         ? { label: dataStats.programs.total.toLocaleString(), tone: 'neutral' }
         : undefined,
@@ -424,7 +424,7 @@ function buildGroups({
       label: 'DB / API connectors',
       description:
         'Structured-data sources — KKU Registrar, KKU HR, KKU Finance, KMITL skill mapping. Manage cron schedules and fire manual re-syncs.',
-      icon: <Database className="h-6 w-6" />,
+      icon: <Database className="size-icon-xl" />,
       badge: dataStats
         ? {
             label: `${dataStats.dataFeeds.live} live`,
@@ -438,21 +438,21 @@ function buildGroups({
       label: 'Dashboard data fetch',
       description:
         'Manually rebuild Education + Staff dashboard cubes from their underlying Oracle / MSSQL warehouses. Was on /education + /staff before; consolidated here in v1.2.8 since only operators can fire it.',
-      icon: <RefreshCw className="h-6 w-6" />,
+      icon: <RefreshCw className="size-icon-xl" />,
     },
     {
       href: '/admin/application-topology',
       label: 'Application topology',
       description:
         'Whole-application data flow — every active connector → Postgres tables → every consuming dashboard (Education, Staff, Cockpit, Deep-Dive, Risk, Trends, Gap, Benchmarking, Scenarios, Decisions, Analyst). Live connector status inline.',
-      icon: <Share2 className="h-6 w-6" />,
+      icon: <Share2 className="size-icon-xl" />,
     },
     {
       href: '/admin/external/ai-search',
       label: 'AI search & synthesis',
       description:
         'External intelligence feeds — WEF, IMD, BOI, World Bank, Google News. URL-list + web-search sources, AI-summarised into trend_signals.',
-      icon: <Globe2 className="h-6 w-6" />,
+      icon: <Globe2 className="size-icon-xl" />,
       badge: externalAi
         ? (() => {
             const active = externalAi.filter((s) => s.status === 'ACTIVE').length;
@@ -473,28 +473,28 @@ function buildGroups({
       label: 'Add signal from document',
       description:
         'Upload a document — PDF, Word, Excel, PowerPoint or HTML (e.g. a manpower-demand / job-posting report) — or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the KKU programs/skills it affects + recommended actions.',
-      icon: <FileUp className="h-6 w-6" />,
+      icon: <FileUp className="size-icon-xl" />,
     },
     {
       href: '/admin/pdf-review',
       label: 'PDF library',
       description:
         'Non-curriculum PDFs — Thai government / MHESI / KKU / faculty policy documents and reports. Re-extract, archive, deprecate, delete.',
-      icon: <FileSearch className="h-6 w-6" />,
+      icon: <FileSearch className="size-icon-xl" />,
     },
     {
       href: '/admin/registry-mapping',
       label: 'Registry mapping',
       description:
         'Resolve unmatched registrar tuples to canonical Program rows — analyst-driven crosswalk for the kku-registry connector.',
-      icon: <GitBranch className="h-6 w-6" />,
+      icon: <GitBranch className="size-icon-xl" />,
     },
     {
       href: '/admin/data-quality',
       label: 'Data quality',
       description:
         'Completeness + year-on-year drift detection across enrollment, financials, outcome series. Surfaces when an external feed turns flaky.',
-      icon: <ClipboardCheck className="h-6 w-6" />,
+      icon: <ClipboardCheck className="size-icon-xl" />,
       // Badge only when there's something to act on. When everything
       // is fresh, no badge — the tile reads as "all good" by default,
       // and only lights up when an operator needs to attend.
@@ -528,7 +528,7 @@ function buildGroups({
       label: 'Users & access',
       description:
         'Pre-provision KKU staff, assign roles, and bind faculty scope to user accounts.',
-      icon: <Users className="h-6 w-6" />,
+      icon: <Users className="size-icon-xl" />,
       roles: ADMIN_GRADE,
     },
     {
@@ -536,7 +536,7 @@ function buildGroups({
       label: 'AI settings',
       description:
         'Per-task model picker + cost dashboard. Override the default model for any methodVersion, view spend per user / module / 7-30 days.',
-      icon: <Settings2 className="h-6 w-6" />,
+      icon: <Settings2 className="size-icon-xl" />,
       roles: SUPER_GRADE,
       tone: 'super',
       // No badge — the meta line below carries the operator-useful
@@ -551,7 +551,7 @@ function buildGroups({
       label: 'Academic year',
       description:
         'Set when the academic year rolls over. Drives which entry year counts as complete vs in-progress across recruitment, the program funnel, and risk.',
-      icon: <CalendarClock className="h-6 w-6" />,
+      icon: <CalendarClock className="size-icon-xl" />,
       roles: ADMIN_GRADE,
     },
     {
@@ -559,7 +559,7 @@ function buildGroups({
       label: 'Job queues',
       description:
         'Live BullMQ state with realtime tiles + recent-activity stream + per-queue throughput. Human-review queues (AI + PDF extractions awaiting sign-off) surface inline; pause, resume, retry, clean from the same page.',
-      icon: <Layers className="h-6 w-6" />,
+      icon: <Layers className="size-icon-xl" />,
       roles: ADMIN_GRADE,
       // Two signals folded into this tile: BullMQ run failures (system
       // health) + pending AI-extraction reviews (analyst-attention).
@@ -586,7 +586,7 @@ function buildGroups({
       label: 'System status',
       description:
         'Database / Redis / MinIO / Gotenberg / AI provider health and dependency probes.',
-      icon: <Activity className="h-6 w-6" />,
+      icon: <Activity className="size-icon-xl" />,
       roles: ADMIN_GRADE,
       badge: sysStatus
         ? (() => {
@@ -602,7 +602,7 @@ function buildGroups({
       label: 'PDF generation',
       description:
         'Every Council Pack, brief, and report routed through Gotenberg — generation history, durations, failures.',
-      icon: <FileText className="h-6 w-6" />,
+      icon: <FileText className="size-icon-xl" />,
     },
   ];
 

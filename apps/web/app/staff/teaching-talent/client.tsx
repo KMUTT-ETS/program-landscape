@@ -373,7 +373,7 @@ export function TeachingTalentClient({
               disabled={exporting || talentIds.size === 0}
               className="ml-auto inline-flex items-center gap-1.5 rounded border border-subtle bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-2 disabled:opacity-50"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="size-icon-sm" />
               {exporting ? 'Preparing…' : `Export ${talentIds.size} talents (xlsx)`}
             </button>
           )}
@@ -427,9 +427,9 @@ export function TeachingTalentClient({
             className="flex w-full items-center gap-1.5 text-left text-xs font-medium hover:text-accent-default"
           >
             {coverageOpen ? (
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="size-icon-sm" />
             ) : (
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="size-icon-sm" />
             )}
             Coverage — {unmatched.teachers.length} evaluated teachers have no HR record
             {unmatchedQualifying > 0 && `, ${unmatchedQualifying} of whom would qualify`}

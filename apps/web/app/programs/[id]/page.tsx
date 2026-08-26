@@ -135,13 +135,13 @@ export default async function ProgramDeepDivePage({
             href="/programs"
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
           >
-            <Home className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <Home className="size-icon-sm shrink-0" aria-hidden />
             <span className="flex flex-col leading-tight">
               <span lang="th">มข. (ภาพรวม)</span>
               <span className="text-[10px] text-text-tertiary">KKU University</span>
             </span>
           </Link>
-          <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
+          <ChevronRight className="size-icon-sm text-text-tertiary shrink-0" aria-hidden />
           <Link
             href={facultyHref}
             className="rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
@@ -153,7 +153,7 @@ export default async function ProgramDeepDivePage({
           </Link>
           {deptHref && overview.program.department && (
             <>
-              <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
+              <ChevronRight className="size-icon-sm text-text-tertiary shrink-0" aria-hidden />
               <Link
                 href={deptHref}
                 className="rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-accent transition-colors"
@@ -165,7 +165,7 @@ export default async function ProgramDeepDivePage({
               </Link>
             </>
           )}
-          <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
+          <ChevronRight className="size-icon-sm text-text-tertiary shrink-0" aria-hidden />
           <span className="px-1.5 py-0.5 text-text-primary font-medium">
             <span className="flex flex-col leading-tight">
               <span lang="th">{overview.program.nameTh}</span>
@@ -181,7 +181,7 @@ export default async function ProgramDeepDivePage({
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
               <Link href={`/programs/${id}/print`} target="_blank" rel="noopener noreferrer">
-                <Printer className="h-4 w-4" />
+                <Printer className="size-icon-md" />
                 Print view
               </Link>
             </Button>
@@ -196,7 +196,7 @@ export default async function ProgramDeepDivePage({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FileText className="h-4 w-4" />
+                <FileText className="size-icon-md" />
                 Export PDF
               </a>
             </Button>

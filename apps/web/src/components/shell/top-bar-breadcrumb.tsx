@@ -54,7 +54,7 @@ export function TopBarBreadcrumb() {
       </Link>
       {rest.map((seg, idx) => (
         <React.Fragment key={`${seg}-${idx}`}>
-          <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
+          <ChevronRight className="size-icon-md shrink-0 text-text-tertiary" aria-hidden />
           <span className="truncate text-base font-medium text-text-secondary">{prettify(seg)}</span>
         </React.Fragment>
       ))}

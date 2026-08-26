@@ -151,11 +151,11 @@ export function MultiSelectField({
             className="text-text-tertiary hover:text-text-primary"
             title="Clear selection"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="size-icon-sm" />
           </span>
         )}
         <ChevronDown
-          className={`h-3.5 w-3.5 text-text-tertiary transition-transform ${
+          className={`size-icon-sm text-text-tertiary transition-transform ${
             open ? 'rotate-180' : ''
           }`}
         />
@@ -194,7 +194,7 @@ export function MultiSelectField({
                             : 'border-border-strong'
                         }`}
                       >
-                        {checked && <Check className="h-3 w-3" />}
+                        {checked && <Check className="size-icon-xs" />}
                       </span>
                       <span className="flex-1 truncate" title={o.label}>
                         {o.label}

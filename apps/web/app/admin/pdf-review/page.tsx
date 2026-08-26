@@ -50,7 +50,7 @@ export default async function AdminPdfLibraryPage({
       <div className="flex items-baseline gap-3 mb-2">
         <Button asChild variant="ghost" size="sm">
           <Link href="/admin">
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Admin
+            <ArrowLeft className="size-icon-sm" aria-hidden /> Admin
           </Link>
         </Button>
         <span className="text-xs uppercase tracking-wide text-text-tertiary">
@@ -61,7 +61,7 @@ export default async function AdminPdfLibraryPage({
         title={
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-accent-default/30 bg-accent-default/10 text-accent-default">
-              <FileSearch className="h-5 w-5" aria-hidden />
+              <FileSearch className="size-icon-lg" aria-hidden />
             </div>
             <span>PDF library</span>
           </div>
@@ -73,7 +73,7 @@ export default async function AdminPdfLibraryPage({
             <EdgeGlow inline>
               <Button variant="primary" asChild>
                 <Link href="/upload">
-                  <Upload className="h-4 w-4" aria-hidden /> Upload PDF
+                  <Upload className="size-icon-md" aria-hidden /> Upload PDF
                 </Link>
               </Button>
             </EdgeGlow>

@@ -27,7 +27,7 @@ export function MarkReviewedButton({ signalId }: { signalId: string }) {
         }
       }}
     >
-      <Check className="h-4 w-4" />
+      <Check className="size-icon-md" />
       {busy ? 'Marking…' : 'Mark reviewed'}
     </Button>
   );

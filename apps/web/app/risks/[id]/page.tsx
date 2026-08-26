@@ -30,7 +30,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 function tierIcon(tier: RiskTier): React.ReactNode {
-  const cls = 'h-5 w-5';
+  const cls = 'size-icon-lg';
   if (tier === 'CRITICAL') return <ShieldAlert className={cls} />;
   if (tier === 'HIGH') return <AlertCircle className={cls} />;
   if (tier === 'MODERATE') return <AlertTriangle className={cls} />;

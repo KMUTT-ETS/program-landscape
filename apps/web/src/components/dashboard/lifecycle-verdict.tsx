@@ -207,7 +207,7 @@ export function LifecycleVerdictViz({
                   </span>
                 </div>
                 <ChevronRight
-                  className={`h-3.5 w-3.5 text-text-tertiary transition-transform ${
+                  className={`size-icon-sm text-text-tertiary transition-transform ${
                     isExpanded ? 'rotate-90' : ''
                   }`}
                 />
@@ -269,7 +269,7 @@ export function LifecycleVerdictViz({
                     >
                       <span className="flex items-center gap-1.5 text-[11.5px] text-text-primary">
                         <ChevronRight
-                          className={`h-3 w-3 text-text-tertiary transition-transform ${
+                          className={`size-icon-xs text-text-tertiary transition-transform ${
                             isOpen ? 'rotate-90' : ''
                           }`}
                         />

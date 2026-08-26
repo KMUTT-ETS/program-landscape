@@ -261,7 +261,7 @@ export function BubbleMatrix({
           }}
           disabled={zoom >= ZOOM_MAX - 0.01}
         >
-          <ZoomIn className="h-3.5 w-3.5" />
+          <ZoomIn className="size-icon-sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom out"
@@ -272,23 +272,23 @@ export function BubbleMatrix({
           }}
           disabled={zoom <= ZOOM_MIN + 0.01}
         >
-          <ZoomOut className="h-3.5 w-3.5" />
+          <ZoomOut className="size-icon-sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Reset view"
           onClick={reset}
           disabled={zoom === 1 && pan.x === 0 && pan.y === 0}
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw className="size-icon-sm" />
         </ToolbarButton>
         <ToolbarButton
           label={maxed ? 'Exit fullscreen' : 'Fullscreen'}
           onClick={() => setMaxed((m) => !m)}
         >
           {maxed ? (
-            <Minimize2 className="h-3.5 w-3.5" />
+            <Minimize2 className="size-icon-sm" />
           ) : (
-            <Maximize2 className="h-3.5 w-3.5" />
+            <Maximize2 className="size-icon-sm" />
           )}
         </ToolbarButton>
       </div>

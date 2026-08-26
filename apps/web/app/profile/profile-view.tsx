@@ -1675,7 +1675,7 @@ function LangToggle({
       aria-label={t.languageToggleAria}
       className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-surface-raised px-2.5 py-1 text-xs font-semibold text-text-primary transition-colors hover:bg-accent-subtle hover:text-accent-default"
     >
-      <Globe2 className="h-3.5 w-3.5" aria-hidden />
+      <Globe2 className="size-icon-sm" aria-hidden />
       {t.languageToggle}
     </button>
   );

@@ -230,7 +230,7 @@ export function UploadClient() {
 
       <div className="flex items-center gap-2">
         <Button onClick={() => void uploadAll()} disabled={files.length === 0 || allDone}>
-          <Upload className="h-4 w-4" aria-hidden />
+          <Upload className="size-icon-md" aria-hidden />
           {allDone ? 'All uploaded' : `Upload ${files.length} file${files.length === 1 ? '' : 's'}`}
         </Button>
         {allDone && (

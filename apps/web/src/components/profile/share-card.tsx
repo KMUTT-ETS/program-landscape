@@ -128,7 +128,7 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
     return (
       <Card className="mb-6 p-6" elevation="lg">
         <div className="flex items-start gap-3">
-          <Eye className="mt-0.5 h-5 w-5 text-accent-default" />
+          <Eye className="mt-0.5 size-icon-lg text-accent-default" />
           <div className="flex-1 space-y-3">
             <h2 className="text-lg font-semibold text-text-primary">
               Make this profile public?
@@ -178,7 +178,7 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
     <Card className="mb-6 p-6" elevation="lg">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Share2 className="h-5 w-5 text-accent-default" />
+          <Share2 className="size-icon-lg text-accent-default" />
           <div>
             <h2 className="text-lg font-semibold text-text-primary">
               Public profile
@@ -191,7 +191,7 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
         <div className="flex items-center gap-2">
           {state.enabled ? (
             <Badge tone="success">
-              <Globe className="mr-1 h-3 w-3" />
+              <Globe className="mr-1 size-icon-xs" />
               Public
             </Badge>
           ) : (
@@ -232,12 +232,12 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
                   >
                     {copied ? (
                       <>
-                        <Check className="mr-1 h-3.5 w-3.5" />
+                        <Check className="mr-1 size-icon-sm" />
                         Copied
                       </>
                     ) : (
                       <>
-                        <Copy className="mr-1 h-3.5 w-3.5" />
+                        <Copy className="mr-1 size-icon-sm" />
                         Copy
                       </>
                     )}
@@ -260,7 +260,7 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
                 </label>
                 {!state.indexable && (
                   <p className="text-xs text-text-tertiary">
-                    <EyeOff className="mr-1 inline h-3 w-3" />
+                    <EyeOff className="mr-1 inline size-icon-xs" />
                     Hidden from search engines — link sharing still works.
                   </p>
                 )}
@@ -272,7 +272,7 @@ export function ShareCard({ initial, qrSvg, publicUrl, origin }: Props) {
                     onClick={regenerate}
                     disabled={busy !== null}
                   >
-                    <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    <RefreshCw className="mr-1 size-icon-sm" />
                     {busy === 'regen' ? 'Regenerating…' : 'Regenerate link'}
                   </Button>
                   <Button

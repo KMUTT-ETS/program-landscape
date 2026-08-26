@@ -111,7 +111,7 @@ export function MethodologyClient({ initialLang }: { initialLang: Lang }) {
                 onClick={() => window.print()}
                 className="w-full justify-center gap-1.5"
               >
-                <Printer className="h-3.5 w-3.5" />
+                <Printer className="size-icon-sm" />
                 {lang === 'en' ? 'Print / save PDF' : 'พิมพ์ / บันทึก PDF'}
               </Button>
               <p className="mt-1 text-[10px] text-text-tertiary">
@@ -151,7 +151,7 @@ export function MethodologyClient({ initialLang }: { initialLang: Lang }) {
             </div>
 
             <div className="border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
-              <Languages className="mb-1 inline h-3 w-3" />{' '}
+              <Languages className="mb-1 inline size-icon-xs" />{' '}
               {lang === 'en'
                 ? 'Switch language at any time — anchors persist.'
                 : 'สลับภาษาได้ตลอด — anchor จะคงไว้'}

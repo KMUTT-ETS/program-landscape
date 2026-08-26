@@ -116,7 +116,7 @@ export function PipelineClient({ initialStats }: { initialStats: PipelineStats }
           disabled={refreshing}
           aria-label="Refresh stats"
         >
-          <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />
+          <RefreshCw className={refreshing ? 'size-icon-md animate-spin' : 'size-icon-md'} aria-hidden />
           Refresh
         </Button>
       </div>
@@ -383,7 +383,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                 onClick={runBulkDigest}
                 disabled={bulkRunning || total === 0}
               >
-                <Play className="h-4 w-4" aria-hidden />
+                <Play className="size-icon-md" aria-hidden />
                 Run digest on all {total} ({(total * 0.04).toFixed(2)} USD est.)
               </Button>
             </EdgeGlow>
@@ -395,7 +395,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                 onClick={approveSelected}
                 disabled={bulkRunning || selected.size === 0}
               >
-                <CheckCircle2 className="h-4 w-4" aria-hidden />
+                <CheckCircle2 className="size-icon-md" aria-hidden />
                 Approve selected ({selected.size})
               </Button>
             </EdgeGlow>
@@ -480,7 +480,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                     <td className="px-3 py-2">
                       {bucket === 'need-digest' && p.documents?.[0] && (
                         <span className="inline-flex items-center gap-1 text-xs text-text-tertiary">
-                          <FileText className="h-3 w-3" aria-hidden />
+                          <FileText className="size-icon-xs" aria-hidden />
                           {p.documents[0].pdfDocument.pageCount} pages
                         </span>
                       )}
@@ -509,7 +509,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                         {bucket === 'missing-pdf' && (
                           <Button variant="ghost" size="sm" asChild>
                             <Link href={`/admin/programs/${p.id}?tab=files`}>
-                              <Upload className="h-4 w-4" aria-hidden />
+                              <Upload className="size-icon-md" aria-hidden />
                               Upload
                             </Link>
                           </Button>
@@ -521,7 +521,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                             onClick={() => runSingleDigest(p.id)}
                             disabled={bulkRunning}
                           >
-                            <Brain className="h-4 w-4" aria-hidden />
+                            <Brain className="size-icon-md" aria-hidden />
                             Run digest
                           </Button>
                         )}
@@ -536,12 +536,12 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                           disabled={bulkRunning}
                           title="Run all 9 pipeline phases on this program"
                         >
-                          <Layers className="h-4 w-4" aria-hidden />
+                          <Layers className="size-icon-md" aria-hidden />
                           Run pipeline
                         </Button>
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/admin/programs/${p.id}`}>
-                            <ExternalLink className="h-4 w-4" aria-hidden />
+                            <ExternalLink className="size-icon-md" aria-hidden />
                           </Link>
                         </Button>
                       </div>

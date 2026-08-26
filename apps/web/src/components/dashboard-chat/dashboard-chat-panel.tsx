@@ -254,7 +254,7 @@ export function DashboardChatPanel() {
         <div className="flex items-center justify-between gap-2 border-b border-border-default px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-6 w-6 text-accent-default" aria-hidden />
+              <MessageSquare className="size-icon-xl text-accent-default" aria-hidden />
               <h2 className="truncate text-base font-semibold text-text-primary">
                 Dashboards Assistant
               </h2>
@@ -270,7 +270,7 @@ export function DashboardChatPanel() {
               title="Open full view"
               aria-label="Open full view"
             >
-              <ExternalLink className="h-5 w-5" aria-hidden />
+              <ExternalLink className="size-icon-lg" aria-hidden />
             </Link>
             <button
               type="button"
@@ -278,7 +278,7 @@ export function DashboardChatPanel() {
               aria-label="Close panel"
               className="rounded-md p-2 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
             >
-              <X className="h-5 w-5" aria-hidden />
+              <X className="size-icon-lg" aria-hidden />
             </button>
           </div>
         </div>
@@ -316,7 +316,7 @@ export function DashboardChatPanel() {
           {sending && (
             <div className="rounded-md border border-border-default bg-surface-2 px-4 py-3 text-sm">
               <div className="flex items-center gap-2 text-text-tertiary">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <Loader2 className="size-icon-md animate-spin" aria-hidden />
                 <span>{statusLabel ?? 'Working…'}</span>
               </div>
               {streamingText && (
@@ -360,7 +360,7 @@ export function DashboardChatPanel() {
               className="inline-flex h-11 items-center gap-1.5 rounded-md bg-accent-default px-4 text-sm font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
               aria-label="Send"
             >
-              <Send className="h-5 w-5" aria-hidden />
+              <Send className="size-icon-lg" aria-hidden />
               Send
             </button>
           </div>

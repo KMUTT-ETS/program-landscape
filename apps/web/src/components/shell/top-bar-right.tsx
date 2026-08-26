@@ -123,14 +123,14 @@ export function TopBarRight({
         <DropdownMenuContent align="end" className="w-[260px]">
           <DropdownMenuLabel>Account</DropdownMenuLabel>
           <DropdownMenuItem disabled>
-            <User className="h-4 w-4 text-text-tertiary" aria-hidden />
+            <User className="size-icon-md text-text-tertiary" aria-hidden />
             <span className="truncate text-xs text-text-tertiary">
               {user.email}
             </span>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/profile">
-              <UserCircle className="h-4 w-4 text-text-tertiary" aria-hidden />
+              <UserCircle className="size-icon-md text-text-tertiary" aria-hidden />
               View profile
             </Link>
           </DropdownMenuItem>
@@ -145,7 +145,7 @@ export function TopBarRight({
                   setSwitcherOpen(true);
                 }}
               >
-                <UserCog className="h-4 w-4 text-text-tertiary" aria-hidden />
+                <UserCog className="size-icon-md text-text-tertiary" aria-hidden />
                 {impersonating ? 'Switch to a different role…' : 'Switch role…'}
               </DropdownMenuItem>
             </>
@@ -153,7 +153,7 @@ export function TopBarRight({
 
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void signOut({ callbackUrl: '/signin' })}>
-            <LogOut className="h-4 w-4 text-text-tertiary" aria-hidden />
+            <LogOut className="size-icon-md text-text-tertiary" aria-hidden />
             Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>

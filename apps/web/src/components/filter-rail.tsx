@@ -162,7 +162,7 @@ export function FilterSearch(props: FilterSearchProps) {
   return (
     <div className="relative">
       <Search
-        className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-text-tertiary"
+        className="pointer-events-none absolute left-3 top-1/2 z-10 size-icon-md -translate-y-1/2 text-text-tertiary"
         aria-hidden
       />
       {isControlled ? (
@@ -235,7 +235,7 @@ export function FilterCrossLink({
       )}
     >
       {children}
-      <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <ArrowUpRight className="size-icon-sm shrink-0" aria-hidden />
     </Link>
   );
 }

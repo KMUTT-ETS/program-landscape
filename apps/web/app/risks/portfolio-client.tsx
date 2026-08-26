@@ -62,7 +62,7 @@ function fmtThbCompact(n: number | null): string {
 }
 
 function tierIcon(tier: RiskTier): React.ReactNode {
-  const cls = 'h-4 w-4';
+  const cls = 'size-icon-md';
   if (tier === 'CRITICAL') return <ShieldAlert className={cls} />;
   if (tier === 'HIGH') return <AlertCircle className={cls} />;
   if (tier === 'MODERATE') return <AlertTriangle className={cls} />;
@@ -583,7 +583,7 @@ export function RisksPortfolioClient({
                     ? '1–4'
                     : '–';
           const ermIcon = (() => {
-            const cls = 'h-4 w-4';
+            const cls = 'size-icon-md';
             if (lvl === 'VERY_HIGH') return <ShieldAlert className={cls} />;
             if (lvl === 'HIGH') return <AlertCircle className={cls} />;
             if (lvl === 'MODERATE') return <AlertTriangle className={cls} />;

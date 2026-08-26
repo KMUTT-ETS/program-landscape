@@ -234,9 +234,9 @@ export function TrendsClient({
                             className="inline-flex items-center gap-1 rounded-md bg-danger-subtle px-2 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/15 disabled:opacity-60"
                           >
                             {removingId === s.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <Loader2 className="size-icon-sm animate-spin" />
                             ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="size-icon-sm" />
                             )}
                             Confirm
                           </button>
@@ -247,7 +247,7 @@ export function TrendsClient({
                             className="inline-flex items-center rounded-md p-1 text-text-tertiary transition-colors hover:text-text-secondary"
                             aria-label="Cancel"
                           >
-                            <X className="h-3.5 w-3.5" />
+                            <X className="size-icon-sm" />
                           </button>
                         </div>
                       </>
@@ -258,7 +258,7 @@ export function TrendsClient({
                           onClick={() => setConfirmId(s.id)}
                           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-tertiary transition-colors hover:bg-danger-subtle hover:text-danger"
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                          <Trash2 className="size-icon-sm" /> Remove
                         </button>
                       </div>
                     )}

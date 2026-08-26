@@ -107,7 +107,7 @@ export function StyleguideCatalog() {
           <EdgeGlow>
             <Card padding="lg" tone="glossy" className="flex flex-col gap-3">
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-accent-default">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden /> Hero CTA
+                <Sparkles className="size-icon-sm" aria-hidden /> Hero CTA
               </div>
               <h3 className="text-2xl font-semibold text-text-primary">
                 Run analyse-the-landscape on the next 44 programs

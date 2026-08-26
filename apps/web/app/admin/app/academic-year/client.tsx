@@ -51,7 +51,7 @@ export function AcademicYearClient({
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <header className="flex items-center gap-2">
-        <CalendarClock className="h-5 w-5 text-accent-default" aria-hidden />
+        <CalendarClock className="size-icon-lg text-accent-default" aria-hidden />
         <h1 className="text-lg font-semibold">Academic year</h1>
       </header>
 
@@ -65,7 +65,7 @@ export function AcademicYearClient({
         <>
           {data.isStale && (
             <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-              <AlertTriangle className="mt-0.5 h-4 w-4 text-warning" aria-hidden />
+              <AlertTriangle className="mt-0.5 size-icon-md text-warning" aria-hidden />
               <span>
                 Academic year BE {data.currentAcademicYearBE} has started — set the next
                 start date to <strong>{data.suggestedNextDate}</strong>.

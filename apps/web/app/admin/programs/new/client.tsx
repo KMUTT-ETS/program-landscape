@@ -282,9 +282,9 @@ export function NewProgramClient({
     return (
       <Card padding="sm" tone="quiet" className="flex items-center gap-3">
         {status.kind === 'done' ? (
-          <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+          <CheckCircle2 className="size-icon-md text-success" aria-hidden />
         ) : (
-          <Loader2 className="h-4 w-4 animate-spin text-accent-default" aria-hidden />
+          <Loader2 className="size-icon-md animate-spin text-accent-default" aria-hidden />
         )}
         <span className="text-sm text-text-secondary">{labels[status.kind]}</span>
       </Card>
@@ -298,7 +298,7 @@ export function NewProgramClient({
           {/* ── Step 1 — PDF upload (lead) ─────────────────────────── */}
           <div className="flex flex-col gap-2">
             <Label className="flex items-center gap-2">
-              <FileText className="h-3.5 w-3.5 text-accent-default" aria-hidden />
+              <FileText className="size-icon-sm text-accent-default" aria-hidden />
               Curriculum PDF (มคอ.2)
             </Label>
             <label
@@ -317,7 +317,7 @@ export function NewProgramClient({
               />
               {file ? (
                 <>
-                  <CheckCircle2 className="h-6 w-6 text-success" aria-hidden />
+                  <CheckCircle2 className="size-icon-xl text-success" aria-hidden />
                   <span className="font-medium">{file.name}</span>
                   <span className="text-xs text-text-tertiary">
                     {(file.size / 1024 / 1024).toFixed(1)} MB · click to replace
@@ -325,7 +325,7 @@ export function NewProgramClient({
                 </>
               ) : (
                 <>
-                  <Upload className="h-6 w-6" aria-hidden />
+                  <Upload className="size-icon-xl" aria-hidden />
                   <span className="font-medium">Click to upload</span>
                   <span className="text-xs">PDF only · up to 50 MB</span>
                 </>
@@ -454,9 +454,9 @@ export function NewProgramClient({
               </Button>
               <Button type="submit" disabled={busy}>
                 {busy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <Loader2 className="size-icon-sm animate-spin" aria-hidden />
                 ) : (
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                  <ArrowRight className="size-icon-sm" aria-hidden />
                 )}
                 {file ? 'Create + fire pipeline' : 'Create program (no PDF)'}
               </Button>
@@ -493,7 +493,7 @@ function SoftCollisionDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
+            <AlertTriangle className="size-icon-md text-warning" aria-hidden />
             Possible duplicate — confirm before creating
           </DialogTitle>
           <DialogDescription>

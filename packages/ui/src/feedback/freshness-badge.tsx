@@ -70,7 +70,7 @@ export function FreshnessBadge({
           className,
         )}
       >
-        <Clock className="h-3 w-3" aria-hidden />
+        <Clock className="size-icon-xs" aria-hidden />
         No freshness
       </span>
     );
@@ -97,7 +97,7 @@ export function FreshnessBadge({
             className,
           )}
         >
-          <Clock className="h-3 w-3" aria-hidden />
+          <Clock className="size-icon-xs" aria-hidden />
           Updated {text}
         </span>
       </TooltipTrigger>

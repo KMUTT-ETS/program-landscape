@@ -31,7 +31,7 @@ export function DiagnosticEmptyState({
     return (
       <div className="rounded-md border border-border-default bg-surface-1 p-8 text-center text-sm text-text-secondary">
         <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface-2">
-          <Search className="h-5 w-5 text-text-tertiary" aria-hidden />
+          <Search className="size-icon-lg text-text-tertiary" aria-hidden />
         </div>
         <p className="font-medium text-text-primary">No {surface} data yet</p>
         <p className="mt-1 text-xs text-text-tertiary">
@@ -78,7 +78,7 @@ function renderForCategory(error: ApiFetchError, surface: string): {
   switch (error.category) {
     case 'auth':
       return {
-        icon: <LogIn className="h-5 w-5 text-warning-default" aria-hidden />,
+        icon: <LogIn className="size-icon-lg text-warning-default" aria-hidden />,
         iconBg: 'bg-warning-default/15',
         title: 'Your sign-in session has expired',
         body:
@@ -86,14 +86,14 @@ function renderForCategory(error: ApiFetchError, surface: string): {
         action: (
           <Button asChild variant="outline" size="sm">
             <Link href="/signout">
-              <LogIn className="h-3.5 w-3.5" aria-hidden /> Sign out + sign in again
+              <LogIn className="size-icon-sm" aria-hidden /> Sign out + sign in again
             </Link>
           </Button>
         ),
       };
     case 'permission':
       return {
-        icon: <Lock className="h-5 w-5 text-danger-default" aria-hidden />,
+        icon: <Lock className="size-icon-lg text-danger-default" aria-hidden />,
         iconBg: 'bg-danger-default/15',
         title: `You don't have permission to view ${surface}`,
         body:
@@ -101,14 +101,14 @@ function renderForCategory(error: ApiFetchError, surface: string): {
       };
     case 'notFound':
       return {
-        icon: <Search className="h-5 w-5 text-text-tertiary" aria-hidden />,
+        icon: <Search className="size-icon-lg text-text-tertiary" aria-hidden />,
         iconBg: 'bg-surface-2',
         title: `${surface} not found`,
         body: 'The resource referenced by this URL does not exist (or has been removed).',
       };
     case 'server':
       return {
-        icon: <ServerCrash className="h-5 w-5 text-danger-default" aria-hidden />,
+        icon: <ServerCrash className="size-icon-lg text-danger-default" aria-hidden />,
         iconBg: 'bg-danger-default/15',
         title: 'API server error',
         body:
@@ -116,7 +116,7 @@ function renderForCategory(error: ApiFetchError, surface: string): {
       };
     case 'network':
       return {
-        icon: <WifiOff className="h-5 w-5 text-warning-default" aria-hidden />,
+        icon: <WifiOff className="size-icon-lg text-warning-default" aria-hidden />,
         iconBg: 'bg-warning-default/15',
         title: 'Network problem reaching the API',
         body:
@@ -124,7 +124,7 @@ function renderForCategory(error: ApiFetchError, surface: string): {
       };
     case 'data':
       return {
-        icon: <AlertTriangle className="h-5 w-5 text-warning-default" aria-hidden />,
+        icon: <AlertTriangle className="size-icon-lg text-warning-default" aria-hidden />,
         iconBg: 'bg-warning-default/15',
         title: 'API returned an unexpected response',
         body:
@@ -132,7 +132,7 @@ function renderForCategory(error: ApiFetchError, surface: string): {
       };
     default:
       return {
-        icon: <AlertTriangle className="h-5 w-5 text-text-tertiary" aria-hidden />,
+        icon: <AlertTriangle className="size-icon-lg text-text-tertiary" aria-hidden />,
         iconBg: 'bg-surface-2',
         title: `Could not load ${surface}`,
         body: 'The page hit an error it couldn\'t classify. Technical details are below.',

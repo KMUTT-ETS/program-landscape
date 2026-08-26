@@ -140,7 +140,7 @@ export default async function SystemStatusPage() {
                   className="inline-flex items-center gap-1 text-sm text-accent-default hover:underline"
                 >
                   Full cost report
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  <ExternalLink className="size-icon-sm" aria-hidden />
                 </Link>
               }
             >

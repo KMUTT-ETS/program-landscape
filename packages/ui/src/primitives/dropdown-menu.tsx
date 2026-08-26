@@ -75,7 +75,7 @@ export const DropdownMenuRadioItem = React.forwardRef<
     >
       <span className="absolute left-2.5 flex h-4 w-4 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <Check className="h-3.5 w-3.5 text-accent-default" aria-hidden />
+          <Check className="size-icon-sm text-accent-default" aria-hidden />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}

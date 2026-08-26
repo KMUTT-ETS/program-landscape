@@ -33,12 +33,12 @@ export function AdminBackNav({
         href="/admin"
         className="inline-flex items-center gap-1 rounded px-2 py-1 text-text-secondary hover:bg-surface-2 hover:text-text-primary"
       >
-        <ArrowLeft className="h-3 w-3" aria-hidden />
+        <ArrowLeft className="size-icon-xs" aria-hidden />
         <span>Admin console</span>
       </Link>
       {group && groupHref ? (
         <>
-          <ChevronRight className="h-3 w-3" aria-hidden />
+          <ChevronRight className="size-icon-xs" aria-hidden />
           <Link
             href={groupHref}
             className="rounded px-1.5 py-0.5 text-text-secondary hover:bg-surface-2 hover:text-text-primary"
@@ -47,7 +47,7 @@ export function AdminBackNav({
           </Link>
         </>
       ) : null}
-      <ChevronRight className="h-3 w-3" aria-hidden />
+      <ChevronRight className="size-icon-xs" aria-hidden />
       <span className="rounded px-1.5 py-0.5 text-text-primary">{current}</span>
     </nav>
   );

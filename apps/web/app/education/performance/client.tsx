@@ -455,7 +455,7 @@ function ProgramPerformanceTable({
                       className="flex w-full items-center gap-1.5 text-left"
                     >
                       <ChevronRight
-                        className={`h-3.5 w-3.5 transition-transform ${
+                        className={`size-icon-sm transition-transform ${
                           isOpen ? 'rotate-90' : ''
                         }`}
                       />
@@ -790,7 +790,7 @@ function Row({
             >
               <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
                 <ChevronRight
-                  className={`h-3.5 w-3.5 transition-transform ${
+                  className={`size-icon-sm transition-transform ${
                     open ? 'rotate-90' : ''
                   }`}
                 />
@@ -902,7 +902,7 @@ function EntryScoreTable({ data }: { data: EntryScoreResponse }) {
                       className="flex w-full items-center gap-1.5 text-left"
                     >
                       <ChevronRight
-                        className={`h-3.5 w-3.5 transition-transform ${
+                        className={`size-icon-sm transition-transform ${
                           isOpen ? 'rotate-90' : ''
                         }`}
                       />

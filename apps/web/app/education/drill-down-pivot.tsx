@@ -413,7 +413,7 @@ function Indent({
       <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
         {hasChevron && (
           <ChevronRight
-            className={`h-3.5 w-3.5 transition-transform ${
+            className={`size-icon-sm transition-transform ${
               chevronOpen ? 'rotate-90' : ''
             }`}
           />

@@ -115,7 +115,7 @@ export function EducationRefreshBar({ initialStatus }: Props) {
           className="gap-2"
         >
           <RefreshCw
-            className={`h-5 w-5 ${busy && busyCube === null ? 'animate-spin' : ''}`}
+            className={`size-icon-lg ${busy && busyCube === null ? 'animate-spin' : ''}`}
           />
           <span>
             {busy && busyCube === null ? 'Refreshing…' : 'Refresh all'}
@@ -157,10 +157,10 @@ export function EducationRefreshBar({ initialStatus }: Props) {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {c.status === 'SUCCEEDED' && (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                      <CheckCircle2 className="size-icon-sm text-success" />
                     )}
                     {c.status === 'FAILED' && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                      <AlertTriangle className="size-icon-sm text-warning" />
                     )}
                     <Badge
                       tone={
@@ -182,7 +182,7 @@ export function EducationRefreshBar({ initialStatus }: Props) {
                       className="rounded p-1 text-text-tertiary hover:bg-surface-2 hover:text-text-primary disabled:opacity-50"
                     >
                       <RotateCw
-                        className={`h-4 w-4 ${cubeBusy ? 'animate-spin' : ''}`}
+                        className={`size-icon-md ${cubeBusy ? 'animate-spin' : ''}`}
                       />
                     </button>
                   </div>

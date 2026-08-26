@@ -88,7 +88,7 @@ export function ClassOfferingsRefreshBar({ initial }: ClassOfferingsRefreshProps
           size="sm"
           className="gap-2"
         >
-          <RefreshCw className={`h-5 w-5 ${busy || inflight ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-icon-lg ${busy || inflight ? 'animate-spin' : ''}`} />
           <span>{busy || inflight ? 'Refreshing…' : 'Refresh now'}</span>
         </Button>
         <span className="text-xs text-text-tertiary">
@@ -102,9 +102,9 @@ export function ClassOfferingsRefreshBar({ initial }: ClassOfferingsRefreshProps
       <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
         <div className="flex items-center gap-2">
           {inflight ? (
-            <Clock className="h-4 w-4 text-text-tertiary" />
+            <Clock className="size-icon-md text-text-tertiary" />
           ) : (
-            <CheckCircle2 className="h-4 w-4 text-success-default" />
+            <CheckCircle2 className="size-icon-md text-success-default" />
           )}
           <div>
             <div className="text-text-tertiary">Last refresh</div>
@@ -118,7 +118,7 @@ export function ClassOfferingsRefreshBar({ initial }: ClassOfferingsRefreshProps
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <GraduationCap className="h-4 w-4 text-text-tertiary" />
+          <GraduationCap className="size-icon-md text-text-tertiary" />
           <div>
             <div className="text-text-tertiary">With class GPA</div>
             <div className="font-tabular text-text-primary">

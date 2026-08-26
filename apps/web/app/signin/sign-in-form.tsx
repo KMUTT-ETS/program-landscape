@@ -68,7 +68,7 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
       >
         <span>{ssoBusy ? 'Redirecting…' : 'Continue with KKU SSO'}</span>
         <ArrowRight
-          className="h-4 w-4 opacity-80 transition-transform group-hover:translate-x-0.5"
+          className="size-icon-md opacity-80 transition-transform group-hover:translate-x-0.5"
           aria-hidden
         />
       </button>

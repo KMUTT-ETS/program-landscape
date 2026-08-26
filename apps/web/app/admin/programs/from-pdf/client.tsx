@@ -297,7 +297,7 @@ function UploadStep({
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={upload} disabled={!file || uploading}>
-            <Upload className="h-4 w-4" aria-hidden />
+            <Upload className="size-icon-md" aria-hidden />
             {uploading ? 'Uploading…' : 'Upload & continue'}
           </Button>
           {file && !uploading && (
@@ -510,7 +510,7 @@ function FillStep({
         {extraction && (
           <div className="mt-3 rounded-md border border-border-subtle bg-surface-0 p-3 text-xs text-text-secondary">
             <div className="mb-1 flex items-center gap-1 font-medium text-text-primary">
-              <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden />
+              <Sparkles className="size-icon-sm text-accent" aria-hidden />
               Auto-extracted fields pre-filled below
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 md:grid-cols-3">
@@ -652,7 +652,7 @@ function ExtractionStatusBadge({
   if (state === 'waiting') {
     return (
       <span className="inline-flex items-center gap-1 text-text-secondary">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+        <Loader2 className="size-icon-xs animate-spin" aria-hidden />
         AI extracting · {elapsedSeconds}s
       </span>
     );
@@ -687,7 +687,7 @@ function ExtractionBanner({
   if (state === 'waiting') {
     return (
       <div className="mt-3 flex items-center gap-2 rounded-md border border-accent/30 bg-accent-subtle p-3 text-sm text-text-primary">
-        <Loader2 className="h-4 w-4 animate-spin text-accent" aria-hidden />
+        <Loader2 className="size-icon-md animate-spin text-accent" aria-hidden />
         <span>
           Reading the PDF with Gemini — typically 5–20 seconds.{' '}
           <span className="font-tabular text-text-secondary">{elapsedSeconds}s elapsed.</span>
@@ -705,7 +705,7 @@ function ExtractionBanner({
   if (state === 'failed') {
     return (
       <div className="mt-3 flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-text-primary">
-        <AlertTriangle className="mt-0.5 h-4 w-4 text-danger" aria-hidden />
+        <AlertTriangle className="mt-0.5 size-icon-md text-danger" aria-hidden />
         <div className="flex-1">
           <div className="font-medium">AI extraction failed.</div>
           {processingError && (
@@ -721,7 +721,7 @@ function ExtractionBanner({
   if (state === 'timeout') {
     return (
       <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-text-primary">
-        <AlertTriangle className="mt-0.5 h-4 w-4 text-warning" aria-hidden />
+        <AlertTriangle className="mt-0.5 size-icon-md text-warning" aria-hidden />
         <div className="flex-1">
           <div className="font-medium">Extraction took longer than expected.</div>
           <div className="mt-0.5 text-xs text-text-secondary">
@@ -790,7 +790,7 @@ function CollisionPanel({
   if (!report.matches.length) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/5 p-3 text-sm text-text-primary">
-        <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+        <CheckCircle2 className="size-icon-md text-success" aria-hidden />
         No duplicates found — safe to create.
       </div>
     );
@@ -803,7 +803,7 @@ function CollisionPanel({
     >
       <div className="flex items-start gap-2">
         <AlertTriangle
-          className={`mt-0.5 h-4 w-4 ${report.hasHard ? 'text-danger' : 'text-warning'}`}
+          className={`mt-0.5 size-icon-md ${report.hasHard ? 'text-danger' : 'text-warning'}`}
           aria-hidden
         />
         <div className="flex-1">

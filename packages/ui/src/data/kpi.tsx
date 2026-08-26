@@ -62,7 +62,7 @@ export function KPI({ label, value, delta, sparkline, meta, tone: visualTone, cl
       <div className="flex items-center justify-between gap-2">
         {delta ? (
           <span className={cn('inline-flex items-center gap-1 text-xs font-medium', tone)}>
-            {Arrow && <Arrow className="h-3 w-3" aria-hidden />}
+            {Arrow && <Arrow className="size-icon-xs" aria-hidden />}
             <span className="font-tabular">{delta.display}</span>
           </span>
         ) : (

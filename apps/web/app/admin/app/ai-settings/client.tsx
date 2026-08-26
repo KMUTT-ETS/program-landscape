@@ -248,7 +248,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
             variant="outline"
             size="sm"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+            <RefreshCw className={`size-icon-sm ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
             {refreshing ? 'Refreshing…' : 'Refresh from OpenRouter'}
           </Button>
         </div>
@@ -299,7 +299,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
                           <span className="font-mono text-xs">{model?.label ?? row.effectiveModel}</span>
                           {row.lockedModel ? (
                             <Badge tone="info">
-                              <Lock className="mr-1 h-3 w-3" aria-hidden />
+                              <Lock className="mr-1 size-icon-xs" aria-hidden />
                               Locked
                             </Badge>
                           ) : row.override ? (
@@ -330,12 +330,12 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs text-text-tertiary"
                               title={row.lockReason ?? 'This method is locked by the platform.'}
                             >
-                              <Lock className="h-3.5 w-3.5" aria-hidden /> Locked
+                              <Lock className="size-icon-sm" aria-hidden /> Locked
                             </span>
                           ) : (
                             <>
                               <Button size="sm" variant="outline" onClick={() => setEditing(row)} disabled={pending}>
-                                <Cog className="h-3.5 w-3.5" aria-hidden /> Edit
+                                <Cog className="size-icon-sm" aria-hidden /> Edit
                               </Button>
                               {row.override ? (
                                 <Button
@@ -345,7 +345,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
                                   disabled={pending}
                                   title={`Revert to ${row.defaultModel}`}
                                 >
-                                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                                  <RotateCcw className="size-icon-sm" aria-hidden />
                                 </Button>
                               ) : null}
                             </>
@@ -365,7 +365,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" aria-hidden />
+              <Sparkles className="size-icon-md" aria-hidden />
               Pick model for {editing?.label}
             </DialogTitle>
             <DialogDescription>
@@ -402,7 +402,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
                         {isDefault ? <Badge tone="info" >Default</Badge> : null}
                         {isCurrent ? (
                           <span className="inline-flex items-center gap-1 text-xs text-accent-default">
-                            <Check className="h-3 w-3" aria-hidden /> in use
+                            <Check className="size-icon-xs" aria-hidden /> in use
                           </span>
                         ) : null}
                       </div>

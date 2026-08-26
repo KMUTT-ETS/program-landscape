@@ -108,12 +108,12 @@ function IndicatorCard({
           <div className="flex items-center gap-2">
             {issueCount > 0 ? (
               indicator.latestBreaches.critical > 0 ? (
-                <ShieldAlert className="h-4 w-4 text-rose-600" />
+                <ShieldAlert className="size-icon-md text-rose-600" />
               ) : (
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTriangle className="size-icon-md text-amber-600" />
               )
             ) : (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="size-icon-md text-emerald-600" />
             )}
             <h3 className="text-base font-semibold">{indicator.labelEn}</h3>
             <span className="text-xs text-text-tertiary" lang="th">
@@ -133,7 +133,7 @@ function IndicatorCard({
               color: SEVERITY_FILL.CRITICAL,
             }}
           >
-            <ShieldAlert className="h-3 w-3" />
+            <ShieldAlert className="size-icon-xs" />
             <span className="font-semibold tabular-nums">{indicator.latestBreaches.critical}</span>
             <span className="opacity-70">crit</span>
           </span>
@@ -145,7 +145,7 @@ function IndicatorCard({
               color: SEVERITY_FILL.WARN,
             }}
           >
-            <AlertTriangle className="h-3 w-3" />
+            <AlertTriangle className="size-icon-xs" />
             <span className="font-semibold tabular-nums">{indicator.latestBreaches.warn}</span>
             <span className="opacity-70">warn</span>
           </span>
@@ -157,7 +157,7 @@ function IndicatorCard({
               color: SEVERITY_FILL.OK,
             }}
           >
-            <CheckCircle2 className="h-3 w-3" />
+            <CheckCircle2 className="size-icon-xs" />
             <span className="font-semibold tabular-nums">{indicator.latestBreaches.ok}</span>
             <span className="opacity-70">ok</span>
           </span>
@@ -254,7 +254,7 @@ function IndicatorCard({
           </div>
           {issueCount === 0 ? (
             <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-700 dark:text-emerald-300">
-              <CheckCircle2 className="mr-1.5 inline-block h-3.5 w-3.5" />
+              <CheckCircle2 className="mr-1.5 inline-block size-icon-sm" />
               All programs are within thresholds for this indicator.
             </div>
           ) : topIssues.length === 0 ? (

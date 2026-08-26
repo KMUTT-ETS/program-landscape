@@ -141,21 +141,21 @@ export function WorldCountryMap({ byCountry, onCountryClick }: Props) {
           className="rounded border border-border-subtle bg-surface-0 p-1 text-text-secondary hover:bg-surface-2"
           aria-label="Zoom in"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="size-icon-sm" />
         </button>
         <button
           onClick={() => setPosition((p) => ({ ...p, zoom: Math.max(p.zoom / 1.4, 1) }))}
           className="rounded border border-border-subtle bg-surface-0 p-1 text-text-secondary hover:bg-surface-2"
           aria-label="Zoom out"
         >
-          <Minus className="h-3.5 w-3.5" />
+          <Minus className="size-icon-sm" />
         </button>
         <button
           onClick={reset}
           className="rounded border border-border-subtle bg-surface-0 p-1 text-text-secondary hover:bg-surface-2"
           aria-label="Reset view"
         >
-          <Locate className="h-3.5 w-3.5" />
+          <Locate className="size-icon-sm" />
         </button>
       </div>
       <ComposableMap

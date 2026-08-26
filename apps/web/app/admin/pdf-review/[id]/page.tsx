@@ -113,7 +113,7 @@ export default async function AdminPdfReviewDetailPage({
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/admin/pdf-review">
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="size-icon-md" />
                 Back to queue
               </Link>
             </Button>

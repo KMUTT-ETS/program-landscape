@@ -160,7 +160,7 @@ export default async function TrendSignalPage({
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/trends">
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="size-icon-md" />
                 Back to feed
               </Link>
             </Button>
@@ -175,7 +175,7 @@ export default async function TrendSignalPage({
         <Card padding="md">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
             <span className={`inline-flex items-center gap-2 text-sm font-semibold ${type.ink}`}>
-              <TypeIcon className="h-5 w-5" />
+              <TypeIcon className="size-icon-lg" />
               {type.label}
             </span>
             <span className="inline-flex items-center gap-2">
@@ -193,7 +193,7 @@ export default async function TrendSignalPage({
                 rel="noopener noreferrer"
                 className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
               >
-                Source <ArrowUpRight className="h-3.5 w-3.5" />
+                Source <ArrowUpRight className="size-icon-sm" />
               </a>
             )}
           </div>
@@ -318,7 +318,7 @@ function SectionCard({
     <Card padding="md">
       <div className="mb-3 flex items-center gap-2.5">
         <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 ${iconInk}`}>
-          <Icon className="h-4 w-4" />
+          <Icon className="size-icon-md" />
         </span>
         <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
         {count !== undefined && <span className="font-tabular text-xs text-text-tertiary">· {count}</span>}
@@ -337,7 +337,7 @@ function ProgramItem({ program: p }: { program: AffectedProgram }) {
         href={`/programs/${p.id}`}
         className="group inline-flex items-start gap-2 text-sm text-text-secondary hover:text-text-primary"
       >
-        <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary group-hover:text-accent" />
+        <ArrowUpRight className="mt-0.5 size-icon-sm shrink-0 text-text-tertiary group-hover:text-accent" />
         <span>
           <span className="font-medium text-text-primary group-hover:underline">{p.nameEn || p.nameTh}</span>
           <span className="ml-1.5 text-xs text-text-tertiary">{p.code}</span>
@@ -393,7 +393,7 @@ function RoleGroup({
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <Icon className={`h-3.5 w-3.5 ${iconInk}`} />
+        <Icon className={`size-icon-sm ${iconInk}`} />
         <span className="text-xs font-semibold text-text-secondary">{label}</span>
         {candidateCount !== null && (
           <span className="font-tabular text-[11px] font-semibold text-text-primary">
@@ -437,7 +437,7 @@ function InitiativeItem({ initiative: n }: { initiative: NewInitiative }) {
         <div className="mt-2 flex flex-col gap-1 text-xs text-text-secondary">
           {n.unmetRoleTh && (
             <div className="flex items-start gap-1.5">
-              <Briefcase className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+              <Briefcase className="mt-0.5 size-icon-sm shrink-0 text-text-tertiary" />
               <span>
                 <span className="text-text-tertiary">Unmet role: </span>
                 <span className="text-text-primary" lang="th">{n.unmetRoleTh}</span>
@@ -446,7 +446,7 @@ function InitiativeItem({ initiative: n }: { initiative: NewInitiative }) {
           )}
           {n.audienceTh && (
             <div className="flex items-start gap-1.5">
-              <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+              <Users className="mt-0.5 size-icon-sm shrink-0 text-text-tertiary" />
               <span>
                 <span className="text-text-tertiary">For: </span>
                 <span className="text-text-primary" lang="th">{n.audienceTh}</span>
@@ -496,7 +496,7 @@ function ActionItem({ action: a, index }: { action: RecommendedAction; index: nu
           {a.exampleProjects.length > 0 && (
             <div className="mt-3">
               <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
-                <FolderKanban className="h-3.5 w-3.5 text-accent" />
+                <FolderKanban className="size-icon-sm text-accent" />
                 Example projects
               </div>
               <ul className="flex flex-col gap-2">

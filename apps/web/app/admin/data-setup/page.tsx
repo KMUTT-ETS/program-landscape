@@ -115,7 +115,7 @@ export default async function AdminDataSetupPage() {
           <EdgeGlow inline>
             <Button variant="primary" asChild>
               <Link href="/upload">
-                <Upload className="h-4 w-4" aria-hidden />
+                <Upload className="size-icon-md" aria-hidden />
                 Upload documents
               </Link>
             </Button>
@@ -487,7 +487,7 @@ function CategoryCard({
         <Button variant="outline" asChild>
           <Link href={href}>
             {cta}
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            <ExternalLink className="size-icon-sm" aria-hidden />
           </Link>
         </Button>
         {rawHref && rawCta && (
@@ -513,7 +513,7 @@ function RawDatasetLink({ slug, label }: { slug: string; label: string }) {
         className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-surface-1 px-3 py-2 text-sm hover:border-accent/40 hover:bg-accent-subtle/40"
       >
         <span className="text-text-primary">{label}</span>
-        <ExternalLink className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />
+        <ExternalLink className="size-icon-sm text-text-tertiary" aria-hidden />
       </Link>
     </li>
   );
@@ -522,7 +522,7 @@ function RawDatasetLink({ slug, label }: { slug: string; label: string }) {
 function SuggestionItem({ title, hint }: { title: string; hint: string }) {
   return (
     <li className="flex items-start gap-3">
-      <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-accent-default" aria-hidden />
+      <HelpCircle className="mt-0.5 size-icon-md shrink-0 text-accent-default" aria-hidden />
       <div>
         <span className="font-medium text-text-primary">{title}</span>
         <span className="ml-1 text-text-tertiary">— {hint}</span>

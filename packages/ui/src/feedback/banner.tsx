@@ -50,7 +50,7 @@ export function Banner({
   const Icon = icons[tone ?? 'info'];
   return (
     <div role="status" className={cn(bannerVariants({ tone }), className)} {...props}>
-      <Icon className="mt-0.5 h-4 w-4 flex-none" aria-hidden />
+      <Icon className="mt-0.5 size-icon-md flex-none" aria-hidden />
       <div className="flex-1">
         <div className="font-medium">{title}</div>
         {description && <div className="mt-0.5 text-text-secondary">{description}</div>}
@@ -62,7 +62,7 @@ export function Banner({
           onClick={onDismiss}
           className="rounded-sm text-current/70 hover:text-current"
         >
-          <X className="h-4 w-4" aria-hidden />
+          <X className="size-icon-md" aria-hidden />
         </button>
       )}
     </div>

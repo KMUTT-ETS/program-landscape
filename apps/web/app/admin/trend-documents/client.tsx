@@ -161,7 +161,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                   : 'text-text-tertiary hover:text-text-secondary'
               }`}
             >
-              <Upload className="h-4 w-4" /> Upload file
+              <Upload className="size-icon-md" /> Upload file
             </button>
             <button
               type="button"
@@ -172,7 +172,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                   : 'text-text-tertiary hover:text-text-secondary'
               }`}
             >
-              <Link2 className="h-4 w-4" /> From URL
+              <Link2 className="size-icon-md" /> From URL
             </button>
           </div>
 
@@ -229,7 +229,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                   dragging ? 'bg-accent-default/15 text-accent-default' : 'bg-surface-3 text-text-tertiary group-hover:text-accent-default'
                 }`}
               >
-                {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
+                {busy ? <Loader2 className="size-icon-xl animate-spin" /> : <Upload className="size-icon-xl" />}
               </span>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-text-primary">
@@ -255,7 +255,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
-              <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+              <Link2 className="pointer-events-none absolute left-3 top-1/2 size-icon-md -translate-y-1/2 text-text-tertiary" />
               <input
                 type="url"
                 value={url}
@@ -267,7 +267,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
               />
             </div>
             <Button variant="primary" disabled={busy || !url.trim()} onClick={submitUrl}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+              {busy ? <Loader2 className="size-icon-md animate-spin" /> : <Link2 className="size-icon-md" />}
               {busy ? 'Submitting…' : 'Analyse link'}
             </Button>
           </div>
@@ -292,7 +292,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
             onClick={() => void refresh()}
             className="inline-flex items-center gap-1 text-xs text-text-tertiary transition-colors hover:text-text-secondary"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            <RefreshCw className="size-icon-sm" /> Refresh
           </button>
         </div>
         <p className="text-xs text-text-tertiary">
@@ -328,9 +328,9 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                       <td className="max-w-[24rem]">
                         <div className="flex items-start gap-2">
                           {r.sourceType === 'FILE' ? (
-                            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
+                            <FileText className="mt-0.5 size-icon-md shrink-0 text-text-tertiary" />
                           ) : (
-                            <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
+                            <Link2 className="mt-0.5 size-icon-md shrink-0 text-text-tertiary" />
                           )}
                           <span className="truncate text-text-secondary" title={r.originalFilename ?? r.sourceUrl ?? ''}>
                             {r.sourceType === 'URL' && r.sourceUrl ? (
@@ -354,7 +354,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                             href={`/trends/${r.trendSignalId}`}
                             className="inline-flex items-center gap-1 text-accent-default hover:underline"
                           >
-                            View on radar <ArrowRight className="h-3 w-3" />
+                            View on radar <ArrowRight className="size-icon-xs" />
                           </Link>
                         ) : (
                           <span className="text-text-tertiary">—</span>
@@ -371,9 +371,9 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                               className="inline-flex items-center gap-1 rounded-md bg-danger-subtle px-2 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/15 disabled:opacity-60"
                             >
                               {removingId === r.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <Loader2 className="size-icon-sm animate-spin" />
                               ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="size-icon-sm" />
                               )}
                               Confirm
                             </button>
@@ -384,7 +384,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                               className="inline-flex items-center rounded-md p-1 text-text-tertiary transition-colors hover:text-text-secondary"
                               aria-label="Cancel"
                             >
-                              <X className="h-3.5 w-3.5" />
+                              <X className="size-icon-sm" />
                             </button>
                           </span>
                         ) : (
@@ -393,7 +393,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
                             onClick={() => setConfirmId(r.id)}
                             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-text-tertiary transition-colors hover:bg-danger-subtle hover:text-danger"
                           >
-                            <Trash2 className="h-3.5 w-3.5" /> Remove
+                            <Trash2 className="size-icon-sm" /> Remove
                           </button>
                         )}
                       </td>
@@ -429,20 +429,20 @@ function StatusBadge({ status }: { status: TrendDocumentRow['status'] }) {
   if (status === 'SUCCEEDED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
-        <CheckCircle2 className="h-3.5 w-3.5" /> Published
+        <CheckCircle2 className="size-icon-sm" /> Published
       </span>
     );
   }
   if (status === 'FAILED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-danger">
-        <AlertTriangle className="h-3.5 w-3.5" /> Failed
+        <AlertTriangle className="size-icon-sm" /> Failed
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-text-secondary">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" /> {status === 'PENDING' ? 'Queued' : 'Analysing'}
+      <Loader2 className="size-icon-sm animate-spin" /> {status === 'PENDING' ? 'Queued' : 'Analysing'}
     </span>
   );
 }

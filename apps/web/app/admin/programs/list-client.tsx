@@ -382,11 +382,11 @@ export function ProgramsListClient({
           <>
             <div className="flex items-center gap-3">
               <Badge tone="accent">
-                <CheckSquare className="h-3 w-3" aria-hidden />
+                <CheckSquare className="size-icon-xs" aria-hidden />
                 {selected.size} selected
               </Badge>
               <Button variant="ghost" size="sm" onClick={clearSelection}>
-                <X className="h-3.5 w-3.5" aria-hidden /> Clear
+                <X className="size-icon-sm" aria-hidden /> Clear
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -396,9 +396,9 @@ export function ProgramsListClient({
                 onClick={() => setPickerOpen(true)}
               >
                 {batchBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <Loader2 className="size-icon-sm animate-spin" aria-hidden />
                 ) : (
-                  <Play className="h-3.5 w-3.5" aria-hidden />
+                  <Play className="size-icon-sm" aria-hidden />
                 )}
                 Run pipeline
               </Button>
@@ -438,7 +438,7 @@ export function ProgramsListClient({
             </span>
             <Button asChild size="sm">
               <Link href="/admin/programs/new">
-                <FilePlus2 className="h-3.5 w-3.5" aria-hidden />
+                <FilePlus2 className="size-icon-sm" aria-hidden />
                 Add new program
               </Link>
             </Button>
@@ -453,7 +453,7 @@ export function ProgramsListClient({
           action={
             <Button asChild>
               <Link href="/admin/programs/new">
-                <FilePlus2 className="h-4 w-4" aria-hidden />
+                <FilePlus2 className="size-icon-md" aria-hidden />
                 New program
               </Link>
             </Button>
@@ -545,7 +545,7 @@ export function ProgramsListClient({
                       <td className="px-4 py-2">
                         {current ? (
                           <Badge tone="info">
-                            <FileText className="h-3 w-3" aria-hidden /> current
+                            <FileText className="size-icon-xs" aria-hidden /> current
                           </Badge>
                         ) : (
                           <Badge tone="neutral">none</Badge>
@@ -564,7 +564,7 @@ export function ProgramsListClient({
                             onClick={() => setEditingId(r.id)}
                             title="Edit metadata"
                           >
-                            <Pencil className="h-3.5 w-3.5" aria-hidden />
+                            <Pencil className="size-icon-sm" aria-hidden />
                             Edit
                           </Button>
                           <Button variant="ghost" size="sm" asChild>
@@ -654,7 +654,7 @@ function PipelinePickerDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-accent-default" aria-hidden />
+            <Layers className="size-icon-md text-accent-default" aria-hidden />
             Run pipeline · {selectedCount} program(s)
           </DialogTitle>
           <DialogDescription>
@@ -749,7 +749,7 @@ function PipelinePickerDialog({
             </Button>
           </DialogClose>
           <Button size="sm" onClick={handleSubmit}>
-            <Play className="h-3.5 w-3.5" aria-hidden />
+            <Play className="size-icon-sm" aria-hidden />
             Enqueue {selectedCount} program(s)
           </Button>
         </div>
@@ -906,7 +906,7 @@ function EditProgramDrawer({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-4 w-4 text-accent-default" aria-hidden />
+            <Pencil className="size-icon-md text-accent-default" aria-hidden />
             Edit program {detail?.code ?? ''}
           </DialogTitle>
           <DialogDescription>
@@ -916,7 +916,7 @@ function EditProgramDrawer({
 
         {loading || !detail ? (
           <div className="flex items-center justify-center py-12 text-text-tertiary">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            <Loader2 className="size-icon-md animate-spin" aria-hidden />
           </div>
         ) : (
           <div className="flex flex-col gap-4 py-2">
@@ -1083,7 +1083,7 @@ function EditProgramDrawer({
               </Button>
             </DialogClose>
             <Button size="sm" disabled={saving || loading || !detail} onClick={handleSave}>
-              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+              {saving && <Loader2 className="size-icon-sm animate-spin" aria-hidden />}
               Save changes
             </Button>
           </div>

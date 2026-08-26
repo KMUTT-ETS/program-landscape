@@ -56,7 +56,7 @@ export function FixFilenamesButton() {
     <div className="flex items-center gap-2">
       {phase === 'idle' && (
         <Button variant="outline" size="sm" onClick={() => void run(true)}>
-          <Wand2 className="h-4 w-4" aria-hidden />
+          <Wand2 className="size-icon-md" aria-hidden />
           Check filenames
         </Button>
       )}

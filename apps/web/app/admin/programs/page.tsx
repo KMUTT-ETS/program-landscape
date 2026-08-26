@@ -112,14 +112,14 @@ export default async function AdminProgramsPage({
             <EdgeGlow inline>
               <Button variant="primary" asChild>
                 <Link href="/admin/programs/from-pdf">
-                  <FileUp className="h-4 w-4" aria-hidden />
+                  <FileUp className="size-icon-md" aria-hidden />
                   New from PDF
                 </Link>
               </Button>
             </EdgeGlow>
             <Button variant="outline" asChild>
               <Link href="/admin/programs/new">
-                <Plus className="h-4 w-4" aria-hidden />
+                <Plus className="size-icon-md" aria-hidden />
                 New blank
               </Link>
             </Button>

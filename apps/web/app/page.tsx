@@ -245,14 +245,14 @@ export default async function HomePage() {
       label: 'Active programs',
       value: activeProgramCount.toLocaleString('en-US'),
       hint: 'status = ACTIVE',
-      icon: <Building2 className="h-3.5 w-3.5" />,
+      icon: <Building2 className="size-icon-sm" />,
     },
     {
       label: 'Total students',
       value:
         enrolledTotal > 0 ? enrolledTotal.toLocaleString('en-US') : '—',
       hint: 'all enrolled',
-      icon: <GraduationCap className="h-3.5 w-3.5" />,
+      icon: <GraduationCap className="size-icon-sm" />,
     },
     {
       label: 'Total staff',
@@ -261,7 +261,7 @@ export default async function HomePage() {
           ? staffCounts.total.toLocaleString('en-US')
           : '—',
       hint: 'KKU HR roster',
-      icon: <Sparkles className="h-3.5 w-3.5" />,
+      icon: <Sparkles className="size-icon-sm" />,
     },
     {
       label: 'Academic staff',
@@ -270,7 +270,7 @@ export default async function HomePage() {
           ? staffCounts.academic.toLocaleString('en-US')
           : '—',
       hint: 'faculty + researchers',
-      icon: <GraduationCap className="h-3.5 w-3.5" />,
+      icon: <GraduationCap className="size-icon-sm" />,
     },
     {
       label: 'Support staff',
@@ -279,7 +279,7 @@ export default async function HomePage() {
           ? staffCounts.support.toLocaleString('en-US')
           : '—',
       hint: 'admin + technical',
-      icon: <Users className="h-3.5 w-3.5" />,
+      icon: <Users className="size-icon-sm" />,
     },
   ];
 
@@ -299,7 +299,7 @@ export default async function HomePage() {
           subtitle={
             facultyName ? `${roleLabel} · ${facultyName.nameEn}` : roleLabel
           }
-          icon={<Sparkles className="h-6 w-6" aria-hidden />}
+          icon={<Sparkles className="size-icon-xl" aria-hidden />}
           stats={heroStats}
           // 5 stats → 2/3 on mobile/sm, 5 across at md+. Replaces the
           // default sm:grid-cols-4 fit so nothing wraps awkwardly.

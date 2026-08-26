@@ -129,7 +129,7 @@ export function Stat({
                 DELTA_TONE_CLASSES[tone],
               )}
             >
-              {DeltaArrow && <DeltaArrow className="h-3.5 w-3.5" aria-hidden />}
+              {DeltaArrow && <DeltaArrow className="size-icon-sm" aria-hidden />}
               {deltaText}
             </span>
           )}

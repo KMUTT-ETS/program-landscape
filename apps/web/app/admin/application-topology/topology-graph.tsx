@@ -834,26 +834,26 @@ function ZoomControls({
       onMouseDown={(e) => e.stopPropagation()}
     >
       <IconButton onClick={onZoomOut} ariaLabel="Zoom out">
-        <Minus className="h-3.5 w-3.5" />
+        <Minus className="size-icon-sm" />
       </IconButton>
       <span className="min-w-[40px] px-1 text-center font-tabular text-[10.5px] text-text-tertiary">
         {Math.round(scale * 100)}%
       </span>
       <IconButton onClick={onZoomIn} ariaLabel="Zoom in">
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="size-icon-sm" />
       </IconButton>
       <span className="mx-0.5 h-4 w-px bg-border-default" aria-hidden />
       <IconButton onClick={onFit} ariaLabel="Fit to view">
-        <Maximize className="h-3.5 w-3.5" />
+        <Maximize className="size-icon-sm" />
       </IconButton>
       <IconButton
         onClick={onFullscreen}
         ariaLabel={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
       >
         {isFullscreen ? (
-          <Minimize2 className="h-3.5 w-3.5" />
+          <Minimize2 className="size-icon-sm" />
         ) : (
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Maximize2 className="size-icon-sm" />
         )}
       </IconButton>
     </div>
@@ -899,8 +899,8 @@ function ViewModeToggle({
     label: string;
     icon: React.ReactNode;
   }> = [
-    { key: '2d', label: '2D', icon: <Square className="h-3.5 w-3.5" /> },
-    { key: '3d', label: '3D', icon: <Box className="h-3.5 w-3.5" /> },
+    { key: '2d', label: '2D', icon: <Square className="size-icon-sm" /> },
+    { key: '3d', label: '3D', icon: <Box className="size-icon-sm" /> },
   ];
   return (
     <div
@@ -936,7 +936,7 @@ function ViewModeToggle({
         <>
           <span className="mx-0.5 h-4 w-px bg-border-default" aria-hidden />
           <IconButton onClick={onResetRotation} ariaLabel="Reset view angle">
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="size-icon-sm" />
           </IconButton>
         </>
       )}
@@ -1383,7 +1383,7 @@ function NodeTooltip({
           aria-label="Close details"
           className="rounded p-1 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
         >
-          <X className="h-4 w-4" />
+          <X className="size-icon-md" />
         </button>
       </div>
 
@@ -1467,7 +1467,7 @@ function NodeTooltip({
             href={`/admin/data-sources?slug=${node.details?.sourceSlug ?? ''}`}
             className="mt-2 inline-flex items-center gap-1 text-[11px] text-accent-default hover:underline"
           >
-            Open in Data sources <ArrowUpRight className="h-3 w-3" />
+            Open in Data sources <ArrowUpRight className="size-icon-xs" />
           </Link>
         </div>
       )}
@@ -1507,7 +1507,7 @@ function NodeTooltip({
           rel="noreferrer"
           className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-border-default px-3 py-1.5 text-[12px] text-text-primary hover:bg-surface-2"
         >
-          Open dashboard <ExternalLink className="h-3.5 w-3.5" />
+          Open dashboard <ExternalLink className="size-icon-sm" />
         </Link>
       )}
     </div>

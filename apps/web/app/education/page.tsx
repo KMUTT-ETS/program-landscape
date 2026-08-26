@@ -182,7 +182,7 @@ export default async function EducationHubPage() {
                 </div>
                 <div className="flex items-start gap-3 px-4 pb-4">
                   <div className="rounded-md bg-accent-subtle p-2 text-accent">
-                    <Icon className="h-5 w-5" />
+                    <Icon className="size-icon-lg" />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-sm font-semibold">{t.title}</h3>

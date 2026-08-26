@@ -7,7 +7,7 @@ export function StaffBackLink() {
       href="/staff"
       className="mb-2 inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary"
     >
-      <ChevronLeft className="h-3 w-3" />
+      <ChevronLeft className="size-icon-xs" />
       Back to Staff dashboard
     </Link>
   );

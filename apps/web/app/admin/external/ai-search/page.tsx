@@ -32,7 +32,7 @@ export default async function AdminAiSearchPage() {
           <div className="flex items-baseline gap-3">
             <Button asChild variant="ghost" size="sm">
               <Link href="/admin">
-                <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Admin
+                <ArrowLeft className="size-icon-sm" aria-hidden /> Admin
               </Link>
             </Button>
             <span className="text-xs uppercase tracking-wide text-text-tertiary">
@@ -44,7 +44,7 @@ export default async function AdminAiSearchPage() {
 
         <header className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent-default/30 bg-accent-default/10 text-accent-default">
-            <Globe2 className="h-6 w-6" aria-hidden />
+            <Globe2 className="size-icon-xl" aria-hidden />
           </div>
           <div>
             <h1 className="text-2xl font-medium tracking-tight">AI search & synthesis</h1>

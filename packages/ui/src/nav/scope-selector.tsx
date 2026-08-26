@@ -153,13 +153,13 @@ export function ScopeSelector({ entities, access, onChange }: ScopeSelectorProps
               ? breadcrumb.slice(1).join(' · ')
               : 'University'}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform duration-fast group-data-[state=open]:rotate-180" aria-hidden />
+          <ChevronDown className="size-icon-sm shrink-0 text-text-tertiary transition-transform duration-fast group-data-[state=open]:rotate-180" aria-hidden />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[380px] p-0" align="start">
         <Command className="flex flex-col">
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />
+            <Search className="size-icon-sm text-text-tertiary" aria-hidden />
             <Command.Input
               autoFocus
               placeholder="Search scope…"
@@ -262,7 +262,7 @@ function ScopeItem({
         <span className="truncate text-sm text-text-primary">{label}</span>
         <span className="truncate text-xs text-text-tertiary">{sub}</span>
       </div>
-      {active && <Check className="h-3.5 w-3.5 text-accent-default" aria-hidden />}
+      {active && <Check className="size-icon-sm text-accent-default" aria-hidden />}
     </Command.Item>
   );
 }

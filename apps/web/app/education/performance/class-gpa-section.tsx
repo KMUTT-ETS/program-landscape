@@ -595,7 +595,7 @@ function PivotTable({
                   <td className="sticky left-0 bg-inherit px-3 py-1.5 font-semibold">
                     <div className="flex items-center gap-1.5">
                       <ChevronRight
-                        className={`h-3.5 w-3.5 transition-transform ${isFacultyOpen ? 'rotate-90' : ''}`}
+                        className={`size-icon-sm transition-transform ${isFacultyOpen ? 'rotate-90' : ''}`}
                       />
                       <span>{f.facultyName}</span>
                     </div>
@@ -630,7 +630,7 @@ function PivotTable({
                           <td className="sticky left-0 bg-inherit px-3 py-1.5 text-text-secondary">
                             <div className="flex items-center gap-1.5 pl-6">
                               <ChevronRight
-                                className={`h-3 w-3 text-text-tertiary transition-transform ${isLevelOpen ? 'rotate-90' : ''}`}
+                                className={`size-icon-xs text-text-tertiary transition-transform ${isLevelOpen ? 'rotate-90' : ''}`}
                               />
                               <span className="font-medium">
                                 {LEVEL_LABEL[lvl.programLevel] ?? lvl.programLevel}
@@ -674,7 +674,7 @@ function PivotTable({
                                   <td className="sticky left-0 bg-surface-0 px-3 py-1.5 text-text-secondary">
                                     <div className="flex items-center gap-1.5 pl-12">
                                       <ChevronRight
-                                        className={`h-3 w-3 text-text-tertiary transition-transform ${isProgramOpen ? 'rotate-90' : ''}`}
+                                        className={`size-icon-xs text-text-tertiary transition-transform ${isProgramOpen ? 'rotate-90' : ''}`}
                                       />
                                       <span>{p.programName}</span>
                                     </div>

@@ -116,7 +116,7 @@ export function AvatarUploader({ currentAvatarUrl, open, onClose }: AvatarUpload
             className="rounded p-1 text-text-tertiary hover:bg-surface-2 hover:text-text-primary disabled:opacity-50"
             aria-label="Close"
           >
-            <X className="h-4 w-4" aria-hidden />
+            <X className="size-icon-md" aria-hidden />
           </button>
         </header>
 
@@ -172,7 +172,7 @@ export function AvatarUploader({ currentAvatarUrl, open, onClose }: AvatarUpload
               </div>
 
               <div className="mt-4 flex items-center gap-3">
-                <ZoomOut className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
+                <ZoomOut className="size-icon-md shrink-0 text-text-tertiary" aria-hidden />
                 <input
                   type="range"
                   min={1}
@@ -183,7 +183,7 @@ export function AvatarUploader({ currentAvatarUrl, open, onClose }: AvatarUpload
                   className="h-1 w-full appearance-none rounded-full bg-surface-2 accent-accent-default"
                   aria-label="Zoom"
                 />
-                <ZoomIn className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
+                <ZoomIn className="size-icon-md shrink-0 text-text-tertiary" aria-hidden />
               </div>
 
               <p className="mt-2 text-[11px] text-text-tertiary">
@@ -205,7 +205,7 @@ export function AvatarUploader({ currentAvatarUrl, open, onClose }: AvatarUpload
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-2 disabled:opacity-50"
             >
-              <Upload className="h-3.5 w-3.5" aria-hidden />
+              <Upload className="size-icon-sm" aria-hidden />
               Choose another
             </button>
           )}
@@ -223,7 +223,7 @@ export function AvatarUploader({ currentAvatarUrl, open, onClose }: AvatarUpload
             disabled={busy || !imageSrc || !croppedArea}
             className="inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-accent-default px-4 py-1.5 text-xs font-semibold text-accent-fg shadow-sm transition-colors hover:bg-accent-default/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Check className="h-3.5 w-3.5" aria-hidden />
+            <Check className="size-icon-sm" aria-hidden />
             {busy ? 'Saving…' : 'Save photo'}
           </button>
         </footer>

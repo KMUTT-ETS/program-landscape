@@ -407,7 +407,7 @@ export function CampaignsClient({
         </Banner>
       )}
       {meta.unmappedProgramCount > 0 && (
-        <Banner tone="info" icon={<Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-info" />}>
+        <Banner tone="info" icon={<Link2Off className="mt-0.5 size-icon-md shrink-0 text-info" />}>
           {meta.unmappedProgramCount} of {meta.totalProgramCount} recruitment
           programs aren&apos;t yet matched to a curriculum (shown as
           &ldquo;to be assigned&rdquo;). Metrics are unaffected; program
@@ -482,7 +482,7 @@ function Banner({ tone, icon, children }: { tone: 'warning' | 'info'; icon?: Rea
   return (
     <div className={`rounded-lg border ${cls} p-3 text-sm`}>
       <div className="flex items-start gap-2">
-        {icon ?? <Info className={`mt-0.5 h-4 w-4 shrink-0 ${tone === 'warning' ? 'text-warning' : 'text-info'}`} />}
+        {icon ?? <Info className={`mt-0.5 size-icon-md shrink-0 ${tone === 'warning' ? 'text-warning' : 'text-info'}`} />}
         <div className="flex-1 text-text-secondary">{children}</div>
       </div>
     </div>
@@ -1030,7 +1030,7 @@ function DrillTh({ col, sort, onSort }: { col: MetricCol; sort: DrillSort; onSor
     <th className="px-2 py-2 cursor-pointer select-none text-right" title={col.source} onClick={() => onSort(col.key)}>
       <span className={`inline-flex items-center gap-0.5 ${active ? 'text-text-primary' : ''}`}>
         {col.label}
-        {active && (sort.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+        {active && (sort.dir === 'asc' ? <ChevronUp className="size-icon-xs" /> : <ChevronDown className="size-icon-xs" />)}
       </span>
     </th>
   );
@@ -1084,7 +1084,7 @@ function CampaignDrill({ rows, zeroTrackCount }: { rows: CampaignProgramRow[]; z
               <th className="px-3 py-2 cursor-pointer select-none text-left" onClick={() => onSort('name')}>
                 <span className={`inline-flex items-center gap-0.5 ${sort.key === 'name' ? 'text-text-primary' : ''}`}>
                   Faculty · program · sub-program · round · track
-                  {sort.key === 'name' && (sort.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                  {sort.key === 'name' && (sort.dir === 'asc' ? <ChevronUp className="size-icon-xs" /> : <ChevronDown className="size-icon-xs" />)}
                 </span>
               </th>
               {METRIC_COLS.map((col) => (
@@ -1120,7 +1120,7 @@ function FacultyGroup({ facultyNameTh, programs, sort }: { facultyNameTh: string
       <tr className="cursor-pointer bg-surface-2/60 font-medium hover:bg-surface-2" onClick={() => setOpen((o) => !o)}>
         <td className="px-3 py-2">
           <div className="flex items-center gap-1">
-            {open ? <ChevronUp className="h-3.5 w-3.5 text-text-secondary" /> : <ChevronDown className="h-3.5 w-3.5 text-text-secondary" />}
+            {open ? <ChevronUp className="size-icon-sm text-text-secondary" /> : <ChevronDown className="size-icon-sm text-text-secondary" />}
             <span className="text-xs font-semibold" lang="th">{facultyNameTh}</span>
             <span className="text-[11px] text-text-tertiary">· {programs.length} prog{programs.length === 1 ? '' : 's'}</span>
           </div>
@@ -1141,7 +1141,7 @@ function ProgramGroup({ program: p, sort }: { program: CampaignProgramRow; sort:
       <tr className="cursor-pointer bg-surface-1/40 hover:bg-surface-2" onClick={() => setOpen((o) => !o)}>
         <td className="px-3 py-2 pl-7">
           <div className="flex items-center gap-1">
-            {open ? <ChevronUp className="h-3 w-3 text-text-tertiary" /> : <ChevronDown className="h-3 w-3 text-text-tertiary" />}
+            {open ? <ChevronUp className="size-icon-xs text-text-tertiary" /> : <ChevronDown className="size-icon-xs text-text-tertiary" />}
             <div>
               <div className={`text-xs font-semibold ${isUnmappedProgram(p.programId) && !p.isNewProgram ? 'text-text-tertiary italic' : ''}`} lang="th">
                 {p.programNameTh}
@@ -1159,7 +1159,7 @@ function ProgramGroup({ program: p, sort }: { program: CampaignProgramRow; sort:
         <td className="px-2 py-2">
           {p.programId && (
             <Link href={`/programs/${p.programId}`} className="text-text-tertiary hover:text-accent-default" title="Open program deep-dive" onClick={(e) => e.stopPropagation()}>
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="size-icon-sm" />
             </Link>
           )}
         </td>
@@ -1182,7 +1182,7 @@ function SubProgramGroup({ node: n, sort }: { node: CampaignSubProgramNode; sort
       <tr className="cursor-pointer bg-surface-2/30 hover:bg-surface-2" onClick={() => setOpen((o) => !o)}>
         <td className="px-3 py-1.5 pl-12">
           <div className="flex items-center gap-1">
-            {open ? <ChevronUp className="h-3 w-3 text-text-tertiary" /> : <ChevronDown className="h-3 w-3 text-text-tertiary" />}
+            {open ? <ChevronUp className="size-icon-xs text-text-tertiary" /> : <ChevronDown className="size-icon-xs text-text-tertiary" />}
             <div>
               <div className="text-xs text-text-secondary" lang="th">{n.label.slice(0, 54)}</div>
               <div className="font-tabular text-[11px] text-text-tertiary">{n.recruitmentProgramId}</div>
@@ -1207,7 +1207,7 @@ function RoundLeaf({ node: n, sort }: { node: CampaignRoundNode; sort: DrillSort
       <tr className={`bg-surface-2/40 text-xs ${expandable ? 'cursor-pointer hover:bg-surface-2' : ''}`} onClick={expandable ? () => setOpen((o) => !o) : undefined}>
         <td className="px-3 py-1.5 pl-[68px]">
           <div className="flex items-center gap-1">
-            {expandable && (open ? <ChevronUp className="h-3 w-3 text-text-tertiary" /> : <ChevronDown className="h-3 w-3 text-text-tertiary" />)}
+            {expandable && (open ? <ChevronUp className="size-icon-xs text-text-tertiary" /> : <ChevronDown className="size-icon-xs text-text-tertiary" />)}
             <span className="text-text-tertiary">Round {n.round}</span>
             {n.trackCount > 1 && <span className="ml-1 text-[10px] text-text-tertiary">({n.trackCount} tracks)</span>}
           </div>

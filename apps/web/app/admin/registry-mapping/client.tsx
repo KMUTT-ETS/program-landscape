@@ -190,13 +190,13 @@ export function RegistryMappingClient({
                     className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-accent-default"
                     target="_blank"
                   >
-                    Program detail <ExternalLink className="h-3 w-3" />
+                    Program detail <ExternalLink className="size-icon-xs" />
                   </Link>
                 </header>
 
                 {!facultyHasCandidates && p.candidates.length > 0 && (
                   <div className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-800 dark:text-amber-200">
-                    <AlertTriangle className="h-3 w-3" />
+                    <AlertTriangle className="size-icon-xs" />
                     No same-faculty registry tuples · candidates below are cross-faculty fuzzy matches
                   </div>
                 )}
@@ -257,7 +257,7 @@ export function RegistryMappingClient({
                             onClick={() => confirmMapping(p, c, i)}
                             className={buttonClasses}
                           >
-                            <Check className="h-3 w-3" />
+                            <Check className="size-icon-xs" />
                             {pending ? 'Saving…' : wouldReassign ? 'Reassign…' : 'Confirm match'}
                           </button>
                         </li>

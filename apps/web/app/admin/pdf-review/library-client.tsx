@@ -226,7 +226,7 @@ export function LibraryClient({
               pushFilter({ q: null, category: null, status: null, lifecycle: null });
             }}
           >
-            <X className="h-3.5 w-3.5" aria-hidden /> Clear filters
+            <X className="size-icon-sm" aria-hidden /> Clear filters
           </Button>
         </div>
       )}
@@ -304,7 +304,7 @@ export function LibraryClient({
                       <div className="flex items-center justify-end gap-1">
                         <Button size="sm" variant="ghost" asChild title="Open detail">
                           <Link href={`/admin/pdf-review/${row.id}`}>
-                            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                            <ExternalLink className="size-icon-sm" aria-hidden />
                           </Link>
                         </Button>
                         {row.processingStatus === 'FAILED' || row.processingStatus === 'PENDING' ? (
@@ -315,7 +315,7 @@ export function LibraryClient({
                             onClick={() => actReExtract(row)}
                             title="Re-extract"
                           >
-                            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                            <RefreshCw className="size-icon-sm" aria-hidden />
                           </Button>
                         ) : null}
                         {row.lifecycleStatus === 'ACTIVE' ? (
@@ -327,7 +327,7 @@ export function LibraryClient({
                               onClick={() => setConfirm({ kind: 'archive', row })}
                               title="Archive"
                             >
-                              <Archive className="h-3.5 w-3.5" aria-hidden />
+                              <Archive className="size-icon-sm" aria-hidden />
                             </Button>
                             <Button
                               size="sm"
@@ -336,7 +336,7 @@ export function LibraryClient({
                               onClick={() => setConfirm({ kind: 'deprecate', row })}
                               title="Deprecate"
                             >
-                              <Ban className="h-3.5 w-3.5" aria-hidden />
+                              <Ban className="size-icon-sm" aria-hidden />
                             </Button>
                           </>
                         ) : (
@@ -347,7 +347,7 @@ export function LibraryClient({
                             onClick={() => setConfirm({ kind: 'restore', row })}
                             title="Restore to active"
                           >
-                            <ArchiveRestore className="h-3.5 w-3.5" aria-hidden />
+                            <ArchiveRestore className="size-icon-sm" aria-hidden />
                           </Button>
                         )}
                         {canDelete ? (
@@ -359,7 +359,7 @@ export function LibraryClient({
                             title="Delete permanently"
                             className="text-danger-default hover:text-danger-default"
                           >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                            <Trash2 className="size-icon-sm" aria-hidden />
                           </Button>
                         ) : null}
                       </div>
@@ -383,7 +383,7 @@ export function LibraryClient({
             disabled={page <= 1}
             onClick={() => pushFilter({ page: String(page - 1) })}
           >
-            <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Prev
+            <ChevronLeft className="size-icon-sm" aria-hidden /> Prev
           </Button>
           <Button
             size="sm"
@@ -391,7 +391,7 @@ export function LibraryClient({
             disabled={page >= totalPages}
             onClick={() => pushFilter({ page: String(page + 1) })}
           >
-            Next <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            Next <ChevronRight className="size-icon-sm" aria-hidden />
           </Button>
         </div>
       </div>
@@ -459,19 +459,19 @@ export function LibraryClient({
                     disabled={pending}
                     className="bg-danger-default text-text-on-danger hover:bg-danger-default/90"
                   >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete permanently
+                    <Trash2 className="size-icon-sm" aria-hidden /> Delete permanently
                   </Button>
                 ) : confirm.kind === 'restore' ? (
                   <Button onClick={() => actLifecycle(confirm.row, 'ACTIVE', '')} disabled={pending}>
-                    <ArchiveRestore className="h-3.5 w-3.5" aria-hidden /> Restore
+                    <ArchiveRestore className="size-icon-sm" aria-hidden /> Restore
                   </Button>
                 ) : confirm.kind === 'archive' ? (
                   <Button onClick={() => actLifecycle(confirm.row, 'ARCHIVED', confirmNote)} disabled={pending}>
-                    <Archive className="h-3.5 w-3.5" aria-hidden /> Archive
+                    <Archive className="size-icon-sm" aria-hidden /> Archive
                   </Button>
                 ) : (
                   <Button onClick={() => actLifecycle(confirm.row, 'DEPRECATED', confirmNote)} disabled={pending}>
-                    <Ban className="h-3.5 w-3.5" aria-hidden /> Deprecate
+                    <Ban className="size-icon-sm" aria-hidden /> Deprecate
                   </Button>
                 )}
               </div>

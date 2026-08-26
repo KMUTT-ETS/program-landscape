@@ -103,7 +103,7 @@ export function ResearchRefreshBar({ initial }: ResearchDataSourceProps) {
           size="sm"
           className="gap-2"
         >
-          <RefreshCw className={`h-5 w-5 ${busy || inflight ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-icon-lg ${busy || inflight ? 'animate-spin' : ''}`} />
           <span>{busy || inflight ? 'Refreshing…' : 'Refresh now'}</span>
         </Button>
         <span className="text-xs text-text-tertiary">
@@ -116,7 +116,7 @@ export function ResearchRefreshBar({ initial }: ResearchDataSourceProps) {
 
       <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 md:grid-cols-4">
         <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-text-tertiary" />
+          <Clock className="size-icon-md text-text-tertiary" />
           <div>
             <div className="text-text-tertiary">Cadence</div>
             <div className="text-text-primary">{describeCron(initial.cadenceCron)}</div>
@@ -124,11 +124,11 @@ export function ResearchRefreshBar({ initial }: ResearchDataSourceProps) {
         </div>
         <div className="flex items-center gap-2">
           {lastStatus === 'SUCCEEDED' ? (
-            <CheckCircle2 className="h-4 w-4 text-success-default" />
+            <CheckCircle2 className="size-icon-md text-success-default" />
           ) : lastStatus === 'FAILED' ? (
-            <AlertTriangle className="h-4 w-4 text-warning-default" />
+            <AlertTriangle className="size-icon-md text-warning-default" />
           ) : (
-            <Clock className="h-4 w-4 text-text-tertiary" />
+            <Clock className="size-icon-md text-text-tertiary" />
           )}
           <div>
             <div className="text-text-tertiary">Last successful refresh</div>

@@ -295,7 +295,7 @@ export function AnalystClient({
                 className="inline-flex items-center gap-1 text-[10px] text-text-tertiary hover:text-danger"
                 title="Delete all conversations"
               >
-                <Trash2 className="h-3 w-3" aria-hidden />
+                <Trash2 className="size-icon-xs" aria-hidden />
                 Clear all
               </button>
             )}
@@ -336,7 +336,7 @@ export function AnalystClient({
                     aria-label={`Delete conversation: ${c.title}`}
                     className="rounded-sm p-0.5 text-text-tertiary opacity-0 transition-opacity hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
                   >
-                    <Trash2 className="h-3 w-3" aria-hidden />
+                    <Trash2 className="size-icon-xs" aria-hidden />
                   </button>
                 </div>
               ))
@@ -445,7 +445,7 @@ function StreamingBubble({
         aria-live="polite"
       >
         <Badge tone="outline">Analyst</Badge>
-        <Loader2 className="h-3 w-3 animate-spin text-accent-default" aria-hidden />
+        <Loader2 className="size-icon-xs animate-spin text-accent-default" aria-hidden />
         <span className="font-medium text-text-secondary" title={statusDetail}>
           {statusLabel}
         </span>

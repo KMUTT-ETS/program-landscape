@@ -93,7 +93,7 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
           {/* Search input row — bigger search icon, generous padding,
               accent edge underline. */}
           <div className="relative flex items-center gap-3.5 border-b border-border-subtle px-5 py-4">
-            <Search className="h-5 w-5 shrink-0 text-accent-default" aria-hidden strokeWidth={1.8} />
+            <Search className="size-icon-lg shrink-0 text-accent-default" aria-hidden strokeWidth={1.8} />
             <Command.Input
               autoFocus
               placeholder="Search faculties, departments, programs, actions…"
@@ -111,19 +111,19 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
 
           <Command.List className="max-h-[480px] overflow-y-auto px-3 py-3">
             <Command.Empty className="flex flex-col items-center gap-2 px-3 py-10 text-center">
-              <Search className="h-6 w-6 text-text-tertiary" aria-hidden strokeWidth={1.5} />
+              <Search className="size-icon-xl text-text-tertiary" aria-hidden strokeWidth={1.5} />
               <span className="text-sm font-medium text-text-secondary">Nothing matches.</span>
               <span className="text-xs text-text-tertiary">Try a different keyword or browse the sidebar.</span>
             </Command.Empty>
 
             <PaletteGroup heading="Navigate">
               <NavItem
-                icon={<LayoutGrid className="h-4 w-4" />}
+                icon={<LayoutGrid className="size-icon-md" />}
                 label="Go to Home"
                 onSelect={withClose(() => router.push('/'))}
               />
               <NavItem
-                icon={<LayoutGrid className="h-4 w-4" />}
+                icon={<LayoutGrid className="size-icon-md" />}
                 label="Styleguide"
                 onSelect={withClose(() => router.push('/styleguide'))}
               />
@@ -133,7 +133,7 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
               {entities.faculties.map((f) => (
                 <NavItem
                   key={f.id}
-                  icon={<Building2 className="h-4 w-4" />}
+                  icon={<Building2 className="size-icon-md" />}
                   label={f.nameEn}
                   sub={`${f.code} · ${f.nameTh}`}
                   keywords={`${f.code} ${f.nameTh}`}
@@ -146,7 +146,7 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
               {entities.departments.map((d) => (
                 <NavItem
                   key={d.id}
-                  icon={<Building2 className="h-4 w-4" />}
+                  icon={<Building2 className="size-icon-md" />}
                   label={d.nameEn}
                   sub={`${d.code} · ${d.nameTh}`}
                   keywords={`${d.code} ${d.nameTh}`}
@@ -159,7 +159,7 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
               {entities.programs.map((p) => (
                 <NavItem
                   key={p.id}
-                  icon={<GraduationCap className="h-4 w-4" />}
+                  icon={<GraduationCap className="size-icon-md" />}
                   label={p.nameEn}
                   sub={`${p.code} · ${p.nameTh}`}
                   keywords={`${p.code} ${p.nameTh}`}
@@ -191,7 +191,7 @@ export function CommandPalette({ entities, actions = [] }: CommandPaletteProps) 
             </span>
             <span className="inline-flex items-center gap-2">
               <kbd className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-text-secondary ring-1 ring-inset ring-border-subtle">↵</kbd>
-              <ArrowRight className="h-3 w-3" aria-hidden />
+              <ArrowRight className="size-icon-xs" aria-hidden />
               to select
             </span>
           </div>
@@ -272,7 +272,7 @@ function NavItem({
         {sub && <span className="mt-0.5 truncate text-xs text-text-tertiary">{sub}</span>}
       </div>
       <ArrowRight
-        className="h-4 w-4 shrink-0 text-transparent group-aria-selected:text-accent-default transition-colors"
+        className="size-icon-md shrink-0 text-transparent group-aria-selected:text-accent-default transition-colors"
         aria-hidden
       />
     </Command.Item>

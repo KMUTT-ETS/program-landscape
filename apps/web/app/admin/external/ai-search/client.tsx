@@ -253,7 +253,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">Source catalog</h2>
           <Button size="sm" onClick={() => setEditing(emptyDraft())} disabled={pending}>
-            <Plus className="h-3.5 w-3.5" aria-hidden /> Add source
+            <Plus className="size-icon-sm" aria-hidden /> Add source
           </Button>
         </div>
         <div className="overflow-x-auto">
@@ -275,9 +275,9 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-2">
                       {s.kind === 'WEB_SEARCH' ? (
-                        <Search className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />
+                        <Search className="size-icon-sm text-text-tertiary" aria-hidden />
                       ) : (
-                        <LinkIcon className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />
+                        <LinkIcon className="size-icon-sm text-text-tertiary" aria-hidden />
                       )}
                       <span className="font-medium">{s.name}</span>
                       <Badge tone="neutral">{s.signalType}</Badge>
@@ -302,9 +302,9 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                         <div>{new Date(s.lastFetchedAt).toLocaleString()}</div>
                         <div className="mt-0.5 flex items-center gap-1">
                           {s.lastFetchStatus === 'OK' ? (
-                            <CheckCircle2 className="h-3 w-3 text-success-default" aria-hidden />
+                            <CheckCircle2 className="size-icon-xs text-success-default" aria-hidden />
                           ) : s.lastFetchStatus === 'FAILED' ? (
-                            <XCircle className="h-3 w-3 text-danger-default" aria-hidden />
+                            <XCircle className="size-icon-xs text-danger-default" aria-hidden />
                           ) : null}
                           <span>
                             {s.lastFetchStatus ?? '—'} · {s.lastSignalCount ?? 0} new
@@ -330,7 +330,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                         disabled={pending || s.status === 'DISABLED'}
                         title="Run now"
                       >
-                        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                        <RefreshCw className="size-icon-sm" aria-hidden />
                       </Button>
                       {s.status === 'ACTIVE' ? (
                         <Button
@@ -340,7 +340,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                           disabled={pending}
                           title="Pause"
                         >
-                          <Pause className="h-3.5 w-3.5" aria-hidden />
+                          <Pause className="size-icon-sm" aria-hidden />
                         </Button>
                       ) : (
                         <Button
@@ -350,7 +350,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                           disabled={pending}
                           title="Activate"
                         >
-                          <Play className="h-3.5 w-3.5" aria-hidden />
+                          <Play className="size-icon-sm" aria-hidden />
                         </Button>
                       )}
                       <Button
@@ -360,7 +360,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                         disabled={pending}
                         title="Edit"
                       >
-                        <PencilLine className="h-3.5 w-3.5" aria-hidden />
+                        <PencilLine className="size-icon-sm" aria-hidden />
                       </Button>
                       <Button
                         size="sm"
@@ -370,7 +370,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                         title="Delete"
                         className="text-danger-default hover:text-danger-default"
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        <Trash2 className="size-icon-sm" aria-hidden />
                       </Button>
                     </div>
                   </td>
@@ -432,7 +432,7 @@ export function AiSearchClient({ initial }: { initial: ExternalAiSourceRow[] }) 
                   disabled={pending}
                   className="bg-danger-default text-text-on-danger hover:bg-danger-default/90"
                 >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete
+                  <Trash2 className="size-icon-sm" aria-hidden /> Delete
                 </Button>
               </div>
             </>
@@ -462,7 +462,7 @@ function EditDraftForm({
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Globe2 className="h-4 w-4" aria-hidden />
+          <Globe2 className="size-icon-md" aria-hidden />
           {isEdit ? `Edit ${draft.name || draft.slug}` : 'Add external AI source'}
         </DialogTitle>
         <DialogDescription>

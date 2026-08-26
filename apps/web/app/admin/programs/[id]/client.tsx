@@ -542,7 +542,7 @@ function SunsetButton({
   };
   return (
     <Button type="button" variant="outline" onClick={onClick} disabled={busy}>
-      <Archive className="h-4 w-4" aria-hidden />
+      <Archive className="size-icon-md" aria-hidden />
       Sunset program
     </Button>
   );
@@ -661,7 +661,7 @@ function ApprovalsTab({ program }: { program: ProgramDetail }) {
                   onClick={() => setEntries(entries.filter((_, i) => i !== idx))}
                   aria-label="Remove row"
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden />
+                  <Trash2 className="size-icon-md" aria-hidden />
                 </Button>
               </div>
             </div>
@@ -673,7 +673,7 @@ function ApprovalsTab({ program }: { program: ProgramDetail }) {
             variant="outline"
             onClick={() => setEntries([...entries, { body: 'OTHER' }])}
           >
-            <Plus className="h-4 w-4" aria-hidden />
+            <Plus className="size-icon-md" aria-hidden />
             Add row
           </Button>
           <Button onClick={save} disabled={saving}>
@@ -746,7 +746,7 @@ function CareersTab({ program }: { program: ProgramDetail }) {
                 size="sm"
                 onClick={() => setCareers(careers.filter((_, i) => i !== idx))}
               >
-                <Trash2 className="h-4 w-4" aria-hidden />
+                <Trash2 className="size-icon-md" aria-hidden />
               </Button>
             </li>
           ))}
@@ -773,7 +773,7 @@ function CareersTab({ program }: { program: ProgramDetail }) {
               setDraft('');
             }}
           >
-            <Plus className="h-4 w-4" aria-hidden />
+            <Plus className="size-icon-md" aria-hidden />
             Add
           </Button>
         </div>
@@ -920,7 +920,7 @@ function FilesTab({ program }: { program: ProgramDetail }) {
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload className="h-4 w-4" aria-hidden />
+              <Upload className="size-icon-md" aria-hidden />
               {uploading ? 'Uploading…' : 'Choose PDF'}
             </Button>
             <input
@@ -967,7 +967,7 @@ function FilesTab({ program }: { program: ProgramDetail }) {
                           href={`/admin/pdf-review/${d.pdfDocument.id}`}
                           className="flex items-center gap-1 font-medium text-text-primary hover:underline"
                         >
-                          <FileText className="h-3.5 w-3.5" aria-hidden />
+                          <FileText className="size-icon-sm" aria-hidden />
                           {d.pdfDocument.originalFilename}
                         </a>
                         <span className="text-xs text-text-tertiary">
@@ -980,7 +980,7 @@ function FilesTab({ program }: { program: ProgramDetail }) {
                     <td className="px-4 py-2">
                       {d.isCurrent && (
                         <Badge tone="success" className="mr-1">
-                          <CheckCircle2 className="h-3 w-3" aria-hidden />
+                          <CheckCircle2 className="size-icon-xs" aria-hidden />
                           current
                         </Badge>
                       )}
@@ -1047,7 +1047,7 @@ function FilesTab({ program }: { program: ProgramDetail }) {
                           onClick={() => detach(d.id)}
                           aria-label="Detach"
                         >
-                          <Trash2 className="h-4 w-4" aria-hidden />
+                          <Trash2 className="size-icon-md" aria-hidden />
                         </Button>
                       </div>
                     </td>
@@ -1197,7 +1197,7 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
               disabled={loading}
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`}
+                className={`size-icon-sm ${loading ? 'animate-spin' : ''}`}
                 aria-hidden
               />
               Refresh
@@ -1208,7 +1208,7 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
               onClick={runPipeline}
               disabled={running}
             >
-              <Play className="h-3.5 w-3.5" aria-hidden />
+              <Play className="size-icon-sm" aria-hidden />
               {running ? 'Enqueuing…' : 'Run full pipeline'}
             </Button>
           </div>
@@ -1241,7 +1241,7 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
       {error && (
         <Card padding="sm" className="border-danger/40 bg-danger/5">
           <div className="flex items-center gap-2 text-sm text-danger">
-            <AlertTriangle className="h-4 w-4" aria-hidden />
+            <AlertTriangle className="size-icon-md" aria-hidden />
             {error}
           </div>
         </Card>
@@ -1286,7 +1286,7 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
                     colSpan={6}
                     className="px-3 py-10 text-center text-text-tertiary"
                   >
-                    <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-hidden />
+                    <Loader2 className="mx-auto size-icon-md animate-spin" aria-hidden />
                   </td>
                 </tr>
               )}
@@ -1337,7 +1337,7 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
           href="/admin/queues"
           className="text-accent-default hover:underline inline-flex items-center gap-1"
         >
-          Open the queues console <ExternalLink className="h-3 w-3" />
+          Open the queues console <ExternalLink className="size-icon-xs" />
         </a>
       </p>
     </div>
@@ -1355,7 +1355,7 @@ function PipelineRunStateBadge({ entry }: { entry: PipelineHistoryEntry }) {
         className="inline-flex items-center gap-1 text-danger"
         title={entry.failedReason ?? entry.verdictReason ?? undefined}
       >
-        <XCircle className="h-3 w-3" aria-hidden /> failed
+        <XCircle className="size-icon-xs" aria-hidden /> failed
       </span>
     );
   }
@@ -1366,7 +1366,7 @@ function PipelineRunStateBadge({ entry }: { entry: PipelineHistoryEntry }) {
           className="inline-flex items-center gap-1 text-warning"
           title={entry.verdictReason ?? 'completed without producing useful output'}
         >
-          <AlertTriangle className="h-3 w-3" aria-hidden /> skipped
+          <AlertTriangle className="size-icon-xs" aria-hidden /> skipped
         </span>
       );
     }
@@ -1375,14 +1375,14 @@ function PipelineRunStateBadge({ entry }: { entry: PipelineHistoryEntry }) {
         className="inline-flex items-center gap-1 text-success"
         title={entry.verdictReason ?? undefined}
       >
-        <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+        <CheckCircle2 className="size-icon-xs" aria-hidden /> ok
       </span>
     );
   }
   if (entry.state === 'active') {
     return (
       <span className="inline-flex items-center gap-1 text-warning">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> running
+        <Loader2 className="size-icon-xs animate-spin" aria-hidden /> running
       </span>
     );
   }

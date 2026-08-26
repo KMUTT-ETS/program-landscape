@@ -918,7 +918,7 @@ function CoveragePanel({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-1.5 text-left text-xs font-medium hover:text-accent-default"
       >
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        {open ? <ChevronDown className="size-icon-sm" /> : <ChevronRight className="size-icon-sm" />}
         Coverage &mdash; {num(coverage.withScores)} of {num(coverage.fetched)} exported students
         carry module scores
         {scoredPct !== null && ` (${scoredPct.toFixed(1)}%)`}, and{' '}

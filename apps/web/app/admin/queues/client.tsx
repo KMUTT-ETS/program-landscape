@@ -204,7 +204,7 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
           description={error}
           action={
             <Button variant="outline" onClick={() => void loadSummaries()}>
-              <RefreshCw className="h-4 w-4" aria-hidden />
+              <RefreshCw className="size-icon-md" aria-hidden />
               Retry
             </Button>
           }
@@ -216,7 +216,7 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
   if (!summaries || !activeQueue) {
     return (
       <div className="flex items-center justify-center gap-2 p-8 text-sm text-text-tertiary">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        <Loader2 className="size-icon-md animate-spin" aria-hidden />
         Loading queues…
       </div>
     );
@@ -268,7 +268,7 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
               <span className="font-medium text-text-primary">{current.label}</span>
               {current.paused && (
                 <Badge tone="warning">
-                  <Pause className="h-3 w-3" aria-hidden />
+                  <Pause className="size-icon-xs" aria-hidden />
                   Paused
                 </Badge>
               )}
@@ -284,7 +284,7 @@ export function QueuesClient({ canManage }: { canManage: boolean }) {
             disabled={refreshing}
             aria-label="Refresh now"
           >
-            <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />
+            <RefreshCw className={refreshing ? 'size-icon-md animate-spin' : 'size-icon-md'} aria-hidden />
             Refresh
           </Button>
           {canManage && current && (
@@ -482,7 +482,7 @@ function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
         className="inline-flex items-center gap-1 text-danger"
         title={entry.failedReason ?? entry.verdictReason ?? undefined}
       >
-        <XCircle className="h-3 w-3" aria-hidden /> failed
+        <XCircle className="size-icon-xs" aria-hidden /> failed
       </span>
     );
   }
@@ -493,7 +493,7 @@ function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
           className="inline-flex items-center gap-1 text-warning"
           title={entry.verdictReason ?? 'completed without producing useful output'}
         >
-          <AlertTriangle className="h-3 w-3" aria-hidden /> skipped
+          <AlertTriangle className="size-icon-xs" aria-hidden /> skipped
         </span>
       );
     }
@@ -502,21 +502,21 @@ function JobStateBadge({ entry }: { entry: AllQueuesEntry }) {
         className="inline-flex items-center gap-1 text-success"
         title={entry.verdictReason ?? undefined}
       >
-        <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+        <CheckCircle2 className="size-icon-xs" aria-hidden /> ok
       </span>
     );
   }
   if (entry.state === 'active') {
     return (
       <span className="inline-flex items-center gap-1 text-warning">
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> running
+        <Loader2 className="size-icon-xs animate-spin" aria-hidden /> running
       </span>
     );
   }
   if (entry.state === 'waiting' || entry.state === 'delayed') {
     return (
       <span className="inline-flex items-center gap-1 text-text-secondary">
-        <Clock className="h-3 w-3" aria-hidden /> {entry.state}
+        <Clock className="size-icon-xs" aria-hidden /> {entry.state}
       </span>
     );
   }
@@ -541,7 +541,7 @@ function ReviewQueueRow({
     return (
       <div className="rounded-xl border border-border-subtle bg-surface-1 p-3 text-xs text-text-tertiary">
         <span className="inline-flex items-center gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />
+          <CheckCircle2 className="size-icon-sm text-success" aria-hidden />
           No human review pending — every AI extraction is above the auto-approve threshold.
         </span>
       </div>
@@ -551,7 +551,7 @@ function ReviewQueueRow({
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <ReviewTile
         href="/admin/extraction-review"
-        icon={<ClipboardCheck className="h-4 w-4" aria-hidden />}
+        icon={<ClipboardCheck className="size-icon-md" aria-hidden />}
         label="AI extractions awaiting review"
         count={counts.aiExtractions}
         kind="ai"
@@ -559,7 +559,7 @@ function ReviewQueueRow({
       />
       <ReviewTile
         href="/admin/pdf-review"
-        icon={<FileSearch className="h-4 w-4" aria-hidden />}
+        icon={<FileSearch className="size-icon-md" aria-hidden />}
         label="PDF extractions awaiting review"
         count={counts.pdfExtractions}
         kind="pdf"
@@ -666,9 +666,9 @@ function ReviewTile({
             title={`Auto-approve all ${count} pending — no review needed`}
           >
             {busy ? (
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              <Loader2 className="size-icon-xs animate-spin" aria-hidden />
             ) : (
-              <Check className="h-3 w-3" aria-hidden />
+              <Check className="size-icon-xs" aria-hidden />
             )}
             {busy ? 'Approving…' : 'Approve all'}
           </button>
@@ -721,21 +721,21 @@ function ActivityStream({ entries }: { entries: ActivityEntry[] }) {
                 <td className="px-3 py-2">
                   {e.state === 'completed' ? (
                     <span className="inline-flex items-center gap-1 text-success">
-                      <CheckCircle2 className="h-3 w-3" aria-hidden /> ok
+                      <CheckCircle2 className="size-icon-xs" aria-hidden /> ok
                     </span>
                   ) : e.state === 'completed-skipped' ? (
                     <span
                       className="inline-flex items-center gap-1 text-warning"
                       title={e.verdictReason ?? 'completed without producing useful output'}
                     >
-                      <AlertTriangle className="h-3 w-3" aria-hidden /> skipped
+                      <AlertTriangle className="size-icon-xs" aria-hidden /> skipped
                     </span>
                   ) : (
                     <span
                       className="inline-flex items-center gap-1 text-danger"
                       title={e.failedReason ?? undefined}
                     >
-                      <XCircle className="h-3 w-3" aria-hidden /> failed
+                      <XCircle className="size-icon-xs" aria-hidden /> failed
                     </span>
                   )}
                 </td>
@@ -816,7 +816,7 @@ function QueueTile({
         <span>{summary.counts.completed.toLocaleString()} completed</span>
         {summary.paused && (
           <Badge tone="warning" size="sm">
-            <Pause className="h-3 w-3" aria-hidden />
+            <Pause className="size-icon-xs" aria-hidden />
             paused
           </Badge>
         )}
@@ -976,7 +976,7 @@ function JobsTable({
   if (loading && items.length === 0) {
     return (
       <div className="mt-4 flex items-center justify-center gap-2 p-8 text-sm text-text-tertiary">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        <Loader2 className="size-icon-md animate-spin" aria-hidden />
         Loading jobs…
       </div>
     );
@@ -1118,13 +1118,13 @@ function JobRow({
           <span className="line-clamp-2 text-xs text-text-secondary">{summary}</span>
           {job.failedReason && (
             <div className="mt-1 flex items-start gap-1 text-xs text-danger">
-              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+              <AlertTriangle className="mt-0.5 size-icon-xs shrink-0" aria-hidden />
               <span className="line-clamp-2">{job.failedReason}</span>
             </div>
           )}
         </td>
         <td className="px-3 py-2 align-top text-xs text-text-secondary">
-          <Clock className="mr-1 inline-block h-3 w-3" aria-hidden />
+          <Clock className="mr-1 inline-block size-icon-xs" aria-hidden />
           {time}
         </td>
         <td className="px-3 py-2 align-top">
@@ -1142,7 +1142,7 @@ function JobRow({
             <div className="flex items-center justify-end gap-1">
               {job.state === 'failed' && (
                 <Button variant="ghost" size="sm" onClick={retry} disabled={busy}>
-                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  <RotateCcw className="size-icon-md" aria-hidden />
                   Retry
                 </Button>
               )}
@@ -1153,7 +1153,7 @@ function JobRow({
                 disabled={busy || job.state === 'active'}
                 title={job.state === 'active' ? "Can't remove an active job — wait for it to finish or fail" : undefined}
               >
-                <Trash2 className="h-4 w-4" aria-hidden />
+                <Trash2 className="size-icon-md" aria-hidden />
                 Remove
               </Button>
             </div>
@@ -1251,23 +1251,23 @@ function QueueAdminMenu({
   return (
     <div className="flex items-center gap-1">
       <Button variant="ghost" size="sm" onClick={cleanCompleted} disabled={busy}>
-        <Brush className="h-4 w-4" aria-hidden />
+        <Brush className="size-icon-md" aria-hidden />
         Clean completed
       </Button>
       {queue.counts.failed > 0 && (
         <Button variant="ghost" size="sm" onClick={cleanFailed} disabled={busy}>
-          <Trash2 className="h-4 w-4" aria-hidden />
+          <Trash2 className="size-icon-md" aria-hidden />
           Clean failed
         </Button>
       )}
       {queue.paused ? (
         <Button variant="ghost" size="sm" onClick={() => void post('resume', undefined, 'Resume')} disabled={busy}>
-          <Play className="h-4 w-4" aria-hidden />
+          <Play className="size-icon-md" aria-hidden />
           Resume
         </Button>
       ) : (
         <Button variant="ghost" size="sm" onClick={() => void post('pause', undefined, 'Pause')} disabled={busy}>
-          <Pause className="h-4 w-4" aria-hidden />
+          <Pause className="size-icon-md" aria-hidden />
           Pause
         </Button>
       )}

@@ -103,11 +103,11 @@ export function SortableTh({
 }: SortableThProps) {
   const active = sort.key === sortKey;
   const icon = !active ? (
-    <ArrowUpDown className="h-3 w-3 opacity-40" aria-hidden />
+    <ArrowUpDown className="size-icon-xs opacity-40" aria-hidden />
   ) : sort.dir === 'asc' ? (
-    <ArrowUp className="h-3 w-3 text-accent-default" aria-hidden />
+    <ArrowUp className="size-icon-xs text-accent-default" aria-hidden />
   ) : (
-    <ArrowDown className="h-3 w-3 text-accent-default" aria-hidden />
+    <ArrowDown className="size-icon-xs text-accent-default" aria-hidden />
   );
   return (
     <th className={className} {...rest}>

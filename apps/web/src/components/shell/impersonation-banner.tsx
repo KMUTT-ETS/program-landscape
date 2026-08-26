@@ -53,7 +53,7 @@ export function ImpersonationBanner({
     >
       <div className="flex items-center justify-between gap-3 px-5 py-2 text-[12px] text-warning-default">
         <div className="flex min-w-0 items-center gap-2">
-          <UserCog className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+          <UserCog className="size-icon-sm flex-shrink-0" aria-hidden />
           <span className="font-semibold uppercase tracking-[0.12em]">
             Impersonation
           </span>
@@ -73,7 +73,7 @@ export function ImpersonationBanner({
           disabled={pending}
           className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-warning-default/40 bg-surface-0/60 px-2.5 py-1 text-[11px] font-medium text-warning-default transition-colors hover:bg-surface-0 disabled:opacity-50"
         >
-          <ShieldOff className="h-3 w-3" aria-hidden />
+          <ShieldOff className="size-icon-xs" aria-hidden />
           {pending ? 'Stopping…' : 'Stop impersonating'}
         </button>
       </div>

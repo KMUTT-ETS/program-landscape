@@ -129,7 +129,7 @@ export function ImdUploadWidget() {
             disabled={uploading}
             onClick={() => fileInput.current?.click()}
           >
-            <Upload className="h-4 w-4" />
+            <Upload className="size-icon-md" />
             {uploading ? 'Uploading…' : 'Pick PDF(s)'}
           </Button>
           <p className="text-xs text-text-tertiary">
@@ -147,7 +147,7 @@ export function ImdUploadWidget() {
             <ul className="space-y-1 text-sm">
               {recent.map((r) => (
                 <li key={r.pdfId} className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-text-tertiary" />
+                  <FileText className="size-icon-md text-text-tertiary" />
                   <span className="truncate">{r.filename}</span>
                   <span className="font-mono text-xs text-text-tertiary">
                     job {r.jobId.slice(0, 8)}
@@ -156,7 +156,7 @@ export function ImdUploadWidget() {
                     href={r.extractionPath}
                     className="ml-auto inline-flex items-center gap-1 text-xs text-accent-default hover:underline"
                   >
-                    Review when ready <ArrowRight className="h-3 w-3" />
+                    Review when ready <ArrowRight className="size-icon-xs" />
                   </Link>
                 </li>
               ))}

@@ -163,7 +163,7 @@ export function AppShell({
             !isAutoHide && 'md:hidden',
           )}
         >
-          <X className="h-5 w-5" />
+          <X className="size-icon-lg" />
         </button>
       </aside>
 
@@ -199,7 +199,7 @@ export function AppShell({
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-default',
               )}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="size-icon-lg" />
             </button>
           )}
           <span className="truncate text-sm font-semibold tracking-tight md:hidden">
@@ -221,9 +221,9 @@ export function AppShell({
             )}
           >
             {isAutoHide ? (
-              <PanelLeftOpen className="h-5 w-5" />
+              <PanelLeftOpen className="size-icon-lg" />
             ) : (
-              <PanelLeftClose className="h-5 w-5" />
+              <PanelLeftClose className="size-icon-lg" />
             )}
           </button>
         </div>
@@ -242,7 +242,7 @@ export function AppShell({
               'hover:bg-surface-2 hover:text-text-primary md:inline-flex',
             )}
           >
-            <PanelLeftClose className="h-4 w-4" />
+            <PanelLeftClose className="size-icon-md" />
           </button>
         )}
         {topBar}

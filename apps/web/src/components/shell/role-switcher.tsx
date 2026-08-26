@@ -169,7 +169,7 @@ export function RoleSwitcherDialog({
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="flex items-center gap-2 text-[18px]">
-                <ShieldCheck className="h-4 w-4 text-accent-default" aria-hidden />
+                <ShieldCheck className="size-icon-md text-accent-default" aria-hidden />
                 {step === 'pick-role' ? 'Switch role' : 'Pick scope'}
               </DialogTitle>
               <DialogDescription className="text-[12px] text-text-tertiary">
@@ -297,11 +297,11 @@ function RoleGroup({
                 ].join(' ')}
               >
                 {r.needs === 'faculty' ? (
-                  <Building2 className="h-3.5 w-3.5" />
+                  <Building2 className="size-icon-sm" />
                 ) : r.needs === 'program' ? (
-                  <GraduationCap className="h-3.5 w-3.5" />
+                  <GraduationCap className="size-icon-sm" />
                 ) : (
-                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <ShieldCheck className="size-icon-sm" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -324,7 +324,7 @@ function RoleGroup({
                   {r.caption}
                 </div>
               </div>
-              <ArrowRight className="mt-1.5 h-3.5 w-3.5 flex-shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
+              <ArrowRight className="mt-1.5 size-icon-sm flex-shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
           );
         })}
@@ -409,7 +409,7 @@ function ScopePicker({
           onClick={onBack}
           className="inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-surface-2"
         >
-          <ArrowLeft className="h-3 w-3" />
+          <ArrowLeft className="size-icon-xs" />
           Back
         </button>
         <input
@@ -469,7 +469,7 @@ function ScopePicker({
                   {it.secondary}
                 </div>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
+              <ArrowRight className="size-icon-sm flex-shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
           ))}
         </div>

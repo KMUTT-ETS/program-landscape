@@ -262,7 +262,7 @@ function PivotRow({
                   className="-my-4 flex h-12 w-12 shrink-0 items-center justify-center hover:text-accent-default"
                 >
                   <ChevronRight
-                    className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                    className={`size-icon-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}
                   />
                 </button>
               ) : (
@@ -290,7 +290,7 @@ function PivotRow({
               className="inline-flex items-center gap-1 hover:text-accent"
             >
               <ChevronRight
-                className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                className={`size-icon-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}
               />
               <span className="truncate" title={row.label}>
                 {row.label}

@@ -51,7 +51,7 @@ export function AiInsight({
     >
       <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 text-accent-default" aria-hidden />
+          <Sparkles className="size-icon-sm text-accent-default" aria-hidden />
           <h3 className="text-sm font-semibold text-text-primary">
             {title ?? 'AI insight'}
           </h3>
@@ -77,7 +77,7 @@ export function AiInsight({
                     className="inline-flex items-center gap-1 text-accent-default hover:underline"
                   >
                     {s.name}
-                    <ExternalLink className="h-3 w-3" aria-hidden />
+                    <ExternalLink className="size-icon-xs" aria-hidden />
                   </a>
                 ) : (
                   <span className="text-text-secondary">{s.name}</span>
@@ -110,13 +110,13 @@ export function AiInsight({
         <footer className="flex items-center gap-2 pt-1">
           {onRegenerate && (
             <Button variant="ghost" size="xs" onClick={onRegenerate}>
-              <RefreshCw className="mr-1 h-3 w-3" aria-hidden />
+              <RefreshCw className="mr-1 size-icon-xs" aria-hidden />
               Regenerate
             </Button>
           )}
           {onDisagree && (
             <Button variant="ghost" size="xs" onClick={onDisagree}>
-              <ThumbsDown className="mr-1 h-3 w-3" aria-hidden />
+              <ThumbsDown className="mr-1 size-icon-xs" aria-hidden />
               Disagree
             </Button>
           )}

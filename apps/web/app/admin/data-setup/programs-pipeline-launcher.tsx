@@ -133,11 +133,11 @@ export function ProgramsPipelineLauncher() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={runFullAll} disabled={submitting}>
-          <Play className="h-4 w-4" aria-hidden />
+          <Play className="size-icon-md" aria-hidden />
           Run full pipeline (all 297)
         </Button>
         <Button variant="outline" onClick={runResume} disabled={submitting}>
-          <RefreshCw className="h-4 w-4" aria-hidden />
+          <RefreshCw className="size-icon-md" aria-hidden />
           Resume incomplete
         </Button>
         <Button
@@ -145,7 +145,7 @@ export function ProgramsPipelineLauncher() {
           onClick={() => setMode(mode === 'partial' ? 'idle' : 'partial')}
           disabled={submitting}
         >
-          <Settings2 className="h-4 w-4" aria-hidden />
+          <Settings2 className="size-icon-md" aria-hidden />
           {mode === 'partial' ? 'Hide partial run' : 'Partial run…'}
         </Button>
       </div>
@@ -153,7 +153,7 @@ export function ProgramsPipelineLauncher() {
       {mode === 'partial' && (
         <Card padding="md" tone="quiet" className="flex flex-col gap-3">
           <div className="flex items-start gap-2 text-xs text-text-secondary">
-            <Layers className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-default" aria-hidden />
+            <Layers className="mt-0.5 size-icon-sm shrink-0 text-accent-default" aria-hidden />
             <span>
               Select the phases to (re)run on every canonical program. Useful for retrying
               one phase after a fix — e.g. only phase 5 + 6 after seeding peer programs.
@@ -185,7 +185,7 @@ export function ProgramsPipelineLauncher() {
               {selected.size} of {PHASES.length} phase{selected.size === 1 ? '' : 's'} selected
             </span>
             <Button variant="primary" size="sm" onClick={runPartial} disabled={submitting}>
-              <Play className="h-4 w-4" aria-hidden />
+              <Play className="size-icon-md" aria-hidden />
               Run selected phases on all 297
             </Button>
           </div>

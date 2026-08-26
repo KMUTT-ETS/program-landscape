@@ -119,7 +119,7 @@ export function CockpitClient(props: Props) {
       <aside className="flex flex-col gap-3">
         <Card padding="sm">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <Filter className="h-4 w-4 text-text-tertiary" aria-hidden />
+            <Filter className="size-icon-md text-text-tertiary" aria-hidden />
             Filters
           </div>
           {/* Aside-rail filter — same FilterField/FilterSearch/FilterSelect
@@ -161,7 +161,7 @@ export function CockpitClient(props: Props) {
         <Card padding="sm">
           <div className="mb-2 flex items-center justify-between text-sm font-semibold">
             <span className="flex items-center gap-2">
-              <Save className="h-4 w-4 text-text-tertiary" aria-hidden />
+              <Save className="size-icon-md text-text-tertiary" aria-hidden />
               Saved views
             </span>
             <Button
@@ -251,7 +251,7 @@ export function CockpitClient(props: Props) {
               size="sm"
               onClick={() => setBriefOpen(true)}
             >
-              <Sparkles className="h-4 w-4" aria-hidden />
+              <Sparkles className="size-icon-md" aria-hidden />
               Generate Council brief
             </Button>
             <EdgeGlow inline>
@@ -272,7 +272,7 @@ export function CockpitClient(props: Props) {
                   } else toast.error(r.message);
                 }}
               >
-                <FileText className="h-4 w-4" aria-hidden />
+                <FileText className="size-icon-md" aria-hidden />
                 {exportBusy ? 'Generating…' : 'Export Council Pack PDF'}
               </Button>
             </EdgeGlow>
@@ -282,7 +282,7 @@ export function CockpitClient(props: Props) {
         {props.scope === 'faculty' && (view === 'heatmap' || view === 'rollup') && (
           <Card padding="sm">
             <div className="flex items-start gap-2 text-xs text-text-secondary">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+              <Info className="mt-0.5 size-icon-sm shrink-0 text-accent" aria-hidden />
               <span>
                 Each row below is a program in this faculty. Click it to open the program&apos;s full deep-dive
                 (health, faculty roster, recruitment funnel, demand match, AI peer review). Use the breadcrumb above to step back to the university view.
@@ -293,7 +293,7 @@ export function CockpitClient(props: Props) {
         {props.scope === 'department' && (view === 'heatmap' || view === 'rollup') && (
           <Card padding="sm">
             <div className="flex items-start gap-2 text-xs text-text-secondary">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+              <Info className="mt-0.5 size-icon-sm shrink-0 text-accent" aria-hidden />
               <span>
                 Department-scope view (reached via direct link or saved view). The cockpit now drills
                 university → faculty → program directly; the department middle level is no longer auto-navigated.
@@ -574,7 +574,7 @@ function ScopeBreadcrumb({ crumbs }: { crumbs: ScopeBreadcrumbCrumb[] }) {
           const isLast = i === crumbs.length - 1;
           const inner = (
             <span className="flex items-center gap-1.5">
-              {i === 0 ? <Home className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
+              {i === 0 ? <Home className="size-icon-sm shrink-0" aria-hidden /> : null}
               <span className="flex flex-col leading-tight">
                 <span lang="th">{c.labelTh}</span>
                 {c.labelEn && c.labelEn !== c.labelTh && (
@@ -596,7 +596,7 @@ function ScopeBreadcrumb({ crumbs }: { crumbs: ScopeBreadcrumbCrumb[] }) {
                   {inner}
                 </button>
               )}
-              {!isLast && <ChevronRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />}
+              {!isLast && <ChevronRight className="size-icon-sm text-text-tertiary shrink-0" aria-hidden />}
             </React.Fragment>
           );
         })}
@@ -757,7 +757,7 @@ function RecruitmentPanel({ data }: { data: RecruitmentDashboardPayload | null }
           }`}
           className="inline-flex items-center gap-1 text-xs text-accent-default hover:underline"
         >
-          View full dashboard <ExternalLink className="h-3 w-3" />
+          View full dashboard <ExternalLink className="size-icon-xs" />
         </Link>
       </div>
 

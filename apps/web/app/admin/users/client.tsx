@@ -302,7 +302,7 @@ function Pagination({ filters }: { filters: FilterState }) {
           disabled={filters.page === 1}
           aria-label="First page"
         >
-          <ChevronsLeft className="h-3.5 w-3.5" />
+          <ChevronsLeft className="size-icon-sm" />
         </Button>
         <Button
           size="xs"
@@ -311,7 +311,7 @@ function Pagination({ filters }: { filters: FilterState }) {
           disabled={filters.page === 1}
           aria-label="Previous page"
         >
-          <ChevronLeft className="h-3.5 w-3.5" />
+          <ChevronLeft className="size-icon-sm" />
         </Button>
         <span className="px-2 font-mono">
           {filters.page} / {totalPages}
@@ -323,7 +323,7 @@ function Pagination({ filters }: { filters: FilterState }) {
           disabled={filters.page >= totalPages}
           aria-label="Next page"
         >
-          <ChevronRight className="h-3.5 w-3.5" />
+          <ChevronRight className="size-icon-sm" />
         </Button>
         <Button
           size="xs"
@@ -332,7 +332,7 @@ function Pagination({ filters }: { filters: FilterState }) {
           disabled={filters.page >= totalPages}
           aria-label="Last page"
         >
-          <ChevronsRight className="h-3.5 w-3.5" />
+          <ChevronsRight className="size-icon-sm" />
         </Button>
       </div>
     </div>
@@ -487,7 +487,7 @@ function PreProvisionPanel({
           />
         </div>
         <Button onClick={onSearch} disabled={searching || !email.trim()} size="sm" variant="outline">
-          <Search className="h-4 w-4" /> {searching ? 'Searching…' : 'Search'}
+          <Search className="size-icon-md" /> {searching ? 'Searching…' : 'Search'}
         </Button>
       </div>
 
@@ -507,7 +507,7 @@ function PreProvisionPanel({
           {result.kind === 'found-employee' && result.employee && (
             <section className="rounded-md border border-border-subtle bg-surface-1 p-3">
               <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-tertiary">
-                <Check className="h-3 w-3 text-success" />
+                <Check className="size-icon-xs text-success" />
                 From KKU directory
               </div>
               <DirectoryNamePair emp={result.employee.emp} />
@@ -543,7 +543,7 @@ function PreProvisionPanel({
                       onClick={() => setOverrideName(true)}
                       className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
                     >
-                      <Pencil className="h-3 w-3" /> override
+                      <Pencil className="size-icon-xs" /> override
                     </button>
                   )}
                 </div>
@@ -583,13 +583,13 @@ function PreProvisionPanel({
                         onClick={() => setOverrideFaculty(true)}
                         className="inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
                       >
-                        <Pencil className="h-3 w-3" /> change
+                        <Pencil className="size-icon-xs" /> change
                       </button>
                     )}
                   </div>
                   {!overrideFaculty && autoMatchedFacultyId ? (
                     <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-2 px-3 py-1.5 text-sm">
-                      <Check className="h-3.5 w-3.5 text-success shrink-0" />
+                      <Check className="size-icon-sm text-success shrink-0" />
                       {(() => {
                         const f = faculties.find((x) => x.id === autoMatchedFacultyId);
                         return f ? `${f.nameTh} · ${f.nameEn}` : '(matched)';
@@ -665,7 +665,7 @@ function PreProvisionPanel({
                 size="sm"
                 variant="primary"
               >
-                <Plus className="h-4 w-4" /> {submitting ? 'Creating…' : 'Provision user'}
+                <Plus className="size-icon-md" /> {submitting ? 'Creating…' : 'Provision user'}
               </Button>
             </div>
           </section>
@@ -844,9 +844,9 @@ function UserRowEditor({
             aria-label={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? (
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="size-icon-xs" />
             ) : (
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="size-icon-xs" />
             )}
           </button>
         </td>
@@ -865,19 +865,19 @@ function UserRowEditor({
         <td className="px-2 py-1.5 align-top">
           <div className="flex justify-end gap-1">
             <Button size="xs" variant="ghost" onClick={() => setExpanded(true)}>
-              <Layers className="h-3 w-3" /> Scopes
+              <Layers className="size-icon-xs" /> Scopes
             </Button>
             {/* Password reset only applies to local credentials. SSO-linked
                 users authenticate via KKU SSO and have no local passwordHash —
                 hide the affordance to avoid operator confusion. */}
             {!user.linkedToSso && (
               <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>
-                <Key className="h-3 w-3" /> Pwd
+                <Key className="size-icon-xs" /> Pwd
               </Button>
             )}
             {actorIsSuper && (
               <Button size="xs" variant="ghost" onClick={remove} disabled={busy}>
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="size-icon-xs" />
               </Button>
             )}
           </div>
@@ -1159,7 +1159,7 @@ function ScopeManager({
             className="rounded p-1 text-text-tertiary transition-colors hover:bg-surface-2 hover:text-text-primary"
             aria-label="Close scope manager"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="size-icon-sm" />
           </button>
         </div>
       </div>
@@ -1193,7 +1193,7 @@ function ScopeManager({
               className="text-text-tertiary hover:text-danger disabled:opacity-30 disabled:cursor-not-allowed"
               aria-label="Remove scope"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="size-icon-sm" />
             </button>
           </li>
         ))}
@@ -1297,7 +1297,7 @@ function ScopeManager({
             }
             title={wouldDuplicate ? 'Already assigned' : undefined}
           >
-            <Plus className="h-3 w-3" /> Add scope
+            <Plus className="size-icon-xs" /> Add scope
           </Button>
         </div>
       </div>
