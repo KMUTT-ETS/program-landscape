@@ -2,7 +2,7 @@
   "name": "program-landscape",
   "version": "0.0.0",
   "private": true,
-  "description": "KKU Curriculum Intelligence Platform · Program Landscape — strategic decision-support for the University Council",
+  "description": "KKU Curriculum Intelligence Platform \u00b7 Program Landscape \u2014 strategic decision-support for the University Council",
   "packageManager": "pnpm@10.33.1",
   "engines": {
     "node": ">=20.0.0",
@@ -90,13 +90,16 @@
     "data-sources:audit": "tsx apps/ingestion/src/scripts/audit-data-sources.ts",
     "build:release": "tsx scripts/build-release.ts",
     "test": "pnpm -r --if-present test",
+    "secrets:scan": "gitleaks dir . --redact --no-banner --config .gitleaks.toml",
+    "secrets:scan-staged": "gitleaks git --staged --redact --no-banner --config .gitleaks.toml",
     "e2e": "pnpm --filter web test:e2e",
     "lint": "eslint 'apps/**/*.{ts,tsx}' 'packages/**/*.{ts,tsx}'",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "typecheck": "pnpm -r --if-present typecheck",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "storybook": "pnpm --filter @kku/ui storybook",
-    "clean": "rimraf \"**/node_modules\" \"**/dist\" \"**/.next\" \"**/.turbo\" \"**/coverage\""
+    "clean": "rimraf \"**/node_modules\" \"**/dist\" \"**/.next\" \"**/.turbo\" \"**/coverage\"",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -105,6 +108,7 @@
     "cross-env": "^7.0.3",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "5.2.0",
+    "husky": "^9.1.7",
     "prettier": "^3.4.2",
     "rimraf": "^6.0.1",
     "tsx": "4.21.0",

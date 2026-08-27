@@ -31,6 +31,54 @@ jobs:
       - name: Lint migrations for destructive DDL
         run: pnpm tsx scripts/migration-linter.ts
 
+  # Secret scan. Sits beside the migration linter as a second cheap pre-flight
+  # gate — a credential is far more expensive to deal with once it is in
+  # history than once it is in a diff.
+  #
+  # Scoped to the changed set, matching how the lint job scopes to changed
+  # files: a PR is judged on its own diff. The repo's history was audited
+  # clean on 2026-08-27; a full-history scan is a separate, deliberate
+  # exercise, not something to run on every push.
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the scan can resolve the diff range below.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          VERSION=8.28.0
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan changed commits for secrets
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            if [ -z "${BASE}" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              BASE="$(git rev-parse HEAD~1 2>/dev/null || true)"
+            fi
+          fi
+          if [ -z "${BASE}" ]; then
+            echo "No base commit to diff against — scanning the working tree instead."
+            gitleaks dir . --redact --no-banner --config .gitleaks.toml
+            exit 0
+          fi
+          echo "Secret-scan range: ${BASE}..HEAD"
+          gitleaks git . \
+            --redact \
+            --no-banner \
+            --config .gitleaks.toml \
+            --log-opts "${BASE}..HEAD"
+
   lint-typecheck-test:
     runs-on: ubuntu-latest
     timeout-minutes: 25

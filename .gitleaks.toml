@@ -1,0 +1,123 @@
+# gitleaks configuration — Program Landscape
+#
+# Runs in two places:
+#   • pre-commit (.husky/pre-commit) — scans what you are about to commit
+#   • CI (.github/workflows/pr.yml)  — scans the changed set on every PR/push
+#
+# Extends gitleaks' built-in ruleset rather than replacing it, so new upstream
+# rules arrive for free. Everything below is either a path this repo doesn't
+# author, or a specific, explained false positive.
+#
+# Tuning rule: an allowlist entry must be narrow enough that a real secret in
+# the same file would still be caught. Prefer a regex that matches the benign
+# *shape* over a blanket path exclusion. A scanner nobody trusts is a scanner
+# nobody runs.
+
+[extend]
+useDefault = true
+
+# ── Repo-specific rules ────────────────────────────────────────────────────
+
+# gitleaks' default ruleset is strong on vendor-issued tokens (AWS, GitHub,
+# Slack …) and weak on the thing this repo actually connects to: internal
+# databases, addressed by URI with the password inline. That is the exact
+# shape of the leak this scanner was added after, so detect it explicitly.
+[[rules]]
+id = "database-connection-uri-with-password"
+description = "Database connection URI with an inline password"
+regex = '''(?i)\b(postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|mssql|oracle|amqp)://[^\s:/@]+:([^\s:/@]{6,})@'''
+secretGroup = 2
+keywords = ["postgres", "postgresql", "mysql", "mongodb", "redis", "mssql", "oracle", "amqp"]
+[[rules.allowlists]]
+description = "Local development defaults — no live system behind them"
+regexTarget = "line"
+regexes = [
+  '''@(localhost|127\.0\.0\.1|postgres|redis|minio|mysql|mongo)[:/]''',
+]
+
+# ── Paths this repo does not author, or must never be scanned ──────────────
+[[allowlists]]
+description = "Generated output, vendored code, and the real local env files"
+paths = [
+  # Not our code.
+  '''(^|/)node_modules/''',
+  '''(^|/)\.pnpm-store/''',
+  '''pnpm-lock\.yaml$''',
+
+  # Build output and release bundles. These are generated from sources that
+  # are themselves scanned, and Next.js bakes a per-build server-actions
+  # encryption key into its manifests that trips generic-api-key every time.
+  '''(^|/)\.next/''',
+  '''^dist/''',
+  '''(^|/)build/''',
+  '''(^|/)coverage/''',
+  '''\.tsbuildinfo$''',
+
+  # The real local env files. .gitignore already blocks these from ever being
+  # committed, and they legitimately hold live credentials, so flagging them
+  # on every working-tree scan would train people to ignore the scanner.
+  # NOTE the anchors: .env.example and .env.prod.example are deliberately NOT
+  # excluded — a real value landing in a committed template is exactly the
+  # kind of leak this repo has already had once.
+  '''^\.env$''',
+  '''^\.env\.(local|prod|staging)$''',
+  '''^apps/[^/]+/\.env$''',
+]
+
+# ── Benign values, matched on the SECRET itself ────────────────────────────
+# regexTarget defaults to "secret", so each entry here has to match the thing
+# gitleaks thinks is the credential. That keeps the exclusion tight: a real
+# key sitting on the same line as a colour token is still reported.
+[[allowlists]]
+description = "Values whose shape is benign by construction"
+regexTarget = "secret"
+regexes = [
+  # Content-addressed hashes. The PDF intake pipeline keys documents by
+  # SHA-256 of their bytes, kku-hr hashes EMPLOYEEID/ID_PEOPLE server-side,
+  # and the evaluations fixture carries sha256: staff-ID stand-ins. A bare
+  # 64-char hex string is a hash here, never a credential.
+  '''\b[a-f0-9]{64}\b''',
+  '''sha256:[a-f0-9]{8,}''',
+
+  # Design tokens. Colours are stored as OKLCH "L C H" triplets and read
+  # through CSS variables; the resulting strings are high-entropy enough to
+  # look like keys to a generic detector.
+  '''oklch\([^)]*\)''',
+  '''--color-[a-z0-9-]+:\s*[0-9.]+%?\s+[0-9.]+\s+[0-9.]+''',
+
+  # Canary values for the PDPA scrubber and the AI-output sanitiser. Fake by
+  # construction; the tests that assert redaction works need them literal.
+  '''^1234567890123$''',      # canary Thai citizen ID
+  '''^0801234567$''',         # canary Thai mobile number
+  '''^9876543210000$''',
+
+  # Documented placeholder values used across env templates and docs.
+  '''^REPLACE_ME[A-Z_0-9]*$''',
+  '''^change-me-to-a-long-random-string$''',
+  '''^test-secret-please-override-for-anything-real$''',
+  '''^(kku|minio)_dev_password$''',
+]
+
+# ── Benign values, matched on the whole LINE ───────────────────────────────
+# For the few cases where the give-away is the surrounding context rather
+# than the value. Keep this list short: matching a line suppresses everything
+# on it.
+[[allowlists]]
+description = "Lines whose context proves the value is a deliberate fake"
+regexTarget = "line"
+regexes = [
+  # scripts/pdpa/smoke-redaction.ts and the injection-canary tests declare
+  # PROBE_* constants that exist purely to be caught by our own scrubbers.
+  # The values are invented; the point of the file is that they leak.
+  '''(?i)^\s*(const|let|var)\s+PROBE_[A-Z_]+\s*=''',
+]
+
+# ── Words that mark a value as a stand-in ──────────────────────────────────
+[[allowlists]]
+description = "Self-declaring placeholders"
+stopwords = [
+  "example",
+  "placeholder",
+  "changeme",
+  "replace_me",
+]

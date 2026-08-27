@@ -1,0 +1,46 @@
+#!/bin/sh
+# Secret scan on the staged change set.
+#
+# This is the cheap gate — it costs a few hundred milliseconds and it runs
+# before a secret can enter local history, where removing it means rewriting
+# history rather than deleting a line. The authoritative gate is the same scan
+# in CI (.github/workflows/pr.yml), which cannot be skipped.
+#
+# If gitleaks is not installed the hook WARNS rather than blocks: a contributor
+# who cannot commit at all on a fresh clone will delete the hook, and then it
+# protects nobody. CI still fails the PR.
+#
+# Install: https://github.com/gitleaks/gitleaks#installing
+#   brew install gitleaks | apt install gitleaks | go install …
+#
+# To bypass in a genuine emergency: git commit --no-verify (and say so in the
+# PR, because CI will still catch it).
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  printf '\033[33m[pre-commit] gitleaks not found — skipping the secret scan.\033[0m\n' >&2
+  printf '\033[33m             Install it: https://github.com/gitleaks/gitleaks#installing\033[0m\n' >&2
+  printf '\033[33m             CI still runs this scan and will fail the PR.\033[0m\n' >&2
+  exit 0
+fi
+
+echo "[pre-commit] scanning staged changes for secrets…"
+if ! gitleaks git --staged --redact --no-banner --config .gitleaks.toml; then
+  cat >&2 <<'MSG'
+
+[pre-commit] BLOCKED — gitleaks found a secret in the staged changes.
+
+  If it is a real credential:
+    1. Unstage it, remove it from the file, and rotate the credential.
+       Assume it is burned the moment it is written down.
+    2. Commit the fix.
+
+  If it is a false positive:
+    - Prefer adding the benign *shape* to .gitleaks.toml with a comment
+      explaining why, so the next person does not re-litigate it.
+    - An inline `gitleaks:allow` comment works for a genuine one-off.
+
+  Do not reach for --no-verify to make this go away.
+
+MSG
+  exit 1
+fi
