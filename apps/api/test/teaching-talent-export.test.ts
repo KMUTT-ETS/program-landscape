@@ -9,6 +9,23 @@ function cell(ratingAvg: number | null, respondentCount = 100) {
   return { ratingAvg, respondentCount };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SYNTHETIC DATA — and it must stay synthetic.
+//
+// Every person below is invented. The names follow the repo-wide placeholder
+// convention (สมชาย ใจดี / Somchai Jaidi, สมหญิง แสงทอง / Somying Saengthong,
+// มาลี / Mali) and the emails are the matching <placeholder>@kku.ac.th form.
+//
+// This fixture pairs a named individual with an academic rank, a faculty and
+// per-year teaching-evaluation scores. That combination is personal data under
+// PDPA and a performance record besides. NEVER paste real rows in here — not
+// "just to reproduce a bug", not temporarily. If you need real data to debug,
+// query it locally and throw it away; the fixture stays invented.
+//
+// The placeholders are load-bearing for the assertions below: fm-1 and fm-2
+// need two-token Thai names (the Talent sheet splits first/last), fm-3 needs a
+// single-token one, and fm-1's email must be non-empty (fm-3's must be null).
+// ─────────────────────────────────────────────────────────────────────────────
 const FIXTURE: TeachingTalentResult = {
   methodologyVersion: 'teaching-talent.v1',
   years: YEARS,
@@ -125,8 +142,8 @@ describe('buildTalentWorkbook', () => {
     expect(rows[1]).toEqual([
       'คณะแพทยศาสตร์',
       'รองศาสตราจารย์',
-      'ศิริลักษณ์',
-      'อนันต์ณัฐศิริ',
+      'สมชาย',
+      'ใจดี',
       'somchai@kku.ac.th',
       4.62,
       'Somchai Jaidi',

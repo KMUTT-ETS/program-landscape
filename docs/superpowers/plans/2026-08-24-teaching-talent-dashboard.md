@@ -180,8 +180,8 @@ describe('classifyTalent', () => {
 describe('splitPersonName', () => {
   it('splits a two-token Thai name', () => {
     expect(splitPersonName('สมชาย ใจดี')).toEqual({
-      first: 'ศิริลักษณ์',
-      last: 'อนันต์ณัฐศิริ',
+      first: 'สมชาย',
+      last: 'ใจดี',
     });
   });
 
@@ -194,9 +194,9 @@ describe('splitPersonName', () => {
   });
 
   it('collapses stray whitespace', () => {
-    expect(splitPersonName('  ประธาน   ฦาชา  ')).toEqual({
-      first: 'ประธาน',
-      last: 'ฦาชา',
+    expect(splitPersonName('  สมหญิง   แสงทอง  ')).toEqual({
+      first: 'สมหญิง',
+      last: 'แสงทอง',
     });
   });
 
@@ -1136,8 +1136,8 @@ describe('buildTalentWorkbook', () => {
     expect(rows[1]).toEqual([
       'คณะแพทยศาสตร์',
       'รองศาสตราจารย์',
-      'ศิริลักษณ์',
-      'อนันต์ณัฐศิริ',
+      'สมชาย',
+      'ใจดี',
       'somchai@kku.ac.th',
       4.62,
       'Somchai Jaidi',

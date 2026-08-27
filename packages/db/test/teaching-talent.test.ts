@@ -139,11 +139,16 @@ describe('displayRating', () => {
   });
 });
 
+// SYNTHETIC DATA — and it must stay synthetic. The names below are invented and
+// follow the repo-wide placeholder convention (สมชาย ใจดี / สมหญิง แสงทอง / มาลี,
+// <placeholder>@kku.ac.th). A real name next to a teaching-evaluation score is
+// personal data under PDPA and a performance record besides; never paste real
+// rows in here, not even temporarily to reproduce a bug.
 describe('splitPersonName', () => {
   it('splits a two-token Thai name', () => {
     expect(splitPersonName('สมชาย ใจดี')).toEqual({
-      first: 'ศิริลักษณ์',
-      last: 'อนันต์ณัฐศิริ',
+      first: 'สมชาย',
+      last: 'ใจดี',
     });
   });
 
@@ -156,9 +161,9 @@ describe('splitPersonName', () => {
   });
 
   it('collapses stray whitespace', () => {
-    expect(splitPersonName('  ประธาน   ฦาชา  ')).toEqual({
-      first: 'ประธาน',
-      last: 'ฦาชา',
+    expect(splitPersonName('  สมหญิง   แสงทอง  ')).toEqual({
+      first: 'สมหญิง',
+      last: 'แสงทอง',
     });
   });
 

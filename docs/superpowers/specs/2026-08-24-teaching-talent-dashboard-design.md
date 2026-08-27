@@ -192,7 +192,7 @@ export function classifyTalent(
   threshold: number,
 ): { isTalent: boolean; yearsWithData: number; minYearRating: number | null };
 
-/** Pure: "สมชาย ใจดี" → { first: 'ศิริลักษณ์', last: 'อนันต์ณัฐศิริ' } */
+/** Pure: "สมชาย ใจดี" → { first: 'สมชาย', last: 'ใจดี' } */
 export function splitPersonName(fullName: string): { first: string; last: string };
 
 export interface TalentInstructorRow {
