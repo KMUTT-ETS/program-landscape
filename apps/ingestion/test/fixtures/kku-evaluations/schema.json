@@ -112,7 +112,8 @@
       "type": "NUMBER",
       "length": 22,
       "nullable": false,
-      "piiFlag": false
+      "piiFlag": true,
+      "maskedInFixtures": "sha256-prefix"
     },
     {
       "ordinal": 15,
@@ -120,7 +121,7 @@
       "type": "VARCHAR2",
       "length": 100,
       "nullable": true,
-      "piiFlag": false
+      "piiFlag": true
     },
     {
       "ordinal": 16,

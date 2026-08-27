@@ -30,6 +30,7 @@
 //   pnpm evaluations:probe schema                 (single section)
 // ───────────────────────────────────────────────────────────────────────
 
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { configFromEnv, query, withConnection } from '../lib/oracle-client';
@@ -63,9 +64,46 @@ const FIXTURE_DIR = path.resolve(
   'apps/ingestion/test/fixtures/kku-evaluations',
 );
 
-function mask(v: unknown): string {
+// Columns whose value identifies a *person*, as opposed to a course, a class
+// or a campus. A bare `/ID$/` would be useless here — COURSEID, CLASSID,
+// CAMPUSID, FACULTYID and QUESTIONID all end in ID and none of them names
+// anybody. What matters is the noun in front of it.
+//
+// OFFICERID is why this list exists: the sample fixture shipped raw staff IDs
+// next to course, section, semester and evaluation score for over three
+// months. The emails beside them were masked; the ID that joins straight to
+// an HR record was not.
+const PERSON_ID_PATTERNS = [
+  /OFFICER.?(ID|CODE|NO)?$/i,
+  /EMP(LOYEE)?.?(ID|CODE|NO)/i,
+  /^EMPLOYEEID$/i,
+  /STAFF.?(ID|CODE|NO)/i,
+  /PERSON.?(ID|CODE|NO)/i,
+  /INSTRUCTOR.?(ID|CODE|NO)/i,
+  /TEACHER.?(ID|CODE|NO)/i,
+  /LECTURER.?(ID|CODE|NO)/i,
+  /ADVISOR.?(ID|CODE|NO)/i,
+];
+
+function isPersonIdColumn(column: string): boolean {
+  return PERSON_ID_PATTERNS.some((re) => re.test(column));
+}
+
+// Stable, non-reversible stand-in for a staff identifier. Hashed rather than
+// blanked so the fixture can still *demonstrate* a join — two rows taught by
+// the same person still share a value — without carrying the value that
+// resolves against HR. Same posture as kku-hr, which SHA-256s EMPLOYEEID and
+// ID_PEOPLE server-side before they ever cross the wire.
+function hashPersonId(v: string): string {
+  return `sha256:${createHash('sha256').update(v).digest('hex').slice(0, 12)}`;
+}
+
+function mask(v: unknown, column?: string): string {
   if (v === null || v === undefined) return 'null';
   const s = String(v);
+  if (column && isPersonIdColumn(column) && s !== 'null' && s.length > 0) {
+    return hashPersonId(s);
+  }
   if (/^\d{13}$/.test(s)) return '***masked-13-digit-id***';
   if (/^\d{10}$/.test(s) && s.startsWith('0')) return '***masked-thai-phone***';
   if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(s)) {
@@ -113,6 +151,11 @@ const PII_PATTERNS = [
   /COMMENT/i,
   /FEEDBACK/i,
   /REMARK/i,
+  /MAIL/i, // KKUMAIL and friends — an address names a person
+  // Staff identifiers. Not "PII" in the passport sense, but any of these
+  // joins straight to an HR record, so a row carrying one is attributable
+  // to a named employee. The audit must say so.
+  ...PERSON_ID_PATTERNS,
 ];
 
 async function fetchColumns(conn: Parameters<typeof query>[0]): Promise<ColumnRow[]> {
@@ -176,7 +219,7 @@ async function runSample(conn: Parameters<typeof query>[0]): Promise<void> {
     console.log(`  Row ${i + 1}:`);
     const masked: Record<string, string> = {};
     for (const [k, v] of Object.entries(sample[i]!)) {
-      const m = mask(v);
+      const m = mask(v, k);
       masked[k] = m;
       console.log(`    ${k.padEnd(32)} ${m}`);
     }
@@ -450,7 +493,7 @@ async function runJoinKeys(
       );
       const pct = Number(r[0]?.T ?? 1) ? ((Number(r[0]?.NN ?? 0) / Number(r[0]?.T ?? 1)) * 100).toFixed(1) : '0';
       console.log(
-        `  ${label.padEnd(15)} ${c.COLUMN_NAME.padEnd(28)} populated=${pct}%  sample=${mask(r[0]?.SAMPLE)}`,
+        `  ${label.padEnd(15)} ${c.COLUMN_NAME.padEnd(28)} populated=${pct}%  sample=${mask(r[0]?.SAMPLE, c.COLUMN_NAME)}`,
       );
     }
   }
@@ -469,7 +512,8 @@ async function runPiiAudit(
     return;
   }
   for (const c of suspects) {
-    console.log(`  ⚠ ${c.COLUMN_NAME}  type=${c.DATA_TYPE}  len=${c.DATA_LENGTH}`);
+    const kind = isPersonIdColumn(c.COLUMN_NAME) ? 'person-identifier' : 'pii-by-name';
+    console.log(`  ⚠ ${c.COLUMN_NAME}  type=${c.DATA_TYPE}  len=${c.DATA_LENGTH}  (${kind})`);
   }
   writeFixture('pii-audit', {
     view: VIEW,
@@ -477,6 +521,8 @@ async function runPiiAudit(
       column: c.COLUMN_NAME,
       type: c.DATA_TYPE,
       length: c.DATA_LENGTH,
+      kind: isPersonIdColumn(c.COLUMN_NAME) ? 'person-identifier' : 'pii-by-name',
+      maskedInFixtures: isPersonIdColumn(c.COLUMN_NAME) ? 'sha256-prefix' : 'see mask()',
     })),
   });
 }

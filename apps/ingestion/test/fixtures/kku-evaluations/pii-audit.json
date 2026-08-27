@@ -1,5 +1,19 @@
 {
   "view": "POWERBI.EVALUATE_INSTRUCTOR",
-  "suspects": [],
-  "comments": "none-by-name"
+  "suspects": [
+    {
+      "column": "OFFICERID",
+      "type": "NUMBER",
+      "length": 22,
+      "kind": "person-identifier",
+      "maskedInFixtures": "sha256-prefix"
+    },
+    {
+      "column": "KKUMAIL",
+      "type": "VARCHAR2",
+      "length": 100,
+      "kind": "pii-by-name",
+      "maskedInFixtures": "see mask()"
+    }
+  ]
 }

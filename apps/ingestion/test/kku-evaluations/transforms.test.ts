@@ -49,7 +49,7 @@ describe('normaliseCourseCode', () => {
 
 describe('normaliseKkumail', () => {
   it('lowercases + trims', () => {
-    expect(normaliseKkumail(' Nattee@KKU.AC.TH ')).toBe('nattee@kku.ac.th');
+    expect(normaliseKkumail(' Somchai@KKU.AC.TH ')).toBe('somchai@kku.ac.th');
   });
 
   it('collapses empties to null', () => {
@@ -127,7 +127,7 @@ describe('EVAL_ROW_SCHEMA', () => {
       SECTION: 1,
       QUESTIONID: '01',
       OFFICERID: 16871,
-      KKUMAIL: 'nattee@kku.ac.th',
+      KKUMAIL: 'somchai@kku.ac.th',
       RATING_AVG: 4.5,
       RESPONDENT_COUNT: 5,
       LAST_UPDATE: '2026-05-19T08:56:21.000Z',
