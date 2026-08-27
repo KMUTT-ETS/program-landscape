@@ -14,7 +14,7 @@ prompt 14. See `CLAUDE.md` → *Current status* for the full checklist.
 <p align="left">
   <a href="https://github.com/khon-kaen-university/program-landscape/actions/workflows/pr.yml"><img alt="CI" src="https://github.com/khon-kaen-university/program-landscape/actions/workflows/pr.yml/badge.svg" /></a>
   <a href="https://github.com/khon-kaen-university/program-landscape/actions/workflows/release.yml"><img alt="Release" src="https://github.com/khon-kaen-university/program-landscape/actions/workflows/release.yml/badge.svg" /></a>
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-internal-lightgrey" /></a>
+  <a href="./LICENSE"><img alt="License: CC BY-NC-SA 4.0" src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-lightgrey" /></a>
 </p>
 
 ## Getting started (dev — WSL2 / macOS / Linux)
