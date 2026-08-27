@@ -1014,7 +1014,7 @@ It is **unreliable, confidently, on exactly the things this guide flags as traps
 - **PDPA posture.** An AI will happily write `SELECT *`. Every projection is a trust boundary and needs human sign-off, and your DPO's, not the model's.
 - **"Fixing" deliberate omissions.** The absent `3.5` spacing step, the null-not-zero rule, the deprecated-but-retained catalog entries — all look like bugs and are not. The code comments explain why; make sure the AI reads them.
 
-A practical rule: let the AI write, and read what it wrote in the four categories above yourself, every time.
+A practical rule: let the AI write, and read what it wrote in the six categories above yourself, every time.
 
 ---
 
