@@ -1,6 +1,6 @@
 # Program Health and Lifecycle Methodology
 
-**Khon Kaen University — Curriculum Landscape (Curriculum Compass / ทักษทัศน์)**
+**Khon Kaen University — Program Landscape**
 
 | Field | Value |
 |---|---|

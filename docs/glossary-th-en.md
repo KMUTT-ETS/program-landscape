@@ -51,8 +51,14 @@ internal usage; English is for the digital team and international comparison.
 | มคอ.5 | TQF5 — Course report |
 | มคอ.7 | TQF7 — Program report |
 
-## Internal names
+## Product name
 
-| Thai | English | Notes |
+The canonical product name is **Program Landscape — KKU Curriculum Intelligence Platform** (short form: *Program Landscape*). It is not translated into Thai; Thai copy uses the English name inside a Thai noun phrase, e.g. *แพลตฟอร์ม Program Landscape*.
+
+### Retired names — do not use
+
+| Retired name | Was | Notes |
 |---|---|---|
-| ทักษทัศน์ | *Curriculum Compass* | Internal codename (Thai) |
+| ทักษทัศน์ | Internal codename (Thai) | **Retired.** Not a meaningful Thai word. Never use in user-facing text. |
+| *Curriculum Compass* | Internal codename (English) | **Retired.** Never use in user-facing text. |
+| *KKU Curriculum Landscape* | Former product title | **Retired.** Superseded by the canonical name above. |

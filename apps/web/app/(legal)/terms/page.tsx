@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { LegalPage } from '@/components/legal/legal-page';
 
 export const metadata: Metadata = {
-  title: 'Terms and Conditions of Use · KKU Curriculum Landscape',
+  title: 'Terms and Conditions of Use · Program Landscape',
 };
 
 const EFFECTIVE_DATE_EN = '27 August 2026';
@@ -26,7 +26,7 @@ export default function TermsPage() {
             of business at 123 Moo 16, Mittraphap Road, Tambon Nai Mueang, Mueang
             Khon Kaen District, Khon Kaen Province 40002, Thailand (hereinafter{' '}
             <strong>“KKU”</strong>, <strong>“we”</strong>, <strong>“us”</strong>, or{' '}
-            <strong>“our”</strong>) and you, the user of the KKU Curriculum Landscape
+            <strong>“our”</strong>) and you, the user of the Program Landscape
             platform (hereinafter <strong>“you”</strong> or <strong>“User”</strong>).
           </p>
           <p>
@@ -42,7 +42,7 @@ export default function TermsPage() {
           <p>In these Terms, unless the context otherwise requires:</p>
           <ul>
             <li>
-              <strong>“Platform”</strong> means the KKU Curriculum Landscape web
+              <strong>“Platform”</strong> means the Program Landscape web
               application served at https://program-landscape.kku.ac.th, together
               with all related source code, content, documentation, and services
               delivered through it.
@@ -385,7 +385,7 @@ export default function TermsPage() {
             เลขที่ 123 หมู่ 16 ถนนมิตรภาพ ตำบลในเมือง อำเภอเมืองขอนแก่น
             จังหวัดขอนแก่น 40002 ประเทศไทย (ต่อไปนี้เรียกว่า <strong>“มข.”</strong>{' '}
             หรือ <strong>“เรา”</strong>) ฝ่ายหนึ่ง กับท่านในฐานะผู้ใช้แพลตฟอร์ม
-            KKU Curriculum Landscape (ต่อไปนี้เรียกว่า <strong>“ท่าน”</strong> หรือ{' '}
+            Program Landscape (ต่อไปนี้เรียกว่า <strong>“ท่าน”</strong> หรือ{' '}
             <strong>“ผู้ใช้”</strong>) อีกฝ่ายหนึ่ง
           </p>
           <p>
@@ -400,8 +400,8 @@ export default function TermsPage() {
           <p>ในข้อกำหนดฉบับนี้ เว้นแต่บริบทจะกำหนดเป็นอย่างอื่น:</p>
           <ul>
             <li>
-              <strong>“แพลตฟอร์ม”</strong> หมายถึง เว็บแอปพลิเคชัน KKU Curriculum
-              Landscape ที่เผยแพร่ผ่าน https://program-landscape.kku.ac.th
+              <strong>“แพลตฟอร์ม”</strong> หมายถึง เว็บแอปพลิเคชัน Program Landscape
+              ที่เผยแพร่ผ่าน https://program-landscape.kku.ac.th
               พร้อมด้วยซอร์สโค้ด เนื้อหา เอกสาร และบริการที่เกี่ยวข้องทั้งหมด
             </li>
             <li>

@@ -250,7 +250,7 @@ function CoverBand({
       <div className="h-2 w-full bg-danger/85" aria-hidden />
       <div className="mx-auto flex max-w-[186mm] flex-col gap-3 px-4 py-4 print:max-w-none">
         <div className="flex items-center justify-between gap-4 text-[0.65rem] uppercase tracking-[0.18em] text-text-tertiary">
-          <span>KKU Curriculum Compass · ทักษทัศน์</span>
+          <span>KKU Program Landscape</span>
           <span>Internal program detail report</span>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -2642,7 +2642,7 @@ function FooterBand({
     <footer className="print-keep mt-2 rounded-md border border-border-subtle bg-surface-2/50 p-3 text-[0.65rem] text-text-tertiary">
       <div className="flex flex-wrap justify-between gap-2">
         <span>
-          KKU Curriculum Compass · ทักษทัศน์ — Internal program detail report
+          KKU Program Landscape — Internal program detail report
         </span>
         <span className="font-tabular">{overview.program.code}</span>
       </div>

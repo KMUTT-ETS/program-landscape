@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/legal/legal-page';
 
-export const metadata: Metadata = { title: 'Copyright Notice · KKU Curriculum Landscape' };
+export const metadata: Metadata = { title: 'Copyright Notice · Program Landscape' };
 
 const EFFECTIVE_DATE_EN = '27 August 2026';
 const EFFECTIVE_DATE_TH = '27 สิงหาคม 2569';
@@ -17,10 +17,9 @@ export default function CopyrightPage() {
         <>
           <h2>1. Identification of the Work</h2>
           <p>
-            This notice concerns the software application known as the{' '}
-            <strong>“KKU Curriculum Landscape”</strong> (internal codenames{' '}
-            <em>“Curriculum Compass”</em> and <em>“ทักษทัศน์”</em>), comprising the web
-            application served at{' '}
+            This notice concerns the software application known as{' '}
+            <strong>“Program Landscape — KKU Curriculum Intelligence Platform”</strong>,
+            comprising the web application served at{' '}
             <a href="https://program-landscape.kku.ac.th">
               https://program-landscape.kku.ac.th
             </a>{' '}
@@ -28,9 +27,8 @@ export default function CopyrightPage() {
             data schemas, and derived works (collectively, the <strong>“Work”</strong>).
           </p>
           <p>
-            The Work is distributed in source form under the name{' '}
-            <strong>“Program Landscape — KKU Curriculum Intelligence Platform”</strong>,
-            and the attribution notice required by Article 11 uses that name.
+            That is the name under which the Work is distributed in source form, and
+            the attribution notice required by Article 11 uses it.
           </p>
 
           <h2>2. Copyright Ownership and Licence</h2>
@@ -335,9 +333,8 @@ export default function CopyrightPage() {
           <h2>1. การระบุงาน</h2>
           <p>
             ประกาศนี้เกี่ยวข้องกับซอฟต์แวร์แอปพลิเคชันชื่อว่า{' '}
-            <strong>“KKU Curriculum Landscape”</strong> (ชื่อรหัสภายใน{' '}
-            <em>“Curriculum Compass”</em> และ <em>“ทักษทัศน์”</em>) ประกอบด้วย
-            เว็บแอปพลิเคชันที่เผยแพร่ผ่าน{' '}
+            <strong>“Program Landscape — KKU Curriculum Intelligence Platform”</strong>{' '}
+            ประกอบด้วยเว็บแอปพลิเคชันที่เผยแพร่ผ่าน{' '}
             <a href="https://program-landscape.kku.ac.th">
               https://program-landscape.kku.ac.th
             </a>{' '}
@@ -346,9 +343,8 @@ export default function CopyrightPage() {
             <strong>“งาน”</strong>)
           </p>
           <p>
-            งานนี้เผยแพร่ในรูปแบบซอร์สโค้ดภายใต้ชื่อ{' '}
-            <strong>“Program Landscape — KKU Curriculum Intelligence Platform”</strong>{' '}
-            และข้อความแสดงที่มาที่กำหนดไว้ในข้อ 11 ให้ใช้ชื่อดังกล่าว
+            ชื่อดังกล่าวเป็นชื่อที่ใช้ในการเผยแพร่งานนี้ในรูปแบบซอร์สโค้ด
+            และเป็นชื่อที่ข้อความแสดงที่มาตามข้อ 11 กำหนดให้ใช้
           </p>
 
           <h2>2. ความเป็นเจ้าของลิขสิทธิ์และสัญญาอนุญาต</h2>

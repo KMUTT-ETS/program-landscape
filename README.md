@@ -4,7 +4,7 @@ Strategic decision-support platform for **Khon Kaen University Council**.
 Analyzes 297 academic programs against future trends, financial
 sustainability, and labor market demand.
 
-Internal codename: *Curriculum Compass* / *ทักษทัศน์*.
+Canonical name: **Program Landscape — KKU Curriculum Intelligence Platform**.
 
 **Status:** hardened + production-shippable. 8 modules functional; security
 + observability + AI governance pass complete (prompt 13); pack-and-ship

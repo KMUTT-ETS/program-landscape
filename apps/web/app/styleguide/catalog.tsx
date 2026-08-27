@@ -170,7 +170,7 @@ export function StyleguideCatalog() {
       <Section title="Typography" description="Sarabun (primary, screen + Thai) · JetBrains Mono (tabular)">
         <Card padding="lg" className="flex flex-col gap-4">
           <div className="font-sans text-display font-semibold">
-            ทักษทัศน์ — Curriculum Compass
+            ภูมิทัศน์หลักสูตร — Program Landscape
           </div>
           <div className="text-3xl font-semibold">Strategic portfolio at a glance</div>
           <div className="text-2xl font-semibold">Section title example</div>

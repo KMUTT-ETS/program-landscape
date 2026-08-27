@@ -30,7 +30,7 @@ export function MethodologyContentTh() {
     <>
       <header className="mb-8">
         <p className="text-xs uppercase tracking-[0.12em] text-text-tertiary">
-          มหาวิทยาลัยขอนแก่น · Curriculum Landscape (Curriculum Compass / ทักษทัศน์)
+          มหาวิทยาลัยขอนแก่น · Program Landscape
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-text-primary">
           ระเบียบวิธีคะแนนสุขภาพหลักสูตรและคำตัดสินวงจรชีวิตหลักสูตร

@@ -30,7 +30,7 @@ export function MethodologyContentEn() {
     <>
       <header className="mb-8">
         <p className="text-xs uppercase tracking-[0.12em] text-text-tertiary">
-          Khon Kaen University · Curriculum Landscape (Curriculum Compass / ทักษทัศน์)
+          Khon Kaen University · Program Landscape
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-text-primary">
           Program Health and Lifecycle Methodology

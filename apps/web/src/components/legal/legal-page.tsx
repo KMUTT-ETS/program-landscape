@@ -35,7 +35,11 @@ export function LegalPage({
     <div>
       <PageHeader
         title={title}
-        subtitle={lang === 'en' ? 'KKU Curriculum Landscape' : 'แพลตฟอร์มทักษทัศน์ มหาวิทยาลัยขอนแก่น'}
+        subtitle={
+          lang === 'en'
+            ? 'Program Landscape — KKU Curriculum Intelligence Platform'
+            : 'แพลตฟอร์ม Program Landscape มหาวิทยาลัยขอนแก่น'
+        }
         actions={
           <button
             type="button"

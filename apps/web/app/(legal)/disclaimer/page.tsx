@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/legal/legal-page';
 
-export const metadata: Metadata = { title: 'Disclaimer · KKU Curriculum Landscape' };
+export const metadata: Metadata = { title: 'Disclaimer · Program Landscape' };
 
 const EFFECTIVE_DATE_EN = '11 May 2026';
 const VERSION = '1.0';
@@ -17,7 +17,7 @@ export default function DisclaimerPage() {
           <h2>1. Purpose of This Disclaimer</h2>
           <p>
             This Disclaimer (the <strong>“Disclaimer”</strong>) qualifies the use of
-            content made available through the KKU Curriculum Landscape platform
+            content made available through the Program Landscape platform
             (the <strong>“Platform”</strong>) operated by Khon Kaen University
             (<strong>“KKU”</strong>). It forms an integral part of, and shall be
             read together with, the <a href="/terms">Terms and Conditions of Use</a>{' '}
@@ -214,7 +214,7 @@ export default function DisclaimerPage() {
           <h2>1. วัตถุประสงค์ของคำชี้แจง</h2>
           <p>
             คำชี้แจงนี้ (<strong>“คำชี้แจง”</strong>) เป็นเงื่อนไขเพิ่มเติมในการใช้
-            เนื้อหาที่จัดให้ผ่านแพลตฟอร์ม KKU Curriculum Landscape
+            เนื้อหาที่จัดให้ผ่านแพลตฟอร์ม Program Landscape
             (<strong>“แพลตฟอร์ม”</strong>) ดำเนินการโดยมหาวิทยาลัยขอนแก่น
             (<strong>“มข.”</strong>) คำชี้แจงนี้เป็นส่วนหนึ่งของและให้อ่านประกอบกับ{' '}
             <a href="/terms">ข้อกำหนดและเงื่อนไขการใช้งาน</a> และ{' '}

@@ -30,7 +30,7 @@ export default async function LegalLayout({
             href="/"
             className="text-sm font-semibold text-text-primary hover:text-accent-default"
           >
-            KKU Curriculum Landscape
+            Program Landscape
           </Link>
           <Link
             href="/signin"

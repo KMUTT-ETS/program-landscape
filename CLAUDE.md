@@ -2,9 +2,11 @@
 
 > This file is read by Claude Code at the start of every session. It is the source of truth for how this project is built. Keep it current.
 
-## Project: KKU Curriculum Landscape
+## Project: Program Landscape — KKU Curriculum Intelligence Platform
 
-A strategic decision-support web application for Khon Kaen University Council and top management. Analyzes 297 academic programs against future trends, financial sustainability, and labor market demand. Internal codename: *Curriculum Compass* / *ทักษทัศน์*.
+A strategic decision-support web application for Khon Kaen University Council and top management. Analyzes 297 academic programs against future trends, financial sustainability, and labor market demand.
+
+**Naming — the canonical product name is "Program Landscape — KKU Curriculum Intelligence Platform"** (short form: *Program Landscape*). Three earlier names are **retired and must never appear in user-facing text, AI output, or documentation**: *Curriculum Compass* and *ทักษทัศน์* (both former internal codenames — ทักษทัศน์ is not a meaningful Thai word), and *KKU Curriculum Landscape* (the former title). They are recorded here only so nobody reintroduces them.
 
 **Audience:** University Council, top management, deans, department heads, analysts. **High-stakes decisions** affecting program closures, mergers, launches, faculty livelihoods. Trust and defensibility matter more than feature count.
 
