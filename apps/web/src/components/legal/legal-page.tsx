@@ -11,7 +11,10 @@ interface LegalPageProps {
   titleTh: string;
   bodyEn: React.ReactNode;
   bodyTh: React.ReactNode;
-  lastUpdated?: string;
+  // One per language: the Thai view must show a Thai-rendered date
+  // (Buddhist-era year, Thai month name), not the English string.
+  lastUpdatedEn?: string;
+  lastUpdatedTh?: string;
 }
 
 const ROUTES = [
@@ -25,11 +28,13 @@ export function LegalPage({
   titleTh,
   bodyEn,
   bodyTh,
-  lastUpdated,
+  lastUpdatedEn,
+  lastUpdatedTh,
 }: LegalPageProps) {
   const [lang, setLang] = React.useState<LegalLang>('en');
   const t = lang === 'en' ? bodyEn : bodyTh;
   const title = lang === 'en' ? titleEn : titleTh;
+  const lastUpdated = lang === 'en' ? lastUpdatedEn : lastUpdatedTh;
 
   return (
     <div>

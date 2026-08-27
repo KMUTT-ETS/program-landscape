@@ -12,7 +12,8 @@ export default function CopyrightPage() {
     <LegalPage
       titleEn="Copyright Notice"
       titleTh="ประกาศลิขสิทธิ์"
-      lastUpdated={`${EFFECTIVE_DATE_EN} · Version ${VERSION}`}
+      lastUpdatedEn={`${EFFECTIVE_DATE_EN} · Version ${VERSION}`}
+      lastUpdatedTh={`${EFFECTIVE_DATE_TH} · เวอร์ชัน ${VERSION}`}
       bodyEn={
         <>
           <h2>1. Identification of the Work</h2>
@@ -380,7 +381,7 @@ export default function CopyrightPage() {
             งานนี้ได้รับการ ริเริ่ม ออกแบบ และพัฒนา โดย{' '}
             <strong>ผศ. ดร. เด่นพงษ์ สุดภักดี</strong> ในฐานะรองอธิการบดี
             ฝ่ายการศึกษาและดิจิทัล ของ มข. ในระหว่างการปฏิบัติงานตามสัญญาจ้าง
-            ของ มข. ตาม <strong>มาตรา 9 แห่งพระราชบัญญัติลิขสิทธิ์ พ.ศ. 2537</strong>
+            ของ มข. ตาม <strong>มาตรา 9 แห่งพระราชบัญญัติลิขสิทธิ์ พ.ศ. 2537</strong>{' '}
             งานที่สร้างสรรค์โดยลูกจ้างในการทำงานตามสัญญาจ้างให้ลิขสิทธิ์ตกแก่ผู้ว่าจ้าง
             เว้นแต่จะตกลงเป็นหนังสือเป็นอย่างอื่น เนื่องจากไม่มีข้อตกลงเป็นลายลักษณ์อักษร
             อย่างอื่น ลิขสิทธิ์จึงตกแก่ มข.

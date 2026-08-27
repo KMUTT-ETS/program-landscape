@@ -4,6 +4,7 @@ import { LegalPage } from '@/components/legal/legal-page';
 export const metadata: Metadata = { title: 'Disclaimer · Program Landscape' };
 
 const EFFECTIVE_DATE_EN = '11 May 2026';
+const EFFECTIVE_DATE_TH = '11 พฤษภาคม 2569';
 const VERSION = '1.0';
 
 export default function DisclaimerPage() {
@@ -11,7 +12,8 @@ export default function DisclaimerPage() {
     <LegalPage
       titleEn="Disclaimer"
       titleTh="คำชี้แจงและข้อจำกัดความรับผิด"
-      lastUpdated={`Effective ${EFFECTIVE_DATE_EN} · Version ${VERSION}`}
+      lastUpdatedEn={`Effective ${EFFECTIVE_DATE_EN} · Version ${VERSION}`}
+      lastUpdatedTh={`มีผลบังคับใช้ ${EFFECTIVE_DATE_TH} · เวอร์ชัน ${VERSION}`}
       bodyEn={
         <>
           <h2>1. Purpose of This Disclaimer</h2>

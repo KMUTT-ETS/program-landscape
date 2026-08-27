@@ -6,6 +6,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE_EN = '27 August 2026';
+const EFFECTIVE_DATE_TH = '27 สิงหาคม 2569';
 const VERSION = '1.1';
 
 export default function TermsPage() {
@@ -13,7 +14,8 @@ export default function TermsPage() {
     <LegalPage
       titleEn="Terms and Conditions of Use"
       titleTh="ข้อกำหนดและเงื่อนไขการใช้งาน"
-      lastUpdated={`Effective ${EFFECTIVE_DATE_EN} · Version ${VERSION}`}
+      lastUpdatedEn={`Effective ${EFFECTIVE_DATE_EN} · Version ${VERSION}`}
+      lastUpdatedTh={`มีผลบังคับใช้ ${EFFECTIVE_DATE_TH} · เวอร์ชัน ${VERSION}`}
       bodyEn={
         <>
           <h2>1. Parties and Acceptance</h2>
