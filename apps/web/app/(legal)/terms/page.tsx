@@ -5,8 +5,8 @@ export const metadata: Metadata = {
   title: 'Terms and Conditions of Use · KKU Curriculum Landscape',
 };
 
-const EFFECTIVE_DATE_EN = '11 May 2026';
-const VERSION = '1.0';
+const EFFECTIVE_DATE_EN = '27 August 2026';
+const VERSION = '1.1';
 
 export default function TermsPage() {
   return (
@@ -101,6 +101,16 @@ export default function TermsPage() {
             diligence, and in accordance with applicable laws, KKU regulations,
             and these Terms.
           </p>
+          <p>
+            <strong>4.3.</strong> These Terms govern your use of the instance of the
+            Platform operated by KKU. They do not restrict the rights granted to the
+            public in the Platform's source code, documentation, and design assets
+            under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+            International Licence (CC BY-NC-SA 4.0), which are set out in the{' '}
+            <a href="/copyright">Copyright Notice</a>. Conversely, those rights do not
+            in themselves confer any right of access to this instance or to the
+            Content held in it.
+          </p>
 
           <h2>5. Prohibited Conduct</h2>
           <p>You shall not, and shall not attempt to:</p>
@@ -114,9 +124,12 @@ export default function TermsPage() {
               not authorised in writing by KKU;
             </li>
             <li>
-              reverse-engineer, decompile, or disassemble any component of the
-              Platform, except to the extent expressly permitted by law and not
-              capable of being waived;
+              reverse-engineer, decompile, or disassemble any third-party component of
+              the Platform, or any component whose own licence does not permit it,
+              except to the extent expressly permitted by law and not capable of being
+              waived; this restriction does not apply to the source code that KKU
+              publishes under CC BY-NC-SA 4.0, which you may study, adapt, and
+              redistribute in accordance with that licence;
             </li>
             <li>
               introduce viruses, worms, trojan horses, ransomware, or other malicious
@@ -127,8 +140,8 @@ export default function TermsPage() {
               defamatory, obscene, infringing, or fraudulent material;
             </li>
             <li>
-              use the Platform or its outputs to compete with, replicate, or
-              substitute for the institutional decision-making processes of KKU;
+              use Content obtained from the Platform to misrepresent, supplant, or
+              circumvent the institutional decision-making processes of KKU;
             </li>
             <li>
               process Personal Data through the Platform in a manner inconsistent
@@ -148,6 +161,15 @@ export default function TermsPage() {
             <strong>6.2.</strong> The basis of copyright ownership is set out in the{' '}
             <a href="/copyright">Copyright Notice</a>, which forms an integral part of
             these Terms.
+          </p>
+          <p>
+            <strong>6.3.</strong> KKU licenses the Platform's source code,
+            documentation, and design assets to the public under CC BY-NC-SA 4.0, while
+            remaining their copyright owner. That licence does not extend to KKU's
+            trademarks and institutional identity, to third-party components, or to any
+            KKU data; those exclusions are set out in the Copyright Notice. Article 4.1
+            remains the sole basis on which you may access this instance of the
+            Platform.
           </p>
 
           <h2>7. AI-Generated Content; Advisory Nature</h2>
@@ -209,14 +231,24 @@ export default function TermsPage() {
 
           <h2>10. Confidentiality</h2>
           <p>
-            <strong>10.1.</strong> Content marked as confidential, or which by its
-            nature ought reasonably to be regarded as confidential, shall not be
-            disclosed by you to any third party other than in the proper performance
-            of your duties to KKU.
+            <strong>10.1.</strong> Content accessed through the Platform—including
+            Personal Data relating to students and staff, programme-level financial and
+            cost analysis, evaluation and data-quality results, draft and unpublished
+            University Council material, and any other Content marked as confidential
+            or which by its nature ought reasonably to be regarded as
+            confidential—shall not be disclosed by you to any third party other than in
+            the proper performance of your duties to KKU.
           </p>
           <p>
             <strong>10.2.</strong> Your confidentiality obligation survives
             termination of your access to the Platform.
+          </p>
+          <p>
+            <strong>10.3.</strong> This Article applies to Content. It does not apply
+            to the Platform's source code, documentation, and design assets, which KKU
+            publishes under CC BY-NC-SA 4.0 and which are therefore not confidential.
+            Publication of the software does not make the Content of any running
+            instance public and does not release you from this Article.
           </p>
 
           <h2>11. No Professional Advice</h2>
@@ -421,6 +453,16 @@ export default function TermsPage() {
             <strong>4.2.</strong> ท่านต้องใช้แพลตฟอร์มโดยสุจริต ใช้ความระมัดระวัง
             ตามสมควร และปฏิบัติตามกฎหมาย ระเบียบของ มข. และข้อกำหนดฉบับนี้
           </p>
+          <p>
+            <strong>4.3.</strong> ข้อกำหนดฉบับนี้ใช้บังคับกับการที่ท่านใช้แพลตฟอร์ม
+            ฉบับที่ มข. เป็นผู้ให้บริการ มิได้จำกัดสิทธิที่ มข. อนุญาตให้สาธารณชน
+            ใช้ในซอร์สโค้ด เอกสาร และสินทรัพย์การออกแบบของแพลตฟอร์ม ภายใต้สัญญาอนุญาต
+            ครีเอทีฟคอมมอนส์ แบบแสดงที่มา-ไม่ใช้เพื่อการค้า-อนุญาตแบบเดียวกัน 4.0
+            นานาชาติ (CC BY-NC-SA 4.0) ตามที่กำหนดไว้ใน{' '}
+            <a href="/copyright">ประกาศลิขสิทธิ์</a> ในทางกลับกัน สิทธิดังกล่าว
+            โดยลำพังมิได้ก่อให้เกิดสิทธิในการเข้าถึงแพลตฟอร์มฉบับนี้
+            หรือเนื้อหาที่จัดเก็บอยู่ในแพลตฟอร์มแต่อย่างใด
+          </p>
 
           <h2>5. การกระทำที่ห้าม</h2>
           <p>ท่านจะไม่กระทำการ หรือพยายามกระทำการดังต่อไปนี้:</p>
@@ -434,8 +476,11 @@ export default function TermsPage() {
               มิได้อนุญาตเป็นลายลักษณ์อักษร;
             </li>
             <li>
-              ทำวิศวกรรมย้อนกลับ ถอดประกอบ หรือถอดรหัสส่วนประกอบใด ๆ ของแพลตฟอร์ม
-              เว้นแต่กฎหมายอนุญาตและสิทธินั้นไม่อาจสละได้;
+              ทำวิศวกรรมย้อนกลับ ถอดประกอบ หรือถอดรหัสส่วนประกอบของบุคคลที่สาม
+              ในแพลตฟอร์ม หรือส่วนประกอบใดที่สัญญาอนุญาตของส่วนประกอบนั้นมิได้ยอมให้
+              กระทำ เว้นแต่กฎหมายอนุญาตและสิทธินั้นไม่อาจสละได้ ทั้งนี้ ข้อห้ามนี้
+              ไม่ใช้บังคับกับซอร์สโค้ดที่ มข. เผยแพร่ภายใต้สัญญาอนุญาต CC BY-NC-SA 4.0
+              ซึ่งท่านอาจศึกษา ดัดแปลง และเผยแพร่ต่อได้ตามสัญญาอนุญาตดังกล่าว;
             </li>
             <li>
               นำเข้ามัลแวร์ เวิร์ม ม้าโทรจัน แรนซัมแวร์ หรือก่อภาระโจมตี
@@ -446,8 +491,8 @@ export default function TermsPage() {
               ลามกอนาจาร ละเมิดสิทธิ หรือฉ้อโกง;
             </li>
             <li>
-              ใช้แพลตฟอร์มหรือผลลัพธ์ของแพลตฟอร์มเพื่อแข่งขัน เลียนแบบ หรือทดแทน
-              กระบวนการตัดสินใจของ มข.;
+              ใช้เนื้อหาที่ได้จากแพลตฟอร์มเพื่อบิดเบือน แทนที่ หรือหลบเลี่ยง
+              กระบวนการตัดสินใจของสถาบันของ มข.;
             </li>
             <li>
               ประมวลผลข้อมูลส่วนบุคคลผ่านแพลตฟอร์มในลักษณะที่ขัดกับ PDPA
@@ -466,6 +511,15 @@ export default function TermsPage() {
             <strong>6.2.</strong> ฐานความเป็นเจ้าของลิขสิทธิ์ปรากฏใน{' '}
             <a href="/copyright">ประกาศลิขสิทธิ์</a> ซึ่งถือเป็นส่วนหนึ่งของ
             ข้อกำหนดฉบับนี้
+          </p>
+          <p>
+            <strong>6.3.</strong> มข. อนุญาตให้สาธารณชนใช้สิทธิในซอร์สโค้ด เอกสาร
+            และสินทรัพย์การออกแบบของแพลตฟอร์ม ภายใต้สัญญาอนุญาต CC BY-NC-SA 4.0
+            โดย มข. ยังคงเป็นเจ้าของลิขสิทธิ์ในสิ่งดังกล่าว สัญญาอนุญาตนี้มิได้
+            ครอบคลุมถึงเครื่องหมายการค้าและเครื่องหมายแสดงตัวตนของสถาบันของ มข.
+            ส่วนประกอบของบุคคลที่สาม หรือข้อมูลใด ๆ ของ มข. โดยข้อยกเว้นดังกล่าว
+            กำหนดไว้ในประกาศลิขสิทธิ์ ทั้งนี้ ข้อ 4.1 ยังคงเป็นฐานเพียงประการเดียว
+            ที่ให้ท่านเข้าถึงแพลตฟอร์มฉบับนี้ได้
           </p>
 
           <h2>7. เนื้อหาที่สร้างโดย AI; ลักษณะเป็นคำแนะนำ</h2>
@@ -524,13 +578,23 @@ export default function TermsPage() {
 
           <h2>10. ความลับ</h2>
           <p>
-            <strong>10.1.</strong> เนื้อหาที่ระบุว่าเป็นข้อมูลลับ หรือซึ่งโดย
+            <strong>10.1.</strong> เนื้อหาที่เข้าถึงผ่านแพลตฟอร์ม อันรวมถึงข้อมูล
+            ส่วนบุคคลของนักศึกษาและบุคลากร การวิเคราะห์ทางการเงินและต้นทุนระดับหลักสูตร
+            ผลการประเมินและผลการตรวจสอบคุณภาพข้อมูล เอกสารสภามหาวิทยาลัยที่ยังเป็นร่าง
+            หรือยังมิได้เผยแพร่ ตลอดจนเนื้อหาอื่นใดที่ระบุว่าเป็นข้อมูลลับ หรือซึ่งโดย
             สภาพแล้วควรถือเป็นความลับ จะต้องไม่เปิดเผยต่อบุคคลที่สามที่ไม่ใช่
             การปฏิบัติหน้าที่ตามภาระงานต่อ มข. โดยชอบ
           </p>
           <p>
             <strong>10.2.</strong> หน้าที่รักษาความลับของท่านมีผลต่อเนื่องหลังจาก
             สิ้นสุดการเข้าถึงแพลตฟอร์ม
+          </p>
+          <p>
+            <strong>10.3.</strong> ข้อนี้ใช้บังคับกับเนื้อหา มิได้ใช้บังคับกับ
+            ซอร์สโค้ด เอกสาร และสินทรัพย์การออกแบบของแพลตฟอร์ม ซึ่ง มข. เผยแพร่ภายใต้
+            สัญญาอนุญาต CC BY-NC-SA 4.0 และจึงมิใช่ข้อมูลลับ ทั้งนี้
+            การเผยแพร่ซอฟต์แวร์ดังกล่าวมิได้ทำให้เนื้อหาในระบบที่เปิดให้บริการ
+            กลายเป็นข้อมูลสาธารณะ และมิได้ปลดเปลื้องท่านจากหน้าที่ตามข้อนี้
           </p>
 
           <h2>11. ไม่ใช่คำปรึกษาทางวิชาชีพ</h2>
