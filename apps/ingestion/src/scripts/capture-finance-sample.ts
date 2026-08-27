@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Discovery-only capture for the kku-finance connector. Two sources:
 //
-//   1. Oracle (KKU Registry POWERBI schema, regora19scan.kku.ac.th)
+//   1. Oracle (KKU Registry POWERBI schema — host from KKU_REGISTRY_DB_HOST)
 //      - VIEWSTUDENTENROLLFEE has tuition (STUDENTID × ACADYEAR × SEMESTER
 //        × AMOUNT — 387,940 rows seen in the kku-registry capture).
 //      - Joined to VIEW_STUDENT_DETAIL_ALL on STUDENTID gives us

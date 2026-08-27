@@ -2,7 +2,8 @@
 // Real KkuRegistryConnector — flips kku-registry from mock to live.
 //
 // Wire-up:
-//   - oracledb (thin) → POWERBI views on regora19scan.kku.ac.th:1521
+//   - oracledb (thin) → POWERBI views on the registrar Oracle warehouse
+//     (host/service/user from KKU_REGISTRY_DB_*)
 //   - SQL aggregates server-side; raw rows never leave the result set
 //   - Q1 returns status counts per (program × cohort × status)
 //   - Q2 returns demographic histograms per (program × cohort × demo)

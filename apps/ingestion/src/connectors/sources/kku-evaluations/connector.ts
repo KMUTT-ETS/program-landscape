@@ -3,7 +3,8 @@
 //
 // Wire-up:
 //   - oracledb (thin) → POWERBI.EVALUATE_INSTRUCTOR on
-//     regora19scan.kku.ac.th:1521 (same warehouse as kku-registry)
+//     the registrar Oracle warehouse (same host as kku-registry; see
+//     KKU_REGISTRY_DB_HOST)
 //   - Two queries:
 //       Q1: catalog of distinct (QUESTIONID, question text) seen
 //       Q3: aggregated cells (Y, S, classid, qid, officerid) with

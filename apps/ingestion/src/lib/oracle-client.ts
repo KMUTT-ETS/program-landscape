@@ -2,7 +2,7 @@
 // Oracle client helper — KKU-internal Oracle data warehouses.
 //
 // Used by:
-//   - kku-registry connector (POWERBI views on regora19scan.kku.ac.th)
+//   - kku-registry connector (POWERBI views on the registrar warehouse)
 //   - kku-hr connector       (planned)
 //   - kku-finance connector  (planned)
 //
