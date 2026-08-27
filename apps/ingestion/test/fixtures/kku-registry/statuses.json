@@ -1,4 +1,8 @@
 {
+  "suppression": {
+    "policy": "N >= 5",
+    "note": "Vocabulary fixture: every distinct value is listed, but a count below the k-anonymity floor is withheld (N: null, suppressed: true) rather than the row being dropped. Some status and entry-type values are held by a single student university-wide, and a few of those values are themselves sensitive."
+  },
   "distinctStatuses": [
     {
       "VAL": "สำเร็จการศึกษา",
@@ -182,27 +186,33 @@
     },
     {
       "VAL": "พ้นสภาพ-หลังสอบครั่งที่ 1 ไม่ผ่านไม่ดำเนินการ และ/หรือ สอบครั้งที่ 2 ตามเวลาที่กำหนด",
-      "N": 3
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": null,
-      "N": 2
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "พ้นสภาพเนื่องจากต้องโทษคำพิพากษาจำคุก",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "ต่อทะเบียนโดยไม่ลงทะเบียนรายวิชาเรียน",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "พ้นสภาพ-มหาวิทยาลัยสั่งให้ออก อันเนื่องจากการฝ่าฝืนระเบียบการลงทะเบียนและการชำระค่าธรรมเนียมการศึกษา",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "ถูกสั่งพักการเรียน",
-      "N": 1
+      "N": null,
+      "suppressed": true
     }
   ],
   "distinctEntryTypes": [
@@ -472,75 +482,93 @@
     },
     {
       "VAL": "สาขาวิชาสัตวแพทย์ ตามข้อตกลงความร่วมมือทางวิชาการระหว่าง คณะสัตวแพทยศาสตร์ มหาวิทยาลัยขอนแก่นกับกรมส่งเสริมสหกรณ์",
-      "N": 4
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการทุนหลักสูตรวิทยาศาสตรบันฑิต สาขารังสีเทคนิค (ทุนกระทรวงสาธารณสุข)",
-      "N": 4
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "บัณฑิตวิทยาลัย (จัดสอบ) ป.บัณฑิตชั้นสูง ชาวต่างชาติ",
-      "N": 3
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการรับนักเรียนชาวไทยศาสนาอิสลามจังหวัดชายแดนภาคใต้ของกระทรวงมหาดไทย",
-      "N": 3
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการรับนักเรียนผู้เป็นทายาทของผู้ประกออบการในห่วงโซ่คุณค่าของธุกิจอาหาร",
-      "N": 3
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": null,
-      "N": 3
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "คัดเลือกจากนักกีฬาชั้นเลิศ",
-      "N": 3
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "ขอร่วมเรียนสำหรับบุคคลภายนอก  ชาวไทย",
-      "N": 2
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "นักเรียนโครงการขยายโอกาสทางการศึกษาแก่ผู้ด้อยโอกาสหรือพิการ เฉลิมพระเกียรติ 80 พรรษา",
-      "N": 2
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการผลิตครูเพื่อพัฒนาท้องถิ่น",
-      "N": 2
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "เจ้าพนักงานวิทยาศาสตร์การแพทย์",
-      "N": 2
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการผลิตพยาบาลเพื่อพัฒนาสุขภาพประชาชนในจังหวัดชายแดนตามรอยสมเด็จย่า",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "วิทยาลัยบัณฑิตศึกษาการจัดการ (จัดสอบ) ป.โทกรุงเทพฯ",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการผลิตทันตแพทย์เพิ่ม",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการร่วมพัฒนาตำรวจตระเวณชายแดน",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "กลุ่มเจ้าพนักงานวิทยาศาสตร์การแพทย์",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการความร่วมมือระหว่างมหาวิทยาลัยขอนแก่นกับกรมส่งเสริมการปกครองท้องถิ่น",
-      "N": 1
+      "N": null,
+      "suppressed": true
     },
     {
       "VAL": "โครงการ   พสวท.",
-      "N": 1
+      "N": null,
+      "suppressed": true
     }
   ],
   "distinctLevels": [

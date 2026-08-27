@@ -98,13 +98,22 @@ describe('STATUS_BUCKET_MAP coverage of captured fixture', () => {
   it.skipIf(!existsSync(fixturePath))(
     'every captured STATUS_CODE has an explicit map entry',
     () => {
+      // `statusVocabulary` is the registrar's code table as captured — every
+      // distinct (code, label) pair, with no counts attached. It is a stronger
+      // basis for this assertion than the old scan over `statusCounts`: the
+      // counts series is suppressed at N >= 5, so a code that only ever
+      // appears in small cells would silently drop out of it and the coverage
+      // check would stop testing that code.
       const data = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
-        statusCounts: { STATUS_CODE: number | null }[];
+        statusVocabulary?: { STATUS_CODE: number | null }[];
       };
       const distinct = new Set<number>();
-      for (const row of data.statusCounts) {
+      for (const row of data.statusVocabulary ?? []) {
         if (row.STATUS_CODE !== null) distinct.add(row.STATUS_CODE);
       }
+      // Guard against the fixture being regenerated into a shape this test
+      // can't see — an empty set would make the assertion vacuously pass.
+      expect(distinct.size).toBeGreaterThan(0);
       const missing = [...distinct].filter((c) => !STATUS_BUCKET_MAP.has(c));
       expect(missing).toEqual([]);
     },

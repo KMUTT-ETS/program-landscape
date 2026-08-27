@@ -63,8 +63,11 @@ async function main() {
     console.error('fixture missing — run pnpm registry:capture aggregate');
     process.exit(1);
   }
+  // `programTuples` is the fixture's distinct (faculty, programme, level,
+  // major) vocabulary — programme catalogue metadata, no counts, no student
+  // attributes.
   const raw = JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
-    statusCounts: Array<{
+    programTuples?: Array<{
       FACULTY_NAME: string;
       PROGRAM_NAME: string;
       PROGRAM_LEVEL: string | null;
@@ -72,7 +75,7 @@ async function main() {
     }>;
   };
   const seen = new Map<string, Tuple>();
-  for (const r of raw.statusCounts ?? []) {
+  for (const r of raw.programTuples ?? []) {
     const fac = (r.FACULTY_NAME ?? '').trim();
     const prog = (r.PROGRAM_NAME ?? '').trim();
     const major = (r.MAJOR ?? '').trim();
@@ -124,7 +127,11 @@ async function main() {
 
   let confirmed = 0;
   let reassigned = 0;
-  let skippedLowScore = 0;
+  // Never incremented — the low-score cases are counted as skippedNoCandidate
+  // below. Kept so the summary line's shape stays stable. (const, not let:
+  // pre-existing lint error in this file, fixed here because CI lints the
+  // files a PR touches.)
+  const skippedLowScore = 0;
   let skippedNoCandidate = 0;
   let skippedReassignWouldHurt = 0;
   let failed = 0;

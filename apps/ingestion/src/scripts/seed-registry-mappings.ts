@@ -76,15 +76,18 @@ async function main(): Promise<number> {
 
   console.log('[seed-mappings] loading fixture…');
   const fixture = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as {
-    statusCounts: Q1Row[];
+    programTuples?: Q1Row[];
   };
 
-  // Distinct (faculty, program, level, major) tuples from the fixture.
+  // `programTuples` is the fixture's distinct (faculty, programme, level,
+  // major) vocabulary — programme catalogue metadata, de-duped at capture
+  // time, no counts and no student attributes. Re-keying here anyway so the
+  // trim/normalisation matches what the mapping rows are written with.
   const tuples = new Map<
     string,
     { faculty: string; program: string; level: string; major: string }
   >();
-  for (const r of fixture.statusCounts) {
+  for (const r of fixture.programTuples ?? []) {
     const faculty = (r.FACULTY_NAME ?? '').trim();
     const program = (r.PROGRAM_NAME ?? '').trim();
     const level = (r.PROGRAM_LEVEL ?? '').trim();

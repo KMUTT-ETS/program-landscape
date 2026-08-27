@@ -27,6 +27,13 @@ interface FixtureRow {
   MAJOR: string | null;
 }
 
+// The fixture's `programTuples` array is the distinct (faculty, programme,
+// level, major) vocabulary — programme catalogue metadata, already de-duped
+// at capture time, carrying no counts and no student attributes. Triage reads
+// only this. It used to de-dup `statusCounts` itself, which meant loading
+// 136k per-cohort demographic rows to arrive at the same 2,232 tuples; those
+// rows described single students and are no longer captured at all.
+
 const FIXTURE_PATH = path.resolve(
   process.cwd(),
   '../../apps/ingestion/test/fixtures/kku-registry/aggregated.json',
@@ -49,10 +56,11 @@ function loadFixture(): FixtureTuple[] {
     fixtureCache = [];
     return fixtureCache;
   }
-  const content = JSON.parse(readFileSync(fixturePath, 'utf8')) as { statusCounts: FixtureRow[] };
-  // De-dup tuples (the fixture has multiple rows per cohort/status).
+  const content = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
+    programTuples?: FixtureRow[];
+  };
   const seen = new Map<string, FixtureTuple>();
-  for (const r of content.statusCounts ?? []) {
+  for (const r of content.programTuples ?? []) {
     const fac = (r.FACULTY_NAME ?? '').trim();
     const prog = (r.PROGRAM_NAME ?? '').trim();
     const major = (r.MAJOR ?? '').trim();
