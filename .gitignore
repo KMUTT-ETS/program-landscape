@@ -65,6 +65,19 @@ apps/web/public/pdf.worker.*.mjs
 .claude/
 
 
+# Ad-hoc operational SQL. One-off scripts written to patch production data
+# (`*-prod.sql`, provenance backfills, bridge syncs) get dropped in the repo
+# root while they are being run, then forgotten — where a single `git add .`
+# commits them. They are not source-of-truth: schema changes belong in
+# packages/db/prisma/migrations/, which this rule does not touch because it
+# is anchored to the repo root.
+#
+# The pattern is ignored, not the five filenames that happened to exist when
+# this rule was written. If you need to keep one, move it under
+# packages/db/prisma/migrations/ or force-add it deliberately, having read it.
+/*.sql
+*-prod.sql
+
 # Bulk-digest run logs (per-run artifacts, not source-of-truth)
 logs/
 .preflight/
