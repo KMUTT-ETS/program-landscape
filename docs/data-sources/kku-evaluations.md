@@ -18,9 +18,9 @@ Feeds two new sub-dashboards:
 
 | | |
 |---|---|
-| Endpoint | `regora19scan.kku.ac.th:1521`, service `kku_svc` |
+| Endpoint | Registrar Oracle warehouse — same host/service as `kku-registry`; values live in `KKU_REGISTRY_DB_*`, not in this repo |
 | Driver | `oracledb` v6+ thin mode (no Instant Client) |
-| Auth | Same read-only `powerbi` account as kku-registry |
+| Auth | Same read-only account as `kku-registry`. Username deliberately not published — see the note in `kku-registry.md`. |
 | Credentials | reuses `KKU_REGISTRY_DB_*` env (same warehouse as registry + finance tuition) |
 | Network | KKU on-prem only — confirmed reachable from dev WSL2 (probed 2026-05-19) |
 | Query timeout | 60 s per query (the aggregation passes over 1.4 M rows) |
@@ -295,10 +295,22 @@ Sub-10 minute end-to-end load expected.
 ## Phase 0 artefacts
 
 - Discovery probes: `apps/ingestion/src/scripts/probe-kku-evaluations.ts` + `probe-kku-evaluations-joins.ts`
-- Fixtures (aggregate-only, no PII): `apps/ingestion/test/fixtures/kku-evaluations/`
-  - `schema.json` — column list with PII flags
+- Fixtures: `apps/ingestion/test/fixtures/kku-evaluations/` — aggregate, except
+  `sample-rows.json`, which is five real rows with the person-identifying
+  columns masked. **Corrected 2026-08-27:** this list used to say
+  "aggregate-only, no PII" of the whole directory. It was not true of
+  `sample-rows.json`, which shipped raw `OFFICERID` values next to course,
+  section, semester and evaluation score for three months. The emails were
+  masked; the staff ID that joins straight to an HR record was not, and
+  `pii-audit.json` reported `suspects: []` because the detector matched
+  column names against citizen-ID and phone patterns only.
+  - `schema.json` — column list with PII flags (`OFFICERID` and `KKUMAIL` now flagged)
   - `row-count.json`
-  - `sample-rows.json` — 5 rows with KKUMAIL masked
+  - `sample-rows.json` — 5 rows; `KKUMAIL` masked to `xx***@kku.ac.th`,
+    `OFFICERID` replaced by a truncated SHA-256 so the join is still
+    demonstrable without the value that resolves against HR
+  - `pii-audit.json` — now lists `OFFICERID` (person-identifier) and
+    `KKUMAIL` (pii-by-name)
   - `coverage.json` — year × semester buckets
   - `cardinalities.json` — distinct counts
   - `question-stability.json` — QID drift analysis

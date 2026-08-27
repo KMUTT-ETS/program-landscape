@@ -14,16 +14,29 @@ Highest-leverage internal source — every program-health calculation downstream
 
 | | |
 |---|---|
-| Endpoint | `regora19scan.kku.ac.th:1521`, service name `kku_svc` |
+| Endpoint | Registrar Oracle warehouse. Host, port and service name live in `KKU_REGISTRY_DB_*` — see the note below. |
 | Driver | Oracle thin client (no Instant Client native lib) — `oracledb` v6+ in thin mode |
-| JDBC URL (reference only) | `jdbc:oracle:thin:@//regora19scan.kku.ac.th:1521/kku_svc` |
-| Auth | User + password — read-only `powerbi` account |
+| JDBC URL (reference only) | `jdbc:oracle:thin:@//${KKU_REGISTRY_DB_HOST}:${KKU_REGISTRY_DB_PORT}/${KKU_REGISTRY_DB_SERVICE}` |
+| Auth | User + password — a read-only account supplied by the Registrar. Username deliberately not published — see the note below. |
 | Credentials env vars | `KKU_REGISTRY_DB_HOST`, `KKU_REGISTRY_DB_PORT`, `KKU_REGISTRY_DB_SERVICE`, `KKU_REGISTRY_DB_USER`, `KKU_REGISTRY_DB_PASSWORD` |
 | Network reachability | KKU internal — confirmed reachable from dev WSL2 host (2026-04-27); prod will use compose secret |
 | Rate limits | None enforced upstream; we self-limit to 1 concurrent query, 30 s timeout |
 | Concurrency we'll use | 1 (single connection pool slot, single in-flight query) |
 | Request timeout | 30 s per query, 120 s total for the run |
 | Data residency | KKU on-prem — never leaves the network |
+
+> **Why the host and username are not written down here (2026-08-27).** The
+> registrar account locks out after a burst of failed logons — that is why
+> ingestion reuses a single `OracleSession` rather than connecting per call
+> (`apps/ingestion/src/lib/oracle-client.ts`). A valid username in a repo that
+> external universities can read is therefore a denial-of-service against
+> production ingestion, not merely an information leak: an attacker needs no
+> password to lock the account, only the name. Host, port, service and user
+> come from `KKU_REGISTRY_DB_*` in your local `.env`, supplied by the
+> Registrar's office. `.env.example` ships `REPLACE_ME` for all four.
+>
+> The `POWERBI.` prefix on the view names below is the Oracle **schema**, not
+> the account, and is unavoidable when reading the SQL.
 | Schema visible | `POWERBI` (read-only views), 9 views total (we use 5) |
 
 ### Views in scope
@@ -91,7 +104,11 @@ GROUP BY FACULTYNAME, PROGRAMNAME, PROGRAMLEVEL, MAJOR, ADMITACADYEAR,
 
 Province sentinel `'-'` is normalised to `null` at the transform layer. Parental income / occupation are NOT pulled — they're PDPA-sensitive per-row signals that don't aggregate cleanly without a normalised income-bucket column upstream. Deferred to a follow-up session if needed.
 
-The capture script `apps/ingestion/src/scripts/capture-registry-sample.ts` runs both queries against the live registrar with the env-supplied credentials and writes the result to `apps/ingestion/test/fixtures/kku-registry/aggregated.json`. The fixture is committed to git — it's already aggregated, so PDPA-clean.
+The capture script `apps/ingestion/src/scripts/capture-registry-sample.ts` runs these queries against the live registrar with the env-supplied credentials and writes the result to `apps/ingestion/test/fixtures/kku-registry/aggregated.json`, which is committed to git.
+
+> **Corrected 2026-08-27.** This paragraph used to read "it's already aggregated, so PDPA-clean". That inference is wrong, and the fixture it justified was not clean. `GROUP BY` alone does not anonymise: if a group contains one student, the aggregate *is* that student's record. The committed fixture carried 79,465 demographic groups and 12,888 status groups of exactly one person, each keyed by programme, cohort year, gender, home province and nationality — k-anonymity of 1.
+>
+> The capture now applies a `HAVING COUNT(*) >= 5` floor server-side, drops the demographic series outright, and splits out the two count-free vocabularies (`programTuples`, `statusVocabulary`) that the mapping and status-coverage consumers actually read. See `apps/ingestion/test/fixtures/kku-registry/README.md`. **Aggregated is not the same as anonymous — the cell size is what matters.**
 
 ### Quirks captured during 2026-04-27 discovery
 
@@ -165,7 +182,11 @@ The two deferred columns retain whatever value they have in the row already (syn
 
 **Personal data categories the upstream views carry:** Thai citizen ID (`CITIZENID`), full name (Thai + English), contact phone, KKU email, personal email, date of birth, home address, parents' occupation + income, vaccination ID, school of origin.
 
-**Personal data this connector reads:** _none_. All aggregation is server-side via `GROUP BY`. The result set the connector receives contains **no PII columns** — only counts, sums, and tuple-keyed aggregates.
+**Personal data this connector reads:** no PII *columns*. All aggregation is server-side via `GROUP BY`; the result set contains only counts, sums, and tuple-keyed aggregates — no name, citizen ID, address or contact detail ever crosses the wire.
+
+That is necessary but not sufficient, and it was previously stated as though it were sufficient. A `GROUP BY` that returns a count of 1 has returned an individual: the tuple key describes exactly one person, and the quasi-identifiers in that key (programme, cohort year, gender, home province, nationality) are enough to name them. **A small-cell floor is part of the PDPA posture, not an optimisation.** Both the connector queries and the capture script apply `HAVING COUNT(*) >= 5`; anything below the floor is withheld, and a withheld cell is never rendered as zero.
+
+**Committed fixtures:** see `apps/ingestion/test/fixtures/kku-registry/README.md` for what each file holds and which suppression applies to it.
 
 **Legal basis (PDPA §24):** §24(4) — necessary for performance of duty in the public interest (university governance + Council strategic decision-making). Internal KKU data flow under PDPA §27 (university-internal transfer).
 

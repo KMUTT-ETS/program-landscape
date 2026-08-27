@@ -91,6 +91,47 @@ Retention is enforced by a nightly cron (prompt 13b) that zeroes payload fields 
 
 ---
 
+## Committed fixtures
+
+Discovery fixtures under `apps/ingestion/test/fixtures/` are **committed to git
+and readable by anyone with repo access**, including the external universities
+being granted read access. Treat them as published, not as test data.
+
+Two rules, both learned the hard way in the 2026-08-27 credential audit:
+
+1. **Aggregated is not anonymous. Cell size is what matters.** A `GROUP BY`
+   that returns a count of 1 has returned an individual — the tuple key
+   describes exactly one person, and quasi-identifiers such as programme ×
+   cohort year × gender × home province × nationality name them. Every
+   committed count series carries an `N >= 5` floor, applied server-side in
+   the capture SQL so small cells never leave the source system. A withheld
+   cell is `null`, never `0`.
+2. **Masking an email is not masking a person.** An internal identifier —
+   staff number, employee code, citizen-ID hash — re-identifies just as well
+   to anyone with access to the system it came from, and rather better,
+   because it is an exact key rather than a guess. Person-identifying columns
+   are hashed (truncated SHA-256), which keeps a fixture able to demonstrate a
+   join without carrying the value that resolves it.
+
+| Source | Posture | Verified |
+|---|---|---|
+| `kku-registry` | `N >= 5` on counts; demographic series removed; count-free vocabularies only | 2026-08-27 |
+| `kku-evaluations` | aggregate, except `sample-rows.json` — 5 rows, email masked, `OFFICERID` SHA-256'd | 2026-08-27 |
+| `kku-hr` | aggregate-at-source, `HAVING COUNT(*) >= 5`, IDs SHA-256'd server-side | 2026-08-27 |
+| `kku-finance` | aggregate-at-source, `HAVING COUNT(DISTINCT STUDENTCODE) >= 5`; budget data is non-personal | 2026-08-27 |
+| `kku-publications` | public publication metadata; `people.pid` never read | 2026-08-27 |
+| `kmitl-skill-mapping` | percentages only; API contract carries no per-person field | 2026-08-27 |
+
+Test fixtures that describe **named** people — `apps/api/test/teaching-talent-export.test.ts`
+and `packages/db/test/teaching-talent.test.ts`, which pair a person with a rank,
+a faculty and evaluation scores — are synthetic and must stay synthetic. Both
+carry a comment saying so. Do not paste real rows in to reproduce a bug.
+
+Before committing a new fixture: run `pnpm secrets:scan`, and ask what the
+smallest group in it describes.
+
+---
+
 ## Incident response
 
 If a personal-data breach occurs:

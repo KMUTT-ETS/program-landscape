@@ -8,7 +8,7 @@
 
 Two halves of KKU's program-economics picture:
 
-1. **Tuition revenue** (the income side, partial) — pulled from the **Oracle Registry** at the same `regora19scan.kku.ac.th` endpoint as `kku-registry`. View `POWERBI.VIEWSTUDENTENROLLFEE` carries `(STUDENTID, STUDENTCODE, ACADYEAR, SEMESTER, AMOUNT)` per fee row; we JOIN to `POWERBI.VIEW_STUDENT_DETAIL_ALL` on `STUDENTCODE` to attribute each ฿ to (faculty × program × level × major × year). 100% join coverage observed.
+1. **Tuition revenue** (the income side, partial) — pulled from the **Oracle Registry** at the same endpoint as `kku-registry`. View `POWERBI.VIEWSTUDENTENROLLFEE` carries `(STUDENTID, STUDENTCODE, ACADYEAR, SEMESTER, AMOUNT)` per fee row; we JOIN to `POWERBI.VIEW_STUDENT_DETAIL_ALL` on `STUDENTCODE` to attribute each ฿ to (faculty × program × level × major × year). 100% join coverage observed.
 2. **Budget allocation** (the expense side) — pulled from the **MSSQL HR server** at `10.101.104.192`, database `ERPPowerBI`, table `dbo.BudgetData`. Each row is a (division × cost-center × account × fund × project) line item with `TOTAL_BUDGET` (allocation), `TOTAL_COMMITMENT`, `TOTAL_OBLIGATION`, `TOTAL_EXPENDITURE`, `FUNDS_AVAILABLE`. Current fiscal year only (no historical years in this table).
 
 KKU revenue mix observed in FY 2569 (CE 2026): ฿16.7B from `งบประมาณเงินรายได้` (university-generated, ~75%) + ฿5.6B from `งบประมาณเงินอุดหนุนจากรัฐ` (government subsidy, ~25%) + ~฿0.8B other = ฿23.1B total.
