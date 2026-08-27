@@ -16,7 +16,7 @@ export default function NotFound() {
         href="/"
         className="mt-8 text-sm font-medium text-accent-default hover:underline"
       >
-        Go to KKU Curriculum Landscape →
+        Go to KKU Program Landscape →
       </Link>
     </div>
   );

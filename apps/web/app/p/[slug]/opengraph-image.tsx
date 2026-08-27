@@ -5,6 +5,15 @@ import { getProfileData } from '@/lib/profile-data';
 // OG card emitted on link previews (Slack, LINE, X, WhatsApp).
 // 1200×630 — the standard OG dimensions. Generated on each request
 // (Next caches the response for performance).
+//
+// Colours here are literal hex on purpose, and the design-token lint is
+// disabled for the file. `next/og` renders through satori, not a browser:
+// there is no document, so `oklch(var(--color-…))` resolves to nothing and
+// the card comes out unstyled. Same constraint as PRINT_PALETTE in
+// @kku/pdf-templates, which hardcodes hex because Gotenberg's Chromium
+// won't render oklch reliably. If the design tokens change, mirror the
+// change here by hand — nothing will catch the drift for you.
+/* eslint-disable no-restricted-syntax -- satori cannot resolve CSS variables; see note above */
 
 export const runtime = 'nodejs';
 export const alt = 'KKU academic profile';
@@ -32,7 +41,7 @@ export default async function OgImage({ params }: { params: { slug: string } }) 
             fontSize: 48,
           }}
         >
-          KKU Curriculum Landscape
+          KKU Program Landscape
         </div>
       ),
       size,

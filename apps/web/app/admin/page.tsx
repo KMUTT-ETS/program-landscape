@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────
-// Admin console — the operational front door for KKU Curriculum Landscape.
+// Admin console — the operational front door for KKU Program Landscape.
 //
 // IA restructured 2026-05-12 to three nouns matching the operator's
 // mental model: Programs / External data / Application. Each group

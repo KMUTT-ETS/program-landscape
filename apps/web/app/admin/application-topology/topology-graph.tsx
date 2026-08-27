@@ -68,7 +68,7 @@ const LANE_ORDER: NodeLane[] = ['external', 'connector', 'table', 'ai', 'dashboa
 const LANE_LABELS: Record<NodeLane, { eyebrow: string; caption: string }> = {
   external: {
     eyebrow: 'L1 · External systems',
-    caption: 'Sources outside KKU Curriculum Landscape',
+    caption: 'Sources outside KKU Program Landscape',
   },
   connector: {
     eyebrow: 'L2 · Connectors + scripts',
@@ -543,7 +543,7 @@ export function TopologyGraph({ liveStatus }: TopologyGraphProps) {
           // page scrolling kicks in.
           height={Math.max(120, layout.canvasH * transform.scale)}
           role="img"
-          aria-label="KKU Curriculum Landscape application data topology"
+          aria-label="KKU Program Landscape application data topology"
         >
           <defs>
             <marker
