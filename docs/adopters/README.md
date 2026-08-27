@@ -52,7 +52,7 @@ Everything institution-specific — the registrar warehouse, HR, finance, course
 **Three things to internalise before you start:**
 
 - This is a **decision-support system for high-stakes decisions** — programme closures, mergers, faculty livelihoods. The codebase is built around provenance, audit logging, methodology versioning, and confidence disclosure. Those are not decorations; if you strip them out you have a dashboard that nobody in your Council will trust.
-- **There is no mock-data escape hatch by policy.** The project rule is that blocked data sources stay *empty*, not faked. Empty sections render an explicit "no data — run this connector" state. Resist the urge to seed plausible numbers; the whole provenance chain (see [`realDataWhere()`](#trap-2-realdatawhere-empty-sections-with-rows-in-the-database)) is designed to catch exactly that.
+- **There is no mock-data escape hatch by policy.** The project rule is that blocked data sources stay *empty*, not faked. Empty sections render an explicit "no data — run this connector" state. Resist the urge to seed plausible numbers; the whole provenance chain (see [`realDataWhere()`](#trap-2-realdatawhere--empty-sections-with-rows-in-the-database)) is designed to catch exactly that.
 - **The code is released under CC BY-NC-SA 4.0, which carries real obligations** — attribution, ShareAlike, non-commercial use — and does *not* license KKU's trademarks, the dependency tree, or any KKU data. Read the next chapter before you do anything public with this code.
 
 ---
@@ -419,7 +419,7 @@ The three record types:
 - `fetch` runs one explicit column projection (the PII trust boundary), then **refuses to proceed on zero rows** — `throw new NonRetryableError('EMPTY_DATA', 'DS2001 returned 0 rows — refusing to wipe')`. This matters because `load` does a snapshot replace; an empty fetch would otherwise delete the whole snapshot. Copy this guard.
 - `fetch` also stashes per-run aggregates on `this.runState` (counts by staff type, by nationality, unhashable rows), which end up in `LoadResult.metadata`.
 - `transform` hashes `CITIZEN_ID` at the boundary and returns `[]` for rows it cannot key — the unhashable count is tracked rather than silently dropped.
-- `load` deletes prior rows for the same `(academicYear, semester)` scope, then inserts in chunks of 1,000 via `createMany`, stamping `ingestionRunId: ctx.runId` on every row. **That stamp is mandatory** — see [Trap 2](#trap-2-realdatawhere-empty-sections-with-rows-in-the-database).
+- `load` deletes prior rows for the same `(academicYear, semester)` scope, then inserts in chunks of 1,000 via `createMany`, stamping `ingestionRunId: ctx.runId` on every row. **That stamp is mandatory** — see [Trap 2](#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
 
 ### The mock → real pattern
 
@@ -914,7 +914,7 @@ These are written to be pasted and run, in this order, as separate sessions. Eac
 
 > Rebrand the application from KKU to `<YOUR UNIVERSITY>`. Work in this order and stop for my review between each step:
 >
-> 1. Inventory every reference. Grep `apps/web` for "KKU" and "Khon Kaen" (case-insensitive) across `.ts`/`.tsx`, plus `packages/pdf-templates` and `packages/shared/src/ai/prompts`. Give me a categorised list: user-facing copy, PDF template text, AI prompt text, comments, identifiers. Roughly 100 files in `apps/web` alone — do not try to fix them in one pass.
+> 1. Inventory every reference. Grep `apps/web` for "KKU" and "Khon Kaen" (case-insensitive) across `.ts`/`.tsx`, plus `packages/pdf-templates` and `packages/shared/src/ai/prompts`. Give me a categorised list: user-facing copy, PDF template text, AI prompt text, comments, identifiers. Roughly 101 files in `apps/web` alone — do not try to fix them in one pass.
 > 2. Rename the brand colour token from `brand-cardinal` to `brand-primary` across `packages/design`, `packages/ui`, and `apps/web`. Keep the OKLCH values unchanged for now so the diff is purely a rename.
 > 3. Change the `brand-primary` token values in `packages/design/src/tokens/color.ts` to `<YOUR COLOURS>` for both light and dark mode, and verify both modes still pass WCAG AA for text on surface.
 > 4. Replace the logo files at `apps/web/public/brand/` and rebuild the favicon with `pnpm tsx scripts/build-favicon.ts`.
