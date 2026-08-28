@@ -35,18 +35,20 @@ const DQ_SOURCE_SLUG = 'kku-dq';
  * program in a small faculty routinely lands in single digits. On a
  * one-student row, `studentsAllPassed` publishes that individual's DQ
  * verdict to anyone who knows who is enrolled, and `overallMean` is that
- * person's score. This repo's established posture for exactly that shape
- * is a ≥5 gate (`kku-hr` compensation buckets, `kku-registry` status
+ * person's score. This repo's established posture for that shape is a
+ * ≥5 gate elsewhere (`kku-hr` compensation buckets, `kku-registry` status
  * counts, `EvaluationResponseSummary.respondentCount`), applied at the
- * source. The DQ cubes are dimensioned finer than the gate the connector
- * can apply, so the gate lives here instead — at the single layer every
+ * source — DQ deliberately gates one student tighter, at >5 (i.e. ≥6),
+ * per an explicit 2026-08-28 request to also withhold 5-student cells.
+ * The DQ cubes are dimensioned finer than the gate the connector can
+ * apply, so the gate lives here instead — at the single layer every
  * consumer (API, page, radar, any future export) reads through.
  *
  * Headcounts stay visible: "this program tested 3 students" is a
  * coverage fact, not a disclosure. It is the *verdict* and the *score*
  * that are withheld.
  */
-export const DQ_MIN_CELL_STUDENTS = 5;
+export const DQ_MIN_CELL_STUDENTS = 6;
 
 /**
  * Highest module number the headline `overallMean` averages over.

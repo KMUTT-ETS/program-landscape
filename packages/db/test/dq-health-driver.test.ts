@@ -42,10 +42,11 @@ describe('dqDriverScore — anchored on the pass mark, not on the observed sprea
 
 describe('dqIsEligible', () => {
   it('accepts a bachelor programme at exactly the floor', () => {
-    expect(dqIsEligible('BACHELOR', 5)).toBe(true);
+    expect(dqIsEligible('BACHELOR', 6)).toBe(true);
   });
 
   it('rejects below the floor', () => {
+    expect(dqIsEligible('BACHELOR', 5)).toBe(false);
     expect(dqIsEligible('BACHELOR', 4)).toBe(false);
     expect(dqIsEligible('BACHELOR', 0)).toBe(false);
   });
