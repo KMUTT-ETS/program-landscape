@@ -64,6 +64,20 @@ import {
   type Q2Row,
 } from './transforms';
 
+// DIVISION_NAME → Faculty.nameTh is a live re-match on every run (unlike
+// HrOrgMapping / RegistryProgramMapping, which are persisted bridges keyed
+// on a stable FK and survive a rename untouched). When KKU renames a
+// faculty on our side, KKU Finance's own BudgetData.DIVISION_NAME may still
+// carry the old name for an unknown period — their system update timing is
+// outside our control. List old→current nameTh pairs here for any faculty
+// renamed on the platform so the match keeps resolving regardless of when
+// (or whether) Finance's own system catches up. Safe to remove an entry
+// once a live run confirms DIVISION_NAME has moved to the new name.
+//   วิทยาลัยการปกครองท้องถิ่น → วิทยาลัยนโยบายและกิจการสาธารณะ (COLA → COPA, 2026-08-28)
+const RENAMED_FACULTY_ALIASES: Record<string, string> = {
+  วิทยาลัยการปกครองท้องถิ่น: 'วิทยาลัยนโยบายและกิจการสาธารณะ',
+};
+
 // ─────────────────────────────────────────────────────────────────────────
 // SQL queries — see docs/data-sources/kku-finance.md "Aggregation contract"
 // ─────────────────────────────────────────────────────────────────────────
@@ -205,6 +219,13 @@ export class KkuFinanceRealConnector extends ApiConnector {
     const facultyByName = new Map<string, string>();
     for (const f of allFaculties) {
       facultyByName.set(f.nameTh.trim(), f.id);
+    }
+    // Also register any old name still in RENAMED_FACULTY_ALIASES against
+    // the faculty currently holding the new name, so a DIVISION_NAME that
+    // hasn't caught up to the rename on KKU's side still resolves.
+    for (const [oldName, currentName] of Object.entries(RENAMED_FACULTY_ALIASES)) {
+      const facultyId = facultyByName.get(currentName);
+      if (facultyId) facultyByName.set(oldName, facultyId);
     }
     ctx.log.info(
       `bridges loaded: ${programMappings.size} program mappings, ${facultyByName.size} faculty-name lookups`,

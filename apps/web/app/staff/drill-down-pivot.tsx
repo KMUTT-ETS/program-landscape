@@ -63,7 +63,7 @@ export interface DrillDownPivotProps {
    *
    * Supplied by the consumer because only the consumer knows; without it
    * a screen-reader user meets two adjacent controls on the same row
-   * announced "Expand COLA" and "COLA", with nothing saying what the
+   * announced "Expand COPA" and "COPA", with nothing saying what the
    * second one is for.
    */
   selectHint?: string;

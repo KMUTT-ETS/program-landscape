@@ -725,7 +725,7 @@ These are the physical / regulatory ceilings the bot's answer must respect. Any 
 ✓ T3 → bot lists, doesn't prescribe
 
 #### S-FP-05 — Empty data handling
-- T1: `College of Local Administration มีโปรแกรมอะไร`
+- T1: `College of Public Affairs and Policy มีโปรแกรมอะไร`
 - T2: `อาจารย์กี่คน`
 - T3: `students per staff`
 

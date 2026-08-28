@@ -100,7 +100,7 @@ const FACULTIES = [
   { code: 'VM',   nameTh: 'คณะสัตวแพทยศาสตร์',                     nameEn: 'Faculty of Veterinary Medicine',                  kind: 'ACADEMIC' as const },
   { code: 'AR',   nameTh: 'คณะสถาปัตยกรรมศาสตร์',                  nameEn: 'Faculty of Architecture',                         kind: 'ACADEMIC' as const },
   { code: 'FAR',  nameTh: 'คณะศิลปกรรมศาสตร์',                     nameEn: 'Faculty of Fine and Applied Arts',                kind: 'ACADEMIC' as const },
-  { code: 'COLA', nameTh: 'วิทยาลัยการปกครองท้องถิ่น',               nameEn: 'College of Local Administration',                 kind: 'ACADEMIC' as const },
+  { code: 'COPA', nameTh: 'วิทยาลัยนโยบายและกิจการสาธารณะ',           nameEn: 'College of Public Affairs and Policy',            kind: 'ACADEMIC' as const },
   { code: 'IC',   nameTh: 'วิทยาลัยนานาชาติ',                       nameEn: 'International College',                           kind: 'ACADEMIC' as const },
   { code: 'EC',   nameTh: 'คณะเศรษฐศาสตร์',                        nameEn: 'Faculty of Economics',                            kind: 'ACADEMIC' as const },
   { code: 'NK',   nameTh: 'คณะสหวิทยาการ',                         nameEn: 'Faculty of Interdisciplinary Studies',            kind: 'ACADEMIC' as const },
