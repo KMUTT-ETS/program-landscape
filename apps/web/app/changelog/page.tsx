@@ -26,6 +26,18 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-08-28',
+    version: 'v1.8.3 · A faculty renamed, and a tighter DQ privacy floor',
+    title:
+      'The College of Local Administration is now the College of Public Affairs and Policy across the whole platform, and the Student DQ dashboard now withholds a 5-student cell as well as anything smaller',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The former "College of Local Administration" (COLA) is renamed "College of Public Affairs and Policy" (COPA) — วิทยาลัยการปกครองท้องถิ่น → วิทยาลัยนโยบายและกิจการสาธารณะ — everywhere the platform shows it: dashboards, the health score, exports, and the faculty picker.',
+      'The rename touches display only, not the underlying record — the same faculty, its 3 departments, 26 programmes, and its HR staffing link are unchanged and unaffected.',
+      'Student DQ\'s small-cell floor is tightened from "fewer than 5 scored students withheld" to "5 or fewer withheld" — a programme or faculty with exactly 5 scored students previously showed a score; it is now withheld like anything smaller. One programme in the current dataset is affected by the change.',
+    ],
+  },
+  {
     date: '2026-08-26',
     version: 'v1.8.2 · Teaching & Learning analysis (AUN-QA), and a display-wide sizing fix',
     title:
