@@ -73,6 +73,18 @@ ENV NODE_ENV=production \
 # Compiled JS + trimmed node_modules.
 COPY --from=build --chown=app:app /tmp/api/dist ./dist
 COPY --from=build --chown=app:app /tmp/api/node_modules ./node_modules
+# pnpm deploy --prod doesn't hoist @prisma/client to node_modules/@prisma —
+# it stays under node_modules/.pnpm/@prisma+client@<ver>/node_modules/, so
+# anything outside packages/db/src that does `require('@prisma/client')`
+# via Node's standard walk-up resolution can't find it. Broke
+# `packages/db/prisma/seed.ts` run directly via tsx (MODULE_NOT_FOUND for
+# @prisma/client) — verified 2026-08-28. Same fix as the ingestion
+# Dockerfile. Wildcard glob: there's exactly one @prisma+client@VERSION dir.
+RUN PRISMA_DIR="$(ls -d /app/node_modules/.pnpm/@prisma+client@*/node_modules 2>/dev/null | head -n1)" \
+  && [ -n "$PRISMA_DIR" ] || (echo "ERROR: @prisma+client not found under .pnpm/" && exit 1) \
+  && ln -sfn "$PRISMA_DIR/.prisma" /app/node_modules/.prisma \
+  && ln -sfn "$PRISMA_DIR/@prisma" /app/node_modules/@prisma \
+  && chown -h app:app /app/node_modules/.prisma /app/node_modules/@prisma
 # Symlink prisma into node_modules/.bin so deploy.sh's
 # `node node_modules/.bin/prisma migrate deploy` works.
 RUN ln -sf /usr/local/bin/prisma /app/node_modules/.bin/prisma \
