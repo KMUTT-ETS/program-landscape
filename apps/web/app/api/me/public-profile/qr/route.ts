@@ -12,8 +12,10 @@ import type { SessionUser } from '@kku/shared';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const APP_ORIGIN =
-  process.env.NEXT_PUBLIC_APP_ORIGIN ?? 'https://program-landscape.kku.ac.th';
+// Server-only read (not NEXT_PUBLIC_) — see apps/web/app/profile/page.tsx
+// for why: this app ships as a pre-built image, so a NEXT_PUBLIC_ var
+// would freeze at build time instead of picking up the runtime env_file.
+const APP_ORIGIN = process.env.APP_PUBLIC_URL ?? 'https://program-landscape.kku.ac.th';
 
 export async function GET(req: Request) {
   const session = await auth();

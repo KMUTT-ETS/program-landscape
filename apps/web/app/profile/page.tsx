@@ -17,7 +17,13 @@ import { ProfileView } from './profile-view';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'My profile' };
 
-const APP_ORIGIN_ENV = process.env.NEXT_PUBLIC_APP_ORIGIN ?? null;
+// Server-only read — deliberately NOT prefixed NEXT_PUBLIC_. This app
+// ships as a pre-built Docker image (pack-and-ship deploy); a
+// NEXT_PUBLIC_ var only picks up its value if present at `next build`
+// time, but env_file values are injected at container *runtime*. A
+// plain var is read fresh on every request, matching how prod actually
+// configures this app.
+const APP_ORIGIN_ENV = process.env.APP_PUBLIC_URL ?? null;
 
 export default async function ProfilePage() {
   const session = await auth();
@@ -46,12 +52,17 @@ export default async function ProfilePage() {
 
   // Origin: prefer the env override (canonical KKU URL); fall back
   // to the Host header so localhost dev still produces working links.
+  // The final fallback defaults to https — this app is never served
+  // over plain HTTP outside local dev, so a missing/misconfigured
+  // X-Forwarded-Proto upstream must not downgrade a public link.
   const hdr = await headers();
+  const host = hdr.get('host') ?? 'localhost:3000';
+  const isLocalDev = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
   const origin =
     APP_ORIGIN_ENV ??
-    (hdr.get('x-forwarded-proto') && hdr.get('host')
-      ? `${hdr.get('x-forwarded-proto')}://${hdr.get('host')}`
-      : `http://${hdr.get('host') ?? 'localhost:3000'}`);
+    (hdr.get('x-forwarded-proto')
+      ? `${hdr.get('x-forwarded-proto')}://${host}`
+      : `${isLocalDev ? 'http' : 'https'}://${host}`);
 
   let qrSvg: string | null = null;
   let publicUrl: string | null = null;
