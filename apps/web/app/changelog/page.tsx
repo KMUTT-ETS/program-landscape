@@ -26,6 +26,21 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    // TODO: fill in the real version number once this ships in a build —
+    // deliberately left unversioned per 2026-09-01 decision to bundle
+    // with a future distribution rather than cut a release just for this.
+    date: '2026-09-01',
+    version: 'Unreleased · Public-profile share link now uses https',
+    title:
+      'The shareable link and QR code on your profile page now always start with https — a small number of profiles had been generating a link starting with http instead',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The "Public profile" card on /profile builds its shareable link and QR code from the site\'s address whenever a required setting is missing, and that fallback wasn\'t reliably detecting that the site is served over https — so the link shown could start with http.',
+      'Fixed at the source: the app now reads the site\'s canonical address directly instead of guessing it, so the link is always correct regardless of what any upstream proxy sends.',
+      'Applied manually on production ahead of the next distribution build, so public-profile links are already correct today.',
+    ],
+  },
+  {
     date: '2026-08-28',
     version: 'v1.8.3 · A faculty renamed, and a tighter DQ privacy floor',
     title:
