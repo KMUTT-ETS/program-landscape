@@ -19,7 +19,9 @@ const ctx = {
     'A survey of vector indexing',
     'Graph neural nets for  citation  graphs',
   ]),
-  validRosterNames: new Set(['Somchai Jaidee']),
+  // name → that person's ACTUAL rank. The keys double as the roster's
+  // name set; the values are what stops a real person being promoted.
+  validRosterRanks: new Map([['Somchai Jaidee', 'ASSOC_PROF']]),
 };
 
 function payload(over: Partial<ProgramCurriculumRevision> = {}): ProgramCurriculumRevision {
@@ -200,6 +202,35 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(drops.rosterNamesDropped).toBe(1);
   });
 
+  it('removes a roster entry whose rank does not match the real one', () => {
+    // Somchai is an ASSOC_PROF. Promoting a real person in front of Council
+    // is the same harm class as naming someone who does not exist.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ newCourseProposals: [
+        { titleTh: 'ก', titleEn: 'A', credits: 3, placementYear: 3, placementSemester: 1, themeRefs: ['Graph learning'], rationale: 'r',
+          couldBeTaughtBy: [{ name: 'Somchai Jaidee', rank: 'PROF' }],
+          evidencePaperTitles: [] },
+      ] }), ctx,
+    );
+    expect(out.newCourseProposals).toHaveLength(1);
+    expect(out.newCourseProposals[0]!.couldBeTaughtBy).toEqual([]);
+    expect(drops.rosterNamesDropped).toBe(1);
+  });
+
+  it('skips the evidence-title check when there is nothing to check against', () => {
+    // An empty validation set carries no information — it cannot tell an
+    // invented title from "we have no corpus", so it must not reject
+    // everything and read downstream as "the model produced nothing".
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance()] }),
+      { ...ctx, validPaperTitles: new Set<string>() },
+    );
+    expect(out.enhanceCourses).toHaveLength(1);
+    expect(drops.enhanceCoursesDropped).toBe(0);
+    expect(drops.evidenceTitlesDropped).toBe(0);
+    expect(drops.evidenceCheckSkipped).toBe(true);
+  });
+
   it('blanks a quote too short to be a citation', () => {
     // 'array' is a substring of almost any description and conveys nothing.
     const { payload: out, drops } = validateCurriculumRevisionPayload(
@@ -237,7 +268,7 @@ describe('validateCurriculumRevisionPayload', () => {
       enhanceCoursesDropped: 0, newCourseProposalsDropped: 0,
       promotionCandidatesDropped: 0, themeRefsDropped: 0, quotesBlanked: 0,
       promotionsNotElective: 0, evidenceTitlesDropped: 0, rosterNamesDropped: 0,
-      quotesMissing: 0, proseCourseCodesUnverified: 0,
+      quotesMissing: 0, proseCourseCodesUnverified: 0, evidenceCheckSkipped: false,
     });
   });
 });

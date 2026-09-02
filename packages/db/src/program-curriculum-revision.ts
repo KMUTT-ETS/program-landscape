@@ -12,6 +12,36 @@ import type { ProgramCurriculumRevision } from '@kku/shared';
 //
 // Pure — no Prisma, no I/O — so the rules are unit-tested directly.
 // assembleCurriculumRevisionInput() (Prisma) lives further down the file.
+//
+// ── WHAT THIS VALIDATOR DOES NOT CATCH ──────────────────────────────────────
+// Read this before treating a clean drop report as proof the section is
+// sound. Both limits below are known, accepted, and structural — they are
+// not bugs awaiting a fix, and neither can be closed by a checker of this
+// kind. A clean report means "nothing fabricated was DETECTED by these
+// rules", never "the content is faithful".
+//
+// 1. NEGATION-STRIPPED QUOTES. `currentlyCoversQuote` is verified as a
+//    substring of the real description. Substring matching cannot detect a
+//    quote that inverts the source's meaning by omitting its negation: a
+//    description reading 'รายวิชานี้ไม่ครอบคลุมการเรียนรู้เชิงลึก' (this course
+//    does NOT cover deep learning) yields 'ครอบคลุมการเรียนรู้เชิงลึก' (covers
+//    deep learning) as a genuine 26-character substring. It passes every
+//    check here. `quotesBlanked = 0` therefore does NOT mean the quotes are
+//    faithful to what the course actually teaches.
+//
+// 2. EVIDENCE RELEVANCE. Paper titles and theme names are checked for
+//    EXISTENCE — was the model actually shown this? — never for RELEVANCE to
+//    the recommendation they are attached to. A real paper on Thai NLP can
+//    be cited as the evidence for a vector-database enhancement to a
+//    data-structures course: every element resolves, while the LINKAGE
+//    between them is invented. Establishing that linkage requires exactly
+//    the judgement being audited, so no validator can close this.
+//
+//    What closes it is a human reading the rendered section — which is the
+//    posture the spec takes deliberately. This output is a DRAFT for a
+//    curriculum committee to argue with, never a decision. These checks
+//    exist to ensure that argument starts from real courses, real people
+//    and real papers; they do not certify the reasoning that connects them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface CurriculumRevisionValidationContext {
@@ -30,10 +60,12 @@ export interface CurriculumRevisionValidationContext {
   /** Every paper title the model was actually shown, across all themes.
    *  An evidence title outside this set was invented. */
   validPaperTitles: Set<string>;
-  /** Roster member names the model was shown. A proposal naming someone
-   *  outside this set is asserting something about a real person that we
-   *  cannot support. */
-  validRosterNames: Set<string>;
+  /** Roster member name → that person's ACTUAL rank, as the model was shown
+   *  them. The keys are the name allowlist; the values matter just as much,
+   *  because promoting a real lecturer to professor in front of Council is
+   *  the same kind of unsupported claim about an individual as inventing
+   *  one outright. */
+  validRosterRanks: Map<string, string>;
 }
 
 export interface CurriculumRevisionDrops {
@@ -51,9 +83,11 @@ export interface CurriculumRevisionDrops {
    *  This is the field the prompt leans on hardest for grounding, so an
    *  elevated count here means the citations are decorative. */
   evidenceTitlesDropped: number;
-  /** `couldBeTaughtBy` entries naming someone outside the roster. Tracked
-   *  separately from every other drop because it is the only one that
-   *  concerns a real, named individual. */
+  /** `couldBeTaughtBy` entries naming someone outside the roster, OR giving
+   *  a real person a rank they do not hold. One counter for both because the
+   *  operator response is identical: an unsupported claim about a named
+   *  individual was removed. Tracked separately from every other drop
+   *  because it is the only one that concerns a real person. */
   rosterNamesDropped: number;
   /** enhanceCourses items that shipped NO quote at all. Not a drop — a
    *  visibility counter, because otherwise "no citation" is indistinguishable
@@ -62,6 +96,11 @@ export interface CurriculumRevisionDrops {
   /** Course-code-shaped tokens in free text that resolve to no real course.
    *  Counted, never dropped — see the scan site for why. */
   proseCourseCodesUnverified: number;
+  /** True when `validPaperTitles` was empty and the evidence-title check was
+   *  therefore skipped rather than rejecting everything. Surfaced as a flag,
+   *  not left to be inferred from a suspicious zero: a reader comparing drop
+   *  reports needs to know this run's citations went unchecked. */
+  evidenceCheckSkipped: boolean;
 }
 
 /** Collapse all whitespace so a verbatim quote still matches when the model
@@ -95,9 +134,10 @@ const PROSE_COURSE_CODE_RE = /\b[A-Z]{2,4}\s?\d{5,6}\b/g;
  *     min 1 there precisely because an enhancement with no paper behind it
  *     is an opinion. newCourseProposals are filtered but never dropped for
  *     this: that lane's grounding is themeRefs.
- *   - `couldBeTaughtBy` is filtered to `validRosterNames`, never dropping
- *     the proposal — losing "who could teach it" weakens a recommendation
- *     but does not falsify it.
+ *   - `couldBeTaughtBy` entries survive only when the person is on the
+ *     roster AND holds the rank claimed; never drops the proposal itself,
+ *     since losing "who could teach it" weakens a recommendation but does
+ *     not falsify it.
  *   - `currentlyCoversQuote` that is not a substring of the course's real
  *     description, or is too short to be a citation, is BLANKED, not
  *     dropped — a paraphrased citation is a defect in the quote, not proof
@@ -123,6 +163,7 @@ export function validateCurriculumRevisionPayload(
     rosterNamesDropped: 0,
     quotesMissing: 0,
     proseCourseCodesUnverified: 0,
+    evidenceCheckSkipped: ctx.validPaperTitles.size === 0,
   };
 
   // NOTE ON MATCHING: course codes and theme names are matched EXACTLY.
@@ -137,8 +178,11 @@ export function validateCurriculumRevisionPayload(
   const validPaperTitlesNormalised = new Set(
     [...ctx.validPaperTitles].map(normaliseForQuoteMatch),
   );
-  const validRosterNamesNormalised = new Set(
-    [...ctx.validRosterNames].map(normaliseForQuoteMatch),
+  const validRosterRanksNormalised = new Map(
+    [...ctx.validRosterRanks].map(([name, rank]) => [
+      normaliseForQuoteMatch(name),
+      normaliseForQuoteMatch(rank),
+    ]),
   );
 
   const filterThemeRefs = (refs: string[]): string[] => {
@@ -148,6 +192,16 @@ export function validateCurriculumRevisionPayload(
   };
 
   const filterEvidenceTitles = (titles: string[]): string[] => {
+    // An empty corpus carries NO information: it cannot distinguish an
+    // invented title from "we have nothing to check against", so it must
+    // never act as a universal reject. Without this guard an assembler bug
+    // or an unanticipated partial-data path would silently empty the whole
+    // enhance lane and read downstream as "the model produced nothing" — a
+    // data problem wearing the costume of a content result, which is the
+    // hardest kind to notice. Task 7's readiness short-circuit should stop
+    // this reaching us at all, but a guard that only holds when an upstream
+    // invariant holds is not a guard.
+    if (drops.evidenceCheckSkipped) return titles;
     const kept = titles.filter((t) => validPaperTitlesNormalised.has(normaliseForQuoteMatch(t)));
     drops.evidenceTitlesDropped += titles.length - kept.length;
     return kept;
@@ -194,8 +248,12 @@ export function validateCurriculumRevisionPayload(
     // themeRefs, and losing the name of someone who could teach the course
     // weakens the recommendation without falsifying it.
     const evidencePaperTitles = filterEvidenceTitles(item.evidencePaperTitles);
-    const couldBeTaughtBy = item.couldBeTaughtBy.filter((p) =>
-      validRosterNamesNormalised.has(normaliseForQuoteMatch(p.name)),
+    // BOTH must hold: the person is on the roster AND the rank claimed is
+    // the rank they actually hold.
+    const couldBeTaughtBy = item.couldBeTaughtBy.filter(
+      (p) =>
+        validRosterRanksNormalised.get(normaliseForQuoteMatch(p.name)) ===
+        normaliseForQuoteMatch(p.rank),
     );
     drops.rosterNamesDropped += item.couldBeTaughtBy.length - couldBeTaughtBy.length;
     newCourseProposals.push({ ...item, themeRefs, evidencePaperTitles, couldBeTaughtBy });
