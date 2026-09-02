@@ -14,6 +14,7 @@ export * from './program-peer-selection';
 export * from './program-peer-review';
 export * from './program-strategic-narrative';
 export * from './program-research-expertise';
+export * from './program-curriculum-revision';
 export * from './program-skills-detailed';
 export * from './skill-name-normaliser';
 export * from './program-ai-readiness';

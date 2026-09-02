@@ -123,7 +123,7 @@ and extend `CourseSchema` (currently at ~line 85) with the category field:
  *  UNKNOWN is a first-class answer, not a failure: a course the model
  *  cannot place must say so. Defaulting it into a real category would
  *  produce a confidently wrong promotion recommendation. */
-export const CourseCategoryEnum = z.enum([
+export const CourseCategorySchema = z.enum([
   'GENERAL_EDUCATION', // หมวดวิชาศึกษาทั่วไป
   'CORE',              // วิชาแกน / วิชาพื้นฐาน
   'MAJOR_REQUIRED',    // วิชาเฉพาะบังคับ
@@ -132,7 +132,7 @@ export const CourseCategoryEnum = z.enum([
   'THESIS_PROJECT',    // วิทยานิพนธ์ / การศึกษาอิสระ / โครงงาน
   'UNKNOWN',
 ]);
-export type CourseCategory = z.infer<typeof CourseCategoryEnum>;
+export type CourseCategory = z.infer<typeof CourseCategorySchema>;
 
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
@@ -141,7 +141,7 @@ const CourseSchema = z.object({
   nameTh: z.string().default(''),
   nameEn: z.string().default(''),
   credits: z.number().int().min(0).max(60).nullable().default(null),
-  category: CourseCategoryEnum.default('UNKNOWN'),
+  category: CourseCategorySchema.default('UNKNOWN'),
 });
 ```
 
@@ -225,8 +225,11 @@ enum CourseCategory {
 and add the column to `model ProgramCourse`, after `credits`:
 
 ```prisma
-  /// Nullable: rows extracted by program-courses-extract.v1 have no
-  /// category and must stay valid. Re-run the extractor to fill them.
+  /// Nullable: rows extracted by program-courses-extract v3 and earlier
+  /// have no category and must stay valid. Re-run the extractor to fill
+  /// them. Also permanently NULL for rows from the extractor's regex
+  /// name-fallback path (methodVersion ending `-fallback`), which has no
+  /// section-heading context to read a category from.
   category       CourseCategory? @map("category")
 ```
 
@@ -365,21 +368,85 @@ and add one line to the final console summary block:
     console.log(`Rows with a category:      ${totalWithCategory} / ${totalInserted}`);
 ```
 
-- [ ] **Step 4: Typecheck**
+- [ ] **Step 4: Wire the SECOND writer — `program-courses-extract/run.ts`**
 
-Run: `cd apps/ingestion && npx tsc --noEmit`
+**`program_courses` has two writers, not one.** Besides the materialiser above, `apps/ingestion/src/program-courses-extract/run.ts` also does a delete-and-replace of a programme's `program_courses` rows (~line 284). If only the materialiser carries `category`, then any later single-programme `pnpm programs:extract-courses <code>` re-run **silently wipes that programme's categories back to NULL** — losing part of the $51 re-extraction with no error.
+
+In `apps/ingestion/src/program-courses-extract/run.ts`:
+
+1. Add `category` to the `rows` array's inline type (~line 219-227), matching the Prisma column's nullability:
+
+```typescript
+    category: CourseCategory | null;
+```
+
+Import the type from `@kku/shared` (it is exported by `program-courses-extract.ts` alongside `CourseCategorySchema`).
+
+2. In the **LLM path** row literal (~line 243-251), carry the parsed value through:
+
+```typescript
+        category: c.category,
+```
+
+3. In the **fallback path** row literal (~line 271-279), carry the explicit UNKNOWN that `FallbackCourseExtraction.category` now holds:
+
+```typescript
+        // Structurally UNKNOWN — this path recovers a course from a text
+        // window around its code and never reads the หมวด headings. Written
+        // explicitly so promotion logic sees these rows as unplaced rather
+        // than indistinguishable from "not yet re-extracted" NULLs.
+        category: fb.category,
+```
+
+4. The dedup at ~line 241 is first-wins. When the LLM lists one course under two headings, one category is silently chosen. Add a counter for it and log the total at the end of the run, so a systematically ambiguous curriculum is visible rather than silent:
+
+```typescript
+    let duplicateCourseRows = 0;
+```
+increment it wherever the existing dedup discards a repeat, and include it in the run's summary log line.
+
+- [ ] **Step 5: Correct the schema doc comment now that the wiring exists**
+
+`packages/db/prisma/schema.prisma`'s `ProgramCourse.category` comment was written ahead of the wiring and is currently wrong in two ways. Fix both:
+
+1. It says "Populated by program-courses-extract.v4" — only true once Step 4 lands. Now it is.
+2. It says fallback rows are "permanently NULL". **They will be `UNKNOWN`, not NULL** — `FallbackCourseExtraction.category` is typed `Extract<CourseCategory, 'UNKNOWN'>` and Step 4 writes it through. That distinction is load-bearing for the promotion feature: `NULL` means "never run through a category-aware extractor", `UNKNOWN` means "ran, but the headings did not place this course". Conflating them would let promotion logic treat un-extracted rows as deliberately-unplaceable ones.
+
+Replace the column comment with:
+
+```prisma
+  /// The หมวด grouping this course sits under. Written by both
+  /// program_courses writers (program-courses-extract/run.ts and
+  /// materialise-program-courses.ts).
+  ///
+  /// NULL vs UNKNOWN are different states, and the distinction is
+  /// load-bearing for promotion advice:
+  ///   NULL     — never run through a category-aware extractor (rows from
+  ///              program-courses-extract v3 and earlier). Re-run the
+  ///              extractor to fill them.
+  ///   UNKNOWN  — ran, but the curriculum headings did not place the
+  ///              course. Always the case for the extractor's regex
+  ///              name-fallback path, which never reads หมวด headings.
+  category       CourseCategory? @map("category")
+```
+
+Make the same correction to the `enum CourseCategory` doc comment above it if it repeats the "populated by v4 / NULL on v3" framing.
+
+- [ ] **Step 6: Typecheck**
+
+Run: `cd apps/ingestion && npx tsc --noEmit && cd ../../packages/db && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 5: Dry-run to confirm nothing breaks on v1 data**
+- [ ] **Step 7: Dry-run to confirm nothing breaks on pre-v4 data**
 
 Run: `pnpm programs:materialise-program-courses --dry-run`
-Expected: completes; `Rows with a category: 0 / <n>` — correct, because no programme has been re-extracted with v2 yet.
+Expected: completes; `Rows with a category: 0 / <n>` — correct, because no programme has been re-extracted with v4 yet.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add apps/ingestion/src/scripts/materialise-program-courses.ts
-git commit -m "feat(curriculum): materialiser carries course category through"
+git add apps/ingestion/src/scripts/materialise-program-courses.ts apps/ingestion/src/program-courses-extract/run.ts packages/db/prisma/schema.prisma
+git commit -m "feat(curriculum): both program_courses writers carry course category"
 ```
 
 ---
@@ -405,7 +472,7 @@ cd packages/db && npx tsx -e "
 import { prisma } from './src/index';
 (async () => {
   const row = await prisma.aiExtraction.findFirst({
-    where: { extractionKind: 'PROGRAM_COURSES_EXTRACT', methodVersion: 'program-courses-extract.v2' },
+    where: { extractionKind: 'PROGRAM_COURSES_EXTRACT', methodVersion: 'program-courses-extract.v4' },
     orderBy: { createdAt: 'desc' }, select: { payloadJson: true },
   });
   const cs = (row?.payloadJson as any)?.courses ?? [];
@@ -448,10 +515,19 @@ done < /tmp/course-codes.txt' > logs/courses-extract-v2.out 2>&1 &
 Follow with: `tail -f logs/courses-extract-v2.out`
 Expected: ~285 programmes; several hours; ≈$51. The `|| echo "FAILED $code"` keeps one bad programme from killing the loop — grep the log for `FAILED` afterwards and re-run those individually.
 
-- [ ] **Step 4: Materialise categories into `program_courses`**
+- [ ] **Step 4: Do NOT run the materialiser — it would destroy this run**
 
-Run: `pnpm programs:materialise-program-courses`
-Expected: `Rows with a category:` now a large fraction of total rows.
+> ⚠️ **`pnpm programs:materialise-program-courses` MUST NOT be run after the re-extraction.**
+>
+> An earlier draft of this plan told you to. That was wrong and would have deleted every category the ~$51 run just produced. The reasoning:
+>
+> - `programs:extract-courses` writes `program_courses` **directly** via `program-courses-extract/run.ts`, categories included. After Step 3 the rows are already materialised — there is no second step to run.
+> - `materialise-program-courses.ts` is a **different pipeline** reading `PROGRAM_DIGEST` payloads. `program-digest.v3`'s course schema has **no `category` field**, so every row it writes has `category = NULL`.
+> - It does an unconditional `deleteMany({ programId })` + `createMany(...)` per programme. Running it after Step 3 replaces every category-bearing row with a NULL-category one.
+>
+> The two scripts are competing writers of the same table; whichever runs last wins. Task 3 added a guard that makes the materialiser refuse to clobber v4-extracted rows, but do not rely on it — simply do not run it here.
+
+Nothing to do for this step. Proceed to Step 5.
 
 - [ ] **Step 5: Record real coverage**
 
@@ -665,7 +741,8 @@ export const ProgramCurriculumRevisionSchema = z.object({
       z.object({
         titleTh: z.string(),
         titleEn: z.string().default(''),
-        credits: z.number().int().min(0).max(30),
+        // min(1): a proposed course carrying zero credits is not a course.
+        credits: z.number().int().min(1).max(30),
         placementYear: z.number().int().min(1).max(8),
         placementSemester: z.number().int().min(1).max(3),
         themeRefs: z.array(z.string()).default([]),
@@ -885,10 +962,14 @@ This is the load-bearing safety mechanism. Pure function, no Prisma — the DB-t
 // packages/db/test/program-curriculum-revision.test.ts
 import { describe, it, expect } from 'vitest';
 import { validateCurriculumRevisionPayload } from '../src/program-curriculum-revision';
-import type { ProgramCurriculumRevision } from '@kku/shared';
+import { CURRICULUM_REVISION_PROVENANCE_CAVEAT, type ProgramCurriculumRevision } from '@kku/shared';
 
 const ctx = {
   validCourseCodes: new Set(['EN241100', 'EN241200']),
+  categoryByCourseCode: new Map<string, string | null>([
+    ['EN241100', 'MAJOR_ELECTIVE'],
+    ['EN241200', 'MAJOR_REQUIRED'],
+  ]),
   validThemeNames: new Set(['Vector databases', 'Graph learning']),
   descriptionByCourseCode: new Map([
     ['EN241100', 'ศึกษาโครงสร้างข้อมูลพื้นฐาน  เช่น array และ linked list'],
@@ -900,7 +981,10 @@ function payload(over: Partial<ProgramCurriculumRevision> = {}): ProgramCurricul
   return {
     coverageSummary: { themesTotal: 2, themesReflectedInCurriculum: 1, themesAbsent: [], narrative: 'n' },
     enhanceCourses: [], newCourseProposals: [], promotionCandidates: [],
-    confidence: 0.7, caveats: [], ...over,
+    // caveats is .min(1).refine()'d to require the provenance sentence —
+    // an empty array is not a payload the schema can produce, so the
+    // fixture carries the real constant rather than [].
+    confidence: 0.7, caveats: [CURRICULUM_REVISION_PROVENANCE_CAVEAT], ...over,
   } as ProgramCurriculumRevision;
 }
 
@@ -974,6 +1058,27 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(drops.promotionCandidatesDropped).toBe(1);
   });
 
+  it('drops a promotion candidate for a course that is not MAJOR_ELECTIVE', () => {
+    // EN241200 is MAJOR_REQUIRED — there is no promotion to make. The prompt
+    // states this rule; the validator is what enforces it.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ promotionCandidates: [
+        { courseCode: 'EN241200', courseNameTh: 'x', currentCategory: 'MAJOR_REQUIRED', proposedCategory: 'MAJOR_REQUIRED', themeRefs: ['Vector databases'], rationale: 'r' },
+      ] }), ctx,
+    );
+    expect(out.promotionCandidates).toHaveLength(0);
+    expect(drops.promotionsNotElective).toBe(1);
+  });
+
+  it('keeps a promotion candidate that IS MAJOR_ELECTIVE', () => {
+    const { payload: out } = validateCurriculumRevisionPayload(
+      payload({ promotionCandidates: [
+        { courseCode: 'EN241100', courseNameTh: 'x', currentCategory: 'MAJOR_ELECTIVE', proposedCategory: 'MAJOR_REQUIRED', themeRefs: ['Vector databases'], rationale: 'r' },
+      ] }), ctx,
+    );
+    expect(out.promotionCandidates).toHaveLength(1);
+  });
+
   it('drops a new-course proposal whose theme refs are all invented', () => {
     const { payload: out, drops } = validateCurriculumRevisionPayload(
       payload({ newCourseProposals: [
@@ -996,6 +1101,7 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(drops).toEqual({
       enhanceCoursesDropped: 0, newCourseProposalsDropped: 0,
       promotionCandidatesDropped: 0, themeRefsDropped: 0, quotesBlanked: 0,
+      promotionsNotElective: 0,
     });
   });
 });
@@ -1029,6 +1135,12 @@ import type { ProgramCurriculumRevision } from '@kku/shared';
 export interface CurriculumRevisionValidationContext {
   /** Course codes that genuinely exist for THIS program. */
   validCourseCodes: Set<string>;
+  /** courseCode → its CourseCategory (or null when the extractor could not
+   *  place it). Promotion advice is only defensible for a course actually
+   *  recorded as MAJOR_ELECTIVE — the prompt states that rule but nothing
+   *  enforced it, so a promotion citing an already-required course would
+   *  have rendered to Council. */
+  categoryByCourseCode: Map<string, string | null>;
   /** Theme names from the program's own research-expertise payload. */
   validThemeNames: Set<string>;
   /** courseCode → that course's real Thai description, for quote checking. */
@@ -1041,6 +1153,11 @@ export interface CurriculumRevisionDrops {
   promotionCandidatesDropped: number;
   themeRefsDropped: number;
   quotesBlanked: number;
+  /** Subset of promotionCandidatesDropped: dropped specifically because the
+   *  course is not recorded as MAJOR_ELECTIVE. Counted separately because a
+   *  high rate means the model is ignoring the category rule, which is a
+   *  different problem from it inventing course codes. */
+  promotionsNotElective: number;
 }
 
 /** Collapse all whitespace so a verbatim quote still matches when the model
@@ -1074,6 +1191,7 @@ export function validateCurriculumRevisionPayload(
     promotionCandidatesDropped: 0,
     themeRefsDropped: 0,
     quotesBlanked: 0,
+    promotionsNotElective: 0,
   };
 
   const filterThemeRefs = (refs: string[]): string[] => {
@@ -1118,6 +1236,15 @@ export function validateCurriculumRevisionPayload(
   for (const item of raw.promotionCandidates) {
     if (!ctx.validCourseCodes.has(item.courseCode)) {
       drops.promotionCandidatesDropped++;
+      continue;
+    }
+    // Promotion means elective → required. A course that is already
+    // required, or whose category the extractor could not determine, has
+    // no promotion to make. The prompt states this rule; this is what
+    // enforces it.
+    if (ctx.categoryByCourseCode.get(item.courseCode) !== 'MAJOR_ELECTIVE') {
+      drops.promotionCandidatesDropped++;
+      drops.promotionsNotElective++;
       continue;
     }
     const themeRefs = filterThemeRefs(item.themeRefs);
@@ -1343,6 +1470,11 @@ export async function assembleCurriculumRevisionInput(
       currentProgramSkills: skillRows.map((s) => s.skill.nameEn).filter(Boolean),
       // The prompt only distinguishes thin vs ok; the no-* cases never reach it.
       readiness: readiness === 'thin' ? 'thin' : 'ok',
+      // The actual paper count, not just the thin/ok label. The prompt renders
+      // a numeric thinness warning from it — mirroring how
+      // program-research-expertise names the real total and the threshold
+      // rather than telling the model "evidence is thin" and hoping.
+      totalDistinctPapers,
     },
   };
 }
@@ -1572,6 +1704,21 @@ import {
 // INSERT-ONLY, like ProgramResearchExpertise — history accretes.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Words that would turn this section into course-closure advice. The spec
+ *  forbids that outright — it affects staff livelihoods and research volume
+ *  is the wrong basis for it — so these force a corrective retry rather than
+ *  being left to the prompt's good behaviour. */
+const CLOSURE_TERMS = [
+  'retire', 'retiring', 'retired',
+  'consolidate', 'consolidating', 'consolidation',
+  'merge', 'merging', 'merged',
+  'close', 'closing', 'closure',
+  'discontinue', 'discontinuing', 'discontinued',
+  'suspend', 'suspending', 'suspended',
+  'phase out', 'phasing out', 'phased out',
+  'sunset', 'sunsetting',
+] as const;
+
 export interface RunCurriculumRevisionParams {
   programId: string;
   ai: AiService;
@@ -1652,9 +1799,23 @@ export async function generateProgramCurriculumRevision(
     return { status: 'FAILED', reason: err instanceof Error ? err.message : String(err) };
   }
 
-  // Banned-tell lint — one corrective retry, then persist-and-warn.
+  // Banned-tell lint PLUS the course-closure policy gate — one corrective
+  // retry, then persist-and-warn.
+  //
+  // The closure terms are enforced here rather than trusted to the prompt
+  // because recommending that a course be retired/merged/closed affects
+  // staff livelihoods, and research volume is the wrong basis for that
+  // judgement. The spec forbids it outright, so a violation must force a
+  // rewrite the same way a banned tell does. Several of these words are
+  // this product's own scenario-planner intervention names, which is
+  // exactly why a model steeped in the codebase might reach for them.
   let lintRetried = false;
-  const violations = lintBannedTells(buildLintableText(response.parsed));
+  const lintable = buildLintableText(response.parsed);
+  const closureViolations = CLOSURE_TERMS.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(lintable));
+  const violations = [
+    ...lintBannedTells(lintable),
+    ...closureViolations.map((phrase) => ({ phrase })),
+  ];
   if (violations.length > 0) {
     lintRetried = true;
     const correctionMessages = [
@@ -1695,6 +1856,18 @@ export async function generateProgramCurriculumRevision(
     descriptionByCourseCode: new Map(
       assembled.input.courses.map((c) => [c.courseCode, c.descriptionTh]),
     ),
+    categoryByCourseCode: new Map(
+      assembled.input.courses.map((c) => [c.courseCode, c.category]),
+    ),
+    // Every paper title the model was actually shown. An evidence title
+    // outside this set was invented — and it is the citation a reader
+    // would follow to check the recommendation.
+    validPaperTitles: new Set(assembled.input.themes.flatMap((t) => t.exampleTitles)),
+    // Roster names AND ranks the model was shown. A proposal naming someone
+    // outside this set — or inflating a real lecturer to professor — makes
+    // an unsupported claim about a real individual in front of a University
+    // Council. Name and rank are checked together for that reason.
+    validRosterRanks: new Map(assembled.input.roster.map((r) => [r.name, r.rank])),
   });
   const totalDropped =
     drops.enhanceCoursesDropped + drops.newCourseProposalsDropped + drops.promotionCandidatesDropped;
@@ -1719,9 +1892,24 @@ export async function generateProgramCurriculumRevision(
     confidence = ceiling;
   }
 
+  // themesTotal is trivially computable from the input, so do not let the
+  // model report it — a Council-facing count that contradicts the evidence
+  // block beside it destroys trust in the whole section. themesReflected is
+  // derived the same way: total minus the themes the model (post-validation)
+  // says have no course home. Both are overwritten, not merely checked.
+  const themesTotal = assembled.input.themes.length;
+  const themesReflectedInCurriculum = Math.max(
+    0,
+    themesTotal - validated.coverageSummary.themesAbsent.length,
+  );
+
   // Persist the POST-clamp, POST-validation payload — a Council-facing
   // reader must never see a claim the runner itself rejected.
-  const payload = { ...validated, confidence };
+  const payload = {
+    ...validated,
+    coverageSummary: { ...validated.coverageSummary, themesTotal, themesReflectedInCurriculum },
+    confidence,
+  };
 
   const created = await prisma.programCurriculumRevision.create({
     data: {
@@ -2448,6 +2636,21 @@ function CurriculumRevisionSection({ data }: { data: DeepDiveCurriculumRevision 
         </div>
       )}
 
+      {/* Promotion needs course-category data. Until the category-aware
+          extractor has run, EVERY course is category-unknown and the
+          validator drops every promotion candidate — so an absent section
+          would read as "the model found nothing to promote" when the truth
+          is "we cannot answer this question yet". Say which. */}
+      {payload.promotionCandidates.length === 0 && data.result.coursesWithCategory === 0 && (
+        <Card className="mt-4" padding="sm" tone="quiet">
+          <p className="text-xs text-text-tertiary">
+            Elective-to-core promotion needs each course&rsquo;s curriculum category
+            (บังคับ / เลือก), which has not been extracted for this programme yet.
+            This is a missing input, not a finding that no course qualifies.
+          </p>
+        </Card>
+      )}
+
       {payload.promotionCandidates.length > 0 && (
         <div className="mt-4">
           <h4 className="mb-2 text-sm font-semibold text-text-primary">Promotion candidates</h4>
@@ -2583,6 +2786,9 @@ No commit — verification of already-committed work.
 
 | Assumption in the draft | Reality | Fix |
 |---|---|---|
+| `program-courses-extract` is at v1, so the bump is to **v2** | **Wrong** — the file was at **v3**, and the DB already holds real `AiExtraction` rows stamped `program-courses-extract.v2` (5), `v2.1`, `v2.2`, `v2.3` and `v1`. Stamping "v2" would fuse two different prompt behaviours under one version, which `docs/prompt-standard.md` forbids | Caught by the Task 1 implementer; bumped to **v4** throughout. Task 4's verification query updated to match |
+| `program_courses` has one writer (the materialiser), so only it needs the category | **Wrong** — `program-courses-extract/run.ts` also delete-and-replaces a programme's rows. Carrying `category` in only one writer means a later single-programme re-extract silently wipes categories back to NULL, losing part of the $51 run with no error | Caught in Task 1's re-review; Task 3 Step 4 now wires both writers, plus a counter for the first-wins dedup |
+| Task 4 should run `programs:materialise-program-courses` after the re-extraction to "materialise categories" | **Wrong, and destructive.** The two scripts are competing writers of `program_courses` fed by *different* sources. `programs:extract-courses` already writes categories directly; the materialiser reads `PROGRAM_DIGEST`, whose schema has **no category field**, and does an unconditional per-programme `deleteMany` + `createMany`. Running it after Step 3 would have deleted every category the ~$51 run produced | Caught in Task 3's review. Task 4 Step 4 now explicitly forbids it, and Task 3 adds a guard so the materialiser refuses to clobber v4-extracted rows |
 | Controller has `this.ai` for the regenerate endpoint | **Wrong.** Its constructor takes only `CockpitService` + `PdfService` (`deep-dive.controller.ts:110-113`); narrative regeneration delegates to `this.cockpit` | Task 10 Step 3 adds `CurriculumRevisionService`, mirroring `CockpitService`'s `onModuleInit` AI construction |
 | Extraction kind is `PROGRAM_COURSES` | **Wrong** — it is `PROGRAM_COURSES_EXTRACT` (`program-courses-extract/run.ts:183`) | Task 4 Step 2 query corrected |
 | `programs:extract-courses` accepts `--program` and can run in bulk | **Wrong** — positional selector, **one programme per invocation**, no bulk mode | Task 4 Step 3 drives it from a shell loop over codes, with per-programme failure isolation |
@@ -2590,7 +2796,7 @@ No commit — verification of already-committed work.
 | `ProgramFaculty.facultyMember`, `FacultyMember.specialization` | **Correct** — confirmed in schema | unchanged |
 | `Section` takes `title` / `description` / `actions` | **Correct** — confirmed in `packages/ui/src/layout/section.tsx:11-18` | unchanged |
 
-**Type consistency:** `CourseCategoryEnum` (Task 1) → Prisma `CourseCategory` (Task 2) → materialiser's `DigestCourseCategory` (Task 3) share one value set. `CurriculumRevisionInput`/`CurriculumRevisionCourse` (Task 5) are produced by Task 7's assembler and consumed by Task 5's builder. `ProgramCurriculumRevision` (Task 5) flows through the validator (Task 6), the runner (Task 9), the reader (Task 10) and the UI types (Task 12) unchanged. `CurriculumRevisionDrops` (Task 6) is returned by the runner (Task 9) and read by the bulk script (Task 11) and Task 13's queries. `CurriculumRevisionReadiness`'s four values (Task 7) are the same four the UI branches on (Task 12).
+**Type consistency:** `CourseCategorySchema` (Task 1) → Prisma `CourseCategory` (Task 2) → materialiser's `DigestCourseCategory` (Task 3) share one value set. `CurriculumRevisionInput`/`CurriculumRevisionCourse` (Task 5) are produced by Task 7's assembler and consumed by Task 5's builder. `ProgramCurriculumRevision` (Task 5) flows through the validator (Task 6), the runner (Task 9), the reader (Task 10) and the UI types (Task 12) unchanged. `CurriculumRevisionDrops` (Task 6) is returned by the runner (Task 9) and read by the bulk script (Task 11) and Task 13's queries. `CurriculumRevisionReadiness`'s four values (Task 7) are the same four the UI branches on (Task 12).
 
 **Ordering:** A before B so B's first run yields promotion candidates. B builds and runs without A — the promotion lane is simply empty, which Task 13 Step 3 accounts for explicitly rather than treating as a failure.
 

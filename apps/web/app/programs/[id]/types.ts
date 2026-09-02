@@ -664,3 +664,75 @@ export interface DeepDiveCourses {
   /** Semesters that filtered the aggregate (default [1, 2]). */
   semestersApplied: number[];
 }
+
+// ─── Curriculum revision (program-curriculum-revision.v1) ───────────────
+
+export interface DeepDiveCurriculumEnhance {
+  courseCode: string;
+  courseNameTh: string;
+  /** Verbatim from the course's own Thai description. Empty when the model
+   *  paraphrased and the validator blanked it. */
+  currentlyCoversQuote: string;
+  themeRefs: string[];
+  addition: string;
+  additionDetail: string;
+  effort: 'MINOR' | 'MODERATE' | 'MAJOR';
+  evidencePaperTitles: string[];
+}
+
+export interface DeepDiveCurriculumNewCourse {
+  titleTh: string;
+  titleEn: string;
+  credits: number;
+  placementYear: number;
+  placementSemester: number;
+  themeRefs: string[];
+  rationale: string;
+  couldBeTaughtBy: Array<{ name: string; rank: string }>;
+  evidencePaperTitles: string[];
+}
+
+export interface DeepDiveCurriculumPromotion {
+  courseCode: string;
+  courseNameTh: string;
+  currentCategory: string;
+  proposedCategory: string;
+  themeRefs: string[];
+  rationale: string;
+}
+
+export interface DeepDiveCurriculumRevisionPayload {
+  coverageSummary: {
+    themesTotal: number;
+    themesReflectedInCurriculum: number;
+    themesAbsent: string[];
+    narrative: string;
+  };
+  enhanceCourses: DeepDiveCurriculumEnhance[];
+  newCourseProposals: DeepDiveCurriculumNewCourse[];
+  promotionCandidates: DeepDiveCurriculumPromotion[];
+  confidence: number;
+  caveats: string[];
+}
+
+/** GET /programs/:id/curriculum-revision — `result` is null until the
+ *  advice has been generated (`pnpm curriculum:revision-generate`);
+ *  `readiness` explains why (no research analysis to derive from / no
+ *  extracted course list / just not generated yet). */
+export interface DeepDiveCurriculumRevision {
+  result: {
+    payload: DeepDiveCurriculumRevisionPayload;
+    methodVersion: string;
+    generatedAt: string;
+    courseCount: number;
+    /** How many of `courseCount` carry a curriculum category. Zero means
+     *  the promotion lane could not be answered at all — a missing input,
+     *  not a finding that no course qualifies. */
+    coursesWithCategory: number;
+  } | null;
+  readiness: {
+    readiness: 'ok' | 'thin' | 'no-research' | 'no-courses';
+    courseCount: number;
+    distinctPaperCount: number;
+  };
+}

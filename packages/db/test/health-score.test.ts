@@ -29,10 +29,24 @@ const mocks = vi.hoisted(() => ({
   programPedagogyAssessmentFindUnique: vi.fn(),
 }));
 
-vi.mock('../src/index', async () => {
-  const actual = await vi.importActual<typeof import('../src/index')>('../src/index');
+// NO `vi.importActual('../src/index')` spread here, deliberately.
+//
+// `index.ts` re-exports this module's whole dependency chain, so importActual
+// evaluates the REAL graph — including `academic-year.ts`, which binds the
+// REAL `prisma` at import time and is then cached. `health-score.ts` imports
+// getAcademicYearContext() from that cached instance, so its
+// `prisma.systemSetting.findUnique()` reached the live database and the
+// `systemSetting` mock below was never consulted.
+//
+// It looked green only because a healthy dev DB returns null for that
+// setting — the same value the mock returns — so the tests passed for the
+// wrong reason, and any attempt to drive the academic-year boundary through
+// `mocks.systemSettingFindUnique` silently did nothing. Verified by pointing
+// DATABASE_URL at a dead port: with the spread, 5 tests fail; without it,
+// all pass. health-score.ts, academic-year.ts and scope.ts each import only
+// `prisma` from index, so a bare mock is sufficient.
+vi.mock('../src/index', () => {
   return {
-    ...actual,
     prisma: {
       faculty: { findMany: mocks.facultyFindMany, findFirst: mocks.facultyFindFirst },
       department: { findMany: mocks.departmentFindMany },

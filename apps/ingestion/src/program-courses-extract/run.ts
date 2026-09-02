@@ -7,6 +7,7 @@ import {
   ProgramCoursesExtractSchema,
   PROGRAM_COURSES_EXTRACT_VERSION,
   type AiService,
+  type CourseCategory,
   type ExtractionResponse,
   type ProgramCoursesExtractPayload,
   type S3Storage,
@@ -216,6 +217,20 @@ export async function runProgramCoursesExtract(
     // makes the log accurate.
     const seen = new Set<string>();
     let skippedPlaceholder = 0;
+    // Counts LLM rows dropped by the first-wins dedup below. Usually
+    // benign — per the comment above, the common cause is one course
+    // appearing in both a section table and the study-plan table, same
+    // หมวด both times, so the discarded row was identical anyway. The
+    // number is logged for the rarer case: a course listed under two
+    // DIFFERENT headings, where first-wins silently picks one category.
+    // So treat a nonzero count as a prompt to look, not as evidence of
+    // ambiguity on its own.
+    //
+    // Deliberately NOT incremented by the fallback loop's `seen.has(code)`
+    // check further down: that one skips candidates the LLM already
+    // emitted, which happens on essentially every run and would swamp
+    // this signal. Please don't "fix" the missing increment there.
+    let duplicateCourseRows = 0;
     const rows: Array<{
       programId: string;
       courseCode: string;
@@ -223,6 +238,7 @@ export async function runProgramCoursesExtract(
       courseNameTh: string | null;
       courseNameEn: string | null;
       credits: number | null;
+      category: CourseCategory | null;
       methodVersion: string;
     }> = [];
     const placeholderRe = /^([X?N0-])\1+$/i;
@@ -238,7 +254,10 @@ export async function runProgramCoursesExtract(
         skippedPlaceholder++;
         continue;
       }
-      if (seen.has(norm)) continue;
+      if (seen.has(norm)) {
+        duplicateCourseRows++;
+        continue;
+      }
       seen.add(norm);
       rows.push({
         programId: program.id,
@@ -247,6 +266,7 @@ export async function runProgramCoursesExtract(
         courseNameTh: c.nameTh || null,
         courseNameEn: c.nameEn || null,
         credits: c.credits,
+        category: c.category,
         methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
       });
     }
@@ -275,6 +295,11 @@ export async function runProgramCoursesExtract(
         courseNameTh: fb.nameTh || null,
         courseNameEn: fb.nameEn || null,
         credits: fb.credits,
+        // Structurally UNKNOWN — this path recovers a course from a text
+        // window around its code and never reads the หมวด headings. Written
+        // explicitly so promotion logic sees these rows as unplaced rather
+        // than indistinguishable from "not yet re-extracted" NULLs.
+        category: fb.category,
         methodVersion: `${PROGRAM_COURSES_EXTRACT_VERSION}-fallback`,
       });
       fallbackAddedCount++;
@@ -290,6 +315,7 @@ export async function runProgramCoursesExtract(
       `[${program.code}] candidates=${candidateCodes.length} llm=${llmCourses.length}` +
         (llmFailureReason ? ' (LLM FAILED)' : '') +
         ` fallback-added=${fallbackAddedCount} materialised=${materialisedCount}` +
+        ` llm-duplicate-rows=${duplicateCourseRows}` +
         ` placeholders-skipped=${skippedPlaceholder} previous=${previousCount}` +
         ` confidence=${(response?.confidence ?? 0).toFixed(2)}`,
     );

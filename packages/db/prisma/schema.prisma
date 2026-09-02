@@ -93,6 +93,21 @@ enum CourseType {
   GENERAL
 }
 
+/// The หมวด grouping a course sits under in the curriculum structure.
+/// Distinct from CourseType (CORE/ELECTIVE/GENERAL), which cannot express
+/// บังคับ-vs-เลือก within หมวดวิชาเฉพาะ. Read from the curriculum
+/// headings by program-courses-extract.v4. UNKNOWN is a first-class
+/// answer — see ProgramCourse.category for how it differs from NULL.
+enum CourseCategory {
+  GENERAL_EDUCATION
+  CORE
+  MAJOR_REQUIRED
+  MAJOR_ELECTIVE
+  FREE_ELECTIVE
+  THESIS_PROJECT
+  UNKNOWN
+}
+
 enum SkillTaxonomy {
   LIGHTCAST
   ESCO
@@ -490,6 +505,7 @@ model Program {
   strategicNarrative    ProgramStrategicNarrative?
   aiReadinessAssessment ProgramAiReadinessAssessment?
   researchExpertise     ProgramResearchExpertise[]
+  curriculumRevisions   ProgramCurriculumRevision[]
   pedagogyAssessment    ProgramPedagogyAssessment?
   aunqaNarratives       AunqaCriterionNarrative[]
   lifecycleSnapshot     ProgramLifecycleSnapshot?
@@ -2031,6 +2047,31 @@ model ProgramResearchExpertise {
 
   @@index([programId, generatedAt])
   @@map("program_research_expertise")
+}
+
+/// Course-level curriculum revision advice derived from a program's
+/// research expertise (program-curriculum-revision.v1).
+///
+/// INSERT-ONLY, exactly like ProgramResearchExpertise — re-runs accrete
+/// history rather than overwriting, so a methodology bump leaves prior
+/// output auditable. Readers take the latest by generatedAt.
+model ProgramCurriculumRevision {
+  id             String   @id @default(cuid())
+  programId      String   @map("program_id")
+  /// Full payload, typed at the Zod layer (ProgramCurriculumRevisionSchema),
+  /// AFTER the anti-fabrication validator has stripped unfounded claims.
+  payloadJson    Json     @map("payload_json")
+  /// Deterministic input snapshot + the validator's drop counts, so a
+  /// reader can audit the basis without recomputing it.
+  inputStatsJson Json     @map("input_stats_json")
+  methodVersion  String   @map("method_version")
+  aiInferenceId  String?  @map("ai_inference_id")
+  generatedAt    DateTime @default(now()) @map("generated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId, generatedAt])
+  @@map("program_curriculum_revisions")
 }
 
 /// Per-program pedagogical-readiness assessment. Reads the curriculum
@@ -4045,6 +4086,22 @@ model ProgramCourse {
   courseNameTh   String?  @map("course_name_th")
   courseNameEn   String?  @map("course_name_en")
   credits        Int?
+  /// The หมวด grouping this course sits under. Written by both
+  /// program_courses writers (program-courses-extract/run.ts and
+  /// materialise-program-courses.ts).
+  ///
+  /// NULL vs UNKNOWN are different states, and the distinction is
+  /// load-bearing for promotion advice:
+  ///   NULL     — never run through a category-aware extractor. Two
+  ///              populations: rows from program-courses-extract v3 and
+  ///              earlier, and ALL rows written by
+  ///              materialise-program-courses.ts, whose PROGRAM_DIGEST
+  ///              source carries no per-course category in any version.
+  ///              Run program-courses-extract to fill them.
+  ///   UNKNOWN  — ran, but the curriculum headings did not place the
+  ///              course. Always the case for the extractor's regex
+  ///              name-fallback path, which never reads หมวด headings.
+  category       CourseCategory? @map("category")
   /// Method version of the PROGRAM_DIGEST extractor that produced
   /// this row — lets a methodology bump re-flow new courses without
   /// wiping older curricula whose digests haven't been re-run yet.
