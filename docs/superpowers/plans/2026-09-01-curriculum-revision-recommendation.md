@@ -405,20 +405,47 @@ Import the type from `@kku/shared` (it is exported by `program-courses-extract.t
 ```
 increment it wherever the existing dedup discards a repeat, and include it in the run's summary log line.
 
-- [ ] **Step 5: Typecheck**
+- [ ] **Step 5: Correct the schema doc comment now that the wiring exists**
 
-Run: `cd apps/ingestion && npx tsc --noEmit`
+`packages/db/prisma/schema.prisma`'s `ProgramCourse.category` comment was written ahead of the wiring and is currently wrong in two ways. Fix both:
+
+1. It says "Populated by program-courses-extract.v4" — only true once Step 4 lands. Now it is.
+2. It says fallback rows are "permanently NULL". **They will be `UNKNOWN`, not NULL** — `FallbackCourseExtraction.category` is typed `Extract<CourseCategory, 'UNKNOWN'>` and Step 4 writes it through. That distinction is load-bearing for the promotion feature: `NULL` means "never run through a category-aware extractor", `UNKNOWN` means "ran, but the headings did not place this course". Conflating them would let promotion logic treat un-extracted rows as deliberately-unplaceable ones.
+
+Replace the column comment with:
+
+```prisma
+  /// The หมวด grouping this course sits under. Written by both
+  /// program_courses writers (program-courses-extract/run.ts and
+  /// materialise-program-courses.ts).
+  ///
+  /// NULL vs UNKNOWN are different states, and the distinction is
+  /// load-bearing for promotion advice:
+  ///   NULL     — never run through a category-aware extractor (rows from
+  ///              program-courses-extract v3 and earlier). Re-run the
+  ///              extractor to fill them.
+  ///   UNKNOWN  — ran, but the curriculum headings did not place the
+  ///              course. Always the case for the extractor's regex
+  ///              name-fallback path, which never reads หมวด headings.
+  category       CourseCategory? @map("category")
+```
+
+Make the same correction to the `enum CourseCategory` doc comment above it if it repeats the "populated by v4 / NULL on v3" framing.
+
+- [ ] **Step 6: Typecheck**
+
+Run: `cd apps/ingestion && npx tsc --noEmit && cd ../../packages/db && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 6: Dry-run to confirm nothing breaks on pre-v4 data**
+- [ ] **Step 7: Dry-run to confirm nothing breaks on pre-v4 data**
 
 Run: `pnpm programs:materialise-program-courses --dry-run`
 Expected: completes; `Rows with a category: 0 / <n>` — correct, because no programme has been re-extracted with v4 yet.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add apps/ingestion/src/scripts/materialise-program-courses.ts apps/ingestion/src/program-courses-extract/run.ts
+git add apps/ingestion/src/scripts/materialise-program-courses.ts apps/ingestion/src/program-courses-extract/run.ts packages/db/prisma/schema.prisma
 git commit -m "feat(curriculum): both program_courses writers carry course category"
 ```
 
