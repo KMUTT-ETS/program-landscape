@@ -1863,10 +1863,11 @@ export async function generateProgramCurriculumRevision(
     // outside this set was invented — and it is the citation a reader
     // would follow to check the recommendation.
     validPaperTitles: new Set(assembled.input.themes.flatMap((t) => t.exampleTitles)),
-    // Roster names the model was shown. A proposal naming someone outside
-    // this set makes an unsupported claim about a real individual in front
-    // of a University Council.
-    validRosterNames: new Set(assembled.input.roster.map((r) => r.name)),
+    // Roster names AND ranks the model was shown. A proposal naming someone
+    // outside this set — or inflating a real lecturer to professor — makes
+    // an unsupported claim about a real individual in front of a University
+    // Council. Name and rank are checked together for that reason.
+    validRosterRanks: new Map(assembled.input.roster.map((r) => [r.name, r.rank])),
   });
   const totalDropped =
     drops.enhanceCoursesDropped + drops.newCourseProposalsDropped + drops.promotionCandidatesDropped;
