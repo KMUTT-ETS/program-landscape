@@ -116,13 +116,24 @@ describe('program-courses-extract v4 — prompt/schema agreement', () => {
     }),
   );
 
-  it('names every schema category in the prompt', () => {
+  it('defines every schema category in the COURSE CATEGORY block', () => {
     // Schema-vs-prompt drift is the silent failure that costs a re-run: a
-    // member the schema accepts but the prompt never mentions can never be
-    // emitted, and one the prompt names but the schema rejects fails every
-    // extraction that uses it.
+    // member the schema accepts but the prompt never defines can never be
+    // emitted correctly.
+    //
+    // Scoped to the definition block on purpose. Asserting against the whole
+    // system prompt passed even with the entire enum→Thai-heading mapping
+    // deleted, because the JSON example's union line names all 7 members and
+    // the Thai headings survive in the scope/PRECEDENCE prose. The mapping is
+    // the part that actually makes the field work, so it is what we pin.
+    const start = system.indexOf('COURSE CATEGORY:');
+    const end = system.indexOf('HEADING SCOPE:');
+    expect(start, 'COURSE CATEGORY block missing').toBeGreaterThan(-1);
+    expect(end, 'HEADING SCOPE block missing').toBeGreaterThan(start);
+
+    const definitions = system.slice(start, end);
     for (const category of CourseCategorySchema.options) {
-      expect(system, `prompt never mentions ${category}`).toContain(category);
+      expect(definitions, `COURSE CATEGORY block never defines ${category}`).toContain(category);
     }
   });
 
@@ -141,6 +152,11 @@ describe('program-courses-extract v4 — prompt/schema agreement', () => {
     expect(system).toContain('PRECEDENCE');
     expect(system).toMatch(/CORE beats MAJOR_REQUIRED/);
     expect(system).toMatch(/THESIS_PROJECT beats its\s+parent หมวด/);
+    // สหกิจศึกษา / โครงงาน / ปัญหาพิเศษ are almost always course NAMES, not
+    // headings — without this the vocabulary list and the read-the-heading
+    // rule point opposite ways on e.g. โครงงานวิศวกรรม under a บังคับ group.
+    expect(system).toMatch(/ONLY when they appear as a group\s+heading/);
+    expect(system).toMatch(/never overrides the\s+heading/);
   });
 
   it('maps every heading it names, including กลุ่มวิชาเฉพาะด้าน', () => {

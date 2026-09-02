@@ -238,9 +238,12 @@ export interface FallbackCourseExtraction {
   credits: number | null;
   /** Always UNKNOWN, and structurally so: this path recovers a course from
    *  a 300-char window around its code and never reads the หมวด headings,
-   *  so it has no basis to place the course. Stated explicitly rather than
-   *  left absent so downstream promotion logic sees fallback rows as
-   *  unplaced instead of silently missing. */
+   *  so it has no basis to place the course.
+   *
+   *  Reserved for the category migration — NOT yet consumed. program_courses
+   *  has no category column, so the runner builds its rows without this
+   *  field and currently drops it. The migration task wires it through both
+   *  writers; until then only the unit test reads it. */
   category: Extract<CourseCategory, 'UNKNOWN'>;
   /** How many times the code appeared in the PDF — the caller filters
    *  on this to drop single-mention candidates (mostly page-number
@@ -376,15 +379,23 @@ PRECEDENCE (headings nest — the MOST SPECIFIC heading wins):
   แกน / พื้นฐาน.
 - กลุ่มวิชาเฉพาะด้าน follows its own บังคับ / เลือก label
   (บังคับ → MAJOR_REQUIRED, เลือก → MAJOR_ELECTIVE); when the group is
-  labelled neither, use MAJOR_REQUIRED.
+  labelled neither, return UNKNOWN — an unlabelled เฉพาะด้าน block is
+  often a pick-from menu, so guessing บังคับ would be a guess in the one
+  direction that corrupts this field's purpose.
+- The names above classify a course ONLY when they appear as a group
+  heading. A keyword occurring inside a course TITLE never overrides the
+  heading its row sits under: โครงงานวิศวกรรม listed under
+  กลุ่มวิชาเฉพาะบังคับ is MAJOR_REQUIRED, not THESIS_PROJECT. This applies
+  to สหกิจศึกษา / การฝึกงาน / โครงงาน / ปัญหาพิเศษ especially — these are
+  usually course names, not headings.
 
 Read the category from the heading a course is listed under, not from the
 course name. Almost every row in the รายวิชา section sits under a clear
-หมวด heading, so UNKNOWN should be a small minority — ปกติ 0-5 รหัส.
-Use it only when the headings genuinely do not place the course; do NOT
-infer a category from the course title or code. A wrong category is worse
-than an absent one, because downstream advice about promoting an elective
-to required is built on this field.
+หมวด heading, so UNKNOWN should be a small minority — ปกติ ไม่เกิน ~3%
+ของรหัสทั้งหมด. Use it only when the headings genuinely do not place the
+course; do NOT infer a category from the course title or code. A wrong
+category is worse than an absent one, because downstream advice about
+promoting an elective to required is built on this field.
 
 รูปแบบ JSON ผลลัพธ์ (ออก JSON เดี่ยวเท่านั้น ห้ามมี markdown ห้ามมีคำอธิบายล่วงหน้า):
 {
