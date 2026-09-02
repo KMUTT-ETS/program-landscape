@@ -505,6 +505,7 @@ model Program {
   strategicNarrative    ProgramStrategicNarrative?
   aiReadinessAssessment ProgramAiReadinessAssessment?
   researchExpertise     ProgramResearchExpertise[]
+  curriculumRevisions   ProgramCurriculumRevision[]
   pedagogyAssessment    ProgramPedagogyAssessment?
   aunqaNarratives       AunqaCriterionNarrative[]
   lifecycleSnapshot     ProgramLifecycleSnapshot?
@@ -2046,6 +2047,31 @@ model ProgramResearchExpertise {
 
   @@index([programId, generatedAt])
   @@map("program_research_expertise")
+}
+
+/// Course-level curriculum revision advice derived from a program's
+/// research expertise (program-curriculum-revision.v1).
+///
+/// INSERT-ONLY, exactly like ProgramResearchExpertise — re-runs accrete
+/// history rather than overwriting, so a methodology bump leaves prior
+/// output auditable. Readers take the latest by generatedAt.
+model ProgramCurriculumRevision {
+  id             String   @id @default(cuid())
+  programId      String   @map("program_id")
+  /// Full payload, typed at the Zod layer (ProgramCurriculumRevisionSchema),
+  /// AFTER the anti-fabrication validator has stripped unfounded claims.
+  payloadJson    Json     @map("payload_json")
+  /// Deterministic input snapshot + the validator's drop counts, so a
+  /// reader can audit the basis without recomputing it.
+  inputStatsJson Json     @map("input_stats_json")
+  methodVersion  String   @map("method_version")
+  aiInferenceId  String?  @map("ai_inference_id")
+  generatedAt    DateTime @default(now()) @map("generated_at")
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId, generatedAt])
+  @@map("program_curriculum_revisions")
 }
 
 /// Per-program pedagogical-readiness assessment. Reads the curriculum
