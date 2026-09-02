@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ProgramResearchExpertiseSchema,
+  ProgramCurriculumRevisionSchema,
   type ProgramCurriculumRevision,
   type CurriculumRevisionInput,
   type CurriculumRevisionCourse,
@@ -558,5 +559,124 @@ export async function assembleCurriculumRevisionInput(
       // rather than telling the model "evidence is thin" and hoping.
       totalDistinctPapers,
     },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reads. The deep-dive fetches BOTH of these together: the stored payload
+// (may be null) and a readiness verdict explaining why it is null. Four
+// states have to stay distinguishable to a reader — no research analysis /
+// no course list / analysable but nothing generated yet / has a result —
+// because each one asks something different of them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ProgramCurriculumRevisionResult {
+  payload: ProgramCurriculumRevision;
+  methodVersion: string;
+  generatedAt: string;
+  courseCount: number;
+  /** How many of those courses carry a CourseCategory. The UI needs this to
+   *  tell "no course qualifies for promotion" apart from "we have no
+   *  category data yet" — the promotion lane is empty either way, but only
+   *  the second is a data gap the reader can act on. */
+  coursesWithCategory: number;
+}
+
+/** The two fields of inputStatsJson this reader needs. Deliberately narrow
+ *  and defaulted: the runner also spreads the validator's drop counts in
+ *  there, and that block evolves. */
+const RevisionStatsSchema = z.object({
+  courseCount: z.number().int().nonnegative().default(0),
+  coursesWithCategory: z.number().int().nonnegative().default(0),
+});
+
+/**
+ * Latest persisted revision for a program, or null. INSERT-ONLY table, so
+ * this reads the most recent row rather than a unique-per-program one.
+ *
+ * Throws (rather than safeParse → null) when a stored payload no longer
+ * matches the schema. That is deliberate and is the opposite of the choice
+ * made in assembleCurriculumRevisionInput() above, for a reason: this is a
+ * SINGLE-PROGRAM read behind one deep-dive section, so a throw costs one
+ * page, while the assembler runs inside a bulk loop over 251 programs where
+ * one stale row must not take the run down. Degrading to null here would be
+ * actively harmful — it renders a schema regression as "nothing generated
+ * yet", which is one of the four states the section works hard to keep
+ * distinct, and the failure would be invisible rather than loud.
+ */
+export async function programCurriculumRevision(
+  programId: string,
+): Promise<ProgramCurriculumRevisionResult | null> {
+  const row = await prisma.programCurriculumRevision.findFirst({
+    where: { programId },
+    orderBy: { generatedAt: 'desc' },
+  });
+  if (!row) return null;
+  const stats = RevisionStatsSchema.parse(row.inputStatsJson);
+  return {
+    // Parsed, not cast — running the JSON back through the same schema the
+    // runner validated at write time is what makes this read honest.
+    payload: ProgramCurriculumRevisionSchema.parse(row.payloadJson),
+    methodVersion: row.methodVersion,
+    generatedAt: row.generatedAt.toISOString(),
+    courseCount: stats.courseCount,
+    coursesWithCategory: stats.coursesWithCategory,
+  };
+}
+
+export interface CurriculumRevisionReadinessResult {
+  readiness: CurriculumRevisionReadiness;
+  courseCount: number;
+  /** Distinct papers behind the research analysis — lets the 'thin' empty
+   *  state name the actual number, the way the research section already
+   *  says "Only N papers found ... below the analysis threshold (10)". */
+  distinctPaperCount: number;
+}
+
+/**
+ * Cheap readiness verdict for the empty states — two counts, no AI, no
+ * input assembly. Deliberately NOT assembleCurriculumRevisionInput(),
+ * which loads every course, the PROGRAM_DIGEST payload, the roster and the
+ * program's skills purely to build a prompt this caller will never send.
+ */
+export async function curriculumRevisionReadiness(
+  programId: string,
+): Promise<CurriculumRevisionReadinessResult | null> {
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { id: true },
+  });
+  if (!program) return null;
+  const [courseCount, expertise] = await Promise.all([
+    prisma.programCourse.count({ where: { programId } }),
+    prisma.programResearchExpertise.findFirst({
+      where: { programId },
+      orderBy: { generatedAt: 'desc' },
+      // payloadJson rides along on a row we are already fetching — see the
+      // theme check below for why it is not enough that the row exists.
+      select: { inputStatsJson: true, payloadJson: true },
+    }),
+  ]);
+  if (!expertise) return { readiness: 'no-research', courseCount, distinctPaperCount: 0 };
+  // A stored payload that no longer parses is the same thing to this feature
+  // as having no research at all — themes are what the whole analysis reasons
+  // FROM, and the assembler above already treats an unparseable payload that
+  // way. Checking only for the row's existence would let such a program read
+  // as 'ok' here while generateProgramCurriculumRevision() short-circuits it
+  // as 'no-research', i.e. the UI would invite a run that can never produce
+  // anything. Cheap: no extra query, and themes is `.min(1)` so a successful
+  // parse can never be empty.
+  const themeCount =
+    ProgramResearchExpertiseSchema.safeParse(expertise.payloadJson).data?.themes.length ?? 0;
+  if (themeCount === 0) return { readiness: 'no-research', courseCount, distinctPaperCount: 0 };
+  const distinctPaperCount =
+    ExpertiseStatsSchema.safeParse(expertise.inputStatsJson).data?.totalDistinct ?? 0;
+  if (courseCount === 0) return { readiness: 'no-courses', courseCount, distinctPaperCount };
+  return {
+    // Same floor as the assembler's THIN_PAPER_THRESHOLD, which is itself
+    // program-research-expertise's.
+    readiness: distinctPaperCount < THIN_PAPER_THRESHOLD ? 'thin' : 'ok',
+    courseCount,
+    distinctPaperCount,
   };
 }

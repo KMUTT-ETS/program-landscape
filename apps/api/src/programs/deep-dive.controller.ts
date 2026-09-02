@@ -13,6 +13,7 @@ import type { SessionUser } from '@kku/shared';
 import {
   PROGRAM_STRATEGIC_NARRATIVE_VERSION,
   PROGRAM_RESEARCH_EXPERTISE_VERSION,
+  PROGRAM_CURRICULUM_REVISION_VERSION,
 } from '@kku/shared';
 import { Prisma, prisma } from '@kku/db';
 import {
@@ -37,6 +38,8 @@ import {
   programStrategicNarrative,
   programResearchExpertise,
   researchExpertiseReadiness,
+  programCurriculumRevision,
+  curriculumRevisionReadiness,
   programTrends,
   STUDENT_DQ_METHODOLOGY_VERSION,
 } from '@kku/db';
@@ -50,6 +53,7 @@ import {
   seesAllScopes,
 } from '../common';
 import { CockpitService } from '../cockpit/cockpit.service';
+import { CurriculumRevisionService } from './curriculum-revision.service';
 import { PdfService } from '../pdf/pdf.service';
 import { buildProgramDetailData } from './program-detail-data';
 
@@ -110,6 +114,7 @@ export class DeepDiveController {
   constructor(
     @Inject(CockpitService) private readonly cockpit: CockpitService,
     private readonly pdf: PdfService,
+    private readonly curriculumRevision: CurriculumRevisionService,
   ) {}
 
   @Get('overview')
@@ -222,6 +227,34 @@ export class DeepDiveController {
     const [result, readiness] = await Promise.all([
       programResearchExpertise(programId),
       researchExpertiseReadiness(programId),
+    ]);
+    if (!readiness) throw new NotFoundException();
+    return { result, readiness };
+  }
+
+  // Course-level curriculum-revision advice. Same three-distinct-empty-
+  // reasons discipline as research-expertise above — no-research /
+  // no-courses / not-yet-generated read very differently to a reader.
+  // methodologyVersion comes from the prompt constant, never a literal
+  // (a stale literal has already bitten this controller once).
+  @Get('curriculum-revision')
+  @Authorized('programs:read:all')
+  @Provenance({
+    sources: [
+      { id: 'kku-research', name: 'KKU Publications mirror (kku-research)' },
+      { id: 'program-courses', name: 'Curriculum PDF course extraction' },
+      { id: 'program-faculty', name: 'Curated program faculty roster' },
+    ],
+    methodologyVersion: PROGRAM_CURRICULUM_REVISION_VERSION,
+  })
+  async curriculumRevisionSection(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+  ) {
+    await assertProgramAccessible(programId, user);
+    const [result, readiness] = await Promise.all([
+      programCurriculumRevision(programId),
+      curriculumRevisionReadiness(programId),
     ]);
     if (!readiness) throw new NotFoundException();
     return { result, readiness };
@@ -403,6 +436,20 @@ export class DeepDiveController {
   ) {
     await assertProgramAccessible(programId, user);
     return this.cockpit.regenerateStrategicNarrative(programId, user.userId);
+  }
+
+  // Regenerate the curriculum-revision advice for one program. Insert-only,
+  // so this accretes a new row rather than replacing — the prior version
+  // stays auditable.
+  @Post('curriculum-revision')
+  @Authorized('programs:read:all')
+  @AuditLog({ action: 'program.regenerate_curriculum_revision', entityType: 'AiInference' })
+  async regenerateCurriculumRevision(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+  ) {
+    await assertProgramAccessible(programId, user);
+    return this.curriculumRevision.regenerate(programId, user.userId);
   }
 
   // ──────────────────────────────────────────────────────────────────
