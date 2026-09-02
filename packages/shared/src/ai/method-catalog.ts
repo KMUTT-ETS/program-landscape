@@ -77,9 +77,9 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-courses-extract',
-    currentVersion: 'program-courses-extract.v3',
+    currentVersion: 'program-courses-extract.v4',
     label: 'Program courses (exhaustive)',
-    description: 'Regex-anchored course-code extractor scoped to the รายวิชา section (3 หมวด). Distinct from program-digest — focused, complete course list. Was locked to Pro under v2/v2.2 (Flash truncated on the full-PDF + embedded-candidate-list prompt); v2.3 narrowed the input to a ~20KB slice and Flash now returns the same result ~2× faster.',
+    description: 'Regex-anchored course-code extractor scoped to the รายวิชา section (3 หมวด). Distinct from program-digest — focused, complete course list. Was locked to Pro under v2/v2.2 (Flash truncated on the full-PDF + embedded-candidate-list prompt); v2.3 narrowed the input to a ~20KB slice and Flash now returns the same result ~2× faster. v4 also captures each course\'s หมวด grouping (category) from the section headings.',
     module: 'pipeline',
     tier: 'extraction',
     defaultModel: 'gemini-3.5-flash',

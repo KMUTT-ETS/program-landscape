@@ -299,7 +299,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 | Prompt | Output materialises into | When fired |
 |---|---|---|
 | `program-digest.v2` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
-| `program-courses-extract.v2.3` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section; patch-style version, to regularise to `v3` at next behaviour bump |
+| `program-courses-extract.v4` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section. v3 regularised the patch-style version; v4 adds a per-course `category` (the หมวด grouping: GE / core / major-required / major-elective / free-elective / thesis, else UNKNOWN) read from the section headings — the required-vs-elective signal that elective-to-core promotion advice depends on |
 | `program-faculty-extraction.v1` | `ProgramFaculty` curated roster links | Manual analyst trigger |
 | `program-skills-detailed.v2` | Deeper `ProgramSkill` enrichment beyond program-digest (compulsory/elective weight split, PLO linkage) | Manual |
 | `course-skill-extraction.v1` (`course-skills.v1`) | `CourseSkill` rows | On course-description AiExtraction approval |

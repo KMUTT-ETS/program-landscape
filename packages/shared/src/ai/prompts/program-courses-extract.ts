@@ -37,7 +37,7 @@ import type { AiMessage } from '../types';
 // empty class-offerings join and is corrected on the next pipeline run).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v3';
+export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v4';
 
 // credits.max(60): inherited v1's max(20) but that rejected entire
 // extractions on prod for any program whose curriculum lists a
@@ -82,6 +82,34 @@ export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v3';
 // standard's Versioning section). Added CONFIDENCE RUBRIC (verbatim) +
 // BANNED PHRASES + CHANNEL MANIFEST; `caveats` was Thai in practice —
 // flipped to English. No extraction-logic change.
+//
+// v4 (2026-09-02): added `category` per course (the หมวด grouping), read
+// from the curriculum-structure headings the slice already contains. v1-v3
+// discarded them. Enables elective-to-core promotion advice in
+// program-curriculum-revision.v1. No change to code/name/credits behaviour.
+// (The plan for this change called it "v2"; that string is taken by the
+// pre-v2.3 full-PDF prompt, and the standard forbids reusing a published
+// version — see docs/prompt-standard.md § Versioning.)
+
+/** The หมวด grouping a course sits under in the curriculum structure.
+ *  Richer than the Course.type enum (CORE/ELECTIVE/GENERAL), which cannot
+ *  express บังคับ-vs-เลือก WITHIN หมวดวิชาเฉพาะ — exactly the distinction
+ *  elective-to-core promotion advice depends on.
+ *
+ *  UNKNOWN is a first-class answer, not a failure: a course the model
+ *  cannot place must say so. Defaulting it into a real category would
+ *  produce a confidently wrong promotion recommendation. */
+export const CourseCategoryEnum = z.enum([
+  'GENERAL_EDUCATION', // หมวดวิชาศึกษาทั่วไป
+  'CORE',              // วิชาแกน / วิชาพื้นฐาน
+  'MAJOR_REQUIRED',    // วิชาเฉพาะบังคับ
+  'MAJOR_ELECTIVE',    // วิชาเฉพาะเลือก
+  'FREE_ELECTIVE',     // หมวดวิชาเลือกเสรี
+  'THESIS_PROJECT',    // วิทยานิพนธ์ / การศึกษาอิสระ / โครงงาน
+  'UNKNOWN',
+]);
+export type CourseCategory = z.infer<typeof CourseCategoryEnum>;
+
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
    *  Materialiser normalises again before insert so EN241100 == "EN 241 100". */
@@ -89,6 +117,9 @@ const CourseSchema = z.object({
   nameTh: z.string().default(''),
   nameEn: z.string().default(''),
   credits: z.number().int().min(0).max(60).nullable().default(null),
+  /** Defaults to UNKNOWN so v3-era payloads and the regex fallback path
+   *  (which has no heading context at all) parse without inventing a หมวด. */
+  category: CourseCategoryEnum.default('UNKNOWN'),
 });
 export type ProgramCoursesExtractCourse = z.infer<typeof CourseSchema>;
 
@@ -308,13 +339,31 @@ export function buildProgramCoursesExtractMessages(
 runner ได้ทำ pattern matching ในส่วนเดียวกันและพบรหัส candidate ${candidateHint}
 runner จะ post-process ผลลัพธ์ของคุณกับ candidate list — focus ให้สกัดครบ
 
+COURSE CATEGORY:
+Every course must carry a \`category\` naming the หมวด it sits under in the
+curriculum structure:
+  GENERAL_EDUCATION  หมวดวิชาศึกษาทั่วไป
+  CORE               วิชาแกน / วิชาพื้นฐาน
+  MAJOR_REQUIRED     วิชาเฉพาะบังคับ (required within the major)
+  MAJOR_ELECTIVE     วิชาเฉพาะเลือก (elective within the major)
+  FREE_ELECTIVE      หมวดวิชาเลือกเสรี
+  THESIS_PROJECT     วิทยานิพนธ์ / การศึกษาอิสระ / โครงงาน
+  UNKNOWN            the section headers do not place this course
+
+Read the category from the section heading the course is listed under, not
+from the course name. When a course appears under no clear heading, return
+UNKNOWN — do NOT infer a category from the course title or code. A wrong
+category is worse than an absent one, because downstream advice about
+promoting an elective to required is built on this field.
+
 รูปแบบ JSON ผลลัพธ์ (ออก JSON เดี่ยวเท่านั้น ห้ามมี markdown ห้ามมีคำอธิบายล่วงหน้า):
 {
   "courses": [
     { "code": "<รหัสวิชาในรูปแบบไม่มีเว้นวรรค เช่น LW011116 หรือ GE179114>",
       "nameTh": "<ชื่อวิชาภาษาไทย>",
       "nameEn": "<ชื่อวิชาภาษาอังกฤษ ถ้ามี>",
-      "credits": <จำนวนหน่วยกิต | null> }
+      "credits": <จำนวนหน่วยกิต | null>,
+      "category": "<GENERAL_EDUCATION | CORE | MAJOR_REQUIRED | MAJOR_ELECTIVE | FREE_ELECTIVE | THESIS_PROJECT | UNKNOWN>" }
   ],
   "caveats": ["<English only — e.g. unreadable page, missing course name, unusual format>"],
   "confidence": <0.0-1.0>
