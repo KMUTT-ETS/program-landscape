@@ -123,7 +123,7 @@ and extend `CourseSchema` (currently at ~line 85) with the category field:
  *  UNKNOWN is a first-class answer, not a failure: a course the model
  *  cannot place must say so. Defaulting it into a real category would
  *  produce a confidently wrong promotion recommendation. */
-export const CourseCategoryEnum = z.enum([
+export const CourseCategorySchema = z.enum([
   'GENERAL_EDUCATION', // หมวดวิชาศึกษาทั่วไป
   'CORE',              // วิชาแกน / วิชาพื้นฐาน
   'MAJOR_REQUIRED',    // วิชาเฉพาะบังคับ
@@ -132,7 +132,7 @@ export const CourseCategoryEnum = z.enum([
   'THESIS_PROJECT',    // วิทยานิพนธ์ / การศึกษาอิสระ / โครงงาน
   'UNKNOWN',
 ]);
-export type CourseCategory = z.infer<typeof CourseCategoryEnum>;
+export type CourseCategory = z.infer<typeof CourseCategorySchema>;
 
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
@@ -141,7 +141,7 @@ const CourseSchema = z.object({
   nameTh: z.string().default(''),
   nameEn: z.string().default(''),
   credits: z.number().int().min(0).max(60).nullable().default(null),
-  category: CourseCategoryEnum.default('UNKNOWN'),
+  category: CourseCategorySchema.default('UNKNOWN'),
 });
 ```
 
@@ -225,8 +225,11 @@ enum CourseCategory {
 and add the column to `model ProgramCourse`, after `credits`:
 
 ```prisma
-  /// Nullable: rows extracted by program-courses-extract.v1 have no
-  /// category and must stay valid. Re-run the extractor to fill them.
+  /// Nullable: rows extracted by program-courses-extract v3 and earlier
+  /// have no category and must stay valid. Re-run the extractor to fill
+  /// them. Also permanently NULL for rows from the extractor's regex
+  /// name-fallback path (methodVersion ending `-fallback`), which has no
+  /// section-heading context to read a category from.
   category       CourseCategory? @map("category")
 ```
 
@@ -365,21 +368,58 @@ and add one line to the final console summary block:
     console.log(`Rows with a category:      ${totalWithCategory} / ${totalInserted}`);
 ```
 
-- [ ] **Step 4: Typecheck**
+- [ ] **Step 4: Wire the SECOND writer — `program-courses-extract/run.ts`**
+
+**`program_courses` has two writers, not one.** Besides the materialiser above, `apps/ingestion/src/program-courses-extract/run.ts` also does a delete-and-replace of a programme's `program_courses` rows (~line 284). If only the materialiser carries `category`, then any later single-programme `pnpm programs:extract-courses <code>` re-run **silently wipes that programme's categories back to NULL** — losing part of the $51 re-extraction with no error.
+
+In `apps/ingestion/src/program-courses-extract/run.ts`:
+
+1. Add `category` to the `rows` array's inline type (~line 219-227), matching the Prisma column's nullability:
+
+```typescript
+    category: CourseCategory | null;
+```
+
+Import the type from `@kku/shared` (it is exported by `program-courses-extract.ts` alongside `CourseCategorySchema`).
+
+2. In the **LLM path** row literal (~line 243-251), carry the parsed value through:
+
+```typescript
+        category: c.category,
+```
+
+3. In the **fallback path** row literal (~line 271-279), carry the explicit UNKNOWN that `FallbackCourseExtraction.category` now holds:
+
+```typescript
+        // Structurally UNKNOWN — this path recovers a course from a text
+        // window around its code and never reads the หมวด headings. Written
+        // explicitly so promotion logic sees these rows as unplaced rather
+        // than indistinguishable from "not yet re-extracted" NULLs.
+        category: fb.category,
+```
+
+4. The dedup at ~line 241 is first-wins. When the LLM lists one course under two headings, one category is silently chosen. Add a counter for it and log the total at the end of the run, so a systematically ambiguous curriculum is visible rather than silent:
+
+```typescript
+    let duplicateCourseRows = 0;
+```
+increment it wherever the existing dedup discards a repeat, and include it in the run's summary log line.
+
+- [ ] **Step 5: Typecheck**
 
 Run: `cd apps/ingestion && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 5: Dry-run to confirm nothing breaks on v1 data**
+- [ ] **Step 6: Dry-run to confirm nothing breaks on pre-v4 data**
 
 Run: `pnpm programs:materialise-program-courses --dry-run`
-Expected: completes; `Rows with a category: 0 / <n>` — correct, because no programme has been re-extracted with v2 yet.
+Expected: completes; `Rows with a category: 0 / <n>` — correct, because no programme has been re-extracted with v4 yet.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/ingestion/src/scripts/materialise-program-courses.ts
-git commit -m "feat(curriculum): materialiser carries course category through"
+git add apps/ingestion/src/scripts/materialise-program-courses.ts apps/ingestion/src/program-courses-extract/run.ts
+git commit -m "feat(curriculum): both program_courses writers carry course category"
 ```
 
 ---
@@ -405,7 +445,7 @@ cd packages/db && npx tsx -e "
 import { prisma } from './src/index';
 (async () => {
   const row = await prisma.aiExtraction.findFirst({
-    where: { extractionKind: 'PROGRAM_COURSES_EXTRACT', methodVersion: 'program-courses-extract.v2' },
+    where: { extractionKind: 'PROGRAM_COURSES_EXTRACT', methodVersion: 'program-courses-extract.v4' },
     orderBy: { createdAt: 'desc' }, select: { payloadJson: true },
   });
   const cs = (row?.payloadJson as any)?.courses ?? [];
@@ -2583,6 +2623,8 @@ No commit — verification of already-committed work.
 
 | Assumption in the draft | Reality | Fix |
 |---|---|---|
+| `program-courses-extract` is at v1, so the bump is to **v2** | **Wrong** — the file was at **v3**, and the DB already holds real `AiExtraction` rows stamped `program-courses-extract.v2` (5), `v2.1`, `v2.2`, `v2.3` and `v1`. Stamping "v2" would fuse two different prompt behaviours under one version, which `docs/prompt-standard.md` forbids | Caught by the Task 1 implementer; bumped to **v4** throughout. Task 4's verification query updated to match |
+| `program_courses` has one writer (the materialiser), so only it needs the category | **Wrong** — `program-courses-extract/run.ts` also delete-and-replaces a programme's rows. Carrying `category` in only one writer means a later single-programme re-extract silently wipes categories back to NULL, losing part of the $51 run with no error | Caught in Task 1's re-review; Task 3 Step 4 now wires both writers, plus a counter for the first-wins dedup |
 | Controller has `this.ai` for the regenerate endpoint | **Wrong.** Its constructor takes only `CockpitService` + `PdfService` (`deep-dive.controller.ts:110-113`); narrative regeneration delegates to `this.cockpit` | Task 10 Step 3 adds `CurriculumRevisionService`, mirroring `CockpitService`'s `onModuleInit` AI construction |
 | Extraction kind is `PROGRAM_COURSES` | **Wrong** — it is `PROGRAM_COURSES_EXTRACT` (`program-courses-extract/run.ts:183`) | Task 4 Step 2 query corrected |
 | `programs:extract-courses` accepts `--program` and can run in bulk | **Wrong** — positional selector, **one programme per invocation**, no bulk mode | Task 4 Step 3 drives it from a shell loop over codes, with per-programme failure isolation |
@@ -2590,7 +2632,7 @@ No commit — verification of already-committed work.
 | `ProgramFaculty.facultyMember`, `FacultyMember.specialization` | **Correct** — confirmed in schema | unchanged |
 | `Section` takes `title` / `description` / `actions` | **Correct** — confirmed in `packages/ui/src/layout/section.tsx:11-18` | unchanged |
 
-**Type consistency:** `CourseCategoryEnum` (Task 1) → Prisma `CourseCategory` (Task 2) → materialiser's `DigestCourseCategory` (Task 3) share one value set. `CurriculumRevisionInput`/`CurriculumRevisionCourse` (Task 5) are produced by Task 7's assembler and consumed by Task 5's builder. `ProgramCurriculumRevision` (Task 5) flows through the validator (Task 6), the runner (Task 9), the reader (Task 10) and the UI types (Task 12) unchanged. `CurriculumRevisionDrops` (Task 6) is returned by the runner (Task 9) and read by the bulk script (Task 11) and Task 13's queries. `CurriculumRevisionReadiness`'s four values (Task 7) are the same four the UI branches on (Task 12).
+**Type consistency:** `CourseCategorySchema` (Task 1) → Prisma `CourseCategory` (Task 2) → materialiser's `DigestCourseCategory` (Task 3) share one value set. `CurriculumRevisionInput`/`CurriculumRevisionCourse` (Task 5) are produced by Task 7's assembler and consumed by Task 5's builder. `ProgramCurriculumRevision` (Task 5) flows through the validator (Task 6), the runner (Task 9), the reader (Task 10) and the UI types (Task 12) unchanged. `CurriculumRevisionDrops` (Task 6) is returned by the runner (Task 9) and read by the bulk script (Task 11) and Task 13's queries. `CurriculumRevisionReadiness`'s four values (Task 7) are the same four the UI branches on (Task 12).
 
 **Ordering:** A before B so B's first run yields promotion candidates. B builds and runs without A — the promotion lane is simply empty, which Task 13 Step 3 accounts for explicitly rather than treating as a failure.
 
