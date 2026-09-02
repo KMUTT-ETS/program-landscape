@@ -1467,6 +1467,11 @@ export async function assembleCurriculumRevisionInput(
       currentProgramSkills: skillRows.map((s) => s.skill.nameEn).filter(Boolean),
       // The prompt only distinguishes thin vs ok; the no-* cases never reach it.
       readiness: readiness === 'thin' ? 'thin' : 'ok',
+      // The actual paper count, not just the thin/ok label. The prompt renders
+      // a numeric thinness warning from it — mirroring how
+      // program-research-expertise names the real total and the threshold
+      // rather than telling the model "evidence is thin" and hoping.
+      totalDistinctPapers,
     },
   };
 }
@@ -1696,6 +1701,21 @@ import {
 // INSERT-ONLY, like ProgramResearchExpertise — history accretes.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Words that would turn this section into course-closure advice. The spec
+ *  forbids that outright — it affects staff livelihoods and research volume
+ *  is the wrong basis for it — so these force a corrective retry rather than
+ *  being left to the prompt's good behaviour. */
+const CLOSURE_TERMS = [
+  'retire', 'retiring', 'retired',
+  'consolidate', 'consolidating', 'consolidation',
+  'merge', 'merging', 'merged',
+  'close', 'closing', 'closure',
+  'discontinue', 'discontinuing', 'discontinued',
+  'suspend', 'suspending', 'suspended',
+  'phase out', 'phasing out', 'phased out',
+  'sunset', 'sunsetting',
+] as const;
+
 export interface RunCurriculumRevisionParams {
   programId: string;
   ai: AiService;
@@ -1776,9 +1796,23 @@ export async function generateProgramCurriculumRevision(
     return { status: 'FAILED', reason: err instanceof Error ? err.message : String(err) };
   }
 
-  // Banned-tell lint — one corrective retry, then persist-and-warn.
+  // Banned-tell lint PLUS the course-closure policy gate — one corrective
+  // retry, then persist-and-warn.
+  //
+  // The closure terms are enforced here rather than trusted to the prompt
+  // because recommending that a course be retired/merged/closed affects
+  // staff livelihoods, and research volume is the wrong basis for that
+  // judgement. The spec forbids it outright, so a violation must force a
+  // rewrite the same way a banned tell does. Several of these words are
+  // this product's own scenario-planner intervention names, which is
+  // exactly why a model steeped in the codebase might reach for them.
   let lintRetried = false;
-  const violations = lintBannedTells(buildLintableText(response.parsed));
+  const lintable = buildLintableText(response.parsed);
+  const closureViolations = CLOSURE_TERMS.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(lintable));
+  const violations = [
+    ...lintBannedTells(lintable),
+    ...closureViolations.map((phrase) => ({ phrase })),
+  ];
   if (violations.length > 0) {
     lintRetried = true;
     const correctionMessages = [
