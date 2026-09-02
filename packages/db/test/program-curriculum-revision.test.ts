@@ -13,6 +13,13 @@ const ctx = {
     ['EN241100', 'ศึกษาโครงสร้างข้อมูลพื้นฐาน  เช่น array และ linked list'],
     ['EN241200', 'ระบบปฏิบัติการเบื้องต้น'],
   ]),
+  // The second title carries a double space, mirroring how a real title
+  // arrives out of a PDF — the model reflowing it must still match.
+  validPaperTitles: new Set([
+    'A survey of vector indexing',
+    'Graph neural nets for  citation  graphs',
+  ]),
+  validRosterNames: new Set(['Somchai Jaidee']),
 };
 
 function payload(over: Partial<ProgramCurriculumRevision> = {}): ProgramCurriculumRevision {
@@ -134,12 +141,103 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(out.coverageSummary.themesAbsent).toEqual(['Graph learning']);
   });
 
+  it('drops an invented evidence paper title but keeps the enhancement when a real one remains', () => {
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({
+        evidencePaperTitles: ['A survey of vector indexing', 'Scalable HNSW indexing for Thai corpora'],
+      })] }), ctx,
+    );
+    expect(out.enhanceCourses[0]!.evidencePaperTitles).toEqual(['A survey of vector indexing']);
+    expect(drops.evidenceTitlesDropped).toBe(1);
+  });
+
+  it('DROPS an enhancement whose evidence titles were all invented', () => {
+    // The schema requires min 1 evidence title on this lane precisely because
+    // an enhancement with no paper behind it is an opinion, not a finding.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({ evidencePaperTitles: ['A paper nobody wrote'] })] }), ctx,
+    );
+    expect(out.enhanceCourses).toHaveLength(0);
+    expect(drops.enhanceCoursesDropped).toBe(1);
+    expect(drops.evidenceTitlesDropped).toBe(1);
+  });
+
+  it('accepts an evidence title whose whitespace differs from the source', () => {
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({
+        evidencePaperTitles: ['Graph neural nets for citation graphs'],
+      })] }), ctx,
+    );
+    expect(out.enhanceCourses).toHaveLength(1);
+    expect(drops.evidenceTitlesDropped).toBe(0);
+  });
+
+  it('filters a new-course proposal evidence title without dropping the proposal', () => {
+    // This lane's grounding is themeRefs; evidence titles are supporting.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ newCourseProposals: [
+        { titleTh: 'ก', titleEn: 'A', credits: 3, placementYear: 3, placementSemester: 1, themeRefs: ['Graph learning'], rationale: 'r', couldBeTaughtBy: [], evidencePaperTitles: ['Invented paper'] },
+      ] }), ctx,
+    );
+    expect(out.newCourseProposals).toHaveLength(1);
+    expect(out.newCourseProposals[0]!.evidencePaperTitles).toEqual([]);
+    expect(drops.evidenceTitlesDropped).toBe(1);
+    expect(drops.newCourseProposalsDropped).toBe(0);
+  });
+
+  it('removes an invented roster name but KEEPS the proposal', () => {
+    // Naming a person who does not teach here is a claim about a real
+    // individual; losing the name only weakens the recommendation.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ newCourseProposals: [
+        { titleTh: 'ก', titleEn: 'A', credits: 3, placementYear: 3, placementSemester: 1, themeRefs: ['Graph learning'], rationale: 'r',
+          couldBeTaughtBy: [{ name: 'Somchai Jaidee', rank: 'ASSOC_PROF' }, { name: 'Ghost Person', rank: 'PROF' }],
+          evidencePaperTitles: [] },
+      ] }), ctx,
+    );
+    expect(out.newCourseProposals).toHaveLength(1);
+    expect(out.newCourseProposals[0]!.couldBeTaughtBy).toEqual([{ name: 'Somchai Jaidee', rank: 'ASSOC_PROF' }]);
+    expect(drops.rosterNamesDropped).toBe(1);
+  });
+
+  it('blanks a quote too short to be a citation', () => {
+    // 'array' is a substring of almost any description and conveys nothing.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({ currentlyCoversQuote: 'array' })] }), ctx,
+    );
+    expect(out.enhanceCourses).toHaveLength(1);
+    expect(out.enhanceCourses[0]!.currentlyCoversQuote).toBe('');
+    expect(drops.quotesBlanked).toBe(1);
+  });
+
+  it('counts an omitted quote as missing without dropping the recommendation', () => {
+    // Previously "no citation at all" scored identically to a perfect one.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({ currentlyCoversQuote: '' })] }), ctx,
+    );
+    expect(out.enhanceCourses).toHaveLength(1);
+    expect(drops.quotesMissing).toBe(1);
+    expect(drops.quotesBlanked).toBe(0);
+  });
+
+  it('counts an unverifiable course code in prose without dropping', () => {
+    // EN241100 is real and must not be counted; EN999999 is not.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({
+        addition: 'Add HNSW indexing; EN241100 and EN999999 already cover the basics',
+      })] }), ctx,
+    );
+    expect(out.enhanceCourses).toHaveLength(1);
+    expect(drops.proseCourseCodesUnverified).toBe(1);
+  });
+
   it('reports zero drops for an empty payload', () => {
     const { drops } = validateCurriculumRevisionPayload(payload(), ctx);
     expect(drops).toEqual({
       enhanceCoursesDropped: 0, newCourseProposalsDropped: 0,
       promotionCandidatesDropped: 0, themeRefsDropped: 0, quotesBlanked: 0,
-      promotionsNotElective: 0,
+      promotionsNotElective: 0, evidenceTitlesDropped: 0, rosterNamesDropped: 0,
+      quotesMissing: 0, proseCourseCodesUnverified: 0,
     });
   });
 });
