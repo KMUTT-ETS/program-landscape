@@ -217,10 +217,19 @@ export async function runProgramCoursesExtract(
     // makes the log accurate.
     const seen = new Set<string>();
     let skippedPlaceholder = 0;
-    // First-wins dedup means a course the LLM listed under two หมวด
-    // headings keeps only one category. Counted so a systematically
-    // ambiguous curriculum shows up in the run log instead of silently
-    // producing half-arbitrary categories.
+    // Counts LLM rows dropped by the first-wins dedup below. Usually
+    // benign — per the comment above, the common cause is one course
+    // appearing in both a section table and the study-plan table, same
+    // หมวด both times, so the discarded row was identical anyway. The
+    // number is logged for the rarer case: a course listed under two
+    // DIFFERENT headings, where first-wins silently picks one category.
+    // So treat a nonzero count as a prompt to look, not as evidence of
+    // ambiguity on its own.
+    //
+    // Deliberately NOT incremented by the fallback loop's `seen.has(code)`
+    // check further down: that one skips candidates the LLM already
+    // emitted, which happens on essentially every run and would swamp
+    // this signal. Please don't "fix" the missing increment there.
     let duplicateCourseRows = 0;
     const rows: Array<{
       programId: string;

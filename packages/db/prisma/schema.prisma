@@ -4066,9 +4066,12 @@ model ProgramCourse {
   ///
   /// NULL vs UNKNOWN are different states, and the distinction is
   /// load-bearing for promotion advice:
-  ///   NULL     — never run through a category-aware extractor (rows from
-  ///              program-courses-extract v3 and earlier). Re-run the
-  ///              extractor to fill them.
+  ///   NULL     — never run through a category-aware extractor. Two
+  ///              populations: rows from program-courses-extract v3 and
+  ///              earlier, and ALL rows written by
+  ///              materialise-program-courses.ts, whose PROGRAM_DIGEST
+  ///              source carries no per-course category in any version.
+  ///              Run program-courses-extract to fill them.
   ///   UNKNOWN  — ran, but the curriculum headings did not place the
   ///              course. Always the case for the extractor's regex
   ///              name-fallback path, which never reads หมวด headings.
