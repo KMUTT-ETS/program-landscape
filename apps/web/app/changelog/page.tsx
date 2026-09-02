@@ -26,18 +26,23 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
-    // TODO: fill in the real version number once this ships in a build —
-    // deliberately left unversioned per 2026-09-01 decision to bundle
-    // with a future distribution rather than cut a release just for this.
-    date: '2026-09-01',
-    version: 'Unreleased · Public-profile share link now uses https',
+    date: '2026-09-02',
+    version: 'v1.8.5 · Curriculum revision — turning research strength into course-level advice',
     title:
-      'The shareable link and QR code on your profile page now always start with https — a small number of profiles had been generating a link starting with http instead',
+      'A new Program Deep-Dive section that says which named course to extend and with what, which course a programme is missing, and which elective has earned promotion to required — each anchored to a real course and the papers behind it',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
-      'The "Public profile" card on /profile builds its shareable link and QR code from the site\'s address whenever a required setting is missing, and that fallback wasn\'t reliably detecting that the site is served over https — so the link shown could start with http.',
-      'Fixed at the source: the app now reads the site\'s canonical address directly instead of guessing it, so the link is always correct regardless of what any upstream proxy sends.',
-      'Applied manually on production ahead of the next distribution build, so public-profile links are already correct today.',
+      'New "Curriculum revision" section on each programme\'s deep-dive page. It reports where a programme\'s own research strength is not yet reflected in its courses, and proposes what to do about it.',
+      'Four kinds of advice: a coverage summary (how many research themes the curriculum already reflects, and which are absent entirely); enhancements to named existing courses; proposals for courses the programme does not have; and electives that merit promotion to required.',
+      'Each enhancement names a real course code, quotes that course\'s own คำอธิบายรายวิชา so a reader can check the reasoning against the course\'s own words, states the concrete addition and the effort it takes, and lists the staff papers behind it.',
+      'This replaces programme-level advice that named no course and cited no course content — for example "integrate structured intercultural buddy training modules into the existing study-abroad preparation curriculum", which a department head could not act on.',
+      'Recommendations are checked before they are shown, not merely requested. Any course code or research theme the AI names that does not genuinely belong to that programme is discarded, as is any cited paper title or staff member that cannot be verified against the programme\'s own roster and publications. A recommendation that names a course you cannot look up is worse than no recommendation.',
+      'The section will never recommend closing, retiring, merging or reducing a course. That judgement affects staff livelihoods and research volume is the wrong basis for it, so it is refused at the point of writing rather than left to editorial care.',
+      'Output is proportionate to evidence. A programme whose research rests on a handful of papers gets fewer, more hedged recommendations and a lower confidence score — never a padded revision plan. Confidence uses the same scale as the research analysis above it, so the two sections can never disagree about evidence they share.',
+      'It is a draft for a curriculum committee to edit, never a decision, and the section says so.',
+      'The curriculum extractor now also records which หมวด each course sits under — ศึกษาทั่วไป, บังคับ, เลือก, วิทยานิพนธ์ and so on. That is what makes elective-to-required advice possible, and it is read from the curriculum document\'s own section headings rather than guessed from course titles.',
+      'Where a programme has no research analysis, no extracted course list, or no category data yet, the section says which input is missing and how to supply it — rather than showing an empty panel that reads as "nothing to recommend".',
+      'Also in this release: the shareable link and QR code on your profile page now always start with https. The fallback that builds them from the site address was not reliably detecting that the site is served over https. Fixed at the source, and already applied on production ahead of this build.',
     ],
   },
   {
