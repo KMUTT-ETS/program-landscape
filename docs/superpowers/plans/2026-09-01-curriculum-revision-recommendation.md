@@ -2636,6 +2636,21 @@ function CurriculumRevisionSection({ data }: { data: DeepDiveCurriculumRevision 
         </div>
       )}
 
+      {/* Promotion needs course-category data. Until the category-aware
+          extractor has run, EVERY course is category-unknown and the
+          validator drops every promotion candidate — so an absent section
+          would read as "the model found nothing to promote" when the truth
+          is "we cannot answer this question yet". Say which. */}
+      {payload.promotionCandidates.length === 0 && data.result.coursesWithCategory === 0 && (
+        <Card className="mt-4" padding="sm" tone="quiet">
+          <p className="text-xs text-text-tertiary">
+            Elective-to-core promotion needs each course&rsquo;s curriculum category
+            (บังคับ / เลือก), which has not been extracted for this programme yet.
+            This is a missing input, not a finding that no course qualifies.
+          </p>
+        </Card>
+      )}
+
       {payload.promotionCandidates.length > 0 && (
         <div className="mt-4">
           <h4 className="mb-2 text-sm font-semibold text-text-primary">Promotion candidates</h4>
