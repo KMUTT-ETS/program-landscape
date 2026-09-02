@@ -962,7 +962,7 @@ This is the load-bearing safety mechanism. Pure function, no Prisma — the DB-t
 // packages/db/test/program-curriculum-revision.test.ts
 import { describe, it, expect } from 'vitest';
 import { validateCurriculumRevisionPayload } from '../src/program-curriculum-revision';
-import type { ProgramCurriculumRevision } from '@kku/shared';
+import { CURRICULUM_REVISION_PROVENANCE_CAVEAT, type ProgramCurriculumRevision } from '@kku/shared';
 
 const ctx = {
   validCourseCodes: new Set(['EN241100', 'EN241200']),
@@ -981,7 +981,10 @@ function payload(over: Partial<ProgramCurriculumRevision> = {}): ProgramCurricul
   return {
     coverageSummary: { themesTotal: 2, themesReflectedInCurriculum: 1, themesAbsent: [], narrative: 'n' },
     enhanceCourses: [], newCourseProposals: [], promotionCandidates: [],
-    confidence: 0.7, caveats: [], ...over,
+    // caveats is .min(1).refine()'d to require the provenance sentence —
+    // an empty array is not a payload the schema can produce, so the
+    // fixture carries the real constant rather than [].
+    confidence: 0.7, caveats: [CURRICULUM_REVISION_PROVENANCE_CAVEAT], ...over,
   } as ProgramCurriculumRevision;
 }
 
