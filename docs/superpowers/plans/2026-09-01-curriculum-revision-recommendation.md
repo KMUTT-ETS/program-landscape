@@ -1859,6 +1859,14 @@ export async function generateProgramCurriculumRevision(
     categoryByCourseCode: new Map(
       assembled.input.courses.map((c) => [c.courseCode, c.category]),
     ),
+    // Every paper title the model was actually shown. An evidence title
+    // outside this set was invented — and it is the citation a reader
+    // would follow to check the recommendation.
+    validPaperTitles: new Set(assembled.input.themes.flatMap((t) => t.exampleTitles)),
+    // Roster names the model was shown. A proposal naming someone outside
+    // this set makes an unsupported claim about a real individual in front
+    // of a University Council.
+    validRosterNames: new Set(assembled.input.roster.map((r) => r.name)),
   });
   const totalDropped =
     drops.enhanceCoursesDropped + drops.newCourseProposalsDropped + drops.promotionCandidatesDropped;
