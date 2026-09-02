@@ -1,4 +1,12 @@
-import type { ProgramCurriculumRevision } from '@kku/shared';
+import { z } from 'zod';
+import {
+  ProgramResearchExpertiseSchema,
+  type ProgramCurriculumRevision,
+  type CurriculumRevisionInput,
+  type CurriculumRevisionCourse,
+} from '@kku/shared';
+import { prisma } from './index';
+import { normaliseCourseCode } from './course-code-normalise';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Input assembly + payload validation for program-curriculum-revision.v1.
@@ -320,5 +328,235 @@ export function validateCurriculumRevisionPayload(
       promotionCandidates,
     },
     drops,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Input assembly (Prisma-coupled). Everything above this line is pure.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Why a program cannot be analysed, or how well it can be. */
+export type CurriculumRevisionReadiness = 'ok' | 'thin' | 'no-research' | 'no-courses';
+
+export interface AssembledCurriculumRevisionInput {
+  input: CurriculumRevisionInput;
+  readiness: CurriculumRevisionReadiness;
+  /** Deterministic snapshot persisted alongside the payload so a reader can
+   *  audit the basis without recomputing it. */
+  stats: {
+    courseCount: number;
+    coursesWithDescription: number;
+    coursesWithCategory: number;
+    themeCount: number;
+    totalDistinctPapers: number;
+    rosterSize: number;
+  };
+}
+
+/** The only two fields of the PROGRAM_DIGEST payload this assembler reads.
+ *  Deliberately narrow: the digest schema is large and evolving, and a
+ *  strict parse of the whole thing would make an unrelated field's drift
+ *  silently cost every course its description. */
+const DigestCoursesSchema = z.object({
+  courses: z
+    .array(
+      z.object({
+        code: z.string().default(''),
+        descriptionTh: z.string().default(''),
+        learningOutcomesTh: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
+});
+
+/** ProgramResearchExpertise.inputStatsJson carries the full ExpertiseStats;
+ *  only the distinct-paper total is load-bearing here (it drives the thin
+ *  verdict and the prompt's numeric thinness warning). */
+const ExpertiseStatsSchema = z.object({ totalDistinct: z.number().int().nonnegative() });
+
+/** Distinct papers below this floor is `thin`. The same floor
+ *  program-research-expertise uses; duplicated as a literal rather than
+ *  imported to keep @kku/db free of a circular dependency on the prompt
+ *  module's private constant. */
+const THIN_PAPER_THRESHOLD = 10;
+
+const LEVEL_TH: Record<string, string> = {
+  BACHELOR: 'ป.ตรี',
+  MASTER: 'ป.โท',
+  DOCTORAL: 'ป.เอก',
+  HIGHER_GRAD_DIPLOMA: 'ป.บัณฑิตชั้นสูง',
+};
+
+/**
+ * Assemble everything the prompt needs for one program.
+ *
+ * Course descriptions are recovered from the program's latest approved
+ * PROGRAM_DIGEST by EXACT normalised-code match — deterministic, not fuzzy.
+ * That is sound because ProgramCourse.courseCode is itself produced by
+ * normalising a digest entry's code with the same helper (see
+ * apps/ingestion/src/scripts/materialise-program-courses.ts), so the two
+ * agree by construction. Fuzzy matching here would attach one course's
+ * description to another course's recommendation, which is exactly the
+ * class of ungrounded claim the validator above exists to prevent.
+ *
+ * Returns null ONLY when the program does not exist. A program that cannot
+ * be analysed still returns a result carrying the reason (`readiness`), so
+ * the runner can skip it for free and the UI can explain the skip.
+ */
+export async function assembleCurriculumRevisionInput(
+  programId: string,
+): Promise<AssembledCurriculumRevisionInput | null> {
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: {
+      code: true,
+      nameTh: true,
+      nameEn: true,
+      level: true,
+      totalCredits: true,
+      durationYears: true,
+      faculty: { select: { nameTh: true } },
+    },
+  });
+  if (!program) return null;
+
+  const [programCourses, expertiseRow, digestRow, rosterRows, skillRows] = await Promise.all([
+    prisma.programCourse.findMany({
+      where: { programId },
+      select: {
+        courseCode: true,
+        courseNameTh: true,
+        courseNameEn: true,
+        credits: true,
+        category: true,
+      },
+      orderBy: { courseCode: 'asc' },
+    }),
+    prisma.programResearchExpertise.findFirst({
+      where: { programId },
+      orderBy: { generatedAt: 'desc' },
+      select: { payloadJson: true, inputStatsJson: true },
+    }),
+    prisma.aiExtraction.findFirst({
+      where: {
+        sourceEntityType: 'program',
+        sourceEntityId: programId,
+        extractionKind: 'PROGRAM_DIGEST',
+        reviewStatus: { in: ['APPROVED', 'AUTO_APPROVED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { payloadJson: true },
+    }),
+    prisma.programFaculty.findMany({
+      where: { programId },
+      select: {
+        facultyMember: {
+          select: { nameEn: true, nameTh: true, rank: true, specialization: true },
+        },
+      },
+    }),
+    prisma.programSkill.findMany({
+      where: { programId },
+      select: { skill: { select: { nameEn: true } } },
+    }),
+  ]);
+
+  // Digest descriptions, keyed by normalised code.
+  const descByCode = new Map<string, { descriptionTh: string; learningOutcomesTh: string[] }>();
+  if (digestRow) {
+    const parsed = DigestCoursesSchema.safeParse(digestRow.payloadJson);
+    if (parsed.success) {
+      for (const c of parsed.data.courses) {
+        const key = normaliseCourseCode(c.code);
+        if (key) {
+          descByCode.set(key, {
+            descriptionTh: c.descriptionTh,
+            learningOutcomesTh: c.learningOutcomesTh,
+          });
+        }
+      }
+    }
+  }
+
+  const courses: CurriculumRevisionCourse[] = programCourses.map((pc) => {
+    const d = descByCode.get(pc.courseCode);
+    return {
+      courseCode: pc.courseCode,
+      nameTh: pc.courseNameTh ?? '',
+      nameEn: pc.courseNameEn ?? '',
+      credits: pc.credits,
+      category: pc.category,
+      descriptionTh: d?.descriptionTh ?? '',
+      learningOutcomesTh: d?.learningOutcomesTh ?? [],
+    };
+  });
+
+  // A payload that no longer parses is treated as no research at all, rather
+  // than throwing: one program with a stale payload must not take down a
+  // bulk run over 251 of them. It surfaces as readiness 'no-research'.
+  const parsedExpertise = expertiseRow
+    ? ProgramResearchExpertiseSchema.safeParse(expertiseRow.payloadJson)
+    : null;
+  const themes =
+    parsedExpertise?.success === true
+      ? parsedExpertise.data.themes.map((t) => ({
+          name: t.name,
+          paperCount: t.paperCount,
+          exampleTitles: t.exampleTitles,
+          yearSpan: t.yearSpan,
+          trend: t.trend,
+          evidenceNote: t.evidenceNote,
+        }))
+      : [];
+
+  const totalDistinctPapers = expertiseRow
+    ? (ExpertiseStatsSchema.safeParse(expertiseRow.inputStatsJson).data?.totalDistinct ?? 0)
+    : 0;
+
+  const roster = rosterRows.map((r) => ({
+    name: r.facultyMember.nameEn || r.facultyMember.nameTh,
+    rank: r.facultyMember.rank,
+    specialization: r.facultyMember.specialization,
+  }));
+
+  // Readiness — computed BEFORE any AI call so the runner can skip for free.
+  let readiness: CurriculumRevisionReadiness;
+  if (!expertiseRow || themes.length === 0) readiness = 'no-research';
+  else if (courses.length === 0) readiness = 'no-courses';
+  else if (totalDistinctPapers < THIN_PAPER_THRESHOLD) readiness = 'thin';
+  else readiness = 'ok';
+
+  return {
+    readiness,
+    stats: {
+      courseCount: courses.length,
+      coursesWithDescription: courses.filter((c) => c.descriptionTh.length > 0).length,
+      coursesWithCategory: courses.filter((c) => c.category !== null).length,
+      themeCount: themes.length,
+      totalDistinctPapers,
+      rosterSize: roster.length,
+    },
+    input: {
+      program: {
+        code: program.code,
+        nameTh: program.nameTh,
+        nameEn: program.nameEn,
+        levelTh: LEVEL_TH[program.level] ?? program.level,
+        facultyNameTh: program.faculty.nameTh,
+        totalCredits: program.totalCredits,
+        durationYears: program.durationYears,
+      },
+      courses,
+      themes,
+      roster,
+      currentProgramSkills: skillRows.map((s) => s.skill.nameEn).filter(Boolean),
+      // The prompt only distinguishes thin vs ok; the no-* cases never reach it.
+      readiness: readiness === 'thin' ? 'thin' : 'ok',
+      // The actual paper count, not just the thin/ok label. The prompt renders
+      // a numeric thinness warning from it — mirroring how
+      // program-research-expertise names the real total and the threshold
+      // rather than telling the model "evidence is thin" and hoping.
+      totalDistinctPapers,
+    },
   };
 }

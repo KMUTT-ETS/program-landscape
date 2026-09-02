@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { validateCurriculumRevisionPayload } from '../src/program-curriculum-revision';
+import { normaliseCourseCode } from '../src/course-code-normalise';
 import { CURRICULUM_REVISION_PROVENANCE_CAVEAT, type ProgramCurriculumRevision } from '@kku/shared';
 
 const ctx = {
@@ -270,5 +273,26 @@ describe('validateCurriculumRevisionPayload', () => {
       promotionsNotElective: 0, evidenceTitlesDropped: 0, rosterNamesDropped: 0,
       quotesMissing: 0, proseCourseCodesUnverified: 0, evidenceCheckSkipped: false,
     });
+  });
+});
+
+describe('normaliseCourseCode stays in lockstep with the ingestion copy', () => {
+  it('produces the same output as the ingestion implementation', () => {
+    // The ingestion copy produced every ProgramCourse.courseCode in the DB.
+    // If these diverge, digest descriptions silently stop matching courses.
+    const ingestionSrc = readFileSync(
+      path.join(__dirname, '..', '..', '..', 'apps', 'ingestion', 'src', 'lib', 'course-code.ts'),
+      'utf8',
+    );
+    const body = /export function normaliseCourseCode[\s\S]*?\n}/.exec(ingestionSrc)?.[0];
+    expect(body, 'ingestion normaliseCourseCode not found').toBeTruthy();
+    expect(body).toContain(`replace(/\\s+/g, '').toUpperCase()`);
+  });
+
+  it('strips whitespace and upper-cases', () => {
+    expect(normaliseCourseCode('en 241 100')).toBe('EN241100');
+    expect(normaliseCourseCode(null)).toBe('');
+    expect(normaliseCourseCode(undefined)).toBe('');
+    expect(normaliseCourseCode('')).toBe('');
   });
 });
