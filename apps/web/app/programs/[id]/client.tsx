@@ -13,6 +13,7 @@ import {
   FreshnessBadge,
   FunnelPipeline,
   Input,
+  ProvenanceButton,
   RadarChartSmall,
   type RadarPoint,
   Section,
@@ -39,6 +40,7 @@ import type {
   DeepDiveStrategicNarrative,
   DeepDiveResearchExpertise,
   DeepDiveResearchExpertiseRecommendation,
+  DeepDiveCurriculumRevision,
   DeepDiveCourses,
   DeepDiveDemandFunnel,
   DeepDiveDemographicOutlook,
@@ -104,6 +106,7 @@ interface Props {
   lifecycle: DeepDiveLifecycle | null;
   strategicNarrative: DeepDiveStrategicNarrative | null;
   researchExpertise: DeepDiveResearchExpertise | null;
+  curriculumRevision: DeepDiveCurriculumRevision | null;
   demographicOutlook: DeepDiveDemographicOutlook | null;
   financials: DeepDiveFinancials | null;
   skills: DeepDiveSkills | null;
@@ -327,6 +330,7 @@ export function DeepDiveClient(props: Props) {
           <CoursesSection data={props.courses} programId={props.programId} />
           <FacultySection data={props.faculty} />
           <ResearchExpertiseSection data={props.researchExpertise} />
+          <CurriculumRevisionSection data={props.curriculumRevision} />
         </MacroGroup>
 
         <MacroGroup
@@ -3353,6 +3357,304 @@ function ResearchRecommendationLane({
         </ul>
       )}
     </Card>
+  );
+}
+
+// Course-level curriculum advice derived from the programme's own research
+// (program-curriculum-revision.v1). Sits BELOW the research section, whose
+// three-lane strip stays as the programme-level summary it already is.
+//
+// A draft for a curriculum committee to edit — never a decision. Every
+// course named here is guaranteed to exist: the runner drops any
+// recommendation citing a course outside the programme's real course list.
+function CurriculumRevisionSection({ data }: { data: DeepDiveCurriculumRevision | null }) {
+  if (!data) {
+    return (
+      <EmptyCard
+        title="Curriculum revision"
+        note="Curriculum revision advice unavailable."
+      />
+    );
+  }
+
+  const { result, readiness } = data;
+
+  // FOUR distinct empty reasons, four distinct messages. Conflating any
+  // two of them misleads: "we have nothing to derive this from" and "it
+  // simply has not been generated yet" call for different actions, and
+  // neither is a finding about the curriculum. Same discipline as the
+  // research-expertise section above.
+  if (!result) {
+    let description: string;
+    if (readiness.readiness === 'no-research') {
+      description =
+        'No research-expertise analysis exists for this programme, so there is nothing to derive course-level advice from. Run pnpm expertise:generate --only <code> first.';
+    } else if (readiness.readiness === 'no-courses') {
+      description =
+        'No course list has been extracted for this programme, so there are no courses to advise on. Run pnpm programs:extract-courses <code>.';
+    } else {
+      description = `Analysable, but not generated yet — run pnpm curriculum:revision-generate --program <code>. On file for this programme: ${readiness.courseCount} course${readiness.courseCount === 1 ? '' : 's'}, and ${readiness.distinctPaperCount} distinct paper${readiness.distinctPaperCount === 1 ? '' : 's'} behind the research analysis.`;
+    }
+    return (
+      <Section id="curriculum-revision" title="Curriculum revision">
+        <Card>
+          <EmptyState title="Curriculum revision" description={description} />
+        </Card>
+      </Section>
+    );
+  }
+
+  const { payload, generatedAt, methodVersion, coursesWithCategory } = result;
+
+  return (
+    <Section
+      id="curriculum-revision"
+      title="Curriculum revision"
+      description="Where this programme's own research strength is not yet reflected in its courses. A draft for a curriculum committee to edit, not a decision."
+      actions={
+        <div className="flex items-center gap-2">
+          <ConfidenceBadge value={payload.confidence} />
+          <FreshnessBadge freshnessDate={generatedAt} label="advice generated" />
+          <ProvenanceButton
+            title="Curriculum revision"
+            meta={{
+              freshnessDate: generatedAt,
+              sources: [
+                { id: 'kku-research', name: 'KKU Publications mirror (kku-research)' },
+                { id: 'program-courses', name: 'Curriculum PDF course extraction' },
+                { id: 'program-faculty', name: 'Curated program faculty roster' },
+              ],
+              confidence: payload.confidence,
+              methodologyVersion: methodVersion,
+            }}
+          />
+        </div>
+      }
+    >
+      <Card padding="md">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="text-sm font-semibold text-text-primary">
+            <span className="font-tabular">{payload.coverageSummary.themesReflectedInCurriculum}</span>
+            {' of '}
+            <span className="font-tabular">{payload.coverageSummary.themesTotal}</span>
+            {' research themes'}
+          </span>
+          <span className="text-xs text-text-tertiary">
+            are reflected in the current curriculum
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-text-secondary">{payload.coverageSummary.narrative}</p>
+        {payload.coverageSummary.themesAbsent.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1">
+            <span className="mr-1 text-xs text-text-tertiary">
+              Not represented in any course:
+            </span>
+            {payload.coverageSummary.themesAbsent.map((t) => (
+              <Badge key={t} tone="warning" size="sm">
+                {t}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {payload.enhanceCourses.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-sm font-semibold text-text-primary">
+            Enhance existing courses
+          </h4>
+          <div className="flex flex-col gap-3">
+            {payload.enhanceCourses.map((e) => (
+              <Card key={`${e.courseCode}-${e.addition}`} padding="md">
+                {/* WHICH course — code and Thai name lead the card. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-mono text-xs text-text-tertiary">{e.courseCode}</span>
+                  <span className="text-sm font-medium text-text-primary" lang="th">
+                    {e.courseNameTh}
+                  </span>
+                  <Badge tone="neutral" size="sm">
+                    {e.effort.toLowerCase()} effort
+                  </Badge>
+                </div>
+                {/* WHAT IT TEACHES NOW — verbatim from the course's own
+                    Thai description; blank when the validator could not
+                    confirm the quote, in which case say nothing at all
+                    rather than paraphrase it back. */}
+                {e.currentlyCoversQuote && (
+                  <div className="mt-2">
+                    <span className="text-xs text-text-tertiary">Currently covers</span>
+                    <p
+                      className="mt-0.5 border-l-2 border-border-subtle pl-3 text-xs italic text-text-tertiary"
+                      lang="th"
+                    >
+                      &ldquo;{e.currentlyCoversQuote}&rdquo;
+                    </p>
+                  </div>
+                )}
+                {/* WHAT TO ADD. */}
+                <div className="mt-3">
+                  <span className="text-xs text-text-tertiary">Proposed addition</span>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">{e.addition}</p>
+                  {e.additionDetail && (
+                    <p className="mt-1 text-sm text-text-secondary">{e.additionDetail}</p>
+                  )}
+                </div>
+                {/* WHY — the research theme this closes, then the papers. */}
+                {e.themeRefs.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1">
+                    <span className="mr-1 text-xs text-text-tertiary">
+                      Research theme not yet reflected:
+                    </span>
+                    {e.themeRefs.map((t) => (
+                      <Badge key={t} tone="neutral" size="sm">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {e.evidencePaperTitles.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-text-tertiary">
+                      Evidence — <span className="font-tabular">{e.evidencePaperTitles.length}</span>{' '}
+                      paper{e.evidencePaperTitles.length === 1 ? '' : 's'} by this programme&rsquo;s
+                      own staff
+                    </summary>
+                    <ul className="mt-1 flex flex-col gap-0.5 border-l-2 border-border-subtle pl-3">
+                      {e.evidencePaperTitles.map((t) => (
+                        <li key={t} className="text-xs italic text-text-tertiary">
+                          &ldquo;{t}&rdquo;
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {payload.newCourseProposals.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-sm font-semibold text-text-primary">New course proposals</h4>
+          <div className="flex flex-col gap-3">
+            {payload.newCourseProposals.map((n) => (
+              <Card key={n.titleTh} padding="md">
+                <div className="flex flex-col leading-tight">
+                  <span className="text-sm font-medium text-text-primary" lang="th">
+                    {n.titleTh}
+                  </span>
+                  {n.titleEn && <span className="text-xs text-text-tertiary">{n.titleEn}</span>}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-tertiary">
+                  <span>
+                    <span className="font-tabular">{n.credits}</span> credits
+                  </span>
+                  <span>
+                    Year <span className="font-tabular">{n.placementYear}</span>, semester{' '}
+                    <span className="font-tabular">{n.placementSemester}</span>
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-text-secondary">{n.rationale}</p>
+                {n.couldBeTaughtBy.length > 0 && (
+                  <p className="mt-2 text-xs text-text-tertiary">
+                    Could be taught by:{' '}
+                    {n.couldBeTaughtBy
+                      .map((f) => `${f.name}${f.rank ? ` (${f.rank})` : ''}`)
+                      .join(', ')}
+                  </p>
+                )}
+                {n.themeRefs.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <span className="mr-1 text-xs text-text-tertiary">Research theme:</span>
+                    {n.themeRefs.map((t) => (
+                      <Badge key={t} tone="neutral" size="sm">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {n.evidencePaperTitles.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-text-tertiary">
+                      Evidence — <span className="font-tabular">{n.evidencePaperTitles.length}</span>{' '}
+                      paper{n.evidencePaperTitles.length === 1 ? '' : 's'} by this programme&rsquo;s
+                      own staff
+                    </summary>
+                    <ul className="mt-1 flex flex-col gap-0.5 border-l-2 border-border-subtle pl-3">
+                      {n.evidencePaperTitles.map((t) => (
+                        <li key={t} className="text-xs italic text-text-tertiary">
+                          &ldquo;{t}&rdquo;
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Promotion needs course-category data. Until the category-aware
+          extractor has run, EVERY course is category-unknown and the
+          validator drops every promotion candidate — so an absent section
+          would read as "the model found nothing to promote" when the truth
+          is "we cannot answer this question yet". Say which. */}
+      {payload.promotionCandidates.length === 0 && coursesWithCategory === 0 && (
+        <Card padding="sm" tone="quiet">
+          <p className="text-xs text-text-tertiary">
+            Elective-to-core promotion needs each course&rsquo;s curriculum category
+            (บังคับ / เลือก), which has not been extracted for this programme yet. This is a
+            missing input, not a finding that no course qualifies.
+          </p>
+        </Card>
+      )}
+
+      {payload.promotionCandidates.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-sm font-semibold text-text-primary">Promotion candidates</h4>
+          <div className="flex flex-col gap-3">
+            {payload.promotionCandidates.map((p) => (
+              <Card key={p.courseCode} padding="md">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-mono text-xs text-text-tertiary">{p.courseCode}</span>
+                  <span className="text-sm font-medium text-text-primary" lang="th">
+                    {p.courseNameTh}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  {p.currentCategory} &rarr; {p.proposedCategory}
+                </p>
+                <p className="mt-2 text-sm text-text-secondary">{p.rationale}</p>
+                {p.themeRefs.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <span className="mr-1 text-xs text-text-tertiary">Research theme:</span>
+                    {p.themeRefs.map((t) => (
+                      <Badge key={t} tone="neutral" size="sm">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {payload.caveats.length > 0 && (
+        <Card padding="sm" tone="quiet">
+          <ul className="flex flex-col gap-1">
+            {payload.caveats.map((c) => (
+              <li key={c} className="text-xs text-text-tertiary">
+                {c}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </Section>
   );
 }
 

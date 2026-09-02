@@ -32,6 +32,7 @@ import type {
   DeepDiveLifecycle,
   DeepDiveStrategicNarrative,
   DeepDiveResearchExpertise,
+  DeepDiveCurriculumRevision,
   DeepDiveTrends,
   DeepDiveHealthBenchmarks,
 } from './types';
@@ -69,6 +70,7 @@ export default async function ProgramDeepDivePage({
     lifecycle,
     strategicNarrative,
     researchExpertise,
+    curriculumRevision,
     demographicOutlook,
     financials,
     skills,
@@ -89,6 +91,7 @@ export default async function ProgramDeepDivePage({
     apiFetch<DeepDiveLifecycle>(`/programs/${id}/lifecycle`).catch(() => null),
     apiFetch<DeepDiveStrategicNarrative>(`/programs/${id}/strategic-narrative`).catch(() => null),
     apiFetch<DeepDiveResearchExpertise>(`/programs/${id}/research-expertise`).catch(() => null),
+    apiFetch<DeepDiveCurriculumRevision>(`/programs/${id}/curriculum-revision`).catch(() => null),
     apiFetch<DeepDiveDemographicOutlook>(`/programs/${id}/demographic-outlook`).catch(() => null),
     apiFetch<DeepDiveFinancials>(`/programs/${id}/financials`).catch(() => null),
     apiFetch<DeepDiveSkills>(`/programs/${id}/skills`).catch(() => null),
@@ -216,6 +219,7 @@ export default async function ProgramDeepDivePage({
         lifecycle={lifecycle}
         strategicNarrative={strategicNarrative}
         researchExpertise={researchExpertise}
+        curriculumRevision={curriculumRevision}
         demographicOutlook={demographicOutlook}
         financials={financials}
         skills={skills}
