@@ -99,16 +99,16 @@ export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v4';
  *  UNKNOWN is a first-class answer, not a failure: a course the model
  *  cannot place must say so. Defaulting it into a real category would
  *  produce a confidently wrong promotion recommendation. */
-export const CourseCategoryEnum = z.enum([
+export const CourseCategorySchema = z.enum([
   'GENERAL_EDUCATION', // หมวดวิชาศึกษาทั่วไป
-  'CORE',              // วิชาแกน / วิชาพื้นฐาน
-  'MAJOR_REQUIRED',    // วิชาเฉพาะบังคับ
-  'MAJOR_ELECTIVE',    // วิชาเฉพาะเลือก
+  'CORE',              // กลุ่มวิชาแกน / กลุ่มวิชาพื้นฐาน
+  'MAJOR_REQUIRED',    // วิชาเฉพาะบังคับ / วิชาชีพบังคับ / สหกิจศึกษา
+  'MAJOR_ELECTIVE',    // วิชาเฉพาะเลือก / วิชาเอกเลือก / วิชาโท
   'FREE_ELECTIVE',     // หมวดวิชาเลือกเสรี
-  'THESIS_PROJECT',    // วิทยานิพนธ์ / การศึกษาอิสระ / โครงงาน
+  'THESIS_PROJECT',    // วิทยานิพนธ์ / ดุษฎีนิพนธ์ / สารนิพนธ์ / การศึกษาอิสระ
   'UNKNOWN',
 ]);
-export type CourseCategory = z.infer<typeof CourseCategoryEnum>;
+export type CourseCategory = z.infer<typeof CourseCategorySchema>;
 
 const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
@@ -117,9 +117,11 @@ const CourseSchema = z.object({
   nameTh: z.string().default(''),
   nameEn: z.string().default(''),
   credits: z.number().int().min(0).max(60).nullable().default(null),
-  /** Defaults to UNKNOWN so v3-era payloads and the regex fallback path
-   *  (which has no heading context at all) parse without inventing a หมวด. */
-  category: CourseCategoryEnum.default('UNKNOWN'),
+  /** Defaults to UNKNOWN so a v3-era payload re-parses without inventing a
+   *  หมวด. The regex fallback path never reaches this schema — it builds
+   *  rows directly and carries its own explicit UNKNOWN; see
+   *  FallbackCourseExtraction.category below. */
+  category: CourseCategorySchema.default('UNKNOWN'),
 });
 export type ProgramCoursesExtractCourse = z.infer<typeof CourseSchema>;
 
@@ -234,6 +236,12 @@ export interface FallbackCourseExtraction {
   nameTh: string;
   nameEn: string;
   credits: number | null;
+  /** Always UNKNOWN, and structurally so: this path recovers a course from
+   *  a 300-char window around its code and never reads the หมวด headings,
+   *  so it has no basis to place the course. Stated explicitly rather than
+   *  left absent so downstream promotion logic sees fallback rows as
+   *  unplaced instead of silently missing. */
+  category: Extract<CourseCategory, 'UNKNOWN'>;
   /** How many times the code appeared in the PDF — the caller filters
    *  on this to drop single-mention candidates (mostly page-number
    *  refs and footnote citations rather than real courses). */
@@ -289,7 +297,7 @@ export function extractFallbackCourseFromContext(
     best = { nameTh, nameEn, credits };
   }
   if (!best) return null;
-  return { code, ...best, occurrenceCount };
+  return { code, ...best, category: 'UNKNOWN', occurrenceCount };
 }
 
 const LEVEL_TARGET: Record<string, string> = {
@@ -343,18 +351,40 @@ COURSE CATEGORY:
 Every course must carry a \`category\` naming the หมวด it sits under in the
 curriculum structure:
   GENERAL_EDUCATION  หมวดวิชาศึกษาทั่วไป
-  CORE               วิชาแกน / วิชาพื้นฐาน
-  MAJOR_REQUIRED     วิชาเฉพาะบังคับ (required within the major)
-  MAJOR_ELECTIVE     วิชาเฉพาะเลือก (elective within the major)
+  CORE               กลุ่มวิชาแกน / กลุ่มวิชาพื้นฐาน / วิชาพื้นฐานวิชาชีพ
+  MAJOR_REQUIRED     วิชาเฉพาะบังคับ / วิชาชีพบังคับ / วิชาเอกบังคับ /
+                     สหกิจศึกษา / การฝึกงาน
+  MAJOR_ELECTIVE     วิชาเฉพาะเลือก / วิชาเอกเลือก / วิชาโท
   FREE_ELECTIVE      หมวดวิชาเลือกเสรี
-  THESIS_PROJECT     วิทยานิพนธ์ / การศึกษาอิสระ / โครงงาน
-  UNKNOWN            the section headers do not place this course
+  THESIS_PROJECT     วิทยานิพนธ์ / ดุษฎีนิพนธ์ / สารนิพนธ์ /
+                     การศึกษาอิสระ / โครงงาน / ปัญหาพิเศษ
+  UNKNOWN            the headings do not place this course
 
-Read the category from the section heading the course is listed under, not
-from the course name. When a course appears under no clear heading, return
-UNKNOWN — do NOT infer a category from the course title or code. A wrong
-category is worse than an absent one, because downstream advice about
-promoting an elective to required is built on this field.
+HEADING SCOPE:
+A หมวด / กลุ่มวิชา heading applies to EVERY course row listed beneath it,
+until the next heading of the same or higher level. Carry the current
+heading down the rows — a row is NOT UNKNOWN merely because it sits far
+below its heading. In a มคอ.2 one heading normally governs dozens of rows.
+
+PRECEDENCE (headings nest — the MOST SPECIFIC heading wins):
+- A course under กลุ่มวิชาแกน / กลุ่มวิชาพื้นฐาน is CORE, even though that
+  group sits inside หมวดวิชาเฉพาะ. CORE beats MAJOR_REQUIRED.
+- A course under วิทยานิพนธ์ / ดุษฎีนิพนธ์ / สารนิพนธ์ / การศึกษาอิสระ is
+  THESIS_PROJECT whichever หมวด encloses it. THESIS_PROJECT beats its
+  parent หมวด.
+- MAJOR_REQUIRED is for บังคับ groups inside หมวดวิชาเฉพาะ that are NOT
+  แกน / พื้นฐาน.
+- กลุ่มวิชาเฉพาะด้าน follows its own บังคับ / เลือก label
+  (บังคับ → MAJOR_REQUIRED, เลือก → MAJOR_ELECTIVE); when the group is
+  labelled neither, use MAJOR_REQUIRED.
+
+Read the category from the heading a course is listed under, not from the
+course name. Almost every row in the รายวิชา section sits under a clear
+หมวด heading, so UNKNOWN should be a small minority — ปกติ 0-5 รหัส.
+Use it only when the headings genuinely do not place the course; do NOT
+infer a category from the course title or code. A wrong category is worse
+than an absent one, because downstream advice about promoting an elective
+to required is built on this field.
 
 รูปแบบ JSON ผลลัพธ์ (ออก JSON เดี่ยวเท่านั้น ห้ามมี markdown ห้ามมีคำอธิบายล่วงหน้า):
 {
@@ -440,4 +470,11 @@ ${input.pdfText}
 //     course list but adds a paragraph of prose per row that bloats the
 //     LLM input for no additional code-recall benefit; program-digest
 //     and program-skills-detailed read descriptions separately.
+//   - โครงสร้างหลักสูตร (the §3.1 curriculum-structure table: credit
+//     totals per หมวด) — sits BEFORE this prompt's slice start anchor, so
+//     it is structurally out of reach. The most relevant omission for
+//     `category`: it states the หมวด breakdown independently, so it could
+//     cross-check the per-course categories and catch a mis-carried
+//     heading. Wiring it in means passing a second slice; deferred until
+//     the v4 category output has been measured against real มคอ.2s.
 // ─────────────────────────────────────────────────────────────────────────────
