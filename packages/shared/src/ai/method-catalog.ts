@@ -139,6 +139,15 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     defaultModel: 'gemini-3.5-flash',
   },
   {
+    methodPrefix: 'program-curriculum-revision',
+    currentVersion: 'program-curriculum-revision.v1',
+    label: 'Curriculum revision (course-level)',
+    description: 'Turns the program\'s own research themes into course-level advice: which existing course to extend and with what, where a new course is warranted, and which elective merits promotion. Reasoning tier — the input is a full course list with Thai descriptions plus the research-theme set, and every claim must be anchored to a named course.',
+    module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
     methodPrefix: 'risk-assessment',
     currentVersion: 'risk-assessment.v3',
     label: 'Risk assessment',
