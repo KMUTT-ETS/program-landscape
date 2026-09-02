@@ -40,8 +40,17 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { prisma } from '@kku/db';
+import { CourseCategorySchema, type CourseCategory } from '@kku/shared';
 import { withScriptRun } from '../lib/script-run';
 import { normaliseCourseCode } from '../lib/course-code';
+
+// Single source of truth for the valid หมวด values — derived from the
+// prompt schema rather than re-declared here, so a future prompt-side
+// enum change can't silently drift from this guard. The Prisma column's
+// enum is checked at compile time by the createMany() call below, so a
+// drift between the prompt enum and the DB enum fails the typecheck
+// rather than the run.
+const VALID_CATEGORIES: ReadonlySet<string> = new Set<string>(CourseCategorySchema.options);
 
 interface DigestCourse {
   code?: string;
@@ -49,6 +58,9 @@ interface DigestCourse {
   nameTh?: string;
   nameEn?: string;
   credits?: number;
+  /** Untyped on purpose: digest payloads are stored JSON, so anything
+   *  could be here. Validated against VALID_CATEGORIES before use. */
+  category?: string;
 }
 
 function parseArgs(argv: string[]): { apply: boolean } {
@@ -109,6 +121,7 @@ async function main(): Promise<void> {
     console.log(`Programs to materialise: ${existingIds.size}`);
 
     let totalInserted = 0;
+    let totalWithCategory = 0;
     let totalDropped = 0;
     let totalDuplicateInDigest = 0;
     let totalEmptyCode = 0;
@@ -130,6 +143,7 @@ async function main(): Promise<void> {
           courseNameTh: string | null;
           courseNameEn: string | null;
           credits: number | null;
+          category: CourseCategory | null;
           methodVersion: string;
           ingestionRunId: string;
         }> = [];
@@ -156,6 +170,13 @@ async function main(): Promise<void> {
             courseNameTh: c.nameTh ?? null,
             courseNameEn: c.nameEn ?? null,
             credits: typeof c.credits === 'number' ? c.credits : null,
+            // Pre-v4 payloads carry no category; an unrecognised value is
+            // discarded rather than coerced, so prompt drift can never
+            // silently write a bogus category.
+            category:
+              c.category && VALID_CATEGORIES.has(c.category)
+                ? (c.category as CourseCategory)
+                : null,
             methodVersion: entry.methodVersion,
             ingestionRunId: runId,
           });
@@ -168,6 +189,7 @@ async function main(): Promise<void> {
           ]);
         }
         totalInserted += rows.length;
+        totalWithCategory += rows.filter((r) => r.category !== null).length;
         totalDropped += entry.courses.length - rows.length;
         processed++;
       } catch (err) {
@@ -181,6 +203,7 @@ async function main(): Promise<void> {
     console.log(`Programs processed:        ${processed}`);
     console.log(`Programs failed:           ${failed}`);
     console.log(`Rows ${args.apply ? 'inserted' : 'would-insert'}:        ${totalInserted}`);
+    console.log(`Rows with a category:      ${totalWithCategory} / ${totalInserted}`);
     console.log(`Rows dropped (empty/dup):  ${totalDropped} (empty=${totalEmptyCode}, dup-in-digest=${totalDuplicateInDigest})`);
   });
 }

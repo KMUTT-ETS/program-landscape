@@ -95,8 +95,9 @@ enum CourseType {
 
 /// The หมวด grouping a course sits under in the curriculum structure.
 /// Distinct from CourseType (CORE/ELECTIVE/GENERAL), which cannot express
-/// บังคับ-vs-เลือก within หมวดวิชาเฉพาะ. Populated by
-/// program-courses-extract.v4; NULL on rows extracted by v3 and earlier.
+/// บังคับ-vs-เลือก within หมวดวิชาเฉพาะ. Read from the curriculum
+/// headings by program-courses-extract.v4. UNKNOWN is a first-class
+/// answer — see ProgramCourse.category for how it differs from NULL.
 enum CourseCategory {
   GENERAL_EDUCATION
   CORE
@@ -4059,11 +4060,18 @@ model ProgramCourse {
   courseNameTh   String?  @map("course_name_th")
   courseNameEn   String?  @map("course_name_en")
   credits        Int?
-  /// Nullable: rows extracted by program-courses-extract v3 and earlier
-  /// have no category and must stay valid. Re-run the extractor to fill
-  /// them. Also permanently NULL for rows from the extractor's regex
-  /// name-fallback path, which has no section-heading context to read a
-  /// category from.
+  /// The หมวด grouping this course sits under. Written by both
+  /// program_courses writers (program-courses-extract/run.ts and
+  /// materialise-program-courses.ts).
+  ///
+  /// NULL vs UNKNOWN are different states, and the distinction is
+  /// load-bearing for promotion advice:
+  ///   NULL     — never run through a category-aware extractor (rows from
+  ///              program-courses-extract v3 and earlier). Re-run the
+  ///              extractor to fill them.
+  ///   UNKNOWN  — ran, but the curriculum headings did not place the
+  ///              course. Always the case for the extractor's regex
+  ///              name-fallback path, which never reads หมวด headings.
   category       CourseCategory? @map("category")
   /// Method version of the PROGRAM_DIGEST extractor that produced
   /// this row — lets a methodology bump re-flow new courses without
