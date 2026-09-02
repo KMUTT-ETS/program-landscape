@@ -515,10 +515,19 @@ done < /tmp/course-codes.txt' > logs/courses-extract-v2.out 2>&1 &
 Follow with: `tail -f logs/courses-extract-v2.out`
 Expected: ~285 programmes; several hours; ≈$51. The `|| echo "FAILED $code"` keeps one bad programme from killing the loop — grep the log for `FAILED` afterwards and re-run those individually.
 
-- [ ] **Step 4: Materialise categories into `program_courses`**
+- [ ] **Step 4: Do NOT run the materialiser — it would destroy this run**
 
-Run: `pnpm programs:materialise-program-courses`
-Expected: `Rows with a category:` now a large fraction of total rows.
+> ⚠️ **`pnpm programs:materialise-program-courses` MUST NOT be run after the re-extraction.**
+>
+> An earlier draft of this plan told you to. That was wrong and would have deleted every category the ~$51 run just produced. The reasoning:
+>
+> - `programs:extract-courses` writes `program_courses` **directly** via `program-courses-extract/run.ts`, categories included. After Step 3 the rows are already materialised — there is no second step to run.
+> - `materialise-program-courses.ts` is a **different pipeline** reading `PROGRAM_DIGEST` payloads. `program-digest.v3`'s course schema has **no `category` field**, so every row it writes has `category = NULL`.
+> - It does an unconditional `deleteMany({ programId })` + `createMany(...)` per programme. Running it after Step 3 replaces every category-bearing row with a NULL-category one.
+>
+> The two scripts are competing writers of the same table; whichever runs last wins. Task 3 added a guard that makes the materialiser refuse to clobber v4-extracted rows, but do not rely on it — simply do not run it here.
+
+Nothing to do for this step. Proceed to Step 5.
 
 - [ ] **Step 5: Record real coverage**
 
@@ -2652,6 +2661,7 @@ No commit — verification of already-committed work.
 |---|---|---|
 | `program-courses-extract` is at v1, so the bump is to **v2** | **Wrong** — the file was at **v3**, and the DB already holds real `AiExtraction` rows stamped `program-courses-extract.v2` (5), `v2.1`, `v2.2`, `v2.3` and `v1`. Stamping "v2" would fuse two different prompt behaviours under one version, which `docs/prompt-standard.md` forbids | Caught by the Task 1 implementer; bumped to **v4** throughout. Task 4's verification query updated to match |
 | `program_courses` has one writer (the materialiser), so only it needs the category | **Wrong** — `program-courses-extract/run.ts` also delete-and-replaces a programme's rows. Carrying `category` in only one writer means a later single-programme re-extract silently wipes categories back to NULL, losing part of the $51 run with no error | Caught in Task 1's re-review; Task 3 Step 4 now wires both writers, plus a counter for the first-wins dedup |
+| Task 4 should run `programs:materialise-program-courses` after the re-extraction to "materialise categories" | **Wrong, and destructive.** The two scripts are competing writers of `program_courses` fed by *different* sources. `programs:extract-courses` already writes categories directly; the materialiser reads `PROGRAM_DIGEST`, whose schema has **no category field**, and does an unconditional per-programme `deleteMany` + `createMany`. Running it after Step 3 would have deleted every category the ~$51 run produced | Caught in Task 3's review. Task 4 Step 4 now explicitly forbids it, and Task 3 adds a guard so the materialiser refuses to clobber v4-extracted rows |
 | Controller has `this.ai` for the regenerate endpoint | **Wrong.** Its constructor takes only `CockpitService` + `PdfService` (`deep-dive.controller.ts:110-113`); narrative regeneration delegates to `this.cockpit` | Task 10 Step 3 adds `CurriculumRevisionService`, mirroring `CockpitService`'s `onModuleInit` AI construction |
 | Extraction kind is `PROGRAM_COURSES` | **Wrong** — it is `PROGRAM_COURSES_EXTRACT` (`program-courses-extract/run.ts:183`) | Task 4 Step 2 query corrected |
 | `programs:extract-courses` accepts `--program` and can run in bulk | **Wrong** — positional selector, **one programme per invocation**, no bulk mode | Task 4 Step 3 drives it from a shell loop over codes, with per-programme failure isolation |
