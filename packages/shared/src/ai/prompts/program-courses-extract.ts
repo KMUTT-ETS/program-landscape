@@ -240,10 +240,14 @@ export interface FallbackCourseExtraction {
    *  a 300-char window around its code and never reads the หมวด headings,
    *  so it has no basis to place the course.
    *
-   *  Reserved for the category migration — NOT yet consumed. program_courses
-   *  has no category column, so the runner builds its rows without this
-   *  field and currently drops it. The migration task wires it through both
-   *  writers; until then only the unit test reads it. */
+   *  Consumed — program-courses-extract/run.ts writes it into the
+   *  program_courses.category column on every fallback row. The field
+   *  exists so that write can be explicit: downstream promotion logic
+   *  reads UNKNOWN as "extracted, but the headings could not place it",
+   *  which is a different state from NULL ("never category-extracted",
+   *  i.e. a row from v3 or earlier that a re-run would fill). Dropping
+   *  the field and letting the column default to NULL would collapse
+   *  those two states. */
   category: Extract<CourseCategory, 'UNKNOWN'>;
   /** How many times the code appeared in the PDF — the caller filters
    *  on this to drop single-mention candidates (mostly page-number
