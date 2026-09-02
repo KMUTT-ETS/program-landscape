@@ -741,7 +741,8 @@ export const ProgramCurriculumRevisionSchema = z.object({
       z.object({
         titleTh: z.string(),
         titleEn: z.string().default(''),
-        credits: z.number().int().min(0).max(30),
+        // min(1): a proposed course carrying zero credits is not a course.
+        credits: z.number().int().min(1).max(30),
         placementYear: z.number().int().min(1).max(8),
         placementSemester: z.number().int().min(1).max(3),
         themeRefs: z.array(z.string()).default([]),
@@ -965,6 +966,10 @@ import type { ProgramCurriculumRevision } from '@kku/shared';
 
 const ctx = {
   validCourseCodes: new Set(['EN241100', 'EN241200']),
+  categoryByCourseCode: new Map<string, string | null>([
+    ['EN241100', 'MAJOR_ELECTIVE'],
+    ['EN241200', 'MAJOR_REQUIRED'],
+  ]),
   validThemeNames: new Set(['Vector databases', 'Graph learning']),
   descriptionByCourseCode: new Map([
     ['EN241100', 'ศึกษาโครงสร้างข้อมูลพื้นฐาน  เช่น array และ linked list'],
@@ -1050,6 +1055,27 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(drops.promotionCandidatesDropped).toBe(1);
   });
 
+  it('drops a promotion candidate for a course that is not MAJOR_ELECTIVE', () => {
+    // EN241200 is MAJOR_REQUIRED — there is no promotion to make. The prompt
+    // states this rule; the validator is what enforces it.
+    const { payload: out, drops } = validateCurriculumRevisionPayload(
+      payload({ promotionCandidates: [
+        { courseCode: 'EN241200', courseNameTh: 'x', currentCategory: 'MAJOR_REQUIRED', proposedCategory: 'MAJOR_REQUIRED', themeRefs: ['Vector databases'], rationale: 'r' },
+      ] }), ctx,
+    );
+    expect(out.promotionCandidates).toHaveLength(0);
+    expect(drops.promotionsNotElective).toBe(1);
+  });
+
+  it('keeps a promotion candidate that IS MAJOR_ELECTIVE', () => {
+    const { payload: out } = validateCurriculumRevisionPayload(
+      payload({ promotionCandidates: [
+        { courseCode: 'EN241100', courseNameTh: 'x', currentCategory: 'MAJOR_ELECTIVE', proposedCategory: 'MAJOR_REQUIRED', themeRefs: ['Vector databases'], rationale: 'r' },
+      ] }), ctx,
+    );
+    expect(out.promotionCandidates).toHaveLength(1);
+  });
+
   it('drops a new-course proposal whose theme refs are all invented', () => {
     const { payload: out, drops } = validateCurriculumRevisionPayload(
       payload({ newCourseProposals: [
@@ -1072,6 +1098,7 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(drops).toEqual({
       enhanceCoursesDropped: 0, newCourseProposalsDropped: 0,
       promotionCandidatesDropped: 0, themeRefsDropped: 0, quotesBlanked: 0,
+      promotionsNotElective: 0,
     });
   });
 });
@@ -1105,6 +1132,12 @@ import type { ProgramCurriculumRevision } from '@kku/shared';
 export interface CurriculumRevisionValidationContext {
   /** Course codes that genuinely exist for THIS program. */
   validCourseCodes: Set<string>;
+  /** courseCode → its CourseCategory (or null when the extractor could not
+   *  place it). Promotion advice is only defensible for a course actually
+   *  recorded as MAJOR_ELECTIVE — the prompt states that rule but nothing
+   *  enforced it, so a promotion citing an already-required course would
+   *  have rendered to Council. */
+  categoryByCourseCode: Map<string, string | null>;
   /** Theme names from the program's own research-expertise payload. */
   validThemeNames: Set<string>;
   /** courseCode → that course's real Thai description, for quote checking. */
@@ -1117,6 +1150,11 @@ export interface CurriculumRevisionDrops {
   promotionCandidatesDropped: number;
   themeRefsDropped: number;
   quotesBlanked: number;
+  /** Subset of promotionCandidatesDropped: dropped specifically because the
+   *  course is not recorded as MAJOR_ELECTIVE. Counted separately because a
+   *  high rate means the model is ignoring the category rule, which is a
+   *  different problem from it inventing course codes. */
+  promotionsNotElective: number;
 }
 
 /** Collapse all whitespace so a verbatim quote still matches when the model
@@ -1150,6 +1188,7 @@ export function validateCurriculumRevisionPayload(
     promotionCandidatesDropped: 0,
     themeRefsDropped: 0,
     quotesBlanked: 0,
+    promotionsNotElective: 0,
   };
 
   const filterThemeRefs = (refs: string[]): string[] => {
@@ -1194,6 +1233,15 @@ export function validateCurriculumRevisionPayload(
   for (const item of raw.promotionCandidates) {
     if (!ctx.validCourseCodes.has(item.courseCode)) {
       drops.promotionCandidatesDropped++;
+      continue;
+    }
+    // Promotion means elective → required. A course that is already
+    // required, or whose category the extractor could not determine, has
+    // no promotion to make. The prompt states this rule; this is what
+    // enforces it.
+    if (ctx.categoryByCourseCode.get(item.courseCode) !== 'MAJOR_ELECTIVE') {
+      drops.promotionCandidatesDropped++;
+      drops.promotionsNotElective++;
       continue;
     }
     const themeRefs = filterThemeRefs(item.themeRefs);
@@ -1771,6 +1819,9 @@ export async function generateProgramCurriculumRevision(
     descriptionByCourseCode: new Map(
       assembled.input.courses.map((c) => [c.courseCode, c.descriptionTh]),
     ),
+    categoryByCourseCode: new Map(
+      assembled.input.courses.map((c) => [c.courseCode, c.category]),
+    ),
   });
   const totalDropped =
     drops.enhanceCoursesDropped + drops.newCourseProposalsDropped + drops.promotionCandidatesDropped;
@@ -1795,9 +1846,24 @@ export async function generateProgramCurriculumRevision(
     confidence = ceiling;
   }
 
+  // themesTotal is trivially computable from the input, so do not let the
+  // model report it — a Council-facing count that contradicts the evidence
+  // block beside it destroys trust in the whole section. themesReflected is
+  // derived the same way: total minus the themes the model (post-validation)
+  // says have no course home. Both are overwritten, not merely checked.
+  const themesTotal = assembled.input.themes.length;
+  const themesReflectedInCurriculum = Math.max(
+    0,
+    themesTotal - validated.coverageSummary.themesAbsent.length,
+  );
+
   // Persist the POST-clamp, POST-validation payload — a Council-facing
   // reader must never see a claim the runner itself rejected.
-  const payload = { ...validated, confidence };
+  const payload = {
+    ...validated,
+    coverageSummary: { ...validated.coverageSummary, themesTotal, themesReflectedInCurriculum },
+    confidence,
+  };
 
   const created = await prisma.programCurriculumRevision.create({
     data: {
