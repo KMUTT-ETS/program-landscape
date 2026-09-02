@@ -80,6 +80,192 @@ const THIN_TOTAL_RECOMMENDATION_CEILING = 2;
  *  `input.readiness`, never re-derived here. */
 const THIN_PAPER_THRESHOLD = 10;
 
+// ── HARD CONSTRAINT 5: the course-closure ban ────────────────────────────────
+// One source, two consumers. The constraint's PROSE below is built from
+// CLOSURE_CONCEPT_GERUNDS, and the runner's enforcement gate
+// (packages/db/src/program-curriculum-revision-run.ts) is built from
+// CLOSURE_POLICY. Both live here so that changing what this section forbids
+// is ONE edit rather than two that silently drift apart — the earlier
+// hand-maintained gate covered 8 of the 11 concepts the prose bans, so
+// "remove the unit", "downgrade it to elective" and "reduce the credits"
+// passed a check whose whole purpose was to stop them.
+//
+// WHY A GATE AT ALL, when the prompt already says it: recommending that a
+// course be retired or merged affects staff livelihoods, and research volume
+// is the wrong basis for that judgement. A prompt-level ban is a request; the
+// runner forces a rewrite.
+
+/** The forbidden concepts, as the gerunds HARD CONSTRAINT 5 reads with. */
+const CLOSURE_CONCEPT_GERUNDS = [
+  'removing',
+  'retiring',
+  'closing',
+  'discontinuing',
+  'suspending',
+  'consolidating',
+  'merging',
+  'phasing out',
+  'sunsetting',
+  'downgrading',
+  'reducing the credits of',
+] as const;
+
+function joinWithOr(items: readonly string[]): string {
+  if (items.length < 2) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')}, or ${items[items.length - 1]}`;
+}
+
+/**
+ * The same ban, in the form a linter can apply.
+ *
+ * TWO TIERS, because a flat word list over-fires on ordinary curriculum
+ * prose and a false positive is not free: it burns an AI call on a rewrite
+ * and raises `lintRetried`, which an operator reads as "the model tried to
+ * recommend closure" — a misleading flag on a safety signal. Measured
+ * against real phrasing, a bare list wrongly fires on "closing the gap
+ * between research and the taught curriculum" (the schema's own field doc
+ * describes themeRefs as "the gap being closed"), "a close alignment
+ * between theme 2 and EN241100", "students consolidate prior learning in
+ * the capstone", "consolidation of statistics content across the two
+ * courses", "a module on suspended solids", and "merging the two topics
+ * into a single 3-credit module".
+ *
+ * So: `unambiguous` terms have no innocent reading in curriculum prose and
+ * match bare. `ambiguous` terms match only when bound to something that can
+ * actually be closed — forward within `forwardWindow` tokens ("merge the
+ * course"), or in the passive with only `passiveGlue` between ("the course
+ * should be merged"). The passive direction is deliberately far tighter
+ * than the forward one: a generous reverse window cannot tell "the course
+ * be merged" from "a module on suspended solids", which have identical
+ * shape.
+ *
+ * RESIDUAL FALSE POSITIVE, accepted: `retirement` fires on a caveat about a
+ * roster member approaching retirement. Retiring a PERSON is not this
+ * section's business either way, so the cost is one wasted rewrite on prose
+ * that was off-topic regardless.
+ */
+export const CLOSURE_POLICY = {
+  /** No innocent reading in curriculum prose — matched bare. A space in a
+   *  phrase matches a hyphen too, so 'phase out' catches 'phase-out'. */
+  unambiguous: [
+    'retire',
+    'retires',
+    'retired',
+    'retiring',
+    'retirement',
+    'discontinue',
+    'discontinues',
+    'discontinued',
+    'discontinuing',
+    'discontinuation',
+    'sunset',
+    'sunsets',
+    'sunsetted',
+    'sunsetting',
+    'terminate',
+    'terminates',
+    'terminated',
+    'terminating',
+    'termination',
+    'downgrade',
+    'downgrades',
+    'downgraded',
+    'downgrading',
+    'phase out',
+    'phases out',
+    'phased out',
+    'phasing out',
+    'teach out',
+    'teaching out',
+  ],
+  /** Innocent in ordinary curriculum prose — matched only when bound to an
+   *  object noun below. */
+  ambiguous: [
+    'close',
+    'closes',
+    'closed',
+    'closing',
+    'closure',
+    'consolidate',
+    'consolidates',
+    'consolidated',
+    'consolidating',
+    'consolidation',
+    'merge',
+    'merges',
+    'merged',
+    'merging',
+    'merger',
+    'suspend',
+    'suspends',
+    'suspended',
+    'suspending',
+    'suspension',
+    'remove',
+    'removes',
+    'removed',
+    'removing',
+    'removal',
+    'reduce',
+    'reduces',
+    'reduced',
+    'reducing',
+    'reduction',
+    'eliminate',
+    'eliminates',
+    'eliminated',
+    'eliminating',
+    'elimination',
+  ],
+  /** Things that can be closed. `credit(s)` is here so "reduce the credits
+   *  of EN241100" is caught — the concept the prose bans as "reducing the
+   *  credits of". */
+  objectNouns: [
+    'course',
+    'courses',
+    'programme',
+    'programmes',
+    'program',
+    'programs',
+    'curriculum',
+    'curricula',
+    'elective',
+    'electives',
+    'module',
+    'modules',
+    'degree',
+    'degrees',
+    'credit',
+    'credits',
+    'unit',
+    'units',
+  ],
+  /** Tokens allowed between the object noun and a passive-voice term. */
+  passiveGlue: [
+    'be',
+    'is',
+    'are',
+    'was',
+    'were',
+    'been',
+    'being',
+    'should',
+    'could',
+    'would',
+    'will',
+    'may',
+    'might',
+    'can',
+    'to',
+    'get',
+    'gets',
+  ],
+  /** Tokens an object noun may sit past, scanning FORWARD from the term. */
+  forwardWindow: 4,
+  /** Glue tokens allowed between an object noun and a following term. */
+  passiveWindow: 2,
+} as const;
+
 const EffortEnum = z.enum(['MINOR', 'MODERATE', 'MAJOR']);
 
 export const ProgramCurriculumRevisionSchema = z.object({
@@ -205,7 +391,7 @@ HARD CONSTRAINTS:
 2. **Themes are closed too.** Every theme name you emit ANYWHERE — themeRefs in any of the three lanes, and coverageSummary.themesAbsent — must match a name from the RESEARCH THEMES block exactly. A theme name that is not on that list is discarded.
 3. **currentlyCoversQuote must be VERBATIM** from that course's own description in the COURSES block — copy the text, do not paraphrase or summarise. It is what lets a reader confirm you understood the course. Quote the RELEVANT SPAN, not the whole description: up to about 200 characters, cut at a natural boundary. When a course shows "(none on file)" it has no description: return an empty string for that field rather than quoting the placeholder.
 4. **You were shown paper TITLES only** — no abstracts, no findings. Never claim what a paper concluded or how it was conducted. That a paper belongs to a subject area is title-supportable; what it found is not.
-5. **Never propose ending or shrinking anything.** Do not recommend, suggest, hint at, or speculate about removing, retiring, closing, discontinuing, suspending, consolidating, merging, phasing out, sunsetting, downgrading, or reducing the credits of any course or program. This applies IN ANY FIELD — narrative, rationale, additionDetail, addition, and caveats included, not only in the recommendation lanes. That judgement affects staff livelihoods, is modelled elsewhere by people accountable for it, and cannot rest on research volume. Your lane is additions, extensions and promotions only.
+5. **Never propose ending or shrinking anything.** Do not recommend, suggest, hint at, or speculate about ${joinWithOr(CLOSURE_CONCEPT_GERUNDS)} any course or program. This applies IN ANY FIELD — narrative, rationale, additionDetail, addition, and caveats included, not only in the recommendation lanes. That judgement affects staff livelihoods, is modelled elsewhere by people accountable for it, and cannot rest on research volume. Your lane is additions, extensions and promotions only.
 6. **Promotion advice requires category evidence.** Only propose promoting a course whose category is given as MAJOR_ELECTIVE. When a course's category is unknown, it is not eligible — say nothing about its status.
 7. **Evidence-proportional output, with hard ceilings.** At most ${MAX_ENHANCE_COURSES} enhanceCourses, ${MAX_NEW_COURSE_PROPOSALS} newCourseProposals and ${MAX_PROMOTION_CANDIDATES} promotionCandidates — exceeding any ceiling invalidates the entire response. When the research evidence is marked THIN below, return at most ${THIN_TOTAL_RECOMMENDATION_CEILING} recommendations IN TOTAL across all three lanes, hedge them, and say why in caveats. Padding a thin portfolio into a confident revision plan is the failure mode this section exists to avoid. One well-grounded recommendation is a better answer than five speculative ones.
 

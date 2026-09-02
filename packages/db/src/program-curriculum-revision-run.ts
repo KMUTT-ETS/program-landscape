@@ -2,6 +2,7 @@ import {
   buildProgramCurriculumRevisionMessages,
   ProgramCurriculumRevisionSchema,
   PROGRAM_CURRICULUM_REVISION_VERSION,
+  CLOSURE_POLICY,
   researchExpertiseConfidenceCeiling,
   lintBannedTells,
   extractStructuredWithParseRetry,
@@ -30,8 +31,12 @@ import {
 //      section grades, so a Deep-Dive page must never show a confident
 //      curriculum recommendation directly beneath a low-confidence research
 //      analysis built from identical evidence.
-//   4. NEW — validateCurriculumRevisionPayload strips any recommendation
-//      naming a course, theme, paper or person that does not exist.
+//   4. NEW — validateCurriculumRevisionPayload. It DROPS an item whose own
+//      subject is unfounded (a courseCode or every themeRef that does not
+//      exist, an enhancement with no real paper behind it), and STRIPS the
+//      unfounded parts of an item that otherwise stands: a co-teacher who is
+//      not on the roster loses their entry, a quote that is not verbatim is
+//      blanked. Dropping and stripping are counted separately.
 //   5. NEW — the coverage counts are DERIVED from the input, never taken from
 //      the model.
 //
@@ -41,38 +46,94 @@ import {
 // INSERT-ONLY, like ProgramResearchExpertise — history accretes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Words that would turn this section into course-closure advice. The spec
- *  forbids that outright — it affects staff livelihoods and research volume
- *  is the wrong basis for it — so these force a corrective retry rather than
- *  being left to the prompt's good behaviour. Several of them are this
- *  product's own scenario-planner intervention names (sunset, merge,
- *  consolidate), which is exactly why a model steeped in the codebase might
- *  reach for them here. */
-const CLOSURE_TERMS = [
-  'retire',
-  'retiring',
-  'retired',
-  'consolidate',
-  'consolidating',
-  'consolidation',
-  'merge',
-  'merging',
-  'merged',
-  'close',
-  'closing',
-  'closure',
-  'discontinue',
-  'discontinuing',
-  'discontinued',
-  'suspend',
-  'suspending',
-  'suspended',
-  'phase out',
-  'phasing out',
-  'phased out',
-  'sunset',
-  'sunsetting',
-] as const;
+/** Word-ish tokens, lowercased, for the bound-term scan below. Hyphenated
+ *  compounds split at the hyphen, so '3-credit module' yields 'credit' —
+ *  which is the reading we want. */
+const WORD_TOKEN_RE = /[A-Za-z][A-Za-z']*/g;
+
+/** Sentence and field boundaries. Adjacency does not carry across one. */
+const SEGMENT_SPLIT_RE = /[.!?;\n\r]+/;
+
+const UNAMBIGUOUS_PATTERNS: ReadonlyArray<{ phrase: string; regex: RegExp }> =
+  CLOSURE_POLICY.unambiguous.map((phrase) => ({
+    phrase,
+    // A space in a policy phrase matches a hyphen too: 'phase out' must also
+    // catch 'phase-out', which is how the noun form is usually written.
+    regex: new RegExp(`\\b${phrase.replace(/\s+/g, '[-\\s]+')}\\b`, 'i'),
+  }));
+
+const AMBIGUOUS_TERMS = new Set<string>(CLOSURE_POLICY.ambiguous);
+const OBJECT_NOUNS = new Set<string>(CLOSURE_POLICY.objectNouns);
+const PASSIVE_GLUE = new Set<string>(CLOSURE_POLICY.passiveGlue);
+
+/**
+ * Phrases in `text` that propose ending or shrinking a course — HARD
+ * CONSTRAINT 5 of the prompt, enforced.
+ *
+ * The vocabulary lives in `CLOSURE_POLICY` beside the constraint's own prose
+ * (packages/shared/src/ai/prompts/program-curriculum-revision.ts) so the two
+ * cannot drift; this function is only the matching. See that constant for
+ * why the terms are split into two tiers and why the passive window is much
+ * tighter than the forward one.
+ */
+export function findClosureViolations(text: string): string[] {
+  const hits = new Set<string>();
+  // Scan SENTENCE BY SENTENCE, never the joined string. Both binding rules
+  // below reason about adjacency, and the lintable text is a concatenation of
+  // unrelated fields — so a whole-string scan invents adjacencies that no
+  // reader would perceive. Measured: "…to the water-treatment unit." followed
+  // by "Merging the two topics…" fused into a passive-voice match across the
+  // field boundary, and an `addition` of "phase" beside an `additionDetail`
+  // of "out" matched the multi-word phrase 'phase out'. Both were false
+  // positives manufactured entirely by the join.
+  for (const segment of text.split(SEGMENT_SPLIT_RE)) {
+    if (segment.trim().length === 0) continue;
+    scanSegment(segment, hits);
+  }
+  return [...hits];
+}
+
+function scanSegment(segment: string, hits: Set<string>): void {
+  for (const { phrase, regex } of UNAMBIGUOUS_PATTERNS) {
+    if (regex.test(segment)) hits.add(phrase);
+  }
+
+  const tokens = (segment.match(WORD_TOKEN_RE) ?? []).map((t) => t.toLowerCase());
+  const isObject = (index: number): boolean => {
+    const token = tokens[index];
+    return token !== undefined && OBJECT_NOUNS.has(token);
+  };
+
+  for (let i = 0; i < tokens.length; i++) {
+    const term = tokens[i];
+    if (term === undefined || !AMBIGUOUS_TERMS.has(term)) continue;
+
+    // Forward: 'merge the two remaining courses'. Any tokens may intervene,
+    // so long as the object is close enough to plausibly be the term's.
+    let bound = false;
+    const forwardEnd = Math.min(tokens.length - 1, i + CLOSURE_POLICY.forwardWindow);
+    for (let j = i + 1; j <= forwardEnd; j++) {
+      if (isObject(j)) {
+        bound = true;
+        break;
+      }
+    }
+
+    // Passive: 'the course should be merged'. Only auxiliary glue may
+    // intervene — 'a module on suspended solids' has the identical
+    // object-then-term shape and must not match.
+    if (!bound) {
+      for (let back = 1; back <= CLOSURE_POLICY.passiveWindow + 1 && i - back >= 0; back++) {
+        const k = i - back;
+        if (!isObject(k)) continue;
+        if (tokens.slice(k + 1, i).every((t) => PASSIVE_GLUE.has(t))) bound = true;
+        break;
+      }
+    }
+
+    if (bound) hits.add(term);
+  }
+}
 
 export interface RunCurriculumRevisionParams {
   programId: string;
@@ -108,9 +169,18 @@ export type CurriculumRevisionOutcome =
   | { status: 'FAILED'; reason: string };
 
 /**
- * Joins the payload's free-text fields into one string for linting: the
- * coverage narrative, every recommendation's prose across all three lanes,
- * and the caveats.
+ * Joins the payload's model-authored free text into one string for linting:
+ * the coverage narrative, every recommendation's prose across all three
+ * lanes, the proposed course titles, and the caveats. HARD CONSTRAINT 5 says
+ * the closure ban applies IN ANY FIELD, so the titles are in scope — a
+ * proposal titled "Consolidated Data Structures" is a title the model wrote.
+ *
+ * `currentlyCoversQuote` is deliberately NOT linted: it is a verbatim
+ * quotation of the curriculum document's own Thai, so a violation there
+ * would be a property of KKU's source text rather than of anything the model
+ * chose to say. Linting it would make the gate fire on the university's
+ * existing course descriptions and force a rewrite the model cannot perform
+ * without breaking the verbatim requirement.
  *
  * NAMED FOR THIS MODULE, not `buildLintableText`: program-research-expertise-run.ts
  * already exports that name and packages/db/src/index.ts re-exports both
@@ -126,14 +196,14 @@ export type CurriculumRevisionOutcome =
 export function buildCurriculumRevisionLintableText(payload: {
   coverageSummary: { narrative: string };
   enhanceCourses: Array<{ addition: string; additionDetail: string }>;
-  newCourseProposals: Array<{ rationale: string }>;
+  newCourseProposals: Array<{ titleTh: string; titleEn: string; rationale: string }>;
   promotionCandidates: Array<{ rationale: string }>;
   caveats: string[];
 }): string {
   return [
     payload.coverageSummary.narrative,
     ...payload.enhanceCourses.flatMap((e) => [e.addition, e.additionDetail]),
-    ...payload.newCourseProposals.map((n) => n.rationale),
+    ...payload.newCourseProposals.flatMap((n) => [n.titleTh, n.titleEn, n.rationale]),
     ...payload.promotionCandidates.map((p) => p.rationale),
     ...payload.caveats,
   ].join('\n');
@@ -149,10 +219,10 @@ export function buildCurriculumRevisionLintableText(payload: {
  * quieter and more damaging of the two failures.
  */
 export function collectCurriculumRevisionViolations(text: string): Array<{ phrase: string }> {
-  const closure = CLOSURE_TERMS.filter((term) => new RegExp(`\\b${term}\\b`, 'i').test(text)).map(
-    (phrase) => ({ phrase: phrase as string }),
-  );
-  return [...lintBannedTells(text).map((v) => ({ phrase: v.phrase })), ...closure];
+  return [
+    ...lintBannedTells(text).map((v) => ({ phrase: v.phrase })),
+    ...findClosureViolations(text).map((phrase) => ({ phrase })),
+  ];
 }
 
 export async function generateProgramCurriculumRevision(
@@ -163,10 +233,11 @@ export async function generateProgramCurriculumRevision(
     return { status: 'SKIPPED', reason: `program not found: ${params.programId}`, readiness: null };
   }
 
-  // Zero AI calls, nothing stored — see readinessFor() in
-  // program-curriculum-revision.ts. A program with no research themes has
-  // nothing to reason from, and one with no course rows has nothing to
-  // reason about; spending a call to say so would be pure waste.
+  // Zero AI calls, nothing stored. Readiness is computed inline at the end of
+  // assembleCurriculumRevisionInput() in program-curriculum-revision.ts. A
+  // program with no research themes has nothing to reason from, and one with
+  // no course rows has nothing to reason about; spending a call to say so
+  // would be pure waste.
   if (assembled.readiness === 'no-research' || assembled.readiness === 'no-courses') {
     return { status: 'SKIPPED', reason: assembled.readiness, readiness: assembled.readiness };
   }
@@ -203,11 +274,13 @@ export async function generateProgramCurriculumRevision(
   // course-closure policy gate — one corrective retry, then persist-and-warn
   // (same posture as program-research-expertise-run.ts).
   //
-  // The closure terms are enforced here rather than trusted to the prompt
+  // The closure ban is enforced here rather than trusted to the prompt
   // because recommending that a course be retired/merged/closed affects staff
   // livelihoods, and research volume is the wrong basis for that judgement.
   // The spec forbids it outright, so a violation must force a rewrite exactly
-  // the way a banned tell does.
+  // the way a banned tell does. Two of the banned words (merge, sunset) are
+  // this product's own scenario-planner intervention names, which is exactly
+  // why a model steeped in the codebase might reach for them here.
   let lintRetried = false;
   const violations = collectCurriculumRevisionViolations(
     buildCurriculumRevisionLintableText(response.parsed),
@@ -319,17 +392,27 @@ export async function generateProgramCurriculumRevision(
   // already had invented theme names filtered out of it, and counting the
   // unfiltered list would report a coverage figure computed from names the
   // runner itself just rejected.
+  //
+  // DEDUPED FIRST, and the deduped list is what gets persisted, so the count
+  // and the rendered list agree. A repeated name does not just risk a
+  // negative count — it silently UNDERSTATES coverage: three themes with one
+  // absent name listed twice would report 1 reflected instead of 2. With the
+  // list deduped and already restricted to real theme names, the subtraction
+  // cannot go negative, so no clamp is needed to hide the arithmetic.
+  const themesAbsent = [...new Set(validated.coverageSummary.themesAbsent)];
   const themesTotal = assembled.input.themes.length;
-  const themesReflectedInCurriculum = Math.max(
-    0,
-    themesTotal - validated.coverageSummary.themesAbsent.length,
-  );
+  const themesReflectedInCurriculum = themesTotal - themesAbsent.length;
 
   // Persist the POST-validation, POST-clamp payload — a Council-facing reader
   // must never see a claim the runner itself rejected.
   const payload = {
     ...validated,
-    coverageSummary: { ...validated.coverageSummary, themesTotal, themesReflectedInCurriculum },
+    coverageSummary: {
+      ...validated.coverageSummary,
+      themesAbsent,
+      themesTotal,
+      themesReflectedInCurriculum,
+    },
     confidence,
   };
 
