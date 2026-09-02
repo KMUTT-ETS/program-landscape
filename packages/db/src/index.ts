@@ -56,4 +56,5 @@ export * from './aunqa-evidence';
 export * from './aunqa-readiness';
 export * from './aunqa-criterion-narrative-run';
 export * from './program-curriculum-revision';
+export * from './program-curriculum-revision-run';
 export * from './course-code-normalise';
