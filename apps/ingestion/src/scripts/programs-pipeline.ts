@@ -130,6 +130,7 @@ import {
   generateProgramCurriculumRevision,
   adoptPendingRevision,
   markRevisionAnalysed,
+  activeRevisionIdFor,
 } from '@kku/db';
 import {
   createAiService,
@@ -321,6 +322,16 @@ async function processProgram(
   if (adoptedRevisionId) {
     console.log(`    · adopted revision ${adoptedRevisionId} — rows written by this run carry it`);
   }
+
+  // The revision every row written by this run will carry. Resolved AFTER
+  // adoption on purpose — adoptPendingRevision() returns null when nothing
+  // was pending, but the programme may still have an activeRevisionId from
+  // an earlier run, and the guards below must compare against THAT.
+  //
+  // For the 299 programmes that have never been revised this is null, which
+  // Prisma renders as `IS NULL` and which matches their existing
+  // null-provenance rows — so they skip exactly as they did before.
+  const runRevisionId = await activeRevisionIdFor(program.id);
 
   // ── Shared phase-1/2b inputs — prepare ONCE per program ──────────
   // Previously each of {digest, faculty, skills, pedagogy} + {2b
@@ -587,12 +598,21 @@ async function processProgram(
   // INSERT-ONLY runner (see the phase-list header comment above): the
   // pipeline enforces skip-if-exists itself so an unattended --all rerun
   // never accretes duplicate rows for a program that's already been
-  // analysed. No --force override for this phase — re-analysis is an
-  // explicit `pnpm expertise:generate --only <code>` operator action.
+  // analysed at its CURRENT revision. Still no --force override — but the
+  // skip is scoped to runRevisionId, so a programme whose มคอ.2 was just
+  // revised regenerates automatically instead of staying skipped forever;
+  // manual re-analysis of an unchanged programme is still an explicit
+  // `pnpm expertise:generate --only <code>` operator action.
   if (shouldRun('phaseRE')) {
     const t = Date.now();
     const existing = await prisma.programResearchExpertise.findFirst({
-      where: { programId: program.id },
+      // Scoped to THIS run's revision, not merely "a row exists". A revised
+      // curriculum leaves the previous row stamped with the superseded
+      // revision (or null, pre-feature), so it no longer matches and the
+      // analysis regenerates against the new มคอ.2. Unrevised programmes
+      // resolve runRevisionId to null, which matches their existing null
+      // rows and skips at $0 exactly as before.
+      where: { programId: program.id, programRevisionId: runRevisionId },
       select: { id: true },
     });
     if (existing) {
@@ -627,10 +647,9 @@ async function processProgram(
   // program_research_expertise row that phase writes, and source order in
   // this function IS the execution order (there is no dependency graph).
   //
-  // INSERT-ONLY runner, same posture as phaseRE — the pipeline enforces
-  // skip-if-exists itself so an unattended --all rerun never accretes
-  // duplicate rows, and there is no --force override. Re-analysis is an
-  // explicit operator action.
+  // INSERT-ONLY runner, same posture as phaseRE — including the
+  // revision-scoped skip (see phaseRE's comment above for the full
+  // rationale). Still no --force override for an unchanged programme.
   //
   // When phaseRE has not run (or produced no themes) the runner returns a
   // $0 SKIPPED with reason `no-research` before making any AI call, so a
@@ -638,7 +657,8 @@ async function processProgram(
   if (shouldRun('phaseCR')) {
     const t = Date.now();
     const existing = await prisma.programCurriculumRevision.findFirst({
-      where: { programId: program.id },
+      // Scoped to THIS run's revision — see phaseRE's guard comment above.
+      where: { programId: program.id, programRevisionId: runRevisionId },
       select: { id: true },
     });
     if (existing) {
