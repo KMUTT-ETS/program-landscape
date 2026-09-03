@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { prisma, IS_CANONICAL_PROGRAM, withCanonical } from '@kku/db';
+import { Injectable, Logger } from '@nestjs/common';
+import { prisma, IS_CANONICAL_PROGRAM, withCanonical, openDraftRevision } from '@kku/db';
 import type { Prisma, PrismaClient } from '@kku/db';
 import {
   ApiError,
@@ -35,7 +35,49 @@ type PrismaTx = Omit<
 
 @Injectable()
 export class ProgramsService {
+  private readonly logger = new Logger(ProgramsService.name);
+
   constructor(private readonly aiJobs: AiJobsQueueService) {}
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Curriculum revisions
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Open a DRAFT revision for a curriculum document that has just become the
+   * programme's current one. NOT analysed here — the posture is "ask first,
+   * then run"; the draft's existence is what makes the staleness banner
+   * possible and what the "Analyse revision" action will target. Idempotent
+   * per (programId, pdfDocumentId).
+   *
+   * Called AFTER the attaching transaction commits, and failures are
+   * swallowed rather than propagated: opening a draft is bookkeeping, and a
+   * throw at this point would surface to the operator as a failed attach
+   * when the attach has in fact already committed. Reporting a success as a
+   * failure is the more misleading of the two — it invites a retry against
+   * state that already changed. The loss is recoverable: re-attaching the
+   * same document opens the draft that was missed.
+   */
+  private async openRevisionForCurrentCurriculum(args: {
+    programId: string;
+    pdfDocumentId: string;
+    curriculumYearBE: number | null;
+    createdById: string;
+  }): Promise<void> {
+    try {
+      await openDraftRevision({
+        programId: args.programId,
+        sourcePdfDocumentId: args.pdfDocumentId,
+        curriculumYearBE: args.curriculumYearBE,
+        createdById: args.createdById,
+      });
+    } catch (err) {
+      this.logger.error(
+        `failed to open draft revision for program=${args.programId} pdf=${args.pdfDocumentId}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
+  }
 
   // ───────────────────────────────────────────────────────────────────────
   // Authorization helpers
@@ -462,7 +504,10 @@ export class ProgramsService {
     void _ignore_fac;
     void _ignore_level;
 
-    return prisma.$transaction(async (tx) => {
+    const attachedCurriculumYearBE =
+      (extractionPayload?.curriculumYearBE as number | undefined) ?? null;
+
+    const created = await prisma.$transaction(async (tx) => {
       // The master sheet is detached (2026-07-08) — admin-created programs are
       // first-class. Assign the next sequence number so the new program is
       // CANONICAL (withCanonical keys on sequenceNoFromSheet IS NOT NULL) and
@@ -494,8 +539,7 @@ export class ProgramsService {
             pdfDocumentId: input.attachPdfId,
             role: 'CURRENT_CURRICULUM',
             isCurrent: true,
-            curriculumYearBE:
-              (extractionPayload?.curriculumYearBE as number | undefined) ?? null,
+            curriculumYearBE: attachedCurriculumYearBE,
             notes: input.applyExtractionId
               ? 'attached via create-from-PDF with extraction applied'
               : 'attached via create-from-PDF',
@@ -518,6 +562,21 @@ export class ProgramsService {
 
       return created;
     });
+
+    // A new programme created from a curriculum PDF starts with a revision
+    // rather than a NULL baseline — the document it was born from is exactly
+    // the thing awaiting analysis. Outside the transaction for the same
+    // reason as attachDocument().
+    if (input.attachPdfId) {
+      await this.openRevisionForCurrentCurriculum({
+        programId: created.id,
+        pdfDocumentId: input.attachPdfId,
+        curriculumYearBE: attachedCurriculumYearBE,
+        createdById: user.userId,
+      });
+    }
+
+    return created;
   }
 
   // ───────────────────────────────────────────────────────────────────────
@@ -635,8 +694,10 @@ export class ProgramsService {
     });
     if (!pdf) throw new ApiError('NOT_FOUND', 'pdf document not found');
 
-    return prisma.$transaction(async (tx) => {
-      const makeCurrent = input.role === 'CURRENT_CURRICULUM' && input.promoteToCurrent !== false;
+    const makeCurrent =
+      input.role === 'CURRENT_CURRICULUM' && input.promoteToCurrent !== false;
+
+    const doc = await prisma.$transaction(async (tx) => {
       if (makeCurrent) {
         await this.demotePriorCurrent(tx, programId);
       }
@@ -668,6 +729,21 @@ export class ProgramsService {
         },
       });
     });
+
+    // A newly-promoted curriculum document opens a DRAFT revision — the same
+    // condition that made it current, so PREVIOUS_CURRICULUM attachments and
+    // CURRENT_CURRICULUM with promoteToCurrent:false open nothing. Outside
+    // the transaction on purpose; see openRevisionForCurrentCurriculum.
+    if (makeCurrent) {
+      await this.openRevisionForCurrentCurriculum({
+        programId,
+        pdfDocumentId: input.pdfDocumentId,
+        curriculumYearBE: input.curriculumYearBE ?? null,
+        createdById: user.userId,
+      });
+    }
+
+    return doc;
   }
 
   async promoteDocument(
