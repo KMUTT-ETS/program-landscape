@@ -96,7 +96,7 @@ export function ProgramsPipelineLauncher() {
     submit(
       'Full run',
       { resume: false },
-      'Run the FULL 11-phase pipeline (incl. AI benchmarking + AI readiness) on all 297 canonical programs?\n\n' +
+      'Run the FULL 11-phase pipeline (incl. AI benchmarking + AI readiness) on every canonical program?\n\n' +
         'Each program takes ~5-10 min and ~$0.70 in LLM cost. Total ≈ $210 + 30h of worker time.\n\n' +
         'For an incremental run that skips already-narrated programs, use "Resume" instead.',
     );
@@ -123,7 +123,7 @@ export function ProgramsPipelineLauncher() {
       `Partial run (${phases.join(', ')})`,
       { phases, resume: false },
       `Run ${phases.length} phase${phases.length === 1 ? '' : 's'} (${phases.join(', ')}) ` +
-        `on all 297 canonical programs?\n\nNote: phases that depend on prior phases ` +
+        `on every canonical program?\n\nNote: phases that depend on prior phases ` +
         `will fail if the prior phase hasn't run yet (e.g. phase7 narrative needs 1-6; ` +
         `phase5 AI benchmarking needs phase 2's materialised skills).`,
     );
@@ -134,7 +134,7 @@ export function ProgramsPipelineLauncher() {
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={runFullAll} disabled={submitting}>
           <Play className="size-icon-md" aria-hidden />
-          Run full pipeline (all 297)
+          Run full pipeline (all programs)
         </Button>
         <Button variant="outline" onClick={runResume} disabled={submitting}>
           <RefreshCw className="size-icon-md" aria-hidden />
@@ -186,7 +186,7 @@ export function ProgramsPipelineLauncher() {
             </span>
             <Button variant="primary" size="sm" onClick={runPartial} disabled={submitting}>
               <Play className="size-icon-md" aria-hidden />
-              Run selected phases on all 297
+              Run selected phases on all programs
             </Button>
           </div>
         </Card>

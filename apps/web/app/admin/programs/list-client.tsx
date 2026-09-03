@@ -239,7 +239,7 @@ export function ProgramsListClient({
     if (!confirm(confirmMsg)) return;
     setBatchBusy(true);
     try {
-      // No bulk-status endpoint server-side; loop client-side. At ≤297
+      // No bulk-status endpoint server-side; loop client-side. At ~300
       // programs the round-trips are fine; if this ever needs to scale
       // we'll add a single PATCH /admin/programs/status-batch endpoint.
       let ok = 0;
