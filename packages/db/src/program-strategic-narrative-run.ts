@@ -12,6 +12,7 @@ import {
 import { prisma } from './index';
 import { computeHealthScores } from './health-score';
 import { realDataWhere } from './data-quality';
+import { activeRevisionIdFor } from './program-revision';
 import {
   programAiReadiness,
   programDemandFunnel,
@@ -341,16 +342,25 @@ export async function generateProgramStrategicNarrative(
     confidence = ceiling;
   }
 
+  // Provenance: which curriculum revision produced this row. NULL is the
+  // pre-feature baseline. See packages/db/src/program-revision.ts.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   await prisma.programStrategicNarrative.upsert({
     where: { programId: program.id },
     create: {
       programId: program.id,
+      programRevisionId,
       methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
       contentMarkdown: response.parsed.contentMarkdown,
       confidence,
       generatedByAiInferenceId: response.aiInferenceId,
     },
     update: {
+      // Re-stamped on update too: an upsert that only stamps on create would
+      // leave a re-run carrying the PREVIOUS revision's id — confidently
+      // wrong, which is worse than unstamped.
+      programRevisionId,
       methodVersion: PROGRAM_STRATEGIC_NARRATIVE_VERSION,
       contentMarkdown: response.parsed.contentMarkdown,
       confidence,

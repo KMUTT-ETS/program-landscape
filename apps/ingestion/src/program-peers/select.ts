@@ -1,4 +1,4 @@
-import { prisma, type ProgramLevel, type PeerTier } from '@kku/db';
+import { prisma, activeRevisionIdFor, type ProgramLevel, type PeerTier } from '@kku/db';
 import {
   buildProgramPeerSelectionMessages,
   ProgramPeerSelectionSchema,
@@ -130,6 +130,13 @@ export async function selectProgramPeers(params: SelectPeersParams): Promise<Sel
     return expectedTier === s.tier;
   });
 
+  // Provenance: which curriculum revision produced these rows. NULL is the
+  // pre-feature baseline. See packages/db/src/program-revision.ts. Resolved
+  // once here, outside the row-building map — every row in a single run
+  // belongs to the same revision, so a per-row lookup would be N identical
+  // queries.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   // Idempotent: replace all prior selections for this program in one
   // transaction. Re-runs always reflect the latest AI judgement.
   await prisma.$transaction([
@@ -137,6 +144,7 @@ export async function selectProgramPeers(params: SelectPeersParams): Promise<Sel
     prisma.programPeerSelection.createMany({
       data: validSelections.map((s) => ({
         programId: program.id,
+        programRevisionId,
         tier: s.tier,
         rankedUniversityId: s.rankedUniversityId,
         peerProgramName: s.peerProgramName,

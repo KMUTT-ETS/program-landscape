@@ -1,4 +1,4 @@
-import { prisma, programAiReadiness } from '@kku/db';
+import { prisma, programAiReadiness, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramPeerReviewMessages,
   ProgramPeerReviewSchema,
@@ -242,10 +242,15 @@ export async function generateProgramPeerReview(
 
   const payload: PeerReviewPayload = response.parsed.payload;
 
+  // Provenance: which curriculum revision produced this row. NULL is the
+  // pre-feature baseline. See packages/db/src/program-revision.ts.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   await prisma.programPeerReview.upsert({
     where: { programId: program.id },
     create: {
       programId: program.id,
+      programRevisionId,
       methodVersion: PROGRAM_PEER_REVIEW_VERSION,
       payloadJson: payload as unknown as object,
       confidence: response.parsed.confidence,
@@ -253,6 +258,10 @@ export async function generateProgramPeerReview(
       generatedByAiInferenceId: response.aiInferenceId,
     },
     update: {
+      // Re-stamped on update too: an upsert that only stamps on create would
+      // leave a re-run carrying the PREVIOUS revision's id — confidently
+      // wrong, which is worse than unstamped.
+      programRevisionId,
       methodVersion: PROGRAM_PEER_REVIEW_VERSION,
       payloadJson: payload as unknown as object,
       confidence: response.parsed.confidence,

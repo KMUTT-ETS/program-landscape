@@ -17,6 +17,7 @@ import {
   type CurriculumRevisionReadiness,
   type CurriculumRevisionDrops,
 } from './program-curriculum-revision';
+import { activeRevisionIdFor } from './program-revision';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Generates course-level curriculum-revision advice for one program.
@@ -416,9 +417,14 @@ export async function generateProgramCurriculumRevision(
     confidence,
   };
 
+  // Provenance: which curriculum revision produced this row. NULL is the
+  // pre-feature baseline. See packages/db/src/program-revision.ts.
+  const programRevisionId = await activeRevisionIdFor(params.programId);
+
   const created = await prisma.programCurriculumRevision.create({
     data: {
       programId: params.programId,
+      programRevisionId,
       payloadJson: payload,
       // Spread (not a bare `assembled.stats`) — the stats type is a named
       // interface, and Prisma's JSON input type requires an explicit index
