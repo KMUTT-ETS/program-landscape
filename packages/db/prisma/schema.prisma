@@ -619,6 +619,7 @@ model ProgramRevision {
   skills                 ProgramSkill[]
   courses                ProgramCourse[]
   faculties              ProgramFaculty[]
+  aiExtractions          AiExtraction[]
 
   @@index([programId, createdAt])
   @@index([status])
@@ -938,17 +939,25 @@ model AiExtraction {
   goldLabel            Json?        @map("gold_label")
   goldLabelledAt       DateTime?    @map("gold_labelled_at")
   goldLabelledByUserId String?      @map("gold_labelled_by_user_id")
+  // Which curriculum revision this extraction was taken from. NULL means the
+  // pre-feature baseline — and stays NULL for every non-programme kind
+  // (COURSE_SKILLS, JOB_POSTING_SKILLS, POLICY_DOC_ANALYSIS, IMD rankings)
+  // and for PROPOSED_SKILL, which is a downstream artifact of a digest
+  // rather than an extraction of the curriculum.
+  programRevisionId    String?      @map("program_revision_id")
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
 
-  aiInference    AiInference? @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
-  reviewedBy     User?        @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  goldLabelledBy User?        @relation("AiExtractionGoldLabeller", fields: [goldLabelledByUserId], references: [id], onDelete: SetNull)
+  aiInference     AiInference?      @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+  reviewedBy      User?             @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  goldLabelledBy  User?             @relation("AiExtractionGoldLabeller", fields: [goldLabelledByUserId], references: [id], onDelete: SetNull)
+  programRevision ProgramRevision?  @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([sourceEntityType, sourceEntityId])
   @@index([extractionKind])
   @@index([reviewStatus])
   @@index([isGoldSample])
+  @@index([sourceEntityType, sourceEntityId, extractionKind, programRevisionId])
   @@map("ai_extractions")
 }
 
