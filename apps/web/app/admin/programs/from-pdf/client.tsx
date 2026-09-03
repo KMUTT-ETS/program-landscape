@@ -62,6 +62,8 @@ interface Extraction {
     totalCredits?: number;
     durationYears?: number;
     curriculumYear?: number;
+    isRevision?: boolean;
+    previousCurriculumYearBE?: number;
   };
 }
 
@@ -95,6 +97,32 @@ function usableExtraction(pdf: PdfAfterUpload): Extraction | null {
       e.confidence > 0,
   );
   return current ?? null;
+}
+
+// The programme exists at this point (either just created, or already
+// existed and just got a new document attached). A failed enqueue is
+// recoverable from the detail page, so warn and continue rather than
+// surfacing it as a hard failure — that would tell the operator the
+// programme/attachment didn't succeed when it did. Shared by FillStep
+// (new-programme submit) and ReviseStep (revision attach).
+async function firePipeline(programId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/admin-programs/${programId}/run-pipeline`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ force: false }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+    }
+    return true;
+  } catch (err) {
+    toast.warning(
+      `Saved, but pipeline enqueue failed: ${(err as Error).message}. Run pipeline from the program page when ready.`,
+    );
+    return false;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -181,6 +209,17 @@ export function FromPdfClient({
             setExtractionState('timeout');
           }
         }}
+      />
+    );
+  }
+
+  if (target) {
+    return (
+      <ReviseStep
+        target={target}
+        pdf={pdf}
+        extraction={usableExtraction(pdf)}
+        onDone={(programId) => router.push(`/admin/programs/${programId}`)}
       />
     );
   }
@@ -433,8 +472,11 @@ type ExtractionState = 'idle' | 'waiting' | 'ready' | 'timeout' | 'failed';
 
 interface FillStepProps {
   pdf: PdfAfterUpload;
-  // Set when the operator chose "revise an existing programme" in step 1.
-  // Display-only here — Task 5 wires the actual revision submission path.
+  // Always null in practice: FromPdfClient renders ReviseStep instead of
+  // FillStep once `target` is set (the revision submission path — attach
+  // document only, no identity form). Kept as a prop (rather than dropped)
+  // so the "Revising <code>" display line and the isRevision cross-check
+  // warning below stay correct if that routing ever changes.
   target: TargetProgram | null;
   extraction: Extraction | null;
   extractionState: ExtractionState;
@@ -541,30 +583,6 @@ function FillStep({
     !form.facultyId ||
     (report?.hasHard ?? false) ||
     (report?.hasSoft && !force);
-
-  // The programme exists at this point. A failed enqueue is recoverable
-  // from the detail page, so warn and continue rather than surfacing it as
-  // a create failure — that would tell the operator the programme wasn't
-  // created when it was.
-  const firePipeline = async (programId: string) => {
-    try {
-      const res = await fetch(`/api/admin-programs/${programId}/run-pipeline`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ force: false }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
-      }
-      return true;
-    } catch (err) {
-      toast.warning(
-        `Program created but pipeline enqueue failed: ${(err as Error).message}. Run pipeline from the program page when ready.`,
-      );
-      return false;
-    }
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -687,6 +705,19 @@ function FillStep({
         )}
       </Card>
 
+      {!target && payload.isRevision === true && (
+        <Card padding="sm">
+          <p className="text-xs text-text-secondary">
+            This document appears to be a revision of an existing curriculum
+            {payload.previousCurriculumYearBE
+              ? ` (previous year พ.ศ. ${payload.previousCurriculumYearBE})`
+              : ''}
+            . If this programme already exists, go back and choose
+            &ldquo;a revised curriculum&rdquo; instead of creating a duplicate.
+          </p>
+        </Card>
+      )}
+
       <Card>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <h3 className="text-sm font-semibold text-text-primary">
@@ -791,6 +822,97 @@ function FillStep({
         </form>
       </Card>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Step 3 (revision path): confirm + attach — no identity form. The
+// programme's identity already exists; only the document changes here. The
+// programme's header columns (nameTh, nameEn, totalCredits, …) are
+// deliberately left untouched — attachDocument() only attaches. Overwriting
+// them from the extraction payload belongs to apply-extraction, which this
+// path does not call; see the module comment on firePipeline for why a
+// failed pipeline enqueue doesn't block success here either.
+// ─────────────────────────────────────────────────────────────────────────
+
+function ReviseStep({
+  target,
+  pdf,
+  extraction,
+  onDone,
+}: {
+  target: TargetProgram;
+  pdf: PdfAfterUpload;
+  extraction: Extraction | null;
+  onDone: (programId: string) => void;
+}) {
+  const payload = extraction?.payloadJson ?? {};
+  const [yearBE, setYearBE] = React.useState<string>(
+    payload.curriculumYear != null ? String(payload.curriculumYear) : '',
+  );
+  const [busy, setBusy] = React.useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      // Attach only — deliberately NOT apply-extraction, which would also
+      // overwrite the programme's header columns from the payload with no
+      // record and no diff. The metadata update happens when the pipeline
+      // re-digests, where it IS recorded (metadataProposalJson + an audit
+      // row on the revision).
+      const res = await fetch(`/api/admin-programs/${target.id}/documents`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          pdfDocumentId: pdf.pdfDocumentId,
+          role: 'CURRENT_CURRICULUM',
+          promoteToCurrent: true,
+          curriculumYearBE: yearBE ? Number(yearBE) : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+      }
+      await firePipeline(target.id);
+      toast.success('Revised curriculum attached; analysis started.');
+      onDone(target.id);
+    } catch (err) {
+      toast.error(`Attach failed: ${(err as Error).message}`);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card padding="md">
+      <h2 className="text-sm font-semibold text-text-primary">
+        Step 3 of 3 · Confirm the revision
+      </h2>
+      <p className="mt-2 text-sm text-text-secondary">
+        <span className="font-tabular text-xs text-text-tertiary">{target.code}</span>{' '}
+        {target.nameTh}
+      </p>
+      <p className="mt-2 text-xs text-text-tertiary">
+        The current curriculum file will be kept as a previous version. The
+        programme&rsquo;s existing details are not changed here — they update
+        when the analysis re-reads the new file.
+      </p>
+      <div className="mt-4 max-w-xs">
+        <Field label="Curriculum year (พ.ศ.)">
+          <Input
+            type="number"
+            value={yearBE}
+            onChange={(e) => setYearBE(e.target.value)}
+            placeholder="2570"
+          />
+        </Field>
+      </div>
+      <div className="mt-4">
+        <Button onClick={submit} disabled={busy}>
+          {busy ? 'Attaching…' : 'Attach and analyse'}
+        </Button>
+      </div>
+    </Card>
   );
 }
 
