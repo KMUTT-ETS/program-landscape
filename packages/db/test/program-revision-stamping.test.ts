@@ -36,6 +36,16 @@ const WRITERS: Array<{ file: string; delegate: string }> = [
   { file: 'apps/ingestion/src/program-courses-extract/run.ts', delegate: 'programCourse' },
   { file: 'apps/ingestion/src/scripts/materialise-program-courses.ts', delegate: 'programCourse' },
   { file: 'apps/ingestion/src/program-faculty/run.ts', delegate: 'programFaculty' },
+  // The three curriculum-extraction writers. `ai_extractions` is shared with
+  // kinds that are NOT revision-scoped and deliberately stay unstamped —
+  // PROPOSED_SKILL (a downstream artifact of a digest, written by
+  // program-digest-materialize.ts), PROGRAM_COURSES_EXTRACT, the IMD rankings
+  // kind, and the three kinds in ai-jobs/handlers.ts. Those files are either
+  // registered here under a different delegate or not at all, so this guard
+  // checks only the aiExtraction writes in the three files below.
+  { file: 'apps/ingestion/src/program-digest/run.ts', delegate: 'aiExtraction' },
+  { file: 'apps/ingestion/src/program-faculty/run.ts', delegate: 'aiExtraction' },
+  { file: 'apps/ingestion/src/program-skills/run.ts', delegate: 'aiExtraction' },
 ];
 
 /** Prisma model name → the delegate the client exposes it as. */
@@ -261,8 +271,8 @@ describe('revision provenance stamping', () => {
     // shaped table), which the `missing` check above would wave through.
     expect(
       scoped.length,
-      `expected 10 revision-scoped models, found ${scoped.length} (${scoped.join(', ')}). ` +
+      `expected 11 revision-scoped models, found ${scoped.length} (${scoped.join(', ')}). ` +
         `If you deliberately added or removed one, update WRITERS and this number together.`,
-    ).toBe(10);
+    ).toBe(11);
   });
 });
