@@ -17,6 +17,10 @@ const SECTION_OVERRIDES: Record<string, string> = {
   skills: 'Skill Explorer',
   upload: 'Upload PDFs',
   styleguide: 'Styleguide',
+  // The route segment is historical — the page handles new AND revised
+  // curricula now, so prettify()'s "From Pdf" would contradict the page's
+  // own title and its AdminBackNav crumb.
+  'from-pdf': 'Submit curriculum file',
 };
 
 function prettify(seg: string): string {
