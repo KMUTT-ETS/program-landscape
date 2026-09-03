@@ -62,7 +62,7 @@ export default async function AdminProgramsPage({
   // Admin program management is a workbench, not a paginated public
   // list — show every canonical program on one page so analysts can
   // Ctrl-F across the whole portfolio. Schema cap is 1000, well above
-  // the 297 canonical rows.
+  // the current canonical-row count.
   query.set('pageSize', '1000');
 
   // Always fetch pipeline stats (drives the always-visible KPI strip).
@@ -106,7 +106,7 @@ export default async function AdminProgramsPage({
       <PageHeader
         eyebrow="Admin · Programs"
         title="Program management"
-        subtitle="Curate the 297 KKU programs and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
+        subtitle="Curate every KKU program and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
         actions={
           <EdgeGlow inline>
             <Button variant="primary" asChild>

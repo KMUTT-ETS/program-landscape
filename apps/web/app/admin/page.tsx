@@ -403,22 +403,38 @@ function buildGroups({
   role: SessionUser['role'];
 }): ConsoleGroup[] {
   // ── 1) Programs ────────────────────────────────────────────────────
-  // Curriculum-centric ops collapse to one tile — the program list.
-  // The list page owns the "Add new program" affordance (Phase 2)
-  // instead of a separate tile, and the AI-extraction review queue
-  // folds into Job queues under Application (Phase 6).
+  // Curriculum-centric ops. Two tiles: the program list (browse / edit
+  // / batch pipeline), and curriculum submission (register a new
+  // programme OR attach a revised curriculum to an existing one).
+  // These used to collapse to one tile under a "one tile, one
+  // destination" rule — the list page owned the "Add new program"
+  // affordance instead of a separate tile. That no longer holds:
+  // submission now covers both new AND revised curricula, which is a
+  // distinct operation from browsing/editing the list and earns its
+  // own destination. The AI-extraction review queue still folds into
+  // Job queues under Application (Phase 6).
   const programs: ConsoleTile[] = [
     {
       href: '/admin/programs',
       label: 'Program list',
       description:
-        'Full table of the 297 KKU programs — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch), add new program via PDF upload.',
+        'Full table of every KKU program — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch).',
       icon: <Building2 className="size-icon-xl" />,
       badge: dataStats
         ? { label: dataStats.programs.total.toLocaleString(), tone: 'neutral' }
         : undefined,
       meta: dataStats
         ? `${dataStats.programs.missingCurriculumPdf} missing curriculum`
+        : undefined,
+    },
+    {
+      href: '/admin/programs/from-pdf',
+      label: 'Submit curriculum file',
+      description:
+        'Upload a มคอ.2 — either to register a new programme, or to attach a revised curriculum to an existing one. Runs the full analysis pipeline on submit.',
+      icon: <FileUp className="size-icon-xl" />,
+      badge: dataStats
+        ? { label: `${dataStats.programs.missingCurriculumPdf} missing`, tone: 'warning' }
         : undefined,
     },
   ];
@@ -625,7 +641,7 @@ function buildGroups({
       eyebrow: 'Group 1',
       label: 'Programs',
       caption:
-        'Curriculum-centric operations. The program list owns the table, the new-program wizard, and per-row / batch pipeline actions — one tile, one destination.',
+        'Curriculum-centric operations. The program list owns browsing, editing, and per-row / batch pipeline actions; curriculum submission (new or revised) is its own destination.',
       tiles: programs.filter(filterByRole),
     },
     {
