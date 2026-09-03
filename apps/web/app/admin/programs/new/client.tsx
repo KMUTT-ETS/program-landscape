@@ -157,8 +157,8 @@ export function NewProgramClient({
         throw new Error(j?.error?.message ?? `PDF upload HTTP ${res.status}`);
       }
       const j = await res.json();
-      const uploaded = (j.data as { uploaded?: Array<{ pdfDocument?: { id: string } }> })?.uploaded ?? [];
-      attachPdfId = uploaded[0]?.pdfDocument?.id;
+      const uploaded = (j.data as { uploaded?: Array<{ pdfDocumentId?: string }> })?.uploaded ?? [];
+      attachPdfId = uploaded[0]?.pdfDocumentId;
       if (!attachPdfId) {
         throw new Error('PDF upload returned no document id.');
       }
