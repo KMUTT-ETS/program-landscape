@@ -56,6 +56,15 @@ enum ProgramDocumentRole {
   SUPPLEMENTARY
 }
 
+enum ProgramRevisionStatus {
+  DRAFT // file attached, not yet analysed
+  ANALYSING // pipeline running against it
+  IN_REVIEW // analysed, awaiting human approval (Project 2)
+  APPROVED // promoted to live (Project 2)
+  REJECTED // reviewer declined (Project 2)
+  SUPERSEDED // a later revision was approved over it
+}
+
 // KKU SSO role taxonomy (legacy roles removed 2026-05-09 — see
 // migration 20260509100000_remove_legacy_user_roles for the data
 // migration mapping):
@@ -482,6 +491,15 @@ model Program {
   previousCurriculumYearBE Int?     @map("previous_curriculum_year_be")
   approvalHistoryJson      Json?    @map("approval_history_json")
 
+  /// Which revision the currently-live analyses belong to. NULL means the
+  /// pre-feature baseline (analyses generated before revisions existed).
+  ///
+  /// Deliberately a plain nullable id, NOT a Prisma relation: a required
+  /// back-relation would create a circular dependency at create time
+  /// (a Program needs a revision, a revision needs a Program). Resolved in
+  /// code via activeRevisionIdFor(). Do not "fix" this into a relation.
+  activeRevisionId String? @map("active_revision_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -524,6 +542,7 @@ model Program {
   programCourses        ProgramCourse[]
   admissionStatMappings AdmissionStatProgramMapping[]
   admissionCampaigns    AdmissionCampaignStat[]
+  revisions             ProgramRevision[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -552,6 +571,42 @@ model ProgramDocument {
   @@index([pdfDocumentId])
   @@index([role])
   @@map("program_documents")
+}
+
+/// One curriculum revision of a programme — the envelope a มคอ.2 and its
+/// generated analyses belong to.
+///
+/// Deliberately NOT the existing `Curriculum` model: that one's status enum
+/// has no IN_REVIEW/REJECTED, its totalCredits is non-null (wrong for a
+/// revision not yet analysed), and its `courses` relation implies course
+/// materialisation this project does not do. `Curriculum` is unused (seed
+/// only) and is left alone.
+model ProgramRevision {
+  id                   String                @id @default(cuid())
+  programId            String                @map("program_id")
+  /// The มคอ.2 this revision analyses. Nullable so a revision can be opened
+  /// before its file is attached.
+  sourcePdfDocumentId  String?               @map("source_pdf_document_id")
+  curriculumYearBE     Int?                  @map("curriculum_year_be")
+  status               ProgramRevisionStatus @default(DRAFT)
+  notes                String?
+  /// Proposed Program-column values from this revision's digest, and the
+  /// values they replaced. Written instead of a silent overwrite — see
+  /// program-digest-materialize.ts. Project 2 turns this into the diff.
+  metadataProposalJson Json?                 @map("metadata_proposal_json")
+  createdById          String?               @map("created_by_id")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  approvedById         String?               @map("approved_by_id")
+  approvedAt           DateTime?             @map("approved_at")
+
+  program    Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sourcePdf  PdfDocument? @relation(fields: [sourcePdfDocumentId], references: [id], onDelete: SetNull)
+  createdBy  User?        @relation("ProgramRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy User?        @relation("ProgramRevisionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([programId, createdAt])
+  @@index([status])
+  @@map("program_revisions")
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -642,6 +697,8 @@ model User {
   publicationsCache        UserPublicationsCache?
   aiModelOverridesSet      AiModelOverride[]
   externalAiSourcesCreated ExternalAiSource[]       @relation("ExternalAiSourceCreator")
+  programRevisionsCreated  ProgramRevision[]        @relation("ProgramRevisionCreatedBy")
+  programRevisionsApproved ProgramRevision[]        @relation("ProgramRevisionApprovedBy")
 
   @@index([email])
   @@index([ssoSubject])
@@ -2435,6 +2492,7 @@ model PdfDocument {
   peerPrograms        PeerProgram[]
   decisionResolutions CouncilDecision[] @relation("DecisionResolution")
   programDocuments    ProgramDocument[]
+  programRevisions    ProgramRevision[]
 
   @@index([sourceCategory])
   @@index([processingStatus])
