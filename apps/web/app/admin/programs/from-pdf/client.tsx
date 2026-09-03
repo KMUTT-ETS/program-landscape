@@ -558,6 +558,7 @@ function FillStep({
                 <option value="BACHELOR">Bachelor</option>
                 <option value="MASTER">Master</option>
                 <option value="DOCTORAL">Doctoral</option>
+                <option value="HIGHER_GRAD_DIPLOMA">Higher Grad. Diploma</option>
               </select>
             </Field>
             <Field label="Name (Thai) *">
