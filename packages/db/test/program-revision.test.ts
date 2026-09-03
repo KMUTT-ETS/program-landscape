@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   revisionUpdate: vi.fn(),
   revisionCount: vi.fn(),
   documentFindFirst: vi.fn(),
+  documentCount: vi.fn(),
 }));
 
 // NO vi.importActual spread — index.ts re-exports the module under test, so
@@ -25,7 +26,7 @@ vi.mock('../src/index', () => {
       update: mocks.revisionUpdate,
       count: mocks.revisionCount,
     },
-    programDocument: { findFirst: mocks.documentFindFirst },
+    programDocument: { findFirst: mocks.documentFindFirst, count: mocks.documentCount },
     // Interactive transaction: hand the callback the same client so the
     // per-call assertions below see the writes made inside it.
     $transaction: (fn: (tx: typeof client) => Promise<unknown>) => fn(client),
@@ -165,9 +166,32 @@ describe('programRevisionStaleness', () => {
       attachedAt: new Date('2026-09-01'),
     });
     mocks.revisionCount.mockResolvedValue(0);
+    mocks.documentCount.mockResolvedValue(0);
     const r = await programRevisionStaleness('p1');
     expect(r.reason).toBe('unanalysed-revision');
     expect(r.isFirstAnalysis).toBe(true);
+  });
+
+  // The case a live attach caught and the mocked count could not: programmes
+  // analysed BEFORE ProgramRevision existed have zero completed revisions, so
+  // counting revisions alone called every one of them a first analysis. The
+  // demoted PREVIOUS_CURRICULUM document is what proves a prior file existed.
+  it('is NOT a first analysis when a previous curriculum document exists, even with no completed revision', async () => {
+    mocks.revisionFindFirst.mockResolvedValue({
+      id: 'rev9',
+      curriculumYearBE: 2599,
+      createdAt: new Date('2026-09-03'),
+    });
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: null });
+    mocks.documentFindFirst.mockResolvedValue({
+      pdfDocumentId: 'pdfNEW',
+      attachedAt: new Date('2026-09-03'),
+    });
+    mocks.revisionCount.mockResolvedValue(0); // pre-dates the revision system
+    mocks.documentCount.mockResolvedValue(1); // but a prior file was demoted
+    const r = await programRevisionStaleness('p1');
+    expect(r.reason).toBe('unanalysed-revision');
+    expect(r.isFirstAnalysis).toBe(false);
   });
 
   it('is NOT a first analysis when an earlier revision already completed', async () => {
@@ -182,6 +206,7 @@ describe('programRevisionStaleness', () => {
       attachedAt: new Date('2026-09-02'),
     });
     mocks.revisionCount.mockResolvedValue(1);
+    mocks.documentCount.mockResolvedValue(0);
     const r = await programRevisionStaleness('p1');
     expect(r.reason).toBe('unanalysed-revision');
     expect(r.isFirstAnalysis).toBe(false);

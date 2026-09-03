@@ -91,16 +91,34 @@ export async function programRevisionStaleness(
   ]);
 
   if (pending) {
-    const completedCount = await prisma.programRevision.count({
-      where: { programId, status: { in: [...COMPLETED_REVISION_STATUSES] } },
-    });
+    // Two independent signals, because neither is sufficient alone.
+    //
+    // A completed revision proves a prior analysis — but ProgramRevision is
+    // new, so every programme analysed before it existed has none. Counting
+    // only revisions reported isFirstAnalysis=true for ALL 301 programmes
+    // (the whole DB held 2 completed revisions), which is precisely backwards:
+    // attaching a revision to a long-analysed programme would have claimed it
+    // had never been analysed. Caught by a live attach, not by the unit tests,
+    // which mocked the count.
+    //
+    // A PREVIOUS_CURRICULUM document is the durable signal: attaching a
+    // revision demotes the incumbent, so its presence means a prior file
+    // existed regardless of when the programme was first analysed.
+    const [completedCount, previousDocCount] = await Promise.all([
+      prisma.programRevision.count({
+        where: { programId, status: { in: [...COMPLETED_REVISION_STATUSES] } },
+      }),
+      prisma.programDocument.count({
+        where: { programId, role: 'PREVIOUS_CURRICULUM' },
+      }),
+    ]);
     return {
       stale: true,
       reason: 'unanalysed-revision',
       pendingRevisionId: pending.id,
       pendingCurriculumYearBE: pending.curriculumYearBE,
       pendingAttachedAt: currentDoc?.attachedAt ?? pending.createdAt,
-      isFirstAnalysis: completedCount === 0,
+      isFirstAnalysis: completedCount === 0 && previousDocCount === 0,
     };
   }
 
