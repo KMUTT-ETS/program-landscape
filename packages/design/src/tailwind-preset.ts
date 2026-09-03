@@ -48,7 +48,15 @@ const preset: Partial<Config> = {
       },
       border: mapColor(colorTokens.border),
       text: mapColor(colorTokens.text),
-      accent: mapColor(colorTokens.accent),
+      // DEFAULT is what makes the bare `bg-accent` / `ring-accent` utilities
+      // resolve — Tailwind maps the family name to the DEFAULT key only, and
+      // a lowercase `default` is a different key entirely. Without it those
+      // utilities are never emitted, so `bg-accent` silently applies NOTHING:
+      // the Button `primary` variant (bg-accent text-accent-fg) rendered with
+      // a fully transparent background app-wide. Every sibling family below
+      // (brand-cardinal, success, warning, danger, info) already spells its
+      // DEFAULT out; accent was the one that did not.
+      accent: { ...mapColor(colorTokens.accent), DEFAULT: oklch(colorTokens.accent.default) },
       edge: {
         1: oklch(colorTokens.edge[1]),
         2: oklch(colorTokens.edge[2]),
