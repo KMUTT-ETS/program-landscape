@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from './index';
+import { activeRevisionIdFor } from './program-revision';
 import { lookupAliasesBulk } from './skill-normaliser';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,6 +125,11 @@ export async function materialiseProgramDigest(
   // The SkillAlias cache means re-digests of the same program don't
   // re-emit PROPOSED_SKILL extractions for skill names already resolved
   // through the analyst-or-AI normalisation path.
+  // Provenance: which curriculum revision produced these rows. NULL is the
+  // pre-feature baseline. See packages/db/src/program-revision.ts.
+  // Resolved once for the whole skill loop below.
+  const programRevisionId = await activeRevisionIdFor(programId);
+
   const allSkills = await prisma.skill.findMany({ select: { id: true, nameEn: true, nameTh: true } });
   const byEn = new Map<string, string>();
   const byTh = new Map<string, string>();
@@ -173,8 +179,14 @@ export async function materialiseProgramDigest(
       // can lower it, but the digest's signal is the floor).
       await prisma.programSkill.upsert({
         where: { programId_skillId: { programId, skillId } },
-        create: { programId, skillId, weight: es.weight },
-        update: { weight: { set: Math.max(es.weight, 0) } },
+        create: { programId, skillId, weight: es.weight, programRevisionId },
+        update: {
+          weight: { set: Math.max(es.weight, 0) },
+          // Re-stamped on update too: an upsert that only stamps on create
+          // would leave a re-run carrying the PREVIOUS revision's id —
+          // confidently wrong, which is worse than unstamped.
+          programRevisionId,
+        },
       });
       skillsLinked++;
     } else {

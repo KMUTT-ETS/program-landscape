@@ -1,4 +1,4 @@
-import { prisma } from '@kku/db';
+import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramFacultyMessages,
   ProgramFacultyExtractionSchema,
@@ -145,6 +145,13 @@ export async function runProgramFacultyExtraction(
   // below runs as enrichment for staff that DS2004 doesn't track
   // (visiting lecturers, external instructors, brand-new appointments
   // not yet submitted to MHESI). ──────────────────────────────────
+  // Provenance: which curriculum revision produced these rows. NULL is the
+  // pre-feature baseline. See packages/db/src/program-revision.ts.
+  // Resolved once and shared by BOTH roster writers below (the DS2004 seed
+  // in phase A and the PDF-extraction enrichment further down) — stamping
+  // only one of them would leave a programme's roster half-attributed.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   const systemContext = params.systemContext ?? (await loadProgramSystemContext(program.id));
   let programFacultyRowsFromMhesi = 0;
   const facultyMemberIdsFromMhesi = new Set<string>();
@@ -163,6 +170,7 @@ export async function runProgramFacultyExtraction(
           facultyMemberId: s.facultyMemberId,
           programId: program.id,
           role: teachTypeToRole(s.teachTypeId),
+          programRevisionId,
         },
         update: {
           // Don't downgrade an existing COORDINATOR back to CORE on re-run.
@@ -170,6 +178,10 @@ export async function runProgramFacultyExtraction(
             s.teachTypeId === 3
               ? 'COORDINATOR'
               : undefined,
+          // Re-stamped on update too: an upsert that only stamps on create
+          // would leave a re-run carrying the PREVIOUS revision's id —
+          // confidently wrong, which is worse than unstamped.
+          programRevisionId,
         },
       });
       programFacultyRowsFromMhesi += 1;
@@ -287,12 +299,17 @@ export async function runProgramFacultyExtraction(
           facultyMemberId,
           programId: program.id,
           role: mapRoleToSchema(s.role),
+          programRevisionId,
         },
         update: {
           // Pick the higher-priority role on conflict (re-runs may
           // upgrade INSTRUCTOR → COORDINATOR if the prompt classifies
           // differently a second time).
           role: mapRoleToSchema(s.role),
+          // Re-stamped on update too: an upsert that only stamps on create
+          // would leave a re-run carrying the PREVIOUS revision's id —
+          // confidently wrong, which is worse than unstamped.
+          programRevisionId,
         },
       });
       programFacultyRowsWritten++;

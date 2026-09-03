@@ -66,7 +66,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { prisma, activeRevisionIdFor } from '@kku/db';
 import { CourseCategorySchema, type CourseCategory } from '@kku/shared';
 import { withScriptRun } from '../lib/script-run';
 import { normaliseCourseCode } from '../lib/course-code';
@@ -190,6 +190,12 @@ async function main(): Promise<void> {
         continue;
       }
       try {
+        // Provenance: which curriculum revision produced these rows. NULL is
+        // the pre-feature baseline. See packages/db/src/program-revision.ts.
+        // Resolved ONCE per programme — never per row, and never inside the
+        // $transaction below.
+        const programRevisionId = await activeRevisionIdFor(programId);
+
         // Normalise + dedupe within this digest. The extractor sometimes
         // lists the same course twice (e.g., the legacy "duplicate code"
         // page in the PDF). We keep the first occurrence.
@@ -204,6 +210,7 @@ async function main(): Promise<void> {
           category: CourseCategory | null;
           methodVersion: string;
           ingestionRunId: string;
+          programRevisionId: string | null;
         }> = [];
         for (const c of entry.courses) {
           const raw = String(c.code ?? c.courseCode ?? '').trim();
@@ -241,6 +248,7 @@ async function main(): Promise<void> {
                 : null,
             methodVersion: entry.methodVersion,
             ingestionRunId: runId,
+            programRevisionId,
           });
         }
 

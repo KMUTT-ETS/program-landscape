@@ -1,4 +1,4 @@
-import { prisma } from '@kku/db';
+import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramCoursesExtractMessages,
   extractCandidateCourseCodes,
@@ -210,6 +210,12 @@ export async function runProgramCoursesExtract(
   let materialisedCount = 0;
   let fallbackAddedCount = 0;
   if (params.materialise !== false) {
+    // Provenance: which curriculum revision produced these rows. NULL is the
+    // pre-feature baseline. See packages/db/src/program-revision.ts.
+    // Resolved ONCE here — never per row, and never inside the $transaction
+    // below (an await in a transaction callback would hold the connection).
+    const programRevisionId = await activeRevisionIdFor(program.id);
+
     // De-dup by normalised code — the AI sometimes lists the same
     // course under multiple sections (e.g. "ปีที่ 1 ภาค 1" AND a
     // study-plan table). The compound unique key on (programId, courseCode)
@@ -240,6 +246,7 @@ export async function runProgramCoursesExtract(
       credits: number | null;
       category: CourseCategory | null;
       methodVersion: string;
+      programRevisionId: string | null;
     }> = [];
     const placeholderRe = /^([X?N0-])\1+$/i;
     for (const c of llmCourses) {
@@ -268,6 +275,7 @@ export async function runProgramCoursesExtract(
         credits: c.credits,
         category: c.category,
         methodVersion: PROGRAM_COURSES_EXTRACT_VERSION,
+        programRevisionId,
       });
     }
 
@@ -301,6 +309,7 @@ export async function runProgramCoursesExtract(
         // than indistinguishable from "not yet re-extracted" NULLs.
         category: fb.category,
         methodVersion: `${PROGRAM_COURSES_EXTRACT_VERSION}-fallback`,
+        programRevisionId,
       });
       fallbackAddedCount++;
     }
