@@ -329,11 +329,14 @@ export async function runProgramFacultyExtraction(
   const autoApprove = response.confidence >= autoApproveThreshold;
 
   // Persist the full extraction with audit trail.
+  // Stamp the revision this extraction was taken from — see
+  // program-digest/run.ts for the full rationale.
   const created = await prisma.aiExtraction.create({
     data: {
       sourceEntityType: 'program',
       sourceEntityId: program.id,
       extractionKind: 'PROGRAM_FACULTY_LIST',
+      programRevisionId,
       payloadJson: {
         ...extraction,
         unmatchedNames,

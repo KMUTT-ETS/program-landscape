@@ -1,4 +1,4 @@
-import { prisma, materialiseProgramDigest } from '@kku/db';
+import { prisma, materialiseProgramDigest, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramDigestMessages,
   ProgramDigestSchema,
@@ -180,11 +180,18 @@ export async function runProgramDigest(
   const autoApproveThreshold = Number(process.env.AI_AUTO_APPROVE_THRESHOLD ?? 0);
   const autoApprove = response.confidence >= autoApproveThreshold;
 
+  // Stamp the revision this extraction was taken from, so the guard can
+  // later tell a current extraction from one taken off a superseded มคอ.2.
+  // Resolved here rather than passed in: these runners are also invoked
+  // standalone from the CLI, not only from the pipeline.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   const created = await prisma.aiExtraction.create({
     data: {
       sourceEntityType: 'program',
       sourceEntityId: program.id,
       extractionKind: 'PROGRAM_DIGEST',
+      programRevisionId,
       payloadJson: response.parsed as object,
       confidence: response.confidence,
       methodVersion: PROGRAM_DIGEST_VERSION,

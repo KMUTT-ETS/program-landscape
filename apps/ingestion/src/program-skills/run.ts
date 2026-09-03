@@ -1,4 +1,4 @@
-import { prisma, lookupAliasesBulk } from '@kku/db';
+import { prisma, lookupAliasesBulk, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramSkillsDetailedMessages,
   ProgramSkillsDetailedSchema,
@@ -232,12 +232,17 @@ export async function runProgramSkillsDetailed(
     }
   });
 
+  // Stamp the revision this extraction was taken from — see
+  // program-digest/run.ts for the full rationale.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   // Persist the full extraction
   const created = await prisma.aiExtraction.create({
     data: {
       sourceEntityType: 'program',
       sourceEntityId: program.id,
       extractionKind: 'PROGRAM_SKILLS_DETAILED',
+      programRevisionId,
       payloadJson: { ...extraction, unresolvedNames, resolvedCount: draftBySkillId.size } as object,
       confidence: response.confidence,
       methodVersion: PROGRAM_SKILLS_DETAILED_VERSION,
