@@ -237,10 +237,11 @@ export class ProgramsAdminController {
     return this.svc.enqueueDigest(user, id, { force: !!body.force });
   }
 
-  // ─── Full pipeline (phases 1-6) ─────────────────────────────────────
-  // Single-program pipeline run. Runs all 6 phases by default; pass
-  // `phases: ['phase1','phase2',...]` to restrict (the partial-run UI
-  // uses this to retry e.g. only phase5+phase6 after a peer-data fix).
+  // ─── Full pipeline ───────────────────────────────────────────────────
+  // Single-program pipeline run. Runs all phases by default (see
+  // PROGRAM_PIPELINE_PHASES in @kku/shared for the current list/count);
+  // pass `phases: ['phase1','phase2',...]` to restrict (the partial-run
+  // UI uses this to retry e.g. only phase5+phase6 after a peer-data fix).
   @Post(':id/run-pipeline')
   @Authorized('programs:manage:all')
   @AuditLog({ action: 'program.run_pipeline', entityType: 'Program' })

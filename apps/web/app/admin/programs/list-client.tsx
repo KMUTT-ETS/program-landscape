@@ -411,32 +411,24 @@ export function ProgramsListClient({
             </div>
           </>
         ) : (
-          <>
-            <span className="text-text-secondary">
-              <span className="font-tabular text-text-primary">{rows.length}</span>
-              {' '}
-              showing of{' '}
-              <span className="font-tabular text-text-primary">{total}</span> programs
-            </span>
-            <Button asChild size="sm">
-              <Link href="/admin/programs/new">
-                <FilePlus2 className="size-icon-sm" aria-hidden />
-                Add new program
-              </Link>
-            </Button>
-          </>
+          <span className="text-text-secondary">
+            <span className="font-tabular text-text-primary">{rows.length}</span>
+            {' '}
+            showing of{' '}
+            <span className="font-tabular text-text-primary">{total}</span> programs
+          </span>
         )}
       </div>
 
       {rows.length === 0 ? (
         <EmptyState
           title="No programs match these filters"
-          description="Try clearing filters, or create a new program."
+          description="Try clearing filters, or submit a curriculum file."
           action={
             <Button asChild>
-              <Link href="/admin/programs/new">
+              <Link href="/admin/programs/from-pdf">
                 <FilePlus2 className="size-icon-md" aria-hidden />
-                New program
+                Submit curriculum file
               </Link>
             </Button>
           }

@@ -7,7 +7,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
 import { Button, EdgeGlow, KPI, PageHeader, Section } from '@kku/ui';
 import Link from 'next/link';
-import { FileUp, Plus } from 'lucide-react';
+import { FileUp } from 'lucide-react';
 import { ProgramsListClient, type ProgramListRow } from './list-client';
 import { PipelineClient, type PipelineStats } from './pipeline/client';
 
@@ -108,22 +108,14 @@ export default async function AdminProgramsPage({
         title="Program management"
         subtitle="Curate the 297 KKU programs and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
         actions={
-          <div className="flex items-center gap-2">
-            <EdgeGlow inline>
-              <Button variant="primary" asChild>
-                <Link href="/admin/programs/from-pdf">
-                  <FileUp className="size-icon-md" aria-hidden />
-                  New from PDF
-                </Link>
-              </Button>
-            </EdgeGlow>
-            <Button variant="outline" asChild>
-              <Link href="/admin/programs/new">
-                <Plus className="size-icon-md" aria-hidden />
-                New blank
+          <EdgeGlow inline>
+            <Button variant="primary" asChild>
+              <Link href="/admin/programs/from-pdf">
+                <FileUp className="size-icon-md" aria-hidden />
+                Submit curriculum file
               </Link>
             </Button>
-          </div>
+          </EdgeGlow>
         }
       />
 

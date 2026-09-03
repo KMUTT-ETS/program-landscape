@@ -21,7 +21,6 @@ describe('PDF upload response field name', () => {
 
   it('no client call site reads a pdfDocument object', () => {
     const files = [
-      'apps/web/app/admin/programs/new/client.tsx',
       'apps/web/app/admin/programs/[id]/client.tsx',
       'apps/web/app/admin/programs/from-pdf/client.tsx',
     ];

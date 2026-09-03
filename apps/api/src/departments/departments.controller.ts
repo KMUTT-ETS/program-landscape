@@ -5,11 +5,10 @@ import { AuthSession, Authorized, Provenance, seesAllScopes } from '../common';
 
 @Controller('/departments')
 export class DepartmentsController {
-  // GET /departments — list endpoint. Admin pages (/admin/programs/new,
-  // /admin/programs/from-pdf, /admin/programs/[id]) call this to
-  // populate the department-picker dropdown. Was missing — those pages
-  // 404'd here and fell back to an empty array via .catch, leaving the
-  // dropdown unpopulated.
+  // GET /departments — list endpoint. Admin pages (/admin/programs/from-pdf,
+  // /admin/programs/[id]) call this to populate the department-picker
+  // dropdown. Was missing — those pages 404'd here and fell back to an
+  // empty array via .catch, leaving the dropdown unpopulated.
   @Get()
   @Authorized('departments:read:all')
   @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
