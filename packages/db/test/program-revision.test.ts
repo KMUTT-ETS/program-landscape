@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   programFindUnique: vi.fn(),
+  programUpdate: vi.fn(),
   revisionFindFirst: vi.fn(),
   revisionFindUnique: vi.fn(),
   revisionCreate: vi.fn(),
+  revisionUpdate: vi.fn(),
   documentFindFirst: vi.fn(),
 }));
 
@@ -12,22 +14,29 @@ const mocks = vi.hoisted(() => ({
 // importActual loads the real graph bound to the real prisma and the mock is
 // bypassed. That exact bug was found in health-score.test.ts on 2026-09-02:
 // five tests were silently passing against the live database.
-vi.mock('../src/index', () => ({
-  prisma: {
-    program: { findUnique: mocks.programFindUnique },
+vi.mock('../src/index', () => {
+  const client = {
+    program: { findUnique: mocks.programFindUnique, update: mocks.programUpdate },
     programRevision: {
       findFirst: mocks.revisionFindFirst,
       findUnique: mocks.revisionFindUnique,
       create: mocks.revisionCreate,
+      update: mocks.revisionUpdate,
     },
     programDocument: { findFirst: mocks.documentFindFirst },
-  },
-}));
+    // Interactive transaction: hand the callback the same client so the
+    // per-call assertions below see the writes made inside it.
+    $transaction: (fn: (tx: typeof client) => Promise<unknown>) => fn(client),
+  };
+  return { prisma: client };
+});
 
 import {
   activeRevisionIdFor,
   programRevisionStaleness,
   openDraftRevision,
+  adoptPendingRevision,
+  markRevisionAnalysed,
 } from '../src/program-revision';
 
 beforeEach(() => {
@@ -138,6 +147,86 @@ describe('programRevisionStaleness', () => {
     mocks.documentFindFirst.mockResolvedValue(null);
     const r = await programRevisionStaleness('p1', { activeRevisionSourcePdfId: 'pdfOLD' });
     expect(r.stale).toBe(false);
+  });
+});
+
+describe('adoptPendingRevision', () => {
+  it('adopts the newest pending revision and moves it to ANALYSING', async () => {
+    mocks.revisionFindFirst.mockResolvedValue({ id: 'revNEW' });
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: null });
+
+    expect(await adoptPendingRevision('p1')).toBe('revNEW');
+    expect(mocks.programUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { activeRevisionId: 'revNEW' },
+    });
+    // ANALYSING is still inside the pending set, so a run that dies
+    // mid-flight leaves the programme visibly stale.
+    expect(mocks.revisionUpdate).toHaveBeenCalledWith({
+      where: { id: 'revNEW' },
+      data: { status: 'ANALYSING' },
+    });
+  });
+
+  it('supersedes the previously-active revision', async () => {
+    mocks.revisionFindFirst.mockResolvedValue({ id: 'revNEW' });
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: 'revOLD' });
+
+    await adoptPendingRevision('p1');
+    expect(mocks.revisionUpdate).toHaveBeenCalledWith({
+      where: { id: 'revOLD' },
+      data: { status: 'SUPERSEDED' },
+    });
+  });
+
+  it('does not supersede the already-active revision when it is the pending one', async () => {
+    // Re-running against a revision still mid-analysis must not mark it
+    // SUPERSEDED by itself.
+    mocks.revisionFindFirst.mockResolvedValue({ id: 'revSAME' });
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: 'revSAME' });
+
+    await adoptPendingRevision('p1');
+    expect(mocks.revisionUpdate).not.toHaveBeenCalledWith({
+      where: { id: 'revSAME' },
+      data: { status: 'SUPERSEDED' },
+    });
+  });
+
+  it('changes nothing for a programme with no revision at all', async () => {
+    // The pre-feature baseline: ~300 programmes stay at NULL and their rows
+    // stay unstamped. Deliberate, not a gap to retro-fit.
+    mocks.revisionFindFirst.mockResolvedValue(null);
+
+    expect(await adoptPendingRevision('p1')).toBeNull();
+    expect(mocks.programUpdate).not.toHaveBeenCalled();
+    expect(mocks.revisionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('leaves an already-adopted revision live on a second run', async () => {
+    // Second pipeline run: the revision is APPROVED so nothing is pending.
+    // activeRevisionId MUST survive — clearing it would un-stamp every
+    // subsequent write.
+    mocks.revisionFindFirst.mockResolvedValue(null);
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: 'revLIVE' });
+
+    expect(await adoptPendingRevision('p1')).toBeNull();
+    expect(mocks.programUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('markRevisionAnalysed', () => {
+  it('advances the revision to APPROVED with no approver', async () => {
+    await markRevisionAnalysed('rev1');
+    const arg = mocks.revisionUpdate.mock.calls[0]![0] as {
+      where: { id: string };
+      data: { status: string; approvedAt: Date; approvedById?: string };
+    };
+    expect(arg.where).toEqual({ id: 'rev1' });
+    expect(arg.data.status).toBe('APPROVED');
+    expect(arg.data.approvedAt).toBeInstanceOf(Date);
+    // APPROVED here means "live, by the act of analysis". No human signed
+    // it off, so approvedById stays unset rather than being attributed.
+    expect(arg.data.approvedById).toBeUndefined();
   });
 });
 

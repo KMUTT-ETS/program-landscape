@@ -119,6 +119,84 @@ export async function programRevisionStaleness(
   };
 }
 
+/**
+ * Make the programme's newest pending revision its ACTIVE revision, so every
+ * row the caller is about to write gets stamped with it.
+ *
+ * This is the only writer of `Program.activeRevisionId`. Without it the ten
+ * provenance columns stamped via activeRevisionIdFor() would be NULL forever
+ * and the 'superseded-document' staleness branch would be unreachable.
+ *
+ * Contract:
+ *  - No pending revision → returns null and touches NOTHING. In particular
+ *    it does NOT clear an existing activeRevisionId: a second pipeline run
+ *    over an already-adopted programme must keep stamping the same revision.
+ *    (This is also what keeps ~300 pre-feature programmes at NULL — the
+ *    deliberate baseline, not a gap to retro-fit.)
+ *  - Adopting → the previously-active revision, if any and if different,
+ *    becomes SUPERSEDED so the history reads in order.
+ *  - The adopted revision moves to ANALYSING, which is still inside the
+ *    pending set: a run that dies mid-flight therefore leaves the programme
+ *    visibly stale rather than silently half-analysed.
+ *
+ * Must be called BEFORE any writer runs — the stamp is read per-row at write
+ * time, so a late adoption produces a run with half its rows unstamped.
+ */
+export async function adoptPendingRevision(programId: string): Promise<string | null> {
+  const pending = await prisma.programRevision.findFirst({
+    where: { programId, status: { in: [...PENDING_REVISION_STATUSES] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+  if (!pending) return null;
+
+  const program = await prisma.program.findUnique({
+    where: { id: programId },
+    select: { activeRevisionId: true },
+  });
+  const previousId = program?.activeRevisionId ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    if (previousId && previousId !== pending.id) {
+      await tx.programRevision.update({
+        where: { id: previousId },
+        data: { status: 'SUPERSEDED' },
+      });
+    }
+    await tx.program.update({
+      where: { id: programId },
+      data: { activeRevisionId: pending.id },
+    });
+    await tx.programRevision.update({
+      where: { id: pending.id },
+      data: { status: 'ANALYSING' },
+    });
+  });
+
+  return pending.id;
+}
+
+/**
+ * Close out the revision a completed run analysed.
+ *
+ * APPROVED here means "live", set by the ACT OF ANALYSIS — not by a human
+ * review step. This project has no approval gate: running the pipeline IS the
+ * operator's acceptance of the revision, so `approvedById` stays null on
+ * purpose (nobody signed it off). Project 2 introduces the reviewer workflow
+ * and will insert IN_REVIEW between ANALYSING and APPROVED, at which point
+ * this transition becomes the reviewer's action instead of the runner's.
+ *
+ * Must be called AFTER the phases, and only on a run that got that far: the
+ * revision has to leave the pending set or programRevisionStaleness() reports
+ * the programme stale forever, but a crashed run should keep it pending.
+ */
+export async function markRevisionAnalysed(revisionId: string): Promise<void> {
+  await prisma.programRevision.update({
+    where: { id: revisionId },
+    data: { status: 'APPROVED', approvedAt: new Date() },
+  });
+}
+
 export interface OpenDraftRevisionInput {
   programId: string;
   sourcePdfDocumentId: string;
