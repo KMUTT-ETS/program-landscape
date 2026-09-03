@@ -760,13 +760,30 @@ export class ProgramsService {
     }
     this.assertCanManage(user, doc.program.facultyId);
 
-    return prisma.$transaction(async (tx) => {
+    const promoted = await prisma.$transaction(async (tx) => {
       await this.demotePriorCurrent(tx, programId);
       return tx.programDocument.update({
         where: { id: documentId },
         data: { role: 'CURRENT_CURRICULUM', isCurrent: true },
       });
     });
+
+    // Promotion is the third path to "this document is now the current
+    // curriculum" (after attachDocument and create), so it opens a draft too.
+    // Unconditional here, unlike attachDocument: promote sets isCurrent and
+    // role: CURRENT_CURRICULUM with no guard, overwriting whatever role the
+    // document previously had — promoting a COMMITTEE_ORDER *makes* it the
+    // curriculum. Mirroring the condition that governs isCurrent therefore
+    // means "always". The pdfDocumentId and year come from the row being
+    // promoted; the caller only supplies a document id.
+    await this.openRevisionForCurrentCurriculum({
+      programId,
+      pdfDocumentId: doc.pdfDocumentId,
+      curriculumYearBE: doc.curriculumYearBE,
+      createdById: user.userId,
+    });
+
+    return promoted;
   }
 
   async patchDocument(
