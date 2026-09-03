@@ -424,6 +424,30 @@ function FillStep({
     (report?.hasHard ?? false) ||
     (report?.hasSoft && !force);
 
+  // The programme exists at this point. A failed enqueue is recoverable
+  // from the detail page, so warn and continue rather than surfacing it as
+  // a create failure — that would tell the operator the programme wasn't
+  // created when it was.
+  const firePipeline = async (programId: string) => {
+    try {
+      const res = await fetch(`/api/admin-programs/${programId}/run-pipeline`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ force: false }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+      }
+      return true;
+    } catch (err) {
+      toast.warning(
+        `Program created but pipeline enqueue failed: ${(err as Error).message}. Run pipeline from the program page when ready.`,
+      );
+      return false;
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -455,7 +479,8 @@ function FillStep({
         throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
       }
       const created = json.data as { id: string };
-      toast.success('Program created; PDF attached as current curriculum.');
+      await firePipeline(created.id);
+      toast.success('Program created; PDF attached and analysis started.');
       onCreated(created.id);
     } catch (err) {
       toast.error(`Create failed: ${(err as Error).message}`);
