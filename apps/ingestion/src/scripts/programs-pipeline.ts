@@ -128,6 +128,8 @@ import {
   getAiModelOverrideStore,
   generateProgramResearchExpertise,
   generateProgramCurriculumRevision,
+  adoptPendingRevision,
+  markRevisionAnalysed,
 } from '@kku/db';
 import {
   createAiService,
@@ -306,6 +308,19 @@ async function processProgram(
   const phases: PhaseResult[] = [];
   const shouldRun = (p: Phase) => args.only.includes(p) && !args.skip.has(p);
   const t0 = Date.now();
+
+  // ── Adopt the revision this run is analysing ─────────────────────
+  // FIRST, before any phase: the ten generated tables read
+  // activeRevisionIdFor(programId) inside each writer, so the programme's
+  // active revision must already be set or the run writes NULL stamps.
+  //
+  // Returns null for a programme with no pending revision — including every
+  // pre-feature programme — and in that case changes nothing at all, so
+  // those runs behave exactly as they did before this existed.
+  const adoptedRevisionId = await adoptPendingRevision(program.id);
+  if (adoptedRevisionId) {
+    console.log(`    · adopted revision ${adoptedRevisionId} — rows written by this run carry it`);
+  }
 
   // ── Shared phase-1/2b inputs — prepare ONCE per program ──────────
   // Previously each of {digest, faculty, skills, pedagogy} + {2b
@@ -692,6 +707,25 @@ async function processProgram(
       ok: r.ok,
       notes: r.ok ? 'risk assessment + narrative + measures persisted' : 'risks-assess subprocess failed',
     });
+  }
+
+  // ── Close out the adopted revision ───────────────────────────────
+  // LAST, after every phase: APPROVED means "live", set by the act of
+  // analysis rather than by a human review step — this project has no
+  // approval gate, so running the pipeline IS the operator's acceptance.
+  // Project 2 will insert IN_REVIEW between ANALYSING and this, and the
+  // transition becomes a reviewer's action. Do not read this as "someone
+  // approved something": approvedById is null precisely because nobody did.
+  //
+  // Deliberately NOT gated on `phases.every(p => p.ok)`. Individual phases
+  // fail or skip for reasons that have nothing to do with the curriculum
+  // document (Oracle unreachable, no research row yet, a --only subset), and
+  // a revision stuck pending on an unrelated phase-4 blip would leave the
+  // staleness banner permanently lit — the exact fatigue this feature exists
+  // to avoid. A run that DIES (throws out of a phase) never reaches here, so
+  // the crash case still leaves the revision pending and the programme stale.
+  if (adoptedRevisionId) {
+    await markRevisionAnalysed(adoptedRevisionId);
   }
 
   return {
