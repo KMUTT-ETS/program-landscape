@@ -778,28 +778,44 @@ git commit -m "test(db): guard that every revision-scoped writer stamps provenan
 
 ---
 
-### Task 7: Attaching a curriculum PDF opens a DRAFT revision
+### Task 7: A document becoming the current curriculum opens a DRAFT revision
 
 **Files:**
-- Modify: `apps/api/src/programs/programs.service.ts` — `attachDocument()` (~line 620) and `create()` (~line 316)
+- Modify: `apps/api/src/programs/programs.service.ts` — `attachDocument()` (~line 620), `create()` (~line 316), `promoteDocument()` (~line 750)
+
+#### The paths that make a document current
+
+There are **four** routes to "this document is now the programme's current curriculum". Three of them open a revision; the fourth is knowingly deferred. Any future route must be added here, or it ships a programme whose analyses are stale with no banner to say so.
+
+All four are recognisable by the same tell: they call `demotePriorCurrent()` and then write `isCurrent: true`.
+
+| # | Method | Opens a revision? | Condition |
+|---|---|---|---|
+| 1 | `attachDocument()` | yes | `role === 'CURRENT_CURRICULUM' && promoteToCurrent !== false` — the same `makeCurrent` boolean the upsert uses for `isCurrent`, hoisted out of the transaction so the two cannot drift |
+| 2 | `create()` | yes | `input.attachPdfId` is set — `create()` always attaches as `CURRENT_CURRICULUM / isCurrent: true` |
+| 3 | `promoteDocument()` | yes | unconditional — promote overwrites the row's role to `CURRENT_CURRICULUM` with no guard, so promoting a `COMMITTEE_ORDER` *makes* it the curriculum. Mirroring the condition governing `isCurrent` here means "always". Reads `pdfDocumentId` + `curriculumYearBE` off the row being promoted, since the caller supplies only a document id |
+| 4 | `applyExtraction()` | **no — deferred** | would be `input.attachAsCurrent !== false`. See below |
+
+**`applyExtraction()` is a known, deliberate gap.** It upserts the extraction's PDF with `role: 'CURRENT_CURRICULUM', isCurrent: true` (~line 927) and so leaves the programme with a new current curriculum and no revision — the staleness banner will read "not stale" after an apply-extraction. It was left alone in this task on purpose: it is the one path that *also* rewrites the `Program` header columns in the same transaction, so whether its revision should be `DRAFT` (awaiting analysis) or immediately `APPROVED` (the operator just reviewed the extraction by hand) is a Project 2 question about the approval gate, not a mechanical one. Closing it is a one-line call to the same helper once that is decided.
+
+The three live call sites share `private openRevisionForCurrentCurriculum()`, which wraps `openDraftRevision` with the swallow-and-log posture described in Step 1. Add new paths through that helper, not by calling `openDraftRevision` directly.
 
 - [ ] **Step 1: Open a draft in `attachDocument()`**
 
-The method currently ends by returning the `tx.programDocument.upsert(...)` result inside a `$transaction`. Capture that result, and after the transaction commits, open the draft:
+The method currently ends by returning the `tx.programDocument.upsert(...)` result inside a `$transaction`. Capture that result and open the draft after the transaction commits. Hoist `makeCurrent` out of the transaction callback too, so the revision condition is *literally the same boolean* the upsert uses for `isCurrent` — written out twice, the two would eventually drift:
 
 ```typescript
+    const makeCurrent =
+      input.role === 'CURRENT_CURRICULUM' && input.promoteToCurrent !== false;
+
     const doc = await prisma.$transaction(async (tx) => {
-      /* ...existing body unchanged... */
+      /* ...existing body, minus its own `makeCurrent` line... */
     });
 
-    // A newly-promoted curriculum document opens a DRAFT revision. It is NOT
-    // analysed here — "ask first, then run" — but its existence is what makes
-    // the staleness banner possible and what Project 2's "Analyse revision"
-    // will target. Idempotent per (programId, pdfDocumentId).
-    if (input.role === 'CURRENT_CURRICULUM' && input.promoteToCurrent !== false) {
-      await openDraftRevision({
+    if (makeCurrent) {
+      await this.openRevisionForCurrentCurriculum({
         programId,
-        sourcePdfDocumentId: input.pdfDocumentId,
+        pdfDocumentId: input.pdfDocumentId,
         curriculumYearBE: input.curriculumYearBE ?? null,
         createdById: user.userId,
       });
@@ -808,22 +824,34 @@ The method currently ends by returning the `tx.programDocument.upsert(...)` resu
     return doc;
 ```
 
-Deliberately **outside** the transaction: opening a draft is bookkeeping, and failing it must not roll back a successful document attach. If it throws, the operator still has their file attached and the banner simply does not appear until the next attach.
+Extract `private openRevisionForCurrentCurriculum({ programId, pdfDocumentId, curriculumYearBE, createdById })` rather than inlining — three call sites need it. It wraps `openDraftRevision` (imported from `@kku/db`) in a try/catch that logs via a Nest `Logger` and **swallows**.
 
-Import `openDraftRevision` from `@kku/db`.
+Deliberately **outside** the transaction, and deliberately swallowing: opening a draft is bookkeeping, and failing it must not roll back a document attach the operator already saw succeed. A throw here would report a committed attach as a failure and invite a retry against state that already changed — the more misleading of the two failure modes. The loss is recoverable, since re-attaching the same document opens the draft that was missed.
+
+Residual risk worth knowing: for a programme with a NULL `activeRevisionId` (all of them today), a silently-missed draft means no banner at all — `programRevisionStaleness()`'s `superseded-document` path needs an active revision to compare against and so cannot cover for it. The log line is the only signal.
 
 - [ ] **Step 2: Do the same in `create()`**
 
-`create()` attaches a `CURRENT_CURRICULUM` document when `attachPdfId` is supplied (~line 487-502). After the programme and its document exist, open a draft the same way, with `createdById: user.userId`. A new programme should start with a revision rather than a NULL baseline.
+`create()` attaches a `CURRENT_CURRICULUM` document when `attachPdfId` is supplied (~line 487-502). Capture the `$transaction` result, then call the helper when `input.attachPdfId` is set, with `createdById: user.userId`. A new programme should start with a revision rather than a NULL baseline.
 
-- [ ] **Step 3: Typecheck**
+Hoist the `curriculumYearBE` expression (`(extractionPayload?.curriculumYearBE as number | undefined) ?? null`) out of the `programDocument.create` so the document and the revision are guaranteed to record the same year.
+
+- [ ] **Step 3: Do the same in `promoteDocument()`**
+
+Promote is the third path to current-curriculum and needs the same treatment — an operator who attaches without promoting, then promotes from the files tab, would otherwise get a new current curriculum with no revision and therefore no staleness banner. Capture the `$transaction` result and call the helper **unconditionally** afterwards (see the table above for why), reading `pdfDocumentId` and `curriculumYearBE` off the `doc` row the method already fetched for its authorization check.
+
+- [ ] **Step 4: Typecheck**
 
 Run: `cd apps/api && npx tsc --noEmit`
 Expected: clean.
 
-- [ ] **Step 4: Verify against real data, including idempotency**
+- [ ] **Step 5: Verify against real data, including idempotency**
 
-Start the API (`pnpm dev`), then attach a document twice through the real endpoint, or exercise the service directly:
+Exercise the helper directly for the idempotency guard, **then exercise the real endpoints** — the endpoints are what this task changes, and reading the conditions is not the same as running them. Cover, at minimum: attach `PREVIOUS_CURRICULUM` (no revision), attach `CURRENT_CURRICULUM` with `promoteToCurrent: false` (no revision), attach `CURRENT_CURRICULUM` promoted (one revision), the same attach repeated (still one), attach a `SUPPLEMENTARY` then promote it (one revision, proving the unconditional promote path), and promote again (still one).
+
+Attaching foreign PDFs to a real programme leaves genuinely wrong data behind — a dentistry curriculum attached to Chemical Engineering will quietly poison any later analysis of that programme, and promoting demotes the real curriculum document to `PREVIOUS_CURRICULUM`. **Revert every document you attach and restore the original current document**, keeping only the deliberate KKU-SEQ-0060 draft.
+
+The helper check:
 
 ```bash
 cd packages/db && npx tsx -e "
@@ -841,12 +869,16 @@ import { prisma, openDraftRevision } from './src/index';
 ```
 Expected: `first: { id: ..., created: true }`, `second: { id: <same id>, created: false }`, and exactly **1** revision row. Two rows would mean the idempotency guard is wrong.
 
-- [ ] **Step 5: Commit**
+Note this leaves a real DRAFT revision on **KKU-SEQ-0060** — kept on purpose, since Task 9's staleness banner needs a non-baseline programme to render against. The dev DB is no longer all-baseline from this point on.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/programs/programs.service.ts
 git commit -m "feat(api): attaching a curriculum PDF opens a draft revision"
 ```
+
+As shipped this landed as two commits — `6c6fa3f` for `attachDocument()` + `create()`, then `37f7eb0` for `promoteDocument()` once the third path was spotted.
 
 ---
 
