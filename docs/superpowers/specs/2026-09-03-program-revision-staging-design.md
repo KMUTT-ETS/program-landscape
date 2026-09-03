@@ -109,9 +109,25 @@ model ProgramRevision {
   activeRevisionId String? @map("active_revision_id")
 ```
 
-Deliberately **not** a relation with a FK constraint back to `ProgramRevision`, to avoid a circular
-required-relation problem at create time; it is a plain nullable id resolved in code. State that in
-the schema comment so nobody "fixes" it.
+**Correction, made during implementation (2026-09-03):** an earlier draft of this spec said to make
+this a plain nullable id with no relation and no FK, "to avoid a circular required-relation problem
+at create time". That reasoning was wrong and two independent reviews caught it. Nobody needed a
+*required* relation — an **optional** one is a standard Prisma pattern, and the insert order is
+identical either way (create Program with NULL → create the revision → UPDATE the programme).
+
+Leaving it a bare scalar had two real costs: `activeRevisionId` ended up with **no FK constraint at
+all**, so nothing stopped it pointing at a nonexistent revision or one belonging to a different
+programme; and a database FK that Prisma cannot see is reported by `migrate diff` as
+`DROP CONSTRAINT` **permanently**, so anyone later running `prisma migrate dev` would generate a
+migration silently deleting it. This repo already carries ~20 documented drift entries described as
+work worth doing "before it causes a real incident" — deliberately adding more was the wrong
+direction.
+
+So: `activeRevisionId` is `@unique` (a revision belongs to one programme, so it can never be active
+for two) with an optional `activeRevision` relation, and the ten provenance columns each carry an
+optional relation too. Cost: eleven back-relation fields on `ProgramRevision`, which is unremarkable
+in a schema where `Program` already carries dozens. Benefit: real referential integrity and **zero**
+drift, both verified.
 
 ## Component 2 — provenance on generated output
 
