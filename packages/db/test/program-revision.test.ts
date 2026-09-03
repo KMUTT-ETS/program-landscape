@@ -111,6 +111,26 @@ describe('programRevisionStaleness', () => {
     expect(r.stale).toBe(false);
   });
 
+  it('is NOT stale when the live revision has no source document to compare', async () => {
+    // A revision can be opened before its มคอ.2 is attached (the schema makes
+    // sourcePdfDocumentId nullable for exactly that). A null source cannot
+    // prove supersession, so silence here is deliberate, not incidental — a
+    // false positive would train operators to ignore the banner permanently.
+    // Driven through the fall-through fetch (no opts) because that is the
+    // query branch production takes; the injected-opts path is covered above.
+    mocks.revisionFindFirst.mockResolvedValue(null);
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: 'rev1' });
+    mocks.revisionFindUnique.mockResolvedValue({ sourcePdfDocumentId: null });
+    mocks.documentFindFirst.mockResolvedValue({
+      pdfDocumentId: 'pdfNEW',
+      attachedAt: new Date('2026-09-01'),
+    });
+    const r = await programRevisionStaleness('p1');
+    expect(mocks.revisionFindUnique).toHaveBeenCalledOnce();
+    expect(r.stale).toBe(false);
+    expect(r.reason).toBe('none');
+  });
+
   it('is NOT stale when the programme has no current curriculum document', async () => {
     // Nothing to compare against — do not invent staleness from absence.
     mocks.revisionFindFirst.mockResolvedValue(null);
