@@ -14,6 +14,15 @@ import { prisma } from './index';
 const PENDING_REVISION_STATUSES = ['DRAFT', 'ANALYSING', 'IN_REVIEW'] as const;
 
 /**
+ * The complement of PENDING_REVISION_STATUSES — every status a revision
+ * lands in once it has left the pending set. REJECTED is included alongside
+ * APPROVED/SUPERSEDED: reaching IN_REVIEW (and being declined from there)
+ * still means the revision WAS analysed, just not adopted. Only DRAFT /
+ * ANALYSING / IN_REVIEW mean "not analysed yet".
+ */
+const COMPLETED_REVISION_STATUSES = ['APPROVED', 'REJECTED', 'SUPERSEDED'] as const;
+
+/**
  * The revision the programme's live analyses belong to, or null for the
  * pre-feature baseline.
  *
@@ -41,6 +50,11 @@ export interface ProgramStaleness {
   pendingCurriculumYearBE: number | null;
   /** When the newer document was attached, for the banner copy. */
   pendingAttachedAt: Date | null;
+  /** True when no revision for this programme has ever completed analysis —
+   *  i.e. this is the programme's first. A brand-new programme opens a DRAFT
+   *  revision at create time, and telling its operator "a revised file was
+   *  attached" is nonsense when there is no previous file. */
+  isFirstAnalysis: boolean;
 }
 
 /**
@@ -77,12 +91,16 @@ export async function programRevisionStaleness(
   ]);
 
   if (pending) {
+    const completedCount = await prisma.programRevision.count({
+      where: { programId, status: { in: [...COMPLETED_REVISION_STATUSES] } },
+    });
     return {
       stale: true,
       reason: 'unanalysed-revision',
       pendingRevisionId: pending.id,
       pendingCurriculumYearBE: pending.curriculumYearBE,
       pendingAttachedAt: currentDoc?.attachedAt ?? pending.createdAt,
+      isFirstAnalysis: completedCount === 0,
     };
   }
 
@@ -106,6 +124,9 @@ export async function programRevisionStaleness(
         pendingRevisionId: null,
         pendingCurriculumYearBE: null,
         pendingAttachedAt: currentDoc.attachedAt,
+        // A superseded document by definition means something was analysed
+        // before — this can never be the programme's first analysis.
+        isFirstAnalysis: false,
       };
     }
   }
@@ -116,6 +137,7 @@ export async function programRevisionStaleness(
     pendingRevisionId: null,
     pendingCurriculumYearBE: null,
     pendingAttachedAt: null,
+    isFirstAnalysis: false,
   };
 }
 

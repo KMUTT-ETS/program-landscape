@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   revisionFindUnique: vi.fn(),
   revisionCreate: vi.fn(),
   revisionUpdate: vi.fn(),
+  revisionCount: vi.fn(),
   documentFindFirst: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock('../src/index', () => {
       findUnique: mocks.revisionFindUnique,
       create: mocks.revisionCreate,
       update: mocks.revisionUpdate,
+      count: mocks.revisionCount,
     },
     programDocument: { findFirst: mocks.documentFindFirst },
     // Interactive transaction: hand the callback the same client so the
@@ -147,6 +149,42 @@ describe('programRevisionStaleness', () => {
     mocks.documentFindFirst.mockResolvedValue(null);
     const r = await programRevisionStaleness('p1', { activeRevisionSourcePdfId: 'pdfOLD' });
     expect(r.stale).toBe(false);
+  });
+
+  it('is a first analysis when no revision for this programme has ever completed', async () => {
+    // A brand-new programme opens a DRAFT revision at create time. There is
+    // no previous document, so the banner must not claim one was replaced.
+    mocks.revisionFindFirst.mockResolvedValue({
+      id: 'rev2',
+      curriculumYearBE: 2567,
+      createdAt: new Date('2026-09-01'),
+    });
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: null });
+    mocks.documentFindFirst.mockResolvedValue({
+      pdfDocumentId: 'pdfNEW',
+      attachedAt: new Date('2026-09-01'),
+    });
+    mocks.revisionCount.mockResolvedValue(0);
+    const r = await programRevisionStaleness('p1');
+    expect(r.reason).toBe('unanalysed-revision');
+    expect(r.isFirstAnalysis).toBe(true);
+  });
+
+  it('is NOT a first analysis when an earlier revision already completed', async () => {
+    mocks.revisionFindFirst.mockResolvedValue({
+      id: 'rev3',
+      curriculumYearBE: 2568,
+      createdAt: new Date('2026-09-02'),
+    });
+    mocks.programFindUnique.mockResolvedValue({ activeRevisionId: 'rev1' });
+    mocks.documentFindFirst.mockResolvedValue({
+      pdfDocumentId: 'pdfNEW',
+      attachedAt: new Date('2026-09-02'),
+    });
+    mocks.revisionCount.mockResolvedValue(1);
+    const r = await programRevisionStaleness('p1');
+    expect(r.reason).toBe('unanalysed-revision');
+    expect(r.isFirstAnalysis).toBe(false);
   });
 });
 

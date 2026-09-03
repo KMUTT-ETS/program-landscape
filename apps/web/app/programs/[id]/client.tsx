@@ -268,11 +268,13 @@ export function DeepDiveClient(props: Props) {
           <Card padding="sm" tone="quiet">
             <p className="text-xs text-text-secondary">
               {props.overview.staleness.reason === 'unanalysed-revision'
-                ? `A newer curriculum document${
-                    props.overview.staleness.pendingCurriculumYearBE
-                      ? ` (พ.ศ. ${props.overview.staleness.pendingCurriculumYearBE})`
-                      : ''
-                  } has been attached to this programme but not yet analysed. The analysis below reflects the previous curriculum.`
+                ? props.overview.staleness.isFirstAnalysis
+                  ? "This programme's analysis has not been generated yet."
+                  : `A newer curriculum document${
+                      props.overview.staleness.pendingCurriculumYearBE
+                        ? ` (พ.ศ. ${props.overview.staleness.pendingCurriculumYearBE})`
+                        : ''
+                    } has been attached to this programme but not yet analysed. The analysis below reflects the previous curriculum.`
                 : 'The analysis below was generated from a curriculum document that is no longer the current one.'}
             </p>
           </Card>

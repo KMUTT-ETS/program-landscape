@@ -181,6 +181,10 @@ export interface DeepDiveOverview {
     pendingRevisionId: string | null;
     pendingCurriculumYearBE: number | null;
     pendingAttachedAt: string | null;
+    /** True when no revision for this programme has ever completed
+     *  analysis — i.e. this is the programme's first. Optional so an older
+     *  cached response (from before this field existed) still renders. */
+    isFirstAnalysis?: boolean;
   };
   methodologyVersion: string;
 }

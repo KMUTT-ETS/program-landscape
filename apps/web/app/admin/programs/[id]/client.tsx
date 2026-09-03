@@ -126,6 +126,10 @@ export interface ProgramDetail {
     pendingRevisionId: string | null;
     pendingCurriculumYearBE: number | null;
     pendingAttachedAt: string | null;
+    /** True when no revision for this programme has ever completed
+     *  analysis — i.e. this is the programme's first. Optional so an older
+     *  cached response (from before this field existed) still renders. */
+    isFirstAnalysis?: boolean;
   };
   updatedAt: string;
 }
@@ -236,13 +240,20 @@ function StalenessBanner({ program }: { program: ProgramDetail }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-text-primary">
           {staleness.reason === 'unanalysed-revision' ? (
-            <>
-              A revised curriculum file was attached
-              {staleness.pendingAttachedAt
-                ? ` on ${new Date(staleness.pendingAttachedAt).toLocaleDateString()}`
-                : ''}{' '}
-              and has not been analysed. Every AI section still reflects the previous file.
-            </>
+            staleness.isFirstAnalysis ? (
+              <>
+                This programme&apos;s curriculum file has not been analysed yet. Run the
+                pipeline to generate its analysis.
+              </>
+            ) : (
+              <>
+                A revised curriculum file was attached
+                {staleness.pendingAttachedAt
+                  ? ` on ${new Date(staleness.pendingAttachedAt).toLocaleDateString()}`
+                  : ''}{' '}
+                and has not been analysed. Every AI section still reflects the previous file.
+              </>
+            )
           ) : (
             <>
               The AI sections were generated from a curriculum file that is no longer
