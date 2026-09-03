@@ -785,20 +785,24 @@ git commit -m "test(db): guard that every revision-scoped writer stamps provenan
 
 #### The paths that make a document current
 
-There are **four** routes to "this document is now the programme's current curriculum". Three of them open a revision; the fourth is knowingly deferred. Any future route must be added here, or it ships a programme whose analyses are stale with no banner to say so.
+There are **four** routes to "this document is now the programme's current curriculum", and **all four open a DRAFT**. Any future route must be added here, or it ships a programme whose analyses are stale with no banner to say so.
 
 All four are recognisable by the same tell: they call `demotePriorCurrent()` and then write `isCurrent: true`.
 
-| # | Method | Opens a revision? | Condition |
-|---|---|---|---|
-| 1 | `attachDocument()` | yes | `role === 'CURRENT_CURRICULUM' && promoteToCurrent !== false` — the same `makeCurrent` boolean the upsert uses for `isCurrent`, hoisted out of the transaction so the two cannot drift |
-| 2 | `create()` | yes | `input.attachPdfId` is set — `create()` always attaches as `CURRENT_CURRICULUM / isCurrent: true` |
-| 3 | `promoteDocument()` | yes | unconditional — promote overwrites the row's role to `CURRENT_CURRICULUM` with no guard, so promoting a `COMMITTEE_ORDER` *makes* it the curriculum. Mirroring the condition governing `isCurrent` here means "always". Reads `pdfDocumentId` + `curriculumYearBE` off the row being promoted, since the caller supplies only a document id |
-| 4 | `applyExtraction()` | **no — deferred** | would be `input.attachAsCurrent !== false`. See below |
+| # | Method | Condition |
+|---|---|---|
+| 1 | `attachDocument()` | `role === 'CURRENT_CURRICULUM' && promoteToCurrent !== false` — the same `makeCurrent` boolean the upsert uses for `isCurrent`, hoisted out of the transaction so the two cannot drift |
+| 2 | `create()` | `input.attachPdfId` is set — `create()` always attaches as `CURRENT_CURRICULUM / isCurrent: true` |
+| 3 | `promoteDocument()` | unconditional — promote overwrites the row's role to `CURRENT_CURRICULUM` with no guard, so promoting a `COMMITTEE_ORDER` *makes* it the curriculum. Mirroring the condition governing `isCurrent` here means "always". Reads `pdfDocumentId` + `curriculumYearBE` off the row being promoted, since the caller supplies only a document id |
+| 4 | `applyExtraction()` | `input.attachAsCurrent !== false` |
 
-**`applyExtraction()` is a known, deliberate gap.** It upserts the extraction's PDF with `role: 'CURRENT_CURRICULUM', isCurrent: true` (~line 927) and so leaves the programme with a new current curriculum and no revision — the staleness banner will read "not stale" after an apply-extraction. It was left alone in this task on purpose: it is the one path that *also* rewrites the `Program` header columns in the same transaction, so whether its revision should be `DRAFT` (awaiting analysis) or immediately `APPROVED` (the operator just reviewed the extraction by hand) is a Project 2 question about the approval gate, not a mechanical one. Closing it is a one-line call to the same helper once that is decided.
+**Why `applyExtraction()` opens a `DRAFT` like the rest, despite the human review in front of it.** The reviewer there approved an extraction *payload* — degree names, credits, majors, header fields. They did **not** approve that the programme's analyses reflect the new document, and those analyses are exactly as stale as they would be on any other path. `DRAFT` means "a new current curriculum is awaiting analysis", which is as true here as anywhere. Treating it differently would also mean the same end state produces a different record depending on which door the operator came through — and the whole reason this project exists is that the system could not tell you which document an analysis came from. Four doors, one record type.
 
-The three live call sites share `private openRevisionForCurrentCurriculum()`, which wraps `openDraftRevision` with the swallow-and-log posture described in Step 1. Add new paths through that helper, not by calling `openDraftRevision` directly.
+The metadata question this raises — that `applyExtraction()` also rewrites `Program` header columns — belongs to Project 2's approval gate, not here, and is separately covered: Task 8 records those column changes as a `metadataProposalJson` entry plus an audit row regardless of which path wrote them.
+
+Two paths deliberately do **not** qualify: `patchDocument()` can change a document's `role` but never touches `isCurrent`, and `detachDocument()` deletes rows without promoting anything. Neither can produce a new current curriculum.
+
+All four call sites share `private openRevisionForCurrentCurriculum()`, which wraps `openDraftRevision` with the swallow-and-log posture described in Step 1. Add new paths through that helper, not by calling `openDraftRevision` directly.
 
 - [ ] **Step 1: Open a draft in `attachDocument()`**
 
@@ -840,16 +844,36 @@ Hoist the `curriculumYearBE` expression (`(extractionPayload?.curriculumYearBE a
 
 Promote is the third path to current-curriculum and needs the same treatment — an operator who attaches without promoting, then promotes from the files tab, would otherwise get a new current curriculum with no revision and therefore no staleness banner. Capture the `$transaction` result and call the helper **unconditionally** afterwards (see the table above for why), reading `pdfDocumentId` and `curriculumYearBE` off the `doc` row the method already fetched for its authorization check.
 
-- [ ] **Step 4: Typecheck**
+While in there, add a comment at the `role: 'CURRENT_CURRICULUM'` write recording that promote **overwrites** the role rather than requiring it. It is surprising enough that the next reader will file it as a bug; it is neither, and the behaviour is load-bearing for why the revision is unconditional.
+
+- [ ] **Step 4: Do the same in `applyExtraction()`**
+
+The fourth path (~line 944). Hoist `attachAsCurrent` (`input.attachAsCurrent !== false`) above the transaction so the same boolean guards the upsert and the revision, capture the `$transaction` result, and call the helper afterwards with `pdfDocumentId: extraction.pdfDocumentId` and `curriculumYearBE: programPatch.curriculumYearBE ?? null` — the same year the document upsert records.
+
+- [ ] **Step 5: Typecheck**
 
 Run: `cd apps/api && npx tsc --noEmit`
 Expected: clean.
 
-- [ ] **Step 5: Verify against real data, including idempotency**
+- [ ] **Step 6: Verify against real data, including idempotency**
 
-Exercise the helper directly for the idempotency guard, **then exercise the real endpoints** — the endpoints are what this task changes, and reading the conditions is not the same as running them. Cover, at minimum: attach `PREVIOUS_CURRICULUM` (no revision), attach `CURRENT_CURRICULUM` with `promoteToCurrent: false` (no revision), attach `CURRENT_CURRICULUM` promoted (one revision), the same attach repeated (still one), attach a `SUPPLEMENTARY` then promote it (one revision, proving the unconditional promote path), and promote again (still one).
+Exercise the helper directly for the idempotency guard, **then exercise all four real endpoints** — they are what this task changes, and reading the conditions is not the same as running them. Cover, at minimum:
 
-Attaching foreign PDFs to a real programme leaves genuinely wrong data behind — a dentistry curriculum attached to Chemical Engineering will quietly poison any later analysis of that programme, and promoting demotes the real curriculum document to `PREVIOUS_CURRICULUM`. **Revert every document you attach and restore the original current document**, keeping only the deliberate KKU-SEQ-0060 draft.
+| case | expected |
+|---|---|
+| attach `PREVIOUS_CURRICULUM` | no revision |
+| attach `CURRENT_CURRICULUM`, `promoteToCurrent: false` | no revision |
+| attach `CURRENT_CURRICULUM` promoted | one revision |
+| …the same attach repeated | still one |
+| attach `SUPPLEMENTARY`, then promote it | one revision (proves the unconditional promote path *and* the role overwrite) |
+| …promote again | still one |
+| apply-extraction with `attachAsCurrent: false` | no revision |
+| apply-extraction with the default | one revision |
+| …the same apply repeated | still one |
+
+**Restore everything you touch.** Attaching foreign PDFs to a real programme leaves genuinely wrong data behind — a dentistry curriculum attached to Chemical Engineering will quietly poison any later analysis of that programme — and promoting demotes the real curriculum document to `PREVIOUS_CURRICULUM`. `applyExtraction()` is the worst of the four: it **rewrites the `Program` header columns** and re-stamps the extraction's review fields. Snapshot the whole `Program` row, the extraction's review stamp, and the programme's documents to a file *before* calling it, restore from that afterwards, and diff the row field-for-field to prove the restore was complete. Picking an extraction that came from the programme's own current curriculum PDF keeps the blast radius to the header columns.
+
+Keep only the deliberate KKU-SEQ-0060 draft.
 
 The helper check:
 
@@ -871,14 +895,14 @@ Expected: `first: { id: ..., created: true }`, `second: { id: <same id>, created
 
 Note this leaves a real DRAFT revision on **KKU-SEQ-0060** — kept on purpose, since Task 9's staleness banner needs a non-baseline programme to render against. The dev DB is no longer all-baseline from this point on.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/programs/programs.service.ts
 git commit -m "feat(api): attaching a curriculum PDF opens a draft revision"
 ```
 
-As shipped this landed as two commits — `6c6fa3f` for `attachDocument()` + `create()`, then `37f7eb0` for `promoteDocument()` once the third path was spotted.
+As shipped this landed as three commits, because the paths were found one at a time rather than enumerated up front — `6c6fa3f` (`attachDocument()` + `create()`), `37f7eb0` (`promoteDocument()`), `0503fcb` (`applyExtraction()` + the promote role-overwrite comment). The table at the top of this task exists so the next person enumerates first.
 
 ---
 
