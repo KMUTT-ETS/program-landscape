@@ -26,6 +26,25 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-03',
+    version: 'v1.8.6 · Submitting a curriculum, and revisions that actually refresh',
+    title:
+      'One place to submit a มคอ.2 — whether the programme is new or being revised — and a revised curriculum now refreshes the analyses that read it, instead of keeping the previous document\'s conclusions',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'One entry point for submitting a curriculum file. Program management previously showed three buttons that all created a programme and led to two different pages, with nothing indicating that two of them were identical. There is now a single "Submit curriculum file" action, reachable from the programme list and from its own tile in the admin console.',
+      'Revising an existing programme has an entry point for the first time. It was always possible — find the programme, open it, use the Files tab, then run the pipeline — but nothing in the interface named it as an operation, so it was effectively undiscoverable. The submission page now asks up front whether the file is a new programme or a revision, and offers a search to pick the programme being revised.',
+      'That question is asked rather than inferred, deliberately. A revised มคอ.2 normally carries a new code because the curriculum year changes, so duplicate detection cannot recognise it as a revision — it would have shown a green "no duplicates, safe to create" panel and led to a second copy of a programme that already exists. Asking removes that failure rather than mitigating it.',
+      'Attaching a revision keeps the file it replaces. The superseded document is retained as a previous version, and the programme shows a notice that its analysis still reflects the older file until the pipeline has re-read the new one.',
+      'A revised curriculum now refreshes every analysis that reads it. The programme digest, staff list, skills, teaching-methods assessment, research-expertise analysis and curriculum-revision advice each used to run once and then skip forever, regardless of which document produced them. A programme could therefore present a พ.ศ. 2570 curriculum beside advice derived from its 2565 document, with nothing on the page indicating the mismatch. Each of those now regenerates when — and only when — the curriculum has actually changed.',
+      'Programmes whose curriculum has not changed are untouched and cost nothing extra to re-run. That was checked across all 301 programmes rather than sampled, because the alternative reading of "no recorded curriculum version" would have re-analysed the entire portfolio on every run.',
+      'Submitting a programme now starts its analysis. The upload-based creation page had never triggered the pipeline at all, so a programme created there received its header details and no analysis until somebody noticed and started it by hand.',
+      'Creating a programme with no curriculum file is no longer offered. Every analysis reads the มคอ.2, so a programme without one was permanently unanalysable while appearing complete in every list. The 21 existing programmes that have no curriculum file are unaffected and remain visible through the pipeline view, which is where they can be given one.',
+      'Primary buttons across the whole platform now show their intended background colour. They had been rendering as plain text: the style referred to a colour token that was never generated, so the fill silently applied nothing and no error was raised anywhere. This changes how buttons look on many pages — nothing about what they do changes.',
+      'Smaller fixes: "Higher Grad. Diploma" can be chosen again when submitting a file — the option was missing from the list, so those programmes showed a blank level; a newly created programme no longer reports that a revised file was attached when it has no previous file; and the breadcrumb on the submission page now matches the page\'s own title.',
+    ],
+  },
+  {
     date: '2026-09-02',
     version: 'v1.8.5 · Curriculum revision — turning research strength into course-level advice',
     title:
