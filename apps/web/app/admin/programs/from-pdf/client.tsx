@@ -7,7 +7,11 @@ import { Badge, Button, Card, Input, Label } from '@kku/ui';
 import { FilterSearch } from '@/components/filter-rail';
 import {
   AlertTriangle,
+  ArrowRight,
+  Check,
   CheckCircle2,
+  FilePlus2,
+  FileStack,
   FileUp,
   Loader2,
   Sparkles,
@@ -296,52 +300,184 @@ function ModeStep({
   }, [mode, query]);
 
   return (
-    <Card padding="md">
+    <Card padding="lg">
       <h2 className="text-sm font-semibold text-text-primary">
         Step 1 of 3 · What are you submitting?
       </h2>
-      <div className="mt-3 flex flex-col gap-2">
-        <Button
-          variant={mode === 'new' ? 'primary' : 'outline'}
-          onClick={() => setMode('new')}
-        >
-          A new programme
-        </Button>
-        <Button
-          variant={mode === 'revision' ? 'primary' : 'outline'}
-          onClick={() => setMode('revision')}
-        >
-          A revised curriculum for an existing programme
-        </Button>
-      </div>
+      <p className="mt-1 text-sm text-text-secondary">
+        This decides where the file lands. It is asked rather than guessed —
+        a revised มคอ.2 usually carries a new code, so duplicate detection
+        cannot tell a revision from a genuinely new programme.
+      </p>
+
+      {/* Native radios inside labels: real keyboard semantics (arrow keys
+          move between options, space selects) for free, no ARIA to keep in
+          sync. The input is sr-only; the label IS the visible control. */}
+      <fieldset className="mt-4">
+        <legend className="sr-only">Submission type</legend>
+        <div className="grid gap-3 md:grid-cols-2">
+          <ModeCard
+            value="new"
+            checked={mode === 'new'}
+            onSelect={() => setMode('new')}
+            icon={<FilePlus2 className="size-icon-lg" />}
+            title="A new programme"
+            description="Not yet in the system. Creates the programme record from the file's extracted details."
+          />
+          <ModeCard
+            value="revision"
+            checked={mode === 'revision'}
+            onSelect={() => setMode('revision')}
+            icon={<FileStack className="size-icon-lg" />}
+            title="A revised curriculum"
+            description="Replaces the current file on a programme that already exists. The old file is kept as a previous version."
+          />
+        </div>
+      </fieldset>
 
       {mode === 'new' && (
-        <div className="mt-4">
-          <Button onClick={onNew}>Continue</Button>
+        <div className="mt-5 flex justify-end">
+          <Button variant="primary" onClick={onNew}>
+            Continue
+            <ArrowRight className="size-icon-md" aria-hidden />
+          </Button>
         </div>
       )}
 
       {mode === 'revision' && (
-        <div className="mt-4 flex flex-col gap-2">
-          <FilterSearch
-            value={query}
-            onChange={setQuery}
-            placeholder="Search by code or name…"
-          />
-          {options.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => onRevise(p)}
-              className="rounded-md border border-border-subtle px-3 py-2 text-left text-sm hover:bg-surface-2"
-            >
-              <span className="font-tabular text-xs text-text-tertiary">{p.code}</span>{' '}
-              <span className="text-text-primary">{p.nameTh}</span>
-            </button>
-          ))}
+        <div className="mt-5 border-t border-border-subtle pt-5">
+          <Label htmlFor="revise-target">Which programme is being revised?</Label>
+          <div className="mt-2">
+            <FilterSearch
+              id="revise-target"
+              value={query}
+              onChange={setQuery}
+              placeholder="Search by code or name (TH or EN)…"
+            />
+          </div>
+
+          {query.trim().length > 0 && query.trim().length < 2 && (
+            <p className="mt-2 text-xs text-text-tertiary">
+              Keep typing — search starts at two characters.
+            </p>
+          )}
+
+          {query.trim().length >= 2 && options.length === 0 && (
+            <p className="mt-3 text-sm text-text-secondary">
+              No programme matches “{query.trim()}”. If it genuinely is not in
+              the system yet, choose “A new programme” above.
+            </p>
+          )}
+
+          {options.length > 0 && (
+            <ul className="mt-3 divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle">
+              {options.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => onRevise(p)}
+                    className="group flex w-full items-center gap-8 bg-surface-1 px-3 py-2.5 text-left transition-colors hover:bg-accent-subtle/40 focus-visible:bg-accent-subtle/40 focus-visible:outline-none"
+                  >
+                    {/* Fixed column, not just a flex gap: the code and the
+                        Thai name are both text and read as one run when only
+                        whitespace separates them. A column also lets the eye
+                        scan the names down a straight edge. */}
+                    <span className="font-tabular w-48 shrink-0 text-xs text-text-tertiary">
+                      {p.code}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                      {p.nameTh}
+                    </span>
+                    <ArrowRight
+                      className="size-icon-md shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                      aria-hidden
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </Card>
+  );
+}
+
+// A selectable card. The visible control is the <label>; the radio itself is
+// sr-only, which keeps native keyboard behaviour (arrows move, space picks)
+// without hand-rolled ARIA. The focus ring is a separate overlay span driven
+// by `peer-focus-visible` — a parent cannot style itself from a child's focus.
+function ModeCard({
+  value,
+  checked,
+  onSelect,
+  icon,
+  title,
+  description,
+}: {
+  value: string;
+  checked: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <label
+      className={[
+        'relative flex cursor-pointer flex-col gap-3 rounded-xl border p-4 transition-all duration-200',
+        checked
+          ? 'border-accent-default bg-accent-subtle/50 shadow-elevation-2'
+          : 'border-border-subtle bg-surface-1 hover:border-accent-default/60 hover:bg-surface-2/40 hover:shadow-elevation-1',
+      ].join(' ')}
+    >
+      <input
+        type="radio"
+        name="submission-mode"
+        value={value}
+        checked={checked}
+        onChange={onSelect}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -inset-px rounded-xl opacity-0 ring-2 ring-accent-default transition-opacity peer-focus-visible:opacity-100"
+      />
+
+      <span className="flex items-start justify-between gap-3">
+        <span
+          className={[
+            // Border, not just a fill: on a surface-1 card the surface-3
+            // tint alone is too close in value to read as a container, and
+            // the glyph looks like it is floating. Same idiom as the
+            // admin console tiles.
+            'flex h-11 w-11 items-center justify-center rounded-xl border transition-colors',
+            checked
+              ? 'border-accent-default/40 bg-accent-default/15 text-accent-default'
+              : 'border-border-default bg-surface-2 text-text-secondary',
+          ].join(' ')}
+        >
+          {icon}
+        </span>
+        <span
+          className={[
+            'flex h-5 w-5 items-center justify-center rounded-full border transition-colors',
+            checked
+              ? 'border-accent-default bg-accent-default text-accent-fg'
+              : 'border-border-default bg-surface-1',
+          ].join(' ')}
+        >
+          {checked && <Check className="size-icon-xs" aria-hidden />}
+        </span>
+      </span>
+
+      <span className="block">
+        <span className="block text-sm font-semibold text-text-primary">{title}</span>
+        <span className="mt-1 block text-xs leading-relaxed text-text-secondary">
+          {description}
+        </span>
+      </span>
+    </label>
   );
 }
 
