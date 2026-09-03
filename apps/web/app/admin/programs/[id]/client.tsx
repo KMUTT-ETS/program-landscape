@@ -117,7 +117,32 @@ export interface ProgramDetail {
   faculty: { id: string; code: string; nameEn: string; nameTh: string } | null;
   department: { id: string; code: string; nameEn: string; nameTh: string } | null;
   documents: ProgramDocument[];
+  /** Whether this programme's AI analyses predate its current curriculum
+   *  file. Optional so an older cached response still renders the page.
+   *  `pendingAttachedAt` is a string — it crossed JSON to get here. */
+  staleness?: {
+    stale: boolean;
+    reason: 'none' | 'unanalysed-revision' | 'superseded-document';
+    pendingRevisionId: string | null;
+    pendingCurriculumYearBE: number | null;
+    pendingAttachedAt: string | null;
+  };
   updatedAt: string;
+}
+
+// Enqueue a full pipeline run for one programme. Module-level so the
+// staleness banner and the Pipeline-history tab's "Run pipeline" button
+// share one implementation rather than drifting into two.
+async function enqueueProgramPipeline(programId: string): Promise<void> {
+  const res = await fetch(`/api/admin-programs/${programId}/run-pipeline`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
+  }
 }
 
 interface Props {
@@ -150,32 +175,91 @@ export function ProgramEditClient({ program, faculties, departments }: Props) {
     }
   }, []);
   return (
-    <Segmented value={tab} onValueChange={changeTab} className="w-full">
-      <SegmentedList className="mb-4">
-        <SegmentedTrigger value="overview">Overview</SegmentedTrigger>
-        <SegmentedTrigger value="approvals">Approvals</SegmentedTrigger>
-        <SegmentedTrigger value="careers">Careers</SegmentedTrigger>
-        <SegmentedTrigger value="files">
-          Files ({program.documents.length})
-        </SegmentedTrigger>
-        <SegmentedTrigger value="pipeline">Pipeline history</SegmentedTrigger>
-      </SegmentedList>
-      <SegmentedContent value="overview">
-        <OverviewTab program={program} faculties={faculties} departments={departments} />
-      </SegmentedContent>
-      <SegmentedContent value="approvals">
-        <ApprovalsTab program={program} />
-      </SegmentedContent>
-      <SegmentedContent value="careers">
-        <CareersTab program={program} />
-      </SegmentedContent>
-      <SegmentedContent value="files">
-        <FilesTab program={program} />
-      </SegmentedContent>
-      <SegmentedContent value="pipeline">
-        <PipelineHistoryTab program={program} />
-      </SegmentedContent>
-    </Segmented>
+    <>
+      <StalenessBanner program={program} />
+      <Segmented value={tab} onValueChange={changeTab} className="w-full">
+        <SegmentedList className="mb-4">
+          <SegmentedTrigger value="overview">Overview</SegmentedTrigger>
+          <SegmentedTrigger value="approvals">Approvals</SegmentedTrigger>
+          <SegmentedTrigger value="careers">Careers</SegmentedTrigger>
+          <SegmentedTrigger value="files">
+            Files ({program.documents.length})
+          </SegmentedTrigger>
+          <SegmentedTrigger value="pipeline">Pipeline history</SegmentedTrigger>
+        </SegmentedList>
+        <SegmentedContent value="overview">
+          <OverviewTab program={program} faculties={faculties} departments={departments} />
+        </SegmentedContent>
+        <SegmentedContent value="approvals">
+          <ApprovalsTab program={program} />
+        </SegmentedContent>
+        <SegmentedContent value="careers">
+          <CareersTab program={program} />
+        </SegmentedContent>
+        <SegmentedContent value="files">
+          <FilesTab program={program} />
+        </SegmentedContent>
+        <SegmentedContent value="pipeline">
+          <PipelineHistoryTab program={program} />
+        </SegmentedContent>
+      </Segmented>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Staleness banner — operator-facing, so it names the consequence and
+// offers the one action that clears it. The Council-facing deep-dive says
+// the same thing far more quietly.
+// ─────────────────────────────────────────────────────────────────────────
+
+function StalenessBanner({ program }: { program: ProgramDetail }) {
+  const staleness = program.staleness;
+  const [running, setRunning] = React.useState(false);
+
+  if (!staleness?.stale) return null;
+
+  const runPipeline = async () => {
+    setRunning(true);
+    try {
+      await enqueueProgramPipeline(program.id);
+      toast.success('Pipeline enqueued — re-analysis will start shortly');
+    } catch (err) {
+      toast.error(`Pipeline enqueue failed: ${(err as Error).message}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card padding="sm" className="mb-4 border-warning/40 bg-warning-subtle">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-text-primary">
+          {staleness.reason === 'unanalysed-revision' ? (
+            <>
+              A revised curriculum file was attached
+              {staleness.pendingAttachedAt
+                ? ` on ${new Date(staleness.pendingAttachedAt).toLocaleDateString()}`
+                : ''}{' '}
+              and has not been analysed. Every AI section still reflects the previous file.
+            </>
+          ) : (
+            <>
+              The AI sections were generated from a curriculum file that is no longer
+              the current one. Re-run the pipeline to analyse the current file.
+            </>
+          )}
+        </p>
+        <Button size="sm" onClick={() => void runPipeline()} disabled={running}>
+          {running ? (
+            <Loader2 className="size-icon-sm animate-spin" />
+          ) : (
+            <Play className="size-icon-sm" />
+          )}
+          Run pipeline
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -1139,15 +1223,7 @@ function PipelineHistoryTab({ program }: { program: ProgramDetail }) {
   const runPipeline = async () => {
     setRunning(true);
     try {
-      const res = await fetch(`/api/admin-programs/${program.id}/run-pipeline`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
-      }
+      await enqueueProgramPipeline(program.id);
       toast.success('Pipeline enqueued');
       await load();
     } catch (err) {

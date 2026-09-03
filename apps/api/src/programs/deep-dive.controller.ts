@@ -40,6 +40,7 @@ import {
   researchExpertiseReadiness,
   programCurriculumRevision,
   curriculumRevisionReadiness,
+  programRevisionStaleness,
   programTrends,
   STUDENT_DQ_METHODOLOGY_VERSION,
 } from '@kku/db';
@@ -125,9 +126,15 @@ export class DeepDiveController {
   })
   async overview(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
-    const r = await programOverview(programId);
+    const [r, staleness] = await Promise.all([
+      programOverview(programId),
+      programRevisionStaleness(programId),
+    ]);
     if (!r) throw new NotFoundException();
-    return r;
+    // Rides on /overview rather than a new endpoint: one cheap query, and
+    // /overview is the deep-dive's auth canary, so the banner can never
+    // render on a page the reader is not allowed to see.
+    return { ...r, staleness };
   }
 
   // University + faculty program-level dimension averages, overlaid on the

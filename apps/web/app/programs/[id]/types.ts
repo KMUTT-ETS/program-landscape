@@ -171,6 +171,17 @@ export interface DeepDiveOverview {
    *  `health.latestFreshness` which describes underlying registrar
    *  data vintage (a `@db.Date`, always midnight UTC). */
   lastAnalysedAt: string | null;
+  /** Whether the analyses below predate the programme's current
+   *  curriculum document. Optional on purpose — a response cached from
+   *  before this field existed must render, not crash. `pendingAttachedAt`
+   *  is a string, not a Date: it has crossed JSON to get here. */
+  staleness?: {
+    stale: boolean;
+    reason: 'none' | 'unanalysed-revision' | 'superseded-document';
+    pendingRevisionId: string | null;
+    pendingCurriculumYearBE: number | null;
+    pendingAttachedAt: string | null;
+  };
   methodologyVersion: string;
 }
 

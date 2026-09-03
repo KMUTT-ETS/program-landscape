@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { prisma, IS_CANONICAL_PROGRAM, withCanonical, openDraftRevision } from '@kku/db';
+import {
+  prisma,
+  IS_CANONICAL_PROGRAM,
+  withCanonical,
+  openDraftRevision,
+  programRevisionStaleness,
+} from '@kku/db';
 import type { Prisma, PrismaClient } from '@kku/db';
 import {
   ApiError,
@@ -220,37 +226,44 @@ export class ProgramsService {
   // ───────────────────────────────────────────────────────────────────────
 
   async getOne(id: string) {
-    const row = await prisma.program.findUnique({
-      where: { id },
-      include: {
-        faculty: true,
-        department: true,
-        documents: {
-          orderBy: [{ isCurrent: 'desc' }, { attachedAt: 'desc' }],
-          include: {
-            pdfDocument: {
-              include: {
-                extractions: {
-                  where: { extractionType: 'CURRICULUM_SPEC' },
-                  orderBy: { createdAt: 'desc' },
-                  select: {
-                    id: true,
-                    reviewStatus: true,
-                    confidence: true,
-                    methodVersion: true,
-                    createdAt: true,
-                    reviewedAt: true,
+    // Staleness rides on the detail response the admin page already
+    // fetches: one cheap query, no extra round-trip, and the same
+    // programs:manage:all gate. Cheaper than borrowing the deep-dive's
+    // /overview, which would run the whole health aggregation to get it.
+    const [row, staleness] = await Promise.all([
+      prisma.program.findUnique({
+        where: { id },
+        include: {
+          faculty: true,
+          department: true,
+          documents: {
+            orderBy: [{ isCurrent: 'desc' }, { attachedAt: 'desc' }],
+            include: {
+              pdfDocument: {
+                include: {
+                  extractions: {
+                    where: { extractionType: 'CURRICULUM_SPEC' },
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                      id: true,
+                      reviewStatus: true,
+                      confidence: true,
+                      methodVersion: true,
+                      createdAt: true,
+                      reviewedAt: true,
+                    },
                   },
                 },
               },
+              attachedBy: { select: { id: true, name: true, email: true } },
             },
-            attachedBy: { select: { id: true, name: true, email: true } },
           },
         },
-      },
-    });
+      }),
+      programRevisionStaleness(id),
+    ]);
     if (!row) throw new ApiError('NOT_FOUND', 'program not found');
-    return row;
+    return { ...row, staleness };
   }
 
   // ───────────────────────────────────────────────────────────────────────

@@ -261,6 +261,22 @@ export function DeepDiveClient(props: Props) {
       </aside>
 
       <div className="flex flex-col gap-10">
+        {/* Council-facing: states which document the analysis belongs to.
+            Deliberately quiet — the analysis below is not wrong, it is
+            simply about an earlier version of the curriculum. */}
+        {props.overview.staleness?.stale && (
+          <Card padding="sm" tone="quiet">
+            <p className="text-xs text-text-secondary">
+              {props.overview.staleness.reason === 'unanalysed-revision'
+                ? `A newer curriculum document${
+                    props.overview.staleness.pendingCurriculumYearBE
+                      ? ` (พ.ศ. ${props.overview.staleness.pendingCurriculumYearBE})`
+                      : ''
+                  } has been attached to this programme but not yet analysed. The analysis below reflects the previous curriculum.`
+                : 'The analysis below was generated from a curriculum document that is no longer the current one.'}
+            </p>
+          </Card>
+        )}
         <MacroGroup
           id="snapshot"
           title="Executive snapshot"
