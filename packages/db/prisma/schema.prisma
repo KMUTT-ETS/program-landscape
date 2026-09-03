@@ -494,11 +494,10 @@ model Program {
   /// Which revision the currently-live analyses belong to. NULL means the
   /// pre-feature baseline (analyses generated before revisions existed).
   ///
-  /// Deliberately a plain nullable id, NOT a Prisma relation: a required
-  /// back-relation would create a circular dependency at create time
-  /// (a Program needs a revision, a revision needs a Program). Resolved in
-  /// code via activeRevisionIdFor(). Do not "fix" this into a relation.
-  activeRevisionId String? @map("active_revision_id")
+  /// @unique because a revision belongs to exactly one programme, so it can
+  /// never legitimately be the active revision of two.
+  activeRevisionId String?          @unique @map("active_revision_id")
+  activeRevision   ProgramRevision? @relation("ProgramActiveRevision", fields: [activeRevisionId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -603,6 +602,23 @@ model ProgramRevision {
   sourcePdf  PdfDocument? @relation(fields: [sourcePdfDocumentId], references: [id], onDelete: SetNull)
   createdBy  User?        @relation("ProgramRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   approvedBy User?        @relation("ProgramRevisionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  /// The programme this revision is currently live for, if any. The inverse
+  /// of Program.activeRevisionId — distinct from `program` above, which is
+  /// the owning programme regardless of whether this revision is active.
+  activeForProgram Program? @relation("ProgramActiveRevision")
+
+  /// Rows stamped with this revision by the pipeline.
+  strategicNarratives    ProgramStrategicNarrative[]
+  aiReadinessAssessments ProgramAiReadinessAssessment[]
+  pedagogyAssessments    ProgramPedagogyAssessment[]
+  peerReviews            ProgramPeerReview[]
+  researchExpertise      ProgramResearchExpertise[]
+  curriculumRevisions    ProgramCurriculumRevision[]
+  peerSelections         ProgramPeerSelection[]
+  skills                 ProgramSkill[]
+  courses                ProgramCourse[]
+  faculties              ProgramFaculty[]
 
   @@index([programId, createdAt])
   @@index([status])
@@ -1265,23 +1281,13 @@ model ProgramSkill {
   /// provenance only; making a draft coexist with a live row is a later
   /// project.
   ///
-  /// Deliberately a bare id with a database-level FK, NOT a Prisma
-  /// relation field. The same column exists on ten models; declaring
-  /// relations would force ten back-relations onto ProgramRevision for
-  /// no benefit — nothing traverses them, and it would make that model
-  /// unreadable. Do not "improve" this by adding a relation.
-  ///
-  /// Known consequence: migration 20260903130000 adds a real FK
-  /// (ON DELETE SET NULL) that Prisma cannot express without a relation
-  /// field, so `prisma migrate diff` reports a DROP CONSTRAINT for each
-  /// of the ten. That drift is expected and must NOT be "resolved" by
-  /// dropping the FKs — they are the integrity guarantee that a stamped
-  /// revision id always exists. Never run `prisma migrate dev` here; it
-  /// would generate a migration deleting them.
+  /// The FK is ON DELETE SET NULL: deleting a revision degrades its rows
+  /// to the pre-feature baseline rather than cascading away real analysis.
   programRevisionId String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
-  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  skill           Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@unique([programId, skillId])
   @@index([programId])
@@ -1395,12 +1401,12 @@ model ProgramFaculty {
   createdAt         DateTime           @default(now()) @map("created_at")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId String?            @map("program_revision_id")
 
-  facultyMember FacultyMember @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
-  program       Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  facultyMember   FacultyMember    @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@unique([facultyMemberId, programId])
   @@index([facultyMemberId])
@@ -2075,11 +2081,11 @@ model ProgramStrategicNarrative {
   generatedByAiInferenceId String?  @map("generated_by_ai_inference_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId        String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([programRevisionId])
   @@map("program_strategic_narratives")
@@ -2108,11 +2114,11 @@ model ProgramAiReadinessAssessment {
   generatedByAiInferenceId String?  @map("generated_by_ai_inference_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId        String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([programRevisionId])
   @@map("program_ai_readiness_assessments")
@@ -2140,11 +2146,11 @@ model ProgramResearchExpertise {
   generatedAt       DateTime @default(now()) @map("generated_at")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([programId, generatedAt])
   @@index([programRevisionId])
@@ -2171,11 +2177,11 @@ model ProgramCurriculumRevision {
   generatedAt       DateTime @default(now()) @map("generated_at")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([programId, generatedAt])
   @@index([programRevisionId])
@@ -2217,11 +2223,11 @@ model ProgramPedagogyAssessment {
   generatedByAiInferenceId String?  @map("generated_by_ai_inference_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId        String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([programRevisionId])
   @@map("program_pedagogy_assessments")
@@ -2427,11 +2433,11 @@ model ProgramPeerReview {
   generatedByAiInferenceId String?  @map("generated_by_ai_inference_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId        String?  @map("program_revision_id")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([programRevisionId])
   @@map("program_peer_reviews")
@@ -2459,12 +2465,12 @@ model ProgramPeerSelection {
   selectedByAiInferenceId String?  @map("selected_by_ai_inference_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId       String?  @map("program_revision_id")
 
   program          Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
   rankedUniversity RankedUniversity @relation(fields: [rankedUniversityId], references: [id], onDelete: Cascade)
+  programRevision  ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@unique([programId, tier, rankedUniversityId])
   @@index([programId, tier])
@@ -4237,12 +4243,12 @@ model ProgramCourse {
   ingestionRunId    String?         @map("ingestion_run_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
-  /// also being NULL. Bare id + database-level FK by design; see the
-  /// note on ProgramSkill.programRevisionId.
+  /// also being NULL.
   programRevisionId String?         @map("program_revision_id")
 
-  program      Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
-  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  ingestionRun    IngestionRun?    @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@unique([programId, courseCode])
   @@index([courseCode])
