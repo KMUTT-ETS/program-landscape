@@ -75,15 +75,28 @@ export async function runProgramPedagogy(
     return { status: 'SKIPPED', reason: `program not found: ${params.programId}` };
   }
 
+  // Provenance: which curriculum revision this run is analysing. NULL is
+  // the pre-feature baseline. See program-digest/run.ts for the full
+  // guard rationale. Resolved once here — before the guard — and reused
+  // for the upsert below.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   if (!params.force) {
     const existing = await prisma.programPedagogyAssessment.findUnique({
       where: { programId: program.id },
-      select: { methodVersion: true },
+      select: { methodVersion: true, programRevisionId: true },
     });
-    if (existing && existing.methodVersion === PROGRAM_PEDAGOGY_VERSION) {
+    // Two independent reasons to re-run: a newer prompt version, or a newer
+    // curriculum. The row is unique per programme and the upsert below
+    // re-stamps programRevisionId in BOTH branches, so this converges.
+    if (
+      existing &&
+      existing.methodVersion === PROGRAM_PEDAGOGY_VERSION &&
+      existing.programRevisionId === programRevisionId
+    ) {
       return {
         status: 'SKIPPED',
-        reason: `assessment already exists with method ${PROGRAM_PEDAGOGY_VERSION}; pass force=true to re-run`,
+        reason: `assessment already exists with method ${PROGRAM_PEDAGOGY_VERSION} for the current curriculum revision; pass force=true to re-run`,
       };
     }
   }
@@ -153,10 +166,6 @@ export async function runProgramPedagogy(
     },
     ProgramPedagogyAssessmentSchema,
   );
-
-  // Provenance: which curriculum revision produced this row. NULL is the
-  // pre-feature baseline. See packages/db/src/program-revision.ts.
-  const programRevisionId = await activeRevisionIdFor(program.id);
 
   await prisma.programPedagogyAssessment.upsert({
     where: { programId: program.id },

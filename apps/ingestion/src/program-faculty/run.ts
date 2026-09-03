@@ -124,17 +124,29 @@ export async function runProgramFacultyExtraction(
   const doc = program.documents[0];
   if (!doc) return { status: 'SKIPPED', reason: 'no CURRENT_CURRICULUM PDF linked' };
 
+  // Provenance: which curriculum revision this run is analysing. NULL is
+  // the pre-feature baseline. See program-digest/run.ts for the full
+  // guard rationale. Resolved once here — before the guard — and shared by
+  // BOTH roster writers below (the DS2004 seed in phase A and the
+  // PDF-extraction enrichment further down) — stamping only one of them
+  // would leave a programme's roster half-attributed.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   if (!params.force) {
     const existing = await prisma.aiExtraction.findFirst({
       where: {
         sourceEntityType: 'program',
         sourceEntityId: program.id,
         extractionKind: 'PROGRAM_FACULTY_LIST',
+        programRevisionId,
       },
       select: { id: true },
     });
     if (existing) {
-      return { status: 'SKIPPED', reason: 'PROGRAM_FACULTY_LIST already exists; pass force=true to re-run' };
+      return {
+        status: 'SKIPPED',
+        reason: 'PROGRAM_FACULTY_LIST already exists for the current curriculum revision; pass force=true to re-run',
+      };
     }
   }
 
@@ -145,12 +157,6 @@ export async function runProgramFacultyExtraction(
   // below runs as enrichment for staff that DS2004 doesn't track
   // (visiting lecturers, external instructors, brand-new appointments
   // not yet submitted to MHESI). ──────────────────────────────────
-  // Provenance: which curriculum revision produced these rows. NULL is the
-  // pre-feature baseline. See packages/db/src/program-revision.ts.
-  // Resolved once and shared by BOTH roster writers below (the DS2004 seed
-  // in phase A and the PDF-extraction enrichment further down) — stamping
-  // only one of them would leave a programme's roster half-attributed.
-  const programRevisionId = await activeRevisionIdFor(program.id);
 
   const systemContext = params.systemContext ?? (await loadProgramSystemContext(program.id));
   let programFacultyRowsFromMhesi = 0;

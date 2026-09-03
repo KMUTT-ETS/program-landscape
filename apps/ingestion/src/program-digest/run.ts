@@ -93,16 +93,32 @@ export async function runProgramDigest(
   const doc = program.documents[0];
   if (!doc) return { status: 'SKIPPED', reason: 'no CURRENT_CURRICULUM PDF linked' };
 
+  // Which curriculum revision this run is analysing. NULL for the 299
+  // unrevised programmes (the pre-feature baseline) — Prisma renders that
+  // as `IS NULL`, matching their existing NULL-stamped rows below, so they
+  // keep skipping at $0 exactly as before. A revised programme resolves to
+  // a fresh id that won't match the old extraction's (superseded or NULL)
+  // stamp, so the digest is retaken from the new มคอ.2. Resolved once here
+  // (before the guard) and reused for the write further down — these
+  // runners are also invoked standalone from the CLI, not only the pipeline.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   if (!params.force) {
     const existing = await prisma.aiExtraction.findFirst({
       where: {
         sourceEntityType: 'program',
         sourceEntityId: program.id,
         extractionKind: 'PROGRAM_DIGEST',
+        programRevisionId,
       },
       select: { id: true },
     });
-    if (existing) return { status: 'SKIPPED', reason: 'PROGRAM_DIGEST already exists; pass force=true to re-run' };
+    if (existing) {
+      return {
+        status: 'SKIPPED',
+        reason: 'PROGRAM_DIGEST already exists for the current curriculum revision; pass force=true to re-run',
+      };
+    }
   }
 
   // Reuse pipeline-prepared inputs when present; else fetch + extract +
@@ -179,12 +195,6 @@ export async function runProgramDigest(
   // back.
   const autoApproveThreshold = Number(process.env.AI_AUTO_APPROVE_THRESHOLD ?? 0);
   const autoApprove = response.confidence >= autoApproveThreshold;
-
-  // Stamp the revision this extraction was taken from, so the guard can
-  // later tell a current extraction from one taken off a superseded มคอ.2.
-  // Resolved here rather than passed in: these runners are also invoked
-  // standalone from the CLI, not only from the pipeline.
-  const programRevisionId = await activeRevisionIdFor(program.id);
 
   const created = await prisma.aiExtraction.create({
     data: {

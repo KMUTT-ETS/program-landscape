@@ -89,17 +89,25 @@ export async function runProgramSkillsDetailed(
   const doc = program.documents[0];
   if (!doc) return { status: 'SKIPPED', reason: 'no CURRENT_CURRICULUM PDF linked' };
 
+  // Scoped to the revision this run is analysing — see program-digest/run.ts
+  // for the full rationale. Resolved once here and reused for the write.
+  const programRevisionId = await activeRevisionIdFor(program.id);
+
   if (!params.force) {
     const existing = await prisma.aiExtraction.findFirst({
       where: {
         sourceEntityType: 'program',
         sourceEntityId: program.id,
         extractionKind: 'PROGRAM_SKILLS_DETAILED',
+        programRevisionId,
       },
       select: { id: true },
     });
     if (existing) {
-      return { status: 'SKIPPED', reason: 'PROGRAM_SKILLS_DETAILED already exists; pass force=true to re-run' };
+      return {
+        status: 'SKIPPED',
+        reason: 'PROGRAM_SKILLS_DETAILED already exists for the current curriculum revision; pass force=true to re-run',
+      };
     }
   }
 
@@ -231,10 +239,6 @@ export async function runProgramSkillsDetailed(
       });
     }
   });
-
-  // Stamp the revision this extraction was taken from — see
-  // program-digest/run.ts for the full rationale.
-  const programRevisionId = await activeRevisionIdFor(program.id);
 
   // Persist the full extraction
   const created = await prisma.aiExtraction.create({
