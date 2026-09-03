@@ -1037,6 +1037,41 @@ git commit -m "feat(db): record metadata overwrites instead of applying them sil
 
 ---
 
+### Task 8b: The pipeline adopts the revision it analyses  *(added during execution)*
+
+**Spec omission, found in Task 8.** Nothing anywhere wrote `Program.activeRevisionId` — verified: 301
+programmes, 0 with a value, 0 stamped rows. Component 2 says "the pipeline stamps the programme's
+`activeRevisionId` onto everything it writes", which presumes something sets it. Nothing did.
+
+Left unclosed, this project would have shipped ten migrated columns, twelve stamping sites and a
+guard test all protecting NULLs forever, with the `superseded-document` staleness branch unreachable
+because it needs an active revision to compare against.
+
+Closed by two functions in `packages/db/src/program-revision.ts` (with the rest of the revision
+logic, and unit-testable there — the pipeline script is not):
+
+- `adoptPendingRevision(programId)` — at the **top** of `processProgram()`, before any phase, because
+  each writer resolves the id per row at write time. Picks the newest pending revision, supersedes
+  any previously-active one, sets `Program.activeRevisionId`, and moves the adopted revision to
+  `ANALYSING`. Returns null and writes nothing when there is no pending revision, so the ~300
+  pre-feature programmes are untouched.
+- `markRevisionAnalysed(revisionId)` — **after** all phases, so a run that dies halfway leaves the
+  revision pending and the programme visibly stale rather than falsely live. Sets `APPROVED` with
+  `approvedById` null.
+
+`APPROVED` here means **live, set by the act of analysis** — this project has no approval gate, so
+running the pipeline is the operator's acceptance. Project 2 inserts `IN_REVIEW` before it.
+
+Two judgement calls made during implementation, both kept:
+- Adoption sets `ANALYSING` rather than leaving `DRAFT`, so a crashed run stays inside the pending
+  set and the banner keeps showing.
+- The close-out is **not** gated on every phase succeeding. An unrelated Oracle blip in phase 4, or a
+  deliberate `--only` subset, would otherwise strand the revision pending and light the banner
+  permanently — the exact alert fatigue this feature exists to prevent. A run that *throws* never
+  reaches the call, so genuine crashes still leave it pending.
+
+---
+
 ### Task 9: Surface staleness
 
 **Files:**
@@ -1246,6 +1281,11 @@ import { prisma } from './src/index';
     JOIN program_revisions r ON r.id = x.program_revision_id
     WHERE x.program_revision_id IS NOT NULL AND r.program_id <> x.program_id\`;
   console.log('cross-programme stamps (must be 0):', bad[0].n);
+  // NOTE: do NOT assert 'every row's stamp equals its programme's active
+  // revision'. Insert-only history tables (program_research_expertise,
+  // program_curriculum_revisions) legitimately hold pre-adoption rows with a
+  // NULL stamp alongside newly-stamped ones — nothing back-fills them, and
+  // nothing should. Only rows written AFTER adoption carry a stamp.
   const revs = await prisma.programRevision.groupBy({ by:['status'], _count:true });
   console.log('revisions by status:', revs);
   await prisma.\$disconnect();
