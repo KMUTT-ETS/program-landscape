@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Badge, Button, Card, Input, Label } from '@kku/ui';
+import { FilterSearch } from '@/components/filter-rail';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -72,6 +73,13 @@ interface PdfAfterUpload {
   extractions: Extraction[];
 }
 
+interface TargetProgram {
+  id: string;
+  code: string;
+  nameTh: string;
+  nameEn: string;
+}
+
 // The "current" extractor is the Gemini one — any row with this method
 // version is considered authoritative. Anything else (the old stub-v1,
 // or the heuristic-v1 regex fallback) is treated as "not yet AI-verified"
@@ -101,7 +109,13 @@ export function FromPdfClient({
   departments: Department[];
 }) {
   const router = useRouter();
-  const [step, setStep] = React.useState<'upload' | 'fill'>('upload');
+  const [step, setStep] = React.useState<'mode' | 'upload' | 'fill'>('mode');
+  // null = new programme; a programme = revise that one. Chosen before
+  // upload, never inferred: checkCollision cannot detect a revision (a
+  // revised มคอ.2 carries a different code, and the name rules need a
+  // facultyId that comes from a fragile substring match), so inferring it
+  // would fail silently toward creating a duplicate.
+  const [target, setTarget] = React.useState<TargetProgram | null>(null);
   const [pdf, setPdf] = React.useState<PdfAfterUpload | null>(null);
   const [extractionState, setExtractionState] = React.useState<
     'idle' | 'waiting' | 'ready' | 'timeout' | 'failed'
@@ -118,6 +132,21 @@ export function FromPdfClient({
     }, 500);
     return () => clearInterval(t);
   }, [extractionState]);
+
+  if (step === 'mode') {
+    return (
+      <ModeStep
+        onNew={() => {
+          setTarget(null);
+          setStep('upload');
+        }}
+        onRevise={(p) => {
+          setTarget(p);
+          setStep('upload');
+        }}
+      />
+    );
+  }
 
   if (step === 'upload' || !pdf) {
     return (
@@ -159,6 +188,7 @@ export function FromPdfClient({
   return (
     <FillStep
       pdf={pdf}
+      target={target}
       extraction={usableExtraction(pdf)}
       extractionState={extractionState}
       elapsedSeconds={elapsedSeconds}
@@ -193,7 +223,91 @@ export function FromPdfClient({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Step 1: upload
+// Step 1: mode — new programme, or revision of an existing one
+// ─────────────────────────────────────────────────────────────────────────
+
+function ModeStep({
+  onNew,
+  onRevise,
+}: {
+  onNew: () => void;
+  onRevise: (p: TargetProgram) => void;
+}) {
+  const [mode, setMode] = React.useState<'new' | 'revision' | null>(null);
+  const [query, setQuery] = React.useState('');
+  const [options, setOptions] = React.useState<TargetProgram[]>([]);
+
+  // Same debounced-search-against-/admin/programs pattern as the working
+  // "apply to program" picker in /admin/pdf-review/[id] — see that file's
+  // ApplyToProgramPanel for the reference implementation.
+  React.useEffect(() => {
+    if (mode !== 'revision' || query.trim().length < 2) {
+      setOptions([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      const res = await fetch(
+        `/api/admin-programs?q=${encodeURIComponent(query)}&pageSize=10`,
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      setOptions((json?.data ?? []) as TargetProgram[]);
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [mode, query]);
+
+  return (
+    <Card padding="md">
+      <h2 className="text-sm font-semibold text-text-primary">
+        Step 1 of 3 · What are you submitting?
+      </h2>
+      <div className="mt-3 flex flex-col gap-2">
+        <Button
+          variant={mode === 'new' ? 'primary' : 'outline'}
+          onClick={() => setMode('new')}
+        >
+          A new programme
+        </Button>
+        <Button
+          variant={mode === 'revision' ? 'primary' : 'outline'}
+          onClick={() => setMode('revision')}
+        >
+          A revised curriculum for an existing programme
+        </Button>
+      </div>
+
+      {mode === 'new' && (
+        <div className="mt-4">
+          <Button onClick={onNew}>Continue</Button>
+        </div>
+      )}
+
+      {mode === 'revision' && (
+        <div className="mt-4 flex flex-col gap-2">
+          <FilterSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Search by code or name…"
+          />
+          {options.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onRevise(p)}
+              className="rounded-md border border-border-subtle px-3 py-2 text-left text-sm hover:bg-surface-2"
+            >
+              <span className="font-tabular text-xs text-text-tertiary">{p.code}</span>{' '}
+              <span className="text-text-primary">{p.nameTh}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Step 2: upload
 // ─────────────────────────────────────────────────────────────────────────
 
 function UploadStep({
@@ -246,7 +360,7 @@ function UploadStep({
     <Card>
       <div className="flex flex-col gap-4">
         <h3 className="text-sm font-semibold text-text-primary">
-          Step 1 of 2 · Upload มคอ.2 PDF
+          Step 2 of 3 · Upload มคอ.2 PDF
         </h3>
         <div
           onDragOver={(e) => {
@@ -312,13 +426,16 @@ function UploadStep({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Step 2: fill form + collision check + create
+// Step 3: fill form + collision check + create
 // ─────────────────────────────────────────────────────────────────────────
 
 type ExtractionState = 'idle' | 'waiting' | 'ready' | 'timeout' | 'failed';
 
 interface FillStepProps {
   pdf: PdfAfterUpload;
+  // Set when the operator chose "revise an existing programme" in step 1.
+  // Display-only here — Task 5 wires the actual revision submission path.
+  target: TargetProgram | null;
   extraction: Extraction | null;
   extractionState: ExtractionState;
   elapsedSeconds: number;
@@ -331,6 +448,7 @@ interface FillStepProps {
 
 function FillStep({
   pdf,
+  target,
   extraction,
   extractionState,
   elapsedSeconds,
@@ -497,6 +615,15 @@ function FillStep({
               Uploaded PDF
             </div>
             <div className="font-medium text-text-primary">{pdf.originalFilename}</div>
+            {target && (
+              <div className="text-xs text-text-secondary">
+                Revising{' '}
+                <span className="font-tabular font-medium text-text-primary">
+                  {target.code}
+                </span>{' '}
+                · {target.nameTh}
+              </div>
+            )}
             <div className="text-xs text-text-secondary">
               Status:{' '}
               <Badge
@@ -563,7 +690,7 @@ function FillStep({
       <Card>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <h3 className="text-sm font-semibold text-text-primary">
-            Step 2 of 2 · Review identity + check for duplicates
+            Step 3 of 3 · Review identity + check for duplicates
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="Code *">

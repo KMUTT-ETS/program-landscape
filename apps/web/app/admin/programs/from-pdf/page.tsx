@@ -9,7 +9,7 @@ import { PageHeader, Section } from '@kku/ui';
 import { FromPdfClient } from './client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'New program from PDF — Admin' };
+export const metadata = { title: 'Submit curriculum file — Admin' };
 
 interface Faculty {
   id: string;
@@ -36,11 +36,11 @@ export default async function NewFromPdfPage() {
 
   return (
     <AuthedAppShell user={user}>
-      <AdminBackNav current="New from PDF" group="Programs" groupHref="/admin/programs" />
+      <AdminBackNav current="Submit curriculum file" group="Programs" groupHref="/admin/programs" />
       <PageHeader
         eyebrow="Admin · Programs"
-        title="New program from PDF"
-        subtitle="Upload the มคอ.2 PDF first; extracted fields pre-fill the form. We check for duplicates by code, name, and degree before committing."
+        title="Submit curriculum file"
+        subtitle="Tell us whether this มคอ.2 PDF is a new programme or a revision of an existing one, then upload it; extracted fields pre-fill the form. We check for duplicates by code, name, and degree before committing."
       />
       <Section>
         {!facultiesRes.ok ? (
