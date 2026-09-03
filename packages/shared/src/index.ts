@@ -18,6 +18,9 @@ export * from './aunqa/criteria';
 export * from './identity';
 export * from './observability';
 export * from './resilience';
+// Also reachable as `@kku/shared/pipeline/program-phases` — client components
+// MUST use that subpath, not this barrel (which pulls node:crypto).
+export * from './pipeline/program-phases';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';

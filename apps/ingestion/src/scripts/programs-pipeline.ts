@@ -129,7 +129,14 @@ import {
   generateProgramResearchExpertise,
   generateProgramCurriculumRevision,
 } from '@kku/db';
-import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
+import {
+  createAiService,
+  isProgramPipelinePhase,
+  PROGRAM_PIPELINE_PHASES,
+  S3Storage,
+  type AiProviderId,
+  type ProgramPipelinePhase,
+} from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runProgramCoursesExtract } from '../program-courses-extract/run';
 import { runProgramFacultyExtraction } from '../program-faculty/run';
@@ -142,37 +149,17 @@ import { generateProgramPeerReview } from '../program-peers/review';
 import { generateProgramStrategicNarrative } from '../program-narrative/run';
 import { runProgramAiReadiness } from '../program-ai-readiness/run';
 
-type Phase =
-  | 'phase1'
-  | 'phase2'
-  | 'phase2b'
-  | 'phase3'
-  | 'phase4'
-  | 'phase5'
-  | 'phase6'
-  | 'phaseRE'
-  | 'phaseCR'
-  | 'phase7'
-  | 'phase8';
-const ALL_PHASES: Phase[] = [
-  'phase1',
-  'phase2',
-  'phase2b',
-  'phase3',
-  'phase4',
-  'phase5',
-  'phase6',
-  'phaseRE',
-  'phaseCR',
-  'phase7',
-  'phase8',
-];
+// Phase list + display metadata live in @kku/shared — see the header comment
+// in packages/shared/src/pipeline/program-phases.ts for why (five hand-kept
+// copies; phaseRE went missing from four of them for its whole lifetime).
+type Phase = ProgramPipelinePhase;
+const ALL_PHASES: readonly Phase[] = PROGRAM_PIPELINE_PHASES;
 
 interface CliArgs {
   programArg: string | null;
   all: boolean;
   limit: number | null;
-  only: Phase[];
+  only: readonly Phase[];
   skip: Set<Phase>;
   resume: boolean;
   force: boolean;
@@ -186,13 +173,15 @@ function parseArgs(argv: string[]): CliArgs {
   const limitArg = argv.find((a) => a.startsWith('--limit='));
   const limit = limitArg ? parseInt(limitArg.split('=')[1] ?? '0', 10) : null;
   const onlyArg = argv.find((a) => a.startsWith('--only='));
+  // Unknown ids are dropped silently — unchanged behaviour, but note that this
+  // is exactly what hid the missing `phaseRE` for so long.
   const only = onlyArg
-    ? (onlyArg.split('=')[1] ?? '').split(',').filter((p): p is Phase => ALL_PHASES.includes(p as Phase))
+    ? (onlyArg.split('=')[1] ?? '').split(',').filter(isProgramPipelinePhase)
     : ALL_PHASES;
   const skipArg = argv.find((a) => a.startsWith('--skip='));
   const skip = new Set<Phase>(
     skipArg
-      ? (skipArg.split('=')[1] ?? '').split(',').filter((p): p is Phase => ALL_PHASES.includes(p as Phase))
+      ? (skipArg.split('=')[1] ?? '').split(',').filter(isProgramPipelinePhase)
       : [],
   );
   if (!positional && !all) {

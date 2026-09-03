@@ -1,5 +1,6 @@
 import { Queue, Worker, QueueEvents, type ConnectionOptions } from 'bullmq';
 import { Logger } from '@nestjs/common';
+import type { ProgramPipelinePhase } from '@kku/shared';
 import type { AiJobHandler } from './handlers';
 
 // Dedicated BullMQ queue for AI work.
@@ -52,18 +53,9 @@ export type AiJobKind =
 // never added here, so `--only=` lists built from this union silently
 // dropped it — the same drift phase2b hit. phaseCR reads phaseRE's row,
 // so both must stay selectable together.
-export type ProgramPipelinePhase =
-  | 'phase1'
-  | 'phase2'
-  | 'phase2b'
-  | 'phase3'
-  | 'phase4'
-  | 'phase5'
-  | 'phase6'
-  | 'phaseRE'
-  | 'phaseCR'
-  | 'phase7'
-  | 'phase8';
+// Re-exported (not re-declared) from @kku/shared so this queue's contract and
+// the pipeline script can never disagree about which phases exist.
+export type { ProgramPipelinePhase };
 
 export interface AiJobData {
   kind: AiJobKind;

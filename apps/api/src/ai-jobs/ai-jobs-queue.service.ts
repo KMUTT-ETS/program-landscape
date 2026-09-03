@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
+import type { ProgramPipelinePhase } from '@kku/shared';
 
 // BullMQ producer for `ai-jobs`. Matches the queue name + connection in
 // apps/ingestion/src/ai-jobs/queue.ts. Mirrors PdfIntakeQueueService.
@@ -49,18 +50,10 @@ export type AiJobKind =
  * admin UI sent silently dropped it — identical drift to phase2b's. phaseCR
  * reads the row phaseRE writes, so the two must be selectable together.
  */
-export type ProgramPipelinePhase =
-  | 'phase1'
-  | 'phase2'
-  | 'phase2b'
-  | 'phase3'
-  | 'phase4'
-  | 'phase5'
-  | 'phase6'
-  | 'phaseRE'
-  | 'phaseCR'
-  | 'phase7'
-  | 'phase8';
+// Re-exported (not re-declared) from @kku/shared. This used to be a hand-kept
+// duplicate of the ingestion-side union — see the header comment in
+// packages/shared/src/pipeline/program-phases.ts for how that ended.
+export type { ProgramPipelinePhase };
 
 export interface AiJobData {
   kind: AiJobKind;

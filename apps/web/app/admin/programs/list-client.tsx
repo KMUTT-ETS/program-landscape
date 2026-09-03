@@ -34,6 +34,14 @@ import {
   FilterSearch,
   FilterSelect,
 } from '@/components/filter-rail';
+// Deep subpath, NOT the `@kku/shared` barrel: this is a client component and
+// the barrel re-exports modules that reach node:crypto / aws-sdk, which breaks
+// the browser bundle. The subpath is pure data + types.
+import {
+  PROGRAM_PHASE_META,
+  PROGRAM_PIPELINE_PHASES,
+  type ProgramPipelinePhase,
+} from '@kku/shared/pipeline/program-phases';
 
 export interface ProgramListRow {
   id: string;
@@ -94,69 +102,14 @@ const STATUS_TONE: Record<
 // Pre-defined phase sets surfaced as radio options in the picker. The
 // operator can always switch to "Custom" and tick individual phases.
 //
-// Pipeline reference (from apps/ingestion/src/scripts/programs-pipeline.ts):
-//   phase1   PDF extraction (digest + faculty + skills + pedagogy)
-//   phase2   approve + materialise
-//   phase2b  focused course-code extractor (parallel with phase1)
-//   phase3   career mapping + demand match
-//   phase4   Oracle/MSSQL data linkage (cohorts, alumni, financials)
-//   phase5   peer select + peer review
-//   phase6   AI readiness
-//   phaseRE  research expertise (themes from staff publications)
-//   phaseCR  curriculum revision (reads phaseRE's row)
-//   phase7   strategic narrative
-//   phase8   risk analysis
-//
-// Order below is the pipeline's EXECUTION order, which is what an operator
-// reading the checkbox list needs to reason about dependencies.
+// The phase list itself, its ordering and its labels/hints are NOT declared
+// here any more — they come from @kku/shared. This file used to keep its own
+// copy, which is how `phaseRE` ended up missing from every preset and custom
+// run for its entire lifetime. Presets stay local: which phases an operator
+// commonly runs together is a UI policy call, not a property of a phase.
 
-type Phase =
-  | 'phase1'
-  | 'phase2'
-  | 'phase2b'
-  | 'phase3'
-  | 'phase4'
-  | 'phase5'
-  | 'phase6'
-  | 'phaseRE'
-  | 'phaseCR'
-  | 'phase7'
-  | 'phase8';
-
-const ALL_PHASES: Phase[] = [
-  'phase1',
-  'phase2',
-  'phase2b',
-  'phase3',
-  'phase4',
-  'phase5',
-  'phase6',
-  'phaseRE',
-  'phaseCR',
-  'phase7',
-  'phase8',
-];
-
-const PHASE_LABEL: Record<Phase, string> = {
-  phase1: 'Phase 1 · PDF extraction (digest / faculty / skills / pedagogy)',
-  phase2: 'Phase 2 · Approve + materialise',
-  phase2b: 'Phase 2b · Courses-extract (focused course-code list)',
-  phase3: 'Phase 3 · Careers + demand match',
-  phase4: 'Phase 4 · Oracle / MSSQL data linkage',
-  phase5: 'Phase 5 · AI benchmarking (peer select + review)',
-  phase6: 'Phase 6 · AI readiness',
-  phaseRE: 'Research expertise · themes from staff publications',
-  phaseCR: 'Curriculum revision · course-level advice from research',
-  phase7: 'Phase 7 · Strategic narrative',
-  phase8: 'Phase 8 · Risk analysis',
-};
-
-/** Phases whose input comes from another phase. The picker has no dependency
- *  engine on purpose — this renders as an inline note so an operator ticking
- *  the phase alone understands why it may skip. */
-const PHASE_HINT: Partial<Record<Phase, string>> = {
-  phaseCR: 'Needs research expertise to have run first — skips without it.',
-};
+type Phase = ProgramPipelinePhase;
+const ALL_PHASES: readonly Phase[] = PROGRAM_PIPELINE_PHASES;
 
 interface PipelinePreset {
   key: string;
@@ -748,10 +701,12 @@ function PipelinePickerDialog({
                     />
                     <span className="flex flex-col leading-tight">
                       <span className={checked ? 'text-text-primary' : 'text-text-tertiary'}>
-                        {PHASE_LABEL[p]}
+                        {PROGRAM_PHASE_META[p].label}
                       </span>
-                      {PHASE_HINT[p] ? (
-                        <span className="text-text-tertiary">{PHASE_HINT[p]}</span>
+                      {PROGRAM_PHASE_META[p].dependencyHint ? (
+                        <span className="text-text-tertiary">
+                          {PROGRAM_PHASE_META[p].dependencyHint}
+                        </span>
                       ) : null}
                     </span>
                   </label>

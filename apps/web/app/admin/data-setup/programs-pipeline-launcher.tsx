@@ -4,6 +4,15 @@ import * as React from 'react';
 import { toast } from 'sonner';
 import { Button, Card } from '@kku/ui';
 import { Layers, Play, RefreshCw, Settings2 } from 'lucide-react';
+// Deep subpath, NOT the `@kku/shared` barrel: this is a client component and
+// the barrel re-exports modules that reach node:crypto / aws-sdk, which breaks
+// the browser bundle. The subpath is pure data + types.
+import {
+  formatPhaseCost,
+  PROGRAM_PHASE_META,
+  PROGRAM_PIPELINE_PHASES,
+  type ProgramPipelinePhase,
+} from '@kku/shared/pipeline/program-phases';
 
 // Buttons on /admin/data-setup → "Full program documents" card.
 // Two run modes:
@@ -15,40 +24,23 @@ import { Layers, Play, RefreshCw, Settings2 } from 'lucide-react';
 // uses — Resume mode skips programs that already have one.
 // Phase 5 is the AI benchmarking step (peer selection + peer review).
 //
-// Keep this list in sync with the 11 phases in
-// apps/ingestion/src/scripts/programs-pipeline.ts (+ ProgramPipelinePhase
-// in apps/api/src/ai-jobs/ai-jobs-queue.service.ts).
+// The phase list, its ordering and its labels/costs/hints come from
+// @kku/shared — this file used to hand-maintain its own copy, which is how
+// `phaseRE` stayed absent from the partial-run picker for its whole lifetime.
 //
-// Listed in pipeline EXECUTION order — phaseCR reads the row phaseRE
+// Rendered in the shared list's order — phaseCR reads the row phaseRE
 // writes, and the picker has no dependency engine, so the ordering plus
 // phaseCR's hint is how that dependency is conveyed.
 
-type Phase =
-  | 'phase1'
-  | 'phase2'
-  | 'phase2b'
-  | 'phase3'
-  | 'phase4'
-  | 'phase5'
-  | 'phase6'
-  | 'phaseRE'
-  | 'phaseCR'
-  | 'phase7'
-  | 'phase8';
+type Phase = ProgramPipelinePhase;
 
-const PHASES: Array<{ id: Phase; label: string; cost: string; hint: string }> = [
-  { id: 'phase1', label: 'PDF extraction', cost: '~$0.04', hint: 'digest + faculty + skills + pedagogy (parallel)' },
-  { id: 'phase2', label: 'Approve + materialise', cost: 'free', hint: 'DB-only — writes ProgramSkill rows' },
-  { id: 'phase2b', label: 'Course-code extraction', cost: '~$0.02', hint: 'focused รายวิชา slice (parallel with phase 1)' },
-  { id: 'phase3', label: 'Careers + demand match', cost: '~$0.02', hint: 'sequential, Flash' },
-  { id: 'phase4', label: 'Oracle / MSSQL linkage', cost: 'free', hint: 'cohorts + alumni + financials (parallel)' },
-  { id: 'phase5', label: 'AI benchmarking (peer comparison)', cost: '~$0.20', hint: 'peer select + peer review (Pro reasoning)' },
-  { id: 'phase6', label: 'AI readiness', cost: '~$0.05', hint: 'AI-readiness scorer (Pro) — runs before narrative' },
-  { id: 'phaseRE', label: 'Research expertise', cost: '~$0.02', hint: 'themes from staff publications (Pro) — insert-only, skipped if a row exists' },
-  { id: 'phaseCR', label: 'Curriculum revision', cost: '~$0.02', hint: 'course-level advice (Pro) — runs after research expertise; skips without it' },
-  { id: 'phase7', label: 'Strategic narrative', cost: '~$0.30', hint: 'Pro thinking — runs LAST, depends on 1-6' },
-  { id: 'phase8', label: 'Risk analysis', cost: '~$0.10', hint: 'deterministic + Pro narrative — depends on 4-5' },
-];
+const PHASES: Array<{ id: Phase; label: string; cost: string; hint: string }> =
+  PROGRAM_PIPELINE_PHASES.map((id) => ({
+    id,
+    label: PROGRAM_PHASE_META[id].shortLabel,
+    cost: formatPhaseCost(PROGRAM_PHASE_META[id].approxCostUsd),
+    hint: PROGRAM_PHASE_META[id].detail,
+  }));
 
 export function ProgramsPipelineLauncher() {
   const [mode, setMode] = React.useState<'idle' | 'partial'>('idle');
