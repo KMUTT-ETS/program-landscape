@@ -762,6 +762,13 @@ export class ProgramsService {
 
     const promoted = await prisma.$transaction(async (tx) => {
       await this.demotePriorCurrent(tx, programId);
+      // NOTE this OVERWRITES the role — promote is not "mark the curriculum
+      // current", it is "make this the curriculum, whatever it was". A
+      // COMMITTEE_ORDER or EVALUATION_REPORT promoted here is silently
+      // relabelled CURRENT_CURRICULUM. Surprising, but long-standing and
+      // deliberate: the files tab offers Promote as the way to declare a
+      // document authoritative. Left as-is; recorded so the next reader
+      // doesn't file it as a bug.
       return tx.programDocument.update({
         where: { id: documentId },
         data: { role: 'CURRENT_CURRICULUM', isCurrent: true },
@@ -933,7 +940,9 @@ export class ProgramsService {
       ...input.overrides,
     };
 
-    return prisma.$transaction(async (tx) => {
+    const attachAsCurrent = input.attachAsCurrent !== false;
+
+    const updated = await prisma.$transaction(async (tx) => {
       // 1. update the Program row
       const updated = await tx.program.update({
         where: { id: programId },
@@ -941,7 +950,7 @@ export class ProgramsService {
       });
 
       // 2. attach the PDF if requested
-      if (input.attachAsCurrent !== false) {
+      if (attachAsCurrent) {
         await this.demotePriorCurrent(tx, programId);
         await tx.programDocument.upsert({
           where: {
@@ -983,6 +992,25 @@ export class ProgramsService {
 
       return updated;
     });
+
+    // The fourth path to current-curriculum, and it opens a DRAFT like the
+    // other three. The reviewer here approved an extraction *payload* —
+    // degree names, credits, majors, header fields. They did not approve
+    // that the programme's analyses reflect the new document, and those
+    // analyses are exactly as stale as on any other path. Same end state,
+    // same record: four doors, one revision type. (The Program-column
+    // rewrite this method performs is recorded separately as a metadata
+    // proposal + audit row, regardless of which path wrote it.)
+    if (attachAsCurrent) {
+      await this.openRevisionForCurrentCurriculum({
+        programId,
+        pdfDocumentId: extraction.pdfDocumentId,
+        curriculumYearBE: programPatch.curriculumYearBE ?? null,
+        createdById: user.userId,
+      });
+    }
+
+    return updated;
   }
 
   // ───────────────────────────────────────────────────────────────────────
