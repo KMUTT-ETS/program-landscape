@@ -47,9 +47,26 @@ const ProgramDigestPayloadShapeSchema = z.object({
   extractedSkills: z.array(ExtractedSkillShapeSchema).default([]),
 });
 
+/** One Program column the digest changed. A `type` alias (not an interface)
+ *  deliberately — only aliases get the implicit index signature Prisma's
+ *  `InputJsonValue` needs when this is written to a Json column. */
+type MetadataChange = {
+  field: string;
+  /** The value the column held before the digest wrote over it. */
+  current: string | number | null;
+  proposed: string | number;
+  /** Always true today: this records the overwrite, it does not gate it.
+   *  Project 2's approval gate is what makes `false` possible. */
+  applied: boolean;
+};
+
 export interface MaterialiseProgramDigestResult {
   programId: string;
   programFieldsUpdated: number;
+  /** Program columns whose value the digest actually CHANGED (not merely
+   *  restated). Zero on a re-run over unchanged content — unlike
+   *  programFieldsUpdated, which counts every field written. */
+  programFieldsChanged: number;
   skillsLinked: number;
   /** Subset of skillsLinked: links resolved via the SkillAlias cache
    *  (i.e., a prior AI normalisation or analyst-curated mapping). The
@@ -98,21 +115,85 @@ export async function materialiseProgramDigest(
   const programId = extraction.sourceEntityId;
   const payload = ProgramDigestPayloadShapeSchema.parse(extraction.payloadJson);
 
-  // 1. Update Program columns. Only set fields the digest actually has —
-  //    don't overwrite human-curated values with empty strings.
+  // 1. Update Program columns.
+  //
+  // NOTE the guard is "does the AI have a value", NOT "is the existing value
+  // empty" — so a non-empty AI value DOES replace a human-curated one. That
+  // is long-standing behaviour and is left intact here; what this block adds
+  // is a record of it. Until now the overwrite was untraceable: this runs in
+  // the ingestion worker with no HTTP request, so the @AuditLog interceptor
+  // never fires. Project 2 turns this record into an approval gate.
+  const FIELDS = [
+    ['nameEn', payload.programNameEn],
+    ['degreeNameTh', payload.degreeNameTh],
+    ['degreeNameEn', payload.degreeNameEn],
+    ['degreeAbbrTh', payload.degreeAbbrTh],
+    ['degreeAbbrEn', payload.degreeAbbrEn],
+    ['totalCredits', payload.totalCredits],
+    ['durationYears', payload.durationYears],
+    ['language', payload.language],
+    ['recruitmentSummaryTh', payload.recruitmentSummaryTh],
+  ] as const;
+
+  const before = await prisma.program.findUnique({
+    where: { id: programId },
+    select: {
+      nameEn: true,
+      degreeNameTh: true,
+      degreeNameEn: true,
+      degreeAbbrTh: true,
+      degreeAbbrEn: true,
+      totalCredits: true,
+      durationYears: true,
+      language: true,
+      recruitmentSummaryTh: true,
+      activeRevisionId: true,
+    },
+  });
+
   const updates: Record<string, unknown> = {};
-  if (payload.programNameEn) updates.nameEn = payload.programNameEn;
-  if (payload.degreeNameTh) updates.degreeNameTh = payload.degreeNameTh;
-  if (payload.degreeNameEn) updates.degreeNameEn = payload.degreeNameEn;
-  if (payload.degreeAbbrTh) updates.degreeAbbrTh = payload.degreeAbbrTh;
-  if (payload.degreeAbbrEn) updates.degreeAbbrEn = payload.degreeAbbrEn;
-  if (payload.totalCredits != null) updates.totalCredits = payload.totalCredits;
-  if (payload.durationYears != null) updates.durationYears = payload.durationYears;
-  if (payload.language) updates.language = payload.language;
-  if (payload.recruitmentSummaryTh) updates.recruitmentSummaryTh = payload.recruitmentSummaryTh;
+  const changes: MetadataChange[] = [];
+  for (const [field, proposed] of FIELDS) {
+    // Numeric columns test `!= null` so a legitimate 0 still writes; the rest
+    // test truthiness. Identical to the per-field `if` chain this replaced.
+    const hasValue = field === 'totalCredits' || field === 'durationYears' ? proposed != null : Boolean(proposed);
+    if (!hasValue) continue;
+    updates[field] = proposed;
+    const current = before ? ((before as Record<string, string | number | null>)[field] ?? null) : null;
+    // Only record a CHANGE — a digest restating what is already there is noise.
+    if (current !== proposed) {
+      // `hasValue` above already established proposed is non-nullish; the cast
+      // is what tells the compiler so, and keeps the record JSON-serialisable.
+      changes.push({ field, current, proposed: proposed as string | number, applied: true });
+    }
+  }
 
   if (Object.keys(updates).length > 0) {
     await prisma.program.update({ where: { id: programId }, data: updates });
+  }
+
+  if (changes.length > 0) {
+    // (a) On the revision, so Project 2's diff has something to render.
+    //     Most programmes have no active revision yet, hence the guard.
+    if (before?.activeRevisionId) {
+      await prisma.programRevision.update({
+        where: { id: before.activeRevisionId },
+        data: { metadataProposalJson: { fields: changes } },
+      });
+    }
+    // (b) As an audit row. Written explicitly because the @AuditLog
+    //     interceptor cannot fire here — there is no HTTP request. userId is
+    //     left null: an AI-driven change genuinely has no human actor, and
+    //     inventing one would be worse than recording none.
+    await prisma.auditLog.create({
+      data: {
+        userId: null,
+        action: 'program.metadata.ai_overwrite',
+        entityType: 'Program',
+        entityId: programId,
+        payloadJson: { extractionId: extraction.id, methodVersion: extraction.methodVersion, fields: changes },
+      },
+    });
   }
 
   // 2. Resolve skills + write ProgramSkill rows.
@@ -250,6 +331,7 @@ export async function materialiseProgramDigest(
   return {
     programId,
     programFieldsUpdated: Object.keys(updates).length,
+    programFieldsChanged: changes.length,
     skillsLinked,
     skillsLinkedViaAlias: skillsViaAlias,
     skillsProposed: proposedSkills.length,
