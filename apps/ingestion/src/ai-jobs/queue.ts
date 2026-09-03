@@ -47,6 +47,11 @@ export type AiJobKind =
 // phase2b added 2026-05-25 (focused course-code extractor that runs
 // parallel with phase1 — was missing here so the admin UI couldn't
 // select it via Custom or AI-only presets).
+// phaseRE (research expertise) + phaseCR (curriculum revision) added
+// 2026-09-03. phaseRE had existed in the runtime since it shipped but was
+// never added here, so `--only=` lists built from this union silently
+// dropped it — the same drift phase2b hit. phaseCR reads phaseRE's row,
+// so both must stay selectable together.
 export type ProgramPipelinePhase =
   | 'phase1'
   | 'phase2'
@@ -55,6 +60,8 @@ export type ProgramPipelinePhase =
   | 'phase4'
   | 'phase5'
   | 'phase6'
+  | 'phaseRE'
+  | 'phaseCR'
   | 'phase7'
   | 'phase8';
 

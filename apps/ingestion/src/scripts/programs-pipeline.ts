@@ -52,6 +52,21 @@
 //      a row is never regenerated here, no --force override. Re-running
 //      is an explicit operator action via `pnpm expertise:generate`.
 //
+//   Phase CR — Curriculum revision (Pro)
+//      - curriculum:revise                   (gemini-3.1-pro-preview)
+//      Turns Phase RE's research themes into course-level advice:
+//      which existing courses to enhance, which new courses to propose,
+//      which electives to promote. Runs immediately AFTER Phase RE
+//      because it READS the program_research_expertise row that phase
+//      produces — source order in processProgram() is the only ordering
+//      mechanism here, so the placement is load-bearing.
+//      Like Phase RE, generateProgramCurriculumRevision() is INSERT-ONLY
+//      (history accretes; see program-curriculum-revision-run.ts), so the
+//      pipeline enforces its own skip-if-exists check and there is no
+//      --force override. When Phase RE has not produced a row the runner
+//      degrades to a $0 SKIPPED with reason `no-research` — no AI call,
+//      no crash — rather than failing the program's run.
+//
 //   Phase 7 — Strategic narrative (Pro thinking)
 //      - programs:narrative                 (gemini-3.1-pro-preview)
 //      Runs LAST among the narrative chain — consumes every prior phase.
@@ -107,7 +122,13 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { spawn } from 'node:child_process';
-import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore, generateProgramResearchExpertise } from '@kku/db';
+import {
+  prisma,
+  PrismaAiInferenceRecorder,
+  getAiModelOverrideStore,
+  generateProgramResearchExpertise,
+  generateProgramCurriculumRevision,
+} from '@kku/db';
 import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { runProgramCoursesExtract } from '../program-courses-extract/run';
@@ -130,6 +151,7 @@ type Phase =
   | 'phase5'
   | 'phase6'
   | 'phaseRE'
+  | 'phaseCR'
   | 'phase7'
   | 'phase8';
 const ALL_PHASES: Phase[] = [
@@ -141,6 +163,7 @@ const ALL_PHASES: Phase[] = [
   'phase5',
   'phase6',
   'phaseRE',
+  'phaseCR',
   'phase7',
   'phase8',
 ];
@@ -588,6 +611,54 @@ async function processProgram(
         notes:
           r.status === 'SUCCEEDED'
             ? `readiness=${r.readiness} · ${r.themeCount} themes · ${r.totalDistinct} papers · conf ${r.confidence.toFixed(2)}`
+            : r.status === 'SKIPPED'
+              ? `skipped: ${r.reason}`
+              : `failed: ${r.reason}`,
+      });
+    }
+  }
+
+  // ── Phase CR — Curriculum revision (Pro) ─────────────────────────
+  // MUST stay immediately after phaseRE: it reads the
+  // program_research_expertise row that phase writes, and source order in
+  // this function IS the execution order (there is no dependency graph).
+  //
+  // INSERT-ONLY runner, same posture as phaseRE — the pipeline enforces
+  // skip-if-exists itself so an unattended --all rerun never accretes
+  // duplicate rows, and there is no --force override. Re-analysis is an
+  // explicit operator action.
+  //
+  // When phaseRE has not run (or produced no themes) the runner returns a
+  // $0 SKIPPED with reason `no-research` before making any AI call, so a
+  // phaseCR-only run against an unprepared program degrades gracefully.
+  if (shouldRun('phaseCR')) {
+    const t = Date.now();
+    const existing = await prisma.programCurriculumRevision.findFirst({
+      where: { programId: program.id },
+      select: { id: true },
+    });
+    if (existing) {
+      phases.push({
+        name: 'phaseCR curriculum revision',
+        durationMs: Date.now() - t,
+        costUsd: 0,
+        ok: true,
+        notes: 'skipped: row already exists',
+      });
+    } else {
+      const r = await generateProgramCurriculumRevision({ programId: program.id, ai }).catch((e) => ({
+        status: 'FAILED' as const, reason: String(e?.message ?? e),
+      }));
+      phases.push({
+        name: 'phaseCR curriculum revision',
+        durationMs: Date.now() - t,
+        costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
+        // A SKIPPED reads green: `no-research` is a missing-input state, not
+        // a failure of this phase.
+        ok: r.status !== 'FAILED',
+        notes:
+          r.status === 'SUCCEEDED'
+            ? `readiness=${r.readiness} · ${r.enhanceCount} enhance / ${r.newCourseCount} new / ${r.promotionCount} promote · conf ${r.confidence.toFixed(2)}`
             : r.status === 'SKIPPED'
               ? `skipped: ${r.reason}`
               : `failed: ${r.reason}`,

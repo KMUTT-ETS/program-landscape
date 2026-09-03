@@ -298,14 +298,14 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
     }
   };
 
-  // Single-program full-pipeline run — all 9 phases on one program
+  // Single-program full-pipeline run — all 11 phases on one program
   // (incl. phase 5 AI benchmarking + phase 7 narrative). Useful when
   // retrying a single program after fixing its PDF or peer set without
   // re-paying the bulk run for the other 296.
   const runSinglePipeline = async (programId: string, programCode: string) => {
     if (
       !confirm(
-        `Run the full 9-phase pipeline (incl. AI benchmarking + narrative) on ${programCode}?\n\n` +
+        `Run the full 11-phase pipeline (incl. AI benchmarking + narrative) on ${programCode}?\n\n` +
           'Takes ~5-10 min and ~$0.70 in LLM cost. Phases run in the background; ' +
           'check back on this page in 10 minutes.',
       )
@@ -525,7 +525,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                             Run digest
                           </Button>
                         )}
-                        {/* Full 9-phase pipeline run for this single program.
+                        {/* Full 11-phase pipeline run for this single program.
                             Available on every bucket — even already-approved
                             programs may need a re-run after a peer-set
                             update or methodology bump. */}
@@ -534,7 +534,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
                           size="sm"
                           onClick={() => runSinglePipeline(p.id, p.code)}
                           disabled={bulkRunning}
-                          title="Run all 9 pipeline phases on this program"
+                          title="Run all 11 pipeline phases on this program"
                         >
                           <Layers className="size-icon-md" aria-hidden />
                           Run pipeline

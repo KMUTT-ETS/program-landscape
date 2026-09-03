@@ -7,7 +7,7 @@ import { Layers, Play, RefreshCw, Settings2 } from 'lucide-react';
 
 // Buttons on /admin/data-setup → "Full program documents" card.
 // Two run modes:
-//   • Full run    — all 9 phases on every canonical program (or just the
+//   • Full run    — all 11 phases on every canonical program (or just the
 //                   not-yet-narrated subset via Resume).
 //   • Partial run — pick which phases to run; expands a checkbox panel.
 //
@@ -15,9 +15,13 @@ import { Layers, Play, RefreshCw, Settings2 } from 'lucide-react';
 // uses — Resume mode skips programs that already have one.
 // Phase 5 is the AI benchmarking step (peer selection + peer review).
 //
-// Keep this list in sync with the 9 phases in
+// Keep this list in sync with the 11 phases in
 // apps/ingestion/src/scripts/programs-pipeline.ts (+ ProgramPipelinePhase
 // in apps/api/src/ai-jobs/ai-jobs-queue.service.ts).
+//
+// Listed in pipeline EXECUTION order — phaseCR reads the row phaseRE
+// writes, and the picker has no dependency engine, so the ordering plus
+// phaseCR's hint is how that dependency is conveyed.
 
 type Phase =
   | 'phase1'
@@ -27,6 +31,8 @@ type Phase =
   | 'phase4'
   | 'phase5'
   | 'phase6'
+  | 'phaseRE'
+  | 'phaseCR'
   | 'phase7'
   | 'phase8';
 
@@ -38,6 +44,8 @@ const PHASES: Array<{ id: Phase; label: string; cost: string; hint: string }> = 
   { id: 'phase4', label: 'Oracle / MSSQL linkage', cost: 'free', hint: 'cohorts + alumni + financials (parallel)' },
   { id: 'phase5', label: 'AI benchmarking (peer comparison)', cost: '~$0.20', hint: 'peer select + peer review (Pro reasoning)' },
   { id: 'phase6', label: 'AI readiness', cost: '~$0.05', hint: 'AI-readiness scorer (Pro) — runs before narrative' },
+  { id: 'phaseRE', label: 'Research expertise', cost: '~$0.02', hint: 'themes from staff publications (Pro) — insert-only, skipped if a row exists' },
+  { id: 'phaseCR', label: 'Curriculum revision', cost: '~$0.02', hint: 'course-level advice (Pro) — runs after research expertise; skips without it' },
   { id: 'phase7', label: 'Strategic narrative', cost: '~$0.30', hint: 'Pro thinking — runs LAST, depends on 1-6' },
   { id: 'phase8', label: 'Risk analysis', cost: '~$0.10', hint: 'deterministic + Pro narrative — depends on 4-5' },
 ];
@@ -96,7 +104,7 @@ export function ProgramsPipelineLauncher() {
     submit(
       'Full run',
       { resume: false },
-      'Run the FULL 9-phase pipeline (incl. AI benchmarking + AI readiness) on all 297 canonical programs?\n\n' +
+      'Run the FULL 11-phase pipeline (incl. AI benchmarking + AI readiness) on all 297 canonical programs?\n\n' +
         'Each program takes ~5-10 min and ~$0.70 in LLM cost. Total ≈ $210 + 30h of worker time.\n\n' +
         'For an incremental run that skips already-narrated programs, use "Resume" instead.',
     );

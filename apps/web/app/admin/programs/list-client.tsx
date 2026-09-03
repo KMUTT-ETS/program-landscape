@@ -102,8 +102,13 @@ const STATUS_TONE: Record<
 //   phase4   Oracle/MSSQL data linkage (cohorts, alumni, financials)
 //   phase5   peer select + peer review
 //   phase6   AI readiness
+//   phaseRE  research expertise (themes from staff publications)
+//   phaseCR  curriculum revision (reads phaseRE's row)
 //   phase7   strategic narrative
 //   phase8   risk analysis
+//
+// Order below is the pipeline's EXECUTION order, which is what an operator
+// reading the checkbox list needs to reason about dependencies.
 
 type Phase =
   | 'phase1'
@@ -113,6 +118,8 @@ type Phase =
   | 'phase4'
   | 'phase5'
   | 'phase6'
+  | 'phaseRE'
+  | 'phaseCR'
   | 'phase7'
   | 'phase8';
 
@@ -124,6 +131,8 @@ const ALL_PHASES: Phase[] = [
   'phase4',
   'phase5',
   'phase6',
+  'phaseRE',
+  'phaseCR',
   'phase7',
   'phase8',
 ];
@@ -136,8 +145,17 @@ const PHASE_LABEL: Record<Phase, string> = {
   phase4: 'Phase 4 · Oracle / MSSQL data linkage',
   phase5: 'Phase 5 · AI benchmarking (peer select + review)',
   phase6: 'Phase 6 · AI readiness',
+  phaseRE: 'Research expertise · themes from staff publications',
+  phaseCR: 'Curriculum revision · course-level advice from research',
   phase7: 'Phase 7 · Strategic narrative',
   phase8: 'Phase 8 · Risk analysis',
+};
+
+/** Phases whose input comes from another phase. The picker has no dependency
+ *  engine on purpose — this renders as an inline note so an operator ticking
+ *  the phase alone understands why it may skip. */
+const PHASE_HINT: Partial<Record<Phase, string>> = {
+  phaseCR: 'Needs research expertise to have run first — skips without it.',
 };
 
 interface PipelinePreset {
@@ -151,15 +169,26 @@ const PIPELINE_PRESETS: PipelinePreset[] = [
   {
     key: 'full',
     label: 'Full pipeline',
-    description: 'All 9 phases · ~5–10 min · ~$0.60 per program in LLM cost',
+    description: 'All 11 phases · ~5–10 min · ~$0.64 per program in LLM cost',
     phases: null,
   },
   {
     key: 'ai-only',
     label: 'AI-only refresh',
     description:
-      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · AI benchmarking · AI readiness · narrative · risk. Skips Oracle/MSSQL.',
-    phases: ['phase1', 'phase2', 'phase2b', 'phase3', 'phase5', 'phase6', 'phase7', 'phase8'],
+      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · AI benchmarking · AI readiness · research expertise · curriculum revision · narrative · risk. Skips Oracle/MSSQL.',
+    phases: [
+      'phase1',
+      'phase2',
+      'phase2b',
+      'phase3',
+      'phase5',
+      'phase6',
+      'phaseRE',
+      'phaseCR',
+      'phase7',
+      'phase8',
+    ],
   },
   {
     key: 'oracle-only',
@@ -706,7 +735,7 @@ function PipelinePickerDialog({
                 return (
                   <label
                     key={p}
-                    className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${
+                    className={`flex items-start gap-2 rounded px-2 py-1 text-xs ${
                       isCustom ? 'cursor-pointer hover:bg-surface-2' : 'cursor-default opacity-80'
                     }`}
                   >
@@ -715,9 +744,15 @@ function PipelinePickerDialog({
                       checked={checked}
                       disabled={!isCustom}
                       onChange={() => togglePhase(p)}
+                      className="mt-0.5"
                     />
-                    <span className={checked ? 'text-text-primary' : 'text-text-tertiary'}>
-                      {PHASE_LABEL[p]}
+                    <span className="flex flex-col leading-tight">
+                      <span className={checked ? 'text-text-primary' : 'text-text-tertiary'}>
+                        {PHASE_LABEL[p]}
+                      </span>
+                      {PHASE_HINT[p] ? (
+                        <span className="text-text-tertiary">{PHASE_HINT[p]}</span>
+                      ) : null}
                     </span>
                   </label>
                 );

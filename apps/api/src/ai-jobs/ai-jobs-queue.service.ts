@@ -34,6 +34,8 @@ export type AiJobKind =
  *   phase4  Oracle/MSSQL data linkage (cohorts, alumni, financials)
  *   phase5  peer select + peer review
  *   phase6  AI readiness
+ *   phaseRE research expertise (themes from staff publications)
+ *   phaseCR curriculum revision (course-level advice; reads phaseRE)
  *   phase7  strategic narrative
  *   phase8  risk analysis
  *
@@ -42,6 +44,10 @@ export type AiJobKind =
  * phase2b added 2026-05-25 (focused course-code extractor that runs
  * parallel with phase1 — was missing here so the admin UI couldn't
  * select it via Custom or the AI-only preset).
+ * phaseRE + phaseCR added 2026-09-03. phaseRE had shipped in the runtime
+ * long before but was never added here, so any explicit `--only=` list the
+ * admin UI sent silently dropped it — identical drift to phase2b's. phaseCR
+ * reads the row phaseRE writes, so the two must be selectable together.
  */
 export type ProgramPipelinePhase =
   | 'phase1'
@@ -51,6 +57,8 @@ export type ProgramPipelinePhase =
   | 'phase4'
   | 'phase5'
   | 'phase6'
+  | 'phaseRE'
+  | 'phaseCR'
   | 'phase7'
   | 'phase8';
 
