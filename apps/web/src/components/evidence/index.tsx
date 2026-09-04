@@ -1,0 +1,389 @@
+'use client';
+
+import * as React from 'react';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout language for dense evidence pages (/teaching-learning/[programId],
+// and the deep-dive next). Approved from a mock on 2026-09-04; the mock is
+// kept at docs/design/aunqa-evidence-mock.html.
+//
+// THE RULE THESE EXIST TO ENFORCE — invert the hierarchy.
+//
+// Before, a section heading, a sub-heading and a data card all carried roughly
+// the same visual weight, and the card was often the LOUDEST thing on screen
+// (each criterion was wrapped in one big <Card>). The page read as one flat
+// column — "texts after texts without focus".
+//
+// Three levels, each visibly quieter than the one above:
+//
+//   SectionBand   big tabular numeral + title + coverage line + state chip,
+//                 closed by a 2px rule. The loudest thing on the page.
+//   SubSection    hangs off a vertical spine; its number sits ON the line.
+//   EvidenceCard  deliberately the QUIETEST layer — muted header, dashed
+//                 divider, source footer. Its NUMBER is prominent, its
+//                 chrome is not.
+//
+// Tokens only — no literal colours (ESLint enforces this). Semantic state
+// (success / warning / tertiary) is deliberately separate from the accent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type EvidenceState = 'evidenced' | 'partial' | 'absent';
+
+const STATE_CHIP: Record<EvidenceState, string> = {
+  evidenced: 'bg-success/10 text-success',
+  partial: 'bg-warning/10 text-warning',
+  // Grey, never red: "no evidence yet" describes OUR data coverage, not a
+  // failing programme. The page copy is emphatic about that and a red chip
+  // would contradict it.
+  absent: 'bg-surface-2 text-text-tertiary',
+};
+
+export function StateChip({
+  state,
+  children,
+  dot = false,
+}: {
+  state: EvidenceState;
+  children: React.ReactNode;
+  dot?: boolean;
+}) {
+  return (
+    <span
+      className={[
+        'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5',
+        'text-[10px] font-semibold tracking-wide',
+        STATE_CHIP[state],
+      ].join(' ')}
+    >
+      {dot && <span aria-hidden className="size-1.5 rounded-full bg-current" />}
+      {children}
+    </span>
+  );
+}
+
+/** Level 1 — the banded section header. */
+export function SectionBand({
+  id,
+  no,
+  title,
+  coverage,
+  chip,
+  children,
+}: {
+  id: string;
+  /** Displayed large in the accent. Criterion numbers are not sequential
+   *  (6 and 7 are absent), so this is passed in rather than derived. */
+  no: React.ReactNode;
+  title: string;
+  coverage?: string;
+  chip?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  // mt in rem for the same reason as SubSection's padding below — `mt-10` on
+  // this scale is 20px, too little air between two criterion bands.
+  return (
+    <section id={id} className="mt-[2.25rem] scroll-mt-6 first:mt-0">
+      <header className="flex items-center gap-4 border-b-2 border-text-primary pb-3">
+        <span className="font-tabular text-2xl font-bold leading-none tracking-tight text-accent-default">
+          {no}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-balance text-base font-semibold tracking-tight text-text-primary">
+            {title}
+          </h2>
+          {coverage && <p className="mt-0.5 text-xs text-text-secondary">{coverage}</p>}
+        </div>
+        {chip}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** Level 2 — a sub-section hanging off the spine. */
+export function SubSection({
+  no,
+  title,
+  chip,
+  note,
+  children,
+  last = false,
+}: {
+  no: string;
+  title: string;
+  chip?: React.ReactNode;
+  note?: React.ReactNode;
+  children?: React.ReactNode;
+  /** The spine should stop at the last item rather than run into space. */
+  last?: boolean;
+}) {
+  // Structural spacing in explicit rem, NOT scale utilities: this project
+  // replaces Tailwind's spacing scale with one at half the usual values
+  // (packages/design/src/tokens/spacing.ts), so `pl-10` is 20px, not 40px —
+  // too tight for the marker to sit clear of the text.
+  return (
+    <div
+      className={[
+        'relative py-[1.15rem] pl-[2.25rem]',
+        last ? 'border-l border-transparent' : 'border-l border-border-default',
+      ].join(' ')}
+    >
+      {/* The marker sits ON the spine: -50% pulls it onto the line, and the
+          page-ground background makes the line appear to pass behind it. */}
+      <span
+        className={[
+          'absolute left-0 top-[1.15rem] -translate-x-1/2 rounded border border-border-strong',
+          'bg-surface-0 px-1 py-px font-tabular text-[10px] font-bold text-text-secondary',
+        ].join(' ')}
+      >
+        {no}
+      </span>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="text-sm font-semibold tracking-tight text-text-primary">{title}</span>
+        {chip}
+      </div>
+      {note && <p className="mt-1 max-w-prose text-xs text-text-secondary">{note}</p>}
+      {children}
+    </div>
+  );
+}
+
+/** Level 3 — deliberately the quietest layer. */
+export function EvidenceCard({
+  name,
+  freshness,
+  source,
+  children,
+}: {
+  name: string;
+  freshness?: React.ReactNode;
+  source?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-border-subtle bg-surface-1">
+      <div className="flex items-baseline justify-between gap-4 border-b border-dashed border-border-subtle px-3 py-2">
+        <span className="text-xs font-semibold text-text-secondary">{name}</span>
+        {freshness && <span className="shrink-0 text-[10px] text-text-tertiary">{freshness}</span>}
+      </div>
+      {children}
+      {source && (
+        <div className="border-t border-border-subtle bg-surface-2 px-3 py-1.5 text-[10px] text-text-tertiary">
+          {source}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The row of figures inside an EvidenceCard. */
+export function EvidenceBodyRow({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap gap-x-8 gap-y-4 p-3">{children}</div>;
+}
+
+/** One figure. The number is the loud part; the label and caption are not. */
+export function Stat({
+  label,
+  value,
+  unit,
+  caption,
+  children,
+}: {
+  label: string;
+  value: React.ReactNode;
+  unit?: string;
+  caption?: React.ReactNode;
+  /** e.g. a ScaleBar, rendered between the value and the caption. */
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+        {label}
+      </span>
+      <span className="font-tabular text-xl font-bold leading-tight tracking-tight text-text-primary">
+        {value}
+        {unit && <span className="ml-1 text-sm font-medium text-text-secondary">{unit}</span>}
+      </span>
+      {children}
+      {caption && <span className="text-[10px] text-text-tertiary">{caption}</span>}
+    </div>
+  );
+}
+
+/**
+ * A measurement caveat, folded away.
+ *
+ * The notes are worth keeping — they say what a figure does and does not
+ * cover — but at full size, repeated under every card, they competed with the
+ * data. Closed by default; the summary reads as a question so opening it is
+ * an obvious act.
+ */
+export function Caveat({ summary, children }: { summary: string; children: React.ReactNode }) {
+  return (
+    <details className="group border-t border-dashed border-border-subtle">
+      <summary
+        className={[
+          'flex cursor-pointer list-none items-center gap-1.5 px-3 py-2',
+          'text-[10px] font-semibold text-warning',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default',
+          'group-open:border-b group-open:border-dashed group-open:border-border-subtle',
+          '[&::-webkit-details-marker]:hidden',
+        ].join(' ')}
+      >
+        <span
+          aria-hidden
+          className="grid size-3 place-items-center rounded-full border border-current text-[8px] font-bold"
+        >
+          !
+        </span>
+        {summary}
+      </summary>
+      <div className="max-w-prose px-3 py-2 text-xs text-text-secondary">{children}</div>
+    </details>
+  );
+}
+
+/** Coverage ring. One of only two SVGs in this language — keep it that way. */
+export function CoverageRing({
+  value,
+  total,
+  size = 52,
+}: {
+  value: number;
+  total: number;
+  size?: number;
+}) {
+  const r = size / 2 - 4;
+  const circumference = 2 * Math.PI * r;
+  const pct = total > 0 ? Math.min(1, Math.max(0, value / total)) : 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        strokeWidth="5"
+        className="stroke-border-subtle"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray={`${circumference * pct} ${circumference}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        className={pct >= 1 ? 'stroke-success' : 'stroke-warning'}
+      />
+    </svg>
+  );
+}
+
+/** A 1–5 (or 0–max) scale bar, so a mean is read against its range. */
+export function ScaleBar({ value, max = 5 }: { value: number; max?: number }) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  return (
+    <svg
+      viewBox="0 0 200 6"
+      preserveAspectRatio="none"
+      className="h-1.5 w-full max-w-60"
+      aria-hidden
+    >
+      <rect x="0" y="2" width="200" height="2" rx="1" className="fill-border-subtle" />
+      <rect x="0" y="1" width={(pct / 100) * 200} height="4" rx="2" className="fill-accent-default" />
+    </svg>
+  );
+}
+
+export interface RailItem {
+  /** Element id to scroll to. */
+  href: string;
+  /** Short marker, e.g. "C1". */
+  marker: string;
+  label: string;
+  /** e.g. "4/4", or "none" for a section that holds nothing. */
+  meta?: string;
+  absent?: boolean;
+}
+
+/**
+ * Sticky section rail with a scroll-spy.
+ *
+ * Sections that hold nothing are listed in place and greyed rather than
+ * parked at the bottom of the page — their absence is a stated fact, not
+ * something the reader discovers after 9,000px of scrolling.
+ */
+export function SectionRail({ label, items }: { label: string; items: RailItem[] }) {
+  const [active, setActive] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const ids = items.map((i) => i.href.replace(/^#/, ''));
+    const nodes = ids
+      .map((id) => document.getElementById(id))
+      .filter((n): n is HTMLElement => n !== null);
+    if (nodes.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) setActive(`#${e.target.id}`);
+      },
+      // Top 10%..30% band: a section counts as "current" once its header
+      // reaches the upper part of the viewport, not when it merely appears.
+      { rootMargin: '-10% 0px -70% 0px' },
+    );
+    for (const n of nodes) obs.observe(n);
+    return () => obs.disconnect();
+  }, [items]);
+
+  return (
+    <nav aria-label={label} className="sticky top-6 flex flex-col gap-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
+        {label}
+      </div>
+      <div className="flex flex-col gap-px">
+        {items.map((it) => {
+          const current = active === it.href;
+          return (
+            <a
+              key={it.href + it.marker}
+              href={it.href}
+              aria-current={current ? 'true' : undefined}
+              className={[
+                'grid grid-cols-[2.2rem_1fr_auto] items-center gap-2 rounded-md border-l-2 px-2 py-1.5 text-xs',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default',
+                current
+                  ? 'border-l-accent-default bg-surface-1 font-semibold text-text-primary'
+                  : 'border-l-transparent text-text-secondary hover:bg-surface-2 hover:text-text-primary',
+                it.absent && !current ? 'text-text-tertiary' : '',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'rounded border px-1 py-px text-center font-tabular text-[10px] font-bold',
+                  current
+                    ? 'border-accent-default text-accent-default'
+                    : 'border-border-strong text-text-tertiary',
+                ].join(' ')}
+              >
+                {it.marker}
+              </span>
+              <span className="truncate">{it.label}</span>
+              {it.meta && (
+                <span
+                  className={[
+                    'font-tabular text-[10px] text-text-tertiary',
+                    it.absent ? 'italic' : '',
+                  ].join(' ')}
+                >
+                  {it.meta}
+                </span>
+              )}
+            </a>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}

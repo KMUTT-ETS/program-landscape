@@ -10,7 +10,6 @@ import {
   ConfidenceBadge,
   FreshnessBadge,
   RadarChartSmall,
-  Section,
   type RadarPoint,
 } from '@kku/ui';
 // TYPE-ONLY from `@kku/shared`. Its barrel re-exports subpaths that pull
@@ -19,6 +18,16 @@ import {
 // the `dqModules` prop. Nothing here reaches `@kku/shared` or `@kku/db` at
 // runtime.
 import type { DqModule } from '@kku/shared';
+import {
+  Caveat as EvidenceCaveat,
+  CoverageRing,
+  EvidenceCard,
+  SectionBand,
+  SectionRail,
+  StateChip,
+  SubSection,
+  type RailItem,
+} from '@/components/evidence';
 import { submitDisagreementAction } from '@/lib/actions/program-deep-dive';
 // Shared with `/education/student-dq` and the deep-dive so every DQ radar
 // means the same thing by its floor — see the helper for why it is not 0.
@@ -1113,12 +1122,11 @@ function EvidenceBody({
 /** The caveat, always on screen beside the figure it qualifies. Never a
  *  tooltip: on this surface the wording of a caveat is the guard against
  *  a QA officer quoting an uncaveated number into a submission. */
+// Folded, not shouted. These notes say what a figure does and does not cover
+// — worth keeping, but at full size under every card they competed with the
+// data itself. Call sites are unchanged; only the presentation moved.
 function Caveat({ text }: { text: string }) {
-  return (
-    <p className="mt-2 rounded-md border border-warning/40 bg-warning-subtle px-2.5 py-1.5 text-xs text-warning">
-      {text}
-    </p>
-  );
+  return <EvidenceCaveat summary="How to read this figure">{text}</EvidenceCaveat>;
 }
 
 function AvailableEvidence({
@@ -1129,17 +1137,16 @@ function AvailableEvidence({
   dqModules: DqModule[];
 }) {
   return (
-    <Card padding="sm" className="bg-surface-0">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-text-primary">
-          {channelLabel(ev.binding)}
-        </span>
-        <FreshnessBadge freshnessDate={ev.freshness} label={ev.sourceLabel} />
+    <EvidenceCard
+      name={channelLabel(ev.binding)}
+      freshness={<FreshnessBadge freshnessDate={ev.freshness} label={ev.sourceLabel} />}
+      source={<>Source: {ev.sourceLabel}</>}
+    >
+      <div className="p-3">
+        <EvidenceBody ev={ev} dqModules={dqModules} />
       </div>
-      <EvidenceBody ev={ev} dqModules={dqModules} />
       {ev.caveat && <Caveat text={ev.caveat} />}
-      <p className="mt-2 text-xs text-text-tertiary">Source: {ev.sourceLabel}</p>
-    </Card>
+    </EvidenceCard>
   );
 }
 
@@ -1383,69 +1390,68 @@ function CriterionBlock({
   // figure is, rather than the figure four times over.
   const shownAt = new Map<string, string>();
 
+  // The criterion is no longer wrapped in one big Card. That Card was the
+  // loudest element on the page, which flattened the hierarchy: heading,
+  // sub-heading and evidence all read at the same weight. The band header
+  // now carries the emphasis and the evidence cards are the quietest layer.
   return (
-    <Section
+    <SectionBand
       id={`criterion-${criterion.criterionId}`}
-      title={`Criterion ${criterion.criterionId} — ${criterion.title}`}
-      description={`${criterion.subCriteriaWithEvidence} of ${criterion.subCriteriaTotal} sub-criteria have data`}
-      actions={<BandBadge band={criterion.band} />}
+      no={criterion.criterionId}
+      title={criterion.title}
+      coverage={`${criterion.subCriteriaWithEvidence} of ${criterion.subCriteriaTotal} sub-criteria have data`}
+      chip={<BandBadge band={criterion.band} />}
     >
-      <Card>
-        <ul className="flex flex-col gap-5">
-          {criterion.subCriteria.map((sub) => {
-            const available = sub.evidence.filter((e) => e.available);
-            const missing = sub.evidence.filter((e) => !e.available);
-            return (
-              <li key={sub.id} className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="font-tabular text-sm font-semibold text-text-primary">
-                    {sub.id}
-                  </span>
-                  <span className="text-sm text-text-primary">{sub.title}</span>
-                  {sub.hasEvidence ? (
-                    <Badge tone="success" size="sm">
-                      evidenced
-                    </Badge>
-                  ) : (
-                    <Badge tone="neutral" size="sm">
-                      no evidence
-                    </Badge>
-                  )}
-                </div>
+      <div className="ml-1">
+        {criterion.subCriteria.map((sub, i) => {
+          const available = sub.evidence.filter((e) => e.available);
+          const missing = sub.evidence.filter((e) => !e.available);
+          return (
+            <SubSection
+              key={sub.id}
+              no={sub.id}
+              title={sub.title}
+              last={i === criterion.subCriteria.length - 1}
+              chip={
+                sub.hasEvidence ? (
+                  <StateChip state="evidenced">evidenced</StateChip>
+                ) : (
+                  <StateChip state="absent">no evidence</StateChip>
+                )
+              }
+            >
+              {available.map((ev) => {
+                const key = channelKey(ev.binding);
+                const first = shownAt.get(key);
+                if (first !== undefined) {
+                  return (
+                    <p key={key} className="mt-1 text-xs text-text-tertiary">
+                      {channelLabel(ev.binding)} — the same figure as under {first} above.
+                    </p>
+                  );
+                }
+                shownAt.set(key, sub.id);
+                return <AvailableEvidence key={key} ev={ev} dqModules={dqModules} />;
+              })}
 
-                {available.map((ev) => {
-                  const key = channelKey(ev.binding);
-                  const first = shownAt.get(key);
-                  if (first !== undefined) {
-                    return (
-                      <p key={key} className="text-xs text-text-tertiary">
-                        {channelLabel(ev.binding)} — the same figure as under {first} above.
-                      </p>
-                    );
-                  }
-                  shownAt.set(key, sub.id);
-                  return <AvailableEvidence key={key} ev={ev} dqModules={dqModules} />;
-                })}
+              {missing.map((ev) => (
+                <MissingEvidence key={channelKey(ev.binding)} ev={ev} />
+              ))}
+            </SubSection>
+          );
+        })}
+      </div>
 
-                {missing.map((ev) => (
-                  <MissingEvidence key={channelKey(ev.binding)} ev={ev} />
-                ))}
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="mt-5">
-          <NarrativeDraft
-            programId={programId}
-            criterion={criterion}
-            draft={draft}
-            busy={busy}
-            onGenerate={onGenerate}
-          />
-        </div>
-      </Card>
-    </Section>
+      <div className="mt-5">
+        <NarrativeDraft
+          programId={programId}
+          criterion={criterion}
+          draft={draft}
+          busy={busy}
+          onGenerate={onGenerate}
+        />
+      </div>
+    </SectionBand>
   );
 }
 
@@ -1488,24 +1494,62 @@ export function AunqaProgramClient({
   const shown = analysis.criteria.filter((c) => c.subCriteriaWithEvidence > 0);
   const omitted = analysis.criteria.filter((c) => c.subCriteriaWithEvidence === 0);
 
+  // The rail lists every criterion the framework has, including the ones
+  // that hold nothing — greyed and pointing at the footnote. Their absence
+  // is a stated fact rather than something the reader discovers after
+  // 9,000px of scrolling.
+  const railItems: RailItem[] = [
+    ...shown.map((c) => ({
+      href: `#criterion-${c.criterionId}`,
+      marker: `C${c.criterionId}`,
+      label: c.title,
+      meta: `${c.subCriteriaWithEvidence}/${c.subCriteriaTotal}`,
+    })),
+    ...omitted.map((c) => ({
+      href: '#not-shown',
+      marker: `C${c.criterionId}`,
+      label: c.title,
+      meta: 'none',
+      absent: true,
+    })),
+    ...analysis.unevidencedCriteria.map((c) => ({
+      href: '#not-shown',
+      marker: `C${c.id}`,
+      label: c.title,
+      meta: 'none',
+      absent: true,
+    })),
+  ].sort((a, b) => a.marker.localeCompare(b.marker, undefined, { numeric: true }));
+
   // Completeness is counted over the WHOLE registry, including the criteria
   // omitted below. Counting only what is on screen would flatter a thin
   // programme by dropping its emptiest criteria out of its own denominator.
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="hidden lg:block">
+        <SectionRail label="AUN-QA v4 criteria" items={railItems} />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-6">
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide text-text-tertiary">
-              Evidence completeness
-            </span>
-            <span className="font-tabular text-3xl font-semibold text-text-primary">
-              {analysis.subCriteriaWithEvidence} of {analysis.subCriteriaTotal}
-            </span>
-            <span className="text-sm text-text-secondary">
-              sub-criteria across the {analysis.criteria.length} criteria this platform can
-              evidence
-            </span>
+          <div className="flex items-center gap-4">
+            <CoverageRing
+              value={analysis.subCriteriaWithEvidence}
+              total={analysis.subCriteriaTotal}
+            />
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-wide text-text-tertiary">
+                Evidence completeness
+              </span>
+              <span className="font-tabular text-3xl font-semibold text-text-primary">
+                {analysis.subCriteriaWithEvidence} of {analysis.subCriteriaTotal}
+              </span>
+              <span className="text-sm text-text-secondary">
+                sub-criteria across the {analysis.criteria.length} criteria this platform can
+                evidence
+              </span>
+            </div>
           </div>
           <BandBadge band={analysis.band} />
         </div>
@@ -1545,7 +1589,7 @@ export function AunqaProgramClient({
 
       {/* One line at the foot, naming what is not on this page — so a
           reader cannot infer that what they see is the whole framework. */}
-      <Card padding="sm" className="bg-surface-0">
+      <Card id="not-shown" padding="sm" className="scroll-mt-6 bg-surface-0">
         <p className="text-xs leading-relaxed text-text-tertiary">
           <span className="font-medium text-text-secondary">Not shown above:</span>{' '}
           {omitted.length > 0 && (
@@ -1573,6 +1617,7 @@ export function AunqaProgramClient({
           {analysis.unevidencedCriteria.map((c) => c.whyAbsent).join(' ')}
         </p>
       </Card>
+      </div>
     </div>
   );
 }
