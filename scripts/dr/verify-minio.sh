@@ -17,6 +17,11 @@
 set -euo pipefail
 
 DEPLOY_ROOT="${DEPLOY_ROOT:-/opt/program-landscape}"
+# Deployed boxes have docker-compose.yml (build-release.ts renames
+# docker-compose.prod.yml on the way into the bundle); a dev checkout has the
+# prod name. Prefer the deployed one. See the fuller note in check-mirror.sh.
+COMPOSE_FILE="$DEPLOY_ROOT/current/docker-compose.yml"
+[ -f "$COMPOSE_FILE" ] || COMPOSE_FILE="$DEPLOY_ROOT/current/docker-compose.prod.yml"
 BACKUPS_DIR="${BACKUPS_DIR:-$DEPLOY_ROOT/backups}"
 STATE_DIR="${BACKUP_VERIFY_STATE_DIR:-/var/lib/program-landscape}"
 STATE_FILE="$STATE_DIR/minio-verification.json"
@@ -81,7 +86,7 @@ TAR_COUNT="$(sudo tar -tzf "$TAR_FILE" | grep -v '/$' | wc -l | tr -d ' ')"
 
 log "Counting live MinIO objects"
 # `mc` lives in the running minio container.
-LIVE_COUNT="$(sudo docker compose -f "$DEPLOY_ROOT/current/docker-compose.prod.yml" \
+LIVE_COUNT="$(sudo docker compose -f "$COMPOSE_FILE" \
   exec -T minio sh -lc '
     mc alias set local http://localhost:9000 \
       "$(cat /run/secrets/minio_user)" \
@@ -133,7 +138,7 @@ while IFS= read -r tar_path; do
   # and translate to `bucket/key` for `mc cat`.
   obj_path="${tar_path#./}"
 
-  live_hash="$(sudo docker compose -f "$DEPLOY_ROOT/current/docker-compose.prod.yml" \
+  live_hash="$(sudo docker compose -f "$COMPOSE_FILE" \
     exec -T minio sh -lc "
       mc alias set local http://localhost:9000 \
         \"\$(cat /run/secrets/minio_user)\" \

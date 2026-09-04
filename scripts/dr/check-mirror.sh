@@ -26,6 +26,14 @@
 set -euo pipefail
 
 DEPLOY_ROOT="${DEPLOY_ROOT:-/opt/program-landscape}"
+# The bundle ships the production compose file RENAMED — build-release.ts
+# copies docker-compose.prod.yml → docker-compose.yml — so on a deployed box
+# only the latter exists. This script referenced the repo-root name, which
+# meant it failed outright on prod: a DR check that only breaks when you
+# need it. Prefer the deployed name, fall back to the repo one so the script
+# still works from a dev checkout.
+COMPOSE_FILE="$DEPLOY_ROOT/current/docker-compose.yml"
+[ -f "$COMPOSE_FILE" ] || COMPOSE_FILE="$DEPLOY_ROOT/current/docker-compose.prod.yml"
 STATE_DIR="${BACKUP_VERIFY_STATE_DIR:-/var/lib/program-landscape}"
 STATE_FILE="$STATE_DIR/mirror-verification.json"
 STAMP_KEY="db-backups/_mirror_status.json"
@@ -53,7 +61,7 @@ EOF
 }
 
 # Pull the stamp from MinIO.
-STAMP_JSON="$(sudo docker compose -f "$DEPLOY_ROOT/current/docker-compose.prod.yml" \
+STAMP_JSON="$(sudo docker compose -f "$COMPOSE_FILE" \
   exec -T minio sh -lc "
     mc alias set local http://localhost:9000 \
       \"\$(cat /run/secrets/minio_user)\" \

@@ -26,6 +26,11 @@
 set -euo pipefail
 
 DEPLOY_ROOT="${DEPLOY_ROOT:-/opt/program-landscape}"
+# Deployed boxes have docker-compose.yml (build-release.ts renames
+# docker-compose.prod.yml on the way into the bundle); a dev checkout has the
+# prod name. Prefer the deployed one. See the fuller note in check-mirror.sh.
+COMPOSE_FILE="$DEPLOY_ROOT/current/docker-compose.yml"
+[ -f "$COMPOSE_FILE" ] || COMPOSE_FILE="$DEPLOY_ROOT/current/docker-compose.prod.yml"
 BACKUPS_DIR="${BACKUPS_DIR:-$DEPLOY_ROOT/backups}"
 DRILL_PROJECT="${DRILL_PROJECT:-program-landscape-drill}"
 DRILL_HTTP_PORT="${DRILL_HTTP_PORT:-8543}"
@@ -141,8 +146,8 @@ log "Phase 5 — booting drill compose stack"
 #   - different host ports for nginx + api
 #   - DATABASE_URL pointed at the restored postgres on the host
 
-if [ ! -f "$DEPLOY_ROOT/current/docker-compose.prod.yml" ]; then
-  fail_op "$DEPLOY_ROOT/current/docker-compose.prod.yml missing"
+if [ ! -f "$COMPOSE_FILE" ]; then
+  fail_op "no compose file under $DEPLOY_ROOT/current (looked for docker-compose.yml, then docker-compose.prod.yml)"
 fi
 
 # Capture image versions to show "from cold" load happened.
