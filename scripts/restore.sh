@@ -29,6 +29,13 @@ fail() { printf '\033[1;31m[restore FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
 cd "$CURRENT_LINK"
 
+# Keep compose from resolving every ${RELEASE_VERSION} image to a blank tag.
+# See the fuller note in backup.sh — same block, keep them in step.
+if [ -z "${RELEASE_VERSION:-}" ] && [ -r "$CURRENT_LINK/VERSION" ]; then
+  RELEASE_VERSION="$(tr -d '[:space:]' < "$CURRENT_LINK/VERSION")"
+  export RELEASE_VERSION
+fi
+
 PG_USER="$(sudo cat "$DEPLOY_ROOT/secrets/postgres_user" | tr -d '[:space:]')"
 PG_DB="$(grep -E '^POSTGRES_DB=' "$DEPLOY_ROOT/.env.prod" | cut -d= -f2 | tr -d '[:space:]')"
 PG_DB="${PG_DB:-program_landscape}"

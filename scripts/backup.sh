@@ -38,6 +38,26 @@ log "pg_dumpall → $DUMP"
 
 cd "$CURRENT_LINK"
 
+# docker-compose.yml pins every image to ${RELEASE_VERSION}. With it unset,
+# compose resolves them all to a blank tag and prints
+#   WARN[0000] The "RELEASE_VERSION" variable is not set.
+# once per invocation. Harmless for `exec` into an already-running container
+# — all this script does — but wrong the moment compose has to create one,
+# and during a deploy the noise buries warnings that do matter.
+#
+# Resolved from the release we are operating IN, not the one being deployed:
+# at pre-deploy-snapshot time `current` is still the OLD release, and its
+# containers are the ones we exec into. deploy.sh exports the new version
+# later for its own compose calls, and an already-set value always wins here
+# (`sudo` does not forward it, which is why this cannot rely on the caller).
+#
+# The same block is in restore.sh — keep the two in step. smoke-test.sh
+# needs none: its only compose call sends stderr to /dev/null already.
+if [ -z "${RELEASE_VERSION:-}" ] && [ -r "$CURRENT_LINK/VERSION" ]; then
+  RELEASE_VERSION="$(tr -d '[:space:]' < "$CURRENT_LINK/VERSION")"
+  export RELEASE_VERSION
+fi
+
 # Read the canonical DB name + user from the .env.prod secrets. We run
 # pg_dump inside the postgres container (local socket auth) to avoid
 # needing a second password flow.
