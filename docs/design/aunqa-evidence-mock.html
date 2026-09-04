@@ -1,0 +1,504 @@
+<title>AUN-QA evidence page — design mock</title>
+
+<style>
+  :root {
+    --ground: #fdf8f4;
+    --surface: #ffffff;
+    --surface-2: #f7efe8;
+    --line: #e9dcd2;
+    --line-strong: #d8c5b7;
+    --ink: #2b211c;
+    --ink-2: #6b5a50;
+    --ink-3: #9a8a7e;
+    --accent: #e8763a;
+    --accent-soft: #fdeee5;
+    --ok: #2f8f5b;
+    --ok-soft: #e6f3ec;
+    --warn: #c4820e;
+    --warn-soft: #fbf1dc;
+    --absent: #9a9089;
+    --absent-soft: #f0ece9;
+    --radius: 10px;
+    --rail-w: 15rem;
+    --measure: 68ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #1a1512; --surface: #241d19; --surface-2: #2e2521;
+      --line: #3a2f29; --line-strong: #4c3e36;
+      --ink: #f2e9e3; --ink-2: #b7a79c; --ink-3: #8a7a6f;
+      --accent: #f08a4f; --accent-soft: #3a2418;
+      --ok: #5cbb85; --ok-soft: #1e3527;
+      --warn: #e0a63b; --warn-soft: #3a2e14;
+      --absent: #8a8078; --absent-soft: #2b2522;
+    }
+  }
+  :root[data-theme='dark'] {
+    --ground: #1a1512; --surface: #241d19; --surface-2: #2e2521;
+    --line: #3a2f29; --line-strong: #4c3e36;
+    --ink: #f2e9e3; --ink-2: #b7a79c; --ink-3: #8a7a6f;
+    --accent: #f08a4f; --accent-soft: #3a2418;
+    --ok: #5cbb85; --ok-soft: #1e3527;
+    --warn: #e0a63b; --warn-soft: #3a2e14;
+    --absent: #8a8078; --absent-soft: #2b2522;
+  }
+  :root[data-theme='light'] {
+    --ground: #fdf8f4; --surface: #ffffff; --surface-2: #f7efe8;
+    --line: #e9dcd2; --line-strong: #d8c5b7;
+    --ink: #2b211c; --ink-2: #6b5a50; --ink-3: #9a8a7e;
+    --accent: #e8763a; --accent-soft: #fdeee5;
+    --ok: #2f8f5b; --ok-soft: #e6f3ec;
+    --warn: #c4820e; --warn-soft: #fbf1dc;
+    --absent: #9a9089; --absent-soft: #f0ece9;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Review banner ─────────────────────────────────────────── */
+  .review {
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+    padding: 1.25rem 1.5rem;
+  }
+  .review-in { max-width: 76rem; margin: 0 auto; display: grid; gap: .6rem; }
+  .review h1 { margin: 0; font-size: 1rem; letter-spacing: -.01em; }
+  .review p { margin: 0; color: var(--ink-2); font-size: .82rem; max-width: var(--measure); }
+  .review ul { margin: .2rem 0 0; padding-left: 1.1rem; display: grid; gap: .3rem; }
+  .review li { font-size: .82rem; color: var(--ink-2); max-width: var(--measure); }
+  .review b { color: var(--ink); font-weight: 600; }
+
+  /* ── Shell ─────────────────────────────────────────────────── */
+  .shell {
+    max-width: 76rem; margin: 0 auto; padding: 1.5rem;
+    display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); gap: 2rem;
+    align-items: start;
+  }
+  @media (max-width: 60rem) { .shell { grid-template-columns: minmax(0, 1fr); } .rail { position: static !important; } }
+
+  /* ── Criterion rail ────────────────────────────────────────── */
+  .rail { position: sticky; top: 1.5rem; display: grid; gap: .9rem; }
+  .rail-label {
+    font-size: .66rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--ink-3); font-weight: 600;
+  }
+  .rail-list { display: grid; gap: .1rem; }
+  .rail-item {
+    display: grid; grid-template-columns: 1.9rem 1fr auto; align-items: center;
+    gap: .55rem; padding: .45rem .5rem; border-radius: 7px;
+    color: var(--ink-2); text-decoration: none; font-size: .8rem;
+    border-left: 2px solid transparent;
+  }
+  .rail-item:hover { background: var(--surface-2); color: var(--ink); }
+  .rail-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .rail-item[aria-current='true'] {
+    background: var(--surface); color: var(--ink);
+    border-left-color: var(--accent); font-weight: 600;
+  }
+  .rail-no {
+    font-size: .7rem; font-weight: 700; color: var(--ink-3);
+    border: 1px solid var(--line-strong); border-radius: 5px;
+    text-align: center; padding: .05rem 0;
+  }
+  .rail-item[aria-current='true'] .rail-no { color: var(--accent); border-color: var(--accent); }
+  .rail-frac { font-size: .7rem; color: var(--ink-3); }
+  .rail-item.is-absent { color: var(--ink-3); }
+  .rail-item.is-absent .rail-frac { font-style: italic; }
+
+  /* ── Programme header ──────────────────────────────────────── */
+  .prog { display: grid; gap: .35rem; margin-bottom: 1.25rem; }
+  .eyebrow {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--ink-3); font-weight: 600;
+  }
+  .prog h2 {
+    margin: 0; font-size: 1.6rem; line-height: 1.2; letter-spacing: -.02em;
+    text-wrap: balance;
+  }
+  .prog .meta { color: var(--ink-2); font-size: .85rem; }
+
+  /* ── Summary strip ─────────────────────────────────────────── */
+  .summary {
+    display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 1.1rem 1.25rem; margin-bottom: 1.1rem;
+  }
+  .summary-fig { display: flex; align-items: center; gap: .9rem; }
+  .summary-num { font-size: 2rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+  .summary-den { font-size: .95rem; color: var(--ink-2); }
+  .summary-cap { font-size: .78rem; color: var(--ink-2); max-width: 44ch; }
+  .summary-cap b { color: var(--ink); font-weight: 600; }
+
+  /* ── Criterion band ────────────────────────────────────────── */
+  .crit { margin-top: 2.25rem; scroll-margin-top: 1.5rem; }
+  .crit-head {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 1rem; align-items: center;
+    padding-bottom: .7rem; border-bottom: 2px solid var(--ink);
+  }
+  .crit-no {
+    font-size: 1.55rem; font-weight: 700; letter-spacing: -.04em; line-height: 1;
+    color: var(--accent);
+  }
+  .crit-title { margin: 0; font-size: 1.08rem; font-weight: 650; letter-spacing: -.01em; }
+  .crit-sub { font-size: .76rem; color: var(--ink-2); margin-top: .1rem; }
+
+  /* ── Sub-criterion, on a spine ─────────────────────────────── */
+  .subs { display: grid; gap: 0; margin-left: .35rem; }
+  .sub {
+    position: relative; padding: 1.15rem 0 1.15rem 2.4rem;
+    border-left: 1px solid var(--line);
+  }
+  .sub:last-child { border-left-color: transparent; }
+  .sub::before {
+    content: attr(data-no);
+    position: absolute; left: 0; top: 1.15rem; transform: translateX(-50%);
+    background: var(--ground); color: var(--ink-2);
+    font-size: .66rem; font-weight: 700; letter-spacing: .01em;
+    padding: .15rem .3rem; border: 1px solid var(--line-strong); border-radius: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub.is-absent::before { color: var(--absent); }
+  .sub-head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+  .sub-title { font-size: .95rem; font-weight: 600; letter-spacing: -.005em; }
+  .sub-note { font-size: .78rem; color: var(--ink-2); margin-top: .3rem; max-width: var(--measure); }
+
+  /* ── Chips ─────────────────────────────────────────────────── */
+  .chip {
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .66rem; font-weight: 600; letter-spacing: .02em;
+    padding: .12rem .45rem; border-radius: 999px; white-space: nowrap;
+  }
+  .chip-ok { background: var(--ok-soft); color: var(--ok); }
+  .chip-warn { background: var(--warn-soft); color: var(--warn); }
+  .chip-absent { background: var(--absent-soft); color: var(--absent); }
+  .dot { width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; }
+
+  /* ── Evidence card — deliberately quieter than the sub-head ── */
+  .ev {
+    margin-top: .7rem; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .ev-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding: .6rem .85rem; border-bottom: 1px dashed var(--line);
+  }
+  .ev-name { font-size: .78rem; font-weight: 600; color: var(--ink-2); }
+  .ev-fresh { font-size: .68rem; color: var(--ink-3); }
+  .ev-body { padding: .85rem; display: flex; gap: 2rem; flex-wrap: wrap; }
+  .stat { display: grid; gap: .1rem; }
+  .stat-k { font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+  .stat-v { font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  .stat-v small { font-size: .8rem; font-weight: 500; color: var(--ink-2); letter-spacing: 0; }
+  .stat-c { font-size: .7rem; color: var(--ink-3); }
+  .ev-src {
+    padding: .5rem .85rem; background: var(--surface-2);
+    font-size: .68rem; color: var(--ink-3); border-top: 1px solid var(--line);
+  }
+
+  /* skills */
+  .skills { display: flex; flex-wrap: wrap; gap: .3rem; padding: 0 .85rem .85rem; }
+  .skill {
+    font-size: .7rem; border: 1px solid var(--line-strong); border-radius: 5px;
+    padding: .1rem .4rem; color: var(--ink-2);
+  }
+  .skill i { font-style: normal; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+  /* caveat, folded away */
+  details.caveat { border-top: 1px dashed var(--line); }
+  details.caveat > summary {
+    cursor: pointer; list-style: none; padding: .45rem .85rem;
+    font-size: .7rem; color: var(--warn); font-weight: 600;
+    display: flex; align-items: center; gap: .35rem;
+  }
+  details.caveat > summary::-webkit-details-marker { display: none; }
+  details.caveat > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  details.caveat > summary::before { content: '!'; font-weight: 700; width: .85rem; height: .85rem; border: 1px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-size: .6rem; }
+  details.caveat[open] > summary { border-bottom: 1px dashed var(--line); }
+  .caveat-body { padding: .6rem .85rem; font-size: .74rem; color: var(--ink-2); max-width: var(--measure); }
+
+  /* ── Unevidenced criteria ──────────────────────────────────── */
+  .absent-band {
+    margin-top: 2.5rem; border: 1px dashed var(--line-strong); border-radius: var(--radius);
+    padding: 1.1rem 1.25rem; background: transparent;
+  }
+  .absent-band h3 { margin: 0 0 .2rem; font-size: .95rem; }
+  .absent-band p { margin: 0 0 .8rem; font-size: .8rem; color: var(--ink-2); max-width: var(--measure); }
+  .absent-row { display: grid; grid-template-columns: auto 1fr; gap: .8rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+  .absent-row .n { font-weight: 700; color: var(--absent); font-size: .9rem; }
+  .absent-row .t { font-size: .82rem; }
+  .absent-row .t span { display: block; color: var(--ink-2); font-size: .76rem; }
+
+  .scale { width: 100%; max-width: 15rem; height: 6px; display: block; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="review">
+  <div class="review-in">
+    <h1>Design mock — AUN-QA evidence page</h1>
+    <p>
+      A proposal for <code>/teaching-learning/[programId]</code>, using this programme's real
+      content. Nothing here is built yet.
+    </p>
+    <ul>
+      <li><b>Three levels, visibly different.</b> Today a criterion heading and a sub-criterion heading are almost the same weight, so the page reads as one flat column. Here a criterion is a banded header with a rule under it, sub-criteria hang off a vertical spine with numbered markers, and evidence cards are deliberately the <em>quietest</em> layer — the reverse of today, where cards shout as loudly as the headings above them.</li>
+      <li><b>You can get to Criterion 5.</b> The page is ~8,900px tall with no way to navigate it. A sticky rail lists every criterion with its coverage, marks the one you are reading, and includes the two criteria that hold nothing — so their absence is visible rather than discovered at the bottom.</li>
+      <li><b>Caveats stop competing with data.</b> The measurement notes are worth keeping but not worth reading five times; they fold into a disclosure that stays closed until asked.</li>
+      <li><b>Two small SVGs only</b> — a coverage ring per criterion and a 1–5 scale bar for evaluation means. No chrome for its own sake.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- ── Criterion rail ── -->
+  <nav class="rail" aria-label="Criteria">
+    <div class="rail-label">AUN-QA v4 criteria</div>
+    <div class="rail-list" id="rail">
+      <a class="rail-item" href="#c1"><span class="rail-no">C1</span><span>Expected Learning Outcomes</span><span class="rail-frac num">4/4</span></a>
+      <a class="rail-item" href="#c2"><span class="rail-no">C2</span><span>Programme Structure</span><span class="rail-frac num">3/3</span></a>
+      <a class="rail-item" href="#c3"><span class="rail-no">C3</span><span>Teaching &amp; Learning</span><span class="rail-frac num">3/3</span></a>
+      <a class="rail-item" href="#c4"><span class="rail-no">C4</span><span>Student Assessment</span><span class="rail-frac num">3/3</span></a>
+      <a class="rail-item" href="#c5"><span class="rail-no">C5</span><span>Academic Staff</span><span class="rail-frac num">3/3</span></a>
+      <a class="rail-item is-absent" href="#absent"><span class="rail-no">C6</span><span>Student Support</span><span class="rail-frac">none</span></a>
+      <a class="rail-item is-absent" href="#absent"><span class="rail-no">C7</span><span>Facilities</span><span class="rail-frac">none</span></a>
+      <a class="rail-item" href="#c8"><span class="rail-no">C8</span><span>Output &amp; Outcomes</span><span class="rail-frac num">5/5</span></a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="prog">
+      <div class="eyebrow">Teaching &amp; Learning · Evidence held</div>
+      <h2>Bachelor of Accountancy Program</h2>
+      <div class="meta">KKU-SEQ-0020 · บัญชีบัณฑิต · Faculty of Business Administration and Accountancy</div>
+    </div>
+
+    <section class="summary" aria-label="Evidence completeness">
+      <div class="summary-fig">
+        <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
+          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--line)" stroke-width="5"></circle>
+          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--ok)" stroke-width="5"
+                  stroke-linecap="round" stroke-dasharray="138.2 138.2" stroke-dashoffset="0"
+                  transform="rotate(-90 26 26)"></circle>
+        </svg>
+        <div>
+          <div class="summary-num num">21 <span class="summary-den">of 21</span></div>
+          <div class="stat-c">sub-criteria with evidence</div>
+        </div>
+      </div>
+      <p class="summary-cap">
+        These counts describe <b>our data</b>, not the programme. No AUN-QA rating is produced
+        here — assessors award those.
+      </p>
+    </section>
+
+    <!-- ── Criterion 1 ── -->
+    <section class="crit" id="c1">
+      <header class="crit-head">
+        <div class="crit-no num">1</div>
+        <div>
+          <h3 class="crit-title">Expected Learning Outcomes</h3>
+          <div class="crit-sub">4 of 4 sub-criteria have evidence</div>
+        </div>
+        <span class="chip chip-ok"><span class="dot"></span>well evidenced</span>
+      </header>
+
+      <div class="subs">
+        <div class="sub" data-no="1.1">
+          <div class="sub-head">
+            <span class="sub-title">Programme learning outcomes are clearly defined</span>
+            <span class="chip chip-ok">evidenced</span>
+          </div>
+
+          <div class="ev">
+            <div class="ev-head"><span class="ev-name">Programme skill map</span><span class="ev-fresh">updated 1mo ago</span></div>
+            <div class="ev-body">
+              <div class="stat"><span class="stat-k">Skills mapped</span><span class="stat-v num">11</span></div>
+              <div class="stat"><span class="stat-k">From stated outcomes</span><span class="stat-v num">7</span><span class="stat-c">taken from the programme's own outcome text</span></div>
+              <div class="stat"><span class="stat-k">Major contributors</span><span class="stat-v num">11</span><span class="stat-c">0 minor</span></div>
+            </div>
+            <div class="skills">
+              <span class="skill">Strategic Management Accounting <i>1.00</i></span>
+              <span class="skill">Financial reporting <i>1.00</i></span>
+              <span class="skill">English Communication <i>1.00</i></span>
+              <span class="skill">Business analytics <i>0.90</i></span>
+              <span class="skill">Accounting information system design <i>0.80</i></span>
+              <span class="skill">Entrepreneurship <i>0.70</i></span>
+              <span class="skill">Teamwork <i>0.60</i></span>
+              <span class="skill">Critical thinking <i>0.80</i></span>
+            </div>
+            <div class="ev-src">Programme skill map (program_skills, extracted from the curriculum)</div>
+          </div>
+
+          <div class="ev">
+            <div class="ev-head"><span class="ev-name">Credit structure</span><span class="ev-fresh">updated 1d ago</span></div>
+            <div class="ev-body">
+              <div class="stat"><span class="stat-k">Total credits</span><span class="stat-v num">129</span><span class="stat-c">from the programme record</span></div>
+              <div class="stat"><span class="stat-k">Nominal duration</span><span class="stat-v num">4 <small>years</small></span></div>
+              <div class="stat"><span class="stat-k">Credits on the course list</span><span class="stat-v num">153</span><span class="stat-c">across 47 extracted courses</span></div>
+            </div>
+            <details class="caveat">
+              <summary>How to read this</summary>
+              <div class="caveat-body">The extracted course list is not a study plan, so it does not have to sum to the total credits.</div>
+            </details>
+            <div class="ev-src">Programme record (total credits) + extracted course list</div>
+          </div>
+        </div>
+
+        <div class="sub" data-no="1.2">
+          <div class="sub-head">
+            <span class="sub-title">Learning outcomes reflect stakeholder needs</span>
+            <span class="chip chip-ok">evidenced</span>
+          </div>
+          <p class="sub-note">Programme skill map — the same figure as under 1.1 above.</p>
+
+          <div class="ev">
+            <div class="ev-head"><span class="ev-name">Student evaluations — ethics and professional conduct</span><span class="ev-fresh">updated 3mo ago</span></div>
+            <div class="ev-body">
+              <div class="stat">
+                <span class="stat-k">Respondent-weighted mean</span>
+                <span class="stat-v num">4.39 <small>/ 5</small></span>
+                <svg class="scale" viewBox="0 0 200 6" preserveAspectRatio="none" aria-hidden="true">
+                  <rect x="0" y="2" width="200" height="2" rx="1" fill="var(--line)"></rect>
+                  <rect x="0" y="1" width="175.6" height="4" rx="2" fill="var(--accent)"></rect>
+                </svg>
+                <span class="stat-c">2 questions in this theme</span>
+              </div>
+              <div class="stat"><span class="stat-k">Respondents</span><span class="stat-v num">291,840</span><span class="stat-c">across 14,010 course-question cells</span></div>
+              <div class="stat"><span class="stat-k">Years observed</span><span class="stat-v num">2564–2568</span><span class="stat-c">Buddhist Era</span></div>
+            </div>
+            <details class="caveat">
+              <summary>Two limits on this figure</summary>
+              <div class="caveat-body">
+                The instrument's themes do not partition the scale — five of its questions carry no
+                theme, so a theme mean is not comparable with an overall satisfaction score.
+                Counted through the programme's extracted course list; courses missing from that
+                list contribute nothing.
+              </div>
+            </details>
+            <div class="ev-src">Student evaluations, theme "ethics" (evaluation_response_summaries × evaluation_questions)</div>
+          </div>
+        </div>
+
+        <div class="sub" data-no="1.3">
+          <div class="sub-head">
+            <span class="sub-title">Generic and subject-specific outcomes are both covered</span>
+            <span class="chip chip-ok">evidenced</span>
+          </div>
+          <div class="ev">
+            <div class="ev-head"><span class="ev-name">Student evaluations — English-language skills</span><span class="ev-fresh">updated 3mo ago</span></div>
+            <div class="ev-body">
+              <div class="stat">
+                <span class="stat-k">Respondent-weighted mean</span>
+                <span class="stat-v num">4.25 <small>/ 5</small></span>
+                <svg class="scale" viewBox="0 0 200 6" preserveAspectRatio="none" aria-hidden="true">
+                  <rect x="0" y="2" width="200" height="2" rx="1" fill="var(--line)"></rect>
+                  <rect x="0" y="1" width="170" height="4" rx="2" fill="var(--accent)"></rect>
+                </svg>
+                <span class="stat-c">8 questions in this theme</span>
+              </div>
+              <div class="stat"><span class="stat-k">Respondents</span><span class="stat-v num">199,571</span><span class="stat-c">across 11,495 course-question cells</span></div>
+              <div class="stat"><span class="stat-k">Years observed</span><span class="stat-v num">2565–2568</span><span class="stat-c">Buddhist Era</span></div>
+            </div>
+            <div class="ev-src">Student evaluations, theme "english-skills"</div>
+          </div>
+        </div>
+
+        <div class="sub" data-no="1.4">
+          <div class="sub-head">
+            <span class="sub-title">Outcomes are reviewed and revised periodically</span>
+            <span class="chip chip-ok">evidenced</span>
+          </div>
+          <p class="sub-note">Curriculum revision history — 2 revisions on record since พ.ศ. 2560.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Criterion 2 (abbreviated in the mock) ── -->
+    <section class="crit" id="c2">
+      <header class="crit-head">
+        <div class="crit-no num">2</div>
+        <div>
+          <h3 class="crit-title">Programme Structure and Content</h3>
+          <div class="crit-sub">3 of 3 sub-criteria have evidence</div>
+        </div>
+        <span class="chip chip-ok"><span class="dot"></span>well evidenced</span>
+      </header>
+      <div class="subs">
+        <div class="sub" data-no="2.1">
+          <div class="sub-head">
+            <span class="sub-title">The curriculum is constructively aligned</span>
+            <span class="chip chip-ok">evidenced</span>
+          </div>
+          <div class="ev">
+            <div class="ev-head"><span class="ev-name">Course list and class offerings</span><span class="ev-fresh">updated 1d ago</span></div>
+            <div class="ev-body">
+              <div class="stat"><span class="stat-k">Courses extracted</span><span class="stat-v num">47</span></div>
+              <div class="stat"><span class="stat-k">Credits on the list</span><span class="stat-v num">153</span></div>
+              <div class="stat"><span class="stat-k">With คำอธิบายรายวิชา</span><span class="stat-v num">47</span><span class="stat-c">every course carries a description</span></div>
+            </div>
+            <div class="ev-src">Extracted course list (program_courses)</div>
+          </div>
+        </div>
+        <div class="sub" data-no="2.2">
+          <div class="sub-head">
+            <span class="sub-title">Each course contributes to the expected outcomes</span>
+            <span class="chip chip-warn">partly evidenced</span>
+          </div>
+          <p class="sub-note">
+            A partial state is shown as its own chip, not as a lighter shade of "evidenced" —
+            the difference matters when sequencing programmes for assessment.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Criteria holding nothing ── -->
+    <section class="absent-band" id="absent">
+      <h3>Two criteria hold nothing for any programme</h3>
+      <p>
+        These are part of the AUN-QA framework, but no connector ingests data that could evidence
+        them. They are listed so their absence is a stated fact rather than a silent gap.
+      </p>
+      <div class="absent-row">
+        <span class="n num">6</span>
+        <span class="t">Student Support Services
+          <span>No student support, advising or welfare data is ingested by any connector.</span>
+        </span>
+      </div>
+      <div class="absent-row">
+        <span class="n num">7</span>
+        <span class="t">Facilities and Infrastructure
+          <span>No facilities, laboratory or learning-space inventory exists in the platform.</span>
+        </span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // Mark the criterion currently in view in the rail.
+  var items = Array.prototype.slice.call(document.querySelectorAll('.rail-item'));
+  var byHash = {};
+  items.forEach(function (a) { byHash[a.getAttribute('href')] = a; });
+  var obs = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        items.forEach(function (a) { a.removeAttribute('aria-current'); });
+        var a = byHash['#' + e.target.id];
+        if (a) a.setAttribute('aria-current', 'true');
+      });
+    },
+    { rootMargin: '-10% 0px -70% 0px' }
+  );
+  document.querySelectorAll('.crit, .absent-band').forEach(function (s) { obs.observe(s); });
+</script>
