@@ -26,6 +26,18 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-04',
+    version: 'v1.8.7 · The running version, on screen',
+    title:
+      'The release you are looking at is now named in the sidebar, and three deployment scripts that referenced files the release bundle does not contain are fixed',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The release version now sits at the right-hand end of the copyright line in the bottom-left panel — so anyone looking at a screen, or a screenshot in a support thread, can say which release it is. It comes from the same value that pins the running container images, so the label cannot drift from what is actually deployed.',
+      'A deploy no longer prints "The RELEASE_VERSION variable is not set" while taking its pre-deploy database snapshot. Harmless in itself — the snapshot was always correct — but the warning appeared at the most safety-critical moment of a deploy, where noise is exactly what you do not want. The nightly backup was printing it too.',
+      'Three disaster-recovery scripts — the MinIO mirror check, the MinIO verification, and the restore drill — looked for a compose file under a name the release bundle does not use. On a deployed server they failed outright rather than warning, so the failure would only have surfaced at the moment they were needed. They now find the file in both a deployed release and a development checkout.',
+    ],
+  },
+  {
     date: '2026-09-03',
     version: 'v1.8.6 · Submitting a curriculum, and revisions that actually refresh',
     title:
