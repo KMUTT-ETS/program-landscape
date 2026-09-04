@@ -7,10 +7,23 @@ import Link from 'next/link';
 
 export function NavCredits() {
   const year = new Date().getFullYear();
+  // Read at request time, not baked in: this is a server component, and the
+  // value comes from the container's environment (docker-compose passes the
+  // same RELEASE_VERSION that pins the image tag). Absent in dev, where the
+  // label is simply omitted rather than showing a placeholder that would be
+  // wrong the moment someone screenshotted it.
+  const release = process.env.RELEASE_VERSION?.trim();
   return (
     <div className="px-1 py-0.5 text-[10px] leading-relaxed text-nav-fg-muted">
-      <div className="font-medium text-nav-fg/80">
-        © {year} Khon Kaen University
+      {/* justify-between, not a gap: the year and the version are both
+          numbers and read as one run when only whitespace separates them. */}
+      <div className="flex items-baseline justify-between gap-2 font-medium text-nav-fg/80">
+        <span>© {year} Khon Kaen University</span>
+        {release && (
+          <span className="font-tabular shrink-0 text-nav-fg-muted" title={`Release ${release}`}>
+            v{release}
+          </span>
+        )}
       </div>
       <div>Conceived by Dr. Denpong Soodphakdee</div>
       <div>Vice President for Education and Digital</div>

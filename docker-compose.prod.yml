@@ -91,6 +91,13 @@ services:
     container_name: program-landscape-web
     restart: unless-stopped
     env_file: .env.prod
+    environment:
+      # Surfaced in the sidebar footer so anyone looking at a browser can say
+      # which release it is actually talking to. Passed through from the host
+      # (deploy.sh exports it before `compose up`) rather than set in
+      # .env.prod, so it is the SAME value that pins the image tag above and
+      # the label can never disagree with the running image.
+      - RELEASE_VERSION
     # Next.js writes telemetry / build-trace lookups to /tmp during dev;
     # in prod standalone it ALSO writes incremental cache files to
     # `.next/cache/` at runtime — without a writable tmpfs at that
