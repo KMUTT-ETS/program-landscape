@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { resolveReleaseVersion } from '@/lib/release-version';
 
 // Sidebar footer credits. After the 2026-05-09 chrome consolidation
 // (account/theme/sign-out moved into the top-bar dropdown) the only
@@ -7,12 +8,11 @@ import Link from 'next/link';
 
 export function NavCredits() {
   const year = new Date().getFullYear();
-  // Read at request time, not baked in: this is a server component, and the
-  // value comes from the container's environment (docker-compose passes the
-  // same RELEASE_VERSION that pins the image tag). Absent in dev, where the
-  // label is simply omitted rather than showing a placeholder that would be
-  // wrong the moment someone screenshotted it.
-  const release = process.env.RELEASE_VERSION?.trim();
+  // Resolved at request time, not baked in — this is a server component.
+  // In prod that is RELEASE_VERSION from the container environment; in dev
+  // it is derived from git tags (the tag itself when HEAD sits on one, the
+  // next patch when there is work after it). See lib/release-version.ts.
+  const release = resolveReleaseVersion();
   return (
     <div className="px-1 py-0.5 text-[10px] leading-relaxed text-nav-fg-muted">
       {/* justify-between, not a gap: the year and the version are both
