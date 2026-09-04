@@ -21,7 +21,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Badge, Card } from '@kku/ui';
+import { Badge, Card, Input } from '@kku/ui';
 
 export type ReadinessBand = 'well-evidenced' | 'partly-evidenced' | 'no-evidence';
 
@@ -200,10 +200,15 @@ export function TeachingLearningOverviewClient({ data }: { data: FacultyOverview
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-xs text-text-secondary">
             <span>Faculty</span>
+            {/* kku-select, not hand-rolled utilities: this project's spacing
+                scale is HALF Tailwind's default, so the `h-8` that used to be
+                here computed to 16px and clipped the option text through the
+                bottom of the card. kku-select sets height in rem, so it cannot
+                be bitten by the scale. */}
             <select
               value={faculty}
               onChange={(e) => setFaculty(e.target.value)}
-              className="h-8 min-w-[16rem] rounded-md border border-border-default bg-surface-1 px-2 text-sm text-text-primary"
+              className="kku-select min-w-[16rem]"
             >
               <option value="__all__">All faculties in your scope</option>
               {faculties.map((f) => (
@@ -215,11 +220,12 @@ export function TeachingLearningOverviewClient({ data }: { data: FacultyOverview
           </label>
           <label className="flex flex-col gap-1 text-xs text-text-secondary">
             <span>Find a programme</span>
-            <input
+            {/* The shared primitive, for the same reason as the select above. */}
+            <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Name or code"
-              className="h-8 min-w-[16rem] rounded-md border border-border-default bg-surface-1 px-2 text-sm text-text-primary"
+              className="min-w-[16rem]"
             />
           </label>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
