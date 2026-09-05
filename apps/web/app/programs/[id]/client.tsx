@@ -29,7 +29,7 @@ import {
   regenerateNarrativeAction,
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
-import { SectionBand, SectionRail, type RailItem } from '@/components/evidence';
+import { SectionBand, SectionRail, SpineItem, type RailItem } from '@/components/evidence';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
 // Shared with /education/student-dq so both DQ radars mean the same
 // thing by a floor of 60 — see the helper for why it is not 0.
@@ -482,6 +482,12 @@ function MacroGroup({
   statLabel?: string;
   children: React.ReactNode;
 }) {
+  // Each direct child is a sub-block that renders its own heading and body,
+  // so they hang off the spine via SpineItem rather than being rebuilt as
+  // SubSections — nothing inside them is touched, which is what keeps this a
+  // layout change rather than a rewrite. `toArray` drops the nulls that
+  // conditional sub-blocks return, so the spine ends on a real item.
+  const blocks = React.Children.toArray(children).filter(Boolean);
   return (
     <SectionBand
       id={id}
@@ -493,7 +499,18 @@ function MacroGroup({
       // would add to it.
       className="scroll-mt-16"
     >
-      <div className="mt-4 flex flex-col gap-4">{children}</div>
+      <div className="ml-1 mt-3">
+        {blocks.map((child, i) => (
+          <SpineItem
+            key={i}
+            last={i === blocks.length - 1}
+            // The first block in a section is the one it leads with.
+            emphasis={i === 0}
+          >
+            {child}
+          </SpineItem>
+        ))}
+      </div>
     </SectionBand>
   );
 }

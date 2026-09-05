@@ -144,6 +144,47 @@ export function SectionBand({
   );
 }
 
+/**
+ * The spine chrome on its own — vertical line, and a marker sitting on it.
+ *
+ * Use this to nest blocks that already render their own heading and body
+ * (the deep-dive's sub-blocks are whole components). SubSection below is
+ * this plus a heading, for pages that let the caller supply the title.
+ */
+export function SpineItem({
+  id,
+  last = false,
+  emphasis = false,
+  children,
+}: {
+  id?: string;
+  last?: boolean;
+  emphasis?: boolean;
+  children: React.ReactNode;
+}) {
+  // Structural spacing in explicit rem — this project's spacing scale is half
+  // Tailwind's, so `pl-10` would be 20px and the marker would sit on top of
+  // the content rather than clear of it.
+  return (
+    <div
+      id={id}
+      className={[
+        'relative scroll-mt-6 py-[1.15rem] pl-[2.25rem]',
+        last ? 'border-l border-transparent' : 'border-l border-border-default',
+      ].join(' ')}
+    >
+      <span
+        aria-hidden
+        className={[
+          'absolute left-0 top-[1.6rem] size-2 -translate-x-1/2 rounded-full border-2 bg-surface-0',
+          emphasis ? 'border-accent-default' : 'border-border-strong',
+        ].join(' ')}
+      />
+      {children}
+    </div>
+  );
+}
+
 /** Level 2 — a sub-section hanging off the spine. */
 export function SubSection({
   id,
