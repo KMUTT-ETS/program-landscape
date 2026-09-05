@@ -3,10 +3,15 @@
 //
 //   pnpm build:release <version>
 //
-// Produces a single self-contained .tar.gz at
-//   dist/program-landscape-<version>.tar.gz
+// Produces a single self-contained .tar.zst at
+//   dist/program-landscape-<version>.tar.zst
 // plus a SHA-256 checksum at
-//   dist/program-landscape-<version>.tar.gz.sha256
+//   dist/program-landscape-<version>.tar.zst.sha256
+//
+// zstd rather than gzip: unpacking the gzip bundle on the prod VM was
+// expensive enough to wedge the host (single-threaded gunzip, and a
+// memory-backed /tmp). Both machines need the `zstd` binary — checked
+// below before any image is built.
 //
 // The bundle contains everything the prod Ubuntu server needs:
 //   - images.tar          — docker save of the 4 app images
@@ -21,9 +26,9 @@
 //   - manifest.json       — build metadata + image list
 //
 // Prod server workflow:
-//   scp program-landscape-<version>.tar.gz kku-prod:/tmp/
+//   scp program-landscape-<version>.tar.zst kku-prod:~/
 //   ssh kku-prod
-//   cd /tmp && tar xzf program-landscape-<version>.tar.gz
+//   tar --zstd -xf program-landscape-<version>.tar.zst   # on disk, NOT /tmp
 //   cd program-landscape-<version> && ./scripts/deploy.sh
 //
 // The prod server never needs to pull from any Docker registry.
@@ -69,6 +74,20 @@ const releaseDir = path.join(REPO_ROOT, 'dist', 'releases', `${REPO}-${version}`
 const distDir = path.join(REPO_ROOT, 'dist');
 
 console.log(`=== build-release ${REPO} v${version} ===`);
+
+// Checked HERE, not at the tar step: compression is the last thing this
+// script does, ~50 minutes in, after every image has been built. Failing
+// then would throw all of that away for a missing 400 KB package.
+// `tar --zstd` shells out to this binary, so tar's own version is not
+// enough — GNU tar 1.31+ knows the flag but still needs zstd on PATH.
+try {
+  execSync('command -v zstd', { stdio: 'ignore', shell: '/bin/bash' });
+} catch {
+  console.error('[build-release] zstd not found on PATH.');
+  console.error('  Install it:  sudo apt-get install -y zstd');
+  console.error('  The PROD server needs it too, to unpack the bundle.');
+  process.exit(1);
+}
 
 // Clean + stage.
 rmSync(releaseDir, { recursive: true, force: true });
@@ -340,17 +359,32 @@ writeFileSync(
 );
 
 // ── 5. Tar + checksum ──────────────────────────────────────────────
-const bundleName = `${REPO}-${version}.tar.gz`;
+const bundleName = `${REPO}-${version}.tar.zst`;
 const bundlePath = path.join(distDir, bundleName);
 const stagingRoot = path.dirname(releaseDir); // dist/releases
 const stagingName = path.basename(releaseDir); // program-landscape-<ver>
 
-console.log(`\n--- tar → ${path.relative(REPO_ROOT, bundlePath)} ---`);
+// zstd, not gzip. `docker save` writes layers UNCOMPRESSED, so the bundle
+// is ~6.7 GB of highly compressible tar — which is why gzip got it to
+// ~2.4 GB, and why reversing that on the prod server was so expensive:
+// gunzip is single-threaded and prod unpacked into a memory-backed /tmp,
+// which wedged the box twice.
+//
+// zstd decompresses several times faster than gzip at a small, fixed
+// memory window. Its decompression speed is essentially independent of
+// the level used to compress, so a higher level costs THIS machine time
+// and gives prod a smaller download for free. -T0 uses all cores here,
+// making the build step faster than the gzip it replaces despite -12.
+//
+// --use-compress-program rather than a shell pipe: it propagates the
+// child's exit status, where `tar | zstd` would report success whenever
+// zstd succeeded, even if tar had failed.
+console.log(`\n--- tar + zstd → ${path.relative(REPO_ROOT, bundlePath)} ---`);
 rmSync(bundlePath, { force: true });
-execSync(`tar czf "${bundlePath}" -C "${stagingRoot}" "${stagingName}"`, {
-  cwd: REPO_ROOT,
-  stdio: 'inherit',
-});
+execSync(
+  `tar --use-compress-program='zstd -T0 -12' -cf "${bundlePath}" -C "${stagingRoot}" "${stagingName}"`,
+  { cwd: REPO_ROOT, stdio: 'inherit' },
+);
 
 const checksumPath = `${bundlePath}.sha256`;
 execSync(`cd "${distDir}" && sha256sum "${bundleName}" > "${path.basename(checksumPath)}"`, {
@@ -367,9 +401,12 @@ console.log(`  sha256   : ${sha}`);
 console.log(`  checksum : ${path.relative(REPO_ROOT, checksumPath)}`);
 console.log(`  version  : ${version}`);
 console.log(`\nTransfer with:`);
-console.log(`  scp ${path.relative(REPO_ROOT, bundlePath)} kku-prod:/tmp/`);
+console.log(`  scp ${path.relative(REPO_ROOT, bundlePath)} kku-prod:~/`);
 console.log(`\nOn kku-prod:`);
-console.log(`  cd /tmp && tar xzf ${bundleName} && cd ${stagingName} && ./scripts/deploy.sh`);
+// NOT /tmp: on this project's prod VM /tmp is memory-backed, and unpacking
+// ~6.7 GB there exhausted RAM and wedged the host. Unpack on real disk.
+console.log(`  (needs zstd: command -v zstd || sudo apt-get install -y zstd)`);
+console.log(`  cd ~ && tar --zstd -xf /path/to/${bundleName} && cd ${stagingName} && ./scripts/deploy.sh`);
 
 // ── 6. Prune old builds — keep the last KEEP_BUILDS ────────────────
 // Runs only after a successful build, so the just-built version is the
@@ -398,7 +435,9 @@ function pruneOldBuilds(): void {
   console.log(`\n--- pruning old builds (keeping last ${KEEP_BUILDS}) ---`);
 
   // dist/ release tarballs (+ their .sha256 checksums).
-  for (const old of byMtimeDesc(distDir, /^program-landscape-.*\.tar\.gz$/, 'file').slice(
+  // Matches .tar.gz too, so bundles built before the switch to zstd are
+  // still pruned instead of accumulating forever.
+  for (const old of byMtimeDesc(distDir, /^program-landscape-.*\.tar\.(gz|zst)$/, 'file').slice(
     KEEP_BUILDS,
   )) {
     rmSync(path.join(distDir, old), { force: true });

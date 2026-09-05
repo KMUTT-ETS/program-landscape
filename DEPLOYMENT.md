@@ -1,6 +1,6 @@
 # Deployment Runbook — Program Landscape
 
-> Production deployment to a single on-prem Ubuntu server inside KKU's internal network. Designed around a **pack-and-ship** workflow: build the bundle on the dev machine, transfer the `.tar.gz` to the server, run `./scripts/deploy.sh`.
+> Production deployment to a single on-prem Ubuntu server inside KKU's internal network. Designed around a **pack-and-ship** workflow: build the bundle on the dev machine, transfer the `.tar.zst` to the server, run `./scripts/deploy.sh`.
 
 ---
 
@@ -108,32 +108,59 @@ Then coordinate with KKU network team (see [`docs/deployment/kku-network-integra
 cd ~/projects/program-landscape
 pnpm install --frozen-lockfile
 
-# Build the bundle — produces dist/program-landscape-<version>.tar.gz
+# Build the bundle — produces dist/program-landscape-<version>.tar.zst
 pnpm build:release 1.0.0
 
 # Verify checksum before transfer
-cat dist/program-landscape-1.0.0.tar.gz.sha256
+cat dist/program-landscape-1.0.0.tar.zst.sha256
 ```
 
 The bundle is typically 1.5–2.5 GB (dominated by the four Docker images).
 
+**Both machines need `zstd`** (`sudo apt-get install -y zstd`). The build
+fails immediately without it; the server cannot unpack without it.
+
 ### Transfer to prod
 
+Not `/tmp`. On this VM `/tmp` is memory-backed, and unpacking ~6.7 GB there
+exhausted RAM and wedged the host — twice, on different releases, each time
+needing a forced restart. Unpack somewhere on real disk.
+
 ```bash
-scp dist/program-landscape-1.0.0.tar.gz kku-prod:/tmp/
-scp dist/program-landscape-1.0.0.tar.gz.sha256 kku-prod:/tmp/
+scp dist/program-landscape-1.0.0.tar.zst kku-prod:~/
+scp dist/program-landscape-1.0.0.tar.zst.sha256 kku-prod:~/
 ```
 
 ### On prod server
 
 ```bash
 ssh kku-prod
-cd /tmp
-sha256sum -c program-landscape-1.0.0.tar.gz.sha256
-tar xzf program-landscape-1.0.0.tar.gz
+cd ~
+df -h .                                            # ~10 GB free: archive + unpacked tree
+sha256sum -c program-landscape-1.0.0.tar.zst.sha256
+tar --zstd -xf program-landscape-1.0.0.tar.zst
 cd program-landscape-1.0.0
 ./scripts/deploy.sh
 ```
+
+### Alternative: stream the images, skip the archive entirely
+
+Lightest option — writes ~4 MB to the server instead of ~9 GB, because the
+images never land on its filesystem as a file. `deploy.sh` detects that
+`images.tar` is absent and continues against the already-loaded images.
+
+```bash
+# on the dev machine
+ssh kku-prod 'docker load' < dist/releases/program-landscape-1.0.0/images.tar
+rsync -a --partial --exclude images.tar \
+  dist/releases/program-landscape-1.0.0/ kku-prod:~/program-landscape-1.0.0/
+
+# on the server
+cd ~/program-landscape-1.0.0 && ./scripts/deploy.sh
+```
+
+Integrity still holds: `docker load` verifies every layer digest, so a
+corrupted transfer fails there rather than silently deploying.
 
 `deploy.sh` is idempotent and covers:
 1. Loads images from `images.tar` (no Docker Hub pull needed).

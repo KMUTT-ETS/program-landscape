@@ -67,18 +67,27 @@ jobs:
           NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use
         run: pnpm -r --if-present test
 
+      # The bundle is tar+zstd. Hosted runners ship zstd today, but the
+      # build hard-fails without it, so don't depend on the image contents.
+      - name: Ensure zstd
+        run: |
+          if ! command -v zstd >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y zstd
+          fi
+          zstd --version
+
       - name: Build release bundle
         run: pnpm build:release "${{ steps.version.outputs.version }}"
 
       - name: Bundle summary
         run: |
           set -e
-          ls -lh dist/program-landscape-*.tar.gz*
+          ls -lh dist/program-landscape-*.tar.zst*
           echo '## Release bundle' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo '| File | Size | SHA-256 |' >> "$GITHUB_STEP_SUMMARY"
           echo '|---|---|---|' >> "$GITHUB_STEP_SUMMARY"
-          for f in dist/program-landscape-*.tar.gz; do
+          for f in dist/program-landscape-*.tar.zst; do
             SIZE=$(du -h "$f" | cut -f1)
             SHA=$(cat "$f.sha256" | cut -d' ' -f1)
             echo "| $(basename "$f") | $SIZE | \`$SHA\` |" >> "$GITHUB_STEP_SUMMARY"
@@ -90,17 +99,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/program-landscape-*.tar.gz
-            dist/program-landscape-*.tar.gz.sha256
+            dist/program-landscape-*.tar.zst
+            dist/program-landscape-*.tar.zst.sha256
           fail_on_unmatched_files: true
           body: |
             Production release bundle for Program Landscape.
 
             **Deploy on the prod server:**
             ```
-            scp program-landscape-*.tar.gz kku-prod:/tmp/
+            scp program-landscape-*.tar.zst kku-prod:~/
             ssh kku-prod
-            cd /tmp && tar xzf program-landscape-*.tar.gz
+            tar --zstd -xf program-landscape-*.tar.zst
             cd program-landscape-*
             sudo ./scripts/deploy.sh
             ```
@@ -116,6 +125,6 @@ jobs:
         with:
           name: program-landscape-${{ steps.version.outputs.version }}
           path: |
-            dist/program-landscape-*.tar.gz
-            dist/program-landscape-*.tar.gz.sha256
+            dist/program-landscape-*.tar.zst
+            dist/program-landscape-*.tar.zst.sha256
           retention-days: 14
