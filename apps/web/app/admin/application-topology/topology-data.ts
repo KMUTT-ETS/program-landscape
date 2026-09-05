@@ -213,6 +213,47 @@ const externalNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'ext.external-ai-sources',
+    lane: 'external',
+    kind: 'ai-provider',
+    label: 'External intelligence sources',
+    subtitle: '9 feeds · WEF · OECD · World Bank · NESDC · …',
+    details: {
+      description:
+        'Public policy and labour-market publishers the platform watches for trend signals. Collapsed into one node: they differ only by URL and cadence, and every one flows through the same summarise-then-analyse path.',
+      relatedTables: [
+        'wef-future-of-jobs',
+        'oecd-reports',
+        'world-bank',
+        'nesdc-reports',
+        'nxpo-reports',
+        'mhesi-policy',
+        'adb-gms',
+        'boi-sectoral',
+        'eeco-reports',
+      ],
+      notes: [
+        'Fetched pages are summarised into candidate signals; nothing reaches the Radar without passing through trend-signal analysis',
+        'Deliberately NOT here: openalex and scopus. Both still read live but are deprecated — kku-research took over publication data in 2026-05 via the internal kkuscholar mirror. Their DataSource rows remain active/unmocked, which is drift worth closing at source rather than modelling as if they were current.',
+      ],
+    },
+  },
+  {
+    id: 'ext.api-kku-dq',
+    lane: 'external',
+    kind: 'ai-provider',
+    label: 'KKU Digital Intelligence',
+    subtitle: 'LTIC DQ test platform',
+    details: {
+      description:
+        "KKU's own Digital Intelligence competency test, run by LTIC (Learning & Digital Support). Serves the entire result set as a single 13.7 MB JSON response in ~3.4s — no pagination, and results only move as students sit the test.",
+      notes: [
+        'Owner: KKU LTIC — ltic.psli@kku.ac.th',
+        'Per-student rows are read but never persisted; only the two aggregate cubes land',
+      ],
+    },
+  },
+  {
     id: 'ext.api-kmitl',
     lane: 'external',
     kind: 'postgres',
@@ -444,6 +485,38 @@ const connectorNodes: TopologyNode[] = [
       notes: [
         'Quartile enrichment is Scopus-only — PubMed rows carry null quartile/percentile/SJR.',
         'Also exposed as a manual "Research output" refresh on /admin/dashboard-data-fetch.',
+      ],
+    },
+  },
+  {
+    id: 'con.external-ai-sources',
+    lane: 'connector',
+    kind: 'connector',
+    label: 'external-ai-sources',
+    subtitle: 'Scheduled · 9 active feeds',
+    details: {
+      description:
+        'Fetches each watched source, hands the page text to the feed summariser, and lands the result as a candidate trend signal. One worker covers all nine feeds rather than one connector per publisher.',
+      cadence: 'Per-source schedule · external-ai-sources worker',
+      notes: [
+        'A source that fails to fetch is logged and skipped — one unreachable publisher does not fail the run',
+      ],
+    },
+  },
+  {
+    id: 'con.kku-dq',
+    lane: 'connector',
+    kind: 'connector',
+    label: 'kku-dq',
+    subtitle: 'Weekly · Digital Intelligence scores',
+    details: {
+      description:
+        "Per-student DQ competency results from KKU LTIC — 13 theory + 4 workshop modules, pass mark 70. The whole export is one 13.7 MB response in ~3.4s, so there is no pagination to manage; results only move as students sit the test. Aggregated in memory to two cubes on the way in.",
+      cadence: '0 3 * * 1 (weekly, Monday 03:00)',
+      sourceSlug: 'kku-dq',
+      notes: [
+        'PDPA gate at the connector: no student names or ids are persisted — only the two aggregate cubes land',
+        "DQ's own allPassed verdict is passed through unchanged, never recomputed here; the source is inconsistent about module 13 (Generative AI)",
       ],
     },
   },
@@ -1384,6 +1457,36 @@ const tableNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'tab.dq-student-cube',
+    lane: 'table',
+    kind: 'cube',
+    label: 'DqStudentCube',
+    subtitle: 'faculty × program × cohort',
+    details: {
+      description:
+        'Per (faculty × programme × cohort) counts of students tested, students with scores, and the source\'s own passed verdict. Aggregated at ingest — no per-student row is ever persisted.',
+      relatedTables: ['DqModuleCube (the per-module companion)'],
+      notes: [
+        'facultyId is nullable: names we do not carry (Nong Khai campus faculties, one college, blanks) stay unresolved rather than being force-matched',
+        'programId null = the export\'s explicit "Program not identified" bucket, not missing data',
+      ],
+    },
+  },
+  {
+    id: 'tab.dq-module-cube',
+    lane: 'table',
+    kind: 'cube',
+    label: 'DqModuleCube',
+    subtitle: '17 modules · theory + workshop',
+    details: {
+      description:
+        "Mean score per module per (faculty × programme × cohort), keyed by the export's own module key. Theory 1-12 make the headline mean; module 13 (Generative AI) and the four workshops sit outside it.",
+      notes: [
+        'Each axis is the mean among students who TOOK that module, not across the cohort — a thinly-taken module is not a strong one, and the radar labels the uptake',
+      ],
+    },
+  },
+  {
     id: 'tab.program-revision',
     lane: 'table',
     kind: 'table',
@@ -1682,6 +1785,21 @@ const dashboardNodes: TopologyNode[] = [
     details: {
       description:
         "14 sections fan-out: overview, demand funnel, student cohorts, TCAS stats, recruitment, AI peers, AI readiness, lifecycle, strategic narrative, demographic outlook, financials, skills, outcomes, faculty composition, peers, trends, research expertise, curriculum revision. Role-gated faculty visibility (COUNCIL gets aggregates-only).",
+    },
+  },
+  {
+    id: 'dash.education-student-dq',
+    lane: 'dashboard',
+    kind: 'dashboard',
+    label: 'Student DQ',
+    subtitle: '/education/student-dq',
+    href: '/education/student-dq',
+    details: {
+      description:
+        "Digital Intelligence competency across faculties and programmes — module profile radar, weakest modules, and the pass verdict. student-dq.v1. The same radar helper (dqRadarDomain) floors every DQ radar at 60 so the Deep-Dive's and this one cannot be read against different scales.",
+      notes: [
+        'Small-cell floor: a programme or faculty with 5 or fewer scored students is withheld',
+      ],
     },
   },
   {
@@ -2008,8 +2126,22 @@ const edges: TopologyEdge[] = [
   { from: 'ai.aunqa-narrative', to: 'dash.teaching-learning' },
   // Phase 2b — the course list every downstream course-level analysis reads.
   { from: 'ai.program-courses-extract', to: 'tab.program-course' },
+  // ── DQ vertical: one weekly API export → two cubes → three consumers ──
+  { from: 'ext.api-kku-dq', to: 'con.kku-dq', scope: E },
+  { from: 'con.kku-dq', to: 'tab.dq-student-cube', scope: E },
+  { from: 'con.kku-dq', to: 'tab.dq-module-cube', scope: E },
+  { from: 'tab.dq-student-cube', to: 'dash.education-student-dq', scope: E },
+  { from: 'tab.dq-module-cube', to: 'dash.education-student-dq', scope: E },
+  // The Deep-Dive's Digital competency section and Teaching & Learning's
+  // AUN-QA evidence both read the same two cubes — which is why the radar
+  // floor lives in one shared helper rather than in each surface.
+  { from: 'tab.dq-student-cube', to: 'dash.program-deep-dive' },
+  { from: 'tab.dq-module-cube', to: 'dash.program-deep-dive' },
+  { from: 'tab.dq-student-cube', to: 'dash.teaching-learning' },
   // Trends: a signal is drafted from a document or a monitor, then enriched
   // by the same analysis task either way.
+  { from: 'ext.external-ai-sources', to: 'con.external-ai-sources' },
+  { from: 'con.external-ai-sources', to: 'ai.external-feed-summary' },
   { from: 'ai.external-feed-summary', to: 'ai.trend-signal-analysis' },
   { from: 'ai.trend-document-ingest', to: 'ai.trend-signal-analysis' },
   { from: 'ai.trend-signal-analysis', to: 'tab.trend-signal' },
@@ -2355,6 +2487,7 @@ export const FILTER_ANCHORS: Record<Exclude<ScopeFilter, 'all'>, readonly string
     'dash.education-performance',
     'dash.education-class-offerings',
     'dash.education-satisfaction',
+    'dash.education-student-dq',
   ],
   staff: [
     'dash.staff-workforce',
