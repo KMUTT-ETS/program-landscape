@@ -601,6 +601,49 @@ const connectorNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'ai.program-research-expertise',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Research expertise',
+    subtitle: 'Phase RE · program-research-expertise.v2',
+    details: {
+      description:
+        "Clusters the programme's own staff publications into named research themes, each with the papers and authors behind it. Reads ResearchOutput joined through ProgramFaculty, so a theme can only cite work by staff actually attached to the programme.",
+      cadence: 'Per-program · programs-pipeline phase RE',
+      notes: [
+        'Insert-only, and skipped when a row already exists for the current curriculum revision — a revised มคอ.2 regenerates it, an unchanged one costs nothing',
+      ],
+    },
+  },
+  {
+    id: 'ai.program-curriculum-revision',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Curriculum revision',
+    subtitle: 'Phase CR · program-curriculum-revision.v1',
+    details: {
+      description:
+        'Turns the research themes above into course-level advice: enhancements to named existing courses, proposals for courses the programme lacks, and electives that merit promotion to required. Every course code, theme, paper title and staff name it cites is validated against the programme before the row is written — anything invented is dropped.',
+      cadence: 'Per-program · programs-pipeline phase CR (reads phase RE)',
+      notes: [
+        'Returns a $0 SKIPPED when phase RE has produced no themes, rather than inventing advice from nothing',
+        'Refuses to recommend closing, retiring or merging a course — that judgement is not made from research volume',
+      ],
+    },
+  },
+  {
+    id: 'ai.aunqa-narrative',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'AUN-QA self-assessment draft',
+    subtitle: 'On demand · aunqa-criterion-narrative.v1',
+    details: {
+      description:
+        'Drafts the self-assessment prose for one AUN-QA criterion from the evidence the platform actually holds for that programme. One criterion per call — never fired on page load, and never for all criteria at once.',
+      cadence: 'Manual — per criterion, from /teaching-learning/[programId]',
+    },
+  },
+  {
     id: 'ai.evaluation-question-translate',
     lane: 'ai',
     kind: 'ai-task',
@@ -1201,7 +1244,7 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'narrative · readiness · peers · …',
     details: {
       description:
-        "Cluster of per-program AI-output tables, all written by programs-pipeline phases 3-7. Each row links to the AiInference that produced it. Surfaced on the Deep-Dive's 14 sections.",
+        "Cluster of per-program AI-output tables, written by the programs-pipeline's 11 phases. Each row links to the AiInference that produced it, and carries the ProgramRevision it was generated from. Surfaced across the Deep-Dive's sections.",
       relatedTables: [
         'ProgramStrategicNarrative (Phase 7)',
         'ProgramAiReadinessAssessment (Phase 6)',
@@ -1209,11 +1252,33 @@ const tableNodes: TopologyNode[] = [
         'ProgramPeerSelection (Phase 5)',
         'ProgramPeerReview (Phase 5)',
         'ProgramDemandMatch (Phase 3)',
+        'ProgramResearchExpertise (Phase RE)',
+        'ProgramCurriculumRevision (Phase CR)',
         'ProgramLifecycleVerdict (separate methodology)',
         'ProgramTrendSignal (Trends Radar fan-out)',
       ],
       notes: [
-        'Collapsed into one node here — drawing 8 individual nodes would crowd the picture and they all share one upstream (the pipeline) and one consumer (the Deep-Dive)',
+        'Collapsed into one node here — drawing 10 individual nodes would crowd the picture and they all share one upstream (the pipeline) and one consumer (the Deep-Dive)',
+        'Every table in this cluster carries programRevisionId, so a row can be told apart from one generated off a superseded มคอ.2',
+      ],
+    },
+  },
+  {
+    id: 'tab.program-revision',
+    lane: 'table',
+    kind: 'table',
+    label: 'ProgramRevision',
+    subtitle: 'which มคอ.2 an analysis belongs to',
+    details: {
+      description:
+        "Opened when a curriculum document is attached to a programme, and adopted by the pipeline at the start of a run. Every generated table above stamps the revision it came from, which is what lets the platform say 'this analysis describes the 2565 document, not the 2570 one now on file' instead of silently showing stale output as current.",
+      relatedTables: [
+        'Program.activeRevisionId (the revision the live analyses belong to)',
+        'AiExtraction.programRevisionId (digest / faculty / skills extractions)',
+      ],
+      notes: [
+        'Status moves DRAFT → ANALYSING → APPROVED; the previous revision becomes SUPERSEDED',
+        'NULL on pre-feature rows — the baseline, not an error',
       ],
     },
   },
@@ -1496,7 +1561,23 @@ const dashboardNodes: TopologyNode[] = [
     href: '/programs',
     details: {
       description:
-        "14 sections fan-out: overview, demand funnel, student cohorts, TCAS stats, recruitment, AI peers, AI readiness, lifecycle, strategic narrative, demographic outlook, financials, skills, outcomes, faculty composition, peers, trends. Role-gated faculty visibility (COUNCIL gets aggregates-only).",
+        "14 sections fan-out: overview, demand funnel, student cohorts, TCAS stats, recruitment, AI peers, AI readiness, lifecycle, strategic narrative, demographic outlook, financials, skills, outcomes, faculty composition, peers, trends, research expertise, curriculum revision. Role-gated faculty visibility (COUNCIL gets aggregates-only).",
+    },
+  },
+  {
+    id: 'dash.teaching-learning',
+    lane: 'dashboard',
+    kind: 'dashboard',
+    label: 'Teaching & Learning',
+    subtitle: '/teaching-learning',
+    href: '/teaching-learning',
+    details: {
+      description:
+        "AUN-QA v4 readiness: how much of each programme's evidence the platform can already show, so an assessor can sequence which programmes to put forward. Every figure describes OUR data coverage, never how well a programme teaches — and no AUN-QA 1-7 rating is produced anywhere, since assessors award those.",
+      notes: [
+        'Six of the eight criteria can be evidenced; criteria 6 (Student Support) and 7 (Facilities) hold nothing for any programme because no connector ingests that data',
+        'Reads existing tables only — it adds no tables of its own, it reorganises evidence the platform already holds',
+      ],
     },
   },
   {
@@ -1795,6 +1876,16 @@ const edges: TopologyEdge[] = [
   { from: 'ai.program-peers', to: 'tab.program-analyses' },
   { from: 'ai.program-ai-readiness', to: 'tab.program-analyses' },
   { from: 'ai.program-narrative', to: 'tab.program-analyses' },
+  // Phase RE reads the staff publication table; phase CR reads what RE wrote,
+  // which is why the two land in the same cube rather than one feeding the
+  // other across lanes.
+  { from: 'tab.research-output', to: 'ai.program-research-expertise' },
+  { from: 'tab.program-faculty', to: 'ai.program-research-expertise' },
+  { from: 'ai.program-research-expertise', to: 'tab.program-analyses' },
+  { from: 'tab.program-course', to: 'ai.program-curriculum-revision' },
+  { from: 'ai.program-curriculum-revision', to: 'tab.program-analyses' },
+  // Teaching & Learning drafts one AUN-QA criterion at a time, on demand.
+  { from: 'ai.aunqa-narrative', to: 'dash.teaching-learning' },
 
   // Phase 8 risk
   { from: 'ai.risk-assess', to: 'tab.risk-assessment' },
@@ -1842,6 +1933,18 @@ const edges: TopologyEdge[] = [
   // Deep-Dive — 14 sections fan-in. Trimmed to the primary feeders;
   // contextual sub-feeders (research-output, tcas-stats, staff-program-
   // assignment) are mentioned in the section's detail.
+  // Provenance: the Deep-Dive reads the active revision to decide whether its
+  // analyses describe the document currently on file, and says so if not.
+  { from: 'tab.program-revision', to: 'dash.program-deep-dive' },
+  { from: 'tab.program-revision', to: 'tab.program-analyses' },
+  // Teaching & Learning holds no tables of its own — it reorganises evidence
+  // the platform already has into the AUN-QA criteria.
+  { from: 'tab.program', to: 'dash.teaching-learning' },
+  { from: 'tab.program-skill', to: 'dash.teaching-learning' },
+  { from: 'tab.program-course', to: 'dash.teaching-learning' },
+  { from: 'tab.program-faculty', to: 'dash.teaching-learning' },
+  { from: 'tab.evaluation-response-summary', to: 'dash.teaching-learning' },
+  { from: 'tab.graduate-outcome', to: 'dash.teaching-learning' },
   { from: 'tab.program', to: 'dash.program-deep-dive' },
   { from: 'tab.faculty', to: 'dash.program-deep-dive' },
   { from: 'tab.enrollment-metric', to: 'dash.program-deep-dive' },
@@ -2082,6 +2185,7 @@ export type ScopeFilter =
   | 'staff'
   | 'cockpit'
   | 'deep-dive'
+  | 'teaching-learning'
   | 'risk'
   | 'trends'
   | 'gap'
@@ -2096,6 +2200,7 @@ export const FILTER_OPTIONS: ReadonlyArray<{ key: ScopeFilter; label: string }> 
   { key: 'staff', label: 'Staff' },
   { key: 'cockpit', label: 'Cockpit' },
   { key: 'deep-dive', label: 'Deep-Dive' },
+  { key: 'teaching-learning', label: 'Teaching & Learning' },
   { key: 'risk', label: 'Risk' },
   { key: 'trends', label: 'Trends' },
   { key: 'gap', label: 'Gap' },
@@ -2127,6 +2232,7 @@ export const FILTER_ANCHORS: Record<Exclude<ScopeFilter, 'all'>, readonly string
   ],
   cockpit: ['dash.cockpit'],
   'deep-dive': ['dash.program-deep-dive'],
+  'teaching-learning': ['dash.teaching-learning'],
   risk: [
     'dash.risk-portfolio',
     'dash.risk-matrix',

@@ -798,6 +798,9 @@ const FILTER_CATEGORY_TOKEN: Record<ScopeFilter, string> = {
   staff: '--color-info-default',
   cockpit: '--color-brand-cardinal',
   'deep-dive': '--color-brand-cardinal',
+  // Per-program view, same family as Deep-Dive — both answer "what do we
+  // know about THIS programme", from opposite ends (strategy vs evidence).
+  'teaching-learning': '--color-brand-cardinal',
   risk: '--color-warning-default',
   trends: '--color-success-default',
   gap: '--color-success-default',
