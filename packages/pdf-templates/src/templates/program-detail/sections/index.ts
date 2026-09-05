@@ -7,6 +7,7 @@ import { renderCoursesSection } from './courses';
 import { renderDecisionsSection } from './decisions';
 import { renderDemandFunnelSection } from './demand-funnel';
 import { renderDemographicOutlookSection } from './demographic-outlook';
+import { renderDigitalCompetencySection } from './digital-competency';
 import { renderFacultySection } from './faculty';
 import { renderFinancialsSection } from './financials';
 import { renderHealthScoreSection } from './health-score';
@@ -55,6 +56,10 @@ export const SECTIONS: NumberedSection[] = [
   { id: 'cohort-distribution', chartLed: true, render: renderCohortDistributionSection },
   { id: 'demographic-outlook', chartLed: true, render: renderDemographicOutlookSection },
   { id: 'outcomes', chartLed: true, render: renderOutcomesSection },
+  // Immediately after outcomes: on the deep-dive page digital competency
+  // is a sub-block of Outcomes, and the report follows the page's order
+  // so a reader can move between the two without re-orienting.
+  { id: 'digital-competency', chartLed: true, render: renderDigitalCompetencySection },
   { id: 'skills', chartLed: true, render: renderSkillsSection },
   { id: 'courses', chartLed: false, render: renderCoursesSection },
   { id: 'faculty', chartLed: true, render: renderFacultySection },

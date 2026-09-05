@@ -656,6 +656,39 @@ const DecisionsRowSchema = z.object({
   rationale: z.string().default(''),
 });
 
+// Digital Intelligence (DQ) competency. `status` is carried through
+// rather than collapsed to "has data / no data" because the four states
+// are not interchangeable: `not-applicable` (a non-bachelor programme —
+// DQ is an undergraduate instrument) must render as nothing at all,
+// while `below-floor` (1–4 tested students) must say why the figures are
+// withheld. Telling a programme with four tested students that it was
+// never tested is the error the distinction exists to prevent — see
+// programDigitalCompetency() in packages/db/src/program-deep-dive.ts.
+const DigitalCompetencySchema = z.object({
+  status: z.enum(['ok', 'below-floor', 'no-data', 'not-applicable']),
+  rawMean: z.number().finite().nullable().default(null),
+  driverScore: z.number().finite().nullable().default(null),
+  scoredStudents: z.number().finite().default(0),
+  passRatePct: z.number().finite().nullable().default(null),
+  /** The suppression floor, quoted in the copy so it moves with the
+   *  query layer instead of being written twice. */
+  minCellStudents: z.number().finite().default(5),
+  /** KKU's own pass mark, disclosed wherever the score is shown. */
+  passMark: z.number().finite().nullable().default(null),
+  modules: z
+    .array(
+      z.object({
+        moduleNo: z.number().finite(),
+        label: z.string(),
+        mean: z.number().finite().nullable(),
+        universityMean: z.number().finite().nullable(),
+      }),
+    )
+    .default([]),
+  weakest: z.array(z.object({ label: z.string(), mean: z.number().finite() })).default([]),
+  methodologyVersion: z.string().default(''),
+});
+
 export const ProgramDetailDataSchema = z.object({
   // Cover
   programCode: z.string(),
@@ -703,6 +736,10 @@ export const ProgramDetailDataSchema = z.object({
   cohortDistribution: CohortDistributionSchema.nullable().default(null),
   demographic: DemographicSchema.nullable().default(null),
   outcomes: OutcomesSchema.nullable().default(null),
+  // Sits with outcomes, matching the deep-dive page, where digital
+  // competency is a sub-block of Outcomes rather than its own top-level
+  // section.
+  digitalCompetency: DigitalCompetencySchema.nullable().default(null),
   skills: SkillsSchema.nullable().default(null),
   // v1.2.9: per-program course list materialised from
   // program-courses-extract.v1 (focused course-code AI extractor).

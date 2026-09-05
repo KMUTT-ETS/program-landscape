@@ -6,13 +6,16 @@
 // Kept separate from the controller so the transform logic is unit-
 // testable in isolation.
 
+import { DQ_MODULES, DQ_PASS_MARK } from '@kku/shared';
 import {
+  DQ_MIN_CELL_STUDENTS,
   programAiPeers,
   programAiReadiness,
   programCourses,
   programDecisions,
   programDemandFunnel,
   programDemographicOutlook,
+  programDigitalCompetency,
   programFaculty,
   programFinancials,
   programLifecycleVerdict,
@@ -203,6 +206,7 @@ export async function buildProgramDetailData(
     researchExpertiseResult,
     trends,
     decisions,
+    digitalCompetency,
   ] = await Promise.all([
     programLifecycleVerdict(programId).catch(() => null),
     programStrategicNarrative(programId).catch(() => null),
@@ -221,6 +225,7 @@ export async function buildProgramDetailData(
     programResearchExpertise(programId).catch(() => null),
     programTrends(programId).catch(() => null),
     programDecisions(programId).catch(() => null),
+    programDigitalCompetency(programId).catch(() => null),
   ]);
 
   const generatedAt = new Date();
@@ -1153,6 +1158,35 @@ export async function buildProgramDetailData(
       }))
     : [];
 
+  // ── Digital competency (DQ) ───────────────────────────────────────
+  // Module LABELS are resolved here, not in the template: the template
+  // renders cells, it does not look things up. `status` is passed through
+  // untouched — the template needs all four states to tell "never tested"
+  // from "tested, too few to report" (see the section's header).
+  const dqLabel = new Map(DQ_MODULES.map((m) => [m.key, m.nameEn]));
+  const digitalCompetencyData: ProgramDetailData['digitalCompetency'] = digitalCompetency
+    ? {
+        status: digitalCompetency.status,
+        rawMean: digitalCompetency.rawMean,
+        driverScore: digitalCompetency.driverScore,
+        scoredStudents: digitalCompetency.scoredStudents,
+        passRatePct: digitalCompetency.passRatePct,
+        minCellStudents: DQ_MIN_CELL_STUDENTS,
+        passMark: DQ_PASS_MARK,
+        modules: digitalCompetency.modules.map((m) => ({
+          moduleNo: m.moduleNo,
+          label: dqLabel.get(m.moduleKey) ?? m.moduleKey,
+          mean: m.mean,
+          universityMean: m.universityMean,
+        })),
+        weakest: digitalCompetency.weakest.map((w) => ({
+          label: dqLabel.get(w.moduleKey) ?? w.moduleKey,
+          mean: w.mean,
+        })),
+        methodologyVersion: digitalCompetency.methodologyVersion,
+      }
+    : null;
+
   return {
     ...cover,
     executiveSnapshot,
@@ -1170,6 +1204,7 @@ export async function buildProgramDetailData(
     cohortDistribution: cohortDistributionData,
     demographic: demographicData,
     outcomes: outcomesData,
+    digitalCompetency: digitalCompetencyData,
     skills: skillsData,
     courses: coursesData,
     faculty: facultyData,
