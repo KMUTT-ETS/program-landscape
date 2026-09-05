@@ -26,6 +26,23 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-05',
+    version: 'v1.8.8 · Reading a long programme page without losing your place',
+    title:
+      'Teaching & Learning and the Programme Deep-Dive are rebuilt around a visible heading hierarchy, with a navigation rail that stays on screen as you scroll; the admin topology diagram now matches the system it describes',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The Teaching & Learning page now distinguishes a criterion from a sub-criterion at a glance. Previously a section heading, a sub-heading and a data card all carried roughly the same weight, and the page read as one flat column of text. There are now three deliberately unequal levels: a banded criterion header with its number and coverage, sub-criteria hanging off a vertical spine, and the evidence cards themselves as the quietest layer — their figures are prominent, their frames are not.',
+      'The Programme Deep-Dive uses the same layout, so the two pages read alike. Every section, figure and caveat that was there before is still there — this changes how the page is arranged, not what it reports. That was checked landmark by landmark rather than by eye, because the redesign touched all seven sections at once.',
+      'Both pages carry a navigation rail listing their sections, with each section\'s headline figure beside it, so the rail doubles as a summary of the programme.',
+      'That rail now stays on screen while you scroll. It had been set to stay, and did not: the column holding it was sized to exactly its own height, so it had nowhere to travel and simply scrolled away with the page. Nothing reported an error — the page looked correct in every other respect.',
+      'Clicking an entry in the rail now leaves the section heading visible below the top bar instead of scrolling it behind. The same fix applies to the methodology document\'s contents list, which had the same problem and also sat partly behind the top bar itself, and to the risk table on the Risk Management page.',
+      'Filter menus on Teaching & Learning, and text inputs across the platform, are back to full height. They had been rendering about half size, or taking their height from padding alone, because of a spacing rule that silently produced nothing.',
+      'For administrators: the application topology diagram now reflects the current system. It was missing the data-quality integration and its flow through to the dashboards that read it, twelve AI analyses, the programme-revision record, and the Teaching & Learning page itself; ten AI analyses were shown at versions that no longer exist. A test now fails the build if a version drawn on the diagram is not one the platform actually runs, so the diagram cannot quietly drift again.',
+      'For administrators: the data-source console no longer counts two retired publication feeds as live. OpenAlex and Scopus were superseded in May by the internal KKU publications mirror, but were relabelled "active" every time the database was seeded, so the console reported more live feeds than exist. They are now shown as superseded and counted separately.',
+    ],
+  },
+  {
     date: '2026-09-04',
     version: 'v1.8.7 · The running version, on screen',
     title:
