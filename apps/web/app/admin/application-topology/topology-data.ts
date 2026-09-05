@@ -2,14 +2,22 @@
 // Dashboard data-topology — static node/edge model for the
 // /admin/application-topology page.
 //
-// Scope: every external system, connector/script, DB landing table, and
-// dashboard that participates in the **Education** + **Staff** hubs and
-// their sub-dashboards. Adjacent surfaces (Cockpit, Gap Analyzer,
-// Benchmarking) are intentionally out — that page's job is to make the
-// Edu+Staff data flow legible at a glance, not to draw the whole graph.
+// Scope: the whole application. Every external system, connector/script, DB
+// landing table, AI task and consuming dashboard.
 //
-// Layered DAG, 4 columns:
-//   L1 External systems   → L2 Connectors/Scripts → L3 Tables → L4 Dashboards
+// It did not start that way. The original scope was Education + Staff only,
+// and this header still said Cockpit, Gap Analyzer and Benchmarking were
+// "intentionally out" long after they had been added — along with Deep-Dive,
+// Risk, Trends, Scenarios, Decisions, Analyst and Teaching & Learning, each
+// of which has a filter chip in FILTER_OPTIONS below. The page title says
+// "whole-application data flow"; this is now the same claim.
+//
+// Layered DAG, 5 columns:
+//   L1 External systems → L2 Connectors/Scripts → L3 Tables → L4 AI tasks
+//   → L5 Dashboards
+//
+// The AI lane was added after the original four and is where every
+// LLM-backed extraction, narrative and insight sits.
 //
 // Edges always flow left → right. Derived cubes (EducationStudentCube et al)
 // collapse into their landing-table ancestor (StudentProgramRecord) to

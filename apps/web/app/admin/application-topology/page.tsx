@@ -19,7 +19,8 @@ import { TOPOLOGY_COUNTS } from './topology-data';
 // Was scoped to Education + Staff in v1; expanded 2026-05-16 to cover
 // every active connector in /admin/data-sources, every AI task, and
 // every consumer module (Education + Staff + Cockpit + Deep-Dive +
-// Risk + Trends + Gap + Benchmarking + Scenarios + Decisions + Analyst).
+// Teaching & Learning + Risk + Trends + Gap + Benchmarking + Scenarios +
+// Decisions + Analyst).
 // ──────────────────────────────────────────────────────────────────────────
 
 export const dynamic = 'force-dynamic';
