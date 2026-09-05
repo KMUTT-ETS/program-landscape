@@ -323,7 +323,7 @@ export function DeepDiveClient(props: Props) {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
       {/* Left rail — two-level, with each section's headline figure so the
           rail doubles as a summary. SectionRail owns its own scroll-spy. */}
-      <aside className="h-fit self-start">
+      <aside>
         <SectionRail label="This programme" items={railItems} />
       </aside>
 
@@ -497,7 +497,7 @@ function MacroGroup({
       statLabel={statLabel}
       // The parent stacks sections with gap-10; SectionBand's own top margin
       // would add to it.
-      className="scroll-mt-16"
+      className="scroll-mt-[5rem]"
     >
       <div className="ml-1 mt-3">
         {blocks.map((child, i) => (
@@ -563,7 +563,7 @@ function HeaderSection({
       ]
     : [];
   return (
-    <section id="header" className="scroll-mt-16">
+    <section id="header" className="scroll-mt-[5rem]">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-stretch">
         <div className="flex h-full flex-col gap-4">
           <Card>
@@ -680,7 +680,7 @@ function AiReadinessSection({ data }: { data: DeepDiveAiReadiness | null }) {
   };
 
   return (
-    <section id="ai-readiness" className="scroll-mt-16">
+    <section id="ai-readiness" className="scroll-mt-[5rem]">
       <Card className={`border-l-4 ${meta.stripe}`}>
         {/* Header strip */}
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
@@ -979,7 +979,7 @@ function LifecycleVerdictSection({ data }: { data: DeepDiveLifecycle | null }) {
     data.ungatedVerdict !== data.verdict ? verdictMeta[data.ungatedVerdict] : null;
 
   return (
-    <section id="verdict" className="flex flex-1 flex-col scroll-mt-16">
+    <section id="verdict" className="flex flex-1 flex-col scroll-mt-[5rem]">
       <Card className={`flex flex-1 flex-col border-l-4 ${meta.stripe}`}>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>

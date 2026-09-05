@@ -1526,7 +1526,7 @@ export function AunqaProgramClient({
   // programme by dropping its emptiest criteria out of its own denominator.
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <div className="hidden lg:block">
+      <div className="hidden lg:block lg:self-stretch">
         <SectionRail label="AUN-QA v4 criteria" items={railItems} />
       </div>
 
@@ -1589,7 +1589,7 @@ export function AunqaProgramClient({
 
       {/* One line at the foot, naming what is not on this page — so a
           reader cannot infer that what they see is the whole framework. */}
-      <Card id="not-shown" padding="sm" className="scroll-mt-6 bg-surface-0">
+      <Card id="not-shown" padding="sm" className="scroll-mt-[5rem] bg-surface-0">
         <p className="text-xs leading-relaxed text-text-tertiary">
           <span className="font-medium text-text-secondary">Not shown above:</span>{' '}
           {omitted.length > 0 && (

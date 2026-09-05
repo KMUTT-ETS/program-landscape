@@ -100,7 +100,12 @@ export function SectionBand({
   return (
     <section
       id={id}
-      className={className ?? 'mt-[2.25rem] scroll-mt-6 first:mt-0'}
+      // scroll-mt is applied unconditionally: it is what keeps a rail anchor
+      // from landing this heading under the 72px topbar, so a caller passing
+      // `className` for spacing must not silently drop it (that is exactly
+      // what `className ?? default` used to do). 5rem, arbitrary for the same
+      // half-scale reason as the rail — scroll-mt-6 here was 12px, not 24px.
+      className={['scroll-mt-[5rem]', className ?? 'mt-[2.25rem] first:mt-0'].join(' ')}
     >
       {/* The rule is what makes the band read as a heading rather than a
           caption, so it must be the ink colour. `border-text-primary` is NOT
@@ -169,7 +174,7 @@ export function SpineItem({
     <div
       id={id}
       className={[
-        'relative scroll-mt-6 py-[1.15rem] pl-[2.25rem]',
+        'relative scroll-mt-[5rem] py-[1.15rem] pl-[2.25rem]',
         last ? 'border-l border-transparent' : 'border-l border-border-default',
       ].join(' ')}
     >
@@ -220,7 +225,7 @@ export function SubSection({
     <div
       id={id}
       className={[
-        'relative scroll-mt-6 py-[1.15rem] pl-[2.25rem]',
+        'relative scroll-mt-[5rem] py-[1.15rem] pl-[2.25rem]',
         last ? 'border-l border-transparent' : 'border-l border-border-default',
       ].join(' ')}
     >
@@ -450,7 +455,18 @@ export function SectionRail({ label, items }: { label: string; items: RailItem[]
   }, [items]);
 
   return (
-    <nav aria-label={label} className="sticky top-6 flex flex-col gap-3">
+    // Sticky travel is bounded by the containing block, so the PARENT must
+    // span the full column height — a parent with h-fit / self-start /
+    // items-start shrink-wraps this nav and sticky silently does nothing.
+    //
+    // Offsets are arbitrary values on purpose: this repo's spacing scale is
+    // half of stock Tailwind, so top-20 would read as 5rem but render 2.5rem.
+    // 5rem clears the 72px md+ topbar (packages/ui top-bar.tsx) with a small
+    // gap; max-h keeps a long rail scrollable rather than running off-screen.
+    <nav
+      aria-label={label}
+      className="sticky top-[5rem] flex max-h-[calc(100vh-6rem)] flex-col gap-3 overflow-y-auto"
+    >
       <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
         {label}
       </div>
