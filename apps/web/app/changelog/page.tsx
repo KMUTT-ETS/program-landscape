@@ -27,6 +27,23 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-09-05',
+    version: 'v1.8.9 · The programme PDF works, and now contains the whole page',
+    title:
+      'PDF export had never succeeded on the production server; the underlying cause is fixed, and three analyses that appear on the programme page but were missing from the PDF have been added',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'PDF generation works on the production server. It had never worked there — not the programme deep-dive export, and not Council Packs, programme briefs, scenario packs or the gap report, all of which are produced by the same service. The browser that renders every PDF could not start because it had nowhere to write, so each attempt returned an error.',
+      'The error message named the wrong component, which is why this went unnoticed and then took a while to place. The rendering service reported a failure in one subsystem while the actual fault — a missing writable directory — was reported only on the first attempt after a restart, and was overwritten by the misleading message on every attempt after that. The fix was verified by reproducing the production configuration exactly, then confirming Thai text still renders in the correct font with the server\'s security restrictions left fully in place.',
+      'When a PDF export does fail in future, the page now says which stage failed and why, instead of returning an unexplained error. Previously a rendering timeout, a data problem and an unreachable file store were indistinguishable from one another.',
+      'Digital competency is now in the programme PDF. The section was on the programme page but had never been part of the report. It reports the mean score, the pass rate against KKU\'s own pass mark, per-module results against the university average, and the weakest modules.',
+      'That section states which of four situations applies rather than showing an empty box. A master\'s programme shows nothing at all, because the assessment is an undergraduate instrument; a programme with fewer than the reporting minimum of tested students has its count reported and its score withheld — saying a programme with four tested students has never been tested would be false.',
+      'The health score now shows what it is being compared with. The PDF previously gave a bare score per dimension, so a reader could not tell a score that leads its faculty from one that trails it. Each dimension now sits beside its faculty mean and the university mean, with the number of programmes behind each: a faculty mean over three programmes and one over forty are different claims.',
+      'Curriculum-revision advice is now in the PDF, the analysis introduced in v1.8.5. Courses to extend, proposed new courses and courses that have outgrown their category each appear with the specific papers that produced the recommendation, named in full rather than reduced to a count — anyone questioning a recommendation in committee needs to see which research it came from.',
+      'Where that analysis produced nothing, the report says which of four reasons applies — too few papers, no publications recorded, or no course list held — rather than presenting an empty section that reads as "the curriculum needs no change".',
+    ],
+  },
+  {
+    date: '2026-09-05',
     version: 'v1.8.8 · Reading a long programme page without losing your place',
     title:
       'Teaching & Learning and the Programme Deep-Dive are rebuilt around a visible heading hierarchy, with a navigation rail that stays on screen as you scroll; the admin topology diagram now matches the system it describes',
