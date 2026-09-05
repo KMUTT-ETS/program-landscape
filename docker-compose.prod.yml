@@ -366,9 +366,22 @@ services:
     # Headless Chromium spawns scratch dirs under /tmp during PDF
     # rendering. 1G tmpfs is generous; Council Pack rendering peaks at
     # ~200 MB simultaneous spawns.
+    #
+    # /home/gotenberg is NOT optional. Chromium's crashpad handler needs a
+    # writable database directory under $HOME; with only /tmp writable it
+    # exits with "chrome_crashpad_handler: --database is required" and no
+    # PDF renders at all. Gotenberg then reports every later attempt as
+    # "start pinning proxy: pinning proxy already started", which names a
+    # different subsystem entirely and sent this bug hunting in the wrong
+    # place — the crashpad error appears only on the FIRST attempt after a
+    # restart. Reproduced and fixed against the v1.8.8 image on
+    # 2026-09-05; verified a Thai render still embeds TH Sarabun New with
+    # read_only and cap_drop:ALL both still in force. The image ships this
+    # directory empty, so the tmpfs masks nothing.
     read_only: true
     tmpfs:
       - /tmp:size=1G
+      - /home/gotenberg:size=256m
     <<: *common-security
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/health"]
