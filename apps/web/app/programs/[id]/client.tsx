@@ -29,7 +29,7 @@ import {
   regenerateNarrativeAction,
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
-import { SectionRail, type RailItem } from '@/components/evidence';
+import { SectionBand, SectionRail, type RailItem } from '@/components/evidence';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
 // Shared with /education/student-dq so both DQ radars mean the same
 // thing by a floor of 60 — see the helper for why it is not 0.
@@ -256,9 +256,14 @@ export function DeepDiveClient(props: Props) {
   // of truth for which section is current.
 
   // Headline figure per section. Each is already computed and displayed
-  // somewhere inside its section — surfacing it in the rail is a summary,
-  // not a new claim. Undefined where the figure is unavailable, so the rail
-  // shows the label alone rather than a fabricated dash.
+  // somewhere inside its section — surfacing it in the rail and the section
+  // band is a summary, not a new claim. Undefined where the figure is
+  // unavailable, so both show the label alone rather than a fabricated dash.
+  //
+  // Shared between the rail and the bands from ONE computation: two
+  // derivations of "the headline number" would eventually disagree, and a
+  // band contradicting its own rail entry is worse than neither having one.
+  const railMeta = React.useRef<Record<string, string | undefined>>({});
   const railItems: RailItem[] = React.useMemo(() => {
     const round = (n: number | null | undefined) =>
       n === null || n === undefined ? undefined : String(Math.round(n));
@@ -281,6 +286,7 @@ export function DeepDiveClient(props: Props) {
           : `${(employment * 100).toFixed(1)}%`,
       curriculum: round(props.courses?.extractedCount),
     };
+    railMeta.current = meta;
     return SECTIONS.map((s) => ({
       href: `#${s.id}`,
       label: s.label,
@@ -344,6 +350,8 @@ export function DeepDiveClient(props: Props) {
           id="snapshot"
           title="Executive snapshot"
           subtitle="Health verdict, strategic narrative, and AI readiness — the one-page brief."
+          stat={railMeta.current.snapshot}
+          statLabel="overall"
         >
           <HeaderSection
             overview={props.overview}
@@ -365,6 +373,8 @@ export function DeepDiveClient(props: Props) {
           id="admissions"
           title="Admissions"
           subtitle="TCAS rounds 1–4 funnel for the latest entry cohort + round-3 score detail and competitive landscape."
+          stat={railMeta.current.admissions}
+          statLabel="competition"
         >
           <RecruitmentSection data={props.recruitment} />
           <TcasStatsSection data={props.tcasStats} />
@@ -374,6 +384,8 @@ export function DeepDiveClient(props: Props) {
           id="students"
           title="Students"
           subtitle="Past cohort distribution, full lifecycle, and the demographic outlook for future intake."
+          stat={railMeta.current.students}
+          statLabel="active"
         >
           <StudentCohortsSection data={props.studentCohorts} />
           <DemandFunnelSection data={props.demandFunnel} />
@@ -384,6 +396,8 @@ export function DeepDiveClient(props: Props) {
           id="outcomes"
           title="Outcomes"
           subtitle="Where graduates land — employment, salary, sector and first-job destinations."
+          stat={railMeta.current.outcomes}
+          statLabel="employed"
         >
           <OutcomesSection data={props.outcomes} />
           {/* Digital competency sits in Outcomes because that is the
@@ -404,6 +418,8 @@ export function DeepDiveClient(props: Props) {
           id="curriculum"
           title="Curriculum & Faculty"
           subtitle="What we teach (skill coverage) and who teaches it (faculty capability + succession risk)."
+          stat={railMeta.current.curriculum}
+          statLabel="courses"
         >
           <SkillsSection data={props.skills} programId={props.programId} />
           <CoursesSection data={props.courses} programId={props.programId} />
@@ -452,25 +468,33 @@ function MacroGroup({
   id,
   title,
   subtitle,
+  stat,
+  statLabel,
   children,
 }: {
   id: string;
   title: string;
   subtitle?: string;
+  /** Headline figure, right-aligned in the band. Sections here are a tour of
+   *  a programme rather than a numbered framework, so the band carries the
+   *  section's own number instead of an invented ordinal. */
+  stat?: React.ReactNode;
+  statLabel?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-16">
-      <header className="mb-4 border-b border-border-subtle pb-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
-          {title}
-        </h3>
-        {subtitle && (
-          <p className="mt-0.5 text-xs text-text-tertiary">{subtitle}</p>
-        )}
-      </header>
-      <div className="flex flex-col gap-4">{children}</div>
-    </section>
+    <SectionBand
+      id={id}
+      title={title}
+      coverage={subtitle}
+      stat={stat}
+      statLabel={statLabel}
+      // The parent stacks sections with gap-10; SectionBand's own top margin
+      // would add to it.
+      className="scroll-mt-16"
+    >
+      <div className="mt-4 flex flex-col gap-4">{children}</div>
+    </SectionBand>
   );
 }
 

@@ -70,6 +70,7 @@ export function SectionBand({
   chip,
   stat,
   statLabel,
+  className,
   children,
 }: {
   id: string;
@@ -86,13 +87,29 @@ export function SectionBand({
   /** Headline figure shown on the RIGHT, for sections that are not numbered. */
   stat?: React.ReactNode;
   statLabel?: string;
+  /**
+   * Replaces the default vertical rhythm. Pass `''` where the parent already
+   * spaces its children (the deep-dive stacks sections with `gap-10`) —
+   * otherwise the two add up.
+   */
+  className?: string;
   children: React.ReactNode;
 }) {
   // mt in rem for the same reason as SubSection's padding below — `mt-10` on
   // this scale is 20px, too little air between two bands.
   return (
-    <section id={id} className="mt-[2.25rem] scroll-mt-6 first:mt-0">
-      <header className="flex items-end gap-4 border-b-2 border-text-primary pb-3">
+    <section
+      id={id}
+      className={className ?? 'mt-[2.25rem] scroll-mt-6 first:mt-0'}
+    >
+      {/* The rule is what makes the band read as a heading rather than a
+          caption, so it must be the ink colour. `border-text-primary` is NOT
+          a utility here — the preset restricts borderColor to the `border`
+          family (subtle/default/strong), so that class silently fell back to
+          the default border and drew a faint line. The darkest border token
+          is 70% lightness; text-primary is 19%. Hence the arbitrary value,
+          which the no-literal-colour lint allows because it wraps a token. */}
+      <header className="flex items-end gap-4 border-b-2 border-b-[oklch(var(--color-text-primary))] pb-3">
         {no !== undefined && (
           <span className="font-tabular self-center text-2xl font-bold leading-none tracking-tight text-accent-default">
             {no}
@@ -104,8 +121,12 @@ export function SectionBand({
           </h2>
           {coverage && <p className="mt-0.5 text-xs text-text-secondary">{coverage}</p>}
         </div>
+        {/* Explicit rem gap below: `gap-1.5` is 3px on this project's
+            half-scale, which renders "81" and "OVERALL" as one run. A number
+            followed immediately by its unit needs real separation, not a
+            token gap that happens to be tiny here. */}
         {stat !== undefined && (
-          <span className="flex shrink-0 items-baseline gap-1.5">
+          <span className="flex shrink-0 items-baseline gap-[0.45rem]">
             <b className="font-tabular text-xl font-bold tracking-tight text-text-primary">
               {stat}
             </b>
