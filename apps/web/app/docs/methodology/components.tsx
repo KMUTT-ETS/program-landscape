@@ -19,7 +19,7 @@ export function DocSection({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24 break-inside-avoid-page">
+    <section id={id} className="scroll-mt-[5rem] break-inside-avoid-page">
       <h2 className="mb-4 mt-2 border-b border-border-subtle pb-2 text-2xl font-semibold tracking-tight text-text-primary">
         {number && (
           <span className="mr-2 inline-block tabular-nums text-text-tertiary">{number}</span>
@@ -43,7 +43,7 @@ export function DocSubsection({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24">
+    <section id={id} className="scroll-mt-[5rem]">
       <h3 className="mb-2 mt-1 text-lg font-semibold text-text-primary">
         {number && (
           <span className="mr-2 inline-block tabular-nums text-text-tertiary">{number}</span>

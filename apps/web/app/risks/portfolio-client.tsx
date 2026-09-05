@@ -559,7 +559,7 @@ export function RisksPortfolioClient({
       </div>
 
       {/* Tier-grouped table */}
-      <div id="program-risk-table" className="space-y-4 scroll-mt-4">
+      <div id="program-risk-table" className="space-y-4 scroll-mt-[5rem]">
         {cellFilterActive && cellFilteredRows.length === 0 && (
           <div className="rounded-md border border-border-default bg-surface-1 p-4 text-center text-sm text-text-secondary">
             No programs in cell L{initialFilters.cellL} × I{initialFilters.cellI}.{' '}

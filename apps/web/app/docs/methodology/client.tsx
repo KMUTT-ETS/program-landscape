@@ -89,7 +89,11 @@ export function MethodologyClient({ initialLang }: { initialLang: Lang }) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
       {/* ── Sidebar TOC + controls ───────────────────────────────────── */}
-      <aside className="sticky top-16 hidden h-fit max-h-[calc(100vh-5rem)] overflow-y-auto lg:block print:hidden">
+      {/* Offsets are arbitrary values on purpose: this project's spacing
+          scale is half of stock Tailwind, so `top-16` read as 4rem but
+          rendered 2rem — pinning this TOC under the 72px topbar. 5rem clears
+          it, matching the evidence-page rail. */}
+      <aside className="sticky top-[5rem] hidden h-fit max-h-[calc(100vh-6rem)] overflow-y-auto lg:block print:hidden">
         <Card padding="md">
           <div className="flex flex-col gap-3">
             {/* Lang toggle */}
