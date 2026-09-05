@@ -589,7 +589,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Program AI readiness',
-    subtitle: 'Phase 6 · program-ai-readiness.v3',
+    subtitle: 'Phase 6 · program-ai-readiness.v4',
     details: {
       description:
         'Discipline-aware assessment — how exposed is this program\'s graduates\' work to AI automation, and what does the curriculum need to add. Reads program skills + pedagogy + peer outputs.',
@@ -601,7 +601,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Program narrative',
-    subtitle: 'Phase 7 · strategic-narrative.v1',
+    subtitle: 'Phase 7 · program-strategic-narrative.v2',
     details: {
       description:
         "Thai-primary strategic narrative — the one the Council reads on the Deep-Dive's hero section. Synthesises every prior phase's output into a 600-word brief with confidence + caveats.",
@@ -613,7 +613,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Research expertise',
-    subtitle: 'Phase RE · program-research-expertise.v2',
+    subtitle: 'Phase RE · program-research-expertise.v3',
     details: {
       description:
         "Clusters the programme's own staff publications into named research themes, each with the papers and authors behind it. Reads ResearchOutput joined through ProgramFaculty, so a theme can only cite work by staff actually attached to the programme.",
@@ -637,6 +637,118 @@ const connectorNodes: TopologyNode[] = [
         'Returns a $0 SKIPPED when phase RE has produced no themes, rather than inventing advice from nothing',
         'Refuses to recommend closing, retiring or merging a course — that judgement is not made from research volume',
       ],
+    },
+  },
+  {
+    id: 'ai.program-courses-extract',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Course list extraction',
+    subtitle: 'Phase 2b · program-courses-extract.v4',
+    details: {
+      description:
+        "Reads the course list out of the มคอ.2 — code, title, credits, description, and the หมวด each course sits under (ศึกษาทั่วไป / บังคับ / เลือก / วิทยานิพนธ์). The category is what makes elective-to-required advice possible downstream.",
+      cadence: 'Per-program · programs-pipeline phase 2b',
+      notes: [
+        'Scoped to the รายวิชา section only — earlier versions read the whole PDF and pulled old-curriculum codes out of the revision-comparison appendix',
+        'Skips with a stated reason when that section cannot be located, rather than extracting from the full document',
+      ],
+    },
+  },
+  {
+    id: 'ai.trend-signal-analysis',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Trend signal analysis',
+    subtitle: 'Per-signal · trend-signal-analysis.v4',
+    details: {
+      description:
+        'Enriches a raw trend signal into the form the Radar shows: affected programmes with per-programme job-position candidates (hireable now vs reachable in 1-3 years), recommended actions, and a white-space check proposing re-skill products for demanded roles no KKU programme supplies.',
+      cadence: 'Per-signal · on ingest, and via pnpm trends:analyze',
+    },
+  },
+  {
+    id: 'ai.trend-document-ingest',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Trend doc → signal',
+    subtitle: 'Per-upload · trend-document-ingest.v2',
+    details: {
+      description:
+        'Drafts a TrendSignal from an uploaded PDF or a pasted URL (a manpower-demand or job-posting report, typically), then hands it to the analysis task above so document-sourced and monitor-sourced signals end up in the same shape.',
+      cadence: 'Manual — /admin/trend-documents, or pnpm trends:ingest-doc',
+    },
+  },
+  {
+    id: 'ai.external-feed-summary',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'External feed summary',
+    subtitle: 'Per-source · external-feed-summary.v2',
+    details: {
+      description:
+        'Summarises fetched pages from the external AI-search sources (WEF, IMD, BOI, World Bank, Google News and the rest) into candidate trend signals.',
+      cadence: 'Scheduled · external-ai-sources worker',
+    },
+  },
+  {
+    id: 'ai.course-skill-extraction',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Course → skills',
+    subtitle: 'Queued · course-skills.v2',
+    details: {
+      description:
+        'Maps a single course description onto the skill taxonomy. Runs as an ai-jobs queue task rather than inside the pipeline.',
+      cadence: 'Queued · EXTRACT_COURSE_SKILLS',
+    },
+  },
+  {
+    id: 'ai.job-posting-skills',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Job posting → skills',
+    subtitle: 'Queued · job-posting-skills.v2',
+    details: {
+      description:
+        'Extracts demanded skills from a job posting, feeding the labour-market side of the Gap Analyzer.',
+      cadence: 'Queued · EXTRACT_JOB_POSTING_SKILLS',
+    },
+  },
+  {
+    id: 'ai.graduate-employment-survey',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Employment survey parse',
+    subtitle: 'Per-import · graduate-employment-survey.v2',
+    details: {
+      description:
+        'Reads the graduate employment survey workbook into structured outcome rows — employer, sector, province, salary band.',
+      cadence: 'Manual — pnpm outcomes:ingest-xlsx',
+    },
+  },
+  {
+    id: 'ai.imd-rankings-extract',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'IMD rankings extraction',
+    subtitle: 'Per-report · imd-rankings.v2',
+    details: {
+      description:
+        'Pulls Thailand-relevant indicators out of the IMD World Competitiveness report PDF into IMDRanking rows.',
+      cadence: 'Annual · per published report',
+    },
+  },
+  {
+    id: 'ai.skill-name-normaliser',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Skill-name normalisation',
+    subtitle: 'Housekeeping · skill-name-normaliser.v2',
+    details: {
+      description:
+        'Collapses near-duplicate skill names in the taxonomy so the same competency is not counted twice under two spellings.',
+      cadence: 'Weekly · kku-skills-normalise systemd timer',
     },
   },
   {
@@ -672,7 +784,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Risk assessment',
-    subtitle: 'Phase 8 · risk-assessment.v2',
+    subtitle: 'Phase 8 · risk-assessment.v3',
     details: {
       description:
         'Combines deterministic L1/L2/L3 scores (risk-scoring.v1) with AI narrative + 2-4 specific RiskMeasure recommendations per program. Writes RiskAssessment + RiskMeasure + KRI breach evaluations.',
@@ -698,7 +810,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Gap analyser insights',
-    subtitle: 'On-demand · gap-insights.v1',
+    subtitle: 'On-demand · gap-insights.v2',
     details: {
       description:
         '3 modes: strategic-top-5 (Council-facing top opportunities), program-skills-to-add (per-program recommendation), sector-brief (1-page Thai sector analysis).',
@@ -710,7 +822,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Scenario insights',
-    subtitle: 'On-demand · scenario-insights.v1',
+    subtitle: 'On-demand · scenario-insights.v2',
     details: {
       description:
         '5 modes: suggest-assumptions, identify-risks, compare-narrative, devils-advocate (argues against the apparent-best scenario), what-would-change-my-mind.',
@@ -722,7 +834,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Benchmarking insights',
-    subtitle: 'On-demand · benchmarking-insights.v1',
+    subtitle: 'On-demand · benchmarking-insights.v2',
     details: {
       description:
         '4 modes: suggest-peers, curriculum-gap, distinctiveness, positioning-brief. All bilingual Thai/English.',
@@ -764,7 +876,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Expertise narrative',
-    subtitle: 'On-demand · expertise-narrative.v2',
+    subtitle: 'On-demand · expertise-narrative.v3',
     details: {
       description:
         "Auto-fires on first /profile load when no cached narrative exists. Pure expertise extraction from education + publication titles only — no biography, no counts, no venues, no program names.",
@@ -778,7 +890,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'PDF classifier',
-    subtitle: 'Per-upload · pdf-classify.v1',
+    subtitle: 'Per-upload · pdf-classify.v2',
     details: {
       description:
         'Single-shot classifier that assigns PdfDocument.inferredRole — routes the doc to one of 7 extractors (curriculum / policy / research / committee minutes / job postings batch / etc.).',
@@ -790,7 +902,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Policy doc analysis',
-    subtitle: 'Per-doc · policy-doc.v1',
+    subtitle: 'Per-doc · policy-doc.v2',
     details: {
       description:
         'Analyses MHESI / NESDC / NXPO / BOI policy PDFs and emits TrendSignal rows with bilingual summary + impact tags. Fired via ANALYZE_POLICY_DOC ai-jobs handler.',
@@ -1894,6 +2006,20 @@ const edges: TopologyEdge[] = [
   { from: 'ai.program-curriculum-revision', to: 'tab.program-analyses' },
   // Teaching & Learning drafts one AUN-QA criterion at a time, on demand.
   { from: 'ai.aunqa-narrative', to: 'dash.teaching-learning' },
+  // Phase 2b — the course list every downstream course-level analysis reads.
+  { from: 'ai.program-courses-extract', to: 'tab.program-course' },
+  // Trends: a signal is drafted from a document or a monitor, then enriched
+  // by the same analysis task either way.
+  { from: 'ai.external-feed-summary', to: 'ai.trend-signal-analysis' },
+  { from: 'ai.trend-document-ingest', to: 'ai.trend-signal-analysis' },
+  { from: 'ai.trend-signal-analysis', to: 'tab.trend-signal' },
+  // Queue-driven skill extraction, both directions of the gap analysis.
+  { from: 'ai.course-skill-extraction', to: 'tab.program-skill' },
+  { from: 'ai.job-posting-skills', to: 'tab.skill' },
+  { from: 'ai.skill-name-normaliser', to: 'tab.skill' },
+  // Operator-run imports.
+  { from: 'ai.graduate-employment-survey', to: 'tab.graduate-outcome' },
+  { from: 'ai.imd-rankings-extract', to: 'tab.imd-ranking' },
 
   // Phase 8 risk
   { from: 'ai.risk-assess', to: 'tab.risk-assessment' },
