@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { Radar, type RadarAxis } from '../../../charts';
+import { formatScore } from '../format';
 import type { ProgramDetailData } from '../schema';
 
 // §1 — Health score. `healthDimensions` is a plain array (default []), not
@@ -20,8 +21,27 @@ const LEDE_TH =
 
 const RADIUS_MM = 40;
 
+/** Names what the faculty mean is a mean OF. A mean over three programmes
+ *  and one over forty are different claims, and a reader given only the
+ *  number cannot tell them apart. */
+function facultyBasis(b: NonNullable<ProgramDetailData['healthBenchmark']>): string {
+  if (b.facultySampleSize === null) {
+    return 'No faculty mean — this programme has no faculty, or its faculty contributed no scored programmes.';
+  }
+  const name = b.facultyNameTh ? `${b.facultyNameTh} ` : 'Faculty ';
+  return `${name}mean over ${b.facultySampleSize} scored programme${b.facultySampleSize === 1 ? '' : 's'}.`;
+}
+
 export function renderHealthScoreSection(data: ProgramDetailData): React.ReactElement | null {
   if (data.healthDimensions.length === 0) return null;
+
+  // Only worth a table when at least one comparison actually resolved —
+  // otherwise it would be five rows of dashes restating the radar.
+  const benchmarked = data.healthDimensions.some(
+    (d) => d.facultyMean !== null || d.universityMean !== null,
+  )
+    ? data.healthDimensions
+    : [];
 
   const axes: RadarAxis[] = data.healthDimensions.map((d) => ({
     label: d.dimension,
@@ -52,6 +72,44 @@ export function renderHealthScoreSection(data: ProgramDetailData): React.ReactEl
           method: data.healthMethodologyVersion || data.methodologyVersion,
         }}
       />
+
+      {/* The radar plots ONE series — this programme. Without the two
+          comparison means a reader has no way to tell a 55 that leads its
+          faculty from a 55 that trails it, which is the question the
+          score is usually being read to answer. Rendered as a table
+          because Radar takes a single value per axis; a dash is a
+          comparison that could not be computed, never a mean of zero. */}
+      {benchmarked.length > 0 && (
+        <>
+          <table className="peer-list">
+            <thead>
+              <tr>
+                <th>Dimension</th>
+                <th>This programme</th>
+                <th>Faculty mean</th>
+                <th>University mean</th>
+              </tr>
+            </thead>
+            <tbody>
+              {benchmarked.map((d) => (
+                <tr key={d.dimension}>
+                  <td>{d.dimension}</td>
+                  <td>{formatScore(d.score)}</td>
+                  <td>{formatScore(d.facultyMean)}</td>
+                  <td>{formatScore(d.universityMean)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.healthBenchmark && (
+            <p className="muted">
+              {facultyBasis(data.healthBenchmark)} University mean over{' '}
+              {data.healthBenchmark.universitySampleSize} scored programme
+              {data.healthBenchmark.universitySampleSize === 1 ? '' : 's'}.
+            </p>
+          )}
+        </>
+      )}
     </section>
   );
 }

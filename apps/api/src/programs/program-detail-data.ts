@@ -9,6 +9,7 @@
 import { DQ_MODULES, DQ_PASS_MARK } from '@kku/shared';
 import {
   DQ_MIN_CELL_STUDENTS,
+  getProgramHealthBenchmarks,
   programAiPeers,
   programAiReadiness,
   programCourses,
@@ -207,6 +208,7 @@ export async function buildProgramDetailData(
     trends,
     decisions,
     digitalCompetency,
+    healthBenchmarks,
   ] = await Promise.all([
     programLifecycleVerdict(programId).catch(() => null),
     programStrategicNarrative(programId).catch(() => null),
@@ -226,6 +228,7 @@ export async function buildProgramDetailData(
     programTrends(programId).catch(() => null),
     programDecisions(programId).catch(() => null),
     programDigitalCompetency(programId).catch(() => null),
+    getProgramHealthBenchmarks(programId).catch(() => null),
   ]);
 
   const generatedAt = new Date();
@@ -357,6 +360,19 @@ export async function buildProgramDetailData(
         dimension: label,
         score: cell.score === null ? null : Math.round(cell.score),
         dataCompleteness: Math.round(cell.dataCompletenessPct),
+        // Keyed by the same `key` this loop already iterates, so the
+        // programme score and its two comparison means can never end up
+        // on different rows.
+        facultyMean:
+          healthBenchmarks?.faculty?.[key] === null ||
+          healthBenchmarks?.faculty?.[key] === undefined
+            ? null
+            : Math.round(healthBenchmarks.faculty[key] as number),
+        universityMean:
+          healthBenchmarks?.university?.[key] === null ||
+          healthBenchmarks?.university?.[key] === undefined
+            ? null
+            : Math.round(healthBenchmarks.university[key] as number),
         topDriverLabel: top ? fmtDriverLabel(top.label) : null,
         topDriverValue: top && top.value !== null ? Math.round(top.value) : null,
       });
@@ -1192,6 +1208,14 @@ export async function buildProgramDetailData(
     executiveSnapshot,
     healthDimensions,
     healthDrivers,
+    healthBenchmark: healthBenchmarks
+      ? {
+          facultyNameTh: healthBenchmarks.facultyNameTh,
+          facultySampleSize: healthBenchmarks.faculty?.sampleSize ?? null,
+          universitySampleSize: healthBenchmarks.university.sampleSize,
+          methodologyVersion: healthBenchmarks.methodologyVersion,
+        }
+      : null,
     healthMethodologyVersion: overview.health?.methodologyVersion ?? '',
     healthOverallScore,
     healthOverallCompletenessPct,

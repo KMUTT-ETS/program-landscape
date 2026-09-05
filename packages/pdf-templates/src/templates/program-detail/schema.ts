@@ -27,6 +27,13 @@ const HealthDimRowSchema = z.object({
   dimension: z.string(),
   score: z.number().finite().nullable(),
   dataCompleteness: z.number().finite().nullable(),
+  // Peer context for the same dimension. Null means the comparison could
+  // not be computed (no faculty, or no scored programmes contributed) —
+  // NOT a mean of zero. A bare programme score answers "how did we do?"
+  // but not "compared with what?", which is the question a reader of a
+  // single-programme report cannot otherwise answer.
+  facultyMean: z.number().finite().nullable().default(null),
+  universityMean: z.number().finite().nullable().default(null),
   // Was a single compound string ("TCAS fill rate (72)"). Split into a
   // display label and a dedicated numeric value — a chart-blocking
   // compound field, not a display-vs-numeric ambiguity.
@@ -710,6 +717,19 @@ export const ProgramDetailDataSchema = z.object({
   healthDimensions: z.array(HealthDimRowSchema).default([]),
   healthDrivers: z.array(HealthDriverRowSchema).default([]),
   healthMethodologyVersion: z.string().default(''),
+  // Sample sizes for the two comparison means above. Carried so the
+  // report can say what the programme is being compared WITH — a faculty
+  // mean over three programmes and one over forty are different claims,
+  // and a reader given only the number cannot tell them apart.
+  healthBenchmark: z
+    .object({
+      facultyNameTh: z.string().nullable().default(null),
+      facultySampleSize: z.number().finite().nullable().default(null),
+      universitySampleSize: z.number().finite().default(0),
+      methodologyVersion: z.string().default(''),
+    })
+    .nullable()
+    .default(null),
   // Dedicated numeric companions to the "Overall health score" /
   // "data completeness" figures that otherwise only exist pre-formatted
   // inside `executiveSnapshot`'s display-only KV row (which this file's

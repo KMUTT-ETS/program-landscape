@@ -109,4 +109,58 @@ describe('renderHealthScoreSection', () => {
     expect(html).toContain('Financial');
     expect(html.match(/class="radar-null-marker"/g) ?? []).toHaveLength(1);
   });
+
+  // Benchmarks: the radar plots one series, so without these a reader
+  // cannot tell a 55 that leads its faculty from a 55 that trails it.
+  it('renders the faculty and university comparison with its sample sizes', () => {
+    const data = ProgramDetailDataSchema.parse({
+      ...MINIMAL_BASE,
+      healthDimensions: [
+        { dimension: 'Attractiveness', score: 55, dataCompleteness: 100, topDriverLabel: null, topDriverValue: null, facultyMean: 61, universityMean: 58 },
+        { dimension: 'Financial', score: 40, dataCompleteness: 80, topDriverLabel: null, topDriverValue: null, facultyMean: null, universityMean: 52 },
+      ],
+      healthBenchmark: {
+        facultyNameTh: 'คณะทดสอบ',
+        facultySampleSize: 12,
+        universitySampleSize: 297,
+        methodologyVersion: 'health-score.v3.8',
+      },
+    });
+    const html = renderToStaticMarkup(renderHealthScoreSection(data)!);
+    expect(html).toContain('Faculty mean');
+    expect(html).toContain('University mean');
+    expect(html).toContain('61');
+    expect(html).toContain('297');
+    // Sample size is stated, not just the mean.
+    expect(html).toContain('12');
+  });
+
+  it('omits the comparison table entirely when no benchmark resolved', () => {
+    const data = ProgramDetailDataSchema.parse({
+      ...MINIMAL_BASE,
+      healthDimensions: [
+        { dimension: 'Attractiveness', score: 55, dataCompleteness: 100, topDriverLabel: null, topDriverValue: null },
+      ],
+    });
+    const html = renderToStaticMarkup(renderHealthScoreSection(data)!);
+    // Five rows of dashes would just restate the radar.
+    expect(html).not.toContain('Faculty mean');
+  });
+
+  it('says why there is no faculty mean rather than printing a bare dash', () => {
+    const data = ProgramDetailDataSchema.parse({
+      ...MINIMAL_BASE,
+      healthDimensions: [
+        { dimension: 'Attractiveness', score: 55, dataCompleteness: 100, topDriverLabel: null, topDriverValue: null, facultyMean: null, universityMean: 58 },
+      ],
+      healthBenchmark: {
+        facultyNameTh: null,
+        facultySampleSize: null,
+        universitySampleSize: 297,
+        methodologyVersion: 'health-score.v3.8',
+      },
+    });
+    const html = renderToStaticMarkup(renderHealthScoreSection(data)!);
+    expect(html).toContain('No faculty mean');
+  });
 });
