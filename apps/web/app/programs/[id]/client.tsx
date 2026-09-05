@@ -29,6 +29,7 @@ import {
   regenerateNarrativeAction,
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
+import { SectionRail, type RailItem } from '@/components/evidence';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
 // Shared with /education/student-dq so both DQ radars mean the same
 // thing by a floor of 60 — see the helper for why it is not 0.
@@ -182,14 +183,62 @@ function formatDate(value: string | Date | null | undefined): string {
 // recruitment, cohorts, demographic, outcomes, skills, faculty,
 // financials, peers, trends) remain in the DOM as deep-link anchors,
 // but the side-nav doesn't list them.
-const SECTIONS = [
-  { id: 'snapshot', label: 'Executive snapshot' },
-  { id: 'admissions', label: 'Admissions' },
-  { id: 'students', label: 'Students' },
-  { id: 'outcomes', label: 'Outcomes' },
-  { id: 'curriculum', label: 'Curriculum & Faculty' },
+// The rail is two-level: each section lists the named blocks inside it, so a
+// 15,000px page can be reached at the block a reader actually wants rather
+// than only at its section. The sub-anchor ids already existed on the page —
+// they were simply never surfaced.
+const SECTIONS: Array<{
+  id: string;
+  label: string;
+  subs?: Array<{ href: string; label: string }>;
+}> = [
+  {
+    id: 'snapshot',
+    label: 'Executive snapshot',
+    subs: [
+      { href: '#verdict', label: 'Lifecycle verdict' },
+      { href: '#narrative', label: 'Strategic narrative' },
+      { href: '#ai-readiness', label: 'AI readiness' },
+    ],
+  },
+  {
+    id: 'admissions',
+    label: 'Admissions',
+    subs: [
+      { href: '#recruitment', label: 'Recruitment funnel' },
+      { href: '#tcas', label: 'TCAS3 score detail' },
+    ],
+  },
+  {
+    id: 'students',
+    label: 'Students',
+    subs: [
+      { href: '#cohorts', label: 'Cohort distribution' },
+      { href: '#demand', label: 'Demand funnel' },
+      { href: '#demographic', label: 'Demographic outlook' },
+    ],
+  },
+  {
+    id: 'outcomes',
+    label: 'Outcomes',
+    subs: [{ href: '#digital-competency', label: 'Digital competency' }],
+  },
+  {
+    id: 'curriculum',
+    label: 'Curriculum & Faculty',
+    subs: [
+      { href: '#skills', label: 'Skills coverage' },
+      { href: '#faculty', label: 'Faculty capability' },
+      { href: '#research-expertise', label: 'Research expertise' },
+      { href: '#curriculum-revision', label: 'Curriculum revision' },
+    ],
+  },
   { id: 'financials', label: 'Financials' },
-  { id: 'benchmarking', label: 'Benchmarking' },
+  {
+    id: 'benchmarking',
+    label: 'Benchmarking',
+    subs: [{ href: '#peers', label: 'Peer comparison' }],
+  },
   // Benchmarking (peer comparison) re-added to the deep-dive — a focused,
   // standalone view also lives at /benchmarking/programs/[id]. Trends still
   // live on /trends only; that data fetch remains in place so AI Analyst
@@ -198,26 +247,53 @@ const SECTIONS = [
 
 export function DeepDiveClient(props: Props) {
   const router = useRouter();
-  const [activeSection, setActiveSection] = React.useState('header');
   const [narrative, setNarrative] = React.useState<string | null>(null);
   const [narrativeBusy, setNarrativeBusy] = React.useState(false);
   const [narrativeAiId, setNarrativeAiId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) setActiveSection(entry.target.id);
-        }
-      },
-      { rootMargin: '-30% 0px -60% 0px', threshold: 0 },
-    );
-    SECTIONS.forEach((s) => {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, []);
+  // The scroll-spy that used to live here now belongs to SectionRail —
+  // keeping a second observer on the same elements would mean two sources
+  // of truth for which section is current.
+
+  // Headline figure per section. Each is already computed and displayed
+  // somewhere inside its section — surfacing it in the rail is a summary,
+  // not a new claim. Undefined where the figure is unavailable, so the rail
+  // shows the label alone rather than a fabricated dash.
+  const railItems: RailItem[] = React.useMemo(() => {
+    const round = (n: number | null | undefined) =>
+      n === null || n === undefined ? undefined : String(Math.round(n));
+    // byYear is newest-first — the Admissions section itself takes the latest
+    // complete year with `.find()`, so use the same, not `.at(-1)` (which
+    // silently returned the OLDEST year and headlined 7.7× against the
+    // section's own 16.5×).
+    const latestYear = props.recruitment?.byYear.find((y) => y.isComplete);
+    const comp = latestYear?.competitionRatio;
+    // employmentRate is a FRACTION in this payload; the section renders it as
+    // `(rate * 100).toFixed(1)`. Formatting it directly headlined 0.8%.
+    const employment = props.outcomes?.latest?.employmentRate;
+    const meta: Record<string, string | undefined> = {
+      snapshot: round(props.overview.health?.overall.score),
+      admissions: comp === null || comp === undefined ? undefined : `${comp.toFixed(1)}×`,
+      students: round(props.studentCohorts?.totalActive),
+      outcomes:
+        employment === null || employment === undefined
+          ? undefined
+          : `${(employment * 100).toFixed(1)}%`,
+      curriculum: round(props.courses?.extractedCount),
+    };
+    return SECTIONS.map((s) => ({
+      href: `#${s.id}`,
+      label: s.label,
+      meta: meta[s.id],
+      subs: s.subs,
+    }));
+  }, [
+    props.overview.health,
+    props.outcomes,
+    props.courses,
+    props.studentCohorts,
+    props.recruitment,
+  ]);
 
   const onRegenerateNarrative = async () => {
     setNarrativeBusy(true);
@@ -239,25 +315,10 @@ export function DeepDiveClient(props: Props) {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
-      {/* Left rail */}
-      <aside className="sticky top-16 h-fit self-start">
-        <ul className="flex flex-col gap-1 text-sm">
-          {SECTIONS.map((s) => (
-            <li key={s.id}>
-              <a
-                href={`#${s.id}`}
-                className={
-                  'block rounded px-2 py-1 transition-colors ' +
-                  (activeSection === s.id
-                    ? 'bg-accent-subtle text-accent'
-                    : 'text-text-secondary hover:bg-surface-2')
-                }
-              >
-                {s.label}
-              </a>
-            </li>
-          ))}
-        </ul>
+      {/* Left rail — two-level, with each section's headline figure so the
+          rail doubles as a summary. SectionRail owns its own scroll-spy. */}
+      <aside className="h-fit self-start">
+        <SectionRail label="This programme" items={railItems} />
       </aside>
 
       <div className="flex flex-col gap-10">

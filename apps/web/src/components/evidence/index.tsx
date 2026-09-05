@@ -68,31 +68,54 @@ export function SectionBand({
   title,
   coverage,
   chip,
+  stat,
+  statLabel,
   children,
 }: {
   id: string;
-  /** Displayed large in the accent. Criterion numbers are not sequential
-   *  (6 and 7 are absent), so this is passed in rather than derived. */
-  no: React.ReactNode;
+  /**
+   * Displayed large in the accent, on the LEFT. Use only where the number is
+   * real — AUN-QA criterion ids are the framework's own labels, and the
+   * missing 6 and 7 carry meaning. Sections that are merely a sequence of
+   * topics should pass `stat` instead than invent a numbering.
+   */
+  no?: React.ReactNode;
   title: string;
   coverage?: string;
   chip?: React.ReactNode;
+  /** Headline figure shown on the RIGHT, for sections that are not numbered. */
+  stat?: React.ReactNode;
+  statLabel?: string;
   children: React.ReactNode;
 }) {
   // mt in rem for the same reason as SubSection's padding below — `mt-10` on
-  // this scale is 20px, too little air between two criterion bands.
+  // this scale is 20px, too little air between two bands.
   return (
     <section id={id} className="mt-[2.25rem] scroll-mt-6 first:mt-0">
-      <header className="flex items-center gap-4 border-b-2 border-text-primary pb-3">
-        <span className="font-tabular text-2xl font-bold leading-none tracking-tight text-accent-default">
-          {no}
-        </span>
+      <header className="flex items-end gap-4 border-b-2 border-text-primary pb-3">
+        {no !== undefined && (
+          <span className="font-tabular self-center text-2xl font-bold leading-none tracking-tight text-accent-default">
+            {no}
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <h2 className="text-balance text-base font-semibold tracking-tight text-text-primary">
             {title}
           </h2>
           {coverage && <p className="mt-0.5 text-xs text-text-secondary">{coverage}</p>}
         </div>
+        {stat !== undefined && (
+          <span className="flex shrink-0 items-baseline gap-1.5">
+            <b className="font-tabular text-xl font-bold tracking-tight text-text-primary">
+              {stat}
+            </b>
+            {statLabel && (
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+                {statLabel}
+              </span>
+            )}
+          </span>
+        )}
         {chip}
       </header>
       {children}
@@ -102,20 +125,30 @@ export function SectionBand({
 
 /** Level 2 — a sub-section hanging off the spine. */
 export function SubSection({
+  id,
   no,
   title,
   chip,
   note,
   children,
   last = false,
+  emphasis = false,
 }: {
-  no: string;
-  title: string;
+  id?: string;
+  /**
+   * The marker on the spine. A string draws it as a numbered chip (AUN-QA
+   * sub-criteria, where "1.2" is a real label); omitting it draws a dot,
+   * for blocks that are named but not numbered.
+   */
+  no?: string;
+  title: React.ReactNode;
   chip?: React.ReactNode;
   note?: React.ReactNode;
   children?: React.ReactNode;
   /** The spine should stop at the last item rather than run into space. */
   last?: boolean;
+  /** Accent the dot — marks the block that matters most in its section. */
+  emphasis?: boolean;
 }) {
   // Structural spacing in explicit rem, NOT scale utilities: this project
   // replaces Tailwind's spacing scale with one at half the usual values
@@ -123,21 +156,32 @@ export function SubSection({
   // too tight for the marker to sit clear of the text.
   return (
     <div
+      id={id}
       className={[
-        'relative py-[1.15rem] pl-[2.25rem]',
+        'relative scroll-mt-6 py-[1.15rem] pl-[2.25rem]',
         last ? 'border-l border-transparent' : 'border-l border-border-default',
       ].join(' ')}
     >
       {/* The marker sits ON the spine: -50% pulls it onto the line, and the
           page-ground background makes the line appear to pass behind it. */}
-      <span
-        className={[
-          'absolute left-0 top-[1.15rem] -translate-x-1/2 rounded border border-border-strong',
-          'bg-surface-0 px-1 py-px font-tabular text-[10px] font-bold text-text-secondary',
-        ].join(' ')}
-      >
-        {no}
-      </span>
+      {no !== undefined ? (
+        <span
+          className={[
+            'absolute left-0 top-[1.15rem] -translate-x-1/2 rounded border border-border-strong',
+            'bg-surface-0 px-1 py-px font-tabular text-[10px] font-bold text-text-secondary',
+          ].join(' ')}
+        >
+          {no}
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={[
+            'absolute left-0 top-[1.4rem] size-2 -translate-x-1/2 rounded-full border-2 bg-surface-0',
+            emphasis ? 'border-accent-default' : 'border-border-strong',
+          ].join(' ')}
+        />
+      )}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-sm font-semibold tracking-tight text-text-primary">{title}</span>
         {chip}
@@ -301,12 +345,18 @@ export function ScaleBar({ value, max = 5 }: { value: number; max?: number }) {
 export interface RailItem {
   /** Element id to scroll to. */
   href: string;
-  /** Short marker, e.g. "C1". */
-  marker: string;
+  /**
+   * Short marker, e.g. "C1". Omitted on pages whose sections are not
+   * numbered — the deep-dive's sections are a tour of a programme, not a
+   * numbered framework, so numbering them would invent a sequence.
+   */
+  marker?: string;
   label: string;
-  /** e.g. "4/4", or "none" for a section that holds nothing. */
+  /** e.g. "4/4", "none" for a section that holds nothing, or a headline figure. */
   meta?: string;
   absent?: boolean;
+  /** Second level: the named blocks inside this section. */
+  subs?: Array<{ href: string; label: string }>;
 }
 
 /**
@@ -346,41 +396,63 @@ export function SectionRail({ label, items }: { label: string; items: RailItem[]
         {items.map((it) => {
           const current = active === it.href;
           return (
-            <a
-              key={it.href + it.marker}
-              href={it.href}
-              aria-current={current ? 'true' : undefined}
-              className={[
-                'grid grid-cols-[2.2rem_1fr_auto] items-center gap-2 rounded-md border-l-2 px-2 py-1.5 text-xs',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default',
-                current
-                  ? 'border-l-accent-default bg-surface-1 font-semibold text-text-primary'
-                  : 'border-l-transparent text-text-secondary hover:bg-surface-2 hover:text-text-primary',
-                it.absent && !current ? 'text-text-tertiary' : '',
-              ].join(' ')}
-            >
-              <span
+            <React.Fragment key={it.href + (it.marker ?? it.label)}>
+              <a
+                href={it.href}
+                aria-current={current ? 'true' : undefined}
                 className={[
-                  'rounded border px-1 py-px text-center font-tabular text-[10px] font-bold',
+                  'grid items-center gap-2 rounded-md border-l-2 px-2 py-1.5 text-xs',
+                  it.marker ? 'grid-cols-[2.2rem_1fr_auto]' : 'grid-cols-[1fr_auto]',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default',
                   current
-                    ? 'border-accent-default text-accent-default'
-                    : 'border-border-strong text-text-tertiary',
+                    ? 'border-l-accent-default bg-surface-1 font-semibold text-text-primary'
+                    : 'border-l-transparent text-text-secondary hover:bg-surface-2 hover:text-text-primary',
+                  it.absent && !current ? 'text-text-tertiary' : '',
                 ].join(' ')}
               >
-                {it.marker}
-              </span>
-              <span className="truncate">{it.label}</span>
-              {it.meta && (
-                <span
-                  className={[
-                    'font-tabular text-[10px] text-text-tertiary',
-                    it.absent ? 'italic' : '',
-                  ].join(' ')}
-                >
-                  {it.meta}
-                </span>
+                {it.marker && (
+                  <span
+                    className={[
+                      'rounded border px-1 py-px text-center font-tabular text-[10px] font-bold',
+                      current
+                        ? 'border-accent-default text-accent-default'
+                        : 'border-border-strong text-text-tertiary',
+                    ].join(' ')}
+                  >
+                    {it.marker}
+                  </span>
+                )}
+                <span className="truncate">{it.label}</span>
+                {it.meta && (
+                  <span
+                    className={[
+                      'font-tabular shrink-0 text-[10px]',
+                      current ? 'text-accent-default' : 'text-text-tertiary',
+                      it.absent ? 'italic' : '',
+                    ].join(' ')}
+                  >
+                    {it.meta}
+                  </span>
+                )}
+              </a>
+              {it.subs && it.subs.length > 0 && (
+                <div className="mb-1 ml-3 flex flex-col gap-px border-l border-border-subtle pl-2">
+                  {it.subs.map((s) => (
+                    <a
+                      key={s.href}
+                      href={s.href}
+                      className={[
+                        'truncate rounded px-1.5 py-0.5 text-[11px] text-text-tertiary',
+                        'hover:bg-surface-2 hover:text-text-secondary',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-default',
+                      ].join(' ')}
+                    >
+                      {s.label}
+                    </a>
+                  ))}
+                </div>
               )}
-            </a>
+            </React.Fragment>
           );
         })}
       </div>
