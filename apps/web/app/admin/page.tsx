@@ -70,7 +70,7 @@ interface DataSetupStats {
   curriculumDocs: { total: number };
   externalDocs: { total: number };
   facultyStaff: { total: number; active: number };
-  dataFeeds: { total: number; live: number; mocked: number };
+  dataFeeds: { total: number; live: number; mocked: number; deprecated: number };
   researchOutputs: { total: number };
 }
 
@@ -362,7 +362,12 @@ function buildHeroStats(
     stats.push({
       label: 'Live data feeds',
       value: `${data.dataFeeds.live} / ${data.dataFeeds.total}`,
-      hint: `${data.dataFeeds.mocked} still mocked`,
+      // live + mocked + deprecated reconciles to total; without naming the
+      // superseded ones the figures look like they do not add up.
+      hint:
+        data.dataFeeds.deprecated > 0
+          ? `${data.dataFeeds.mocked} still mocked · ${data.dataFeeds.deprecated} superseded`
+          : `${data.dataFeeds.mocked} still mocked`,
       icon: <Database className="size-icon-sm" />,
     });
   }

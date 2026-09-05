@@ -746,6 +746,12 @@ async function main() {
   const { SOURCE_CATALOG } = await import('@kku/shared');
   for (const entry of SOURCE_CATALOG) {
     const scheduleEnabled = entry.deprecated ? false : (entry.scheduleEnabled ?? true);
+    // `status` is the human-readable label the admin surfaces render. It has
+    // to account for `deprecated` as well as `mocked`: deriving it from
+    // `mocked` alone re-labelled every superseded source as "active" on each
+    // seed, which is how openalex + scopus kept advertising themselves as
+    // live feeds for the four months after kku-research replaced them.
+    const sourceStatus = entry.mocked ? 'mocked' : entry.deprecated ? 'deprecated' : 'active';
     await prisma.dataSource.upsert({
       where: { slug: entry.slug },
       update: {
@@ -758,7 +764,7 @@ async function main() {
         scheduleEnabled,
         ownerContact: entry.ownerContact ?? null,
         notes: entry.notes ?? null,
-        status: entry.mocked ? 'mocked' : 'active',
+        status: sourceStatus,
         // Keep `mocked` atomic with `status` — flipping a connector real in
         // the catalog must update BOTH columns (drift-audit invariant), else
         // the connector runs real while data_sources still reads mocked=true.
@@ -775,7 +781,7 @@ async function main() {
         scheduleEnabled,
         ownerContact: entry.ownerContact ?? null,
         notes: entry.notes ?? null,
-        status: entry.mocked ? 'mocked' : 'active',
+        status: sourceStatus,
         // Keep `mocked` atomic with `status` — flipping a connector real in
         // the catalog must update BOTH columns (drift-audit invariant), else
         // the connector runs real while data_sources still reads mocked=true.

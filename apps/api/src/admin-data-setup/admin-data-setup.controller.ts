@@ -31,6 +31,7 @@ export class AdminDataSetupController {
       dataSourcesTotal,
       dataSourcesActive,
       dataSourcesMocked,
+      dataSourcesDeprecated,
       kmitlCareers,
       kmitlSkillDemandRows,
       kmitlSkillGrowthRows,
@@ -60,6 +61,10 @@ export class AdminDataSetupController {
       prisma.dataSource.count(),
       prisma.dataSource.count({ where: { status: 'active' } }),
       prisma.dataSource.count({ where: { status: 'mocked' } }),
+      // Superseded sources are neither live nor mocked. Counted separately so
+      // live + mocked + deprecated still reconciles to the total — otherwise
+      // retiring a source looks like it vanished from the console.
+      prisma.dataSource.count({ where: { status: 'deprecated' } }),
       // Demand-side labour-market skills (KMITL skill-mapping connector)
       prisma.kmitlCareer.count(),
       prisma.kmitlCareerSkillDemand.count(),
@@ -126,6 +131,7 @@ export class AdminDataSetupController {
         total: dataSourcesTotal,
         live: dataSourcesActive,
         mocked: dataSourcesMocked,
+        deprecated: dataSourcesDeprecated,
       },
       laborMarketSkills: {
         // Demand-side skills aggregates from LinkedIn (subscribed by
