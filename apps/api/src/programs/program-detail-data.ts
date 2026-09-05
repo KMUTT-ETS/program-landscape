@@ -9,12 +9,14 @@
 import { DQ_MODULES, DQ_PASS_MARK } from '@kku/shared';
 import {
   DQ_MIN_CELL_STUDENTS,
+  curriculumRevisionReadiness,
   getProgramHealthBenchmarks,
   programAiPeers,
   programAiReadiness,
   programCourses,
   programDecisions,
   programDemandFunnel,
+  programCurriculumRevision,
   programDemographicOutlook,
   programDigitalCompetency,
   programFaculty,
@@ -209,6 +211,8 @@ export async function buildProgramDetailData(
     decisions,
     digitalCompetency,
     healthBenchmarks,
+    curriculumRevisionResult,
+    curriculumRevisionReadinessResult,
   ] = await Promise.all([
     programLifecycleVerdict(programId).catch(() => null),
     programStrategicNarrative(programId).catch(() => null),
@@ -229,6 +233,8 @@ export async function buildProgramDetailData(
     programDecisions(programId).catch(() => null),
     programDigitalCompetency(programId).catch(() => null),
     getProgramHealthBenchmarks(programId).catch(() => null),
+    programCurriculumRevision(programId).catch(() => null),
+    curriculumRevisionReadiness(programId).catch(() => null),
   ]);
 
   const generatedAt = new Date();
@@ -1203,6 +1209,81 @@ export async function buildProgramDetailData(
       }
     : null;
 
+  // ── Curriculum revision ───────────────────────────────────────────
+  // Evidence paper titles are carried through in full, not counted: the
+  // whole point of this analysis is that each recommendation names the
+  // papers behind it, and a recommendation with no paper is an opinion.
+  // `couldBeTaughtBy` is flattened to display strings here so the
+  // template renders cells rather than composing names and ranks.
+  const curriculumRevisionData: ProgramDetailData['curriculumRevision'] =
+    curriculumRevisionResult
+      ? {
+          readiness: curriculumRevisionReadinessResult?.readiness ?? 'ok',
+          distinctPaperCount: curriculumRevisionReadinessResult?.distinctPaperCount ?? 0,
+          confidence: curriculumRevisionResult.payload.confidence,
+          methodVersion: curriculumRevisionResult.methodVersion,
+          generatedAt: fmtDate(curriculumRevisionResult.generatedAt),
+          courseCount: curriculumRevisionResult.courseCount,
+          coursesWithCategory: curriculumRevisionResult.coursesWithCategory,
+          coverage: {
+            themesTotal: curriculumRevisionResult.payload.coverageSummary.themesTotal,
+            themesReflected:
+              curriculumRevisionResult.payload.coverageSummary.themesReflectedInCurriculum,
+            themesAbsent: curriculumRevisionResult.payload.coverageSummary.themesAbsent,
+            narrative: curriculumRevisionResult.payload.coverageSummary.narrative,
+          },
+          enhanceCourses: curriculumRevisionResult.payload.enhanceCourses.map((c) => ({
+            courseCode: c.courseCode,
+            courseNameTh: c.courseNameTh,
+            currentlyCoversQuote: c.currentlyCoversQuote,
+            themeRefs: c.themeRefs,
+            addition: c.addition,
+            additionDetail: c.additionDetail,
+            effort: c.effort,
+            evidencePaperTitles: c.evidencePaperTitles,
+          })),
+          newCourseProposals: curriculumRevisionResult.payload.newCourseProposals.map((p) => ({
+            titleTh: p.titleTh,
+            titleEn: p.titleEn,
+            credits: p.credits,
+            placementYear: p.placementYear,
+            placementSemester: p.placementSemester,
+            themeRefs: p.themeRefs,
+            rationale: p.rationale,
+            couldBeTaughtBy: p.couldBeTaughtBy.map((t) =>
+              t.rank ? `${t.name} (${t.rank})` : t.name,
+            ),
+            evidencePaperTitles: p.evidencePaperTitles,
+          })),
+          promotionCandidates: curriculumRevisionResult.payload.promotionCandidates.map((c) => ({
+            courseCode: c.courseCode,
+            courseNameTh: c.courseNameTh,
+            currentCategory: c.currentCategory,
+            proposedCategory: c.proposedCategory,
+            rationale: c.rationale,
+          })),
+          caveats: curriculumRevisionResult.payload.caveats,
+        }
+      : curriculumRevisionReadinessResult
+        ? {
+            // No analysis yet. The readiness row still tells the reader
+            // why — 'thin' names a publication base too small to analyse,
+            // which is not the same as "nothing to change here".
+            readiness: curriculumRevisionReadinessResult.readiness,
+            distinctPaperCount: curriculumRevisionReadinessResult.distinctPaperCount,
+            confidence: null,
+            methodVersion: '',
+            generatedAt: '',
+            courseCount: curriculumRevisionReadinessResult.courseCount,
+            coursesWithCategory: 0,
+            coverage: { themesTotal: 0, themesReflected: 0, themesAbsent: [], narrative: '' },
+            enhanceCourses: [],
+            newCourseProposals: [],
+            promotionCandidates: [],
+            caveats: [],
+          }
+        : null;
+
   return {
     ...cover,
     executiveSnapshot,
@@ -1235,6 +1316,7 @@ export async function buildProgramDetailData(
     financials: financialsData,
     peers: peersData,
     researchExpertise: researchExpertiseData,
+    curriculumRevision: curriculumRevisionData,
     trends: trendsData,
     decisions: decisionsData,
   };

@@ -4,6 +4,7 @@ import type { ProgramDetailData } from '../schema';
 import { renderAiReadinessSection } from './ai-readiness';
 import { renderCohortDistributionSection } from './cohort-distribution';
 import { renderCoursesSection } from './courses';
+import { renderCurriculumRevisionSection } from './curriculum-revision';
 import { renderDecisionsSection } from './decisions';
 import { renderDemandFunnelSection } from './demand-funnel';
 import { renderDemographicOutlookSection } from './demographic-outlook';
@@ -70,6 +71,10 @@ export const SECTIONS: NumberedSection[] = [
   // this section is retrospective — grounded in the roster's last 10
   // years of actual publications).
   { id: 'research-expertise', chartLed: false, render: renderResearchExpertiseSection },
+  // Straight after research expertise, as on the deep-dive page: this
+  // advice is derived from what that same roster publishes, so it reads
+  // as a conclusion drawn from the section above rather than a new topic.
+  { id: 'curriculum-revision', chartLed: false, render: renderCurriculumRevisionSection },
   { id: 'trends', chartLed: false, render: renderTrendsSection },
   { id: 'decisions', chartLed: false, render: renderDecisionsSection },
 ];

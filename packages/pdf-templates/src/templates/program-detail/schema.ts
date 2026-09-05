@@ -696,6 +696,84 @@ const DigitalCompetencySchema = z.object({
   methodologyVersion: z.string().default(''),
 });
 
+// Curriculum revision (program-curriculum-revision.v1) — course-level
+// advice derived from what the programme's own roster actually publishes.
+//
+// `evidencePaperTitles` is carried, not summarised to a count. Every
+// recommendation here is grounded in specific papers by name, and an
+// enhancement with no paper behind it is an opinion rather than a
+// finding — a reader challenging a recommendation in a committee needs
+// the titles, not "based on 3 papers".
+//
+// `caveats` is non-empty by construction upstream (the provenance caveat
+// is always true of this analysis), so the section renders it
+// unconditionally rather than treating it as optional decoration.
+const CurriculumRevisionSchema = z.object({
+  /** Four distinct reasons, none interchangeable: 'thin' is a publication
+   *  base too small to analyse, 'no-research' is a roster with no papers
+   *  at all, 'no-courses' is a curriculum we hold no extracted course
+   *  list for. Each is a different thing for a reader to act on, and none
+   *  of them means "we looked and found nothing to change". */
+  readiness: z.enum(['ok', 'thin', 'no-research', 'no-courses']).default('ok'),
+  distinctPaperCount: z.number().finite().default(0),
+  /** Null when the analysis has not been generated for this programme. */
+  confidence: z.number().finite().nullable().default(null),
+  methodVersion: z.string().default(''),
+  generatedAt: z.string().default(''),
+  courseCount: z.number().finite().default(0),
+  /** Distinguishes "no course qualifies for promotion" from "we hold no
+   *  category data" — the promotion lane is empty either way, but only
+   *  the second is a gap a reader can act on. */
+  coursesWithCategory: z.number().finite().default(0),
+  coverage: z.object({
+    themesTotal: z.number().finite().default(0),
+    themesReflected: z.number().finite().default(0),
+    themesAbsent: z.array(z.string()).default([]),
+    narrative: z.string().default(''),
+  }),
+  enhanceCourses: z
+    .array(
+      z.object({
+        courseCode: z.string(),
+        courseNameTh: z.string().default(''),
+        currentlyCoversQuote: z.string().default(''),
+        themeRefs: z.array(z.string()).default([]),
+        addition: z.string(),
+        additionDetail: z.string().default(''),
+        effort: z.string().default(''),
+        evidencePaperTitles: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
+  newCourseProposals: z
+    .array(
+      z.object({
+        titleTh: z.string(),
+        titleEn: z.string().default(''),
+        credits: z.number().finite().nullable().default(null),
+        placementYear: z.number().finite().nullable().default(null),
+        placementSemester: z.number().finite().nullable().default(null),
+        themeRefs: z.array(z.string()).default([]),
+        rationale: z.string().default(''),
+        couldBeTaughtBy: z.array(z.string()).default([]),
+        evidencePaperTitles: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
+  promotionCandidates: z
+    .array(
+      z.object({
+        courseCode: z.string(),
+        courseNameTh: z.string().default(''),
+        currentCategory: z.string().default(''),
+        proposedCategory: z.string().default(''),
+        rationale: z.string().default(''),
+      }),
+    )
+    .default([]),
+  caveats: z.array(z.string()).default([]),
+});
+
 export const ProgramDetailDataSchema = z.object({
   // Cover
   programCode: z.string(),
@@ -813,6 +891,10 @@ export const ProgramDetailDataSchema = z.object({
   // empty note rather than omitting itself, so a Council reader can tell
   // "not yet analysed" apart from a PDF that silently dropped the section.
   researchExpertise: ResearchExpertiseSchema.nullable().default(null),
+  // Directly after research expertise, as on the deep-dive page: the
+  // advice is derived from what that roster publishes, so it reads as a
+  // conclusion drawn from the section above it.
+  curriculumRevision: CurriculumRevisionSchema.nullable().default(null),
   trends: z.array(TrendsRowSchema).default([]),
   decisions: z.array(DecisionsRowSchema).default([]),
 });
