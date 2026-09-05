@@ -2,9 +2,11 @@
 // KkuResearchRealConnector — kku-publications mirror edition.
 //
 // Source: internal Postgres mirror at 10.130.2.151 (`kkuscholar` DB),
-// curated by KKU Library / Research Office. Replaces the OpenAlex+Scopus
-// API pathway (preserved alongside as connector.openalex.ts for one
-// rollback cycle).
+// curated by KKU Library / Research Office. Replaced the OpenAlex+Scopus
+// API pathway on 2026-05-07; that implementation was kept alongside as
+// connector.openalex.ts for a rollback cycle and deleted on 2026-09-05,
+// four months of green runs later. Recover it from git history if ever
+// needed — the last version is at the commit that removed it.
 //
 // What this connector reads, per run:
 //   - Scopus: documents + author-paper join, filtered to KKU-resolved
@@ -462,7 +464,7 @@ export class KkuResearchRealConnector extends ApiConnector {
           'kku-research.v2: pivoted from OpenAlex+Scopus API to internal kku-publications mirror. ' +
           'Author resolution by KKU Library curator-grade person_id → in-memory FacultyMember match (nameEn lowercased exact > nameTh exact). ' +
           'ISI + TCI deferred (last update 2022-02 / 2019-01). ' +
-          'OpenAlex pathway preserved as connector.openalex.ts during 30-day green-history evaluation.',
+          'OpenAlex pathway retired 2026-09-05 after four months of green runs; recover from git history if needed.',
       },
     };
   }
