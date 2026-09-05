@@ -122,21 +122,38 @@ fails immediately without it; the server cannot unpack without it.
 
 ### Transfer to prod
 
-Not `/tmp`. On this VM `/tmp` is memory-backed, and unpacking ~6.7 GB there
-exhausted RAM and wedged the host — twice, on different releases, each time
-needing a forced restart. Unpack somewhere on real disk.
-
 ```bash
-scp dist/program-landscape-1.0.0.tar.zst kku-prod:~/
-scp dist/program-landscape-1.0.0.tar.zst.sha256 kku-prod:~/
+scp dist/program-landscape-1.0.0.tar.zst kku-prod:/tmp/
+scp dist/program-landscape-1.0.0.tar.zst.sha256 kku-prod:/tmp/
 ```
+
+> **Unpacking has twice wedged the host** (2026-09-05, on two different
+> releases — high load, unresponsive, each cleared only by a forced VM
+> restart, and not reproducible afterwards). The staged tree is ~6.7 GB, so
+> unpacking needs ~9 GB free wherever it lands, on top of whatever Docker
+> then consumes loading the images.
+>
+> The cause is **not confirmed**. Two candidates, both consistent with a
+> reboot clearing it: `/tmp` being `tmpfs` (memory-backed, so the unpack
+> competes with Postgres/MinIO for the VM's 16 GB), or a stall on
+> network-backed storage (which shows as high *load average* with low CPU).
+> One command settles it — worth running once:
+>
+> ```bash
+> findmnt /tmp && free -h && df -h /tmp /
+> ```
+>
+> If `/tmp` reports `tmpfs`, unpack somewhere on real disk (`~`) instead.
+> Since the switch to zstd the unpack is ~11× cheaper (7 s vs 79 s to
+> decompress, and 400 MB less to write), which materially reduces the
+> pressure but does not remove it — the 6.7 GB still has to land somewhere.
 
 ### On prod server
 
 ```bash
 ssh kku-prod
-cd ~
-df -h .                                            # ~10 GB free: archive + unpacked tree
+cd /tmp
+df -h .                                            # ~9 GB free: archive + unpacked tree
 sha256sum -c program-landscape-1.0.0.tar.zst.sha256
 tar --zstd -xf program-landscape-1.0.0.tar.zst
 cd program-landscape-1.0.0

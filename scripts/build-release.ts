@@ -8,10 +8,12 @@
 // plus a SHA-256 checksum at
 //   dist/program-landscape-<version>.tar.zst.sha256
 //
-// zstd rather than gzip: unpacking the gzip bundle on the prod VM was
-// expensive enough to wedge the host (single-threaded gunzip, and a
-// memory-backed /tmp). Both machines need the `zstd` binary — checked
-// below before any image is built.
+// zstd rather than gzip: unpacking the gzip bundle twice wedged the prod
+// VM (2026-09-05). gunzip is single-threaded and took 79 s on ~7 GB where
+// zstd takes 7 s, so this removes most of the cost — though not the 6.7 GB
+// that still has to be written. Root cause of the freeze itself is not
+// confirmed; see DEPLOYMENT.md. Both machines need the `zstd` binary —
+// checked below before any image is built.
 //
 // The bundle contains everything the prod Ubuntu server needs:
 //   - images.tar          — docker save of the 4 app images
@@ -26,9 +28,9 @@
 //   - manifest.json       — build metadata + image list
 //
 // Prod server workflow:
-//   scp program-landscape-<version>.tar.zst kku-prod:~/
+//   scp program-landscape-<version>.tar.zst kku-prod:/tmp/
 //   ssh kku-prod
-//   tar --zstd -xf program-landscape-<version>.tar.zst   # on disk, NOT /tmp
+//   cd /tmp && tar --zstd -xf program-landscape-<version>.tar.zst
 //   cd program-landscape-<version> && ./scripts/deploy.sh
 //
 // The prod server never needs to pull from any Docker registry.
@@ -367,8 +369,9 @@ const stagingName = path.basename(releaseDir); // program-landscape-<ver>
 // zstd, not gzip. `docker save` writes layers UNCOMPRESSED, so the bundle
 // is ~6.7 GB of highly compressible tar — which is why gzip got it to
 // ~2.4 GB, and why reversing that on the prod server was so expensive:
-// gunzip is single-threaded and prod unpacked into a memory-backed /tmp,
-// which wedged the box twice.
+// gunzip is single-threaded — 79 s on this bundle where zstd takes 7 s —
+// and unpacking it twice wedged the prod box (cause unconfirmed; see
+// DEPLOYMENT.md).
 //
 // zstd decompresses several times faster than gzip at a small, fixed
 // memory window. Its decompression speed is essentially independent of
@@ -401,12 +404,14 @@ console.log(`  sha256   : ${sha}`);
 console.log(`  checksum : ${path.relative(REPO_ROOT, checksumPath)}`);
 console.log(`  version  : ${version}`);
 console.log(`\nTransfer with:`);
-console.log(`  scp ${path.relative(REPO_ROOT, bundlePath)} kku-prod:~/`);
+console.log(`  scp ${path.relative(REPO_ROOT, bundlePath)} kku-prod:/tmp/`);
 console.log(`\nOn kku-prod:`);
-// NOT /tmp: on this project's prod VM /tmp is memory-backed, and unpacking
-// ~6.7 GB there exhausted RAM and wedged the host. Unpack on real disk.
+// Unpacking has twice wedged the prod VM (2026-09-05). Cause unconfirmed —
+// tmpfs /tmp or a storage stall; see DEPLOYMENT.md. The staged tree is
+// ~6.7 GB, so the free-space check is the part that always applies.
 console.log(`  (needs zstd: command -v zstd || sudo apt-get install -y zstd)`);
-console.log(`  cd ~ && tar --zstd -xf /path/to/${bundleName} && cd ${stagingName} && ./scripts/deploy.sh`);
+console.log(`  df -h /tmp   # ~9 GB free — unpacking expands to ~6.7 GB`);
+console.log(`  cd /tmp && tar --zstd -xf ${bundleName} && cd ${stagingName} && ./scripts/deploy.sh`);
 
 // ── 6. Prune old builds — keep the last KEEP_BUILDS ────────────────
 // Runs only after a successful build, so the just-built version is the
