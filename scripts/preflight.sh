@@ -214,19 +214,44 @@ gate_restore_drill() {
     record "restore_drill" "WARN" "no $idx — run scripts/dr/restore-drill.sh once"
     return
   fi
-  # Last successful drill — TSV columns: ts, backup, size, total, result
-  local last_ok_ts
-  last_ok_ts="$(grep -E '\sOK\s*$' "$idx" | tail -1 | cut -f1)"
-  if [ -z "$last_ok_ts" ]; then
-    record "restore_drill" "FAIL" "no OK rows in drill index"
+  # TSV columns: ts, backup, size, total, result.
+  #   OK      — dump restored AND the app was smoke-tested against it
+  #   DB-ONLY — dump restored + asserted; restore-drill.sh phases 5-6 are
+  #             unimplemented, so the application half is unproven.
+  # DB-ONLY deliberately WARNs: it must never read as a full rehearsal, but
+  # it must not FAIL either, or an honest partial drill would block deploys
+  # harder than never having run one.
+  local ok_ts partial_ts ref_ts label
+  ok_ts="$(grep -E '\sOK$' "$idx" | tail -1 | cut -f1)"
+  partial_ts="$(grep -E '\sDB-ONLY$' "$idx" | tail -1 | cut -f1)"
+  if [ -n "$ok_ts" ]; then
+    ref_ts="$ok_ts"; label="OK"
+  elif [ -n "$partial_ts" ]; then
+    ref_ts="$partial_ts"; label="DB-ONLY"
+  else
+    record "restore_drill" "FAIL" "no successful rows in drill index"
     return
   fi
-  local last_epoch now_epoch age_d
-  last_epoch="$(date -d "${last_ok_ts//T/ }" +%s 2>/dev/null || echo 0)"
+
+  # restore-drill.sh stamps %Y-%m-%dT%H-%M-%S, so the TIME half is
+  # hyphen-separated. The old `${ts//T/ }` left "13-30-00", which `date -d`
+  # rejects; the || echo 0 fallback then aged every drill to ~21000 days and
+  # this gate FAILED unconditionally. Restore the colons before parsing.
+  local d_part t_part last_epoch now_epoch age_d
+  d_part="${ref_ts%%T*}"
+  t_part="${ref_ts#*T}"
+  t_part="${t_part//-/:}"
+  last_epoch="$(date -d "$d_part $t_part" +%s 2>/dev/null || echo 0)"
   now_epoch="$(date +%s)"
+  if [ "$last_epoch" = "0" ]; then
+    record "restore_drill" "WARN" "unparseable drill timestamp: $ref_ts"
+    return
+  fi
   age_d=$(( (now_epoch - last_epoch) / 86400 ))
   if [ "$age_d" -gt 30 ]; then
-    record "restore_drill" "FAIL" "last successful drill is $age_d d old (>30d)"
+    record "restore_drill" "FAIL" "last $label drill is $age_d d old (>30d)"
+  elif [ "$label" = "DB-ONLY" ]; then
+    record "restore_drill" "WARN" "db restore proven ${age_d} d ago; app-against-restore NOT exercised (restore-drill phases 5-6 unimplemented)"
   else
     record "restore_drill" "PASS" "last drill OK ${age_d} d ago"
   fi

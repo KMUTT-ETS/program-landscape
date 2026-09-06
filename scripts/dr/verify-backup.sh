@@ -28,7 +28,19 @@ VERIFY_PORT="${VERIFY_PORT:-55432}"
 VERIFY_DB="verify_db"
 VERIFY_USER="verify_user"
 VERIFY_PASS="verify_pass"
-PG_IMAGE="${PG_IMAGE:-postgres:16-alpine}"
+# The dump carries postgis + pgvector types, so the throwaway server MUST
+# have both. `postgres:16-alpine` has neither, and prod has no registry
+# access to pull it either — verification into it cannot work. Default to
+# the same postgis+pgvector image the prod stack runs, resolved from the
+# deployed release. Override PG_IMAGE to pin a different one.
+if [ -z "${PG_IMAGE:-}" ]; then
+  if [ -r "$DEPLOY_ROOT/current/VERSION" ]; then
+    PG_IMAGE="ghcr.io/khon-kaen-university/program-landscape-postgres:$(tr -d '[:space:]' < "$DEPLOY_ROOT/current/VERSION")"
+  else
+    echo "PG_IMAGE unset and $DEPLOY_ROOT/current/VERSION unreadable — set PG_IMAGE explicitly" >&2
+    exit 1
+  fi
+fi
 
 # Override via flag — useful for ad-hoc verification of a specific backup.
 BACKUP_FILE=""
@@ -92,34 +104,52 @@ log "Starting throwaway $PG_IMAGE on :$VERIFY_PORT"
 
 sudo docker run -d --rm \
   --name "$VERIFY_CONTAINER" \
+  --shm-size=1g \
   -e POSTGRES_USER="$VERIFY_USER" \
   -e POSTGRES_PASSWORD="$VERIFY_PASS" \
   -e POSTGRES_DB="$VERIFY_DB" \
   -p "$VERIFY_PORT:5432" \
   "$PG_IMAGE" >/dev/null
 
-# Wait for ready (max 60 s)
-for i in $(seq 1 60); do
-  if sudo docker exec "$VERIFY_CONTAINER" pg_isready -U "$VERIFY_USER" >/dev/null 2>&1; then
+# Readiness MUST be probed over TCP, not the Unix socket. The postgres
+# entrypoint runs its init scripts against a temporary server started with
+# listen_addresses='' — the socket answers, TCP does not. A socket probe
+# therefore returns "ready" while init is still running, and the entrypoint
+# then fast-stops that server underneath the restore:
+#   pg_restore: error: PQputCopyData: server closed the connection
+# Measured on the postgis image 2026-09-06: socket ready t=2s, TCP t=5s.
+# `-d` is passed so the probe does not try to open a db named after the
+# user (harmless, but it logs a FATAL on every poll).
+for i in $(seq 1 120); do
+  if sudo docker exec "$VERIFY_CONTAINER" \
+       pg_isready -h 127.0.0.1 -U "$VERIFY_USER" -d "$VERIFY_DB" >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-sudo docker exec "$VERIFY_CONTAINER" pg_isready -U "$VERIFY_USER" \
+sudo docker exec "$VERIFY_CONTAINER" \
+  pg_isready -h 127.0.0.1 -U "$VERIFY_USER" -d "$VERIFY_DB" \
   >/dev/null 2>&1 \
-  || fail_op "Throwaway postgres did not become ready in 60 s"
+  || fail_op "Throwaway postgres did not become ready in 120 s"
 
 # ── 3. Restore the dump ──────────────────────────────────────────────
 log "Restoring dump (this will take a few minutes for ~5 GB)"
 
 # Both the dump-format detection and pg_restore live inside the
 # verify container — keeps the host clean.
+# NO --clean/--if-exists. The target db is thrown away after every run, so
+# there is nothing of ours to clean; and on the postgis image the entrypoint
+# has already installed postgis + postgis_topology + postgis_tiger_geocoder,
+# so `DROP EXTENSION IF EXISTS postgis` fails on its dependents. pg_restore
+# ignores that error but then exits 1 — which made this check report FAILED
+# on a restore that was in fact complete and correct. Verified prod
+# 2026-09-06: with --clean, errors=1 exit=1; the data was intact either way.
 sudo zcat "$BACKUP_FILE" \
   | sudo docker exec -i \
       -e PGPASSWORD="$VERIFY_PASS" \
       "$VERIFY_CONTAINER" \
-      pg_restore --clean --if-exists --no-owner --no-acl \
+      pg_restore --no-owner --no-acl \
         -U "$VERIFY_USER" -d "$VERIFY_DB" \
   || fail_verify "pg_restore failed — dump corrupted or version mismatch"
 

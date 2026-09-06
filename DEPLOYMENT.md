@@ -90,10 +90,17 @@ sudo /tmp/first-bundle/scripts/generate-self-signed-cert.sh
 sudo openssl x509 -in /opt/program-landscape/certs/fullchain.pem -noout -fingerprint -sha256
 # Share the fingerprint with KKU network team for pinning.
 
-# 7. Systemd timer for nightly backups (see "Backups" below)
-sudo cp /tmp/first-bundle/infra/systemd/program-landscape-backup.* /etc/systemd/system/
+# 7. Systemd timers — backups + backup verification (see "Backups" below).
+#    deploy.sh does NOT install these; they are a one-time host setup step
+#    and are easy to forget. Verified missing on prod 2026-09-06, which meant
+#    the only backups that existed were deploy side-effects.
+sudo cp /tmp/first-bundle/infra/systemd/program-landscape-*.service /etc/systemd/system/
+sudo cp /tmp/first-bundle/infra/systemd/program-landscape-*.timer   /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now program-landscape-backup.timer
+sudo systemctl enable --now program-landscape-backup.timer          # nightly pg dump
+sudo systemctl enable --now program-landscape-backup-full.timer     # weekly + MinIO
+sudo systemctl enable --now program-landscape-verify-backup.timer   # nightly verify
+sudo systemctl list-timers 'program-landscape-*' --no-pager         # confirm all three
 ```
 
 Then coordinate with KKU network team (see [`docs/deployment/kku-network-integration.md`](./docs/deployment/kku-network-integration.md)) before the first deploy.
@@ -209,33 +216,33 @@ The script asks whether to restore the pre-deploy DB snapshot — say yes only w
 
 ## Backups
 
-**Automatic:** a systemd timer runs `./scripts/backup.sh` nightly at 02:00 Asia/Bangkok.
+**Automatic — three timers.** The unit files are shipped in the bundle at
+`infra/systemd/`; install them with the step-7 block above. They are the
+authoritative copies — do not hand-write units from a doc snippet, which is
+how the old inline sample here drifted out of step with the real ones.
 
-Unit files (placed under `/etc/systemd/system/`):
+| Timer | When | What |
+|---|---|---|
+| `program-landscape-backup.timer` | daily 02:00 | `backup.sh --no-minio` — pg dump only |
+| `program-landscape-backup-full.timer` | Sun 02:30 | `backup.sh` — pg dump + MinIO mirror |
+| `program-landscape-verify-backup.timer` | daily 03:00 | restores the newest dump into a throwaway container and asserts against it |
 
-```ini
-# program-landscape-backup.service
-[Unit]
-Description=Program Landscape nightly backup
+**Why the MinIO mirror is weekly, not nightly.** It is a full tar of an
+append-only blob store — 2.5 GB on 2026-09-06 and growing. Nightly copies
+reach ~75 GB under the 30-day retention rule, against ~8.6 GB for the pg
+dumps. Weekly keeps roughly four mirrors alive inside that same window, so
+the retention policy itself did not need changing. `deploy.sh`'s pre-deploy
+snapshot still takes a full backup including the mirror — the rollback path
+is deliberately unchanged.
 
-[Service]
-Type=oneshot
-User=root
-WorkingDirectory=/opt/program-landscape
-ExecStart=/opt/program-landscape/current/scripts/backup.sh
-```
+**Verify that the timers exist.** They are the single easiest thing to lose:
+`deploy.sh` never installs them, so a rebuilt host silently has no scheduled
+backups at all while `backups/` still fills with `pre-deploy-*` files from
+each deploy and looks healthy.
 
-```ini
-# program-landscape-backup.timer
-[Unit]
-Description=Nightly backup at 02:00 Asia/Bangkok
-
-[Timer]
-OnCalendar=*-*-* 02:00:00 Asia/Bangkok
-Persistent=true
-
-[Install]
-WantedBy=timers.target
+```bash
+systemctl list-timers 'program-landscape-*' --no-pager
+ls -1 /etc/systemd/system/ | grep program-landscape
 ```
 
 **Manual:**

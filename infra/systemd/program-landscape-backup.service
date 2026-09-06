@@ -1,5 +1,5 @@
 [Unit]
-Description=Program Landscape nightly backup (pg_dump + MinIO mirror)
+Description=Program Landscape nightly backup (pg_dump only)
 Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
 After=docker.service
 Requires=docker.service
@@ -8,6 +8,19 @@ Requires=docker.service
 Type=oneshot
 User=root
 WorkingDirectory=/opt/program-landscape
+# Skip the MinIO mirror: it is a full tar of an append-only blob store
+# (2.5 GB and growing). Nightly copies cost ~75 GB under the 30-day retention
+# rule; the pg dumps cost ~8.6 GB. The mirror runs weekly instead, via
+# program-landscape-backup-full.timer.
+#
+# Passed as an environment variable rather than the equivalent --no-minio
+# flag on purpose: ExecStart resolves through `current`, which may still be a
+# release whose backup.sh predates the flag. That older script ignores an
+# unknown env var (and takes a full backup), but would swallow --no-minio as
+# the LABEL and write a backup file literally named "--no-minio.sql.gz".
+# The env var is therefore safe to install BEFORE the flag ships, and starts
+# skipping the mirror by itself once it has.
+Environment=BACKUP_MINIO=0
 ExecStart=/opt/program-landscape/current/scripts/backup.sh
 # Don't tie the systemd unit's "success" to the job — the script
 # itself exits 0 on retention-prune warnings, which is desired.

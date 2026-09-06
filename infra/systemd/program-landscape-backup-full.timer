@@ -1,0 +1,14 @@
+[Unit]
+Description=Program Landscape — trigger the weekly full backup
+Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
+
+[Timer]
+# Sunday 02:30 Asia/Bangkok — 30 min after the nightly pg dump, so the two
+# never contend for the same pg_dump window.
+OnCalendar=Sun *-*-* 02:30:00 Asia/Bangkok
+RandomizedDelaySec=300
+Persistent=true
+Unit=program-landscape-backup-full.service
+
+[Install]
+WantedBy=timers.target

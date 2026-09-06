@@ -19,9 +19,14 @@
 #                     down on failure unless --keep-on-failure is set.)
 #
 # Exit codes:
-#   0 — full drill green
+#   0 — drill green for the phases that are implemented
 #   1 — operational failure (docker, missing artefacts)
-#   2 — smoke test failed against restored stack
+#   2 — restore or assertions failed
+#
+# SCOPE (2026-09-06): phases 1-4 (pick backup, isolated pg, pg_restore,
+# structural assertions) are implemented. Phases 5-6 (app stack against the
+# restored DB + smoke) are NOT. Runs record DB-ONLY in the drill index;
+# preflight gate 7 renders that as a WARN, never a PASS.
 
 set -euo pipefail
 
@@ -36,7 +41,19 @@ DRILL_PROJECT="${DRILL_PROJECT:-program-landscape-drill}"
 DRILL_HTTP_PORT="${DRILL_HTTP_PORT:-8543}"
 DRILL_API_PORT="${DRILL_API_PORT:-4543}"
 DRILL_PG_PORT="${DRILL_PG_PORT:-55433}"
-PG_IMAGE="${PG_IMAGE:-postgres:16-alpine}"
+# The dump carries postgis + pgvector types, so the throwaway server MUST
+# have both. `postgres:16-alpine` has neither, and prod has no registry
+# access to pull it either — verification into it cannot work. Default to
+# the same postgis+pgvector image the prod stack runs, resolved from the
+# deployed release. Override PG_IMAGE to pin a different one.
+if [ -z "${PG_IMAGE:-}" ]; then
+  if [ -r "$DEPLOY_ROOT/current/VERSION" ]; then
+    PG_IMAGE="ghcr.io/khon-kaen-university/program-landscape-postgres:$(tr -d '[:space:]' < "$DEPLOY_ROOT/current/VERSION")"
+  else
+    echo "PG_IMAGE unset and $DEPLOY_ROOT/current/VERSION unreadable — set PG_IMAGE explicitly" >&2
+    exit 1
+  fi
+fi
 LOG_DIR="${DRILL_LOG_DIR:-$DEPLOY_ROOT/dr-drills}"
 TS="$(date +%Y-%m-%dT%H-%M-%S)"
 LOG="$LOG_DIR/$TS.log"
@@ -102,27 +119,41 @@ sudo docker rm -f "${DRILL_PROJECT}-pg" >/dev/null 2>&1 || true
 
 sudo docker run -d \
   --name "${DRILL_PROJECT}-pg" \
+  --shm-size=1g \
   -e POSTGRES_USER=drill \
   -e POSTGRES_PASSWORD=drill \
   -e POSTGRES_DB=drill_db \
   -p "$DRILL_PG_PORT:5432" \
   "$PG_IMAGE" >/dev/null
 
-for i in $(seq 1 60); do
-  sudo docker exec "${DRILL_PROJECT}-pg" pg_isready -U drill >/dev/null 2>&1 && break
+# Readiness MUST be probed over TCP, not the Unix socket. The postgres
+# entrypoint runs its init scripts against a temporary server started with
+# listen_addresses='' — the socket answers, TCP does not. A socket probe
+# therefore returns "ready" while init is still running, and the entrypoint
+# then fast-stops that server underneath the restore:
+#   pg_restore: error: PQputCopyData: server closed the connection
+# Measured on the postgis image 2026-09-06: socket ready t=2s, TCP t=5s.
+# `-d` is passed so the probe does not try to open a db named after the
+# user (harmless, but it logs a FATAL on every poll).
+for i in $(seq 1 120); do
+  sudo docker exec "${DRILL_PROJECT}-pg" \
+    pg_isready -h 127.0.0.1 -U drill -d drill_db >/dev/null 2>&1 && break
   sleep 1
 done
-sudo docker exec "${DRILL_PROJECT}-pg" pg_isready -U drill >/dev/null 2>&1 \
+sudo docker exec "${DRILL_PROJECT}-pg" \
+  pg_isready -h 127.0.0.1 -U drill -d drill_db >/dev/null 2>&1 \
   || fail_op "Drill postgres did not start"
 mark provision_pg
 
 # ── 3. Restore dump ───────────────────────────────────────────────
 log "Phase 3 — restoring dump (this is the long pole)"
+# See the matching note in verify-backup.sh: --clean makes pg_restore exit 1
+# on the postgis image's pre-installed extensions, failing a good restore.
 sudo zcat "$BACKUP_FILE" \
   | sudo docker exec -i \
       -e PGPASSWORD=drill \
       "${DRILL_PROJECT}-pg" \
-      pg_restore --clean --if-exists --no-owner --no-acl \
+      pg_restore --no-owner --no-acl \
         -U drill -d drill_db \
   >>"$LOG" 2>&1 \
   || fail_drill "pg_restore failed — see $LOG"
@@ -130,12 +161,30 @@ mark pg_restore
 
 # ── 4. Quick assertions on restored DB (cheap pre-flight) ────────
 log "Phase 4 — pre-flight assertions"
-TABLE_COUNT="$(sudo docker exec -e PGPASSWORD=drill "${DRILL_PROJECT}-pg" \
-  psql -U drill -d drill_db -At -c \
-    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null)"
+# These four assertions mirror verify-backup.sh. While phases 5-6 are
+# unimplemented they are the ONLY thing standing between "pg_restore
+# exited 0" and "the backup is actually usable", so they are not optional.
+run_q() {
+  sudo docker exec -e PGPASSWORD=drill "${DRILL_PROJECT}-pg" \
+    psql -U drill -d drill_db -At -c "$1" 2>/dev/null
+}
+
+TABLE_COUNT="$(run_q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'")"
 [ "$TABLE_COUNT" -ge 60 ] 2>/dev/null \
   || fail_drill "Only $TABLE_COUNT tables in restored DB"
-log "Tables in restored DB: $TABLE_COUNT"
+
+PROGRAM_COUNT="$(run_q "SELECT COUNT(*) FROM programs WHERE code LIKE 'KKU-SEQ-%'")"
+[ "$PROGRAM_COUNT" -ge 200 ] 2>/dev/null \
+  || fail_drill "Only $PROGRAM_COUNT KKU-SEQ programs in restored DB (expected >= 200)"
+
+ORPHAN_COUNT="$(run_q "SELECT COUNT(*) FROM departments d WHERE NOT EXISTS (SELECT 1 FROM faculties f WHERE f.id = d.faculty_id)")"
+[ "$ORPHAN_COUNT" = "0" ] \
+  || fail_drill "$ORPHAN_COUNT departments missing parent faculty"
+
+AUDIT_LAG_H="$(run_q "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at)))::INT / 3600 FROM audit_logs")"
+[ -n "$AUDIT_LAG_H" ] || fail_drill "audit_logs empty in restored dump"
+
+log "Restored DB: ${TABLE_COUNT} tables, ${PROGRAM_COUNT} programs, ${ORPHAN_COUNT} orphans, audit lag ${AUDIT_LAG_H} h"
 mark assertions
 
 # ── 5. Bring up the drill stack pointed at the restored DB ────────
@@ -169,7 +218,16 @@ DRILL_DATABASE_URL="postgresql://drill:drill@host.docker.internal:$DRILL_PG_PORT
 # Skipped here for non-destructive demo; production runbook (in
 # 19-backup-dr.report.md §"Drill log") spells out the env-overlay file
 # the operator drops into the project to pin DATABASE_URL + ports.
-log "STUB: full compose-up wired in production runbook"
+# NOT IMPLEMENTED. Phases 5 and 6 — bring the app stack up against the
+# restored database, then smoke it — have never been written. This drill
+# therefore proves the DATABASE half only, and the index row below records
+# DB-ONLY rather than OK.
+#
+# Do NOT "simplify" that back to OK. preflight.sh gate 7 reads this column,
+# and an OK here reports a full disaster-recovery rehearsal that did not
+# happen — the exact false-pass this script shipped with until 2026-09-06.
+DRILL_SCOPE="DB-ONLY"
+log "Phases 5-6 NOT IMPLEMENTED — recording scope=$DRILL_SCOPE (database restore only)"
 mark compose_up
 
 # ── 6. Run the Playwright smoke against the drill stack ───────────
@@ -186,7 +244,7 @@ for k in pick_backup provision_pg pg_restore assertions compose_up; do
 done
 
 log "═══════════════════════════════════════════════════════════════"
-log "Drill complete. Phase timing:"
+log "Drill complete — scope=$DRILL_SCOPE. Phase timing:"
 for k in pick_backup provision_pg pg_restore assertions compose_up; do
   log "  $k: ${PHASE_SEC[$k]:-0} s"
 done
@@ -195,7 +253,7 @@ log "═════════════════════════
 
 # Append to drill log index for easy operator navigation.
 sudo tee -a "$LOG_DIR/index.tsv" >/dev/null <<EOF
-$TS	$BACKUP_FILE	${BACKUP_SIZE}	${TOTAL_SEC}s	OK
+$TS	$BACKUP_FILE	${BACKUP_SIZE}	${TOTAL_SEC}s	${DRILL_SCOPE}
 EOF
 
 teardown
