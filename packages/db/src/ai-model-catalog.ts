@@ -9,16 +9,30 @@ import { prisma } from './index';
 // AI model catalog — the set of models selectable on the admin AI-settings
 // page, plus the pricing used for cost auditing.
 //
-// Google Gemini rows (source='openrouter') are refreshed daily from the
-// OpenRouter model list — the 2 latest flash + 2 latest pro. OpenRouter is
-// a DISCOVERY source only; AI calls still route through the Google
-// provider. Anthropic rows (source='static') are seeded once and never
-// touched by the refresh.
+// Every id in the static @kku/shared AVAILABLE_AI_MODELS list — the models
+// the code actually defaults to (see AI_METHOD_CATALOG.defaultModel and
+// DEFAULT_COMPLETION_MODEL in providers/google-ai.ts) — is seeded AND
+// reasserted as source='static' on every call to
+// `ensureModelCatalogSeeded()`. This used to run only when the table was
+// empty and marked the curated Google rows as source='openrouter'
+// ("placeholders the first refresh replaces"); `refreshAiModelCatalog()`'s
+// `deleteMany({ source: 'openrouter' })` + insert-only-what-OpenRouter-
+// returned (2 latest flash + 2 latest pro) then permanently evicted any
+// curated model OpenRouter didn't happen to return that day — including
+// gemini-3.5-flash, the default for nearly every AI method. Reasserting as
+// an upsert (not seed-once) means an install that already has the bug's
+// damage (rows missing entirely, or stuck at source='openrouter') self-
+// heals the next time either function runs — no migration, no manual
+// intervention.
 //
-// `refreshAiModelCatalog()` is delete-and-replace on the openrouter rows
-// only, and a network/parse failure leaves the table intact (last
-// known good). A fresh install is covered by `ensureModelCatalogSeeded()`,
-// which seeds from the static @kku/shared catalog.
+// OpenRouter-discovered rows (source='openrouter') are the ADDITIONAL,
+// non-curated Gemini models refreshed daily from the OpenRouter model
+// list. OpenRouter is a DISCOVERY source only; AI calls still route
+// through the Google provider directly. `refreshAiModelCatalog()` deletes
+// and replaces only the openrouter-sourced rows; curated static rows are
+// never touched by the delete, and the insert tolerates an id collision
+// with a curated row (the curated row wins — see comment there). A
+// network/parse failure leaves the table intact (last known good).
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface ModelCatalogEntry {
@@ -45,28 +59,46 @@ export interface RefreshResult {
   models: { id: string; tier: string; label: string }[];
 }
 
-/** Seed the catalog from the static @kku/shared list when the table is
- *  empty. Idempotent — does nothing once any row exists. Google rows are
- *  marked source='openrouter' (placeholders the first refresh replaces);
- *  Anthropic rows are source='static' and persist. */
+/** Reassert every curated model from the static @kku/shared list as
+ *  source='static'. An upsert, not a seed-once-when-empty — this is what
+ *  makes it self-healing on an install where a row is missing entirely, or
+ *  still carries the pre-fix source='openrouter' placeholder value. Always
+ *  writes isSelectable=true explicitly (rather than relying on the schema
+ *  default) so a row a prior buggy pass ever flipped to non-selectable is
+ *  corrected too. Runs on every call — it's a handful of small upserts,
+ *  cheap next to the DB round-trip callers already pay. */
 export async function ensureModelCatalogSeeded(): Promise<void> {
-  const existing = await prisma.aiModelCatalog.count();
-  if (existing > 0) return;
-  await prisma.aiModelCatalog.createMany({
-    data: AVAILABLE_AI_MODELS.map((m) => ({
-      id: m.id,
-      provider: m.provider,
-      tier: m.tier,
-      label: m.label,
-      description: m.description,
-      costInputPer1m: m.costInputPer1m,
-      costOutputPer1m: m.costOutputPer1m,
-      legacy: m.legacy ?? false,
-      source: m.provider === 'google' ? 'openrouter' : 'static',
-      openrouterId: m.provider === 'google' ? `google/${m.id}` : null,
-    })),
-    skipDuplicates: true,
-  });
+  await prisma.$transaction(
+    AVAILABLE_AI_MODELS.map((m) =>
+      prisma.aiModelCatalog.upsert({
+        where: { id: m.id },
+        create: {
+          id: m.id,
+          provider: m.provider,
+          tier: m.tier,
+          label: m.label,
+          description: m.description,
+          costInputPer1m: m.costInputPer1m,
+          costOutputPer1m: m.costOutputPer1m,
+          legacy: m.legacy ?? false,
+          source: 'static',
+          openrouterId: null,
+          isSelectable: true,
+        },
+        update: {
+          provider: m.provider,
+          tier: m.tier,
+          label: m.label,
+          description: m.description,
+          costInputPer1m: m.costInputPer1m,
+          costOutputPer1m: m.costOutputPer1m,
+          legacy: m.legacy ?? false,
+          source: 'static',
+          isSelectable: true,
+        },
+      }),
+    ),
+  );
 }
 
 /** Refresh the Google Gemini rows from OpenRouter. Delete-and-replace of
@@ -114,16 +146,24 @@ export async function refreshAiModelCatalog(): Promise<RefreshResult> {
     };
   });
 
-  await prisma.$transaction([
+  // skipDuplicates guards a collision between a discovered id and a
+  // curated one (e.g. OpenRouter's newest flash happens to be
+  // 'gemini-3.5-flash', which ensureModelCatalogSeeded() already asserted
+  // above as source='static'). The delete above only removes
+  // source='openrouter' rows, so the curated row is never touched by it —
+  // skipDuplicates just stops the insert from throwing on the id it
+  // already owns. Curated wins: it keeps our own tier/pricing opinion
+  // rather than being overwritten by whatever OpenRouter reports that day.
+  const [, created] = await prisma.$transaction([
     prisma.aiModelCatalog.deleteMany({ where: { source: 'openrouter' } }),
-    prisma.aiModelCatalog.createMany({ data: rows }),
+    prisma.aiModelCatalog.createMany({ data: rows, skipDuplicates: true }),
   ]);
 
   getAiModelPricingStore().invalidate().catch(() => undefined);
 
   return {
     ok: true,
-    count: rows.length,
+    count: created.count,
     models: rows.map((r) => ({ id: r.id, tier: r.tier, label: r.label })),
   };
 }
