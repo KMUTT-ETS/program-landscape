@@ -318,7 +318,18 @@ export function wrapWithTransientFallback(
 //     no method identity, so a fallback there would have nothing to
 //     fall back TO.
 //   - exactly one retry. No loops, no third model. If the catalog
-//     default also fails, the original error is what the caller sees.
+//     default ALSO fails, the SECOND error is what the caller sees —
+//     "the fallback was refused too" is the more actionable fact, and
+//     hiding it behind the first error would make a broken catalog
+//     default look like a broken pin. (Contrast
+//     wrapWithTransientFallback's both-breakers-open case, which
+//     rethrows the original precisely because the secondary was never
+//     really attempted.)
+//   - a method whose catalog entry sets `lockedModel` is NOT
+//     substituted. A lock records a documented model-specific failure
+//     mode, so quietly running it on the default is the exact outcome
+//     the lock exists to prevent — and it would return a success, so
+//     the degradation would be invisible. Fail loudly instead.
 //
 // Applied OUTSIDE wrapWithTransientFallback so provider failover runs
 // first; only a genuinely model-shaped refusal reaches this layer.
@@ -335,7 +346,13 @@ export function wrapWithModelInvalidFallback(primary: AiService): AiService {
       if (!isModelInvalidError(err)) throw err;
       // methodVersion → catalog prefix: 'program-digest.v3' → 'program-digest'.
       const prefix = (methodVersion ?? '').replace(/\.v\d+(?:\.\d+)*$/, '');
-      const fallback = findAiMethodEntry(prefix)?.defaultModel;
+      const entry = findAiMethodEntry(prefix);
+      // A locked method has a documented model-specific failure mode;
+      // substituting the default is the thing the lock exists to
+      // prevent. pickModelForMethod ranks lockedModel above even the
+      // admin override — this layer must not undercut that.
+      if (entry?.lockedModel) throw err;
+      const fallback = entry?.defaultModel;
       if (!fallback) throw err;
       // eslint-disable-next-line no-console
       console.warn(
@@ -343,7 +360,8 @@ export function wrapWithModelInvalidFallback(primary: AiService): AiService {
           `retrying once on catalog default '${fallback}': ` +
           `${err instanceof Error ? err.message : String(err)}`,
       );
-      // A second failure rethrows — no further substitution.
+      // A second failure propagates as-is — no further substitution,
+      // and deliberately not masked by the first error.
       return await call(fallback);
     }
   };
