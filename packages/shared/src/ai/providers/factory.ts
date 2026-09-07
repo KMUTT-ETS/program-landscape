@@ -138,12 +138,44 @@ export function createAiService(config: AiFactoryConfig): AiService {
   }
 }
 
+/**
+ * Forward the OPTIONAL AiService members from `source` onto `target`, defining
+ * each only when the source actually has it.
+ *
+ * Every wrapper in this file returns a fresh object literal, and any wrapper
+ * that forgets these two silently strips tool-use and file-upload from the
+ * service. Both wrapWithTransientFallback and wrapWithEmbeddingFallback did,
+ * until 2026-09-07: with AI_PROVIDER=google and ANY truthy ANTHROPIC_API_KEY a
+ * secondary is built, the transient wrapper's literal is returned, and
+ * /analyst threw ToolUseNotSupportedError even though the provider supports
+ * tool use. `.env.prod.example` ships ANTHROPIC_API_KEY=REPLACE_ME, which is
+ * truthy — so deploying that template unedited armed it. On the anthropic
+ * branch it was worse: wrapWithEmbeddingFallback runs unconditionally, so the
+ * analyst could never work at all there.
+ *
+ * Defining the property only when present is what keeps
+ * `if (!ai.completeWithTools)` capability checks truthful. Assigning
+ * `undefined` instead would make `'completeWithTools' in svc` true and break
+ * those checks in a different, subtler direction.
+ *
+ * Forwarded from the PRIMARY only, never the secondary: the tool loop is
+ * stateful across iterations and must not swap providers mid-conversation,
+ * and uploadFile is provider-specific (Gemini File API).
+ */
+function forwardOptionalMembers(target: AiService, source: AiService): AiService {
+  const uploadFile = source.uploadFile?.bind(source);
+  if (uploadFile) target.uploadFile = uploadFile;
+  const completeWithTools = source.completeWithTools?.bind(source);
+  if (completeWithTools) target.completeWithTools = completeWithTools;
+  return target;
+}
+
 // Returns a wrapper that delegates everything to `primary` except
 // `embed`, which it delegates to `fallback` (if present). Lets us use
 // Claude as the primary reasoning model while still getting embeddings
 // from Google without callers juggling two AiService instances.
 function wrapWithEmbeddingFallback(primary: AiService, fallback: AiService | undefined): AiService {
-  return {
+  return forwardOptionalMembers({
     providerId: primary.providerId,
     complete: (r) => primary.complete(r),
     extractStructured: (r, s) => primary.extractStructured(r, s),
@@ -153,7 +185,7 @@ function wrapWithEmbeddingFallback(primary: AiService, fallback: AiService | und
       if (!fallback) return primary.embed(r);
       return fallback.embed(r);
     },
-  };
+  }, primary);
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -262,7 +294,7 @@ export function wrapWithTransientFallback(
     }
   };
 
-  return {
+  return forwardOptionalMembers({
     providerId: primary.providerId,
     complete: (r) =>
       withFallback(
@@ -292,7 +324,7 @@ export function wrapWithTransientFallback(
     // secondary is the designated embedding provider (typical setup: we
     // keep google for embeddings even with anthropic-primary).
     embed: (r) => primary.embed(r).catch(() => secondary.embed(r)),
-  };
+  }, primary);
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -385,12 +417,5 @@ export function wrapWithModelInvalidFallback(primary: AiService): AiService {
       ),
   };
 
-  // Optional members: forward only when the primary actually has them,
-  // so `if (!ai.completeWithTools)` capability checks stay truthful.
-  const uploadFile = primary.uploadFile?.bind(primary);
-  if (uploadFile) wrapped.uploadFile = uploadFile;
-  const completeWithTools = primary.completeWithTools?.bind(primary);
-  if (completeWithTools) wrapped.completeWithTools = completeWithTools;
-
-  return wrapped;
+  return forwardOptionalMembers(wrapped, primary);
 }
