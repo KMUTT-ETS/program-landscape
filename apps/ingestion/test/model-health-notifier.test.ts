@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   aiModelHealth: vi.fn(),
   userFindMany: vi.fn(),
-  notifFindFirst: vi.fn(),
+  notifFindMany: vi.fn(),
   notifCreate: vi.fn(),
   notifUpdateMany: vi.fn(),
 }));
@@ -13,7 +13,7 @@ vi.mock('@kku/db', () => ({
   prisma: {
     user: { findMany: mocks.userFindMany },
     notification: {
-      findFirst: mocks.notifFindFirst,
+      findMany: mocks.notifFindMany,
       create: mocks.notifCreate,
       updateMany: mocks.notifUpdateMany,
     },
@@ -25,7 +25,8 @@ import { runModelHealthNotifier } from '../src/ai-jobs/model-health-notifier';
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.userFindMany.mockResolvedValue([{ id: 'u1' }, { id: 'u2' }]);
-  mocks.notifFindFirst.mockResolvedValue(null);
+  // Default: no admin has an unread row for any entityId yet.
+  mocks.notifFindMany.mockResolvedValue([]);
 });
 
 describe('runModelHealthNotifier', () => {
@@ -44,12 +45,12 @@ describe('runModelHealthNotifier', () => {
     });
   });
 
-  it('does not duplicate while an unread notification for the same pin exists', async () => {
+  it('does not duplicate when every admin already holds an unread notification for the same pin', async () => {
     mocks.aiModelHealth.mockResolvedValue([
       { methodPrefix: 'program-digest', effectiveModel: 'bad-model',
         isPinned: true, status: 'off-catalog', detail: 'x' },
     ]);
-    mocks.notifFindFirst.mockResolvedValue({ id: 'n1' });
+    mocks.notifFindMany.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
     await runModelHealthNotifier();
     expect(mocks.notifCreate).not.toHaveBeenCalled();
   });
@@ -84,9 +85,39 @@ describe('runModelHealthNotifier', () => {
       { methodPrefix: 'program-digest', effectiveModel: 'worse-model',
         isPinned: true, status: 'off-catalog', detail: 'x' },
     ]);
-    mocks.notifFindFirst.mockResolvedValue(null);   // no unread row for THIS entityId
+    // No unread row for THIS entityId (the default from beforeEach).
     await runModelHealthNotifier();
     expect(mocks.notifCreate).toHaveBeenCalledTimes(2);
     expect(mocks.notifCreate.mock.calls[0][0].data.entityId).toBe('program-digest:worse-model');
+  });
+
+  it('notifies an admin who becomes SUPER_ADMIN after the alert already fired for this pin', async () => {
+    mocks.aiModelHealth.mockResolvedValue([
+      { methodPrefix: 'program-digest', effectiveModel: 'bad-model',
+        isPinned: true, status: 'off-catalog', detail: 'x' },
+    ]);
+    mocks.userFindMany.mockResolvedValue([{ id: 'u1' }, { id: 'u2' }, { id: 'u3-new-admin' }]);
+    // u1/u2 already hold an unread row for this entityId (notified yesterday);
+    // u3-new-admin does not, because they weren't SUPER_ADMIN yet.
+    mocks.notifFindMany.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
+    await runModelHealthNotifier();
+    expect(mocks.notifCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.notifCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'u3-new-admin' }) }),
+    );
+  });
+
+  it('isolates a throwing verdict so a later verdict in the same sweep still notifies', async () => {
+    mocks.aiModelHealth.mockResolvedValue([
+      { methodPrefix: 'bad-actor', effectiveModel: 'x', isPinned: true, status: 'failing', detail: 'x' },
+      { methodPrefix: 'program-digest', effectiveModel: 'y', isPinned: true, status: 'off-catalog', detail: 'y' },
+    ]);
+    mocks.notifFindMany
+      .mockRejectedValueOnce(new Error('db hiccup'))
+      .mockResolvedValueOnce([]);
+    await runModelHealthNotifier();
+    expect(mocks.notifCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entityId: 'program-digest:y' }) }),
+    );
   });
 });

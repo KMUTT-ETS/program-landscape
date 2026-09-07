@@ -182,7 +182,10 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     // backup and 03:00 backup-verification timers so the three
     // operational jobs never overlap. Stable job name so re-registration
     // on every boot replaces rather than duplicates (same pattern as
-    // the model-catalog refresh above).
+    // the model-catalog refresh above). Also fires a one-off at boot —
+    // this ships in reaction to a pin that was already broken for weeks,
+    // so deploying it onto a system already in that state must not mean
+    // nobody hears anything for up to 24h.
     const modelHealthCron = this.config.get<string>('MODEL_HEALTH_NOTIFY_CRON') ?? '0 4 * * *';
     for (const rep of await this.aiJobsQueue.getRepeatableJobs()) {
       if (rep.name === 'notify-model-health') {
@@ -194,7 +197,14 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
       { kind: 'NOTIFY_MODEL_HEALTH', entityId: '_model_health', trigger: 'SCHEDULED' },
       { repeat: { pattern: modelHealthCron, tz: 'Asia/Bangkok' } },
     );
-    this.logger.log(`model-health notifier scheduled @ ${modelHealthCron} Asia/Bangkok`);
+    await this.aiJobsQueue.add(
+      'notify-model-health',
+      { kind: 'NOTIFY_MODEL_HEALTH', entityId: '_model_health', trigger: 'SCHEDULED' },
+      { removeOnComplete: true },
+    );
+    this.logger.log(
+      `model-health notifier scheduled @ ${modelHealthCron} Asia/Bangkok + one boot run`,
+    );
 
     const pipeline = new PdfIntakePipeline({
       // Gemini-backed PDF classifier (pdf-classify.v1). Falls back to
