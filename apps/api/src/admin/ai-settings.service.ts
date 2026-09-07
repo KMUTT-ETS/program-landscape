@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import {
   getAiModelOverrideStore,
   prisma,
+  Prisma,
   listSelectableModels,
   findCatalogModel,
   getModelCatalogStatus,
@@ -62,6 +63,20 @@ export interface ModelOption {
   source: string;
 }
 
+/** A model choosable as the SOURCE of a bulk swap. Deliberately wider than
+ *  `models` (the catalog-backed target list): the OpenRouter slice of
+ *  ai_model_catalog is delete-and-replace on every daily refresh, so a
+ *  model that stopped working — precisely the kind this feature exists to
+ *  move away from — is exactly the kind that drops out of the catalog and
+ *  would otherwise become unselectable as "from". Union of catalog models
+ *  + every modelId an aiModelOverride row currently points at; `inCatalog`
+ *  marks the orphans so the UI can flag them. */
+export interface SwapSourceModelOption {
+  id: string;
+  label: string;
+  inCatalog: boolean;
+}
+
 export interface AiSettingsListResult {
   methods: MethodSettingRow[];
   models: ModelOption[];
@@ -76,6 +91,8 @@ export interface AiSettingsListResult {
    *  Rendered as a banner above the method table — see
    *  ModelHealthBanner in apps/web. */
   health: MethodModelHealth[];
+  /** Choices for the bulk-swap "from" dropdown — see SwapSourceModelOption. */
+  fromModelOptions: SwapSourceModelOption[];
 }
 
 @Injectable()
@@ -155,6 +172,19 @@ export class AiSettingsService {
       source: m.source,
     }));
 
+    // IMPORTANT 3 fix: the "from" side of a bulk swap must be able to name
+    // a model that has already dropped out of the OpenRouter-refreshed
+    // catalog — union catalog ids with whatever aiModelOverride rows
+    // actually reference today, marking the ones not in `models`.
+    const catalogIds = new Set(models.map((m) => m.id));
+    const orphanOverrideIds = new Set(
+      overrides.map((o) => o.modelId).filter((id) => !catalogIds.has(id)),
+    );
+    const fromModelOptions: SwapSourceModelOption[] = [
+      ...models.map((m) => ({ id: m.id, label: m.label, inCatalog: true })),
+      ...[...orphanOverrideIds].map((id) => ({ id, label: id, inCatalog: false })),
+    ];
+
     return {
       methods,
       models,
@@ -164,6 +194,7 @@ export class AiSettingsService {
         staticCount: catalogStatus.staticCount,
       },
       health,
+      fromModelOptions,
     };
   }
 
@@ -219,17 +250,38 @@ export class AiSettingsService {
    *  "every method currently resolving to fromModelId should resolve to
    *  toModelId instead." Deliberately includes methods that reach
    *  fromModelId through the catalog default, not only explicit pins — see
-   *  ai-settings-swap.ts for why that's in scope, not a footnote. */
+   *  ai-settings-swap.ts for why that's in scope, not a footnote.
+   *
+   *  Echoes fromModelId/toModelId back alongside the plan — the caller
+   *  (client.tsx) uses that to detect a stale preview: if the operator
+   *  changes their dropdown selection while a preview request is still in
+   *  flight, the response that lands describes a swap they're no longer
+   *  looking at, and Apply must refuse it rather than act on it.
+   *
+   *  No `@AuditLog` on the controller route for this method — the shared
+   *  AuditLogInterceptor only records `redact(req.body)`, never the
+   *  handler's result, so it can't name which methods actually changed,
+   *  and it fires on every call including a pure preview (apply: false),
+   *  which would log a read as a mutation. Instead this writes its own
+   *  AuditLog row, same pattern as
+   *  packages/db/src/program-digest-materialize.ts's explicit write —
+   *  only on a real apply, only when something changed, naming both
+   *  models and every affected method's previous model. */
   async swapModel(
     fromModelId: string,
     toModelId: string,
     userId: string,
     apply: boolean,
-  ): Promise<{ plan: SwapPlan; applied: boolean }> {
+    ipAddress: string | null = null,
+  ): Promise<{ plan: SwapPlan; applied: boolean; fromModelId: string; toModelId: string }> {
     // Same catalog-table check as setOverride — necessary, not sufficient:
     // ai_model_catalog is refreshed daily from OpenRouter and only proves
     // the model is *listed*, not that it actually works on the provider we
     // call at runtime. That gap is exactly how the August pin got in.
+    // Deliberately only toModelId is checked — fromModelId is allowed to
+    // name a model that has already dropped out of the catalog (see
+    // fromModelOptions / IMPORTANT 3): that's exactly the model a bulk
+    // swap needs to move methods AWAY from.
     const model = await findCatalogModel(toModelId);
     if (!model) throw new BadRequestException(`Unknown model id: ${toModelId}`);
 
@@ -242,25 +294,51 @@ export class AiSettingsService {
     }));
     const plan = planModelSwap(candidates, fromModelId, toModelId);
 
-    if (!apply) return { plan, applied: false };
+    if (!apply) return { plan, applied: false, fromModelId, toModelId };
 
     const targets = [...plan.rewrite, ...plan.create];
     if (targets.length > 0) {
-      // One transaction for all 23-ish rows — a half-applied swap is worse
-      // than none, so either every target lands or none do.
-      await prisma.$transaction(
-        targets.map((t) =>
+      // One transaction for all 23-ish rows plus the audit row — a
+      // half-applied swap (or a swap that lands with no audit trail) is
+      // worse than none, so either everything lands or nothing does.
+      await prisma.$transaction([
+        ...targets.map((t) =>
           prisma.aiModelOverride.upsert({
             where: { methodPrefix: t.methodPrefix },
             create: { methodPrefix: t.methodPrefix, modelId: toModelId, setByUserId: userId },
             update: { modelId: toModelId, setByUserId: userId },
           }),
         ),
-      );
+        prisma.auditLog.create({
+          data: {
+            userId,
+            action: 'ai_model_override.swap',
+            entityType: 'AiModelOverride',
+            // No single entity — this is a bulk write across N rows — so
+            // entityId stays null and the full set lives in payloadJson,
+            // same posture as the interceptor's null-entityId fallback.
+            entityId: null,
+            ipAddress,
+            payloadJson: {
+              fromModelId,
+              toModelId,
+              changed: targets.map((t) => ({
+                methodPrefix: t.methodPrefix,
+                previousModel: t.effectiveModel,
+                newModel: toModelId,
+              })),
+              skipped: plan.skipped.map((s) => ({
+                methodPrefix: s.methodPrefix,
+                lockedModel: s.lockedModel,
+              })),
+            } as Prisma.InputJsonValue,
+          },
+        }),
+      ]);
       await getAiModelOverrideStore().invalidate();
     }
 
-    return { plan, applied: true };
+    return { plan, applied: true, fromModelId, toModelId };
   }
 
   private async findOne(methodPrefix: string): Promise<MethodSettingRow> {

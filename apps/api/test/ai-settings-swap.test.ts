@@ -27,4 +27,10 @@ describe('planModelSwap', () => {
     expect(plan.rewrite).toHaveLength(0);
     expect(plan.create).toHaveLength(0);
   });
+  it('returns all-empty buckets when the source model matches nothing', () => {
+    const plan = planModelSwap(rows, 'nonexistent-model', 'new');
+    expect(plan.rewrite).toHaveLength(0);
+    expect(plan.create).toHaveLength(0);
+    expect(plan.skipped).toHaveLength(0);
+  });
 });

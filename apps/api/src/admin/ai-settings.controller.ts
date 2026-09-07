@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Ip, Param, Post, Put } from '@nestjs/common';
 import { z } from 'zod';
 import { AuditLog, AuthSession, Authorized, Provenance, ZodValidationPipe } from '../common';
 import type { SessionUser } from '@kku/shared';
@@ -70,16 +70,24 @@ export class AiSettingsController {
 
   // Bulk "replace every method using model X" action. apply:false previews
   // the plan without writing anything; apply:true writes it in one
-  // transaction. One audit row names both models plus every affected
-  // method — a client-side loop of per-method PUTs would write N rows and
-  // could half-fail partway through.
+  // transaction. Deliberately NOT `@AuditLog` — that interceptor only
+  // records `redact(req.body)`, never the handler's result, so it can't
+  // name which methods actually changed, and it would fire (mutation-style)
+  // on every preview too. The service writes its own AuditLog row instead,
+  // only on a real apply that changed something — see swapModel().
   @Post('/swap')
   @Authorized('ai_models:configure')
-  @AuditLog({ action: 'ai_model_override.swap', entityType: 'AiModelOverride' })
   async swap(
     @AuthSession() user: SessionUser,
+    @Ip() ip: string,
     @Body(new ZodValidationPipe(SwapSchema)) body: SwapBody,
   ) {
-    return this.service.swapModel(body.fromModelId, body.toModelId, user.userId, body.apply);
+    return this.service.swapModel(
+      body.fromModelId,
+      body.toModelId,
+      user.userId,
+      body.apply,
+      ip ?? null,
+    );
   }
 }

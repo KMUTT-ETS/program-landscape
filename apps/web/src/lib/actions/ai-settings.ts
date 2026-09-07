@@ -48,22 +48,36 @@ export interface SwapPlan {
 
 // Bulk "replace every method using model X" action. `apply: false` (the
 // default) only previews the plan — nothing is written. `apply: true`
-// executes it in one transaction on the API side.
+// executes it in one transaction on the API side. The response echoes
+// fromModelId/toModelId back — the caller uses that to detect a stale
+// preview (operator changed the dropdown while a slow response was still
+// in flight) via ai-settings-swap-guard.ts.
 export async function swapAiModelsAction(
   fromModelId: string,
   toModelId: string,
   apply: boolean,
 ): Promise<
-  | { ok: true; plan: SwapPlan; applied: boolean }
+  | { ok: true; plan: SwapPlan; applied: boolean; fromModelId: string; toModelId: string }
   | { ok: false; message: string }
 > {
   try {
-    const res = await apiFetch<{ plan: SwapPlan; applied: boolean }>('/admin/ai-settings/swap', {
+    const res = await apiFetch<{
+      plan: SwapPlan;
+      applied: boolean;
+      fromModelId: string;
+      toModelId: string;
+    }>('/admin/ai-settings/swap', {
       method: 'POST',
       body: JSON.stringify({ fromModelId, toModelId, apply }),
     });
     if (apply) revalidatePath('/admin/app/ai-settings');
-    return { ok: true, plan: res.plan, applied: res.applied };
+    return {
+      ok: true,
+      plan: res.plan,
+      applied: res.applied,
+      fromModelId: res.fromModelId,
+      toModelId: res.toModelId,
+    };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -26,6 +26,7 @@ import {
   type SwapCandidate,
   type SwapPlan,
 } from '@/lib/actions/ai-settings';
+import { shouldAcceptSwapPreview, canApplySwapPreview } from '@/lib/ai-settings-swap-guard';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mirror of apps/api/src/admin/ai-settings.service.ts.
@@ -69,6 +70,16 @@ export interface AiSettingsModel {
   source?: string;
 }
 
+/** A model choosable as the SOURCE of a bulk swap — wider than `models`
+ *  (the catalog-backed target list) because a model that stopped working
+ *  is exactly the kind that has already dropped out of the
+ *  daily-refreshed OpenRouter catalog. See ai-settings.service.ts. */
+export interface SwapSourceModelOption {
+  id: string;
+  label: string;
+  inCatalog: boolean;
+}
+
 export interface AiSettingsResponse {
   methods: AiSettingsMethodRow[];
   models: AiSettingsModel[];
@@ -82,6 +93,8 @@ export interface AiSettingsResponse {
    *  page above this client, not here — kept on the response type only
    *  so `data.health` type-checks at the call site. */
   health: MethodModelHealth[];
+  /** Choices for the bulk-swap "from" dropdown. */
+  fromModelOptions: SwapSourceModelOption[];
 }
 
 const MODULE_LABELS: Record<string, string> = {
@@ -127,7 +140,16 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
   // Bulk swap — "replace every method using model X with model Y."
   const [swapFrom, setSwapFrom] = useState('');
   const [swapTo, setSwapTo] = useState('');
-  const [swapPlan, setSwapPlan] = useState<SwapPlan | null>(null);
+  // Refs mirror swapFrom/swapTo so a still-in-flight preview response can
+  // be checked against the LATEST selection at the moment it lands, not
+  // the (possibly stale) closure captured when the request was fired.
+  const swapFromRef = useRef('');
+  const swapToRef = useRef('');
+  const [swapPreview, setSwapPreview] = useState<{
+    fromModelId: string;
+    toModelId: string;
+    plan: SwapPlan;
+  } | null>(null);
   const [swapPending, startSwapTransition] = useTransition();
   const [swapError, setSwapError] = useState<string | null>(null);
 
@@ -237,36 +259,60 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
   }
 
   function updateSwapFrom(value: string) {
+    swapFromRef.current = value;
     setSwapFrom(value);
-    setSwapPlan(null);
+    setSwapPreview(null);
     setSwapError(null);
   }
 
   function updateSwapTo(value: string) {
+    swapToRef.current = value;
     setSwapTo(value);
-    setSwapPlan(null);
+    setSwapPreview(null);
     setSwapError(null);
   }
 
   function previewSwap() {
     if (!swapFrom || !swapTo) return;
     setSwapError(null);
+    const requestFrom = swapFrom;
+    const requestTo = swapTo;
     startSwapTransition(async () => {
-      const res = await swapAiModelsAction(swapFrom, swapTo, false);
+      const res = await swapAiModelsAction(requestFrom, requestTo, false);
       if (!res.ok) {
         setSwapError(res.message);
-        setSwapPlan(null);
         return;
       }
-      setSwapPlan(res.plan);
+      // CRITICAL-1 guard: the operator may have changed the dropdowns
+      // while this request was in flight. The selects are also disabled
+      // during swapPending (belt), but this check (braces) catches the
+      // response landing in the gap after re-enabling. Compare against
+      // the refs (updated synchronously by updateSwapFrom/updateSwapTo),
+      // not swapFrom/swapTo — those are this closure's stale values.
+      if (!shouldAcceptSwapPreview(res, swapFromRef.current, swapToRef.current)) return;
+      setSwapPreview({ fromModelId: res.fromModelId, toModelId: res.toModelId, plan: res.plan });
     });
   }
 
+  const swapChangeCount = swapPreview
+    ? swapPreview.plan.rewrite.length + swapPreview.plan.create.length
+    : 0;
+  const canApplySwap = canApplySwapPreview(
+    swapPreview ? { ...swapPreview, changeCount: swapChangeCount } : null,
+    swapFrom,
+    swapTo,
+    swapPending,
+  );
+
   function applySwap() {
-    if (!swapFrom || !swapTo || !swapPlan) return;
+    if (!swapPreview) return;
+    if (!canApplySwapPreview({ ...swapPreview, changeCount: swapChangeCount }, swapFrom, swapTo, swapPending)) {
+      return;
+    }
     setSwapError(null);
+    const { fromModelId, toModelId } = swapPreview;
     startSwapTransition(async () => {
-      const res = await swapAiModelsAction(swapFrom, swapTo, true);
+      const res = await swapAiModelsAction(fromModelId, toModelId, true);
       if (!res.ok) {
         setSwapError(res.message);
         return;
@@ -278,9 +324,9 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
           affected.has(m.methodPrefix)
             ? {
                 ...m,
-                effectiveModel: swapTo,
+                effectiveModel: toModelId,
                 override: {
-                  modelId: swapTo,
+                  modelId: toModelId,
                   setByUserId: null,
                   setByUserName: 'you',
                   updatedAt: new Date().toISOString(),
@@ -289,14 +335,16 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
             : m,
         ),
       }));
-      setSwapPlan(res.plan);
+      setSwapPreview({ fromModelId: res.fromModelId, toModelId: res.toModelId, plan: res.plan });
       toast.success(
-        `Swapped ${affected.size} method${affected.size === 1 ? '' : 's'} from ${swapFrom} to ${swapTo}.`,
+        `Swapped ${affected.size} method${affected.size === 1 ? '' : 's'} from ${fromModelId} to ${toModelId}.`,
       );
     });
   }
 
-  const swapTotal = swapPlan ? swapPlan.rewrite.length + swapPlan.create.length + swapPlan.skipped.length : 0;
+  const swapMatchedTotal = swapPreview
+    ? swapPreview.plan.rewrite.length + swapPreview.plan.create.length + swapPreview.plan.skipped.length
+    : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -359,11 +407,13 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
               className="kku-select min-w-[220px]"
               value={swapFrom}
               onChange={(e) => updateSwapFrom(e.target.value)}
+              disabled={swapPending}
             >
               <option value="">— select —</option>
-              {data.models.map((m) => (
+              {data.fromModelOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
+                  {m.inCatalog ? '' : ' (not in catalog)'}
                 </option>
               ))}
             </select>
@@ -375,6 +425,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
               className="kku-select min-w-[220px]"
               value={swapTo}
               onChange={(e) => updateSwapTo(e.target.value)}
+              disabled={swapPending}
             >
               <option value="">— select —</option>
               {data.models.map((m) => (
@@ -392,12 +443,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
           >
             Preview
           </Button>
-          <Button
-            onClick={applySwap}
-            disabled={swapPending || !swapPlan || swapTotal === 0}
-            variant="default"
-            size="sm"
-          >
+          <Button onClick={applySwap} disabled={!canApplySwap} variant="default" size="sm">
             Apply swap
           </Button>
         </div>
@@ -412,30 +458,32 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
           </div>
         ) : null}
 
-        {swapPlan ? (
+        {swapPreview ? (
           <div className="mt-4 flex flex-col gap-3">
-            {swapTotal === 0 ? (
-              <div className="text-sm text-text-tertiary">No methods currently resolve to {swapFrom}.</div>
+            {swapMatchedTotal === 0 ? (
+              <div className="text-sm text-text-tertiary">
+                No methods currently resolve to {swapPreview.fromModelId}.
+              </div>
             ) : (
               <>
                 <SwapPlanGroup
                   title="Will be repointed (already pinned)"
                   tone="warning"
-                  rows={swapPlan.rewrite}
-                  toModel={swapTo}
+                  rows={swapPreview.plan.rewrite}
+                  toModel={swapPreview.toModelId}
                 />
                 <SwapPlanGroup
                   title="Will gain a new pin (currently following the catalog default)"
                   tone="info"
-                  rows={swapPlan.create}
-                  toModel={swapTo}
+                  rows={swapPreview.plan.create}
+                  toModel={swapPreview.toModelId}
                   note="These methods stop tracking the catalog default once pinned — future default changes won't reach them until the pin is cleared."
                 />
                 <SwapPlanGroup
                   title="Skipped (platform-locked, cannot be overridden)"
                   tone="neutral"
-                  rows={swapPlan.skipped}
-                  toModel={swapTo}
+                  rows={swapPreview.plan.skipped}
+                  toModel={swapPreview.toModelId}
                 />
               </>
             )}
