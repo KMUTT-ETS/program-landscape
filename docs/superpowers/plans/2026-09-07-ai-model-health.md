@@ -181,31 +181,33 @@ git commit -m "feat(ai): add deprecated flag to the model catalog"
 import { describe, it, expect } from 'vitest';
 import { assessModelHealth } from '../src/ai/model-health';
 
-const catalog = [
-  { id: 'gemini-3.5-flash', label: 'Flash', provider: 'google', tier: 'flash',
-    description: '', costInputPer1m: 1.5, costOutputPer1m: 9 },
-  { id: 'gemini-2.5-pro', label: 'Pro', provider: 'google', tier: 'pro',
-    description: '', costInputPer1m: 1.25, costOutputPer1m: 10, deprecated: true,
-    deprecatedNote: 'Retires 2026-12-01.' },
-] as const;
+// knownModelIds mirrors the ai_model_catalog TABLE (OpenRouter-refreshed) —
+// the same source findCatalogModel() gates pins against. NOT the static
+// AVAILABLE_AI_MODELS array, which would mark every production pin off-catalog.
+const knownModelIds = new Set(['gemini-3.5-flash', 'gemini-2.5-pro']);
+// Deprecation is our own opinion, from the static catalog. OpenRouter has no
+// view on what we should stop using.
+const deprecatedModels = new Map<string, string | undefined>([
+  ['gemini-2.5-pro', 'Retires 2026-12-01.'],
+]);
 
 const methods = [
   { methodPrefix: 'program-courses-extract', defaultModel: 'gemini-3.5-flash' },
   { methodPrefix: 'program-digest', defaultModel: 'gemini-3.5-flash' },
 ];
 
-const base = { catalog: [...catalog] as never, methods: methods as never, recentFailures: [] };
+const base = { knownModelIds, deprecatedModels, methods, recentFailures: [] };
 
 describe('assessModelHealth', () => {
   it('reports ok for an unpinned method on its catalog default', () => {
-    const [v] = assessModelHealth({ ...base, overrides: [], methods: [methods[0]] as never });
+    const [v] = assessModelHealth({ ...base, overrides: [], methods: [methods[0]] });
     expect(v).toMatchObject({ status: 'ok', effectiveModel: 'gemini-3.5-flash', isPinned: false });
   });
 
   it('reports off-catalog for a pin that is not in the catalog', () => {
     const [v] = assessModelHealth({
       ...base,
-      methods: [methods[0]] as never,
+      methods: [methods[0]],
       overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash' }],
     });
     expect(v.status).toBe('off-catalog');
@@ -217,7 +219,7 @@ describe('assessModelHealth', () => {
   it('reports deprecated for a pin flagged in the catalog, and quotes the note', () => {
     const [v] = assessModelHealth({
       ...base,
-      methods: [methods[0]] as never,
+      methods: [methods[0]],
       overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-2.5-pro' }],
     });
     expect(v.status).toBe('deprecated');
@@ -227,7 +229,7 @@ describe('assessModelHealth', () => {
   it('reports failing on a single model-invalid failure in the window', () => {
     const [v] = assessModelHealth({
       ...base,
-      methods: [methods[0]] as never,
+      methods: [methods[0]],
       overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash' }],
       recentFailures: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash',
                          count: 1, lastAt: new Date('2026-09-07T08:11:00Z') }],
@@ -238,7 +240,7 @@ describe('assessModelHealth', () => {
   it('ranks failing above off-catalog but still names both — the August incident', () => {
     const [v] = assessModelHealth({
       ...base,
-      methods: [methods[0]] as never,
+      methods: [methods[0]],
       overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash' }],
       recentFailures: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash',
                          count: 4, lastAt: new Date('2026-09-07T08:11:00Z') }],
@@ -251,7 +253,7 @@ describe('assessModelHealth', () => {
     // Operator already fixed the pin; yesterday's failures must not keep it red.
     const [v] = assessModelHealth({
       ...base,
-      methods: [methods[0]] as never,
+      methods: [methods[0]],
       overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.5-flash' }],
       recentFailures: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash',
                          count: 9, lastAt: new Date('2026-09-07T08:11:00Z') }],
@@ -275,8 +277,6 @@ Expected: FAIL — cannot resolve `../src/ai/model-health`.
 
 ```ts
 // packages/shared/src/ai/model-health.ts
-import type { AiModelEntry, AiMethodEntry } from './method-catalog';
-
 export type ModelHealthStatus = 'ok' | 'off-catalog' | 'deprecated' | 'failing';
 
 export interface MethodModelHealth {
@@ -293,7 +293,14 @@ export interface MethodModelHealth {
 
 export interface ModelHealthInput {
   overrides: { methodPrefix: string; modelId: string }[];
-  catalog: AiModelEntry[];
+  /** Ids from the `ai_model_catalog` TABLE — the same source findCatalogModel()
+   *  gates pins against. Deliberately NOT the static AVAILABLE_AI_MODELS array:
+   *  that holds 8 curated ids, so checking against it would mark every
+   *  production pin off-catalog and bury the signal that matters. */
+  knownModelIds: Set<string>;
+  /** id -> note. Our own opinion, hand-maintained on the static catalog. The DB
+   *  catalog is OpenRouter's list and has no view on what we should retire. */
+  deprecatedModels: Map<string, string | undefined>;
   methods: Array<{ methodPrefix: string; defaultModel: string }>;
   /** Model-invalid failures inside the 7-day window, already grouped. */
   recentFailures: { methodPrefix: string; modelId: string; count: number; lastAt: Date }[];
@@ -306,18 +313,16 @@ export interface ModelHealthInput {
  * Precedence: failing > deprecated > off-catalog > ok.
  */
 export function assessModelHealth(input: ModelHealthInput): MethodModelHealth[] {
-  const { overrides, catalog, methods, recentFailures } = input;
+  const { overrides, knownModelIds, deprecatedModels, methods, recentFailures } = input;
   const pinBy = new Map(overrides.map((o) => [o.methodPrefix, o.modelId]));
-  const catalogBy = new Map(catalog.map((m) => [m.id, m]));
 
   return methods.map(({ methodPrefix, defaultModel }) => {
     const pin = pinBy.get(methodPrefix);
     const effectiveModel = pin ?? defaultModel;
     const isPinned = pin !== undefined;
-    const entry = catalogBy.get(effectiveModel);
-
-    const offCatalog = entry === undefined;
-    const deprecated = entry?.deprecated === true;
+    const offCatalog = !knownModelIds.has(effectiveModel);
+    const deprecated = deprecatedModels.has(effectiveModel);
+    const deprecatedNote = deprecatedModels.get(effectiveModel);
     // Failures are keyed on the model as well as the method: once an operator
     // repins, yesterday's failures against the OLD model must stop counting,
     // or a fixed method stays red until the window rolls off.
@@ -330,7 +335,7 @@ export function assessModelHealth(input: ModelHealthInput): MethodModelHealth[] 
     if (deprecated) {
       notes.push(
         `"${effectiveModel}" is marked deprecated${
-          entry?.deprecatedNote ? ` — ${entry.deprecatedNote}` : ''
+          deprecatedNote ? ` — ${deprecatedNote}` : ''
         }`,
       );
     }
@@ -673,8 +678,11 @@ const WINDOW_DAYS = 7;
 export async function aiModelHealth(): Promise<MethodModelHealth[]> {
   const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
-  const [overrides, failureRows] = await Promise.all([
+  const [overrides, catalogRows, failureRows] = await Promise.all([
     prisma.aiModelOverride.findMany({ select: { methodPrefix: true, modelId: true } }),
+    // The ai_model_catalog TABLE, not AVAILABLE_AI_MODELS — this is what
+    // findCatalogModel() gates pins against, so it is what "known" must mean.
+    prisma.aiModelCatalog.findMany({ select: { id: true } }),
     prisma.aiInference
       .groupBy({
         by: ['model', 'promptVersion'],
@@ -698,7 +706,10 @@ export async function aiModelHealth(): Promise<MethodModelHealth[]> {
 
   return assessModelHealth({
     overrides,
-    catalog: AVAILABLE_AI_MODELS,
+    knownModelIds: new Set(catalogRows.map((r) => r.id)),
+    deprecatedModels: new Map(
+      AVAILABLE_AI_MODELS.filter((m) => m.deprecated).map((m) => [m.id, m.deprecatedNote]),
+    ),
     methods: AI_METHOD_CATALOG.map((m) => ({
       methodPrefix: m.methodPrefix,
       defaultModel: m.defaultModel,
@@ -1026,3 +1037,202 @@ git commit -m "feat(ai): model-health banners on ai-settings and system-status"
 - [ ] `pnpm --filter ingestion exec vitest run` — all pass
 - [ ] `pnpm typecheck` — clean
 - [ ] Manual: insert `gemini-3.6-flash` as an override for `program-courses-extract` on dev, run `pnpm programs:extract-courses KKU-SEQ-0002`, and confirm (a) it now honours the override, (b) the call falls back to `gemini-3.5-flash` and succeeds, (c) an `ai_model_invalid` row exists, (d) the banner appears. Then delete the override.
+
+---
+
+## Task 9: Bulk model swap on the AI-settings page
+
+**Why:** Fixing the August incident meant repointing 23 pinned methods one at a time through a per-row picker. The swap turns that into one decision.
+
+**Scope decision (approved 2026-09-07):** "every method *using* X" includes methods that reach X through the catalog default, not only explicit pins. Swapping away from a default therefore **creates** pins where none existed, and those methods stop tracking the catalog default from then on. The preview must show that group separately — it is the part with lasting consequence.
+
+**Files:**
+- Modify: `apps/api/src/admin/ai-settings.controller.ts`
+- Modify: `apps/api/src/admin/ai-settings.service.ts`
+- Modify: `apps/web/app/admin/app/ai-settings/client.tsx`
+- Test: `apps/api/test/ai-settings-swap.test.ts`
+
+- [ ] **Step 1: Write the failing test for the swap planner**
+
+The planner is pure — which methods would change, and how — so it is testable without prisma.
+
+```ts
+// apps/api/test/ai-settings-swap.test.ts
+import { describe, it, expect } from 'vitest';
+import { planModelSwap } from '../src/admin/ai-settings-swap';
+
+const rows = [
+  { methodPrefix: 'a', effectiveModel: 'old', isPinned: true,  lockedModel: null },
+  { methodPrefix: 'b', effectiveModel: 'old', isPinned: false, lockedModel: null },
+  { methodPrefix: 'c', effectiveModel: 'other', isPinned: true, lockedModel: null },
+  { methodPrefix: 'd', effectiveModel: 'old', isPinned: true,  lockedModel: 'old' },
+];
+
+describe('planModelSwap', () => {
+  it('rewrites existing pins on the source model', () => {
+    const plan = planModelSwap(rows, 'old', 'new');
+    expect(plan.rewrite.map((r) => r.methodPrefix)).toEqual(['a']);
+  });
+
+  it('reports methods inheriting the source model separately — these gain a NEW pin', () => {
+    const plan = planModelSwap(rows, 'old', 'new');
+    expect(plan.create.map((r) => r.methodPrefix)).toEqual(['b']);
+  });
+
+  it('skips locked methods and says why', () => {
+    const plan = planModelSwap(rows, 'old', 'new');
+    expect(plan.skipped.map((r) => r.methodPrefix)).toEqual(['d']);
+  });
+
+  it('ignores methods on a different model', () => {
+    const plan = planModelSwap(rows, 'old', 'new');
+    const touched = [...plan.rewrite, ...plan.create].map((r) => r.methodPrefix);
+    expect(touched).not.toContain('c');
+  });
+
+  it('is a no-op when source and target are the same', () => {
+    const plan = planModelSwap(rows, 'old', 'old');
+    expect(plan.rewrite).toHaveLength(0);
+    expect(plan.create).toHaveLength(0);
+  });
+});
+```
+
+- [ ] **Step 2: Run it, confirm it FAILS**
+
+Run: `pnpm --filter api exec vitest run test/ai-settings-swap.test.ts`
+Expected: module `../src/admin/ai-settings-swap` not found.
+
+- [ ] **Step 3: Implement the planner**
+
+```ts
+// apps/api/src/admin/ai-settings-swap.ts
+export interface SwapCandidate {
+  methodPrefix: string;
+  effectiveModel: string;
+  isPinned: boolean;
+  lockedModel: string | null;
+}
+
+export interface SwapPlan {
+  /** Existing override rows repointed at the target. */
+  rewrite: SwapCandidate[];
+  /** Methods inheriting the source model via the catalog default. A pin is
+   *  CREATED for these, so they stop following the default from now on —
+   *  surfaced as its own group because that consequence outlives the swap. */
+  create: SwapCandidate[];
+  /** lockedModel already trumps any override, so pinning these would write a
+   *  row that changes nothing. Skipped, with the reason shown. */
+  skipped: SwapCandidate[];
+}
+
+export function planModelSwap(
+  rows: SwapCandidate[],
+  fromModelId: string,
+  toModelId: string,
+): SwapPlan {
+  const empty: SwapPlan = { rewrite: [], create: [], skipped: [] };
+  if (fromModelId === toModelId) return empty;
+
+  return rows.reduce<SwapPlan>((plan, row) => {
+    if (row.effectiveModel !== fromModelId) return plan;
+    if (row.lockedModel) plan.skipped.push(row);
+    else if (row.isPinned) plan.rewrite.push(row);
+    else plan.create.push(row);
+    return plan;
+  }, empty);
+}
+```
+
+- [ ] **Step 4: Run the tests, confirm they PASS** (5 tests)
+
+- [ ] **Step 5: Add the service method**
+
+In `apps/api/src/admin/ai-settings.service.ts`, alongside `setOverride`:
+
+```ts
+async swapModel(fromModelId: string, toModelId: string, userId: string, apply: boolean) {
+  // Same validation the single-method PUT already applies. The target must be a
+  // real catalog entry; note this is the ai_model_catalog TABLE, and a model
+  // present there can still be unusable on the provider we call — which is how
+  // gemini-3.6-flash passed this check in August. Runtime health covers that.
+  const model = await findCatalogModel(toModelId);
+  if (!model) throw new BadRequestException(`Unknown model id: ${toModelId}`);
+
+  const { methods } = await this.list();
+  const plan = planModelSwap(
+    methods.map((m) => ({
+      methodPrefix: m.methodPrefix,
+      effectiveModel: m.effectiveModel,
+      isPinned: m.isPinned,
+      lockedModel: m.lockedModel ?? null,
+    })),
+    fromModelId,
+    toModelId,
+  );
+  if (!apply) return { plan, applied: false };
+
+  const targets = [...plan.rewrite, ...plan.create];
+  // One transaction: a half-applied swap across 23 methods is a worse state
+  // than not having swapped at all.
+  await prisma.$transaction(
+    targets.map((t) =>
+      prisma.aiModelOverride.upsert({
+        where: { methodPrefix: t.methodPrefix },
+        create: { methodPrefix: t.methodPrefix, modelId: toModelId, setByUserId: userId },
+        update: { modelId: toModelId, setByUserId: userId },
+      }),
+    ),
+  );
+  await getAiModelOverrideStore().invalidate();
+  return { plan, applied: true, changed: targets.length };
+}
+```
+
+Adjust the property names in the `methods.map` to whatever `list()` actually returns — read `MethodSettingRow` first and use its real field names.
+
+- [ ] **Step 6: Add the endpoint**
+
+```ts
+const SwapSchema = z.object({
+  fromModelId: z.string().min(1),
+  toModelId: z.string().min(1),
+  apply: z.boolean().default(false),
+});
+
+@Post('/swap')
+@Authorized('ai_models:configure')
+@AuditLog({ action: 'ai_model_override.swap', entityType: 'AiModelOverride' })
+async swap(
+  @AuthSession() user: SessionUser,
+  @Body(new ZodValidationPipe(SwapSchema)) body: z.infer<typeof SwapSchema>,
+) {
+  return this.service.swapModel(body.fromModelId, body.toModelId, user.userId, body.apply);
+}
+```
+
+One endpoint, one audit row naming both models and every affected method — a client-side loop of 23 PUTs would write 23 rows and could half-fail.
+
+- [ ] **Step 7: Add the UI**
+
+In `client.tsx`, above the module cards: two `<select>`s populated from the same model list the per-row picker uses, a **Preview** button calling `/swap` with `apply: false`, and an **Apply** button — disabled until a preview has been fetched — calling it with `apply: true`. Render the three groups with counts, and give `create` its own heading such as "will gain a new pin (currently following the catalog default)". Design tokens only; ESLint fails the build on literal hex.
+
+- [ ] **Step 8: Verify end to end on dev**
+
+```bash
+docker exec program-landscape-postgres psql -U kku -d program_landscape -c \
+  "INSERT INTO ai_model_overrides (id, method_prefix, model_id, updated_at)
+   VALUES ('tmp-swap-a','program-digest','gemini-3.5-flash',NOW()),
+          ('tmp-swap-b','program-faculty','gemini-3.5-flash',NOW());"
+# Preview a swap in the UI; expect 2 rewrites plus every unpinned method
+# defaulting to gemini-3.5-flash listed under "will gain a new pin".
+docker exec program-landscape-postgres psql -U kku -d program_landscape -c \
+  "DELETE FROM ai_model_overrides WHERE id IN ('tmp-swap-a','tmp-swap-b');"
+```
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add apps/api/src/admin/ai-settings-swap.ts apps/api/src/admin/ai-settings.service.ts apps/api/src/admin/ai-settings.controller.ts apps/api/test/ai-settings-swap.test.ts apps/web/app/admin/app/ai-settings/client.tsx
+git commit -m "feat(ai-settings): bulk model swap with preview"
+```

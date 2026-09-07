@@ -25,8 +25,20 @@ signal anywhere.
 
 Three separate gaps made that possible, and this project closes them:
 
-1. **Nothing validates a pinned model against the catalog.** An off-catalog id can be saved and
-   never questioned again.
+1. **Validation exists, but against a different catalog than you would expect.** `setOverride`
+   already calls `findCatalogModel(modelId)` and rejects unknown ids — the pin was *not*
+   unvalidated. There are **two** catalogs and they answer different questions:
+
+   | Source | What it is | Used for |
+   |---|---|---|
+   | `AVAILABLE_AI_MODELS` | static array in code, 8 ids, carries our cost/tier opinions | the admin picker's curated list |
+   | `ai_model_catalog` table | **refreshed daily from OpenRouter** | `findCatalogModel()` — what actually gates a pin |
+
+   OpenRouter lists models across many providers. **Presence there does not mean the id is usable
+   on Google's direct Gemini API with our key**, which is the call this platform actually makes.
+   `gemini-3.6-flash` was catalog-valid and provider-unusable simultaneously. No static check can
+   catch that; only a real call can. That is why `failing` carries the weight in this design and
+   `off-catalog` is the weaker, secondary signal.
 2. **Nothing notices a model that stops working.** `ai_inferences` has no failure column, and a
    400 fails the HTTP call outright, so a refused request produces **no row at all** today.
 3. **Nothing tells anyone.** There is no path from "the AI layer is broken" to a human.
@@ -64,8 +76,15 @@ export interface MethodModelHealth {
 
 export function assessModelHealth(input: {
   overrides: { methodPrefix: string; modelId: string }[];
-  catalog: AiModelEntry[];
-  methods: AiMethodEntry[];
+  /** Ids from the ai_model_catalog TABLE — the same source findCatalogModel()
+   *  gates pins against. Checking the static AVAILABLE_AI_MODELS array instead
+   *  would mark every production pin off-catalog and drown the real signal. */
+  knownModelIds: Set<string>;
+  /** Deprecation is OUR opinion, hand-maintained on the static catalog: the DB
+   *  catalog is OpenRouter's list and carries no view on what we should stop
+   *  using. Two sources on purpose — they answer different questions. */
+  deprecatedModels: Map<string, string | undefined>;   // id -> note
+  methods: Array<{ methodPrefix: string; defaultModel: string }>;
   recentFailures: { methodPrefix: string; modelId: string; count: number; lastAt: Date }[];
 }): MethodModelHealth[];
 ```
