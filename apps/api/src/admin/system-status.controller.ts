@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { prisma } from '@kku/db';
+import { prisma, aiModelHealth } from '@kku/db';
 import { Authorized, Provenance, gotenbergSemaphore } from '../common';
 import { aggregateCapForRole } from '../common/ai-quota.guard';
 import type { Role } from '@kku/shared';
@@ -46,6 +46,7 @@ export class SystemStatusController {
       pendingExtractions,
       recentDecisions,
       backupTile,
+      health,
     ] = await Promise.all([
       maxOr(prisma.enrollmentMetric.aggregate({ _max: { updatedAt: true } })),
       maxOr(prisma.financialMetric.aggregate({ _max: { updatedAt: true } })),
@@ -134,6 +135,10 @@ export class SystemStatusController {
       // check-mirror, retention-check}.sh. See
       // docs/hardening/19-backup-dr.report.md.
       this.backupVerification.getTile(),
+
+      // The ONE model-health resolver, also read by /admin/ai-settings
+      // and the daily notifier — see packages/db/src/ai-model-health.ts.
+      aiModelHealth(),
     ]);
 
     return {
@@ -182,6 +187,10 @@ export class SystemStatusController {
       // top level so the admin UI can render the red/amber/green tile
       // without traversing nested objects.
       backup: backupTile,
+      // Per-method model-pin verdict — same shape, same source function,
+      // as /admin/ai-settings's `health` field. Rendered via the shared
+      // <ModelHealthBanner> so the two pages can never disagree.
+      health,
     };
   }
 }

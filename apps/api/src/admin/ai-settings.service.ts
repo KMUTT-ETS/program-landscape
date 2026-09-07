@@ -6,8 +6,14 @@ import {
   findCatalogModel,
   getModelCatalogStatus,
   refreshAiModelCatalog,
+  aiModelHealth,
 } from '@kku/db';
-import { AI_METHOD_CATALOG, findAiMethodEntry, type AiMethodEntry } from '@kku/shared';
+import {
+  AI_METHOD_CATALOG,
+  findAiMethodEntry,
+  type AiMethodEntry,
+  type MethodModelHealth,
+} from '@kku/shared';
 import { planModelSwap, type SwapCandidate, type SwapPlan } from './ai-settings-swap';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -65,6 +71,11 @@ export interface AiSettingsListResult {
     openrouterCount: number;
     staticCount: number;
   };
+  /** Per-method verdict from the ONE resolver (`aiModelHealth()` in
+   *  @kku/db) also read by /admin/system-status and the daily notifier.
+   *  Rendered as a banner above the method table — see
+   *  ModelHealthBanner in apps/web. */
+  health: MethodModelHealth[];
 }
 
 @Injectable()
@@ -127,9 +138,10 @@ export class AiSettingsService {
       };
     });
 
-    const [catalog, catalogStatus] = await Promise.all([
+    const [catalog, catalogStatus, health] = await Promise.all([
       listSelectableModels(),
       getModelCatalogStatus(),
+      aiModelHealth(),
     ]);
     const models: ModelOption[] = catalog.map((m) => ({
       id: m.id,
@@ -151,6 +163,7 @@ export class AiSettingsService {
         openrouterCount: catalogStatus.openrouterCount,
         staticCount: catalogStatus.staticCount,
       },
+      health,
     };
   }
 

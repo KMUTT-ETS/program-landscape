@@ -8,6 +8,8 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { Badge, Card, PageHeader, Section, FreshnessBadge } from '@kku/ui';
+import type { MethodModelHealth } from '@kku/shared';
+import { ModelHealthBanner } from '@/components/model-health-banner';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'System status — Admin' };
@@ -38,6 +40,9 @@ interface SystemStatus {
     decisionType: string;
     updatedAt: string;
   }>;
+  /** Per-method model-pin verdict from the shared `aiModelHealth()`
+   *  resolver — same field, same source, as /admin/ai-settings. */
+  health: MethodModelHealth[];
 }
 
 const STATUS_TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
@@ -72,6 +77,8 @@ export default async function SystemStatusPage() {
         <DiagnosticEmptyState surface="system status" error={statusRes.ok ? null : statusRes.error} />
       ) : (
         <div className="flex flex-col gap-6">
+          <ModelHealthBanner health={status.health} />
+
           <Section title="Data freshness">
             <Card padding="none">
               <table className="w-full text-sm">

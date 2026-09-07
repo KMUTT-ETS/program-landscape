@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Button } from '@kku/ui';
 import { ArrowLeft, Settings2 } from 'lucide-react';
+import { ModelHealthBanner } from '@/components/model-health-banner';
 import { AiSettingsClient, type AiSettingsResponse } from './client';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,10 @@ export default async function AdminAiSettingsPage() {
             Could not load AI settings: {loadError}
           </div>
         ) : data ? (
-          <AiSettingsClient initial={data} />
+          <>
+            <ModelHealthBanner health={data.health} />
+            <AiSettingsClient initial={data} />
+          </>
         ) : null}
       </div>
     </AuthedAppShell>

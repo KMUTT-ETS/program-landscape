@@ -14,6 +14,10 @@ import {
   DialogTitle,
 } from '@kku/ui';
 import { ArrowRightLeft, Check, Cog, Lock, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
+// Type-only — erased at compile time, so this does NOT pull @kku/shared's
+// runtime barrel (and its node:crypto import) into the client bundle. See
+// memory: kku_shared_barrel_client.
+import type { MethodModelHealth } from '@kku/shared';
 import {
   clearAiModelOverrideAction,
   refreshAiModelsAction,
@@ -73,6 +77,11 @@ export interface AiSettingsResponse {
     openrouterCount: number;
     staticCount: number;
   };
+  /** Per-method model-pin verdict from the shared `aiModelHealth()`
+   *  resolver. Rendered by <ModelHealthBanner> in the server-component
+   *  page above this client, not here — kept on the response type only
+   *  so `data.health` type-checks at the call site. */
+  health: MethodModelHealth[];
 }
 
 const MODULE_LABELS: Record<string, string> = {
