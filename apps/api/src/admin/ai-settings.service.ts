@@ -249,6 +249,16 @@ export class AiSettingsService {
     }
     const model = await findCatalogModel(modelId);
     if (!model) throw new BadRequestException(`Unknown model id: ${modelId}`);
+    // isSelectable is the lever that hides a model from the picker. It was
+    // honoured by listSelectableModels() but not here, so a model deliberately
+    // disabled still accepted a pin through the API — the lever only half
+    // worked. Kept as a separate check from the null case so the operator is
+    // told which of the two situations they are in.
+    if (!model.isSelectable) {
+      throw new BadRequestException(
+        `Model "${modelId}" is in the catalog but is not selectable, so it cannot be pinned.`,
+      );
+    }
 
     await prisma.aiModelOverride.upsert({
       where: { methodPrefix },
@@ -305,6 +315,13 @@ export class AiSettingsService {
     // swap needs to move methods AWAY from.
     const model = await findCatalogModel(toModelId);
     if (!model) throw new BadRequestException(`Unknown model id: ${toModelId}`);
+    // Same gate as setOverride — a swap is a bulk pin, so a non-selectable
+    // target is no more acceptable across 23 methods than across one.
+    if (!model.isSelectable) {
+      throw new BadRequestException(
+        `Model "${toModelId}" is in the catalog but is not selectable, so it cannot be a swap target.`,
+      );
+    }
 
     const { methods } = await this.list();
     const candidates: SwapCandidate[] = methods.map((row) => ({

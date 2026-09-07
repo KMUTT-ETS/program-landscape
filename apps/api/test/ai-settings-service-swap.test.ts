@@ -67,7 +67,7 @@ describe('AiSettingsService.swapModel', () => {
     mocks.listSelectableModels.mockResolvedValue([]);
     mocks.getModelCatalogStatus.mockResolvedValue({ lastFetchedAt: null, openrouterCount: 0, staticCount: 0 });
     mocks.aiModelHealth.mockResolvedValue([]);
-    mocks.findCatalogModel.mockResolvedValue({ id: NEW_MODEL, label: NEW_MODEL, provider: 'google', tier: 'flash', description: '', costInputPer1m: 0, costOutputPer1m: 0, legacy: false, source: 'static' });
+    mocks.findCatalogModel.mockResolvedValue({ id: NEW_MODEL, label: NEW_MODEL, provider: 'google', tier: 'flash', description: '', costInputPer1m: 0, costOutputPer1m: 0, legacy: false, source: 'static', isSelectable: true });
     mocks.transaction.mockResolvedValue([]);
   });
 
@@ -77,6 +77,22 @@ describe('AiSettingsService.swapModel', () => {
     await expect(
       service.swapModel(BROKEN_MODEL, 'not-a-real-model', 'user-1', true),
     ).rejects.toThrow(/Unknown model id/);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses a swap target that exists but is not selectable', async () => {
+    // isSelectable hides a model from the picker. Before 2026-09-07 the API
+    // still accepted it, so the lever only half worked — a disabled model was
+    // unreachable in the UI but pinnable through the endpoint.
+    mocks.findCatalogModel.mockResolvedValueOnce({
+      id: NEW_MODEL, label: NEW_MODEL, provider: 'google', tier: 'flash',
+      description: '', costInputPer1m: 0, costOutputPer1m: 0, legacy: false,
+      source: 'static', isSelectable: false,
+    });
+    const service = new AiSettingsService();
+    await expect(
+      service.swapModel(BROKEN_MODEL, NEW_MODEL, 'user-1', true),
+    ).rejects.toThrow(/not selectable/);
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 

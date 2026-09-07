@@ -49,6 +49,12 @@ export interface ModelCatalogEntry {
   sourceCreatedAt: Date | null;
   contextLength: number | null;
   fetchedAt: Date;
+  /** Whether this model may be chosen as a pin target. listSelectableModels()
+   *  filters on it, but findCatalogModel() deliberately does NOT — it returns
+   *  the row either way so a caller can tell "no such model" apart from "that
+   *  model is disabled", which are different things to tell an operator.
+   *  Callers gating a WRITE must check this; see AiSettingsService. */
+  isSelectable: boolean;
 }
 
 export interface RefreshResult {
@@ -222,8 +228,10 @@ function toEntry(row: {
   sourceCreatedAt: Date | null;
   contextLength: number | null;
   fetchedAt: Date;
+  isSelectable: boolean;
 }): ModelCatalogEntry {
   return {
+    isSelectable: row.isSelectable,
     id: row.id,
     provider: row.provider,
     tier: row.tier,
