@@ -178,6 +178,24 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     );
     this.logger.log(`model-catalog refresh scheduled @ ${modelCatalogCron} + one boot run`);
 
+    // Daily model-health notifier — 04:00 Asia/Bangkok, after the 02:00
+    // backup and 03:00 backup-verification timers so the three
+    // operational jobs never overlap. Stable job name so re-registration
+    // on every boot replaces rather than duplicates (same pattern as
+    // the model-catalog refresh above).
+    const modelHealthCron = this.config.get<string>('MODEL_HEALTH_NOTIFY_CRON') ?? '0 4 * * *';
+    for (const rep of await this.aiJobsQueue.getRepeatableJobs()) {
+      if (rep.name === 'notify-model-health') {
+        await this.aiJobsQueue.removeRepeatableByKey(rep.key);
+      }
+    }
+    await this.aiJobsQueue.add(
+      'notify-model-health',
+      { kind: 'NOTIFY_MODEL_HEALTH', entityId: '_model_health', trigger: 'SCHEDULED' },
+      { repeat: { pattern: modelHealthCron, tz: 'Asia/Bangkok' } },
+    );
+    this.logger.log(`model-health notifier scheduled @ ${modelHealthCron} Asia/Bangkok`);
+
     const pipeline = new PdfIntakePipeline({
       // Gemini-backed PDF classifier (pdf-classify.v1). Falls back to
       // StubClassifier automatically when no AI provider is configured.

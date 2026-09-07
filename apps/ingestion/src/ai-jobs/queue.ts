@@ -39,7 +39,12 @@ export type AiJobKind =
   // Re-fetch the Google Gemini model catalog from OpenRouter (model
   // name + description + pricing only — discovery, not routing).
   // Registered as a daily repeatable; `entityId` is an unused sentinel.
-  | 'REFRESH_MODEL_CATALOG';
+  | 'REFRESH_MODEL_CATALOG'
+  // Daily aiModelHealth() sweep → Notification rows for SUPER_ADMINs
+  // when a pinned method is off-catalog / deprecated / failing (see
+  // packages/db/src/ai-model-health.ts). Registered as a daily
+  // repeatable; `entityId` is an unused sentinel.
+  | 'NOTIFY_MODEL_HEALTH';
 
 // Pipeline phases. Mirrors the API-side definition in
 // apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in

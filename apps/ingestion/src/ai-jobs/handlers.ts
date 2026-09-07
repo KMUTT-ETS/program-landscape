@@ -20,6 +20,7 @@ import {
 import { runProgramDigest } from '../program-digest/run';
 import { runImdRankingsExtract } from '../imd-rankings-extract/run';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
+import { runModelHealthNotifier } from './model-health-notifier';
 import type { AiJobKind, ProgramPipelinePhase } from './queue';
 
 // Each handler consumes one job, calls the AI service, writes an
@@ -545,6 +546,15 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       // transient OpenRouter outage doesn't churn BullMQ retries.
       logger.warn(`REFRESH_MODEL_CATALOG skipped: ${result.error}`);
       return { status: 'SKIPPED', message: result.error ?? 'refresh failed' };
+    },
+
+    // Daily aiModelHealth() sweep — raises/clears Notification rows for
+    // SUPER_ADMINs when a pinned AI method is off-catalog / deprecated /
+    // failing. See model-health-notifier.ts for the dedup + clear rules.
+    NOTIFY_MODEL_HEALTH: async () => {
+      await runModelHealthNotifier();
+      logger.log('NOTIFY_MODEL_HEALTH sweep complete');
+      return { status: 'SUCCEEDED' };
     },
   };
 }
