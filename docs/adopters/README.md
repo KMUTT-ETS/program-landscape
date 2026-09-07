@@ -368,6 +368,35 @@ These read from KKU's own operational systems. The *shape* of what they produce 
 | `kku-admission-campaigns`, `kku-tcas-funnel` | KKU admissions systems | Admission funnel |
 | `digital-transcript` | KKU digital transcript | Course-level records |
 
+#### Worked example — `kku-dq`, a Tier 3 source whose payload you must not store
+
+`kku-dq` is worth reading before you write your own connector, because it is the cleanest example
+in the repo of a source that is useful in aggregate and radioactive per row.
+
+KKU's Digital Intelligence assessment API returns **every student in one response** — about 24,800
+records, 13.7 MB, in roughly 3.4 s. No pagination to manage; results only move as students sit the
+test, so it runs weekly. The payload carries student first names, surnames and ids.
+
+**None of that reaches the database, the logs, or disk.** Students are resolved to a programme *in
+memory*, and the connector writes only two aggregate cubes: one per (faculty × programme × cohort),
+one adding a module dimension. This is the same aggregate-at-source posture as `kku-registry` and
+`kku-hr`, and it is the posture to copy — it is far easier to defend to a DPO than a per-row table
+with an access-control story attached.
+
+Three design decisions in that connector generalise:
+
+- **Store `scoreSum` + `takenCount`, never a stored mean.** That is what makes a faculty or
+  university figure a true weighted mean rather than a mean of means. If you store means you cannot
+  recover the weighting later.
+- **Do not drop what you cannot resolve.** Students who resolve to no programme land under a null
+  `programId` that the dashboard renders as "Program not identified". Coverage is cohort-shaped —
+  recent intakes resolve well, older ones poorly, because the resolution table is a current
+  enrolment snapshot while the export is cumulative. Hiding those rows would have silently shrunk
+  every faculty total.
+- **`ingestion_run_id` is `onDelete: Restrict`, not nullable.** A cube row that outlives its run is
+  unprovenanced, and `realDataWhere()` would silently drop it — see Trap 2. The constraint makes
+  that unrepresentable rather than merely discouraged.
+
 **How to approach a Tier 3 rewrite:**
 
 1. Read the KKU connector's file header first. Every one of them documents the discovery process — which tables were probed, which columns turned out to be 100% NULL, which join keys are load-bearing, which collation mismatch bit them. Even where the source differs, the *questions* transfer.
@@ -484,6 +513,7 @@ Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
 | `pnpm programs:digest-bulk [--limit N] [--level X]` | Bulk, with auto-resume |
 | `pnpm programs:approve-pending` | Approve + materialise every pending digest |
 | `pnpm programs:pipeline <code>` | The full per-programme pipeline (below) |
+| `/admin/programs/from-pdf` | The operator-facing submit wizard — new programme *or* revision |
 | `/admin/programs/[id]?tab=files` | Attach a PDF through the UI |
 
 Attach PDFs through the UI or `pdf:bulk-load`. KKU previously had a fuzzy filename matcher for linking orphan PDFs to programmes; **it was retired after it mislinked roughly 30 programmes**, which a later content-based audit had to unpick. Do not rebuild it.
@@ -506,6 +536,49 @@ Attach PDFs through the UI or `pdf:bulk-load`. KKU previously had a fuzzy filena
 | 8 | Risk analysis | Deterministic maths + narrative |
 
 `--skip=phase4` is the flag you want when your registrar connectors are not wired yet. `--only=phase5` runs one phase.
+
+### Revisions — how a second มคอ.2 lands
+
+The flow above is the *first* import of a curriculum. Once a programme exists, a new มคอ.2 must not
+simply overwrite it: analyses that a council saw last month would change underneath them with no
+record of why. The revision model exists for that, and it is the part of this pipeline most worth
+copying wholesale.
+
+A `ProgramRevision` is a staging container: a มคอ.2 attached to a programme, moving through
+
+```
+DRAFT → ANALYSING → IN_REVIEW → APPROVED
+                              ↘ REJECTED
+(an approved revision later displaced by another) → SUPERSEDED
+```
+
+`Program.activeRevisionId` points at the one that is live. Every analysis the pipeline produces —
+strategic narrative, AI readiness, pedagogy, peer review, research expertise, skills, courses, the
+curriculum-revision comparison — carries a `programRevisionId`, so a programme page renders one
+internally consistent curriculum and a superseded revision's outputs stay intact and attributable
+instead of being overwritten.
+
+Three things to carry across if you implement this yourself:
+
+- **Metadata is proposed, not applied.** Where a revision's digest disagrees with the programme's
+  current column values, `metadataProposalJson` records both the proposed values and the ones they
+  would replace, rather than writing through silently. Combined with the digest's skip-if-empty
+  semantics, a re-digest can never blank a human-curated field.
+- **`programRevisionId` is nullable, and NULL means the pre-feature baseline.** It agrees by
+  construction with `Program.activeRevisionId` also being NULL. Do not backfill it with a synthetic
+  revision — you would be inventing provenance for rows that predate the concept.
+- **The operator decides new-vs-revision at submit time, before upload.** `/admin/programs/from-pdf`
+  asks that first, then uploads, then — for a new programme — checks for duplicates by code, name
+  and degree before committing. Putting the question first is what makes the duplicate check
+  meaningful; asking it after extraction invites the operator to rationalise whatever the AI
+  guessed.
+
+The comparison itself (`ProgramCurriculumRevision`) is a separate, purely analytical row: an
+AI-generated account of what the new curriculum changes, passed through an **anti-fabrication
+validator** that strips claims the source text does not support. It stores its deterministic input
+snapshot and the validator's drop counts alongside the payload, so a reader can audit the basis
+without recomputing it. Expect it to read as terser and more hedged than a human summary — that is
+the validator working, not the model underperforming.
 
 ### The prompt
 
@@ -688,13 +761,32 @@ Fix: `pnpm link-env`. Re-run it after every root `.env` edit on Windows, where i
 
 Related architectural constraint: `apps/web/middleware.ts` verifies the session cookie with `jose` directly and **must not import `@/lib/auth`** (which pulls in Prisma and is Node-only). Adding a Prisma call to middleware breaks the Edge build.
 
-### Trap 5: The `@kku/shared` barrel leaks `node:crypto`
+### Trap 5: A score of 0 does not mean zero
+
+In the DQ export a module score of `0` means **the module was not taken**. Treat it as a real zero
+and every module mean is dragged toward the floor by students who never sat that module, which looks
+exactly like a genuine competency problem and will survive review because the number is plausible.
+
+The codebase defends against this with a single exported predicate, `dqScoreWasTaken()`, precisely
+so that consumers cannot each write `> 0` until one of them eventually writes `>= 0`. Zeros are
+excluded from both `scoreSum` and `takenCount`.
+
+The general lesson, which is not specific to DQ: whenever a source encodes a *status* inside a
+*measure*, convert it at the boundary and export one predicate for the rest of the system to share.
+Do not let the encoding travel.
+
+Two related reporting rules ride along with it — cells below **6 scored students** are suppressed,
+and only bachelor-level programmes are in scope. A blank cell means "too few students to report";
+an absent postgraduate row is not a data gap. Both will be read as defects by someone unless the UI
+says otherwise, so say it in the UI.
+
+### Trap 6: The `@kku/shared` barrel leaks `node:crypto`
 
 `packages/shared/src/index.ts` re-exports subpaths that import `node:crypto` (`pdf/hash.ts`, `ingestion/kmitl-token.ts`, `ai/providers/google-ai.ts`). A **client component must use `import type` only** from `@kku/shared`; a runtime import crashes the build.
 
 If you need a runtime value in a client component, import it from the specific subpath rather than the barrel, or move it to a client-safe module.
 
-### Trap 6: Stale dev servers, twice over
+### Trap 7: Stale dev servers, twice over
 
 Two distinct staleness bugs with an identical symptom — "a `tsx` script works but the running app does not":
 
@@ -703,7 +795,7 @@ Two distinct staleness bugs with an identical symptom — "a `tsx` script works 
 
 In both cases the instinct to keep investigating is what costs the time.
 
-### Trap 7: Non-root container images and volume ownership
+### Trap 8: Non-root container images and volume ownership
 
 Production MinIO runs as UID 65532 (Chainguard rebuild — upstream `minio/minio` is EOL). The data volume must be chowned to 65532 **on the host**, because a compose-run `chown` hits EPERM under `cap_drop`; the file-based secrets must be mode 0644 or MinIO crash-loops with "Invalid credentials". Dev never reproduces this because dev uses env-var credentials and an already-correct volume. `scripts/deploy.sh` handles both — read it before you write your own deploy path.
 

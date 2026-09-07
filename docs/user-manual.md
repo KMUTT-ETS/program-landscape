@@ -11,6 +11,8 @@ This manual covers every role that uses the application, the features each can r
 1. [What this application is](#1-what-this-application-is)
 2. [Who uses it — roles at a glance](#2-who-uses-it--roles-at-a-glance)
 3. [The eight modules](#3-the-eight-modules)
+   - 3.1 [Analytical surfaces added since the original eight](#31-analytical-surfaces-added-since-the-original-eight)
+   - 3.2 [Reading Student DQ](#32-reading-student-dq)
 4. [Getting started (every user)](#4-getting-started-every-user)
 5. [Common UI patterns](#5-common-ui-patterns)
 6. [Role-by-role guide](#6-role-by-role-guide)
@@ -28,6 +30,8 @@ This manual covers every role that uses the application, the features each can r
    - 7.4 [Data-source management](#74-data-source-management)
    - 7.5 [PDF generation (outgoing)](#75-pdf-generation-outgoing)
    - 7.6 [Provenance, audit & AI governance](#76-provenance-audit--ai-governance)
+   - 7.7 [Submitting a new or revised curriculum](#77-submitting-a-new-or-revised-curriculum)
+   - 7.8 [Curriculum revisions — staging, review, going live](#78-curriculum-revisions--staging-review-going-live)
 8. [Requirements reference](#8-requirements-reference)
 9. [Troubleshooting](#9-troubleshooting)
 10. [Glossary](#10-glossary)
@@ -90,6 +94,45 @@ Each module has its own signature colour in the sidebar — learning the colours
 | 08 | **Decision Workspace** | Cardinal | `/decisions` | Captures Council decisions and tracks outcome reviews. |
 
 Supporting surfaces: `/skills` (skill explorer), `/inbox` (notifications), `/styleguide` (component catalog), and the admin area under `/admin/*`.
+
+### 3.1 Analytical surfaces added since the original eight
+
+The eight modules above are the original architecture. The application has since grown several
+surfaces that sit alongside them rather than inside them. These are the ones most likely to be new
+to you:
+
+| Surface | URL | What it answers |
+|---|---|---|
+| **Student DQ** | `/education/student-dq` | How KKU undergraduates actually score on the university's Digital Intelligence competency test, drillable from faculty down to a single programme, with a column per module. |
+| **Digital Competency Attainment** | `/gap-analysis/digital-competency` | What students *measurably score* on the digital competencies the labour market asks for — measured attainment, not taught coverage. |
+| **Curriculum revision** | section on `/programs/<id>` | What a newly submitted มคอ.2 changes relative to the curriculum it replaces. Also appears in the programme's PDF report. |
+
+The wider `/education/*`, `/staff/*` and `/risks/*` families have also grown considerably; this
+manual has not yet caught up with all of them and section 3's table should be read as the
+architectural spine rather than a complete inventory.
+
+### 3.2 Reading Student DQ
+
+Student DQ is measured data from a real test, not a model output, and it has counting rules that
+will mislead you if you do not know them.
+
+**The framework.** KKU's Digital Intelligence competency framework (LTIC) defines **13 theory
+modules** across four domains — Essential Computer (1–4), Essential Software (5–8), Technology at
+Work (9–12), and Generative AI (13) — plus **4 workshop modules**, which exist only for the
+Essential Software modules 5–8. The **pass mark is 70**.
+
+**Four rules that change how a number reads:**
+
+| Rule | Why it matters |
+|---|---|
+| **A score of 0 means the module was NOT TAKEN**, not "scored zero" | Zeros are excluded from every mean. A module average is over the students who actually sat it, so the sample behind two adjacent columns can differ. |
+| **Cells with fewer than 6 scored students are withheld** | Small-cohort suppression. A blank cell means "too few students to report", never "scored badly". |
+| **Undergraduate only** | Master's and doctoral programmes have no DQ row at all. Their absence is not a data gap. |
+| **"Program not identified"** is a real bucket | Students who could not be resolved to a programme are shown under this label rather than dropped. Its size is cohort-shaped — recent intakes resolve well, older ones much less so, because the resolution table is a current enrolment snapshot while the test export is cumulative. Read faculty totals with that in mind. |
+
+**Faculty and university figures are true weighted means**, computed from score sums and take
+counts — not an average of programme averages. Module 13 (Generative AI) carries no Thai label
+because the supplied revision of the framework document does not define one.
 
 ---
 
@@ -410,6 +453,17 @@ This is the operational workflow administrators and analysts follow to keep the 
 
 **Retry policy** — only `PDF_UPSTREAM_UNAVAILABLE` retries once (Gotenberg temporary unreachable). All other errors are deterministic and surface immediately.
 
+**The programme report has grown.** The per-programme PDF (the **Export PDF** button on
+`/programs/<id>`) now renders the same analyses the page shows, including three that were added
+later than the rest: **digital competency**, **health benchmarks** (faculty and university
+comparators), and **curriculum revision**. If a section is missing from a generated PDF, the usual
+cause is that the underlying analysis has not been run for that programme, not a template fault —
+check the programme's pipeline status before reporting a PDF bug.
+
+Note that PDF generation was broken on the production server from first deploy until 2026-09-05 and
+is now working. Any PDF you saved before that date was never successfully produced; regenerate
+rather than relying on an old file.
+
 ---
 
 ### 7.6 Provenance, audit & AI governance
@@ -426,6 +480,83 @@ Three mandatory tables underpin everything in the app:
 - Periodically review `/admin/ai-logs/:id` (single-inference detail) — land in prompt 13 — to understand cost distribution.
 - Check the `disagreement` annotation stream (`POST /programs/:id/disagreements`) — these are expert corrections of AI outputs; repeated disagreements on the same extraction type signal a prompt needing a version bump.
 - Watch `AiInference.costEstimateUsd` rollup — the extraction-review stats strip shows 7-day cost per module. Flag anomalies to the AI-governance point of contact.
+
+---
+
+### 7.7 Submitting a new or revised curriculum
+
+**Where** — `/admin/programs` → **Submit curriculum file** → `/admin/programs/from-pdf`
+
+**Who** — admin-grade roles only.
+
+This is the route for curriculum documents specifically. Use it instead of the general `/upload`
+screen in §7.1 whenever the PDF is a มคอ.2 — it captures *what the document is for*, which the
+generic uploader cannot, and that decision drives everything downstream.
+
+**The wizard is three steps.**
+
+**Step 1 — what are you submitting?** Two choices, and this is the consequential one:
+
+| Choice | Use when | What happens |
+|---|---|---|
+| **A new programme** | The curriculum does not exist in the system yet | You will fill in identity fields in step 3 and a new programme is created |
+| **A revised curriculum** | The programme exists and this document supersedes its current มคอ.2 | You search for the target programme by code or name (Thai or English) and the file is attached as a **revision** of it |
+
+**Step 2 — upload the มคอ.2 PDF.** Extraction runs against the file and pre-fills what it can.
+
+**Step 3 — depends on the choice in step 1.**
+
+- *New programme:* review the extracted identity — code (e.g. `AG-AGR-BSC-2565`), names, degree,
+  faculty, department, curriculum year BE. **The system checks for duplicates by code, name and
+  degree before it commits.** Do not force past a duplicate warning; if the programme already
+  exists, go back and submit as a revision instead. Creating a second row for the same curriculum
+  splits its history in two and there is no clean merge.
+- *Revised curriculum:* confirm the target and the curriculum year BE. There is no identity form —
+  identity comes from the programme you are revising.
+
+**Two things to get right.** The programme **code is the durable key** across every part of the
+system, so a typo made here propagates into exports, PDFs and any downstream reconciliation.
+And **the master sheet is detached** — programmes are maintained through this screen and
+`/admin/programs`, never by re-running the original spreadsheet seed, which would discard admin
+edits and audit fixes.
+
+---
+
+### 7.8 Curriculum revisions — staging, review, going live
+
+Submitting a revision does **not** overwrite the live programme. The revision is staged, analysed,
+reviewed, and only then promoted. This is what keeps a Council-facing number from changing under
+someone's feet because a new PDF happened to arrive.
+
+**The lifecycle**
+
+| Status | Meaning |
+|---|---|
+| `DRAFT` | File attached; nothing analysed yet |
+| `ANALYSING` | The programme pipeline is running against this revision |
+| `IN_REVIEW` | Analysed, waiting on a human decision |
+| `APPROVED` | Promoted — this revision is now the programme's live curriculum |
+| `REJECTED` | A reviewer declined it; the previous revision stays live |
+| `SUPERSEDED` | A later revision was approved over this one |
+
+**What "live" means.** Each programme points at one active revision. Every analysis the pipeline
+produces — strategic narrative, AI readiness, pedagogy, peer review, research expertise, skills,
+courses, the curriculum-revision comparison itself — is stamped with the revision that produced it.
+So the deep-dive page and the PDF always show one internally consistent curriculum, and an older
+revision's outputs stay intact and attributable rather than being overwritten.
+
+**Metadata is proposed, not applied silently.** Where a revision's digest disagrees with the
+programme's current values, the proposed values *and the ones they would replace* are recorded for
+review instead of being written straight through. A re-digest never blanks out a human-curated
+field.
+
+**Reading the curriculum-revision section.** On `/programs/<id>` (and in the PDF) this section
+describes what the new curriculum changes. It is AI-generated from the two documents and passes
+through an **anti-fabrication validator** that strips claims the source text does not support, so
+the section is deliberately shorter and more cautious than a human summary would be. Each one
+records the inputs it was computed from and how many claims the validator dropped, so a reviewer can
+audit the basis. **Programmes with no revision history show nothing here** — that is the pre-feature
+baseline, not a failure.
 
 ---
 
