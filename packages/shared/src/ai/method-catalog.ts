@@ -40,7 +40,9 @@ export interface AiMethodEntry {
     | 'analyst'
     | 'pipeline'
     | 'ingestion'
-    | 'profile';
+    | 'profile'
+    | 'trends'
+    | 'teaching';
   /** Workload tier — drives which models in the catalog make sense. */
   tier: AiMethodTier;
   /** Static MODEL_BY_METHOD_PREFIX default for this prefix (Google side). */
@@ -108,6 +110,36 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     label: 'Peer selection',
     description: 'Picks the 5 most-comparable peer programs from a candidate set.',
     module: 'pipeline',
+    tier: 'reasoning',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'aunqa-criterion-narrative',
+    currentVersion: 'aunqa-criterion-narrative.v1',
+    label: 'AUN-QA criterion narrative',
+    description:
+      'Writes the per-criterion assessment narrative behind /teaching-learning/[id]. Programme-scoped, but NOT a programs-pipeline phase — it is generated from its own runner, which is why it sits under Teaching & learning rather than Program pipeline.',
+    module: 'teaching',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'trend-document-ingest',
+    currentVersion: 'trend-document-ingest.v2',
+    label: 'Trend document ingest',
+    description:
+      'Drafts a TrendSignal from an uploaded PDF or a pasted URL, then hands off to trend-signal-analysis for enrichment. Backs the "Add signal from document" flow on /admin/trend-documents.',
+    module: 'trends',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'trend-signal-analysis',
+    currentVersion: 'trend-signal-analysis.v4',
+    label: 'Trend signal analysis',
+    description:
+      'Enriches a TrendSignal with affected programmes, per-programme job-position candidates (immediate vs emerging) and white-space initiatives KKU could launch. Runs for both monitor-sourced and document-sourced signals.',
+    module: 'trends',
     tier: 'reasoning',
     defaultModel: 'gemini-3.5-flash',
   },

@@ -111,6 +111,8 @@ const MODULE_LABELS: Record<string, string> = {
   analyst: 'AI analyst',
   ingestion: 'Ingestion',
   profile: 'Profile',
+  trends: 'Trends radar',
+  teaching: 'Teaching & learning',
 };
 
 const MODULE_ORDER = [

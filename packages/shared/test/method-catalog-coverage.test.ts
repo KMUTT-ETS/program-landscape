@@ -20,16 +20,11 @@ const PROMPTS_DIR = join(__dirname, '..', 'src', 'ai', 'prompts');
  * Known gaps, deliberately listed rather than silently tolerated. Removing an
  * entry from here is the whole job of adding the method to the catalog.
  *
- * These three are lower priority than program-research-expertise (added
- * 2026-09-07) only because none is a programme-pipeline phase whose output a
- * Council-facing page renders. They are still unpinnable and still invisible
- * to the health check, and should be added.
+ * Empty as of 2026-09-07: every shipped prompt is catalogued. Keep it that way
+ * — an entry added here is a method nobody can pin and the health check cannot
+ * see, so it needs a reason next to it, not just a name.
  */
-const KNOWN_UNCATALOGUED = new Set([
-  'aunqa-criterion-narrative',
-  'trend-document-ingest',
-  'trend-signal-analysis',
-]);
+const KNOWN_UNCATALOGUED = new Set<string>([]);
 
 function promptVersionPrefixes(): string[] {
   const out = new Set<string>();
