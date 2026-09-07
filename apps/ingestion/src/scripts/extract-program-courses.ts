@@ -94,6 +94,21 @@ async function main(): Promise<void> {
     console.log(`  Cost: $${result.costUsd.toFixed(4)}`);
     console.log(`  Courses extracted: ${result.extractedCount}`);
     console.log(`  Materialised into program_courses: ${result.previousCount} → ${result.materialisedCount}`);
+    // GUARD 2, operator-facing half. A SUCCEEDED whose LLM call failed, or
+    // whose write the materialisation guard refused, must not read as a clean
+    // pass here either — this script is how an operator re-runs a single
+    // programme after exactly that failure.
+    if (result.llmFailureReason) {
+      console.log(`  DEGRADED: LLM call failed, courses came from the regex fallback only`);
+      console.log(`    ${result.llmFailureReason}`);
+    }
+    if (result.materialisationRefusedReason) {
+      console.log(`  WRITE REFUSED: ${result.materialisationRefusedReason}`);
+      console.log(`    Existing rows were left untouched. Fix the extraction, then re-run.`);
+    }
+    if (result.llmFailureReason || result.materialisationRefusedReason) {
+      process.exitCode = 1;
+    }
   } else {
     console.log(`  Reason: ${result.reason}`);
   }

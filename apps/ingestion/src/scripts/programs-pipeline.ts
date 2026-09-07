@@ -439,14 +439,34 @@ async function processProgram(
     }
     if (phase2bEnabled) {
       const ok = coursesExtract.status === 'SUCCEEDED';
+      // GUARD 2. A SUCCEEDED that came from the regex fallback alone, or whose
+      // write the materialisation guard refused, is NOT a clean pass and must
+      // not print as one. Until 2026-09-07 `ok` was `status !== 'FAILED'`, so
+      // a run that deleted 56 courses and wrote none rendered as a green tick
+      // at zero cost — indistinguishable in the summary from one that
+      // extracted 56. See program-courses-extract/materialisation-guard.ts.
+      const degraded =
+        coursesExtract.status === 'SUCCEEDED' &&
+        (coursesExtract.llmFailureReason !== null ||
+          coursesExtract.materialisationRefusedReason !== null);
       phases.push({
         name: 'phase2b courses-extract (parallel with phase1)',
         durationMs: phaseDuration,
         costUsd: ok ? coursesExtract.costUsd : 0,
-        ok: coursesExtract.status !== 'FAILED',
+        ok: coursesExtract.status !== 'FAILED' && !degraded,
         notes:
           coursesExtract.status === 'SUCCEEDED'
-            ? `${coursesExtract.previousCount} → ${coursesExtract.materialisedCount} courses · confidence ${coursesExtract.confidence.toFixed(2)}`
+            ? [
+                `${coursesExtract.previousCount} → ${coursesExtract.materialisedCount} courses · confidence ${coursesExtract.confidence.toFixed(2)}`,
+                coursesExtract.llmFailureReason
+                  ? `DEGRADED — regex fallback only: ${coursesExtract.llmFailureReason.slice(0, 160)}`
+                  : null,
+                coursesExtract.materialisationRefusedReason
+                  ? `WRITE REFUSED — ${coursesExtract.materialisationRefusedReason}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
             : coursesExtract.status === 'SKIPPED'
               ? `skipped: ${coursesExtract.reason}`
               : `failed: ${coursesExtract.reason}`,

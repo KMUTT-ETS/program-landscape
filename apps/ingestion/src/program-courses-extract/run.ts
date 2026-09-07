@@ -1,3 +1,4 @@
+import { decideCourseMaterialisation } from './materialisation-guard';
 import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramCoursesExtractMessages,
@@ -54,6 +55,19 @@ export type RunProgramCoursesExtractOutcome =
       materialisedCount: number;
       /** Previous count (delete-and-replace path), for the operator log. */
       previousCount: number;
+      /**
+       * Set when the LLM call failed and the courses below came from the
+       * regex fallback alone. SUCCEEDED is retained so the counts survive for
+       * diagnosis, but callers MUST NOT render this as a clean pass — see the
+       * `degraded` computation in scripts/programs-pipeline.ts. Production ran
+       * for weeks showing green ticks on runs that destroyed their input.
+       */
+      llmFailureReason: string | null;
+      /**
+       * Set when the materialisation guard refused the write. The existing
+       * rows were left untouched.
+       */
+      materialisationRefusedReason: string | null;
     }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
@@ -200,7 +214,8 @@ export async function runProgramCoursesExtract(
     select: { id: true },
   });
 
-  // Materialise into program_courses (delete-and-replace per program).
+  // Materialise into program_courses (delete-and-replace per program), but
+  // only when the guard allows it — see ./materialisation-guard.ts.
   // Normalise course codes the same way ClassOffering does so the
   // natural join key matches.
   const previousCount = await prisma.programCourse.count({
@@ -209,6 +224,7 @@ export async function runProgramCoursesExtract(
 
   let materialisedCount = 0;
   let fallbackAddedCount = 0;
+  let materialisationRefusedReason: string | null = null;
   if (params.materialise !== false) {
     // Provenance: which curriculum revision produced these rows. NULL is the
     // pre-feature baseline. See packages/db/src/program-revision.ts.
@@ -314,12 +330,29 @@ export async function runProgramCoursesExtract(
       fallbackAddedCount++;
     }
 
-    // Transaction: wipe + reinsert. Idempotent on re-runs.
-    await prisma.$transaction([
-      prisma.programCourse.deleteMany({ where: { programId: program.id } }),
-      prisma.programCourse.createMany({ data: rows, skipDuplicates: true }),
-    ]);
-    materialisedCount = rows.length;
+    // GUARD 1. This wipe used to be unconditional, which turned an LLM
+    // failure into silent data loss — see ./materialisation-guard.ts for the
+    // incident. Refuse rather than delete: the existing rows stay put and the
+    // programme can be re-extracted once the underlying failure is fixed.
+    const decision = decideCourseMaterialisation({
+      nextCount: rows.length,
+      previousCount,
+    });
+    if (decision.action === 'refuse') {
+      materialisationRefusedReason = decision.reason;
+      logger.warn(
+        `[${program.code}] materialisation REFUSED: ${decision.reason}` +
+          (llmFailureReason ? ` (LLM had failed: ${llmFailureReason.slice(0, 120)})` : ''),
+      );
+    } else {
+      // Transaction: wipe + reinsert. Idempotent on re-runs *that produced
+      // rows* — the guard above is what makes that claim true.
+      await prisma.$transaction([
+        prisma.programCourse.deleteMany({ where: { programId: program.id } }),
+        prisma.programCourse.createMany({ data: rows, skipDuplicates: true }),
+      ]);
+      materialisedCount = rows.length;
+    }
     logger.log(
       `[${program.code}] candidates=${candidateCodes.length} llm=${llmCourses.length}` +
         (llmFailureReason ? ' (LLM FAILED)' : '') +
@@ -341,5 +374,7 @@ export async function runProgramCoursesExtract(
     extractedCount: llmCourses.length,
     materialisedCount,
     previousCount,
+    llmFailureReason: llmFailureReason ?? null,
+    materialisationRefusedReason,
   };
 }
