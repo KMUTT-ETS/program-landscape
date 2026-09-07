@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type {
+  AiCallContext,
   AiFileUpload,
   AiInferenceRecorder,
   AiService,
@@ -18,6 +19,7 @@ import type {
   VisionResponse,
 } from '../types';
 import { findAiMethodEntry } from '../method-catalog';
+import { isModelInvalidError } from '../model-invalid';
 import { scrubMessages } from '../scrub-messages';
 
 // Google/Gemini provider. Default because:
@@ -139,6 +141,54 @@ export class GoogleAiService implements AiService {
     this.client = new GoogleGenAI({ apiKey: config.apiKey });
   }
 
+  /**
+   * Every generateContent call goes through here so that a "the model
+   * itself is wrong" refusal (400/INVALID_ARGUMENT, 404/NOT_FOUND)
+   * leaves a trace before it propagates.
+   *
+   * Why it needs to exist: a refused call fails the HTTP request
+   * outright, so none of the normal recorder.record() paths below are
+   * ever reached — the call produces NO ai_inferences row at all. In
+   * Aug 2026 that let 23 methods pinned to a retired model fail
+   * silently for five weeks. The row written here is what the
+   * per-method "recent failures" health check reads.
+   *
+   * module='ai-health' (not the caller's module) keeps these
+   * confidence-0 rows out of per-module cost/quality rollups; the
+   * originating module is preserved in sourcesJson. `kind` is
+   * free-text and indexed, so no migration is needed.
+   *
+   * Recording must never mask the real error: the write is
+   * best-effort and the original error is always rethrown.
+   */
+  private async generateContentTracked(
+    params: Parameters<GoogleGenAI['models']['generateContent']>[0],
+    ctx: AiCallContext,
+    methodVersion?: string,
+  ): Promise<Awaited<ReturnType<GoogleGenAI['models']['generateContent']>>> {
+    try {
+      return await this.client.models.generateContent(params);
+    } catch (err) {
+      if (isModelInvalidError(err)) {
+        await this.config.recorder
+          .record({
+            userId: ctx.userId ?? null,
+            module: 'ai-health',
+            kind: 'ai_model_invalid',
+            // The model the provider REFUSED — the whole point of the row.
+            model: params.model,
+            promptVersion: methodVersion,
+            prompt: '(model-invalid — prompt omitted)',
+            response: err instanceof Error ? err.message.slice(0, 2000) : String(err),
+            confidence: 0,
+            sourcesJson: { module: ctx.module, kind: ctx.kind },
+          })
+          .catch(() => undefined);
+      }
+      throw err;
+    }
+  }
+
   async complete(req: CompletionRequest): Promise<CompletionResponse> {
     const model = req.model ?? this.config.defaultCompletionModel ?? DEFAULT_COMPLETION_MODEL;
     const started = Date.now();
@@ -148,19 +198,24 @@ export class GoogleAiService implements AiService {
     const scrubbed = scrubMessages(req.messages);
     const { system, userText } = splitSystemFromMessages(scrubbed.messages);
 
-    const result = await this.client.models.generateContent({
-      model,
-      contents: userText,
-      config: {
-        systemInstruction: system,
-        temperature: req.temperature ?? 0,
-        maxOutputTokens: req.maxOutputTokens,
-        // gemini-3.5-flash is thinking-native; left on, its reasoning can
-        // consume the output budget and return empty/truncated text. These
-        // are plain synthesis/translation calls — disable thinking.
-        thinkingConfig: { thinkingBudget: 0 },
+    const result = await this.generateContentTracked(
+      {
+        model,
+        contents: userText,
+        config: {
+          systemInstruction: system,
+          temperature: req.temperature ?? 0,
+          maxOutputTokens: req.maxOutputTokens,
+          // gemini-3.5-flash is thinking-native; left on, its reasoning can
+          // consume the output budget and return empty/truncated text. These
+          // are plain synthesis/translation calls — disable thinking.
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
-    });
+      // No methodVersion on CompletionRequest — a refusal here is still
+      // recorded, just without a per-method attribution.
+      req.ctx,
+    );
     const latencyMs = Date.now() - started;
 
     const text = result.text ?? '';
@@ -258,11 +313,17 @@ export class GoogleAiService implements AiService {
     for (let attempt = 1; attempt <= 2; attempt++) {
       attemptedTimes = attempt;
       const attemptStarted = Date.now();
-      const result = await this.client.models.generateContent({
-        model,
-        contents,
-        config: baseConfig as Parameters<typeof this.client.models.generateContent>[0]['config'],
-      });
+      const result = await this.generateContentTracked(
+        {
+          model,
+          contents,
+          config: baseConfig as Parameters<
+            typeof this.client.models.generateContent
+          >[0]['config'],
+        },
+        req.ctx,
+        req.methodVersion,
+      );
       latencyMs = Date.now() - attemptStarted;
       rawText = result.text ?? '';
       tokens = extractUsage(result.usageMetadata);
@@ -404,15 +465,19 @@ export class GoogleAiService implements AiService {
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
     }
 
-    const result = await this.client.models.generateContent({
-      model,
-      contents: [{ role: 'user', parts }],
-      config: {
-        systemInstruction: system,
-        temperature: 0,
-        maxOutputTokens: req.maxOutputTokens ?? 4096,
+    const result = await this.generateContentTracked(
+      {
+        model,
+        contents: [{ role: 'user', parts }],
+        config: {
+          systemInstruction: system,
+          temperature: 0,
+          maxOutputTokens: req.maxOutputTokens ?? 4096,
+        },
       },
-    });
+      // No methodVersion on VisionRequest.
+      req.ctx,
+    );
     const latencyMs = Date.now() - started;
 
     const text = result.text ?? '';
@@ -525,20 +590,24 @@ export class GoogleAiService implements AiService {
     for (iterations = 0; iterations < maxIterations; iterations++) {
       const contents = toolUseToGeminiContents(conversation, signaturesByCallId);
       const iterationStarted = Date.now();
-      const result = await this.client.models.generateContent({
-        model,
-        contents,
-        config: {
-          systemInstruction,
-          temperature: req.temperature ?? 0.3,
-          maxOutputTokens: req.maxOutputTokens,
-          tools: toolDeclarations,
-          // Disable thinking. gemini-3.5-flash's reasoning otherwise eats the
-          // synthesis turn's output budget and returns empty text. The agent
-          // is grounded in tool results, not a chain-of-thought trace.
-          thinkingConfig: { thinkingBudget: 0 },
+      const result = await this.generateContentTracked(
+        {
+          model,
+          contents,
+          config: {
+            systemInstruction,
+            temperature: req.temperature ?? 0.3,
+            maxOutputTokens: req.maxOutputTokens,
+            tools: toolDeclarations,
+            // Disable thinking. gemini-3.5-flash's reasoning otherwise eats the
+            // synthesis turn's output budget and returns empty text. The agent
+            // is grounded in tool results, not a chain-of-thought trace.
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         },
-      });
+        // No methodVersion on ToolUseRequest.
+        req.ctx,
+      );
       const iterationLatency = Date.now() - iterationStarted;
 
       const tokens = extractUsage(result.usageMetadata);

@@ -1,4 +1,12 @@
-import type { AiInferenceRecorder, AiService } from '../types';
+import type { z } from 'zod';
+import type {
+  AiInferenceRecorder,
+  AiService,
+  ExtractionRequest,
+  ExtractionResponse,
+} from '../types';
+import { isModelInvalidError } from '../model-invalid';
+import { findAiMethodEntry } from '../method-catalog';
 import { GoogleAiService } from './google-ai';
 import { AnthropicAiService } from './anthropic-ai';
 import { OpenrouterAiService } from './openrouter-ai';
@@ -75,7 +83,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
             modelOverrideResolver,
           })
         : undefined;
-      return wrapWithTransientFallback(google, secondary);
+      return wrapWithModelInvalidFallback(wrapWithTransientFallback(google, secondary));
     }
     case 'anthropic': {
       if (!apiKeys.anthropic) throw new Error('AI_PROVIDER=anthropic but no ANTHROPIC_API_KEY configured');
@@ -105,7 +113,9 @@ export function createAiService(config: AiFactoryConfig): AiService {
       // Embedding fallback first (Claude has no embed API), then layer
       // transient-error fallback on top so Claude 429 → Gemini.
       const withEmbeddings = wrapWithEmbeddingFallback(primary, googleSecondary);
-      return wrapWithTransientFallback(withEmbeddings, googleSecondary);
+      return wrapWithModelInvalidFallback(
+        wrapWithTransientFallback(withEmbeddings, googleSecondary),
+      );
     }
     case 'openrouter': {
       if (!apiKeys.openrouter) throw new Error('AI_PROVIDER=openrouter but no OPENROUTER_API_KEY configured');
@@ -283,4 +293,86 @@ export function wrapWithTransientFallback(
     // keep google for embeddings even with anthropic-primary).
     embed: (r) => primary.embed(r).catch(() => secondary.embed(r)),
   };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Model-invalid fallback.
+//
+// Sibling to wrapWithTransientFallback, but a different failure class:
+// the CALL was fine, the MODEL was wrong. A model pinned to an id the
+// provider has since retired comes back as 400/INVALID_ARGUMENT (or
+// 404/NOT_FOUND) — deterministic, so the transient wrapper correctly
+// refuses to retry it, and the work simply dies.
+//
+// This wrapper retries ONCE with the model forced to the method's
+// catalog default (AI_METHOD_CATALOG.defaultModel), so the work
+// completes. The substitution is visible in the audit trail: the
+// AiInference row for the successful retry carries the fallback model,
+// and google-ai.ts has already recorded an `ai_model_invalid` row
+// naming the model that was refused.
+//
+// Deliberately narrow:
+//   - only extractStructured is wrapped — it is the only request shape
+//     that carries a methodVersion, and without one there is no catalog
+//     entry to resolve a default from. complete/translate/vision have
+//     no method identity, so a fallback there would have nothing to
+//     fall back TO.
+//   - exactly one retry. No loops, no third model. If the catalog
+//     default also fails, the original error is what the caller sees.
+//
+// Applied OUTSIDE wrapWithTransientFallback so provider failover runs
+// first; only a genuinely model-shaped refusal reaches this layer.
+// ──────────────────────────────────────────────────────────────────────
+
+export function wrapWithModelInvalidFallback(primary: AiService): AiService {
+  const retryOnce = async <T>(
+    methodVersion: string | undefined,
+    call: (modelOverride?: string) => Promise<T>,
+  ): Promise<T> => {
+    try {
+      return await call();
+    } catch (err) {
+      if (!isModelInvalidError(err)) throw err;
+      // methodVersion → catalog prefix: 'program-digest.v3' → 'program-digest'.
+      const prefix = (methodVersion ?? '').replace(/\.v\d+(?:\.\d+)*$/, '');
+      const fallback = findAiMethodEntry(prefix)?.defaultModel;
+      if (!fallback) throw err;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[ai/model-invalid] ${methodVersion ?? '(no method)'}: model refused by provider, ` +
+          `retrying once on catalog default '${fallback}': ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      // A second failure rethrows — no further substitution.
+      return await call(fallback);
+    }
+  };
+
+  // NB: built field-by-field rather than by spreading `primary`. The
+  // primary may be a class instance (wrapWithTransientFallback returns
+  // its argument untouched when there is no secondary), and spreading
+  // one drops every prototype method.
+  const wrapped: AiService = {
+    providerId: primary.providerId,
+    complete: (r) => primary.complete(r),
+    embed: (r) => primary.embed(r),
+    translate: (r) => primary.translate(r),
+    vision: (r) => primary.vision(r),
+    extractStructured: <T>(
+      req: ExtractionRequest,
+      schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+    ): Promise<ExtractionResponse<T>> =>
+      retryOnce(req.methodVersion, (model) =>
+        primary.extractStructured(model ? { ...req, model } : req, schema),
+      ),
+  };
+
+  // Optional members: forward only when the primary actually has them,
+  // so `if (!ai.completeWithTools)` capability checks stay truthful.
+  const uploadFile = primary.uploadFile?.bind(primary);
+  if (uploadFile) wrapped.uploadFile = uploadFile;
+  const completeWithTools = primary.completeWithTools?.bind(primary);
+  if (completeWithTools) wrapped.completeWithTools = completeWithTools;
+
+  return wrapped;
 }
