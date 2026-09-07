@@ -13,11 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@kku/ui';
-import { Check, Cog, Lock, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowRightLeft, Check, Cog, Lock, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
 import {
   clearAiModelOverrideAction,
   refreshAiModelsAction,
   setAiModelOverrideAction,
+  swapAiModelsAction,
+  type SwapCandidate,
+  type SwapPlan,
 } from '@/lib/actions/ai-settings';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -111,6 +114,13 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+
+  // Bulk swap — "replace every method using model X with model Y."
+  const [swapFrom, setSwapFrom] = useState('');
+  const [swapTo, setSwapTo] = useState('');
+  const [swapPlan, setSwapPlan] = useState<SwapPlan | null>(null);
+  const [swapPending, startSwapTransition] = useTransition();
+  const [swapError, setSwapError] = useState<string | null>(null);
 
   async function refreshModels() {
     setRefreshing(true);
@@ -217,6 +227,68 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
     });
   }
 
+  function updateSwapFrom(value: string) {
+    setSwapFrom(value);
+    setSwapPlan(null);
+    setSwapError(null);
+  }
+
+  function updateSwapTo(value: string) {
+    setSwapTo(value);
+    setSwapPlan(null);
+    setSwapError(null);
+  }
+
+  function previewSwap() {
+    if (!swapFrom || !swapTo) return;
+    setSwapError(null);
+    startSwapTransition(async () => {
+      const res = await swapAiModelsAction(swapFrom, swapTo, false);
+      if (!res.ok) {
+        setSwapError(res.message);
+        setSwapPlan(null);
+        return;
+      }
+      setSwapPlan(res.plan);
+    });
+  }
+
+  function applySwap() {
+    if (!swapFrom || !swapTo || !swapPlan) return;
+    setSwapError(null);
+    startSwapTransition(async () => {
+      const res = await swapAiModelsAction(swapFrom, swapTo, true);
+      if (!res.ok) {
+        setSwapError(res.message);
+        return;
+      }
+      const affected = new Set([...res.plan.rewrite, ...res.plan.create].map((r) => r.methodPrefix));
+      setData((d) => ({
+        ...d,
+        methods: d.methods.map((m) =>
+          affected.has(m.methodPrefix)
+            ? {
+                ...m,
+                effectiveModel: swapTo,
+                override: {
+                  modelId: swapTo,
+                  setByUserId: null,
+                  setByUserName: 'you',
+                  updatedAt: new Date().toISOString(),
+                },
+              }
+            : m,
+        ),
+      }));
+      setSwapPlan(res.plan);
+      toast.success(
+        `Swapped ${affected.size} method${affected.size === 1 ? '' : 's'} from ${swapFrom} to ${swapTo}.`,
+      );
+    });
+  }
+
+  const swapTotal = swapPlan ? swapPlan.rewrite.length + swapPlan.create.length + swapPlan.skipped.length : 0;
+
   return (
     <div className="flex flex-col gap-4">
       {error ? (
@@ -259,6 +331,108 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
         <SummaryCard label="AI calls (30d)" value={totals.calls.toLocaleString()} sub="across all methods" />
         <SummaryCard label="AI spend (30d)" value={`$${totals.cost.toFixed(2)}`} sub="estimate" />
       </div>
+
+      <Card>
+        <div className="flex items-center gap-2">
+          <ArrowRightLeft className="size-icon-md text-accent-default" aria-hidden />
+          <h2 className="text-sm font-semibold">Bulk model swap</h2>
+        </div>
+        <p className="mt-1 text-xs text-text-secondary">
+          Replace every method currently using one model with another — including methods that
+          only reach that model through the catalog default, not just methods with an explicit
+          pin. Preview first; nothing changes until you press Apply.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs text-text-tertiary">
+            From model
+            <select
+              className="kku-select min-w-[220px]"
+              value={swapFrom}
+              onChange={(e) => updateSwapFrom(e.target.value)}
+            >
+              <option value="">— select —</option>
+              {data.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ArrowRightLeft className="mb-2 size-icon-sm text-text-tertiary" aria-hidden />
+          <label className="flex flex-col gap-1 text-xs text-text-tertiary">
+            To model
+            <select
+              className="kku-select min-w-[220px]"
+              value={swapTo}
+              onChange={(e) => updateSwapTo(e.target.value)}
+            >
+              <option value="">— select —</option>
+              {data.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            onClick={previewSwap}
+            disabled={swapPending || !swapFrom || !swapTo || swapFrom === swapTo}
+            variant="outline"
+            size="sm"
+          >
+            Preview
+          </Button>
+          <Button
+            onClick={applySwap}
+            disabled={swapPending || !swapPlan || swapTotal === 0}
+            variant="default"
+            size="sm"
+          >
+            Apply swap
+          </Button>
+        </div>
+
+        {swapFrom && swapTo && swapFrom === swapTo ? (
+          <div className="mt-2 text-xs text-text-tertiary">From and to models are the same — nothing to swap.</div>
+        ) : null}
+
+        {swapError ? (
+          <div className="mt-3 rounded-lg border border-danger-default/30 bg-danger-default/5 p-3 text-sm text-danger-default">
+            {swapError}
+          </div>
+        ) : null}
+
+        {swapPlan ? (
+          <div className="mt-4 flex flex-col gap-3">
+            {swapTotal === 0 ? (
+              <div className="text-sm text-text-tertiary">No methods currently resolve to {swapFrom}.</div>
+            ) : (
+              <>
+                <SwapPlanGroup
+                  title="Will be repointed (already pinned)"
+                  tone="warning"
+                  rows={swapPlan.rewrite}
+                  toModel={swapTo}
+                />
+                <SwapPlanGroup
+                  title="Will gain a new pin (currently following the catalog default)"
+                  tone="info"
+                  rows={swapPlan.create}
+                  toModel={swapTo}
+                  note="These methods stop tracking the catalog default once pinned — future default changes won't reach them until the pin is cleared."
+                />
+                <SwapPlanGroup
+                  title="Skipped (platform-locked, cannot be overridden)"
+                  tone="neutral"
+                  rows={swapPlan.skipped}
+                  toModel={swapTo}
+                />
+              </>
+            )}
+          </div>
+        ) : null}
+      </Card>
 
       {grouped.map((group) => (
         <Card key={group.module}>
@@ -431,6 +605,46 @@ function timeAgo(iso: string): string {
   const h = Math.round(min / 60);
   if (h < 24) return `${h} h ago`;
   return `${Math.round(h / 24)} d ago`;
+}
+
+function SwapPlanGroup({
+  title,
+  tone,
+  rows,
+  toModel,
+  note,
+}: {
+  title: string;
+  tone: 'warning' | 'info' | 'neutral';
+  rows: SwapCandidate[];
+  toModel: string;
+  note?: string;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-border-default p-3">
+      <div className="flex items-center gap-2">
+        <Badge tone={tone}>{rows.length}</Badge>
+        <span className="text-sm font-medium">{title}</span>
+      </div>
+      {note ? <div className="mt-1 text-xs text-text-tertiary">{note}</div> : null}
+      <ul className="mt-2 flex flex-wrap gap-1.5">
+        {rows.map((r) => (
+          <li
+            key={r.methodPrefix}
+            className="rounded-full border border-border-default bg-surface-2 px-2 py-0.5 text-xs"
+            title={
+              tone === 'neutral'
+                ? `Locked to ${r.lockedModel ?? r.effectiveModel} — not changed`
+                : `${r.methodPrefix}: ${r.effectiveModel} → ${toModel}`
+            }
+          >
+            {r.methodPrefix}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function SummaryCard({ label, value, sub }: { label: string; value: string; sub: string }) {

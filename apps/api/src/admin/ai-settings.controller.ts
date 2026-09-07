@@ -25,6 +25,13 @@ const SetOverrideSchema = z.object({
 });
 type SetOverrideBody = z.infer<typeof SetOverrideSchema>;
 
+const SwapSchema = z.object({
+  fromModelId: z.string().min(1),
+  toModelId: z.string().min(1),
+  apply: z.boolean().default(false),
+});
+type SwapBody = z.infer<typeof SwapSchema>;
+
 @Controller('/admin/ai-settings')
 export class AiSettingsController {
   constructor(private readonly service: AiSettingsService) {}
@@ -59,5 +66,20 @@ export class AiSettingsController {
   @AuditLog({ action: 'ai_model_catalog.refresh', entityType: 'AiModelCatalog' })
   async refreshModels() {
     return this.service.refreshModels();
+  }
+
+  // Bulk "replace every method using model X" action. apply:false previews
+  // the plan without writing anything; apply:true writes it in one
+  // transaction. One audit row names both models plus every affected
+  // method — a client-side loop of per-method PUTs would write N rows and
+  // could half-fail partway through.
+  @Post('/swap')
+  @Authorized('ai_models:configure')
+  @AuditLog({ action: 'ai_model_override.swap', entityType: 'AiModelOverride' })
+  async swap(
+    @AuthSession() user: SessionUser,
+    @Body(new ZodValidationPipe(SwapSchema)) body: SwapBody,
+  ) {
+    return this.service.swapModel(body.fromModelId, body.toModelId, user.userId, body.apply);
   }
 }

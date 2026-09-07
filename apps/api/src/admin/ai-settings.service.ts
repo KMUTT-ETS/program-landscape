@@ -8,6 +8,7 @@ import {
   refreshAiModelCatalog,
 } from '@kku/db';
 import { AI_METHOD_CATALOG, findAiMethodEntry, type AiMethodEntry } from '@kku/shared';
+import { planModelSwap, type SwapCandidate, type SwapPlan } from './ai-settings-swap';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Admin AI-settings service — read the method catalog joined with current
@@ -199,6 +200,54 @@ export class AiSettingsService {
     await prisma.aiModelOverride.deleteMany({ where: { methodPrefix } });
     await getAiModelOverrideStore().invalidate();
     return this.findOne(methodPrefix);
+  }
+
+  /** Preview (apply: false) or execute (apply: true) a bulk model swap:
+   *  "every method currently resolving to fromModelId should resolve to
+   *  toModelId instead." Deliberately includes methods that reach
+   *  fromModelId through the catalog default, not only explicit pins — see
+   *  ai-settings-swap.ts for why that's in scope, not a footnote. */
+  async swapModel(
+    fromModelId: string,
+    toModelId: string,
+    userId: string,
+    apply: boolean,
+  ): Promise<{ plan: SwapPlan; applied: boolean }> {
+    // Same catalog-table check as setOverride — necessary, not sufficient:
+    // ai_model_catalog is refreshed daily from OpenRouter and only proves
+    // the model is *listed*, not that it actually works on the provider we
+    // call at runtime. That gap is exactly how the August pin got in.
+    const model = await findCatalogModel(toModelId);
+    if (!model) throw new BadRequestException(`Unknown model id: ${toModelId}`);
+
+    const { methods } = await this.list();
+    const candidates: SwapCandidate[] = methods.map((row) => ({
+      methodPrefix: row.methodPrefix,
+      effectiveModel: row.effectiveModel,
+      isPinned: row.override != null,
+      lockedModel: row.lockedModel,
+    }));
+    const plan = planModelSwap(candidates, fromModelId, toModelId);
+
+    if (!apply) return { plan, applied: false };
+
+    const targets = [...plan.rewrite, ...plan.create];
+    if (targets.length > 0) {
+      // One transaction for all 23-ish rows — a half-applied swap is worse
+      // than none, so either every target lands or none do.
+      await prisma.$transaction(
+        targets.map((t) =>
+          prisma.aiModelOverride.upsert({
+            where: { methodPrefix: t.methodPrefix },
+            create: { methodPrefix: t.methodPrefix, modelId: toModelId, setByUserId: userId },
+            update: { modelId: toModelId, setByUserId: userId },
+          }),
+        ),
+      );
+      await getAiModelOverrideStore().invalidate();
+    }
+
+    return { plan, applied: true };
   }
 
   private async findOne(methodPrefix: string): Promise<MethodSettingRow> {

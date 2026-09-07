@@ -33,6 +33,42 @@ export async function clearAiModelOverrideAction(
   }
 }
 
+export interface SwapCandidate {
+  methodPrefix: string;
+  effectiveModel: string;
+  isPinned: boolean;
+  lockedModel: string | null;
+}
+
+export interface SwapPlan {
+  rewrite: SwapCandidate[];
+  create: SwapCandidate[];
+  skipped: SwapCandidate[];
+}
+
+// Bulk "replace every method using model X" action. `apply: false` (the
+// default) only previews the plan — nothing is written. `apply: true`
+// executes it in one transaction on the API side.
+export async function swapAiModelsAction(
+  fromModelId: string,
+  toModelId: string,
+  apply: boolean,
+): Promise<
+  | { ok: true; plan: SwapPlan; applied: boolean }
+  | { ok: false; message: string }
+> {
+  try {
+    const res = await apiFetch<{ plan: SwapPlan; applied: boolean }>('/admin/ai-settings/swap', {
+      method: 'POST',
+      body: JSON.stringify({ fromModelId, toModelId, apply }),
+    });
+    if (apply) revalidatePath('/admin/app/ai-settings');
+    return { ok: true, plan: res.plan, applied: res.applied };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
 // Re-fetch the Google Gemini model list from OpenRouter (discovery only —
 // model name, description, pricing). `ok:true` with a `warning` means
 // OpenRouter was unreachable but the existing catalog is intact.
