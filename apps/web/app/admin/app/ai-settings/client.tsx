@@ -71,13 +71,17 @@ export interface AiSettingsModel {
 }
 
 /** A model choosable as the SOURCE of a bulk swap — wider than `models`
- *  (the catalog-backed target list) because a model that stopped working
- *  is exactly the kind that has already dropped out of the
- *  daily-refreshed OpenRouter catalog. See ai-settings.service.ts. */
+ *  (the catalog-backed target list): the "from" list is what is CURRENTLY
+ *  RUNNING — the distinct effectiveModel across all methods — because a model
+ *  that stopped working is exactly the kind that has already dropped out of
+ *  the daily-refreshed OpenRouter catalog, and a catalog model no method uses
+ *  is not a swap source at all. See ai-settings.service.ts. */
 export interface SwapSourceModelOption {
   id: string;
   label: string;
   inCatalog: boolean;
+  /** How many methods currently run on this model. */
+  methodCount: number;
 }
 
 export interface AiSettingsResponse {
@@ -412,7 +416,7 @@ export function AiSettingsClient({ initial }: { initial: AiSettingsResponse }) {
               <option value="">— select —</option>
               {data.fromModelOptions.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.label}
+                  {m.label} — {m.methodCount} method{m.methodCount === 1 ? '' : 's'}
                   {m.inCatalog ? '' : ' (not in catalog)'}
                 </option>
               ))}

@@ -68,13 +68,26 @@ export interface ModelOption {
  *  ai_model_catalog is delete-and-replace on every daily refresh, so a
  *  model that stopped working — precisely the kind this feature exists to
  *  move away from — is exactly the kind that drops out of the catalog and
- *  would otherwise become unselectable as "from". Union of catalog models
- *  + every modelId an aiModelOverride row currently points at; `inCatalog`
- *  marks the orphans so the UI can flag them. */
+ *  would otherwise become unselectable as "from".
+ *
+ *  Sourced from what is CURRENTLY RUNNING — the distinct `effectiveModel`
+ *  across all methods — not from the catalog. The catalog is wrong on both
+ *  sides here: it omits models in use (`refreshAiModelCatalog` is
+ *  delete-and-replace from a rolling 4-model OpenRouter window, which evicts
+ *  gemini-3.5-flash daily even though 27 methods default to it) and it lists
+ *  models nothing on this deployment runs. A model no method uses is not a
+ *  swap source.
+ *
+ *  `effectiveModel` rather than the override rows, because the approved swap
+ *  scope includes methods reaching a model through their catalog default —
+ *  those must be swappable too. */
 export interface SwapSourceModelOption {
   id: string;
   label: string;
   inCatalog: boolean;
+  /** How many methods currently run on this model. Shown in the dropdown so
+   *  the blast radius is visible before the operator even previews. */
+  methodCount: number;
 }
 
 export interface AiSettingsListResult {
@@ -177,13 +190,21 @@ export class AiSettingsService {
     // catalog — union catalog ids with whatever aiModelOverride rows
     // actually reference today, marking the ones not in `models`.
     const catalogIds = new Set(models.map((m) => m.id));
-    const orphanOverrideIds = new Set(
-      overrides.map((o) => o.modelId).filter((id) => !catalogIds.has(id)),
-    );
-    const fromModelOptions: SwapSourceModelOption[] = [
-      ...models.map((m) => ({ id: m.id, label: m.label, inCatalog: true })),
-      ...[...orphanOverrideIds].map((id) => ({ id, label: id, inCatalog: false })),
-    ];
+    const labelById = new Map(models.map((m) => [m.id, m.label]));
+    const usageByModel = new Map<string, number>();
+    for (const m of methods) {
+      usageByModel.set(m.effectiveModel, (usageByModel.get(m.effectiveModel) ?? 0) + 1);
+    }
+    const fromModelOptions: SwapSourceModelOption[] = [...usageByModel.entries()]
+      .map(([id, methodCount]) => ({
+        id,
+        label: labelById.get(id) ?? id,
+        inCatalog: catalogIds.has(id),
+        methodCount,
+      }))
+      // Most-used first: the model behind a mass mispin is the one being
+      // reached for, and it should not be hunted for in an alphabetical list.
+      .sort((a, b) => b.methodCount - a.methodCount || a.id.localeCompare(b.id));
 
     return {
       methods,
