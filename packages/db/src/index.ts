@@ -19,6 +19,7 @@ export * from './provenance';
 export * from './ai-inference-recorder';
 export * from './ai-model-override-store';
 export * from './ai-model-catalog';
+export * from './ai-model-health';
 export * from './external-ai-runner';
 export * from './health-score';
 export * from './program-deep-dive';
