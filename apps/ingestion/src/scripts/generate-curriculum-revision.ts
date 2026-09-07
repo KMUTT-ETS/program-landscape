@@ -41,8 +41,8 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder, generateProgramCurriculumRevision } from '@kku/db';
-import { createAiService, type AiProviderId } from '@kku/shared';
+import { prisma, generateProgramCurriculumRevision } from '@kku/db';
+import { createIngestionAiService } from '../lib/ai-service';
 
 const args = process.argv.slice(2);
 function flag(name: string): string | undefined {
@@ -78,15 +78,7 @@ async function main(): Promise<void> {
   console.log(`Candidate programmes: ${programs.length}`);
   audit({ event: 'eligible', count: programs.length });
 
-  const ai = createAiService({
-    recorder: new PrismaAiInferenceRecorder(),
-    providerId: (process.env.AI_PROVIDER ?? 'google') as AiProviderId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const ai = createIngestionAiService();
 
   let succeeded = 0,
     failed = 0,

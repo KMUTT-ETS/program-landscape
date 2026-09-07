@@ -34,9 +34,10 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
-import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
+import { prisma } from '@kku/db';
+import { S3Storage } from '@kku/shared';
 import { runProgramPedagogy } from '../program-pedagogy/run';
+import { createIngestionAiService } from '../lib/ai-service';
 
 interface CliArgs {
   programArg: string | null;
@@ -99,16 +100,8 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const targets = await resolveTargets(args);
 
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder: new PrismaAiInferenceRecorder(),
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const providerId = process.env.AI_PROVIDER ?? 'google';
+  const ai = createIngestionAiService();
   const storage = new S3Storage({
     endpoint: process.env.MINIO_ENDPOINT ?? 'http://localhost:9000',
     region: process.env.MINIO_REGION ?? 'us-east-1',

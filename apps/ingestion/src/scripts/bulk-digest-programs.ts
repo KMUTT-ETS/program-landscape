@@ -46,9 +46,10 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder, type ProgramLevel } from '@kku/db';
-import { createAiService, S3Storage, type AiProviderId } from '@kku/shared';
+import { prisma, type ProgramLevel } from '@kku/db';
+import { S3Storage } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
+import { createIngestionAiService } from '../lib/ai-service';
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 
@@ -133,16 +134,7 @@ async function main(): Promise<void> {
     secretAccessKey: process.env.MINIO_SECRET_KEY ?? 'minio_dev_password',
     region: process.env.MINIO_REGION ?? 'us-east-1',
   });
-  const recorder = new PrismaAiInferenceRecorder();
-  const ai = createAiService({
-    recorder,
-    providerId: (process.env.AI_PROVIDER ?? 'google') as AiProviderId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const ai = createIngestionAiService();
 
   let totalCostUsd = 0;
   let successes = 0;

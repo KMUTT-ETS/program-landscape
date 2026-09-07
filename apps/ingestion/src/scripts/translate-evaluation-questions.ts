@@ -42,14 +42,13 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
+import { prisma } from '@kku/db';
 import {
-  createAiService,
   buildEvaluationQuestionTranslateMessages,
   EVALUATION_QUESTION_TRANSLATE_VERSION,
   EvaluationQuestionTranslateSchema,
-  type AiProviderId,
 } from '@kku/shared';
+import { createIngestionAiService } from '../lib/ai-service';
 
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
@@ -76,17 +75,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const recorder = new PrismaAiInferenceRecorder();
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder,
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const providerId = process.env.AI_PROVIDER ?? 'google';
+  const ai = createIngestionAiService();
 
   const messages = buildEvaluationQuestionTranslateMessages({
     questions: rows.map((r) => ({

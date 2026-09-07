@@ -5,13 +5,11 @@ import {
   PipelineConfigSchema,
   S3Storage,
   MarkitdownClient,
-  createAiService,
-  type AiProviderId,
   type AiService,
 } from '@kku/shared';
-import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 
 import { ConnectorRunner, buildRegistry } from './connectors';
+import { createIngestionAiService } from './lib/ai-service';
 import {
   IngestionScheduler,
   createIngestionQueue,
@@ -283,33 +281,12 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildAiService(): AiService {
-    const recorder = new PrismaAiInferenceRecorder();
-    const providerId = (this.config.get<string>('AI_PROVIDER') ?? 'google') as AiProviderId;
-    const intelSphereUrl = this.config.get<string>('KKU_INTELSPHERE_URL');
-    const intelSphereKey = this.config.get<string>('KKU_INTELSPHERE_API_KEY');
-    return createAiService({
-      recorder,
-      providerId,
-      apiKeys: {
-        google: this.config.get<string>('GOOGLE_AI_API_KEY'),
-        anthropic: this.config.get<string>('ANTHROPIC_API_KEY'),
-        openrouter: this.config.get<string>('OPENROUTER_API_KEY'),
-        intelSphere:
-          intelSphereUrl && intelSphereKey
-            ? { url: intelSphereUrl, apiKey: intelSphereKey }
-            : undefined,
-      },
-      models: {
-        google: {
-          completion: this.config.get<string>('AI_GOOGLE_COMPLETION_MODEL'),
-          embedding: this.config.get<string>('AI_GOOGLE_EMBEDDING_MODEL'),
-        },
-        anthropic: {
-          completion: this.config.get<string>('AI_ANTHROPIC_COMPLETION_MODEL'),
-        },
-      },
-      modelOverrideResolver: getAiModelOverrideStore(),
-    });
+    // ConfigModule.forRoot() (see app.module.ts) loads envFilePath into
+    // process.env on module init, before this ever runs — so reading
+    // via createIngestionAiService()'s process.env lookups is equivalent
+    // to the previous this.config.get() calls, but goes through the one
+    // shared factory that always wires modelOverrideResolver.
+    return createIngestionAiService();
   }
 
   private required(key: string): string {

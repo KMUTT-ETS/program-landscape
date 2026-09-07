@@ -58,15 +58,14 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder, recordAliasDecision, relinkUsingAliases, type SkillAliasSourceContext } from '@kku/db';
+import { prisma, recordAliasDecision, relinkUsingAliases, type SkillAliasSourceContext } from '@kku/db';
 import {
-  createAiService,
   buildSkillNormaliserMessages,
   SkillNormaliserBatchSchema,
   SKILL_NAME_NORMALISER_VERSION,
-  type AiProviderId,
   type AiService,
 } from '@kku/shared';
+import { createIngestionAiService } from '../lib/ai-service';
 
 interface CliArgs {
   source: 'linkedin' | 'program_digest' | 'all';
@@ -373,17 +372,7 @@ async function main(): Promise<void> {
   console.log(`  source=${args.source} limit=${args.limit ?? '∞'} batchSize=${args.batchSize} dryRun=${args.dryRun} autoPromote=${args.autoPromote}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  const recorder = new PrismaAiInferenceRecorder();
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder,
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const ai = createIngestionAiService();
 
   console.log('Loading taxonomy…');
   const taxonomy = await loadTaxonomy();

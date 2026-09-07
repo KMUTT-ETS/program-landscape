@@ -49,7 +49,6 @@ function loadDotEnv(envPath: string): void {
 
 import {
   prisma,
-  PrismaAiInferenceRecorder,
   loadProgramRiskInputs,
   programFunnelRoundRows,
   scoreProgramRisk,
@@ -66,13 +65,12 @@ import {
   type ProgramRiskResult,
 } from '@kku/db';
 import {
-  createAiService,
   buildRiskAssessmentMessages,
   RISK_ASSESSMENT_VERSION,
   RiskAssessmentSchema,
-  type AiProviderId,
   type RiskAssessmentInput,
 } from '@kku/shared';
+import { createIngestionAiService } from '../lib/ai-service';
 
 const args = process.argv.slice(2);
 const all = args.includes('--all');
@@ -451,19 +449,7 @@ async function main(): Promise<void> {
   const targets = await resolveTargets();
   console.log(`[risks-assess] ${targets.length} program(s) to process`);
 
-  const recorder = new PrismaAiInferenceRecorder();
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = !noAi
-    ? createAiService({
-        recorder,
-        providerId,
-        apiKeys: {
-          google: process.env.GOOGLE_AI_API_KEY,
-          anthropic: process.env.ANTHROPIC_API_KEY,
-          openrouter: process.env.OPENROUTER_API_KEY,
-        },
-      })
-    : null;
+  const ai = !noAi ? createIngestionAiService() : null;
 
   let succeeded = 0;
   let failed = 0;

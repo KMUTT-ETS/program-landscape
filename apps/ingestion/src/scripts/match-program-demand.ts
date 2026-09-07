@@ -27,9 +27,9 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
-import { createAiService, type AiProviderId } from '@kku/shared';
+import { prisma } from '@kku/db';
 import { runDemandMatch } from '../program-demand-match/run';
+import { createIngestionAiService } from '../lib/ai-service';
 
 async function resolveProgramId(arg: string): Promise<string> {
   const seqNo = Number(arg);
@@ -60,17 +60,7 @@ async function main(): Promise<void> {
   const modelOverride = modelArg ? modelArg.split('=')[1] : undefined;
 
   const programId = await resolveProgramId(positional);
-  const recorder = new PrismaAiInferenceRecorder();
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder,
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const ai = createIngestionAiService();
 
   console.log(
     `Running demand-driven curriculum match…${modelOverride ? ` (model=${modelOverride})` : ''}`,

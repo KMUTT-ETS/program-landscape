@@ -38,14 +38,13 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
+import { prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
+import { createIngestionAiService } from '../lib/ai-service';
 import {
   buildGraduateEmploymentSurveyMessages,
   GraduateEmploymentSurveySchema,
   GRADUATE_EMPLOYMENT_SURVEY_VERSION,
-  createAiService,
-  type AiProviderId,
 } from '@kku/shared';
 
 const SOURCE_DIR = '/home/denpong/employment';
@@ -99,16 +98,8 @@ async function main() {
 
 async function mainInner(_args: string[], pdfs: string[], runId: string): Promise<number> {
 
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder: new PrismaAiInferenceRecorder(),
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-  });
+  const providerId = process.env.AI_PROVIDER ?? 'google';
+  const ai = createIngestionAiService();
   if (!ai.uploadFile) {
     throw new Error(`Provider ${providerId} doesn't expose uploadFile — needed for large PDF ingestion. Set AI_PROVIDER=google.`);
   }

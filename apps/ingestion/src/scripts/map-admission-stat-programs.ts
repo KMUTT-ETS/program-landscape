@@ -37,8 +37,9 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { z } from 'zod';
-import { prisma, PrismaAiInferenceRecorder } from '@kku/db';
-import { createAiService, type AiProviderId, type AiMessage } from '@kku/shared';
+import { prisma } from '@kku/db';
+import { type AiMessage } from '@kku/shared';
+import { createIngestionAiService } from '../lib/ai-service';
 
 const MAP_METHOD_VERSION = 'admission-stat-program-map.v1';
 
@@ -171,17 +172,7 @@ async function main() {
   let llmResolved = 0;
   let llmCostUsd = 0;
   if (useLlm && residual.length > 0) {
-    const recorder = new PrismaAiInferenceRecorder();
-    const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-    const ai = createAiService({
-      recorder,
-      providerId,
-      apiKeys: {
-        google: process.env.GOOGLE_AI_API_KEY,
-        anthropic: process.env.ANTHROPIC_API_KEY,
-        openrouter: process.env.OPENROUTER_API_KEY,
-      },
-    });
+    const ai = createIngestionAiService();
 
     // Group residual by faculty; only faculties with candidates are worth a call.
     const resByFaculty = new Map<string, RecruitProgram[]>();
