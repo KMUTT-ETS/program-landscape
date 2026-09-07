@@ -112,6 +112,23 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     defaultModel: 'gemini-3.5-flash',
   },
   {
+    methodPrefix: 'program-research-expertise',
+    currentVersion: 'program-research-expertise.v3',
+    label: 'Program research expertise',
+    description:
+      "Maps the programme's teaching roster onto their published research — themes, depth and gaps — from the kku-publications mirror. Phase RE of the programme pipeline; the Research expertise section on /programs/[id] renders it, and phase CR derives its course-level advice from it, skipping entirely when this has not run.",
+    module: 'pipeline',
+    tier: 'narrative',
+    // Display/health metadata only. pickModelForMethod() never reads
+    // defaultModel — with no lockedModel, no override and an empty
+    // MODEL_BY_METHOD_PREFIX, the call falls through to the provider's
+    // DEFAULT_COMPLETION_MODEL, which is this same id. Adding this entry is
+    // therefore behaviour-neutral; it exists so the method is pinnable on
+    // /admin/app/ai-settings and visible to assessModelHealth(), neither of
+    // which was true before 2026-09-07.
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
     methodPrefix: 'program-strategic-narrative',
     currentVersion: 'program-strategic-narrative.v1',
     label: 'Program strategic narrative',
