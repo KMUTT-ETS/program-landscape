@@ -3,6 +3,7 @@ export * from './inference-recorder';
 export * from './providers';
 export * from './prompts';
 export * from './method-catalog';
+export * from './model-health';
 export * from './openrouter-catalog';
 export * from './scrub-messages';
 export * from './lint-tells';
