@@ -61,6 +61,13 @@ export function InboxClient({ initial }: { initial: NotificationDto[] }) {
                   </Button>
                 </Link>
               )}
+              {n.entityType === 'ai_model_override' && (
+                <Link href="/admin/app/ai-settings">
+                  <Button size="xs" variant="outline">
+                    Open AI settings
+                  </Button>
+                </Link>
+              )}
               {!n.readAt && (
                 <Button
                   size="xs"

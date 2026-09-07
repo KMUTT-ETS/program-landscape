@@ -14,7 +14,7 @@ import {
   type ExpertiseNarrative,
   type ExpertiseNarrativeInput,
 } from '@kku/shared';
-import { PrismaAiInferenceRecorder } from '@kku/db';
+import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 
 interface AiCallContext {
   userId: string;
@@ -41,7 +41,21 @@ export async function generateExpertiseNarrative(
   }
 
   const recorder = new PrismaAiInferenceRecorder();
-  const ai = createAiService({ recorder, providerId, apiKeys });
+  // modelOverrideResolver is load-bearing, not optional: this method
+  // (methodPrefix "expertise-narrative") is pinnable on
+  // /admin/app/ai-settings, and that page's model-health banner assesses
+  // the pin it reports as effective. Omitting the resolver here — as this
+  // caller used to — makes the admin page lie: it would show a pin "in
+  // effect" while this call silently ran the catalog default instead. See
+  // apps/ingestion/src/lib/ai-service.ts for the same requirement on the
+  // ingestion side (that's where the 2026-08-03 divergence incident was
+  // fixed first).
+  const ai = createAiService({
+    recorder,
+    providerId,
+    apiKeys,
+    modelOverrideResolver: getAiModelOverrideStore(),
+  });
 
   try {
     const result = await ai.extractStructured(
