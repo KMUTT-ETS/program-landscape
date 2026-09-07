@@ -75,6 +75,12 @@ export function assessModelHealth(input: ModelHealthInput): MethodModelHealth[] 
           ? 'off-catalog'
           : 'ok';
 
+    // Notes may already end with their own terminator (deprecatedNote is a
+    // free-text sentence from the static catalog, e.g. "Retires 2026-12-01.").
+    // Strip any trailing period before joining so there is exactly one
+    // separator between notes and exactly one terminator on the whole string.
+    const cleaned = notes.map((n) => n.replace(/\s*\.\s*$/, ''));
+
     return {
       methodPrefix,
       effectiveModel,
@@ -83,7 +89,7 @@ export function assessModelHealth(input: ModelHealthInput): MethodModelHealth[] 
       detail:
         status === 'ok'
           ? `Running on ${effectiveModel}${isPinned ? ' (pinned)' : ' (catalog default)'}.`
-          : notes.join('. ') + '.',
+          : cleaned.join('. ') + '.',
     };
   });
 }

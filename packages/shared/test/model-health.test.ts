@@ -44,7 +44,39 @@ describe('assessModelHealth', () => {
       overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-2.5-pro' }],
     });
     expect(v.status).toBe('deprecated');
-    expect(v.detail).toContain('Retires 2026-12-01.');
+    expect(v.detail).not.toMatch(/\.\./);
+    expect(v.detail).toBe(
+      '"gemini-2.5-pro" is marked deprecated — Retires 2026-12-01.',
+    );
+  });
+
+  it('deprecated beats off-catalog, but names both — a pin we flagged deprecated that OpenRouter has since dropped', () => {
+    const [v] = assessModelHealth({
+      ...base,
+      methods: [methods[0]],
+      // gemini-2.5-pro is deprecated per deprecatedModels but NOT in
+      // knownModelIds for this call — OpenRouter dropped it entirely.
+      knownModelIds: new Set(['gemini-3.5-flash']),
+      overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-2.5-pro' }],
+    });
+    expect(v.status).toBe('deprecated');
+    expect(v.detail).toContain('is not in the catalog');
+    expect(v.detail).toContain('is marked deprecated');
+    expect(v.detail).not.toMatch(/\.\./);
+  });
+
+  it('failing beats deprecated, but names both', () => {
+    const [v] = assessModelHealth({
+      ...base,
+      methods: [methods[0]],
+      overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-2.5-pro' }],
+      recentFailures: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-2.5-pro',
+                         count: 2, lastAt: new Date('2026-09-07T08:11:00Z') }],
+    });
+    expect(v.status).toBe('failing');
+    expect(v.detail).toContain('is marked deprecated');
+    expect(v.detail).toContain('2 model-invalid failures');
+    expect(v.detail).not.toMatch(/\.\./);
   });
 
   it('reports failing on a single model-invalid failure in the window', () => {
@@ -80,6 +112,17 @@ describe('assessModelHealth', () => {
                          count: 9, lastAt: new Date('2026-09-07T08:11:00Z') }],
     });
     expect(v.status).toBe('ok');
+  });
+
+  it('ignores a failure recorded for the same modelId but a different methodPrefix', () => {
+    const [v] = assessModelHealth({
+      ...base,
+      methods: [methods[0]],
+      overrides: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.6-flash' }],
+      recentFailures: [{ methodPrefix: 'program-digest', modelId: 'gemini-3.6-flash',
+                         count: 5, lastAt: new Date('2026-09-07T08:11:00Z') }],
+    });
+    expect(v.status).toBe('off-catalog');
   });
 
   it('returns one verdict per method, in the order given', () => {
