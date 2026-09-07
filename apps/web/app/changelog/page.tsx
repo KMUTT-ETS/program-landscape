@@ -26,6 +26,24 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-07',
+    version: 'v1.9.0 · Course lists stopped disappearing, and the server started backing itself up',
+    title:
+      'A failed extraction was deleting the course list it failed to replace, which is why some programmes showed no curriculum-revision advice; separately, the production server had never taken a scheduled backup, and the tool meant to verify backups could not run at all',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Programmes were losing their course lists. Where a programme showed "no course list has been extracted", in many cases one had been extracted before and was then deleted. The curriculum-revision advice depends on that list, so those programmes showed nothing there either — with no error anywhere to explain it. Of the 280 programmes holding a curriculum document, 229 still had a course list.',
+      'The cause was a failed extraction that reported success. When the AI reading of a curriculum document failed, the pipeline fell back to simple text matching, replaced the stored course list with whatever that found — sometimes nothing at all — and recorded the step as completed. One run replaced 56 courses with none and reported a clean pass at no cost.',
+      'The pipeline now refuses to replace an existing course list with an empty one. The reasoning is that a stale list can be re-read from the document at any time, whereas a deleted one cannot be recovered from anything the system holds. The existing list is kept and the run says why it declined.',
+      'A run that fell back to text matching is no longer shown as a success. Until now the run summary could not distinguish a run that read 56 courses from one that destroyed 56 — both appeared as a completed step. Such a run is now marked as failed and names the reason, and the single-programme command exits with an error rather than reporting done.',
+      'Re-reading a curriculum document is now safe to retry. The worst outcome is that nothing changes and the run explains why, so the affected programmes can be reprocessed without risking the course lists they still hold.',
+      'The production server had never taken a scheduled backup. Every backup it held was a by-product of a deployment, which meant the recovery point was the last deployment rather than the previous night. Nightly database backups and a weekly full backup including stored files are now scheduled and have been confirmed running.',
+      'Recovery from a backup has now been demonstrated for the first time. A backup was restored in full and checked against the live system: 133 tables, 301 programmes, no orphaned records, and a database current to the hour, restored in 83 seconds.',
+      'The tool intended to verify backups automatically could not run. Five separate faults, each of which produced a wrong answer rather than an error — including one that reported a complete, correct restore as a failure, and a pair that cancelled each other out so that neither was visible. All are fixed; automatic nightly verification switches on with the next release.',
+      'The user manual has caught up with the application. It now covers the Education, Staff and Risk sections, the Digital Intelligence competency results, curriculum revisions, and how to submit a new or revised curriculum — along with the reporting rules that change how the figures should be read, such as why individual salaries are never shown and why a blank cell means too few students rather than a low score.',
+    ],
+  },
+  {
     date: '2026-09-05',
     version: 'v1.8.9 · The programme PDF works, and now contains the whole page',
     title:
