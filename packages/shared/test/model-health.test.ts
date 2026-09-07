@@ -25,6 +25,22 @@ describe('assessModelHealth', () => {
     expect(v).toMatchObject({ status: 'ok', effectiveModel: 'gemini-3.5-flash', isPinned: false });
   });
 
+  it('reports ok — not off-catalog — for an unpinned method whose default has rolled out of the catalog window', () => {
+    // Regression guard for the 27-of-28-methods incident: ai_model_catalog is
+    // a rolling, narrow OpenRouter window (delete-and-replace daily, only 2
+    // flash + 2 pro survive each refresh), so an unpinned method's
+    // defaultModel routinely isn't in it. That's not an operator-actionable
+    // problem — defaultModel isn't a pin — so it must not read off-catalog.
+    const [v] = assessModelHealth({
+      ...base,
+      methods: [methods[0]],
+      overrides: [],
+      knownModelIds: new Set(['gemini-2.5-pro']), // excludes gemini-3.5-flash, the default
+    });
+    expect(v.status).toBe('ok');
+    expect(v.isPinned).toBe(false);
+  });
+
   it('reports off-catalog for a pin that is not in the catalog', () => {
     const [v] = assessModelHealth({
       ...base,
@@ -48,6 +64,30 @@ describe('assessModelHealth', () => {
     expect(v.detail).toBe(
       '"gemini-2.5-pro" is marked deprecated — Retires 2026-12-01.',
     );
+  });
+
+  it('still reports deprecated for an UNPINNED method whose default is flagged — the gate is off-catalog only', () => {
+    const [v] = assessModelHealth({
+      ...base,
+      methods: [{ methodPrefix: 'program-courses-extract', defaultModel: 'gemini-2.5-pro' }],
+      overrides: [],
+    });
+    expect(v.isPinned).toBe(false);
+    expect(v.status).toBe('deprecated');
+    expect(v.detail).toContain('is marked deprecated');
+  });
+
+  it('still reports failing for an UNPINNED method with a matching recentFailures entry', () => {
+    const [v] = assessModelHealth({
+      ...base,
+      methods: [methods[0]],
+      overrides: [],
+      recentFailures: [{ methodPrefix: 'program-courses-extract', modelId: 'gemini-3.5-flash',
+                         count: 3, lastAt: new Date('2026-09-07T08:11:00Z') }],
+    });
+    expect(v.isPinned).toBe(false);
+    expect(v.status).toBe('failing');
+    expect(v.detail).toContain('3 model-invalid failures');
   });
 
   it('deprecated beats off-catalog, but names both — a pin we flagged deprecated that OpenRouter has since dropped', () => {

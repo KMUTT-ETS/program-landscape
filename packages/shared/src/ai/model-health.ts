@@ -43,7 +43,19 @@ export function assessModelHealth(input: ModelHealthInput): MethodModelHealth[] 
     const effectiveModel = pin ?? defaultModel;
     const isPinned = pin !== undefined;
 
-    const offCatalog = !knownModelIds.has(effectiveModel);
+    // off-catalog is gated on isPinned. The `ai_model_catalog` table is a
+    // rolling, narrow OpenRouter window (fetchOpenRouterGeminiModels returns
+    // only 2 flash + 2 pro, newest-first) that a daily delete-and-replace
+    // refresh repopulates from scratch — so a model can drop out of the table
+    // for reasons that have nothing to do with whether it still works. An
+    // UNPINNED method's effective model is `defaultModel`, which is not an
+    // operator choice and can't be corrected on /admin/app/ai-settings, so
+    // reporting it "off-catalog" would be actionable by nobody and would just
+    // flip the whole method list amber every time the window rolls. A default
+    // that genuinely breaks is still caught by `failing`, which comes from
+    // real refused calls, not catalog absence. A PINNED model is a deliberate
+    // operator choice, so absence from the catalog is worth surfacing there.
+    const offCatalog = isPinned && !knownModelIds.has(effectiveModel);
     const deprecated = deprecatedModels.has(effectiveModel);
     const deprecatedNote = deprecatedModels.get(effectiveModel);
     // Failures are keyed on the model as well as the method: once an operator
