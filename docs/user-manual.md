@@ -13,6 +13,9 @@ This manual covers every role that uses the application, the features each can r
 3. [The eight modules](#3-the-eight-modules)
    - 3.1 [Analytical surfaces added since the original eight](#31-analytical-surfaces-added-since-the-original-eight)
    - 3.2 [Reading Student DQ](#32-reading-student-dq)
+   - 3.3 [Education surfaces](#33-education-surfaces)
+   - 3.4 [Staff surfaces](#34-staff-surfaces)
+   - 3.5 [Risk surfaces](#35-risk-surfaces)
 4. [Getting started (every user)](#4-getting-started-every-user)
 5. [Common UI patterns](#5-common-ui-patterns)
 6. [Role-by-role guide](#6-role-by-role-guide)
@@ -107,9 +110,9 @@ to you:
 | **Digital Competency Attainment** | `/gap-analysis/digital-competency` | What students *measurably score* on the digital competencies the labour market asks for — measured attainment, not taught coverage. |
 | **Curriculum revision** | section on `/programs/<id>` | What a newly submitted มคอ.2 changes relative to the curriculum it replaces. Also appears in the programme's PDF report. |
 
-The wider `/education/*`, `/staff/*` and `/risks/*` families have also grown considerably; this
-manual has not yet caught up with all of them and section 3's table should be read as the
-architectural spine rather than a complete inventory.
+Three whole families now sit alongside the eight modules — **Education** (§3.3), **Staff** (§3.4)
+and **Risk** (§3.5). Section 3's first table should be read as the architectural spine rather than a
+map of the sidebar.
 
 ### 3.2 Reading Student DQ
 
@@ -133,6 +136,79 @@ Essential Software modules 5–8. The **pass mark is 70**.
 **Faculty and university figures are true weighted means**, computed from score sums and take
 counts — not an average of programme averages. Module 13 (Generative AI) carries no Thai label
 because the supplied revision of the framework document does not define one.
+
+### 3.3 Education surfaces
+
+**Hub** — `/education`. Everything about students: who they are, where they came from, what they
+score, what they pay, and what they say about their courses.
+
+| Surface | URL | What it answers |
+|---|---|---|
+| **Student info** | `/education/student-info` | Headcount across demographic and recruitment facets. Defaults to currently-enrolled; switch to incoming or former groups, or pick a specific status code. |
+| **Active students by entry year** | `/education/active-pivot` | Currently-enrolled students by entry year (columns) against Faculty → Programme Level → Programme (rows). |
+| **Student by location** | `/education/location` | Where current students went to school — by school name, province, and Thailand region. |
+| **International students** | `/education/international` | Currently-enrolled non-Thai students by country of origin and programme. |
+| **Student performance** | `/education/performance` | Undergraduate GPAs and entry test scores, with a Faculty → Programme drill-down, a deeper Region → Province → School view, and a per-subject score pivot. |
+| **Student DQ** | `/education/student-dq` | Digital Intelligence competency results — **read §3.2 before interpreting this one.** |
+| **Student evaluations** | `/education/satisfaction` | What students said about their **courses**. Drill from faculty down to a single course; hover a course name for its per-question scores. |
+| **Subject offerings & fulfilment** | `/education/class-offerings` | One row per class section the registrar opened. |
+| **Actual recruitment campaigns** | `/education/recruitment-campaigns` | One row per campaign track (competency / language / exam option / quota type / branch-campus intake) within a programme × round × year. |
+| **Tuition fee incomes** | `/education/tuition` | Tuition revenue by year, faculty, and semester. |
+
+**Two things that routinely confuse people here:**
+
+- **Course evaluations and instructor evaluations are different screens.** `/education/satisfaction`
+  is course-level and carries no instructor names. Per-instructor scores live on
+  `/staff/teaching`. If you are looking for "how did this teacher rate", you are on the wrong page.
+- **Recruitment campaigns: the current cycle stays informational.** Headline metrics use the latest
+  *completed* cohort, so an in-flight admission round will not move them. That is deliberate — a
+  half-finished round would otherwise read as a collapse in demand.
+
+### 3.4 Staff surfaces
+
+**Hub** — `/staff`. Who works here, what they are paid from, what they teach, and what they publish.
+
+| Surface | URL | What it answers |
+|---|---|---|
+| **Who works here** | `/staff/workforce` | Headcount, age, tenure, retirement timeline, and the past year's hires and departures. |
+| **Salaries and funding** | `/staff/compensation` | Where each person's salary comes from and the income mix per faculty. |
+| **Programmes and their staff** | `/staff/faculty-by-program` | Drill from each faculty into its programmes to see who teaches there, with under-staffed programmes flagged. |
+| **Teaching evaluations** | `/staff/teaching` | How students rate each **teacher**. Faculty → degree level → programme → teacher; hover a rating cell for the question-by-question breakdown. |
+| **Teaching and learning talent** | `/staff/teaching-talent` | Instructors students rate highly *year after year*. |
+| **Teaching workload** | `/staff/teaching-workload` | Contact hours per teacher per week. |
+| **Research and publications** | `/staff/research` | All KKU staff publications from the internal `kku-publications` mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. |
+
+**Rules that change how these numbers read:**
+
+| Rule | Where | Why it matters |
+|---|---|---|
+| **Individual salaries are never shown** — only buckets of **5 or more** people | Salaries and funding | A missing bucket means too few people to report, not zero spend. |
+| Every programme needs at least **5 อาจารย์ผู้รับผิดชอบหลักสูตร**; shortfalls are flagged | Programmes and their staff | The flag is a regulatory staffing threshold, not a quality judgement. |
+| A "talent" cleared the bar in **every one of the last three completed academic years** | Teaching and learning talent | Sustained quality, not one good semester. Curriculum mapping does not gate the list — an instructor qualifies on their evaluations alone. |
+| Includes **retired and former staff** | Research and publications | This is historical-output measurement. Programme-scoring views (health score, lifecycle) count only *active* staff, which is why the two disagree. That is expected, not a bug. |
+
+`/staff/publications` is a permanent redirect into `/staff/research`; old links keep working.
+
+### 3.5 Risk surfaces
+
+**Hub** — `/risks`. Likelihood × impact scoring of every undergraduate programme, driven by
+recruitment data, AI-disruption exposure, and the demographic ceiling. Recommendations are
+programme-specific rather than generic category advice.
+
+| Surface | URL | What it answers |
+|---|---|---|
+| **Risk management** | `/risks` | The ranked programme list and its scoring. |
+| **Risk profile** | `/risks/<id>` | One programme's full risk picture. |
+| **Drivers** | `/risks/drivers` | The three external drivers feeding the engine — so Council can challenge the *inputs*, not only the outputs. |
+| **Key risk indicators** | `/risks/indicators` | Each KRI evaluates one specific aspect of programme risk; the breach list drills into the affected programmes. |
+| **Likelihood × impact matrix** | `/risks/matrix` | Two views of one dataset — a BCG-style bubble plot (X = composite likelihood, Y = log-impact, bubble size = THB at risk) and the institutional ERM 5×5 heatmap. |
+
+**Undergraduate programmes only.** Postgraduate programmes are out of scope for this engine, so
+their absence from the matrix is not a data gap.
+
+**`/risks/drivers` is the page to open when someone disputes a score.** It exists specifically so a
+challenge can be aimed at an input assumption rather than at the ranking, which is a much more
+productive argument to have in a Council meeting.
 
 ---
 
