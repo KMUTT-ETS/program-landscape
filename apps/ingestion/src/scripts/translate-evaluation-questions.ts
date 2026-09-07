@@ -75,7 +75,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  const providerId = process.env.AI_PROVIDER ?? 'google';
   const ai = createIngestionAiService();
 
   const messages = buildEvaluationQuestionTranslateMessages({
@@ -86,7 +85,7 @@ async function main(): Promise<void> {
     })),
   });
 
-  console.log(`Calling AI (${providerId}) — ${EVALUATION_QUESTION_TRANSLATE_VERSION}…`);
+  console.log(`Calling AI (${ai.providerId}) — ${EVALUATION_QUESTION_TRANSLATE_VERSION}…`);
   const response = await ai.extractStructured(
     {
       ctx: {

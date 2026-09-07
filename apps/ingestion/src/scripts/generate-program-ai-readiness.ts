@@ -98,11 +98,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const targets = await resolveTargets(args);
 
-  const providerId = process.env.AI_PROVIDER ?? 'google';
   const ai = createIngestionAiService();
 
   console.log(`━━━ AI readiness assessment ━━━`);
-  console.log(`Targets: ${targets.length}, provider: ${providerId}\n`);
+  console.log(`Targets: ${targets.length}, provider: ${ai.providerId}\n`);
 
   let okCount = 0;
   let skipCount = 0;

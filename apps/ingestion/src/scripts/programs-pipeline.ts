@@ -124,8 +124,6 @@ function loadDotEnv(envPath: string): void {
 import { spawn } from 'node:child_process';
 import {
   prisma,
-  PrismaAiInferenceRecorder,
-  getAiModelOverrideStore,
   generateProgramResearchExpertise,
   generateProgramCurriculumRevision,
   adoptPendingRevision,
@@ -133,13 +131,13 @@ import {
   activeRevisionIdFor,
 } from '@kku/db';
 import {
-  createAiService,
   isProgramPipelinePhase,
   PROGRAM_PIPELINE_PHASES,
   S3Storage,
-  type AiProviderId,
+  type AiService,
   type ProgramPipelinePhase,
 } from '@kku/shared';
+import { createIngestionAiService } from '../lib/ai-service';
 import { runProgramDigest } from '../program-digest/run';
 import { runProgramCoursesExtract } from '../program-courses-extract/run';
 import { runProgramFacultyExtraction } from '../program-faculty/run';
@@ -303,7 +301,7 @@ async function runApprovePending(programId: string): Promise<{ ms: number; ok: b
 async function processProgram(
   program: ProgramSummary,
   args: CliArgs,
-  ai: ReturnType<typeof createAiService>,
+  ai: AiService,
   storage: S3Storage,
 ): Promise<ProgramReport> {
   const phases: PhaseResult[] = [];
@@ -831,27 +829,12 @@ async function main(): Promise<void> {
   const programs = await resolveProgramIds(args);
 
   const phases = ALL_PHASES.filter((p) => args.only.includes(p) && !args.skip.has(p));
+  const ai = createIngestionAiService();
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`Programs to process: ${programs.length}`);
   console.log(`Phases enabled: ${phases.join(', ')}`);
-  console.log(`AI provider: ${process.env.AI_PROVIDER ?? 'google'}`);
+  console.log(`AI provider: ${ai.providerId}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-
-  const recorder = new PrismaAiInferenceRecorder();
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder,
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-    // Honour per-method model overrides set on the admin AI-settings
-    // page. Without this the spawned pipeline ignores overrides and
-    // every phase runs on DEFAULT_COMPLETION_MODEL only.
-    modelOverrideResolver: getAiModelOverrideStore(),
-  });
   const storage = new S3Storage({
     endpoint: process.env.MINIO_ENDPOINT ?? '',
     region: process.env.MINIO_REGION ?? 'us-east-1',

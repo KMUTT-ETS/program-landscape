@@ -98,10 +98,9 @@ async function main() {
 
 async function mainInner(_args: string[], pdfs: string[], runId: string): Promise<number> {
 
-  const providerId = process.env.AI_PROVIDER ?? 'google';
   const ai = createIngestionAiService();
   if (!ai.uploadFile) {
-    throw new Error(`Provider ${providerId} doesn't expose uploadFile — needed for large PDF ingestion. Set AI_PROVIDER=google.`);
+    throw new Error(`Provider ${ai.providerId} doesn't expose uploadFile — needed for large PDF ingestion. Set AI_PROVIDER=google.`);
   }
 
   // Pull faculties + active undergraduate programs once for matching.

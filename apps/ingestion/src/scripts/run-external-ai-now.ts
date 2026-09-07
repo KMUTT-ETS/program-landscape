@@ -5,12 +5,8 @@
 
 import 'dotenv/config';
 import { prisma, runExternalAiSource } from '@kku/db';
-import {
-  createAiService,
-  type AiProviderId,
-} from '@kku/shared';
-import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 import { BrowserService } from '../external-ai/browser';
+import { createIngestionAiService } from '../lib/ai-service';
 
 async function main() {
   const slug = process.argv[2];
@@ -34,18 +30,7 @@ async function main() {
     console.log(`  → flipped to ACTIVE`);
   }
 
-  const recorder = new PrismaAiInferenceRecorder();
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder,
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-    modelOverrideResolver: getAiModelOverrideStore(),
-  });
+  const ai = createIngestionAiService();
 
   const logger = {
     warn: (msg: string) => console.log(`  ⚠ ${msg}`),

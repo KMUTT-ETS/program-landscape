@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
-import { createAiService, S3Storage, MarkitdownClient, type AiProviderId } from '@kku/shared';
+import { prisma } from '@kku/db';
+import { S3Storage, MarkitdownClient } from '@kku/shared';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
+import { createIngestionAiService } from '../lib/ai-service';
 
 // CLI counterpart to the /admin/trend-documents upload UI. Turns a local
 // document (PDF/DOCX/XLSX/PPTX/HTML/CSV/TXT/MD) OR a URL into a published
@@ -34,16 +35,7 @@ async function main() {
     process.exit(1);
   }
 
-  const ai = createAiService({
-    recorder: new PrismaAiInferenceRecorder(),
-    providerId: (process.env.AI_PROVIDER ?? 'google') as AiProviderId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-    modelOverrideResolver: getAiModelOverrideStore(),
-  });
+  const ai = createIngestionAiService();
   const storage = new S3Storage({
     endpoint: env('MINIO_ENDPOINT'),
     region: process.env.MINIO_REGION ?? 'us-east-1',

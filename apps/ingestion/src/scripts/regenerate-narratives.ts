@@ -62,8 +62,9 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore, generateProgramStrategicNarrative } from '@kku/db';
-import { createAiService, lintBannedTells, type AiProviderId } from '@kku/shared';
+import { prisma, generateProgramStrategicNarrative } from '@kku/db';
+import { lintBannedTells, type AiService } from '@kku/shared';
+import { createIngestionAiService } from '../lib/ai-service';
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 
@@ -189,7 +190,7 @@ interface ProgramRunResult {
 
 async function processProgram(
   target: ProgramTarget,
-  ai: ReturnType<typeof createAiService>,
+  ai: AiService,
 ): Promise<ProgramRunResult> {
   const t0 = Date.now();
   const { result: outcome, warnings } = await captureWarnings(() =>
@@ -263,21 +264,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
-  const ai = createAiService({
-    recorder: new PrismaAiInferenceRecorder(),
-    providerId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-    // Honour per-method model overrides set on the admin AI-settings page —
-    // same as programs-pipeline.ts. Without this a bulk run silently
-    // ignores any override and always uses DEFAULT_COMPLETION_MODEL.
-    modelOverrideResolver: getAiModelOverrideStore(),
-  });
-  console.log(`Provider: ${providerId}\n`);
+  const ai = createIngestionAiService();
+  console.log(`Provider: ${ai.providerId}\n`);
 
   const results: ProgramRunResult[] = [];
   const t0 = Date.now();

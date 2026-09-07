@@ -1,6 +1,6 @@
-import { prisma, PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
-import { createAiService, type AiProviderId } from '@kku/shared';
+import { prisma } from '@kku/db';
 import { analyzeTrendSignal } from '../trend-signals/analyze';
+import { createIngestionAiService } from '../lib/ai-service';
 
 // Per-signal AI analysis runner.
 //   pnpm trends:analyze <signalId>          # one signal
@@ -20,17 +20,7 @@ async function main() {
     process.exit(1);
   }
 
-  const recorder = new PrismaAiInferenceRecorder();
-  const ai = createAiService({
-    recorder,
-    providerId: (process.env.AI_PROVIDER ?? 'google') as AiProviderId,
-    apiKeys: {
-      google: process.env.GOOGLE_AI_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openrouter: process.env.OPENROUTER_API_KEY,
-    },
-    modelOverrideResolver: getAiModelOverrideStore(),
-  });
+  const ai = createIngestionAiService();
 
   let ids: string[];
   if (positional) {
