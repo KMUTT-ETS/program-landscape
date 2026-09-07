@@ -27,6 +27,25 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-09-07',
+    version: 'v1.9.1 · When an AI model stops working, someone now finds out',
+    title:
+      'A model the platform relies on had been failing silently for five weeks; the platform now detects that, reports it, and recovers from it on its own \u2014 and the AI Analyst, which was refusing to run on some configurations, works again',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'For five weeks, most of the platform\u2019s AI analyses were being refused by the provider and nothing said so. In August an administrator switched 23 of the 27 AI analyses to a newer model through the settings page. The model was accepted at the time, but the provider later began rejecting every request made with it. No error reached anyone. The problem was eventually noticed only because one programme page reported that no course list had been extracted \u2014 a symptom several steps removed from the cause.',
+      'The platform now watches which model each analysis is actually using, and says when one is wrong. A warning appears on the AI settings page and on the system status page, and administrators receive a notification. The two pages and the notification are all produced from a single assessment, so they cannot disagree with each other about what is wrong.',
+      'A rejected request now recovers by itself. When the provider refuses a model, the analysis is retried once on that analysis\u2019s standard model, so the work completes instead of failing. The substitution is written into the audit record rather than hidden \u2014 anyone reviewing the run can see that a different model produced the result.',
+      'Rejected requests are now recorded at all. Previously a rejection left no trace anywhere, which is the reason nobody could have found this by looking. That absence of a record was itself the reason five weeks passed.',
+      'Repairing this took 23 separate edits through a one-at-a-time picker. There is now a single action: replace every analysis using one model with another. It shows exactly what will change before anything is applied \u2014 including, separately listed, the analyses that would gain a fixed model where they previously followed the platform default, because that change outlasts the repair. The whole operation is recorded as one audit entry naming every analysis it touched and the model each came from.',
+      'The list of models to switch away from is drawn from what is actually in use, not from the provider catalogue. That matters because a model that has stopped working is exactly the kind that disappears from the catalogue \u2014 under the old behaviour the model most analyses were running on could not be selected as the thing to replace.',
+      'Models the platform depends on could vanish from the settings page. The daily catalogue update replaced the model list wholesale with a short list of the newest models, which removed the standard model that 27 of the 28 analyses run on. An administrator could not have selected it even deliberately. The platform\u2019s own models are now protected from that update, and are restored automatically on installations where they had already been lost.',
+      'The AI Analyst refused to run on some configurations, reporting that the provider did not support the feature when it does. The same fault made a document-ingestion task report that the wrong provider was configured, when the configured provider was in fact correct. Both are fixed.',
+      'Every AI analysis now appears on the settings page. Four were missing entirely \u2014 including the research-expertise analysis shown on each programme\u2019s deep-dive, which the curriculum-revision advice depends on. A missing analysis could not be configured and could not be reported on when it failed. A check now prevents a new analysis from being added without appearing there.',
+      'Finally: a model deliberately hidden from the settings page could still be selected through the interface behind it. It no longer can, and the two situations \u2014 no such model, and that model is disabled \u2014 are now reported differently instead of both appearing as "unknown model".',
+    ],
+  },
+  {
+    date: '2026-09-07',
     version: 'v1.9.0 · Course lists stopped disappearing, and the server started backing itself up',
     title:
       'A failed extraction was deleting the course list it failed to replace, which is why some programmes showed no curriculum-revision advice; separately, the production server had never taken a scheduled backup, and the tool meant to verify backups could not run at all',
