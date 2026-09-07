@@ -176,38 +176,69 @@ export function extractCourseListSection(text: string): {
   startIndex: number;
   endIndex: number;
 } {
-  const startRe = /\d[\s.]+\d[\s.]*รายวิชา/g;
   const codeRe = /[A-Z]{2,4}\s?\d{3}\s?\d{3}/;
   const subsectionRe = /หมวดวิชา/;
-  let start: number | null = null;
-  let m: RegExpExecArray | null;
-  while ((m = startRe.exec(text)) !== null) {
-    const trailing = text.slice(m.index, m.index + 400);
-    if (subsectionRe.test(trailing) && codeRe.test(trailing)) {
-      start = m.index;
-      break;
+
+  // Two anchors, tried in order. STRICT is the original and is tried FIRST,
+  // unchanged, so every document it already handled is untouched.
+  //
+  // LOOSE exists because numbering depth varies between faculties: some มคอ.2
+  // head the section "3.1 รายวิชา", others scope it under a หมวด and use a
+  // single level — "หมวด 3 โครงสร้างหลักสูตร … 2. รายวิชา". A survey of 27
+  // programme PDFs on 2026-09-07 found 8 refusals, 3 of them purely because
+  // STRICT cannot see the second form.
+  //
+  // LOOSE MUST NOT be merged into STRICT or tried first. Measured across all
+  // 280 programme PDFs: making it primary recovered 20 documents and broke
+  // 103 — because the search takes the FIRST candidate passing the trailing
+  // check, and a looser anchor lets an earlier weak match shadow the real
+  // section, either slicing the wrong region (88279 -> 14125 chars on
+  // KKU-SEQ-0048) or landing within 500 chars of an end marker and returning
+  // nothing at all. Fallback ordering is what makes this safe: it can only
+  // ever turn a refusal into a find.
+  const STRICT = /\d[\s.]+\d[\s.]*รายวิชา/g;
+  const LOOSE = /(?<![\d.])\d{1,2}[\s.]{1,3}รายวิชา/g;
+
+  const locate = (re: RegExp): number | null => {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const trailing = text.slice(m.index, m.index + 400);
+      // The trailing check — not the numbering depth — is what rejects a
+      // table-of-contents line ("2. รายวิชา 17", no หมวดวิชา, no code) and
+      // keeps the slice out of the curriculum-revision appendix, whose
+      // old-curriculum codes mislinked ~30 programmes before v2.3. Do not
+      // weaken it to make a stubborn document parse.
+      if (subsectionRe.test(trailing) && codeRe.test(trailing)) return m.index;
     }
-  }
-  if (start === null) {
-    return { found: false, text: '', startIndex: 0, endIndex: 0 };
-  }
-  // End: take the earliest subsequent major-section marker.
+    return null;
+  };
+
   const endPatterns = [
     /ค[\s฿]*(?:ำ|า|ํ)[\s฿]*อธิบายรายวิชา/g, // คำอธิบายรายวิชา (with broken sara-am)
     /ภาคผนวก/g,
     /Appendix[\s:]/gi,
     /ตัวอย่างแผนการศึกษา/g, // 3.4 (comes between 3.3 and 3.5 in standard มคอ.2)
   ];
-  let end = text.length;
-  for (const re of endPatterns) {
-    re.lastIndex = start + 1;
-    const hit = re.exec(text);
-    if (hit && hit.index < end) end = hit.index;
+
+  const sliceFrom = (start: number) => {
+    let end = text.length;
+    for (const re of endPatterns) {
+      re.lastIndex = start + 1;
+      const hit = re.exec(text);
+      if (hit && hit.index < end) end = hit.index;
+    }
+    if (end - start < 500) return null;
+    return { found: true as const, text: text.slice(start, end), startIndex: start, endIndex: end };
+  };
+
+  for (const re of [STRICT, LOOSE]) {
+    const start = locate(re);
+    if (start === null) continue;
+    const sliced = sliceFrom(start);
+    if (sliced) return sliced;
   }
-  if (end - start < 500) {
-    return { found: false, text: '', startIndex: 0, endIndex: 0 };
-  }
-  return { found: true, text: text.slice(start, end), startIndex: start, endIndex: end };
+  return { found: false, text: '', startIndex: 0, endIndex: 0 };
 }
 
 /**
