@@ -339,6 +339,15 @@ export interface AiModelEntry {
   costOutputPer1m: number;
   /** True when this model should NOT be the default pick for new methods. */
   legacy?: boolean;
+  /** True when the provider has announced retirement, or we have observed it
+   *  stop working. Hand-maintained: no provider exposes a model-lifecycle API,
+   *  and building machinery around data nobody updates is worse than a flag
+   *  someone edits when they read a deprecation notice. Surfaces as a
+   *  `deprecated` verdict in assessModelHealth(). */
+  deprecated?: boolean;
+  /** Operator-facing sentence shown beside the warning, e.g. "Retired by
+   *  Google on 2026-11-01; use gemini-3.5-flash." */
+  deprecatedNote?: string;
 }
 
 export const AVAILABLE_AI_MODELS: AiModelEntry[] = [
