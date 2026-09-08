@@ -94,7 +94,27 @@ describe('bindScholarProfileAction', () => {
   });
 });
 
+const REFUSED_PAYLOAD_RUN = {
+  id: 'run-1',
+  status: 'REFUSED',
+  trigger: 'SELF',
+  startedAt: '2026-09-01T00:00:00.000Z',
+  finishedAt: '2026-09-01T00:00:01.000Z',
+  papersFound: 0,
+  papersInserted: 0,
+  citationsUpdated: 0,
+  creditsUsed: 42,
+  errorText: 'needs-binding: No Google Scholar profile is linked to this staff record yet.',
+  needsBinding: true,
+};
+
 describe('getScholarStatusAction', () => {
+  beforeEach(() => {
+    apiFetch.mockResolvedValue(
+      statusPayload({ needsBinding: true, lastRun: REFUSED_PAYLOAD_RUN }),
+    );
+  });
+
   it('strips the needs-binding code and leaves the actionable sentence', async () => {
     apiFetch.mockResolvedValue(
       statusPayload({
@@ -108,7 +128,7 @@ describe('getScholarStatusAction', () => {
           papersFound: 0,
           papersInserted: 0,
           citationsUpdated: 0,
-          creditsUsed: 0,
+          creditsUsed: 42,
           errorText: 'needs-binding: No Google Scholar profile is linked to this staff record yet.',
           needsBinding: true,
         },
@@ -120,8 +140,24 @@ describe('getScholarStatusAction', () => {
     expect(result.status.lastRun?.errorText).toBe(
       'No Google Scholar profile is linked to this staff record yet.',
     );
-    // The boolean survives — it is what the UI branches on.
-    expect(result.status.lastRun?.needsBinding).toBe(true);
+    // The top-level boolean survives — it is what the UI branches on.
+    expect(result.status.needsBinding).toBe(true);
+  });
+
+  it('drops the fields nothing renders, so they never reach the browser', () => {
+    // `creditsUsed` is ScrapingBee spend and the payload above carries 42 of
+    // it; the panel ships to the browser of the person it was spent on.
+    // `z.object` strips unknown keys, which is what makes the narrowing real
+    // rather than a type-level fiction — assert it on the parsed object.
+    return getScholarStatusAction().then((result) => {
+      expect(result.ok).toBe(true);
+      if (!result.ok || !result.status.lastRun) throw new Error('expected a lastRun');
+      const keys = Object.keys(result.status.lastRun);
+      expect(keys).not.toContain('creditsUsed');
+      expect(keys).not.toContain('papersFound');
+      expect(keys).not.toContain('trigger');
+      expect(keys).not.toContain('needsBinding');
+    });
   });
 
   it('leaves an unprefixed error alone', async () => {

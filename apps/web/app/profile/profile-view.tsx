@@ -294,7 +294,11 @@ export function ProfileView({
             publications={profile.publications}
             ownerSurname={ownerSurname}
             t={t}
-            scholarSlot={scholarSlot}
+            // Gated here rather than trusted to every caller: the panel is
+            // owner-only, `publicMode` already encodes exactly that, and
+            // /p/[slug] passing no slot today is a convention, not a
+            // guarantee.
+            scholarSlot={publicMode ? null : scholarSlot}
           />
         </div>
       </div>

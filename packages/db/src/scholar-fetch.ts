@@ -137,7 +137,18 @@ const STUCK_RUN_WINDOW_MS = 15 * 60 * 1000;
  */
 const ROW_MARKER = /class="gsc_a_tr"/g;
 
-const SOURCE = 'google-scholar';
+/**
+ * The `research_outputs.source` value every row this runner writes carries.
+ *
+ * Exported because it is a JOIN KEY, not a label: the profile page counts
+ * `source = SCHOLAR_RESEARCH_OUTPUT_SOURCE` to say how many papers came from
+ * Scholar rather than the library index. That count was written against a
+ * hardcoded 'google-scholar' on the reading side, so renaming this constant
+ * would have silently re-attributed every Scholar paper to the library index
+ * instead of failing to compile.
+ */
+export const SCHOLAR_RESEARCH_OUTPUT_SOURCE = 'google-scholar';
+const SOURCE = SCHOLAR_RESEARCH_OUTPUT_SOURCE;
 
 // ── Public types ──────────────────────────────────────────────────────────
 

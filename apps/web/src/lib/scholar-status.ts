@@ -12,24 +12,28 @@
 // helpers below, which pin a timezone so the server and client renders agree.
 
 export type ScholarRunStatus = 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'REFUSED';
-export type ScholarRunTrigger = 'SELF' | 'ADMIN' | 'ADMIN_BULK';
 
+/**
+ * The parts of the API's `lastRun` the panel actually renders.
+ *
+ * Deliberately narrower than the endpoint's own shape. Everything here crosses
+ * into the browser inside the RSC payload, and the fields that are not drawn
+ * were not free: `creditsUsed` puts ScrapingBee spend in front of the person
+ * being billed for, and `papersFound` / `trigger` / the per-run `needsBinding`
+ * flag were shipped to nobody. The zod schema in `actions/scholar.ts` mirrors
+ * this list and strips the rest on the server. Add a field back when something
+ * draws it.
+ */
 export interface ScholarLastRun {
   id: string;
   status: ScholarRunStatus;
-  trigger: ScholarRunTrigger;
   startedAt: string;
   finishedAt: string | null;
-  papersFound: number;
   papersInserted: number;
   citationsUpdated: number;
-  creditsUsed: number;
   /** The refusal / failure sentence, already stripped of the machine-readable
    *  `needs-binding:` prefix by the server action. Null on a clean run. */
   errorText: string | null;
-  /** The run refused because no Scholar profile is linked. Branch on this,
-   *  never on the text of `errorText`. */
-  needsBinding: boolean;
 }
 
 export interface ScholarStatus {
@@ -94,14 +98,23 @@ export interface ScholarPanelView {
  *      fetching would do anything. The fix is an HR/name reconciliation, not
  *      something the user can do here, so the button is disabled and the
  *      server's own sentence explaining the mismatch is shown verbatim.
- *   2. A fetch is on the queue — the most immediate truth about the button,
- *      and the thing that stops a second click piling on a second job.
+ *   2. A fetch was just asked for, or is on the queue — the most immediate
+ *      truth about the button, and the thing that stops a second click piling
+ *      on a second job. The local `starting` flag comes first within this
+ *      step, because during the round trip the server still says nothing is
+ *      queued.
  *   3. No profile linked — the next step is pasting a URL, so the button
  *      opens the picker rather than starting a fetch that would refuse.
  *   4. Inside the 30-day window — disabled, showing the date it reopens.
  *   5. Otherwise ready.
  */
-export function decideScholarPanelState(status: ScholarStatus): ScholarPanelView {
+export function decideScholarPanelState(
+  status: ScholarStatus,
+  /** Local, pre-server state: the fetch request is in flight but the queue
+   *  has not confirmed it yet. Passed in rather than inferred, because only
+   *  the component knows a click is mid-round-trip. */
+  options: { starting?: boolean } = {},
+): ScholarPanelView {
   // "Last fetched" means a run that produced data. A REFUSED or FAILED run is
   // not a fetch date — presenting one as such would tell a user their record
   // is current when nothing was written.
@@ -120,6 +133,24 @@ export function decideScholarPanelState(status: ScholarStatus): ScholarPanelView
       disabledReason: status.staffRecord.reason,
       opensPicker: false,
       nextEligibleAt: null,
+      lastFetchedAt,
+    };
+  }
+
+  // BEFORE `fetchQueued`, and this ordering is the whole point of the flag.
+  // `POST /scholar/fetch/me` is a round trip, and until it returns the status
+  // still says nothing is queued — so an enabled button in that window takes a
+  // second click and enqueues a second job. The credits survive it (the job id
+  // is deterministic and collapses the pair) but a spurious REFUSED row lands
+  // in the run ledger, and the API's own comment names that gap.
+  if (options.starting) {
+    return {
+      kind: 'running',
+      buttonLabel: 'Starting…',
+      buttonDisabled: true,
+      disabledReason: 'Asking for a fetch — one moment.',
+      opensPicker: false,
+      nextEligibleAt: status.nextEligibleAt,
       lastFetchedAt,
     };
   }

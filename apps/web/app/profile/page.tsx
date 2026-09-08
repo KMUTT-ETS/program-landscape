@@ -3,13 +3,17 @@ import { redirect } from 'next/navigation';
 import QRCode from 'qrcode';
 import type { SessionUser, PublicProfileState } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { prisma } from '@kku/db';
+import { prisma, SCHOLAR_RESEARCH_OUTPUT_SOURCE } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { getProfileData } from '@/lib/profile-data';
 import { ShareCard } from '@/components/profile/share-card';
 import { getScholarStatusAction } from '@/lib/actions/scholar';
 import { ProfileView } from './profile-view';
-import { ScholarPanel, type ScholarSourceCounts } from './scholar-panel';
+import {
+  ScholarPanel,
+  ScholarPanelUnavailable,
+  type ScholarSourceCounts,
+} from './scholar-panel';
 
 // Profile page — modern academic-resume layout for the signed-in user.
 // Server-renders all the static data (basic info, education, research
@@ -72,7 +76,10 @@ export default async function ProfilePage() {
       _count: { _all: true },
     });
     const googleScholar = bySource
-      .filter((row) => row.source === 'google-scholar')
+      // The runner's own constant, not a copy of the string: renaming the
+      // source label must break the build here rather than quietly move every
+      // Scholar paper into the library-index column.
+      .filter((row) => row.source === SCHOLAR_RESEARCH_OUTPUT_SOURCE)
       .reduce((sum, row) => sum + row._count._all, 0);
     const total = bySource.reduce((sum, row) => sum + row._count._all, 0);
     scholarSources = { googleScholar, libraryIndex: total - googleScholar };
@@ -127,14 +134,12 @@ export default async function ProfilePage() {
           scholar.ok ? (
             <ScholarPanel initialStatus={scholar.status} sources={scholarSources} />
           ) : (
-            // Same principle as the disabled button inside the panel: when the
-            // feature cannot be offered, say so where it would have been. A
-            // silently missing section reads as "this university does not have
-            // that", which is the wrong conclusion to leave someone with.
-            <p className="mb-8 rounded-lg border border-border-subtle bg-surface-2/60 p-8 text-xs leading-relaxed text-text-tertiary">
-              Publication sources and the Google Scholar fetch are unavailable right now —{' '}
-              {scholar.message} Reload the page to try again.
-            </p>
+            // Same principle as every blocked state inside the panel: the
+            // control stays, disabled, with the reason beside it. A silently
+            // missing section reads as "this university does not have that",
+            // and an API outage is precisely when someone goes looking for a
+            // button they remember.
+            <ScholarPanelUnavailable message={scholar.message} />
           )
         }
       />

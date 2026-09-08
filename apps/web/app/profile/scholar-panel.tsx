@@ -74,7 +74,12 @@ export function ScholarPanel({
 }) {
   const router = useRouter();
   const [status, setStatus] = React.useState<ScholarStatus>(initialStatus);
-  const view = decideScholarPanelState(status);
+  // A fetch has been asked for and the round trip has not come back. Without
+  // it the button stays enabled for the length of that request and a second
+  // click enqueues a second job.
+  const [starting, setStarting] = React.useState(false);
+  const startingRef = React.useRef(false);
+  const view = decideScholarPanelState(status, { starting });
 
   // Seeded from the server payload: a fetch queued by an administrator, or by
   // this user before a reload, must resume polling on mount rather than sit
@@ -150,18 +155,30 @@ export function ScholarPanel({
       setPickerOpen(true);
       return;
     }
+    // The ref, not the state, is the guard. `setStarting` schedules a render;
+    // two clicks that land before it flushes would both read the old `false`.
+    // The ref changes on the spot.
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
     setPollTimedOut(false);
     baselineRunId.current = status.lastRun?.id ?? null;
-    const result = await startScholarFetchAction();
-    if (!result.ok) {
-      toast.error(result.message);
-      return;
+    try {
+      const result = await startScholarFetchAction();
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success('Queued. This panel reports the result when the fetch finishes.');
+      // The job is on the queue by the time the action returns, so flip the
+      // button to the queued state now rather than up to one poll interval
+      // later.
+      setStatus((prev) => ({ ...prev, fetchQueued: true }));
+      setPolling(true);
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
     }
-    toast.success('Queued. This panel reports the result when the fetch finishes.');
-    // The job is on the queue by the time the action returns, so flip the
-    // button now rather than up to one poll interval later.
-    setStatus((prev) => ({ ...prev, fetchQueued: true }));
-    setPolling(true);
   };
 
   const onBindSubmit = async (url: string) => {
@@ -197,14 +214,14 @@ export function ScholarPanel({
     run && run.status !== 'SUCCEEDED' && run.status !== 'PARTIAL' ? run : null;
 
   return (
-    <div className="mb-8 rounded-lg border border-border-subtle bg-surface-2/60 p-8">
+    <div className="mb-8 rounded-lg border border-subtle bg-surface-2/60 p-8">
       <SourceComposition
         sources={sources}
         lastFetchedAt={view.lastFetchedAt}
         run={run}
       />
 
-      <div className="mt-8 border-t border-border-subtle pt-8">
+      <div className="mt-8 border-t border-subtle pt-8">
         <div className="flex flex-wrap items-start gap-x-8 gap-y-6">
           <Button
             variant={view.buttonDisabled ? 'default' : 'primary'}
@@ -231,6 +248,17 @@ export function ScholarPanel({
             {view.kind === 'cooling-down' && nextEligibleLabel && (
               <p className="mt-2 text-text-tertiary" data-testid="scholar-next-eligible">
                 You can fetch again on {nextEligibleLabel}.
+              </p>
+            )}
+            {/* Binding outranks the cooldown, because pasting a URL is still
+                the right next step — but silently disabling the button the
+                moment they finish would read as a bug. Reachable when a
+                successful fetch is followed by an administrator unlinking the
+                profile. */}
+            {view.kind === 'unbound' && nextEligibleLabel && (
+              <p className="mt-2 text-text-tertiary" data-testid="scholar-next-eligible">
+                Note that a fetch already ran inside the last 30 days, so linking now will not
+                start another one until {nextEligibleLabel}.
               </p>
             )}
           </div>
@@ -370,7 +398,7 @@ function BoundProfile({
 
   return (
     <div
-      className="mt-8 border-t border-border-subtle pt-6 text-xs text-text-tertiary"
+      className="mt-8 border-t border-subtle pt-6 text-xs text-text-tertiary"
       data-testid="scholar-bound-profile"
     >
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
@@ -427,8 +455,13 @@ export function BindPicker({
     status.profile.bound ? (status.profile.scholarProfileUrl ?? '') : '',
   );
 
+  // The server's verdict, not a second one computed from the counts.
+  // `decideScholarBindQuota` exempts SUPER_ADMIN outright and always sets
+  // `retryAt` when it refuses, so `retryAt !== null` IS "not allowed" — while
+  // `attemptsToday >= maxPerDay` would grey the button out for an exempt
+  // account the API is perfectly willing to serve.
+  const capReached = status.bind.retryAt !== null;
   const attemptsLeft = Math.max(0, status.bind.maxPerDay - status.bind.attemptsToday);
-  const capReached = status.bind.retryAt !== null || attemptsLeft === 0;
   const capRetryLabel = formatScholarDayTime(status.bind.retryAt);
 
   return (
@@ -438,7 +471,7 @@ export function BindPicker({
         if (capReached || submitting) return;
         void onSubmit(url);
       }}
-      className="mt-8 rounded-md border border-border-default bg-surface-1 p-8"
+      className="mt-8 rounded-md border border-default bg-surface-1 p-8"
       data-testid="scholar-bind-picker"
     >
       <Label htmlFor="scholar-profile-url">Your Google Scholar profile URL</Label>
@@ -462,7 +495,7 @@ export function BindPicker({
 
       {error && (
         <p
-          className="mt-6 rounded-md border border-danger/30 bg-danger-subtle px-6 py-4 text-xs leading-relaxed text-danger"
+          className="mt-6 rounded-md border border-[oklch(var(--color-danger-default)/0.3)] bg-danger-subtle px-6 py-4 text-xs leading-relaxed text-danger"
           role="alert"
           data-testid="scholar-bind-error"
         >
@@ -476,7 +509,11 @@ export function BindPicker({
         <p className="text-text-secondary">
           {capReached
             ? `No checks left today${capRetryLabel ? ` — the allowance resets on ${capRetryLabel}` : ''}.`
-            : `You have ${attemptsLeft} of today's ${status.bind.maxPerDay} checks left.`}
+            : attemptsLeft > 0
+              ? `You have ${attemptsLeft} of today's ${status.bind.maxPerDay} checks left.`
+              : // Past the cap yet still allowed: an exempt account. Saying
+                // "0 left" next to a working button would contradict itself.
+                `${status.bind.attemptsToday} checks used today. The daily cap does not apply to your account.`}
         </p>
         <p className="mt-2 text-text-tertiary">
           Every check loads your Scholar page before it can tell whether the name matches, so a
@@ -499,5 +536,48 @@ export function BindPicker({
         </Button>
       </div>
     </form>
+  );
+}
+
+// ── When the status read itself fails ──────────────────────────────────────
+
+/**
+ * Rendered in the panel's place when `GET /scholar/status/me` did not answer.
+ *
+ * It draws the button — disabled, with the reason — for the same reason every
+ * other blocked state does. Replacing the whole panel with a sentence was the
+ * one place this feature still made the control vanish, and "the API is down"
+ * is exactly the moment someone goes looking for a button that used to be
+ * there. Nothing is synthesised about the account: without a status read we do
+ * not know whether a staff record exists, so the reason names the read, not
+ * the person.
+ */
+export function ScholarPanelUnavailable({ message }: { message: string }) {
+  return (
+    <div className="mb-8 rounded-lg border border-subtle bg-surface-2/60 p-8">
+      <h3 className="text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
+        Where these publications come from
+      </h3>
+      <div className="mt-8 flex flex-wrap items-start gap-x-8 gap-y-6">
+        <Button
+          variant="default"
+          size="sm"
+          shape="square"
+          disabled
+          data-testid="scholar-fetch-button"
+          data-panel-kind="unavailable"
+        >
+          Fetch from Google Scholar
+        </Button>
+        <p
+          className="min-w-0 flex-1 text-xs leading-relaxed text-text-secondary"
+          data-testid="scholar-disabled-reason"
+        >
+          Your Google Scholar status could not be read, so the sources behind the publication
+          list below cannot be broken down and a fetch cannot be started. {message} Reload the
+          page to try again.
+        </p>
+      </div>
+    </div>
   );
 }

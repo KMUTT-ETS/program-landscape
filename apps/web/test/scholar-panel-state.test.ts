@@ -48,15 +48,11 @@ function statusOf(overrides: Partial<ScholarStatus> = {}): ScholarStatus {
 const SUCCEEDED_RUN: NonNullable<ScholarStatus['lastRun']> = {
   id: 'run-1',
   status: 'SUCCEEDED',
-  trigger: 'SELF',
   startedAt: '2026-09-01T00:00:00.000Z',
   finishedAt: '2026-09-01T00:00:30.000Z',
-  papersFound: 40,
   papersInserted: 12,
   citationsUpdated: 31,
-  creditsUsed: 30,
   errorText: null,
-  needsBinding: false,
 };
 
 describe('decideScholarPanelState — no staff record', () => {
@@ -155,7 +151,6 @@ describe('decideScholarPanelState — unbound', () => {
           ...SUCCEEDED_RUN,
           status: 'REFUSED',
           errorText: 'No Google Scholar profile is linked to this staff record yet.',
-          needsBinding: true,
         },
       }),
     );
@@ -170,6 +165,34 @@ describe('decideScholarPanelState — queued and ready', () => {
     expect(view.kind).toBe('running');
     expect(view.buttonDisabled).toBe(true);
     expect(view.disabledReason).toBeTruthy();
+  });
+
+  it('disables the button while the fetch request is still in flight', () => {
+    // The window this closes: POST /scholar/fetch/me is a round trip, and
+    // until it returns `fetchQueued` is still false. Without `starting` the
+    // button stays live for the length of that request, and a second click
+    // enqueues a second job — harmless to the credit bill (the job id
+    // collapses the pair) but it writes a spurious REFUSED row to the ledger.
+    const view = decideScholarPanelState(statusOf(), { starting: true });
+    expect(view.kind).toBe('running');
+    expect(view.buttonDisabled).toBe(true);
+    expect(view.disabledReason).toBeTruthy();
+    expect(view.buttonLabel).toBe('Starting…');
+  });
+
+  it('outranks the queue flag, so the label never goes backwards', () => {
+    // Both true for one render, when the optimistic `fetchQueued` lands before
+    // `starting` clears. "Starting…" is the truthful one at that moment.
+    const view = decideScholarPanelState(statusOf({ fetchQueued: true }), { starting: true });
+    expect(view.buttonLabel).toBe('Starting…');
+  });
+
+  it('never overrides the no-staff-record refusal', () => {
+    const view = decideScholarPanelState(
+      statusOf({ staffRecord: { linked: false, reason: 'no record' } }),
+      { starting: true },
+    );
+    expect(view.kind).toBe('no-staff-record');
   });
 
   it('enables the button with no reason when nothing blocks it', () => {
@@ -220,8 +243,10 @@ describe('decideScholarPanelState — the invariant every state must hold', () =
       statusOf({ lastRun: SUCCEEDED_RUN }),
     ];
     for (const s of all) {
-      const view = decideScholarPanelState(s);
-      expect(view.buttonDisabled).toBe(view.disabledReason !== null);
+      for (const starting of [false, true]) {
+        const view = decideScholarPanelState(s, { starting });
+        expect(view.buttonDisabled).toBe(view.disabledReason !== null);
+      }
     }
   });
 });

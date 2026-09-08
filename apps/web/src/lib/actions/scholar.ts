@@ -76,19 +76,20 @@ const StatusSchema = z.object({
     }),
     z.object({ bound: z.literal(false) }),
   ]),
+  // Narrower than the endpoint returns, on purpose: `z.object` strips unknown
+  // keys, so the fields the panel does not draw — `creditsUsed`, `papersFound`,
+  // `trigger`, the per-run `needsBinding` — never reach the RSC payload. The
+  // ScrapingBee spend in particular has no business being shipped to the
+  // browser of the person it was spent on. `ScholarLastRun` mirrors this list.
   lastRun: z
     .object({
       id: z.string(),
       status: z.enum(['SUCCEEDED', 'PARTIAL', 'FAILED', 'REFUSED']),
-      trigger: z.enum(['SELF', 'ADMIN', 'ADMIN_BULK']),
       startedAt: IsoDate,
       finishedAt: IsoDate.nullable(),
-      papersFound: z.number(),
       papersInserted: z.number(),
       citationsUpdated: z.number(),
-      creditsUsed: z.number(),
       errorText: z.string().nullable(),
-      needsBinding: z.boolean(),
     })
     .nullable(),
   nextEligibleAt: IsoDate.nullable(),
@@ -162,11 +163,25 @@ export type ScholarBindResult =
   | { ok: false; message: string; rateLimited: boolean };
 
 export async function bindScholarProfileAction(url: string): Promise<ScholarBindResult> {
+  // The `string` in the signature is a compile-time claim and nothing else: a
+  // server action is a public endpoint and its argument types are erased at
+  // runtime. `parseScholarProfileUrl` calls `.trim()` on whatever arrives, so
+  // a caller posting a number or null would get an uncaught TypeError — which
+  // reaches the client as exactly the opaque digest this module exists to
+  // avoid.
+  if (typeof url !== 'string') {
+    return {
+      ok: false,
+      message: 'Paste a Google Scholar profile link.',
+      rateLimited: false,
+    };
+  }
+
   // Client-side validation already ran on this string, with THIS function, via
   // the client-safe `@kku/shared/scholar/parse` subpath. Running it again here
-  // is not redundancy for its own sake: a server action is a public endpoint,
-  // and a request that skipped the form would otherwise reach the API and burn
-  // ~15 credits on a URL we can already prove is not a Scholar profile.
+  // is not redundancy for its own sake: a request that skipped the form would
+  // otherwise reach the API and burn ~15 credits on a URL we can already prove
+  // is not a Scholar profile.
   const parsed = parseScholarProfileUrl(url);
   if (!parsed.ok) {
     return { ok: false, message: parsed.reason, rateLimited: false };

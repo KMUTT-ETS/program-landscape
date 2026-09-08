@@ -43,7 +43,11 @@ vi.mock('@/lib/actions/scholar', () => ({
   startScholarFetchAction: async () => ({ ok: false, message: 'not called in this test' }),
 }));
 
-import { BindPicker, ScholarPanel } from '../app/profile/scholar-panel';
+import {
+  BindPicker,
+  ScholarPanel,
+  ScholarPanelUnavailable,
+} from '../app/profile/scholar-panel';
 import type { ScholarStatus } from '../src/lib/scholar-status';
 
 const LINKED = {
@@ -138,15 +142,11 @@ describe('ScholarPanel — inside the 30-day window', () => {
       lastRun: {
         id: 'run-1',
         status: 'SUCCEEDED',
-        trigger: 'SELF',
         startedAt: '2026-09-01T00:00:00.000Z',
         finishedAt: '2026-09-01T00:00:30.000Z',
-        papersFound: 40,
         papersInserted: 12,
         citationsUpdated: 31,
-        creditsUsed: 30,
         errorText: null,
-        needsBinding: false,
       },
       nextEligibleAt: '2026-10-01T00:00:00.000Z',
       quotaReason: 'Already fetched on 2026-09-01. One fetch per 30 days.',
@@ -231,21 +231,59 @@ describe('ScholarPanel — a failed run explains itself', () => {
         lastRun: {
           id: 'run-2',
           status: 'FAILED',
-          trigger: 'SELF',
           startedAt: '2026-09-05T00:00:00.000Z',
           finishedAt: '2026-09-05T00:00:10.000Z',
-          papersFound: 0,
           papersInserted: 0,
           citationsUpdated: 0,
-          creditsUsed: 15,
           errorText: 'Google returned a sign-in wall on page 1.',
-          needsBinding: false,
         },
       }),
     );
     expect(markup).toContain('data-testid="scholar-last-run-error"');
     expect(markup).toContain('Google returned a sign-in wall on page 1.');
     expect(markup).toContain('The attempt on 5 Sep 2026 did not');
+  });
+});
+
+describe('ScholarPanelUnavailable — the status read failed', () => {
+  const markup = renderToStaticMarkup(
+    <ScholarPanelUnavailable message="Network error talking to API: ECONNREFUSED." />,
+  );
+
+  it('still draws the button, disabled, with the reason', () => {
+    // The one place this feature used to make the control vanish. An API
+    // outage is exactly when someone goes looking for a button they remember.
+    expect(isDisabled(primaryButtonTag(markup))).toBe(true);
+    expect(primaryButtonTag(markup)).toContain('data-panel-kind="unavailable"');
+    expect(markup).toContain('data-testid="scholar-disabled-reason"');
+    expect(markup).toContain('Network error talking to API: ECONNREFUSED.');
+  });
+
+  it('claims nothing about the account it could not read', () => {
+    // Without a status read we do not know whether a staff record exists, so
+    // the reason must name the read rather than the person.
+    expect(markup).not.toContain('staff record');
+    expect(markup).not.toContain('data-testid="scholar-bind-picker"');
+  });
+});
+
+describe('ScholarPanel — unbound AND inside the window', () => {
+  it('warns that linking will not start a fetch yet', () => {
+    // Binding still outranks the cooldown — pasting a URL is the right next
+    // step — but a button that silently disables the moment they finish would
+    // read as a bug.
+    const markup = render(
+      statusOf({
+        profile: { bound: false },
+        needsBinding: true,
+        nextEligibleAt: '2026-10-01T00:00:00.000Z',
+        quotaReason: 'Already fetched on 2026-09-01. One fetch per 30 days.',
+      }),
+    );
+    expect(markup).toContain('data-testid="scholar-next-eligible"');
+    expect(markup).toContain('will not start another one until 1 Oct 2026');
+    // …and the picker is still the offer.
+    expect(markup).toContain('data-testid="scholar-bind-picker"');
   });
 });
 
@@ -292,6 +330,29 @@ describe('BindPicker — a refused bind names both sides', () => {
 });
 
 describe('BindPicker — the daily cap', () => {
+  it('leaves submit usable for an account the server exempts', () => {
+    // `decideScholarBindQuota` exempts SUPER_ADMIN outright, so the API sends
+    // `retryAt: null` however many attempts have been recorded. A client-side
+    // `attemptsToday >= maxPerDay` check would grey out a button the API is
+    // perfectly willing to serve — two opinions, and the wrong one winning.
+    const markup = renderToStaticMarkup(
+      <BindPicker
+        status={statusOf({
+          needsBinding: true,
+          bind: { attemptsToday: 9, maxPerDay: 5, retryAt: null },
+        })}
+        error={null}
+        submitting={false}
+        onSubmit={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    const submit = /<button[^>]*type="submit"[^>]*>/.exec(markup)?.[0] ?? '';
+    expect(isDisabled(submit)).toBe(false);
+    // And the sentence does not claim "0 left" next to a working button.
+    expect(markup).toContain('The daily cap does not apply to your account.');
+  });
+
   it('greys out submit and says when the allowance returns', () => {
     const markup = renderToStaticMarkup(
       <BindPicker
