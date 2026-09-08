@@ -694,13 +694,13 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 
 **Files:** `apps/web/src/lib/actions/scholar.ts`; modify the profile publications section.
 
-- [ ] **Step 1: Button + states** — never fetched / bound and fetched (with date) / inside the window (disabled, showing the retry date) / unbound (opens the picker) / no staff record (**disabled with the reason**, not hidden — a hidden button generates a support ticket asking why the feature is missing).
+- [x] **Step 1: Button + states** — never fetched / bound and fetched (with date) / inside the window (disabled, showing the retry date) / unbound (opens the picker) / no staff record (**disabled with the reason**, not hidden — a hidden button generates a support ticket asking why the feature is missing).
 
-- [ ] **Step 2: Profile-URL input** — a field accepting a Scholar profile link, validated client- and server-side, with an inline example of a correct URL and a clear error naming what was wrong. After binding, show the bound profile id with a way to ask an admin to change it. Do NOT offer a name-search fallback: that endpoint is walled (see the spec).
+- [x] **Step 2: Profile-URL input** — a field accepting a Scholar profile link, validated client- and server-side, with an inline example of a correct URL and a clear error naming what was wrong. After binding, show the bound profile id with a way to ask an admin to change it. Do NOT offer a name-search fallback: that endpoint is walled (see the spec).
 
-- [ ] **Step 3: Show which source is primary** on the publications section, with the fetch date.
+- [x] **Step 3: Show which source is primary** on the publications section, with the fetch date.
 
-- [ ] **Step 4: Design tokens only** (ESLint fails on literal hex; the spacing scale is half-stock and missing keys emit no CSS). **Commit** — `feat(scholar): profile fetch UI`
+- [x] **Step 4: Design tokens only** (ESLint fails on literal hex; the spacing scale is half-stock and missing keys emit no CSS). **Commit** — `feat(scholar): profile fetch UI`
 
 ---
 
@@ -708,11 +708,11 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 
 **Files:** `apps/web/app/admin/scholar/page.tsx` + `client.tsx`.
 
-- [ ] **Step 1: List** — staff with faculty/department filters, showing bound-or-not, last fetch, paper counts by source.
-- [ ] **Step 2: Row action** — fetch one; unbound lets the admin paste that person's profile URL, or leave it for the user.
-- [ ] **Step 3: Multi-select + "Fetch selected"** — confirmation dialog stating **target count and estimated credits** before anything is enqueued.
-- [ ] **Step 4: Run status** — poll `GET /scholar/runs`; show per-target outcome including `zero found`, which must read as a distinct outcome and **not** as success.
-- [ ] **Step 5: Commit** — `feat(scholar): admin fetch console`
+- [x] **Step 1: List** — staff with faculty/department filters, showing bound-or-not, last fetch, paper counts by source.
+- [x] **Step 2: Row action** — fetch one; unbound lets the admin paste that person's profile URL, or leave it for the user.
+- [x] **Step 3: Multi-select + "Fetch selected"** — confirmation dialog stating **target count and estimated credits** before anything is enqueued.
+- [x] **Step 4: Run status** — poll `GET /scholar/runs`; show per-target outcome including `zero found`, which must read as a distinct outcome and **not** as success.
+- [x] **Step 5: Commit** — `feat(scholar): admin fetch console`
 
 ---
 
@@ -720,9 +720,9 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 
 **Files:** research provenance drawers; `docs/methodologies/health-score.md`.
 
-- [ ] **Step 1: Source composition in the drawer** — every Council-facing research roll-up states *"N of M staff on Scholar data"*. This is council-readiness rule 1 and here it is load-bearing: the figure now mixes two sources depending on who clicked a button.
-- [ ] **Step 2: Methodology note** — the research dimension is mixed-source; Scholar counts run higher than Scopus (preprints, theses, non-indexed venues), so staff who fetch appear stronger than colleagues who have not. State it; do not try to correct for it in code.
-- [ ] **Step 3: Wire the archive retention rule**
+- [x] **Step 1: Source composition in the drawer** — every Council-facing research roll-up states *"N of M staff on Scholar data"*. This is council-readiness rule 1 and here it is load-bearing: the figure now mixes two sources depending on who clicked a button.
+- [x] **Step 2: Methodology note** — the research dimension is mixed-source; Scholar counts run higher than Scopus (preprints, theses, non-indexed venues), so staff who fetch appear stronger than colleagues who have not. State it; do not try to correct for it in code.
+- [x] **Step 3: Wire the archive retention rule**
 
 The spec says `ScholarFetchArchive` is retained 90 days by the existing PDPA
 sweep. Nothing enforces that yet — add the rule to `scripts/pdpa/` alongside
@@ -730,15 +730,15 @@ the existing retention entries rather than creating a second mechanism, which
 is how one of them stops running unnoticed. Verify by running the sweep in its
 dry-run mode and confirming it reports the new table.
 
-- [ ] **Step 4: Commit** — `docs(methodology): record mixed-source research data`
+- [x] **Step 4: Commit** — `docs(methodology): record mixed-source research data`
 
 ---
 
 ## Final verification
 
-- [ ] `pnpm --filter @kku/shared exec vitest run` — all pass
-- [ ] `pnpm --filter @kku/db exec vitest run` — all pass
-- [ ] `pnpm typecheck` — clean
-- [ ] `grep -rnE "delete|deleteMany" packages/db/src/scholar-fetch.ts` — **no output**
+- [x] `pnpm --filter @kku/shared exec vitest run` — all pass
+- [x] `pnpm --filter @kku/db exec vitest run` — all pass
+- [x] `pnpm typecheck` — clean
+- [x] `grep -rnE "delete|deleteMany" packages/db/src/scholar-fetch.ts` — **no output**
 - [ ] Manual: bind a profile on dev, fetch, confirm library rows survive and `ResearchOutput` gains only inserts plus citation raises
 - [ ] Manual: force a fetch failure (bad API key) and confirm quota is NOT consumed and no `ResearchOutput` row changed
