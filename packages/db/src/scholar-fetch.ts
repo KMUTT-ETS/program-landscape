@@ -26,13 +26,16 @@
 // simply re-ran and spent again.
 //
 // Dependency injection, and why:
-//   - `fetchPage` — the ScrapingBee wrapper lives in `apps/ingestion`
-//     (src/lib/scrapingbee-client.ts) and this runner lives in `packages/db`.
-//     An app cannot be a dependency of a package, so the fetcher is passed in
-//     as a function. This follows the existing DI shape in this package —
-//     `generateProgramResearchExpertise({ ai: AiService, … })` in
-//     program-research-expertise-run.ts takes its outbound service the same
-//     way — and it is what makes the runner testable with no network.
+//   - `fetchPage` — the ScrapingBee wrapper lives in `@kku/shared`
+//     (packages/shared/src/scholar/scrapingbee.ts; it moved out of
+//     apps/ingestion/src/lib on 2026-09-08 when apps/api's synchronous bind
+//     endpoint needed it too) and this runner lives in `packages/db`. It is
+//     still passed in as a function rather than imported: what the runner
+//     needs is a page fetcher, not that particular one. This follows the
+//     existing DI shape in this package — `generateProgramResearchExpertise({
+//     ai: AiService, … })` in program-research-expertise-run.ts takes its
+//     outbound service the same way — and it is what makes the runner
+//     testable with no network.
 //   - `parsePage` and `now` are TEST SEAMS and live in a separate, deliberately
 //     un-exported parameter. Both are dangerous as public input: a caller
 //     passing `now` sixty days ahead sees no blocking runs and walks straight

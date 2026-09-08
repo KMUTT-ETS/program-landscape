@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
-import type { ProgramPipelinePhase } from '@kku/shared';
+import type { ProgramPipelinePhase, Role, ScholarTrigger } from '@kku/shared';
 
 // BullMQ producer for `ai-jobs`. Matches the queue name + connection in
 // apps/ingestion/src/ai-jobs/queue.ts. Mirrors PdfIntakeQueueService.
@@ -25,7 +25,15 @@ export type AiJobKind =
   | 'RUN_PROGRAM_PIPELINE'
   | 'RUN_IMD_RANKINGS_EXTRACT'
   | 'RUN_CLASS_OFFERINGS_LINK'
-  | 'REFRESH_MODEL_CATALOG';
+  | 'REFRESH_MODEL_CATALOG'
+  // SCHOLAR_FETCH — pull one person's Google Scholar publication record
+  // through ScrapingBee and merge it into ResearchOutput. `entityId` is the
+  // TARGET user's id; `triggeredByUserId` is whoever asked for it (equal for
+  // a self-fetch). Queued rather than served inline because a profile is 1-2
+  // pages at 3-8s each, which is too long to hold an HTTP request open; the
+  // UI polls GET /scholar/status/me. Binding a profile is NOT queued — see
+  // apps/api/src/scholar/scholar.controller.ts.
+  | 'SCHOLAR_FETCH';
 
 /**
  * Pipeline phases. Mirrors apps/ingestion/src/scripts/programs-pipeline.ts:
@@ -64,6 +72,26 @@ export interface AiJobData {
   pipelinePhases?: ProgramPipelinePhase[];
   /** RUN_PROGRAM_PIPELINE only — pass --force to overwrite prior results. */
   pipelineForce?: boolean;
+  /**
+   * SCHOLAR_FETCH only — which Scholar allowance this run draws on.
+   *
+   * This is NOT the `trigger` field above and must never be folded into it.
+   * `trigger` says how the JOB was created (a human clicked, cron fired,
+   * another job chained it); `scholarTrigger` says whose 30-day quota is
+   * being spent, and SELF and ADMIN are two independent counters by design
+   * (see decideScholarQuota) so that an admin bulk refresh cannot lock
+   * people out of refreshing their own record. A bulk run is MANUAL and
+   * ADMIN_BULK at the same time.
+   */
+  scholarTrigger?: ScholarTrigger;
+  /**
+   * SCHOLAR_FETCH only — the triggering actor's role, which the quota unit
+   * reads for the SUPER_ADMIN exemption. Carried on the job because the
+   * worker has no session: resolving it consumer-side would mean a second
+   * lookup that could disagree with the role the request was authorised
+   * under.
+   */
+  scholarActorRole?: Role;
 }
 
 @Injectable()

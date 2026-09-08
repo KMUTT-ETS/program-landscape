@@ -96,6 +96,21 @@ export const PERMISSIONS = [
   'risks:assess:any',
   'risks:measures:edit',
 
+  // Google Scholar on-demand fetch — admin surface only. Gates fetching
+  // ANOTHER person's Scholar record, the bulk enqueue, and the run ledger.
+  // The self-service routes (/scholar/fetch/me, /scholar/bind/me,
+  // /scholar/status/me) are deliberately NOT behind this: they only ever
+  // act on the caller's own record.
+  //
+  // Admin-grade, not super-only: appending here grants it to SUPER_ADMIN
+  // (`[...PERMISSIONS]`) and SYSTEM_ADMIN (`PERMISSIONS.filter(...)`, which
+  // excludes only queues:manage and ai_models:configure) and to no other
+  // role, since every other role's list is enumerated by hand. That is
+  // exactly the intended grant — but it is asserted in
+  // apps/api/test/scholar-service.test.ts rather than trusted, because the
+  // grant is implicit in a spread rather than written down anywhere.
+  'scholar:admin',
+
   // AI model dispatch — gates the admin AI-settings page where the
   // per-method model picker lives. Super-admin only because model
   // choice has direct cost + reliability + Council-defensibility

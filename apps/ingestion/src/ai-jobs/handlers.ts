@@ -2,8 +2,12 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { Logger } from '@nestjs/common';
-import { Prisma, prisma, refreshAiModelCatalog } from '@kku/db';
+import { Prisma, prisma, refreshAiModelCatalog, runScholarFetch } from '@kku/db';
+import { z } from 'zod';
 import {
+  configFromEnv as scrapingBeeConfigFromEnv,
+  fetchScrapingBeePage,
+  RoleSchema,
   COURSE_SKILL_EXTRACTION_VERSION,
   CourseSkillExtractionSchema,
   JOB_POSTING_SKILL_EXTRACTION_VERSION,
@@ -22,6 +26,7 @@ import { runImdRankingsExtract } from '../imd-rankings-extract/run';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
 import { runModelHealthNotifier } from './model-health-notifier';
 import type { AiJobKind, ProgramPipelinePhase } from './queue';
+import type { Role, ScholarTrigger, ScrapingBeeConfig } from '@kku/shared';
 
 // Each handler consumes one job, calls the AI service, writes an
 // AiExtraction row. Approval (in the review UI) materialises the
@@ -35,6 +40,12 @@ export interface AiJobContext {
   pipelinePhases?: ProgramPipelinePhase[];
   /** RUN_PROGRAM_PIPELINE only — pass --force to the pipeline. */
   pipelineForce?: boolean;
+  /** SCHOLAR_FETCH only — whose 30-day allowance the run spends. NOT the
+   *  job `trigger` above; see the field's doc comment in queue.ts. */
+  scholarTrigger?: ScholarTrigger;
+  /** SCHOLAR_FETCH only — the actor's role, for the SUPER_ADMIN quota
+   *  exemption. */
+  scholarActorRole?: Role;
 }
 
 export interface AiJobOutcome {
@@ -548,6 +559,88 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       return { status: 'SKIPPED', message: result.error ?? 'refresh failed' };
     },
 
+    // Google Scholar on-demand fetch. This handler is the whole point of the
+    // runner's injected `fetchPage`: the runner lives in packages/db and
+    // cannot reach a network client of its own, so the ScrapingBee wrapper is
+    // handed in from here.
+    //
+    // Job data arrives off Redis, so it is validated rather than trusted —
+    // a job enqueued by an older build (or hand-poked into the queue) would
+    // otherwise reach `runScholarFetch` with an undefined trigger and be
+    // rejected there with a far less legible error.
+    SCHOLAR_FETCH: async ({ entityId, triggeredByUserId, scholarTrigger, scholarActorRole }) => {
+      const parsed = ScholarJobFieldsSchema.safeParse({
+        triggeredByUserId,
+        scholarTrigger,
+        scholarActorRole,
+      });
+      if (!parsed.success) {
+        return {
+          status: 'FAILED',
+          message:
+            'SCHOLAR_FETCH job is missing required fields ' +
+            `(${parsed.error.issues.map((i) => i.path.join('.')).join(', ')}). ` +
+            'It was probably enqueued by an older build — re-trigger it from the Scholar admin console.',
+        };
+      }
+
+      // Resolved once per job, and eagerly: a missing SCRAPINGBEE_API_KEY is
+      // a configuration fault, not a transient one, and finding out on page 1
+      // of the walk would open a run row and mark it FAILED for what is
+      // really "this deployment is not configured".
+      let cfg: ScrapingBeeConfig;
+      try {
+        cfg = scrapingBeeConfigFromEnv();
+      } catch (err) {
+        return {
+          status: 'FAILED',
+          message: err instanceof Error ? err.message : 'ScrapingBee is not configured.',
+        };
+      }
+
+      // Not wrapped in a try: the only paths on which `runScholarFetch`
+      // throws rather than returns are the ones BEFORE the first page fetch
+      // (input validation, person resolution, opening the run row), so a
+      // BullMQ retry there costs nothing and may well succeed. Everything
+      // after a credit has been spent is caught inside the runner and comes
+      // back as a FAILED result.
+      const result = await runScholarFetch({
+        userId: entityId,
+        triggeredById: parsed.data.triggeredByUserId,
+        trigger: parsed.data.scholarTrigger,
+        actorRole: parsed.data.scholarActorRole,
+        fetchPage: async (targetUrl) => {
+          const page = await fetchScrapingBeePage(targetUrl, cfg);
+          return { html: page.html, creditsUsed: page.creditsUsed };
+        },
+      });
+
+      // A refusal is NOT a success. `runScholarFetch` returns rather than
+      // throws for "no staff record", "quota exhausted" and "needs binding",
+      // and reporting those as SUCCEEDED would leave a completed job whose
+      // only evidence that nothing happened is a run row nobody reads. SKIPPED
+      // is the distinguishable outcome; the reason travels in `message`, and
+      // GET /scholar/status/me reads the same reason off the ledger for the
+      // user. SCHOLAR_NEEDS_BINDING passes through verbatim so the UI can
+      // branch on it.
+      //
+      // FAILED is returned, never thrown: throwing hands the job back to
+      // BullMQ, which would re-walk the profile at ~15 credits a page against
+      // a condition (interstitial, bad binding, exhausted plan) that a retry
+      // does not change.
+      const detail = `scholar run ${result.runId ?? '(none)'}: ${result.status}` +
+        (result.reason ? ` — ${result.reason}` : '') +
+        ` [found=${result.papersFound} inserted=${result.papersInserted}` +
+        ` citations=${result.citationsUpdated} credits=${result.creditsUsed}]`;
+      logger.log(`SCHOLAR_FETCH user=${entityId} ${detail}`);
+
+      if (result.status === 'REFUSED') return { status: 'SKIPPED', message: detail };
+      if (result.status === 'FAILED') return { status: 'FAILED', message: detail };
+      // SUCCEEDED and PARTIAL both imported data. PARTIAL keeps its own word
+      // in the message so "some of it is missing" is greppable in the log.
+      return { status: 'SUCCEEDED', message: detail };
+    },
+
     // Daily aiModelHealth() sweep — raises/clears Notification rows for
     // SUPER_ADMINs when a pinned AI method is off-catalog / deprecated /
     // failing. See model-health-notifier.ts for the dedup + clear rules.
@@ -558,6 +651,18 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
     },
   };
 }
+
+/**
+ * The SCHOLAR_FETCH-specific slice of a job payload. Everything here is
+ * optional on `AiJobData` (it is a shared envelope across ten job kinds) and
+ * mandatory for this one, so the handler asserts it rather than defaulting:
+ * a wrong `scholarTrigger` would draw down the wrong 30-day allowance.
+ */
+const ScholarJobFieldsSchema = z.object({
+  triggeredByUserId: z.string().min(1),
+  scholarTrigger: z.enum(['SELF', 'ADMIN', 'ADMIN_BULK']),
+  scholarActorRole: RoleSchema,
+});
 
 async function pickCandidateSkills(limit: number) {
   // Placeholder candidate strategy: most-recent N skills. Real impl

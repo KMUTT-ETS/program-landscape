@@ -2,7 +2,18 @@
 // ScrapingBee client helper — Google Scholar on-demand fetch.
 //
 // Used by:
-//   - the scholar fetch runner (packages/db/src/scholar-fetch.ts, Task 6)
+//   - the SCHOLAR_FETCH ai-jobs handler in apps/ingestion, which hands the
+//     page fetcher to the runner (packages/db/src/scholar-fetch.ts)
+//   - the synchronous profile-bind endpoint in apps/api, which needs one
+//     live page to verify the profile's name before it will link it
+//
+// It lives in `packages/shared` rather than in either app precisely because
+// BOTH need it: apps/api has no dependency on apps/ingestion (api produces
+// BullMQ jobs, ingestion consumes them), so a client that only one of them
+// could import would force the bind to become an asynchronous poll for no
+// reason. Nothing here touches a node builtin — `fetch` and `URL` only — so
+// it is safe inside the @kku/shared barrel, which Next.js client components
+// import from.
 //
 // ScrapingBee is a paid scraping proxy: we ask it to fetch a Google Scholar
 // URL on our behalf so the request originates from ScrapingBee's rotating

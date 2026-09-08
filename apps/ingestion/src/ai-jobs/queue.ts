@@ -1,6 +1,6 @@
 import { Queue, Worker, QueueEvents, type ConnectionOptions } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import type { ProgramPipelinePhase } from '@kku/shared';
+import type { ProgramPipelinePhase, Role, ScholarTrigger } from '@kku/shared';
 import type { AiJobHandler } from './handlers';
 
 // Dedicated BullMQ queue for AI work.
@@ -44,7 +44,15 @@ export type AiJobKind =
   // when a pinned method is off-catalog / deprecated / failing (see
   // packages/db/src/ai-model-health.ts). Registered as a daily
   // repeatable; `entityId` is an unused sentinel.
-  | 'NOTIFY_MODEL_HEALTH';
+  | 'NOTIFY_MODEL_HEALTH'
+  // One person's Google Scholar publication record, pulled through
+  // ScrapingBee and merged into ResearchOutput. `entityId` is the TARGET
+  // user's id, `triggeredByUserId` the actor (equal for a self-fetch).
+  // Queued because a profile is 1-2 pages at 3-8s each — too long to hold
+  // an HTTP request open. Every page costs real credits, so the handler
+  // returns FAILED rather than throwing: a BullMQ retry would re-walk the
+  // profile and spend again.
+  | 'SCHOLAR_FETCH';
 
 // Pipeline phases. Mirrors the API-side definition in
 // apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in
@@ -76,6 +84,20 @@ export interface AiJobData {
   pipelinePhases?: ProgramPipelinePhase[];
   /** RUN_PROGRAM_PIPELINE only — pass --force to overwrite prior results. */
   pipelineForce?: boolean;
+  /**
+   * SCHOLAR_FETCH only — which Scholar allowance the run draws on.
+   *
+   * Distinct from `trigger` above and NOT interchangeable with it:
+   * `trigger` describes how the job was created, `scholarTrigger` says
+   * whose 30-day quota is spent. SELF and ADMIN are independent counters
+   * (see decideScholarQuota), so an admin bulk refresh must not consume the
+   * allowance a person needs to refresh their own record.
+   */
+  scholarTrigger?: ScholarTrigger;
+  /** SCHOLAR_FETCH only — the actor's role, read by the quota unit for the
+   *  SUPER_ADMIN exemption. Carried on the job so the worker uses the same
+   *  role the request was authorised under. */
+  scholarActorRole?: Role;
 }
 
 export interface AiJobsConfig {
@@ -114,7 +136,16 @@ export function createAiJobsWorker(
   return new Worker<AiJobData>(
     AI_JOBS_QUEUE_NAME,
     async (job) => {
-      const { kind, entityId, trigger, triggeredByUserId, pipelinePhases, pipelineForce } = job.data;
+      const {
+        kind,
+        entityId,
+        trigger,
+        triggeredByUserId,
+        pipelinePhases,
+        pipelineForce,
+        scholarTrigger,
+        scholarActorRole,
+      } = job.data;
       const handler = handlers[kind];
       if (!handler) throw new Error(`No handler registered for ${kind}`);
       logger.log(`Handling ${kind} entityId=${entityId} trigger=${trigger}`);
@@ -124,6 +155,8 @@ export function createAiJobsWorker(
         triggeredByUserId: triggeredByUserId ?? null,
         pipelinePhases,
         pipelineForce,
+        scholarTrigger,
+        scholarActorRole,
       });
       return outcome;
     },

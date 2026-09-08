@@ -6,7 +6,7 @@ import {
   ScrapingBeeConfigError,
   ScrapingBeeQuotaError,
   ScrapingBeeTransientError,
-} from '../src/lib/scrapingbee-client';
+} from '../src/scholar/scrapingbee';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -32,7 +32,7 @@ function fakeResponse(opts: {
   });
 }
 
-describe('scrapingbee-client', () => {
+describe('scholar/scrapingbee', () => {
   beforeEach(() => {
     setEnv({
       SCRAPINGBEE_API_KEY: 'test-secret-key-do-not-leak',
