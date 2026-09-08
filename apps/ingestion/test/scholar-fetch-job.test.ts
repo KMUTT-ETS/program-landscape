@@ -13,10 +13,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   runScholarFetch: vi.fn(),
   fetchScrapingBeePage: vi.fn(),
+  scholarFetchRunCreate: vi.fn(),
 }));
 
 vi.mock('@kku/db', () => ({
-  prisma: {},
+  prisma: {
+    scholarFetchRun: { create: mocks.scholarFetchRunCreate },
+  },
   Prisma: {},
   refreshAiModelCatalog: vi.fn(),
   runScholarFetch: mocks.runScholarFetch,
@@ -58,6 +61,8 @@ const JOB = {
 beforeEach(() => {
   mocks.runScholarFetch.mockReset();
   mocks.fetchScrapingBeePage.mockReset();
+  mocks.scholarFetchRunCreate.mockReset();
+  mocks.scholarFetchRunCreate.mockResolvedValue({ id: 'run-cfg' });
   process.env.SCRAPINGBEE_API_KEY = 'test-key';
 });
 
@@ -168,13 +173,52 @@ describe('SCHOLAR_FETCH handler — job payload and wiring', () => {
     expect(outcome.status).toBe('FAILED');
     expect(outcome.message).toContain('missing required fields');
     expect(mocks.runScholarFetch).not.toHaveBeenCalled();
+    // No run row on this path: `trigger` is NOT NULL on the ledger and is
+    // among the fields that are missing, so there is no honest row to write.
+    expect(mocks.scholarFetchRunCreate).not.toHaveBeenCalled();
   });
 
-  it('fails fast and legibly when ScrapingBee is not configured', async () => {
+  it('asserts the target user id — it decides whose library gets written', async () => {
+    const outcome = await handlers.SCHOLAR_FETCH({ ...JOB, entityId: '' });
+    expect(outcome.status).toBe('FAILED');
+    expect(outcome.message).toContain('entityId');
+    expect(mocks.runScholarFetch).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when ScrapingBee is not configured — and leaves a ledger row', async () => {
     delete process.env.SCRAPINGBEE_API_KEY;
+
     const outcome = await handlers.SCHOLAR_FETCH(JOB);
+
     expect(outcome.status).toBe('FAILED');
     expect(outcome.message).toContain('SCRAPINGBEE_API_KEY');
     expect(mocks.runScholarFetch).not.toHaveBeenCalled();
+
+    // Without the row the click leaves NO trace: the runner never opens one,
+    // so status/me keeps showing the previous run and the button reads as a
+    // silent no-op — for every user at once on a deploy with a missing key.
+    expect(mocks.scholarFetchRunCreate).toHaveBeenCalledTimes(1);
+    const row = mocks.scholarFetchRunCreate.mock.calls[0][0].data;
+    expect(row).toMatchObject({
+      userId: 'target-user',
+      triggeredById: 'actor-user',
+      trigger: 'SELF',
+      // Quota-safe by construction: only SUCCEEDED and PARTIAL count toward
+      // the 30-day allowance, so this costs the user nothing.
+      status: 'FAILED',
+    });
+    expect(row.finishedAt).toBeInstanceOf(Date);
+  });
+
+  it('still reports the config error when the ledger write itself fails', async () => {
+    delete process.env.SCRAPINGBEE_API_KEY;
+    mocks.scholarFetchRunCreate.mockRejectedValue(new Error('FK violation'));
+
+    const outcome = await handlers.SCHOLAR_FETCH(JOB);
+
+    // Replacing a legible config error with a database error would be worse
+    // than losing the row.
+    expect(outcome.status).toBe('FAILED');
+    expect(outcome.message).toContain('SCRAPINGBEE_API_KEY');
   });
 });

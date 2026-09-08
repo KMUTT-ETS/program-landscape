@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { decideScholarQuota } from '../src/scholar/quota';
+import {
+  DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
+  SCHOLAR_LEDGER_LOOKBACK_MS,
+  decideScholarBindQuota,
+  decideScholarQuota,
+} from '../src/scholar/quota';
 
 const NOW = new Date('2026-09-08T10:00:00Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -85,5 +90,73 @@ describe('decideScholarQuota', () => {
       now: NOW,
     });
     expect(d.allowed).toBe(true);
+  });
+});
+
+const hoursAgo = (n: number) => new Date(NOW.getTime() - n * 60 * 60 * 1000);
+
+describe('SCHOLAR_LEDGER_LOOKBACK_MS', () => {
+  it('reaches strictly further back than the 30-day quota window', () => {
+    // Ordered by necessity: read less than the window and the decision
+    // silently sees no blocking run and lets a second fetch through. Both the
+    // runner and GET /scholar/status/me import this constant rather than
+    // keeping a copy, which is what this asserts is safe to do.
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    expect(SCHOLAR_LEDGER_LOOKBACK_MS).toBeGreaterThan(thirtyDays);
+  });
+});
+
+describe('decideScholarBindQuota', () => {
+  it('allows a first bind', () => {
+    const d = decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts: [], now: NOW });
+    expect(d.allowed).toBe(true);
+  });
+
+  it('allows the attempt that lands exactly ON the default cap', () => {
+    // Four prior attempts against a cap of five: the fifth must go through,
+    // or the cap is really four.
+    const attempts = [1, 2, 3, 4].map((h) => ({ createdAt: hoursAgo(h) }));
+    expect(decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW }).allowed).toBe(true);
+  });
+
+  it('refuses once the cap is reached', () => {
+    const attempts = [1, 2, 3, 4, 5].map((h) => ({ createdAt: hoursAgo(h) }));
+    const d = decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW });
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toMatch(/billed whether or not/);
+  });
+
+  it('COUNTS refusals — the opposite of the fetch quota, and deliberately so', () => {
+    // A bind is billed before the name check that can reject it, so the
+    // attempts that produce nothing are exactly the ones that must count.
+    // There is no outcome field on the summary at all: every row counts.
+    const attempts = [1, 2, 3, 4, 5].map((h) => ({ createdAt: hoursAgo(h) }));
+    expect(decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW }).allowed).toBe(false);
+  });
+
+  it('rolls: the allowance frees as the OLDEST attempt in the window ages out', () => {
+    const attempts = [23.5, 5, 4, 3, 2].map((h) => ({ createdAt: hoursAgo(h) }));
+    const d = decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW });
+    expect(d.allowed).toBe(false);
+    // 24h after the oldest, not midnight.
+    expect(d.retryAt?.toISOString()).toBe(new Date(hoursAgo(23.5).getTime() + 24 * 60 * 60 * 1000).toISOString());
+  });
+
+  it('ignores attempts older than 24 hours', () => {
+    const attempts = [25, 26, 27, 28, 29].map((h) => ({ createdAt: hoursAgo(h) }));
+    expect(decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW }).allowed).toBe(true);
+  });
+
+  it('honours an explicit cap, and falls back on a nonsense one', () => {
+    const attempts = [1].map((h) => ({ createdAt: hoursAgo(h) }));
+    expect(decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW, maxPerDay: 1 }).allowed).toBe(false);
+    expect(decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW, maxPerDay: 0 }).allowed).toBe(true);
+    expect(decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW, maxPerDay: Number.NaN }).allowed).toBe(true);
+  });
+
+  it('exempts SUPER_ADMIN, matching decideScholarQuota', () => {
+    const attempts = Array.from({ length: 50 }, (_, i) => ({ createdAt: hoursAgo(i % 20) }));
+    expect(decideScholarBindQuota({ actorRole: 'SUPER_ADMIN', attempts, now: NOW }).allowed).toBe(true);
+    expect(DEFAULT_SCHOLAR_BIND_MAX_PER_DAY).toBe(5);
   });
 });

@@ -3,15 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import {
   SCHOLAR_NEEDS_BINDING,
   bindScholarProfile,
+  loadScholarRoster,
   prisma,
   resolveScholarFacultyMember,
 } from '@kku/db';
 import {
   ApiError,
+  DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
   GOOGLE_PAGE_CREDIT_COST,
+  SCHOLAR_LEDGER_LOOKBACK_MS,
   configFromEnv as scrapingBeeConfigFromEnv,
+  decideScholarBindQuota,
   decideScholarQuota,
   fetchScrapingBeePage,
+  parseScholarProfileUrl,
   type Role,
   type ScrapingBeeConfig,
   type ScholarStatus,
@@ -41,10 +46,9 @@ import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 
 const DEFAULT_BULK_MAX_TARGETS = 100;
 
-/** How far back GET /scholar/status/me reads the ledger. The quota window is
- *  30 days; 90 gives decideScholarQuota headroom and bounds the query — the
- *  same lookback the runner uses. */
-const LEDGER_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
+/** Rolling window the bind cap is measured over. Matches the window inside
+ *  `decideScholarBindQuota`; used only to bound the query that feeds it. */
+const BIND_LEDGER_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 export interface ScholarEnqueueResult {
   jobId: string;
@@ -64,6 +68,9 @@ export interface ScholarBulkTargetPlan {
 
 export interface ScholarBulkResult {
   enqueued: ScholarEnqueueResult[];
+  /** Targets that were priced and reported but NOT enqueued, because the
+   *  pre-flight already proved the run would refuse before doing anything. */
+  skipped: ScholarBulkTargetPlan[];
   /** Distinct targets asked for, after de-duplication. */
   targetCount: number;
   /** Duplicate ids the request carried and this service collapsed. */
@@ -106,26 +113,68 @@ export interface ScholarSelfStatus {
   /** True when the next step is "paste a profile URL", from either side:
    *  no profile on the staff record, or a run that refused for that reason. */
   needsBinding: boolean;
+  /**
+   * A fetch for this person is waiting or running on the queue right now.
+   *
+   * Without it a click is invisible: the job is enqueued, `lastRun` still
+   * shows the PREVIOUS run, and the honest reading of the panel is "nothing
+   * happened" — so the user clicks again. The runner's in-flight guard would
+   * eventually refuse the duplicate, but only after it had been queued.
+   */
+  fetchQueued: boolean;
+  /** How many binds are left today, and when the allowance frees up. Shown
+   *  next to the paste-a-URL field, because a bind is billed whether or not
+   *  it matches. */
+  bind: { attemptsToday: number; maxPerDay: number; retryAt: Date | null };
 }
 
 /**
  * Floor price of a bulk run, in ScrapingBee credits.
  *
- * A bound target costs at least one publication page. An unbound one costs
- * that plus the page `bindScholarProfile` spends verifying the profile name
- * before it will link it — somebody has to pay for that page before the fetch
- * can do anything.
+ * Only BOUND targets cost anything. A bulk fetch never binds: `runScholarFetch`
+ * checks `member.scholarProfileId` at step 4 and returns the needs-binding
+ * refusal BEFORE `fetchAllPages` is reached, so an unbound target spends
+ * exactly zero. An earlier version of this charged unbound targets two pages
+ * — one for the walk, one for "the bind" — which was a carry-over from the
+ * superseded name-search design that Google's sign-in wall killed. It made the
+ * quote roughly 10x too high at rollout, when almost nobody is bound yet: 50
+ * people with 40 unbound quoted 1,350 credits against a real floor of 150.
  *
- * It is a FLOOR, not an estimate of the likely spend: a prolific researcher's
- * profile runs to several pages (up to SCHOLAR_MAX_PAGES = 10), and this
- * cannot know how many without fetching. The console must present it as
- * "at least", never as "this will cost".
+ * It is a FLOOR, not a forecast: a prolific researcher's profile runs to
+ * several pages (up to SCHOLAR_MAX_PAGES = 10) and this cannot know how many
+ * without fetching. The console must present it as "at least", and should say
+ * separately how many targets will refuse — `profileBound` and
+ * `resolutionRefusal` on each target row carry that.
  */
 export function estimateScholarBulkCredits(
   targets: ReadonlyArray<{ profileBound: boolean }>,
 ): number {
-  const pages = targets.reduce((sum, t) => sum + (t.profileBound ? 1 : 2), 0);
+  const pages = targets.reduce((sum, t) => sum + (t.profileBound ? 1 : 0), 0);
   return pages * GOOGLE_PAGE_CREDIT_COST;
+}
+
+
+/**
+ * Which recorded bind attempts count against a person's daily allowance.
+ *
+ * Everything that SPENT, plus every REFUSED attempt whether it spent or not.
+ * The refusals are the point of the cap — a name mismatch is billed in full,
+ * and "no staff record, try again, try again" is the same button in the same
+ * loop even though it costs nothing.
+ *
+ * What does NOT count is a zero-cost FAILED attempt, which in practice means
+ * exactly one thing: SCRAPINGBEE_API_KEY is unset. Those rows are still
+ * written — a fresh deploy whose key was never filled in must not present as
+ * a silently inert button — but charging them to the user would mean five
+ * clicks against a broken deploy locked them out of binding for a day after
+ * the operator fixed it. Our fault, our cost.
+ */
+function bindQuotaWhere(userId: string, now: Date) {
+  return {
+    userId,
+    createdAt: { gte: new Date(now.getTime() - BIND_LEDGER_LOOKBACK_MS) },
+    OR: [{ creditsUsed: { gt: 0 } }, { outcome: 'REFUSED' as const }],
+  };
 }
 
 @Injectable()
@@ -149,6 +198,19 @@ export class ScholarService {
     return Math.floor(parsed);
   }
 
+  /**
+   * Binds allowed per person per rolling 24 hours. A bind fetches a Google
+   * page (~15 credits) BEFORE the name check that can reject it, so a wrong
+   * URL is billed in full — this is the only thing standing between a paste
+   * field and the ScrapingBee invoice.
+   */
+  bindMaxPerDay(): number {
+    const raw = this.config.get<string | number>('SCHOLAR_BIND_MAX_PER_DAY');
+    const parsed = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_SCHOLAR_BIND_MAX_PER_DAY;
+    return Math.floor(parsed);
+  }
+
   // ── Self ────────────────────────────────────────────────────────────────
 
   async enqueueSelfFetch(userId: string, actorRole: Role): Promise<ScholarEnqueueResult> {
@@ -158,6 +220,24 @@ export class ScholarService {
   /**
    * Link a Scholar profile to the caller's own staff record — synchronously,
    * because the answer is a yes or a no and the person is waiting for it.
+   *
+   * EVERY ATTEMPT IS METERED AND RECORDED, including the ones that fail.
+   * Verifying that a profile belongs to this person means fetching page 1 of
+   * it (~15 ScrapingBee credits) and reading the name off the page, so a bind
+   * refused for a name mismatch has already been billed in full. Before this
+   * was metered, the only guard was a 10/min throttle keyed per user — 150
+   * credits a minute, no daily ceiling — and the credits left no trace
+   * anywhere, because a bind writes no ScholarFetchRun and the run ledger's
+   * credit total therefore could not see them. Pasting one wrong profile id
+   * after another was an unrecorded drain on the plan; a UI retry loop or a
+   * confused user retrying a bad URL did the same, slower.
+   *
+   * So: the cap is checked BEFORE the page is fetched, and the attempt is
+   * written to `scholar_bind_attempts` with its real cost on every path out.
+   * The credit tally comes from this method's own fetcher closure rather than
+   * from `bindScholarProfile`'s return value, because that value only exists
+   * on the success path — and the refusals are exactly the attempts that
+   * spend without producing anything.
    *
    * `bindScholarProfile` refuses on a name mismatch, an already-linked
    * profile, an unreadable page and a malformed URL, all by throwing a plain
@@ -169,41 +249,141 @@ export class ScholarService {
   async bindOwnProfile(
     userId: string,
     url: string,
+    actorRole: Role,
   ): Promise<{ scholarProfileId: string; profileName: string; creditsUsed: number }> {
     const { member, refusal } = await resolveScholarFacultyMember(userId);
+
+    // Cap first, so a refused attempt cannot be retried into a drain. Read
+    // before the resolution refusal below is raised, so that "no staff record,
+    // try again, try again" is counted too — it spends nothing itself, but it
+    // is the same button and the same loop.
+    const now = new Date();
+    const attempts = await prisma.scholarBindAttempt.findMany({
+      where: bindQuotaWhere(userId, now),
+      select: { createdAt: true },
+    });
+    const quota = decideScholarBindQuota({
+      actorRole,
+      attempts,
+      now,
+      maxPerDay: this.bindMaxPerDay(),
+    });
+    if (!quota.allowed) {
+      // No row written: this attempt cost nothing, and a ledger entry for it
+      // would make tomorrow's allowance smaller than the cap says it is.
+      throw new ApiError('RATE_LIMITED', quota.reason ?? 'Too many bind attempts today.', {
+        retryAt: quota.retryAt?.toISOString(),
+      });
+    }
+
+    // Recorded even though nothing was fetched: the operator asking "why does
+    // this person keep failing to bind" needs the resolution failures in the
+    // same place as the billed ones.
     if (!member) {
-      throw new ApiError(
-        'NOT_FOUND',
-        refusal ?? 'This account could not be matched to a single staff record.',
-      );
+      const reason = refusal ?? 'This account could not be matched to a single staff record.';
+      await this.recordBindAttempt({ userId, url, outcome: 'REFUSED', creditsUsed: 0, errorText: reason });
+      throw new ApiError('NOT_FOUND', reason);
     }
 
     let cfg: ScrapingBeeConfig;
     try {
       cfg = scrapingBeeConfigFromEnv();
     } catch (err) {
-      // Missing API key: an operator problem, not the caller's.
-      throw new ApiError(
-        'UPSTREAM_UNAVAILABLE',
-        err instanceof Error ? err.message : 'Scholar fetching is not configured.',
-      );
+      // Missing API key: an operator problem, not the caller's, and it spends
+      // nothing — but it is recorded so a fresh deploy whose key was never
+      // filled in does not present as a silently inert button.
+      const message = err instanceof Error ? err.message : 'Scholar fetching is not configured.';
+      await this.recordBindAttempt({
+        userId,
+        facultyMemberId: member.id,
+        url,
+        outcome: 'FAILED',
+        creditsUsed: 0,
+        errorText: message,
+      });
+      throw new ApiError('UPSTREAM_UNAVAILABLE', message);
     }
 
+    // The credit tally lives here, in the closure, so it is correct on the
+    // throwing paths too.
+    let creditsSpent = 0;
+    const parsedUrl = parseScholarProfileUrl(url);
+    const scholarProfileId = parsedUrl.ok ? parsedUrl.profileId : null;
+
     try {
-      return await bindScholarProfile({
+      const result = await bindScholarProfile({
         facultyMemberId: member.id,
         url,
         boundById: userId,
         fetchPage: async (targetUrl) => {
           const page = await fetchScrapingBeePage(targetUrl, cfg);
+          if (typeof page.creditsUsed === 'number' && Number.isFinite(page.creditsUsed)) {
+            creditsSpent += page.creditsUsed;
+          }
           return { html: page.html, creditsUsed: page.creditsUsed };
         },
       });
+      await this.recordBindAttempt({
+        userId,
+        facultyMemberId: member.id,
+        url,
+        scholarProfileId: result.scholarProfileId,
+        outcome: 'BOUND',
+        profileName: result.profileName,
+        creditsUsed: Math.round(creditsSpent),
+      });
+      return result;
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not link that Scholar profile.';
+      await this.recordBindAttempt({
+        userId,
+        facultyMemberId: member.id,
+        url,
+        scholarProfileId,
+        outcome: 'REFUSED',
+        creditsUsed: Math.round(creditsSpent),
+        errorText: message,
+      });
       if (err instanceof ApiError) throw err;
-      throw new ApiError(
-        'VALIDATION_FAILED',
-        err instanceof Error ? err.message : 'Could not link that Scholar profile.',
+      throw new ApiError('VALIDATION_FAILED', message);
+    }
+  }
+
+  /**
+   * Write one bind attempt to the ledger. NEVER throws: the attempt has
+   * already happened and the credits are already spent, so replacing the
+   * caller's real error (or their successful bind) with a database error
+   * would lose the more useful of the two. A ledger write that fails is
+   * logged loudly instead, because a hole in a spend ledger matters.
+   */
+  private async recordBindAttempt(data: {
+    userId: string;
+    facultyMemberId?: string;
+    url: string;
+    scholarProfileId?: string | null;
+    outcome: 'BOUND' | 'REFUSED' | 'FAILED';
+    profileName?: string;
+    creditsUsed: number;
+    errorText?: string;
+  }): Promise<void> {
+    try {
+      await prisma.scholarBindAttempt.create({
+        data: {
+          userId: data.userId,
+          facultyMemberId: data.facultyMemberId ?? null,
+          url: data.url.slice(0, 2048),
+          scholarProfileId: data.scholarProfileId ?? null,
+          outcome: data.outcome,
+          profileName: data.profileName ?? null,
+          creditsUsed: data.creditsUsed,
+          errorText: data.errorText ?? null,
+        },
+      });
+    } catch (err) {
+      this.logger.error(
+        `could not record scholar bind attempt for user=${data.userId} ` +
+          `(outcome=${data.outcome}, credits=${data.creditsUsed}): ` +
+          (err instanceof Error ? err.message : String(err)),
       );
     }
   }
@@ -234,7 +414,7 @@ export class ScholarService {
 
     const now = new Date();
     const runs = await prisma.scholarFetchRun.findMany({
-      where: { userId, startedAt: { gte: new Date(now.getTime() - LEDGER_LOOKBACK_MS) } },
+      where: { userId, startedAt: { gte: new Date(now.getTime() - SCHOLAR_LEDGER_LOOKBACK_MS) } },
       orderBy: { startedAt: 'desc' },
       select: {
         id: true,
@@ -248,6 +428,25 @@ export class ScholarService {
         creditsUsed: true,
         errorText: true,
       },
+    });
+
+    // Is a fetch already on the queue for this person? Read alongside the
+    // ledger, because "you clicked and it is waiting" and "here is your last
+    // run" are the two halves of the same answer.
+    const fetchQueued = (await this.queue.countRunning('SCHOLAR_FETCH', userId)) > 0;
+
+    // Same filter the cap itself uses, so the number shown to the user and the
+    // number enforced against them are the same number.
+    const bindAttempts = await prisma.scholarBindAttempt.findMany({
+      where: bindQuotaWhere(userId, now),
+      select: { createdAt: true },
+    });
+    const bindMaxPerDay = this.bindMaxPerDay();
+    const bindQuota = decideScholarBindQuota({
+      actorRole,
+      attempts: bindAttempts,
+      now,
+      maxPerDay: bindMaxPerDay,
     });
 
     const latest = runs[0] ?? null;
@@ -295,6 +494,12 @@ export class ScholarService {
       nextEligibleAt: quota.allowed ? null : (quota.retryAt ?? null),
       quotaReason: quota.allowed ? null : (quota.reason ?? null),
       needsBinding: Boolean(member) && (!profile.bound || lastRunNeedsBinding),
+      fetchQueued,
+      bind: {
+        attemptsToday: bindAttempts.length,
+        maxPerDay: bindMaxPerDay,
+        retryAt: bindQuota.allowed ? null : (bindQuota.retryAt ?? null),
+      },
     };
   }
 
@@ -347,14 +552,19 @@ export class ScholarService {
       );
     }
 
-    // Priced before anything is enqueued, using the same resolution the
-    // runner will perform, so the console's confirmation dialog is quoting
-    // the real shape of the run rather than a guess. This is O(targets)
-    // resolutions and each one scans FacultyMember for the name path — which
-    // is why the cap above is not optional.
+    // Priced before anything is enqueued, using the same resolution the runner
+    // will perform, so the console's confirmation dialog quotes the real shape
+    // of the run rather than a guess.
+    //
+    // The roster is loaded ONCE and reused. `resolveScholarFacultyMember`'s
+    // name fallback scans the whole FacultyMember table (the match is
+    // normalised in JS and cannot be expressed in SQL), so resolving 100
+    // targets one at a time meant 100 sequential unfiltered scans of ~3,800
+    // rows inside a single HTTP request.
+    const roster = await loadScholarRoster();
     const targets: ScholarBulkTargetPlan[] = [];
     for (const userId of distinct) {
-      const { member, refusal } = await resolveScholarFacultyMember(userId);
+      const { member, refusal } = await resolveScholarFacultyMember(userId, roster);
       targets.push({
         userId,
         profileBound: Boolean(member?.scholarProfileId),
@@ -362,8 +572,21 @@ export class ScholarService {
       });
     }
 
+    // Targets we have just PROVED cannot resolve are not enqueued. Their jobs
+    // would reach `refusedWithoutRun`, which by design writes no ScholarFetchRun
+    // — so they would occupy worker slots and vanish without a trace, exactly
+    // the blind spot the config-failure row in the handler exists to close.
+    // They are still returned in `targets[]` with the reason, so the console
+    // can say why they were left out.
+    //
+    // Unbound-but-resolvable targets ARE enqueued: their refusal is recorded
+    // as a run row (that is where SCHOLAR_NEEDS_BINDING comes from), which is
+    // what puts "paste your profile URL" in front of the right people.
+    const runnable = targets.filter((t) => t.resolutionRefusal === null);
+    const skipped = targets.filter((t) => t.resolutionRefusal !== null);
+
     const enqueued: ScholarEnqueueResult[] = [];
-    for (const target of targets) {
+    for (const target of runnable) {
       enqueued.push(
         await this.enqueueOne({
           userId: target.userId,
@@ -376,9 +599,10 @@ export class ScholarService {
 
     return {
       enqueued,
+      skipped,
       targetCount: distinct.length,
       duplicatesDropped,
-      estimatedCredits: estimateScholarBulkCredits(targets),
+      estimatedCredits: estimateScholarBulkCredits(runnable),
       targets,
     };
   }

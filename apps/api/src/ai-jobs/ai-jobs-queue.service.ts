@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Queue } from 'bullmq';
+import { Queue, type JobsOptions } from 'bullmq';
 import type { ProgramPipelinePhase, Role, ScholarTrigger } from '@kku/shared';
 
 // BullMQ producer for `ai-jobs`. Matches the queue name + connection in
@@ -123,17 +123,88 @@ export class AiJobsQueueService implements OnModuleInit, OnModuleDestroy {
     const job = await this.queue.add(
       `${data.kind.toLowerCase()}:${data.entityId}`,
       data,
-      { attempts: data.trigger === 'MANUAL' ? 1 : 2 },
+      buildJobOptions(data),
     );
     return job.id ?? '';
   }
 
-  /** Count not-yet-finished jobs (waiting / active / delayed) of a given
-   *  kind. Used by status endpoints to tell the UI whether a refresh is
-   *  already in flight so the trigger button can disable itself. */
-  async countRunning(kind: AiJobKind): Promise<number> {
+  /**
+   * Count not-yet-finished jobs (waiting / active / delayed) of a given kind,
+   * optionally narrowed to one entity. Used by status endpoints to tell the
+   * UI whether a refresh is already in flight so the trigger button can
+   * disable itself — and, for Scholar, so a user who has just clicked sees
+   * "queued" instead of last month's run and clicks again.
+   */
+  async countRunning(kind: AiJobKind, entityId?: string): Promise<number> {
     if (!this.queue) return 0;
     const jobs = await this.queue.getJobs(['waiting', 'active', 'delayed']);
-    return jobs.filter((j) => j.data?.kind === kind).length;
+    return jobs.filter(
+      (j) => j.data?.kind === kind && (entityId === undefined || j.data?.entityId === entityId),
+    ).length;
   }
 }
+
+/**
+ * Per-kind BullMQ options. Keyed on `kind`, deliberately: the retry count used
+ * to read `data.trigger === 'MANUAL' ? 1 : 2`, which is the wrong axis. It
+ * only ever produced the right answer because every Scholar route hardcodes
+ * MANUAL today — the obvious next feature, a nightly refresh of stale
+ * profiles, would enqueue SCHEDULED and silently get two attempts with nothing
+ * to flag it.
+ */
+export function buildJobOptions(data: AiJobData): JobsOptions {
+  const attempts = SINGLE_ATTEMPT_KINDS.has(data.kind) || data.trigger === 'MANUAL' ? 1 : 2;
+
+  if (data.kind !== 'SCHOLAR_FETCH') return { attempts };
+
+  return {
+    attempts,
+    // Deterministic id: BullMQ silently drops an add() whose id matches a job
+    // already waiting or active, which is the whole point here. Two admins
+    // bulk-fetching overlapping cohorts (or a user's own fetch racing a queued
+    // ADMIN one) otherwise produce two jobs for one person; with
+    // AI_JOBS_CONCURRENCY defaulting to 2 they run at once, neither sees the
+    // other's run row because neither has created one yet, and BOTH walk the
+    // profile. That is double the credits, and whichever finishes second is a
+    // *successful* duplicate, so it also burns that person's 30-day allowance
+    // — and for SELF-vs-ADMIN the two triggers are independent quota counters
+    // by design, so quota is guaranteed not to catch it.
+    //
+    // This closes the ENQUEUE-side collision only. Two jobs already dequeued
+    // and running cannot be collapsed by an id; the runner's check-then-act
+    // in-flight guard narrows that to the ~milliseconds between its read and
+    // its run-row insert, and only a database-level exclusion (a partial
+    // unique index on unfinished runs per user, or a per-user advisory lock
+    // held across the walk) would close it outright. Both were considered and
+    // rejected in the runner for a stated reason: with no sweeper for
+    // unfinished rows, a process dying mid-fetch would wedge that person out
+    // of Scholar permanently.
+    jobId: `scholar-fetch:${data.entityId}`,
+    // The id is only reserved while the job exists, so it MUST NOT outlive the
+    // run. This producer's Queue sets no defaultJobOptions, so without these a
+    // completed job is retained forever and holds `scholar-fetch:<user>` for
+    // good — the second fetch a month later would be dropped as a duplicate,
+    // silently. The ScholarFetchRun ledger is the durable record of what
+    // happened; the queue entry is not, and does not need to be.
+    removeOnComplete: true,
+    removeOnFail: true,
+  };
+}
+
+/**
+ * Kinds that must never be retried automatically, whatever the trigger.
+ *
+ * SCHOLAR_FETCH walks a Google Scholar profile through ScrapingBee at
+ * ~15 credits per page. Its handler already returns FAILED rather than
+ * throwing for the same reason; this is the second wall, for a genuine throw.
+ *
+ * NOTE this does not make redelivery impossible. BullMQ's *stalled*-job
+ * recovery is governed by the worker's `maxStalledCount` (default 1), not by
+ * `attempts`: verified against the pinned bullmq 5.76.0, where
+ * moveStalledJobsToWait-8.lua increments a separate `stc` field on the job
+ * hash and compares it to that setting. A worker killed mid-walk therefore
+ * gets its job moved back to wait and run again regardless of `attempts: 1`.
+ * What protects the credits in that case is the runner's 15-minute stuck-run
+ * window, which refuses a second walk while an unfinished run row is recent.
+ */
+const SINGLE_ATTEMPT_KINDS = new Set<AiJobKind>(['SCHOLAR_FETCH']);

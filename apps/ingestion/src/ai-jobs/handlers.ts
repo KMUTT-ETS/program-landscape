@@ -570,6 +570,7 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
     // rejected there with a far less legible error.
     SCHOLAR_FETCH: async ({ entityId, triggeredByUserId, scholarTrigger, scholarActorRole }) => {
       const parsed = ScholarJobFieldsSchema.safeParse({
+        entityId,
         triggeredByUserId,
         scholarTrigger,
         scholarActorRole,
@@ -583,6 +584,11 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
             'It was probably enqueued by an older build — re-trigger it from the Scholar admin console.',
         };
       }
+      // No ScholarFetchRun row on this path, unlike the config failure below.
+      // `trigger` is NOT NULL on that table and is among the fields that are
+      // missing, so there is no honest row to write — a guessed trigger would
+      // land in the quota ledger under the wrong counter. The log is the
+      // record.
 
       // Resolved once per job, and eagerly: a missing SCRAPINGBEE_API_KEY is
       // a configuration fault, not a transient one, and finding out on page 1
@@ -592,10 +598,41 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       try {
         cfg = scrapingBeeConfigFromEnv();
       } catch (err) {
-        return {
-          status: 'FAILED',
-          message: err instanceof Error ? err.message : 'ScrapingBee is not configured.',
-        };
+        const message = err instanceof Error ? err.message : 'ScrapingBee is not configured.';
+        // Write the run row. Without it the click leaves NO trace: the runner
+        // never gets to open one, so GET /scholar/status/me keeps showing the
+        // previous run and the button reads as a silent no-op — forever, and
+        // for every user at once, since a missing SCRAPINGBEE_API_KEY on a
+        // fresh deploy fails identically for everybody.
+        //
+        // Quota-safe by construction: only SUCCEEDED and PARTIAL count toward
+        // the 30-day allowance, so a FAILED row costs the user nothing. All
+        // the required fields are in hand here (the payload validated above),
+        // and `facultyMemberId` is nullable — this path never resolved one.
+        try {
+          await prisma.scholarFetchRun.create({
+            data: {
+              userId: parsed.data.entityId,
+              triggeredById: parsed.data.triggeredByUserId,
+              trigger: parsed.data.scholarTrigger,
+              status: 'FAILED',
+              errorText: message,
+              startedAt: new Date(),
+              finishedAt: new Date(),
+            },
+          });
+        } catch (writeErr) {
+          // A bad user id (FK violation) or a database outage. The job outcome
+          // below still carries the real reason; losing the row is worse than
+          // losing the job, but replacing a legible config error with a
+          // database error would be worse still.
+          logger.warn(
+            `SCHOLAR_FETCH could not record the config failure for user=${entityId}: ${
+              writeErr instanceof Error ? writeErr.message : String(writeErr)
+            }`,
+          );
+        }
+        return { status: 'FAILED', message };
       }
 
       // Not wrapped in a try: the only paths on which `runScholarFetch`
@@ -659,6 +696,11 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
  * a wrong `scholarTrigger` would draw down the wrong 30-day allowance.
  */
 const ScholarJobFieldsSchema = z.object({
+  /** The TARGET user — whose ResearchOutput rows this run writes. Caught
+   *  downstream by the runner's own runInputSchema too, but this schema is
+   *  documented as the complete payload slice the handler asserts, and the
+   *  field that decides whose library gets written belongs in it. */
+  entityId: z.string().min(1),
   triggeredByUserId: z.string().min(1),
   scholarTrigger: z.enum(['SELF', 'ADMIN', 'ADMIN_BULK']),
   scholarActorRole: RoleSchema,

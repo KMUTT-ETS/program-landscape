@@ -74,7 +74,7 @@ export class ScholarController {
   ) {
     // Synchronous on purpose: one page fetch, and the caller is waiting to
     // find out whether the URL they pasted was accepted.
-    return this.service.bindOwnProfile(user.userId, body.url);
+    return this.service.bindOwnProfile(user.userId, body.url, user.role);
   }
 
   @Get('status/me')

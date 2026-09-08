@@ -726,6 +726,7 @@ model User {
   scholarFetchRuns         ScholarFetchRun[]        @relation("ScholarFetchUser")
   scholarFetchesTriggered  ScholarFetchRun[]        @relation("ScholarFetchTriggeredBy")
   scholarProfileBindings   FacultyMember[]          @relation("ScholarProfileBoundBy")
+  scholarBindAttempts      ScholarBindAttempt[]     @relation("ScholarBindSubject")
 
   @@index([email])
   @@index([ssoSubject])
@@ -1416,6 +1417,7 @@ model FacultyMember {
   // Who bound the Scholar profile. SetNull, not Cascade: losing the admin
   // account must not silently unbind the profile they verified.
   scholarBoundBy        User?                       @relation("ScholarProfileBoundBy", fields: [scholarBoundById], references: [id], onDelete: SetNull)
+  scholarBindAttempts   ScholarBindAttempt[]        @relation("ScholarBindFacultyMember")
   scholarFetchRuns      ScholarFetchRun[]
 
   @@index([facultyId])
@@ -5493,4 +5495,60 @@ model ScholarFetchArchive {
   fetchRun ScholarFetchRun @relation(fields: [fetchRunId], references: [id], onDelete: Cascade)
 
   @@map("scholar_fetch_archives")
+}
+
+enum ScholarBindOutcome {
+  BOUND
+  REFUSED
+  FAILED
+}
+
+/// One row per attempt to link a Google Scholar profile to a staff record.
+///
+/// This exists because a bind SPENDS MONEY BEFORE IT CAN SUCCEED. Verifying
+/// that a profile belongs to the person it is being attached to means fetching
+/// page 1 of that profile (~15 ScrapingBee credits) and reading the name off
+/// it — so a bind that is REFUSED for a name mismatch has already been billed
+/// in full. Without this table those credits leave no trace anywhere: a bind
+/// writes no ScholarFetchRun, so `GET /scholar/runs`'s `totalCreditsUsed`
+/// cannot see them, and an account pasting one wrong profile id after another
+/// would drain the plan with the system holding no record that it happened.
+///
+/// It is therefore BOTH the spend ledger for binding and the input to the
+/// per-user daily cap (SCHOLAR_BIND_MAX_PER_DAY). Refusals count toward that
+/// cap on purpose — they are exactly the attempts that cost without producing
+/// anything. Deliberately NOT folded into ScholarFetchRun: a bind is not a
+/// fetch, its outcomes are a different set, and overloading that table's
+/// trigger/status enums would make the 30-day fetch quota read rows that are
+/// not fetches.
+model ScholarBindAttempt {
+  id String @id @default(cuid())
+
+  /// Whose staff record the profile was being attached to. NOT necessarily
+  /// the actor — kept as the subject so the daily cap is per person bound.
+  userId String @map("user_id")
+  /// Null when the account resolved to no single staff record, which is a
+  /// refusal that happens before any page is fetched.
+  facultyMemberId String? @map("faculty_member_id")
+  /// The URL a human pasted, as pasted. Kept verbatim rather than normalised
+  /// because "what did they actually type" is the question asked when a bind
+  /// keeps failing.
+  url String @db.Text
+  /// Profile id parsed out of the URL, when it parsed at all.
+  scholarProfileId String? @map("scholar_profile_id")
+  outcome          ScholarBindOutcome
+  /// The name the profile displayed, on a successful bind.
+  profileName String? @map("profile_name")
+  /// Credits ScrapingBee billed for the verification page. Recorded on every
+  /// outcome including REFUSED — that is the whole point of the table.
+  creditsUsed Int     @default(0) @map("credits_used")
+  errorText   String? @map("error_text") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user          User           @relation("ScholarBindSubject", fields: [userId], references: [id], onDelete: Cascade)
+  facultyMember FacultyMember? @relation("ScholarBindFacultyMember", fields: [facultyMemberId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("scholar_bind_attempts")
 }

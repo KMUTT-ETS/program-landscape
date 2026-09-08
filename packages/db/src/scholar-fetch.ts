@@ -53,6 +53,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ResearchOutputType } from '@prisma/client';
 import {
+  SCHOLAR_LEDGER_LOOKBACK_MS,
   SCHOLAR_PARSER_VERSION,
   decideScholarQuota,
   parseScholarProfileIdentity,
@@ -119,10 +120,6 @@ export const SCHOLAR_MAX_PAGES = 10;
  * a row that a bookkeeping failure left unfinished.
  */
 const STUCK_RUN_WINDOW_MS = 15 * 60 * 1000;
-
-/** How far back the quota ledger is read. The window itself is 30 days; 90
- *  gives `decideScholarQuota` headroom and keeps the query bounded. */
-const LEDGER_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * Counts publication rows in a raw page, to decide whether another page
@@ -220,6 +217,15 @@ export interface ScholarFacultyMember {
   scholarProfileId: string | null;
 }
 
+const MEMBER_SELECT = {
+  id: true,
+  nameEn: true,
+  nameTh: true,
+  employeeId: true,
+  isActive: true,
+  scholarProfileId: true,
+} as const;
+
 export interface ScholarMemberResolution {
   user: { id: string; name: string | null } | null;
   member: ScholarFacultyMember | null;
@@ -272,7 +278,26 @@ function pickSingleMember(
  * the Thai one. The two surfaces can therefore resolve differently for a
  * user whose Thai name matches a record but whose English name does not.
  */
-export async function resolveScholarFacultyMember(userId: string): Promise<ScholarMemberResolution> {
+/**
+ * Every staff record, in the shape resolution needs.
+ *
+ * Loaded once and handed to `resolveScholarFacultyMember` when a caller has
+ * many people to resolve — see the note on the name path below for why that
+ * matters. A caller resolving ONE person should omit it.
+ */
+export async function loadScholarRoster(): Promise<ScholarFacultyMember[]> {
+  return prisma.facultyMember.findMany({ select: MEMBER_SELECT });
+}
+
+export async function resolveScholarFacultyMember(
+  userId: string,
+  /**
+   * Pre-loaded roster from `loadScholarRoster()`. When present, BOTH lookups
+   * below run against it in memory instead of hitting the database, which is
+   * what makes a bulk pre-flight one query rather than N.
+   */
+  roster?: ScholarFacultyMember[],
+): Promise<ScholarMemberResolution> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, name: true, employeeId: true },
@@ -282,23 +307,16 @@ export async function resolveScholarFacultyMember(userId: string): Promise<Schol
   }
   const publicUser = { id: user.id, name: user.name };
 
-  const select = {
-    id: true,
-    nameEn: true,
-    nameTh: true,
-    employeeId: true,
-    isActive: true,
-    scholarProfileId: true,
-  } as const;
-
   // (a) Identity: HR employee id. Not unique in the schema, so the same
   // one-or-refuse rule applies here as to the name path.
   let employeeIdMissed = false;
   if (user.employeeId) {
-    const byEmployeeId = await prisma.facultyMember.findMany({
-      where: { employeeId: user.employeeId },
-      select,
-    });
+    const byEmployeeId = roster
+      ? roster.filter((m) => m.employeeId === user.employeeId)
+      : await prisma.facultyMember.findMany({
+          where: { employeeId: user.employeeId },
+          select: MEMBER_SELECT,
+        });
     const picked = pickSingleMember(byEmployeeId, `HR employee id "${user.employeeId}"`);
     if (picked.member) return { user: publicUser, member: picked.member, refusal: null };
     if (picked.refusal) return { user: publicUser, member: null, refusal: picked.refusal };
@@ -318,12 +336,20 @@ export async function resolveScholarFacultyMember(userId: string): Promise<Schol
   }
 
   // The comparison is normalised (case, diacritics, punctuation, token
-  // order) and so cannot be expressed in SQL against `name_en`. The table is
-  // a few thousand rows of short strings and this runs once per human-
-  // initiated fetch, not on a hot path — scanning it is cheaper than a
-  // `contains` pre-filter that would miss exactly the diacritic and
-  // punctuation cases the normaliser exists to handle.
-  const everyone = await prisma.facultyMember.findMany({ select });
+  // order) and so cannot be expressed in SQL against `name_en`, so the whole
+  // table — a few thousand rows of short strings — is scanned in memory. That
+  // is cheaper than a `contains` pre-filter, which would miss exactly the
+  // diacritic and punctuation cases the normaliser exists to handle.
+  //
+  // This function is NO LONGER once-per-human-initiated-fetch, which an
+  // earlier version of this comment claimed. It is now also called once per
+  // target by the bulk pre-flight in apps/api/src/scholar/scholar.service.ts,
+  // and on every poll of GET /scholar/status/me. Pass `roster` for the first
+  // of those — N sequential unfiltered scans inside one HTTP request is what
+  // the parameter exists to prevent. The status endpoint resolves one person
+  // and takes the scan; if that ever shows up in a profile, cache the roster
+  // rather than weakening the match.
+  const everyone = roster ?? (await prisma.facultyMember.findMany({ select: MEMBER_SELECT }));
   const byName = everyone.filter((m) => personNamesMatch(m.nameEn, accountName));
   const picked = pickSingleMember(byName, `The name "${accountName}"`);
   if (picked.member) return { user: publicUser, member: picked.member, refusal: null };
@@ -637,7 +663,7 @@ export async function runScholarFetch(
   // ── 2. Quota ────────────────────────────────────────────────────────────
   const now = clock();
   const ledger = await prisma.scholarFetchRun.findMany({
-    where: { userId, startedAt: { gte: new Date(now.getTime() - LEDGER_LOOKBACK_MS) } },
+    where: { userId, startedAt: { gte: new Date(now.getTime() - SCHOLAR_LEDGER_LOOKBACK_MS) } },
     select: { trigger: true, status: true, startedAt: true },
     orderBy: { startedAt: 'desc' },
   });
