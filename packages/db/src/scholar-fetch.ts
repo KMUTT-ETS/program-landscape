@@ -371,10 +371,33 @@ interface ScholarFetchPages {
   papers: ScholarPaper[];
   /** Stopped at SCHOLAR_MAX_PAGES with more pages apparently available. */
   truncated: boolean;
-  /** A page carried rows that produced no new papers — see below. */
-  unparsablePage: boolean;
+  /** A page carried publication rows the parser could not read at all. */
+  unreadableRows: boolean;
+  /**
+   * `cstart` of a page that came back with no publication rows AND no profile
+   * header — a consent screen, robot interstitial or gone-profile page, all of
+   * which Google serves with HTTP 200. Null when every page was a real profile
+   * page. Non-null is fatal, but the runner raises it AFTER archiving so the
+   * wall itself is on disk to look at.
+   */
+  wallAtCstart: number | null;
 }
 
+/**
+ * Walk the profile's publication list, page by page.
+ *
+ * The end-of-list test is the subtle part. "No rows on this page" is what a
+ * finished list looks like — and it is also what a consent screen looks like,
+ * because Google serves those with HTTP 200 so nothing throws and the parser
+ * simply finds nothing. Distinguishing them needs the profile header, so every
+ * zero-row page is checked for one before it is accepted as the end. Checking
+ * only page 1 (an earlier version) left a wall on page 2 indistinguishable
+ * from a 100-paper library: success reported, credits spent, quota burnt, and
+ * everything past page 1 quietly missing — which bites the most prolific
+ * researchers first, since they are the only ones who need a second page.
+ * ScrapingBee rotates the exit IP per request, so a wall on page 2 is no less
+ * likely than on page 1.
+ */
 async function fetchAllPages(
   profileId: string,
   fetchPage: ScholarPageFetcher,
@@ -385,17 +408,20 @@ async function fetchAllPages(
   const papers: ScholarPaper[] = [];
   const seenPaperIds = new Set<string>();
   let truncated = false;
-  let unparsablePage = false;
+  let unreadableRows = false;
+  let wallAtCstart: number | null = null;
 
   for (let page = 0; page < SCHOLAR_MAX_PAGES; page += 1) {
-    const result = await fetchPage(buildScholarProfilePageUrl(profileId, page * SCHOLAR_PAGE_SIZE));
+    const cstart = page * SCHOLAR_PAGE_SIZE;
+    const result = await fetchPage(buildScholarProfilePageUrl(profileId, cstart));
     pages.push(result.html);
     if (typeof result.creditsUsed === 'number' && Number.isFinite(result.creditsUsed)) {
       progress.creditsUsed += result.creditsUsed;
     }
 
+    const parsed = parsePage(result.html);
     let fresh = 0;
-    for (const paper of parsePage(result.html)) {
+    for (const paper of parsed) {
       if (seenPaperIds.has(paper.scholarPaperId)) continue;
       seenPaperIds.add(paper.scholarPaperId);
       papers.push(paper);
@@ -404,17 +430,32 @@ async function fetchAllPages(
     progress.papersFound = papers.length;
 
     const rowsOnPage = (result.html.match(ROW_MARKER) ?? []).length;
-    if (rowsOnPage === 0) break; // genuinely the end of the list
+
+    if (rowsOnPage === 0) {
+      // End of the list, or a wall. Only the profile header tells them apart.
+      if (!parseScholarProfileIdentity(result.html).displayName) {
+        wallAtCstart = cstart;
+      }
+      break;
+    }
+
+    if (parsed.length === 0) {
+      // Rows are on the page and the parser read none of them: the row markup
+      // has drifted past it (`<tr class="gsc_a_tr" data-cid="…">` still matches
+      // the loose marker while the parser's stricter row regex does not).
+      // Stop — further pages would be equally unreadable and cost ~15 credits
+      // each — and flag it, because "page 1 is unreadable, the real papers are
+      // on page 2" would otherwise truncate a library and report clean.
+      unreadableRows = true;
+      break;
+    }
 
     if (fresh === 0) {
-      // Rows are there but none of them became a paper. Either Scholar
-      // re-served a page we already hold, or the row markup drifted past the
-      // parser. Both are anomalies, NOT endings: treating this as a clean
-      // finish is how "page 1 is 100 unparsable rows, page 2 holds the real
-      // papers" silently truncates a library and still reports SUCCEEDED.
-      // Stop walking (continuing would spend credits on pages we cannot
-      // read) but force the run to PARTIAL so it is visible.
-      unparsablePage = true;
+      // Papers parsed, every one already held: Scholar re-served a page. This
+      // is what a profile of exactly SCHOLAR_PAGE_SIZE papers does at the next
+      // cstart, and it is BENIGN — the import is complete. Flagging it would
+      // put "the list may be incomplete" on a complete Council-facing record,
+      // which is the sort of noise that teaches operators to ignore the flag.
       break;
     }
 
@@ -422,7 +463,7 @@ async function fetchAllPages(
     if (page === SCHOLAR_MAX_PAGES - 1) truncated = true;
   }
 
-  return { pages, papers, truncated, unparsablePage };
+  return { pages, papers, truncated, unreadableRows, wallAtCstart };
 }
 
 // ── Phase: apply ──────────────────────────────────────────────────────────
@@ -636,17 +677,30 @@ export async function runScholarFetch(
     orderBy: { startedAt: 'desc' },
   });
   if (inFlight) {
-    // No new row: a second ledger entry for the same intent would be noise,
-    // and this refusal costs nothing to repeat. The window expires on its
-    // own, so a genuinely stuck row cannot block the person forever.
+    // Check-then-act, and deliberately so. Two requests that both read before
+    // either writes will both pass, and both will walk the profile at ~15
+    // credits a page — this does NOT make concurrent fetches impossible. What
+    // it does cover is the two cases that actually happen: a double-clicked
+    // button (the second read sees the first row) and an operator retrying
+    // against a run some earlier failure left unfinished.
+    //
+    // A partial unique index would close the race and is deliberately not
+    // used: with no sweeper for unfinished rows, a process dying mid-fetch
+    // would wedge that person out of Scholar permanently. A window that
+    // expires on its own fails in the recoverable direction.
+    //
+    // No new row either: a second ledger entry for the same intent is noise,
+    // and this refusal costs nothing to repeat.
+    const retryAt = new Date(inFlight.startedAt.getTime() + STUCK_RUN_WINDOW_MS);
+    const waitMinutes = Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 60_000));
     return {
       ...emptyCounts(),
       status: 'REFUSED',
       runId: inFlight.id,
       reason:
-        `A Scholar fetch for this person started at ${inFlight.startedAt.toISOString()} and has not finished. ` +
-        'Refusing to start a second one — each page costs credits. Try again in a few minutes.',
-      retryAt: new Date(inFlight.startedAt.getTime() + STUCK_RUN_WINDOW_MS),
+        'A Scholar fetch for this person is already running and has not finished. ' +
+        `Refusing to start a second one — each page costs credits. Try again in ${waitMinutes} minute${waitMinutes === 1 ? '' : 's'}.`,
+      retryAt,
       searchQuery,
     };
   }
@@ -702,7 +756,7 @@ export async function runScholarFetch(
     }
 
     // ── 5. Fetch every page, archive the raw payload, parse ───────────────
-    const { pages, papers, truncated, unparsablePage } = await fetchAllPages(
+    const { pages, papers, truncated, unreadableRows, wallAtCstart } = await fetchAllPages(
       profileId,
       fetchPage,
       parsePage,
@@ -723,15 +777,25 @@ export async function runScholarFetch(
     // Google serves consent screens, robot interstitials and "profile not
     // available" pages with HTTP 200, so the client does not throw and the
     // parser simply finds no rows. Without this check that lands as a clean
-    // SUCCEEDED with zero papers: the user is told it worked, ~15 credits are
-    // gone, and their one fetch per 30 days is spent — since SUCCEEDED is
-    // exactly what the quota unit counts. Failing instead leaves the quota
-    // untouched and still records the credits.
+    // SUCCEEDED: the user is told it worked, ~15 credits per page are gone,
+    // and their one fetch per 30 days is spent — since SUCCEEDED is exactly
+    // what the quota unit counts. Failing instead leaves the quota untouched
+    // and still records the credits. The raw payload is already archived
+    // above, so the wall itself can be read back.
     //
     // A profile header that IS present with zero papers is a different thing
     // entirely — an empty Scholar profile — and succeeds correctly.
+    if (wallAtCstart !== null) {
+      throw new Error(
+        `Google did not return a Scholar profile page for "${profileId}" at cstart=${wallAtCstart} (no profile header). ` +
+          'This is usually a consent or robot interstitial, or a profile that is private or gone — not the end of the publication list.',
+      );
+    }
+
     const identity = parseScholarProfileIdentity(pages[0] ?? '');
     if (!identity.displayName) {
+      // Rows but no header: not a shape Scholar produces, so treat it as a
+      // page we do not understand rather than importing from it.
       throw new Error(
         `Google did not return a Scholar profile page for "${profileId}" (no profile header). ` +
           'This is usually a consent or robot interstitial, or a profile that is private or gone — not an empty publication list.',
@@ -741,12 +805,13 @@ export async function runScholarFetch(
     // Re-verify the binding on every fetch, by the same rule
     // `bindScholarProfile` applies. A correctly bound profile passes by
     // construction; this catches the profile being rebound underneath a
-    // fetch, and a staff record renamed to a different person after binding.
+    // fetch, and a staff record renamed after binding.
     const profileNames = [identity.displayName, ...identity.otherNames];
     if (!profileNames.some((candidate) => personNameMatchesAny(candidate, [searchQuery]))) {
       throw new Error(
         `The linked Scholar profile is named "${profileNames.join('", "')}", but this staff record says "${searchQuery}". ` +
-          'Refusing to import — re-link the profile from the staff record.',
+          'Refusing to import. Either the wrong profile is linked, or the staff record has been renamed since it was linked ' +
+          '(an HR backfill correcting the English name will do this) — check which, then re-link the profile.',
       );
     }
 
@@ -776,15 +841,22 @@ export async function runScholarFetch(
         `Stopped at the ${SCHOLAR_MAX_PAGES}-page ceiling (${SCHOLAR_MAX_PAGES * SCHOLAR_PAGE_SIZE} papers); this profile may have more.`,
       );
     }
-    if (unparsablePage) {
+    if (unreadableRows) {
       notes.push(
-        'A page carried publication rows that produced no papers — Scholar re-served a page, or the row markup has drifted past the parser. The list may be incomplete.',
+        'A page carried publication rows the parser could not read — the row markup has drifted. The list may be incomplete.',
       );
     }
     if (papersSkippedNoYear > 0) {
       notes.push(`${papersSkippedNoYear} paper(s) had no usable year and were not imported.`);
     }
-    const status: ScholarStatus = notes.length > 0 ? 'PARTIAL' : 'SUCCEEDED';
+    // A run that ends on an anomaly having found NOTHING has the same
+    // evidentiary standing as an interstitial: it imported nothing and we do
+    // not know why. PARTIAL would still burn the 30-day allowance (the quota
+    // unit counts it, correctly — PARTIAL normally means data arrived), so
+    // that case is FAILED. PARTIAL stays for runs that imported something,
+    // just not everything.
+    const status: ScholarStatus =
+      notes.length === 0 ? 'SUCCEEDED' : papers.length === 0 ? 'FAILED' : 'PARTIAL';
     const creditsUsed = Math.round(progress.creditsUsed);
 
     await finaliseRun(run.id, {

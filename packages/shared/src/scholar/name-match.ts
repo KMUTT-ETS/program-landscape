@@ -67,8 +67,15 @@ export function personNameKey(name: string): string {
 /**
  * True when two names are the same written name.
  *
- * Initials are tolerated in one direction only: as an OMISSION, never as a
- * CONFLICT. `"Geoffrey E Hinton"` and `"Geoffrey Hinton"` match, because one
+ * Initials are tolerated as an OMISSION, never as a CONFLICT — and the
+ * tolerance is for a MISSING token, not for an abbreviated one. `"Geoffrey
+ * Everest Hinton"` and `"Geoffrey E Hinton"` therefore REFUSE, even though
+ * they are the same person and this is the commonest real-world variant of
+ * all: `everest` and `e` are two different substantial-vs-initial tokens, and
+ * treating an initial as standing for any word beginning with that letter is
+ * exactly the inference that would let `"Wei L Zhang"` swallow `"Wei Liang
+ * Zhang"` and `"Wei Lin Zhang"` alike. That refusal is visible at bind time
+ * and a human fixes it by correcting one of the two records. `"Geoffrey E Hinton"` and `"Geoffrey Hinton"` match, because one
  * side simply does not carry the middle initial. `"Geoffrey E Hinton"` and
  * `"Geoffrey R Hinton"` do NOT, because both sides state an initial and the
  * statements disagree — those are two people, and matching them is precisely

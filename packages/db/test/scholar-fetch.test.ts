@@ -551,7 +551,7 @@ describe('runScholarFetch — happy path', () => {
     expect(result.creditsUsed).toBe(0);
   });
 
-  it('pages until a short page, and does not re-request after a repeated page', async () => {
+  it('pages until a short page', async () => {
     const fullPage = page(
       Array.from({ length: SCHOLAR_PAGE_SIZE }, (_, i) =>
         row({ paperId: `${PROFILE_ID}:p${i}`, title: `Paper ${i}`, year: 2020, citations: 1 }),
@@ -1027,31 +1027,6 @@ describe('runScholarFetch — pages that are not a publication list', () => {
     expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
   });
 
-  it('reports PARTIAL when a full page of rows produces no papers', async () => {
-    // The silent-truncation case: page 1 is 100 rows the parser cannot read
-    // (markup drift, e.g. an added attribute), page 2 holds the real papers.
-    // Stopping is right — continuing spends credits on unreadable pages — but
-    // reporting SUCCEEDED would hide a library that just lost everything past
-    // page 1.
-    const junk = page(Array.from({ length: SCHOLAR_PAGE_SIZE }, () => '<tr class="gsc_a_tr"><td>drifted</td></tr>'));
-    const fetchPage = vi.fn(async () => pageResult(junk, 15));
-    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
-
-    const result = await runScholarFetch(
-      {
-        userId: USER_ID,
-        triggeredById: USER_ID,
-        trigger: 'SELF',
-        actorRole: 'ANALYST',
-        fetchPage,
-      },
-      { now: NOW },
-    );
-
-    expect(result.status).toBe('PARTIAL');
-    expect(result.reason).toMatch(/produced no papers/i);
-    expect(fetchPage).toHaveBeenCalledTimes(1);
-  });
 });
 
 // ── 10. Finalisation never escapes (B2) ─────────────────────────────────────
@@ -1222,5 +1197,153 @@ describe('runScholarFetch — run row provenance', () => {
         }),
       }),
     );
+  });
+});
+
+// ── 13. A wall on a later page (B1, second half) ────────────────────────────
+
+describe('runScholarFetch — an interstitial past page 1', () => {
+  const CONSENT_PAGE =
+    '<html><body><div>Before you continue to Google</div><a>I agree</a></body></html>';
+
+  const fullFirstPage = () =>
+    page(
+      Array.from({ length: SCHOLAR_PAGE_SIZE }, (_, i) =>
+        row({ paperId: `${PROFILE_ID}:p${i}`, title: `Paper ${i}`, year: 2020, citations: 1 }),
+      ),
+    );
+
+  it('FAILS when page 2 is a consent wall, instead of calling it the end of the list', async () => {
+    // A zero-row page is what a finished list looks like AND what a wall looks
+    // like. Checking only page 1 for a profile header left this reported as a
+    // clean 100-paper SUCCEEDED: 30 credits gone, the 30-day allowance burnt,
+    // and everything past page 1 silently missing. It bites the most prolific
+    // researchers first — they are the only ones with a second page.
+    const fetchPage = vi
+      .fn<(url: string) => Promise<ScholarPageResult>>()
+      .mockResolvedValueOnce(pageResult(fullFirstPage(), 15))
+      .mockResolvedValueOnce(pageResult(CONSENT_PAGE, 15));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.reason).toMatch(/cstart=100/);
+    expect(result.creditsUsed).toBe(30);
+    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+    // Archived first, so the wall itself can be read back.
+    expect(mocks.archiveCreate).toHaveBeenCalled();
+  });
+
+  it('SUCCEEDS when page 2 is a real profile page that is simply empty', async () => {
+    const fetchPage = vi
+      .fn<(url: string) => Promise<ScholarPageResult>>()
+      .mockResolvedValueOnce(pageResult(fullFirstPage(), 15))
+      .mockResolvedValueOnce(pageResult(page([]), 15));
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: SCHOLAR_PAGE_SIZE });
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.papersFound).toBe(SCHOLAR_PAGE_SIZE);
+  });
+
+  it('treats a RE-SERVED page as a benign ending, not as an incomplete list', async () => {
+    // Exactly SCHOLAR_PAGE_SIZE papers: Scholar answers cstart=100 with page 1
+    // again. Every paper parses, all are duplicates. The import is COMPLETE —
+    // flagging "the list may be incomplete" here would put a false caveat on a
+    // Council-facing provenance record, which is how operators learn to ignore
+    // the flag.
+    const same = fullFirstPage();
+    const fetchPage = vi
+      .fn<(url: string) => Promise<ScholarPageResult>>()
+      .mockResolvedValueOnce(pageResult(same, 15))
+      .mockResolvedValueOnce(pageResult(same, 15));
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: SCHOLAR_PAGE_SIZE });
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.reason).toBeNull();
+    expect(result.papersFound).toBe(SCHOLAR_PAGE_SIZE);
+  });
+
+  it('an anomaly that imported NOTHING is FAILED, so the allowance survives', async () => {
+    // PARTIAL counts against the 30-day quota — correctly, since it normally
+    // means data arrived. A drifted first page means nothing arrived, so
+    // PARTIAL would leave the person locked out for a month having imported
+    // no papers: the same outcome the interstitial defect produced, one
+    // status label further along.
+    const junk = page(Array.from({ length: SCHOLAR_PAGE_SIZE }, () => '<tr class="gsc_a_tr"><td>drifted</td></tr>'));
+    const fetchPage = vi.fn(async () => pageResult(junk, 15));
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.papersFound).toBe(0);
+    expect(result.reason).toMatch(/could not read/i);
+  });
+
+  it('an anomaly that DID import stays PARTIAL', async () => {
+    // Page 1 readable, page 2 drifted: papers arrived, but not all of them.
+    const drifted = page(
+      Array.from({ length: SCHOLAR_PAGE_SIZE }, () => '<tr class="gsc_a_tr"><td>drifted</td></tr>'),
+    );
+    const fetchPage = vi
+      .fn<(url: string) => Promise<ScholarPageResult>>()
+      .mockResolvedValueOnce(pageResult(fullFirstPage(), 15))
+      .mockResolvedValueOnce(pageResult(drifted, 15));
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: SCHOLAR_PAGE_SIZE });
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('PARTIAL');
+    expect(result.papersFound).toBe(SCHOLAR_PAGE_SIZE);
   });
 });

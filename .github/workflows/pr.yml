@@ -31,6 +31,30 @@ jobs:
       - name: Lint migrations for destructive DDL
         run: pnpm tsx scripts/migration-linter.ts
 
+  # The Scholar merge is additive-only: nothing may ever remove a
+  # ResearchOutput row. That invariant used to be described in a comment and
+  # "enforced" by whoever remembered to run the grep — which is to say, not
+  # enforced. A row removal here silently destroys a researcher's publication
+  # library on any bad scrape, so it gets a build gate like the migration
+  # linter next door.
+  #
+  # Grep, not a lint rule: the property is "this file contains no removal
+  # call at all", which is exactly what a text search answers and exactly
+  # what a rule with an escape hatch would not. If a removal is ever
+  # genuinely needed, deleting this job is the conversation.
+  scholar-no-delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scholar fetch runner must contain no row-removal call
+        run: |
+          if grep -nE "delete|deleteMany" packages/db/src/scholar-fetch.ts; then
+            echo "::error file=packages/db/src/scholar-fetch.ts::The Scholar fetch runner is additive-only — it must never remove a ResearchOutput row. See the module header."
+            exit 1
+          fi
+          echo "OK: no row-removal call in the Scholar fetch runner."
+
   # Secret scan. Sits beside the migration linter as a second cheap pre-flight
   # gate — a credential is far more expensive to deal with once it is in
   # history than once it is in a diff.

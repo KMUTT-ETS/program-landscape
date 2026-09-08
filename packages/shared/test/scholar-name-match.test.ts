@@ -55,6 +55,15 @@ describe('personNamesMatch', () => {
     expect(personNamesMatch('A B Smith', 'C D Smith')).toBe(false);
   });
 
+  it('REFUSES a spelled-out middle name against its own initial, and says why', () => {
+    // The commonest real variant of all, and still a refusal: the tolerance
+    // is for a MISSING token, not an abbreviated one. Letting an initial
+    // stand for any word starting with that letter is what would make
+    // "Wei L Zhang" swallow both "Wei Liang Zhang" and "Wei Lin Zhang".
+    // Visible at bind time; a human corrects one of the two records.
+    expect(personNamesMatch('Geoffrey Everest Hinton', 'Geoffrey E Hinton')).toBe(false);
+  });
+
   it('still matches when one side merely OMITS the initial the other states', () => {
     expect(personNamesMatch('Geoffrey E Hinton', 'Geoffrey Hinton')).toBe(true);
     expect(personNamesMatch('Nguyen Van A', 'Nguyen Van A')).toBe(true);
