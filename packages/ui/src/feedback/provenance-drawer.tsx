@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { ExternalLink } from 'lucide-react';
+import type { ApiMetaSourceComposition } from '@kku/shared';
 import {
   Drawer,
   DrawerBody,
@@ -18,7 +19,8 @@ import { useProvenance } from './provenance-context';
 //   - data sources with timestamps and URLs
 //   - calculation method (via methodologyVersion) with a doc link
 //   - last refreshed
-//   - caveats placeholder (populated once methodology docs are live)
+//   - source composition, when a figure draws on more than one writer
+//   - caveats, in plain English
 
 function formatFreshness(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -32,6 +34,42 @@ function formatFreshness(iso: string | null | undefined): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// A second writer's share of the figure — see ApiMetaSourceCompositionSchema.
+//
+// The numbers are separated from the words STRUCTURALLY, not by a flex gap:
+// "3" and "of 41 staff" set adjacent in a tabular face read as one token, and
+// the reader who most needs this line is the one skimming it.
+function SourceComposition({ value }: { value: ApiMetaSourceComposition }) {
+  const { label, covered, total, denominator, countedInFigure } = value;
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-subtle bg-surface-2 px-3 py-2">
+      {total === 0 ? (
+        <p className="text-text-primary">
+          No publication record on file for this group, so there is no source
+          mix to report.
+        </p>
+      ) : (
+        <>
+          <p className="text-text-primary">
+            <span className="font-tabular">{covered}</span>
+            <span> of </span>
+            <span className="font-tabular">{total}</span>
+            <span>{total === 1 ? ' staff member has ' : ' staff have '}</span>
+            <span>{label}</span>
+            <span> data on record.</span>
+          </p>
+          <p className="text-xs text-text-tertiary">Counted out of {denominator}.</p>
+        </>
+      )}
+      <p className="text-xs text-text-tertiary">
+        {countedInFigure
+          ? `This figure includes ${label} records, so it moves when someone imports their own profile.`
+          : `This figure excludes ${label} records — it requires ingestion-run provenance, which the on-demand import does not carry.`}
+      </p>
+    </div>
+  );
 }
 
 export function ProvenanceDrawer() {
@@ -99,6 +137,15 @@ export function ProvenanceDrawer() {
               )}
             </section>
 
+            {item.meta.sourceComposition && (
+              <section>
+                <h3 className="mb-2 text-xs uppercase tracking-wide text-text-tertiary">
+                  Source composition
+                </h3>
+                <SourceComposition value={item.meta.sourceComposition} />
+              </section>
+            )}
+
             {item.meta.methodologyVersion && (
               <section>
                 <h3 className="mb-2 text-xs uppercase tracking-wide text-text-tertiary">
@@ -125,6 +172,21 @@ export function ProvenanceDrawer() {
                 <p className="font-tabular text-text-primary">
                   {(item.meta.confidence * 100).toFixed(0)}%
                 </p>
+              </section>
+            )}
+
+            {item.meta.caveats && item.meta.caveats.length > 0 && (
+              <section>
+                <h3 className="mb-2 text-xs uppercase tracking-wide text-text-tertiary">
+                  Caveats
+                </h3>
+                <ul className="flex flex-col gap-2">
+                  {item.meta.caveats.map((c) => (
+                    <li key={c} className="text-text-secondary">
+                      {c}
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
 

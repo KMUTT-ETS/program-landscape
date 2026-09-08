@@ -22,6 +22,10 @@ import { academicYearContextSync, getAcademicYearContext } from './academic-year
 import { pickFinancialYear } from './financial-year';
 import { readinessFor, type ExpertiseReadiness } from './program-research-expertise';
 import {
+  loadResearchSourceComposition,
+  type ResearchSourceComposition,
+} from './research-source-composition';
+import {
   DQ_ELIGIBLE_LEVEL,
   OVERALL_MEAN_MAX_MODULE_NO,
   STUDENT_DQ_METHODOLOGY_VERSION,
@@ -96,9 +100,18 @@ export interface ProgramFacultyResult {
   retiringWithin5Years: number;
   successionRiskPct: number;
   /** Sum of `_count.researchOutputs` across all roster members.
-   *  Cross-joined from research_outputs via FacultyMember.id; reflects
-   *  the OpenAlex publication count for this program's curated faculty. */
+   *  Cross-joined from research_outputs via FacultyMember.id.
+   *
+   *  UNFILTERED by `realDataWhere()`, unlike the research-expertise and
+   *  health-score publication counts — so this is the one Council-facing
+   *  figure on the deep-dive that DOES include on-demand Google Scholar
+   *  imports. `researchSourceComposition` states by how much. */
   totalPublications: number;
+  /** How much of the roster's publication record came from the on-demand
+   *  Google Scholar import rather than the scheduled library pipeline.
+   *  Council-readiness rule 1: the figure above moves when someone presses
+   *  a button, so the drawer has to say who did. */
+  researchSourceComposition: ResearchSourceComposition;
   members: FacultyMemberSummary[];
 }
 
@@ -3769,6 +3782,12 @@ export async function programFaculty(
 
   const totalPublications = activeMembers.reduce((sum, m) => sum + (m._count?.researchOutputs ?? 0), 0);
 
+  // Same roster the publication total is summed over, so the ratio and the
+  // number it qualifies can never describe different populations.
+  const researchSourceComposition = await loadResearchSourceComposition(
+    activeMembers.map((m) => m.id),
+  );
+
   return {
     visibility,
     rosterScope,
@@ -3779,6 +3798,7 @@ export async function programFaculty(
     successionRiskPct:
       activeMembers.length === 0 ? 0 : (retiringWithin5 / activeMembers.length) * 100,
     totalPublications,
+    researchSourceComposition,
     // Individual list — respects role. COUNCIL sees anonymised rows
     // (employeeCode + ranks only; no names, no specialisation).
     members: memberRows.map((m) => ({

@@ -306,7 +306,7 @@ the Outcomes table below.
 | Driver | Formula | Data source |
 |---|---|---|
 | `senior_rank_share` | `(prof + assoc_prof) / total_active`. 50% → 100. Floor at 0 | `program_faculties` × `faculty_members.rank` |
-| `publications_per_faculty` | `total_research_outputs / total_active_faculty`. 5/year → 100 | `program_faculties` × `research_outputs` (year >= currentYear-3) |
+| `publications_per_faculty` | `total_research_outputs / total_active_faculty`. 5/year → 100 | `program_faculties` × `research_outputs` (year >= currentYear-3), `realDataWhere()`-filtered — see §"Mixed-source research data" |
 | `retirement_horizon_5y` | `100 - (retiring_5y / total × 100)`. Inverted: more retiring soon = lower score | `program_faculties` × `faculty_members.retirementDate` |
 
 ### Outcomes
@@ -366,6 +366,153 @@ run 0–100 where 100 is healthiest. Below 40 is "danger zone"; 40–65 is
 **This score informs, it does not decide.** Council decisions on program
 closure/merger/launch require two-reviewer approval regardless of the
 computed score (see `docs/ai-governance.md` §human-in-the-loop).
+
+## Mixed-source research data
+
+*Added 2026-09-08, when the Google Scholar on-demand fetch shipped. No version
+bump — see "Does this bump `HEALTH_SCORE_VERSION`?" below.*
+
+### The problem
+
+`research_outputs` now has two writers.
+
+| Writer | `source` | Trigger | Coverage |
+|---|---|---|---|
+| Library pipeline (`kku-research`) | `kku-publications:scopus` (64,294), `kku-publications:pubmed` (44,730), legacy `openalex` (57,444), and `null` on the oldest rows | Scheduled connector run | Everybody, uniformly |
+| Google Scholar runner | `google-scholar` | **On demand** — a person, or an administrator acting for them, presses a button | Only whoever pressed it |
+
+The second row is the whole difficulty. A faculty where three people ran the
+import looks stronger than a faculty where nobody did, and **nothing about the
+underlying research changed**. The distortion is not noise around a true value;
+it is systematically upward, it lands on whoever is most engaged with the tool,
+and it arrives between two Council meetings with no ingestion run to point at.
+
+Two further asymmetries make it worse than a simple coverage gap:
+
+1. **Scholar counts run higher than the library mirror, per person.** Scholar
+   indexes preprints, theses, book chapters, working papers, conference
+   abstracts and non-indexed regional venues; Scopus and PubMed do not. The
+   gap is largest in the disciplines whose output is least journal-shaped —
+   education, humanities, agricultural extension. **The size of the gap at KKU
+   is not yet measured**: no staff member had run the import when this was
+   written, so there is no paired Scholar-vs-mirror sample to quote. Measure it
+   before anyone quotes a multiplier — including this document.
+2. **Citation counts are not comparable either.** Scholar's citation graph
+   includes citing documents Scopus excludes, so a Scholar-refreshed citation
+   figure sitting in the same column as a Scopus one is a different
+   measurement wearing the same label.
+
+### What we do about it
+
+**We state it. We do not correct for it in code.**
+
+There is no defensible normalisation. A per-discipline "Scholar inflation
+factor" would be a number invented to make two incomparable measurements agree,
+and the moment it entered the health score it would be indistinguishable from a
+real finding — a program's capability score would move because of a coefficient
+nobody outside this file could interrogate. Suppressing Scholar rows from
+Council views would be worse still: it would discard data a member of staff
+supplied about their own work, on the grounds that too few of their colleagues
+had done the same.
+
+So the instrument is disclosure. Every Council-facing research roll-up carries,
+in its provenance drawer, a **source-composition** statement:
+
+> **N of M** staff have Google Scholar data on record.
+> Counted out of *staff on this roster with at least one publication on file,
+> from any source*.
+> This figure includes / excludes Google Scholar records.
+
+### The denominator, fixed
+
+`M` is **staff in the set with at least one publication on file, from any
+source**. This is `RESEARCH_COMPOSITION_DENOMINATOR` in
+`packages/db/src/research-source-composition.ts`; it is carried alongside the
+numbers so the drawer renders it verbatim and the two cannot drift apart.
+
+The two rejected alternatives, and why:
+
+- *Everyone in scope.* Most of a faculty's roster has no papers at all, so the
+  ratio would report roster size more than it reported the mix.
+- *Everyone with a `FacultyMember` row.* The 2026-05-07 `kkupub_*` backfill
+  added 1,375 rows for people who publish but do not teach, and 419 of those
+  are flagged inactive. The denominator would be dominated by a bookkeeping
+  decision.
+
+A staff member with no publications cannot shift the source mix, so they do not
+belong in a ratio about the source mix. A ratio whose denominator is ambiguous
+is worse than no ratio, which is why the denominator is rendered rather than
+assumed.
+
+### Which figures actually contain Scholar rows
+
+Not all of them, and this is the part most likely to be misread.
+
+`realDataWhere()` (`packages/db/src/data-quality.ts`) is STRICT: it requires a
+non-null `ingestion_run_id` joining to a non-mocked `data_sources` row. The
+Scholar runner writes `research_outputs` rows through
+`packages/db/src/scholar-fetch.ts` **without an `ingestionRunId`** — it is not a
+connector run, and inventing one would falsify provenance. So every roll-up
+that filters through `realDataWhere()` / `realDataSql()` excludes Scholar rows
+outright:
+
+| Surface | Filter | Contains Scholar rows |
+|---|---|---|
+| `publications_per_faculty` (this metric, program + rollup scopes) | `realDataWhere()` | **No** |
+| Research expertise (`program-research-expertise.v1`) | `realDataWhere()` | **No** |
+| Research-expertise readiness / distinct paper count | `realDataSql('ro')` | **No** |
+| AI research presence (deep-dive) | `realDataWhere()` | **No** |
+| Curriculum revision advice | derived from research expertise | **No** |
+| Deep-dive **Publications** total (faculty capability card) | none | **Yes** |
+| Gap-analysis staff-research lens (`gap-lenses.ts`) | none | **Yes** |
+| Benchmarking `researchOutputGap` | hard-coded `null` | n/a |
+
+This split is **not** a designed feature; it is what the code does today, and it
+is recorded here rather than quietly repaired because changing either half
+would move Council numbers without a methodology review. Two coherent futures
+exist — stamp Scholar imports with a synthetic ingestion run so every surface
+sees them, or filter the two unfiltered surfaces so no surface does — and
+picking one is a decision for whoever next revises this document, not a side
+effect of shipping the fetch button. Until then the provenance drawer's
+`countedInFigure` flag says, per surface, which side of the line the reader is
+on.
+
+### Does this bump `HEALTH_SCORE_VERSION`?
+
+**No.** It stays `health-score.v4.0`.
+
+The case *for* bumping is real and worth stating: the score's inputs can now
+change without any formula change, purely because someone pressed a button, so
+two `v4.0` scores computed a month apart may not be comparable. If the version
+is meant to answer "can I compare these two numbers", it should move.
+
+It does not move, for four reasons.
+
+1. **The version identifies the formula, and the formula is unchanged.** The
+   "Version bumping" section below scopes a bump to weights, dimensions,
+   null-handling and completeness thresholds. Every historical bump in
+   `health-score.ts` — v3.5 `revenue_scale`, v3.6 `pedagogical_fit`, v3.7
+   `student_satisfaction`, v3.9 financial-year selection, v4.0
+   `dq_digital_competency` — is a formula change. None is a data-source change.
+2. **Precedent, and the cost of breaking it.** The `kku-research` connector
+   pivoted from OpenAlex to the kku-publications mirror on 2026-05-07 and the
+   underlying corpus went from 57,444 to 81,237 rows — a far larger movement in
+   this exact driver than Scholar will plausibly produce — with no version bump.
+   If a data-source change bumps the version, the version stops meaning
+   "formula" and every stored `methodologyVersion` stamp becomes ambiguous
+   about which kind of change it recorded.
+3. **A bump would not do the job anyway.** A version is a one-time event;
+   Scholar coverage changes every time anyone presses the button. No static
+   version string can encode how much Scholar is in a particular number. The
+   per-read, per-scope composition ratio can, and does.
+4. **`publications_per_faculty` does not contain Scholar rows today** (see the
+   table above). Bumping a formula version for a source the formula filters out
+   would be actively misleading.
+
+If the `realDataWhere()` split is ever resolved in the direction of letting
+Scholar rows into the score, that *is* a methodology change and it bumps the
+version at that point.
+
 
 ## The five dimensions
 

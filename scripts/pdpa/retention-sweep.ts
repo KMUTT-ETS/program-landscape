@@ -12,6 +12,7 @@ import { prisma } from '@kku/db';
 import {
   computeRetentionCutoffs,
   DEFAULT_WINDOWS,
+  REDACTED_TEXT,
   runRetentionSweep,
 } from '@kku/db';
 
@@ -21,18 +22,36 @@ async function main(): Promise<void> {
 
   if (dryRun) {
     const cutoffs = computeRetentionCutoffs(now, DEFAULT_WINDOWS);
-    const [auditLogToDelete, aiPayloadToRedact, aiToDelete] = await Promise.all([
+    const [
+      auditLogToDelete,
+      aiPayloadToRedact,
+      aiToDelete,
+      scholarArchiveToDelete,
+      scholarBindTextToRedact,
+    ] = await Promise.all([
       prisma.auditLog.count({
         where: { createdAt: { lt: cutoffs.auditLogDeleteBefore } },
       }),
       prisma.aiInference.count({
         where: {
           createdAt: { lt: cutoffs.aiInferencePayloadRedactBefore },
-          OR: [{ prompt: { not: null } }, { response: { not: null } }],
+          OR: [
+            { prompt: { not: REDACTED_TEXT } },
+            { response: { not: REDACTED_TEXT } },
+          ],
         },
       }),
       prisma.aiInference.count({
         where: { createdAt: { lt: cutoffs.aiInferenceDeleteBefore } },
+      }),
+      prisma.scholarFetchArchive.count({
+        where: { createdAt: { lt: cutoffs.scholarArchiveDeleteBefore } },
+      }),
+      prisma.scholarBindAttempt.count({
+        where: {
+          createdAt: { lt: cutoffs.scholarBindAttemptRedactBefore },
+          url: { not: REDACTED_TEXT },
+        },
       }),
     ]);
 
@@ -46,13 +65,18 @@ async function main(): Promise<void> {
             auditLogDeleteBefore: cutoffs.auditLogDeleteBefore.toISOString(),
             aiInferencePayloadRedactBefore: cutoffs.aiInferencePayloadRedactBefore.toISOString(),
             aiInferenceDeleteBefore: cutoffs.aiInferenceDeleteBefore.toISOString(),
+            scholarArchiveDeleteBefore: cutoffs.scholarArchiveDeleteBefore.toISOString(),
+            scholarBindAttemptRedactBefore:
+              cutoffs.scholarBindAttemptRedactBefore.toISOString(),
           },
           wouldDelete: {
             auditLog: auditLogToDelete,
             aiInference: aiToDelete,
+            scholarFetchArchive: scholarArchiveToDelete,
           },
           wouldRedactPayload: {
             aiInference: aiPayloadToRedact,
+            scholarBindAttempt: scholarBindTextToRedact,
           },
         },
         null,
@@ -70,6 +94,9 @@ async function main(): Promise<void> {
             auditLogDeleteBefore: result.cutoffs.auditLogDeleteBefore.toISOString(),
             aiInferencePayloadRedactBefore: result.cutoffs.aiInferencePayloadRedactBefore.toISOString(),
             aiInferenceDeleteBefore: result.cutoffs.aiInferenceDeleteBefore.toISOString(),
+            scholarArchiveDeleteBefore: result.cutoffs.scholarArchiveDeleteBefore.toISOString(),
+            scholarBindAttemptRedactBefore:
+              result.cutoffs.scholarBindAttemptRedactBefore.toISOString(),
           },
         },
         null,

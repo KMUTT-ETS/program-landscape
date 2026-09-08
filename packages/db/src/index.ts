@@ -62,3 +62,4 @@ export * from './course-code-normalise';
 export * from './program-revision';
 export * from './scholar-fetch';
 export * from './scholar-console';
+export * from './research-source-composition';

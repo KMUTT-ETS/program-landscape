@@ -76,9 +76,56 @@ All app data is stored on KKU-owned infrastructure within Thailand. **Two extern
 ## Audit log retention
 
 - `AuditLog` table: **7 years** (aligned with Thai Accounting Act).
-- `AiInference` table: **2 years full retention**, then `prompt` + `response` text fields are nulled; id, module, model, tokens, cost, confidence, created_at retained for a further 5 years for audit aggregates.
+- `AiInference` table: **2 years full retention**, then `prompt` + `response` text fields are **redacted in place**; id, module, model, tokens, cost, confidence, created_at retained for a further 5 years for audit aggregates.
+- `ScholarFetchArchive` table: **90 days**, then hard-deleted.
+- `ScholarBindAttempt` table: **90 days** on the free text (`url`, `profile_name`, `error_text`), then redacted in place; the row itself is kept indefinitely.
+- `ScholarFetchRun` table: **no retention rule, deliberately.**
 
-Retention is enforced by a nightly cron (prompt 13b) that zeroes payload fields on `AiInference` rows older than `AI_INFERENCE_PAYLOAD_RETENTION_DAYS` (default 730).
+Retention is enforced by `scripts/pdpa/retention-sweep.ts` (`--dry-run`
+reports without writing); the windows live in `packages/db/src/retention.ts`
+and are unit-tested there.
+
+### Redaction writes a sentinel, not a null
+
+`AiInference.prompt`, `AiInference.response` and `ScholarBindAttempt.url` are
+all `NOT NULL`. Redaction therefore overwrites them with the literal
+`[redacted]` (`REDACTED_TEXT` in `packages/db/src/retention.ts`) rather than
+nulling them. This is also the better answer on its own terms: an operator
+reading the row can tell "nobody typed anything" apart from "we no longer keep
+what they typed".
+
+> **Corrected 2026-09-08.** The AiInference rule previously wrote `null` into
+> those two `NOT NULL` columns. `updateMany` rejected it and the dry-run report
+> threw on the matching `{ not: null }` predicate, so **the payload redaction
+> had never actually run**. Anyone auditing pre-2026-09-08 behaviour should
+> assume AI prompt and response text is still present regardless of age, and
+> that the first real sweep after this fix will redact a backlog.
+
+### Google Scholar on-demand fetch
+
+Three tables, three different answers, because they hold different things.
+
+- **`ScholarFetchArchive`** stores a scraped Google Scholar profile page
+  verbatim — a named person's full publication list as displayed. It exists so
+  a parse found to be wrong months later can be reprocessed instead of
+  re-scraped, and that value expires: past 90 days the profile has moved on and
+  a re-fetch is both cheaper and more accurate. It is the largest personal-data
+  payload this feature writes, so the rule is a **hard delete**.
+- **`ScholarBindAttempt`** is a **cost ledger**: it records the ScrapingBee
+  credits each verification page billed, on every outcome including refusals,
+  which is the reason the table exists. Deleting the row would delete the spend
+  record, so the rule redacts only the identifying free text — the URL as
+  pasted, the profile name the page displayed, and the error text — and keeps
+  `user_id`, `faculty_member_id`, `outcome`, `credits_used` and `created_at`.
+  Same aggregate-survives-the-payload shape as the AiInference rule.
+- **`ScholarFetchRun`** is the **quota ledger**: the rolling-30-day allowance
+  is computed by querying it. Deleting old rows would hand people a fresh
+  allowance, and it carries no free text beyond an error string and a search
+  query already implied by the staff record. It is deliberately not swept.
+
+Legal basis for holding any of it: §24(4), legitimate interests of KKU
+governance, on data the subject made public by publishing. The archive's
+90-day window is the data-minimisation counterweight.
 
 ---
 

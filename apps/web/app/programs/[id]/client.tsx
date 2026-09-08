@@ -424,8 +424,14 @@ export function DeepDiveClient(props: Props) {
           <SkillsSection data={props.skills} programId={props.programId} />
           <CoursesSection data={props.courses} programId={props.programId} />
           <FacultySection data={props.faculty} />
-          <ResearchExpertiseSection data={props.researchExpertise} />
-          <CurriculumRevisionSection data={props.curriculumRevision} />
+          <ResearchExpertiseSection
+            data={props.researchExpertise}
+            composition={props.faculty?.researchSourceComposition ?? null}
+          />
+          <CurriculumRevisionSection
+            data={props.curriculumRevision}
+            composition={props.faculty?.researchSourceComposition ?? null}
+          />
         </MacroGroup>
 
         <MacroGroup
@@ -3257,6 +3263,50 @@ function CoursesSection({
   );
 }
 
+// ── Google Scholar source composition ────────────────────────────────────
+//
+// `ResearchOutput` has two writers. The library pipeline (`kku-research`,
+// mirroring Scopus + PubMed) imports on a schedule for everyone; the Google
+// Scholar runner imports ON DEMAND, for one person, when they press a button.
+// So a research figure over a roster can move without the underlying research
+// changing — Council-readiness rule 1 says the drawer must state the mix, and
+// this builds that statement.
+//
+// `countedInFigure` is the half that stops it misleading. Only the Publications
+// total below is unfiltered; the research-expertise and curriculum-revision
+// analyses go through `realDataWhere()`, which requires ingestion-run
+// provenance that the on-demand import does not stamp, so they exclude Scholar
+// rows outright. See `docs/methodologies/health-score.md`
+// §"Mixed-source research data".
+const SCHOLAR_MIXED_SOURCE_CAVEAT =
+  'Google Scholar counts run higher than the curated library mirror — it indexes preprints, theses and non-indexed venues that Scopus and PubMed do not. Staff who import their own profile therefore appear more productive than colleagues who have not. This is not corrected for.';
+
+function scholarProvenance(
+  composition: DeepDiveFaculty['researchSourceComposition'] | null,
+  countedInFigure: boolean,
+): {
+  sourceComposition?: {
+    label: string;
+    covered: number;
+    total: number;
+    denominator: string;
+    countedInFigure: boolean;
+  };
+  caveats?: string[];
+} {
+  if (!composition) return {};
+  return {
+    sourceComposition: {
+      label: 'Google Scholar',
+      covered: composition.staffOnScholar,
+      total: composition.staffWithResearch,
+      denominator: composition.denominator,
+      countedInFigure,
+    },
+    caveats: [SCHOLAR_MIXED_SOURCE_CAVEAT],
+  };
+}
+
 function FacultySection({ data }: { data: DeepDiveFaculty | null }) {
   if (!data) return <EmptyCard title="Faculty capability" note="Faculty data unavailable." />;
   const scopeLabel =
@@ -3287,7 +3337,21 @@ function FacultySection({ data }: { data: DeepDiveFaculty | null }) {
           <div className="text-xs text-text-tertiary">active staff members</div>
         </Card>
         <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">Publications</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wide text-text-tertiary">Publications</div>
+            <ProvenanceButton
+              size="xs"
+              title="Publications across the teaching staff"
+              meta={{
+                freshnessDate: null,
+                sources: [
+                  { id: 'kku-research', name: 'KKU Publications mirror (Scopus + PubMed)' },
+                  { id: 'google-scholar', name: 'Google Scholar, imported on demand by staff' },
+                ],
+                ...scholarProvenance(data.researchSourceComposition, true),
+              }}
+            />
+          </div>
           <div className="mt-1 font-tabular text-2xl font-semibold">{data.totalPublications.toLocaleString('en-US')}</div>
           <div className="text-xs text-text-tertiary">across the program's teaching staff</div>
         </Card>
@@ -3341,7 +3405,13 @@ const RESEARCH_TREND_TONE: Record<'rising' | 'steady' | 'fading', 'success' | 'n
   fading: 'warning',
 };
 
-function ResearchExpertiseSection({ data }: { data: DeepDiveResearchExpertise | null }) {
+function ResearchExpertiseSection({
+  data,
+  composition,
+}: {
+  data: DeepDiveResearchExpertise | null;
+  composition: DeepDiveFaculty['researchSourceComposition'] | null;
+}) {
   if (!data) {
     return <EmptyCard title="Research expertise" note="Research expertise data unavailable." />;
   }
@@ -3379,6 +3449,20 @@ function ResearchExpertiseSection({ data }: { data: DeepDiveResearchExpertise | 
           <span>{result.methodVersion}</span>
           <ConfidenceBadge value={payload.confidence} />
           <FreshnessBadge freshnessDate={result.generatedAt} label="brief generated" />
+          <ProvenanceButton
+            size="xs"
+            title="Research expertise"
+            meta={{
+              freshnessDate: result.generatedAt,
+              sources: [
+                { id: 'kku-research', name: 'KKU Publications mirror (Scopus + PubMed)' },
+                { id: 'program-faculty', name: 'Curated program faculty roster' },
+              ],
+              confidence: payload.confidence,
+              methodologyVersion: result.methodVersion,
+              ...scholarProvenance(composition, false),
+            }}
+          />
         </div>
         {readiness && (
           <span className="text-xs text-text-tertiary">
@@ -3487,7 +3571,13 @@ function ResearchRecommendationLane({
 // A draft for a curriculum committee to edit — never a decision. Every
 // course named here is guaranteed to exist: the runner drops any
 // recommendation citing a course outside the programme's real course list.
-function CurriculumRevisionSection({ data }: { data: DeepDiveCurriculumRevision | null }) {
+function CurriculumRevisionSection({
+  data,
+  composition,
+}: {
+  data: DeepDiveCurriculumRevision | null;
+  composition: DeepDiveFaculty['researchSourceComposition'] | null;
+}) {
   if (!data) {
     return (
       <EmptyCard
@@ -3546,6 +3636,7 @@ function CurriculumRevisionSection({ data }: { data: DeepDiveCurriculumRevision 
               ],
               confidence: payload.confidence,
               methodologyVersion: methodVersion,
+              ...scholarProvenance(composition, false),
             }}
           />
         </div>

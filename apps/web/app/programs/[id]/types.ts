@@ -542,6 +542,16 @@ export interface DeepDiveFaculty {
   retiringWithin5Years: number;
   successionRiskPct: number;
   totalPublications: number;
+  /** Share of the roster's publication record that came from the on-demand
+   *  Google Scholar import rather than the scheduled library pipeline.
+   *  Mirrors `ResearchSourceComposition` in `@kku/db`. */
+  researchSourceComposition: {
+    staffOnScholar: number;
+    staffWithResearch: number;
+    papersFromScholar: number;
+    papersTotal: number;
+    denominator: string;
+  };
   members: Array<{
     id: string;
     rank: string;
