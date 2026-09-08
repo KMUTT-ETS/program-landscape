@@ -36,7 +36,7 @@
 
 **Files:** Create `packages/db/prisma/migrations/20260908120000_google_scholar/migration.sql`; modify `packages/db/prisma/schema.prisma`.
 
-- [ ] **Step 1: Add to `schema.prisma`**
+- [x] **Step 1: Add to `schema.prisma`**
 
 On `FacultyMember`, beside the existing `scopusAuthorId`:
 ```prisma
@@ -44,6 +44,14 @@ On `FacultyMember`, beside the existing `scopusAuthorId`:
   scholarProfileUrl  String?   @map("scholar_profile_url")
   scholarBoundAt     DateTime? @map("scholar_bound_at")
   scholarBoundById   String?   @map("scholar_bound_by_id")
+```
+
+plus the relation for that last column — 12 of the 15 existing `*_by_id`
+columns in this schema carry a real FK, and an audit breadcrumb that can point
+at a deleted row is not one:
+```prisma
+  scholarBoundBy   User?             @relation("ScholarProfileBoundBy", fields: [scholarBoundById], references: [id], onDelete: SetNull)
+  scholarFetchRuns ScholarFetchRun[]
 ```
 
 On `ResearchOutput`, beside `openalexId`:
@@ -80,9 +88,14 @@ model ScholarFetchRun {
 
   user        User           @relation("ScholarFetchUser", fields: [userId], references: [id], onDelete: Cascade)
   triggeredBy User           @relation("ScholarFetchTriggeredBy", fields: [triggeredById], references: [id], onDelete: Cascade)
+  // SetNull, not Cascade: FacultyMember rows are churned by the backfill
+  // scripts (kkupub_* prefix), and losing the quota ledger to a re-import
+  // would hand everyone a fresh monthly allowance.
+  facultyMember FacultyMember?     @relation(fields: [facultyMemberId], references: [id], onDelete: SetNull)
   archive     ScholarFetchArchive?
 
   @@index([userId, startedAt])
+  @@index([facultyMemberId])
   @@index([status])
   @@map("scholar_fetch_runs")
 }
@@ -106,27 +119,46 @@ model ScholarFetchArchive {
 }
 ```
 
-Add the two back-relations on `User`: `scholarFetchRuns ScholarFetchRun[] @relation("ScholarFetchUser")` and `scholarFetchesTriggered ScholarFetchRun[] @relation("ScholarFetchTriggeredBy")`.
+Add three back-relations on `User`: `scholarFetchRuns ScholarFetchRun[] @relation("ScholarFetchUser")`, `scholarFetchesTriggered ScholarFetchRun[] @relation("ScholarFetchTriggeredBy")` and `scholarProfileBindings FacultyMember[] @relation("ScholarProfileBoundBy")`.
 
-- [ ] **Step 2: Generate the migration SQL without a TTY**
+- [x] **Step 2: Hand-write the migration SQL — do NOT redirect a generated diff into it**
 
-This repo cannot run `prisma migrate dev` (no TTY in an agent session). Use the documented workflow:
+> **Revised 2026-09-08 after the first attempt at this task destroyed the dev
+> database.** The original step said to redirect `prisma migrate diff` straight
+> into `migration.sql`. Two things were wrong with that. First, an agent
+> following it reached for `--from-migrations --shadow-database-url
+> "$DATABASE_URL"`, and Prisma dropped and replayed the live dev database —
+> `scripts/dev-guard/db-destructive-guard.py` now refuses that command outright.
+> Second, even the safe `--from-schema-datasource` form emits **pre-existing
+> unrelated drift** against this database: `DROP TABLE "mv_refresh_log"`,
+> `ALTER TABLE "verdict_snapshots" DROP COLUMN "lifecycle_verdict", "risk_tier"`,
+> five `DROP INDEX`, and assorted `DROP DEFAULT` / `RENAME`. Committing the raw
+> output would have dropped a live table as a side effect of this feature.
+
+Generate the diff to a **scratch path outside the repo**, then hand-write
+`migration.sql` containing only your own statements, verified byte-for-byte
+against the corresponding lines of the generated output:
 
 ```bash
 mkdir -p packages/db/prisma/migrations/20260908120000_google_scholar
-pnpm --filter @kku/db exec prisma migrate diff \
-  --from-schema-datasource packages/db/prisma/schema.prisma \
-  --to-schema-datamodel packages/db/prisma/schema.prisma \
-  --script > packages/db/prisma/migrations/20260908120000_google_scholar/migration.sql
+cd packages/db && npx prisma migrate diff \
+  --from-schema-datasource prisma/schema.prisma \
+  --to-schema-datamodel prisma/schema.prisma \
+  --script > /tmp/scholar-generated.sql
+grep -ni scholar /tmp/scholar-generated.sql   # these lines, and only these
 ```
-Strip the Prisma banner comment from the top of the generated file before committing.
 
-- [ ] **Step 3: Confirm the migration is additive**
+- [x] **Step 3: Confirm the migration is additive**
 
-Run: `grep -iE "DROP |ALTER COLUMN .* SET NOT NULL|TRUNCATE" packages/db/prisma/migrations/20260908120000_google_scholar/migration.sql`
-Expected: **no output.** If anything matches, stop and report — the dev database holds production-derived data shared with another operator.
+Run `pnpm tsx scripts/migration-linter.ts` — the same gate CI runs
+(`.github/workflows/pr.yml`). It must report the migration as non-destructive
+without needing an allow-annotation. A purely additive migration has no `DROP`,
+no column-type change and no `SET NOT NULL` on an existing column.
 
-- [ ] **Step 4: Apply and verify**
+Then re-run the Step 2 diff and confirm `grep -ci scholar` returns **0** — the
+schema and the database now agree about this feature.
+
+- [x] **Step 4: Apply and verify**
 
 ```bash
 pnpm --filter @kku/db exec prisma migrate deploy
@@ -134,7 +166,16 @@ pnpm --filter @kku/db exec prisma generate
 pnpm --filter @kku/db exec tsc --noEmit
 ```
 
-- [ ] **Step 5: Commit**
+Then assert the data is still there — this is the check whose absence let the
+first attempt report success against an empty database:
+
+```sql
+SELECT count(*) FROM programs WHERE code LIKE 'KKU-SEQ-%';  -- 301
+SELECT count(*) FROM research_outputs;                      -- 166468
+SELECT count(*) FROM faculty_members;                       -- 3852
+```
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20260908120000_google_scholar

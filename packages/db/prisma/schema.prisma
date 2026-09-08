@@ -723,6 +723,9 @@ model User {
   externalAiSourcesCreated ExternalAiSource[]       @relation("ExternalAiSourceCreator")
   programRevisionsCreated  ProgramRevision[]        @relation("ProgramRevisionCreatedBy")
   programRevisionsApproved ProgramRevision[]        @relation("ProgramRevisionApprovedBy")
+  scholarFetchRuns         ScholarFetchRun[]        @relation("ScholarFetchUser")
+  scholarFetchesTriggered  ScholarFetchRun[]        @relation("ScholarFetchTriggeredBy")
+  scholarProfileBindings   FacultyMember[]          @relation("ScholarProfileBoundBy")
 
   @@index([email])
   @@index([ssoSubject])
@@ -955,10 +958,10 @@ model AiExtraction {
   createdAt            DateTime     @default(now()) @map("created_at")
   updatedAt            DateTime     @updatedAt @map("updated_at")
 
-  aiInference     AiInference?      @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
-  reviewedBy      User?             @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  goldLabelledBy  User?             @relation("AiExtractionGoldLabeller", fields: [goldLabelledByUserId], references: [id], onDelete: SetNull)
-  programRevision ProgramRevision?  @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
+  aiInference     AiInference?     @relation(fields: [aiInferenceId], references: [id], onDelete: SetNull)
+  reviewedBy      User?            @relation("AiExtractionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  goldLabelledBy  User?            @relation("AiExtractionGoldLabeller", fields: [goldLabelledByUserId], references: [id], onDelete: SetNull)
+  programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
 
   @@index([sourceEntityType, sourceEntityId])
   @@index([extractionKind])
@@ -1382,6 +1385,14 @@ model FacultyMember {
   orcid                 String?     @unique
   openalexAuthorId      String?     @unique @map("openalex_author_id")
   scopusAuthorId        String?     @unique @map("scopus_author_id")
+  // Google Scholar profile binding — set once a SELF or ADMIN fetch
+  // resolves this person to a specific Scholar profile (user picks from
+  // ScrapingBee search candidates). Subsequent fetches reuse the bound
+  // profile directly instead of re-searching.
+  scholarProfileId      String?     @unique @map("scholar_profile_id")
+  scholarProfileUrl     String?     @map("scholar_profile_url")
+  scholarBoundAt        DateTime?   @map("scholar_bound_at")
+  scholarBoundById      String?     @map("scholar_bound_by_id")
   // Cross-system identity key — SHA-256 of digit-stripped Thai citizen ID
   // (or alphanumeric-stripped passport for foreign staff). Computed via
   // hashCitizenId() in @kku/shared. Populated lazily as connectors
@@ -1402,6 +1413,10 @@ model FacultyMember {
   researchOutputs       ResearchOutput[]
   classOfferingTeachers ClassOfferingTeacher[]
   evaluationResponses   EvaluationResponseSummary[]
+  // Who bound the Scholar profile. SetNull, not Cascade: losing the admin
+  // account must not silently unbind the profile they verified.
+  scholarBoundBy        User?                       @relation("ScholarProfileBoundBy", fields: [scholarBoundById], references: [id], onDelete: SetNull)
+  scholarFetchRuns      ScholarFetchRun[]
 
   @@index([facultyId])
   @@index([departmentId])
@@ -1723,6 +1738,11 @@ model ResearchOutput {
   // PubMed ID — populated by the kku-research connector when sourcing
   // medical / life-science papers from the kku-publications mirror.
   pmid                String?            @map("pmid")
+  // Google Scholar's cluster/result id for this paper. Populated when
+  // source='google-scholar'. Paired with facultyMemberId in the unique
+  // constraint below, same shape as the (openalexId, facultyMemberId)
+  // pair — one row per matched KKU co-author per paper.
+  scholarPaperId      String?            @map("scholar_paper_id")
   doi                 String?
   // The connector that wrote / last updated this row.
   source              String?
@@ -1758,11 +1778,13 @@ model ResearchOutput {
   ingestionRun  IngestionRun?  @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   @@unique([openalexId, facultyMemberId])
+  @@unique([scholarPaperId, facultyMemberId])
   @@index([facultyMemberId])
   @@index([year])
   @@index([scopusId])
   @@index([openalexId])
   @@index([pmid])
+  @@index([scholarPaperId])
   @@index([doi])
   @@index([ingestionRunId])
   @@index([quartile])
@@ -5397,4 +5419,70 @@ model DqModuleCube {
   @@index([moduleKey])
   @@index([ingestionRunId])
   @@map("dq_module_cube")
+}
+
+enum ScholarFetchTrigger {
+  SELF
+  ADMIN
+  ADMIN_BULK
+}
+
+enum ScholarFetchStatus {
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  REFUSED
+}
+
+/// One row per fetch attempt. This is the QUOTA LEDGER — the rolling-30-day
+/// check queries it rather than reading a counter off User, so history
+/// survives and an admin can always answer "why can't this person fetch".
+model ScholarFetchRun {
+  id               String              @id @default(cuid())
+  userId           String              @map("user_id")
+  facultyMemberId  String?             @map("faculty_member_id")
+  triggeredById    String              @map("triggered_by_id")
+  trigger          ScholarFetchTrigger
+  status           ScholarFetchStatus
+  /// Exactly what was sent to Scholar, so a failed search is diagnosable
+  /// without repeating it.
+  searchQuery      String?             @map("search_query")
+  papersFound      Int                 @default(0) @map("papers_found")
+  papersInserted   Int                 @default(0) @map("papers_inserted")
+  citationsUpdated Int                 @default(0) @map("citations_updated")
+  creditsUsed      Int                 @default(0) @map("credits_used")
+  errorText        String?             @map("error_text") @db.Text
+  startedAt        DateTime            @default(now()) @map("started_at")
+  finishedAt       DateTime?           @map("finished_at")
+
+  user          User                 @relation("ScholarFetchUser", fields: [userId], references: [id], onDelete: Cascade)
+  triggeredBy   User                 @relation("ScholarFetchTriggeredBy", fields: [triggeredById], references: [id], onDelete: Cascade)
+  // SetNull, not Cascade: FacultyMember rows are churned by the backfill
+  // scripts (kkupub_* prefix), and losing the quota ledger to a re-import
+  // would hand everyone a fresh monthly allowance.
+  facultyMember FacultyMember?       @relation(fields: [facultyMemberId], references: [id], onDelete: SetNull)
+  archive       ScholarFetchArchive?
+
+  @@index([userId, startedAt])
+  @@index([facultyMemberId])
+  @@index([status])
+  @@map("scholar_fetch_runs")
+}
+
+/// Raw ScrapingBee response. This is a SCRAPED source with no contract: when
+/// a parse turns out to be wrong months later, this is what makes reprocessing
+/// possible instead of re-scraping, and it is the only way to answer "where
+/// did this number come from" for a Council figure derived from a scraped page.
+/// Retained 90 days by the existing PDPA sweep.
+model ScholarFetchArchive {
+  id            String   @id @default(cuid())
+  fetchRunId    String   @unique @map("fetch_run_id")
+  rawPayload    String   @map("raw_payload") @db.Text
+  contentHash   String   @map("content_hash")
+  parserVersion String   @map("parser_version")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  fetchRun ScholarFetchRun @relation(fields: [fetchRunId], references: [id], onDelete: Cascade)
+
+  @@map("scholar_fetch_archives")
 }
