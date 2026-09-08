@@ -60,3 +60,4 @@ export * from './program-curriculum-revision';
 export * from './program-curriculum-revision-run';
 export * from './course-code-normalise';
 export * from './program-revision';
+export * from './scholar-fetch';
