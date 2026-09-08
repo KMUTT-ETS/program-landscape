@@ -26,7 +26,7 @@ ScrapingBee removes the IP-blocking half of that objection. **It does not remove
 | How far does Scholar data reach? | **Everywhere, including aggregates** — health score, faculty roll-ups, `/staff/research` |
 | What about library papers Scholar misses? | **Scholar wins, library fills gaps.** Nothing a user already had can disappear |
 | Quota | **Rolling 30 days**, self-service; admin fetches on a separate counter |
-| Who binds a Scholar profile to a person? | **The user confirms** from candidates; stored and reused |
+| Who binds a Scholar profile to a person? | **The user supplies their own profile URL**; stored and reused. Revised 2026-09-08 — see below |
 
 ### The consequence of "including aggregates", stated plainly
 
@@ -65,9 +65,8 @@ mechanism is how one of them stops running unnoticed. This is a **scraped** sour
 /profile → "Fetch from Google Scholar"
   ├─ quota check (server-side) ──────── refused → show the date they can retry
   ├─ no scholarProfileId?
-  │    └─ SEARCH  ScrapingBee → Scholar author search on English full name
-  │       → parse candidates (name, other-names, affiliation, interests, paper count)
-  │       → USER confirms → store scholarProfileId + scholarBoundById
+  │    └─ ASK the user to paste their Scholar profile URL
+  │       → validate + extract the profile id → store scholarProfileId + scholarBoundById
   ├─ FETCH  paginate the bound profile's publication list, all pages
   ├─ archive raw payload
   ├─ DIFF-MERGE into ResearchOutput        (never a wipe — see below)
@@ -101,13 +100,34 @@ hidden button produces a support ticket asking why the feature is missing; a
 disabled one with a reason does not. No `ScholarFetchRun` row is written, and
 no quota is consumed.
 
-### Which name is searched
+### Binding: URL, not name search — revised 2026-09-08
 
-`FacultyMember.nameEn`, falling back to `User.name` when the former is empty.
-NOT the Thai name: Scholar profiles for Thai researchers are indexed under
-Latin transliterations, and the transliteration KKU HR uses is the one most
-likely to appear. The search string used is recorded on the run, so a failed
-search can be diagnosed without repeating it.
+The original design searched Scholar by the user's English name and had them
+confirm from candidates. **That endpoint cannot be scraped.** Google Scholar's
+`view_op=search_authors` deterministically redirects to a mandatory sign-in wall
+through ScrapingBee — verified across default/premium/stealth proxies,
+`render_js` both ways, two country codes, a `Referer` header and two different
+names. The profile page and the Scholar homepage fetch cleanly in the same
+session, so this is specific to author search, not the account or the IP. The
+real wall response is committed as a fixture
+(`packages/shared/test/fixtures/scholar/author-search-blocked-signin-wall.html`).
+
+**Binding is therefore by URL: the user pastes their own Scholar profile link.**
+
+This is not merely a workaround. It is *safer* than the search it replaces: the
+mis-attribution risk that the confirm-from-candidates step existed to manage
+disappears entirely, because the person supplies their own profile rather than
+picking from a list of similarly-named strangers. That risk was the sharpest
+concern in this design — `kku-research` deliberately uses no fuzzy matching
+because common Thai given names mis-attribute papers. The cost is one manual
+step, once per person.
+
+`ScholarFetchRun.searchQuery` is retained and now records the **submitted URL**,
+so a bad binding is diagnosable.
+
+Validation: accept `scholar.google.<tld>/citations?user=<id>` in any query-param
+order, extract `<id>`, and reject anything else with a message naming what a
+correct URL looks like. Do NOT attempt to "helpfully" search when given a name.
 
 ### Type mapping
 
@@ -121,7 +141,7 @@ Admin work lives in **one console** at `/admin/scholar` (gated `isAdminGrade`) r
 |---|---|---|
 | `/profile` button | any user, own record | Shows last fetch, next eligible date, and which source is currently primary. Disabled with the date when inside 30 days. |
 | Candidate picker (modal) | the user | Fires when unbound. Shows **affiliation, other-names, interests, paper count** — enough to distinguish two researchers with the same common Thai given name. Confirming binds permanently. |
-| `/admin/scholar` row action | SYSTEM_ADMIN, SUPER_ADMIN | Fetch one person. Unresolved → candidates surface to the admin. |
+| `/admin/scholar` row action | SYSTEM_ADMIN, SUPER_ADMIN | Fetch one person. Unbound → the admin can paste that person's profile URL, or leave it for the user. |
 | `/admin/scholar` multi-select | same | Filter by faculty/department, tick rows, **Fetch selected**. |
 
 **Bulk is asynchronous.** ScrapingBee takes seconds per profile plus pagination, so 50 people is minutes and 500 is far beyond any request timeout. The API enqueues onto the existing `ai-jobs` BullMQ queue (ingestion consumes it — the same pattern as PDF intake and the model-health notifier); the console polls run status. No new queue.

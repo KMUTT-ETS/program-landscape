@@ -19,13 +19,13 @@
 | `packages/db/prisma/migrations/20260908120000_google_scholar/` | Additive schema: 4 FacultyMember cols, 1 ResearchOutput col, 2 tables, 2 enums |
 | `packages/shared/src/scholar/quota.ts` | **Pure.** trigger × role × history → allow / refuse + reason |
 | `packages/shared/src/scholar/merge.ts` | **Pure.** Scholar papers × existing rows → insert / citation-update plan |
-| `packages/shared/src/scholar/parse.ts` | **Pure.** ScrapingBee payload → candidates, publications |
+| `packages/shared/src/scholar/parse.ts` | **Pure.** ScrapingBee payload → publications; plus profile-URL validation |
 | `packages/shared/src/scholar/types.ts` | Shared types for the three above |
 | `apps/ingestion/src/lib/scrapingbee-client.ts` | HTTP wrapper, mirrors `oracle-client.ts` shape |
 | `packages/db/src/scholar-fetch.ts` | Runner: quota → search/bind → fetch → archive → merge. The only writer |
 | `apps/api/src/scholar/*` | Endpoints + BullMQ enqueue |
 | `apps/web/src/lib/actions/scholar.ts` | Server actions |
-| `apps/web/app/profile/*` | Button + candidate picker |
+| `apps/web/app/profile/*` | Button + profile-URL input |
 | `apps/web/app/admin/scholar/*` | Console: list, row action, multi-select |
 
 **Task order matters.** The three pure units come before any scraping code: the merge planner's no-delete invariant is the property most expensive to lose, and it must exist and be mutation-tested before anything can write.
@@ -556,7 +556,7 @@ Order, and it matters:
 1. Resolve `FacultyMember` via the user's `employeeId`. **None → return `REFUSED` with reason; write no run row and consume no quota** (the spec's "shown but disabled" case).
 2. Load the last 90 days of `ScholarFetchRun` for the user; call `decideScholarQuota`. Refused → persist a `REFUSED` run (so the ledger explains itself) and return.
 3. Create the run row `startedAt = now`.
-4. No `scholarProfileId` → search, parse candidates, return them **without fetching**; status `PARTIAL`, `finishedAt` set. Binding is a separate call.
+4. No `scholarProfileId` → return `REFUSED` with reason `needs-binding` **without fetching and without consuming quota**. The UI then asks for the profile URL; binding is a separate call. (Revised 2026-09-08: author search is blocked by a sign-in wall — see the spec.)
 5. Bound → fetch all pages, archive the raw payload, parse.
 6. `planScholarMerge` against that member's existing `ResearchOutput` rows, then apply **inserts and citation updates only, inside one `$transaction`**.
 7. Invalidate `UserPublicationsCache` for the user.
@@ -615,7 +615,7 @@ wrong year is worse than a missing paper. Count skips on the run.
 | Route | Guard | Purpose |
 |---|---|---|
 | `POST /scholar/fetch/me` | authenticated | self-fetch; `trigger: 'SELF'` |
-| `POST /scholar/bind/me` | authenticated | confirm a candidate for own record |
+| `POST /scholar/bind/me` | authenticated | bind own record from a pasted Scholar profile URL |
 | `GET  /scholar/status/me` | authenticated | last run, next eligible date, bound profile |
 | `POST /scholar/fetch/:userId` | `@Authorized('scholar:admin')` | `trigger: 'ADMIN'` |
 | `POST /scholar/fetch/bulk` | `@Authorized('scholar:admin')` | enqueues `ADMIN_BULK`, one job per target |
@@ -635,7 +635,7 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 
 - [ ] **Step 1: Button + states** — never fetched / bound and fetched (with date) / inside the window (disabled, showing the retry date) / unbound (opens the picker) / no staff record (**disabled with the reason**, not hidden — a hidden button generates a support ticket asking why the feature is missing).
 
-- [ ] **Step 2: Candidate picker** — per candidate show **name, affiliation, other-names, interests, paper count**. That set is what distinguishes two researchers sharing a common Thai given name; a bare name list is not enough to choose safely.
+- [ ] **Step 2: Profile-URL input** — a field accepting a Scholar profile link, validated client- and server-side, with an inline example of a correct URL and a clear error naming what was wrong. After binding, show the bound profile id with a way to ask an admin to change it. Do NOT offer a name-search fallback: that endpoint is walled (see the spec).
 
 - [ ] **Step 3: Show which source is primary** on the publications section, with the fetch date.
 
@@ -648,7 +648,7 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 **Files:** `apps/web/app/admin/scholar/page.tsx` + `client.tsx`.
 
 - [ ] **Step 1: List** — staff with faculty/department filters, showing bound-or-not, last fetch, paper counts by source.
-- [ ] **Step 2: Row action** — fetch one; unresolved surfaces candidates to the admin.
+- [ ] **Step 2: Row action** — fetch one; unbound lets the admin paste that person's profile URL, or leave it for the user.
 - [ ] **Step 3: Multi-select + "Fetch selected"** — confirmation dialog stating **target count and estimated credits** before anything is enqueued.
 - [ ] **Step 4: Run status** — poll `GET /scholar/runs`; show per-target outcome including `zero found`, which must read as a distinct outcome and **not** as success.
 - [ ] **Step 5: Commit** — `feat(scholar): admin fetch console`
