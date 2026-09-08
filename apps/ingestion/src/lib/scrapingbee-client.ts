@@ -28,6 +28,25 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 // that isn't 2xx/401/403/402 is treated as a deterministic failure.
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 
+/**
+ * ScrapingBee credits billed per Google page fetch.
+ *
+ * Google pages require `custom_google=true` (see buildRequestUrl), and that
+ * carries its own price: ScrapingBee's docs quote 20 credits, the live API
+ * billed **15** on every Scholar request measured on 2026-09-08 (profile page
+ * and author search alike, with and without `render_js=false`, with and
+ * without `premium_proxy`). 15 is what the `Spb-Cost` response header
+ * actually reported, so 15 is what the estimator uses — and every run records
+ * its real `Spb-Cost` in `ScholarFetchRun.creditsUsed`, so a drift between
+ * this constant and reality is visible in the ledger rather than silent.
+ *
+ * This is NOT 1. A "select all" across a faculty is real money: at 15 credits
+ * a page, the 250k-credit monthly plan is ~16,600 page fetches, and the admin
+ * console's bulk confirmation must price a run with this number before
+ * anything is enqueued.
+ */
+export const GOOGLE_PAGE_CREDIT_COST = 15;
+
 export interface ScrapingBeeConfig {
   apiKey: string;
   baseUrl: string;
@@ -105,8 +124,14 @@ export class ScrapingBeeTransientError extends Error {
  */
 export class ScrapingBeeRequestError extends Error {
   override readonly name = 'ScrapingBeeRequestError';
-  constructor(readonly status: number) {
-    super(`ScrapingBee request failed with HTTP ${status} (not retried).`);
+  constructor(
+    readonly status: number,
+    readonly detail?: string,
+  ) {
+    super(
+      `ScrapingBee request failed with HTTP ${status} (not retried).` +
+        (detail ? ` ${detail}` : ''),
+    );
   }
 }
 
@@ -142,6 +167,15 @@ function buildRequestUrl(targetUrl: string, cfg: ScrapingBeeConfig): URL {
   url.searchParams.set('api_key', cfg.apiKey);
   url.searchParams.set('url', targetUrl);
   url.searchParams.set('render_js', 'false');
+  // MANDATORY for any Google domain, Scholar included. Without it ScrapingBee
+  // refuses the request outright — HTTP 400 with
+  //   {"errors":{"query":{"custom_google":["If you wish to scrape Google, use
+  //    the custom_google=True parameter! ..."]}}}
+  // and never contacts Google at all. Measured against the live API on
+  // 2026-09-08: every Scholar URL 400s without it and returns 200 with it,
+  // on both the profile page and the author-search endpoint.
+  // It is what makes each request cost GOOGLE_PAGE_CREDIT_COST rather than 1.
+  url.searchParams.set('custom_google', 'true');
   return url;
 }
 
@@ -204,7 +238,19 @@ async function attempt(
     throw new ScrapingBeeTransientError(response.status, `HTTP ${response.status}`);
   }
   if (!response.ok) {
-    throw new ScrapingBeeRequestError(response.status);
+    // Carry a slice of the response body. ScrapingBee reports parameter
+    // mistakes only in the body — a missing `custom_google` is an opaque 400
+    // otherwise, which is exactly how that bug survived a full test suite.
+    // The body is ScrapingBee's own JSON error and does not contain the key,
+    // but redact defensively rather than trusting that.
+    let detail = '';
+    try {
+      detail = (await response.text()).replaceAll(cfg.apiKey, '[REDACTED]').slice(0, 300);
+    } catch {
+      // Body already consumed or unreadable — the status alone still tells
+      // the caller what happened.
+    }
+    throw new ScrapingBeeRequestError(response.status, detail || undefined);
   }
 
   const creditsUsed = parseCreditsUsed(response);

@@ -209,5 +209,56 @@ describe('scrapingbee-client', () => {
       const calledUrl = String(fetchMock.mock.calls[0]?.[0]);
       expect(calledUrl).toContain('api_key=test-secret-key-do-not-leak');
     });
+
+    // Regression guard. Without custom_google, ScrapingBee never contacts
+    // Google at all: it rejects the request with a 400 whose body names the
+    // missing parameter. Every mocked test above still passed while this was
+    // missing, because a mock answers whatever it is asked — which is exactly
+    // why this assertion is on the outgoing URL and not on a response.
+    it('always sends custom_google=true — Google refuses the request without it', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: '<html></html>' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await fetchScrapingBeePage('https://scholar.google.com/citations?user=abc');
+
+      const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+      expect(calledUrl.searchParams.get('custom_google')).toBe('true');
+    });
+
+    it('surfaces the response body on an otherwise-opaque 4xx, with the key redacted', async () => {
+      const body = JSON.stringify({
+        errors: { query: { custom_google: ['If you wish to scrape Google, use the custom_google=True parameter!'] } },
+      });
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 400, body }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage('https://scholar.google.com/citations?user=abc');
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).toContain('HTTP 400');
+        // The actionable part of the body must reach the caller — a bare
+        // "HTTP 400" is what made this class of misconfiguration invisible.
+        expect(message).toContain('custom_google');
+        expect(message).not.toContain('test-secret-key-do-not-leak');
+      }
+    });
+
+    it('redacts the api key if it ever appears in an error body', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        fakeResponse({ status: 400, body: 'bad key: test-secret-key-do-not-leak' }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage('https://scholar.google.com/citations?user=abc');
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).not.toContain('test-secret-key-do-not-leak');
+        expect(message).toContain('[REDACTED]');
+      }
+    });
   });
 });
