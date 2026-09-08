@@ -1,0 +1,327 @@
+import { describe, expect, it, vi } from 'vitest';
+import * as React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+// ────────────────────────────────────────────────────────────────────────────
+// The panel's states as they actually reach the page.
+//
+// `decideScholarPanelState` is tested next door; this asserts that its
+// decisions survive the trip into markup — in particular the one that is easy
+// to regress by "tidying up": the no-staff-record button must render DISABLED
+// WITH ITS REASON, not be hidden. Deleting the reason, hiding the button, or
+// wrapping it in a truthiness check each fail here.
+//
+// Static markup rather than a driven DOM because this workspace has no jsdom
+// and no @testing-library. That rules out asserting a click, which is why the
+// picker opens from the first paint in the unbound state (a real UX decision,
+// not a test accommodation — an unbound user's only next step is pasting a
+// URL) and why the bind refusal is rendered from a prop.
+// ────────────────────────────────────────────────────────────────────────────
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: () => undefined, push: () => undefined }),
+}));
+
+vi.mock('sonner', () => ({
+  toast: Object.assign(() => undefined, {
+    success: () => undefined,
+    error: () => undefined,
+    message: () => undefined,
+  }),
+}));
+
+// The real module is `'use server'` and pulls in `@kku/db` (and therefore
+// Prisma) at import time. Nothing here calls the actions — the effects that
+// would never run under renderToStaticMarkup anyway.
+vi.mock('@/lib/actions/scholar', () => ({
+  getScholarStatusAction: async () => ({ ok: false, message: 'not called in this test' }),
+  bindScholarProfileAction: async () => ({
+    ok: false,
+    message: 'not called in this test',
+    rateLimited: false,
+  }),
+  startScholarFetchAction: async () => ({ ok: false, message: 'not called in this test' }),
+}));
+
+import { BindPicker, ScholarPanel } from '../app/profile/scholar-panel';
+import type { ScholarStatus } from '../src/lib/scholar-status';
+
+const LINKED = {
+  linked: true as const,
+  facultyMemberId: 'fm-1',
+  nameEn: 'Somchai Example',
+  nameTh: 'สมชาย ตัวอย่าง',
+};
+
+function statusOf(overrides: Partial<ScholarStatus> = {}): ScholarStatus {
+  return {
+    userId: 'u1',
+    staffRecord: LINKED,
+    profile: {
+      bound: true,
+      scholarProfileId: 'ABC123',
+      scholarProfileUrl: 'https://scholar.google.com/citations?user=ABC123',
+      boundAt: '2026-08-01T03:00:00.000Z',
+    },
+    lastRun: null,
+    nextEligibleAt: null,
+    quotaReason: null,
+    needsBinding: false,
+    fetchQueued: false,
+    bind: { attemptsToday: 0, maxPerDay: 5, retryAt: null },
+    ...overrides,
+  };
+}
+
+function render(status: ScholarStatus): string {
+  return renderToStaticMarkup(
+    <ScholarPanel
+      initialStatus={status}
+      sources={{ googleScholar: 12, libraryIndex: 184 }}
+    />,
+  );
+}
+
+/** The opening tag of the primary control, so `disabled` can be asserted on
+ *  that element rather than anywhere in the document. */
+function primaryButtonTag(markup: string): string {
+  const match = /<button[^>]*data-testid="scholar-fetch-button"[^>]*>/.exec(markup);
+  if (!match) throw new Error('the primary Scholar button is not in the markup at all');
+  return match[0];
+}
+
+/**
+ * Whether a rendered `<button …>` tag carries the DISABLED ATTRIBUTE.
+ *
+ * Not `tag.includes('disabled')`: every Button in this design system ships
+ * `disabled:pointer-events-none disabled:opacity-50` in its class list, so a
+ * substring check reports every button as disabled and the assertion that
+ * matters — that an enabled button is enabled — silently passes forever.
+ */
+function isDisabled(tag: string): boolean {
+  return / disabled(=|\s|>)/.test(tag);
+}
+
+describe('ScholarPanel — no staff record', () => {
+  const markup = render(
+    statusOf({
+      staffRecord: {
+        linked: false,
+        reason: 'No staff record matches the name "Somchai Example".',
+      },
+    }),
+  );
+
+  it('renders the button — hiding it is the failure this asserts against', () => {
+    expect(() => primaryButtonTag(markup)).not.toThrow();
+    expect(markup).toContain('Fetch from Google Scholar');
+  });
+
+  it('renders it disabled', () => {
+    expect(isDisabled(primaryButtonTag(markup))).toBe(true);
+    expect(primaryButtonTag(markup)).toContain('data-panel-kind="no-staff-record"');
+  });
+
+  it('renders the reason, so the disabled control explains itself', () => {
+    expect(markup).toContain('data-testid="scholar-disabled-reason"');
+    expect(markup).toContain('No staff record matches the name');
+  });
+
+  it('does NOT offer the profile picker — there is nothing to bind it to', () => {
+    expect(markup).not.toContain('data-testid="scholar-bind-picker"');
+  });
+});
+
+describe('ScholarPanel — inside the 30-day window', () => {
+  const markup = render(
+    statusOf({
+      lastRun: {
+        id: 'run-1',
+        status: 'SUCCEEDED',
+        trigger: 'SELF',
+        startedAt: '2026-09-01T00:00:00.000Z',
+        finishedAt: '2026-09-01T00:00:30.000Z',
+        papersFound: 40,
+        papersInserted: 12,
+        citationsUpdated: 31,
+        creditsUsed: 30,
+        errorText: null,
+        needsBinding: false,
+      },
+      nextEligibleAt: '2026-10-01T00:00:00.000Z',
+      quotaReason: 'Already fetched on 2026-09-01. One fetch per 30 days.',
+    }),
+  );
+
+  it('disables the button and shows the retry date as a date, not a timestamp', () => {
+    expect(isDisabled(primaryButtonTag(markup))).toBe(true);
+    expect(markup).toContain('data-testid="scholar-next-eligible"');
+    expect(markup).toContain('You can fetch again on 1 Oct 2026.');
+  });
+
+  it('shows the quota reason alongside it', () => {
+    expect(markup).toContain('Already fetched on 2026-09-01.');
+  });
+
+  it('reports the last fetch and what it did, with the counts kept apart', () => {
+    expect(markup).toContain('Last Scholar fetch on 1 Sep 2026');
+    expect(markup).toContain('12 papers added');
+    expect(markup).toContain('31 citation counts refreshed');
+  });
+});
+
+describe('ScholarPanel — unbound', () => {
+  const markup = render(statusOf({ profile: { bound: false }, needsBinding: true }));
+
+  it('opens the picker and leaves the button enabled', () => {
+    expect(markup).toContain('data-testid="scholar-bind-picker"');
+    expect(isDisabled(primaryButtonTag(markup))).toBe(false);
+    expect(markup).toContain('Link your Scholar profile');
+  });
+
+  it('shows a correct example URL in the field and in the help text', () => {
+    expect(markup).toContain('https://scholar.google.com/citations?user=ABC123');
+  });
+
+  it('offers no search-by-name fallback, and says why', () => {
+    expect(markup).toContain('sign-in wall');
+    expect(markup.toLowerCase()).not.toContain('search by your name');
+  });
+
+  it('states the daily allowance before it is spent, not after', () => {
+    expect(markup).toContain('data-testid="scholar-bind-cap"');
+    expect(markup).toContain("You have 5 of today&#x27;s 5 checks left.");
+  });
+
+  it('keeps the label and its qualifier from reading as one word', () => {
+    // JSX eats the whitespace around a newline, so a margin alone leaves the
+    // accessible name as "KKU library indexprimary source".
+    expect(markup).toContain('KKU library index <span');
+    expect(markup).toContain('Google Scholar <span');
+  });
+});
+
+describe('ScholarPanel — bound and ready', () => {
+  const markup = render(statusOf());
+
+  it('shows the linked profile id and a way to change it', () => {
+    expect(markup).toContain('data-testid="scholar-bound-profile"');
+    expect(markup).toContain('ABC123');
+    expect(markup).toContain('Change');
+    expect(markup).toContain('a system administrator');
+  });
+
+  it('does not open the picker over an already-linked profile', () => {
+    expect(markup).not.toContain('data-testid="scholar-bind-picker"');
+  });
+
+  it('names the library index as primary, and Scholar as the top-up', () => {
+    expect(markup).toContain('KKU library index');
+    expect(markup).toContain('primary source');
+    expect(markup).toContain('184 papers');
+    expect(markup).toContain('12 papers');
+    expect(markup).toContain('Google Scholar has never been fetched for this record.');
+  });
+});
+
+describe('ScholarPanel — a failed run explains itself', () => {
+  it('surfaces the refusal text of the last run', () => {
+    const markup = render(
+      statusOf({
+        lastRun: {
+          id: 'run-2',
+          status: 'FAILED',
+          trigger: 'SELF',
+          startedAt: '2026-09-05T00:00:00.000Z',
+          finishedAt: '2026-09-05T00:00:10.000Z',
+          papersFound: 0,
+          papersInserted: 0,
+          citationsUpdated: 0,
+          creditsUsed: 15,
+          errorText: 'Google returned a sign-in wall on page 1.',
+          needsBinding: false,
+        },
+      }),
+    );
+    expect(markup).toContain('data-testid="scholar-last-run-error"');
+    expect(markup).toContain('Google returned a sign-in wall on page 1.');
+    expect(markup).toContain('The attempt on 5 Sep 2026 did not');
+  });
+});
+
+describe('BindPicker — a refused bind names both sides', () => {
+  // Verbatim from packages/db/src/scholar-fetch.ts. The whole value of the
+  // message is that it quotes the profile AND the staff record, so the person
+  // reading it can tell which of the two is wrong.
+  const REFUSAL =
+    'That Scholar profile does not appear to belong to this person. ' +
+    'The profile is named "S. Example", "Somchai E."; the staff record says "Somchai Example". ' +
+    'Refusing to link them.';
+
+  // A bound status, so the field is pre-filled with the link being replaced —
+  // the shape a refusal actually arrives in, since an empty field cannot be
+  // submitted and so cannot be refused.
+  const markup = renderToStaticMarkup(
+    <BindPicker
+      status={statusOf({ needsBinding: true })}
+      error={REFUSAL}
+      submitting={false}
+      onSubmit={() => undefined}
+      onCancel={() => undefined}
+    />,
+  );
+
+  it('renders the refusal, with the profile name and the record name intact', () => {
+    expect(markup).toContain('data-testid="scholar-bind-error"');
+    expect(markup).toContain('S. Example');
+    expect(markup).toContain('Somchai Example');
+    expect(markup).toContain('Refusing to link them.');
+  });
+
+  it('marks the field invalid and the message as an alert', () => {
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('aria-invalid="true"');
+  });
+
+  it('leaves the submit button usable — the fix is a different URL, not waiting', () => {
+    // Only the daily cap greys out submit. A refusal must not, or a user who
+    // pasted the wrong link once could not paste the right one.
+    const submit = /<button[^>]*type="submit"[^>]*>/.exec(markup)?.[0] ?? '';
+    expect(isDisabled(submit)).toBe(false);
+  });
+});
+
+describe('BindPicker — the daily cap', () => {
+  it('greys out submit and says when the allowance returns', () => {
+    const markup = renderToStaticMarkup(
+      <BindPicker
+        status={statusOf({
+          profile: { bound: false },
+          needsBinding: true,
+          bind: { attemptsToday: 5, maxPerDay: 5, retryAt: '2026-09-09T04:30:00.000Z' },
+        })}
+        error={null}
+        submitting={false}
+        onSubmit={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    const submit = /<button[^>]*type="submit"[^>]*>/.exec(markup)?.[0] ?? '';
+    expect(isDisabled(submit)).toBe(true);
+    expect(markup).toContain('No checks left today');
+    expect(markup).toContain('the allowance resets on 9 Sep 2026, 11:30');
+  });
+
+  it('warns that a wrong link is billed like a right one, before either is tried', () => {
+    const markup = renderToStaticMarkup(
+      <BindPicker
+        status={statusOf({ profile: { bound: false }, needsBinding: true })}
+        error={null}
+        submitting={false}
+        onSubmit={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(markup).toContain('a wrong link costs exactly what a right one does');
+  });
+});

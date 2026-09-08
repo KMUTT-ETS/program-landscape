@@ -158,12 +158,19 @@ export function ProfileView({
   profile,
   userEmail,
   publicMode = false,
+  scholarSlot = null,
 }: {
   profile: ProfileData | null;
   userEmail: string;
   // When true, render in public-share mode: no email row, no avatar
   // editor, no AI regenerate trigger. Used by /p/[slug].
   publicMode?: boolean;
+  // Rendered at the head of the publications section. A slot rather than
+  // data props on purpose: the Google Scholar panel needs a server-side
+  // status read and this component is a client component, so the server
+  // page composes the element and passes it down. /p/[slug] passes
+  // nothing, which is also how the panel stays off the public view.
+  scholarSlot?: React.ReactNode;
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -287,6 +294,7 @@ export function ProfileView({
             publications={profile.publications}
             ownerSurname={ownerSurname}
             t={t}
+            scholarSlot={scholarSlot}
           />
         </div>
       </div>
@@ -1343,10 +1351,12 @@ function PublicationsSection({
   publications,
   ownerSurname,
   t,
+  scholarSlot = null,
 }: {
   publications: PublicationEntry[];
   ownerSurname: string | null;
   t: (typeof T)[Lang];
+  scholarSlot?: React.ReactNode;
 }) {
   // Paginated 20 per page. Authors with 100+ papers get a clean
   // page-by-page view instead of one giant scroll. Page index resets
@@ -1377,6 +1387,10 @@ function PublicationsSection({
       description={t.publicationsHelp}
     >
       <Card className="p-5">
+        {/* Provenance + the on-demand Google Scholar control sit ABOVE the
+            list: which sources a citation list is built from is part of
+            reading it, not a footnote. Absent on the public view. */}
+        {scholarSlot}
         {publications.length === 0 ? (
           <p className="text-sm text-text-tertiary">{t.noPublications}</p>
         ) : (

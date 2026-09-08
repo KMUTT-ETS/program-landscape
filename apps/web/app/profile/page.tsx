@@ -7,7 +7,9 @@ import { prisma } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { getProfileData } from '@/lib/profile-data';
 import { ShareCard } from '@/components/profile/share-card';
+import { getScholarStatusAction } from '@/lib/actions/scholar';
 import { ProfileView } from './profile-view';
+import { ScholarPanel, type ScholarSourceCounts } from './scholar-panel';
 
 // Profile page — modern academic-resume layout for the signed-in user.
 // Server-renders all the static data (basic info, education, research
@@ -30,7 +32,7 @@ export default async function ProfilePage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const [profile, share] = await Promise.all([
+  const [profile, share, scholar] = await Promise.all([
     getProfileData(user.userId),
     prisma.user.findUnique({
       where: { id: user.userId },
@@ -41,7 +43,40 @@ export default async function ProfilePage() {
         publicProfileUpdatedAt: true,
       },
     }),
+    // Read alongside the profile rather than inside the client panel: the
+    // panel's five states must be correct in the FIRST paint, including the
+    // disabled-with-a-reason one. Fetching them client-side would flash an
+    // enabled button at someone who has no staff record.
+    getScholarStatusAction(),
   ]);
+
+  // Publication provenance for the section header. Counted straight off
+  // `research_outputs` rather than off the rendered list, because the list is
+  // a merge of live Scopus/kkuscholar reads with local rows and does not carry
+  // a per-entry source. This counts what THIS platform stores and where each
+  // row came from, which is the claim the header actually makes.
+  //
+  // Needs the staff record id, which only the Scholar status read resolves —
+  // so an account with no staff record gets no counts, which is correct: it
+  // has no research rows either.
+  const facultyMemberId =
+    scholar.ok && scholar.status.staffRecord.linked
+      ? scholar.status.staffRecord.facultyMemberId
+      : null;
+
+  let scholarSources: ScholarSourceCounts | null = null;
+  if (facultyMemberId) {
+    const bySource = await prisma.researchOutput.groupBy({
+      by: ['source'],
+      where: { facultyMemberId },
+      _count: { _all: true },
+    });
+    const googleScholar = bySource
+      .filter((row) => row.source === 'google-scholar')
+      .reduce((sum, row) => sum + row._count._all, 0);
+    const total = bySource.reduce((sum, row) => sum + row._count._all, 0);
+    scholarSources = { googleScholar, libraryIndex: total - googleScholar };
+  }
 
   const initial: PublicProfileState = {
     enabled: share?.publicProfileEnabled ?? false,
@@ -85,7 +120,24 @@ export default async function ProfilePage() {
         publicUrl={publicUrl}
         origin={origin}
       />
-      <ProfileView profile={profile} userEmail={user.email} />
+      <ProfileView
+        profile={profile}
+        userEmail={user.email}
+        scholarSlot={
+          scholar.ok ? (
+            <ScholarPanel initialStatus={scholar.status} sources={scholarSources} />
+          ) : (
+            // Same principle as the disabled button inside the panel: when the
+            // feature cannot be offered, say so where it would have been. A
+            // silently missing section reads as "this university does not have
+            // that", which is the wrong conclusion to leave someone with.
+            <p className="mb-8 rounded-lg border border-border-subtle bg-surface-2/60 p-8 text-xs leading-relaxed text-text-tertiary">
+              Publication sources and the Google Scholar fetch are unavailable right now —{' '}
+              {scholar.message} Reload the page to try again.
+            </p>
+          )
+        }
+      />
     </AuthedAppShell>
   );
 }
