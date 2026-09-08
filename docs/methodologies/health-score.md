@@ -378,7 +378,7 @@ bump — see "Does this bump `HEALTH_SCORE_VERSION`?" below.*
 
 | Writer | `source` | Trigger | Coverage |
 |---|---|---|---|
-| Library pipeline (`kku-research`) | `kku-publications:scopus` (64,294), `kku-publications:pubmed` (44,730), legacy `openalex` (57,444), and `null` on the oldest rows | Scheduled connector run | Everybody, uniformly |
+| Library pipeline (`kku-research`) | `kku-publications:scopus` (64,294), `openalex` (57,444), `kku-publications:pubmed` (44,730) | Scheduled connector run | Everybody, uniformly |
 | Google Scholar runner | `google-scholar` | **On demand** — a person, or an administrator acting for them, presses a button | Only whoever pressed it |
 
 The second row is the whole difficulty. A faculty where three people ran the
@@ -418,10 +418,20 @@ had done the same.
 So the instrument is disclosure. Every Council-facing research roll-up carries,
 in its provenance drawer, a **source-composition** statement:
 
-> **N of M** staff have Google Scholar data on record.
-> Counted out of *staff on this roster with at least one publication on file,
-> from any source*.
-> This figure includes / excludes Google Scholar records.
+> Google Scholar: **N of M** staff, **P of Q** papers.
+> Staff counted out of *staff on this roster with at least one publication on
+> file, from any source*.
+> This figure includes Google Scholar records / excludes Google Scholar rows.
+
+Both ratios are shown because they routinely disagree: one prolific importer
+in a large roster is a small staff ratio and a large paper ratio, and it is
+the paper ratio that says how much the figure moved.
+
+`source` is nullable on `research_outputs` and the code treats a null as
+library — the Scholar runner always stamps its own. **No row is actually null
+today** (measured 2026-09-08: 64,294 + 57,444 + 44,730 across three sources,
+zero null); the branch exists because the column permits it, not because a
+legacy population is known to be there.
 
 ### The denominator, fixed
 
@@ -456,16 +466,88 @@ connector run, and inventing one would falsify provenance. So every roll-up
 that filters through `realDataWhere()` / `realDataSql()` excludes Scholar rows
 outright:
 
+Enumerate CONSUMERS of the figure, not analysis modules. `programFaculty().
+totalPublications` is one computation with four renderings, three of which
+leave the building.
+
 | Surface | Filter | Contains Scholar rows |
 |---|---|---|
 | `publications_per_faculty` (this metric, program + rollup scopes) | `realDataWhere()` | **No** |
-| Research expertise (`program-research-expertise.v1`) | `realDataWhere()` | **No** |
+| Research expertise (`program-research-expertise.v1`) | `realDataWhere()` | **No** — but see §"Excluding the rows does not exclude the effect" |
 | Research-expertise readiness / distinct paper count | `realDataSql('ro')` | **No** |
 | AI research presence (deep-dive) | `realDataWhere()` | **No** |
-| Curriculum revision advice | derived from research expertise | **No** |
-| Deep-dive **Publications** total (faculty capability card) | none | **Yes** |
+| Curriculum revision advice | derived from research expertise | **No** — same footnote as research expertise |
+| Deep-dive **Publications** card (`programFaculty().totalPublications`) | none | **Yes** |
+| Print view, faculty-capability tile (`programs/[id]/print`) | none — same figure | **Yes** |
+| **AUN-QA evidence pack**, "Publications on record" (`aunqa-evidence.ts` → `teaching-learning/[programId]`) | none — same figure | **Yes** |
+| Gotenberg `program-detail` PDF, faculty KPI (`program-detail-data.ts` builds `faculty.kpis`) | none — same figure | **Yes, in the payload — but see below** |
 | Gap-analysis staff-research lens (`gap-lenses.ts`) | none | **Yes** |
 | Benchmarking `researchOutputGap` | hard-coded `null` | n/a |
+
+The print view and the AUN-QA pack are the two that matter most, and they were
+the easiest to miss because they are read **away from any screen that could
+explain them**. An assessor reads "Publications on record" in an accreditation
+pack as an audited figure. Neither has a provenance drawer to open, so each
+prints the disclosure sentence itself — `scholarDisclosureLine()` in
+`@kku/shared/scholar/disclosure`, the same wording the drawer shows, returning
+`null` when there is genuinely nothing to disclose so the ordinary case stays
+quiet.
+
+> **The Gotenberg row is a payload, not a rendering.**
+> `program-detail-data.ts` builds `faculty.kpis`, but
+> `packages/pdf-templates/.../sections/faculty.tsx` never reads it — that
+> section renders only `rankDistribution` and the three senior-rank
+> aggregates. Verified 2026-09-08: `.kpis` has **zero** references anywhere in
+> `packages/pdf-templates/src`. So the unfiltered publications figure does not
+> currently reach the PDF at all, and there is no exposure there today. The
+> disclosure was wired into the payload anyway, because the alternative is a
+> figure that becomes wrong the day somebody renders it. The same pass
+> corrected its label from "Publications (3 yr)" to "Publications (all
+> years)" — `totalPublications` sums every row on the roster; the 3-year
+> window belongs to the `publications_per_faculty` health driver, which is a
+> different number computed elsewhere.
+
+What the `program-detail` PDF **does** render, and what is therefore wired
+there, is the citation-weighted pair: the **Research expertise** and
+**Curriculum revision** sections both carry a `caveats` list, and both now
+receive the citation-effect sentence described below.
+
+### Excluding the rows does not exclude the effect
+
+A surface that filters Scholar-sourced rows out is **not** insulated from a
+Scholar import, and a drawer that says only "excludes Google Scholar" is
+row-accurate and reader-wrong.
+
+`applyMergePlan` (`packages/db/src/scholar-fetch.ts`) does two things. It
+inserts papers the library does not have — those are the `google-scholar`
+rows, and the filters do exclude them. It also **raises the citation count on
+existing library rows it matched**, stamping `scholar_paper_id` and leaving
+`source` and `ingestion_run_id` alone. Those rows keep passing
+`realDataWhere()`.
+
+`program-research-expertise.scoreOf()` is citation-weighted:
+`recency × log2(citations + 2) × quartileBoost`. So:
+
+> A professor imports her profile. Her most-cited paper goes from a Scopus 40
+> to a Scholar 210 — `log2(42) = 5.39` becomes `log2(212) = 7.73`, a 43% score
+> increase on that paper. It displaces another group's paper out of
+> `topPapers`, and the AI theme narrative shifts. All of this happens on the
+> surface whose provenance drawer says Scholar is excluded.
+
+The disclosure therefore has two shapes, chosen at the call site because only
+the call site knows whether its figure is citation-weighted
+(`ScholarFigureKind` in `@kku/shared/scholar/disclosure`):
+
+- `counts-scholar-rows` — the figure counts Scholar rows; the caveat states
+  the upward distortion.
+- `excludes-rows-citation-weighted` — the figure excludes Scholar rows and
+  weights papers by citations; the caveat says the exclusion is of rows, not
+  of the effect, and quantifies it from
+  `libraryPapersTouchedByScholar` (library rows carrying a `scholar_paper_id`).
+
+That count is part of the composition precisely so this is a measurement
+rather than a warning about something hypothetical. It is 0 across the whole
+database today.
 
 This split is **not** a designed feature; it is what the code does today, and it
 is recorded here rather than quietly repaired because changing either half

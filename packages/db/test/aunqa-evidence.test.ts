@@ -103,6 +103,17 @@ function emptyEverything(): void {
     ranks: {},
     retiringWithin5Years: 0,
     totalPublications: 0,
+    // `programFaculty` returns this on every call; the staff-research
+  // resolver reads it to decide whether a Google Scholar disclosure has to
+  // ride along with the figure. Zeros = nothing to disclose.
+  researchSourceComposition: {
+    staffOnScholar: 0,
+    staffWithResearch: 0,
+    papersFromScholar: 0,
+    papersTotal: 0,
+    libraryPapersTouchedByScholar: 0,
+    denominator: 'staff on this roster with at least one publication on file, from any source',
+  },
     rosterScope: 'faculty',
   });
   mocks.programStudentCohorts.mockResolvedValue({
@@ -213,6 +224,17 @@ function fullEverything(): void {
     ranks: { PROF: 3, ASSOC_PROF: 9, ASST_PROF: 10, LECTURER: 8 },
     retiringWithin5Years: 4,
     totalPublications: 210,
+    // `programFaculty` returns this on every call; the staff-research
+  // resolver reads it to decide whether a Google Scholar disclosure has to
+  // ride along with the figure. Zeros = nothing to disclose.
+  researchSourceComposition: {
+    staffOnScholar: 0,
+    staffWithResearch: 30,
+    papersFromScholar: 0,
+    papersTotal: 210,
+    libraryPapersTouchedByScholar: 0,
+    denominator: 'staff on this roster with at least one publication on file, from any source',
+  },
     rosterScope: 'department',
   });
   mocks.programStudentCohorts.mockResolvedValue({
@@ -338,12 +360,79 @@ describe('resolveEvidenceForProgram — a binding with data', () => {
     expect(row?.caveat).toBeNull();
   });
 
+  // "Publications on record" in an accreditation pack is read as an audited
+  // figure, and it is the UNFILTERED count — it includes rows a staff member
+  // imported from Google Scholar last week. The pack is read away from any
+  // screen that could explain that, so the disclosure has to be in the caveat
+  // line the module already prints beside every figure.
+  it('discloses Google Scholar in the caveat once there is something to disclose', async () => {
+    mocks.programFaculty.mockResolvedValue({
+      totalActive: 40,
+      ranks: { LECTURER: 40 },
+      retiringWithin5Years: 0,
+      totalPublications: 900,
+      researchSourceComposition: {
+        staffOnScholar: 3,
+        staffWithResearch: 41,
+        papersFromScholar: 180,
+        papersTotal: 900,
+        libraryPapersTouchedByScholar: 0,
+        denominator: 'staff on this roster with at least one publication on file, from any source',
+      },
+      rosterScope: 'program',
+    });
+    const [row] = await resolveEvidenceForProgram('p-1', [
+      { kind: 'staff-metric', field: 'research' },
+    ]);
+    expect(row?.available).toBe(true);
+    expect(row?.caveat).toContain('Google Scholar');
+    expect(row?.caveat).toContain('3 of 41 staff · 180 of 900 papers');
+    expect(row?.caveat).toContain('not corrected for');
+  });
+
+  // A programme-scoped roster contributes no roster caveat, so the Scholar
+  // line is the whole string. A department- or faculty-scoped one contributes
+  // both, and neither may swallow the other — `caveat` is a single string.
+  it('keeps the roster-scope caveat when a Scholar disclosure joins it', async () => {
+    mocks.programFaculty.mockResolvedValue({
+      totalActive: 40,
+      ranks: { LECTURER: 40 },
+      retiringWithin5Years: 0,
+      totalPublications: 900,
+      researchSourceComposition: {
+        staffOnScholar: 3,
+        staffWithResearch: 41,
+        papersFromScholar: 180,
+        papersTotal: 900,
+        libraryPapersTouchedByScholar: 0,
+        denominator: 'staff on this roster with at least one publication on file, from any source',
+      },
+      rosterScope: 'faculty',
+    });
+    const [row] = await resolveEvidenceForProgram('p-1', [
+      { kind: 'staff-metric', field: 'research' },
+    ]);
+    expect(row?.caveat).toContain('Roster is the whole faculty');
+    expect(row?.caveat).toContain('Google Scholar');
+  });
+
   it('treats a measured zero as evidence — a known roster with no publications', async () => {
     mocks.programFaculty.mockResolvedValue({
       totalActive: 12,
       ranks: { LECTURER: 12 },
       retiringWithin5Years: 0,
       totalPublications: 0,
+    // `programFaculty` returns this on every call; the staff-research
+      // resolver reads it to decide whether a Google Scholar disclosure has to
+      // ride along with the figure. Zeros = nothing to disclose.
+      researchSourceComposition: {
+        staffOnScholar: 0,
+        staffWithResearch: 0,
+        papersFromScholar: 0,
+        papersTotal: 0,
+        libraryPapersTouchedByScholar: 0,
+        denominator: 'staff on this roster with at least one publication on file, from any source',
+      },
       rosterScope: 'program',
     });
     const [row] = await resolveEvidenceForProgram('p-1', [

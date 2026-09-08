@@ -21,6 +21,7 @@ describe('summariseResearchSources', () => {
         { facultyMemberId: 'b', source: LIBRARY, count: 3 },
       ],
       ['a', 'b', 'c'],
+      0,
     );
     expect(out.staffOnScholar).toBe(0);
     expect(out.staffWithResearch).toBe(2);
@@ -30,18 +31,19 @@ describe('summariseResearchSources', () => {
   });
 
   it('reports zeros when there is no publication record at all', () => {
-    const out = summariseResearchSources([], ['a', 'b']);
+    const out = summariseResearchSources([], ['a', 'b'], 0);
     expect(out).toEqual({
       staffOnScholar: 0,
       staffWithResearch: 0,
       papersFromScholar: 0,
       papersTotal: 0,
+      libraryPapersTouchedByScholar: 0,
       denominator: RESEARCH_COMPOSITION_DENOMINATOR,
     });
   });
 
   it('handles an empty roster', () => {
-    const out = summariseResearchSources([], []);
+    const out = summariseResearchSources([], [], 0);
     expect(out.staffWithResearch).toBe(0);
     expect(out.papersTotal).toBe(0);
   });
@@ -53,7 +55,7 @@ describe('summariseResearchSources', () => {
       { facultyMemberId: 'b', source: SCHOLAR, count: 4 },
       { facultyMemberId: 'c', source: LIBRARY, count: 1 },
     ];
-    const out = summariseResearchSources(rows, ['a', 'b', 'c']);
+    const out = summariseResearchSources(rows, ['a', 'b', 'c'], 0);
     // 2 of 3, not 2 of 4 — `a` is one person with two writers.
     expect(out.staffOnScholar).toBe(2);
     expect(out.staffWithResearch).toBe(3);
@@ -69,6 +71,7 @@ describe('summariseResearchSources', () => {
     const out = summariseResearchSources(
       [{ facultyMemberId: 'a', source: null, count: 9 }],
       ['a'],
+      0,
     );
     expect(out.staffOnScholar).toBe(0);
     expect(out.papersFromScholar).toBe(0);
@@ -84,6 +87,7 @@ describe('summariseResearchSources', () => {
         { facultyMemberId: null, source: LIBRARY, count: 900 },
       ],
       ['a'],
+      0,
     );
     expect(out.staffOnScholar).toBe(1);
     expect(out.staffWithResearch).toBe(1);
@@ -95,6 +99,7 @@ describe('summariseResearchSources', () => {
     const out = summariseResearchSources(
       [{ facultyMemberId: 'a', source: LIBRARY, count: 0 }],
       ['a'],
+      0,
     );
     expect(out.staffWithResearch).toBe(0);
   });
@@ -106,9 +111,30 @@ describe('summariseResearchSources', () => {
         { facultyMemberId: 'b', source: SCHOLAR, count: 3 },
       ],
       ['a', 'b'],
+      0,
     );
     expect(out.staffOnScholar).toBe(2);
     expect(out.staffWithResearch).toBe(2);
     expect(out.papersFromScholar).toBe(out.papersTotal);
+  });
+});
+
+// The count that makes "excludes Google Scholar rows" incomplete. It is
+// passed through rather than derived, so the only thing worth asserting is
+// that it survives — and that it is independent of whether any Scholar-SOURCED
+// row exists, which is the whole point: a roster with zero Scholar rows can
+// still have had its citation counts moved by an import.
+describe('summariseResearchSources — citation-effect passthrough', () => {
+  it('carries the touched-library-paper count', () => {
+    const out = summariseResearchSources(
+      [{ facultyMemberId: 'a', source: LIBRARY, count: 40 }],
+      ['a'],
+      7,
+    );
+    expect(out.libraryPapersTouchedByScholar).toBe(7);
+    // No Scholar-sourced row anywhere, yet the import has still reached this
+    // roster. A surface reporting only `staffOnScholar` would say "none".
+    expect(out.staffOnScholar).toBe(0);
+    expect(out.papersFromScholar).toBe(0);
   });
 });

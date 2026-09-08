@@ -41,7 +41,7 @@
  * evidences the other. Neither reads any graduation column.
  */
 
-import type { EvidenceBinding } from '@kku/shared';
+import { scholarDisclosureLine, type EvidenceBinding } from '@kku/shared';
 import { prisma } from './index';
 import {
   programCourses,
@@ -261,6 +261,15 @@ function rosterCaveat(scope: 'program' | 'department' | 'faculty'): string | nul
   if (scope === 'program') return null;
   if (scope === 'department') return 'Roster is the whole department — no programme-specific staff list exists.';
   return 'Roster is the whole faculty — no programme- or department-specific staff list exists.';
+}
+
+/** One caveat line out of several, dropping the ones that do not apply.
+ *  `ResolvedEvidence.caveat` is a single nullable string rendered beside the
+ *  figure, so a figure qualified by two things needs them joined here rather
+ *  than one of them silently winning. */
+function joinCaveats(parts: readonly (string | null)[]): string | null {
+  const kept = parts.filter((p): p is string => p !== null && p.length > 0);
+  return kept.length === 0 ? null : kept.join(' ');
 }
 
 /** The join every evaluation figure passes through, stated once. */
@@ -720,6 +729,19 @@ async function resolveStaffRankMix(programId: string): Promise<ResolverOutput> {
   return { available: true, value, sourceLabel, freshness: null, caveat: rosterCaveat(roster.rosterScope) };
 }
 
+/**
+ * Publications on the staff roster.
+ *
+ * THE CAVEAT IS LOAD-BEARING ON THIS SURFACE. `roster.totalPublications` is
+ * UNFILTERED — it is one of only three renderings of the one research figure
+ * that counts on-demand Google Scholar imports (the others being the web
+ * deep-dive card and the Gotenberg `program-detail` PDF). An assessor reads
+ * "Publications on record" in an accreditation pack as an audited figure, and
+ * a pack is read away from any screen that could explain it, so the
+ * disclosure has to be in the caveat line the module already renders beside
+ * every figure. `scholarDisclosureLine` returns null when there is nothing to
+ * disclose, which keeps the pack quiet in the ordinary case.
+ */
 async function resolveStaffResearch(programId: string): Promise<ResolverOutput> {
   const sourceLabel = 'Publications of the staff roster (research_outputs)';
   const roster = await programFaculty(programId, 'aggregates-only');
@@ -732,7 +754,16 @@ async function resolveStaffResearch(programId: string): Promise<ResolverOutput> 
     publicationsPerStaff: roster.totalPublications / roster.totalActive,
     rosterScope: roster.rosterScope,
   };
-  return { available: true, value, sourceLabel, freshness: null, caveat: rosterCaveat(roster.rosterScope) };
+  return {
+    available: true,
+    value,
+    sourceLabel,
+    freshness: null,
+    caveat: joinCaveats([
+      rosterCaveat(roster.rosterScope),
+      scholarDisclosureLine(roster.researchSourceComposition, 'counts-scholar-rows'),
+    ]),
+  };
 }
 
 /**

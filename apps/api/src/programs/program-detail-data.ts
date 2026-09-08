@@ -6,7 +6,7 @@
 // Kept separate from the controller so the transform logic is unit-
 // testable in isolation.
 
-import { DQ_MODULES, DQ_PASS_MARK } from '@kku/shared';
+import { DQ_MODULES, DQ_PASS_MARK, scholarDisclosureLine } from '@kku/shared';
 import {
   DQ_MIN_CELL_STUDENTS,
   curriculumRevisionReadiness,
@@ -919,9 +919,27 @@ export async function buildProgramDetailData(
               notes: 'active staff members',
             },
             {
-              metric: 'Publications (3 yr)',
+              // NOT a 3-year window — `totalPublications` sums every
+              // ResearchOutput row on the roster, all years. The old
+              // "(3 yr)" label described the health-score driver, which is a
+              // different number computed elsewhere. A wrongly-labelled
+              // figure in a Council PDF is worse than an unlabelled one.
+              metric: 'Publications (all years)',
               value: fmtNum(faculty.totalPublications),
-              notes: 'across teaching staff',
+              notes: [
+                'across teaching staff',
+                // This is the one UNFILTERED research figure in the pack: it
+                // counts on-demand Google Scholar imports. The PDF is the
+                // artefact that reaches Council, and it has no provenance
+                // drawer to open, so the disclosure travels in the cell.
+                // `null` when there is nothing to disclose.
+                scholarDisclosureLine(
+                  faculty.researchSourceComposition,
+                  'counts-scholar-rows',
+                ),
+              ]
+                .filter((n): n is string => n !== null)
+                .join(' '),
             },
             {
               metric: 'Average age',
@@ -1141,7 +1159,21 @@ export async function buildProgramDetailData(
             themeRefs: r.themeRefs,
           })),
         },
-        caveats: researchExpertiseResult.payload.caveats,
+        // The AI's own caveats, plus the one it cannot know about: this
+        // analysis is citation-weighted, and a Google Scholar import raises
+        // citation counts on existing LIBRARY rows — which keep their
+        // ingestion-run provenance and so survive the `realDataWhere()` filter
+        // that excludes Scholar-sourced rows. Excluding the rows does not
+        // exclude the effect. `null` when no import has touched this roster.
+        caveats: [
+          ...researchExpertiseResult.payload.caveats,
+          faculty
+            ? scholarDisclosureLine(
+                faculty.researchSourceComposition,
+                'excludes-rows-citation-weighted',
+              )
+            : null,
+        ].filter((c): c is string => c !== null),
       }
     : null;
 
@@ -1262,7 +1294,17 @@ export async function buildProgramDetailData(
             proposedCategory: c.proposedCategory,
             rationale: c.rationale,
           })),
-          caveats: curriculumRevisionResult.payload.caveats,
+          // Derived from the research-expertise analysis above, so it inherits
+          // the same citation-weighting exposure to a Scholar import.
+          caveats: [
+            ...curriculumRevisionResult.payload.caveats,
+            faculty
+              ? scholarDisclosureLine(
+                  faculty.researchSourceComposition,
+                  'excludes-rows-citation-weighted',
+                )
+              : null,
+          ].filter((c): c is string => c !== null),
         }
       : curriculumRevisionReadinessResult
         ? {

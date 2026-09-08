@@ -6,3 +6,4 @@ export * from './profile-identity';
 export * from './html-text';
 export * from './scrapingbee';
 export * from './credits';
+export * from './disclosure';

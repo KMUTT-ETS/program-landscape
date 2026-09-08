@@ -31,6 +31,14 @@ import {
 } from '@/lib/actions/program-deep-dive';
 import { SectionBand, SectionRail, SpineItem, type RailItem } from '@/components/evidence';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
+// Client-safe SUBPATH, not the `@kku/shared` root barrel — see the note above
+// `scholarProvenance()`. The barrel reaches `node:crypto` and breaks the
+// browser bundle; this module is pure strings and arithmetic.
+import {
+  scholarCaveat,
+  SCHOLAR_SOURCE_LABEL,
+  type ScholarFigureKind,
+} from '@kku/shared/scholar/disclosure';
 // Shared with /education/student-dq so both DQ radars mean the same
 // thing by a floor of 60 — see the helper for why it is not 0.
 import { dqRadarDomain } from '@/lib/dq-radar-domain';
@@ -3269,26 +3277,31 @@ function CoursesSection({
 // mirroring Scopus + PubMed) imports on a schedule for everyone; the Google
 // Scholar runner imports ON DEMAND, for one person, when they press a button.
 // So a research figure over a roster can move without the underlying research
-// changing — Council-readiness rule 1 says the drawer must state the mix, and
-// this builds that statement.
+// changing — Council-readiness rule 1 says the drawer must state the mix.
 //
-// `countedInFigure` is the half that stops it misleading. Only the Publications
-// total below is unfiltered; the research-expertise and curriculum-revision
-// analyses go through `realDataWhere()`, which requires ingestion-run
-// provenance that the on-demand import does not stamp, so they exclude Scholar
-// rows outright. See `docs/methodologies/health-score.md`
-// §"Mixed-source research data".
-const SCHOLAR_MIXED_SOURCE_CAVEAT =
-  'Google Scholar counts run higher than the curated library mirror — it indexes preprints, theses and non-indexed venues that Scopus and PubMed do not. Staff who import their own profile therefore appear more productive than colleagues who have not. This is not corrected for.';
-
+// The WORDING lives in `@kku/shared/scholar/disclosure`, not here. It is the
+// same sentence the print view, the Gotenberg `program-detail` PDF and the
+// AUN-QA evidence pack print, and those are the copies that reach Council;
+// four hand-written variants would be four caveats that drift. That module is
+// a published client-safe subpath (pure strings, no `node:*`) — importing the
+// `@kku/shared` root barrel from this file would pull `node:crypto` into the
+// browser bundle and break the build.
+//
+// `kind` is passed per call site because only the call site knows whether its
+// figure is citation-weighted. `countedInFigure: false` does NOT mean Scholar
+// has no effect: an import also raises citations on existing LIBRARY rows,
+// which keep their ingestion-run provenance and so still reach the
+// research-expertise analysis that filters Scholar rows out.
 function scholarProvenance(
   composition: DeepDiveFaculty['researchSourceComposition'] | null,
-  countedInFigure: boolean,
+  kind: ScholarFigureKind,
 ): {
   sourceComposition?: {
     label: string;
-    covered: number;
-    total: number;
+    staffCovered: number;
+    staffTotal: number;
+    papersCovered: number;
+    papersTotal: number;
     denominator: string;
     countedInFigure: boolean;
   };
@@ -3297,13 +3310,15 @@ function scholarProvenance(
   if (!composition) return {};
   return {
     sourceComposition: {
-      label: 'Google Scholar',
-      covered: composition.staffOnScholar,
-      total: composition.staffWithResearch,
+      label: SCHOLAR_SOURCE_LABEL,
+      staffCovered: composition.staffOnScholar,
+      staffTotal: composition.staffWithResearch,
+      papersCovered: composition.papersFromScholar,
+      papersTotal: composition.papersTotal,
       denominator: composition.denominator,
-      countedInFigure,
+      countedInFigure: kind === 'counts-scholar-rows',
     },
-    caveats: [SCHOLAR_MIXED_SOURCE_CAVEAT],
+    caveats: [scholarCaveat(composition, kind)],
   };
 }
 
@@ -3348,7 +3363,7 @@ function FacultySection({ data }: { data: DeepDiveFaculty | null }) {
                   { id: 'kku-research', name: 'KKU Publications mirror (Scopus + PubMed)' },
                   { id: 'google-scholar', name: 'Google Scholar, imported on demand by staff' },
                 ],
-                ...scholarProvenance(data.researchSourceComposition, true),
+                ...scholarProvenance(data.researchSourceComposition, 'counts-scholar-rows'),
               }}
             />
           </div>
@@ -3460,7 +3475,7 @@ function ResearchExpertiseSection({
               ],
               confidence: payload.confidence,
               methodologyVersion: result.methodVersion,
-              ...scholarProvenance(composition, false),
+              ...scholarProvenance(composition, 'excludes-rows-citation-weighted'),
             }}
           />
         </div>
@@ -3636,7 +3651,7 @@ function CurriculumRevisionSection({
               ],
               confidence: payload.confidence,
               methodologyVersion: methodVersion,
-              ...scholarProvenance(composition, false),
+              ...scholarProvenance(composition, 'excludes-rows-citation-weighted'),
             }}
           />
         </div>

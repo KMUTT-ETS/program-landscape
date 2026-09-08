@@ -39,13 +39,21 @@ export type ApiMetaSource = z.infer<typeof ApiMetaSourceSchema>;
 export const ApiMetaSourceCompositionSchema = z.object({
   /** The non-default writer being disclosed, e.g. "Google Scholar". */
   label: z.string(),
-  /** N — members of the denominator set carrying data from `label`. */
-  covered: z.number().int().min(0),
-  /** M — the size of the denominator set. */
-  total: z.number().int().min(0),
-  /** What M counts. Rendered verbatim. */
+  /** Staff in the denominator set carrying data from `label`. */
+  staffCovered: z.number().int().min(0),
+  /** Size of the staff denominator set. */
+  staffTotal: z.number().int().min(0),
+  /** Rows attributed to `label`. The more informative half of the ratio: a
+   *  roster can be 3-of-41 on staff and 400-of-900 on papers, or the reverse,
+   *  and the two say different things about how much the figure moved. */
+  papersCovered: z.number().int().min(0),
+  /** Rows from every writer. */
+  papersTotal: z.number().int().min(0),
+  /** What the staff denominator counts. Rendered verbatim — never
+   *  paraphrased, and never inferred by the renderer. */
   denominator: z.string(),
-  /** Whether the annotated figure actually counts `label`'s rows. */
+  /** Whether the annotated figure actually counts `label`'s rows. FALSE does
+   *  NOT mean `label` has no effect on the figure — see `caveats`. */
   countedInFigure: z.boolean(),
 });
 export type ApiMetaSourceComposition = z.infer<typeof ApiMetaSourceCompositionSchema>;

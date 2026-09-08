@@ -27,6 +27,7 @@
 // `RESEARCH_COMPOSITION_DENOMINATOR` travels with the numbers and is rendered
 // verbatim.
 
+import type { ScholarComposition } from '@kku/shared';
 import { prisma } from './index';
 import { SCHOLAR_RESEARCH_OUTPUT_SOURCE } from './scholar-fetch';
 
@@ -37,19 +38,12 @@ export const RESEARCH_COMPOSITION_DENOMINATOR =
 /** Human label for the on-demand writer, used in drawer copy. */
 export const SCHOLAR_SOURCE_LABEL = 'Google Scholar';
 
-export interface ResearchSourceComposition {
-  /** N — staff in the set with at least one Google Scholar-sourced row. */
-  staffOnScholar: number;
-  /** M — staff in the set with at least one row from any source. */
-  staffWithResearch: number;
-  /** Papers on the set attributed to the Scholar writer. */
-  papersFromScholar: number;
-  /** Papers on the set from every writer, Scholar included. */
-  papersTotal: number;
-  /** What M counts. Carried with the numbers so the drawer never has to
-   *  reconstruct it and the two can never drift apart. */
-  denominator: string;
-}
+/**
+ * Structurally the shared `ScholarComposition` — declared there, not here, so
+ * the figure and the words printed beside it are typed by one shape. Aliased
+ * rather than re-declared for exactly that reason.
+ */
+export type ResearchSourceComposition = ScholarComposition;
 
 /** One `groupBy` row: papers per (staff member × source). */
 export interface ResearchSourceGroupRow {
@@ -63,9 +57,12 @@ export interface ResearchSourceGroupRow {
  *
  * Pure — the DB round trip is `loadResearchSourceComposition` below.
  *
- * `source` is nullable on `ResearchOutput` (rows predating provenance
- * tracking) and a null source is NOT Scholar: the runner always stamps its
- * own. Same rule as `scholar-console.ts`, deliberately.
+ * `source` is nullable on `ResearchOutput`, and a null source is NOT Scholar:
+ * the runner always stamps its own. Same rule as `scholar-console.ts`,
+ * deliberately. No row in the database is actually null today (measured
+ * 2026-09-08: 64,294 `kku-publications:scopus` + 57,444 `openalex` + 44,730
+ * `kku-publications:pubmed`, zero null) — the branch is here because the
+ * column permits it, not because a legacy population is known to exist.
  *
  * Rows for a `facultyMemberId` outside `memberIds`, or with a null one, are
  * ignored — the caller owns the set, and an unattributed paper cannot be said
@@ -74,6 +71,14 @@ export interface ResearchSourceGroupRow {
 export function summariseResearchSources(
   rows: readonly ResearchSourceGroupRow[],
   memberIds: readonly string[],
+  /**
+   * Library rows a Scholar import has raised the citations of. Passed in
+   * rather than derived, because it cannot come out of the same `groupBy`:
+   * it is keyed on `scholarPaperId IS NOT NULL`, which is per-row and would
+   * make the grouping unbounded. `loadResearchSourceComposition` counts it
+   * separately and hands it here so the whole composition stays one value.
+   */
+  libraryPapersTouchedByScholar: number,
 ): ResearchSourceComposition {
   const inSet = new Set(memberIds);
   const scholarStaff = new Set<string>();
@@ -98,6 +103,7 @@ export function summariseResearchSources(
     staffWithResearch: anyStaff.size,
     papersFromScholar,
     papersTotal,
+    libraryPapersTouchedByScholar,
     denominator: RESEARCH_COMPOSITION_DENOMINATOR,
   };
 }
@@ -115,12 +121,27 @@ export function summariseResearchSources(
 export async function loadResearchSourceComposition(
   memberIds: readonly string[],
 ): Promise<ResearchSourceComposition> {
-  if (memberIds.length === 0) return summariseResearchSources([], []);
-  const grouped = await prisma.researchOutput.groupBy({
-    by: ['facultyMemberId', 'source'],
-    where: { facultyMemberId: { in: [...memberIds] } },
-    _count: { _all: true },
-  });
+  if (memberIds.length === 0) return summariseResearchSources([], [], 0);
+  const ids = [...memberIds];
+  const [grouped, touched] = await Promise.all([
+    prisma.researchOutput.groupBy({
+      by: ['facultyMemberId', 'source'],
+      where: { facultyMemberId: { in: ids } },
+      _count: { _all: true },
+    }),
+    // A LIBRARY row carrying a Scholar paper id is one the merge matched and
+    // raised the citations of. Its `source` and `ingestion_run_id` are
+    // untouched, so it still passes `realDataWhere()` — this is the count that
+    // makes "excludes Scholar rows" an incomplete statement on any
+    // citation-weighted analysis.
+    prisma.researchOutput.count({
+      where: {
+        facultyMemberId: { in: ids },
+        scholarPaperId: { not: null },
+        NOT: { source: SCHOLAR_RESEARCH_OUTPUT_SOURCE },
+      },
+    }),
+  ]);
   return summariseResearchSources(
     grouped.map((g) => ({
       facultyMemberId: g.facultyMemberId,
@@ -128,5 +149,6 @@ export async function loadResearchSourceComposition(
       count: g._count._all,
     })),
     memberIds,
+    touched,
   );
 }

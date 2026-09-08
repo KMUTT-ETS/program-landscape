@@ -4,11 +4,12 @@
   "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "//exports": "The root barrel re-exports subpaths that reach node:crypto / aws-sdk, so a `'use client'` React component cannot import runtime values from it. `./pipeline/program-phases` and `./scholar/parse` are published as explicitly client-safe subpaths (pure functions + types, no node:* and no SDK imports) — the first for the two admin pipeline pickers, the second so the profile page validates a pasted Scholar URL with the SAME parser the API rejects it with, rather than a second copy that drifts. Only bundler-style resolvers (apps/web, esbuild) read this map — apps/api, apps/ingestion and packages/db use moduleResolution 'node' and still resolve via `main`.",
+  "//exports": "The root barrel re-exports subpaths that reach node:crypto / aws-sdk, so a `'use client'` React component cannot import runtime values from it. `./pipeline/program-phases`, `./scholar/parse` and `./scholar/disclosure` are published as explicitly client-safe subpaths (pure functions + types, no node:* and no SDK imports) — the first for the two admin pipeline pickers, the second so the profile page validates a pasted Scholar URL with the SAME parser the API rejects it with, the third so the deep-dive drawer, the print view, the Gotenberg PDF and the AUN-QA evidence pack all state the Google Scholar caveat in the same words, rather than second copies that drift. Only bundler-style resolvers (apps/web, esbuild) read this map — apps/api, apps/ingestion and packages/db use moduleResolution 'node' and still resolve via `main`.",
   "exports": {
     ".": "./src/index.ts",
     "./pipeline/program-phases": "./src/pipeline/program-phases.ts",
     "./scholar/parse": "./src/scholar/parse.ts",
+    "./scholar/disclosure": "./src/scholar/disclosure.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

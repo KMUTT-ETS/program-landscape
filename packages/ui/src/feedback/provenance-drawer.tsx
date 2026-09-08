@@ -41,11 +41,43 @@ function formatFreshness(iso: string | null | undefined): string {
 // The numbers are separated from the words STRUCTURALLY, not by a flex gap:
 // "3" and "of 41 staff" set adjacent in a tabular face read as one token, and
 // the reader who most needs this line is the one skimming it.
+//
+// Both ratios are shown. Staff coverage says how many people acted; paper
+// coverage says how much of the figure moved, and they routinely disagree —
+// one prolific importer in a large roster is a small staff ratio and a large
+// paper ratio.
+//
+// The `countedInFigure: false` wording says ROWS, deliberately. Excluding a
+// writer's rows is not the same as excluding its effect, and on this codebase
+// it genuinely is not: a Scholar import also raises citation counts on
+// existing library rows, which keep their ingestion-run provenance and so
+// still reach analyses that filter Scholar out. That is what `caveats` is for
+// and why this line does not claim more than it can.
+function CompositionRatio({
+  covered,
+  total,
+  unit,
+}: {
+  covered: number;
+  total: number;
+  unit: string;
+}) {
+  return (
+    <span>
+      <span className="font-tabular">{covered.toLocaleString('en-US')}</span>
+      <span> of </span>
+      <span className="font-tabular">{total.toLocaleString('en-US')}</span>
+      <span> {unit}</span>
+    </span>
+  );
+}
+
 function SourceComposition({ value }: { value: ApiMetaSourceComposition }) {
-  const { label, covered, total, denominator, countedInFigure } = value;
+  const { label, staffCovered, staffTotal, papersCovered, papersTotal, denominator, countedInFigure } =
+    value;
   return (
     <div className="flex flex-col gap-2 rounded-md border border-subtle bg-surface-2 px-3 py-2">
-      {total === 0 ? (
+      {staffTotal === 0 ? (
         <p className="text-text-primary">
           No publication record on file for this group, so there is no source
           mix to report.
@@ -53,20 +85,19 @@ function SourceComposition({ value }: { value: ApiMetaSourceComposition }) {
       ) : (
         <>
           <p className="text-text-primary">
-            <span className="font-tabular">{covered}</span>
-            <span> of </span>
-            <span className="font-tabular">{total}</span>
-            <span>{total === 1 ? ' staff member has ' : ' staff have '}</span>
-            <span>{label}</span>
-            <span> data on record.</span>
+            <span>{label}: </span>
+            <CompositionRatio covered={staffCovered} total={staffTotal} unit="staff" />
+            <span>, </span>
+            <CompositionRatio covered={papersCovered} total={papersTotal} unit="papers" />
+            <span>.</span>
           </p>
-          <p className="text-xs text-text-tertiary">Counted out of {denominator}.</p>
+          <p className="text-xs text-text-tertiary">Staff counted out of {denominator}.</p>
         </>
       )}
       <p className="text-xs text-text-tertiary">
         {countedInFigure
           ? `This figure includes ${label} records, so it moves when someone imports their own profile.`
-          : `This figure excludes ${label} records — it requires ingestion-run provenance, which the on-demand import does not carry.`}
+          : `This figure excludes ${label} rows — they carry no ingestion-run provenance, which this analysis requires.`}
       </p>
     </div>
   );

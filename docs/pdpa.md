@@ -94,12 +94,26 @@ nulling them. This is also the better answer on its own terms: an operator
 reading the row can tell "nobody typed anything" apart from "we no longer keep
 what they typed".
 
-> **Corrected 2026-09-08.** The AiInference rule previously wrote `null` into
-> those two `NOT NULL` columns. `updateMany` rejected it and the dry-run report
-> threw on the matching `{ not: null }` predicate, so **the payload redaction
-> had never actually run**. Anyone auditing pre-2026-09-08 behaviour should
-> assume AI prompt and response text is still present regardless of age, and
-> that the first real sweep after this fix will redact a backlog.
+> **Corrected 2026-09-08. No exposure occurred, and none was possible for
+> another 20 months.**
+>
+> The AiInference rule previously wrote `null` into two `NOT NULL` columns.
+> Prisma rejected it (`Argument \`prompt\` must not be null.`) and the dry-run
+> report threw on the matching `{ not: null }` predicate, so **the payload
+> redaction had never actually run**.
+>
+> It also had nothing to do. Measured against the live database on 2026-09-08:
+> `ai_inferences` holds 11,841 rows, **0** of them past the 730-day payload
+> window, oldest `2026-05-01` — so no row can breach the payload policy before
+> **2028-05-01**. `audit_logs` holds 2,837 rows, **0** past the 2,555-day
+> window, oldest `2026-04-30`. The dev database is a restore of production's
+> `pre-deploy-1.9.1` dump, so that is production's profile too.
+>
+> The honest summary for an audit: a rule that could not execute was found
+> roughly 20 months before the first row would have aged into it, and fixed.
+> **There is no backlog and no remediation event to look for.** The first
+> sweep after this fix will redact zero rows; the first that redacts anything
+> falls after 2028-05-01.
 
 ### Google Scholar on-demand fetch
 
@@ -115,9 +129,22 @@ Three tables, three different answers, because they hold different things.
   credits each verification page billed, on every outcome including refusals,
   which is the reason the table exists. Deleting the row would delete the spend
   record, so the rule redacts only the identifying free text — the URL as
-  pasted, the profile name the page displayed, and the error text — and keeps
-  `user_id`, `faculty_member_id`, `outcome`, `credits_used` and `created_at`.
-  Same aggregate-survives-the-payload shape as the AiInference rule.
+  pasted, the profile name the page displayed, and the error text. Same
+  aggregate-survives-the-payload shape as the AiInference rule.
+
+  **What survives, stated in full:** `user_id`, `faculty_member_id`,
+  `outcome`, `credits_used`, `created_at` — **and `scholar_profile_id`**. That
+  last one matters and is easy to miss: the redacted URL is reconstructable
+  verbatim from it, as
+  `scholar.google.com/citations?user=<scholar_profile_id>`. So the redaction
+  removes the free text a human typed, not the identifier it resolved to.
+  That is the intended trade — the profile id is the join key the fetch runner
+  and the quota ledger both need, it is already stored openly on
+  `FacultyMember.scholar_profile_id` for every successful bind, and a Scholar
+  profile id is public by construction. But the "kept" list has to say so
+  rather than let a reader infer that the URL is gone. If a future review
+  decides the id should not survive on a REFUSED attempt, redact it in
+  `runRetentionSweep` alongside the other three and amend this list.
 - **`ScholarFetchRun`** is the **quota ledger**: the rolling-30-day allowance
   is computed by querying it. Deleting old rows would hand people a fresh
   allowance, and it carries no free text beyond an error string and a search

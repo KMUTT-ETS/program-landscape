@@ -550,6 +550,9 @@ export interface DeepDiveFaculty {
     staffWithResearch: number;
     papersFromScholar: number;
     papersTotal: number;
+    /** Library rows a Scholar import has raised the citations of. Non-zero
+     *  means Scholar has reached even the analyses that filter its rows out. */
+    libraryPapersTouchedByScholar: number;
     denominator: string;
   };
   members: Array<{

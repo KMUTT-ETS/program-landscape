@@ -218,8 +218,10 @@ describe('runRetentionSweep', () => {
     expect(arg.where.createdAt.lt.getTime()).toBe(
       expected.scholarArchiveDeleteBefore.getTime(),
     );
-    // Guards the copy-paste: the 7-year audit cut-off would also "delete old
-    // rows" and every count assertion would still pass.
+    // Guards one half of the copy-paste: the 7-year audit cut-off would also
+    // "delete old rows" and every count assertion would still pass. It does
+    // NOT guard a swap with the bind-attempt cut-off, which shares this
+    // window's default — that is the asymmetric-window test below.
     expect(arg.where.createdAt.lt.getTime()).not.toBe(
       expected.auditLogDeleteBefore.getTime(),
     );
@@ -252,6 +254,37 @@ describe('runRetentionSweep', () => {
     // Idempotent: an already-redacted row must not be rewritten every night.
     expect(arg.where.url).toEqual({ not: REDACTED_TEXT });
     expect(result.scholarBindAttemptTextRedacted).toBe(9);
+  });
+
+  // The two Scholar rules BOTH default to 90 days, so every assertion above
+  // still passes if the sweep hands the archive cut-off to the bind-attempt
+  // query and vice versa — mutation-verified: swapping the two in
+  // `runRetentionSweep` passes 15/15 without this test. Pulling the windows
+  // apart is the only thing that can tell them apart.
+  it('gives each Scholar rule its OWN cut-off, not merely a 90-day one', async () => {
+    auditDelete.mockResolvedValue({ count: 0 });
+    aiUpdate.mockResolvedValue({ count: 0 });
+    aiDelete.mockResolvedValue({ count: 0 });
+
+    const windows = {
+      ...DEFAULT_WINDOWS,
+      scholarArchiveFullRetention: 90,
+      scholarBindAttemptTextRetention: 45,
+    };
+    await runRetentionSweep({ prisma: prismaMock, now: NOW, windows });
+
+    const archiveArg = archiveDelete.mock.calls[0]?.[0] as {
+      where: { createdAt: { lt: Date } };
+    };
+    const bindArg = bindUpdate.mock.calls[0]?.[0] as {
+      where: { createdAt: { lt: Date } };
+    };
+    expect(archiveArg.where.createdAt.lt.toISOString()).toBe(
+      new Date(NOW.getTime() - 90 * DAY_MS).toISOString(),
+    );
+    expect(bindArg.where.createdAt.lt.toISOString()).toBe(
+      new Date(NOW.getTime() - 45 * DAY_MS).toISOString(),
+    );
   });
 
   it('never touches ScholarFetchRun — it is the quota ledger', () => {

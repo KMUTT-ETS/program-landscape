@@ -23,6 +23,11 @@ import type {
   DeepDiveTrends,
 } from '../types';
 import { formatCohortChangePct } from '@/lib/format-cohort';
+// Client-safe subpath, not the `@kku/shared` root barrel. The print view is a
+// sheet of paper: there is no provenance drawer to open, so the Google Scholar
+// caveat has to be ON it, in the same words the screen and the Gotenberg PDF
+// use. See `packages/shared/src/scholar/disclosure.ts`.
+import { scholarDisclosureLine } from '@kku/shared/scholar/disclosure';
 import { PrintButton } from './print-button';
 
 export const dynamic = 'force-dynamic';
@@ -2022,6 +2027,10 @@ function FacultyBlock({ data }: { data: DeepDiveFaculty }) {
     department: 'department roster',
     faculty: 'faculty roster',
   };
+  const scholarDisclosure = scholarDisclosureLine(
+    data.researchSourceComposition,
+    'counts-scholar-rows',
+  );
   return (
     <SectionCard
       title="Faculty capability"
@@ -2035,9 +2044,9 @@ function FacultyBlock({ data }: { data: DeepDiveFaculty }) {
           subtitle="active staff members"
         />
         <KpiTile
-          label="Publications (3 yr)"
+          label="Publications"
           value={data.totalPublications.toLocaleString('en-US')}
-          subtitle="across teaching staff"
+          subtitle="all years, across teaching staff"
         />
         <KpiTile
           label="Average age"
@@ -2055,6 +2064,16 @@ function FacultyBlock({ data }: { data: DeepDiveFaculty }) {
           subtitle={`${data.retiringWithin5Years} of ${data.totalActive} staff`}
         />
       </div>
+
+      {/* The publications tile is UNFILTERED — it is the one figure on this
+          sheet that counts on-demand Google Scholar imports. A reader holding
+          a printout cannot open a provenance drawer, so the disclosure is
+          printed. `null` when there is nothing to disclose. */}
+      {scholarDisclosure && (
+        <p className="mt-2 text-[0.7rem] leading-snug text-text-tertiary">
+          {scholarDisclosure}
+        </p>
+      )}
 
       {rankEntries.length > 0 && (
         <div className="mt-3">
