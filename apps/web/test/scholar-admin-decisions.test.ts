@@ -26,7 +26,8 @@ function preview(overrides: Partial<ScholarBulkPreview> = {}): ScholarBulkPrevie
     userIds: ['u1', 'u2'],
     targetCount: 2,
     duplicatesDropped: 0,
-    boundCount: 2,
+    chargeableCount: 2,
+    quotaBlockedCount: 0,
     unboundCount: 0,
     unresolvableCount: 0,
     estimatedCredits: 30,
@@ -58,6 +59,20 @@ describe('decideScholarBulkGate — the confirmation cannot be bypassed', () => 
     });
     expect(gate.canEnqueue).toBe(true);
     expect(gate.canEnqueue === true && gate.userIds).toEqual(['u1', 'u2']);
+  });
+
+  it('carries the PRICED chargeable count out as the token, not the selection size', () => {
+    // The token the API checks has to be the number the operator was shown.
+    // Deriving it from the selection would defeat the check it exists for:
+    // people can link their own profiles between quote and confirmation, and
+    // that is precisely what changes the bill without changing the selection.
+    const gate = decideScholarBulkGate({
+      selectedUserIds: ['u1', 'u2'],
+      preview: preview({ userIds: ['u1', 'u2'], chargeableCount: 1 }),
+      submitting: false,
+      maxTargets: 100,
+    });
+    expect(gate.canEnqueue === true && gate.chargeableCount).toBe(1);
   });
 
   it('REFUSES when the selection changed after it was priced, even at the same size', () => {
@@ -248,6 +263,8 @@ function row(overrides: Partial<ScholarConsoleRow> = {}): ScholarConsoleRow {
     papersFromScholar: 3,
     papersFromLibrary: 40,
     lastRun: null,
+    quotaRetryAt: null,
+    quotaReason: null,
     ...overrides,
   };
 }
@@ -291,6 +308,28 @@ describe('filterScholarRows', () => {
     expect(filterScholarRows(rows, { ...EMPTY_ROSTER_FILTERS, link: 'bound' })).toHaveLength(1);
     expect(filterScholarRows(rows, { ...EMPTY_ROSTER_FILTERS, link: 'unbound' })).toHaveLength(1);
     expect(filterScholarRows(rows, { ...EMPTY_ROSTER_FILTERS, link: 'unresolved' })).toHaveLength(1);
+  });
+
+  it('separates "ready to fetch" from "linked but fetched recently"', () => {
+    // Being linked is not the same as being fetchable: the runner checks the
+    // 30-day quota BEFORE it looks at the profile, so a recently fetched
+    // person refuses for free however well linked they are. An operator
+    // deciding what to spend wants the first list, not the second.
+    const withQuota = [
+      row({ userId: 'ready' }),
+      row({ userId: 'blocked', quotaRetryAt: '2026-10-01T03:00:00.000Z', quotaReason: 'Already fetched.' }),
+    ];
+    expect(
+      filterScholarRows(withQuota, { ...EMPTY_ROSTER_FILTERS, link: 'ready' }).map((r) => r.userId),
+    ).toEqual(['ready']);
+    expect(
+      filterScholarRows(withQuota, { ...EMPTY_ROSTER_FILTERS, link: 'quota-blocked' }).map(
+        (r) => r.userId,
+      ),
+    ).toEqual(['blocked']);
+    // `bound` still means "has a linked profile", either way — the two new
+    // filters partition it rather than replacing it.
+    expect(filterScholarRows(withQuota, { ...EMPTY_ROSTER_FILTERS, link: 'bound' })).toHaveLength(2);
   });
 
   it('drops unmatched rows from a faculty filter — they belong to no faculty', () => {

@@ -277,9 +277,10 @@ function pickSingleMember(
 /**
  * Every staff record, in the shape resolution needs.
  *
- * Loaded once and handed to `indexScholarRoster` when a caller has many
- * people to resolve — see the note on `ScholarRosterIndex` for why that
- * matters. A caller resolving ONE person should omit it.
+ * Loaded once and handed to `inMemoryScholarRoster` when a caller has many
+ * people to resolve — see the note on `ScholarRosterLookup` for why that
+ * matters. A caller resolving ONE person should use `databaseScholarRoster`,
+ * which reads the table only if the employee-id lookup misses.
  */
 export async function loadScholarRoster(): Promise<ScholarFacultyMember[]> {
   return prisma.facultyMember.findMany({ select: MEMBER_SELECT });

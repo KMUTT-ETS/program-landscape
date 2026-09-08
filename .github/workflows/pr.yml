@@ -47,13 +47,22 @@ jobs:
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
-      - name: Scholar fetch runner must contain no row-removal call
+      # Both @kku/db modules that touch ResearchOutput for this feature, not
+      # just the writer. scholar-console.ts only READS today — but it is a
+      # second module in the same feature holding a Prisma client and a list
+      # of facultyMemberIds, and the point of a guard is to notice the day
+      # that stops being true.
+      - name: Scholar modules must contain no row-removal call
         run: |
-          if grep -nE "delete|deleteMany" packages/db/src/scholar-fetch.ts; then
-            echo "::error file=packages/db/src/scholar-fetch.ts::The Scholar fetch runner is additive-only — it must never remove a ResearchOutput row. See the module header."
-            exit 1
-          fi
-          echo "OK: no row-removal call in the Scholar fetch runner."
+          failed=0
+          for f in packages/db/src/scholar-fetch.ts packages/db/src/scholar-console.ts; do
+            if grep -nE "delete|deleteMany" "$f"; then
+              echo "::error file=$f::The Scholar modules are additive-only — they must never remove a ResearchOutput row. See the scholar-fetch.ts module header."
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || exit 1
+          echo "OK: no row-removal call in the Scholar modules."
 
   # Secret scan. Sits beside the migration linter as a second cheap pre-flight
   # gate — a credential is far more expensive to deal with once it is in

@@ -21,6 +21,7 @@ import {
 import { formatScholarDay, formatScholarDayTime } from '@/lib/scholar-status';
 import {
   EMPTY_ROSTER_FILTERS,
+  SCHOLAR_LEDGER_LIMIT,
   decideScholarBulkGate,
   describeScholarOutcome,
   filterScholarRows,
@@ -108,6 +109,8 @@ export function ScholarConsoleClient({
     bound: number;
     unbound: number;
     unresolved: number;
+    quotaBlocked: number;
+    ready: number;
   };
   /** The API's own bulk cap, read from the same env var it reads. Known from
    *  first paint so an over-cap selection is refused at the toolbar rather
@@ -170,7 +173,7 @@ export function ScholarConsoleClient({
         setPollTimedOut(true);
         return;
       }
-      const result = await listScholarRunsAction({ limit: 200 });
+      const result = await listScholarRunsAction({ limit: SCHOLAR_LEDGER_LIMIT });
       if (cancelled) return;
       if (!result.ok) return; // transient read failure; the jobs are still queued
       setLedger(result.ledger);
@@ -249,7 +252,11 @@ export function ScholarConsoleClient({
       return;
     }
 
-    const result = await bulkFetchScholarAction(gate.userIds);
+    // The chargeable count goes with the request as a token. If somebody has
+    // linked or unlinked a profile since the estimate was taken, the API's own
+    // pre-flight disagrees and refuses the whole batch rather than billing for
+    // a run this operator never saw priced.
+    const result = await bulkFetchScholarAction(gate.userIds, gate.chargeableCount);
     setSubmitting(false);
     if (!result.ok) {
       toast.error(result.message);
@@ -260,6 +267,13 @@ export function ScholarConsoleClient({
     setSelected(new Set());
     setPollTimedOut(false);
     setLastOutcome(result.outcome);
+    if (result.outcome.enqueuedUserIds.length === 0) {
+      // Nothing on the queue means nothing will ever land, so polling would
+      // run its full three minutes and then announce "All 0 Scholar fetches
+      // finished."
+      toast.message('Nothing was queued — none of the selected people could be fetched.');
+      return;
+    }
     setWatch({ userIds: result.outcome.enqueuedUserIds, sentAt });
     toast.success(
       `Queued ${result.outcome.enqueuedCount} Scholar ${
@@ -432,7 +446,9 @@ export function ScholarConsoleClient({
                 className={SELECT_CLASS}
               >
                 <option value="all">Everyone</option>
-                <option value="bound">Profile linked</option>
+                <option value="ready">Ready to fetch</option>
+                <option value="quota-blocked">Linked, fetched recently</option>
+                <option value="bound">Profile linked (either way)</option>
                 <option value="unbound">Matched, no profile linked</option>
                 <option value="unresolved">No staff record matched</option>
               </select>
@@ -613,6 +629,8 @@ function CostPreamble({
     bound: number;
     unbound: number;
     unresolved: number;
+    quotaBlocked: number;
+    ready: number;
   };
   ledger: ScholarLedger | null;
 }) {
@@ -628,9 +646,14 @@ function CostPreamble({
       note: 'Only these can be fetched at all.',
     },
     {
-      label: 'Scholar profile linked',
-      value: String(totals.bound),
-      note: 'A fetch for these reaches Google and costs credits.',
+      label: 'Ready to fetch',
+      value: String(totals.ready),
+      note: 'Linked, and outside the 30-day window. Only these cost credits.',
+    },
+    {
+      label: 'Linked, fetched recently',
+      value: String(totals.quotaBlocked),
+      note: 'Inside the 30-day window, so a fetch refuses for free.',
     },
     {
       label: 'Matched, not linked',
@@ -646,7 +669,7 @@ function CostPreamble({
 
   return (
     <section>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
           <div key={c.label} className="rounded-lg border border-subtle bg-surface-1 p-6">
             <div className="text-xs text-text-tertiary">{c.label}</div>
@@ -690,7 +713,14 @@ function StaffCell({ row }: { row: ScholarConsoleRow }) {
   );
 }
 
-function ProfileCell({ row }: { row: ScholarConsoleRow }) {
+/**
+ * The profile column, exported so the quota branch can be asserted.
+ *
+ * The dev database has no Scholar runs at all, so this state cannot be reached
+ * by clicking — and seeding a fake run to see it would be exactly the mock
+ * data this project forbids. A render test is the honest way to prove it.
+ */
+export function ProfileCell({ row }: { row: ScholarConsoleRow }) {
   if (!row.staff.linked) {
     return <span className="text-xs text-text-tertiary">—</span>;
   }
@@ -705,7 +735,7 @@ function ProfileCell({ row }: { row: ScholarConsoleRow }) {
       </Badge>
     );
   }
-  const boundLabel = formatScholarDay(row.scholarBoundAt);
+  const retryLabel = formatScholarDay(row.quotaRetryAt);
   return (
     <div className="flex max-w-[16rem] flex-col items-start gap-1">
       <a
@@ -719,8 +749,15 @@ function ProfileCell({ row }: { row: ScholarConsoleRow }) {
         {row.scholarProfileId}
         <ExternalLink className="size-icon-sm" aria-hidden />
       </a>
-      {boundLabel && (
-        <span className="text-xs text-text-tertiary">linked on {boundLabel}</span>
+      {/* The THIRD gate, stated rather than left to be worked out from the
+          last-fetch date. Without it, selecting a faculty refreshed three
+          weeks ago quotes credits for work that will refuse. */}
+      {row.quotaRetryAt ? (
+        <span className="text-xs leading-relaxed text-warning" data-testid="scholar-quota-blocked">
+          Fetched recently — not again until {retryLabel ?? 'the window reopens'}.
+        </span>
+      ) : (
+        <span className="text-xs text-text-tertiary">Ready to fetch.</span>
       )}
     </div>
   );
@@ -858,17 +895,30 @@ export function BulkConfirmPanel({
                   : null
               }
             />
+            {/* The three gates, in the order the runner applies them:
+                resolution, then quota, then binding. A person stopped by an
+                earlier gate is counted there and nowhere else, so these four
+                lines add up to the target count. */}
             <PlanLine
               label="Will reach Google"
-              value={preview.boundCount}
-              note="These have a linked Scholar profile, and are what the estimate above prices."
+              value={preview.chargeableCount}
+              note="A linked Scholar profile and outside the 30-day window. These are what the estimate above prices."
             />
             <PlanLine
-              label="Will refuse before Google"
+              label="Already fetched this month"
+              value={preview.quotaBlockedCount}
+              note={
+                preview.quotaBlockedCount > 0
+                  ? 'A profile is linked, but the record was refreshed inside the last 30 days, so the run stops at the quota gate before reaching Google. It costs nothing.'
+                  : null
+              }
+            />
+            <PlanLine
+              label="No profile linked"
               value={preview.unboundCount}
               note={
                 preview.unboundCount > 0
-                  ? 'No Scholar profile is linked, so the run stops at the binding gate. It costs nothing and records the prompt on their own profile page.'
+                  ? 'The run stops at the binding gate. It costs nothing and records the prompt on their own profile page — only they can link it.'
                   : null
               }
             />
@@ -993,7 +1043,12 @@ export function RunLedger({
             The last batch queued {lastOutcome.enqueuedCount} of {lastOutcome.targetCount}{' '}
             people.
             {lastOutcome.skippedCount > 0 && (
-              <> {lastOutcome.skippedCount} were not sent — no staff record matched them.</>
+              <>
+                {' '}
+                {lastOutcome.skippedCount === 1
+                  ? '1 was not sent — no staff record matched them.'
+                  : `${lastOutcome.skippedCount} were not sent — no staff record matched them.`}
+              </>
             )}
           </p>
           {/* The API's own figure, rendered verbatim. It is the number the

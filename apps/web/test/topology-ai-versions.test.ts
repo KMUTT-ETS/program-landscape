@@ -33,8 +33,12 @@ function shippedVersions(): Set<string> {
   for (const f of readdirSync(PROMPTS)) {
     if (!f.endsWith('.ts') || f === 'index.ts') continue;
     const src = readFileSync(path.join(PROMPTS, f), 'utf8');
+    // `m[1]` is non-optional in practice — the group is not optional in the
+    // pattern — but `RegExpMatchArray` indexes as `string | undefined` under
+    // noUncheckedIndexedAccess, and this file only started being typechecked
+    // when `test/**` was added to tsconfig's include.
     for (const m of src.matchAll(/export const [A-Z_0-9]*VERSION\s*=\s*'([^']+)'/g)) {
-      out.add(m[1]);
+      if (m[1]) out.add(m[1]);
     }
   }
   return out;
@@ -46,9 +50,10 @@ function claimedVersions(): Array<{ subtitle: string; version: string }> {
   const out: Array<{ subtitle: string; version: string }> = [];
   for (const m of src.matchAll(/subtitle: '([^']*)'/g)) {
     const subtitle = m[1];
+    if (subtitle === undefined) continue;
     // `name.vN` / `name.vN.N` — the shape the prompt VERSION constants use.
     const v = /([a-z0-9-]+\.v\d+(?:\.\d+)?)/.exec(subtitle);
-    if (v) out.push({ subtitle, version: v[1] });
+    if (v?.[1]) out.push({ subtitle, version: v[1] });
   }
   return out;
 }

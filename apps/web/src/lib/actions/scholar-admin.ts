@@ -1,13 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import {
-  SCHOLAR_NEEDS_BINDING,
-  inMemoryScholarRoster,
-  loadScholarRoster,
-  resolveScholarMember,
-  prisma,
-} from '@kku/db';
+import { SCHOLAR_NEEDS_BINDING, planScholarBulkTargets } from '@kku/db';
 import { can, estimateScholarBulkCredits, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { scholarBulkMaxTargets } from '@/lib/scholar-admin-config';
@@ -47,13 +41,21 @@ import type {
  * protects every other route in this feature. A server action is a public
  * endpoint: without this check, anyone with a session could enumerate the
  * whole staff roster's resolution state through it.
+ *
+ * `actorRole` is the EFFECTIVE role, and that distinction is load-bearing
+ * here rather than cosmetic. `JwtAuthGuard` replaces `role` outright with the
+ * impersonated one, so `actor.role` on the API side already IS the effective
+ * role — pricing the preview against the real role instead would make a
+ * super-admin impersonating a system-admin quote without the quota (they are
+ * exempt) and then be refused by an API that applies it, with the stale-quote
+ * message blaming a change nobody made.
  */
-async function requireScholarAdmin(): Promise<SessionUser> {
+async function requireScholarAdmin(): Promise<{ user: SessionUser; actorRole: string }> {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) throw new Error('Not authenticated');
   if (!can(user, 'scholar:admin')) throw new Error('Forbidden — scholar:admin required');
-  return user;
+  return { user, actorRole: user.effectiveRole ?? user.role };
 }
 
 function messageOf(err: unknown, fallback: string): string {
@@ -71,7 +73,7 @@ export async function previewScholarBulkAction(
   userIds: string[],
 ): Promise<ScholarPreviewResult> {
   try {
-    await requireScholarAdmin();
+    const { actorRole } = await requireScholarAdmin();
 
     // The `string[]` in the signature is a compile-time claim and nothing
     // else — a server action's argument types are erased at runtime.
@@ -88,51 +90,39 @@ export async function previewScholarBulkAction(
       return { ok: false, message: 'No usable people in the selection.' };
     }
 
-    const accounts = await prisma.user.findMany({
-      where: { id: { in: distinct } },
-      select: { id: true, name: true, employeeId: true },
+    // The SAME function the API will run moments later, against the same
+    // gates the runner applies — resolution, then quota, then binding. That
+    // shared path is what makes `expectedChargeableCount` below a token
+    // rather than a second opinion: when the two disagree it is because the
+    // world changed, not because two implementations drifted.
+    //
+    // `ADMIN_BULK` and the ACTOR's role, not the target's: the two admin
+    // triggers share one quota counter, and SUPER_ADMIN is exempt outright,
+    // so the same selection is blocked for one administrator and clear for
+    // another.
+    const plan = await planScholarBulkTargets({
+      userIds: distinct,
+      actorRole,
+      trigger: 'ADMIN_BULK',
     });
-    const lookup = inMemoryScholarRoster(await loadScholarRoster());
-    const known = new Map(accounts.map((a) => [a.id, a]));
 
-    let boundCount = 0;
-    let unboundCount = 0;
-    let unresolvableCount = 0;
-    const bound: Array<{ profileBound: boolean }> = [];
-
-    for (const userId of distinct) {
-      const account = known.get(userId);
-      if (!account) {
-        // An id in the selection with no user behind it. The API would refuse
-        // it too; counting it as unresolvable keeps the dialog's three
-        // numbers adding up to the target count.
-        unresolvableCount += 1;
-        continue;
-      }
-      const { member } = await resolveScholarMember(account, lookup);
-      if (!member) {
-        unresolvableCount += 1;
-        continue;
-      }
-      if (member.scholarProfileId) {
-        boundCount += 1;
-        bound.push({ profileBound: true });
-      } else {
-        unboundCount += 1;
-        bound.push({ profileBound: false });
-      }
-    }
-
+    const quotaBlockedCount = plan.runnable.filter((t) => t.quotaBlocked).length;
     return {
       ok: true,
       preview: {
         userIds: distinct,
         targetCount: distinct.length,
         duplicatesDropped,
-        boundCount,
-        unboundCount,
-        unresolvableCount,
-        estimatedCredits: estimateScholarBulkCredits(bound),
+        chargeableCount: plan.chargeableCount,
+        quotaBlockedCount,
+        // Unbound is reported only for targets the quota would NOT have
+        // stopped first. The runner checks quota at step 2 and binding at step
+        // 4, so a person who is both is a quota refusal — counting them in
+        // both buckets would make the dialog's four numbers overshoot the
+        // target count.
+        unboundCount: plan.runnable.filter((t) => !t.quotaBlocked && !t.profileBound).length,
+        unresolvableCount: plan.skipped.length,
+        estimatedCredits: estimateScholarBulkCredits(plan.runnable),
         maxTargets: scholarBulkMaxTargets(),
       },
     };
@@ -150,6 +140,8 @@ export interface ScholarBulkOutcome {
   duplicatesDropped: number;
   /** The API's figure, rendered verbatim. Never recomputed here. */
   estimatedCredits: number;
+  /** How many of them actually reached Google. */
+  chargeableCount: number;
   enqueuedUserIds: string[];
 }
 
@@ -163,15 +155,23 @@ const BulkResponseSchema = z.object({
   targetCount: z.number(),
   duplicatesDropped: z.number(),
   estimatedCredits: z.number(),
+  chargeableCount: z.number(),
 });
 
 export async function bulkFetchScholarAction(
   userIds: string[],
+  /**
+   * The chargeable count the operator was shown. Sent so the API can refuse
+   * the whole request if its own pre-flight now disagrees — see the note on
+   * `enqueueBulk`'s `expectedChargeableCount`. Without it the quote is an
+   * advisory; with it, it is a token.
+   */
+  expectedChargeableCount: number,
 ): Promise<ScholarBulkActionResult> {
   try {
     const raw = await apiFetch<unknown>('/scholar/fetch/bulk', {
       method: 'POST',
-      body: JSON.stringify({ userIds }),
+      body: JSON.stringify({ userIds, expectedChargeableCount }),
     });
     const parsed = BulkResponseSchema.parse(raw);
     return {
@@ -182,6 +182,7 @@ export async function bulkFetchScholarAction(
         targetCount: parsed.targetCount,
         duplicatesDropped: parsed.duplicatesDropped,
         estimatedCredits: parsed.estimatedCredits,
+        chargeableCount: parsed.chargeableCount,
         enqueuedUserIds: parsed.enqueued.map((e) => e.userId),
       },
     };

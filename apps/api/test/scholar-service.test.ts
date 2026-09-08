@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   resolveScholarFacultyMember: vi.fn(),
   bindScholarProfile: vi.fn(),
   loadScholarRoster: vi.fn(),
+  planScholarBulkTargets: vi.fn(),
   userFindUnique: vi.fn(),
   facultyMemberFindUnique: vi.fn(),
   scholarFetchRunFindMany: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('@kku/db', () => ({
   resolveScholarFacultyMember: mocks.resolveScholarFacultyMember,
   bindScholarProfile: mocks.bindScholarProfile,
   loadScholarRoster: mocks.loadScholarRoster,
+  planScholarBulkTargets: mocks.planScholarBulkTargets,
   prisma: {
     user: { findUnique: mocks.userFindUnique },
     facultyMember: { findUnique: mocks.facultyMemberFindUnique },
@@ -92,6 +94,27 @@ beforeEach(() => {
   enqueue.mockImplementation(async () => 'job-id');
   countRunning.mockResolvedValue(0);
   mocks.loadScholarRoster.mockResolvedValue([]);
+  // Default plan: everyone resolves, everyone is linked, nobody is inside
+  // their 30-day window — the shape the cap tests care about. The planner
+  // itself is exercised in packages/db; this is the seam the service sees.
+  mocks.planScholarBulkTargets.mockImplementation(
+    async ({ userIds }: { userIds: readonly string[] }) => {
+      const targets = [...new Set(userIds)].map((userId) => ({
+        userId,
+        profileBound: true,
+        quotaBlocked: false,
+        quotaRetryAt: null,
+        quotaReason: null,
+        resolutionRefusal: null,
+      }));
+      return {
+        targets,
+        runnable: targets,
+        skipped: [],
+        chargeableCount: targets.length,
+      };
+    },
+  );
   mocks.bindAttemptFindMany.mockResolvedValue([]);
   mocks.bindAttemptCreate.mockResolvedValue({ id: 'bind-1' });
   mocks.scholarFetchRunFindMany.mockResolvedValue([]);
@@ -114,6 +137,32 @@ beforeEach(() => {
     refusal: null,
   }));
 });
+
+/** A `ScholarBulkPlan` from a short description of its targets. */
+function planOf(
+  targets: Array<{
+    userId: string;
+    profileBound?: boolean;
+    quotaBlocked?: boolean;
+    resolutionRefusal?: string | null;
+  }>,
+) {
+  const full = targets.map((t) => ({
+    userId: t.userId,
+    profileBound: t.profileBound ?? false,
+    quotaBlocked: t.quotaBlocked ?? false,
+    quotaRetryAt: null,
+    quotaReason: null,
+    resolutionRefusal: t.resolutionRefusal ?? null,
+  }));
+  const runnable = full.filter((t) => t.resolutionRefusal === null);
+  return {
+    targets: full,
+    runnable,
+    skipped: full.filter((t) => t.resolutionRefusal !== null),
+    chargeableCount: runnable.filter((t) => t.profileBound && !t.quotaBlocked).length,
+  };
+}
 
 // ── 1. Bulk cap ────────────────────────────────────────────────────────────
 
@@ -395,40 +444,54 @@ describe('estimateScholarBulkCredits', () => {
     expect(estimateScholarBulkCredits([{ profileBound: true }])).toBe(GOOGLE_PAGE_CREDIT_COST);
   });
 
-  it('the bulk enqueue quotes the same number for a mixed batch', async () => {
-    mocks.resolveScholarFacultyMember.mockImplementation(async (userId: string) => ({
-      user: { id: userId, name: 'X' },
-      member: {
-        id: `fm-${userId}`,
-        nameEn: 'X',
-        nameTh: 'X',
-        employeeId: null,
-        isActive: true,
-        // u0, u1 bound; u2, u3 not.
-        scholarProfileId: userId === 'u0' || userId === 'u1' ? `p-${userId}` : null,
-      },
-      refusal: null,
-    }));
+  it('charges nothing for a target inside its 30-day window, however well linked', () => {
+    // The runner checks the quota at step 2 and binding at step 4, so a
+    // bound-and-recently-fetched person refuses BEFORE it reaches Google.
+    // Omitting this over-quotes in the expensive direction: a faculty of 90
+    // refreshed three weeks ago prices at 1,350 credits against a floor of 0.
+    expect(
+      estimateScholarBulkCredits([
+        { profileBound: true, quotaBlocked: true },
+        { profileBound: true, quotaBlocked: true },
+      ]),
+    ).toBe(0);
+    expect(
+      estimateScholarBulkCredits([
+        { profileBound: true, quotaBlocked: true },
+        { profileBound: true, quotaBlocked: false },
+      ]),
+    ).toBe(GOOGLE_PAGE_CREDIT_COST);
+  });
+
+  it('the bulk enqueue quotes the plan it was given, and enqueues every runnable target', async () => {
+    // u0, u1 linked and clear; u2 unlinked; u3 linked but inside its window.
+    // Only u0 and u1 reach Google.
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([
+        { userId: 'u0', profileBound: true },
+        { userId: 'u1', profileBound: true },
+        { userId: 'u2', profileBound: false },
+        { userId: 'u3', profileBound: true, quotaBlocked: true },
+      ]),
+    );
 
     const result = await buildService({ bulkMax: 100 }).enqueueBulk(['u0', 'u1', 'u2', 'u3'], ADMIN);
 
-    // Only the 2 bound targets cost a page; the 2 unbound ones refuse for free.
     expect(result.estimatedCredits).toBe(2 * GOOGLE_PAGE_CREDIT_COST);
-    expect(result.targets.filter((t) => t.profileBound)).toHaveLength(2);
-    // All four are still enqueued — an unbound target's refusal is what puts
-    // "paste your profile URL" in front of that person.
+    expect(result.chargeableCount).toBe(2);
+    // All four are still enqueued — the unbound target's refusal is what puts
+    // "paste your profile URL" in front of that person, and the quota-blocked
+    // one's refusal is the record of why nothing happened. Neither spends.
     expect(result.enqueued).toHaveLength(4);
   });
 
   it('flags targets with no staff record — and does NOT enqueue them', async () => {
-    mocks.resolveScholarFacultyMember.mockResolvedValue({
-      user: null,
-      member: null,
-      refusal: 'No staff record matches.',
-    });
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([{ userId: 'u0', resolutionRefusal: 'No staff record matches.' }]),
+    );
     const result = await buildService({ bulkMax: 100 }).enqueueBulk(['u0'], ADMIN);
 
-    expect(result.targets[0]).toEqual({
+    expect(result.targets[0]).toMatchObject({
       userId: 'u0',
       profileBound: false,
       resolutionRefusal: 'No staff record matches.',
@@ -440,15 +503,98 @@ describe('estimateScholarBulkCredits', () => {
     expect(enqueue).not.toHaveBeenCalled();
   });
 
-  it('loads the staff roster ONCE for the whole batch, not once per target', async () => {
+  it('prices the whole batch in ONE pre-flight, not one per target', async () => {
     await buildService({ bulkMax: 100 }).enqueueBulk(['u0', 'u1', 'u2'], ADMIN);
-    // resolveScholarFacultyMember's name fallback scans the whole
-    // FacultyMember table; N sequential scans inside one HTTP request is what
-    // the hoist exists to prevent.
-    expect(mocks.loadScholarRoster).toHaveBeenCalledTimes(1);
-    for (const call of mocks.resolveScholarFacultyMember.mock.calls) {
-      expect(call[1]).toBeDefined();
-    }
+    // The planner reads accounts, roster and ledger once each for the batch.
+    // Resolving per target meant 100 unfiltered scans of ~3,800 staff rows,
+    // plus a ledger read apiece, inside a single HTTP request.
+    expect(mocks.planScholarBulkTargets).toHaveBeenCalledTimes(1);
+    expect(mocks.planScholarBulkTargets).toHaveBeenCalledWith(
+      expect.objectContaining({ userIds: ['u0', 'u1', 'u2'], trigger: 'ADMIN_BULK' }),
+    );
+  });
+
+  it('prices the quota against the ADMIN who asked, not the target', async () => {
+    // SUPER_ADMIN is exempt from the fetch quota, so the same roster is
+    // blocked for one administrator and clear for another. Passing the wrong
+    // role here would quote somebody else's allowance.
+    await buildService({ bulkMax: 100 }).enqueueBulk(['u0'], { userId: 'admin-1', role: 'SUPER_ADMIN' });
+    expect(mocks.planScholarBulkTargets).toHaveBeenCalledWith(
+      expect.objectContaining({ actorRole: 'SUPER_ADMIN' }),
+    );
+  });
+});
+
+// ── 4b. The quote is a token, not an advisory ──────────────────────────────
+//
+// Between the console quoting a run and the operator confirming it, targets
+// can BIND their own profiles from /profile — self-service, no administrator
+// involved — and every one that does turns a free refusal into a paid profile
+// walk. Ten selected with two linked quotes 30 credits; if eight link in the
+// meantime, confirming would spend at least 150 against 30 shown.
+
+describe('ScholarService.enqueueBulk — a stale quote is refused, not honoured', () => {
+  it('refuses when more people would now be fetched than the quote covered', async () => {
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([
+        { userId: 'u0', profileBound: true },
+        { userId: 'u1', profileBound: true },
+        { userId: 'u2', profileBound: true },
+      ]),
+    );
+    await expect(
+      buildService({ bulkMax: 100 }).enqueueBulk(['u0', 'u1', 'u2'], ADMIN, 1),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+      details: { quoted: 1, actual: 3 },
+    });
+    // Nothing queued: the refusal has to come BEFORE the spend, or it is not a
+    // guard at all.
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('refuses in the cheap direction too — a quote must describe the run either way', async () => {
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([{ userId: 'u0', profileBound: false }]),
+    );
+    await expect(
+      buildService({ bulkMax: 100 }).enqueueBulk(['u0'], ADMIN, 1),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('proceeds when the quote still describes the run', async () => {
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([
+        { userId: 'u0', profileBound: true },
+        { userId: 'u1', profileBound: false },
+      ]),
+    );
+    const result = await buildService({ bulkMax: 100 }).enqueueBulk(['u0', 'u1'], ADMIN, 1);
+    expect(result.enqueued).toHaveLength(2);
+    expect(result.chargeableCount).toBe(1);
+  });
+
+  it('still enqueues when no quote was sent — the endpoint stays callable by hand', async () => {
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([{ userId: 'u0', profileBound: true }]),
+    );
+    const result = await buildService({ bulkMax: 100 }).enqueueBulk(['u0'], ADMIN);
+    expect(result.enqueued).toHaveLength(1);
+  });
+
+  it('accepts a quote of ZERO rather than treating it as "no quote sent"', async () => {
+    // `if (expectedChargeableCount)` instead of a typeof check would skip the
+    // comparison for the commonest shape of a run at rollout — everyone
+    // unlinked, nothing chargeable — which is precisely when an unnoticed
+    // bind flips the bill from nothing to something.
+    mocks.planScholarBulkTargets.mockResolvedValue(
+      planOf([{ userId: 'u0', profileBound: true }]),
+    );
+    await expect(
+      buildService({ bulkMax: 100 }).enqueueBulk(['u0'], ADMIN, 0),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED', details: { quoted: 0, actual: 1 } });
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
 

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   session: null as { user: SessionUser } | null,
   redirects: [] as string[],
   rosterLoaded: 0,
+  rosterActorRoles: [] as string[],
 }));
 
 vi.mock('next/navigation', () => ({
@@ -43,13 +44,22 @@ vi.mock('@/lib/auth', () => ({
 // that failed to stop the render would be visible as a load.
 vi.mock('@kku/db', () => ({
   SCHOLAR_NEEDS_BINDING: 'needs-binding',
-  loadScholarConsoleRoster: async () => {
+  loadScholarConsoleRoster: async (input: { actorRole: string }) => {
     mocks.rosterLoaded += 1;
+    mocks.rosterActorRoles.push(input.actorRole);
     return {
       rows: [],
       faculties: [],
       departments: [],
-      totals: { accounts: 0, resolved: 0, bound: 0, unbound: 0, unresolved: 0 },
+      totals: {
+        accounts: 0,
+        resolved: 0,
+        bound: 0,
+        unbound: 0,
+        unresolved: 0,
+        quotaBlocked: 0,
+        ready: 0,
+      },
     };
   },
 }));
@@ -88,6 +98,7 @@ afterEach(() => {
   mocks.session = null;
   mocks.redirects = [];
   mocks.rosterLoaded = 0;
+  mocks.rosterActorRoles = [];
 });
 
 async function open(): Promise<'rendered' | 'redirected'> {
@@ -126,5 +137,23 @@ describe('the admin Scholar console is gated on scholar:admin', () => {
     expect(await open()).toBe('rendered');
     expect(mocks.redirects).toEqual([]);
     expect(mocks.rosterLoaded).toBe(1);
+    // The quota is asked on behalf of the VIEWING administrator, because
+    // SUPER_ADMIN is exempt from it — the same roster is blocked for one
+    // administrator and clear for another. Passing the wrong role would show
+    // one person somebody else's allowance.
+    expect(mocks.rosterActorRoles).toEqual([role]);
+  });
+
+  it('asks the quota as the IMPERSONATED role when one is in effect', async () => {
+    // `effectiveRole` is what every other admin page gates on. Reading `role`
+    // here would let a super-admin previewing a system-admin's view still see
+    // the super-admin's quota exemption, which is the opposite of what
+    // impersonation is for.
+    const session = user('SUPER_ADMIN');
+    mocks.session = {
+      user: { ...session.user, effectiveRole: 'SYSTEM_ADMIN' } as SessionUser,
+    };
+    expect(await open()).toBe('rendered');
+    expect(mocks.rosterActorRoles).toEqual(['SYSTEM_ADMIN']);
   });
 });

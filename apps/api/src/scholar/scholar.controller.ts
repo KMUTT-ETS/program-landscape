@@ -33,6 +33,18 @@ const BulkSchema = z.object({
   // collapsed. Capping the raw array would reject a 150-id request naming 40
   // distinct people, which is a request for 40 fetches.
   userIds: z.array(z.string().min(1)).min(1),
+  /**
+   * How many of these people the CALLER was told would actually be fetched
+   * from Google, i.e. the quote it showed before the operator confirmed.
+   *
+   * Optional so the endpoint stays callable by hand during an incident. When
+   * present the service re-derives the same figure and refuses the whole
+   * request if they disagree, which turns the console's estimate from an
+   * advisory into a token: between quoting and confirming, targets can bind
+   * their own profiles from /profile and turn free refusals into paid profile
+   * walks.
+   */
+  expectedChargeableCount: z.coerce.number().int().nonnegative().optional(),
 });
 type BulkBody = z.infer<typeof BulkSchema>;
 
@@ -94,7 +106,11 @@ export class ScholarController {
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(BulkSchema)) body: BulkBody,
   ) {
-    return this.service.enqueueBulk(body.userIds, { userId: user.userId, role: user.role });
+    return this.service.enqueueBulk(
+      body.userIds,
+      { userId: user.userId, role: user.role },
+      body.expectedChargeableCount,
+    );
   }
 
   @Post('fetch/:userId')

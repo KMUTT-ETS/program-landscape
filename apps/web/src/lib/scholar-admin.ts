@@ -13,6 +13,17 @@
 // `./scholar-status`, which pin Asia/Bangkok so the server and client renders
 // agree — see the hydration note there.
 
+/**
+ * How many ledger rows the console reads, on first paint AND on every poll.
+ *
+ * ONE number, because `totalCreditsUsed` is summed server-side over whatever
+ * page is returned and rendered as "across the runs listed below". Paginating
+ * differently in the two places made a budget-facing figure change the first
+ * time a batch landed — from the sum of the last 50 runs to the sum of the
+ * last 200 — for a reason that had nothing to do with the batch.
+ */
+export const SCHOLAR_LEDGER_LIMIT = 200;
+
 export type ScholarRunStatus = 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'REFUSED';
 export type ScholarRunTrigger = 'SELF' | 'ADMIN' | 'ADMIN_BULK';
 
@@ -62,6 +73,10 @@ export interface ScholarConsoleRow {
   papersFromScholar: number;
   papersFromLibrary: number;
   lastRun: ScholarConsoleRun | null;
+  /** The third gate. Non-null means a fetch for this person refuses at the
+   *  30-day quota and spends nothing — whatever the profile column says. */
+  quotaRetryAt: string | null;
+  quotaReason: string | null;
 }
 
 /** A row in the run ledger (`GET /scholar/runs`). */
@@ -231,12 +246,24 @@ export interface ScholarBulkPreview {
   userIds: string[];
   targetCount: number;
   duplicatesDropped: number;
-  /** Targets with a linked profile. These are the ones that cost pages. */
-  boundCount: number;
-  /** Resolvable, but with no profile linked. They are still enqueued — the
-   *  refusal is what records "this person needs to link a profile" — and they
-   *  spend nothing, because the runner refuses at the binding gate before it
-   *  fetches. */
+  /**
+   * Targets that will actually reach Google — linked AND outside their 30-day
+   * window — and therefore the only ones that cost pages.
+   *
+   * Sent back to the API on confirmation as `expectedChargeableCount`. That is
+   * what turns this quote from an advisory into a token: between quoting and
+   * confirming, people can link their own profiles from /profile and turn free
+   * refusals into paid profile walks, and the API refuses rather than
+   * silently billing for a run the operator never saw priced.
+   */
+  chargeableCount: number;
+  /** Resolvable and linked, but already fetched inside the window. Enqueued;
+   *  refuses at the runner's step 2; spends nothing. */
+  quotaBlockedCount: number;
+  /** Resolvable and outside the window, but with no profile linked. Enqueued;
+   *  refuses at the runner's step 4; spends nothing. Counted only for targets
+   *  the quota would not have stopped first, so the four buckets sum to the
+   *  target count. */
   unboundCount: number;
   /** Not enqueued at all: the pre-flight already proved no single staff
    *  record matches the account. */
@@ -246,7 +273,19 @@ export interface ScholarBulkPreview {
 }
 
 export type ScholarBulkGate =
-  | { canEnqueue: true; userIds: string[] }
+  | {
+      canEnqueue: true;
+      userIds: string[];
+      /**
+       * The quote to hand back to the API on confirmation.
+       *
+       * It comes off the preview the gate has just validated, not off the
+       * selection, so the token that is sent is structurally the one the
+       * operator was shown — there is no way to send a number the dialog did
+       * not display.
+       */
+      chargeableCount: number;
+    }
   | { canEnqueue: false; reason: string };
 
 /**
@@ -304,7 +343,11 @@ export function decideScholarBulkGate(input: {
     };
   }
 
-  return { canEnqueue: true, userIds: input.preview.userIds };
+  return {
+    canEnqueue: true,
+    userIds: input.preview.userIds,
+    chargeableCount: input.preview.chargeableCount,
+  };
 }
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
@@ -317,7 +360,17 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
 
 // ── Roster filtering ───────────────────────────────────────────────────────
 
-export type ScholarLinkFilter = 'all' | 'bound' | 'unbound' | 'unresolved';
+export type ScholarLinkFilter =
+  | 'all'
+  /** Linked and outside the 30-day window — a fetch would actually run, and
+   *  would cost credits. The selection an operator making a spend decision
+   *  wants. */
+  | 'ready'
+  /** Linked, but inside the window: a fetch refuses at step 2 for free. */
+  | 'quota-blocked'
+  | 'bound'
+  | 'unbound'
+  | 'unresolved';
 
 export interface ScholarRosterFilters {
   search: string;
@@ -355,6 +408,10 @@ export function filterScholarRows(
       if (!row.staff.linked || row.staff.departmentId !== filters.departmentId) return false;
     }
     if (filters.link === 'bound' && !row.profileBound) return false;
+    if (filters.link === 'ready' && (!row.profileBound || row.quotaRetryAt !== null)) return false;
+    if (filters.link === 'quota-blocked' && (!row.profileBound || row.quotaRetryAt === null)) {
+      return false;
+    }
     if (filters.link === 'unbound' && (!row.staff.linked || row.profileBound)) return false;
     if (filters.link === 'unresolved' && row.staff.linked) return false;
     if (needle) {

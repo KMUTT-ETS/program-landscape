@@ -43,11 +43,12 @@ vi.mock('@/lib/actions/scholar-admin', () => ({
   listScholarRunsAction: async () => ({ ok: false, message: 'not called in this test' }),
 }));
 
-import { BulkConfirmPanel, OutcomeBadge, RunLedger } from '../app/admin/scholar/client';
+import { BulkConfirmPanel, OutcomeBadge, ProfileCell, RunLedger } from '../app/admin/scholar/client';
 import {
   decideScholarBulkGate,
   describeScholarOutcome,
   type ScholarBulkPreview,
+  type ScholarConsoleRow,
   type ScholarLedgerRun,
 } from '../src/lib/scholar-admin';
 
@@ -56,7 +57,8 @@ function preview(overrides: Partial<ScholarBulkPreview> = {}): ScholarBulkPrevie
     userIds: ['u1', 'u2', 'u3'],
     targetCount: 3,
     duplicatesDropped: 0,
-    boundCount: 3,
+    chargeableCount: 3,
+    quotaBlockedCount: 0,
     unboundCount: 0,
     unresolvableCount: 0,
     // 3 bound targets × 15 credits would be 45. This is deliberately NOT 45:
@@ -98,10 +100,20 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
     expect(html).not.toContain('>45<');
   });
 
-  it('presents the estimate as a floor, and says what is not priced', () => {
+  it('presents the estimate as a floor, and names each gate that will stop a target', () => {
+    // Four targets, one stopped at each gate. The runner checks resolution,
+    // then quota, then binding, and only what survives all three costs pages —
+    // so the dialog has to say which gate each person will hit, not merely
+    // that some of them will refuse.
     const html = renderToStaticMarkup(
       <BulkConfirmPanel
-        preview={preview({ boundCount: 2, unboundCount: 1, unresolvableCount: 0 })}
+        preview={preview({
+          targetCount: 4,
+          chargeableCount: 1,
+          quotaBlockedCount: 1,
+          unboundCount: 1,
+          unresolvableCount: 1,
+        })}
         pricing={false}
         error={null}
         gate={{ canEnqueue: true }}
@@ -111,9 +123,39 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
       />,
     );
     expect(html).toMatch(/at least/i);
-    // The unbound targets must read as "will refuse", never as pages billed.
-    expect(html).toMatch(/refuse before Google/i);
-    expect(html).toMatch(/costs nothing/i);
+    expect(html).toMatch(/Already fetched this month/);
+    expect(html).toMatch(/quota gate/i);
+    expect(html).toMatch(/No profile linked/);
+    expect(html).toMatch(/binding gate/i);
+    expect(html).toMatch(/Will not be sent at all/);
+    // Every refusal must read as free — a target that refuses is never billed.
+    expect(html).toMatch(/It costs nothing\./);
+  });
+
+  it('prices only what reaches Google — a recently fetched profile is not billed', () => {
+    // Ten linked people, nine of them refreshed inside the window. The runner
+    // checks quota BEFORE binding, so those nine spend nothing however well
+    // linked they are; quoting them would over-charge by 135 credits.
+    const html = renderToStaticMarkup(
+      <BulkConfirmPanel
+        preview={preview({
+          targetCount: 10,
+          chargeableCount: 1,
+          quotaBlockedCount: 9,
+          unboundCount: 0,
+          unresolvableCount: 0,
+          estimatedCredits: 15,
+        })}
+        pricing={false}
+        error={null}
+        gate={{ canEnqueue: true }}
+        submitting={false}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(html).toContain('Send — at least 15 credits');
+    expect(html).not.toContain('150');
   });
 
   it('disables the send button until the run has been priced, and says why', () => {
@@ -183,7 +225,7 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
     // threatens a bill nobody will receive teaches operators to ignore it.
     const free = renderToStaticMarkup(
       <BulkConfirmPanel
-        preview={preview({ boundCount: 0, unboundCount: 3, estimatedCredits: 0 })}
+        preview={preview({ chargeableCount: 0, unboundCount: 3, estimatedCredits: 0 })}
         pricing={false}
         error={null}
         gate={{ canEnqueue: true }}
@@ -324,12 +366,72 @@ describe('RunLedger — a completed run that found nothing is not a success', ()
           duplicatesDropped: 0,
           // Again deliberately not 3 × 15: it is the service's own figure.
           estimatedCredits: 861,
+          chargeableCount: 3,
           enqueuedUserIds: ['u1', 'u2', 'u3'],
         }}
       />,
     );
     expect(html).toContain('861');
     expect(html).not.toContain('>45<');
+  });
+});
+
+// ── The third gate, in the table ───────────────────────────────────────────
+
+function consoleRow(overrides: Partial<ScholarConsoleRow> = {}): ScholarConsoleRow {
+  return {
+    userId: 'u1',
+    name: 'Somchai Example',
+    email: 'somchai@kku.ac.th',
+    role: 'FACULTY_USER',
+    staff: {
+      linked: true,
+      facultyMemberId: 'fm1',
+      nameEn: 'Somchai Example',
+      nameTh: 'สมชาย ตัวอย่าง',
+      facultyId: 'fac-sci',
+      facultyName: 'Faculty of Science',
+      departmentId: null,
+      departmentName: null,
+      isActive: true,
+    },
+    profileBound: true,
+    scholarProfileId: 'ABC123',
+    scholarBoundAt: '2026-09-01T03:00:00.000Z',
+    papersFromScholar: 3,
+    papersFromLibrary: 40,
+    lastRun: null,
+    quotaRetryAt: null,
+    quotaReason: null,
+    ...overrides,
+  };
+}
+
+describe('ProfileCell — a linked profile is not the same as a fetchable one', () => {
+  it('says a linked, out-of-window person is ready', () => {
+    const html = renderToStaticMarkup(<ProfileCell row={consoleRow()} />);
+    expect(html).toContain('Ready to fetch.');
+    expect(html).not.toContain('scholar-quota-blocked');
+  });
+
+  it('names the date the window reopens for a recently fetched person', () => {
+    // The gate the console previously left to be inferred from a last-fetch
+    // date. Selecting a faculty refreshed three weeks ago otherwise quotes
+    // credits for work that will refuse at the runner's step 2.
+    const html = renderToStaticMarkup(
+      <ProfileCell row={consoleRow({ quotaRetryAt: '2026-09-29T03:00:00.000Z' })} />,
+    );
+    expect(html).toContain('scholar-quota-blocked');
+    expect(html).toMatch(/Fetched recently/);
+    expect(html).toContain('29 Sep 2026');
+    expect(html).not.toContain('Ready to fetch.');
+  });
+
+  it('renders the profile id either way — the link is still the link', () => {
+    const html = renderToStaticMarkup(
+      <ProfileCell row={consoleRow({ quotaRetryAt: '2026-09-29T03:00:00.000Z' })} />,
+    );
+    expect(html).toContain('ABC123');
   });
 });
 

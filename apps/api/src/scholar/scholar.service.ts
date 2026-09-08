@@ -3,9 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import {
   SCHOLAR_NEEDS_BINDING,
   bindScholarProfile,
-  loadScholarRoster,
+  planScholarBulkTargets,
   prisma,
   resolveScholarFacultyMember,
+  type ScholarBulkTargetPlan,
 } from '@kku/db';
 import {
   ApiError,
@@ -56,15 +57,11 @@ export interface ScholarEnqueueResult {
   trigger: ScholarTrigger;
 }
 
-export interface ScholarBulkTargetPlan {
-  userId: string;
-  /** A profile is already linked, so the fetch can spend credits on pages. */
-  profileBound: boolean;
-  /** No staff record could be resolved — the fetch will refuse before it
-   *  spends anything. Surfaced so the console can grey the row out rather
-   *  than let an operator wonder why nothing happened. */
-  resolutionRefusal: string | null;
-}
+// The plan shape lives in @kku/db beside `planScholarBulkTargets`, which is
+// the one place that decides it — the console prices a run through the same
+// function one round trip before this endpoint does. Re-exported so callers of
+// this service keep a single import.
+export type { ScholarBulkTargetPlan };
 
 export interface ScholarBulkResult {
   enqueued: ScholarEnqueueResult[];
@@ -76,6 +73,10 @@ export interface ScholarBulkResult {
   /** Duplicate ids the request carried and this service collapsed. */
   duplicatesDropped: number;
   estimatedCredits: number;
+  /** Targets that actually reached Google, and therefore what
+   *  `estimatedCredits` prices. Echoed so the caller can see that the number
+   *  it quoted and the number that was billed describe the same run. */
+  chargeableCount: number;
   targets: ScholarBulkTargetPlan[];
 }
 
@@ -516,6 +517,22 @@ export class ScholarService {
   async enqueueBulk(
     userIds: readonly string[],
     actor: { userId: string; role: Role },
+    /**
+     * The number of chargeable targets the CALLER was shown before it
+     * confirmed — the console's quote, handed back as a token.
+     *
+     * Optional, so the endpoint stays callable by hand during an incident; the
+     * console always sends it. When present it is checked against this
+     * service's own count and a disagreement refuses the whole request.
+     *
+     * The window it closes is small but real and only ever costs money in one
+     * direction: between the quote and the confirmation, targets can BIND
+     * their own profiles from /profile — self-service, no administrator
+     * involved — and every one that does turns a free refusal into a paid
+     * profile walk. Ten selected with two linked quotes 30 credits; if eight
+     * of them link in the meantime, confirming spends at least 150.
+     */
+    expectedChargeableCount?: number,
   ): Promise<ScholarBulkResult> {
     const distinct = [...new Set(userIds.map((id) => id.trim()).filter(Boolean))];
     const duplicatesDropped = userIds.length - distinct.length;
@@ -534,41 +551,44 @@ export class ScholarService {
       );
     }
 
-    // Priced before anything is enqueued, using the same resolution the runner
-    // will perform, so the console's confirmation dialog quotes the real shape
-    // of the run rather than a guess.
+    // Priced before anything is enqueued, through the SAME function the admin
+    // console priced it with one round trip ago — which is what makes the
+    // token check below a check on the world changing rather than on the two
+    // sides drifting apart. Three queries for the whole batch, not two per
+    // target.
     //
-    // The roster is loaded ONCE and reused. `resolveScholarFacultyMember`'s
-    // name fallback scans the whole FacultyMember table (the match is
-    // normalised in JS and cannot be expressed in SQL), so resolving 100
-    // targets one at a time meant 100 sequential unfiltered scans of ~3,800
-    // rows inside a single HTTP request.
-    const roster = await loadScholarRoster();
-    const targets: ScholarBulkTargetPlan[] = [];
-    for (const userId of distinct) {
-      const { member, refusal } = await resolveScholarFacultyMember(userId, roster);
-      targets.push({
-        userId,
-        profileBound: Boolean(member?.scholarProfileId),
-        resolutionRefusal: member ? null : (refusal ?? 'No single staff record matches this account.'),
-      });
+    // Targets we have just PROVED cannot resolve are not enqueued. Their jobs
+    // would reach `refusedWithoutRun`, which by design writes no
+    // ScholarFetchRun — so they would occupy worker slots and vanish without a
+    // trace, exactly the blind spot the config-failure row in the handler
+    // exists to close. They are still returned in `targets[]` with the reason.
+    //
+    // Unbound and quota-blocked targets ARE enqueued: their refusals are
+    // recorded as run rows, and the unbound one is where SCHOLAR_NEEDS_BINDING
+    // comes from — the thing that puts "paste your profile URL" in front of
+    // the right people. Neither spends anything.
+    const plan = await planScholarBulkTargets({
+      userIds: distinct,
+      actorRole: actor.role,
+      trigger: 'ADMIN_BULK',
+    });
+
+    if (
+      typeof expectedChargeableCount === 'number' &&
+      expectedChargeableCount !== plan.chargeableCount
+    ) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        `The estimate you confirmed covered ${expectedChargeableCount} ` +
+          `${expectedChargeableCount === 1 ? 'profile' : 'profiles'} to fetch from Google. ` +
+          `It would now be ${plan.chargeableCount}, because somebody linked or unlinked a ` +
+          'Scholar profile since that estimate was taken. Nothing was queued — take a fresh estimate.',
+        { quoted: expectedChargeableCount, actual: plan.chargeableCount },
+      );
     }
 
-    // Targets we have just PROVED cannot resolve are not enqueued. Their jobs
-    // would reach `refusedWithoutRun`, which by design writes no ScholarFetchRun
-    // — so they would occupy worker slots and vanish without a trace, exactly
-    // the blind spot the config-failure row in the handler exists to close.
-    // They are still returned in `targets[]` with the reason, so the console
-    // can say why they were left out.
-    //
-    // Unbound-but-resolvable targets ARE enqueued: their refusal is recorded
-    // as a run row (that is where SCHOLAR_NEEDS_BINDING comes from), which is
-    // what puts "paste your profile URL" in front of the right people.
-    const runnable = targets.filter((t) => t.resolutionRefusal === null);
-    const skipped = targets.filter((t) => t.resolutionRefusal !== null);
-
     const enqueued: ScholarEnqueueResult[] = [];
-    for (const target of runnable) {
+    for (const target of plan.runnable) {
       enqueued.push(
         await this.enqueueOne({
           userId: target.userId,
@@ -581,11 +601,12 @@ export class ScholarService {
 
     return {
       enqueued,
-      skipped,
+      skipped: plan.skipped,
       targetCount: distinct.length,
       duplicatesDropped,
-      estimatedCredits: estimateScholarBulkCredits(runnable),
-      targets,
+      estimatedCredits: estimateScholarBulkCredits(plan.runnable),
+      chargeableCount: plan.chargeableCount,
+      targets: plan.targets,
     };
   }
 

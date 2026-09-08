@@ -12,10 +12,11 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import { PageHeader } from '@kku/ui';
 import { listScholarRunsAction } from '@/lib/actions/scholar-admin';
 import { scholarBulkMaxTargets } from '@/lib/scholar-admin-config';
-import type {
-  ScholarConsoleRow,
-  ScholarConsoleRun,
-  ScholarLedger,
+import {
+  SCHOLAR_LEDGER_LIMIT,
+  type ScholarConsoleRow,
+  type ScholarConsoleRun,
+  type ScholarLedger,
 } from '@/lib/scholar-admin';
 import { ScholarConsoleClient } from './client';
 
@@ -48,9 +49,12 @@ export default async function AdminScholarPage() {
   if (!user?.userId) redirect('/signin');
   if (!can(user, 'scholar:admin')) redirect('/no-access');
 
+  // The viewing administrator's role, not the target's: SUPER_ADMIN is exempt
+  // from the 30-day fetch quota, so the same roster is quota-blocked for one
+  // administrator and clear for another.
   const [roster, ledgerResult] = await Promise.all([
-    loadScholarConsoleRoster(),
-    listScholarRunsAction({ limit: 50 }),
+    loadScholarConsoleRoster({ actorRole: user.effectiveRole ?? user.role }),
+    listScholarRunsAction({ limit: SCHOLAR_LEDGER_LIMIT }),
   ]);
 
   const ledger: ScholarLedger | null = ledgerResult.ok ? ledgerResult.ledger : null;
@@ -105,6 +109,8 @@ function toClientRow(row: DbScholarConsoleRow): ScholarConsoleRow {
     papersFromScholar: row.papersFromScholar,
     papersFromLibrary: row.papersFromLibrary,
     lastRun: row.lastRun ? toClientRun(row.lastRun) : null,
+    quotaRetryAt: row.quotaRetryAt?.toISOString() ?? null,
+    quotaReason: row.quotaReason,
   };
 }
 
