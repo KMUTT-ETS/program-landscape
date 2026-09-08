@@ -21,7 +21,7 @@
 | `packages/shared/src/scholar/merge.ts` | **Pure.** Scholar papers × existing rows → insert / citation-update plan |
 | `packages/shared/src/scholar/parse.ts` | **Pure.** ScrapingBee payload → publications; plus profile-URL validation |
 | `packages/shared/src/scholar/types.ts` | Shared types for the three above |
-| `apps/ingestion/src/lib/scrapingbee-client.ts` | HTTP wrapper, mirrors `oracle-client.ts` shape |
+| `packages/shared/src/scholar/scrapingbee.ts` | HTTP wrapper. Moved out of `apps/ingestion/src/lib/` in Task 7: `apps/api` has no dependency on `apps/ingestion`, and synchronous binding needs a live page fetch |
 | `packages/db/src/scholar-fetch.ts` | Runner: quota → search/bind → fetch → archive → merge. The only writer |
 | `apps/api/src/scholar/*` | Endpoints + BullMQ enqueue |
 | `apps/web/src/lib/actions/scholar.ts` | Server actions |
@@ -188,7 +188,7 @@ git commit -m "feat(db): schema for Google Scholar on-demand fetch"
 
 **Files:** Create `packages/shared/src/scholar/quota.ts`, `packages/shared/test/scholar-quota.test.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // packages/shared/test/scholar-quota.test.ts
@@ -286,9 +286,9 @@ describe('decideScholarQuota', () => {
 });
 ```
 
-- [ ] **Step 2: Run it, confirm it fails** — `pnpm --filter @kku/shared exec vitest run test/scholar-quota.test.ts`. Expected: cannot resolve `../src/scholar/quota`.
+- [x] **Step 2: Run it, confirm it fails** — `pnpm --filter @kku/shared exec vitest run test/scholar-quota.test.ts`. Expected: cannot resolve `../src/scholar/quota`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 // packages/shared/src/scholar/quota.ts
@@ -355,11 +355,11 @@ export function decideScholarQuota(input: {
 }
 ```
 
-- [ ] **Step 4: Run the tests — 10 must pass.**
+- [x] **Step 4: Run the tests — 10 must pass.**
 
-- [ ] **Step 5: Export from `packages/shared/src/ai/index.ts`'s sibling barrel** — check how `src/index.ts` aggregates and follow it; add `export * from './scholar/quota';` at the matching level.
+- [x] **Step 5: Export from `packages/shared/src/ai/index.ts`'s sibling barrel** — check how `src/index.ts` aggregates and follow it; add `export * from './scholar/quota';` at the matching level.
 
-- [ ] **Step 6: Commit** — `feat(scholar): pure quota decision`
+- [x] **Step 6: Commit** — `feat(scholar): pure quota decision`
 
 ---
 
@@ -369,7 +369,7 @@ export function decideScholarQuota(input: {
 
 **Read first:** the spec's merge table. This unit decides what gets written and **must never produce a delete**. Yesterday's phase2b materialiser did an unconditional delete-and-replace and destroyed 56 courses on a failed call while reporting success; this plan's whole shape exists to make that unrepresentable.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // packages/shared/test/scholar-merge.test.ts
@@ -454,9 +454,9 @@ describe('planScholarMerge', () => {
 });
 ```
 
-- [ ] **Step 2: Run it, confirm it fails.**
+- [x] **Step 2: Run it, confirm it fails.**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 // packages/shared/src/scholar/merge.ts
@@ -536,13 +536,13 @@ export function planScholarMerge(input: {
 }
 ```
 
-- [ ] **Step 4: Run the tests — 8 must pass.**
+- [x] **Step 4: Run the tests — 8 must pass.**
 
-- [ ] **Step 5: Mutation-test the no-delete invariant**
+- [x] **Step 5: Mutation-test the no-delete invariant**
 
 Temporarily add a `deletes: string[]` field populated with `existing.filter(...)`, re-run, and confirm the "never plans a deletion" test fails. Revert. Report what you saw. A guard that does not fail under mutation is decoration — this was the lesson from `model-invalid-fallback.test.ts` on 2026-09-07, where a class-instance fixture still passed a spread regression until the assertions moved onto prototype members.
 
-- [ ] **Step 6: Commit** — `feat(scholar): pure merge planner with no delete path`
+- [x] **Step 6: Commit** — `feat(scholar): pure merge planner with no delete path`
 
 ---
 
@@ -550,15 +550,15 @@ Temporarily add a `deletes: string[]` field populated with `existing.filter(...)
 
 **Files:** Create `packages/shared/src/scholar/parse.ts`, `packages/shared/test/scholar-parse.test.ts`, and fixtures under `packages/shared/test/fixtures/scholar/`.
 
-- [ ] **Step 1: Capture two fixtures**
+- [x] **Step 1: Capture two fixtures**
 
 Before writing the parser, capture real ScrapingBee responses ONCE and commit them as fixtures — one author-search page, one profile publication page. Use a public Scholar profile, and **redact nothing** (this is public bibliographic data; no PII beyond author names, which are public by the act of publishing — the same legal basis recorded for `kku-research`).
 
 If credentials are not available in this session, say so and stop: **do not invent fixture HTML.** A parser tested against imagined markup is worse than no parser.
 
-- [ ] **Step 2: Write the failing test** — assert against the fixtures: candidate extraction (name, affiliation, other-names, interests, paper count, profile id) and publication extraction (title, year, venue, citations, doi when present, scholar paper id). Include a case with a **missing year** and one with a **missing type**, both of which occur.
+- [x] **Step 2: Write the failing test** — assert against the fixtures: candidate extraction (name, affiliation, other-names, interests, paper count, profile id) and publication extraction (title, year, venue, citations, doi when present, scholar paper id). Include a case with a **missing year** and one with a **missing type**, both of which occur.
 
-- [ ] **Step 3: Implement `parseScholarCandidates()` and `parseScholarPublications()`**
+- [x] **Step 3: Implement `parseScholarCandidates()` and `parseScholarPublications()`**
 
 This is the one task in this plan that deliberately carries no reference
 implementation. Every other task specifies its code because the shape is known;
@@ -566,24 +566,44 @@ a parser's shape is dictated by markup nobody in this plan has seen. Write it
 against the fixtures captured in Step 1 and nothing else. Exports
 `SCHOLAR_PARSER_VERSION = 'scholar-parse.v1'` — stamped onto `ScholarFetchArchive.parserVersion` so archived payloads can be reprocessed under a later parser.
 
-- [ ] **Step 4: Run the tests. Step 5: Commit** — `feat(scholar): ScrapingBee response parser`
+- [x] **Step 4: Run the tests. Step 5: Commit** — `feat(scholar): ScrapingBee response parser`
 
 ---
 
 ## Task 5: ScrapingBee client
 
-**Files:** Create `apps/ingestion/src/lib/scrapingbee-client.ts`. Follow the shape of `oracle-client.ts` — env-driven config, one job per call, explicit errors.
+**Files:** `packages/shared/src/scholar/scrapingbee.ts`.
 
-- [ ] **Step 1: Implement** — `GET https://app.scrapingbee.com/api/v1/` with `api_key`, `url`, `render_js=false`. Env: `SCRAPINGBEE_API_KEY`, `SCRAPINGBEE_BASE_URL` (default the above), `SCRAPINGBEE_TIMEOUT_MS` (default 30000).
+> **Revised 2026-09-08, twice, both times against the live API.**
+>
+> **Location.** Originally `apps/ingestion/src/lib/scrapingbee-client.ts`,
+> alongside `oracle-client.ts`. Moved in Task 7: `apps/api` has no dependency on
+> `apps/ingestion`, and binding a profile must be synchronous, so both apps need
+> this. It is a dependency-free `fetch` wrapper, so `@kku/shared` is its right
+> home — but keep it free of `node:*` imports, because the shared barrel is
+> reachable from Next.js client components.
+>
+> **`custom_google=true` is mandatory and was missing.** ScrapingBee refuses any
+> Google URL without it — HTTP 400, the required parameter named in the response
+> body, and it never contacts Google at all. The client as first shipped could
+> not fetch a single Scholar page, and all 15 of its tests passed anyway because
+> a mocked `fetch` answers whatever it is asked. Assert it on the **outgoing
+> URL**, not on a response.
+>
+> **A Google page costs 15 credits, not 1.** ScrapingBee's docs say 20; the live
+> `Spb-Cost` header reported 15 on every request measured. Exported as
+> `GOOGLE_PAGE_CREDIT_COST` for the bulk estimate in Task 9.
+
+- [x] **Step 1: Implement** — `GET https://app.scrapingbee.com/api/v1/` with `api_key`, `url`, `render_js=false`, **`custom_google=true`**. Env: `SCRAPINGBEE_API_KEY`, `SCRAPINGBEE_BASE_URL` (default the above), `SCRAPINGBEE_TIMEOUT_MS` (default 30000).
 
 Required behaviours, each of which must be visible in the code:
 - **Return credits used** from the `Spb-Cost` response header, so `ScholarFetchRun.creditsUsed` is real rather than estimated.
 - **Throw a typed error** distinguishing auth failure (401/403), quota exhaustion (402), and transient (429/5xx). Only transient is retryable, once.
 - **Never log the API key**, and never include it in an error message.
 
-- [ ] **Step 2: Add the env keys to `.env.prod.example` with comments.** Leave the value **empty**, not a placeholder string — `ANTHROPIC_API_KEY=REPLACE_ME` armed a latent bug on 2026-09-07 precisely because a placeholder is truthy.
+- [x] **Step 2: Add the env keys to `.env.prod.example` with comments.** Leave the value **empty**, not a placeholder string — `ANTHROPIC_API_KEY=REPLACE_ME` armed a latent bug on 2026-09-07 precisely because a placeholder is truthy.
 
-- [ ] **Step 3: Commit** — `feat(scholar): ScrapingBee HTTP client`
+- [x] **Step 3: Commit** — `feat(scholar): ScrapingBee HTTP client`
 
 ---
 
@@ -591,7 +611,7 @@ Required behaviours, each of which must be visible in the code:
 
 **Files:** Create `packages/db/src/scholar-fetch.ts`. **This is the only writer.**
 
-- [ ] **Step 1: Implement `runScholarFetch({ userId, triggeredById, trigger, actorRole })`**
+- [x] **Step 1: Implement `runScholarFetch({ userId, triggeredById, trigger, actorRole })`**
 
 Order, and it matters:
 1. Resolve `FacultyMember` via the user's `employeeId`. **None → return `REFUSED` with reason; write no run row and consume no quota** (the spec's "shown but disabled" case).
@@ -605,7 +625,7 @@ Order, and it matters:
 
 Any throw → status `FAILED`, `errorText` set, **no writes to `ResearchOutput`**, and quota unconsumed (Task 2 already ignores FAILED).
 
-- [ ] **Step 1a: Use the right name, and record it**
+- [x] **Step 1a: Use the right name, and record it**
 
 The search string is `FacultyMember.nameEn`, falling back to `User.name` when
 empty. **Not the Thai name** — Scholar indexes Thai researchers under Latin
@@ -616,7 +636,7 @@ be diagnosed without spending another credit repeating it.
 If both are empty, return `REFUSED` with that reason rather than searching on
 an empty string.
 
-- [ ] **Step 1b: Map Scholar types onto the enum when building inserts**
+- [x] **Step 1b: Map Scholar types onto the enum when building inserts**
 
 `ResearchOutputType` is only `JOURNAL | CONFERENCE | PATENT | BOOK`. Scholar's
 type is looser and frequently absent, so:
@@ -639,11 +659,11 @@ A Scholar paper with **no usable year** is skipped, not inserted with a guessed
 one — `ResearchOutput.year` is non-null and feeds year-banded aggregates, so a
 wrong year is worse than a missing paper. Count skips on the run.
 
-- [ ] **Step 2: Implement `bindScholarProfile({ facultyMemberId, scholarProfileId, url, boundById })`** — sets the four columns. Idempotent; rebinding overwrites and is audit-logged.
+- [x] **Step 2: Implement `bindScholarProfile({ facultyMemberId, scholarProfileId, url, boundById })`** — sets the four columns. Idempotent; rebinding overwrites and is audit-logged.
 
-- [ ] **Step 3: Verify the no-delete property holds at the DB layer** — `grep -nE "delete|deleteMany" packages/db/src/scholar-fetch.ts`. Expected: **no output.** If a delete is genuinely needed, stop and explain why before adding it.
+- [x] **Step 3: Verify the no-delete property holds at the DB layer** — `grep -nE "delete|deleteMany" packages/db/src/scholar-fetch.ts`. Expected: **no output.** If a delete is genuinely needed, stop and explain why before adding it.
 
-- [ ] **Step 4: Commit** — `feat(scholar): fetch runner`
+- [x] **Step 4: Commit** — `feat(scholar): fetch runner`
 
 ---
 
@@ -651,7 +671,7 @@ wrong year is worse than a missing paper. Count skips on the run.
 
 **Files:** `apps/api/src/scholar/scholar.controller.ts`, `.service.ts`, `.module.ts`; register `SCHOLAR_FETCH` on the existing `ai-jobs` queue.
 
-- [ ] **Step 1: Endpoints**
+- [x] **Step 1: Endpoints**
 
 | Route | Guard | Purpose |
 |---|---|---|
@@ -664,9 +684,9 @@ wrong year is worse than a missing paper. Count skips on the run.
 
 All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/shared/src/auth/permissions.ts` for SYSTEM_ADMIN + SUPER_ADMIN.
 
-- [ ] **Step 2: Enforce the bulk cap server-side** — reject a bulk request over `SCHOLAR_BULK_MAX_TARGETS` (default 100). The UI also shows it, but the UI is not the guard.
+- [x] **Step 2: Enforce the bulk cap server-side** — reject a bulk request over `SCHOLAR_BULK_MAX_TARGETS` (default 100). The UI also shows it, but the UI is not the guard.
 
-- [ ] **Step 3: Commit** — `feat(scholar): API endpoints and bulk queue`
+- [x] **Step 3: Commit** — `feat(scholar): API endpoints and bulk queue`
 
 ---
 
