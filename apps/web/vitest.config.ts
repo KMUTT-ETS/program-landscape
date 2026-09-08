@@ -40,4 +40,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Next compiles JSX with the automatic runtime, so app files legitimately
+  // use JSX without importing React — `app/admin/scholar/page.tsx` and every
+  // other server component in `app/` do. Vitest's esbuild defaults to the
+  // classic runtime, which turns that into `React is not defined` at render
+  // time. Matching Next here is what lets a page component be imported and
+  // called directly in a test (see scholar-admin-access.test.tsx); files that
+  // still import React explicitly are unaffected.
+  esbuild: { jsx: 'automatic' },
 });

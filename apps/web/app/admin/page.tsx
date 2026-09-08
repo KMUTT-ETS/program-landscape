@@ -24,6 +24,7 @@ import {
   FileUp,
   GitBranch,
   Globe2,
+  GraduationCap,
   Layers,
   RefreshCw,
   Settings2,
@@ -511,6 +512,14 @@ function buildGroups({
       description:
         'Non-curriculum PDFs — Thai government / MHESI / KKU / faculty policy documents and reports. Re-extract, archive, deprecate, delete.',
       icon: <FileSearch className="size-icon-xl" />,
+    },
+    {
+      href: '/admin/scholar',
+      label: 'Google Scholar fetch',
+      description:
+        'Pull a staff member’s Google Scholar publication record on demand, one person or many. Every page fetched from Google costs ScrapingBee credits, so every run is priced before it is sent.',
+      icon: <GraduationCap className="size-icon-xl" />,
+      roles: ADMIN_GRADE,
     },
     {
       href: '/admin/registry-mapping',

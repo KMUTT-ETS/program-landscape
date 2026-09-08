@@ -10,11 +10,11 @@ import {
 import {
   ApiError,
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
-  GOOGLE_PAGE_CREDIT_COST,
   SCHOLAR_LEDGER_LOOKBACK_MS,
   configFromEnv as scrapingBeeConfigFromEnv,
   decideScholarBindQuota,
   decideScholarQuota,
+  estimateScholarBulkCredits,
   fetchScrapingBeePage,
   parseScholarProfileUrl,
   type Role,
@@ -128,31 +128,13 @@ export interface ScholarSelfStatus {
   bind: { attemptsToday: number; maxPerDay: number; retryAt: Date | null };
 }
 
-/**
- * Floor price of a bulk run, in ScrapingBee credits.
- *
- * Only BOUND targets cost anything. A bulk fetch never binds: `runScholarFetch`
- * checks `member.scholarProfileId` at step 4 and returns the needs-binding
- * refusal BEFORE `fetchAllPages` is reached, so an unbound target spends
- * exactly zero. An earlier version of this charged unbound targets two pages
- * — one for the walk, one for "the bind" — which was a carry-over from the
- * superseded name-search design that Google's sign-in wall killed. It made the
- * quote roughly 10x too high at rollout, when almost nobody is bound yet: 50
- * people with 40 unbound quoted 1,350 credits against a real floor of 150.
- *
- * It is a FLOOR, not a forecast: a prolific researcher's profile runs to
- * several pages (up to SCHOLAR_MAX_PAGES = 10) and this cannot know how many
- * without fetching. The console must present it as "at least", and should say
- * separately how many targets will refuse — `profileBound` and
- * `resolutionRefusal` on each target row carry that.
- */
-export function estimateScholarBulkCredits(
-  targets: ReadonlyArray<{ profileBound: boolean }>,
-): number {
-  const pages = targets.reduce((sum, t) => sum + (t.profileBound ? 1 : 0), 0);
-  return pages * GOOGLE_PAGE_CREDIT_COST;
-}
-
+// Priced by @kku/shared, and re-exported here because two processes have to
+// quote the same number: this endpoint prices the run it is about to enqueue,
+// and the admin console prices the same run one round trip earlier so the
+// operator sees a figure before anything is spent. The re-export keeps the
+// existing `from '../src/scholar/scholar.service'` import in
+// apps/api/test/scholar-service.test.ts pointing at the one implementation.
+export { estimateScholarBulkCredits } from '@kku/shared';
 
 /**
  * Which recorded bind attempts count against a person's daily allowance.

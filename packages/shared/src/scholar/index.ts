@@ -5,3 +5,4 @@ export * from './name-match';
 export * from './profile-identity';
 export * from './html-text';
 export * from './scrapingbee';
+export * from './credits';

@@ -60,6 +60,7 @@ import {
   parseScholarProfileUrl,
   parseScholarPublications,
   personNameMatchesAny,
+  personNameTokens,
   personNamesMatch,
   planScholarMerge,
   type ScholarPaper,
@@ -274,7 +275,118 @@ function pickSingleMember(
 }
 
 /**
- * Resolve the FacultyMember row behind a User.
+ * Every staff record, in the shape resolution needs.
+ *
+ * Loaded once and handed to `indexScholarRoster` when a caller has many
+ * people to resolve — see the note on `ScholarRosterIndex` for why that
+ * matters. A caller resolving ONE person should omit it.
+ */
+export async function loadScholarRoster(): Promise<ScholarFacultyMember[]> {
+  return prisma.facultyMember.findMany({ select: MEMBER_SELECT });
+}
+
+/** The three columns resolution reads off a `User`. */
+export interface ScholarAccount {
+  id: string;
+  name: string | null;
+  employeeId: string | null;
+}
+
+/**
+ * Where resolution gets its candidate staff records.
+ *
+ * Two implementations, because the two callers want opposite trade-offs and
+ * neither may be allowed to have its own copy of the RULE:
+ *
+ *   `databaseScholarRoster()` — one person at a time. An indexed point query
+ *   on `employeeId` first, and the full table only if that misses. This is
+ *   what `GET /scholar/status/me` runs, and the profile panel polls it every
+ *   four seconds, so the common case must not read 3,852 rows.
+ *
+ *   `inMemoryScholarRoster(roster)` — many people at once. One read of the
+ *   table, indexed once, then every lookup is a Map hit. This is what the bulk
+ *   pre-flight and the admin console run.
+ *
+ * `nameCandidates` MAY OVER-RETURN. It narrows; `personNamesMatch` decides.
+ */
+export interface ScholarRosterLookup {
+  byEmployeeId(employeeId: string): Promise<ScholarFacultyMember[]>;
+  nameCandidates(name: string): Promise<ScholarFacultyMember[]>;
+}
+
+/**
+ * The only key a name match can be bucketed on without changing its verdict.
+ *
+ * THIS IS AN EXACT PRE-FILTER, NOT AN APPROXIMATION. `personNamesMatch`
+ * returns true through exactly two branches, and both require the two names'
+ * SUBSTANTIAL (multi-character) tokens to be equal: the fast branch compares
+ * all tokens, which implies it, and the slow branch tests it outright before
+ * looking at initials. Sharing a substantial-token key is therefore a
+ * NECESSARY condition for a match, so bucketing on it can only exclude names
+ * that would have been refused anyway.
+ */
+function substantialNameKey(name: string): string {
+  return personNameTokens(name)
+    .filter((t) => t.length > 1)
+    .join(' ');
+}
+
+/**
+ * Resolve many accounts against one read of the staff table.
+ *
+ * The alternative — which the admin console started with — is to scan the
+ * whole roster per person: 624 accounts against 3,852 staff records
+ * re-tokenises both sides 2.4 million times and took 2.9 seconds on a warm
+ * dev box.
+ */
+export function inMemoryScholarRoster(
+  roster: readonly ScholarFacultyMember[],
+): ScholarRosterLookup {
+  const byEmployeeId = new Map<string, ScholarFacultyMember[]>();
+  const byNameKey = new Map<string, ScholarFacultyMember[]>();
+  const push = (map: Map<string, ScholarFacultyMember[]>, key: string, m: ScholarFacultyMember) => {
+    const existing = map.get(key);
+    if (existing) existing.push(m);
+    else map.set(key, [m]);
+  };
+  for (const member of roster) {
+    if (member.employeeId) push(byEmployeeId, member.employeeId, member);
+    // Indexed under its key even when that key is EMPTY — a name that reduces
+    // to nothing, or to initials alone. `personNamesMatch`'s fast branch
+    // (all tokens equal) can still match two such names, so dropping them
+    // would make this a filter that changes verdicts rather than one that
+    // only narrows. Those members share one bucket that no ordinary lookup
+    // reaches, and `personNamesMatch` still has the final say inside it.
+    push(byNameKey, substantialNameKey(member.nameEn), member);
+  }
+  return {
+    byEmployeeId: async (employeeId) => byEmployeeId.get(employeeId) ?? [],
+    nameCandidates: async (name) => byNameKey.get(substantialNameKey(name)) ?? [],
+  };
+}
+
+/** One person at a time: point query first, full table only on a miss. */
+export function databaseScholarRoster(): ScholarRosterLookup {
+  let everyone: Promise<ScholarFacultyMember[]> | null = null;
+  return {
+    byEmployeeId: (employeeId) =>
+      prisma.facultyMember.findMany({ where: { employeeId }, select: MEMBER_SELECT }),
+    nameCandidates: () => {
+      // The comparison is normalised (case, diacritics, punctuation, token
+      // order) and so cannot be expressed in SQL against `name_en`, so the
+      // whole table — a few thousand rows of short strings — is scanned in
+      // memory. That is cheaper than a `contains` pre-filter, which would miss
+      // exactly the diacritic and punctuation cases the normaliser exists to
+      // handle. Memoised so a caller resolving twice reads once.
+      everyone ??= loadScholarRoster();
+      return everyone;
+    },
+  };
+}
+
+/**
+ * Resolve the FacultyMember row behind a `User`. THE rule; everything else in
+ * this section only decides where the candidates come from.
  *
  * Deliberately NOT gated on HR linkage. `employeeCode` marks a current
  * employee and Scholar has no need of it; `employeeId` is the identity
@@ -289,79 +401,37 @@ function pickSingleMember(
  * the Thai one. The two surfaces can therefore resolve differently for a
  * user whose Thai name matches a record but whose English name does not.
  */
-/**
- * Every staff record, in the shape resolution needs.
- *
- * Loaded once and handed to `resolveScholarFacultyMember` when a caller has
- * many people to resolve — see the note on the name path below for why that
- * matters. A caller resolving ONE person should omit it.
- */
-export async function loadScholarRoster(): Promise<ScholarFacultyMember[]> {
-  return prisma.facultyMember.findMany({ select: MEMBER_SELECT });
-}
-
-export async function resolveScholarFacultyMember(
-  userId: string,
-  /**
-   * Pre-loaded roster from `loadScholarRoster()`. When present, BOTH lookups
-   * below run against it in memory instead of hitting the database, which is
-   * what makes a bulk pre-flight one query rather than N.
-   */
-  roster?: ScholarFacultyMember[],
+export async function resolveScholarMember(
+  account: ScholarAccount,
+  lookup: ScholarRosterLookup,
 ): Promise<ScholarMemberResolution> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true, employeeId: true },
-  });
-  if (!user) {
-    return { user: null, member: null, refusal: 'No user record for this account.' };
-  }
-  const publicUser = { id: user.id, name: user.name };
+  const publicUser = { id: account.id, name: account.name };
 
   // (a) Identity: HR employee id. Not unique in the schema, so the same
   // one-or-refuse rule applies here as to the name path.
   let employeeIdMissed = false;
-  if (user.employeeId) {
-    const byEmployeeId = roster
-      ? roster.filter((m) => m.employeeId === user.employeeId)
-      : await prisma.facultyMember.findMany({
-          where: { employeeId: user.employeeId },
-          select: MEMBER_SELECT,
-        });
-    const picked = pickSingleMember(byEmployeeId, `HR employee id "${user.employeeId}"`);
+  if (account.employeeId) {
+    const byEmployeeId = await lookup.byEmployeeId(account.employeeId);
+    const picked = pickSingleMember(byEmployeeId, `HR employee id "${account.employeeId}"`);
     if (picked.member) return { user: publicUser, member: picked.member, refusal: null };
     if (picked.refusal) return { user: publicUser, member: null, refusal: picked.refusal };
     employeeIdMissed = true; // it exists, it just matched nothing — say so below
   }
 
   // (b) Name: exact match on the normalised English name.
-  const accountName = user.name?.trim();
+  const accountName = account.name?.trim();
   if (!accountName) {
     return {
       user: publicUser,
       member: null,
       refusal: employeeIdMissed
-        ? `HR employee id "${user.employeeId}" matches no staff record, and this account has no name to match one by.`
+        ? `HR employee id "${account.employeeId}" matches no staff record, and this account has no name to match one by.`
         : 'This account carries no HR employee id and no name, so it cannot be matched to a staff record.',
     };
   }
 
-  // The comparison is normalised (case, diacritics, punctuation, token
-  // order) and so cannot be expressed in SQL against `name_en`, so the whole
-  // table — a few thousand rows of short strings — is scanned in memory. That
-  // is cheaper than a `contains` pre-filter, which would miss exactly the
-  // diacritic and punctuation cases the normaliser exists to handle.
-  //
-  // This function is NO LONGER once-per-human-initiated-fetch, which an
-  // earlier version of this comment claimed. It is now also called once per
-  // target by the bulk pre-flight in apps/api/src/scholar/scholar.service.ts,
-  // and on every poll of GET /scholar/status/me. Pass `roster` for the first
-  // of those — N sequential unfiltered scans inside one HTTP request is what
-  // the parameter exists to prevent. The status endpoint resolves one person
-  // and takes the scan; if that ever shows up in a profile, cache the roster
-  // rather than weakening the match.
-  const everyone = roster ?? (await prisma.facultyMember.findMany({ select: MEMBER_SELECT }));
-  const byName = everyone.filter((m) => personNamesMatch(m.nameEn, accountName));
+  const candidates = await lookup.nameCandidates(accountName);
+  const byName = candidates.filter((m) => personNamesMatch(m.nameEn, accountName));
   const picked = pickSingleMember(byName, `The name "${accountName}"`);
   if (picked.member) return { user: publicUser, member: picked.member, refusal: null };
   if (picked.refusal) return { user: publicUser, member: null, refusal: picked.refusal };
@@ -372,9 +442,34 @@ export async function resolveScholarFacultyMember(
     refusal:
       `No staff record matches the name "${accountName}" (searched English names)` +
       (employeeIdMissed
-        ? `, and HR employee id "${user.employeeId}" matches none either.`
+        ? `, and HR employee id "${account.employeeId}" matches none either.`
         : ', and this account carries no HR employee id to match one by.'),
   };
+}
+
+export async function resolveScholarFacultyMember(
+  userId: string,
+  /**
+   * Pre-loaded roster from `loadScholarRoster()`. When present the lookups
+   * run against it in memory instead of hitting the database, which is what
+   * makes a bulk pre-flight one query rather than N. Callers resolving MANY
+   * accounts should build one `inMemoryScholarRoster` and call
+   * `resolveScholarMember` directly — passing the array here re-indexes it
+   * per person.
+   */
+  roster?: ScholarFacultyMember[],
+): Promise<ScholarMemberResolution> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, employeeId: true },
+  });
+  if (!user) {
+    return { user: null, member: null, refusal: 'No user record for this account.' };
+  }
+  return resolveScholarMember(
+    user,
+    roster ? inMemoryScholarRoster(roster) : databaseScholarRoster(),
+  );
 }
 
 // ── URL construction ──────────────────────────────────────────────────────

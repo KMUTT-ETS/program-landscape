@@ -64,7 +64,9 @@ import {
   SCHOLAR_PAGE_SIZE,
   bindScholarProfile,
   buildScholarProfilePageUrl,
+  inMemoryScholarRoster,
   resolveScholarFacultyMember,
+  resolveScholarMember,
   runScholarFetch,
   toResearchOutputType,
   type ScholarFacultyMember,
@@ -259,6 +261,86 @@ describe('resolveScholarFacultyMember', () => {
     const r = await resolveScholarFacultyMember(USER_ID);
     expect(r.member?.id).toBe(MEMBER_ID);
     expect(mocks.facultyMemberFindMany).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── The in-memory roster: same rule, different source of candidates ─────────
+//
+// The admin Scholar console resolves the whole user table at once and cannot
+// afford the per-person full scan the database path takes. `inMemoryScholarRoster`
+// buckets the roster on the only key that can narrow a name match without
+// changing its verdict, so what matters is that it AGREES with the database
+// path on every case above — a console that disagreed with the runner about
+// who resolves would offer buttons that refuse, or hide people the runner
+// would happily have fetched.
+
+describe('inMemoryScholarRoster agrees with the database path', () => {
+  const resolveInMemory = (
+    account: { id: string; name: string | null; employeeId: string | null },
+    roster: ScholarFacultyMember[],
+  ) => resolveScholarMember(account, inMemoryScholarRoster(roster));
+
+  it('matches on the HR employee id without consulting names', async () => {
+    const r = await resolveInMemory(
+      { id: USER_ID, name: 'Someone Entirely Different', employeeId: 'HR-9' },
+      [member(), member({ id: 'fm-other', nameEn: 'Someone Else', employeeId: 'HR-X' })],
+    );
+    expect(r.member?.id).toBe(MEMBER_ID);
+  });
+
+  it('matches names order-insensitively and across diacritics/punctuation', async () => {
+    const r = await resolveInMemory(
+      { id: USER_ID, name: 'JAIDEE, Sômchai', employeeId: null },
+      [member({ employeeId: null })],
+    );
+    expect(r.member?.id).toBe(MEMBER_ID);
+  });
+
+  it('tolerates a middle initial on one side only, exactly as the matcher does', async () => {
+    const r = await resolveInMemory(
+      { id: USER_ID, name: 'Somchai Jaidee', employeeId: null },
+      [member({ employeeId: null, nameEn: 'Somchai E Jaidee' })],
+    );
+    expect(r.member?.id).toBe(MEMBER_ID);
+  });
+
+  it('refuses a transliteration variant rather than guessing', async () => {
+    const r = await resolveInMemory(
+      { id: USER_ID, name: 'Somchai Jai-dee', employeeId: null },
+      [member({ employeeId: null })],
+    );
+    expect(r.member).toBeNull();
+    expect(r.refusal).toContain('Somchai Jai-dee');
+  });
+
+  it('refuses, naming the count, when a name matches more than one record', async () => {
+    const r = await resolveInMemory({ id: USER_ID, name: 'Somchai Jaidee', employeeId: null }, [
+      member({ id: 'fm-a', employeeId: null }),
+      member({ id: 'fm-b', employeeId: null }),
+    ]);
+    expect(r.member).toBeNull();
+    expect(r.refusal).toMatch(/matches 2 staff records/);
+  });
+
+  it('still reaches records whose name is nothing but initials', async () => {
+    // These reduce to an EMPTY substantial-token key. An index that skipped
+    // them would silently drop candidates the matcher's all-tokens-equal
+    // branch would have accepted, which would make the bucketing a filter that
+    // changes verdicts rather than one that only narrows.
+    const r = await resolveInMemory({ id: USER_ID, name: 'B A', employeeId: null }, [
+      member({ id: 'fm-initials', employeeId: null, nameEn: 'A B' }),
+    ]);
+    expect(r.member?.id).toBe('fm-initials');
+  });
+
+  it('reads nothing from the database', async () => {
+    mocks.facultyMemberFindMany.mockClear();
+    mocks.userFindUnique.mockClear();
+    await resolveInMemory({ id: USER_ID, name: 'Somchai Jaidee', employeeId: null }, [
+      member({ employeeId: null }),
+    ]);
+    expect(mocks.facultyMemberFindMany).not.toHaveBeenCalled();
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
   });
 });
 
