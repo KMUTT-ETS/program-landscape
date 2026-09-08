@@ -5444,9 +5444,17 @@ model ScholarFetchRun {
   triggeredById    String              @map("triggered_by_id")
   trigger          ScholarFetchTrigger
   status           ScholarFetchStatus
-  /// Exactly what was sent to Scholar, so a failed search is diagnosable
-  /// without repeating it.
+  /// The person's English name as it stood at fetch time — NOT a query
+  /// string sent to Scholar. Binding is by profile URL (author search is
+  /// behind a Google sign-in wall), so nothing is ever "searched" for. It is
+  /// recorded because a fetch that comes back empty is otherwise
+  /// undiagnosable without spending another ~15 credits, and because it is
+  /// what a mis-attribution investigation needs to see.
   searchQuery      String?             @map("search_query")
+  /// Which Scholar profile was actually scraped. Without it a run row cannot
+  /// answer "whose profile did this import from" after a rebind — the
+  /// FacultyMember row only ever shows the CURRENT binding.
+  scholarProfileId String?             @map("scholar_profile_id")
   papersFound      Int                 @default(0) @map("papers_found")
   papersInserted   Int                 @default(0) @map("papers_inserted")
   citationsUpdated Int                 @default(0) @map("citations_updated")

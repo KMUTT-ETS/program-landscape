@@ -42,6 +42,26 @@ describe('personNamesMatch', () => {
     expect(personNamesMatch('Geoffrey E. Hinton', 'Hinton Geoffrey')).toBe(true);
   });
 
+  it('REFUSES conflicting initials — the same surname with different middles is two people', () => {
+    // Every one of these matched before the subset rule. The bind path is
+    // where it bites: staff record "Wei L Zhang", an admin pastes Wei Q
+    // Zhang's profile, and a stranger's papers land on a Council-facing
+    // facultyMemberId.
+    expect(personNamesMatch('Geoffrey E Hinton', 'Geoffrey R Hinton')).toBe(false);
+    expect(personNamesMatch('Wei L Zhang', 'Wei Q Zhang')).toBe(false);
+    expect(personNamesMatch('Somchai A Jaidee', 'Somchai B Jaidee')).toBe(false);
+    // Single-letter given names are real, not just initials.
+    expect(personNamesMatch('Nguyen Van A', 'Nguyen Van B')).toBe(false);
+    expect(personNamesMatch('A B Smith', 'C D Smith')).toBe(false);
+  });
+
+  it('still matches when one side merely OMITS the initial the other states', () => {
+    expect(personNamesMatch('Geoffrey E Hinton', 'Geoffrey Hinton')).toBe(true);
+    expect(personNamesMatch('Nguyen Van A', 'Nguyen Van A')).toBe(true);
+    // Both initials present and agreeing is still the same person.
+    expect(personNamesMatch('Wei L Zhang', 'Zhang Wei L.')).toBe(true);
+  });
+
   it('does NOT let two different people collapse onto a shared surname', () => {
     // Both reduce to {smith} once initials are dropped — the two-token floor
     // is what stops this being a match.

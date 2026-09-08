@@ -36,35 +36,17 @@
 // Replace this with a verified reading the first time a real profile that
 // lists other names is captured.
 
+import { htmlToText } from './html-text';
+
 const DISPLAY_NAME_RE = /<div[^>]*\bid="gsc_prf_in"[^>]*>([\s\S]*?)<\/div>/;
 const OTHER_NAMES_TXT_RE = /<[a-z]+[^>]*\bid="gs_prf_ion_txt"[^>]*>([\s\S]*?)<\/[a-z]+>/i;
 const OTHER_NAMES_ROW_RE = /<div[^>]*\bid="gsc_prf_ion"[^>]*>([\s\S]*?)<\/div>/i;
 /** The grey "Other names" caption, stripped so it is not read as a name. */
 const OTHER_NAMES_LABEL_RE = /<[a-z]+[^>]*\bid="gsc_prf_ion_lbl"[^>]*>[\s\S]*?<\/[a-z]+>/i;
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  quot: '"',
-  apos: "'",
-  lt: '<',
-  gt: '>',
-  nbsp: ' ',
-};
-
-function decodeHtmlEntities(input: string): string {
-  return input.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (whole, entity: string) => {
-    if (entity[0] === '#') {
-      const isHex = entity[1] === 'x' || entity[1] === 'X';
-      const code = parseInt(isHex ? entity.slice(2) : entity.slice(1), isHex ? 16 : 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-    return NAMED_ENTITIES[entity] ?? whole;
-  });
-}
-
-function cleanText(html: string): string {
-  return decodeHtmlEntities(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
-}
+/** Tags here SEPARATE values — an alias row can put each name in its own
+ *  element, and joining those tightly would fuse two people's names. */
+const htmlToTextSpaced = (html: string): string => htmlToText(html, ' ');
 
 export interface ScholarProfileIdentity {
   /** The name the profile displays. Null when the page carries no profile
@@ -85,14 +67,14 @@ export function parseScholarProfileIdentity(html: string): ScholarProfileIdentit
   if (!html) return { displayName: null, otherNames: [] };
 
   const nameMatch = DISPLAY_NAME_RE.exec(html);
-  const displayNameText = nameMatch ? cleanText(nameMatch[1]!) : '';
+  const displayNameText = nameMatch ? htmlToTextSpaced(nameMatch[1]!) : '';
   const displayName = displayNameText.length > 0 ? displayNameText : null;
 
   const otherRaw =
     OTHER_NAMES_TXT_RE.exec(html)?.[1] ??
     OTHER_NAMES_ROW_RE.exec(html)?.[1]?.replace(OTHER_NAMES_LABEL_RE, '') ??
     '';
-  const otherNames = cleanText(otherRaw)
+  const otherNames = htmlToTextSpaced(otherRaw)
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);

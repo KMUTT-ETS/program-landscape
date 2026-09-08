@@ -24,13 +24,26 @@ export interface ScholarMergePlan {
   citationUpdates: { id: string; citations: number; scholarPaperId: string }[];
 }
 
-/** Lowercase, strip diacritics and punctuation, collapse whitespace. */
+/**
+ * Lowercase, strip Latin diacritics and punctuation, collapse whitespace.
+ *
+ * Combining marks (`\p{M}`) are KEPT. They used to be replaced with SPACES,
+ * which shattered every Thai title: `การศึกษาผลกระทบของปัญญาประดิษฐ์ต่อหลักสูตร`
+ * came out as eight fragments, `การศ กษาผลกระทบของป ญญาประด ษฐ ต อหล กส ตร`,
+ * because Thai vowel signs are category Mn rather than L. That is not merely
+ * ugly — it produced real false matches: `'ผล ระบบ'` and `'ผลิระบบ'` both
+ * normalised to `'ผล ระบบ'`, so the planner would treat a genuinely new
+ * Scholar paper as an existing library row and record a citation update
+ * instead of an insert, losing the paper. Latin accents are unaffected: the
+ * NFD pass splits them off and the U+0300–U+036F strip removes them before
+ * this filter runs.
+ */
 export function normaliseTitle(t: string): string {
   return t
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

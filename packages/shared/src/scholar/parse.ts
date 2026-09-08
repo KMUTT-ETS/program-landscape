@@ -11,6 +11,7 @@
 // (Task 6) so an archived raw payload can be reprocessed under a later parser
 // instead of re-scraping.
 import type { ScholarPaper } from './merge';
+import { decodeHtmlEntities, htmlToText } from './html-text';
 
 export const SCHOLAR_PARSER_VERSION = 'scholar-parse.v1';
 
@@ -22,34 +23,6 @@ export interface ScholarCandidate {
   otherNames: string[];
   interests: string[];
   paperCount: number | null;
-}
-
-// ── HTML text helpers ─────────────────────────────────────────────────────
-
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  quot: '"',
-  apos: "'",
-  lt: '<',
-  gt: '>',
-  nbsp: ' ',
-};
-
-/** Decodes the small set of entities Scholar actually emits, plus numeric entities generally. */
-function decodeHtmlEntities(input: string): string {
-  return input.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (whole, entity: string) => {
-    if (entity[0] === '#') {
-      const isHex = entity[1] === 'x' || entity[1] === 'X';
-      const code = parseInt(isHex ? entity.slice(2) : entity.slice(1), isHex ? 16 : 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-    return NAMED_ENTITIES[entity] ?? whole;
-  });
-}
-
-/** Strips any inner tags (Scholar's list markup is plain text today, but titles/venues are defended anyway) and decodes entities. */
-function cleanText(html: string): string {
-  return decodeHtmlEntities(html.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
 }
 
 // ── Publications ───────────────────────────────────────────────────────────
@@ -118,7 +91,7 @@ export function parseScholarPublications(html: string): ScholarPaper[] {
     const titleMatch = TITLE_RE.exec(row);
     if (!titleMatch) continue; // not a real publication row — skip, don't guess
     const scholarPaperId = decodeHtmlEntities(titleMatch[1]!);
-    const title = cleanText(titleMatch[2]!);
+    const title = htmlToText(titleMatch[2]!);
     if (!scholarPaperId || !title) continue;
 
     const yearMatch = YEAR_RE.exec(row);
@@ -129,7 +102,7 @@ export function parseScholarPublications(html: string): ScholarPaper[] {
 
     const venueMatch = VENUE_RE.exec(row);
     const venueRaw = venueMatch?.[1] ?? '';
-    const venueText = cleanText(venueRaw.replace(TRAILING_YEAR_SPAN_RE, ''));
+    const venueText = htmlToText(venueRaw.replace(TRAILING_YEAR_SPAN_RE, ''));
     const venue = venueText.length > 0 ? venueText : null;
 
     const citationsMatch = CITATIONS_RE.exec(row);

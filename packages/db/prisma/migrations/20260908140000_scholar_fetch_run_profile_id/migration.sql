@@ -1,0 +1,21 @@
+-- Record WHICH Scholar profile a fetch run scraped.
+--
+-- HAND-WRITTEN. `prisma migrate diff` against this database also emits
+-- unrelated drift (DROP TABLE "mv_refresh_log", column drops on
+-- "verdict_snapshots", assorted DROP INDEX / DROP DEFAULT / RENAME); the diff
+-- was generated to a scratch path outside the repo and only the statement
+-- below was carried over. See the `feedback_prisma_migrate_diff_drift` note
+-- and docs/dev-database-safety.md.
+--
+-- Purely additive. `ADD COLUMN <nullable> <no default>` is metadata-only in
+-- PostgreSQL 11+, so the table is not rewritten. Existing rows keep NULL,
+-- which is honest: those runs predate the column and we genuinely do not know
+-- what they scraped.
+--
+-- Why it is needed: `faculty_members.scholar_profile_id` only ever shows the
+-- CURRENT binding. After a rebind, the run rows that imported under the old
+-- binding become unattributable — exactly the rows a mis-attribution
+-- investigation has to read.
+
+-- AlterTable
+ALTER TABLE "scholar_fetch_runs" ADD COLUMN     "scholar_profile_id" TEXT;

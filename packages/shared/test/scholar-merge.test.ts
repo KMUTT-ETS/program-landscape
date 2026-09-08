@@ -1,11 +1,33 @@
 // packages/shared/test/scholar-merge.test.ts
 import { describe, it, expect } from 'vitest';
-import { planScholarMerge } from '../src/scholar/merge';
+import { normaliseTitle, planScholarMerge } from '../src/scholar/merge';
 
 const existing = [
   { id: 'r1', title: 'Deep Learning for Rice Yield Prediction', year: 2023, doi: '10.1/abc', citations: 5 },
   { id: 'r2', title: 'A Study of Groundwater, in Isan!', year: 2021, doi: null, citations: 2 },
 ];
+
+describe('normaliseTitle — Thai combining marks', () => {
+  it('keeps Thai vowel signs instead of shattering the title into fragments', () => {
+    // Thai vowel signs are category Mn. Filtering to \p{L}\p{N} alone
+    // replaced them with spaces and turned this 5-word title into 8
+    // fragments.
+    const title = 'การศึกษาผลกระทบของปัญญาประดิษฐ์ต่อหลักสูตร';
+    expect(normaliseTitle(title)).toBe(title.toLowerCase());
+    expect(normaliseTitle(title)).not.toContain(' ');
+  });
+
+  it('no longer collapses two different Thai titles onto one key', () => {
+    // The real consequence of the old behaviour: these normalised
+    // identically, so the planner recorded a citation update against an
+    // unrelated library row instead of inserting a new paper.
+    expect(normaliseTitle('ผล ระบบ')).not.toBe(normaliseTitle('ผลิระบบ'));
+  });
+
+  it('still strips Latin accents, which NFD has already split off', () => {
+    expect(normaliseTitle('Éxposé of Ångström')).toBe('expose of angstrom');
+  });
+});
 
 describe('planScholarMerge', () => {
   it('matches on DOI and plans a citation update only', () => {

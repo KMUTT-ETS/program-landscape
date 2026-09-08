@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   facultyMemberFindUnique: vi.fn(),
   facultyMemberUpdate: vi.fn(),
   runFindMany: vi.fn(),
+  runFindFirst: vi.fn(),
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
   archiveCreate: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('../src/index', () => ({
     },
     scholarFetchRun: {
       findMany: mocks.runFindMany,
+      findFirst: mocks.runFindFirst,
       create: mocks.runCreate,
       update: mocks.runUpdate,
     },
@@ -137,13 +139,23 @@ beforeEach(() => {
   mocks.userFindUnique.mockResolvedValue({ id: USER_ID, name: 'ผศ.ดร. สมชาย ใจดี', employeeId: 'HR-9' });
   mocks.facultyMemberFindMany.mockResolvedValue([member()]);
   mocks.runFindMany.mockResolvedValue([]);
+  mocks.runFindFirst.mockResolvedValue(null); // no fetch already in flight
   mocks.runCreate.mockResolvedValue({ id: 'run-1' });
   mocks.runUpdate.mockResolvedValue({ id: 'run-1' });
   mocks.archiveCreate.mockResolvedValue({ id: 'arch-1' });
   mocks.researchOutputFindMany.mockResolvedValue([]);
   mocks.cacheUpdateMany.mockResolvedValue({ count: 1 });
-  // The mocked $transaction just resolves whatever the mocked query builders
-  // returned, preserving order — enough to assert what was applied.
+  // The mocked $transaction resolves whatever the mocked query builders
+  // returned, preserving order — enough to assert WHAT was applied.
+  //
+  // It does NOT prove atomicity, and no test here does. Real Prisma is handed
+  // lazy PrismaPromises and executes them sequentially inside one database
+  // transaction; this fake has already executed them, eagerly and in
+  // parallel, by the time it is called. So "the writes are all-or-nothing"
+  // rests on the shape of the code (one `$transaction` call, every
+  // ResearchOutput write inside it) rather than on this assertion — read
+  // `expect(mocks.transaction).toHaveBeenCalledTimes(1)` below as "the writes
+  // went through the transaction path", nothing stronger.
   mocks.transaction.mockImplementation((ops: unknown[]) => Promise.all(ops));
 });
 
@@ -257,14 +269,16 @@ describe('runScholarFetch — resolution refusals', () => {
     mocks.facultyMemberFindMany.mockResolvedValue([]);
     mocks.userFindUnique.mockResolvedValue({ id: USER_ID, name: 'Nobody Here', employeeId: null });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage: unreachableFetcher(),
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('REFUSED');
     expect(result.runId).toBeNull();
@@ -277,14 +291,16 @@ describe('runScholarFetch — resolution refusals', () => {
   it('refuses with no run row when the match is ambiguous', async () => {
     mocks.facultyMemberFindMany.mockResolvedValue([member({ id: 'fm-a' }), member({ id: 'fm-b' })]);
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage: unreachableFetcher(),
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('REFUSED');
     expect(result.runId).toBeNull();
@@ -295,14 +311,16 @@ describe('runScholarFetch — resolution refusals', () => {
   it('refuses with no run row when the user record does not exist', async () => {
     mocks.userFindUnique.mockResolvedValue(null);
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage: unreachableFetcher(),
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('REFUSED');
     expect(result.runId).toBeNull();
@@ -313,14 +331,16 @@ describe('runScholarFetch — resolution refusals', () => {
     mocks.userFindUnique.mockResolvedValue({ id: USER_ID, name: '   ', employeeId: 'HR-9' });
     mocks.facultyMemberFindMany.mockResolvedValue([member({ nameEn: '  ' })]);
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage: unreachableFetcher(),
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('REFUSED');
     expect(result.runId).toBeNull();
@@ -338,14 +358,16 @@ describe('runScholarFetch — quota', () => {
     ]);
     const fetchPage = unreachableFetcher();
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('REFUSED');
     expect(result.runId).toBe('run-1');
@@ -366,14 +388,16 @@ describe('runScholarFetch — quota', () => {
     ]);
     mocks.facultyMemberFindMany.mockResolvedValue([member({ scholarProfileId: null })]);
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: 'admin-1',
       trigger: 'ADMIN',
       actorRole: 'ADMIN',
       fetchPage: unreachableFetcher(),
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     // Got past quota (refused later, for the unbound profile — a different reason).
     expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
@@ -387,14 +411,16 @@ describe('runScholarFetch — unbound profile', () => {
     mocks.facultyMemberFindMany.mockResolvedValue([member({ scholarProfileId: null })]);
     const fetchPage = unreachableFetcher();
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('REFUSED');
     expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
@@ -426,14 +452,16 @@ describe('runScholarFetch — happy path', () => {
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
     mocks.researchOutputUpdateMany.mockResolvedValue({ count: 1 });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('SUCCEEDED');
     expect(result.papersFound).toBe(2);
@@ -509,14 +537,16 @@ describe('runScholarFetch — happy path', () => {
     );
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.creditsUsed).toBe(0);
   });
@@ -534,14 +564,16 @@ describe('runScholarFetch — happy path', () => {
       .mockResolvedValueOnce(pageResult(shortPage));
     mocks.researchOutputCreateMany.mockResolvedValue({ count: SCHOLAR_PAGE_SIZE + 1 });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(fetchPage).toHaveBeenCalledTimes(2);
     expect(fetchPage).toHaveBeenNthCalledWith(2, buildScholarProfilePageUrl(PROFILE_ID, SCHOLAR_PAGE_SIZE));
@@ -565,14 +597,16 @@ describe('runScholarFetch — happy path', () => {
     });
     mocks.researchOutputCreateMany.mockResolvedValue({ count: SCHOLAR_MAX_PAGES * SCHOLAR_PAGE_SIZE });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(fetchPage).toHaveBeenCalledTimes(SCHOLAR_MAX_PAGES);
     expect(result.status).toBe('PARTIAL');
@@ -588,14 +622,16 @@ describe('runScholarFetch — failure', () => {
       throw new Error('ScrapingBee request failed transiently after 1 retry (HTTP 503).');
     });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('FAILED');
     expect(result.reason).toContain('HTTP 503');
@@ -620,14 +656,16 @@ describe('runScholarFetch — failure', () => {
     );
     mocks.transaction.mockRejectedValue(new Error('deadlock detected'));
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     expect(result.status).toBe('FAILED');
     expect(result.reason).toContain('deadlock');
@@ -642,14 +680,16 @@ describe('runScholarFetch — failure', () => {
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
     mocks.cacheUpdateMany.mockRejectedValue(new Error('redis-ish failure'));
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      now: NOW,
-    });
+      },
+      { now: NOW },
+    );
 
     // The rows are committed; a stale page is not a failed fetch.
     expect(result.status).toBe('SUCCEEDED');
@@ -679,15 +719,16 @@ describe('runScholarFetch — papers with no usable year', () => {
     ];
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
 
-    const result = await runScholarFetch({
+    const result = await runScholarFetch(
+      {
       userId: USER_ID,
       triggeredById: USER_ID,
       trigger: 'SELF',
       actorRole: 'ANALYST',
       fetchPage,
-      parsePage,
-      now: NOW,
-    });
+      },
+      { parsePage, now: NOW },
+    );
 
     expect(result.papersFound).toBe(3);
     expect(result.papersSkippedNoYear).toBe(2);
@@ -899,5 +940,287 @@ describe('bindScholarProfile', () => {
     ).rejects.toThrow(/already linked/);
     expect(fetchPage).not.toHaveBeenCalled();
     expect(mocks.facultyMemberUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ── 9. Not-a-profile-page guard (B1) ────────────────────────────────────────
+
+describe('runScholarFetch — pages that are not a publication list', () => {
+  // Google serves consent screens and robot interstitials with HTTP 200, so
+  // the ScrapingBee client does not throw and the parser simply finds no
+  // rows. Before the profile-header guard this landed as SUCCEEDED with zero
+  // papers: the UI said it worked, the credits were gone, and because
+  // SUCCEEDED is exactly what the quota unit counts the person was locked out
+  // for 30 days.
+  const CONSENT_PAGE =
+    '<html><body><div>Before you continue to Google</div><a>I agree</a></body></html>';
+
+  it('FAILS on a consent/robot interstitial instead of reporting a clean empty fetch', async () => {
+    const fetchPage = vi.fn(async () => pageResult(CONSENT_PAGE, 15));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.reason).toMatch(/no profile header/i);
+    // Credits still recorded — money was spent whether or not it worked.
+    expect(result.creditsUsed).toBe(15);
+    // FAILED is the status the quota unit ignores, so the month survives.
+    expect(mocks.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED', creditsUsed: 15 }) }),
+    );
+    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+    // The raw page is still archived, so the interstitial is diagnosable.
+    expect(mocks.archiveCreate).toHaveBeenCalled();
+  });
+
+  it('SUCCEEDS on a genuinely empty profile — a header with no papers is real', async () => {
+    const fetchPage = vi.fn(async () => pageResult(page([]), 15));
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.papersFound).toBe(0);
+  });
+
+  it('FAILS when the linked profile turns out to be someone else', async () => {
+    // Re-verifies the binding on every fetch, by the same rule bind applies.
+    // Catches a rebind underneath a fetch, and a staff record renamed after
+    // binding.
+    const fetchPage = vi.fn(async () =>
+      pageResult(
+        page([row({ paperId: 'x:1', title: 'Their paper', year: 2024, citations: 9 })], 'Geoffrey Hinton'),
+      ),
+    );
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.reason).toMatch(/Geoffrey Hinton[\s\S]*Somchai Jaidee/);
+    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('reports PARTIAL when a full page of rows produces no papers', async () => {
+    // The silent-truncation case: page 1 is 100 rows the parser cannot read
+    // (markup drift, e.g. an added attribute), page 2 holds the real papers.
+    // Stopping is right — continuing spends credits on unreadable pages — but
+    // reporting SUCCEEDED would hide a library that just lost everything past
+    // page 1.
+    const junk = page(Array.from({ length: SCHOLAR_PAGE_SIZE }, () => '<tr class="gsc_a_tr"><td>drifted</td></tr>'));
+    const fetchPage = vi.fn(async () => pageResult(junk, 15));
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('PARTIAL');
+    expect(result.reason).toMatch(/produced no papers/i);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── 10. Finalisation never escapes (B2) ─────────────────────────────────────
+
+describe('runScholarFetch — bookkeeping failures', () => {
+  it('does not throw, and does not disown committed rows, when finalisation fails', async () => {
+    const fetchPage = vi.fn(async () =>
+      pageResult(page([row({ paperId: `${PROFILE_ID}:p`, title: 'P', year: 2024, citations: 1 })]), 15),
+    );
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.runUpdate.mockRejectedValue(new Error('write CONN_CLOSED after commit'));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    // The merge committed, so the run succeeded — a failure to write that
+    // down must not turn into a 500 that invites the operator to re-run and
+    // spend another 15 credits against a quota that ignores FAILED.
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.papersInserted).toBe(1);
+    expect(mocks.researchOutputCreateMany).toHaveBeenCalled();
+  });
+
+  it('surfaces the ORIGINAL error when the failure-path write also fails', async () => {
+    const fetchPage = vi.fn(async () => {
+      throw new Error('ScrapingBee request failed transiently after 1 retry (HTTP 503).');
+    });
+    mocks.runUpdate.mockRejectedValue(new Error('and the database is down too'));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.reason).toContain('HTTP 503');
+    expect(result.reason).not.toContain('database is down');
+  });
+
+  it('does not escape when the unbound-profile refusal cannot be written', async () => {
+    mocks.facultyMemberFindMany.mockResolvedValue([member({ scholarProfileId: null })]);
+    mocks.runUpdate.mockRejectedValue(new Error('write failed'));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: unreachableFetcher(),
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('REFUSED');
+    expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
+  });
+
+  it('reports credits and papers seen so far when the walk fails part-way', async () => {
+    const fullPage = page(
+      Array.from({ length: SCHOLAR_PAGE_SIZE }, (_, i) =>
+        row({ paperId: `${PROFILE_ID}:p${i}`, title: `Paper ${i}`, year: 2020, citations: 1 }),
+      ),
+    );
+    const fetchPage = vi
+      .fn<(url: string) => Promise<ScholarPageResult>>()
+      .mockResolvedValueOnce(pageResult(fullPage, 15))
+      .mockRejectedValueOnce(new Error('ScrapingBee timed out'));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    // Money was spent on page 1; the ledger has to say so.
+    expect(result.creditsUsed).toBe(15);
+    expect(result.papersFound).toBe(SCHOLAR_PAGE_SIZE);
+  });
+});
+
+// ── 11. One fetch at a time ─────────────────────────────────────────────────
+
+describe('runScholarFetch — concurrency guard', () => {
+  it('refuses a second fetch while one is unfinished, without opening a run or fetching', async () => {
+    const startedAt = new Date(NOW.getTime() - 60_000);
+    mocks.runFindFirst.mockResolvedValue({ id: 'run-in-flight', startedAt });
+    const fetchPage = unreachableFetcher();
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage,
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('REFUSED');
+    expect(result.runId).toBe('run-in-flight');
+    expect(result.reason).toMatch(/has not finished/);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(mocks.runCreate).not.toHaveBeenCalled();
+  });
+
+  it('looks only at recent unfinished runs — an old stuck row cannot block forever', async () => {
+    await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: vi.fn(async () => pageResult(page([]))),
+      },
+      { now: NOW },
+    );
+
+    const where = (mocks.runFindFirst.mock.calls[0]![0] as { where: Record<string, unknown> }).where;
+    expect(where).toMatchObject({ userId: USER_ID, status: 'FAILED', finishedAt: null });
+    expect(where.startedAt).toEqual({ gt: new Date(NOW.getTime() - 15 * 60 * 1000) });
+  });
+});
+
+// ── 12. Provenance on the run row ───────────────────────────────────────────
+
+describe('runScholarFetch — run row provenance', () => {
+  it('records WHICH profile it scraped, so a later rebind cannot orphan the run', async () => {
+    await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: vi.fn(async () => pageResult(page([]))),
+      },
+      { now: NOW },
+    );
+
+    expect(mocks.runCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scholarProfileId: PROFILE_ID,
+          searchQuery: 'Somchai Jaidee',
+          status: 'FAILED', // opened unfinished; finalised below
+          errorText: 'Fetch in progress.',
+        }),
+      }),
+    );
   });
 });

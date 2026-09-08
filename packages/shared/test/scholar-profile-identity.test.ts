@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseScholarProfileIdentity } from '../src/scholar/profile-identity';
+import { htmlToText } from '../src/scholar/html-text';
 
 const FIXTURES_DIR = join(__dirname, 'fixtures', 'scholar');
 const read = (name: string) => readFileSync(join(FIXTURES_DIR, name), 'utf-8');
@@ -79,5 +80,18 @@ describe('parseScholarProfileIdentity — aliases (markup inferred from the capt
       '<div id="gsc_prf_in">Somchai Jaidee</div>' +
       '<div id="gsc_prf_ion"><span id="gsc_prf_ion_lbl">Other names</span>Somchai Jai-dee</div>';
     expect(parseScholarProfileIdentity(html).otherNames).toEqual(['Somchai Jai-dee']);
+  });
+});
+
+describe('shared html-text helpers', () => {
+  it('keeps inline emphasis inside one value tight, and separates distinct values', () => {
+    // The two behaviours that had silently diverged between parse.ts and
+    // this module before html-text.ts existed.
+    expect(htmlToText('<b>Nano</b>technology')).toBe('Nanotechnology');
+    expect(htmlToText('<div>A<br>B</div>', ' ')).toBe('A B');
+  });
+
+  it('decodes named and numeric entities', () => {
+    expect(htmlToText('R&amp;D &#233; &#x41;')).toBe('R&D é A');
   });
 });

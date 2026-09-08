@@ -67,12 +67,19 @@ export function personNameKey(name: string): string {
 /**
  * True when two names are the same written name.
  *
- * Single-character tokens (middle initials — `"Geoffrey E Hinton"` vs
- * `"Geoffrey Hinton"`) are ignored, but ONLY while at least two tokens
- * survive on both sides. Without that floor, `"A Smith"` and `"B Smith"`
- * would both reduce to `{smith}` and match — two different people, exactly
- * the failure this module exists to prevent. When either side would drop
- * below two tokens, the full token sets are compared instead.
+ * Initials are tolerated in one direction only: as an OMISSION, never as a
+ * CONFLICT. `"Geoffrey E Hinton"` and `"Geoffrey Hinton"` match, because one
+ * side simply does not carry the middle initial. `"Geoffrey E Hinton"` and
+ * `"Geoffrey R Hinton"` do NOT, because both sides state an initial and the
+ * statements disagree — those are two people, and matching them is precisely
+ * the failure this module exists to prevent.
+ *
+ * Mechanically: the substantial (multi-character) tokens must be equal AND
+ * one side's single-character token set must be a subset of the other's.
+ * `{} ⊆ {e}` keeps the omission case; `{e} ⊄ {r}` refuses the conflict. The
+ * two-substantial-token floor stays on top of that, so `"A Smith"` and
+ * `"B Smith"` — which would otherwise both reduce to `{smith}` — still
+ * refuse, and so do names built entirely from initials.
  *
  * Empty or whitespace-only input never matches anything, including another
  * empty string: "we don't know this person's name" is not an identity.
@@ -86,7 +93,15 @@ export function personNamesMatch(a: string, b: string): boolean {
   const substantialA = tokensA.filter((t) => t.length > 1);
   const substantialB = tokensB.filter((t) => t.length > 1);
   if (substantialA.length < 2 || substantialB.length < 2) return false;
-  return substantialA.join(' ') === substantialB.join(' ');
+  if (substantialA.join(' ') !== substantialB.join(' ')) return false;
+
+  const initialsA = tokensA.filter((t) => t.length === 1);
+  const initialsB = tokensB.filter((t) => t.length === 1);
+  const isSubset = (small: string[], large: string[]) => {
+    const set = new Set(large);
+    return small.every((t) => set.has(t));
+  };
+  return isSubset(initialsA, initialsB) || isSubset(initialsB, initialsA);
 }
 
 /** True when `candidate` matches any of `accepted`. Convenience for the
