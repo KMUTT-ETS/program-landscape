@@ -24,9 +24,16 @@ generator client {
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [postgis, vector, pg_trgm, btree_gin, uuidOssp(map: "uuid-ossp")]
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  // Prisma treats the shadow database as disposable — it drops and replays it.
+  // Declaring it here means any command that wants one gets the dedicated
+  // throwaway database instead of defaulting to something that matters.
+  // Without this line the env var is inert and the flag has to be passed by
+  // hand, which is how the dev database was destroyed on 2026-09-06.
+  // See scripts/dev-guard/db-destructive-guard.py.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  extensions        = [postgis, vector, pg_trgm, btree_gin, uuidOssp(map: "uuid-ossp")]
 }
 
 // ══════════════════════════════════════════════════════════════════════════

@@ -62,7 +62,14 @@ infra/gotenberg/fonts/*.TTF
 apps/web/public/pdf.worker.*.mjs
 
 # Claude Code per-session state (schedules, local overrides).
-.claude/
+# `.claude/*` rather than `.claude/` — git cannot re-include a file whose
+# parent DIRECTORY is excluded, so the directory has to stay traversable for
+# the negation below to work at all.
+.claude/*
+# ...except the project hook config. The PreToolUse guard in
+# scripts/dev-guard/ only protects a checkout that has this file, and the dev
+# database is shared — see docs/dev-database-safety.md.
+!.claude/settings.json
 
 
 # Ad-hoc operational SQL. One-off scripts written to patch production data
