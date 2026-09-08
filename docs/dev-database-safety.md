@@ -1,4 +1,4 @@
-# Dev database safety
+# Dev safety: the database, and secrets in `.env`
 
 The dev database is not a scratch database. It holds real production-derived
 data — 297 programmes, ~81k research outputs, curriculum digests, course
@@ -74,6 +74,47 @@ Use the `Write` tool for such files instead of a shell heredoc.
 
 Hand it to the operator to run in their own terminal (`! <command>` in a Claude
 Code session runs it directly). Do not edit the guard to get past it.
+
+### The same guard blocks `.env` secret spills
+
+Added 2026-09-08, after **two live credentials leaked into session transcripts
+in a single day**:
+
+- `KMITL_SKILL_MAPPING_SECRET_KEY` — `set -a; . ./.env` on a line whose value
+  had an unquoted leading space, so the shell parsed it as `KEY=` followed by
+  the key *as a command* and echoed the whole thing as "command not found".
+- `SCRAPINGBEE_API_KEY` — a `grep` on `.env`, which prints whole lines.
+
+Both had to be rotated. A transcript is not a private place: it is written to
+disk, may sync to claude.ai, and is read back into context on every resume.
+
+The guard therefore refuses, on `Bash`, `Read` and `Grep`:
+
+| Blocked | Safe instead |
+|---|---|
+| `. .env` / `source .env` (any `set -a` form) | a script that parses the file and prints only what it needs |
+| `cat` / `head` / `tail` / `less` / `more` / `strings` / `xxd` / `od` / `bat` on `.env` | `cut -d= -f1 .env` for key names |
+| `grep` / `rg` on `.env` without `-c`, `-l`, `-L` or `-q` | `grep -c '^SOME_KEY=' .env` to test that one is set |
+| `Read` or `Grep` tool pointed at `.env` | same as above |
+
+`.env.example` and `.env.prod.example` are deliberately **not** matched — they
+hold `REPLACE_ME` placeholders, not secrets.
+
+### Testing the guard
+
+`scripts/dev-guard/guard-cases.json` holds real `(tool, tool_input)` payloads
+and the verdict each must get. Run it after any change to the rules:
+
+```bash
+python3 scripts/dev-guard/test-guard.py \
+  scripts/dev-guard/guard-cases.json \
+  scripts/dev-guard/db-destructive-guard.py
+```
+
+The ALLOW cases matter as much as the DENY ones. A guard that refuses ordinary
+work gets switched off, and a switched-off guard protects nothing — so every
+exemption worth keeping (`cut -d= -f1 .env`, `migrate deploy`, `docker compose
+down` without `-v`) is pinned by a case.
 
 ## Layer 2 — give Prisma a shadow database that is safe to destroy
 

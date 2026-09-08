@@ -6,13 +6,13 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Read|Grep",
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/dev-guard/db-destructive-guard.py\"",
             "timeout": 10,
-            "statusMessage": "Checking for destructive DB commands"
+            "statusMessage": "Checking for destructive or secret-leaking commands"
           }
         ]
       }

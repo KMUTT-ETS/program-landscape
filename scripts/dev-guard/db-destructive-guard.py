@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Claude Code PreToolUse hook on Bash — refuse commands that can silently
-destroy the DEV database.
+"""Claude Code PreToolUse hook — refuse actions that silently destroy the DEV
+database or spill secrets from .env into a transcript.
 
 Wired from .claude/settings.json; runs on every Bash tool call.
 
@@ -119,16 +119,93 @@ def find_violation(command: str) -> str | None:
     return None
 
 
+# ── .env secret spill ────────────────────────────────────────────────────
+#
+# WHY: two live credentials leaked into this project's session transcripts on
+# 2026-09-08 — KMITL_SKILL_MAPPING_SECRET_KEY (a shell `. ./.env` executed an
+# unquoted value as a command and echoed it) and SCRAPINGBEE_API_KEY (a grep
+# printed the whole line). Both had to be rotated. A transcript is not a
+# private place: it is written to disk, may sync to claude.ai, and is read back
+# into context on every resume.
+#
+# The rules below block the two vectors that actually fired, not every mention
+# of .env — an agent still needs to check whether a key is configured.
+# Safe alternatives, named in the refusal message:
+#   cut -d= -f1 .env              # key names only, no values
+#   grep -c '^SOME_KEY=' .env     # count only
+#   a script that parses .env and prints nothing but what it needs
+#
+# .env.example / .env.prod.example hold REPLACE_ME placeholders, not secrets,
+# so they are deliberately not matched.
+
+# `.env` not followed by another path character — so `.env.example`,
+# `.env.prod.example` and `.env.local` are all excluded.
+DOTENV = r"(?<![\w.-])\.env(?![\w.-])"
+
+DUMPERS = r"\b(cat|head|tail|less|more|strings|xxd|od|bat)\b"
+# grep/rg that prints matching LINES. -c/-l/-L/-q print counts, filenames or
+# nothing, so they cannot spill a value.
+GREPPERS = r"\b(grep|egrep|fgrep|rg|ag)\b"
+GREP_SAFE_FLAGS = r"\s-{1,2}[A-Za-z-]*[clLq]"
+SOURCERS = r"(^|[;&|]|\bset\s+-a\s*;)\s*(\.|source)\s+[^;&|]*" + DOTENV
+
+SECRET_ADVICE = (
+    " .env holds live credentials, and anything printed here lands in the "
+    "session transcript, which is written to disk and read back on resume. Two "
+    "keys already had to be rotated this way on 2026-09-08. Use "
+    "`cut -d= -f1 .env` for key names, `grep -c '^KEY=' .env` to test that one "
+    "is set, or a script that parses the file and prints only what it needs."
+)
+
+
+def find_secret_violation(command: str) -> str | None:
+    flags = re.IGNORECASE | re.DOTALL
+    if re.search(SOURCERS, command, flags):
+        return (
+            "BLOCKED: sourcing .env in a shell. An unquoted value containing a "
+            "space is executed as a command and echoed — that is exactly how "
+            "KMITL_SKILL_MAPPING_SECRET_KEY leaked on 2026-09-08." + SECRET_ADVICE
+        )
+    if re.search(DOTENV, command, flags):
+        if re.search(DUMPERS, command, flags):
+            return "BLOCKED: dumping .env to output." + SECRET_ADVICE
+        if re.search(GREPPERS, command, flags) and not re.search(GREP_SAFE_FLAGS, command, flags):
+            return (
+                "BLOCKED: grepping .env prints whole lines, values included — "
+                "that is how SCRAPINGBEE_API_KEY leaked on 2026-09-08."
+                + SECRET_ADVICE
+            )
+    return None
+
+
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
-        command = payload.get("tool_input", {}).get("command") or ""
+        tool = payload.get("tool_name") or ""
+        tool_input = payload.get("tool_input") or {}
     except Exception:
         # Malformed payload: never block real work because the parse hiccuped.
         return
-    if not command:
+
+    if tool == "Bash":
+        command = tool_input.get("command") or ""
+        if not command:
+            return
+        reason = find_violation(command) or find_secret_violation(command)
+    elif tool in ("Read", "Grep"):
+        # The file tools bypass the shell entirely, so the Bash rules above
+        # would never see them reading .env.
+        target = " ".join(
+            str(tool_input.get(k) or "") for k in ("file_path", "path", "glob", "pattern")
+        )
+        reason = (
+            "BLOCKED: reading .env with a file tool." + SECRET_ADVICE
+            if re.search(DOTENV, target, re.IGNORECASE)
+            else None
+        )
+    else:
         return
-    reason = find_violation(command)
+
     if reason is None:
         return
     json.dump(

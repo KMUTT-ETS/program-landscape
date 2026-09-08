@@ -1,0 +1,27 @@
+[
+  ["DENY",  "Bash", {"command": "set -a; . ./.env; set +a"}],
+  ["DENY",  "Bash", {"command": "source .env"}],
+  ["DENY",  "Bash", {"command": "cat .env"}],
+  ["DENY",  "Bash", {"command": "head -20 .env"}],
+  ["DENY",  "Bash", {"command": "grep SCRAPINGBEE .env"}],
+  ["DENY",  "Bash", {"command": "grep -n SCRAPINGBEE_API_KEY .env | head -1"}],
+  ["DENY",  "Bash", {"command": "rg SCRAPINGBEE .env"}],
+  ["DENY",  "Read", {"file_path": "/home/denpong/projects/program-landscape/.env"}],
+  ["DENY",  "Grep", {"pattern": "KEY", "path": ".env"}],
+
+  ["ALLOW", "Bash", {"command": "cut -d= -f1 .env"}],
+  ["ALLOW", "Bash", {"command": "grep -c '^SCRAPINGBEE_API_KEY=' .env"}],
+  ["ALLOW", "Bash", {"command": "grep -q '^SCRAPINGBEE_API_KEY=' .env && echo set"}],
+  ["ALLOW", "Bash", {"command": "cat .env.example"}],
+  ["ALLOW", "Bash", {"command": "grep -n SCRAPINGBEE .env.prod.example"}],
+  ["ALLOW", "Read", {"file_path": "/home/denpong/projects/program-landscape/.env.example"}],
+  ["ALLOW", "Bash", {"command": "git status"}],
+  ["ALLOW", "Bash", {"command": "pnpm test"}],
+  ["ALLOW", "Read", {"file_path": "packages/db/src/scholar-fetch.ts"}],
+
+  ["DENY",  "Bash", {"command": "npx prisma migrate reset --force"}],
+  ["DENY",  "Bash", {"command": "pnpm --filter @kku/db prisma db push"}],
+  ["DENY",  "Bash", {"command": "docker compose down -v"}],
+  ["ALLOW", "Bash", {"command": "pnpm --filter @kku/db exec prisma migrate deploy"}],
+  ["ALLOW", "Bash", {"command": "docker compose down"}]
+]
