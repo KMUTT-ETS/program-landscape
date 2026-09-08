@@ -182,3 +182,94 @@ export function parseScholarCandidates(html: string): ScholarCandidate[] {
   void html;
   return [];
 }
+
+// ── Profile URL binding ─────────────────────────────────────────────────
+//
+// `search_authors` is walled behind a mandatory sign-in (see the notes on
+// `parseScholarCandidates` above) — so binding a Scholar profile to a user
+// is done by having the user paste their own profile URL instead of picking
+// one from a name search. This is the validator for that pasted URL: it
+// extracts the `user=` id from a Scholar *citations profile* URL and
+// rejects everything else with a reason specific enough to fix, including
+// the case this replaces a search for — a plain name typed into the box.
+//
+// Deliberately does NOT fall back to treating an unparseable input as a
+// name to search for. That endpoint is walled; silently trying it anyway
+// (or silently doing anything other than "extract the id from this URL")
+// is how the wrong person's profile gets bound.
+
+export type ScholarUrlResult = { ok: true; profileId: string } | { ok: false; reason: string };
+
+const SCHOLAR_HOST_PREFIX = 'scholar.google.';
+const EXAMPLE_URL = 'https://scholar.google.com/citations?user=ABC123';
+
+/**
+ * Validates a pasted Google Scholar URL and extracts the profile's
+ * `user=` id.
+ *
+ * Accepts any `scholar.google.<tld>` host, `http` or `https`, a missing
+ * scheme (people paste straight from the address bar), surrounding
+ * whitespace, and `user=` in any query-parameter position. Rejects
+ * everything else with a `reason` naming what's wrong and showing a
+ * correct example — never falls back to a name search (see module notes
+ * above).
+ */
+export function parseScholarProfileUrl(input: string): ScholarUrlResult {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return {
+      ok: false,
+      reason: `The profile URL is empty. Paste the link from your Google Scholar profile page, e.g. ${EXAMPLE_URL}`,
+    };
+  }
+
+  const hasScheme = /^https?:\/\//i.test(trimmed);
+  const candidate = hasScheme ? trimmed : `https://${trimmed}`;
+
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    return {
+      ok: false,
+      reason: `"${trimmed}" isn't a URL. Paste your Google Scholar profile link (not your name), e.g. ${EXAMPLE_URL}`,
+    };
+  }
+
+  // A bare word with no scheme (e.g. a pasted name) can still parse as a
+  // single-label hostname once "https://" is prepended above — the WHATWG
+  // URL parser doesn't require a dot. Treat that the same as unparseable:
+  // it isn't a Scholar host, and it's not a URL anyone actually navigates
+  // to, it's a name.
+  if (!url.hostname.includes('.')) {
+    return {
+      ok: false,
+      reason: `"${trimmed}" isn't a URL. Paste your Google Scholar profile link (not your name), e.g. ${EXAMPLE_URL}`,
+    };
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  if (!hostname.startsWith(SCHOLAR_HOST_PREFIX)) {
+    return {
+      ok: false,
+      reason: `"${hostname}" is not a Google Scholar address. Expected a scholar.google.* link, e.g. ${EXAMPLE_URL}`,
+    };
+  }
+
+  if (url.pathname !== '/citations') {
+    return {
+      ok: false,
+      reason: `That's a Scholar link, but not a citations profile page (got path "${url.pathname}"). Open your profile on Scholar and copy that link, e.g. ${EXAMPLE_URL}`,
+    };
+  }
+
+  const profileId = url.searchParams.get('user');
+  if (!profileId) {
+    return {
+      ok: false,
+      reason: `That's a Scholar citations link, but it has no "user=" id. Open your profile page (not a search or article page) and copy its link, e.g. ${EXAMPLE_URL}`,
+    };
+  }
+
+  return { ok: true, profileId };
+}

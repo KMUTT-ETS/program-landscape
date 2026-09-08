@@ -6,7 +6,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCHOLAR_PARSER_VERSION, parseScholarCandidates, parseScholarPublications } from '../src/scholar/parse';
+import {
+  SCHOLAR_PARSER_VERSION,
+  parseScholarCandidates,
+  parseScholarProfileUrl,
+  parseScholarPublications,
+} from '../src/scholar/parse';
 
 const FIXTURES_DIR = join(__dirname, 'fixtures', 'scholar');
 const read = (name: string) => readFileSync(join(FIXTURES_DIR, name), 'utf-8');
@@ -127,5 +132,128 @@ describe('parseScholarCandidates', () => {
 
   it('returns [] on unrelated markup, never throws', () => {
     expect(parseScholarCandidates('<html><body>not a scholar page</body></html>')).toEqual([]);
+  });
+});
+
+describe('parseScholarProfileUrl', () => {
+  // Replaces the walled name-search flow: the user pastes their own
+  // profile URL instead of picking one out of a search-results list.
+
+  it('extracts the id from a plain citations profile URL', () => {
+    const result = parseScholarProfileUrl('https://scholar.google.com/citations?user=ABC123');
+    expect(result).toEqual({ ok: true, profileId: 'ABC123' });
+  });
+
+  it('extracts the id when user= is not the first query parameter', () => {
+    const result = parseScholarProfileUrl(
+      'https://scholar.google.com/citations?hl=en&user=ABC123&view_op=list_works',
+    );
+    expect(result).toEqual({ ok: true, profileId: 'ABC123' });
+  });
+
+  it('extracts the id when user= is the last query parameter', () => {
+    const result = parseScholarProfileUrl(
+      'https://scholar.google.com/citations?hl=en&view_op=list_works&user=ABC123',
+    );
+    expect(result).toEqual({ ok: true, profileId: 'ABC123' });
+  });
+
+  it('accepts a .co.th Scholar host', () => {
+    const result = parseScholarProfileUrl('https://scholar.google.co.th/citations?user=XYZ789');
+    expect(result).toEqual({ ok: true, profileId: 'XYZ789' });
+  });
+
+  it('accepts a .co.uk Scholar host', () => {
+    const result = parseScholarProfileUrl('https://scholar.google.co.uk/citations?user=XYZ789');
+    expect(result).toEqual({ ok: true, profileId: 'XYZ789' });
+  });
+
+  it('accepts http (not just https)', () => {
+    const result = parseScholarProfileUrl('http://scholar.google.com/citations?user=ABC123');
+    expect(result).toEqual({ ok: true, profileId: 'ABC123' });
+  });
+
+  it('tolerates a missing scheme, pasted straight from the address bar', () => {
+    const result = parseScholarProfileUrl('scholar.google.com/citations?user=ABC123');
+    expect(result).toEqual({ ok: true, profileId: 'ABC123' });
+  });
+
+  it('tolerates surrounding whitespace', () => {
+    const result = parseScholarProfileUrl('  https://scholar.google.com/citations?user=ABC123  \n');
+    expect(result).toEqual({ ok: true, profileId: 'ABC123' });
+  });
+
+  it('rejects an empty string with a reason naming the problem', () => {
+    const result = parseScholarProfileUrl('');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/empty/i);
+      expect(result.reason).toContain('scholar.google.com/citations?user=');
+    }
+  });
+
+  it('rejects a whitespace-only string the same as empty', () => {
+    const result = parseScholarProfileUrl('   \t  ');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/empty/i);
+  });
+
+  it('rejects a pasted personal name rather than falling back to a search', () => {
+    // This is exactly the input the old name-search design invited, and
+    // exactly the case that must NOT silently trigger a search against the
+    // walled endpoint (see the module-level notes above this describe
+    // block, and above parseScholarCandidates in src/scholar/parse.ts).
+    const result = parseScholarProfileUrl('Somchai Jaidee');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/not a URL|isn't a URL/i);
+      expect(result.reason).toContain('scholar.google.com/citations?user=');
+    }
+  });
+
+  it('rejects a single-word name that would otherwise parse as a bare hostname', () => {
+    const result = parseScholarProfileUrl('SomchaiJaidee');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/not a URL|isn't a URL/i);
+  });
+
+  it('rejects a non-Scholar host with a reason naming the bad host', () => {
+    const result = parseScholarProfileUrl('https://example.com/citations?user=ABC123');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain('example.com');
+      expect(result.reason).toContain('scholar.google.com/citations?user=');
+    }
+  });
+
+  it('rejects a Scholar search-results URL — not a citations profile', () => {
+    const result = parseScholarProfileUrl('https://scholar.google.com/scholar?q=neural+networks');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/not a citations profile/i);
+      expect(result.reason).toContain('/scholar');
+    }
+  });
+
+  it('rejects a Scholar article/outbound-link URL — not a citations profile', () => {
+    const result = parseScholarProfileUrl(
+      'https://scholar.google.com/scholar_url?url=https://example.com/paper.pdf',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/not a citations profile/i);
+  });
+
+  it('rejects /citations with no user= parameter', () => {
+    const result = parseScholarProfileUrl('https://scholar.google.com/citations?hl=en&view_op=list_works');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/no "user=" id/i);
+      expect(result.reason).toContain('scholar.google.com/citations?user=');
+    }
+  });
+
+  it('never throws on garbage input', () => {
+    expect(() => parseScholarProfileUrl('not a url at all !! ///')).not.toThrow();
+    expect(() => parseScholarProfileUrl('☺️')).not.toThrow();
   });
 });
