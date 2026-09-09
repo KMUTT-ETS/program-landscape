@@ -50,12 +50,19 @@ import {
 // must not keep firing requests for the rest of the day. See POLL_INTERVAL_MS
 // and POLL_MAX_TICKS.
 //
-// A NEW PAPER IS NOT VISIBLE IMMEDIATELY. The runner marks the publications
-// cache stale (it backdates `fetchedAt`; it does not delete the row) and
-// `loadPublicationsWithCache` serves a stale row immediately while refreshing
-// in the background. So the load after a successful fetch still shows the old
-// list and merely triggers the rebuild; the one after that shows the new
-// papers. The copy says that rather than implying a live update.
+// NEW PAPERS APPEAR ON THE NEXT LOAD. The runner marks the publications cache
+// stale by backdating `fetchedAt` to the epoch; it does not delete the row.
+// `loadPublicationsWithCache` treats THAT value as an invalidation rather than
+// as ordinary 24h staleness and blocks on the rebuild, so the first page load
+// after a successful fetch shows the new papers. It used to serve the stale
+// list and rebuild in the background, which meant the load someone opened to
+// see their result showed them the list from before it — reported as "the
+// fetch worked but the list did not change".
+//
+// SCHOLAR BECOMES THE PRIMARY SOURCE. Once the runner has written a row for
+// this person their publication list is built from what this platform holds
+// and the live library lookup is not made. The composition rows below follow
+// that, on the same "at least one Scholar row" test the server applies.
 
 const EXAMPLE_URL = 'https://scholar.google.com/citations?user=ABC123';
 
@@ -258,7 +265,8 @@ export function ScholarPanel({
             ) : (
               <p>
                 One fetch per 30 days. Scholar papers are added to your record; nothing
-                already there is removed.
+                already there is removed. After a sync, Scholar becomes the source your
+                publication list is built from.
               </p>
             )}
 
@@ -407,6 +415,38 @@ function SourceComposition({
   run: ScholarStatus['lastRun'];
 }) {
   const lastFetchedLabel = formatScholarDay(lastFetchedAt);
+
+  // Scholar is primary once it has imported anything for this person — the
+  // same "at least one row" test `hasScholarImport` applies on the server, on
+  // the same count, so the badge cannot say one thing while the list is built
+  // the other way. Until then the library index is primary and this reads
+  // exactly as it always has.
+  const scholarIsPrimary = sources !== null && sources.googleScholar > 0;
+
+  // The primary source leads. Ordering by precedence rather than fixing
+  // Scholar to the second row is the point: a reader should be able to tell
+  // which source builds the list without reading the badge.
+  //
+  // With no counts at all (`sources === null`, a record the Scholar status
+  // read could not resolve) NEITHER row is marked: which source is primary is
+  // a claim about the data, and we do not have the data. A badge defaulted
+  // onto the library row there would be a guess printed as a fact.
+  const scholarRow = {
+    key: 'scholar',
+    label: 'Google Scholar',
+    qualifier: 'not fetched yet',
+    primary: scholarIsPrimary,
+    count: sources?.googleScholar ?? 0,
+  };
+  const libraryRow = {
+    key: 'library',
+    label: 'KKU library index',
+    qualifier: 'kept as failover',
+    primary: sources !== null && !scholarIsPrimary,
+    count: sources?.libraryIndex ?? 0,
+  };
+  const rows = scholarIsPrimary ? [scholarRow, libraryRow] : [libraryRow, scholarRow];
+
   return (
     <div>
       <h3 className="text-xs font-medium uppercase tracking-[0.08em] text-text-tertiary">
@@ -419,26 +459,23 @@ function SourceComposition({
           source" — one run-on token — even though a margin keeps them apart
           on screen. */}
       <dl className="mt-6 space-y-4 text-sm">
-        <div className="flex items-baseline justify-between gap-8">
-          <dt className="min-w-0 text-text-primary">
-            KKU library index{' '}
-            <span className="rounded-sm bg-accent-subtle px-3 py-0.5 text-xs font-medium text-accent-fg">
-              primary source
-            </span>
-          </dt>
-          <dd className="shrink-0 tabular-nums text-text-secondary">
-            {sources ? `${sources.libraryIndex} papers` : 'count unavailable'}
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-8">
-          <dt className="min-w-0 text-text-primary">
-            Google Scholar{' '}
-            <span className="text-xs text-text-tertiary">— added on request</span>
-          </dt>
-          <dd className="shrink-0 tabular-nums text-text-secondary">
-            {sources ? `${sources.googleScholar} papers` : 'count unavailable'}
-          </dd>
-        </div>
+        {rows.map((row) => (
+          <div key={row.key} className="flex items-baseline justify-between gap-8">
+            <dt className="min-w-0 text-text-primary">
+              {row.label}{' '}
+              {row.primary ? (
+                <span className="rounded-sm bg-accent-subtle px-3 py-0.5 text-xs font-medium text-accent-fg">
+                  primary source
+                </span>
+              ) : sources ? (
+                <span className="text-xs text-text-tertiary">— {row.qualifier}</span>
+              ) : null}
+            </dt>
+            <dd className="shrink-0 tabular-nums text-text-secondary">
+              {sources ? `${row.count} papers` : 'count unavailable'}
+            </dd>
+          </div>
+        ))}
       </dl>
 
       <p className="mt-6 text-xs text-text-tertiary" data-testid="scholar-last-fetch">
@@ -457,13 +494,22 @@ function SourceComposition({
           Why the two totals differ
         </summary>
         <p className="mt-3 max-w-[46rem] leading-relaxed">
-          The library index — Scopus by author ID, with the KKU publications mirror behind it —
-          is curated, and is the record this platform treats as authoritative. Google Scholar
-          also indexes preprints, theses, technical reports and venues the library index does
-          not, so a Scholar total runs higher for the same person. Higher is not better here:
-          Scholar fills gaps, and a colleague who has never pressed this button is not less
-          productive, only less fetched.
+          The library index — Scopus by author ID, with the KKU publications mirror behind it
+          — is curated. Google Scholar also indexes preprints, theses, technical reports and
+          venues the library index does not, so a Scholar total runs higher for the same
+          person. Higher is not better here: a colleague who has never pressed this button is
+          not less productive, only less fetched.
         </p>
+        {scholarIsPrimary && (
+          <p className="mt-3 max-w-[46rem] leading-relaxed">
+            Because Scholar has imported for you, the list below is built from the papers
+            this platform holds on your record and the library index is no longer looked up
+            live. Papers already on your record are still listed, including the ones Scholar
+            matched rather than added — those are the rows whose citation counts each sync
+            refreshes. Precedence decides which source builds the page; it never removes a
+            paper.
+          </p>
+        )}
       </details>
     </div>
   );

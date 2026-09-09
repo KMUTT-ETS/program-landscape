@@ -1095,15 +1095,30 @@ async function archiveScholarPayload(
 }
 
 /**
+ * `user_publications_cache.fetched_at` written by the expiry below: the epoch,
+ * meaning "this row was invalidated on purpose", as distinct from a row that
+ * merely aged past its 24h window.
+ *
+ * Exported because the READER has to tell those two apart.
+ * `loadPublicationsWithCache` in apps/web/src/lib/profile-data.ts is
+ * stale-while-revalidate: an aged row is served immediately and refreshed in
+ * the background, which is right for a row that is a day old and wrong for one
+ * a user just invalidated by pressing sync — that path showed the OLD list
+ * after a successful fetch and rebuilt in the background, so the new papers
+ * only appeared on the page load after the one that was supposed to show them.
+ * That is the defect this constant closes: the reader blocks on a recompute
+ * for this value and only this value.
+ */
+export const PUBLICATIONS_CACHE_INVALIDATED_MS = 0;
+
+/**
  * Mark the user's publications cache stale so the next profile-page load
  * recomputes it against the rows this fetch just added.
  *
- * Expiry, not removal. Two reasons: this module never removes a row from any
- * table (see the header), and `loadPublicationsWithCache` in
- * apps/web/src/lib/profile-data.ts treats an aged row as
- * stale-while-revalidate — it serves immediately and refreshes in the
- * background — so an expired row degrades better than an absent one, which
- * would block the next page load on the full 3-5s pipeline.
+ * Expiry, not removal — this module never removes a row from any table (see
+ * the header). The reader recognises THIS value specifically and blocks on a
+ * rebuild rather than serving the row it found, so the result of a sync is on
+ * the very next page load. See `PUBLICATIONS_CACHE_INVALIDATED_MS` above.
  *
  * Never throws: a cache that failed to expire is a stale page, not a lost
  * fetch, and the ResearchOutput writes are already committed by this point.
@@ -1112,7 +1127,7 @@ async function expireUserPublicationsCache(userId: string): Promise<void> {
   try {
     await prisma.userPublicationsCache.updateMany({
       where: { userId },
-      data: { fetchedAt: new Date(0) },
+      data: { fetchedAt: new Date(PUBLICATIONS_CACHE_INVALIDATED_MS) },
     });
   } catch (err) {
     console.warn(`[scholar-fetch] could not expire publications cache for user=${userId}:`, describeError(err));

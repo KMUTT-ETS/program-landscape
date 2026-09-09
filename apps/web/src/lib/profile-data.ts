@@ -13,7 +13,13 @@
 // profile page renders graceful "no record yet" placeholders rather
 // than fabricating content.
 
-import { Prisma, prisma, teachingTalentForFacultyMember } from '@kku/db';
+import {
+  Prisma,
+  prisma,
+  teachingTalentForFacultyMember,
+  hasScholarImport,
+  decidePublicationsCacheAction,
+} from '@kku/db';
 import { EXPERTISE_NARRATIVE_VERSION } from '@kku/shared';
 import type {
   AuthorName,
@@ -210,90 +216,35 @@ export async function getProfileData(userId: string): Promise<ProfileData | null
     ? ds2003Rows.map(ds2003ToEducationEntry)
     : parseEducation(member.academicQualification);
 
-  // Two publication sources, merged by DOI / scopusId / pmid:
+  // Which source builds the list is decided by `hasScholarImport`, and
+  // `computePublications` below carries both shapes:
   //
-  //   (a) kkuscholar mirror — direct query by KKU person identity
-  //       (employeeCode `kkupub_<personId>` → people.id, else by
-  //       English name). Returns FULL author lists going back as far
-  //       as kkuscholar carries (often 1997+).
-  //   (b) Local ResearchOutput rows — captures legacy OpenAlex-imported
-  //       papers + IEEE/specialty conferences kkuscholar doesn't track.
+  //   - No Scholar import → the historic two-source merge. Live Scopus
+  //     (with the kkuscholar mirror behind it) is canonical for WHICH
+  //     papers and for author lists; the local ResearchOutput rows fill
+  //     gaps — legacy OpenAlex imports, IEEE and specialty conferences
+  //     kkuscholar does not track.
+  //   - Scholar has imported → the local rows ARE the list, and no live
+  //     library read is made.
   //
-  // (a) is canonical; (b) fills gaps. Papers in both are deduped by
-  // their strongest external id; (a)'s author list wins.
+  // Either way the enrichment passes (DOI bridge, then the OpenAlex /
+  // Scopus metadata fallback) still run, and the FULLY-ENRICHED array is
+  // what lands in `user_publications_cache` — warm paths are ~50ms
+  // against a cold path of seconds.
   //
-  // The kkuscholar query + DOI bridge fallback together cost ~30s
-  // cold (live LAN queries to a Postgres mirror at 10.130.2.151).
-  // We cache the FULLY-ENRICHED publication array in
-  // `user_publications_cache` and serve from local Postgres on warm
-  // paths — ~50ms instead of ~30s.
-  //
-  // Cache TTL = CACHE_FRESH_MS. Newer rows in our local
-  // `research_outputs` between refreshes won't appear until the
-  // cache turns over; that's an acceptable freshness tradeoff for
-  // a 24h window.
+  // Cache TTL = CACHE_FRESH_MS, so new `research_outputs` rows written
+  // by a scheduled connector wait for the turnover. Rows written by a
+  // Scholar sync do NOT: the runner invalidates the row and
+  // `decidePublicationsCacheAction` treats that as a miss.
   const dedupedLocal = dedupePublications(papers);
-  const ownerSurname = lastTokenOf(member.nameEn);
-  const ownerGiven = firstTokenOf(member.nameEn);
-  const publications = await loadPublicationsWithCache(user.id, async () => {
-    // Primary path: pull every paper from Scopus by AU-ID. ~2-3s
-    // with full per-paper author lists, vs the kkuscholar mirror's
-    // 30-45s.
-    //
-    // Profile-page-only — bulk modules (cockpit, gap-analyzer,
-    // benchmarking) continue reading from kkuscholar to stay under
-    // Scopus's 20k-req/week institutional rate limit.
-    //
-    // Resolution order for the Scopus author id:
-    //   1. FacultyMember.scopusAuthorId (cached from a prior visit
-    //      or seeded by the kku-research connector).
-    //   2. Live Scopus author search by name + KKU affiliation —
-    //      cached back to the FacultyMember row so subsequent
-    //      cold-cache loads skip resolution.
-    let scopusAuthorId = member.scopusAuthorId;
-    if (!scopusAuthorId && ownerSurname && ownerGiven) {
-      const resolved = await resolveScopusAuthorId({
-        surnameEn: ownerSurname,
-        givenEn: ownerGiven,
-      }).catch(() => null);
-      if (resolved) {
-        scopusAuthorId = resolved.authorId;
-        // Fire-and-forget cache write so the next cold load skips
-        // the resolution. Failures are not actionable.
-        void prisma.facultyMember
-          .update({
-            where: { id: member.id },
-            data: { scopusAuthorId: resolved.authorId },
-          })
-          .catch(() => undefined);
-      }
-    }
-
-    const scopusPapers = scopusAuthorId
-      ? await fetchPublicationsByScopusAuthor(scopusAuthorId)
-      : [];
-
-    // kkuscholar fallback — only fire when Scopus came up empty.
-    // Covers Thai-only researchers + medical faculty whose primary
-    // footprint is in TCI / PubMed rather than Scopus.
-    const fallbackPapers =
-      scopusPapers.length === 0
-        ? await fetchKkuScholarPublicationsByPerson({
-            kkuScholarPersonId: scholarPersonIdFromEmployeeCode(member.employeeCode),
-            surnameEn: ownerSurname,
-            givenNameEn: ownerGiven,
-            surnameTh: lastTokenOf(member.nameTh),
-            givenNameTh: firstTokenOf(member.nameTh),
-          })
-        : [];
-
-    return mergeAndEnrichPublications(
-      [...scopusPapers, ...fallbackPapers],
-      dedupedLocal,
-      ownerSurname,
-      ownerGiven,
-    );
-  });
+  const publications = await loadPublicationsWithCache(
+    user.id,
+    // `papers` is every research row on this staff record, so it carries the
+    // `source` values the precedence rule reads. Passing the rows rather than
+    // a boolean keeps the rule in one place — see
+    // `hasScholarImport` in @kku/db for why it is keyed on rows.
+    () => computePublications(member, dedupedLocal, hasScholarImport(papers)),
+  );
 
   const research = summariseResearch(publications);
   const basic = buildBasicInfo(user, member, education, avatarUrl);
@@ -343,6 +294,109 @@ function ds2003ToEducationEntry(row: {
     year: Number.isFinite(yearNum) ? yearNum : null,
     source: 'unicon-ds2003',
   };
+}
+
+/** The staff-record fields the publication pipeline reads. */
+interface PublicationMember {
+  id: string;
+  nameEn: string;
+  nameTh: string;
+  employeeCode: string;
+  scopusAuthorId: string | null;
+}
+
+/**
+ * Build the enriched publication list for one staff member.
+ *
+ * The single implementation behind BOTH cache callers — the profile page and
+ * the home-page sparkline — because they share one `user_publications_cache`
+ * row per user.
+ *
+ * `scholarIsPrimary` decides which of two shapes this takes:
+ *
+ *   false — the historic path. Live Scopus by author id, kkuscholar mirror
+ *           behind it, merged with the local rows as a gap-filler.
+ *
+ *   true  — the Scholar runner has imported for this person, so the live
+ *           library read is NOT made and the list is built from the local
+ *           record alone. Author lists still come from the kkuscholar DOI
+ *           bridge and the OpenAlex/Scopus metadata fallback inside
+ *           `mergeAndEnrichPublications`; what is dropped is the library's
+ *           claim over WHICH PAPERS the list contains, not the enrichment.
+ *
+ * Why the live read has to go rather than merely lose a tie-break: a Scholar
+ * row carries no DOI, no Scopus id and no PMID, so the merge's dedupe keys
+ * cannot recognise that a live Scopus hit and a Scholar row are one paper. Left
+ * in, both are listed. See @kku/db `publication-source-precedence` for the rule
+ * and what it deliberately does not do.
+ */
+async function computePublications(
+  member: PublicationMember,
+  dedupedLocal: PublicationEntry[],
+  scholarIsPrimary: boolean,
+): Promise<PublicationEntry[]> {
+  const ownerSurname = lastTokenOf(member.nameEn);
+  const ownerGiven = firstTokenOf(member.nameEn);
+
+  if (scholarIsPrimary) {
+    return mergeAndEnrichPublications([], dedupedLocal, ownerSurname, ownerGiven);
+  }
+
+  // Primary path: pull every paper from Scopus by AU-ID. ~2-3s with full
+  // per-paper author lists, vs the kkuscholar mirror's 30-45s.
+  //
+  // Profile-page-only — bulk modules (cockpit, gap-analyzer, benchmarking)
+  // continue reading from kkuscholar to stay under Scopus's 20k-req/week
+  // institutional rate limit.
+  //
+  // Resolution order for the Scopus author id:
+  //   1. FacultyMember.scopusAuthorId (cached from a prior visit or seeded
+  //      by the kku-research connector).
+  //   2. Live Scopus author search by name + KKU affiliation — cached back
+  //      to the FacultyMember row so subsequent cold-cache loads skip it.
+  let scopusAuthorId = member.scopusAuthorId;
+  if (!scopusAuthorId && ownerSurname && ownerGiven) {
+    const resolved = await resolveScopusAuthorId({
+      surnameEn: ownerSurname,
+      givenEn: ownerGiven,
+    }).catch(() => null);
+    if (resolved) {
+      scopusAuthorId = resolved.authorId;
+      // Fire-and-forget cache write so the next cold load skips the
+      // resolution. Failures are not actionable.
+      void prisma.facultyMember
+        .update({
+          where: { id: member.id },
+          data: { scopusAuthorId: resolved.authorId },
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  const scopusPapers = scopusAuthorId
+    ? await fetchPublicationsByScopusAuthor(scopusAuthorId)
+    : [];
+
+  // kkuscholar fallback — only fire when Scopus came up empty. Covers
+  // Thai-only researchers + medical faculty whose primary footprint is in
+  // TCI / PubMed rather than Scopus.
+  const fallbackPapers =
+    scopusPapers.length === 0
+      ? await fetchKkuScholarPublicationsByPerson({
+          kkuScholarPersonId: scholarPersonIdFromEmployeeCode(member.employeeCode),
+          surnameEn: ownerSurname,
+          givenNameEn: ownerGiven,
+          surnameTh: lastTokenOf(member.nameTh),
+          givenNameTh: firstTokenOf(member.nameTh),
+        })
+      : [];
+
+  return mergeAndEnrichPublications(
+    [...scopusPapers, ...fallbackPapers],
+    dedupedLocal,
+    ownerSurname,
+    ownerGiven,
+  );
 }
 
 /**
@@ -837,6 +891,8 @@ const inFlightRefreshes = new Set<string>();
  *   - Cache hit: returns the cached payload immediately. If the row
  *     is older than CACHE_FRESH_MS, schedules a fire-and-forget
  *     background refresh (the next page load picks up new data).
+ *   - Cache INVALIDATED: a row the Scholar runner backdated is treated
+ *     as a miss, so a sync's result is on the very next load.
  *   - Cache miss: blocks on `compute()` and writes the cache row.
  *
  * Errors during background refresh are logged but never thrown.
@@ -849,9 +905,20 @@ async function loadPublicationsWithCache(
     where: { userId },
   });
 
-  if (cached) {
-    const ageMs = Date.now() - cached.fetchedAt.getTime();
-    if (ageMs > CACHE_FRESH_MS && !inFlightRefreshes.has(userId)) {
+  // The three-way decision — miss / serve / serve-and-revalidate — is a pure
+  // function in @kku/db so the invalidation branch can be tested without a
+  // database. Its doc comment carries the reasoning; the short version is
+  // that a row the Scholar runner just invalidated must NOT take the
+  // stale-while-revalidate path, or the page load that follows a sync shows
+  // the list from before it.
+  const action = decidePublicationsCacheAction({
+    cachedFetchedAtMs: cached?.fetchedAt.getTime() ?? null,
+    nowMs: Date.now(),
+    freshForMs: CACHE_FRESH_MS,
+  });
+
+  if (cached && action !== 'compute') {
+    if (action === 'serve-and-revalidate' && !inFlightRefreshes.has(userId)) {
       inFlightRefreshes.add(userId);
       // Fire-and-forget — does NOT block the current request.
       void (async () => {
@@ -965,70 +1032,42 @@ export async function getHomePublicationsSnapshot(
   }
   if (!member) return null;
 
-  const ownerSurname = lastTokenOf(member.nameEn);
-  const ownerGiven = firstTokenOf(member.nameEn);
-
-  // Local ResearchOutput rows (the gap-filler the merge step uses).
-  // This is the single Prisma query we have to run cold — bounded by
-  // the per-author paper count (typically 10-200 rows).
+  // Local ResearchOutput rows. This is the single Prisma query we have
+  // to run cold — bounded by the per-author paper count (typically
+  // 10-200 rows) — and it doubles as the input to the source-precedence
+  // rule, since it carries each row's `source`.
   const localPapers = await prisma.researchOutput.findMany({
     where: { facultyMemberId: member.id },
     orderBy: { year: 'desc' },
   });
   const dedupedLocal = dedupePublications(localPapers);
 
-  // Read the cache row directly so we can report `isStale` to the
-  // caller for a subtle UI hint. We still let loadPublicationsWithCache
-  // decide whether to fire the background refresh.
+  // Read the cache row directly so we can report `isStale` to the caller for a
+  // subtle UI hint. The verdict comes from the SAME rule the loader applies —
+  // not a second comparison against the same TTL — because the two would
+  // otherwise disagree on exactly the row that matters: one the Scholar runner
+  // invalidated reads as "very stale" under a plain age test, while the loader
+  // blocks and hands back a freshly computed list. Reporting that as stale
+  // would put a "refreshing…" hint on the most current data the page has.
   const cacheRow = await prisma.userPublicationsCache.findUnique({
     where: { userId: user.id },
     select: { fetchedAt: true },
   });
-  const isStale = cacheRow
-    ? Date.now() - cacheRow.fetchedAt.getTime() > CACHE_FRESH_MS
-    : false;
-
-  const publications = await loadPublicationsWithCache(user.id, async () => {
-    // Same compute as getProfileData — Scopus AU-ID first, then
-    // kkuscholar fallback for medical / Thai-language researchers.
-    let scopusAuthorId = member.scopusAuthorId;
-    if (!scopusAuthorId && ownerSurname && ownerGiven) {
-      const resolved = await resolveScopusAuthorId({
-        surnameEn: ownerSurname,
-        givenEn: ownerGiven,
-      }).catch(() => null);
-      if (resolved) {
-        scopusAuthorId = resolved.authorId;
-        void prisma.facultyMember
-          .update({
-            where: { id: member.id },
-            data: { scopusAuthorId: resolved.authorId },
-          })
-          .catch(() => undefined);
-      }
-    }
-
-    const scopusPapers = scopusAuthorId
-      ? await fetchPublicationsByScopusAuthor(scopusAuthorId)
-      : [];
-    const fallbackPapers =
-      scopusPapers.length === 0
-        ? await fetchKkuScholarPublicationsByPerson({
-            kkuScholarPersonId: scholarPersonIdFromEmployeeCode(member.employeeCode),
-            surnameEn: ownerSurname,
-            givenNameEn: ownerGiven,
-            surnameTh: lastTokenOf(member.nameTh),
-            givenNameTh: firstTokenOf(member.nameTh),
-          })
-        : [];
-
-    return mergeAndEnrichPublications(
-      [...scopusPapers, ...fallbackPapers],
-      dedupedLocal,
-      ownerSurname,
-      ownerGiven,
-    );
+  const cacheAction = decidePublicationsCacheAction({
+    cachedFetchedAtMs: cacheRow?.fetchedAt.getTime() ?? null,
+    nowMs: Date.now(),
+    freshForMs: CACHE_FRESH_MS,
   });
+  const isStale = cacheAction === 'serve-and-revalidate';
+
+  // Same compute as getProfileData, through the same function — NOT a
+  // second copy of it. Both callers write the SAME `user_publications_cache`
+  // row, so two implementations that disagreed about source precedence would
+  // take turns overwriting each other and the profile list would flip
+  // depending on which page was loaded last.
+  const publications = await loadPublicationsWithCache(user.id, () =>
+    computePublications(member, dedupedLocal, hasScholarImport(localPapers)),
+  );
 
   const byYearMap = new Map<number, number>();
   for (const p of publications) {
@@ -1043,7 +1082,12 @@ export async function getHomePublicationsSnapshot(
   return {
     byYear,
     totalPapers: publications.length,
-    fetchedAt: cacheRow?.fetchedAt.toISOString() ?? new Date().toISOString(),
+    // A row that was recomputed just now — a miss, or an invalidation — was
+    // fetched now, whatever timestamp the pre-read row carried.
+    fetchedAt:
+      cacheRow && cacheAction !== 'compute'
+        ? cacheRow.fetchedAt.toISOString()
+        : new Date().toISOString(),
     isStale,
   };
 }

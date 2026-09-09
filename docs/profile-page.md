@@ -17,7 +17,7 @@
 | Education | UNICON DS2003 (`StaffEducationHistory`) | Bridged via `FacultyMember.citizenIdHash`. Falls back to `FacultyMember.academicQualification` parser. |
 | Research summary | derived from publications | Papers count, citations, **h-index**, years active, peak year, first-publication year, top venues. |
 | Programs taught | `ProgramFaculty` | Grouped by role: COORDINATOR / CORE / SUPPORT. |
-| Publications | Scopus (primary) + kkuscholar (fallback) + local cache + external DOI / metadata fallback | APA-7 citations, full author lists with the owner's surname **bolded**, paginated 20/page. |
+| Publications | Google Scholar once imported, otherwise Scopus (primary) + kkuscholar (fallback); plus local rows, cache, and external DOI / metadata fallback | APA-7 citations, full author lists with the owner's surname **bolded**, paginated 20/page. |
 
 ---
 
@@ -26,11 +26,33 @@
 ```
 getProfileData(userId)
   └── loadPublicationsWithCache(userId, compute) [user_publications_cache]
-         │ cache miss → run compute() → write cache
-         │ cache hit (< 24h) → serve
-         │ cache hit (≥ 24h) → serve + fire-and-forget refresh
+         │ decidePublicationsCacheAction() — @kku/db
+         │ cache miss                 → run compute() → write cache
+         │ fetched_at = epoch         → run compute() → write cache
+         │   (the Scholar runner's invalidation sentinel: a sync's
+         │    result must be on the VERY NEXT load, not the one after)
+         │ cache hit (< 24h)          → serve
+         │ cache hit (≥ 24h)          → serve + fire-and-forget refresh
          │
-         └── compute():
+         └── computePublications(member, dedupedLocal, scholarIsPrimary):
+              │ ONE implementation, shared with the home-page sparkline
+              │ (getHomePublicationsSnapshot) — both write the same
+              │ cache row, so two copies would race.
+              │
+              │ scholarIsPrimary = hasScholarImport(research_outputs)
+              │   i.e. the Scholar runner has written ≥ 1 row here.
+              │
+              ├── TRUE  → the live library read is SKIPPED entirely.
+              │           The list is built from research_outputs alone
+              │           (Scholar rows AND library rows — precedence
+              │           decides which source builds the page, it never
+              │           removes a paper), then enriched by step 4.
+              │           Skipping the live read is also what stops the
+              │           double listing: a Scholar row carries no DOI,
+              │           Scopus id or PMID, so the merge cannot tell it
+              │           apart from the same paper arriving live.
+              │
+              └── FALSE → steps 1-3 below, as before.
               ┌───────────────────────────────────────────────────────┐
               │ 1. Resolve scopusAuthorId                              │
               │    a. FacultyMember.scopusAuthorId (cached)            │
