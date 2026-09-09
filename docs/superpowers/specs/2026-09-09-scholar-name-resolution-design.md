@@ -162,10 +162,12 @@ as the most common real-world variant. It still refuses `Wei L Zhang` ↔
 
 ## Open questions for the implementer to raise, not guess
 
-- **`cheerio`.** The reference parses with it; we have no such dependency and our
-  `parse.ts` is hand-rolled regex over `html-text`. Adding it to `@kku/shared`
-  needs care: that barrel is reachable from Next client components. Either keep
-  the cluster parser server-only, or hand-roll it in the existing style.
+- ~~**`cheerio`.**~~ **Resolved 2026-09-09: approved, install it.** Parse the way
+  the reference does rather than hand-rolling a second HTML parser. The
+  constraint that remains is placement, not permission: `@kku/shared`'s barrel is
+  reachable from Next client components and cheerio is a large server-only
+  dependency, so keep it off any client-reachable path. `@kku/shared/scholar/parse`
+  is client-safe today and must stay that way.
 - **Auto-bind and the audit trail.** A machine-resolved binding is not a human
   assertion. It should still be recorded — including which name was searched and
   which card won — so a wrong binding is explicable after the fact.
