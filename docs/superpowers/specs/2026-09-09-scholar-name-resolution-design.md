@@ -131,6 +131,31 @@ keep the probe as the fallback when no byline link matches. A byline link whose
 anchor text does *not* match the query is a co-author, not the subject; using it
 would be the mis-attribution error this whole design exists to avoid.
 
+### Ruling: how much an "Other name" is allowed to count
+
+Scholar's "Other names" is a free-text field the profile owner controls, and it
+is frequently a mononym or initials-only (`P.C.`). Cases (c) and (d) treat it
+differently, and the distinction is who did the matching.
+
+**Case (c) — trust Google.** A single card came back for this query, so *Google*
+decided the query matches that profile, and it did so with an index we cannot
+see. Our own check is only "does the displayed name match?"; when it does not,
+that is the signal the match came via an Other name. Use the profile. We are
+trusting Google's matching here, not performing our own.
+
+**Case (d) — our matching decides, so hold it to the same bar.** Several cards
+means Google gave us candidates, not an answer. A **primary-name** match wins
+outright. An **Other-name** match counts only if it clears the same two-token
+floor the matcher applies everywhere else — a mononym or initials-only Other
+name is too weak to attach a person's publications to a staff record, and it is
+the field most easily wrong or stale. If nothing clears the floor, **resolve to
+no binding** rather than guessing: a visible non-result the user can fix by
+pasting a URL beats an invisible wrong binding that silently feeds Council
+figures.
+
+This makes Other-name matching deliberately weaker than the reference's. That is
+the intended direction of the trade.
+
 ### The counting trap
 
 The search page is capped at **~10 rows**. Deriving a publication count from it
