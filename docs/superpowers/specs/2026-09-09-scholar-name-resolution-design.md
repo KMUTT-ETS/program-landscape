@@ -88,8 +88,25 @@ sync
  ├─ bound already?  → fetch the profile's publications          (15 × pages)
  └─ not bound       → search by English full name               (75)
                        ├─ resolve a profile id → RECORD IT, then fetch  (+15 × pages)
-                       └─ no profile id → use the article results, bind nothing
+                       └─ no profile id → REFUSE (needs-binding), record nothing
 ```
+
+**Correction, 2026-09-09.** An earlier draft of this line read *"no profile id →
+use the article results, bind nothing"*, carried over from the reference without
+checking what it would mean here. **We do not write `ResearchOutput` rows from
+search hits.** Three reasons, the first fatal:
+
+- `ScholarSearchHit` carries no `scholarPaperId`, so `planScholarMerge` has
+  nothing to key on and **every re-sync would duplicate the same papers** — in a
+  table whose defining invariant is that it is additive-only and never deletes.
+- The rows were matched by a free-text name query with no profile confirmation.
+  That is the namesake mis-attribution this feature exists to prevent.
+- A full search page marks them a sample, so any count derived from them is a
+  floor feeding a Council roll-up.
+
+So `use-articles` means "no profile could be resolved" and takes the refusal
+path — with the hit count named in `errorText`, so it is visible that the search
+*did* reach Google and the failure was resolution rather than reach.
 
 The pasted-URL path stays, demoted to a **manual override** for when the search
 resolves the wrong person. It is no longer the only way in.
@@ -190,6 +207,28 @@ That last rule accepts `Geoffrey E Hinton` ↔ `Geoffrey Everest Hinton` — whi
 our current matcher **refuses**, and which our own code-quality review called out
 as the most common real-world variant. It still refuses `Wei L Zhang` ↔
 `Wei Q Zhang` (conflicting initials), which is the case that matters.
+
+## Where a resolve-nothing search is metered
+
+A search that reaches Google and finds no attachable profile costs 75 credits
+and produces no data. It is finalised as **`REFUSED` / `needs-binding` with the
+real credits recorded**, and it does **not** consume the 30-day fetch allowance.
+
+Counting it against the fetch quota is the tempting answer and it is wrong: the
+user's very next action is to paste their URL and sync, and a quota hit would
+lock them out for 30 days for the crime of not being findable on Google. That
+moves the harm the `FAILED` exemption exists to prevent rather than removing it.
+
+It is metered instead as a **bind attempt** (`decideScholarBindQuota`), because
+that is exactly what it is — a spend-before-success identity assertion, which is
+the abuse shape that meter's own header already names. No migration: the
+existing `ScholarBindAttempt` columns fit.
+
+**One consequence to carry forward.** The bind cap was sized when an attempt
+cost 15 credits, so five was 75/day/user. An auto-search attempt costs 75, so
+the same cap is now **375/day/user**. The cap stays at 5 for now, but the admin
+console must show **credits at risk, not an attempt count** — a count is the
+wrong unit once attempts stopped costing the same.
 
 ## What this changes in our code
 
