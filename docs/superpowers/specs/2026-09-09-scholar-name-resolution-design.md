@@ -1,0 +1,176 @@
+# Scholar name resolution — design delta
+
+**Supersedes** the binding sections of `2026-09-08-google-scholar-on-demand-design.md`.
+Everything else in that spec stands.
+
+## Why this exists
+
+The original spec concluded there is **no way to find a Scholar profile from a
+name**, and made binding a manual step: the user pastes their own profile URL.
+That conclusion was wrong, and it is wrong in four places — the spec, the plan,
+`CLAUDE.md` and `handoff.md`.
+
+The error was one of scope, not of method. `view_op=search_authors` **is** walled;
+that finding stands and was re-verified. But author search is not the only way to
+reach a profile, and the *article* search endpoint was never actually tested —
+the probe that would have tested it timed out before it ran, and the conclusion
+was written from the endpoint that had been tested.
+
+## What actually works
+
+Verified against our own ScrapingBee account on 2026-09-09.
+
+**Both flags are required. Neither alone works:**
+
+| Request | Result |
+|---|---|
+| `stealth_proxy` alone | HTTP 400 — ScrapingBee mandates `custom_google` for google.com |
+| `custom_google` alone | **HTTP 500 on any `/scholar?q=` search** |
+| `custom_google` + `stealth_proxy` | **HTTP 200** |
+
+The 500 is the trap. Its body carries a generic *"please try again"*, but the
+`reason` field says **"Server responded with 403"** and `help` carries Google's
+block page. Google 403s ScrapingBee's plain `custom_google` pool **for searches
+only**. ScrapingBee does not bill these, so the symptom is a healthy-looking
+zero-credit account plus every staff member recording "cannot reach Scholar".
+
+**`/citations?user=` profile pages work with `custom_google` alone.** Only
+searches are blocked. This matters for us — see Cost.
+
+### Parameters the proxy accepts
+
+Only `q`, `hl`, `as_vis`. **`num=`, `as_ylo=`, `as_yhi=` are silently rejected**
+(HTTP 500). The publication-year window must therefore be filtered client-side
+after parsing, never pushed into the query.
+
+### `country_code` must NOT be set
+
+Measured on the same query: `country_code=th` succeeds **2/4**; omitting it
+succeeds **7/7**. Pinning the exit country shrinks the stealth pool to whatever
+Thai IPs are available and Google 403s them at roughly a coin flip. Result
+locale is already pinned by `hl=en`. **Do not re-add without re-measuring.**
+
+### `as_vis=1` suppresses the profile cluster
+
+The "User profiles for X" block — the cleanest carrier of a profile id — is
+hidden when `as_vis=1` is set. This is why the fallback probe re-queries
+**without** it. Same parser, different question; it can succeed where the
+combined search found nothing.
+
+## Cost, and why it changes the estimator
+
+| Call | Flags | Credits (our account) |
+|---|---|---|
+| Name search | `custom_google` + `stealth_proxy` | **75** |
+| Profile page | `custom_google` only | **15** |
+
+The reference implementation measured 50 for the stealth search on its own
+account; ours bills 75. **Use 75, and read the real `Spb-Cost` per call into the
+ledger as we already do.**
+
+That reference sends both flags on every request to keep one code path. **We
+should branch**, because at 75-vs-15 the profile path is the common one: a bound
+user's routine sync is profile pages only. Sending stealth on those would cost
+60 extra credits per page for nothing.
+
+**This reverses a fix made on 2026-09-08.** The admin console currently prices an
+unbound target at **0** credits, because `runScholarFetch` refuses at the binding
+gate before fetching. Under this design an unbound target costs `75 + 15 × pages`.
+A 100-person bulk of unbound staff moves from free to roughly 10,000 credits. The
+estimator, the confirmation dialog and its tests all have to move with it.
+
+## The new flow
+
+One **"Sync Google Scholar"** button. No paste step in the normal path.
+
+```
+sync
+ ├─ bound already?  → fetch the profile's publications          (15 × pages)
+ └─ not bound       → search by English full name               (75)
+                       ├─ resolve a profile id → RECORD IT, then fetch  (+15 × pages)
+                       └─ no profile id → use the article results, bind nothing
+```
+
+The pasted-URL path stays, demoted to a **manual override** for when the search
+resolves the wrong person. It is no longer the only way in.
+
+### Resolution, four cases
+
+Taken from the reference implementation, which has run in production.
+
+Search `scholar.google.com/scholar?q=<nameEn>&hl=en&as_vis=1`, then parse **both**
+the profile cluster and the article results from the one response.
+
+| Case | Action |
+|---|---|
+| **(a)** No profile card | Use article results as-is; record no id. If the page came back **full** (10 rows), re-probe **without** `as_vis` before settling — a full page means Scholar truncated, so the count is a floor, not a count. |
+| **(b)** One card, displayed name **matches** the query | The queried name is the primary form. Record the id, then fetch the profile's own publications. |
+| **(c)** One card, displayed name does **not** match | The card matched via **Other names** — the queried name is an alias. **Drop the article results** (they may be namesakes) and fetch the profile. Reference example: `Phet Imtongkhum` → Scholar `Phet Aimtongkham`. |
+| **(d)** Several cards | Prefer a card whose displayed name matches. Otherwise fetch each profile (**cap 3**) and match primary **and** Other names. First match wins. |
+
+### The counting trap
+
+The search page is capped at **~10 rows**. Deriving a publication count from it
+under-reports badly — an author with 60 works reads as 10. This was a real
+production bug in the reference project. Two consequences:
+
+- Every branch that has a profile card goes to the **profile** for the real list.
+- Anything still derived from the search page is flagged as a **sample**, and
+  truncation is judged on the **raw** row count, before any year filter — a full
+  page that filters down to three rows is still truncated.
+
+We already paginate profile publications with `cstart`, which the reference does
+not (it takes one `pagesize=100` page and flags truncation). **Keep our
+pagination**; it yields complete bibliographies.
+
+### Name matching
+
+The reference matcher is **better than ours in the case our own review flagged**,
+and should replace `personNamesMatch` for Scholar-name comparison:
+
+- Strip multi-character title patterns (`A/P`, `Asst. Prof.`, `Assoc. Prof.`,
+  `Prof. Dr.`) **before** character-level normalisation. Otherwise punctuation
+  splits `A/P` into `["a","p"]` and the matcher reads them as initials against
+  the real given name.
+- Drop noise tokens: `dr prof assoc asst associate assistant professor lecturer
+  ms mr mrs miss sir madam phd msc bsc ma ba ap`.
+- **Surnames (last token) must match exactly.**
+- Each preceding Scholar token must equal the query token, or be a
+  single-character prefix of it **in either direction**.
+
+That last rule accepts `Geoffrey E Hinton` ↔ `Geoffrey Everest Hinton` — which
+our current matcher **refuses**, and which our own code-quality review called out
+as the most common real-world variant. It still refuses `Wei L Zhang` ↔
+`Wei Q Zhang` (conflicting initials), which is the case that matters.
+
+## What this changes in our code
+
+1. **`packages/shared/src/scholar/scrapingbee.ts`** — add `stealth_proxy`, branch
+   on search-vs-profile so profile pages stay at 15 credits. Retries on 500 are
+   free per ScrapingBee's docs; keep one auto-retry.
+2. **New: name → profile-id resolution** — the search fetch, the profile-cluster
+   parser (with the fallback selector for when Scholar inlines a single card),
+   and the four-case decision as a **pure, testable function** over parsed input.
+3. **`packages/db/src/scholar-fetch.ts`** — `SCHOLAR_NEEDS_BINDING` stops being a
+   terminal refusal and becomes the search branch. A resolved id is recorded
+   through the existing `bindScholarProfile` write so the audit trail is unchanged.
+4. **Name matching** — replace with the title-stripping, initial-tolerant rule.
+5. **Profile UI** — one "Sync Google Scholar" button; paste becomes an override.
+6. **Admin console** — unbound is no longer free; re-price and fix the tests that
+   currently assert 0.
+7. **Docs** — correct the four places that assert no name-search path exists.
+
+## Open questions for the implementer to raise, not guess
+
+- **`cheerio`.** The reference parses with it; we have no such dependency and our
+  `parse.ts` is hand-rolled regex over `html-text`. Adding it to `@kku/shared`
+  needs care: that barrel is reachable from Next client components. Either keep
+  the cluster parser server-only, or hand-roll it in the existing style.
+- **Auto-bind and the audit trail.** A machine-resolved binding is not a human
+  assertion. It should still be recorded — including which name was searched and
+  which card won — so a wrong binding is explicable after the fact.
+- **Quota.** A failed search costs 75 credits and produces nothing. Decide
+  whether that consumes the monthly allowance. The existing posture is that
+  `FAILED` does not count and only `SUCCEEDED`/`PARTIAL` do; a search that
+  resolves nothing is closer to `PARTIAL`, but it is also the case an attacker
+  or a confused user can repeat.
