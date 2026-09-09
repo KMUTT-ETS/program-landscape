@@ -833,13 +833,22 @@ describe('buildJobOptions — SCHOLAR_FETCH must not double-spend', () => {
     // Two admins bulk-fetching overlapping cohorts otherwise produce two jobs
     // for one person, both walk the profile, and the second success burns
     // that person's 30-day allowance as well as the credits.
-    expect(buildJobOptions(scholarJob).jobId).toBe('scholar-fetch:user-x');
-    expect(buildJobOptions({ ...scholarJob, entityId: 'user-y' }).jobId).toBe('scholar-fetch:user-y');
+    //
+    // The separator is a HYPHEN, not a colon. This assertion previously
+    // expected `scholar-fetch:user-x` and passed, while every real enqueue
+    // threw HTTP 500: BullMQ refuses a custom id containing ':' (it namespaces
+    // its own Redis keys that way). A mocked queue accepts any options object,
+    // so the test agreed with the bug instead of catching it. See
+    // test/ai-jobs-queue-job-id.test.ts, which asserts the constraint rather
+    // than the string.
+    expect(buildJobOptions(scholarJob).jobId).toBe('scholar-fetch-user-x');
+    expect(buildJobOptions(scholarJob).jobId).not.toContain(':');
+    expect(buildJobOptions({ ...scholarJob, entityId: 'user-y' }).jobId).toBe('scholar-fetch-user-y');
   });
 
   it('does not let a finished job hold the id forever', () => {
     // This producer's Queue sets no defaultJobOptions, so without these a
-    // completed job is retained and reserves scholar-fetch:<user> for good —
+    // completed job is retained and reserves scholar-fetch-<user> for good —
     // the next fetch a month later would be dropped as a duplicate, silently.
     const opts = buildJobOptions(scholarJob);
     expect(opts.removeOnComplete).toBe(true);

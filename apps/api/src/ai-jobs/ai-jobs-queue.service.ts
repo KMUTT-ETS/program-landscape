@@ -179,10 +179,16 @@ export function buildJobOptions(data: AiJobData): JobsOptions {
     // rejected in the runner for a stated reason: with no sweeper for
     // unfinished rows, a process dying mid-fetch would wedge that person out
     // of Scholar permanently.
-    jobId: `scholar-fetch:${data.entityId}`,
+    // NO COLON. BullMQ rejects a custom job id containing ':' outright
+    // (`Job.validateOptions`: "Custom Id cannot contain :") — it namespaces its
+    // own Redis keys with colons, so one in a user-supplied id would collide
+    // with that scheme. The first version of this line used
+    // `scholar-fetch:<user>` and every enqueue threw a 500; the queue is mocked
+    // in tests, so nothing caught it until a human pressed the button.
+    jobId: `scholar-fetch-${data.entityId}`,
     // The id is only reserved while the job exists, so it MUST NOT outlive the
     // run. This producer's Queue sets no defaultJobOptions, so without these a
-    // completed job is retained forever and holds `scholar-fetch:<user>` for
+    // completed job is retained forever and holds `scholar-fetch-<user>` for
     // good — the second fetch a month later would be dropped as a duplicate,
     // silently. The ScholarFetchRun ledger is the durable record of what
     // happened; the queue entry is not, and does not need to be.
