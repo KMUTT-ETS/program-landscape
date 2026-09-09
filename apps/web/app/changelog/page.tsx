@@ -26,6 +26,24 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-09',
+    version: 'v1.9.2 \u00b7 Your own publication record, pulled from Google Scholar',
+    title:
+      'Staff can now pull their publication list from Google Scholar themselves, from one button on their profile \u2014 the platform finds the right Scholar profile from their name, remembers it, and uses it from then on',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The library index is incomplete for most people, and there was no way for anyone to correct their own record. It draws on Scopus and the university\u2019s publication mirror, which between them miss preprints, theses, book chapters and anything published in a venue they do not index. For one staff member tested, the library index held 6 papers and Google Scholar held 22. Until now the only route to a fuller record was to ask someone to change a database.',
+      'One button on your profile page does the whole thing. Press \u201cSync Google Scholar\u201d and the platform searches for you by your English name, works out which Scholar profile is yours, records it, and reads your publications from it. There is nothing to paste and no id to look up. If it picks the wrong person \u2014 or finds nobody \u2014 you can paste your own profile link instead, and that link is kept.',
+      'Once your Scholar record has been pulled, your publication list is built from it rather than from a live lookup. Papers already on your record stay: some of them are papers Scholar also found and matched, and those keep their place with their citation counts brought up to date. Nothing is ever removed. Your Scholar profile id now also appears alongside your Scopus and OpenAlex ids in the Author IDs row, linked to the profile itself.',
+      'A bigger number does not mean a more productive researcher. Google Scholar counts more broadly than the curated library index \u2014 preprints, theses, working papers, non-indexed venues \u2014 so a person who has pressed this button will show more papers than an identical colleague who has not. That difference is about who pressed a button, not about research. The platform says so where the two totals appear together, and does not try to correct for it.',
+      'The research figures on Council-facing pages are unchanged by this. Programme health, benchmarking and the research-expertise analyses continue to read the curated library index, so nobody\u2019s standing in those figures moves because they synced their own profile. Whether Scholar records should eventually count towards those figures is a methodology decision, and is deliberately not being taken quietly as a side effect of this feature.',
+      'One sync per person per 30 days, because each one costs money. Reading Google Scholar goes through a paid service; a name search costs roughly five times a profile page. The limit is per person and administrators are exempt. If a search fails or finds nobody, it does not use up your monthly sync \u2014 not being findable on Google is not a reason to be locked out for a month.',
+      'Administrators have a console for doing this on behalf of staff, and it prices every run before it starts. It shows how many people a run covers, how many of them will actually be fetched, and the estimated cost \u2014 and it will not enqueue anything without showing that figure first. People who cannot be matched to a staff record, or who were fetched recently, are listed separately rather than silently included in the total.',
+      'Every attempt is recorded, including the ones that produce nothing. A refused or empty search still costs money, so it still appears in the ledger with what it spent. An administrator can answer \u201cwhy can this person not sync\u201d and \u201cwhat did we spend\u201d from the same place.',
+      'The pages Google returned are kept for 90 days and then discarded, through the platform\u2019s existing retention sweep rather than a second mechanism of its own. That is what makes it possible to answer, months later, where a particular number came from \u2014 and, while wiring it, a long-standing fault was found in that sweep which had prevented it from running at all. It runs now; nothing had yet aged into it.',
+    ],
+  },
+  {
     date: '2026-09-07',
     version: 'v1.9.1 · When an AI model stops working, someone now finds out',
     title:
