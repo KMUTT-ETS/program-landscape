@@ -5,7 +5,7 @@ database or spill secrets from .env into a transcript.
 Wired from .claude/settings.json; runs on every Bash tool call.
 
 WHY THIS EXISTS
-    On 2026-09-06 an agent ran
+    On 2026-09-08 an agent ran
 
         prisma migrate diff --from-migrations ... --shadow-database-url "$DATABASE_URL"
 
@@ -41,7 +41,7 @@ RULES: list[tuple[list[str], str]] = [
         [r"--shadow-database-url"],
         "BLOCKED: --shadow-database-url. Prisma DROPS and replays whatever database "
         "this points at; pointed at DATABASE_URL it wiped the dev database on "
-        "2026-09-06. SHADOW_DATABASE_URL is already set in .env to a dedicated "
+        "2026-09-08. SHADOW_DATABASE_URL is already set in .env to a dedicated "
         "throwaway database — never pass this flag by hand. If a schema diff is "
         "genuinely needed, hand the command to the operator.",
     ),

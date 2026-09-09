@@ -16,7 +16,7 @@ Dev had none of that. This document describes the three layers added on
 
 ## What went wrong
 
-On 2026-09-06 an agent working on a schema task ran:
+On 2026-09-08 an agent working on a schema task ran:
 
 ```
 prisma migrate diff --from-migrations ./prisma/migrations \
@@ -42,7 +42,7 @@ outright — no prompt, no approval path — when it matches one of:
 
 | Blocked | Why |
 |---|---|
-| `--shadow-database-url` | The exact 2026-09-06 footgun. Prisma drops whatever it points at. |
+| `--shadow-database-url` | The exact 2026-09-08 footgun. Prisma drops whatever it points at. |
 | `prisma migrate reset` | Drops every table and re-seeds. |
 | `prisma db push` | Force-syncs the schema; silently drops columns and tables the schema no longer declares. |
 | `prisma migrate dev` | On any drift it offers a full reset — and agents accept it. |
