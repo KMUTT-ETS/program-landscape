@@ -101,10 +101,9 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
   });
 
   it('presents the estimate as a floor, and names each gate that will stop a target', () => {
-    // Four targets, one stopped at each gate. The runner checks resolution,
-    // then quota, then binding, and only what survives all three costs pages —
-    // so the dialog has to say which gate each person will hit, not merely
-    // that some of them will refuse.
+    // Four targets, one at each gate. The runner checks resolution, then
+    // quota, then binding, so the dialog has to say which gate each person
+    // will hit rather than merely that some of them will not be read.
     const html = renderToStaticMarkup(
       <BulkConfirmPanel
         preview={preview({
@@ -123,13 +122,43 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
       />,
     );
     expect(html).toMatch(/at least/i);
+    expect(html).toMatch(/Linked, ready to read/);
     expect(html).toMatch(/Already fetched this month/);
     expect(html).toMatch(/quota gate/i);
     expect(html).toMatch(/No profile linked/);
-    expect(html).toMatch(/binding gate/i);
     expect(html).toMatch(/Will not be sent at all/);
-    // Every refusal must read as free — a target that refuses is never billed.
-    expect(html).toMatch(/It costs nothing\./);
+  });
+
+  it('says the unlinked line is the DEAREST one, not the free one', () => {
+    // The 2026-09-08 wording said an unlinked target "stops at the binding
+    // gate. It costs nothing." That was true then and is the single most
+    // expensive falsehood this dialog could now carry: the run searches by
+    // name instead of refusing, at five times a profile page, billed whether
+    // or not it finds anybody. An operator selecting a faculty of unlinked
+    // staff must read that before pressing send.
+    const html = renderToStaticMarkup(
+      <BulkConfirmPanel
+        preview={preview({
+          targetCount: 4,
+          chargeableCount: 1,
+          quotaBlockedCount: 1,
+          unboundCount: 2,
+          unresolvableCount: 0,
+        })}
+        pricing={false}
+        error={null}
+        gate={{ canEnqueue: true }}
+        submitting={false}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(html).toMatch(/searched by name/i);
+    expect(html).toMatch(/five times a profile page/i);
+    expect(html).toMatch(/whether or not it finds anyone/i);
+    // Exactly ONE line may still claim to be free, and it is the quota one.
+    expect(html).toMatch(/only line here that costs nothing/i);
+    expect(html).not.toMatch(/binding gate/i);
   });
 
   it('prices only what reaches Google — a recently fetched profile is not billed', () => {
@@ -220,12 +249,13 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
     );
     expect(paid).toContain('Send — at least 987 credits');
 
-    // Every target unlinked: the run refuses before Google and costs nothing.
-    // This is the commonest shape of a bulk run at rollout, and a button that
-    // threatens a bill nobody will receive teaches operators to ignore it.
+    // A free run — and note WHICH shape that is now. Every target refreshed
+    // inside its 30-day window, so every one of them refuses at the quota gate
+    // before spending. It used to be the all-unlinked batch that landed here,
+    // and that batch is now the dearest thing this console can send.
     const free = renderToStaticMarkup(
       <BulkConfirmPanel
-        preview={preview({ chargeableCount: 0, unboundCount: 3, estimatedCredits: 0 })}
+        preview={preview({ chargeableCount: 0, quotaBlockedCount: 3, estimatedCredits: 0 })}
         pricing={false}
         error={null}
         gate={{ canEnqueue: true }}

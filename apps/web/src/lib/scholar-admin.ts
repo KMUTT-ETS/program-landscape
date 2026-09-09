@@ -40,11 +40,13 @@ export interface ScholarConsoleRun {
   /** The refusal / failure sentence, already stripped of the machine-readable
    *  `needs-binding:` prefix by the server. Null on a clean run. */
   errorText: string | null;
-  /** This run refused because no Scholar profile is linked. Decided on the
-   *  server from the raw `errorText` prefix — the constant that names it lives
-   *  in `@kku/db` and must not be pulled into the browser bundle — and it is
-   *  the one refusal the person themselves can fix, so the console words it
-   *  differently from every other refusal. */
+  /** This run ended with no Scholar profile attached to the record. Decided on
+   *  the server from the raw `errorText` prefix — the constant that names it
+   *  lives in `@kku/db` and must not be pulled into the browser bundle — and it
+   *  is the one refusal the person themselves can fix, so the console words it
+   *  differently from every other refusal. It is NO LONGER a free outcome:
+   *  since 2026-09-09 the run searches by name before it gives up, so read
+   *  `creditsUsed` rather than assuming zero. */
   needsBinding: boolean;
 }
 
@@ -74,7 +76,8 @@ export interface ScholarConsoleRow {
   papersFromLibrary: number;
   lastRun: ScholarConsoleRun | null;
   /** The third gate. Non-null means a fetch for this person refuses at the
-   *  30-day quota and spends nothing — whatever the profile column says. */
+   *  30-day quota and spends nothing — whatever the profile column says. It is
+   *  the only gate left that stops a run before it spends. */
   quotaRetryAt: string | null;
   quotaReason: string | null;
 }
@@ -150,11 +153,24 @@ export function describeScholarOutcome(run: ScholarConsoleRun | null): ScholarOu
     return run.needsBinding
       ? {
           kind: 'needs-binding',
-          label: 'Needs a linked profile',
+          label: 'No profile found',
           tone: 'warning',
+          // WHETHER THIS SPENT ANYTHING IS NOW A PER-RUN FACT, so it is read
+          // off the run rather than stated. Before 2026-09-09 the answer was
+          // always "nothing": the run refused at the binding gate before
+          // touching the network. It now searches by name first, so the same
+          // refusal usually means "we searched, at 75 credits, and found
+          // nobody we could safely attach" — and occasionally still means
+          // nothing was spent, when the daily attempt cap stopped it before
+          // the search. Saying "no credits were spent" for both, as this used
+          // to, would understate the commonest one.
           detail:
-            'The run refused before fetching anything because no Scholar profile is linked. ' +
-            'No credits were spent.',
+            run.creditsUsed > 0
+              ? 'Google Scholar was searched for this person and no profile could be linked to ' +
+                `their staff record, so nothing was imported. The search still cost ${run.creditsUsed} ` +
+                'credits. They can link a profile themselves from their own profile page.'
+              : 'The run refused before reaching Google, so nothing was spent and nothing was ' +
+                'imported. They can link a profile themselves from their own profile page.',
         }
       : {
           kind: 'refused',
@@ -247,23 +263,31 @@ export interface ScholarBulkPreview {
   targetCount: number;
   duplicatesDropped: number;
   /**
-   * Targets that will actually reach Google — linked AND outside their 30-day
-   * window — and therefore the only ones that cost pages.
+   * Targets that go STRAIGHT to a profile — linked AND outside their 30-day
+   * window — and therefore the only ones that cost pages and nothing else.
+   *
+   * It is deliberately NOT "everything that costs something" any more. Since
+   * 2026-09-09 an unlinked target reaches Google too, by searching, and costs
+   * more than one of these; it is counted in `unboundCount` instead so the
+   * four buckets still partition the target count.
    *
    * Sent back to the API on confirmation as `expectedChargeableCount`. That is
    * what turns this quote from an advisory into a token: between quoting and
-   * confirming, people can link their own profiles from /profile and turn free
-   * refusals into paid profile walks, and the API refuses rather than
-   * silently billing for a run the operator never saw priced.
+   * confirming, people can link their own profiles from /profile, which moves
+   * them out of the search bucket and into this one and changes the bill. The
+   * API refuses rather than silently billing for a run the operator never saw
+   * priced.
    */
   chargeableCount: number;
   /** Resolvable and linked, but already fetched inside the window. Enqueued;
-   *  refuses at the runner's step 2; spends nothing. */
+   *  refuses at the runner's step 2; spends nothing. The only free bucket. */
   quotaBlockedCount: number;
-  /** Resolvable and outside the window, but with no profile linked. Enqueued;
-   *  refuses at the runner's step 4; spends nothing. Counted only for targets
-   *  the quota would not have stopped first, so the four buckets sum to the
-   *  target count. */
+  /** Resolvable and outside the window, but with no profile linked. Enqueued,
+   *  and since 2026-09-09 it does NOT refuse: the runner searches Google
+   *  Scholar for the person's English name at five times a page price, then
+   *  reads whatever profile it resolves. The dearest bucket per person.
+   *  Counted only for targets the quota would not have stopped first, so the
+   *  four buckets sum to the target count. */
   unboundCount: number;
   /** Not enqueued at all: the pre-flight already proved no single staff
    *  record matches the account. */
@@ -366,7 +390,8 @@ export type ScholarLinkFilter =
    *  would cost credits. The selection an operator making a spend decision
    *  wants. */
   | 'ready'
-  /** Linked, but inside the window: a fetch refuses at step 2 for free. */
+  /** Linked, but inside the window: a fetch refuses at step 2 for free. The
+   *  only refusal left that costs nothing. */
   | 'quota-blocked'
   | 'bound'
   | 'unbound'

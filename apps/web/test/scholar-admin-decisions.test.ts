@@ -213,16 +213,47 @@ describe('describeScholarOutcome — zero found is not a success', () => {
 
   it('separates the needs-a-profile refusal from every other refusal', () => {
     const needs = describeScholarOutcome(
-      run({ status: 'REFUSED', needsBinding: true, papersFound: 0, errorText: 'no profile' }),
+      run({
+        status: 'REFUSED',
+        needsBinding: true,
+        papersFound: 0,
+        creditsUsed: 75,
+        errorText: 'no profile',
+      }),
     );
     expect(needs.kind).toBe('needs-binding');
-    expect(needs.detail).toMatch(/no credits were spent/i);
 
     const other = describeScholarOutcome(
       run({ status: 'REFUSED', needsBinding: false, papersFound: 0, errorText: 'Already fetched.' }),
     );
     expect(other.kind).toBe('refused');
     expect(other.detail).toBe('Already fetched.');
+  });
+
+  it('reads the spend off the run rather than claiming a needs-a-profile run was free', () => {
+    // This asserted "no credits were spent" until 2026-09-09, and it was right
+    // then: the run refused at the binding gate before touching the network.
+    // The gate is now a name SEARCH, the dearest call this system makes, and it
+    // is billed whether or not it finds anybody. Both shapes still occur — the
+    // daily attempt cap can stop a run before it searches — so the sentence is
+    // decided per run and never assumed.
+    const searched = describeScholarOutcome(
+      run({ status: 'REFUSED', needsBinding: true, papersFound: 0, creditsUsed: 75 }),
+    );
+    expect(searched.detail).toContain('75');
+    expect(searched.detail).not.toMatch(/nothing was spent/i);
+
+    const stoppedBeforeSpending = describeScholarOutcome(
+      run({ status: 'REFUSED', needsBinding: true, papersFound: 0, creditsUsed: 0 }),
+    );
+    expect(stoppedBeforeSpending.detail).toMatch(/nothing was spent/i);
+
+    // Both point at the one fix the person themselves can make.
+    for (const outcome of [searched, stoppedBeforeSpending]) {
+      expect(outcome.kind).toBe('needs-binding');
+      expect(outcome.tone).toBe('warning');
+      expect(outcome.detail).toMatch(/their own profile page/i);
+    }
   });
 
   it('reports a FAILED run as a failure even when it found papers', () => {

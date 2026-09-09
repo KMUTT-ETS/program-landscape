@@ -12,10 +12,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // wrapping it in a truthiness check each fail here.
 //
 // Static markup rather than a driven DOM because this workspace has no jsdom
-// and no @testing-library. That rules out asserting a click, which is why the
-// picker opens from the first paint in the unbound state (a real UX decision,
-// not a test accommodation — an unbound user's only next step is pasting a
-// URL) and why the bind refusal is rendered from a prop.
+// and no @testing-library. That rules out asserting a click — so the picker,
+// which since 2026-09-09 opens ONLY from the "wrong person" affordance, is
+// asserted by rendering `BindPicker` directly, and the bind refusal is
+// rendered from a prop. What the unbound panel is checked for here is that the
+// form is NOT on screen and the offer to open it is.
 // ────────────────────────────────────────────────────────────────────────────
 
 vi.mock('next/navigation', () => ({
@@ -72,7 +73,14 @@ function statusOf(overrides: Partial<ScholarStatus> = {}): ScholarStatus {
     quotaReason: null,
     needsBinding: false,
     fetchQueued: false,
-    bind: { attemptsToday: 0, maxPerDay: 5, retryAt: null },
+    bind: {
+      attemptsToday: 0,
+      maxPerDay: 5,
+      retryAt: null,
+      creditsPerSearch: 75,
+      creditsPerPastedCheck: 15,
+      creditsAtRisk: 375,
+    },
     ...overrides,
   };
 }
@@ -118,7 +126,7 @@ describe('ScholarPanel — no staff record', () => {
 
   it('renders the button — hiding it is the failure this asserts against', () => {
     expect(() => primaryButtonTag(markup)).not.toThrow();
-    expect(markup).toContain('Fetch from Google Scholar');
+    expect(markup).toContain('Sync Google Scholar');
   });
 
   it('renders it disabled', () => {
@@ -156,7 +164,7 @@ describe('ScholarPanel — inside the 30-day window', () => {
   it('disables the button and shows the retry date as a date, not a timestamp', () => {
     expect(isDisabled(primaryButtonTag(markup))).toBe(true);
     expect(markup).toContain('data-testid="scholar-next-eligible"');
-    expect(markup).toContain('You can fetch again on 1 Oct 2026.');
+    expect(markup).toContain('You can sync again on 1 Oct 2026.');
   });
 
   it('shows the quota reason alongside it', () => {
@@ -173,24 +181,46 @@ describe('ScholarPanel — inside the 30-day window', () => {
 describe('ScholarPanel — unbound', () => {
   const markup = render(statusOf({ profile: { bound: false }, needsBinding: true }));
 
-  it('opens the picker and leaves the button enabled', () => {
-    expect(markup).toContain('data-testid="scholar-bind-picker"');
+  it('shows ONE enabled sync button and NO form — the picker no longer opens itself', () => {
+    // The 2026-09-09 reversal as it reaches the page. This state used to paint
+    // the paste-a-URL form immediately and label its button "Link your Scholar
+    // profile"; both are gone, because the run finds the profile now.
     expect(isDisabled(primaryButtonTag(markup))).toBe(false);
-    expect(markup).toContain('Link your Scholar profile');
+    expect(primaryButtonTag(markup)).toContain('data-panel-kind="unbound"');
+    expect(markup).toContain('Sync Google Scholar');
+    expect(markup).not.toContain('Link your Scholar profile');
+    expect(markup).not.toContain('data-testid="scholar-bind-picker"');
   });
 
-  it('shows a correct example URL in the field and in the help text', () => {
-    expect(markup).toContain('https://scholar.google.com/citations?user=ABC123');
+  it('says what pressing it will actually do, before it is pressed', () => {
+    expect(markup).toContain('searches Google Scholar for your');
+    expect(markup).toContain('English staff name');
   });
 
-  it('offers no search-by-name fallback, and says why', () => {
-    expect(markup).toContain('sign-in wall');
-    expect(markup.toLowerCase()).not.toContain('search by your name');
+  it('offers the paste-a-URL override as a correction, not as the way in', () => {
+    expect(markup).toContain('data-testid="scholar-manual-override"');
+    expect(markup).toContain('Paste your profile URL instead');
+    // The offer and its lead-in must not run together into one phrase.
+    expect(markup).toMatch(/nobody at all\?<!-- -->\s|nobody at all\? <button/);
   });
 
-  it('states the daily allowance before it is spent, not after', () => {
-    expect(markup).toContain('data-testid="scholar-bind-cap"');
-    expect(markup).toContain("You have 5 of today&#x27;s 5 checks left.");
+  it('prices the allowance in CREDITS, not only in attempts', () => {
+    // A count stopped being the meaningful unit when the search (75) and the
+    // pasted check (15) started sharing one cap. Five attempts is 75 credits
+    // of pasted checks or 375 of searches, and only the credits say so.
+    expect(markup).toContain('data-testid="scholar-search-cost"');
+    expect(markup).toContain('75 ScrapingBee credits');
+    expect(markup).toContain('15 credits');
+    expect(markup).toContain('up to 375 credits');
+    // …and the count is still there, in a dt/dd pair rather than two spans in
+    // a flex row. `justify-between` separates them on screen and NOT in the
+    // text: with spans the string is "Attempts left today5 of 5", which is
+    // what a screen reader gets and what the line reads as when it wraps.
+    // Caught by reading this panel back as rendered, which is the only way
+    // this class of defect has ever been caught here.
+    expect(markup).toContain('<dt>Attempts left today</dt>');
+    expect(markup).toMatch(/<dd[^>]*>5 of 5 — up to 375 credits<\/dd>/);
+    expect(markup).not.toContain('Attempts left today5');
   });
 
   it('keeps the label and its qualifier from reading as one word', () => {
@@ -268,22 +298,35 @@ describe('ScholarPanelUnavailable — the status read failed', () => {
 });
 
 describe('ScholarPanel — unbound AND inside the window', () => {
-  it('warns that linking will not start a fetch yet', () => {
-    // Binding still outranks the cooldown — pasting a URL is the right next
-    // step — but a button that silently disables the moment they finish would
-    // read as a bug.
-    const markup = render(
-      statusOf({
-        profile: { bound: false },
-        needsBinding: true,
-        nextEligibleAt: '2026-10-01T00:00:00.000Z',
-        quotaReason: 'Already fetched on 2026-09-01. One fetch per 30 days.',
-      }),
-    );
-    expect(markup).toContain('data-testid="scholar-next-eligible"');
-    expect(markup).toContain('will not start another one until 1 Oct 2026');
-    // …and the picker is still the offer.
-    expect(markup).toContain('data-testid="scholar-bind-picker"');
+  const markup = render(
+    statusOf({
+      profile: { bound: false },
+      needsBinding: true,
+      nextEligibleAt: '2026-10-01T00:00:00.000Z',
+      quotaReason: 'Already fetched on 2026-09-01. One fetch per 30 days.',
+    }),
+  );
+
+  it('disables the button, because pressing it would only buy a refusal', () => {
+    // The branch order swapped on 2026-09-09. Binding used to win here and the
+    // button opened a form, which was honest. It now enqueues a run, and the
+    // runner refuses at the quota gate before it would search — so an enabled
+    // button would spend a worker slot to write "already fetched" to the
+    // ledger.
+    expect(isDisabled(primaryButtonTag(markup))).toBe(true);
+    expect(primaryButtonTag(markup)).toContain('data-panel-kind="cooling-down"');
+    expect(markup).toContain('Already fetched on 2026-09-01.');
+    expect(markup).toContain('You can sync again on 1 Oct 2026.');
+  });
+
+  it('still offers the paste-a-URL override — a bind is not quota-gated', () => {
+    // What the swap had to preserve: someone locked out of syncing until
+    // October can still put the right profile on their record today, so the
+    // next sync uses it instead of searching.
+    expect(markup).toContain('data-testid="scholar-manual-override"');
+    expect(markup).toContain('Paste your profile URL instead');
+    // Offered, not opened.
+    expect(markup).not.toContain('data-testid="scholar-bind-picker"');
   });
 });
 
@@ -339,7 +382,7 @@ describe('BindPicker — the daily cap', () => {
       <BindPicker
         status={statusOf({
           needsBinding: true,
-          bind: { attemptsToday: 9, maxPerDay: 5, retryAt: null },
+          bind: { ...statusOf().bind, attemptsToday: 9, maxPerDay: 5, retryAt: null },
         })}
         error={null}
         submitting={false}
@@ -351,6 +394,10 @@ describe('BindPicker — the daily cap', () => {
     expect(isDisabled(submit)).toBe(false);
     // And the sentence does not claim "0 left" next to a working button.
     expect(markup).toContain('The daily cap does not apply to your account.');
+    // Nor does it print an empty credit figure, which is what a partial
+    // `bind` override in a fixture produces and what a partial API response
+    // would produce in production.
+    expect(markup).not.toContain('the same  credits');
   });
 
   it('greys out submit and says when the allowance returns', () => {
@@ -359,7 +406,12 @@ describe('BindPicker — the daily cap', () => {
         status={statusOf({
           profile: { bound: false },
           needsBinding: true,
-          bind: { attemptsToday: 5, maxPerDay: 5, retryAt: '2026-09-09T04:30:00.000Z' },
+          bind: {
+            ...statusOf().bind,
+            attemptsToday: 5,
+            maxPerDay: 5,
+            retryAt: '2026-09-09T04:30:00.000Z',
+          },
         })}
         error={null}
         submitting={false}
@@ -369,11 +421,14 @@ describe('BindPicker — the daily cap', () => {
     );
     const submit = /<button[^>]*type="submit"[^>]*>/.exec(markup)?.[0] ?? '';
     expect(isDisabled(submit)).toBe(true);
-    expect(markup).toContain('No checks left today');
+    expect(markup).toContain('No attempts left today');
     expect(markup).toContain('the allowance resets on 9 Sep 2026, 11:30');
   });
 
-  it('warns that a wrong link is billed like a right one, before either is tried', () => {
+  it('names BOTH prices the one cap covers, before either is spent', () => {
+    // The cap gates a pasted check and an automatic search, and they stopped
+    // costing the same on 2026-09-09. Stating the allowance as a bare count
+    // says nothing about which of the two it is worth.
     const markup = renderToStaticMarkup(
       <BindPicker
         status={statusOf({ profile: { bound: false }, needsBinding: true })}
@@ -383,6 +438,8 @@ describe('BindPicker — the daily cap', () => {
         onCancel={() => undefined}
       />,
     );
-    expect(markup).toContain('a wrong link costs exactly what a right one does');
+    expect(markup).toContain('a wrong link costs the same 15 credits as a right one');
+    expect(markup).toContain('An automatic search costs 75 credits');
+    expect(markup).toContain('both draw on the same allowance');
   });
 });

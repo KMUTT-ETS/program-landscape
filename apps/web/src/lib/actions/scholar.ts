@@ -100,6 +100,14 @@ const StatusSchema = z.object({
     attemptsToday: z.number(),
     maxPerDay: z.number(),
     retryAt: IsoDate.nullable(),
+    // Prices, not counts — see the note on `ScholarStatus['bind']`. They are
+    // read off the API rather than imported from @kku/shared, because the
+    // constants live on a subpath the browser bundle must not pull, and
+    // because a price the browser computed for itself would be a second
+    // opinion about money.
+    creditsPerSearch: z.number(),
+    creditsPerPastedCheck: z.number(),
+    creditsAtRisk: z.number(),
   }),
 });
 

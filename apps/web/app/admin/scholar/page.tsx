@@ -25,10 +25,13 @@ export const metadata = { title: 'Google Scholar — Admin' };
 
 // The admin Google Scholar console.
 //
-// THIS IS THE ONE PAGE IN THE PRODUCT WHERE A SINGLE CLICK CAN SPEND FOUR
-// FIGURES OF SCRAPINGBEE CREDITS. Every Google page costs 15, a bulk run can
-// name up to SCHOLAR_BULK_MAX_TARGETS people, and a prolific researcher's
-// profile is several pages. The console is therefore built around one rule:
+// THIS IS THE ONE PAGE IN THE PRODUCT WHERE A SINGLE CLICK CAN SPEND FIVE
+// FIGURES OF SCRAPINGBEE CREDITS. A Google profile page costs 15, and since
+// 2026-09-09 a person with no linked profile is SEARCHED FOR by name first, at
+// 75. A bulk run can name up to SCHOLAR_BULK_MAX_TARGETS people, and a
+// prolific researcher's profile is several pages — so a full batch of unlinked
+// staff is roughly 9,000 credits where it used to refuse for free. The console
+// is therefore built around one rule:
 // nothing is enqueued until a number has been put in front of the operator.
 // `decideScholarBulkGate` in `src/lib/scholar-admin.ts` enforces it, and the
 // confirmation dialog is the only thing that produces the priced preview the
@@ -69,7 +72,8 @@ export default async function AdminScholarPage() {
         subtitle={
           'Pull a staff member’s Google Scholar publication record on demand. ' +
           'Scholar papers are added to the research record; nothing already there is removed. ' +
-          'Every page fetched from Google costs ScrapingBee credits, so a fetch is priced before it is sent.'
+          'Reading a linked profile costs ScrapingBee credits per page; finding an unlinked one costs ' +
+          'five times that again, so every fetch is priced before it is sent.'
         }
       />
       <ScholarConsoleClient

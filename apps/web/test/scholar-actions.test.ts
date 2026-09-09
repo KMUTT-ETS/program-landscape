@@ -42,7 +42,17 @@ function statusPayload(overrides: Record<string, unknown> = {}) {
     quotaReason: null,
     needsBinding: false,
     fetchQueued: false,
-    bind: { attemptsToday: 0, maxPerDay: 5, retryAt: null },
+    bind: {
+      attemptsToday: 0,
+      maxPerDay: 5,
+      retryAt: null,
+      // Prices, not counts. The panel renders these verbatim; a missing one
+      // reaches the page as an empty string next to the word "credits", so
+      // the schema requires them and this fixture carries them.
+      creditsPerSearch: 75,
+      creditsPerPastedCheck: 15,
+      creditsAtRisk: 375,
+    },
     ...overrides,
   };
 }

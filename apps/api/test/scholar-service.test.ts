@@ -55,7 +55,12 @@ vi.mock('@kku/shared', async () => {
 
 import { Reflector } from '@nestjs/core';
 import type { ExecutionContext } from '@nestjs/common';
-import { GOOGLE_PAGE_CREDIT_COST, ROLE_PERMISSIONS, can } from '@kku/shared';
+import {
+  GOOGLE_PAGE_CREDIT_COST,
+  GOOGLE_SEARCH_CREDIT_COST,
+  ROLE_PERMISSIONS,
+  can,
+} from '@kku/shared';
 import type { Role, SessionUser } from '@kku/shared';
 import { AccessControlGuard } from '../src/common/access.guard';
 import { ScholarController } from '../src/scholar/scholar.controller';
@@ -422,7 +427,7 @@ describe('ScholarService.bindOwnProfile — a refused bind is a 400, not a 500',
 // ── 4. Bulk pricing ────────────────────────────────────────────────────────
 
 describe('estimateScholarBulkCredits', () => {
-  it('charges an unbound target NOTHING — a bulk fetch refuses before it fetches', () => {
+  it('charges an unbound target the SEARCH plus a page — it is no longer free', () => {
     const targets = [
       { profileBound: true },
       { profileBound: true },
@@ -430,29 +435,38 @@ describe('estimateScholarBulkCredits', () => {
       { profileBound: false },
       { profileBound: false },
     ];
-    // runScholarFetch checks scholarProfileId at step 4 and returns the
-    // needs-binding refusal BEFORE fetchAllPages, so only the 3 bound targets
-    // can spend anything. Charging unbound targets an extra "bind page" was a
-    // carry-over from the superseded name-search design and made the quote
-    // ~10x too high at rollout, when almost nobody is bound.
-    expect(estimateScholarBulkCredits(targets)).toBe(3 * GOOGLE_PAGE_CREDIT_COST);
+    // REVERSED ON 2026-09-09, and this test asserted the opposite until then.
+    // `runScholarFetch` used to check scholarProfileId at step 4 and refuse
+    // before `fetchAllPages`, so an unbound target really did spend nothing.
+    // It no longer refuses: it searches Google Scholar for the person's
+    // English full name at 75 credits, then walks whatever profile that
+    // resolves at 15 a page. Quoting these at zero would tell an operator a
+    // 100-person unlinked batch is free and then bill ~9,000 credits.
+    expect(estimateScholarBulkCredits(targets)).toBe(
+      3 * GOOGLE_PAGE_CREDIT_COST + 2 * (GOOGLE_SEARCH_CREDIT_COST + GOOGLE_PAGE_CREDIT_COST),
+    );
   });
 
-  it('is zero for an empty run, and zero for an all-unbound run', () => {
+  it('is zero for an empty run, and NOT for an all-unbound one', () => {
     expect(estimateScholarBulkCredits([])).toBe(0);
-    expect(estimateScholarBulkCredits([{ profileBound: false }, { profileBound: false }])).toBe(0);
+    // The all-unbound run was the zero case under the old binding gate. It is
+    // now the dearest shape a run can have, and the commonest one at rollout.
+    expect(estimateScholarBulkCredits([{ profileBound: false }, { profileBound: false }])).toBe(
+      2 * (GOOGLE_SEARCH_CREDIT_COST + GOOGLE_PAGE_CREDIT_COST),
+    );
     expect(estimateScholarBulkCredits([{ profileBound: true }])).toBe(GOOGLE_PAGE_CREDIT_COST);
   });
 
-  it('charges nothing for a target inside its 30-day window, however well linked', () => {
-    // The runner checks the quota at step 2 and binding at step 4, so a
-    // bound-and-recently-fetched person refuses BEFORE it reaches Google.
-    // Omitting this over-quotes in the expensive direction: a faculty of 90
-    // refreshed three weeks ago prices at 1,350 credits against a floor of 0.
+  it('charges nothing for a target inside its 30-day window, linked or not', () => {
+    // The quota is step 2 and binding is step 4, so a recently-fetched person
+    // refuses BEFORE either the name search or the profile walk. This is the
+    // one gate left that still costs nothing. Omitting it over-quotes in the
+    // expensive direction: a faculty of 90 refreshed three weeks ago prices at
+    // 1,350 credits against a floor of 0.
     expect(
       estimateScholarBulkCredits([
         { profileBound: true, quotaBlocked: true },
-        { profileBound: true, quotaBlocked: true },
+        { profileBound: false, quotaBlocked: true },
       ]),
     ).toBe(0);
     expect(
@@ -465,7 +479,7 @@ describe('estimateScholarBulkCredits', () => {
 
   it('the bulk enqueue quotes the plan it was given, and enqueues every runnable target', async () => {
     // u0, u1 linked and clear; u2 unlinked; u3 linked but inside its window.
-    // Only u0 and u1 reach Google.
+    // Three of the four reach Google — u2 by searching for its name first.
     mocks.planScholarBulkTargets.mockResolvedValue(
       planOf([
         { userId: 'u0', profileBound: true },
@@ -477,11 +491,17 @@ describe('estimateScholarBulkCredits', () => {
 
     const result = await buildService({ bulkMax: 100 }).enqueueBulk(['u0', 'u1', 'u2', 'u3'], ADMIN);
 
-    expect(result.estimatedCredits).toBe(2 * GOOGLE_PAGE_CREDIT_COST);
+    expect(result.estimatedCredits).toBe(
+      2 * GOOGLE_PAGE_CREDIT_COST + (GOOGLE_SEARCH_CREDIT_COST + GOOGLE_PAGE_CREDIT_COST),
+    );
+    // `chargeableCount` counts PROFILE WALKS — targets that already know their
+    // id — because that is what the stale-quote token is about: somebody
+    // linking or unlinking between the quote and the send. It is deliberately
+    // NOT "everything that costs something" any more; u2 costs the most of the
+    // four and is not in it.
     expect(result.chargeableCount).toBe(2);
-    // All four are still enqueued — the unbound target's refusal is what puts
-    // "paste your profile URL" in front of that person, and the quota-blocked
-    // one's refusal is the record of why nothing happened. Neither spends.
+    // All four are still enqueued. Only u3's refusal is free now — u2's run
+    // spends a 75-credit search before it can refuse.
     expect(result.enqueued).toHaveLength(4);
   });
 

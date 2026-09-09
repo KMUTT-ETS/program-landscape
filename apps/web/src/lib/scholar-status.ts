@@ -55,8 +55,51 @@ export interface ScholarStatus {
   quotaReason: string | null;
   needsBinding: boolean;
   fetchQueued: boolean;
-  bind: { attemptsToday: number; maxPerDay: number; retryAt: string | null };
+  /**
+   * The daily allowance for asserting an identity, and what it is worth.
+   *
+   * THE COUNT IS NO LONGER THE MEANINGFUL UNIT. The cap gates two attempts
+   * that stopped costing the same on 2026-09-09: a pasted URL is verified with
+   * one profile page, while the sync button's automatic name search is a
+   * stealth search at five times that. Five attempts a day was 75 credits when
+   * the cap was set and is now up to 375. Every price here is computed by the
+   * API from the measured constants — the browser renders them, it never
+   * multiplies its own.
+   */
+  bind: {
+    attemptsToday: number;
+    maxPerDay: number;
+    retryAt: string | null;
+    /** One automatic name search — what pressing sync costs while unlinked. */
+    creditsPerSearch: number;
+    /** One pasted-URL check: a single profile page. */
+    creditsPerPastedCheck: number;
+    /** The most today's remaining allowance can still spend on this account.
+     *  Zero when the cap is reached, and zero for an account it exempts. */
+    creditsAtRisk: number;
+  };
 }
+
+/**
+ * The one control, named once.
+ *
+ * Every actionable state now carries the SAME label, and that sameness is the
+ * change: until 2026-09-09 an unlinked person's button said "Link your Scholar
+ * profile" and opened a form, while everyone else's said "Fetch from Google
+ * Scholar" and started a run. Two doors, and only one of them was the feature.
+ *
+ * "Sync" rather than "Fetch" because the button now does whichever of the two
+ * things is needed — find the profile, then read it — and a person pressing it
+ * should not have to know which. The word "fetch" survives everywhere it names
+ * the RUN rather than the control (the 30-day allowance, the run ledger, the
+ * admin console), because that is what a run is.
+ */
+const SYNC_LABEL = 'Sync Google Scholar';
+const SYNC_AGAIN_LABEL = 'Sync Google Scholar again';
+
+/** Exported for the panel's status-read-failed fallback, which draws the same
+ *  disabled control without a status to decide it from. */
+export const SCHOLAR_SYNC_LABEL = SYNC_LABEL;
 
 export type ScholarPanelKind =
   | 'no-staff-record'
@@ -81,8 +124,22 @@ export interface ScholarPanelView {
    * A disabled control that does not say why is the failure being avoided.
    */
   disabledReason: string | null;
-  /** Clicking opens the paste-your-profile-URL picker instead of fetching. */
-  opensPicker: boolean;
+  /**
+   * Offer the paste-your-own-URL form as a WAY ROUND the automatic search.
+   *
+   * It replaced `opensPicker`, and the difference is the whole of the
+   * 2026-09-09 change. `opensPicker` meant "this state's button does not sync,
+   * it asks for a URL first" — the unbound state had a different button from
+   * every other state, and pasting was the only way in. The search made
+   * pasting unnecessary, so every state now has the SAME button, and the form
+   * is a correction: for the person the search cannot find, and for the person
+   * it finds as somebody else.
+   *
+   * True only while nothing is linked. Once a profile IS linked the correction
+   * lives beside it, on the linked-profile line, where the id it would be
+   * replacing is on screen.
+   */
+  offersManualOverride: boolean;
   /** ISO timestamp the quota frees up, when inside the window. */
   nextEligibleAt: string | null;
   /** ISO timestamp of the last run that actually produced data. */
@@ -103,10 +160,22 @@ export interface ScholarPanelView {
  *      on a second job. The local `starting` flag comes first within this
  *      step, because during the round trip the server still says nothing is
  *      queued.
- *   3. No profile linked — the next step is pasting a URL, so the button
- *      opens the picker rather than starting a fetch that would refuse.
- *   4. Inside the 30-day window — disabled, showing the date it reopens.
+ *   3. Inside the 30-day window — disabled, showing the date it reopens.
+ *   4. No profile linked — the button STILL SYNCS.
  *   5. Otherwise ready.
+ *
+ * STEPS 3 AND 4 SWAPPED ON 2026-09-09, and the swap is a consequence of the
+ * search, not a preference. Binding used to outrank the window because pasting
+ * a URL was the unlinked person's real next step and it is not quota-gated —
+ * an enabled button that opened a form was honest even inside the window. The
+ * button no longer opens a form; it enqueues a run. And the runner checks the
+ * quota at step 2, BEFORE it would search at step 4, so for an unlinked person
+ * inside their window that click enqueues a job that refuses without searching:
+ * a live button that does nothing but write a refusal to the ledger. Ordering
+ * the window first disables it with the reason and the reopening date, and the
+ * paste-a-URL override stays on offer underneath — which is the part that was
+ * worth protecting, and it is protected by `offersManualOverride` rather than
+ * by the branch order now.
  */
 export function decideScholarPanelState(
   status: ScholarStatus,
@@ -125,13 +194,21 @@ export function decideScholarPanelState(
     ? (status.lastRun?.finishedAt ?? status.lastRun?.startedAt ?? null)
     : null;
 
+  // A property of the account, not of the branch that wins. The correction is
+  // worth offering to anyone with a staff record and nothing linked — whether
+  // the search has not run yet, has run and found the wrong person, or cannot
+  // run today because the window is shut. It is withheld only where it could
+  // not work (no staff record to check a pasted name against) or where it
+  // would fight something already in progress (a queued run).
+  const unlinkedWithRecord = status.staffRecord.linked && !status.profile.bound;
+
   if (!status.staffRecord.linked) {
     return {
       kind: 'no-staff-record',
-      buttonLabel: 'Fetch from Google Scholar',
+      buttonLabel: SYNC_LABEL,
       buttonDisabled: true,
       disabledReason: status.staffRecord.reason,
-      opensPicker: false,
+      offersManualOverride: false,
       nextEligibleAt: null,
       lastFetchedAt,
     };
@@ -148,8 +225,8 @@ export function decideScholarPanelState(
       kind: 'running',
       buttonLabel: 'Starting…',
       buttonDisabled: true,
-      disabledReason: 'Asking for a fetch — one moment.',
-      opensPicker: false,
+      disabledReason: 'Asking for a sync — one moment.',
+      offersManualOverride: false,
       nextEligibleAt: status.nextEligibleAt,
       lastFetchedAt,
     };
@@ -158,23 +235,11 @@ export function decideScholarPanelState(
   if (status.fetchQueued) {
     return {
       kind: 'running',
-      buttonLabel: 'Fetching…',
+      buttonLabel: 'Syncing…',
       buttonDisabled: true,
       disabledReason:
-        'A fetch is already queued for you. This panel checks again every few seconds.',
-      opensPicker: false,
-      nextEligibleAt: status.nextEligibleAt,
-      lastFetchedAt,
-    };
-  }
-
-  if (status.needsBinding) {
-    return {
-      kind: 'unbound',
-      buttonLabel: 'Link your Scholar profile',
-      buttonDisabled: false,
-      disabledReason: null,
-      opensPicker: true,
+        'A sync is already queued for you. This panel checks again every few seconds.',
+      offersManualOverride: false,
       nextEligibleAt: status.nextEligibleAt,
       lastFetchedAt,
     };
@@ -184,18 +249,35 @@ export function decideScholarPanelState(
     return {
       kind: 'cooling-down',
       // Same "again" wording as the ready state. Reaching the window means a
-      // fetch has happened, so a bare "Fetch from Google Scholar" would read
-      // as if none ever had.
-      buttonLabel: lastFetchedAt
-        ? 'Fetch again from Google Scholar'
-        : 'Fetch from Google Scholar',
+      // sync has happened, so a bare SYNC_LABEL would read as if none ever had.
+      buttonLabel: lastFetchedAt ? SYNC_AGAIN_LABEL : SYNC_LABEL,
       buttonDisabled: true,
       // The API's own sentence when it has one — it names the date of the run
       // that consumed the allowance, which is the part a user asks about.
       disabledReason:
         status.quotaReason ??
         'You have already fetched recently. One fetch per 30 days.',
-      opensPicker: false,
+      offersManualOverride: unlinkedWithRecord,
+      nextEligibleAt: status.nextEligibleAt,
+      lastFetchedAt,
+    };
+  }
+
+  if (status.needsBinding) {
+    return {
+      kind: 'unbound',
+      // The SAME label as every other actionable state, which is the point of
+      // the change: there is one control, and what it does about the missing
+      // link is the search, not a form.
+      buttonLabel: SYNC_LABEL,
+      buttonDisabled: false,
+      disabledReason: null,
+      // `unlinkedWithRecord`, not a bare `true`. This branch is also reached
+      // when a profile IS linked and the last run still refused for a binding
+      // reason; there the correction belongs on the linked-profile line, next
+      // to the id being replaced, and a second copy of it up here would be two
+      // affordances for one action.
+      offersManualOverride: unlinkedWithRecord,
       nextEligibleAt: status.nextEligibleAt,
       lastFetchedAt,
     };
@@ -203,12 +285,10 @@ export function decideScholarPanelState(
 
   return {
     kind: 'ready',
-    buttonLabel: lastFetchedAt
-      ? 'Fetch again from Google Scholar'
-      : 'Fetch from Google Scholar',
+    buttonLabel: lastFetchedAt ? SYNC_AGAIN_LABEL : SYNC_LABEL,
     buttonDisabled: false,
     disabledReason: null,
-    opensPicker: false,
+    offersManualOverride: unlinkedWithRecord,
     nextEligibleAt: null,
     lastFetchedAt,
   };

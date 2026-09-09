@@ -11,6 +11,8 @@ import {
 import {
   ApiError,
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
+  GOOGLE_PAGE_CREDIT_COST,
+  GOOGLE_SEARCH_CREDIT_COST,
   SCHOLAR_LEDGER_LOOKBACK_MS,
   configFromEnv as scrapingBeeConfigFromEnv,
   decideScholarBindQuota,
@@ -120,10 +122,39 @@ export interface ScholarSelfStatus {
    * eventually refuse the duplicate, but only after it had been queued.
    */
   fetchQueued: boolean;
-  /** How many binds are left today, and when the allowance frees up. Shown
-   *  next to the paste-a-URL field, because a bind is billed whether or not
-   *  it matches. */
-  bind: { attemptsToday: number; maxPerDay: number; retryAt: Date | null };
+  /**
+   * The daily allowance for ASSERTING AN IDENTITY — and what that allowance
+   * is worth in credits, which is the part that changed.
+   *
+   * The cap gates two things that no longer cost the same. A pasted URL is
+   * verified with one profile page (15 credits). An automatic name search is a
+   * stealth search (75), and it is now the DEFAULT path — the sync button
+   * takes it without anyone pasting anything. Five attempts used to be 75
+   * credits a day per person; the same five are now up to 375.
+   *
+   * So the panel is given credits, not only a count: a count stopped being the
+   * meaningful unit the moment the two attempts stopped costing the same. The
+   * arithmetic is done HERE rather than in the browser, for the same reason
+   * the bulk estimate is — a price computed client-side is a second opinion
+   * about money that can drift from the one ScrapingBee bills.
+   */
+  bind: {
+    attemptsToday: number;
+    maxPerDay: number;
+    retryAt: Date | null;
+    /** What one automatic name search costs. The sync button's price. */
+    creditsPerSearch: number;
+    /** What one pasted-URL check costs: a single profile page. */
+    creditsPerPastedCheck: number;
+    /**
+     * The most the remaining allowance can still spend on this account today,
+     * priced at the dearer of the two paths. Zero when the cap is reached, and
+     * zero for an exempt account — there is no remaining allowance to price in
+     * the first case and no cap to bound it in the second, so the panel says
+     * that in words instead.
+     */
+    creditsAtRisk: number;
+  };
 }
 
 // Priced by @kku/shared, and re-exported here because two processes have to
@@ -480,6 +511,19 @@ export class ScholarService {
         attemptsToday: bindAttempts.length,
         maxPerDay: bindMaxPerDay,
         retryAt: bindQuota.allowed ? null : (bindQuota.retryAt ?? null),
+        creditsPerSearch: GOOGLE_SEARCH_CREDIT_COST,
+        creditsPerPastedCheck: GOOGLE_PAGE_CREDIT_COST,
+        // Gated on `bindQuota.allowed` — the server's own verdict — rather
+        // than on `attemptsToday >= maxPerDay`, for the same reason the panel
+        // is: `decideScholarBindQuota` exempts SUPER_ADMIN outright, so the
+        // count can pass the cap while the API is still willing to serve. The
+        // clamp keeps that case at zero rather than negative; the panel
+        // recognises it from `retryAt` and says "the cap does not apply" in
+        // words, which is the honest thing to show when there is no ceiling to
+        // put a number against.
+        creditsAtRisk: bindQuota.allowed
+          ? Math.max(0, bindMaxPerDay - bindAttempts.length) * GOOGLE_SEARCH_CREDIT_COST
+          : 0,
       },
     };
   }

@@ -12,6 +12,7 @@ import { ExternalLink } from 'lucide-react';
 // after submitting, without spending a Scholar page fetch to find out.
 import { parseScholarProfileUrl } from '@kku/shared/scholar/parse';
 import {
+  SCHOLAR_SYNC_LABEL,
   decideScholarPanelState,
   formatScholarDay,
   formatScholarDayTime,
@@ -26,7 +27,16 @@ import {
 // The Google Scholar self-service panel, rendered at the head of the profile
 // page's publications section.
 //
-// Three things about it are worth knowing before changing it.
+// Four things about it are worth knowing before changing it.
+//
+// THERE IS ONE BUTTON AND IT ALWAYS SYNCS. Until 2026-09-09 an unlinked person
+// got a different button ("Link your Scholar profile") that opened a paste-a-URL
+// form on first paint, because there was no way to find a profile from a name
+// and the run would have refused. There is now: the run searches Google Scholar
+// for the person's English full name, links what it resolves, and reads it. So
+// the form is no longer the way in — it is the way to CORRECT a search that
+// found nobody or found the wrong person, and it opens only when asked for.
+// `view.offersManualOverride` decides whether that offer is on screen.
 //
 // THE BUTTON IS NEVER HIDDEN. Every state that cannot act renders it disabled
 // with a sentence saying why, `decideScholarPanelState` guarantees the pairing
@@ -86,10 +96,11 @@ export function ScholarPanel({
   // silent while a job runs.
   const [polling, setPolling] = React.useState<boolean>(initialStatus.fetchQueued);
   const [pollTimedOut, setPollTimedOut] = React.useState(false);
-  // Open from the first paint when there is nothing linked yet. An unbound
-  // user's only possible next step IS pasting a URL, so putting it behind a
-  // click would add a step that leads nowhere else.
-  const [pickerOpen, setPickerOpen] = React.useState<boolean>(view.opensPicker);
+  // CLOSED on first paint, in every state. It used to open by itself whenever
+  // nothing was linked, because pasting a URL was then the unlinked person's
+  // only possible next step. It is not any more — pressing sync is — and a form
+  // that opens itself reads as the thing you are being asked to do.
+  const [pickerOpen, setPickerOpen] = React.useState(false);
   const [bindError, setBindError] = React.useState<string | null>(null);
   const [binding, setBinding] = React.useState(false);
 
@@ -128,19 +139,19 @@ export function ScholarPanel({
 
       const run = result.status.lastRun;
       if (!run || run.id === baselineRunId.current) {
-        toast.message('The Scholar fetch ended without recording a run. Nothing was changed.');
+        toast.message('The Scholar sync ended without recording a run. Nothing was changed.');
         return;
       }
       baselineRunId.current = run.id;
       if (run.status === 'SUCCEEDED' || run.status === 'PARTIAL') {
         toast.success(
-          `Scholar fetch finished — ${run.papersInserted} papers added, ` +
+          `Scholar sync finished — ${run.papersInserted} papers added, ` +
             `${run.citationsUpdated} citation counts refreshed. ` +
             'The publication list below rebuilds in the background; reload this page in a minute to see them.',
         );
         router.refresh();
       } else {
-        toast.error(run.errorText ?? 'The Scholar fetch did not complete.');
+        toast.error(run.errorText ?? 'The Scholar sync did not complete.');
       }
     }, POLL_INTERVAL_MS);
 
@@ -151,10 +162,10 @@ export function ScholarPanel({
   }, [polling, router]);
 
   const onPrimaryClick = async () => {
-    if (view.opensPicker) {
-      setPickerOpen(true);
-      return;
-    }
+    // No branch on the panel state any more: the button starts a run in every
+    // state that lets it be pressed. What the run does about a missing profile
+    // link is the runner's business, not this component's.
+    //
     // The ref, not the state, is the guard. `setStarting` schedules a render;
     // two clicks that land before it flushes would both read the old `false`.
     // The ref changes on the spot.
@@ -169,7 +180,7 @@ export function ScholarPanel({
         toast.error(result.message);
         return;
       }
-      toast.success('Queued. This panel reports the result when the fetch finishes.');
+      toast.success('Queued. This panel reports the result when the sync finishes.');
       // The job is on the queue by the time the action returns, so flip the
       // button to the queued state now rather than up to one poll interval
       // later.
@@ -238,36 +249,50 @@ export function ScholarPanel({
           <div className="min-w-0 flex-1 text-xs leading-relaxed text-text-secondary">
             {view.disabledReason ? (
               <p data-testid="scholar-disabled-reason">{view.disabledReason}</p>
+            ) : view.kind === 'unbound' ? (
+              <p>
+                No Scholar profile is linked yet, so this searches Google Scholar for your
+                English staff name and links the profile it finds. A profile whose name does
+                not match your staff record is not linked, and nothing is imported from it.
+              </p>
             ) : (
               <p>
-                {view.kind === 'unbound'
-                  ? 'Paste the link to your own Google Scholar profile below. Nothing is fetched until the name on it is checked against your staff record.'
-                  : 'One fetch per 30 days. Scholar papers are added to your record; nothing already there is removed.'}
+                One fetch per 30 days. Scholar papers are added to your record; nothing
+                already there is removed.
               </p>
             )}
+
             {view.kind === 'cooling-down' && nextEligibleLabel && (
               <p className="mt-2 text-text-tertiary" data-testid="scholar-next-eligible">
-                You can fetch again on {nextEligibleLabel}.
+                You can sync again on {nextEligibleLabel}.
               </p>
             )}
-            {/* Binding outranks the cooldown, because pasting a URL is still
-                the right next step — but silently disabling the button the
-                moment they finish would read as a bug. Reachable when a
-                successful fetch is followed by an administrator unlinking the
-                profile. */}
-            {view.kind === 'unbound' && nextEligibleLabel && (
-              <p className="mt-2 text-text-tertiary" data-testid="scholar-next-eligible">
-                Note that a fetch already ran inside the last 30 days, so linking now will not
-                start another one until {nextEligibleLabel}.
+
+            {/* Only while nothing is linked. Once a profile IS linked, the way
+                to correct it sits on the linked-profile line below, beside the
+                id it would replace. */}
+            {view.offersManualOverride && !pickerOpen && (
+              <p className="mt-3 text-text-tertiary" data-testid="scholar-manual-override">
+                Searched and found the wrong person, or nobody at all?{' '}
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="text-accent-default underline-offset-4 hover:underline"
+                >
+                  Paste your profile URL instead
+                </button>
               </p>
             )}
+
+            {view.kind === 'unbound' && <SearchCost bind={status.bind} />}
           </div>
         </div>
 
         {polling && (
           <div className="mt-6" aria-live="polite">
             <p className="text-xs text-text-tertiary">
-              Waiting for the fetch to finish — this usually takes under a minute.
+              Waiting for the sync to finish. A first sync searches Google Scholar for your
+              profile before it reads anything, so it takes longer than later ones.
             </p>
             <Skeleton className="mt-3 h-6 w-full max-w-[26rem]" />
           </div>
@@ -275,7 +300,7 @@ export function ScholarPanel({
 
         {pollTimedOut && (
           <p className="mt-6 text-xs text-warning" role="status">
-            Still running after three minutes, so this panel stopped checking. The fetch has
+            Still running after three minutes, so this panel stopped checking. The sync has
             not been cancelled — reload the page later to see the result.
           </p>
         )}
@@ -304,6 +329,68 @@ export function ScholarPanel({
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// ── What a search costs, and how much of it is still on the table ──────────
+
+/**
+ * The daily allowance, priced.
+ *
+ * IT USED TO BE A COUNT AND ONLY A COUNT — "You have 3 of today's 5 checks
+ * left" — and that was a fair unit while every attempt was the same 15-credit
+ * profile page. It stopped being fair on 2026-09-09: the automatic search is
+ * five times the price of a pasted check, and it is now the DEFAULT path, so
+ * the same five attempts moved from 75 credits a day to 375. A count says
+ * nothing about that. The credits say it, so the credits lead and the count
+ * qualifies them.
+ *
+ * Every figure here is the API's. Nothing on this page multiplies a price.
+ */
+function SearchCost({ bind }: { bind: ScholarStatus['bind'] }) {
+  // The server's verdict, not a second one derived from the counts — the same
+  // reasoning as BindPicker's: `decideScholarBindQuota` exempts SUPER_ADMIN
+  // outright, and `attemptsToday >= maxPerDay` would claim an exhausted
+  // allowance for an account the API is perfectly willing to serve.
+  const capReached = bind.retryAt !== null;
+  const attemptsLeft = Math.max(0, bind.maxPerDay - bind.attemptsToday);
+  const resetLabel = formatScholarDayTime(bind.retryAt);
+
+  return (
+    <div className="mt-3 text-text-tertiary" data-testid="scholar-search-cost">
+      <p>
+        A search spends {bind.creditsPerSearch} ScrapingBee credits whether or not it finds
+        you, and a pasted link is checked for {bind.creditsPerPastedCheck} credits. Both count
+        against the same daily allowance.
+      </p>
+      {capReached ? (
+        <p className="mt-2">
+          No attempts left today.
+          {resetLabel ? ` The allowance resets on ${resetLabel}.` : ''}
+        </p>
+      ) : attemptsLeft > 0 ? (
+        // A definition list, not two spans in a flex row. `justify-between`
+        // pushes them to opposite ends of the line and that is enough to READ
+        // as two things — but it is only enough on screen: with spans, the
+        // text is "Attempts left today3 of 5" with no separator in it at all,
+        // which is what a screen reader gets and what the label reads as when
+        // the layout wraps. `dt`/`dd` is the same fix the papers columns and
+        // the source breakdown above already use.
+        <dl className="mt-2 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+          <dt>Attempts left today</dt>
+          <dd className="font-tabular text-text-secondary">
+            {attemptsLeft} of {bind.maxPerDay} — up to {bind.creditsAtRisk} credits
+          </dd>
+        </dl>
+      ) : (
+        // Past the cap and still allowed: an exempt account. There is no
+        // ceiling to price, so it is not priced.
+        <p className="mt-2">
+          {bind.attemptsToday} attempts used today. The daily cap does not apply to your
+          account.
+        </p>
+      )}
     </div>
   );
 }
@@ -422,14 +509,21 @@ function BoundProfile({
         </button>
       </div>
       <p className="mt-3 max-w-[46rem] leading-relaxed">
-        If the wrong profile is linked and you cannot correct it here, a system administrator
-        can unlink it for you.
+        This may have been linked by the search rather than by you. If it is the wrong person,
+        Change replaces it with a profile URL you paste. If you cannot correct it here, a
+        system administrator can unlink it for you.
       </p>
     </div>
   );
 }
 
-// ── Paste-your-profile-URL picker ──────────────────────────────────────────
+// ── Paste-your-profile-URL picker: the manual override ─────────────────────
+//
+// NO LONGER THE WAY IN. It opened on first paint while a name could not be
+// searched for; now the sync button does the finding, and this is what a
+// person reaches for when the search came back with nobody, or with somebody
+// else. It opens only from the "wrong person" affordance beside the button, or
+// from "Change" on an already-linked profile.
 //
 // Presentational apart from the text field: validation, the server round-trip
 // and the resulting message all live in `ScholarPanel`. That split is what
@@ -488,9 +582,9 @@ export function BindPicker({
 
       <p id="scholar-profile-url-help" className="mt-3 text-xs leading-relaxed text-text-tertiary">
         Open your own profile on Google Scholar and copy the address bar. It looks like{' '}
-        <code className="font-mono text-text-secondary">{EXAMPLE_URL}</code>. There is no
-        search by name: Google puts author search behind a sign-in wall, so the link has to
-        come from you.
+        <code className="font-mono text-text-secondary">{EXAMPLE_URL}</code>. Use this when the
+        search by name found nobody, or found somebody else — a link you paste is taken over
+        anything a search resolved.
       </p>
 
       {error && (
@@ -508,16 +602,22 @@ export function BindPicker({
       <div className="mt-6 text-xs leading-relaxed" data-testid="scholar-bind-cap">
         <p className="text-text-secondary">
           {capReached
-            ? `No checks left today${capRetryLabel ? ` — the allowance resets on ${capRetryLabel}` : ''}.`
+            ? `No attempts left today${capRetryLabel ? ` — the allowance resets on ${capRetryLabel}` : ''}.`
             : attemptsLeft > 0
-              ? `You have ${attemptsLeft} of today's ${status.bind.maxPerDay} checks left.`
+              ? `You have ${attemptsLeft} of today's ${status.bind.maxPerDay} attempts left.`
               : // Past the cap yet still allowed: an exempt account. Saying
                 // "0 left" next to a working button would contradict itself.
-                `${status.bind.attemptsToday} checks used today. The daily cap does not apply to your account.`}
+                `${status.bind.attemptsToday} attempts used today. The daily cap does not apply to your account.`}
         </p>
+        {/* "Checks" became "attempts" because one allowance now covers two
+            things that cost differently — this pasted check, and the automatic
+            search the sync button runs. Naming both prices is the point: the
+            cap is five of EITHER, so what it is worth depends on which. */}
         <p className="mt-2 text-text-tertiary">
-          Every check loads your Scholar page before it can tell whether the name matches, so a
-          wrong link costs exactly what a right one does.
+          A pasted link is checked by loading your Scholar page before it can tell whether the
+          name matches, so a wrong link costs the same {status.bind.creditsPerPastedCheck}{' '}
+          credits as a right one. An automatic search costs {status.bind.creditsPerSearch}{' '}
+          credits, and both draw on the same allowance.
         </p>
       </div>
 
@@ -567,14 +667,14 @@ export function ScholarPanelUnavailable({ message }: { message: string }) {
           data-testid="scholar-fetch-button"
           data-panel-kind="unavailable"
         >
-          Fetch from Google Scholar
+          {SCHOLAR_SYNC_LABEL}
         </Button>
         <p
           className="min-w-0 flex-1 text-xs leading-relaxed text-text-secondary"
           data-testid="scholar-disabled-reason"
         >
           Your Google Scholar status could not be read, so the sources behind the publication
-          list below cannot be broken down and a fetch cannot be started. {message} Reload the
+          list below cannot be broken down and a sync cannot be started. {message} Reload the
           page to try again.
         </p>
       </div>

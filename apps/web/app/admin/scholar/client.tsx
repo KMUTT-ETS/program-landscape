@@ -52,15 +52,23 @@ import {
 // has no second path to `bulkFetchScholarAction` or `fetchScholarForUserAction`
 // that could bypass it.
 //
+// AN UNLINKED PERSON IS THE DEAREST KIND OF TARGET, NOT THE FREE ONE. This
+// reversed on 2026-09-09 and every number and sentence on this page had to move
+// with it. The run used to refuse at the binding gate before touching the
+// network, so a batch of unlinked staff was quoted — correctly — at zero. It no
+// longer refuses: it searches Google Scholar for the person's English full name
+// at 75 credits, five times a profile page, and then reads whatever profile that
+// resolves. A hundred unlinked people went from free to roughly 9,000 credits.
+// If a sentence here still says an unlinked target costs nothing, it is stale.
+//
 // THE ADMIN CANNOT LINK SOMEONE ELSE'S PROFILE HERE, and that is deliberate,
 // not an omission. `POST /scholar/bind/me` is self-only — there is no
 // admin-side bind endpoint — so a paste field on this page would have nowhere
 // to send what was pasted. Rather than build a control that cannot work, an
-// unlinked row says so and says whose job it is. An unlinked person can still
-// be fetched: the run refuses at the binding gate, costs nothing, and the
-// refusal is what surfaces "link your Scholar profile" on their own profile
-// page. That is the mechanism, so the console reports it rather than trying to
-// route around it.
+// unlinked row says so and says whose job it is. Fetching an unlinked person
+// still works — the search is exactly what makes it work — but it is now the
+// expensive path, and someone linking their own profile first is what makes it
+// cheap.
 //
 // A FETCH HAS NO COMPLETION EVENT. The endpoints enqueue and return a job
 // reference; nothing pushes the result back. So the run ledger is polled after
@@ -570,9 +578,11 @@ function LinkingNote() {
     <p className="border-t border-subtle px-8 py-6 text-xs leading-relaxed text-text-tertiary">
       A Scholar profile can only be linked by the person it belongs to, from their own profile
       page — the link is checked against the name on the Scholar page before it is accepted, and
-      that check is theirs to make. Fetching an unlinked person still works: the run stops before
-      it reaches Google, costs nothing, and puts the prompt to link a profile on their profile
-      page.
+      that check is theirs to make. Fetching an unlinked person still works: the run searches
+      Google Scholar for their English staff name and links the profile it finds. That search is
+      the most expensive call this system makes, and it is spent whether or not it finds anyone,
+      so a batch of people who have never linked a profile costs several times what the same
+      batch costs once they have.
     </p>
   );
 }
@@ -648,7 +658,7 @@ function CostPreamble({
     {
       label: 'Ready to fetch',
       value: String(totals.ready),
-      note: 'Linked, and outside the 30-day window. Only these cost credits.',
+      note: 'Linked, and outside the 30-day window. The cheap ones: a profile page each.',
     },
     {
       label: 'Linked, fetched recently',
@@ -658,7 +668,7 @@ function CostPreamble({
     {
       label: 'Matched, not linked',
       value: String(totals.unbound),
-      note: 'A fetch refuses before Google and costs nothing.',
+      note: 'The dearest ones: each is searched for by name before anything is read.',
     },
     {
       label: 'Credits spent so far',
@@ -881,7 +891,9 @@ export function BulkConfirmPanel({
             </div>
             <p className="mt-2 text-xs leading-relaxed text-text-secondary">
               ScrapingBee credits, at least. A profile longer than one page costs more, and
-              this cannot know how many pages it runs to without fetching it.
+              this cannot know how many pages it runs to without fetching it. Someone with no
+              linked profile is searched for by name first, which is the single most expensive
+              call here and is spent even when it finds nobody.
             </p>
           </div>
 
@@ -895,30 +907,37 @@ export function BulkConfirmPanel({
                   : null
               }
             />
-            {/* The three gates, in the order the runner applies them:
+            {/* Still the three gates, in the order the runner applies them:
                 resolution, then quota, then binding. A person stopped by an
                 earlier gate is counted there and nowhere else, so these four
-                lines add up to the target count. */}
+                lines add up to the target count.
+
+                What changed on 2026-09-09 is what the BINDING gate means. It
+                used to be the cheapest outcome on this list — a refusal that
+                spent nothing — and it is now the dearest, because the run
+                searches instead of refusing. The two lines below are ordered
+                and worded so an operator reads that: the quota line is the only
+                free one left. */}
             <PlanLine
-              label="Will reach Google"
+              label="Linked, ready to read"
               value={preview.chargeableCount}
-              note="A linked Scholar profile and outside the 30-day window. These are what the estimate above prices."
+              note="A linked Scholar profile and outside the 30-day window. These go straight to the profile — a page each, and the cheapest thing in this run."
             />
             <PlanLine
               label="Already fetched this month"
               value={preview.quotaBlockedCount}
               note={
                 preview.quotaBlockedCount > 0
-                  ? 'A profile is linked, but the record was refreshed inside the last 30 days, so the run stops at the quota gate before reaching Google. It costs nothing.'
+                  ? 'A profile is linked, but the record was refreshed inside the last 30 days, so the run stops at the quota gate before reaching Google. This is the only line here that costs nothing.'
                   : null
               }
             />
             <PlanLine
-              label="No profile linked"
+              label="No profile linked — searched by name"
               value={preview.unboundCount}
               note={
                 preview.unboundCount > 0
-                  ? 'The run stops at the binding gate. It costs nothing and records the prompt on their own profile page — only they can link it.'
+                  ? 'Each is searched for on Google Scholar by their English staff name before anything can be read. That search costs five times a profile page and is billed whether or not it finds anyone, so these are the largest part of the estimate above. A profile it finds is linked to their record and read; if none is, the prompt to link one appears on their own profile page.'
                   : null
               }
             />
@@ -975,11 +994,14 @@ export function BulkConfirmPanel({
  * What the send button says.
  *
  * It carries the figure, because the button is the last thing read before the
- * money goes. And when the run costs nothing — every target unlinked, so every
- * one of them refuses before Google — it must not say "spend the credits":
- * that is the commonest shape of a bulk run at rollout, and a button that
- * threatens a bill nobody will receive teaches an operator to ignore the
- * warning that matters.
+ * money goes. It still has a zero branch, but the case that reaches it changed
+ * on 2026-09-09: a free run is now one where every target is stopped by the
+ * QUOTA — already refreshed inside the window — or has no staff record at all.
+ * An all-unlinked batch used to land here and is now the dearest shape a run
+ * can have. Getting that branch wrong in either direction is the same failure:
+ * a button that threatens a bill nobody will receive teaches an operator to
+ * ignore it, and one that promises a free run before billing 9,000 credits
+ * teaches them not to trust it at all.
  */
 function sendLabel(preview: ScholarBulkPreview | null, submitting: boolean): string {
   if (submitting) return 'Sending…';

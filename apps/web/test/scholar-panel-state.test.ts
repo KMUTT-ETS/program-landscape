@@ -40,7 +40,14 @@ function statusOf(overrides: Partial<ScholarStatus> = {}): ScholarStatus {
     quotaReason: null,
     needsBinding: false,
     fetchQueued: false,
-    bind: { attemptsToday: 0, maxPerDay: 5, retryAt: null },
+    bind: {
+      attemptsToday: 0,
+      maxPerDay: 5,
+      retryAt: null,
+      creditsPerSearch: 75,
+      creditsPerPastedCheck: 15,
+      creditsAtRisk: 375,
+    },
     ...overrides,
   };
 }
@@ -65,9 +72,9 @@ describe('decideScholarPanelState — no staff record', () => {
     expect(view.kind).toBe('no-staff-record');
     expect(view.buttonDisabled).toBe(true);
     expect(view.disabledReason).toBe('No staff record matches the name "Somchai Example".');
-    // Nothing to bind either — prompting for a profile URL would send the user
+    // Nothing to bind either — offering a profile URL would send the user
     // down a path that cannot succeed. The fix is an HR/name reconciliation.
-    expect(view.opensPicker).toBe(false);
+    expect(view.offersManualOverride).toBe(false);
   });
 
   it('still produces a button label — the control is disabled, never absent', () => {
@@ -106,9 +113,9 @@ describe('decideScholarPanelState — inside the 30-day window', () => {
     expect(view.disabledReason).toBe('Already fetched on 2026-09-01. One fetch per 30 days.');
     expect(view.nextEligibleAt).toBe('2026-10-01T00:00:00.000Z');
     expect(formatScholarDay(view.nextEligibleAt)).toBe('1 Oct 2026');
-    // Reaching the window means a fetch has happened; "Fetch from…" would
+    // Reaching the window means a sync has happened; the plain label would
     // read as if none ever had.
-    expect(view.buttonLabel).toBe('Fetch again from Google Scholar');
+    expect(view.buttonLabel).toBe('Sync Google Scholar again');
   });
 
   it('falls back to its own sentence when the API sends no reason', () => {
@@ -119,31 +126,48 @@ describe('decideScholarPanelState — inside the 30-day window', () => {
 });
 
 describe('decideScholarPanelState — unbound', () => {
-  it('offers the picker rather than a fetch that would refuse', () => {
-    const view = decideScholarPanelState(
-      statusOf({ profile: { bound: false }, needsBinding: true }),
-    );
+  const UNBOUND = statusOf({ profile: { bound: false }, needsBinding: true });
+
+  it('SYNCS rather than asking for a URL — the run searches by name now', () => {
+    // The 2026-09-09 reversal, and the single most important assertion in this
+    // file. This state used to hand back a different button that opened a
+    // form, because a name could not be searched for. It can be, so the button
+    // is the same button and it starts a run.
+    const view = decideScholarPanelState(UNBOUND);
     expect(view.kind).toBe('unbound');
-    expect(view.opensPicker).toBe(true);
     expect(view.buttonDisabled).toBe(false);
     expect(view.disabledReason).toBeNull();
+    expect(view.buttonLabel).toBe('Sync Google Scholar');
   });
 
-  it('is the ONLY state that opens the picker', () => {
-    const others: ScholarStatus[] = [
-      statusOf({ staffRecord: { linked: false, reason: 'none' } }),
-      statusOf({ fetchQueued: true }),
-      statusOf({ nextEligibleAt: '2026-10-01T00:00:00.000Z' }),
+  it('carries the SAME label as the ready state — there is one control, not two', () => {
+    expect(decideScholarPanelState(UNBOUND).buttonLabel).toBe(
+      decideScholarPanelState(statusOf({ profile: { bound: false } })).buttonLabel,
+    );
+  });
+
+  it('offers the paste-a-URL override, for the search that finds the wrong person', () => {
+    expect(decideScholarPanelState(UNBOUND).offersManualOverride).toBe(true);
+  });
+
+  it('withholds the override where it could not work or would fight a running job', () => {
+    // No staff record: there is no name to check a pasted profile against.
+    // A queued run: changing the binding underneath it is the confusing case.
+    // Already linked: the correction lives beside the linked id instead.
+    const withheld: ScholarStatus[] = [
+      statusOf({ staffRecord: { linked: false, reason: 'none' }, needsBinding: true }),
+      statusOf({ profile: { bound: false }, needsBinding: true, fetchQueued: true }),
       statusOf(),
     ];
-    for (const s of others) {
-      expect(decideScholarPanelState(s).opensPicker).toBe(false);
+    for (const s of withheld) {
+      expect(decideScholarPanelState(s).offersManualOverride).toBe(false);
     }
+    expect(decideScholarPanelState(UNBOUND, { starting: true }).offersManualOverride).toBe(false);
   });
 
-  it('re-opens the picker when a bound profile’s last run refused for binding', () => {
+  it('lands on the unbound state when a linked profile’s last run refused for binding', () => {
     // The API sets `needsBinding` from either side: no profile at all, or a run
-    // that refused with SCHOLAR_NEEDS_BINDING. Both must land on the picker.
+    // that refused with SCHOLAR_NEEDS_BINDING.
     const view = decideScholarPanelState(
       statusOf({
         needsBinding: true,
@@ -155,7 +179,39 @@ describe('decideScholarPanelState — unbound', () => {
       }),
     );
     expect(view.kind).toBe('unbound');
-    expect(view.opensPicker).toBe(true);
+    // ...but the profile IS linked here, so the correction belongs on the
+    // linked-profile line rather than as a second affordance by the button.
+    expect(view.offersManualOverride).toBe(false);
+  });
+});
+
+describe('decideScholarPanelState — unlinked AND inside the 30-day window', () => {
+  const BOTH = statusOf({
+    profile: { bound: false },
+    needsBinding: true,
+    lastRun: SUCCEEDED_RUN,
+    nextEligibleAt: '2026-10-01T00:00:00.000Z',
+    quotaReason: 'Already fetched on 2026-09-01. One fetch per 30 days.',
+  });
+
+  it('the WINDOW wins, because the button would otherwise do nothing', () => {
+    // The branch order swapped on 2026-09-09 and this is why. Binding used to
+    // win, and an enabled button that opened a form was honest inside the
+    // window. The button now enqueues a run, and the runner checks the quota
+    // (step 2) before it would search (step 4) — so an enabled button here
+    // would buy a refusal row and nothing else.
+    const view = decideScholarPanelState(BOTH);
+    expect(view.kind).toBe('cooling-down');
+    expect(view.buttonDisabled).toBe(true);
+    expect(view.disabledReason).toBe('Already fetched on 2026-09-01. One fetch per 30 days.');
+    expect(view.nextEligibleAt).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('still offers the override — linking is not quota-gated', () => {
+    // The part worth protecting when the branches swapped: a bind goes through
+    // its own endpoint and its own daily cap, so someone locked out of syncing
+    // can still put the right profile on their record today.
+    expect(decideScholarPanelState(BOTH).offersManualOverride).toBe(true);
   });
 });
 
@@ -201,14 +257,14 @@ describe('decideScholarPanelState — queued and ready', () => {
     expect(view.buttonDisabled).toBe(false);
     expect(view.disabledReason).toBeNull();
     expect(view.lastFetchedAt).toBeNull();
-    expect(view.buttonLabel).toBe('Fetch from Google Scholar');
+    expect(view.buttonLabel).toBe('Sync Google Scholar');
   });
 
   it('names the last fetch date once there has been one', () => {
     const view = decideScholarPanelState(statusOf({ lastRun: SUCCEEDED_RUN }));
     expect(view.lastFetchedAt).toBe('2026-09-01T00:00:30.000Z');
     expect(formatScholarDay(view.lastFetchedAt)).toBe('1 Sep 2026');
-    expect(view.buttonLabel).toBe('Fetch again from Google Scholar');
+    expect(view.buttonLabel).toBe('Sync Google Scholar again');
   });
 
   it('does NOT treat a refused or failed run as a fetch date', () => {
@@ -219,7 +275,7 @@ describe('decideScholarPanelState — queued and ready', () => {
         statusOf({ lastRun: { ...SUCCEEDED_RUN, status, errorText: 'no' } }),
       );
       expect(view.lastFetchedAt).toBeNull();
-      expect(view.buttonLabel).toBe('Fetch from Google Scholar');
+      expect(view.buttonLabel).toBe('Sync Google Scholar');
     }
   });
 
