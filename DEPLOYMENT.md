@@ -308,6 +308,83 @@ degrades; everything else is unaffected.
 
 ---
 
+## Changing .env.prod
+
+Two things will bite you here, and they bite in sequence — the second one only
+appears once you have got the first one right.
+
+**1. `restart` does not reload the env file.** `web`, `api` and `ingestion` read
+it through `env_file: .env.prod` in `docker-compose.prod.yml`, and compose bakes
+those values in when the container is **created**. `docker compose restart`
+starts the same container again with the environment it already had, so an edit
+appears to do nothing at all — no error, no warning, just the old value still in
+effect. You need a recreate:
+
+```bash
+cd /opt/program-landscape/current
+sudo docker compose up -d web api ingestion
+```
+
+Add `--force-recreate` if you want certainty rather than trusting compose's
+config hash to notice that the file's *contents* changed.
+
+**2. Recreating those three alone gives you a 502.** `infra/nginx/conf.d/program-landscape.conf`
+declares static upstreams:
+
+```nginx
+upstream web_upstream { server web:3000; keepalive 32; }
+upstream api_upstream { server api:4000; keepalive 32; }
+```
+
+There is no `resolver` directive, so nginx resolves those names to container IPs
+**once, at startup**, and caches them for the life of the process. Recreated
+containers get new IPs; nginx keeps dialling the old ones and every request
+becomes a 502 while `docker compose ps` shows everything healthy. Restart nginx
+so it re-resolves:
+
+```bash
+sudo docker compose restart nginx
+```
+
+So the whole procedure is:
+
+```bash
+cd /opt/program-landscape/current
+sudo docker compose up -d web api ingestion   # recreate: picks up the new env
+sudo docker compose restart nginx             # re-resolve: clears the 502
+curl -sk -o /dev/null -w '%{http_code}\n' https://localhost:8443/api/v1/healthz
+```
+
+**Why `deploy.sh` never hits either problem:** it runs
+`docker compose up -d --remove-orphans` across *every* service, so the app
+containers are recreated (env reloaded) and nginx is recreated alongside them
+(upstreams re-resolved) in the same pass. Only a **targeted** recreate of
+individual services leaves nginx stale. Encountered on prod 2026-09-09.
+
+**Verify the values actually arrived**, because a silently-unchanged env is the
+failure mode this whole section exists to prevent:
+
+```bash
+# names only, never values — a transcript is not a private place
+sudo docker compose exec api printenv | cut -d= -f1 | sort
+
+# check one variable is set without printing it
+sudo docker compose exec api sh -c 'test -n "$SOME_KEY" && echo set || echo MISSING'
+```
+
+**If a service crash-loops after the edit, suspect the file's syntax first.**
+Compose is unforgiving about spaces around `=`, and an unquoted value containing
+a space is read as an empty variable: `KEY= value` sets `KEY` to nothing and
+tries to treat the rest as another assignment. That exact shape cost half a day
+on the dev box on 2026-09-08 — and it also leaked the secret, because a shell
+sourcing the file executed the tail of the value as a command. Quote any value
+containing a space.
+
+**Database and MinIO credentials do NOT come from this file.** Non-swarm
+`docker compose up` ignores the `secrets:` block, so those are read from files
+under `/opt/program-landscape/secrets/` (see the one-time setup above). Changing
+them is a different procedure and needs the datastore containers recreated too.
+
 ## Common operations
 
 ```bash
@@ -315,13 +392,14 @@ degrades; everything else is unaffected.
 sudo docker compose logs -f --tail=200                    # all services
 sudo docker compose logs -f --tail=200 api                # one service
 
-# Restart one service (e.g. after a config tweak in .env.prod)
+# Restart one service — WITHOUT an env change (a hung worker, a wedged process)
 sudo docker compose restart api
+# NOTE: `restart` does NOT reload .env.prod. See "Changing .env.prod" above.
 
 # Container shell
 sudo docker compose exec api sh
 
-# Reset the ingestion worker (drain current jobs, restart)
+# Reset the ingestion worker (drain current jobs, restart) — no env change
 sudo docker compose restart ingestion
 
 # Manual DB migration
