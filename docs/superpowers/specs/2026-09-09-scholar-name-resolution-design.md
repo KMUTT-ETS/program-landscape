@@ -108,6 +108,29 @@ the profile cluster and the article results from the one response.
 | **(c)** One card, displayed name does **not** match | The card matched via **Other names** — the queried name is an alias. **Drop the article results** (they may be namesakes) and fetch the profile. Reference example: `Phet Imtongkhum` → Scholar `Phet Aimtongkham`. |
 | **(d)** Several cards | Prefer a card whose displayed name matches. Otherwise fetch each profile (**cap 3**) and match primary **and** Other names. First match wins. |
 
+### A fifth case the reference does not use: byline links
+
+`parseSearchHits` in the reference extracts `authorLinks` — the per-author
+`/citations?user=` anchors inside each result's `div.gs_a` byline — and then
+**never uses them**. They are dead data there.
+
+For our names they may be the *primary* signal. Measured 2026-09-09 on a real
+KKU professor (`Prinya Chindaprasirt`): the search returned **no profile
+cluster at all**, but a byline anchor carried `wmV9HqoAAAAJ`, which resolves to
+`Chindaprasirt, P — Professor, Department of Civil Engineering, Faculty of
+Engineering`, 40 publication rows. The right person, from the byline alone.
+
+So before falling back to the 75-credit probe, case (a) should check the byline
+links for one whose anchor text matches the query name. Byline text is
+abbreviated (`P Chindaprasirt`), which is exactly what the initial-tolerant
+matcher is for.
+
+**This is an extension beyond the reference, resting on one measured case.**
+Verify it against the fixtures captured in Task 3 before relying on it — and
+keep the probe as the fallback when no byline link matches. A byline link whose
+anchor text does *not* match the query is a co-author, not the subject; using it
+would be the mis-attribution error this whole design exists to avoid.
+
 ### The counting trap
 
 The search page is capped at **~10 rows**. Deriving a publication count from it
