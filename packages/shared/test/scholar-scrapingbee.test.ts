@@ -539,4 +539,101 @@ describe('scholar/scrapingbee', () => {
       expect(GOOGLE_SEARCH_CREDIT_COST).toBeGreaterThan(GOOGLE_PAGE_CREDIT_COST);
     });
   });
+  describe('timeout budget', () => {
+    // Measured 2026-09-09: four of ten live searches ran 47-50 s. Against the
+    // old flat 30 s they aborted, were retried, and ScrapingBee billed BOTH
+    // attempts — 1,050 credits for ten searches instead of 750. These tests
+    // pin the two halves of that fix: a wider budget for searches, and no
+    // retry of our own abort on the path where a retry costs 75 credits.
+
+    it('gives a search a longer budget than a profile page', () => {
+      const cfg = configFromEnv();
+      expect(cfg.searchTimeoutMs).toBeGreaterThan(cfg.timeoutMs);
+      expect(cfg.searchTimeoutMs).toBe(90_000);
+      expect(cfg.timeoutMs).toBe(30_000);
+    });
+
+    it('lets each budget be overridden independently', () => {
+      setEnv({ SCRAPINGBEE_TIMEOUT_MS: '11000', SCRAPINGBEE_SEARCH_TIMEOUT_MS: '120000' });
+      const cfg = configFromEnv();
+      expect(cfg.timeoutMs).toBe(11_000);
+      expect(cfg.searchTimeoutMs).toBe(120_000);
+    });
+
+    it('falls back to the defaults on a junk or non-positive override', () => {
+      setEnv({ SCRAPINGBEE_TIMEOUT_MS: 'soon', SCRAPINGBEE_SEARCH_TIMEOUT_MS: '-1' });
+      const cfg = configFromEnv();
+      expect(cfg.timeoutMs).toBe(30_000);
+      expect(cfg.searchTimeoutMs).toBe(90_000);
+    });
+
+    it('applies the SEARCH budget to a search request, not the profile one', async () => {
+      const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: '<html>ok</html>' })),
+      );
+
+      await fetchScrapingBeePage('https://scholar.google.com/scholar?q=Somchai%20Jaidee&hl=en');
+
+      const delays = timeoutSpy.mock.calls.map((c) => c[1]);
+      expect(delays).toContain(90_000);
+      expect(delays).not.toContain(30_000);
+      timeoutSpy.mockRestore();
+    });
+
+    it('applies the PROFILE budget to a profile request', async () => {
+      const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: '<html>ok</html>' })),
+      );
+
+      await fetchScrapingBeePage('https://scholar.google.com/citations?user=abc1234567&hl=en');
+
+      const delays = timeoutSpy.mock.calls.map((c) => c[1]);
+      expect(delays).toContain(30_000);
+      expect(delays).not.toContain(90_000);
+      timeoutSpy.mockRestore();
+    });
+
+    it('does NOT retry our own abort on a search — a retry pays 75 credits twice', async () => {
+      const abort = Object.assign(new Error('aborted'), { name: 'AbortError' });
+      const fetchMock = vi.fn().mockRejectedValue(abort);
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(
+        fetchScrapingBeePage('https://scholar.google.com/scholar?q=Somchai%20Jaidee&hl=en'),
+      ).rejects.toBeInstanceOf(ScrapingBeeTransientError);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('DOES retry our own abort on a profile page, where a retry costs 15', async () => {
+      const abort = Object.assign(new Error('aborted'), { name: 'AbortError' });
+      const fetchMock = vi.fn().mockRejectedValue(abort);
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(
+        fetchScrapingBeePage('https://scholar.google.com/citations?user=abc1234567&hl=en'),
+      ).rejects.toBeInstanceOf(ScrapingBeeTransientError);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('still retries a real network failure on a search — nothing was billed', async () => {
+      // Not an AbortError: no request reached ScrapingBee, so no credit was
+      // spent and there is nothing in flight to duplicate.
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValue(fakeResponse({ status: 200, body: '<html>ok</html>', spbCost: '75' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const res = await fetchScrapingBeePage('https://scholar.google.com/scholar?q=Somchai%20Jaidee&hl=en');
+
+      expect(res.creditsUsed).toBe(75);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
 });

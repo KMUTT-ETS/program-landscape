@@ -45,19 +45,29 @@ const DEFAULT_BASE_URL = 'https://app.scrapingbee.com/api/v1/';
  * twice**: 150 credits, not 75. The account ledger says 1,050 credits for ten
  * searches, and 14 × 75 is exactly how that number is reached.
  *
- * Two consequences, both real and neither fixed here (this constant is Task 1
- * territory and the change wants its own measurement pass):
+ * Measured 2026-09-09 across ten live searches: four ran 47-50 s. Against the
+ * old flat 30 s they aborted, were retried, and ScrapingBee billed BOTH
+ * attempts — ten searches cost 1,050 credits instead of 750. A search is
+ * simply slower than a profile page, so the timeout is now per-kind rather
+ * than one number that has to suit both.
  *
- *   1. `ScholarFetchRun.creditsUsed` UNDER-REPORTS a retried search. The retry
- *      returns only the successful attempt's `Spb-Cost`, so the abandoned
- *      first attempt — which ScrapingBee did bill — is invisible in the ledger.
- *   2. Any bulk estimate built on 75-per-search is a floor, not a price.
- *
- * `SCRAPINGBEE_TIMEOUT_MS` overrides this; something around 90 s would have
- * absorbed every observed search. Raising it is the cheap fix — a slower first
- * attempt costs nothing, a duplicate one costs 75.
+ * `SCRAPINGBEE_TIMEOUT_MS` still overrides the profile timeout;
+ * `SCRAPINGBEE_SEARCH_TIMEOUT_MS` overrides the search one.
  */
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/**
+ * Searches get 90 s. The four slow observations sat at 47-50 s, so 90 leaves
+ * roughly the same headroom over the worst measurement that 30 s was meant to
+ * leave over a profile page.
+ *
+ * A slower first attempt costs nothing. A duplicate one costs 75 credits, and
+ * the ledger cannot even see it: `ScholarFetchRun.creditsUsed` is summed from
+ * the `Spb-Cost` of the attempt that RETURNED, so a billed-but-abandoned
+ * attempt is invisible. Widening the window is what makes that under-report
+ * rare; `abortIsRetryable` below is what stops it compounding.
+ */
+const DEFAULT_SEARCH_TIMEOUT_MS = 90_000;
 
 // HTTP statuses ScrapingBee (or the upstream it proxies) can return that are
 // worth one retry: rate limiting and server-side failures. Anything else
@@ -146,7 +156,10 @@ export function creditCostForRequestKind(kind: ScrapingBeeRequestKind): number {
 export interface ScrapingBeeConfig {
   apiKey: string;
   baseUrl: string;
+  /** Profile-page requests. */
   timeoutMs: number;
+  /** Search requests, which are measurably slower. See DEFAULT_SEARCH_TIMEOUT_MS. */
+  searchTimeoutMs: number;
 }
 
 export interface ScrapingBeePageResult {
@@ -250,12 +263,18 @@ export function configFromEnv(): ScrapingBeeConfig {
     );
   }
   const baseUrl = (process.env.SCRAPINGBEE_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/?$/, '/');
-  const timeoutMsRaw = process.env.SCRAPINGBEE_TIMEOUT_MS?.trim();
-  const timeoutMs = timeoutMsRaw ? Number(timeoutMsRaw) : DEFAULT_TIMEOUT_MS;
+  const positiveOr = (raw: string | undefined, fallback: number): number => {
+    const parsed = raw ? Number(raw) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
   return {
     apiKey,
     baseUrl,
-    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS,
+    timeoutMs: positiveOr(process.env.SCRAPINGBEE_TIMEOUT_MS?.trim(), DEFAULT_TIMEOUT_MS),
+    searchTimeoutMs: positiveOr(
+      process.env.SCRAPINGBEE_SEARCH_TIMEOUT_MS?.trim(),
+      DEFAULT_SEARCH_TIMEOUT_MS,
+    ),
   };
 }
 
@@ -482,6 +501,17 @@ export async function fetchScrapingBeePage(
 }
 
 /**
+ * A timed-out SEARCH is the one transient failure we do not retry — see the
+ * comment at the call site. Everything else (network errors, and any abort on
+ * the far cheaper profile path) retries as before.
+ */
+function abortIsRetryable(err: unknown, targetUrl: string): boolean {
+  const isOurAbort = err instanceof Error && err.name === 'AbortError';
+  if (!isOurAbort) return true;
+  return classifyScrapingBeeRequest(targetUrl) !== 'search';
+}
+
+/**
  * `priorDetail` carries forward what an earlier attempt learned from its error
  * body. It exists because the retry can come back with a body we cannot read
  * (empty, or already consumed) — and losing a "Server responded with 403" we
@@ -500,7 +530,16 @@ async function attempt(
     response = await performRequest(targetUrl, cfg);
   } catch (err) {
     // Network failure or timeout — transient by definition, retried once.
-    if (retriesRemaining > 0) {
+    //
+    // EXCEPT our own abort on a search. ScrapingBee bills an attempt it has
+    // started regardless of whether we wait for the answer, so retrying a
+    // timed-out search pays 75 credits a second time for a question the first
+    // attempt may well still be answering. Past the 90 s budget the likeliest
+    // explanation is that the upstream is genuinely stuck, and a second
+    // request does not un-stick it. Network failures (DNS, connection reset)
+    // are different: nothing was billed and nothing is in flight, so those
+    // still retry.
+    if (retriesRemaining > 0 && abortIsRetryable(err, targetUrl)) {
       return attempt(targetUrl, cfg, retriesRemaining - 1, priorDetail);
     }
     // Deliberately do not include err.message — Node's fetch occasionally
@@ -577,7 +616,9 @@ async function attempt(
 async function performRequest(targetUrl: string, cfg: ScrapingBeeConfig): Promise<Response> {
   const requestUrl = buildRequestUrl(targetUrl, cfg);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), cfg.timeoutMs);
+  const budget =
+    classifyScrapingBeeRequest(targetUrl) === 'search' ? cfg.searchTimeoutMs : cfg.timeoutMs;
+  const timer = setTimeout(() => controller.abort(), budget);
   try {
     return await fetch(requestUrl, { method: 'GET', signal: controller.signal });
   } finally {
