@@ -9,6 +9,7 @@ import {
   ScrapingBeeAuthError,
   ScrapingBeeConfigError,
   ScrapingBeeQuotaError,
+  ScrapingBeeRequestError,
   ScrapingBeeTransientError,
 } from '../src/scholar/scrapingbee';
 
@@ -412,6 +413,85 @@ describe('scholar/scrapingbee', () => {
 
       try {
         await fetchScrapingBeePage(SEARCH_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).not.toContain('test-secret-key-do-not-leak');
+        expect(message).toContain('[REDACTED]');
+      }
+    });
+    // ── An error dressed as a 200 ─────────────────────────────────────────
+    //
+    // The quietest failure this client can have. Returned as Scholar HTML it
+    // parses to zero publications, for every person, and reports success.
+
+    it('throws ScrapingBeeQuotaError on the HTTP 200 monthly-limit envelope', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        // The exact production body the reference implementation documents.
+        fakeResponse({ status: 200, body: '{"message":"Monthly API calls limit reached: 1000"}', spbCost: '0' }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(PROFILE_URL);
+        expect.fail('expected throw — this body is not a Scholar page');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ScrapingBeeQuotaError);
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).toContain('Monthly API calls limit reached');
+        // It must not imply a 402 that never happened.
+        expect(message).toContain('HTTP 200');
+      }
+      // Not retried: the allowance will not refill between two attempts.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws the generic request error for a 200 envelope that is not about quota', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(fakeResponse({ status: 200, body: '{"message":"Something went wrong"}' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(PROFILE_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        // Mis-typing this as a quota error would debit the wrong ledger.
+        expect(err).not.toBeInstanceOf(ScrapingBeeQuotaError);
+        expect(err).toBeInstanceOf(ScrapingBeeRequestError);
+        expect((err as Error).message).toContain('Something went wrong');
+      }
+    });
+
+    it('returns real Scholar HTML untouched — the guard must not eat healthy pages', async () => {
+      const html = '<html><body><div id="gsc_a_b">{"not":"json"}</div></body></html>';
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: html, spbCost: '15' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await fetchScrapingBeePage(PROFILE_URL);
+      expect(result.html).toBe(html);
+      expect(result.creditsUsed).toBe(15);
+    });
+
+    it('returns a JSON body that is not the error envelope', async () => {
+      // "Parses as JSON" alone is NOT the discriminator: the body must carry
+      // the envelope's own narrative field. A JSON endpoint fetched through
+      // this client one day must not start throwing on healthy responses.
+      const body = '{"publications":[{"title":"A paper"}]}';
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await fetchScrapingBeePage(PROFILE_URL);
+      expect(result.html).toBe(body);
+    });
+
+    it('redacts the api key out of a 200 error envelope', async () => {
+      const body = JSON.stringify({ message: 'quota rejected for key test-secret-key-do-not-leak' });
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(PROFILE_URL);
         expect.fail('expected throw');
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

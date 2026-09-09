@@ -164,15 +164,21 @@ export class ScrapingBeeAuthError extends Error {
 }
 
 /**
- * ScrapingBee returned 402: the plan's credit balance is exhausted. Stated
- * plainly so an operator reading a log doesn't mistake "we ran out of
- * money" for "the code is broken" — those need very different responses.
+ * The plan's credit or call allowance is exhausted. Stated plainly so an
+ * operator reading a log doesn't mistake "we ran out of money" for "the code
+ * is broken" — those need very different responses.
+ *
+ * `context` names how we found out, because there are two ways: an honest
+ * HTTP 402, and an error envelope served with **HTTP 200** (see
+ * parseErrorEnvelope). The second reads as success at every level below this
+ * one, so the message must say which it was or the log implies a 402 that
+ * never happened.
  */
 export class ScrapingBeeQuotaError extends Error {
   override readonly name = 'ScrapingBeeQuotaError';
-  constructor() {
+  constructor(context = 'HTTP 402') {
     super(
-      'ScrapingBee plan credits are exhausted (HTTP 402). This is a quota ' +
+      `ScrapingBee plan credits are exhausted (${context}). This is a quota ` +
         'problem, not a bug — no fetch will succeed until the plan renews or ' +
         'the credit cap is raised. Not retried.',
     );
@@ -268,6 +274,20 @@ function buildRequestUrl(targetUrl: string, cfg: ScrapingBeeConfig): URL {
   // every sync. If Google ever does extend the block, the failure is loud (a
   // 500 whose `reason` now says 403 on a profile URL, surfaced by the error
   // path below) and the fix is deleting this branch.
+  //
+  // UNVERIFIED, AND WORTH KNOWING: stealth combined with `render_js=false`
+  // (set above, deliberately, for cost) has not been measured directly. The
+  // 7/7 success rate the design quotes does not record whether the probe kept
+  // render_js off, and stealth is a beta feature of ScrapingBee's that their
+  // docs associate with a rendered browser. The nearest evidence is the
+  // 2026-09-08 probe matrix, which drove stealth with `render_js` BOTH ways
+  // and reached Google either way (it came back with a sign-in wall, not a
+  // 400) — so the combination is at least accepted. The first live search
+  // (plan task 3, capturing parser fixtures) is where this gets confirmed:
+  // if a 200 does not come back with render_js off, the two ways out are
+  // stealth with JS rendering on searches (roughly another 5x on top of the
+  // 75) or simply dropping `render_js=false` for searches only. Do not
+  // conclude the branch is wrong without checking this first.
   if (classifyScrapingBeeRequest(targetUrl) === 'search') {
     url.searchParams.set('stealth_proxy', 'true');
   }
@@ -349,6 +369,56 @@ function summariseErrorBody(rawBody: string, apiKey: string): string {
 
 function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Words that mark an error envelope as an ALLOWANCE problem rather than any
+ * other kind. Getting this wrong is not cosmetic: the runner treats quota
+ * differently from a generic failure, so a mis-typed error debits the wrong
+ * ledger and either hides a spending stop or invents one.
+ */
+const QUOTA_MESSAGE_PATTERN = /\b(limit|quota|exceed(?:ed)?|allowance|credits?)\b/i;
+
+/**
+ * Detect a ScrapingBee error envelope hiding inside a **successful** response.
+ *
+ * ScrapingBee sometimes reports account-level failures with HTTP 200 and a
+ * JSON body — the production case the reference implementation documents is
+ * `{"message":"Monthly API calls limit reached: 1000"}`. Handing that to the
+ * Scholar parser yields no publications, for every person, with no error
+ * anywhere: a run that "succeeded" and found nobody's work. This feature has
+ * already produced that shape of silence twice (Google's consent wall served
+ * as a 200, and a client that could not fetch a page while every one of its
+ * tests passed), so it is caught here — in the transport, once — rather than
+ * left for each of the callers this is about to acquire to re-detect.
+ *
+ * The discriminator is deliberately narrower than "parses as JSON". A real
+ * Scholar page is HTML and cannot parse as JSON, so that alone would very
+ * nearly do — but if we ever fetch a legitimately JSON endpoint through this
+ * client, "any JSON is an error" would start throwing on healthy responses.
+ * So the body must ALSO carry the envelope's own narrative field (`message`
+ * or `reason`); `help` alone is not enough to call something an error.
+ *
+ * Returns null for anything that is not an envelope, so the caller returns the
+ * body unchanged.
+ */
+function parseErrorEnvelope(rawBody: string, apiKey: string): { message: string; isQuota: boolean } | null {
+  // Cheap gate first: this runs on every successful page, and Scholar HTML
+  // never begins with a brace.
+  if (!rawBody.trimStart().startsWith('{')) return null;
+  const redacted = rawBody.replaceAll(apiKey, '[REDACTED]');
+  let parsed: z.infer<typeof scrapingBeeErrorBodySchema>;
+  try {
+    parsed = scrapingBeeErrorBodySchema.parse(JSON.parse(redacted));
+  } catch {
+    return null;
+  }
+  const narrative = parsed.message ?? parsed.reason;
+  if (!narrative) return null;
+  return {
+    message: collapseWhitespace(narrative).slice(0, RAW_BODY_MAX_CHARS),
+    isQuota: QUOTA_MESSAGE_PATTERN.test(narrative),
+  };
 }
 
 /**
@@ -457,6 +527,28 @@ async function attempt(
 
   const creditsUsed = parseCreditsUsed(response);
   const html = await response.text();
+
+  // A 2xx is not yet proof of a page. An account-level failure can arrive
+  // dressed as HTTP 200 with a JSON body, and returning that as Scholar HTML
+  // is the quietest failure this client can have: zero publications, for
+  // everyone, reported as success.
+  //
+  // Throwing here discards `creditsUsed`, as every other error path does —
+  // the thrown types carry no cost field. That is acceptable because an
+  // account-level rejection is not billed (the `Spb-Cost` observed on these
+  // is 0); if a billed 200-envelope ever turns up, the credits would need to
+  // ride on the error rather than be dropped.
+  const envelope = parseErrorEnvelope(html, cfg.apiKey);
+  if (envelope) {
+    if (envelope.isQuota) {
+      throw new ScrapingBeeQuotaError(`HTTP ${response.status} with an error envelope: ${envelope.message}`);
+    }
+    throw new ScrapingBeeRequestError(
+      response.status,
+      `ScrapingBee returned an error envelope with a ${response.status} status: ${envelope.message}`,
+    );
+  }
+
   return { html, status: response.status, creditsUsed };
 }
 
