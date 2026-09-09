@@ -59,10 +59,10 @@ import {
   parseScholarProfileIdentity,
   parseScholarProfileUrl,
   parseScholarPublications,
-  personNameMatchesAny,
   personNameTokens,
   personNamesMatch,
   planScholarMerge,
+  scholarNameMatchesAny,
   type ScholarPaper,
   type ScholarStatus,
   type ScholarTrigger,
@@ -942,8 +942,14 @@ export async function runScholarFetch(
     // `bindScholarProfile` applies. A correctly bound profile passes by
     // construction; this catches the profile being rebound underneath a
     // fetch, and a staff record renamed after binding.
+    //
+    // `scholarNameMatchesAny`, not `personNamesMatch`: one side of this
+    // comparison is a third party's free-text author name, which abbreviates
+    // given names as house style and inverts around a comma. See the Scholar
+    // section of `name-match.ts` for why that is a different question from
+    // resolving a `User` to a `FacultyMember`, which still uses the other rule.
     const profileNames = [identity.displayName, ...identity.otherNames];
-    if (!profileNames.some((candidate) => personNameMatchesAny(candidate, [searchQuery]))) {
+    if (!profileNames.some((candidate) => scholarNameMatchesAny(candidate, [searchQuery]))) {
       throw new Error(
         `The linked Scholar profile is named "${profileNames.join('", "')}", but this staff record says "${searchQuery}". ` +
           'Refusing to import. Either the wrong profile is linked, or the staff record has been renamed since it was linked ' +
@@ -1204,7 +1210,9 @@ export async function bindScholarProfile(
   }
 
   const profileNames = [identity.displayName, ...identity.otherNames];
-  const verified = profileNames.some((candidate) => personNameMatchesAny(candidate, expectedNames));
+  const verified = profileNames.some((candidate) =>
+    scholarNameMatchesAny(candidate, expectedNames),
+  );
   if (!verified) {
     // Both sides quoted, so a human can see exactly what mismatched and
     // decide whether the staff record or the link is the thing to fix.
