@@ -48,6 +48,18 @@ vi.mock('@kku/db', () => ({
   },
 }));
 
+// The transport lives on its own subpath, NOT the barrel — mocking
+// '@kku/shared' alone leaves the real HTTP client in place, which then makes a
+// live ScrapingBee call (it 401s on the test key, but with a valid key it would
+// spend real credits). See packages/shared/test/scholar-barrel-graph.test.ts.
+vi.mock('@kku/shared/src/scholar/scrapingbee', async () => {
+  // Only the network call is stubbed. `configFromEnv` stays REAL because
+  // several tests exercise the misconfiguration path and rely on it throwing
+  // ScrapingBeeConfigError when the key is absent.
+  const actual = await vi.importActual<typeof import('@kku/shared/src/scholar/scrapingbee')>('@kku/shared/src/scholar/scrapingbee');
+  return { ...actual, fetchScrapingBeePage: mocks.fetchScrapingBeePage };
+});
+
 vi.mock('@kku/shared', async () => {
   const actual = await vi.importActual<typeof import('@kku/shared')>('@kku/shared');
   return { ...actual, fetchScrapingBeePage: mocks.fetchScrapingBeePage };

@@ -4,9 +4,13 @@ import path from 'node:path';
 import { Logger } from '@nestjs/common';
 import { Prisma, prisma, refreshAiModelCatalog, runScholarFetch } from '@kku/db';
 import { z } from 'zod';
+// Transport by subpath, not the barrel — see the note in scholar/index.ts.
 import {
   configFromEnv as scrapingBeeConfigFromEnv,
   fetchScrapingBeePage,
+  type ScrapingBeeConfig,
+} from '@kku/shared/src/scholar/scrapingbee';
+import {
   RoleSchema,
   COURSE_SKILL_EXTRACTION_VERSION,
   CourseSkillExtractionSchema,
@@ -26,7 +30,7 @@ import { runImdRankingsExtract } from '../imd-rankings-extract/run';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
 import { runModelHealthNotifier } from './model-health-notifier';
 import type { AiJobKind, ProgramPipelinePhase } from './queue';
-import type { Role, ScholarTrigger, ScrapingBeeConfig } from '@kku/shared';
+import type { Role, ScholarTrigger } from '@kku/shared';
 
 // Each handler consumes one job, calls the AI service, writes an
 // AiExtraction row. Approval (in the review UI) materialises the

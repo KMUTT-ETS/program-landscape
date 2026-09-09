@@ -33,6 +33,8 @@
 
 import { z } from 'zod';
 
+import { classifyScrapingBeeRequest } from './costs';
+
 const DEFAULT_BASE_URL = 'https://app.scrapingbee.com/api/v1/';
 
 /**
@@ -74,84 +76,28 @@ const DEFAULT_SEARCH_TIMEOUT_MS = 90_000;
 // that isn't 2xx/401/403/402 is treated as a deterministic failure.
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 
-/**
- * ScrapingBee credits billed per Google page fetch.
- *
- * Google pages require `custom_google=true` (see buildRequestUrl), and that
- * carries its own price: ScrapingBee's docs quote 20 credits, the live API
- * billed **15** on every Scholar request measured on 2026-09-08 (profile page
- * and author search alike, with and without `render_js=false`, with and
- * without `premium_proxy`). 15 is what the `Spb-Cost` response header
- * actually reported, so 15 is what the estimator uses — and every run records
- * its real `Spb-Cost` in `ScholarFetchRun.creditsUsed`, so a drift between
- * this constant and reality is visible in the ledger rather than silent.
- *
- * This is NOT 1. A "select all" across a faculty is real money: at 15 credits
- * a page, the 250k-credit monthly plan is ~16,600 page fetches, and the admin
- * console's bulk confirmation must price a run with this number before
- * anything is enqueued.
- */
-export const GOOGLE_PAGE_CREDIT_COST = 15;
+// Prices, the request-kind union and the URL classifier now live in `./costs`,
+// which is pure — no fetch, no zod, no env. They are re-exported here so every
+// existing importer of this module keeps working.
+//
+// WHY THEY MOVED. `credits.ts` needs the prices and is on the scholar barrel,
+// so importing a price used to drag this entire HTTP client in behind it. On
+// 2026-09-09 a missing `zod` import in this file returned HTTP 500 for the
+// whole `/profile` page, through:
+//
+//   apps/web/src/lib/profile-data.ts (one runtime constant import)
+//     -> @kku/shared barrel -> scholar/index.ts -> credits.ts -> this file
+//
+// New code wanting only a price should import `./costs` directly and leave the
+// transport out of its graph.
+export {
+  classifyScrapingBeeRequest,
+  creditCostForRequestKind,
+  GOOGLE_PAGE_CREDIT_COST,
+  GOOGLE_SEARCH_CREDIT_COST,
+  type ScrapingBeeRequestKind,
+} from './costs';
 
-/**
- * ScrapingBee credits billed per Google Scholar **search** (`/scholar?q=`).
- *
- * A search additionally needs `stealth_proxy=true` (see buildRequestUrl) and
- * that is what makes it five times the price of a profile page. Measured on
- * **2026-09-09 against our own account**: 75. The reference implementation
- * this design is taken from measured 50 on its account, and ScrapingBee's
- * published price for stealth is 75 — ours bills the published number, so use
- * 75 and do not "correct" it down to the reference's figure.
- *
- * Like GOOGLE_PAGE_CREDIT_COST this is a PRE-FLIGHT ESTIMATE only. The
- * authoritative number for any individual call is the `Spb-Cost` response
- * header, which every run records in `ScholarFetchRun.creditsUsed` — so drift
- * between this constant and reality shows up in the ledger rather than
- * silently mispricing every future run.
- *
- * The 5x gap is the whole reason the transport branches instead of sending
- * stealth everywhere: a bound person's routine sync is profile pages only, and
- * paying 75 for each of those would be 60 credits per page for nothing.
- */
-export const GOOGLE_SEARCH_CREDIT_COST = 75;
-
-/**
- * Which kind of Scholar page a target URL is, which decides both the flags
- * sent and the price paid.
- */
-export type ScrapingBeeRequestKind = 'profile' | 'search';
-
-/**
- * Classify a Scholar target URL.
- *
- * Derived from the URL rather than passed in by the caller on purpose: the
- * flags MUST match the page actually being fetched, and a parameter can be
- * passed wrongly (silently, at every call site, forever). The URL cannot
- * disagree with itself.
- *
- * `/citations` — a profile page — is the narrow case; everything else defaults
- * to `search`. That default is the safe direction: an unrecognised URL sent
- * WITH stealth costs 60 extra credits, while one sent WITHOUT it comes back as
- * the silent HTTP-500-hiding-a-403 that this whole branch exists to avoid.
- *
- * A malformed URL is classified as `search` too — it will fail at fetch time
- * either way, and this function must not be the thing that throws.
- */
-export function classifyScrapingBeeRequest(targetUrl: string): ScrapingBeeRequestKind {
-  try {
-    return new URL(targetUrl).pathname.includes('/citations') ? 'profile' : 'search';
-  } catch {
-    return 'search';
-  }
-}
-
-/**
- * Pre-flight credit estimate for one page of the given kind. Same caveat as
- * the constants: `Spb-Cost` is authoritative per call.
- */
-export function creditCostForRequestKind(kind: ScrapingBeeRequestKind): number {
-  return kind === 'search' ? GOOGLE_SEARCH_CREDIT_COST : GOOGLE_PAGE_CREDIT_COST;
-}
 
 export interface ScrapingBeeConfig {
   apiKey: string;

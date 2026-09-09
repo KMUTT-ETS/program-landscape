@@ -14,18 +14,22 @@ import {
   GOOGLE_PAGE_CREDIT_COST,
   GOOGLE_SEARCH_CREDIT_COST,
   SCHOLAR_LEDGER_LOOKBACK_MS,
-  configFromEnv as scrapingBeeConfigFromEnv,
   decideScholarBindQuota,
   decideScholarQuota,
   estimateScholarBulkCredits,
-  fetchScrapingBeePage,
   parseScholarProfileUrl,
   scholarBindQuotaWhere,
   type Role,
-  type ScrapingBeeConfig,
   type ScholarStatus,
   type ScholarTrigger,
 } from '@kku/shared';
+// The transport by its own subpath, never the barrel: it does I/O and owns
+// the API key, and a defect in it used to 500 apps/web's /profile.
+import {
+  configFromEnv as scrapingBeeConfigFromEnv,
+  fetchScrapingBeePage,
+  type ScrapingBeeConfig,
+} from '@kku/shared/src/scholar/scrapingbee';
 import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 
 // ────────────────────────────────────────────────────────────────────────────

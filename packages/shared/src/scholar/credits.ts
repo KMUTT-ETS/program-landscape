@@ -11,7 +11,7 @@
 // the first time the rule changed the confirmation dialog would quote the old
 // one.
 
-import { creditCostForRequestKind } from './scrapingbee';
+import { creditCostForRequestKind } from './costs';
 
 /**
  * Floor price of a bulk run, in ScrapingBee credits.
