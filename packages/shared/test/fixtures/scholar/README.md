@@ -42,6 +42,15 @@ on a search (75 credits, `Spb-Cost` header).
 | `search-novis-sawanyawisuth.html` | `Sawanyawisuth` (surname only) | **Plain-text bylines**: 4 results, **zero** `/citations?user=` anchors, no cluster. A real Scholar shape and not a failure — the parser must return zero ids without throwing. |
 | `search-novis-thai-query.html` | `การพัฒนาหลักสูตร มหาวิทยาลัยขอนแก่น` | Thai-language results: 8 rows, no cluster, zero byline ids, and **one row Scholar gives no year for** — the only capture that exercises `year: null`. Kept because of that row; the query itself is not a shape the feature issues (we always search an English name). |
 
+## Derived files (not captures)
+
+| File | Built from | Why |
+|---|---|---|
+| `search-derived-multicard.html` | `search-novis-sripa.html` with the profile-card `<tr>` from `search-novis-wanapat.html` spliced into its cluster `<tbody>` | The multi-card cluster below could not be obtained, and case (d) of the four-case resolution (`src/scholar/resolve.ts`) would otherwise rest on parsing that has never seen its input. Nothing is hand-written: both card rows appear verbatim in their captures, and `test/scholar-resolve.test.ts` asserts that before using the file. The **arrangement** — two sibling `<tr>` rows in one table — is ours and is an assumption. Replace it with a capture the first time a real query produces a multi-card cluster. |
+
+A derived file carries a `DERIVED FIXTURE — NOT A CAPTURE` comment as its first
+bytes and must never be cited as evidence of what Scholar returns.
+
 ### Shapes we could NOT obtain
 
 **A cluster with more than one card.** Ten live searches on 2026-09-09 — three
