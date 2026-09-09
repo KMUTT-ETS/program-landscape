@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  classifyScrapingBeeRequest,
   configFromEnv,
+  creditCostForRequestKind,
   fetchScrapingBeePage,
+  GOOGLE_PAGE_CREDIT_COST,
+  GOOGLE_SEARCH_CREDIT_COST,
   ScrapingBeeAuthError,
   ScrapingBeeConfigError,
   ScrapingBeeQuotaError,
   ScrapingBeeTransientError,
 } from '../src/scholar/scrapingbee';
+
+const PROFILE_URL = 'https://scholar.google.com/citations?user=abc&hl=en&cstart=0&pagesize=100';
+const SEARCH_URL = 'https://scholar.google.com/scholar?q=Denpong+Soodphakdee&hl=en&as_vis=1';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -225,6 +232,51 @@ describe('scholar/scrapingbee', () => {
       expect(calledUrl.searchParams.get('custom_google')).toBe('true');
     });
 
+    // ── The stealth branch ────────────────────────────────────────────────
+    //
+    // These assert the OUTGOING URL, never a response. A mock answers whatever
+    // it is asked, so a test that checks the reply proves only that the mock
+    // works — which is how the client once shipped without `custom_google`
+    // while all fifteen of its tests passed.
+
+    it('sends stealth_proxy=true on a /scholar?q= SEARCH — plain custom_google 500s (a hidden 403)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: '<html></html>' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await fetchScrapingBeePage(SEARCH_URL);
+
+      const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+      expect(calledUrl.searchParams.get('custom_google')).toBe('true');
+      expect(calledUrl.searchParams.get('stealth_proxy')).toBe('true');
+    });
+
+    it('does NOT send stealth_proxy on a /citations profile page — it works plain, at a fifth of the price', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: '<html></html>' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await fetchScrapingBeePage(PROFILE_URL);
+
+      const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+      expect(calledUrl.searchParams.get('custom_google')).toBe('true');
+      expect(calledUrl.searchParams.has('stealth_proxy')).toBe(false);
+    });
+
+    // Measured 2026-09-09: country_code=th succeeded 2/4, omitting it 7/7.
+    // Pinning the exit country shrinks the stealth pool to Thai IPs, which
+    // Google 403s at roughly a coin flip. hl=en already pins the locale.
+    it.each([
+      ['search', SEARCH_URL],
+      ['profile', PROFILE_URL],
+    ])('never sends country_code on a %s request', async (_kind, target) => {
+      const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ status: 200, body: '<html></html>' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await fetchScrapingBeePage(target);
+
+      const calledUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+      expect(calledUrl.searchParams.has('country_code')).toBe(false);
+    });
+
     it('surfaces the response body on an otherwise-opaque 4xx, with the key redacted', async () => {
       const body = JSON.stringify({
         errors: { query: { custom_google: ['If you wish to scrape Google, use the custom_google=True parameter!'] } },
@@ -259,6 +311,152 @@ describe('scholar/scrapingbee', () => {
         expect(message).not.toContain('test-secret-key-do-not-leak');
         expect(message).toContain('[REDACTED]');
       }
+    });
+
+    // ── The 500 that is really a 403 ──────────────────────────────────────
+
+    it("surfaces `reason` from a 500 body — 'please try again' is the least useful part of it", async () => {
+      const body = JSON.stringify({
+        message: 'Something went wrong, please try again',
+        reason: 'Server responded with 403',
+        help: 'Our systems have detected unusual traffic from your computer network.',
+      });
+      // A fresh Response per attempt — a single instance would have an
+      // already-consumed body on the retry, which is not how the real API
+      // behaves.
+      const fetchMock = vi.fn().mockImplementation(() => fakeResponse({ status: 500, body }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(SEARCH_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ScrapingBeeTransientError);
+        const message = err instanceof Error ? err.message : String(err);
+        // The one sentence that distinguishes "ScrapingBee is flaky" from
+        // "Google is blocking this pool for searches".
+        expect(message).toContain('Server responded with 403');
+        expect(message).toContain('HTTP 500');
+      }
+    });
+
+    it('keeps `reason` even when `help` carries the whole of Google\'s block page', async () => {
+      const body = JSON.stringify({
+        message: 'Something went wrong, please try again',
+        reason: 'Server responded with 403',
+        // The real `help` is Google's rendered block page — tens of KB. It
+        // must not be able to push the useful sentence out of the message.
+        help: '<html>'.padEnd(40_000, 'x') + '</html>',
+      });
+      // A fresh Response per attempt — a single instance would have an
+      // already-consumed body on the retry, which is not how the real API
+      // behaves.
+      const fetchMock = vi.fn().mockImplementation(() => fakeResponse({ status: 500, body }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(SEARCH_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).toContain('Server responded with 403');
+        expect(message.length).toBeLessThan(1_000);
+      }
+    });
+
+    it('keeps the reason the FIRST attempt saw when the retry comes back with nothing', async () => {
+      // The retry is a second round trip: it can land on a different node and
+      // return an empty envelope. Reporting "HTTP 500" because the second
+      // attempt was less informative than the first would discard a verdict we
+      // had already read.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          fakeResponse({ status: 500, body: JSON.stringify({ reason: 'Server responded with 403' }) }),
+        )
+        .mockResolvedValueOnce(fakeResponse({ status: 500, body: '' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(SEARCH_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).toContain('Server responded with 403');
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to a raw prefix when the error body is not the JSON envelope', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockImplementation(() => fakeResponse({ status: 500, body: '<html>Gateway blew up</html>' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(SEARCH_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).toContain('Gateway blew up');
+      }
+    });
+
+    it('redacts the api key out of a 500 body too', async () => {
+      const body = JSON.stringify({ reason: 'bad key test-secret-key-do-not-leak' });
+      // A fresh Response per attempt — a single instance would have an
+      // already-consumed body on the retry, which is not how the real API
+      // behaves.
+      const fetchMock = vi.fn().mockImplementation(() => fakeResponse({ status: 500, body }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        await fetchScrapingBeePage(SEARCH_URL);
+        expect.fail('expected throw');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        expect(message).not.toContain('test-secret-key-do-not-leak');
+        expect(message).toContain('[REDACTED]');
+      }
+    });
+  });
+
+  describe('classifyScrapingBeeRequest', () => {
+    it.each([
+      ['https://scholar.google.com/citations?user=abc&hl=en', 'profile'],
+      ['https://scholar.google.com/citations?user=abc&cstart=100&pagesize=100', 'profile'],
+      ['https://scholar.google.com/scholar?q=Somchai+Jaidee&hl=en', 'search'],
+      ['https://scholar.google.com/scholar?q=Somchai+Jaidee&hl=en&as_vis=1', 'search'],
+    ])('classifies %s as %s', (url, expected) => {
+      expect(classifyScrapingBeeRequest(url)).toBe(expected);
+    });
+
+    // An unrecognised or malformed URL defaults to `search`, i.e. WITH stealth.
+    // That direction costs 60 extra credits; the other direction is the silent
+    // 500-hiding-a-403 this branch exists to prevent.
+    it('defaults an unknown Scholar path to search rather than profile', () => {
+      expect(classifyScrapingBeeRequest('https://scholar.google.com/scholar_case?case=123')).toBe('search');
+    });
+
+    it('does not throw on a malformed URL — it classifies it as search', () => {
+      expect(classifyScrapingBeeRequest('not a url')).toBe('search');
+    });
+  });
+
+  describe('credit constants', () => {
+    // These are pre-flight estimates only; `Spb-Cost` is authoritative per
+    // call. Measured 2026-09-09 on our account.
+    it('prices a profile page at 15 and a search at 75', () => {
+      expect(GOOGLE_PAGE_CREDIT_COST).toBe(15);
+      expect(GOOGLE_SEARCH_CREDIT_COST).toBe(75);
+    });
+
+    it('pairs each request kind with its own price', () => {
+      expect(creditCostForRequestKind('profile')).toBe(GOOGLE_PAGE_CREDIT_COST);
+      expect(creditCostForRequestKind('search')).toBe(GOOGLE_SEARCH_CREDIT_COST);
+      // The gap is the entire justification for branching the flags. If these
+      // ever converge, revisit whether the branch is still worth its cost.
+      expect(GOOGLE_SEARCH_CREDIT_COST).toBeGreaterThan(GOOGLE_PAGE_CREDIT_COST);
     });
   });
 });
