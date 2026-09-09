@@ -5,11 +5,13 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "//exports": "The root barrel re-exports subpaths that reach node:crypto / aws-sdk, so a `'use client'` React component cannot import runtime values from it. `./pipeline/program-phases`, `./scholar/parse` and `./scholar/disclosure` are published as explicitly client-safe subpaths (pure functions + types, no node:* and no SDK imports) — the first for the two admin pipeline pickers, the second so the profile page validates a pasted Scholar URL with the SAME parser the API rejects it with, the third so the deep-dive drawer, the print view, the Gotenberg PDF and the AUN-QA evidence pack all state the Google Scholar caveat in the same words, rather than second copies that drift. Only bundler-style resolvers (apps/web, esbuild) read this map — apps/api, apps/ingestion and packages/db use moduleResolution 'node' and still resolve via `main`.",
+  "//exports-search-parse": "`./scholar/search-parse` is the OPPOSITE case: it is published as a subpath precisely so it is NOT in the barrel. It depends on cheerio, a large server-only HTML parser, and nothing client-reachable may pull it. Keep it out of src/scholar/index.ts. Node-resolution consumers (packages/db, apps/api, apps/ingestion) do not read this map: `@kku/shared/scholar/search-parse` does NOT typecheck from packages/db, while `@kku/shared/src/scholar/search-parse` does (verified 2026-09-09). When the runner wires this in, use the deep `src/` specifier and check it also RESOLVES at runtime — a Node resolver that honours this map would refuse a path the map does not list. What must not happen either way is adding it to src/scholar/index.ts, which would put cheerio back on every client-adjacent import of @kku/shared.",
   "exports": {
     ".": "./src/index.ts",
     "./pipeline/program-phases": "./src/pipeline/program-phases.ts",
     "./scholar/parse": "./src/scholar/parse.ts",
     "./scholar/disclosure": "./src/scholar/disclosure.ts",
+    "./scholar/search-parse": "./src/scholar/search-parse.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -22,6 +24,7 @@
     "@aws-sdk/client-s3": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
     "@google/genai": "^2.8.0",
+    "cheerio": "^1.2.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

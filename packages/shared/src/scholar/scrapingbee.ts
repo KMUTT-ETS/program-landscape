@@ -34,6 +34,29 @@
 import { z } from 'zod';
 
 const DEFAULT_BASE_URL = 'https://app.scrapingbee.com/api/v1/';
+
+/**
+ * MEASURED AND TOO LOW FOR SEARCHES — 2026-09-09, and it costs money.
+ *
+ * A profile page returns in a few seconds. A **stealth search** does not: of
+ * ten live searches taken while capturing the parser fixtures, four took
+ * longer than 30 s. Each of those hit this timeout, was retried by `attempt`
+ * below, and succeeded on the second try — so **each of them was billed
+ * twice**: 150 credits, not 75. The account ledger says 1,050 credits for ten
+ * searches, and 14 × 75 is exactly how that number is reached.
+ *
+ * Two consequences, both real and neither fixed here (this constant is Task 1
+ * territory and the change wants its own measurement pass):
+ *
+ *   1. `ScholarFetchRun.creditsUsed` UNDER-REPORTS a retried search. The retry
+ *      returns only the successful attempt's `Spb-Cost`, so the abandoned
+ *      first attempt — which ScrapingBee did bill — is invisible in the ledger.
+ *   2. Any bulk estimate built on 75-per-search is a floor, not a price.
+ *
+ * `SCRAPINGBEE_TIMEOUT_MS` overrides this; something around 90 s would have
+ * absorbed every observed search. Raising it is the cheap fix — a slower first
+ * attempt costs nothing, a duplicate one costs 75.
+ */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 // HTTP statuses ScrapingBee (or the upstream it proxies) can return that are
@@ -275,19 +298,18 @@ function buildRequestUrl(targetUrl: string, cfg: ScrapingBeeConfig): URL {
   // 500 whose `reason` now says 403 on a profile URL, surfaced by the error
   // path below) and the fix is deleting this branch.
   //
-  // UNVERIFIED, AND WORTH KNOWING: stealth combined with `render_js=false`
-  // (set above, deliberately, for cost) has not been measured directly. The
-  // 7/7 success rate the design quotes does not record whether the probe kept
-  // render_js off, and stealth is a beta feature of ScrapingBee's that their
-  // docs associate with a rendered browser. The nearest evidence is the
-  // 2026-09-08 probe matrix, which drove stealth with `render_js` BOTH ways
-  // and reached Google either way (it came back with a sign-in wall, not a
-  // 400) — so the combination is at least accepted. The first live search
-  // (plan task 3, capturing parser fixtures) is where this gets confirmed:
-  // if a 200 does not come back with render_js off, the two ways out are
-  // stealth with JS rendering on searches (roughly another 5x on top of the
-  // 75) or simply dropping `render_js=false` for searches only. Do not
-  // conclude the branch is wrong without checking this first.
+  // CONFIRMED 2026-09-09: stealth combined with `render_js=false` (set above,
+  // deliberately, for cost) works. TEN live searches through THIS function —
+  // three real KKU researchers, two bare surnames, a bare given name, two
+  // common Western names and a Thai-language query fetched twice — every one
+  // reached HTTP 200 with a full results page at `Spb-Cost: 75`, no sign-in
+  // wall and no captcha. (Four needed the built-in retry, having run past the
+  // 30 s timeout — a latency problem, not a block; see DEFAULT_TIMEOUT_MS.)
+  // Five of those responses are the parser fixtures committed under
+  // test/fixtures/scholar/, so each of them is also standing evidence of this.
+  // Stealth does NOT require a rendered browser, and the ~5x JS-rendering
+  // surcharge on top of the 75 is not owed. (This replaces a caveat that said
+  // the combination was unmeasured; it now is.)
   if (classifyScrapingBeeRequest(targetUrl) === 'search') {
     url.searchParams.set('stealth_proxy', 'true');
   }
