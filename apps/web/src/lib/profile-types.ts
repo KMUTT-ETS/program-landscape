@@ -30,6 +30,8 @@ export interface ProfileBasicInfo {
   orcid: string | null;
   scopusAuthorId: string | null;
   openalexAuthorId: string | null;
+  /** Google Scholar profile id, set when a Scholar sync resolved and bound one. */
+  scholarProfileId: string | null;
   /** URL to the user's uploaded profile photo (served via the
    *  `/api/profile/avatar/[userId]` route). Null when the user
    *  has not uploaded one yet — the hero falls back to initials. */

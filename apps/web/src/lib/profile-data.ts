@@ -632,6 +632,7 @@ function buildBasicInfo(
     orcid: string | null;
     scopusAuthorId: string | null;
     openalexAuthorId: string | null;
+    scholarProfileId: string | null;
     faculty: { nameTh: string; nameEn: string } | null;
     department: { nameTh: string; nameEn: string } | null;
   } | null,
@@ -665,6 +666,7 @@ function buildBasicInfo(
       orcid: member.orcid,
       scopusAuthorId: member.scopusAuthorId,
       openalexAuthorId: member.openalexAuthorId,
+      scholarProfileId: member.scholarProfileId,
       avatarUrl,
     };
   }
@@ -682,6 +684,9 @@ function buildBasicInfo(
     orcid: null,
     scopusAuthorId: null,
     openalexAuthorId: null,
+    // No FacultyMember row, so no Scholar binding can exist: the binding lives
+    // on FacultyMember and the sync refuses outright without one.
+    scholarProfileId: null,
     avatarUrl,
   };
 }

@@ -241,6 +241,7 @@ export function ProfileView({
         orcid={profile.basic.orcid}
         scopusAuthorId={profile.basic.scopusAuthorId}
         openalexAuthorId={profile.basic.openalexAuthorId}
+        scholarProfileId={profile.basic.scholarProfileId}
         avatarUrl={profile.basic.avatarUrl}
         talent={profile.talent}
         t={t}
@@ -317,6 +318,7 @@ function ProfileHero({
   orcid,
   scopusAuthorId,
   openalexAuthorId,
+  scholarProfileId,
   avatarUrl,
   talent,
   t,
@@ -330,6 +332,7 @@ function ProfileHero({
   orcid: string | null;
   scopusAuthorId: string | null;
   openalexAuthorId: string | null;
+  scholarProfileId: string | null;
   avatarUrl: string | null;
   talent: ProfileData['talent'];
   t: (typeof T)[Lang];
@@ -506,7 +509,7 @@ function ProfileHero({
                 </dd>
               </>
             )}
-            {(scopusAuthorId || openalexAuthorId) && (
+            {(scopusAuthorId || openalexAuthorId || scholarProfileId) && (
               <>
                 <dt className="text-text-tertiary">Author IDs</dt>
                 <dd className="font-mono text-xs text-text-primary sm:col-span-3">
@@ -534,6 +537,22 @@ function ProfileHero({
                           className="text-accent-default hover:underline"
                         >
                           {openalexAuthorId}
+                        </a>
+                      </span>
+                    )}
+                    {scholarProfileId && (
+                      <span>
+                        {/* Trailing space inside the label span, not a flex gap:
+                            a gap separates them visually but leaves the
+                            accessible name reading "Google Scholarabc123". */}
+                        <span className="text-text-tertiary">Google Scholar </span>
+                        <a
+                          href={`https://scholar.google.com/citations?user=${scholarProfileId}`}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-accent-default hover:underline"
+                        >
+                          {scholarProfileId}
                         </a>
                       </span>
                     )}
