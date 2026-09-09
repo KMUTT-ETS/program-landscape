@@ -10,6 +10,26 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-08-google-scholar-on-demand-design.md`
 
+> **PARTIALLY SUPERSEDED 2026-09-09.** Tasks 1-10 shipped, but three things this
+> plan asserts turned out to be wrong and are corrected in
+> `docs/superpowers/specs/2026-09-09-scholar-name-resolution-design.md` and its
+> plan `2026-09-09-scholar-name-resolution.md`:
+>
+> 1. **"There is no name-search path, so binding must be by pasted URL."** The
+>    walled endpoint (`view_op=search_authors`) is real and re-verified — but the
+>    ordinary article search `/scholar?q=<name>` resolves a profile id and was
+>    never tested. **The probe that would have tested it timed out before it ran,
+>    and its non-result was recorded as a negative finding. A timed-out probe is
+>    not a negative result.**
+> 2. **Cost.** A profile page is 15 credits; a *search* is **75** and needs
+>    `stealth_proxy` as well as `custom_google`. An unbound target is not free.
+> 3. **Timeout.** A flat 30 s budget billed slow searches twice; it is now
+>    per-kind, 90 s for searches.
+>
+> Steps below that carry those claims are annotated in place. Where a whole step
+> is superseded it says so rather than being rewritten — read the 2026-09-09 plan
+> for what replaced it.
+
 ---
 
 ## File Structure
@@ -552,7 +572,7 @@ Temporarily add a `deletes: string[]` field populated with `existing.filter(...)
 
 - [x] **Step 1: Capture two fixtures**
 
-Before writing the parser, capture real ScrapingBee responses ONCE and commit them as fixtures — one author-search page, one profile publication page. Use a public Scholar profile, and **redact nothing** (this is public bibliographic data; no PII beyond author names, which are public by the act of publishing — the same legal basis recorded for `kku-research`).
+Before writing the parser, capture real ScrapingBee responses ONCE and commit them as fixtures — one author-search page, one profile publication page. **(Superseded 2026-09-09: the author-search page captured here is the sign-in wall, which is still a useful fixture and must be kept. The fixtures the resolution work actually needs are `/scholar?q=` article-search pages — see Task 3 of `2026-09-09-scholar-name-resolution.md`. At 75 credits each, capture once and test against the files thereafter.)** Use a public Scholar profile, and **redact nothing** (this is public bibliographic data; no PII beyond author names, which are public by the act of publishing — the same legal basis recorded for `kku-research`).
 
 If credentials are not available in this session, say so and stop: **do not invent fixture HTML.** A parser tested against imagined markup is worse than no parser.
 
@@ -593,8 +613,27 @@ against the fixtures captured in Step 1 and nothing else. Exports
 > **A Google page costs 15 credits, not 1.** ScrapingBee's docs say 20; the live
 > `Spb-Cost` header reported 15 on every request measured. Exported as
 > `GOOGLE_PAGE_CREDIT_COST` for the bulk estimate in Task 9.
+>
+> **Corrected 2026-09-09 — that figure is the PROFILE-PAGE price only, and the
+> transport now branches.**
+> - `/citations?user=` profile page: `custom_google` alone → HTTP 200, **15**
+>   credits.
+> - `/scholar?q=` search: needs **`custom_google` + `stealth_proxy`** → HTTP 200,
+>   **75** credits. Neither flag alone works — `stealth_proxy` alone is HTTP 400
+>   (ScrapingBee mandates `custom_google` for google.com), `custom_google` alone
+>   is HTTP 500 whose body says "please try again" while its `reason` field says
+>   "Server responded with 403". Google 403s the plain pool **for searches only**,
+>   and ScrapingBee does not bill those, so the symptom is a healthy-looking
+>   zero-credit account plus staff reporting "cannot reach Scholar".
+> - **Do NOT set `country_code`** — `th` succeeded 2/4 against 7/7 without it.
+> - `num=`, `as_ylo=`, `as_yhi=` are silently rejected (HTTP 500); only `q`, `hl`,
+>   `as_vis` get through, so the year window is filtered client-side.
+> - `render_js=false` is confirmed fine with `stealth_proxy` across ten live
+>   searches — no JS-rendering surcharge is owed.
+> - **The 30 s timeout below was billing slow searches twice** (four of ten ran
+>   47-50 s). The budget is now per-kind, **90 s for searches**.
 
-- [x] **Step 1: Implement** — `GET https://app.scrapingbee.com/api/v1/` with `api_key`, `url`, `render_js=false`, **`custom_google=true`**. Env: `SCRAPINGBEE_API_KEY`, `SCRAPINGBEE_BASE_URL` (default the above), `SCRAPINGBEE_TIMEOUT_MS` (default 30000).
+- [x] **Step 1: Implement** — `GET https://app.scrapingbee.com/api/v1/` with `api_key`, `url`, `render_js=false`, **`custom_google=true`**. Env: `SCRAPINGBEE_API_KEY`, `SCRAPINGBEE_BASE_URL` (default the above), `SCRAPINGBEE_TIMEOUT_MS` (default 30000 — **superseded, see above: per-kind, 90 s for searches**).
 
 Required behaviours, each of which must be visible in the code:
 - **Return credits used** from the `Spb-Cost` response header, so `ScholarFetchRun.creditsUsed` is real rather than estimated.
@@ -618,6 +657,7 @@ Order, and it matters:
 2. Load the last 90 days of `ScholarFetchRun` for the user; call `decideScholarQuota`. Refused → persist a `REFUSED` run (so the ledger explains itself) and return.
 3. Create the run row `startedAt = now`.
 4. No `scholarProfileId` → return `REFUSED` with reason `needs-binding` **without fetching and without consuming quota**. The UI then asks for the profile URL; binding is a separate call. (Revised 2026-09-08: author search is blocked by a sign-in wall — see the spec.)
+   **SUPERSEDED 2026-09-09.** `view_op=search_authors` is walled, but the ordinary `/scholar?q=<name>` search is not, and that was never tested — the probe timed out and its non-result was written down as a negative finding. This step is no longer a terminal refusal: unbound → search by English full name → resolve → record through `bindScholarProfile` → fetch. A search that resolves nothing still refuses (`needs-binding`), but it has spent 75 credits, so it is metered against the bind-attempt cap rather than the fetch quota. See Task 5 of `2026-09-09-scholar-name-resolution.md`.
 5. Bound → fetch all pages, archive the raw payload, parse.
 6. `planScholarMerge` against that member's existing `ResearchOutput` rows, then apply **inserts and citation updates only, inside one `$transaction`**.
 7. Invalidate `UserPublicationsCache` for the user.
@@ -694,9 +734,9 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 
 **Files:** `apps/web/src/lib/actions/scholar.ts`; modify the profile publications section.
 
-- [x] **Step 1: Button + states** — never fetched / bound and fetched (with date) / inside the window (disabled, showing the retry date) / unbound (opens the picker) / no staff record (**disabled with the reason**, not hidden — a hidden button generates a support ticket asking why the feature is missing).
+- [x] **Step 1: Button + states** — never fetched / bound and fetched (with date) / inside the window (disabled, showing the retry date) / unbound (opens the picker) / no staff record (**disabled with the reason**, not hidden — a hidden button generates a support ticket asking why the feature is missing). **(Superseded 2026-09-09: the `unbound` state no longer opens a picker on first paint — one "Sync Google Scholar" button just syncs, resolving the profile from the name.)**
 
-- [x] **Step 2: Profile-URL input** — a field accepting a Scholar profile link, validated client- and server-side, with an inline example of a correct URL and a clear error naming what was wrong. After binding, show the bound profile id with a way to ask an admin to change it. Do NOT offer a name-search fallback: that endpoint is walled (see the spec).
+- [x] **Step 2: Profile-URL input** — a field accepting a Scholar profile link, validated client- and server-side, with an inline example of a correct URL and a clear error naming what was wrong. After binding, show the bound profile id with a way to ask an admin to change it. ~~Do NOT offer a name-search fallback: that endpoint is walled (see the spec).~~ **Corrected 2026-09-09: name search IS the normal path.** Only `view_op=search_authors` is walled; the article search `/scholar?q=` resolves a profile and was never tested — the probe timed out and the untested case was recorded as a negative one. The paste field stays, demoted to a **manual override** behind a "wrong person?" affordance.
 
 - [x] **Step 3: Show which source is primary** on the publications section, with the fetch date.
 
@@ -709,8 +749,8 @@ All mutations `@AuditLog`. Add the `scholar:admin` permission to `packages/share
 **Files:** `apps/web/app/admin/scholar/page.tsx` + `client.tsx`.
 
 - [x] **Step 1: List** — staff with faculty/department filters, showing bound-or-not, last fetch, paper counts by source.
-- [x] **Step 2: Row action** — fetch one; unbound lets the admin paste that person's profile URL, or leave it for the user.
-- [x] **Step 3: Multi-select + "Fetch selected"** — confirmation dialog stating **target count and estimated credits** before anything is enqueued.
+- [x] **Step 2: Row action** — fetch one; unbound lets the admin paste that person's profile URL, or leave it for the user. **(Superseded 2026-09-09: an unbound row now searches by name; the paste is an override.)**
+- [x] **Step 3: Multi-select + "Fetch selected"** — confirmation dialog stating **target count and estimated credits** before anything is enqueued. **(Superseded 2026-09-09 — the estimator here prices an unbound target at 0, because the runner refused at the binding gate before spending anything. Under name resolution an unbound target costs `75 + 15 × pages`, so a 100-person bulk of unbound staff moves from free to roughly 10,000 credits. The tests that lock in 0 were right for this design and are wrong for the next one.)**
 - [x] **Step 4: Run status** — poll `GET /scholar/runs`; show per-target outcome including `zero found`, which must read as a distinct outcome and **not** as success.
 - [x] **Step 5: Commit** — `feat(scholar): admin fetch console`
 

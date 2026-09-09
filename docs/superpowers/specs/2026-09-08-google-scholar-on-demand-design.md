@@ -1,7 +1,10 @@
 # Google Scholar on-demand research fetch — design
 
 **Date:** 2026-09-08
-**Status:** approved for planning
+**Status:** approved for planning. **The binding sections, and every cost figure
+below, were SUPERSEDED on 2026-09-09** by
+`2026-09-09-scholar-name-resolution-design.md`. Superseded passages are marked
+in place rather than deleted, so the reasoning that produced them stays legible.
 **Surfaces:** `/profile` (self-service) · `/admin/scholar` (per-person + multi-select) · provenance drawers on every research roll-up
 
 ## Why this exists
@@ -26,7 +29,7 @@ ScrapingBee removes the IP-blocking half of that objection. **It does not remove
 | How far does Scholar data reach? | **Everywhere, including aggregates** — health score, faculty roll-ups, `/staff/research` |
 | What about library papers Scholar misses? | **Scholar wins, library fills gaps.** Nothing a user already had can disappear |
 | Quota | **Rolling 30 days**, self-service; admin fetches on a separate counter |
-| Who binds a Scholar profile to a person? | **The user supplies their own profile URL**; stored and reused. Revised 2026-09-08 — see below |
+| Who binds a Scholar profile to a person? | ~~The user supplies their own profile URL~~ — **superseded 2026-09-09.** The profile is resolved automatically from the person's English full name; a pasted URL survives only as a manual override. See `2026-09-09-scholar-name-resolution-design.md` |
 
 ### The consequence of "including aggregates", stated plainly
 
@@ -65,13 +68,20 @@ mechanism is how one of them stops running unnoticed. This is a **scraped** sour
 /profile → "Fetch from Google Scholar"
   ├─ quota check (server-side) ──────── refused → show the date they can retry
   ├─ no scholarProfileId?
-  │    └─ ASK the user to paste their Scholar profile URL
-  │       → validate + extract the profile id → store scholarProfileId + scholarBoundById
+  │    └─ SEARCH scholar.google.com/scholar?q=<English full name>   (75 credits)
+  │       → resolve a profile id → store scholarProfileId + scholarBoundById
+  │       → resolved nothing → REFUSE (needs-binding); paste-URL override remains
   ├─ FETCH  paginate the bound profile's publication list, all pages
   ├─ archive raw payload
   ├─ DIFF-MERGE into ResearchOutput        (never a wipe — see below)
   └─ invalidate UserPublicationsCache for that user
 ```
+
+**Corrected 2026-09-09.** The unbound branch above originally read *"ASK the user
+to paste their Scholar profile URL"*. It is now a name search. See
+`2026-09-09-scholar-name-resolution-design.md` for the four-case resolution, the
+byline-link fifth case, and the consequence that an unbound target is no longer
+free.
 
 ### The merge, precisely
 
@@ -100,34 +110,59 @@ hidden button produces a support ticket asking why the feature is missing; a
 disabled one with a reason does not. No `ScholarFetchRun` row is written, and
 no quota is consumed.
 
-### Binding: URL, not name search — revised 2026-09-08
+### Binding — the claim in this section was WRONG; corrected 2026-09-09
 
-The original design searched Scholar by the user's English name and had them
-confirm from candidates. **That endpoint cannot be scraped.** Google Scholar's
-`view_op=search_authors` deterministically redirects to a mandatory sign-in wall
+> Superseded by `2026-09-09-scholar-name-resolution-design.md`. This section is
+> kept, corrected in place, because one half of it is still true and expensive to
+> re-learn, and because the shape of the error is worth carrying forward.
+
+**Still true — `view_op=search_authors` really is walled.** Google Scholar's
+author-search endpoint deterministically redirects to a mandatory sign-in wall
 through ScrapingBee — verified across default/premium/stealth proxies,
 `render_js` both ways, two country codes, a `Referer` header and two different
-names. The profile page and the Scholar homepage fetch cleanly in the same
-session, so this is specific to author search, not the account or the IP. The
-real wall response is committed as a fixture
+names, and **re-verified independently on 2026-09-09 with `custom_google=true`
+present**, so it is not an artefact of the missing parameter. The profile page
+and the Scholar homepage fetch cleanly in the same session, so this is specific
+to author search, not the account or the IP. The real wall response is committed
+as a fixture
 (`packages/shared/test/fixtures/scholar/author-search-blocked-signin-wall.html`).
+**Keep that fixture and do not retest this endpoint** — someone will otherwise
+spend credits rediscovering it.
 
-**Binding is therefore by URL: the user pastes their own Scholar profile link.**
+**Wrong — the generalisation from that one endpoint to "no name-search path
+exists".** There is one. The ordinary *article* search, `/scholar?q=<name>`,
+returns a "User profiles for X" cluster and per-author `/citations?user=` byline
+links, and either of those resolves a profile id from a name. Measured against
+our own account on 2026-09-09, it needs **both `custom_google=true` and
+`stealth_proxy=true`** — neither alone works (`stealth_proxy` alone → HTTP 400,
+because ScrapingBee mandates `custom_google` for google.com; `custom_google`
+alone → HTTP 500 on any search, whose body says "please try again" while its
+`reason` field says "Server responded with 403"). `/citations?user=` profile
+pages still work on `custom_google` alone, which is why the transport branches.
 
-This is not merely a workaround. It is *safer* than the search it replaces: the
-mis-attribution risk that the confirm-from-candidates step existed to manage
-disappears entirely, because the person supplies their own profile rather than
-picking from a list of similarly-named strangers. That risk was the sharpest
-concern in this design — `kku-research` deliberately uses no fuzzy matching
-because common Thai given names mis-attribute papers. The cost is one manual
-step, once per person.
+**How the error happened, because the shape of it generalises.** It was a
+mistake of scope, not of method: a conclusion drawn from the one endpoint that
+had been tested was written down as a property of the whole surface. The probe
+that would have caught it — the article-search endpoint — **timed out before it
+ran, and its non-result was recorded as though it were a negative finding.**
+*A timed-out probe is not a negative result.* It is an untested case and must be
+written down as one.
 
-`ScholarFetchRun.searchQuery` is retained and now records the **submitted URL**,
-so a bad binding is diagnosable.
+**Binding is therefore by name resolution**, with the pasted URL demoted to a
+manual override for when the search resolves the wrong person. Validation of a
+pasted URL is unchanged: accept `scholar.google.<tld>/citations?user=<id>` in any
+query-param order, extract `<id>`, and reject anything else with a message
+naming what a correct URL looks like.
 
-Validation: accept `scholar.google.<tld>/citations?user=<id>` in any query-param
-order, extract `<id>`, and reject anything else with a message naming what a
-correct URL looks like. Do NOT attempt to "helpfully" search when given a name.
+`ScholarFetchRun.searchQuery` records the submitted URL on the override path and
+the searched name on the resolution path, so a bad binding is diagnosable either
+way.
+
+The mis-attribution risk that made the URL-only path attractive has not gone
+away — `kku-research` deliberately uses no fuzzy matching because common Thai
+given names mis-attribute papers. The 2026-09-09 design answers it with an
+exact-surname, initial-tolerant matcher and a standing rule that resolving
+**nothing** beats resolving wrongly; read that spec before touching resolution.
 
 ### Type mapping
 
@@ -140,8 +175,8 @@ Admin work lives in **one console** at `/admin/scholar` (gated `isAdminGrade`) r
 | Surface | Who | Behaviour |
 |---|---|---|
 | `/profile` button | any user, own record | Shows last fetch, next eligible date, and which source is currently primary. Disabled with the date when inside 30 days. |
-| Candidate picker (modal) | the user | Fires when unbound. Shows **affiliation, other-names, interests, paper count** — enough to distinguish two researchers with the same common Thai given name. Confirming binds permanently. |
-| `/admin/scholar` row action | SYSTEM_ADMIN, SUPER_ADMIN | Fetch one person. Unbound → the admin can paste that person's profile URL, or leave it for the user. |
+| ~~Candidate picker (modal)~~ | the user | **Superseded 2026-09-09.** There is no picker on the normal path: one "Sync Google Scholar" button resolves the profile from the English full name. A paste field survives behind a "wrong person?" override. |
+| `/admin/scholar` row action | SYSTEM_ADMIN, SUPER_ADMIN | Fetch one person. Unbound → the run searches by name and records what it resolves (**not** free — see Spend guard); the admin can still paste a URL to override. |
 | `/admin/scholar` multi-select | same | Filter by faculty/department, tick rows, **Fetch selected**. |
 
 **Bulk is asynchronous.** ScrapingBee takes seconds per profile plus pagination, so 50 people is minutes and 500 is far beyond any request timeout. The API enqueues onto the existing `ai-jobs` BullMQ queue (ingestion consumes it — the same pattern as PDF intake and the model-health notifier); the console polls run status. No new queue.
@@ -158,7 +193,9 @@ One server-side function, consulted by every entry point. **Never a UI-only chec
 
 ### Spend guard
 
-ScrapingBee is metered per request and a careless "select all" across a faculty is real money. The bulk confirmation states **how many people and the estimated credit cost** — estimated as `targets × (1 search when unbound, else 0) + targets × expected pages`, with the per-page assumption a named constant rather than a magic number — and `SCHOLAR_BULK_MAX_TARGETS` caps a single run. Nothing spends against the plan without a number in front of it first.
+ScrapingBee is metered per request and a careless "select all" across a faculty is real money. The bulk confirmation states **how many people and the estimated credit cost**, and `SCHOLAR_BULK_MAX_TARGETS` caps a single run. Nothing spends against the plan without a number in front of it first.
+
+**The prices, corrected 2026-09-09 — this section was written before any of them were known, and the shipped console then priced an unbound target at 0.** Measured on our own account: a profile page costs **15** credits (`custom_google` only); a name search costs **75** (`custom_google` + `stealth_proxy`). An unbound target is therefore `75 + 15 × pages`, not free, and a 100-person bulk of unbound staff is roughly **10,000 credits**. The estimator, the confirmation dialog and their tests all move with that. The real `Spb-Cost` header stays authoritative per call; the constants exist only for the estimate.
 
 ## Failure behaviour
 
@@ -167,6 +204,7 @@ ScrapingBee is metered per request and a careless "select all" across a faculty 
 - Partial pagination records `PARTIAL`, merges what it parsed (safe, because additive), and does not consume quota.
 - Library data keeps serving throughout. Failover is the default state, not a recovery mode.
 - A run producing zero matched papers reports **zero found**, never success — the phase2b lesson that a skip must not read green.
+- **Added 2026-09-09.** A name search that reaches Google but resolves no attachable profile costs 75 credits and produces no data. It finalises as `REFUSED` / `needs-binding` with the real credits recorded, does **not** consume the 30-day fetch allowance — the user's next act is to paste a URL, and a quota hit would lock them out for a month for not being findable — and is metered instead against the bind-attempt cap, which is the meter for a spend-before-success identity assertion.
 
 ## Testing
 
