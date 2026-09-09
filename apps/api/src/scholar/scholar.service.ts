@@ -18,6 +18,7 @@ import {
   estimateScholarBulkCredits,
   fetchScrapingBeePage,
   parseScholarProfileUrl,
+  scholarBindQuotaWhere,
   type Role,
   type ScrapingBeeConfig,
   type ScholarStatus,
@@ -46,10 +47,6 @@ import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 // ────────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_BULK_MAX_TARGETS = 100;
-
-/** Rolling window the bind cap is measured over. Matches the window inside
- *  `decideScholarBindQuota`; used only to bound the query that feeds it. */
-const BIND_LEDGER_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 export interface ScholarEnqueueResult {
   jobId: string;
@@ -151,14 +148,15 @@ export { estimateScholarBulkCredits } from '@kku/shared';
  * a silently inert button — but charging them to the user would mean five
  * clicks against a broken deploy locked them out of binding for a day after
  * the operator fixed it. Our fault, our cost.
+ *
+ * THE DEFINITION MOVED to `@kku/shared`, beside `decideScholarBindQuota`, on
+ * 2026-09-09, and this is now an alias for it. The fetch runner meters its
+ * 75-credit name search against the same cap — a name search is a bind
+ * attempt, not a fetch — so two copies of the filter would mean the number
+ * shown to a user here and the number enforced against them there could
+ * drift apart. One definition, two callers.
  */
-function bindQuotaWhere(userId: string, now: Date) {
-  return {
-    userId,
-    createdAt: { gte: new Date(now.getTime() - BIND_LEDGER_LOOKBACK_MS) },
-    OR: [{ creditsUsed: { gt: 0 } }, { outcome: 'REFUSED' as const }],
-  };
-}
+const bindQuotaWhere = scholarBindQuotaWhere;
 
 @Injectable()
 export class ScholarService {

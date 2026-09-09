@@ -46,15 +46,47 @@
 //     `export *` re-exports only what a module exports, so leaving the seam
 //     type unexported is enough to make it un-nameable from the API layer.
 //
-// See docs/superpowers/specs/2026-09-08-google-scholar-on-demand-design.md.
+// ── The unbound branch (2026-09-09) ───────────────────────────────────────
+//
+// `SCHOLAR_NEEDS_BINDING` used to be where this runner stopped: no profile
+// linked meant refuse, spend nothing, and ask a human to paste a URL. It is
+// now the SEARCH branch. Unbound means: search Google Scholar for the staff
+// record's English name (75 credits), resolve a profile id out of that one
+// page, record it, and then fetch that profile exactly as a bound person's
+// sync does. The paste survives as a manual override for when the search
+// resolves the wrong person.
+//
+// Three properties of that branch are load-bearing and easy to lose:
+//
+//   - The BINDING IS RECORDED FROM THE PROFILE PAGE, not from the search
+//     page. The order is fetch → wall/header/name checks → bind → merge, so a
+//     binding only ever exists for a profile that came back as a real Scholar
+//     profile whose name matches the staff record. It also puts the
+//     "already linked to someone else" conflict check strictly BEFORE any
+//     ResearchOutput write. If the profile fetch throws, nothing is recorded
+//     and the next sync re-spends the 75 — the right side to err on.
+//   - A MACHINE-RESOLVED BINDING IS NOT A HUMAN ASSERTION, and the audit
+//     record says so in the column an auditor filters on: the action verb is
+//     `scholar.profile.auto-bind`, not `scholar.profile.bind`. What was
+//     searched, which card won and how all ride in `payloadJson.resolution`,
+//     alongside the fetch-run id so the archived page itself can be re-read.
+//   - A SEARCH THAT RESOLVES NOTHING SPENT REAL MONEY. It does NOT consume
+//     the 30-day fetch allowance — see the comment on the refusal itself for
+//     why that would be worse, not better — it is metered as a BIND ATTEMPT,
+//     which is what it is: a spend-before-success identity assertion.
+//
+// See docs/superpowers/specs/2026-09-08-google-scholar-on-demand-design.md,
+// and 2026-09-09-scholar-name-resolution-design.md for the branch above.
 // ────────────────────────────────────────────────────────────────────────────
 
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ResearchOutputType } from '@prisma/client';
 import {
+  DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
   SCHOLAR_LEDGER_LOOKBACK_MS,
   SCHOLAR_PARSER_VERSION,
+  decideScholarBindQuota,
   decideScholarQuota,
   parseScholarProfileIdentity,
   parseScholarProfileUrl,
@@ -62,11 +94,37 @@ import {
   personNameTokens,
   personNamesMatch,
   planScholarMerge,
+  scholarBindQuotaWhere,
   scholarNameMatchesAny,
   type ScholarPaper,
   type ScholarStatus,
   type ScholarTrigger,
 } from '@kku/shared';
+// Both spelled with `src/`, and both spellings are keys in @kku/shared's
+// `exports` map for that reason. This package typechecks under
+// moduleResolution 'node', which ignores that map and finds a subpath only
+// through a deep path — while Node at RUNTIME honours the map and refuses any
+// path it does not list. Measured both ways from here on 2026-09-09: the short
+// `@kku/shared/scholar/search-parse` resolves at runtime and fails tsc with
+// TS2307; the deep one typechecks and threw ERR_PACKAGE_PATH_NOT_EXPORTED.
+// Listing the deep spelling is what makes one specifier work in both worlds.
+//
+// `search-parse` pulls cheerio and must stay off any client-reachable path.
+// It is safe HERE — packages/db is server-only — and the boundary it must not
+// cross is `@kku/shared`'s barrel, which it stays off; there is a test in
+// packages/shared asserting that, and another asserting no app imports it.
+import {
+  SCHOLAR_SEARCH_PARSER_VERSION,
+  parseScholarSearchPage,
+} from '@kku/shared/src/scholar/search-parse';
+import {
+  SCHOLAR_DISAMBIGUATION_CAP,
+  SCHOLAR_RESOLUTION_VERSION,
+  resolveScholarDisambiguation,
+  resolveScholarProfile,
+  type ScholarCandidateProfile,
+  type ScholarResolutionVia,
+} from '@kku/shared/src/scholar/resolve';
 import { prisma } from './index';
 
 // ── Injected collaborators ────────────────────────────────────────────────
@@ -185,7 +243,7 @@ export interface ScholarFetchResult {
   /**
    * Why, in words a person can act on. Always set for REFUSED and FAILED.
    *
-   * The one exception is the unbound-profile refusal, where this is the
+   * The one exception is the unresolved-profile refusal, where this is the
    * machine-readable `SCHOLAR_NEEDS_BINDING` code — the UI branches on it to
    * open the "paste your profile URL" flow rather than showing prose. The
    * prose version is on the run row's `errorText`.
@@ -202,7 +260,17 @@ export interface ScholarFetchResult {
   searchQuery: string | null;
 }
 
-/** Reason code the UI keys off to prompt for a Scholar profile URL. */
+/**
+ * Reason code the UI keys off to prompt for a Scholar profile URL.
+ *
+ * Its MEANING changed on 2026-09-09 while its value deliberately did not.
+ * It used to mean "we declined to look you up"; it now means "we looked and
+ * could not find a profile we are willing to attach to you" — after spending
+ * 75 credits on a name search. The affordance the UI should offer is
+ * identical either way (paste the URL), and three surfaces already branch on
+ * `errorText.startsWith(SCHOLAR_NEEDS_BINDING)`, so changing the string would
+ * have re-taught them all for no gain.
+ */
 export const SCHOLAR_NEEDS_BINDING = 'needs-binding';
 
 // ── Type mapping ──────────────────────────────────────────────────────────
@@ -489,6 +557,45 @@ export function buildScholarProfilePageUrl(profileId: string, cstart: number): s
   return url.toString();
 }
 
+/**
+ * The canonical public URL of a Scholar profile.
+ *
+ * A human binding pastes a URL and we keep it verbatim; a machine-resolved
+ * binding has only an id, so this is what goes into
+ * `FacultyMember.scholarProfileUrl` on that path. Round-trips through
+ * `parseScholarProfileUrl`, which is what `bindScholarProfile` derives the
+ * stored id from — so the id and the URL in that row cannot disagree.
+ */
+export function buildScholarProfileUrl(profileId: string): string {
+  const url = new URL('https://scholar.google.com/citations');
+  url.searchParams.set('user', profileId);
+  url.searchParams.set('hl', 'en');
+  return url.toString();
+}
+
+/**
+ * One Scholar name search. 75 credits — five times a profile page — because
+ * the transport adds `stealth_proxy` for searches, which it must: plain
+ * `custom_google` comes back HTTP 500 on every `/scholar?q=`, and that 500 is
+ * a lie whose `reason` field reads "Server responded with 403".
+ *
+ * ONLY `q`, `hl` and `as_vis` may be set. `num=`, `as_ylo=` and `as_yhi=` are
+ * silently rejected by the proxy with an HTTP 500 (measured 2026-09-09), so
+ * the publication-year window is filtered client-side after parsing and never
+ * pushed into the query. Do not add parameters here without measuring.
+ *
+ * `as_vis=1` suppresses the "User profiles for X" cluster — the cleanest
+ * carrier of a profile id — which is why the second, gated probe re-asks the
+ * same question with it off.
+ */
+export function buildScholarSearchUrl(query: string, opts: { asVis: boolean }): string {
+  const url = new URL('https://scholar.google.com/scholar');
+  url.searchParams.set('q', query);
+  url.searchParams.set('hl', 'en');
+  if (opts.asVis) url.searchParams.set('as_vis', '1');
+  return url.toString();
+}
+
 // ── Phase: fetch ──────────────────────────────────────────────────────────
 
 /**
@@ -500,6 +607,22 @@ export function buildScholarProfilePageUrl(profileId: string, cstart: number): s
 interface ScholarFetchProgress {
   creditsUsed: number;
   papersFound: number;
+}
+
+/**
+ * Add what ScrapingBee actually billed for one page.
+ *
+ * The run's `creditsUsed` is the SUM of real `Spb-Cost` headers, never pages
+ * times a constant — and since 2026-09-09 that is not a nicety: a search is
+ * billed at 75 and a profile page at 15, so a first-time sync is
+ * `75 + 15 × pages` and any constant would be wrong for one of the two. Null
+ * contributes 0, which reads as an obviously missing number rather than a
+ * plausibly cheap one.
+ */
+function addCredits(progress: ScholarFetchProgress, creditsUsed: number | null): void {
+  if (typeof creditsUsed === 'number' && Number.isFinite(creditsUsed)) {
+    progress.creditsUsed += creditsUsed;
+  }
 }
 
 interface ScholarFetchPages {
@@ -551,9 +674,7 @@ async function fetchAllPages(
     const cstart = page * SCHOLAR_PAGE_SIZE;
     const result = await fetchPage(buildScholarProfilePageUrl(profileId, cstart));
     pages.push(result.html);
-    if (typeof result.creditsUsed === 'number' && Number.isFinite(result.creditsUsed)) {
-      progress.creditsUsed += result.creditsUsed;
-    }
+    addCredits(progress, result.creditsUsed);
 
     const parsed = parsePage(result.html);
     let fresh = 0;
@@ -600,6 +721,245 @@ async function fetchAllPages(
   }
 
   return { pages, papers, truncated, unreadableRows, wallAtCstart };
+}
+
+// ── Phase: resolve a profile from the name ────────────────────────────────
+
+/**
+ * Every way a profile id can be reached. The first four come from the search
+ * page itself (`ScholarResolutionVia`); the last two are the disambiguation
+ * verdict, reached only after candidate profiles were fetched. Closed on
+ * purpose — `via` is what an auditor reads to know how much evidence stood
+ * behind a binding, so a new way of resolving one must not be able to slip
+ * into the audit record as an unrecognised string.
+ */
+export type ScholarBindingVia = ScholarResolutionVia | 'primary-name' | 'other-name';
+
+/** What a search-and-resolve pass concluded, when it concluded anything. */
+export interface ScholarNameResolution {
+  /** The Scholar `user=` id to bind and fetch. */
+  authorId: string;
+  /** How it was reached: primary card, alias card, byline anchor, … */
+  via: ScholarBindingVia;
+  /** The card, anchor or profile name that won the match. */
+  matchedName: string;
+  /** The search URL whose page decided it — says whether `as_vis` was set. */
+  searchUrl: string;
+  /** Candidate ids fetched to disambiguate, when that is what happened. */
+  candidateIds?: string[];
+}
+
+interface ScholarSearchOutcome {
+  resolution: ScholarNameResolution | null;
+  /** Raw HTML of every page this pass fetched, so the archive holds them. */
+  pages: string[];
+  /**
+   * Article rows the search returned.
+   *
+   * REPORTED, NEVER IMPORTED. The spec's flow line said "no profile id → use
+   * the article results"; that is wrong for us and the spec is being
+   * corrected. `ScholarSearchHit` carries no `scholarPaperId`, so
+   * `planScholarMerge` has nothing to key on and every re-sync would insert
+   * the same papers again — in the one table whose defining invariant is that
+   * it is additive-only. On top of which the rows are matched by a free-text
+   * name query with no profile confirmation, i.e. they may be namesakes', and
+   * a full page marks them a sample so any count off them is a floor. The
+   * count is surfaced in the refusal text instead, so an operator can see the
+   * search DID reach Scholar and it was resolution that failed, not reach.
+   */
+  hitCount: number;
+  /** The page came back full, so `hitCount` is a floor rather than a count. */
+  hitsAreSample: boolean;
+}
+
+/**
+ * Find the person's Scholar profile id from their English name.
+ *
+ * One 75-credit search, parsed once for both the profile cluster and the
+ * article rows, handed to the pure four-case decision in
+ * `@kku/shared/src/scholar/resolve`. Everything expensive is here and
+ * everything arguable is there.
+ *
+ * Two branches spend more, and both are gated:
+ *
+ *   - The `as_vis`-off PROBE fires only when the first page came back FULL,
+ *     because a short page means Scholar returned everything it had. It fires
+ *     AT MOST ONCE: the second pass asks the identical question of the
+ *     identical URL, so a second probe request is downgraded to "use what we
+ *     have" rather than spending another 75 to be told the same thing.
+ *   - DISAMBIGUATION fetches at most `SCHOLAR_DISAMBIGUATION_CAP` (3) profile
+ *     pages at 15 each, on candidates we already suspect are not ours. Past
+ *     three the honest answer is "we could not tell".
+ *
+ * A candidate profile that comes back with no header — a consent wall, or a
+ * profile that is private or gone — contributes no name and is skipped rather
+ * than judged, since "cannot read" is not "does not match".
+ */
+async function searchForScholarProfile(
+  queryName: string,
+  fetchPage: ScholarPageFetcher,
+  progress: ScholarFetchProgress,
+): Promise<ScholarSearchOutcome> {
+  const pages: string[] = [];
+
+  const readSearchPage = async (asVis: boolean) => {
+    const searchUrl = buildScholarSearchUrl(queryName, { asVis });
+    const result = await fetchPage(searchUrl);
+    pages.push(result.html);
+    addCredits(progress, result.creditsUsed);
+    return { searchUrl, page: parseScholarSearchPage(result.html) };
+  };
+
+  let { searchUrl, page } = await readSearchPage(true);
+  let decision = resolveScholarProfile({
+    queryName,
+    profileCards: page.profileCards,
+    searchHits: page.hits,
+    searchPageWasFull: page.pageWasFull,
+  });
+
+  if (decision.kind === 'probe-without-as-vis') {
+    ({ searchUrl, page } = await readSearchPage(false));
+    decision = resolveScholarProfile({
+      queryName,
+      profileCards: page.profileCards,
+      searchHits: page.hits,
+      searchPageWasFull: page.pageWasFull,
+    });
+    if (decision.kind === 'probe-without-as-vis') {
+      // Already probed. Asking again would fetch the same URL for another 75
+      // credits and reach the same conclusion.
+      decision = {
+        kind: 'use-articles',
+        searchHits: page.hits,
+        searchHitsAreSample: page.pageWasFull,
+      };
+    }
+  }
+
+  if (decision.kind === 'disambiguate') {
+    const candidateIds = decision.candidateIds.slice(0, SCHOLAR_DISAMBIGUATION_CAP);
+    const candidates: ScholarCandidateProfile[] = [];
+    for (const authorId of candidateIds) {
+      const result = await fetchPage(buildScholarProfilePageUrl(authorId, 0));
+      pages.push(result.html);
+      addCredits(progress, result.creditsUsed);
+      const identity = parseScholarProfileIdentity(result.html);
+      if (!identity.displayName) continue;
+      candidates.push({
+        authorId,
+        primaryName: identity.displayName,
+        otherNames: identity.otherNames,
+      });
+    }
+    const picked = resolveScholarDisambiguation({ queryName, candidates });
+    // Several cards is direct evidence of namesakes on that page, so its
+    // article rows are a mixture either way — nothing to report as a sample.
+    const noHits = { pages, hitCount: 0, hitsAreSample: false };
+    if (picked.kind === 'use-profile') {
+      return {
+        resolution: {
+          authorId: picked.authorId,
+          via: picked.via,
+          matchedName: picked.matchedName,
+          searchUrl,
+          candidateIds: [...candidateIds],
+        },
+        ...noHits,
+      };
+    }
+    return { resolution: null, ...noHits };
+  }
+
+  const carried = {
+    pages,
+    hitCount: decision.searchHits.length,
+    hitsAreSample: decision.searchHitsAreSample,
+  };
+  if (decision.kind === 'use-profile') {
+    return {
+      resolution: {
+        authorId: decision.authorId,
+        via: decision.via,
+        matchedName: decision.matchedName,
+        searchUrl,
+      },
+      ...carried,
+    };
+  }
+  return { resolution: null, ...carried };
+}
+
+// ── The bind-attempt ledger ───────────────────────────────────────────────
+//
+// A name search is a BIND ATTEMPT, not a fetch, and it is metered as one.
+//
+// It spends before it can succeed — 75 credits buy an answer that may be "no
+// profile exists" — which is the exact shape `decideScholarBindQuota` was
+// written for, and its own header rules on: attempts that produce nothing are
+// precisely the ones that must be counted, because "spend, get nothing,
+// repeat" is the abuse loop. A pasted URL is the same assertion at 15
+// credits; a name search is the same assertion at 75.
+//
+// It is deliberately NOT metered against the 30-day fetch allowance. Counting
+// a resolve-nothing search as PARTIAL would burn the month, and the user's
+// very next action is to paste their URL and sync — so it would lock them out
+// for thirty days for the crime of not being findable on Google. That moves
+// the harm the FAILED exemption exists to prevent rather than removing it.
+
+/**
+ * The cap, per person per rolling day.
+ *
+ * COSTED FOR 15-CREDIT ATTEMPTS, NOT 75. When this cap was set, an attempt
+ * was a pasted URL verified by one profile page: five of them was 75 credits
+ * per user per day. An auto-resolve attempt is a 75-credit search, so the
+ * same cap now permits 375 credits per user per day — a five-fold rise in
+ * worst-case per-user spend, with the cap itself unchanged. Left at 5
+ * deliberately for now; the unit that wants re-thinking is the console's,
+ * which shows an ATTEMPT COUNT. A count stopped being the meaningful number
+ * the moment attempts stopped costing the same amount — CREDITS AT RISK is
+ * what an operator now needs to see. Flagged for Task 6.
+ */
+function scholarBindMaxPerDay(): number {
+  const parsed = Number(process.env.SCHOLAR_BIND_MAX_PER_DAY);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_SCHOLAR_BIND_MAX_PER_DAY;
+  return Math.floor(parsed);
+}
+
+interface RecordBindAttemptInput {
+  userId: string;
+  facultyMemberId: string;
+  url: string;
+  scholarProfileId: string | null;
+  outcome: 'BOUND' | 'REFUSED' | 'FAILED';
+  profileName: string | null;
+  creditsUsed: number;
+  errorText: string | null;
+}
+
+/**
+ * Write one bind-attempt row. NEVER throws.
+ *
+ * Same posture as `finaliseRun`, for the same reason: this is bookkeeping
+ * about money that has already been spent. On the failure path an exception
+ * here would replace the real error with a database error; on the success
+ * path it would turn a committed merge into a 500.
+ *
+ * `url` holds the SEARCH url on this path, where the column's own comment
+ * says "the URL a human pasted". That is the intended widening: the question
+ * the column answers is "what was actually tried", and for a machine-resolved
+ * binding the answer is a query, not a paste. The `outcome` plus a null
+ * `scholarProfileId` still read the same way for the cap.
+ */
+async function recordScholarBindAttempt(input: RecordBindAttemptInput): Promise<void> {
+  try {
+    await prisma.scholarBindAttempt.create({ data: input });
+  } catch (err) {
+    console.error(
+      `[scholar-fetch] could not record bind attempt for user=${input.userId}:`,
+      describeError(err),
+    );
+  }
 }
 
 // ── Phase: apply ──────────────────────────────────────────────────────────
@@ -663,6 +1023,13 @@ async function applyMergePlan(input: {
 interface RunFinalisation {
   status: ScholarStatus;
   errorText: string | null;
+  /**
+   * Stamped when the profile id was resolved DURING the run rather than read
+   * off the staff record at the start. Without it, the run that performed a
+   * first-time import would read as having had no profile — which is exactly
+   * the run someone goes looking for when a wrong import surfaces.
+   */
+  scholarProfileId?: string;
   papersFound?: number;
   papersInserted?: number;
   citationsUpdated?: number;
@@ -691,6 +1058,40 @@ async function finaliseRun(runId: string, data: RunFinalisation): Promise<void> 
       describeError(err),
     );
   }
+}
+
+/** Separates one page from the next inside an archived payload. */
+const ARCHIVE_PAGE_BREAK = '\n<!-- kku:scholar-page-break -->\n';
+
+/**
+ * Archive every raw page this run fetched, search pages first.
+ *
+ * Written even when the run resolved nothing: a 75-credit search that found
+ * no profile is precisely the page someone will want to read, and losing it
+ * means re-spending to see what Google actually said. It is also what makes
+ * `payloadJson.resolution.fetchRunId` on the audit record worth carrying —
+ * the decision is re-readable against the page, not merely re-describable.
+ *
+ * `parserVersion` stamps the PROFILE parser, which is what reads the pages
+ * this run imported from. The search pages in the same payload were read by
+ * `SCHOLAR_SEARCH_PARSER_VERSION`, which is recorded on the audit row instead
+ * — one column cannot honestly name two parsers, and the importing one is the
+ * one a re-parse would replay.
+ */
+async function archiveScholarPayload(
+  runId: string,
+  searchPages: readonly string[],
+  profilePages: readonly string[],
+): Promise<void> {
+  const rawPayload = [...searchPages, ...profilePages].join(ARCHIVE_PAGE_BREAK);
+  await prisma.scholarFetchArchive.create({
+    data: {
+      fetchRunId: runId,
+      rawPayload,
+      contentHash: createHash('sha256').update(rawPayload).digest('hex'),
+      parserVersion: SCHOLAR_PARSER_VERSION,
+    },
+  });
 }
 
 /**
@@ -863,32 +1264,127 @@ export async function runScholarFetch(
   });
 
   const progress: ScholarFetchProgress = { creditsUsed: 0, papersFound: 0 };
+  /**
+   * Raw HTML of the search pages, when this run searched. Kept apart from the
+   * profile pages because `pages[0]` must stay page 1 of the PROFILE — the
+   * identity and name checks below read it — while the archive gets both, so
+   * the page that decided a binding can be re-read months later.
+   */
+  let searchPages: string[] = [];
+  /**
+   * Set only on the search path, and cleared once the attempt has been
+   * recorded. Non-null in the catch block means: money was spent deciding a
+   * binding, and the attempt never reached a verdict — record it as FAILED so
+   * the cap sees the spend.
+   */
+  let pendingBindAttempt: { url: string; scholarProfileId: string | null } | null = null;
+  /** Credits spent DECIDING the binding, as opposed to importing papers. */
+  let bindDecisionCredits = 0;
 
   try {
     // ── 4. Binding ────────────────────────────────────────────────────────
-    const profileId = member.scholarProfileId?.trim();
+    let profileId = member.scholarProfileId?.trim() ?? '';
+    let resolution: ScholarNameResolution | null = null;
+
     if (!profileId) {
-      // No fetch, so no credit and no quota consumption (REFUSED is ignored
-      // by the quota unit). The UI reads SCHOLAR_NEEDS_BINDING and asks for
-      // the profile URL; `bindScholarProfile` is the separate call that
-      // follows. There is deliberately no name-search fallback: Scholar's
-      // `view_op=search_authors` is behind a mandatory Google sign-in wall,
-      // and guessing at a profile is how the wrong person's papers get
-      // imported.
-      const reason =
-        'No Google Scholar profile is linked to this staff record yet. Paste the profile URL to link it, then fetch.';
-      await finaliseRun(run.id, {
-        status: 'REFUSED',
-        errorText: `${SCHOLAR_NEEDS_BINDING}: ${reason}`,
-        finishedAt: clock(),
+      // ── 4a. The search is a bind attempt, so the bind cap gates it ──────
+      // Read BEFORE spending. A refusal here costs nothing and writes no
+      // attempt row — a ledger entry for an attempt that never happened would
+      // make tomorrow's allowance smaller than the cap says it is.
+      const bindAttempts = await prisma.scholarBindAttempt.findMany({
+        where: scholarBindQuotaWhere(userId, now),
+        select: { createdAt: true },
       });
-      return {
-        ...emptyCounts(),
-        status: 'REFUSED',
-        runId: run.id,
-        reason: SCHOLAR_NEEDS_BINDING,
-        searchQuery,
+      const bindQuota = decideScholarBindQuota({
+        actorRole,
+        attempts: bindAttempts,
+        now,
+        maxPerDay: scholarBindMaxPerDay(),
+      });
+      if (!bindQuota.allowed) {
+        const reason =
+          bindQuota.reason ??
+          'Too many attempts to link a Scholar profile for this person today.';
+        await finaliseRun(run.id, {
+          status: 'REFUSED',
+          errorText: `${SCHOLAR_NEEDS_BINDING}: ${reason}`,
+          finishedAt: clock(),
+        });
+        return {
+          ...emptyCounts(),
+          status: 'REFUSED',
+          runId: run.id,
+          reason: SCHOLAR_NEEDS_BINDING,
+          retryAt: bindQuota.retryAt ?? null,
+          searchQuery,
+        };
+      }
+
+      // ── 4b. Search Google Scholar for the name and resolve an id ────────
+      const searched = await searchForScholarProfile(searchQuery, fetchPage, progress);
+      searchPages = searched.pages;
+      bindDecisionCredits = Math.round(progress.creditsUsed);
+      pendingBindAttempt = {
+        url: searched.resolution?.searchUrl ?? buildScholarSearchUrl(searchQuery, { asVis: true }),
+        scholarProfileId: searched.resolution?.authorId ?? null,
       };
+
+      if (!searched.resolution) {
+        // A complete, correct answer that happens to be "no profile we are
+        // willing to attach". Not a transport failure — so it is REFUSED
+        // rather than FAILED, and the machine code is the one the UI already
+        // branches on to offer the paste override.
+        //
+        // The 30-day fetch allowance is untouched (the quota unit ignores
+        // REFUSED), which is the point: the user's next move is to paste
+        // their URL, and locking them out for a month would punish them for a
+        // fact about Google's index. The 75 credits are metered instead
+        // against the daily BIND cap, via the attempt row written below.
+        //
+        // The article-row count rides in the message so an operator can tell
+        // "Scholar was unreachable" from "Scholar answered, and none of what
+        // it returned was safe to attach".
+        const found =
+          searched.hitCount === 0
+            ? 'The search returned no article results either.'
+            : `The search returned ${searched.hitCount} article result${searched.hitCount === 1 ? '' : 's'}` +
+              `${searched.hitsAreSample ? ' (a full page, so more exist)' : ''}, ` +
+              'but none of them identified a profile we could safely attach — they may belong to a namesake.';
+        const reason =
+          `Searched Google Scholar for "${searchQuery}" and found no profile that could be linked to this staff record. ` +
+          `${found} Paste the profile URL to link it directly, then fetch.`;
+
+        await archiveScholarPayload(run.id, searchPages, []);
+        await recordScholarBindAttempt({
+          userId,
+          facultyMemberId: member.id,
+          url: pendingBindAttempt.url,
+          scholarProfileId: null,
+          outcome: 'REFUSED',
+          profileName: null,
+          creditsUsed: bindDecisionCredits,
+          errorText: reason,
+        });
+        pendingBindAttempt = null;
+
+        await finaliseRun(run.id, {
+          status: 'REFUSED',
+          errorText: `${SCHOLAR_NEEDS_BINDING}: ${reason}`,
+          creditsUsed: Math.round(progress.creditsUsed),
+          finishedAt: clock(),
+        });
+        return {
+          ...emptyCounts(),
+          status: 'REFUSED',
+          runId: run.id,
+          reason: SCHOLAR_NEEDS_BINDING,
+          creditsUsed: Math.round(progress.creditsUsed),
+          searchQuery,
+        };
+      }
+
+      resolution = searched.resolution;
+      profileId = resolution.authorId;
     }
 
     // ── 5. Fetch every page, archive the raw payload, parse ───────────────
@@ -899,15 +1395,7 @@ export async function runScholarFetch(
       progress,
     );
 
-    const rawPayload = pages.join('\n<!-- kku:scholar-page-break -->\n');
-    await prisma.scholarFetchArchive.create({
-      data: {
-        fetchRunId: run.id,
-        rawPayload,
-        contentHash: createHash('sha256').update(rawPayload).digest('hex'),
-        parserVersion: SCHOLAR_PARSER_VERSION,
-      },
-    });
+    await archiveScholarPayload(run.id, searchPages, pages);
 
     // ── 5a. Prove we were actually on this person's profile ───────────────
     // Google serves consent screens, robot interstitials and "profile not
@@ -955,6 +1443,61 @@ export async function runScholarFetch(
           'Refusing to import. Either the wrong profile is linked, or the staff record has been renamed since it was linked ' +
           '(an HR backfill correcting the English name will do this) — check which, then re-link the profile.',
       );
+    }
+
+    // ── 5b. Record a machine-resolved binding ────────────────────────────
+    // Deliberately HERE: after the wall check, the header check and the name
+    // re-verification above, and BEFORE the merge below.
+    //
+    // After, because a binding must only ever be recorded from a page that
+    // came back as a real Scholar profile whose name matches this staff
+    // record — the search page alone is not evidence enough, and every check
+    // that could refuse has now run against the very page we are about to
+    // import from. Before, because `bindScholarProfile` is what refuses a
+    // profile already linked to ANOTHER staff record, and that refusal has to
+    // land before a single ResearchOutput row is written; a profile shared by
+    // two people is always a mistake and importing first would attach one
+    // person's publications to both.
+    //
+    // `pageHtml` is `pages[0]`, which is exactly the page `bindScholarProfile`
+    // would otherwise fetch for itself. Passing it saves a second 15-credit
+    // fetch of the same URL on every first-time sync, and it also removes the
+    // possibility of the two disagreeing: they now verify the same bytes.
+    if (resolution) {
+      await bindScholarProfile({
+        facultyMemberId: member.id,
+        url: buildScholarProfileUrl(profileId),
+        boundById: triggeredById,
+        // Never called — `pageHtml` is supplied — but the parameter is
+        // required, and a fetcher that throws is a louder failure than one
+        // that quietly spends 15 credits if that ever stops being true.
+        fetchPage: async () => {
+          throw new Error('bindScholarProfile must not fetch when pageHtml is supplied');
+        },
+        pageHtml: pages[0] ?? '',
+        now: clock(),
+        resolution: {
+          version: SCHOLAR_RESOLUTION_VERSION,
+          parserVersion: SCHOLAR_SEARCH_PARSER_VERSION,
+          searchedName: searchQuery,
+          searchUrl: resolution.searchUrl,
+          via: resolution.via,
+          matchedName: resolution.matchedName,
+          candidateIds: resolution.candidateIds ?? [],
+          fetchRunId: run.id,
+        },
+      });
+      await recordScholarBindAttempt({
+        userId,
+        facultyMemberId: member.id,
+        url: resolution.searchUrl,
+        scholarProfileId: profileId,
+        outcome: 'BOUND',
+        profileName: identity.displayName,
+        creditsUsed: bindDecisionCredits,
+        errorText: null,
+      });
+      pendingBindAttempt = null;
     }
 
     // A paper with no usable year is SKIPPED, never inserted with a guess.
@@ -1008,6 +1551,9 @@ export async function runScholarFetch(
       citationsUpdated,
       creditsUsed,
       errorText: notes.length > 0 ? notes.join(' ') : null,
+      // Only on the search path: the row was opened with whatever the staff
+      // record held, which on that path was nothing.
+      ...(resolution ? { scholarProfileId: profileId } : {}),
       finishedAt: clock(),
     });
 
@@ -1033,6 +1579,23 @@ export async function runScholarFetch(
     // money was spent whether or not the run finished.
     const errorText = describeError(err);
     const creditsUsed = Math.round(progress.creditsUsed);
+    if (pendingBindAttempt) {
+      // This run searched, spent, and never reached a verdict on the binding
+      // — the profile fetch threw, the profile turned out to be linked to
+      // someone else, or the page was a wall. NO BINDING WAS RECORDED, which
+      // is the right outcome, but the money is gone and the daily cap has to
+      // see it or the loop is free to repeat.
+      await recordScholarBindAttempt({
+        userId,
+        facultyMemberId: member.id,
+        url: pendingBindAttempt.url,
+        scholarProfileId: pendingBindAttempt.scholarProfileId,
+        outcome: 'FAILED',
+        profileName: null,
+        creditsUsed: bindDecisionCredits,
+        errorText,
+      });
+    }
     await finaliseRun(run.id, {
       status: 'FAILED',
       errorText,
@@ -1098,6 +1661,43 @@ const bindInputSchema = z.object({
   boundById: z.string().min(1),
 });
 
+/**
+ * Provenance for a binding that a MACHINE resolved rather than a human
+ * asserted. Present only on the auto path, and its presence is what switches
+ * the audit action verb to `auto-bind` / `auto-rebind`.
+ *
+ * Every field answers a question asked after a wrong import surfaces:
+ * `searchedName` and `searchUrl` say what was asked; `via` and `matchedName`
+ * say which card, anchor or profile name won and how; `version` and
+ * `parserVersion` say under which rules, so a later rule change is
+ * distinguishable from a bad reading of the same rules; and `fetchRunId`
+ * points at the `ScholarFetchArchive` row holding the actual page, which is
+ * what makes the decision RE-READABLE rather than merely re-describable.
+ */
+export type ScholarAutoBindProvenance = {
+  /** `SCHOLAR_RESOLUTION_VERSION` — the ruleset that decided. */
+  version: string;
+  /** `SCHOLAR_SEARCH_PARSER_VERSION` — what read the search page. */
+  parserVersion: string;
+  /** The name put into `?q=`. */
+  searchedName: string;
+  /** The search URL, including whether `as_vis` was set. */
+  searchUrl: string;
+  /** How the id was reached. See `ScholarBindingVia`. */
+  via: ScholarBindingVia;
+  /** The card, anchor or profile name that won. */
+  matchedName: string;
+  /** Ids fetched to disambiguate. Empty on every other path.
+   *  Always present, and an ARRAY rather than an optional or a null, because
+   *  this object is written straight into `payloadJson`: Prisma's
+   *  `InputJsonValue` rejects `undefined`-valued properties, and `null` needs
+   *  a sentinel. An empty array says "no disambiguation happened" just as
+   *  clearly and survives the round trip. */
+  candidateIds: string[];
+  /** The run whose archive holds the page this was decided from. */
+  fetchRunId: string;
+};
+
 export interface BindScholarProfileInput {
   facultyMemberId: string;
   /** The profile URL a human pasted. The profile id is derived from it. */
@@ -1105,6 +1705,18 @@ export interface BindScholarProfileInput {
   boundById: string;
   /** Same injected ScrapingBee wrapper the runner takes — see the header. */
   fetchPage: ScholarPageFetcher;
+  /**
+   * Page 1 of the profile, when the caller already holds it.
+   *
+   * Supplied by the runner on the auto-bind path, where it has just fetched
+   * that exact page: without it, verification would fetch the same URL a
+   * second time and bill another 15 credits on every first-time sync. It also
+   * removes any possibility of the runner's own header and name checks and
+   * this function's verification disagreeing — they read the same bytes.
+   */
+  pageHtml?: string;
+  /** Set when a machine resolved this binding. See the type. */
+  resolution?: ScholarAutoBindProvenance;
   now?: Date;
 }
 
@@ -1121,14 +1733,19 @@ export interface BindScholarProfileResult {
  * Link a Google Scholar profile to a staff record, after VERIFYING that the
  * profile's own name matches the person it is being attached to.
  *
- * The verification is the point. Scholar's author search
- * (`view_op=search_authors`) is behind a mandatory Google sign-in wall —
- * verified across proxies, render_js settings and countries, with the real
- * response committed as a fixture — so name matching cannot drive discovery.
- * It can, and does, drive the one moment a human asserts an identity: the
- * page fetched here is page 1 of the publication list, so the check costs no
- * extra request, and a mismatch refuses the bind rather than silently
- * attaching a stranger's papers to a Council-facing research record.
+ * The verification is the point, and it is the SAME verification on both
+ * paths into this function — a human pasting a URL, and the runner recording
+ * an id its name search resolved. The page checked is page 1 of the
+ * publication list (supplied by the runner, fetched here for a paste), so the
+ * check costs no extra request, and a mismatch refuses the bind rather than
+ * silently attaching a stranger's papers to a Council-facing research record.
+ *
+ * Scholar's AUTHOR search (`view_op=search_authors`) really is behind a
+ * mandatory Google sign-in wall — verified across proxies, render_js settings
+ * and countries, with the real response committed as a fixture. What changed
+ * on 2026-09-09 is that the ARTICLE search (`/scholar?q=`) is not, and it
+ * carries profile ids; that is what the runner's search branch resolves
+ * against. Do not read the walled-endpoint finding as covering both.
  *
  * The profile id is derived from the URL rather than accepted as a separate
  * parameter, so the two can never disagree in the stored row.
@@ -1195,7 +1812,14 @@ export async function bindScholarProfile(
     );
   }
 
-  const pageOne = await input.fetchPage(buildScholarProfilePageUrl(scholarProfileId, 0));
+  // A caller that already holds page 1 hands it over rather than paying for
+  // it twice — see `pageHtml`. Credits are then zero because THIS call
+  // fetched nothing; the fetch that produced the page is already in the
+  // caller's own ledger, and adding it here would double-count it.
+  const pageOne =
+    typeof input.pageHtml === 'string'
+      ? { html: input.pageHtml, creditsUsed: 0 }
+      : await input.fetchPage(buildScholarProfilePageUrl(scholarProfileId, 0));
   const creditsUsed =
     typeof pageOne.creditsUsed === 'number' && Number.isFinite(pageOne.creditsUsed)
       ? Math.round(pageOne.creditsUsed)
@@ -1233,10 +1857,29 @@ export async function bindScholarProfile(
     },
   });
 
+  // A MACHINE-RESOLVED BINDING IS NOT A HUMAN ASSERTION, and the distinction
+  // lives in `action` — the column an auditor filters on — not only in the
+  // payload. Burying it in `payloadJson` would mean the obvious query, "who
+  // bound this person's profile and when", returns a row that reads exactly
+  // like someone pasting their own URL. A distinct verb makes "show me every
+  // binding a machine chose" a `WHERE action LIKE 'scholar.profile.auto-%'`,
+  // which is the query actually run the day a wrong import surfaces.
+  //
+  // `boundById` stays the triggering actor: a human did press the button.
+  // The verb is what stops that reading as "this person asserted the identity".
+  const rebind = Boolean(member.scholarProfileId);
+  const action = input.resolution
+    ? rebind
+      ? 'scholar.profile.auto-rebind'
+      : 'scholar.profile.auto-bind'
+    : rebind
+      ? 'scholar.profile.rebind'
+      : 'scholar.profile.bind';
+
   await prisma.auditLog.create({
     data: {
       userId: boundById,
-      action: member.scholarProfileId ? 'scholar.profile.rebind' : 'scholar.profile.bind',
+      action,
       entityType: 'FacultyMember',
       entityId: facultyMemberId,
       payloadJson: {
@@ -1246,6 +1889,7 @@ export async function bindScholarProfile(
         profileNames,
         previousScholarProfileId: member.scholarProfileId,
         previousScholarProfileUrl: member.scholarProfileUrl,
+        ...(input.resolution ? { resolution: input.resolution } : {}),
       },
     },
   });

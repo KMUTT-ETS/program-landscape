@@ -106,6 +106,44 @@ export interface ScholarBindAttemptSummary {
  *
  * SUPER_ADMIN is exempt, matching decideScholarQuota's posture.
  */
+export interface ScholarBindAttemptFilter {
+  userId: string;
+  createdAt: { gte: Date };
+  OR: ({ creditsUsed: { gt: number } } | { outcome: 'REFUSED' })[];
+}
+
+/**
+ * Which recorded bind attempts count against a person's daily allowance.
+ *
+ * Everything that SPENT, plus every REFUSED attempt whether it spent or not.
+ * The refusals are the point of the cap — a name mismatch is billed in full,
+ * and "no staff record, try again, try again" is the same button in the same
+ * loop even though it costs nothing.
+ *
+ * What does NOT count is a zero-cost FAILED attempt, which in practice means
+ * exactly one thing: SCRAPINGBEE_API_KEY is unset. Those rows are still
+ * written — a fresh deploy whose key was never filled in must not present as
+ * a silently inert button — but charging them to the user would mean five
+ * clicks against a broken deploy locked them out of binding for a day after
+ * the operator fixed it. Our fault, our cost.
+ *
+ * Lives HERE, next to `decideScholarBindQuota` and the window it shares,
+ * because it has two callers with no common ancestor otherwise: the API's
+ * bind endpoint and status route, and the fetch runner in packages/db, which
+ * since 2026-09-09 meters its 75-credit name search against this same cap —
+ * a name search is a bind attempt, not a fetch. Two copies of the filter
+ * would mean the number a user is shown and the number enforced against them
+ * could drift apart. Returns a plain object rather than a Prisma type so this
+ * package stays free of the ORM.
+ */
+export function scholarBindQuotaWhere(userId: string, now: Date): ScholarBindAttemptFilter {
+  return {
+    userId,
+    createdAt: { gte: new Date(now.getTime() - BIND_WINDOW_MS) },
+    OR: [{ creditsUsed: { gt: 0 } }, { outcome: 'REFUSED' }],
+  };
+}
+
 export function decideScholarBindQuota(input: {
   actorRole: string;
   attempts: ScholarBindAttemptSummary[];

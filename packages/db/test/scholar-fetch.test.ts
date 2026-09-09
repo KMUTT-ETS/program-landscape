@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   researchOutputUpdateMany: vi.fn(),
   cacheUpdateMany: vi.fn(),
   auditLogCreate: vi.fn(),
+  bindAttemptFindMany: vi.fn(),
+  bindAttemptCreate: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -54,6 +56,10 @@ vi.mock('../src/index', () => ({
     },
     userPublicationsCache: { updateMany: mocks.cacheUpdateMany },
     auditLog: { create: mocks.auditLogCreate },
+    scholarBindAttempt: {
+      findMany: mocks.bindAttemptFindMany,
+      create: mocks.bindAttemptCreate,
+    },
     $transaction: mocks.transaction,
   },
 }));
@@ -64,6 +70,8 @@ import {
   SCHOLAR_PAGE_SIZE,
   bindScholarProfile,
   buildScholarProfilePageUrl,
+  buildScholarProfileUrl,
+  buildScholarSearchUrl,
   inMemoryScholarRoster,
   resolveScholarFacultyMember,
   resolveScholarMember,
@@ -116,6 +124,119 @@ function pageResult(html: string, creditsUsed: number | null = 1): ScholarPageRe
   return { html, creditsUsed };
 }
 
+// ── Search-page fixtures ────────────────────────────────────────────────────
+// Shape taken from the VERIFIED structure documented in
+// packages/shared/src/scholar/search-parse.ts, which was itself read off the
+// real ScrapingBee captures under packages/shared/test/fixtures/scholar/.
+// The runner parses these with the SHIPPED parser — it is not injectable —
+// so markup that drifted from the real thing fails these tests immediately
+// rather than passing against a stub.
+
+const RESOLVED_ID = 'RESOLVED123';
+
+/** One article result. `authorLink` makes the first author a profile anchor. */
+function hitRow(opts: {
+  title: string;
+  authors: string;
+  year: number;
+  authorLink?: { name: string; id: string };
+}): string {
+  const linked = opts.authorLink
+    ? `<a href="/citations?user=${opts.authorLink.id}&hl=en&oi=sra">${opts.authorLink.name}</a>, `
+    : '';
+  return (
+    '<div class="gs_r gs_or gs_scl">' +
+    '<div class="gs_ri">' +
+    `<h3 class="gs_rt"><a href="https://example.org/p">${opts.title}</a></h3>` +
+    `<div class="gs_a">${linked}${opts.authors} - Journal of Testing, ${opts.year} - Elsevier</div>` +
+    '</div></div>'
+  );
+}
+
+/** The "User profiles for X" cluster. `names` gives one card each. */
+function profileCluster(cards: { id: string; name: string }[]): string {
+  const rows = cards
+    .map(
+      (c) =>
+        '<tr><td></td><td>' +
+        `<h4 class="gs_rt2"><a href="/citations?user=${c.id}&hl=en&oi=ao"><b>${c.name}</b></a></h4>` +
+        '<div class="gs_nph">Khon Kaen University</div>' +
+        '</td></tr>',
+    )
+    .join('');
+  return (
+    '<div class="gs_r">' +
+    '<h3 class="gs_rt"><a href="/citations?view_op=search_authors&mauthors=x">' +
+    'User profiles for <b>someone</b></a></h3>' +
+    `<table><tbody>${rows}</tbody></table>` +
+    '</div>'
+  );
+}
+
+function searchPage(opts: { cards?: { id: string; name: string }[]; rows?: string[] }): string {
+  return (
+    '<html><body>' +
+    (opts.cards && opts.cards.length > 0 ? profileCluster(opts.cards) : '') +
+    (opts.rows ?? []).join('') +
+    '</body></html>'
+  );
+}
+
+/** `SCHOLAR_SEARCH_PAGE_SIZE` rows — a FULL page, i.e. Scholar truncated. */
+function fullHitRows(authorLink?: { name: string; id: string }): string[] {
+  return Array.from({ length: 10 }, (_, i) =>
+    hitRow({ title: `Result ${i}`, authors: 'A Other', year: 2020, authorLink }),
+  );
+}
+
+/**
+ * A fetcher that answers `/scholar?q=` from `search` and every
+ * `/citations?user=` from `profiles`, keyed by profile id, and records every
+ * URL it was asked for. `Spb-Cost` is the REAL billing shape: 75 for a
+ * search, 15 for a profile page.
+ */
+function routedFetcher(opts: {
+  search: string[];
+  profiles: Record<string, string>;
+}): ReturnType<typeof vi.fn> & { urls: string[] } {
+  const urls: string[] = [];
+  let searchIndex = 0;
+  const fn = vi.fn(async (url: string): Promise<ScholarPageResult> => {
+    urls.push(url);
+    if (url.includes('/scholar?')) {
+      const html = opts.search[Math.min(searchIndex, opts.search.length - 1)] ?? '';
+      searchIndex += 1;
+      return pageResult(html, 75);
+    }
+    const id = new URL(url).searchParams.get('user') ?? '';
+    return pageResult(opts.profiles[id] ?? '<html><body></body></html>', 15);
+  });
+  return Object.assign(fn, { urls });
+}
+
+/** The staff record for someone who has never been bound. */
+function unboundMember(nameEn: string): ScholarFacultyMember {
+  return member({ nameEn, scholarProfileId: null });
+}
+
+/**
+ * The runner calls `bindScholarProfile`, which re-reads the staff record and
+ * checks for a conflicting binding. Point both at the same person.
+ */
+function expectBindableMember(m: ScholarFacultyMember): void {
+  mocks.facultyMemberFindMany.mockResolvedValue([m]);
+  mocks.facultyMemberFindUnique.mockResolvedValue({
+    id: m.id,
+    nameEn: m.nameEn,
+    nameTh: m.nameTh,
+    employeeId: m.employeeId,
+    scholarProfileId: m.scholarProfileId,
+    scholarProfileUrl: null,
+  });
+  mocks.facultyMemberFindFirst.mockResolvedValue(null); // nobody else holds it
+  mocks.facultyMemberUpdate.mockResolvedValue({ id: m.id });
+}
+
 /** A fetcher that must never be called — turns "no fetch happened" into an assertion. */
 function unreachableFetcher(): (url: string) => Promise<ScholarPageResult> {
   return vi.fn(async () => {
@@ -147,6 +268,9 @@ beforeEach(() => {
   mocks.archiveCreate.mockResolvedValue({ id: 'arch-1' });
   mocks.researchOutputFindMany.mockResolvedValue([]);
   mocks.cacheUpdateMany.mockResolvedValue({ count: 1 });
+  mocks.bindAttemptFindMany.mockResolvedValue([]); // no bind attempts today
+  mocks.bindAttemptCreate.mockResolvedValue({ id: 'bind-1' });
+  mocks.auditLogCreate.mockResolvedValue({ id: 'audit-1' });
   // The mocked $transaction resolves whatever the mocked query builders
   // returned, preserving order — enough to assert WHAT was applied.
   //
@@ -476,31 +600,374 @@ describe('runScholarFetch — quota', () => {
       triggeredById: 'admin-1',
       trigger: 'ADMIN',
       actorRole: 'ADMIN',
-      fetchPage: unreachableFetcher(),
+      // Unbound, so the run reaches the search branch and resolves nothing.
+      fetchPage: routedFetcher({ search: [searchPage({ rows: [] })], profiles: {} }),
       },
       { now: NOW },
     );
 
-    // Got past quota (refused later, for the unbound profile — a different reason).
+    // Got past quota (refused later, for the unresolved profile — a different reason).
     expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
   });
 });
 
 // ── 3. Binding gate ─────────────────────────────────────────────────────────
 
-describe('runScholarFetch — unbound profile', () => {
-  it('refuses with needs-binding, spends no credit, and consumes no quota', async () => {
-    mocks.facultyMemberFindMany.mockResolvedValue([member({ scholarProfileId: null })]);
-    const fetchPage = unreachableFetcher();
+describe('runScholarFetch — unbound profile is the SEARCH branch, not a refusal', () => {
+  it('searches by the English name, records what it resolved, then fetches that profile', async () => {
+    const m = unboundMember('Banchob Sripa');
+    expectBindableMember(m);
+    const fetchPage = routedFetcher({
+      search: [searchPage({ cards: [{ id: RESOLVED_ID, name: 'Banchob Sripa' }] })],
+      profiles: {
+        [RESOLVED_ID]: page(
+          [row({ paperId: 'p1', title: 'A paper', year: 2024, citations: 3 })],
+          'Banchob Sripa',
+        ),
+      },
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.papersInserted).toBe(1);
+
+    // Search first, with `as_vis=1` and the English name; then the profile.
+    expect(fetchPage.urls[0]).toBe(buildScholarSearchUrl('Banchob Sripa', { asVis: true }));
+    expect(fetchPage.urls[1]).toContain(`user=${RESOLVED_ID}`);
+
+    // The id was RECORDED, through the one binding write.
+    expect(mocks.facultyMemberUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scholarProfileId: RESOLVED_ID,
+          scholarProfileUrl: buildScholarProfileUrl(RESOLVED_ID),
+        }),
+      }),
+    );
+
+    // …and the run row now names the profile it actually scraped.
+    expect(mocks.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SUCCEEDED', scholarProfileId: RESOLVED_ID }),
+      }),
+    );
+  });
+
+  it('sums the REAL Spb-Cost — one 75-credit search plus 15 per profile page', async () => {
+    const m = unboundMember('Banchob Sripa');
+    expectBindableMember(m);
+    // Two profile pages: a full one, then a short one that ends the walk.
+    const fullProfile = page(
+      Array.from({ length: SCHOLAR_PAGE_SIZE }, (_, i) =>
+        row({ paperId: `p${i}`, title: `Paper ${i}`, year: 2020, citations: 1 }),
+      ),
+      'Banchob Sripa',
+    );
+    const shortProfile = page([row({ paperId: 'last', title: 'Last', year: 2021, citations: 1 })], 'Banchob Sripa');
+    let profileCall = 0;
+    const fetchPage = vi.fn(async (url: string): Promise<ScholarPageResult> => {
+      if (url.includes('/scholar?')) {
+        return pageResult(searchPage({ cards: [{ id: RESOLVED_ID, name: 'Banchob Sripa' }] }), 75);
+      }
+      profileCall += 1;
+      return pageResult(profileCall === 1 ? fullProfile : shortProfile, 15);
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 11 });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    // 75 + 15 + 15. Never pages × a constant — the two kinds are priced apart.
+    expect(result.creditsUsed).toBe(105);
+  });
+
+  it('records the binding as MACHINE-made, in the column an auditor filters on', async () => {
+    const m = unboundMember('Banchob Sripa');
+    expectBindableMember(m);
+    const fetchPage = routedFetcher({
+      search: [searchPage({ cards: [{ id: RESOLVED_ID, name: 'Banchob Sripa' }] })],
+      profiles: { [RESOLVED_ID]: page([], 'Banchob Sripa') },
+    });
+
+    await runScholarFetch(
+      { userId: USER_ID, triggeredById: 'admin-1', trigger: 'ADMIN', actorRole: 'ADMIN', fetchPage },
+      { now: NOW },
+    );
+
+    const audit = mocks.auditLogCreate.mock.calls[0]![0] as {
+      data: { action: string; userId: string; payloadJson: Record<string, unknown> };
+    };
+    // The verb, not a buried flag: `WHERE action LIKE 'scholar.profile.auto-%'`
+    // has to be the query that finds every machine-chosen binding.
+    expect(audit.data.action).toBe('scholar.profile.auto-bind');
+    // The actor still owns it — a human pressed the button.
+    expect(audit.data.userId).toBe('admin-1');
+
+    const resolution = audit.data.payloadJson.resolution as Record<string, unknown>;
+    expect(resolution).toMatchObject({
+      version: 'scholar-resolution.v1',
+      parserVersion: 'scholar-search-parse.v1',
+      searchedName: 'Banchob Sripa',
+      searchUrl: buildScholarSearchUrl('Banchob Sripa', { asVis: true }),
+      via: 'primary-card',
+      matchedName: 'Banchob Sripa',
+      candidateIds: [],
+      // Ties the decision to the archived page, so it is re-readable and not
+      // merely re-describable.
+      fetchRunId: 'run-1',
+    });
+  });
+
+  it('verifies against the page it already fetched rather than paying for it twice', async () => {
+    const m = unboundMember('Banchob Sripa');
+    expectBindableMember(m);
+    const fetchPage = routedFetcher({
+      search: [searchPage({ cards: [{ id: RESOLVED_ID, name: 'Banchob Sripa' }] })],
+      profiles: { [RESOLVED_ID]: page([], 'Banchob Sripa') },
+    });
+
+    await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    // One search, one profile page. A second fetch of the SAME profile URL
+    // would be `bindScholarProfile` verifying for itself — 15 credits for
+    // bytes we already held, on every first-time sync.
+    expect(fetchPage.urls).toHaveLength(2);
+  });
+
+  it('takes a byline anchor when there is no profile card, without paying for a probe', async () => {
+    const m = unboundMember('Prinya Chindaprasirt');
+    expectBindableMember(m);
+    // A FULL page with no cluster — which alone would earn the 75-credit
+    // probe — but one byline anchor names the person we searched for.
+    const fetchPage = routedFetcher({
+      search: [searchPage({ rows: fullHitRows({ name: 'P Chindaprasirt', id: RESOLVED_ID }) })],
+      profiles: { [RESOLVED_ID]: page([], 'Prinya Chindaprasirt') },
+    });
+
+    await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    expect(mocks.facultyMemberUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ scholarProfileId: RESOLVED_ID }) }),
+    );
+    const audit = mocks.auditLogCreate.mock.calls[0]![0] as { data: { payloadJson: { resolution: { via: string } } } };
+    expect(audit.data.payloadJson.resolution.via).toBe('byline-link');
+    // Exactly one search: the byline check is free and runs before the probe.
+    expect(fetchPage.urls.filter((u) => u.includes('/scholar?'))).toHaveLength(1);
+  });
+
+  it('probes without as_vis on a FULL page, and only once', async () => {
+    const m = unboundMember('Somchai Jaidee');
+    expectBindableMember(m);
+    // Full page, no cluster, and every byline anchor is a co-author — so the
+    // probe is earned. The probe comes back full and empty-handed too; asking
+    // a third time would be another 75 credits for the same answer.
+    const stubborn = searchPage({ rows: fullHitRows({ name: 'A Other', id: 'COAUTHOR1' }) });
+    const fetchPage = routedFetcher({ search: [stubborn, stubborn], profiles: {} });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    const searches = fetchPage.urls.filter((u) => u.includes('/scholar?'));
+    expect(searches).toHaveLength(2);
+    expect(searches[0]).toContain('as_vis=1');
+    expect(searches[1]).not.toContain('as_vis');
+    expect(result.creditsUsed).toBe(150);
+    expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
+  });
+
+  it('does NOT probe on a short page — Scholar already returned everything it had', async () => {
+    const m = unboundMember('Somchai Jaidee');
+    expectBindableMember(m);
+    const fetchPage = routedFetcher({
+      search: [searchPage({ rows: [hitRow({ title: 'Only one', authors: 'A Other', year: 2020 })] })],
+      profiles: {},
+    });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    expect(fetchPage.urls.filter((u) => u.includes('/scholar?'))).toHaveLength(1);
+    expect(result.creditsUsed).toBe(75);
+  });
+
+  it('fetches at most three candidates when several cards come back', async () => {
+    const m = unboundMember('Somchai Jaidee');
+    expectBindableMember(m);
+    const fetchPage = routedFetcher({
+      search: [
+        searchPage({
+          cards: [
+            { id: 'CAND1', name: 'Another Person' },
+            { id: 'CAND2', name: 'Different Human' },
+            { id: 'CAND3', name: 'Third Party' },
+            { id: 'CAND4', name: 'Fourth Wheel' },
+          ],
+        }),
+      ],
+      profiles: {
+        CAND1: page([], 'Another Person'),
+        CAND2: page([], 'Somchai Jaidee'), // the real one, found by primary name
+        CAND3: page([], 'Third Party'),
+        CAND4: page([], 'Should Never Be Fetched'),
+      },
+    });
+
+    await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    // Three candidate profiles at 15 credits each, on people we already
+    // suspect are not ours. The fourth card is never fetched.
+    //
+    // The CAP itself lives in `resolveScholarProfile` and is mutation-tested
+    // there; what this asserts is that the runner spends one profile fetch
+    // per id it was handed and no more — plus one for the winner's own list.
+    const candidateFetches = fetchPage.urls.filter((u) => /user=CAND[0-9]/.test(u));
+    expect(candidateFetches).toHaveLength(4); // CAND1, CAND2, CAND3, then CAND2's list
+    expect(fetchPage.urls.filter((u) => u.includes('user=CAND4'))).toHaveLength(0);
+    expect(fetchPage.urls.filter((u) => u.includes('user=CAND1'))).toHaveLength(1);
+    expect(mocks.facultyMemberUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ scholarProfileId: 'CAND2' }) }),
+    );
+    const audit = mocks.auditLogCreate.mock.calls[0]![0] as {
+      data: { payloadJson: { resolution: { via: string; candidateIds: string[] } } };
+    };
+    expect(audit.data.payloadJson.resolution.via).toBe('primary-name');
+    expect(audit.data.payloadJson.resolution.candidateIds).toEqual(['CAND1', 'CAND2', 'CAND3']);
+  });
+});
+
+// ── 3b. A search that resolves nothing ──────────────────────────────────────
+
+describe('runScholarFetch — the search resolved no profile', () => {
+  const nothingFetcher = () =>
+    routedFetcher({
+      search: [searchPage({ rows: [hitRow({ title: 'A namesake paper', authors: 'A Other', year: 2020 })] })],
+      profiles: {},
+    });
+
+  it('records NO binding, and writes no ResearchOutput', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
 
     const result = await runScholarFetch(
       {
-      userId: USER_ID,
-      triggeredById: USER_ID,
-      trigger: 'SELF',
-      actorRole: 'ANALYST',
-      fetchPage,
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: nothingFetcher(),
       },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('REFUSED');
+    expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
+    // The two writes that would constitute a binding.
+    expect(mocks.facultyMemberUpdate).not.toHaveBeenCalled();
+    expect(mocks.auditLogCreate).not.toHaveBeenCalled();
+    // And nothing was imported from the article rows — they may be namesakes'
+    // and they carry no scholarPaperId to merge on.
+    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps the 75 credits and the page they bought', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: nothingFetcher(),
+      },
+      { now: NOW },
+    );
+
+    expect(result.creditsUsed).toBe(75);
+    // The page a 75-credit search bought is the one someone will want to read.
+    expect(mocks.archiveCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'REFUSED', creditsUsed: 75 }) }),
+    );
+  });
+
+  it('says how many article results came back, so "unreachable" reads differently from "unresolvable"', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
+
+    await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: nothingFetcher(),
+      },
+      { now: NOW },
+    );
+
+    const finalise = mocks.runUpdate.mock.calls.at(-1)![0] as { data: { errorText: string } };
+    expect(finalise.data.errorText).toContain('Somchai Jaidee');
+    expect(finalise.data.errorText).toContain('1 article result');
+    expect(finalise.data.errorText).toContain('Paste the profile URL');
+  });
+
+  it('meters the spend against the daily BIND cap, not the 30-day fetch allowance', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
+
+    await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: nothingFetcher(),
+      },
+      { now: NOW },
+    );
+
+    // REFUSED is the status `decideScholarQuota` ignores — so the user can
+    // paste their URL and sync straight away, rather than being locked out
+    // for a month for not being findable on Google.
+    expect(mocks.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'REFUSED' }) }),
+    );
+    // The money is metered where it belongs: this WAS a bind attempt.
+    expect(mocks.bindAttemptCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ outcome: 'REFUSED', creditsUsed: 75, scholarProfileId: null }),
+      }),
+    );
+  });
+
+  it('refuses before spending anything once the daily bind cap is exhausted', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
+    mocks.bindAttemptFindMany.mockResolvedValue(
+      Array.from({ length: 5 }, () => ({ createdAt: new Date(NOW.getTime() - 3600_000) })),
+    );
+    const fetchPage = unreachableFetcher();
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
       { now: NOW },
     );
 
@@ -508,13 +975,109 @@ describe('runScholarFetch — unbound profile', () => {
     expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
     expect(result.creditsUsed).toBe(0);
     expect(fetchPage).not.toHaveBeenCalled();
-    expect(mocks.archiveCreate).not.toHaveBeenCalled();
-    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+    // No attempt row for an attempt that never happened — writing one would
+    // make tomorrow's allowance smaller than the cap says it is.
+    expect(mocks.bindAttemptCreate).not.toHaveBeenCalled();
+    expect(result.retryAt).toBeInstanceOf(Date);
+  });
+});
 
-    // REFUSED is the status the quota unit ignores, so the month is intact.
-    expect(mocks.runUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'REFUSED' }) }),
+// ── 3c. A search that FAILS ─────────────────────────────────────────────────
+
+describe('runScholarFetch — the search itself failed', () => {
+  it('writes no ResearchOutput and records no binding', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
+    const fetchPage = vi.fn(async () => {
+      throw new Error('ScrapingBee returned HTTP 500 (reason: Server responded with 403)');
+    });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
     );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.reason).toContain('403');
+    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+    expect(mocks.researchOutputUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.facultyMemberUpdate).not.toHaveBeenCalled();
+    expect(mocks.auditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('records the spend as a FAILED bind attempt when the profile fetch dies after the search', async () => {
+    expectBindableMember(unboundMember('Banchob Sripa'));
+    const fetchPage = vi.fn(async (url: string): Promise<ScholarPageResult> => {
+      if (url.includes('/scholar?')) {
+        return pageResult(searchPage({ cards: [{ id: RESOLVED_ID, name: 'Banchob Sripa' }] }), 75);
+      }
+      throw new Error('ScrapingBee timed out');
+    });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    // No binding — the profile never came back, so nothing verified it.
+    expect(mocks.facultyMemberUpdate).not.toHaveBeenCalled();
+    // But the 75 credits are gone, and the cap has to see them or the loop
+    // is free to repeat.
+    expect(mocks.bindAttemptCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ outcome: 'FAILED', creditsUsed: 75, scholarProfileId: RESOLVED_ID }),
+      }),
+    );
+  });
+
+  it('refuses the import when the resolved profile already belongs to someone else', async () => {
+    expectBindableMember(unboundMember('Banchob Sripa'));
+    // The conflict check inside `bindScholarProfile`, which is why the bind
+    // runs BEFORE the merge: two people sharing one Scholar profile is always
+    // a mistake, and importing first would attach the papers to both.
+    mocks.facultyMemberFindFirst.mockResolvedValue({ id: 'fm-other', nameEn: 'Someone Else', nameTh: '' });
+    const fetchPage = routedFetcher({
+      search: [searchPage({ cards: [{ id: RESOLVED_ID, name: 'Banchob Sripa' }] })],
+      profiles: {
+        [RESOLVED_ID]: page([row({ paperId: 'p1', title: 'A paper', year: 2024, citations: 3 })], 'Banchob Sripa'),
+      },
+    });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('FAILED');
+    expect(result.reason).toContain('Someone Else');
+    expect(mocks.researchOutputCreateMany).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+});
+
+// ── 3d. The bound path is untouched ─────────────────────────────────────────
+
+describe('runScholarFetch — a bound profile still goes straight to the profile', () => {
+  it('never searches, never binds, and spends only profile-page credits', async () => {
+    const fetchPage = routedFetcher({
+      search: ['<html><body>MUST NOT BE FETCHED</body></html>'],
+      profiles: { [PROFILE_ID]: page([row({ paperId: 'p1', title: 'A paper', year: 2024, citations: 2 })]) },
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+
+    const result = await runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('SUCCEEDED');
+    expect(fetchPage.urls.every((u) => u.includes('/citations'))).toBe(true);
+    expect(mocks.bindAttemptFindMany).not.toHaveBeenCalled();
+    expect(mocks.bindAttemptCreate).not.toHaveBeenCalled();
+    expect(mocks.facultyMemberUpdate).not.toHaveBeenCalled();
+    expect(mocks.auditLogCreate).not.toHaveBeenCalled();
+    expect(result.creditsUsed).toBe(15);
   });
 });
 
@@ -1162,8 +1725,8 @@ describe('runScholarFetch — bookkeeping failures', () => {
     expect(result.reason).not.toContain('database is down');
   });
 
-  it('does not escape when the unbound-profile refusal cannot be written', async () => {
-    mocks.facultyMemberFindMany.mockResolvedValue([member({ scholarProfileId: null })]);
+  it('does not escape when the unresolved-profile refusal cannot be written', async () => {
+    expectBindableMember(unboundMember('Somchai Jaidee'));
     mocks.runUpdate.mockRejectedValue(new Error('write failed'));
 
     const result = await runScholarFetch(
@@ -1172,7 +1735,28 @@ describe('runScholarFetch — bookkeeping failures', () => {
         triggeredById: USER_ID,
         trigger: 'SELF',
         actorRole: 'ANALYST',
-        fetchPage: unreachableFetcher(),
+        fetchPage: routedFetcher({ search: [searchPage({ rows: [] })], profiles: {} }),
+      },
+      { now: NOW },
+    );
+
+    expect(result.status).toBe('REFUSED');
+    expect(result.reason).toBe(SCHOLAR_NEEDS_BINDING);
+  });
+
+  it('does not escape when the bind-attempt row cannot be written either', async () => {
+    // Same posture as `finaliseRun`: bookkeeping about money already spent
+    // must not replace the real answer with a database error.
+    expectBindableMember(unboundMember('Somchai Jaidee'));
+    mocks.bindAttemptCreate.mockRejectedValue(new Error('bind ledger write failed'));
+
+    const result = await runScholarFetch(
+      {
+        userId: USER_ID,
+        triggeredById: USER_ID,
+        trigger: 'SELF',
+        actorRole: 'ANALYST',
+        fetchPage: routedFetcher({ search: [searchPage({ rows: [] })], profiles: {} }),
       },
       { now: NOW },
     );

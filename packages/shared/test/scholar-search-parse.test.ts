@@ -9,7 +9,7 @@
 // which is the only case where the raw and filtered row counts diverge.
 // Everything else is a real Scholar response.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   SCHOLAR_SEARCH_PAGE_SIZE,
@@ -252,5 +252,65 @@ describe('parseScholarSearchPage', () => {
       rawRowCount: 0,
       pageWasFull: false,
     });
+  });
+});
+
+// ── Placement ───────────────────────────────────────────────────────────────
+
+describe('the import path the runner uses, and the boundary it must not cross', () => {
+  const pkgPath = join(__dirname, '..', 'package.json');
+  const exportsMap = ((): Record<string, string> => {
+    const pkg: unknown = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    return (pkg as { exports?: Record<string, string> }).exports ?? {};
+  })();
+
+  // Measured from packages/db on 2026-09-09, all four ways round:
+  //   @kku/shared/scholar/search-parse      — resolves at RUNTIME, TS2307 in tsc
+  //   @kku/shared/src/scholar/search-parse  — typechecks, ERR_PACKAGE_PATH_NOT_EXPORTED at runtime
+  // Neither spelling worked in both worlds, so the deep one is listed as a key
+  // in its own right. Same failure pair, same workaround, as ./src/scholar/resolve.
+  it('lists the deep `src/` spelling, which is the only one that both typechecks and resolves', () => {
+    expect(exportsMap['./src/scholar/search-parse']).toBe('./src/scholar/search-parse.ts');
+  });
+
+  it('keeps the short spelling too — it is what a bundler-resolution consumer uses', () => {
+    expect(exportsMap['./scholar/search-parse']).toBe('./src/scholar/search-parse.ts');
+  });
+
+  it('stays off both barrels, which is what actually keeps cheerio out of a client bundle', async () => {
+    // The exports map was never the guarantee — `./scholar/search-parse` has
+    // been in it from the start, so a bundler could always reach cheerio
+    // through it. The guarantee is this: the module is not re-exported, so no
+    // `import … from '@kku/shared'` in a client component pulls it in.
+    const barrel: Record<string, unknown> = await import('../src/index');
+    expect(Object.keys(barrel)).not.toContain('parseScholarSearchPage');
+    const scholarBarrel: Record<string, unknown> = await import('../src/scholar/index');
+    expect(Object.keys(scholarBarrel)).not.toContain('parseScholarSearchPage');
+  });
+
+  it('is imported by no app — the risk the map cannot guard', () => {
+    // Guards the ACTUAL risk rather than a proxy for it. apps/web is the one
+    // that matters (its client components reach the barrel), but a server-only
+    // import from apps/api or apps/ingestion is fine and would show up here as
+    // a deliberate change to this list rather than as a silent one.
+    //
+    // Walked with fs rather than shelled out to grep: this repo's primary dev
+    // machine is Windows (see CLAUDE.md), so a test that needs a POSIX binary
+    // passes here and fails there.
+    const appsDir = join(__dirname, '..', '..', '..', 'apps');
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === 'dist') continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (/\.tsx?$/.test(entry.name) && readFileSync(full, 'utf-8').includes('scholar/search-parse')) {
+          offenders.push(full);
+        }
+      }
+    };
+    walk(appsDir);
+    expect(offenders).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import {
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
   SCHOLAR_LEDGER_LOOKBACK_MS,
   decideScholarBindQuota,
+  scholarBindQuotaWhere,
   decideScholarQuota,
 } from '../src/scholar/quota';
 
@@ -158,5 +159,38 @@ describe('decideScholarBindQuota', () => {
     const attempts = Array.from({ length: 50 }, (_, i) => ({ createdAt: hoursAgo(i % 20) }));
     expect(decideScholarBindQuota({ actorRole: 'SUPER_ADMIN', attempts, now: NOW }).allowed).toBe(true);
     expect(DEFAULT_SCHOLAR_BIND_MAX_PER_DAY).toBe(5);
+  });
+});
+
+describe('scholarBindQuotaWhere', () => {
+  const NOW_WHERE = new Date('2026-09-09T12:00:00.000Z');
+
+  it('counts everything that spent, plus every refusal whether it spent or not', () => {
+    expect(scholarBindQuotaWhere('u1', NOW_WHERE).OR).toEqual([
+      { creditsUsed: { gt: 0 } },
+      { outcome: 'REFUSED' },
+    ]);
+  });
+
+  it('bounds the read to the same 24h window the decision measures over', () => {
+    // Read a shorter window than the decision uses and the cap silently sees
+    // fewer attempts than exist, letting a sixth through.
+    const where = scholarBindQuotaWhere('u1', NOW_WHERE);
+    expect(where.userId).toBe('u1');
+    expect(where.createdAt.gte).toEqual(new Date(NOW_WHERE.getTime() - 24 * 60 * 60 * 1000));
+  });
+
+  it('is ONE definition — the API bind endpoint and the fetch runner share it', () => {
+    // A 75-credit name search in packages/db is a bind attempt, not a fetch,
+    // and is metered here. Two copies of this filter would let the number a
+    // user is shown and the number enforced against them drift apart.
+    const attempts = [{ createdAt: new Date(NOW_WHERE.getTime() - 3600_000) }];
+    const a = scholarBindQuotaWhere('u1', NOW_WHERE);
+    const b = scholarBindQuotaWhere('u1', NOW_WHERE);
+    expect(a).toEqual(b);
+    expect(
+      decideScholarBindQuota({ actorRole: 'FACULTY_USER', attempts, now: NOW_WHERE, maxPerDay: 1 })
+        .allowed,
+    ).toBe(false);
   });
 });
