@@ -1639,7 +1639,11 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
   const dq = await dqCompetencyDriver({ scope: 'program', scopeId: programId });
   if (dq) drivers.push(dq);
 
-  return summariseDrivers('outcomes', drivers);
+  // Omitted, not null: from v5.0 summariseDrivers pads any canonical
+  // driver a scorer did not build, so without this the non-bachelor
+  // omission above would come back as a missing driver and dock
+  // completeness for an instrument that cannot apply.
+  return summariseDrivers('outcomes', drivers, dq ? [] : ['dq_digital_competency']);
 }
 
 // Sweet-spot scoring for further-study rate. Both extremes are
@@ -1679,7 +1683,20 @@ async function scoreOutcomesScope(
   const dq = await dqCompetencyDriver({ scope, scopeId });
   if (dq) drivers.push(dq);
 
-  return summariseDrivers('outcomes', drivers);
+  // v5.0: neither job relevance nor further study has an aggregate column
+  // in the materialised view, and the TCAS min-score percentile is a
+  // per-program peer-subject comparison. All three were simply absent at
+  // scope while the dimension still reported 100% complete, leaving
+  // faculty outcomes +9.3 pts above its program mean.
+  const programIds = await collectProgramIdsForScope(scopeId, scope);
+  const index = await getProgramScoreIndex();
+  drivers.push(
+    rolledUpDriver(index, programIds, 'outcomes', 'job_relevance'),
+    rolledUpDriver(index, programIds, 'outcomes', 'further_study_rate'),
+    rolledUpDriver(index, programIds, 'outcomes', 'tcas_min_score_percentile'),
+  );
+
+  return summariseDrivers('outcomes', drivers, dq ? [] : ['dq_digital_competency']);
 }
 
 // ── student_satisfaction driver (added v3.7) ─────────────────────────
