@@ -503,13 +503,37 @@ function accMeans(acc: DimAcc): ProgramDimensionMeans {
   };
 }
 
-async function _computeProgramDimensionAveragesImpl(): Promise<ProgramDimensionAverages> {
+// ──────────────────────────────────────────────────────────────────────────
+// Program-score index (v5.0)
+//
+// One fan-out, two consumers: the deep-dive radar's dimension averages
+// and the scope scorers' driver rollups. Built over canonical+ACTIVE
+// programs only — the same population resolveChildren lists under a
+// faculty, so a faculty score rolls up exactly the programs shown
+// beneath it.
+//
+// MUST NOT be called from the program branch of computeHealthScores —
+// the index is built BY that branch, and calling it from there would
+// recurse forever.
+export interface ProgramScoreIndexEntry {
+  programId: string;
+  facultyId: string | null;
+  dimensions: HealthScoreRow['dimensions'];
+}
+export type ProgramScoreIndex = Map<string, ProgramScoreIndexEntry>;
+
+let _programIndexCache: { at: number; index: ProgramScoreIndex } | null = null;
+
+async function getProgramScoreIndex(): Promise<ProgramScoreIndex> {
+  const now = Date.now();
+  if (_programIndexCache && now - _programIndexCache.at < PROGRAM_AVG_TTL_MS) {
+    return _programIndexCache.index;
+  }
   const programs = await prisma.program.findMany({
+    where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
     select: { id: true, facultyId: true },
   });
-  const uni = freshAcc();
-  const byFaculty = new Map<string, DimAcc>();
-
+  const index: ProgramScoreIndex = new Map();
   for (let i = 0; i < programs.length; i += PROGRAM_AVG_CONCURRENCY) {
     const slice = programs.slice(i, i + PROGRAM_AVG_CONCURRENCY);
     const scored = await Promise.all(
@@ -521,18 +545,65 @@ async function _computeProgramDimensionAveragesImpl(): Promise<ProgramDimensionA
     );
     for (const { p, row } of scored) {
       if (!row) continue;
-      accAdd(uni, row.dimensions);
-      if (p.facultyId) {
-        const facAcc = byFaculty.get(p.facultyId) ?? freshAcc();
-        accAdd(facAcc, row.dimensions);
-        byFaculty.set(p.facultyId, facAcc);
-      }
+      index.set(p.id, { programId: p.id, facultyId: p.facultyId, dimensions: row.dimensions });
     }
   }
+  _programIndexCache = { at: now, index };
+  return index;
+}
 
+/**
+ * Drop the memoised index. MUST be called in test `beforeEach` — the memo
+ * is per-process, so without this a later test reads the program set a
+ * previous test mocked, and the failure looks like a scorer bug.
+ */
+export function invalidateProgramScoreIndexCache(): void {
+  _programIndexCache = null;
+  _programAvgCache = null;
+}
+
+// Mean of the non-null program-level values of one driver across a
+// program set. Null (never 0) when no program carries it — a data gap is
+// not a bad score, the same rule every scorer uses.
+function rolledUpDriver(
+  index: ProgramScoreIndex,
+  programIds: readonly string[],
+  dimension: HealthDimension,
+  label: string,
+): HealthScore['drivers'][number] {
+  const values: number[] = [];
+  for (const id of programIds) {
+    const entry = index.get(id);
+    if (!entry) continue;
+    const v = entry.dimensions[dimension].drivers.find((d) => d.label === label)?.value;
+    if (v !== null && v !== undefined) values.push(v);
+  }
+  const value = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  return {
+    label,
+    value: value === null ? null : clamp(value),
+    raw: { rolledUp: true, fromPrograms: values.length, ofPrograms: programIds.length },
+  };
+}
+
+/** Test-only seam. */
+export const rolledUpDriverForTest = rolledUpDriver;
+
+async function _computeProgramDimensionAveragesImpl(): Promise<ProgramDimensionAverages> {
+  const index = await getProgramScoreIndex();
+  const uni = freshAcc();
+  const byFaculty = new Map<string, DimAcc>();
+  for (const entry of index.values()) {
+    accAdd(uni, entry.dimensions);
+    if (entry.facultyId) {
+      const facAcc = byFaculty.get(entry.facultyId) ?? freshAcc();
+      accAdd(facAcc, entry.dimensions);
+      byFaculty.set(entry.facultyId, facAcc);
+    }
+  }
   return {
     methodologyVersion: HEALTH_SCORE_VERSION,
-    programCount: programs.length,
+    programCount: index.size,
     university: accMeans(uni),
     byFaculty: Object.fromEntries(
       [...byFaculty.entries()].map(([fid, acc]) => [fid, accMeans(acc)]),

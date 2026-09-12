@@ -77,12 +77,20 @@ vi.mock('../src/scope', async () => {
 import {
   computeHealthScores,
   DIMENSION_DRIVERS,
+  invalidateProgramScoreIndexCache,
+  rolledUpDriverForTest,
   summariseDriversForTest,
+  type HealthScore,
+  type ProgramScoreIndex,
 } from '../src/health-score';
 import { invalidateAcademicYearCache } from '../src/academic-year';
 
 beforeEach(() => {
   invalidateAcademicYearCache();
+  // The program-score index memo is per-process. Without this a later
+  // test reads the program set an earlier test mocked, and the failure
+  // looks like a scorer bug.
+  invalidateProgramScoreIndexCache();
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.kmitlDemandFindMany.mockResolvedValue([]);
   mocks.programSkillFindMany.mockResolvedValue([]);
@@ -152,5 +160,64 @@ describe('summariseDrivers — absent drivers count against completeness', () =>
       { label: 'not_a_real_driver', value: 100, raw: null },
     ]);
     expect(result.drivers.map((d) => d.label)).toContain('not_a_real_driver');
+  });
+});
+
+// ── rolledUpDriver ────────────────────────────────────────────────────
+
+/** Minimal 5-dimension shape with one driver planted on `relevance`. */
+function entryWithPedagogyFit(programId: string, value: number | null): {
+  programId: string;
+  facultyId: string | null;
+  dimensions: Record<'attractiveness' | 'financial' | 'capability' | 'outcomes' | 'relevance', HealthScore>;
+} {
+  const empty: HealthScore = { score: null, dataCompletenessPct: 0, drivers: [] };
+  return {
+    programId,
+    facultyId: 'fac-1',
+    dimensions: {
+      attractiveness: empty,
+      financial: empty,
+      capability: empty,
+      outcomes: empty,
+      relevance: {
+        score: value,
+        dataCompletenessPct: value === null ? 0 : 100,
+        drivers: [{ label: 'pedagogical_fit', value, raw: null }],
+      },
+    },
+  };
+}
+
+describe('rolledUpDriver', () => {
+  const index: ProgramScoreIndex = new Map([
+    ['p1', entryWithPedagogyFit('p1', 90)],
+    ['p2', entryWithPedagogyFit('p2', 70)],
+    ['p3', entryWithPedagogyFit('p3', null)],
+  ]);
+
+  it('averages non-null program driver values and records the sample', () => {
+    const d = rolledUpDriverForTest(index, ['p1', 'p2', 'p3'], 'relevance', 'pedagogical_fit');
+    expect(d.label).toBe('pedagogical_fit');
+    // (90 + 70) / 2 — p3's null is excluded, never counted as 0.
+    expect(d.value).toBe(80);
+    expect(d.raw).toEqual({ rolledUp: true, fromPrograms: 2, ofPrograms: 3 });
+  });
+
+  it('is null — never 0 — when no program carries the driver', () => {
+    const d = rolledUpDriverForTest(index, ['p3'], 'relevance', 'pedagogical_fit');
+    expect(d.value).toBeNull();
+    expect(d.raw).toEqual({ rolledUp: true, fromPrograms: 0, ofPrograms: 1 });
+  });
+
+  it('is null for an empty program set', () => {
+    const d = rolledUpDriverForTest(index, [], 'relevance', 'pedagogical_fit');
+    expect(d.value).toBeNull();
+  });
+
+  it('ignores program ids absent from the index', () => {
+    const d = rolledUpDriverForTest(index, ['p1', 'ghost'], 'relevance', 'pedagogical_fit');
+    expect(d.value).toBe(90);
+    expect(d.raw).toEqual({ rolledUp: true, fromPrograms: 1, ofPrograms: 2 });
   });
 });
