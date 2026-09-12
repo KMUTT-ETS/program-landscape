@@ -1003,7 +1003,7 @@ async function scoreAttractivenessScope(
   const fillRate = seats > 0 ? passed / seats : null;
   const yieldRate = sendCh > 0 ? regReported / sendCh : null;
 
-  const drivers = [
+  const drivers: HealthScore['drivers'] = [
     {
       label: 'tcas_competition_ratio',
       value: competitionRatio === null
@@ -1040,6 +1040,20 @@ async function scoreAttractivenessScope(
       raw: { regReported, sendCh, yieldRate },
     },
   ];
+
+  // v5.0: the three per-program drivers roll up from the program scores.
+  // Their calibration cannot be reused against a faculty-wide total — a
+  // subject-peer percentile, a ±5 students/yr slope and a per-level
+  // intake floor are all per-program quantities. Before this the scope
+  // scorer kept only the three aggregate TCAS ratios, which are the HIGH
+  // ones, so faculty attractiveness read +25.8 pts above its program mean.
+  const programIds = await collectProgramIdsForScope(scopeId, scope);
+  const index = await getProgramScoreIndex();
+  drivers.push(
+    rolledUpDriver(index, programIds, 'attractiveness', 'tcas_competition_vs_peers'),
+    rolledUpDriver(index, programIds, 'attractiveness', 'enrollment_trend_slope'),
+    rolledUpDriver(index, programIds, 'attractiveness', 'kku_intake_policy'),
+  );
   return summariseDrivers('attractiveness', drivers);
 }
 
