@@ -1940,14 +1940,20 @@ async function scoreRelevanceScope(
   const demandMatch =
     matchValues.length > 0 ? matchValues.reduce((a, b) => a + b, 0) / matchValues.length : null;
 
-  // Skip demographic + sector at scope level for v3.0 — they're
-  // per-program signals; the cockpit can roll them up explicitly when
-  // analyst surfaces require it.
+  // v5.0: the three per-program drivers are rolled up from the program
+  // scores rather than dropped. Before this, faculty relevance was the
+  // mean of ONE surviving low driver (labour_market_alignment, 8-20)
+  // while the three high ones were discarded — demographic resilience
+  // ~97, strategic sector ~100, pedagogical fit ~85. Every faculty
+  // therefore read 8-32 against a program mean of 68-83, a -56 pt
+  // dimension gap that dominated the cockpit's faculty composites.
+  const index = await getProgramScoreIndex();
   const drivers = [
     { label: 'labour_market_alignment', value: alignment === null ? null : clamp(alignment), raw: alignment },
     { label: 'demand_match_filled', value: demandMatch === null ? null : clamp(demandMatch), raw: demandMatch },
-    { label: 'demographic_resilience', value: null, raw: null },
-    { label: 'strategic_sector_alignment', value: null, raw: null },
+    rolledUpDriver(index, programIds, 'relevance', 'demographic_resilience'),
+    rolledUpDriver(index, programIds, 'relevance', 'strategic_sector_alignment'),
+    rolledUpDriver(index, programIds, 'relevance', 'pedagogical_fit'),
   ];
   return summariseDrivers('relevance', drivers);
 }

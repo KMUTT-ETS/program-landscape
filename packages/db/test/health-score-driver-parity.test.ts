@@ -253,3 +253,62 @@ describe('collectProgramIdsForScope — canonical+active only', () => {
     }
   });
 });
+
+// ── relevance at scope ────────────────────────────────────────────────
+
+describe('scoreRelevanceScope — no longer drops the per-programme drivers', () => {
+  it('carries all five canonical relevance drivers', async () => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
+    ]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([
+      { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
+    ]);
+    mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+    );
+
+    const rows = await computeHealthScores('university', null);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.dimensions.relevance.drivers.map((d) => d.label)).toEqual([
+        'labour_market_alignment',
+        'demand_match_filled',
+        'demographic_resilience',
+        'strategic_sector_alignment',
+        'pedagogical_fit',
+      ]);
+    }
+  });
+
+  it('rolls pedagogical_fit up as the mean of its programmes', async () => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
+    ]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([
+      { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
+      { id: 'prog-2', nameEn: 'B', nameTh: 'ข', facultyId: 'fac-1' },
+    ]);
+    mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+    );
+    // 90 for prog-1, 70 for prog-2 → rolled up to 80.
+    mocks.programPedagogyAssessmentFindUnique.mockImplementation(
+      ({ where }: { where: { programId: string } }) =>
+        Promise.resolve({
+          overallScore: where.programId === 'prog-1' ? 90 : 70,
+          disciplineFitScore: null,
+          qaScore: null,
+        }),
+    );
+
+    const rows = await computeHealthScores('university', null);
+    const fit = rows[0]!.dimensions.relevance.drivers.find((d) => d.label === 'pedagogical_fit');
+    expect(fit!.value).toBe(80);
+    expect(fit!.raw).toMatchObject({ rolledUp: true, fromPrograms: 2, ofPrograms: 2 });
+    // The dimension is no longer the mean of one surviving low driver.
+    expect(rows[0]!.dimensions.relevance.score).toBe(80);
+  });
+});
