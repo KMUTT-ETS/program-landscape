@@ -77,6 +77,8 @@ vi.mock('../src/scope', async () => {
 import {
   computeHealthScores,
   DIMENSION_DRIVERS,
+  DRIVER_NOT_COMPUTED,
+  HEALTH_DIMENSIONS,
   invalidateProgramScoreIndexCache,
   rolledUpDriverForTest,
   summariseDriversForTest,
@@ -125,6 +127,9 @@ describe('summariseDrivers — absent drivers count against completeness', () =>
     const padded = result.drivers.find((d) => d.label === 'pedagogical_fit');
     expect(padded).toBeDefined();
     expect(padded!.value).toBeNull();
+    // Marked, so "the scorer never built this" stays distinguishable from
+    // "computed, found no data".
+    expect(padded!.raw).toEqual(DRIVER_NOT_COMPUTED);
   });
 
   it('an explicitly omitted driver shrinks the denominator, not the score', () => {
@@ -393,5 +398,71 @@ describe('scoreFinancialScope', () => {
     expect(labels).toContain('revenue_coverage_program_direct');
     expect(labels).not.toContain('revenue_coverage_ratio');
     expect(labels).not.toContain('net_contribution_per_program');
+  });
+});
+
+// ── the guard ─────────────────────────────────────────────────────────
+//
+// The drift this whole change fixes was invisible for four minor versions
+// because nothing compared the two driver sets. This test is that
+// comparison. Add a driver to one scorer and not the other and it fails.
+
+describe('driver parity between program and scope scorers', () => {
+  // Documented, intentional asymmetries only. Adding an entry here is a
+  // methodology decision — say why.
+  const SCOPE_ONLY = new Set([
+    // ratio-of-sums analogue of revenue_coverage_program_direct; carrying
+    // both at one scope would weight cost coverage twice.
+    'revenue_coverage_ratio',
+    // "what does the average program contribute" is undefined for one.
+    'net_contribution_per_program',
+  ]);
+  const PROGRAM_ONLY = new Set([
+    // see revenue_coverage_ratio above.
+    'revenue_coverage_program_direct',
+  ]);
+
+  it('every canonical driver is reachable at both scopes', async () => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
+    ]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([
+      { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
+    ]);
+    mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+    );
+
+    const facultyRows = await computeHealthScores('university', null);
+    expect(facultyRows.length).toBeGreaterThan(0);
+    const faculty = facultyRows[0]!;
+    const programRows = await computeHealthScores('faculty', faculty.scopeId);
+    expect(programRows.length).toBeGreaterThan(0);
+    const program = programRows[0]!;
+
+    for (const dim of HEALTH_DIMENSIONS) {
+      const facLabels = new Set(faculty.dimensions[dim].drivers.map((d) => d.label));
+      const progLabels = new Set(program.dimensions[dim].drivers.map((d) => d.label));
+      for (const label of DIMENSION_DRIVERS[dim]) {
+        if (!SCOPE_ONLY.has(label)) {
+          expect(progLabels, `${dim}.${label} missing at program scope`).toContain(label);
+          // Presence of the LABEL proves nothing — summariseDrivers pads
+          // every canonical label, so the assertion above passes even for
+          // a driver no scorer builds. The marker is what has teeth.
+          expect(
+            faculty.dimensions[dim].drivers.find((d) => d.label === label)?.raw,
+            `${dim}.${label} is padded at faculty scope — the scope scorer never builds it`,
+          ).not.toEqual(DRIVER_NOT_COMPUTED);
+        }
+        if (!PROGRAM_ONLY.has(label)) {
+          expect(facLabels, `${dim}.${label} missing at faculty scope`).toContain(label);
+          expect(
+            program.dimensions[dim].drivers.find((d) => d.label === label)?.raw,
+            `${dim}.${label} is padded at program scope — the program scorer never builds it`,
+          ).not.toEqual(DRIVER_NOT_COMPUTED);
+        }
+      }
+    }
   });
 });

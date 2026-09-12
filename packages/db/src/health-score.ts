@@ -223,6 +223,18 @@ export type HealthDimension = (typeof HEALTH_DIMENSIONS)[number];
 // Adding a driver: add the label here AND to every scorer for that
 // dimension (program + scope), or pass it in `omittedLabels` where it
 // genuinely cannot apply.
+/**
+ * `raw` marker on a driver that `summariseDrivers` PADDED because the
+ * scorer for this scope never constructed it. Distinct from a computed
+ * driver that found no data (value null, raw carries the evidence):
+ * this one means the code path does not exist at this scope.
+ *
+ * The parity guard asserts no canonical driver carries it. Without a
+ * marker the guard is unfalsifiable — padding puts every canonical label
+ * in the list, so a label-presence assertion passes forever.
+ */
+export const DRIVER_NOT_COMPUTED = { notComputedAtThisScope: true } as const;
+
 export const DIMENSION_DRIVERS = {
   attractiveness: [
     'tcas_competition_ratio',
@@ -1081,7 +1093,7 @@ async function scoreFinancialProgram(
     prisma.program.findUnique({ where: { id: programId }, select: { level: true } }),
   ]);
   if (rows.length === 0) {
-    return summariseDrivers('financial', [], PROGRAM_FINANCIAL_OMITTED);
+    return noDataScore('financial', PROGRAM_FINANCIAL_OMITTED);
   }
   const num = (v: { toNumber: () => number } | unknown): number =>
     typeof v === 'number' ? v : (v as { toNumber: () => number }).toNumber();
@@ -1094,7 +1106,7 @@ async function scoreFinancialProgram(
   const currentAcademicYearCE = academicYearCtx.currentAcademicYearBE - 543;
   const pick = pickFinancialYear(rows, currentAcademicYearCE, (row) => num(row.tuitionRevenue));
   if (!pick.row) {
-    return summariseDrivers('financial', [], PROGRAM_FINANCIAL_OMITTED);
+    return noDataScore('financial', PROGRAM_FINANCIAL_OMITTED);
   }
   const head = pick.row;
   const tuition = num(head.tuitionRevenue);
@@ -1258,7 +1270,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   });
   const active = links.filter((l) => l.facultyMember.isActive);
   if (active.length === 0) {
-    return summariseDrivers('capability', []);
+    return noDataScore('capability');
   }
 
   // Latest-year enrolment + faculty discipline (drives the SFR band).
@@ -1423,13 +1435,7 @@ function scoreStudentFacultyRatio(ratio: number, band: SfrBand): number {
 async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise<HealthScore> {
   // Aggregate over all programs under this scope.
   const programIds = await collectProgramIdsForScope(scopeId, scope);
-  const driverLabels = [
-    'senior_rank_share',
-    'publications_per_faculty',
-    'retirement_horizon_5y',
-    'student_faculty_ratio',
-  ];
-  if (programIds.length === 0) return emptyScore(driverLabels);
+  if (programIds.length === 0) return noDataScore('capability');
 
   // SFR band selection at scope level:
   //   faculty / department → use that faculty's discipline band
@@ -1465,7 +1471,7 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
     if (l.facultyMember.isActive) distinctActive.set(l.facultyMember.id, l.facultyMember);
   }
   const active = [...distinctActive.values()];
-  if (active.length === 0) return emptyScore(driverLabels);
+  if (active.length === 0) return noDataScore('capability');
 
   const memberIds = active.map((m) => m.id);
   const currentYear = new Date().getUTCFullYear();
@@ -1996,7 +2002,7 @@ async function scoreRelevanceScope(
 ): Promise<HealthScore> {
   const programIds = await collectProgramIdsForScope(scopeId, scope);
   if (programIds.length === 0) {
-    return summariseDrivers('relevance', []);
+    return noDataScore('relevance');
   }
   const alignmentValues = programIds
     .map((id) => programAlignment.get(id))
@@ -2263,7 +2269,7 @@ function summariseDrivers(
   const resolved: HealthScore['drivers'] = [];
   for (const label of canonical) {
     if (omitted.has(label)) continue;
-    resolved.push(present.get(label) ?? { label, value: null, raw: null });
+    resolved.push(present.get(label) ?? { label, value: null, raw: DRIVER_NOT_COMPUTED });
   }
   // Anything a scorer emitted that is not canonical is a bug; keep it
   // visible rather than swallowing it.
@@ -2281,16 +2287,27 @@ function summariseDrivers(
   return { score: clamp(score), dataCompletenessPct: completeness, drivers: resolved };
 }
 
+// The scorer RAN and found nothing — every canonical driver explicitly
+// null, `raw` empty. Distinct from a driver `summariseDrivers` had to pad
+// because this scope's scorer does not implement it (DRIVER_NOT_COMPUTED).
+// Conflating the two would make the parity guard unfalsifiable.
+function noDataScore(
+  dimension: HealthDimension,
+  omittedLabels: readonly string[] = [],
+): HealthScore {
+  const omitted = new Set(omittedLabels);
+  return summariseDrivers(
+    dimension,
+    DIMENSION_DRIVERS[dimension]
+      .filter((label) => !omitted.has(label))
+      .map((label) => ({ label, value: null, raw: null })),
+    omittedLabels,
+  );
+}
+
 /** Test-only seam — `summariseDrivers` is module-private by design. */
 export const summariseDriversForTest = summariseDrivers;
 
-function emptyScore(labels: string[]): HealthScore {
-  return {
-    score: null,
-    dataCompletenessPct: 0,
-    drivers: labels.map((label) => ({ label, value: null, raw: null })),
-  };
-}
 
 function combineDimensions(dims: HealthScore[]): HealthScore {
   const nonNull = dims.filter((d) => d.score !== null);
