@@ -129,7 +129,28 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // band and the eligibility gates, and
 // `docs/methodologies/health-score.md` §v4.0 for the reasoning and the
 // measured drift across all 301 programmes.
-export const HEALTH_SCORE_VERSION = 'health-score.v4.0';
+//
+// v5.0 (2026-09-12) — SCOPE DRIVER PARITY. The faculty/department/
+// university scorers had drifted 2-4 drivers behind the program scorers
+// since v3.0: relevance hardcoded two drivers to null and never
+// implemented a third, financial ran on two drivers the program scorer
+// does not have and none of the four it does, attractiveness kept only
+// its three aggregate TCAS ratios, outcomes dropped job relevance,
+// further study and the TCAS percentile. Measured 2026-09-12, every one
+// of 24 faculties scored BELOW its program mean — 11.6 pts on average,
+// 28.5 at worst — with relevance alone at -56.4. Capability, the only
+// dimension already at parity, was also the only one that agreed (+0.4).
+//
+// Drivers whose calibration is per-program (absolute THB/yr slopes,
+// per-level revenue targets, intake floors, peer-subject percentiles)
+// now roll up as the mean of their program values; drivers whose scale
+// is scope-invariant stay ratio-of-sums, which weights by program size.
+// dataCompletenessPct now counts drivers a scorer never built, so the
+// three dimensions that reported 100% while missing half their inputs
+// report honestly. Composites above program scope MOVE. See
+// `docs/methodologies/health-score.md` and
+// `docs/superpowers/plans/2026-09-12-health-score-scope-driver-parity.md`.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.0';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +

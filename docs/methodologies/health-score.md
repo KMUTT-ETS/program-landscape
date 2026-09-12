@@ -1,8 +1,38 @@
 # Health score methodology
 
-**Version:** `health-score.v4.0`
-**Reviewed:** 2026-08-25
+**Version:** `health-score.v5.0`
+**Reviewed:** 2026-09-12
 **Owner:** KKU Data Office
+
+**v5.0 (2026-09-12): scope driver parity, and a completeness figure that
+can see a missing driver.**
+
+Faculty, department and university scores are computed by a different set
+of scorers than programme scores. Those scope scorers were written at
+v3.0 and never kept up as drivers were added through v3.6, v3.7 and v4.0,
+so they had quietly been scoring on 2-4 of the 5-7 drivers their
+programme counterparts use. Nothing surfaced it, because
+`dataCompletenessPct` was computed over the drivers a scorer *constructed*
+— so a scorer that simply never built a driver reported 100% complete
+while missing half its inputs.
+
+Measured 2026-09-12, every one of 24 faculties scored **below** its
+programme mean: 11.6 pts on average, 28.5 at worst. Relevance alone ran
+-56.4, because two of its drivers were hardcoded to null at scope level
+and a third was never implemented there. Capability, the only dimension
+already carrying identical drivers at both scopes, was also the only one
+that agreed — +0.4.
+
+v5.0 brings the sets to parity. A driver whose calibration is
+per-programme rolls up as the mean of its programme values; a driver
+whose scale is scope-invariant is computed as ratio-of-sums, which
+weights by programme size. `dataCompletenessPct` now counts a driver a
+scorer never built, so three dimensions that claimed 100% now report
+honestly. **Composites above programme scope move**, generally upward.
+See the "Cross-scope consistency" note below for the measured before and
+after, and
+`docs/superpowers/plans/2026-09-12-health-score-scope-driver-parity.md`
+for the per-driver decisions.
 
 **v4.0 (2026-08-25): the Outcomes dimension gains `dq_digital_competency`.**
 
@@ -561,7 +591,10 @@ on.
 
 ### Does this bump `HEALTH_SCORE_VERSION`?
 
-**No.** It stays `health-score.v4.0`.
+**No.** A Google Scholar coverage change does not move the version. (The
+version did later move to `health-score.v5.0`, for an unrelated reason —
+the scope driver-parity fix, which *is* a formula change. The reasoning
+below is about coverage, and still applies.)
 
 The case *for* bumping is real and worth stating: the score's inputs can now
 change without any formula change, purely because someone pressed a button, so
@@ -682,12 +715,38 @@ score at the time it was displayed stays stamped on it.
 - **No longitudinal comparison.** v1 scores are point-in-time.
   Trend-over-time comes with the scenario planner in prompt 09 where
   users actually want it.
-- **Cross-scope consistency not asserted.** A faculty's composite
-  score is NOT mathematically guaranteed to equal the weighted average
-  of its departments' composites (they're each computed independently
-  from the MV rollups at that level). For this v1 the divergence is
-  typically small; a future version may enforce bottom-up consistency
-  explicitly.
+- **Cross-scope consistency not asserted.** A faculty's composite score
+  is NOT mathematically guaranteed to equal the weighted average of its
+  programmes' composites — each is computed at its own scope.
+
+  This caveat was materially understated before `health-score.v5.0`. The
+  scope scorers had drifted 2-4 drivers behind the programme scorers
+  since v3.0, so the gap was not "typically small" but large and
+  one-sided: measured 2026-09-12, **all 24 faculties scored BELOW their
+  programme mean**, by 11.6 pts on average and up to 28.5. The relevance
+  dimension alone ran -56.4, because two of its drivers were hardcoded
+  to null at scope level and a third was never implemented there.
+  Capability — the one dimension already carrying the same drivers at
+  both scopes — was also the only one that agreed, at +0.4.
+
+  v5.0 brings the driver sets to parity. Drivers whose calibration is
+  per-programme (absolute THB/yr slopes, per-level revenue targets,
+  intake floors, peer-subject percentiles) roll up as the mean of their
+  programme values. Drivers whose scale is scope-invariant stay
+  ratio-of-sums. After the change 1 of 24 faculties exceeds a 10-pt
+  divergence, the mean gap is ~3.9, and the direction is no longer
+  uniform — 7 faculties now score above their bottom-up mean.
+
+  **The residual divergence is intended and should not be driven to
+  zero.** Ratio-of-sums weights by programme size: a faculty whose total
+  tuition covers 61.7% of its total cost reads exactly that, even where
+  the mean of its per-programme coverage ratios reads 80.0, because a
+  7-student programme should not count as much as a 700-student one.
+
+  Run `pnpm consistency:check` for the current per-faculty position; it
+  writes `CrossScopeDivergenceSnapshot` rows so the trend is visible over
+  time. Snapshots written before v5.0 describe the old methodology and
+  carry the bundle tag that says so.
 
 ## Sanity checks the scoring service enforces at compute time
 

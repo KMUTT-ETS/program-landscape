@@ -26,6 +26,23 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-12',
+    version: 'v1.9.3 \u00b7 Faculty health scores now use the same measures as programme scores',
+    title:
+      'A faculty was being scored on fewer measures than the programmes inside it, which pushed every faculty score below what its own programmes showed \u2014 all 24 of them',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'A programme\u2019s health score and a faculty\u2019s health score are produced by different calculations. The faculty one had not kept up: as new measures were added to the programme score over the past months, several were never added to the faculty score, and two were left switched off. A faculty was being scored on as few as 2 of the 7 measures its programmes use.',
+      'The effect was one-directional, which is how it was eventually noticed. Every one of the 24 faculties scored below the average of its own programmes \u2014 by 11.6 points on average and by as much as 28.5. A difference that always runs the same way is not rounding; it is something missing.',
+      'The Relevance dimension was the worst affected, running 56 points low. Of its five measures, only one was active at faculty level, and it happened to be the lowest-scoring one \u2014 so faculties were being judged almost entirely on their weakest relevance signal while the strong ones were ignored.',
+      'Capability was the one dimension already using the same measures at both levels, and it was also the only one that matched, to within half a point. That is what confirmed the cause.',
+      'Faculty, department and university health scores have therefore moved, and mostly upward. Programme scores are unchanged \u2014 nothing about how a programme is scored has changed, and the five dimensions and their weights are the same as before.',
+      'Faculty scores are still not simply the average of their programmes, and deliberately so. Where a measure can be totalled honestly across a faculty \u2014 how much of the faculty\u2019s cost its tuition covers, for instance \u2014 it is totalled, which weights each programme by its size. A 7-student programme should not count as much as a 700-student one. Where a measure only makes sense per programme, the faculty figure is the average of its programmes.',
+      'The data-completeness figure shown beside each score was also wrong, and in the direction that mattered least helpfully: it only counted measures the calculation had tried to compute, so a dimension missing half its inputs still reported 100% complete. It now counts what is missing, so some dimensions honestly show lower completeness than they did last week. Nothing got worse \u2014 the figure is simply telling the truth now.',
+      'The methodology version moves to health-score.v5.0, and the published methodology paper (Docs \u2192 Methodology, Thai and English) records the change, the before-and-after measurements, and which measures are totalled versus averaged.',
+    ],
+  },
+  {
     date: '2026-09-09',
     version: 'v1.9.2 \u00b7 Your own publication record, pulled from Google Scholar',
     title:
