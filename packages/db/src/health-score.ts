@@ -205,6 +205,65 @@ export const HEALTH_DIMENSIONS = [
 ] as const;
 export type HealthDimension = (typeof HEALTH_DIMENSIONS)[number];
 
+// ──────────────────────────────────────────────────────────────────────────
+// Canonical driver registry (v5.0)
+//
+// The authoritative list of drivers each dimension can carry, at ANY
+// scope. `summariseDrivers` pads canonical labels a scorer did not
+// construct with an explicit null entry and counts them against
+// dataCompletenessPct.
+//
+// WHY THIS EXISTS: before v5.0 completeness was nonNull/constructed, so a
+// scorer that simply never built a driver reported 100% complete while
+// missing half its inputs. The faculty-scope scorers had drifted 2-4
+// drivers behind the program scorers since v3.0 and nothing surfaced it.
+// A driver added here but forgotten in a scorer now shows up as a
+// completeness drop instead of vanishing silently.
+//
+// Adding a driver: add the label here AND to every scorer for that
+// dimension (program + scope), or pass it in `omittedLabels` where it
+// genuinely cannot apply.
+export const DIMENSION_DRIVERS = {
+  attractiveness: [
+    'tcas_competition_ratio',
+    'tcas_fill_rate',
+    'tcas_registration_yield',
+    'tcas_competition_vs_peers',
+    'enrollment_trend_slope',
+    'kku_intake_policy',
+  ],
+  financial: [
+    'net_contribution_per_student',
+    'revenue_coverage_program_direct',
+    'revenue_coverage_ratio',
+    'net_contribution_per_program',
+    'tuition_trend_slope',
+    'revenue_scale',
+  ],
+  capability: [
+    'senior_rank_share',
+    'publications_per_faculty',
+    'retirement_horizon_5y',
+    'student_faculty_ratio',
+  ],
+  outcomes: [
+    'tcas_min_score_percentile',
+    'employment_rate',
+    'job_relevance',
+    'average_salary',
+    'further_study_rate',
+    'student_satisfaction',
+    'dq_digital_competency',
+  ],
+  relevance: [
+    'labour_market_alignment',
+    'demand_match_filled',
+    'demographic_resilience',
+    'strategic_sector_alignment',
+    'pedagogical_fit',
+  ],
+} as const satisfies Record<HealthDimension, readonly string[]>;
+
 export const HealthScoreSchema = z.object({
   // null when every underlying metric was null — never 0.
   score: z.number().min(0).max(100).nullable(),
@@ -843,7 +902,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       })(),
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('attractiveness', drivers);
 }
 
 async function scoreAttractivenessScope(
@@ -910,7 +969,7 @@ async function scoreAttractivenessScope(
       raw: { regReported, sendCh, yieldRate },
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('attractiveness', drivers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -929,12 +988,7 @@ async function scoreFinancialProgram(
     prisma.program.findUnique({ where: { id: programId }, select: { level: true } }),
   ]);
   if (rows.length === 0) {
-    return emptyScore([
-      'net_contribution_per_student',
-      'revenue_coverage_program_direct',
-      'tuition_trend_slope',
-      'revenue_scale',
-    ]);
+    return summariseDrivers('financial', []);
   }
   const num = (v: { toNumber: () => number } | unknown): number =>
     typeof v === 'number' ? v : (v as { toNumber: () => number }).toNumber();
@@ -947,12 +1001,7 @@ async function scoreFinancialProgram(
   const currentAcademicYearCE = academicYearCtx.currentAcademicYearBE - 543;
   const pick = pickFinancialYear(rows, currentAcademicYearCE, (row) => num(row.tuitionRevenue));
   if (!pick.row) {
-    return emptyScore([
-      'net_contribution_per_student',
-      'revenue_coverage_program_direct',
-      'tuition_trend_slope',
-      'revenue_scale',
-    ]);
+    return summariseDrivers('financial', []);
   }
   const head = pick.row;
   const tuition = num(head.tuitionRevenue);
@@ -1028,7 +1077,7 @@ async function scoreFinancialProgram(
       raw: { latestAnnualRevenueThb: tuition, level: programMeta?.level ?? null },
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('financial', drivers);
 }
 
 function scoreFinancialScope(row: MetricRow | null): HealthScore {
@@ -1051,7 +1100,7 @@ function scoreFinancialScope(row: MetricRow | null): HealthScore {
       raw: row?.tuitionRevenueTotal,
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('financial', drivers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1074,12 +1123,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   });
   const active = links.filter((l) => l.facultyMember.isActive);
   if (active.length === 0) {
-    return emptyScore([
-      'senior_rank_share',
-      'publications_per_faculty',
-      'retirement_horizon_5y',
-      'student_faculty_ratio',
-    ]);
+    return summariseDrivers('capability', []);
   }
 
   // Latest-year enrolment + faculty discipline (drives the SFR band).
@@ -1165,7 +1209,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
       },
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('capability', drivers);
 }
 
 // ── Discipline-aware student-per-faculty ratio scoring ────────────────
@@ -1333,7 +1377,7 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
       },
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('capability', drivers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1460,7 +1504,7 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
   const dq = await dqCompetencyDriver({ scope: 'program', scopeId: programId });
   if (dq) drivers.push(dq);
 
-  return summariseDrivers(drivers);
+  return summariseDrivers('outcomes', drivers);
 }
 
 // Sweet-spot scoring for further-study rate. Both extremes are
@@ -1500,7 +1544,7 @@ async function scoreOutcomesScope(
   const dq = await dqCompetencyDriver({ scope, scopeId });
   if (dq) drivers.push(dq);
 
-  return summariseDrivers(drivers);
+  return summariseDrivers('outcomes', drivers);
 }
 
 // ── student_satisfaction driver (added v3.7) ─────────────────────────
@@ -1790,7 +1834,7 @@ async function scoreRelevanceProgram(
         : null,
     },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('relevance', drivers);
 }
 
 async function scoreRelevanceScope(
@@ -1800,12 +1844,7 @@ async function scoreRelevanceScope(
 ): Promise<HealthScore> {
   const programIds = await collectProgramIdsForScope(scopeId, scope);
   if (programIds.length === 0) {
-    return emptyScore([
-      'labour_market_alignment',
-      'demand_match_filled',
-      'demographic_resilience',
-      'strategic_sector_alignment',
-    ]);
+    return summariseDrivers('relevance', []);
   }
   const alignmentValues = programIds
     .map((id) => programAlignment.get(id))
@@ -1839,7 +1878,7 @@ async function scoreRelevanceScope(
     { label: 'demographic_resilience', value: null, raw: null },
     { label: 'strategic_sector_alignment', value: null, raw: null },
   ];
-  return summariseDrivers(drivers);
+  return summariseDrivers('relevance', drivers);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -2042,13 +2081,41 @@ function linearSlope(series: SeriesPoint[]): number {
   return num / den;
 }
 
-function summariseDrivers(drivers: HealthScore['drivers']): HealthScore {
-  const nonNull = drivers.filter((d) => d.value !== null);
-  const completeness = (nonNull.length / drivers.length) * 100;
-  if (nonNull.length === 0) return { score: null, dataCompletenessPct: 0, drivers };
+function summariseDrivers(
+  dimension: HealthDimension,
+  drivers: HealthScore['drivers'],
+  omittedLabels: readonly string[] = [],
+): HealthScore {
+  const canonical = DIMENSION_DRIVERS[dimension];
+  const omitted = new Set(omittedLabels);
+  const present = new Map(drivers.map((d) => [d.label, d]));
+
+  // Canonical order, padding anything the scorer never built. An omitted
+  // label is dropped entirely — it is not "missing data", it is an
+  // instrument that cannot apply at this scope/level.
+  const resolved: HealthScore['drivers'] = [];
+  for (const label of canonical) {
+    if (omitted.has(label)) continue;
+    resolved.push(present.get(label) ?? { label, value: null, raw: null });
+  }
+  // Anything a scorer emitted that is not canonical is a bug; keep it
+  // visible rather than swallowing it.
+  for (const d of drivers) {
+    if (!(canonical as readonly string[]).includes(d.label)) resolved.push(d);
+  }
+
+  const applicable = resolved.length;
+  const nonNull = resolved.filter((d) => d.value !== null);
+  const completeness = applicable > 0 ? (nonNull.length / applicable) * 100 : 0;
+  if (nonNull.length === 0) {
+    return { score: null, dataCompletenessPct: completeness, drivers: resolved };
+  }
   const score = nonNull.reduce((s, d) => s + (d.value ?? 0), 0) / nonNull.length;
-  return { score: clamp(score), dataCompletenessPct: completeness, drivers };
+  return { score: clamp(score), dataCompletenessPct: completeness, drivers: resolved };
 }
+
+/** Test-only seam — `summariseDrivers` is module-private by design. */
+export const summariseDriversForTest = summariseDrivers;
 
 function emptyScore(labels: string[]): HealthScore {
   return {

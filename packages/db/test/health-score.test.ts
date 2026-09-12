@@ -148,11 +148,10 @@ describe('computeHealthScores — null handling', () => {
   });
 
   it('attractiveness scope-level: no TCAS-funnel data → score null + completeness 0', async () => {
-    // Attractiveness scope-level driver set is {tcas_competition_ratio,
-    // tcas_fill_rate, tcas_registration_yield} — all read from
+    // The three aggregate TCAS drivers are read from
     // `admission_campaign_stats` via scopeFunnelLatestYear ($queryRaw).
     // When the mock returns no funnel rows (default `$queryRaw → []`),
-    // all three drivers resolve to null → completeness 0, score null.
+    // every driver resolves to null → completeness 0, score null.
     // This is the canonical "every null → null, never 0" assertion at
     // the attractiveness scope-fallback path.
     mocks.facultyFindMany.mockResolvedValue([
@@ -164,9 +163,20 @@ describe('computeHealthScores — null handling', () => {
     const attractiveness = rows[0]?.dimensions.attractiveness;
     expect(attractiveness?.dataCompletenessPct).toBe(0);
     expect(attractiveness?.score).toBe(null);
-    // The driver list shape is the contract: 3 named drivers, all null.
+    // The driver list shape is the contract: all SIX canonical
+    // attractiveness drivers, all null.
+    //
+    // This assertion used to name only the three aggregate TCAS ratios,
+    // which is how the scope-scorer driver drift stayed invisible for four
+    // minor versions — the test encoded the defect as the contract. From
+    // v5.0 `summariseDrivers` pads every canonical label, so a driver a
+    // scorer forgot to build shows up here and in dataCompletenessPct
+    // instead of vanishing.
     expect(attractiveness?.drivers.map((d) => d.label).sort()).toEqual([
+      'enrollment_trend_slope',
+      'kku_intake_policy',
       'tcas_competition_ratio',
+      'tcas_competition_vs_peers',
       'tcas_fill_rate',
       'tcas_registration_yield',
     ]);
