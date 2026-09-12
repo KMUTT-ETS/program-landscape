@@ -221,3 +221,35 @@ describe('rolledUpDriver', () => {
     expect(d.raw).toEqual({ rolledUp: true, fromPrograms: 1, ofPrograms: 2 });
   });
 });
+
+// ── scope program population ──────────────────────────────────────────
+
+describe('collectProgramIdsForScope — canonical+active only', () => {
+  it('filters to ACTIVE programmes carrying a sheet sequence number', async () => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
+    ]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([]);
+
+    await computeHealthScores('university', null);
+
+    // The scope scorers resolve their programme set through
+    // collectProgramIdsForScope, whose projection is exactly { id: true }.
+    // getProgramScoreIndex also selects facultyId, so this isolates the
+    // collector's calls.
+    const collectorCalls = mocks.programFindMany.mock.calls.filter(
+      ([args]) => args?.select?.id === true && args?.select?.facultyId === undefined,
+    );
+    expect(collectorCalls.length).toBeGreaterThan(0);
+    for (const [args] of collectorCalls) {
+      // Before v5.0 this counted retired and non-canonical rows the
+      // heatmap never showed, so the scope drivers averaged a different
+      // population than the row they rendered on.
+      expect(args.where).toMatchObject({
+        status: 'ACTIVE',
+        sequenceNoFromSheet: { not: null },
+      });
+    }
+  });
+});

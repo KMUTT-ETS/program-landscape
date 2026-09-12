@@ -2059,22 +2059,31 @@ async function computeRequiredShareAt10Y(
 
 async function collectProgramIdsForScope(scopeId: string, scope: ScopeLevel): Promise<string[]> {
   if (scope === 'program') return [scopeId];
+  // Canonical+ACTIVE only, matching resolveChildren — so a scope score
+  // aggregates exactly the programs listed beneath it. Before v5.0 this
+  // helper counted retired and non-canonical rows that the heatmap never
+  // showed, so the relevance and capability scope drivers averaged a
+  // different population than the row they appeared on.
+  const canonical = { status: 'ACTIVE' as const, sequenceNoFromSheet: { not: null } };
   if (scope === 'department') {
     const ps = await prisma.program.findMany({
-      where: { departmentId: scopeId },
+      where: { departmentId: scopeId, ...canonical },
       select: { id: true },
     });
     return ps.map((p) => p.id);
   }
   if (scope === 'faculty') {
     const ps = await prisma.program.findMany({
-      where: { OR: [{ facultyId: scopeId }, { department: { facultyId: scopeId } }] },
+      where: {
+        OR: [{ facultyId: scopeId }, { department: { facultyId: scopeId } }],
+        ...canonical,
+      },
       select: { id: true },
     });
     return ps.map((p) => p.id);
   }
   // university
-  const ps = await prisma.program.findMany({ select: { id: true } });
+  const ps = await prisma.program.findMany({ where: canonical, select: { id: true } });
   return ps.map((p) => p.id);
 }
 
