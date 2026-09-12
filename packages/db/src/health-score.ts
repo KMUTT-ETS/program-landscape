@@ -366,7 +366,7 @@ export async function computeHealthScores(
       : await scoreAttractivenessScope(childScope, child.id);
     const financial = isProgram
       ? await scoreFinancialProgram(child.id, enrollment)
-      : scoreFinancialScope(latestFinancial);
+      : await scoreFinancialScope(latestFinancial, childScope, child.id, enrollment);
     const capability = isProgram
       ? await scoreCapabilityProgram(child.id)
       : await scoreCapabilityScope(child.id, childScope);
@@ -1061,6 +1061,14 @@ async function scoreAttractivenessScope(
 // Financial — per-student contribution + cost coverage + tuition trend
 // ──────────────────────────────────────────────────────────────────────────
 
+// Scope-only financial drivers: `revenue_coverage_ratio` is the
+// ratio-of-sums analogue of the program scorer's
+// `revenue_coverage_program_direct`, and "what does the average program
+// contribute" is undefined for a single program. Omitted rather than
+// null so a program's dataCompletenessPct is not docked for drivers that
+// cannot apply to it.
+const PROGRAM_FINANCIAL_OMITTED = ['revenue_coverage_ratio', 'net_contribution_per_program'] as const;
+
 async function scoreFinancialProgram(
   programId: string,
   enrollment: MetricRow[],
@@ -1073,7 +1081,7 @@ async function scoreFinancialProgram(
     prisma.program.findUnique({ where: { id: programId }, select: { level: true } }),
   ]);
   if (rows.length === 0) {
-    return summariseDrivers('financial', []);
+    return summariseDrivers('financial', [], PROGRAM_FINANCIAL_OMITTED);
   }
   const num = (v: { toNumber: () => number } | unknown): number =>
     typeof v === 'number' ? v : (v as { toNumber: () => number }).toNumber();
@@ -1086,7 +1094,7 @@ async function scoreFinancialProgram(
   const currentAcademicYearCE = academicYearCtx.currentAcademicYearBE - 543;
   const pick = pickFinancialYear(rows, currentAcademicYearCE, (row) => num(row.tuitionRevenue));
   if (!pick.row) {
-    return summariseDrivers('financial', []);
+    return summariseDrivers('financial', [], PROGRAM_FINANCIAL_OMITTED);
   }
   const head = pick.row;
   const tuition = num(head.tuitionRevenue);
@@ -1162,11 +1170,24 @@ async function scoreFinancialProgram(
       raw: { latestAnnualRevenueThb: tuition, level: programMeta?.level ?? null },
     },
   ];
-  return summariseDrivers('financial', drivers);
+  return summariseDrivers('financial', drivers, PROGRAM_FINANCIAL_OMITTED);
 }
 
-function scoreFinancialScope(row: MetricRow | null): HealthScore {
-  const drivers = [
+async function scoreFinancialScope(
+  row: MetricRow | null,
+  scope: ScopeLevel,
+  scopeId: string,
+  enrollment: MetricRow[],
+): Promise<HealthScore> {
+  // Enrolment for the financial head year, falling back to the latest
+  // enrolment row — the MV pivots per family, so the financial row can
+  // carry a null enrolledTotal. Mirrors scoreFinancialProgram.
+  const enrolledHead =
+    (row ? enrollment.find((e) => e.year === row.year)?.enrolledTotal : null) ??
+    enrollment.at(-1)?.enrolledTotal ??
+    null;
+
+  const drivers: HealthScore['drivers'] = [
     {
       label: 'net_contribution_per_program',
       value: (() => {
@@ -1184,8 +1205,37 @@ function scoreFinancialScope(row: MetricRow | null): HealthScore {
       })(),
       raw: row?.tuitionRevenueTotal,
     },
+    {
+      // v5.0: ratio-of-sums, not a mean of per-program ratios — the
+      // ฿100k/student scale is scope-invariant, so aggregating weights by
+      // program size instead of letting a 7-student program count as much
+      // as a 700-student one.
+      label: 'net_contribution_per_student',
+      value: (() => {
+        if (row?.netContributionTotal === null || row?.netContributionTotal === undefined) return null;
+        if (!enrolledHead || enrolledHead === 0) return null;
+        const perStudent = row.netContributionTotal / enrolledHead;
+        return clamp(50 + (perStudent / 100_000) * 50);
+      })(),
+      raw: { netContributionTotal: row?.netContributionTotal ?? null, enrolled: enrolledHead },
+    },
   ];
-  return summariseDrivers('financial', drivers);
+
+  // v5.0: absolute-THB calibration cannot be reused at scope. ±฿500k/yr
+  // means "excellent" for one program and noise for a whole faculty, and
+  // revenue_scale is scored against a per-LEVEL target a faculty does not
+  // have. Both roll up from the program scores instead.
+  const programIds = await collectProgramIdsForScope(scopeId, scope);
+  const index = await getProgramScoreIndex();
+  drivers.push(
+    rolledUpDriver(index, programIds, 'financial', 'tuition_trend_slope'),
+    rolledUpDriver(index, programIds, 'financial', 'revenue_scale'),
+  );
+
+  // revenue_coverage_program_direct is deliberately NOT rolled up:
+  // revenue_coverage_ratio above is the same metric as ratio-of-sums, and
+  // carrying both would weight cost coverage twice in the mean.
+  return summariseDrivers('financial', drivers, ['revenue_coverage_program_direct']);
 }
 
 // ──────────────────────────────────────────────────────────────────────────

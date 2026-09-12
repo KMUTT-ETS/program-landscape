@@ -312,3 +312,86 @@ describe('scoreRelevanceScope — no longer drops the per-programme drivers', ()
     expect(rows[0]!.dimensions.relevance.score).toBe(80);
   });
 });
+
+// ── financial at scope ────────────────────────────────────────────────
+
+/** A MetricRow with only the fields the financial/enrolment paths read. */
+function metricRow(over: Record<string, unknown>): Record<string, unknown> {
+  return {
+    scope: 'faculty',
+    scopeId: 'fac-1',
+    year: 2025,
+    applicationsTotal: null,
+    admittedTotal: null,
+    enrolledTotal: null,
+    retainedYear2Total: null,
+    graduatedOnTimeTotal: null,
+    graduatedLateTotal: null,
+    dropoutsTotal: null,
+    tuitionRevenueTotal: null,
+    totalCostTotal: null,
+    netContributionTotal: null,
+    employmentRateWeighted: null,
+    averageSalaryWeighted: null,
+    programCount: 1,
+    latestFreshness: null,
+    ...over,
+  };
+}
+
+describe('scoreFinancialScope', () => {
+  beforeEach(() => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
+    ]);
+    mocks.programFindMany.mockResolvedValue([
+      { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
+    ]);
+    mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+    );
+  });
+
+  it('computes net_contribution_per_student as ratio-of-sums', async () => {
+    // ฿10,000,000 net over 100 students = ฿100k/student → the top of the
+    // scale (50 + 100k/100k * 50 = 100). Aggregating rather than averaging
+    // per-programme ratios is what stops a 7-student programme counting
+    // as much as a 700-student one.
+    mocks.queryMetricByScope.mockImplementation(({ family }: { family: string }) => {
+      if (family === 'financial') {
+        return Promise.resolve([metricRow({ netContributionTotal: 10_000_000, programCount: 2 })]);
+      }
+      if (family === 'enrollment') return Promise.resolve([metricRow({ enrolledTotal: 100 })]);
+      return Promise.resolve([]);
+    });
+
+    const rows = await computeHealthScores('university', null);
+    const perStudent = rows[0]!.dimensions.financial.drivers.find(
+      (d) => d.label === 'net_contribution_per_student',
+    );
+    expect(perStudent!.value).toBe(100);
+    expect(perStudent!.raw).toMatchObject({ netContributionTotal: 10_000_000, enrolled: 100 });
+  });
+
+  it('omits revenue_coverage_program_direct — revenue_coverage_ratio is the same metric aggregated', async () => {
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    const rows = await computeHealthScores('university', null);
+    const labels = rows[0]!.dimensions.financial.drivers.map((d) => d.label);
+    // Carrying both would weight cost coverage twice in the mean.
+    expect(labels).toContain('revenue_coverage_ratio');
+    expect(labels).not.toContain('revenue_coverage_program_direct');
+    expect(labels).toContain('tuition_trend_slope');
+    expect(labels).toContain('revenue_scale');
+    expect(labels).toContain('net_contribution_per_program');
+  });
+
+  it('the programme scorer omits the two scope-only drivers', async () => {
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    expect(rows.length).toBeGreaterThan(0);
+    const labels = rows[0]!.dimensions.financial.drivers.map((d) => d.label);
+    expect(labels).toContain('revenue_coverage_program_direct');
+    expect(labels).not.toContain('revenue_coverage_ratio');
+    expect(labels).not.toContain('net_contribution_per_program');
+  });
+});
