@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Card, EdgeGlow } from '@kku/ui';
 import { HeroBanner, type HeroBannerStat } from '@/components/hero-banner';
+import { DataSourceMark } from '@/components/data-source-mark';
 import {
   pickGreetingName,
   resolveUserChrome,
@@ -21,7 +22,6 @@ import {
   Database,
   FileSearch,
   FileText,
-  FileSpreadsheet,
   FileUp,
   GitBranch,
   Globe2,
@@ -512,7 +512,7 @@ function buildGroups({
       label: 'JobThai drops',
       description:
         'Upload the XLSX job-posting files JobThai sends. Each becomes a batch: postings are parsed, skills matched against the taxonomy, and occupations derived from the job categories. Gives province and industry-sector demand detail the LinkedIn-via-MHESI feed cannot.',
-      icon: <FileSpreadsheet className="size-icon-xl" />,
+      icon: <DataSourceMark source="jobthai" size={28} />,
     },
     {
       href: '/admin/pdf-review',

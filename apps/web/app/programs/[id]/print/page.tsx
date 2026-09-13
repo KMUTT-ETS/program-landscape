@@ -29,6 +29,7 @@ import { formatCohortChangePct } from '@/lib/format-cohort';
 // use. See `packages/shared/src/scholar/disclosure.ts`.
 import { scholarDisclosureLine } from '@kku/shared/scholar/disclosure';
 import { PrintButton } from './print-button';
+import { DriverSourceMark } from '@/components/data-source-mark';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Program detail report — print' };
@@ -616,7 +617,10 @@ function HealthDimRow({
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[0.7rem] text-text-tertiary">
           {populated.slice(0, 8).map((d, i) => (
             <li key={i} className="flex items-center justify-between gap-2">
-              <span className="truncate">{driverLabel(d.label)}</span>
+              <span className="flex min-w-0 items-center gap-1">
+                <DriverSourceMark label={d.label} size={11} />
+                <span className="truncate">{driverLabel(d.label)}</span>
+              </span>
               <span className="font-tabular text-text-secondary">
                 {d.value === null ? '—' : Math.round(d.value)}
               </span>
@@ -647,7 +651,9 @@ const DRIVER_LABELS: Record<string, string> = {
   curriculum_modernity: 'Curriculum modernity',
   skill_resilience_vs_ai: 'Skill resilience vs AI',
   ai_research_intensity: 'AI research intensity',
+  labour_market_alignment: 'Labour-market alignment (LinkedIn · global, 25%)',
   labour_market_alignment_kmitl: 'Labour-market alignment (LinkedIn · MHESI)',
+  jobthai_demand_alignment: 'Job-posting demand match (JobThai · domestic, 75%)',
 };
 function driverLabel(label: string): string {
   return DRIVER_LABELS[label] ?? label.replace(/_/g, ' ');

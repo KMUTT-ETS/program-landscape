@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { DATA_SOURCE_MARKS, DataSourceMark } from '@/components/data-source-mark';
 import {
   ArrowUpRight,
   Box,
@@ -1157,9 +1158,23 @@ function NodeGroup({
         style={{ fill: LANE_STRIPE[node.lane] }}
       />
 
+      {/* Upstream brand mark (e.g. JobThai) — sits before the label, which
+          shifts right and truncates shorter to make room. */}
+      {node.brand && (
+        <image
+          href={DATA_SOURCE_MARKS[node.brand].src}
+          x={14}
+          y={11}
+          width={14}
+          height={14}
+        >
+          <title>{`Data from ${DATA_SOURCE_MARKS[node.brand].name}`}</title>
+        </image>
+      )}
+
       {/* Label */}
       <text
-        x={14}
+        x={node.brand ? 33 : 14}
         y={22}
         style={{
           fontFamily: 'inherit',
@@ -1168,13 +1183,13 @@ function NodeGroup({
           fill: 'oklch(var(--color-text-primary))',
         }}
       >
-        {truncate(node.label, 28)}
+        {truncate(node.label, node.brand ? 25 : 28)}
       </text>
 
       {/* Subtitle */}
       {node.subtitle && (
         <text
-          x={14}
+          x={node.brand ? 33 : 14}
           y={40}
           style={{
             fontFamily: 'inherit',
@@ -1182,7 +1197,7 @@ function NodeGroup({
             fill: 'oklch(var(--color-text-tertiary))',
           }}
         >
-          {truncate(node.subtitle, 32)}
+          {truncate(node.subtitle, node.brand ? 29 : 32)}
         </text>
       )}
 
@@ -1373,7 +1388,8 @@ function NodeTooltip({
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
             {LANE_LABELS[node.lane].eyebrow}
           </div>
-          <div className="mt-1 text-[15px] font-semibold text-text-primary">
+          <div className="mt-1 flex items-center gap-1.5 text-[15px] font-semibold text-text-primary">
+            {node.brand && <DataSourceMark source={node.brand} size={16} />}
             {node.label}
           </div>
           {node.subtitle && (

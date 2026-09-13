@@ -30,6 +30,8 @@
 // node without a live badge.
 // ──────────────────────────────────────────────────────────────────────────
 
+import type { DataSourceMarkSlug } from '@/components/data-source-mark';
+
 export type NodeLane = 'external' | 'connector' | 'table' | 'ai' | 'dashboard';
 
 export type NodeKind =
@@ -62,6 +64,12 @@ export interface TopologyNode {
    * Surfaced as an inline vendor pill on the node (GEMINI / CLAUDE).
    */
   llm?: 'gemini' | 'claude';
+  /**
+   * Upstream data-provider brand. Renders that provider's icon on the node
+   * card. Every node carrying or deriving JobThai data sets `'jobthai'` —
+   * see apps/web/src/components/data-source-mark.tsx for the rule.
+   */
+  brand?: DataSourceMarkSlug;
   /** Free-form details surfaced in the right-hand detail panel. */
   details?: {
     description?: string;
@@ -270,6 +278,23 @@ const externalNodes: TopologyNode[] = [
       ],
     },
   },
+  {
+    id: 'ext.jobthai',
+    lane: 'external',
+    kind: 'gsheet',
+    brand: 'jobthai',
+    label: 'JobThai XLSX drops',
+    subtitle: 'jobthai.com · file delivery',
+    details: {
+      description:
+        'Per-posting job-vacancy exports JobThai delivers as XLSX files. Uploaded by an analyst at /admin/jobthai; each file becomes a JobThaiBatch. Gives province and industry detail the LinkedIn-via-MHESI aggregates cannot.',
+      target: 'MinIO csv-uploads/jobthai/<sha256>.xlsx',
+      notes: [
+        'No API — delivery is a file drop; the same file uploaded twice is a no-op (content hash)',
+        '47,631 postings loaded on dev (2026-09-13)',
+      ],
+    },
+  },
   // NOTE: Google Gemini + Anthropic Claude were previously modeled as L1
   // external systems with edges to each AI task. That was the wrong
   // mental model — they're TOOLS the AI tasks use, not data sources.
@@ -339,6 +364,46 @@ const connectorNodes: TopologyNode[] = [
       // 'kmitl-skill-mapping' — that's the original ingestion-framework
       // slug. Label above shows the upstream-attribution-correct name.
       sourceSlug: 'kmitl-skill-mapping',
+    },
+  },
+  {
+    id: 'con.jobthai',
+    lane: 'connector',
+    kind: 'connector',
+    brand: 'jobthai',
+    label: 'jobthai',
+    subtitle: 'On upload · postings + skills',
+    details: {
+      description:
+        'Parses PENDING JobThai batches into JobPosting rows and matches each posting against the skill taxonomy deterministically (word-bounded Latin terms, length-floored Thai terms). No LLM spend. Enqueued as an ordinary ingestion run by the /admin/jobthai upload.',
+      cadence: 'Manual · fired on each upload',
+      sourceSlug: 'jobthai',
+    },
+  },
+  {
+    id: 'scr.jobthai-derive',
+    lane: 'connector',
+    kind: 'script',
+    brand: 'jobthai',
+    label: 'jobthai:derive',
+    subtitle: 'Manual · occupations + demand',
+    details: {
+      description:
+        'Derives JobThai occupations (distinct job-category pairs) and the skills each one demands from the posting-skill links.',
+      cadence: 'Manual · pnpm jobthai:derive --apply',
+    },
+  },
+  {
+    id: 'scr.jobthai-link-programs',
+    lane: 'connector',
+    kind: 'script',
+    brand: 'jobthai',
+    label: 'jobthai:link-programs',
+    subtitle: 'Manual · programme bridge',
+    details: {
+      description:
+        "Links programmes to JobThai occupations by the postings' stated field of study, gated on the posting's minimum education level so postgraduate programmes are not scored from bachelor-level vacancies.",
+      cadence: 'Manual · pnpm jobthai:link-programs --apply',
     },
   },
   {
@@ -1293,6 +1358,42 @@ const tableNodes: TopologyNode[] = [
         'LinkedIn careers — KmitlCareer (taxonomy)',
         'LinkedIn skill demand — KmitlCareerSkillDemand (fact)',
         'LinkedIn skill trend — KmitlSkillGrowth (growth signal)',
+      ],
+    },
+  },
+  {
+    id: 'tab.jobthai-postings',
+    lane: 'table',
+    kind: 'table',
+    brand: 'jobthai',
+    label: 'JobThai postings',
+    subtitle: 'posting × matched skill',
+    details: {
+      description:
+        'Every JobThai vacancy, one row per posting, with its matched taxonomy skills. The only source of job_postings rows. Feeds the /skills demand sample and the Gap Analyzer job-postings demand path.',
+      prismaModel: 'JobThaiBatch + JobPosting + JobPostingSkill',
+      relatedTables: [
+        'JobThai batches — JobThaiBatch (one per uploaded file)',
+        'JobThai postings — JobPosting (47,631 on dev)',
+        'JobThai posting skills — JobPostingSkill (160,834 links)',
+      ],
+    },
+  },
+  {
+    id: 'tab.jobthai-occupations',
+    lane: 'table',
+    kind: 'cube',
+    brand: 'jobthai',
+    label: 'JobThai occupations',
+    subtitle: 'occupation × demanded skill',
+    details: {
+      description:
+        '240 occupations derived from JobThai job categories, the skills each demands, and the programme links (jobthai-bridge.v2) behind the jobthai_demand_alignment driver of health-score.v5.2 (Relevance, weighted domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
+      prismaModel: 'JobThaiOccupation + JobThaiOccupationSkill + ProgramJobThaiLink',
+      relatedTables: [
+        'JobThai occupations — JobThaiOccupation',
+        'JobThai occupation skills — JobThaiOccupationSkill',
+        'Programme ↔ occupation — ProgramJobThaiLink (1,716 links on dev, by field of study)',
       ],
     },
   },
@@ -2261,6 +2362,7 @@ const edges: TopologyEdge[] = [
   { from: 'ext.mssql-hcm', to: 'con.kku-finance' }, // dual-source: Oracle tuition + MSSQL budget
   { from: 'ext.pdf-reports', to: 'con.kku-alumni' },
   { from: 'ext.api-kmitl', to: 'con.kmitl-skill-mapping' },
+  { from: 'ext.jobthai', to: 'con.jobthai' },
   { from: 'ext.pdf-reports', to: 'con.tcas' },
   { from: 'ext.pdf-reports', to: 'con.imd-rankings' },
 
@@ -2273,6 +2375,12 @@ const edges: TopologyEdge[] = [
   { from: 'con.kku-alumni', to: 'tab.employer-feedback' },
   { from: 'con.unicon-ds2003', to: 'tab.staff-education-history' },
   { from: 'con.kmitl-skill-mapping', to: 'tab.kmitl-demand' },
+  { from: 'con.jobthai', to: 'tab.jobthai-postings' },
+  // jobthai:derive reads postings, so the script sits downstream of the
+  // postings table in reality; drawn from the connector lane to keep edges
+  // flowing left → right.
+  { from: 'scr.jobthai-derive', to: 'tab.jobthai-occupations' },
+  { from: 'scr.jobthai-link-programs', to: 'tab.jobthai-occupations' },
   { from: 'con.tcas', to: 'tab.tcas-admission-stat' },
   { from: 'con.imd-rankings', to: 'tab.imd-ranking' },
 
@@ -2289,6 +2397,7 @@ const edges: TopologyEdge[] = [
   // Gap Analyzer — demand × supply
   { from: 'tab.program-skill', to: 'dash.gap-analyzer' },
   { from: 'tab.kmitl-demand', to: 'dash.gap-analyzer' },
+  { from: 'tab.jobthai-postings', to: 'dash.gap-analyzer' }, // job_postings demand path
   { from: 'tab.skill', to: 'dash.gap-analyzer' },
   { from: 'tab.program', to: 'dash.gap-analyzer' },
   { from: 'tab.faculty', to: 'dash.gap-analyzer' },
@@ -2320,6 +2429,7 @@ const edges: TopologyEdge[] = [
   // Existing Cockpit gets two more upstream feeders (newly-surfaced)
   { from: 'tab.employer-feedback', to: 'dash.cockpit' },
   { from: 'tab.kmitl-demand', to: 'dash.cockpit' }, // demand dimension via health-score.v2
+  { from: 'tab.jobthai-occupations', to: 'dash.cockpit' }, // relevance via health-score.v5.1
 
   // Existing Program Deep-Dive picks up the new connector outputs
   { from: 'tab.student-demographic', to: 'dash.program-deep-dive' },
@@ -2327,6 +2437,7 @@ const edges: TopologyEdge[] = [
   { from: 'tab.staff-education-history', to: 'dash.program-deep-dive' },
   { from: 'tab.tcas-admission-stat', to: 'dash.program-deep-dive' },
   { from: 'tab.kmitl-demand', to: 'dash.program-deep-dive' },
+  { from: 'tab.jobthai-occupations', to: 'dash.program-deep-dive' }, // jobthai_demand_alignment driver
 
   // Existing Risk Mgmt gets the financial-at-risk feed
   { from: 'tab.financial-metric', to: 'dash.risk-portfolio' }, // direct revenue at risk

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Badge, Card } from '@kku/ui';
 import { FilterSearch } from '@/components/filter-rail';
+import { DataSourceMark } from '@/components/data-source-mark';
 import type { SkillNode } from './page';
 
 // Tree + detail layout. Two columns: taxonomy tree (left, scrollable),
@@ -242,13 +243,14 @@ function SkillDetailPane({
       </Card>
 
       <Card>
-        <h4 className="mb-2 text-sm font-semibold">
+        <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          <DataSourceMark source="jobthai" size={14} />
           Recent demand signal ({demand})
         </h4>
         {demand === 0 ? (
           <p className="text-sm text-text-tertiary">
-            No recent job postings reference this skill. Run the JobThai /
-            JobsDB connectors to populate.
+            No JobThai posting references this skill. Upload a newer drop at
+            /admin/jobthai to refresh.
           </p>
         ) : (
           <ul className="flex flex-col gap-1 text-sm">

@@ -8,6 +8,7 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
+import { DataSourceMark, isMarkedSource } from '@/components/data-source-mark';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data Source — Stats' };
@@ -81,7 +82,16 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
     <AuthedAppShell user={user}>
       <AdminBackNav current={stats.name} group="Data sources" groupHref="/admin/data-sources" />
       <PageHeader
-        title={stats.name}
+        title={
+          isMarkedSource(stats.slug) ? (
+            <span className="inline-flex items-center gap-2">
+              <DataSourceMark source={stats.slug} size={24} />
+              {stats.name}
+            </span>
+          ) : (
+            stats.name
+          )
+        }
         subtitle={
           <span className="inline-flex items-center gap-3">
             <span className="font-mono text-xs">{stats.slug}</span>

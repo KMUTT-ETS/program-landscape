@@ -19,6 +19,7 @@ import {
   runNowAction,
 } from '@/lib/actions/data-sources';
 import type { DataSourceRow } from './page';
+import { DataSourceMark, isMarkedSource } from '@/components/data-source-mark';
 
 // Client-side chrome for the /admin/data-sources page. Three
 // interaction surfaces:
@@ -119,7 +120,12 @@ export function DataSourcesClient({
       header: 'Name',
       cell: ({ row }) => (
         <div className="flex flex-col">
-          <span className="font-medium">{row.original.name}</span>
+          <span className="flex items-center gap-1.5 font-medium">
+            {isMarkedSource(row.original.slug) && (
+              <DataSourceMark source={row.original.slug} size={14} />
+            )}
+            {row.original.name}
+          </span>
           <span className="font-mono text-xs text-text-tertiary">
             {row.original.slug}
           </span>
