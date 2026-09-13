@@ -58,7 +58,9 @@ export class JobThaiService implements OnModuleInit {
         deps?.putObject ??
         ((a) => {
           if (!this.storage) throw new Error('JobThaiService storage not initialised');
-          return this.storage.putObject(a).then(() => undefined);
+          // csv-uploads is new in v1.9.4 and deploy.sh creates no buckets.
+          const storage = this.storage;
+          return storage.ensureBucket(a.bucket).then(() => storage.putObject(a)).then(() => undefined);
         }),
       enqueue: deps?.enqueue ?? ((userId) => this.ingestion!.enqueueManual('jobthai', userId ?? 'system').then(() => undefined)),
     };

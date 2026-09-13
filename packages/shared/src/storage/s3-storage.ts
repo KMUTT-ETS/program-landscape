@@ -4,6 +4,8 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -62,6 +64,36 @@ export class S3Storage implements ObjectStorage {
       forcePathStyle: true,
     };
     this.client = new S3Client(s3Config);
+  }
+
+  private readonly ensuredBuckets = new Set<string>();
+
+  /**
+   * Create the bucket if it does not exist. Checked once per bucket per process.
+   *
+   * Buckets were only ever created by `pnpm minio:init`, which runs on dev and
+   * which deploy.sh never runs — so a bucket introduced by a release existed on
+   * dev and not on prod. Code that writes to a bucket ensures it instead. Only a
+   * 404 / NotFound means "missing"; any other error (credentials, network) is
+   * rethrown so it cannot pass for success.
+   */
+  async ensureBucket(bucket: string): Promise<void> {
+    if (this.ensuredBuckets.has(bucket)) return;
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: bucket }));
+    } catch (e) {
+      const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
+      const missing = err.$metadata?.httpStatusCode === 404 || err.name === 'NotFound' || err.name === 'NoSuchBucket';
+      if (!missing) throw e;
+      try {
+        await this.client.send(new CreateBucketCommand({ Bucket: bucket }));
+      } catch (ce) {
+        const cerr = ce as { name?: string };
+        // Another process created it between HEAD and CREATE.
+        if (cerr.name !== 'BucketAlreadyOwnedByYou' && cerr.name !== 'BucketAlreadyExists') throw ce;
+      }
+    }
+    this.ensuredBuckets.add(bucket);
   }
 
   async putObject(req: PutObjectRequest): Promise<PutObjectResult> {
