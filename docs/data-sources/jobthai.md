@@ -22,7 +22,7 @@ province, and two free-text blocks (duties and qualifications).
 | | |
 |---|---|
 | Delivery | XLSX files, by hand from JobThai to KKU Data Office |
-| Upload surface | `/admin/jobthai` (ANALYST + ADMIN) |
+| Upload surface | `/admin/jobthai` (System admin / Super admin — `data_sources:configure`) |
 | Storage | MinIO, bucket `MINIO_BUCKET_CSV_UPLOADS` (default `csv-uploads`), key `jobthai/<sha256>.xlsx` |
 | Auth / credentials | none — no network call is made |
 | Mode flag | `CONNECTOR_JOBTHAI_MODE=real` (rollback: `mocked`) |
@@ -253,9 +253,15 @@ driver) and the Deep-Dive Skills coverage JobThai view. Both read
 path linked programmes through generic skills (Doctor of Medicine to Sales/AE)
 and carried 120,251 of 132,902 linked postings; v2 counts a skill as demanded
 at a 5% posting share, excludes skills more than 20% of occupations demand, and
-scores field-of-study links by posting share. Re-run `pnpm jobthai:link-programs
---apply` after any new drop, then `programs:match-demand` for the linked
-programmes so the AI curriculum check covers JobThai demand.
+scores field-of-study links by posting share. Occupations, skill matches and
+links are rebuilt automatically at the end of every connector run — after each
+upload and each delete (v1.9.5, `apps/ingestion/src/jobthai/refresh.ts`). The AI
+curriculum check still updates per programme when `programs:match-demand` (or
+the pipeline's phase 3) next runs.
+
+**Contribution and acknowledgement:** `docs/acknowledgements/jobthai.md` — what
+JobThai's data contributes, how to use the XLSX files, and its value for Thai
+higher education.
 
 ## PDPA posture
 
