@@ -64,3 +64,4 @@ export * from './scholar-fetch';
 export * from './scholar-console';
 export * from './research-source-composition';
 export * from './publication-source-precedence';
+export * from './jobthai';
