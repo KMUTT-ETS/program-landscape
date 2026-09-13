@@ -16,17 +16,30 @@ import type { AiService } from '@kku/shared';
 /**
  * Cosine floor for accepting an embedding-based skill match.
  *
- * **0.80 is a STARTING VALUE, NOT A MEASURED ONE.** It must be validated
- * against a hand-checked sample of ~100 matches before any figure derived from
- * it reaches a Council-facing surface. An unvalidated similarity threshold
- * produces numbers that look precise and are not — and this project has
- * already been bitten by exactly that shape of error.
+ * The design guessed 0.80. **Measured against the real vectors on 2026-09-13,
+ * 0.80 is too HIGH**: across the five largest occupations, every one of the 40
+ * nearest skills was genuinely relevant, and their cosines ran 0.712-0.808. A
+ * 0.80 floor would have rejected 39 of 40 correct matches and made the
+ * semantic pass silently useless rather than noisy — the opposite of the
+ * failure mode the guess was hedging against.
  *
- * Until that validation happens, `runSemanticPass` requires an explicit
- * `unvalidated: true` acknowledgement, so nobody writes EMBEDDING_MATCHED rows
- * by accident.
+ * Examples at the observed band: QC/QA occupations → Quality Management 0.783,
+ * Quality Control 0.773; warehousing → Warehouse Operations 0.808, Inventory
+ * Management 0.723; maintenance → Machine Maintenance 0.759; purchasing →
+ * Purchasing 0.789, Procurement 0.788.
+ *
+ * 0.72 reflects that evidence. It is still NOT the outcome of a labelled
+ * precision study: 40 observations over 5 occupations is a sanity check, not
+ * the ~100-sample hand-labelled set needed before a derived figure reaches a
+ * Council surface. Run `pnpm jobthai:embed --inspect` to re-examine, and note
+ * that below roughly 0.70 the neighbours become adjacent-but-arguable
+ * ("Dispatching" 0.720 and "Clerical work" 0.753 for a purchasing role).
+ *
+ * The semantic match pass therefore remains disabled by default. This constant
+ * exists so that when it is enabled, the threshold starts from measurement
+ * rather than from a guess.
  */
-export const JOBTHAI_EMBED_MATCH_FLOOR = 0.8;
+export const JOBTHAI_EMBED_MATCH_FLOOR = 0.72;
 
 export interface ExistingMatch {
   postingId: string;
@@ -78,6 +91,18 @@ function toVectorLiteral(v: number[]): string {
 
 const EMBED_BATCH = 96;
 
+/**
+ * The vector(1536) columns date from prompt 01. The current Gemini embedding
+ * model returns 3072 dimensions by default, which Postgres rejects outright
+ * ("expected 1536 dimensions, not 3072"), so the request must ask for 1536.
+ *
+ * Gemini's embedding models are Matryoshka-trained, so a 1536-dimension output
+ * is a valid truncation rather than a broken vector. Changing the columns to
+ * 3072 would be the alternative, but that doubles the storage on every skill
+ * and breaks any comparison against vectors already produced at 1536.
+ */
+export const EMBED_DIMENSIONS = 1536;
+
 export interface EmbedResult {
   requested: number;
   written: number;
@@ -97,7 +122,7 @@ export async function embedSkills(ai: AiService, apply: boolean): Promise<EmbedR
     // Both names in one string: the corpus mixes Thai and English freely, so a
     // bilingual vector matches either.
     const texts = batch.map((r) => `${r.name_en} / ${r.name_th}`);
-    const res = await ai.embed({ ctx: { module: 'jobthai', method: 'embed-skill' } as never, texts });
+    const res = await ai.embed({ ctx: { module: 'jobthai', kind: 'embedding.skill' }, texts, dimensions: EMBED_DIMENSIONS });
     costUsd += res.cost.usd;
     for (let j = 0; j < batch.length; j++) {
       const vec = res.vectors[j];
@@ -124,7 +149,7 @@ export async function embedOccupations(ai: AiService, apply: boolean): Promise<E
   for (let i = 0; i < rows.length; i += EMBED_BATCH) {
     const batch = rows.slice(i, i + EMBED_BATCH);
     const texts = batch.map((r) => `${r.category} / ${r.subcategory}${r.profile_th ? ` — ${r.profile_th}` : ''}`);
-    const res = await ai.embed({ ctx: { module: 'jobthai', method: 'embed-occupation' } as never, texts });
+    const res = await ai.embed({ ctx: { module: 'jobthai', kind: 'embedding.occupation' }, texts, dimensions: EMBED_DIMENSIONS });
     costUsd += res.cost.usd;
     for (let j = 0; j < batch.length; j++) {
       const vec = res.vectors[j];

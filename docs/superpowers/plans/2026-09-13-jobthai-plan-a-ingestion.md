@@ -225,7 +225,7 @@ MSG
 
 ---
 
-### Task 2: Schema migration
+### Task 2: Schema migration ✅ DONE (814e7d1)
 
 **Files:**
 - Modify: `packages/db/prisma/schema.prisma`
@@ -419,7 +419,7 @@ MSG
 
 ---
 
-### Task 3: Pure row parser
+### Task 3: Pure row parser ✅ DONE (eb04385)
 
 The whole extraction correctness story lives here, with no IO, so it is cheap to test exhaustively.
 
@@ -718,7 +718,7 @@ MSG
 
 ---
 
-### Task 4: The connector
+### Task 4: The connector ✅ DONE (f1f23d2)
 
 **Files:**
 - Create: `apps/ingestion/src/connectors/sources/jobthai/connector.ts`
@@ -842,7 +842,7 @@ MSG
 
 ---
 
-### Task 5: Catalog flip
+### Task 5: Catalog flip ✅ DONE (f1f23d2)
 
 **Files:**
 - Modify: `packages/shared/src/ingestion/catalog.ts`
@@ -932,7 +932,7 @@ MSG
 
 ---
 
-### Task 6: Admin API
+### Task 6: Admin API ✅ DONE (dd3a69b)
 
 **Files:**
 - Create: `apps/api/src/jobthai/jobthai.module.ts`, `jobthai.controller.ts`, `jobthai.service.ts`
@@ -1085,7 +1085,7 @@ MSG
 
 ---
 
-### Task 7: Admin UI at `/admin/jobthai`
+### Task 7: Admin UI at `/admin/jobthai` ✅ DONE (40f2d8a)
 
 **Files:**
 - Create: `apps/web/app/admin/jobthai/page.tsx`, `client.tsx`
@@ -1122,7 +1122,7 @@ MSG
 
 ---
 
-### Task 8: Occupations and deterministic skill matching
+### Task 8: Occupations and deterministic skill matching ✅ DONE (19a841e) — 240 occupations, 186,994 links, 78.2% coverage
 
 **Files:**
 - Create: `apps/ingestion/src/jobthai/derive-occupations.ts`, `match-skills.ts`
@@ -1273,7 +1273,7 @@ MSG
 
 ---
 
-### Task 9: Embeddings and the semantic second pass
+### Task 9: Embeddings and the semantic second pass ⚠️ PARTIAL — vectors populated (4,407 + 240); semantic MATCH pass implemented + tested but deliberately DISABLED pending a labelled precision study
 
 **Files:**
 - Modify: `apps/ingestion/src/jobthai/match-skills.ts`
@@ -1376,7 +1376,7 @@ MSG
 
 ---
 
-### Task 10: Bounded LLM phases, threshold validation, and the numbers Plan B needs
+### Task 10: Bounded LLM phases, threshold validation, and the numbers Plan B needs ⚠️ PARTIAL — cosine floor measured (0.80 → 0.72), data-source doc rewritten; LLM phases NOT implemented
 
 **Files:**
 - Create: `apps/ingestion/src/jobthai/llm-phases.ts`

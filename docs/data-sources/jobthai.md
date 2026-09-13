@@ -199,6 +199,29 @@ Deduplicating the taxonomy touches `ProgramSkill`, `CourseSkill`,
 piece of work and deliberately NOT done here. It should be resolved before the
 relevance driver ships.
 
+## Embeddings and the cosine floor
+
+`Skill.embedding` (4,407 rows) and `JobThaiOccupation.embedding` (240) are
+populated as of 2026-09-13 — the first vectors this project has ever written
+into columns that existed from prompt 01. Cost: effectively zero.
+
+**The vector columns are `vector(1536)` but the current Gemini embedding model
+returns 3072 dimensions**, which Postgres rejects outright. The request pins
+`dimensions: 1536`; Gemini's embedding models are Matryoshka-trained, so this is
+a valid truncation rather than a damaged vector.
+
+**The guessed 0.80 cosine floor was measurably wrong, and wrong in the
+dangerous direction.** Across the five largest occupations all 40 nearest
+skills were genuinely relevant, with cosines of 0.712–0.808 — so 0.80 would
+have rejected 39 of 40 correct matches and made the semantic pass quietly
+useless rather than noisy. The constant is now 0.72.
+
+That is still not a labelled precision study. 40 observations over 5
+occupations is a sanity check; the ~100-sample hand-labelled set the design
+asked for has not been done, so **the semantic match pass stays disabled** and
+no `EMBEDDING_MATCHED` row has been written. Inspect with
+`pnpm jobthai:embed --inspect`.
+
 ## Runbook
 
 ```bash
