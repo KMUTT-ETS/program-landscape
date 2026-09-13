@@ -106,6 +106,22 @@ export class S3Storage implements ObjectStorage {
     );
   }
 
+  /**
+   * Read an object's full body into memory.
+   *
+   * For files a worker must parse rather than hand to a browser — the
+   * JobThai XLSX drops are ~5 MB each. Use getSignedDownloadUrl instead
+   * whenever the consumer is a client, so the bytes never transit the API.
+   */
+  async getObject(req: { bucket: string; key: string }): Promise<Buffer> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: req.bucket, Key: req.key }),
+    );
+    if (!result.Body) throw new Error(`s3://${req.bucket}/${req.key} returned no body`);
+    const bytes = await result.Body.transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
   async deleteObject(bucket: string, key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   }

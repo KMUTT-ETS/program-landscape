@@ -2,9 +2,11 @@ import { Logger } from '@nestjs/common';
 import type { Connector } from '@kku/shared';
 import { resolveConnectorMode } from '@kku/shared';
 
+import { JobThaiConnector } from './sources/jobthai/connector';
+
 import {
   DigitalTranscriptConnector,
-  JobThaiConnector,
+  JobThaiMockConnector,
   JobsDbConnector,
   KkuAlumniConnector,
   KkuEvaluationsConnector,
@@ -162,7 +164,7 @@ const ENTRIES: readonly ConnectorEntry[] = [
   },
   // Deprecated — kept so historical IngestionRun rows don't orphan.
   // Scheduler skips them via DataSource.scheduleEnabled=false (set in seed).
-  { slug: 'jobthai',            mock: () => new JobThaiConnector() },
+  { slug: 'jobthai',            mock: () => new JobThaiMockConnector(), real: () => new JobThaiConnector() },
   { slug: 'jobsdb',             mock: () => new JobsDbConnector() },
 
   // National Thai (PDF) ──────────────────────────────────────────────

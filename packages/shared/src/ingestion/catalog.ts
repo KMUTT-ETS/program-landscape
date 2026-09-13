@@ -253,13 +253,28 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   {
     slug: 'jobthai',
     name: 'JobThai (Job postings)',
-    kind: 'API',
-    inputFormat: 'JSON',
-    cadenceCron: '0 */6 * * *', // every 6 hours (no longer scheduled — see deprecated)
-    ownerContact: 'KKU Data Office (scraping agreement TBD)',
-    notes: 'SUPERSEDED by kmitl-skill-mapping (2026-05-01). Catalog entry retained so historical IngestionRun rows don\'t orphan; full removal after kmitl-skill-mapping clears 30-day green-history gate.',
-    mocked: true,
-    deprecated: true,
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    // Files arrive by hand from JobThai and are uploaded through
+    // /admin/jobthai, so there is nothing for a schedule to trigger. A
+    // cadence here would wake the connector every six hours to find no
+    // PENDING batch.
+    scheduleEnabled: false,
+    ownerContact: 'KKU Data Office',
+    notes:
+      'Manual XLSX drops of Thai job postings (47,643 rows in the 2026-09 drop). ' +
+      'Un-deprecated 2026-09-13: the 2026-05-01 supersession by kmitl-skill-mapping ' +
+      'assumed JobThai meant a paid API we never bought. Hand-delivered files give us ' +
+      'three things kmitl-skill-mapping structurally cannot — province granularity, ' +
+      'industry sector, and an explicit field-of-study requirement (a named discipline ' +
+      'in 40.7% of postings, "any field" in a further 5.4%). ' +
+      'CAVEATS, which travel with every figure derived from this source: 37.0% of ' +
+      'postings are Bangkok and only 3.3% are the 20 Northeast provinces (Khon Kaen ' +
+      'alone 304), so this describes the national market rather than KKU\'s region; ' +
+      'only 0.8% mention a postgraduate qualification and just 41 state one as the ' +
+      'minimum, so it is near-blind to 179 of KKU\'s 297 programmes; and the source ' +
+      'carries no salary, no employer name and no posting date.',
+    mocked: false,
   },
   {
     slug: 'jobsdb',

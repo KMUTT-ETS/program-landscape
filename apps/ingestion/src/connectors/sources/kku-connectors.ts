@@ -224,7 +224,10 @@ export class MhesiCisaConnector extends ApiConnector {
   }
 }
 
-export class JobThaiConnector extends ApiConnector {
+// Retained ONLY as the rollback path for CONNECTOR_JOBTHAI_MODE=mocked.
+// The real implementation is
+// apps/ingestion/src/connectors/sources/jobthai/connector.ts.
+export class JobThaiMockConnector extends ApiConnector {
   readonly slug = 'jobthai';
   readonly mocked = true;
 
