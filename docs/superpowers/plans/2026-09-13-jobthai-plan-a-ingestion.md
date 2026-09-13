@@ -51,7 +51,7 @@ So Plan A ends with `jobthai` genuinely real and carrying data. What stays in Pl
 
 ---
 
-### Task 1: Prerequisite — stop discarding 6,224 demand matches
+### Task 1: Prerequisite — stop discarding 6,224 demand matches  ✅ DONE 2026-09-13 (fca886d)
 
 Nothing else in this plan is visible until this lands. All 6,224 `program_demand_matches` rows carry `ingestion_run_id = NULL`, so zero pass `realDataWhere()` and `demand_match_filled` is null on all 301 programmes.
 
@@ -60,7 +60,7 @@ Nothing else in this plan is visible until this lands. All 6,224 `program_demand
 - Modify: `apps/ingestion/src/program-demand-match/run.ts`
 - Test: `apps/ingestion/test/program-demand-match/provenance.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/ingestion/test/program-demand-match/provenance.test.ts`:
 
@@ -89,12 +89,12 @@ describe('resolveDemandProvenanceRunId', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `pnpm --filter ingestion test -- provenance`
 Expected: FAIL — `resolveDemandProvenanceRunId` is not exported.
 
-- [ ] **Step 3: Add the resolver and stamp on write**
+- [x] **Step 3: Add the resolver and stamp on write**
 
 In `apps/ingestion/src/program-demand-match/run.ts`, add near the top:
 
@@ -139,12 +139,12 @@ const findLatestSucceededRun = async (slug: string): Promise<string | null> => {
 };
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `pnpm --filter ingestion test -- provenance`
 Expected: PASS.
 
-- [ ] **Step 5: Write the one-shot backfill script**
+- [x] **Step 5: Write the one-shot backfill script**
 
 Create `apps/ingestion/src/scripts/backfill-demand-match-provenance.ts`. Dry-run by default; `--apply` required to write. Every existing row is `demand-match.v2` or `.v3`, both of which predate JobThai, so all 6,224 came from `kmitl-skill-mapping`.
 
@@ -184,7 +184,7 @@ Register in root `package.json`: `"demand:backfill-provenance": "tsx apps/ingest
 
 The anchor is **approximate** — these rows did not literally come from that run — but the source family is correct. This is the same compromise accepted for the v1.1.3 provenance backfill, and it must be stated in the commit message so nobody later reads the FK as exact.
 
-- [ ] **Step 6: Dry-run, then apply, then verify the driver lights up**
+- [x] **Step 6: Dry-run, then apply, then verify the driver lights up**
 
 ```bash
 pnpm demand:backfill-provenance
@@ -195,7 +195,7 @@ Then confirm `demand_match_filled` is no longer null. Write a scratch script (ou
 
 **Do not skip this verification.** The whole point of Task 1 is the driver changing state; a green unit test does not demonstrate it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/ingestion/src/program-demand-match/run.ts apps/ingestion/src/scripts/backfill-demand-match-provenance.ts apps/ingestion/test/program-demand-match/provenance.test.ts package.json
