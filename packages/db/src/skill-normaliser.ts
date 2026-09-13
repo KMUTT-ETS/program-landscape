@@ -132,6 +132,38 @@ export async function recordAliasDecision(input: AliasDecisionInput): Promise<{ 
  * canonical English name, prefixed with `linkedin-` or similar to avoid
  * collisions with seeded ESCO codes.
  */
+/**
+ * Find an existing Skill whose English or Thai name matches, case- and
+ * whitespace-insensitively.
+ *
+ * **Every creation path must consult this first.** Not doing so is what put 456
+ * redundant rows into the taxonomy (10.3% of it): the auto-promote path in
+ * normalise-skill-names.ts slugified the canonical name into a code and, on
+ * collision, appended `-2`, `-3` … under a comment calling it "race-safe". A
+ * slug collision on a canonical name is not a race — it is the signal that the
+ * skill already exists. "Data Science" ended up existing five times.
+ *
+ * Checking BOTH names matters: the duplicates disagreed on Thai
+ * (วิทยาศาสตร์ข้อมูล vs วิทยาการข้อมูล) while agreeing on English, and vice
+ * versa, so a single-field check would have missed half of them.
+ */
+export async function findSkillByNormalisedName(
+  nameEn: string,
+  nameTh?: string | null,
+): Promise<{ id: string; code: string; nameEn: string } | null> {
+  const en = nameEn.trim().toLowerCase().replace(/\s+/g, ' ');
+  const th = (nameTh ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (en === '' && th === '') return null;
+  const rows = await prisma.$queryRaw<Array<{ id: string; code: string; name_en: string }>>`
+    SELECT id, code, name_en FROM skills
+    WHERE (${en} <> '' AND lower(regexp_replace(trim(name_en), '\s+', ' ', 'g')) = ${en})
+       OR (${th} <> '' AND lower(regexp_replace(trim(name_th), '\s+', ' ', 'g')) = ${th})
+    ORDER BY created_at
+    LIMIT 1`;
+  const hit = rows[0];
+  return hit ? { id: hit.id, code: hit.code, nameEn: hit.name_en } : null;
+}
+
 export async function promoteNewProposedToSkill(
   aliasId: string,
   args: { code: string; reviewerUserId: string; reviewNotes?: string },
@@ -154,19 +186,27 @@ export async function promoteNewProposedToSkill(
     if (!alias.newNameEn || !alias.newNameTh) {
       throw new Error('promoteNewProposedToSkill: alias missing canonical names');
     }
-    const skill = await tx.skill.create({
-      data: {
-        code: args.code,
-        nameEn: alias.newNameEn,
-        nameTh: alias.newNameTh,
-        category: alias.newCategory ?? null,
-        // Skills materialised from external sources via the AI normaliser
-        // are tagged 'KKU' to distinguish them from seeded ESCO/Lightcast
-        // entries — they live in our own taxonomy namespace.
-        taxonomySource: 'KKU',
-      },
-      select: { id: true },
-    });
+    // A NEW_PROPOSED decision only means the MODEL saw no match, and its
+    // candidate list is not the whole taxonomy — see the "newest 30" candidate
+    // selection noted in CLAUDE.md. Check for a real one before creating, or
+    // this path manufactures the duplicates it did 456 times before
+    // 2026-09-13.
+    const existing = await findSkillByNormalisedName(alias.newNameEn, alias.newNameTh);
+    const skill = existing
+      ? { id: existing.id }
+      : await tx.skill.create({
+          data: {
+            code: args.code,
+            nameEn: alias.newNameEn,
+            nameTh: alias.newNameTh,
+            category: alias.newCategory ?? null,
+            // Skills materialised from external sources via the AI normaliser
+            // are tagged 'KKU' to distinguish them from seeded ESCO/Lightcast
+            // entries — they live in our own taxonomy namespace.
+            taxonomySource: 'KKU',
+          },
+          select: { id: true },
+        });
     await tx.skillAlias.update({
       where: { id: alias.id },
       data: {

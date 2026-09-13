@@ -103,7 +103,8 @@
     "prepare": "husky",
     "demand:backfill-provenance": "tsx apps/ingestion/src/scripts/backfill-demand-match-provenance.ts",
     "jobthai:derive": "tsx apps/ingestion/src/scripts/jobthai-derive.ts",
-    "jobthai:embed": "tsx apps/ingestion/src/scripts/jobthai-embed.ts"
+    "jobthai:embed": "tsx apps/ingestion/src/scripts/jobthai-embed.ts",
+    "skills:dedupe": "tsx apps/ingestion/src/scripts/dedupe-skills.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -58,7 +58,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, recordAliasDecision, relinkUsingAliases, type SkillAliasSourceContext } from '@kku/db';
+import { prisma, recordAliasDecision, relinkUsingAliases, type SkillAliasSourceContext, findSkillByNormalisedName } from '@kku/db';
 import {
   buildSkillNormaliserMessages,
   SkillNormaliserBatchSchema,
@@ -157,6 +157,10 @@ interface BatchOutcome {
   ambiguous: number;
   failed: number;
   rejected: number;
+  /** Auto-promotions that reused an existing Skill instead of creating a
+   *  duplicate. A non-zero count means the model's candidate list is missing
+   *  skills it should have seen — worth watching, not just tolerating. */
+  reusedExisting: number;
 }
 
 async function processBatch(
@@ -167,7 +171,7 @@ async function processBatch(
   args: CliArgs,
   logFile: string,
 ): Promise<BatchOutcome> {
-  const out: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0 };
+  const out: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0 };
   const messages = buildSkillNormaliserMessages({ rawNames, sourceContext, taxonomy });
 
   let response;
@@ -237,19 +241,31 @@ async function processBatch(
       } else if (d.decision === 'NEW_PROPOSED') {
         // Auto-promote when both --auto-promote AND confidence ≥0.9
         if (args.autoPromote && d.confidence >= 0.9) {
-          const code = `linkedin-${slugify(d.canonicalNameEn || d.canonicalNameTh || rawName)}`;
-          // Race-safe: check Skill.code uniqueness; if collision, append suffix
-          const finalCode = await ensureUniqueSkillCode(code);
-          const skill = await prisma.skill.create({
+          // A NEW_PROPOSED decision means the MODEL saw no match. Its
+          // candidate list is not the whole taxonomy (candidates are picked as
+          // "newest 30", not by similarity — see CLAUDE.md prompt 04), so it
+          // says NEW_PROPOSED for skills that plainly exist. Check the
+          // taxonomy for real before creating anything.
+          //
+          // This is the bug that produced 456 redundant rows, 10.3% of the
+          // taxonomy: the old code slugified the canonical name into a code and
+          // on collision appended `-2`, `-3` … calling it "race-safe". A slug
+          // collision on a canonical name is not a race; it is the signal that
+          // the skill already exists. "Data Science" ended up existing five
+          // times, splitting 411 references across rows that no join could
+          // reconcile.
+          const existing = await findSkillByNormalisedName(d.canonicalNameEn, d.canonicalNameTh);
+          const skill = existing ?? (await prisma.skill.create({
             data: {
-              code: finalCode,
+              code: await ensureUniqueSkillCode(`linkedin-${slugify(d.canonicalNameEn || d.canonicalNameTh || rawName)}`),
               nameEn: d.canonicalNameEn,
               nameTh: d.canonicalNameTh,
               category: d.suggestedCategory || null,
               taxonomySource: 'KKU',
             },
             select: { id: true },
-          });
+          }));
+          if (existing) out.reusedExisting += 1;
           await recordAliasDecision({
             rawName,
             sourceContext,
@@ -341,9 +357,9 @@ async function runForSource(
       : await fetchPendingProposedSkillNames(args.limit);
 
   console.log(`\n[${source}] ${candidates.length} unmatched names to process`);
-  if (candidates.length === 0) return { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, totalCandidates: 0, batches: 0 };
+  if (candidates.length === 0) return { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0, totalCandidates: 0, batches: 0 };
 
-  const totals: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0 };
+  const totals: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0 };
   let batches = 0;
 
   for (let i = 0; i < candidates.length; i += args.batchSize) {
@@ -354,6 +370,7 @@ async function runForSource(
     const out = await processBatch(ai, taxonomy, batch, source, args, logFile);
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     totals.matched += out.matched;
+    totals.reusedExisting += out.reusedExisting;
     totals.newProposed += out.newProposed;
     totals.ambiguous += out.ambiguous;
     totals.failed += out.failed;

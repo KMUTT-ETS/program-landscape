@@ -172,7 +172,7 @@ Sample, and a useful sanity check on the whole pipeline — งานจัด�
 Safety 6%; งานคลังสินค้า (warehousing) to Management 30% and Logistics
 Management 7%.
 
-### FINDING — the skill taxonomy contains duplicates, and it matters for Plan B
+### FINDING — the skill taxonomy contained duplicates (fixed 2026-09-13)
 
 Matching at this volume surfaced a pre-existing data-quality problem in
 `skills`, not in JobThai:
@@ -194,10 +194,15 @@ the match silently fails — a false negative that makes a well-aligned programm
 look misaligned. The same split also under-counts each duplicate in any
 share-weighted aggregate and makes a "top skills" list show one skill twice.
 
-Deduplicating the taxonomy touches `ProgramSkill`, `CourseSkill`,
-`KmitlCareerSkillDemand`, `PeerProgramSkill` and `SkillAlias`, so it is its own
-piece of work and deliberately NOT done here. It should be resolved before the
-relevance driver ships.
+**RESOLVED 2026-09-13.** 386 groups merged, 456 rows removed (4,407 → 3,951)
+via `pnpm skills:dedupe`. Coverage after recomputing the derived tables is
+**78.2%, identical to before** — the merge removed redundant representations
+without losing any matching capability. Posting-skill links fell 186,994 →
+160,834 and distinct matched skills 1,611 → 1,326, which is the double-counting
+going away. The 65 discarded Thai spellings were preserved as `SkillAlias`
+rows rather than dropped, so the matcher still resolves them. Root cause fixed
+in `normalise-skill-names.ts` and `promoteNewProposedToSkill`; see
+`packages/db/src/skill-dedupe.ts`.
 
 ## Embeddings and the cosine floor
 
