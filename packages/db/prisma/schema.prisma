@@ -134,6 +134,34 @@ enum SkillTaxonomy {
 enum SkillSource {
   MANUAL
   LLM_EXTRACTED
+  /// Deterministic hit against Skill.nameEn/nameTh or a SkillAlias row.
+  /// Neither MANUAL nor LLM_EXTRACTED — a provenance drawer must not
+  /// claim a dictionary lookup was either a human or a model.
+  ALIAS_MATCHED
+  /// pgvector cosine match above JOBTHAI_EMBED_MATCH_FLOOR, used only
+  /// where the deterministic pass found nothing.
+  EMBEDDING_MATCHED
+}
+
+enum JobThaiBatchStatus {
+  PENDING
+  PARSING
+  PARSED
+  FAILED
+}
+
+/// Education floor a job posting states. A separate enum from ProgramLevel
+/// because 26.9% of JobThai postings ask for a Thai vocational certificate
+/// (ปวช/ปวส), which ProgramLevel cannot express — it describes KKU degree
+/// programmes, not the tiers below them. Reusing it would force 12,831
+/// postings into a wrong value or a null. Ordered lowest to highest.
+enum JobRequiredEducationLevel {
+  UNSPECIFIED
+  VOCATIONAL_CERT
+  HIGHER_VOCATIONAL_CERT
+  BACHELOR
+  MASTER
+  DOCTORATE
 }
 
 enum FacultyRank {
@@ -692,6 +720,7 @@ model User {
   auditLogs                AuditLog[]
   aiInferences             AiInference[]
   uploadedPdfs             PdfDocument[]            @relation("PdfUploader")
+  jobThaiBatches           JobThaiBatch[]
   reviewedExtractions      PdfExtraction[]          @relation("ExtractionReviewer")
   reviewedAiExtractions    AiExtraction[]           @relation("AiExtractionReviewer")
   goldLabelledExtractions  AiExtraction[]           @relation("AiExtractionGoldLabeller")
@@ -1071,6 +1100,7 @@ model Skill {
   externalCareerDemands   ExternalCareerSkillDemand[]
   aliases                 SkillAlias[]
   programDemandMatches    ProgramDemandMatch[]
+  jobThaiOccupationSkills JobThaiOccupationSkill[]
 
   @@index([code])
   @@index([taxonomySource])
@@ -1816,14 +1846,106 @@ model JobPosting {
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @updatedAt @map("updated_at")
 
+  // ── JobThai file-drop fields (2026-09-13) ──────────────────────────
+  jobThaiBatchId   String?                   @map("jobthai_batch_id")
+  jobCategory      String?                   @map("job_category")
+  jobSubcategory   String?                   @map("job_subcategory")
+  businessType     String?                   @map("business_type")
+  qualificationRaw String?                   @map("qualification_raw") @db.Text
+  /// Normalised fields of study the posting asks for. The sentinel
+  /// '*ANY*' means the posting said ทุกสาขา (any field) — a real and
+  /// common category, not an extraction failure.
+  requiredFieldsRaw String[]                 @map("required_fields_raw")
+  /// The LOWEST level stated, because "ปวช., ปวส.- ปริญญาตรี" means a ปวช
+  /// holder is acceptable. The floor is what the text means.
+  minEducationLevel JobRequiredEducationLevel @default(UNSPECIFIED) @map("min_education_level")
+  /// True when postedDate came from the batch receipt date rather than the
+  /// source. The 2026-09 JobThai drop carries no date column; they can
+  /// supply one, and the parser accepts it the moment they do.
+  postedDateEstimated Boolean                @default(false) @map("posted_date_estimated")
+
   sourcePdf        PdfDocument?      @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  jobThaiBatch     JobThaiBatch?     @relation(fields: [jobThaiBatchId], references: [id], onDelete: Cascade)
   jobPostingSkills JobPostingSkill[]
 
   @@unique([source, externalId])
   @@index([source])
   @@index([postedDate])
   @@index([province])
+  @@index([jobThaiBatchId])
+  @@index([jobCategory, jobSubcategory])
   @@map("job_postings")
+}
+
+/// One uploaded JobThai XLSX drop — the unit /admin/jobthai manages.
+model JobThaiBatch {
+  id               String             @id @default(cuid())
+  filename         String
+  /// SHA-256 of the uploaded bytes. Unique: re-uploading the same file is
+  /// a no-op, matching the PdfDocument dedupe pattern.
+  contentHash      String             @unique @map("content_hash")
+  storageKey       String             @map("storage_key")
+  fileSize         Int                @map("file_size")
+  rowCount         Int                @default(0) @map("row_count")
+  /// Upload date. Also the postedDate fallback for rows with no date column.
+  receivedDate     DateTime           @map("received_date") @db.Date
+  status           JobThaiBatchStatus @default(PENDING)
+  parseError       String?            @map("parse_error") @db.Text
+  uploadedByUserId String?            @map("uploaded_by_user_id")
+  ingestionRunId   String?            @map("ingestion_run_id")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  uploadedBy   User?         @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  postings     JobPosting[]
+
+  @@index([status])
+  @@map("jobthai_batches")
+}
+
+/// The profession layer — one row per (category, subcategory). 173 from the
+/// 2026-09 drop. JobThai-native rather than mapped onto KmitlCareer,
+/// because these columns are source-authoritative and 100% populated
+/// whereas a crosswalk onto KMITL's 473 careers would invent precision.
+model JobThaiOccupation {
+  id             String                       @id @default(cuid())
+  category       String
+  subcategory    String
+  /// Stable slug reused as OccupationDemand.occupation_code, namespaced
+  /// `jobthai:<slug>` so rows never collide with a future ISCO-08 code.
+  code           String                       @unique
+  postingCount   Int                          @default(0) @map("posting_count")
+  profileTh      String?                      @map("profile_th") @db.Text
+  typicalTasksTh String[]                     @map("typical_tasks_th")
+  embedding      Unsupported("vector(1536)")?
+  methodVersion  String                       @default("jobthai-occupation.v1") @map("method_version")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
+
+  skills JobThaiOccupationSkill[]
+
+  @@unique([category, subcategory])
+  @@map("jobthai_occupations")
+}
+
+model JobThaiOccupationSkill {
+  id                  String      @id @default(cuid())
+  jobThaiOccupationId String      @map("jobthai_occupation_id")
+  skillId             String      @map("skill_id")
+  postingCount        Int         @map("posting_count")
+  /// 0..1 — postingCount over the occupation's total postings.
+  share               Float
+  extractedBy         SkillSource @map("extracted_by")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  occupation JobThaiOccupation @relation(fields: [jobThaiOccupationId], references: [id], onDelete: Cascade)
+  skill      Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobThaiOccupationId, skillId])
+  @@index([skillId])
+  @@map("jobthai_occupation_skills")
 }
 
 model JobPostingSkill {
@@ -3034,6 +3156,7 @@ model IngestionRun {
   kmitlSkillGrowths          KmitlSkillGrowth[]
   tcasAdmissionFunnels       TcasAdmissionFunnel[]
   programDemandMatches       ProgramDemandMatch[]
+  jobThaiBatches             JobThaiBatch[]
   classOfferings             ClassOffering[]
   programCourses             ProgramCourse[]
   evaluationQuestions        EvaluationQuestion[]
