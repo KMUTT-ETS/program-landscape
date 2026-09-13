@@ -1,7 +1,7 @@
-// Public methodology document — English. Mirrors
-// docs/methodologies/program-health-and-lifecycle.md so the markdown
-// file remains the canonical source-of-truth for the prose. Substantive
-// edits should land in BOTH files in the same commit.
+// Public methodology document — English. THIS FILE IS THE SOURCE OF TRUTH
+// for the paper, together with content-th.tsx: substantive edits land in BOTH
+// in the same commit. The markdown copy under docs/methodologies/ was retired
+// on 2026-09-13 after drifting thirteen methodology versions behind this page.
 
 import {
   Callout,
@@ -39,10 +39,10 @@ export function MethodologyContentEn() {
           <MetaTable
             rows={[
               { label: 'Methodology code', value: <><Code>health-score.v5.2</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.2' },
+              { label: 'Document version', value: '1.3' },
               { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
-              { label: 'Date', value: '2026-08-25' },
+              { label: 'Date', value: '2026-09-13' },
             ]}
           />
         </div>
@@ -444,8 +444,8 @@ export function MethodologyContentEn() {
                 </TR>
                 <TR>
                   <TD mono>demand_match_filled</TD>
-                  <TD><Code>100 × (matchedDemanded / relevantDemanded)</Code> — share of <Em>demanded</Em> skills the curriculum already teaches, restricted to the careers a curriculum is plausibly relevant to.</TD>
-                  <TD><Code>program_demand_matches</Code> (computed pre-analytics).</TD>
+                  <TD><Code>100 × (matchedDemanded / relevantDemanded)</Code> over the LinkedIn-demanded skills. <Em>Relevant</Em> means the AI curriculum check classed the skill <Code>core</Code> or <Code>supporting</Code> to the profession the programme's graduates are hired into (§4.4); a skill that is another profession or outside the target careers is not counted, and teaching a skill does not by itself make it relevant.</TD>
+                  <TD><Code>program_demand_matches</Code>, rows tagged <Code>kmitl-skill-mapping</Code> (AI check <Code>demand-match.v4</Code>).</TD>
                 </TR>
                 <TR>
                   <TD mono>jobthai_demand_alignment</TD>
@@ -461,6 +461,11 @@ export function MethodologyContentEn() {
                   <TD mono>strategic_sector_alignment</TD>
                   <TD>100 if any career mapped to the programme (via the labour-market career taxonomy used by the LinkedIn-derived data) intersects a Thai BCG (Bio / Circular / Green) or S-curve target sector; otherwise 50.</TD>
                   <TD>Career taxonomy from the labour-market data source × <Code>Program</Code> career mappings × strategic-sector heuristic.</TD>
+                </TR>
+                <TR>
+                  <TD mono>pedagogical_fit</TD>
+                  <TD>The programme's overall pedagogy assessment score (discipline fit of its teaching and assessment methods, and quality-assurance evidence), <Code>[0, 100]</Code>. Null until the assessment has run.</TD>
+                  <TD><Code>ProgramPedagogyAssessment.overallScore</Code> (<Code>program-pedagogy.v1</Code>).</TD>
                 </TR>
               </tbody>
             </Tbl>
@@ -484,17 +489,21 @@ export function MethodologyContentEn() {
         <DocSubsection number="2.3" title="Aggregation and rollups">
           <P>
             A program-scope health score is the equal-weighted average of the <Strong>non-null</Strong>{' '}
-            dimension scores. Department, faculty, and university scopes are computed by aggregating
-            program-level metrics first and then re-running the dimension scorers against the rolled-up
-            totals — they are <Strong>not</Strong> averages of program scores.
+            dimension scores. Within a dimension, drivers are also averaged with equal weight, with one
+            exception: in Relevance, <Code>jobthai_demand_alignment</Code> (JobThai, domestic demand) and{' '}
+            <Code>labour_market_alignment</Code> (LinkedIn, global demand) are combined{' '}
+            <Strong>75 : 25</Strong>. The pair keeps the weight of two drivers in the dimension; only the
+            split between them is weighted, and when one has no data the other takes the pair's whole
+            share (<Code>health-score.v5.2</Code>).
           </P>
           <P>
-            This means a faculty's overall health score is <Strong>not</Strong> mathematically
-            guaranteed to equal the weighted average of its programs' overall scores. The two are
-            computed independently from the same underlying metrics. In practice the divergence is
-            small, but the audit trail is what matters: each scope's score reproduces from the metrics
-            observable at that scope on the day it was computed. A future version may enforce
-            bottom-up consistency explicitly.
+            Department, faculty, and university scopes use the same driver sets as programs
+            (<Code>health-score.v5.0</Code>). A driver whose calibration is per-program (absolute THB/yr
+            slopes, per-level revenue targets, intake floors, peer-subject percentiles) rolls up as the
+            mean of its program values; a driver whose scale is scope-invariant is computed as a
+            ratio of sums, which weights each program by its size. A faculty's score is therefore{' '}
+            <Strong>not</Strong> the simple average of its programs' scores, deliberately — see §8.3
+            for the measured difference.
           </P>
           <P>
             Where weighted-by-headcount aggregation is needed (e.g., outcome-family rollups),{' '}
@@ -922,50 +931,61 @@ otherwise                                         → SUNSET`}</Pre>
 
         <DocSubsection number="4.4" title="Skill-match score — curriculum vs labour-market demand">
           <P>
-            The Deep-Dive's Skills section shows three lists side by side:{' '}
-            <Strong>taught</Strong> (program skills, ranked PLO-tagged first),{' '}
-            <Strong>demanded</Strong> (labour-market signal), and <Strong>gaps</Strong> (demanded but
-            not taught). It also reports a single composite <Strong>match score</Strong> in{' '}
-            <Code>[0, 100]</Code>.
+            The Deep-Dive's Skills coverage section lists the skills the programme{' '}
+            <Strong>teaches</Strong> (PLO-tagged first), the skills the labour market{' '}
+            <Strong>demands</Strong>, the <Strong>gaps</Strong> (demanded, relevant, not taught) and
+            the <Strong>surplus</Strong> (taught, not demanded), with a composite{' '}
+            <Strong>match score</Strong> in <Code>[0, 100]</Code>. Demand comes from two sources that
+            are never blended, because they measure different things; a switch chooses between them,
+            and the section opens on <Strong>JobThai</Strong> whenever the programme has JobThai data.
           </P>
           <P>
-            <Strong>Demand resolution</Strong> uses a four-tier fallback chain, recorded transparently
-            in the response so analysts know which scope produced the read:
-          </P>
-          <OL>
-            <LI>Thailand × Job postings (percentage ≥ 5%);</LI>
-            <LI>Thailand × Profiles (percentage ≥ 5%);</LI>
-            <LI>Global × Job postings (percentage ≥ 0%);</LI>
-            <LI>Global × Profiles (percentage ≥ 0%).</LI>
-          </OL>
-          <P>
-            Engineering and specialty careers often have no Thailand × Job postings rows because the
-            Thai job-postings sample is thin and skewed toward digital/service careers; the global
-            fallbacks ensure the panel always has signal. The label of the tier that succeeded is
-            shown in the UI so readers apply the right caveat.
+            <Strong>JobThai — domestic demand.</Strong> Thai job postings delivered to KKU as files.
+            A programme is linked to the occupations whose postings ask for its{' '}
+            <Strong>field of study</Strong>, at an education level its graduates hold
+            (<Code>jobthai-bridge.v2</Code>). Link strength is the share of an occupation's eligible
+            postings that name the field; links below 0.1, and programmes with fewer than 20 postings
+            behind their links, give no signal. A skill's demand is the share of those linked postings
+            that name it, weighted by each link's postings, and only skills named in at least 5% count.
+            Skills demanded by more than 20% of all occupations (communication, management and the
+            like) are shown for context but never counted as gaps or in the score, because teaching
+            them says nothing about fit to one field. Links built only from skill overlap are not used:
+            they exist precisely because taught skills are demanded, so they cannot vouch for that.
           </P>
           <P>
-            <Strong>Career filtering.</Strong> When a programme has <Code>kmitlCareerIds</Code> set,
-            demand rows are restricted to those careers — a Mechanical Engineering programme sees
-            Mechanical Engineer / Mechanical Design Engineer / Mechanical Project Engineer demand,
-            not generic top-skills across all 401 careers. Programmes without a career mapping fall
-            back to all careers with a UI banner noting the looser scope.
+            <Strong>LinkedIn — global demand.</Strong> Aggregated skill demand by career, filtered to
+            the careers mapped to the programme (<Code>kmitlCareerIds</Code>; all careers with a UI
+            banner when unmapped), through a four-tier fallback recorded in the response: Thailand ×
+            Job postings (≥ 5%), Thailand × Profiles (≥ 5%), Global × Job postings, Global × Profiles.
           </P>
           <P>
-            <Strong>Match score formula.</Strong> When <Code>program_demand_matches</Code> (the
-            AI-computed demand-match table) has rows for the program, the score uses{' '}
-            <Strong>only relevant</Strong> demanded skills as the denominator, so the score reflects
-            whether the curriculum covers what its graduates would actually need:
+            <Strong>Curriculum check and profession fit</Strong> (<Code>demand-match.v4</Code>). For
+            each demanded skill from either source, one AI call reads the programme's PLOs, course
+            descriptions and extracted skills, together with the programme's target careers (its
+            JobThai occupations and LinkedIn careers) and where each skill is demanded. It records two
+            independent judgements with evidence: whether the curriculum <Strong>teaches</Strong> the
+            skill, and how the skill <Strong>fits</Strong> the profession — <Code>core</Code>,{' '}
+            <Code>supporting</Code>, <Code>other-profession</Code>, <Code>not-relevant</Code> or{' '}
+            <Code>uncertain</Code> — with a one-sentence reason shown on the page. Only core and
+            supporting skills are <Em>relevant</Em>. Job adverts list several acceptable degrees, so a
+            demand list mined from them contains other disciplines that employers accept{' '}
+            <Em>instead</Em>; those are classed <Code>other-profession</Code> and shown as degrees
+            employers also accept, never as gaps. Each row records which source demanded the skill,
+            so each source's score reads only its own rows.
           </P>
           <Pre>{`matchScore = 100 × (matchedRelevant / totalRelevant)`}</Pre>
           <P>
-            Without AI matches, the score falls back to a taxonomy-only intersection:{' '}
-            <Code>100 × (taughtIds ∩ demandIds) / |demandIds|</Code>. The fallback is conservative
-            and the UI flags it so the analyst knows to run <Code>pnpm programs:match-demand</Code>.
+            The JobThai match score is shown only when at least <Strong>5</Strong> relevant skills were
+            checked: a ratio over three skills moves by a third on one changed judgement, and two
+            identical runs moved such a programme from 33 to 67. It is the same figure as the{' '}
+            <Code>jobthai_demand_alignment</Code> health driver, read through the same loader. Without
+            AI decisions the LinkedIn score falls back to a taxonomy-only intersection{' '}
+            <Code>100 × (taughtIds ∩ demandIds) / |demandIds|</Code>, flagged in the UI.
           </P>
           <Callout tone="attribution">
             <P>
-              The data source attribution chain for the demand side is the same as in §2.2.5:{' '}
+              JobThai data is marked with the JobThai logo wherever it appears. LinkedIn demand keeps
+              the attribution chain of §2.2.5:{' '}
               <Strong>LinkedIn data, subscribed by MHESI, hosted at KMITL on behalf of MHESI.</Strong>
             </P>
           </Callout>
@@ -1313,7 +1333,7 @@ otherwise                                         → SUNSET`}</Pre>
               <TH width="22%">Source</TH>
               <TH width="22%">Owner / responsible</TH>
               <TH width="20%">Used by</TH>
-              <TH>Status (2026-05)</TH>
+              <TH>Status (2026-09)</TH>
             </TR>
           </THead>
           <tbody>
@@ -1325,11 +1345,11 @@ otherwise                                         → SUNSET`}</Pre>
               <TD><Strong>Live</Strong> since 2026-04-27</TD>
             </TR>
             <TR>
-              <TD mono>kku-tcas-funnel</TD>
-              <TD>TCAS rounds 1–4 funnel from <Code>POWERBI.ADMISSION_STAT_CURRID</Code></TD>
-              <TD>Khon Kaen University, derived from CUPT/TCAS submissions</TD>
+              <TD mono>kku-admission-campaigns</TD>
+              <TD>Recruitment funnel at campaign-track grain from <Code>POWERBI.ADMISSION_STAT</Code> (replaced <Code>kku-tcas-funnel</Code> / <Code>ADMISSION_STAT_CURRID</Code> at <Code>health-score.v3.8</Code>)</TD>
+              <TD>Khon Kaen University, Registrar — Academic Office</TD>
               <TD>Attractiveness</TD>
-              <TD><Strong>Live</Strong></TD>
+              <TD><Strong>Live</Strong> since 2026-06-01</TD>
             </TR>
             <TR>
               <TD mono>kku-hr</TD>
@@ -1364,7 +1384,14 @@ otherwise                                         → SUNSET`}</Pre>
               <TD>LinkedIn-derived labour-market skill demand — aggregated skill demand by career, derived from LinkedIn profiles and Thai job postings</TD>
               <TD><Strong>Data: LinkedIn.</Strong> Subscriber / licence-holder: <Strong>MHESI</Strong>. API hosted by KMITL on behalf of MHESI</TD>
               <TD>Relevance (<Code>labour_market_alignment</Code>, <Code>strategic_sector_alignment</Code>)</TD>
-              <TD><Strong>Live</Strong> since 2026-05-01; preview-quality (Council-readiness gate countdown ends 2026-05-31)</TD>
+              <TD><Strong>Live</Strong> since 2026-05-01</TD>
+            </TR>
+            <TR>
+              <TD mono>jobthai</TD>
+              <TD>JobThai job postings — per-posting vacancy files (occupation, province, industry, stated field of study and education level)</TD>
+              <TD>JobThai; files delivered to KKU and uploaded by the KKU Data Office</TD>
+              <TD>Relevance (<Code>jobthai_demand_alignment</Code>), Deep-Dive Skills coverage (JobThai view)</TD>
+              <TD><Strong>Live</Strong> since 2026-09-13 (<Code>health-score.v5.2</Code>). National, not regional: 37% of postings are Bangkok and 3.3% the Northeast; no salary, employer or posting date; near-blind to postgraduate programmes.</TD>
             </TR>
             <TR>
               <TD mono>tcas</TD>
@@ -1385,7 +1412,7 @@ otherwise                                         → SUNSET`}</Pre>
               <TD>KKU graduate-outcomes survey — employment rate, salary, employer satisfaction</TD>
               <TD>Khon Kaen University, Alumni Affairs Office</TD>
               <TD>Outcomes (employment, salary)</TD>
-              <TD>Mocked — pending PDPA sign-off</TD>
+              <TD><Strong>Live</Strong> through survey-report intake (PDF / XLSX) since 2026-05-11; the scheduled connector itself is not used</TD>
             </TR>
             <TR>
               <TD>Strategic sector taxonomy</TD>
@@ -1481,15 +1508,17 @@ otherwise                                         → SUNSET`}</Pre>
             The composite score weighs all five dimensions equally. This is a least-arguable default:
             any weighted formulation encodes a value judgement, and the application errs toward making
             the unweighted reading available so decision-makers form their own bias rather than
-            inherit ours. Should a future revision adopt weights, those weights will be visible in
-            chart tooltips, in the Council Pack methodology footer, and in this document.
+            inherit ours. The one weighting inside a dimension is an explicit institutional position:
+            domestic labour-market demand (JobThai) counts 75 : 25 against global demand (LinkedIn)
+            within Relevance (§2.3). It is stated here, in the score breakdown, and in the version
+            history so it can be disputed on its merits.
           </P>
         </DocSubsection>
 
         <DocSubsection number="8.2" title="Data completeness varies sharply across programs">
           <P>A non-trivial number of KKU programs lack complete data for one or more dimensions:</P>
           <UL>
-            <LI>The Outcomes dimension is largely null pending the <Code>kku-alumni</Code> real connector and PDPA sign-off; only the TCAS minimum-score percentile is currently live.</LI>
+            <LI>Graduate outcomes arrive through survey-report intake (<Code>kku-alumni</Code>), so Outcomes coverage follows which survey reports have been ingested; programmes without one rely on the TCAS minimum-score percentile, student satisfaction and digital competency.</LI>
             <LI>Thirty of the 297 KKU programmes carry no current-curriculum PDF on disk and therefore have no extracted-skill record — their Relevance dimension is null.</LI>
             <LI>The cost-allocation methodology is in v0 draft and the Financial dimension's cost-side numbers are preview-quality.</LI>
           </UL>
@@ -1501,17 +1530,21 @@ otherwise                                         → SUNSET`}</Pre>
 
         <DocSubsection number="8.3" title="Cross-scope consistency is not asserted">
           <P>
-            A faculty's overall health score is computed independently from its own scope's metric
-            rollups, not as an average of its programs' scores. The two are typically close but not
-            identical. A future version may enforce bottom-up consistency by construction; the
-            current version trades that property for compute simplicity and per-scope auditability.
+            A faculty's overall health score is not guaranteed to equal the average of its programs'
+            scores. Before <Code>health-score.v5.0</Code> the gap was large and one-sided — measured
+            2026-09-12, all 24 faculties scored below their program mean, by 11.6 points on average
+            and 28.5 at worst — because the faculty scorers used fewer drivers than the program
+            scorers. v5.0 brought the driver sets to parity; afterwards 1 of 24 faculties differs by
+            more than 10 points, the mean gap is about 3.9, and the direction varies. The remaining
+            difference is intended: ratio-of-sums drivers weight programs by size, so a 7-student
+            program does not count as much as a 700-student one.
           </P>
         </DocSubsection>
 
         <DocSubsection number="8.4" title="Some signals are still synthetic or proxied">
           <UL>
-            <LI>The labour-market alignment driver pulls from the LinkedIn-derived data feed (subscribed by MHESI; API hosted at KMITL) and is, until 2026-05-31, in a 30-day green-history readiness window. Council-facing surfaces should mark it as preview-quality.</LI>
-            <LI>The <Code>pedagogicalReadiness</Code> sub-score in AI readiness is reserved (null) pending classroom and survey instrumentation; its weight is currently redistributed across the other three sub-scores.</LI>
+            <LI>JobThai describes the national labour market, not KKU's region: 37% of postings are in Bangkok and 3.3% across the 20 Northeast provinces. Only 41 postings state a postgraduate minimum, so master's and doctoral programmes normally receive no JobThai signal — a data gap, not zero demand.</LI>
+            <LI>Profession fit (§4.4) is an AI judgement with a stated reason, not a lookup. Repeated runs can move individual calls, which is why a JobThai score needs at least 5 relevant skills; an analyst who disagrees with a call can record the disagreement from the page.</LI>
             <LI>The <Code>delayed_graduation_share</Code> driver assumes the program's <Code>durationYears</Code> field is set correctly; programs with an incorrect duration will produce a misleading delayed-share signal.</LI>
           </UL>
         </DocSubsection>
@@ -1559,6 +1592,8 @@ otherwise                                         → SUNSET`}</Pre>
           <LI><Strong>Health-score driver</Strong> — A single 0–100 sub-score that contributes to one health-score dimension.</LI>
           <LI><Strong>Lifecycle driver</Strong> — A signed contribution to the trajectory score; capped to a per-driver maximum.</LI>
           <LI><Strong>Modifier gate</Strong> — A rule that can downgrade a verdict from a higher band to a lower one based on a categorical input.</LI>
+          <LI><Strong>JobThai</Strong> — A Thai job-postings platform; the source of the domestic labour-market demand signal.</LI>
+          <LI><Strong>Profession fit</Strong> — The AI classification of a demanded skill against the profession a programme's graduates are hired into: core, supporting, other profession, not relevant, or uncertain. Only core and supporting count as relevant.</LI>
         </UL>
       </DocSection>
 
@@ -1574,6 +1609,8 @@ otherwise                                         → SUNSET`}</Pre>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programLifecycleVerdict</Code> and <Code>programAiReadiness</Code>. Methodology version constant <Code>LIFECYCLE_VERSION</Code>.</LI>
             <LI><Code>docs/methodologies/health-score.md</Code>. Internal-facing methodology notes; version history and review log.</LI>
             <LI><Code>docs/methodologies/cost-allocation.md</Code>. Cost-allocation methodology (v0 draft) feeding the Financial dimension.</LI>
+            <LI><Code>packages/db/src/jobthai-bridge.ts</Code> and <Code>packages/db/src/jobthai.ts</Code>. Programme–occupation links (<Code>JOBTHAI_BRIDGE_VERSION</Code>) and the per-programme JobThai demand read by both the health driver and the Deep-Dive.</LI>
+            <LI><Code>packages/shared/src/ai/prompts/demand-skill-match.ts</Code>. The curriculum check and profession-fit classification (<Code>DEMAND_MATCH_VERSION</Code>).</LI>
             <LI><Code>docs/methodologies/forecasting.md</Code>. Forecasting methodology feeding demographic-resilience and trend drivers.</LI>
             <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §6.</LI>
             <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §7.</LI>
@@ -1591,6 +1628,7 @@ otherwise                                         → SUNSET`}</Pre>
             <LI><Strong>NXPO.</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://www.nxpo.or.th" target="_blank" rel="noopener noreferrer">https://www.nxpo.or.th</a>.</LI>
             <LI><Strong>EECO.</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://www.eeco.or.th" target="_blank" rel="noopener noreferrer">https://www.eeco.or.th</a>.</LI>
             <LI><Strong>LinkedIn-derived labour-market skill demand.</Strong> The dataset's contents are aggregated <Strong>LinkedIn</Strong> profile and Thai job-posting data. The institutional subscription is held by <Strong>MHESI</Strong>, which exposes the data to partner universities (KKU among them). <Strong>KMITL</Strong> operates the technical API endpoint (<Code>https://skill.kmitl.ac.th/api/v1</Code>) on behalf of MHESI; it is a technical host, not the data owner.</LI>
+            <LI><Strong>JobThai.</Strong> Thai job-postings platform; vacancy files are delivered to KKU. <a className="text-accent underline-offset-2 hover:underline" href="https://www.jobthai.com" target="_blank" rel="noopener noreferrer">https://www.jobthai.com</a>.</LI>
             <LI><Strong>Personal Data Protection Act, B.E. 2562 (2019).</Strong> Available via the Office of the Council of State.</LI>
           </UL>
         </DocSubsection>

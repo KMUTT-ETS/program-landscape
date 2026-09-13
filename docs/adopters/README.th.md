@@ -609,7 +609,7 @@ design token เก็บเป็น **ค่าสามตัวแบบ OKL
 | ระเบียบวิธี | เอกสาร | ตัว implementation |
 |---|---|---|
 | คะแนนสุขภาพ (`health-score.v4.0`) | `docs/methodologies/health-score.md` | `packages/db/src/health-score.ts` |
-| สุขภาพและวงจรชีวิตหลักสูตร | `program-health-and-lifecycle.md` (+ ฉบับภาษาไทย) | `packages/db/src/health-score.ts` |
+| สุขภาพและวงจรชีวิตหลักสูตร | เอกสารในระบบ `/docs/methodology` — `apps/web/app/docs/methodology/content-{en,th}.tsx` (สำเนา markdown เดิมยุติการใช้งานแล้ว) | `packages/db/src/health-score.ts` |
 | การให้คะแนนความเสี่ยง | `risk-scoring.md`, `risk-management.md` | `packages/db/src/risk-scoring.ts` |
 | การพยากรณ์ (`forecasting.v1`) | `forecasting.md` | `packages/shared/src/forecasting/` |
 | เครื่องจำลองสถานการณ์ | `scenario-engine.md` | `packages/shared/src/scenarios/` |
@@ -1213,7 +1213,7 @@ prompt เหล่านี้เขียนไว้ให้คัดลอ�
 
 ### ระเบียบวิธี
 
-`docs/methodologies/README.md` บวกกับ: `health-score.md`, `program-health-and-lifecycle.md` (และ `.th.md`), `risk-scoring.md`, `risk-management.md`, `forecasting.md`, `scenario-engine.md`, `cost-allocation.md` (v0), `evaluations.md`, `class-gpa.md`, `cross-scope-consistency.md`, `verdict-stability.md`
+`docs/methodologies/README.md` บวกกับ: `health-score.md`, เอกสารระเบียบวิธีในระบบ (`apps/web/app/docs/methodology/content-{en,th}.tsx`), `risk-scoring.md`, `risk-management.md`, `forecasting.md`, `scenario-engine.md`, `cost-allocation.md` (v0), `evaluations.md`, `class-gpa.md`, `cross-scope-consistency.md`, `verdict-stability.md`
 
 ### UI
 

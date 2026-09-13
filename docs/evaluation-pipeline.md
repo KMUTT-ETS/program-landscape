@@ -90,7 +90,7 @@ Key invariants:
 
 ## 2. The Health Score (v3.4)
 
-`packages/db/src/health-score.ts` · `HEALTH_SCORE_VERSION = 'health-score.v3.4'` · doc: `docs/methodologies/health-score.md`, `docs/methodologies/program-health-and-lifecycle.md` §2
+`packages/db/src/health-score.ts` · `HEALTH_SCORE_VERSION = 'health-score.v3.4'` · doc: `docs/methodologies/health-score.md`, in-app paper `apps/web/app/docs/methodology/content-en.tsx` §2
 
 ### 2.1 Composition
 
@@ -104,7 +104,7 @@ Key invariants:
 | **Outcomes** | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (peer subject set) + `graduate_outcomes` (PENDING — kku-alumni still mocked) |
 | **Relevance** | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills × kmitl_career_skill_demands` (4-quadrant fallback) + `program_demand_matches` + `programDemographicOutlook` (computed from `demographic_projections`) + career→sector taxonomy |
 
-**Aggregation rule (critical):** faculty/department/university scopes are *not* averages of program scores — each scope re-runs the scorers against rolled-up totals (mv_*_metrics). Faculty overall ≠ weighted mean of programs. Documented in §2.3 of `program-health-and-lifecycle.md`.
+**Aggregation rule (critical):** faculty/department/university scopes are *not* simple averages of program scores. Since `health-score.v5.0` they carry the same driver sets as programs: per-program-calibrated drivers roll up as the mean of program values, scope-invariant drivers as ratio-of-sums (weighted by program size). Faculty overall ≠ mean of programs, deliberately; measured gap after v5.0 ~3.9 pts. Documented in §2.3 and §8.3 of the in-app paper (`apps/web/app/docs/methodology/content-en.tsx`).
 
 **Org-tier collapse:** v3.4 silently skips the department tier when too many faculty programs have `departmentId=NULL`. `resolveChildren()` in `health-score.ts:269` returns `scope: 'program'` from a faculty scope by default — two-level drill, not three. Hitting `/cockpit?scope=department&scopeId=X` directly still works.
 
@@ -134,7 +134,7 @@ Driver `labour_market_alignment` reads `kmitl_career_skill_demands`. The slug is
 
 ## 3. The Lifecycle Verdict (v1.1)
 
-`packages/db/src/program-deep-dive.ts:1023-1273` · `LIFECYCLE_VERSION = 'lifecycle.v1.1'` · doc: `docs/methodologies/program-health-and-lifecycle.md` §3
+`packages/db/src/program-deep-dive.ts:1023-1273` · `LIFECYCLE_VERSION = 'lifecycle.v1.1'` · doc: in-app paper `apps/web/app/docs/methodology/content-en.tsx` §3
 
 ### 3.1 Trajectory score
 
@@ -547,7 +547,7 @@ The cost of drift here is high — analysts cite this file when explaining Counc
 - **No F1 accuracy benchmark.** AI extraction confidence threshold (0.85) is a calibration choice, not a measured precision. Hand-labeled corpus still pending.
 - **Verdict bands are calibration choices.** Health bands (40 / 65) + lifecycle thresholds (45 / 65 / 80) + Risk thresholds (35 / 60 / 80) are tuned to KKU's current portfolio shape, not external benchmarks.
 
-The full caveat list per methodology lives in `docs/methodologies/program-health-and-lifecycle.md` §7 + the per-methodology docs.
+The full caveat list per methodology lives in the in-app paper (`apps/web/app/docs/methodology/content-en.tsx` §8, Limitations) + the per-methodology docs.
 
 ---
 

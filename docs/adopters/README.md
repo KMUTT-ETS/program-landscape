@@ -641,7 +641,7 @@ Every score the platform produces is computed by an explicitly-versioned functio
 | Methodology | Doc | Implementation |
 |---|---|---|
 | Health score (`health-score.v4.0`) | `docs/methodologies/health-score.md` | `packages/db/src/health-score.ts` |
-| Programme health + lifecycle | `program-health-and-lifecycle.md` (+ Thai version) | `packages/db/src/health-score.ts` |
+| Programme health + lifecycle | In-app paper `/docs/methodology` — `apps/web/app/docs/methodology/content-{en,th}.tsx` (the old markdown copy is retired) | `packages/db/src/health-score.ts` |
 | Risk scoring | `risk-scoring.md`, `risk-management.md` | `packages/db/src/risk-scoring.ts` |
 | Forecasting (`forecasting.v1`) | `forecasting.md` | `packages/shared/src/forecasting/` |
 | Scenario engine | `scenario-engine.md` | `packages/shared/src/scenarios/` |
@@ -1216,7 +1216,7 @@ Read these when the situation calls for it, not front to back.
 
 ### Methodologies
 
-`docs/methodologies/README.md` plus: `health-score.md`, `program-health-and-lifecycle.md` (and `.th.md`), `risk-scoring.md`, `risk-management.md`, `forecasting.md`, `scenario-engine.md`, `cost-allocation.md` (v0), `evaluations.md`, `class-gpa.md`, `cross-scope-consistency.md`, `verdict-stability.md`.
+`docs/methodologies/README.md` plus: `health-score.md`, the in-app methodology paper (`apps/web/app/docs/methodology/content-{en,th}.tsx`), `risk-scoring.md`, `risk-management.md`, `forecasting.md`, `scenario-engine.md`, `cost-allocation.md` (v0), `evaluations.md`, `class-gpa.md`, `cross-scope-consistency.md`, `verdict-stability.md`.
 
 ### UI
 
