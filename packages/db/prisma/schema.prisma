@@ -542,6 +542,7 @@ model Program {
 
   curricula             Curriculum[]
   courses               Course[]
+  programJobThaiLinks      ProgramJobThaiLink[]
   programSkills         ProgramSkill[]
   programFaculties      ProgramFaculty[]
   programUsers          User[]                        @relation("ProgramUserScope")
@@ -1932,10 +1933,45 @@ model JobThaiOccupation {
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @updatedAt @map("updated_at")
 
-  skills JobThaiOccupationSkill[]
+  skills       JobThaiOccupationSkill[]
+  programLinks ProgramJobThaiLink[]
 
   @@unique([category, subcategory])
   @@map("jobthai_occupations")
+}
+
+/// Which JobThai occupations a programme's graduates plausibly fill.
+///
+/// Built by TWO independent paths so they can corroborate or disagree:
+/// `linkSource = both` is the strong signal, and a disagreement is shown to an
+/// analyst rather than averaged away.
+model ProgramJobThaiLink {
+  id                  String   @id @default(cuid())
+  programId           String   @map("program_id")
+  jobThaiOccupationId String   @map("jobthai_occupation_id")
+  /// 'field-of-study' | 'skill-overlap' | 'both'
+  linkSource          String   @map("link_source")
+  /// 0..1 link strength.
+  score               Float
+  /// Postings behind this link AFTER the education-level gate. Drives
+  /// JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, so it is stored rather than recomputed.
+  postingCount        Int      @map("posting_count")
+  evidenceTh          String?  @map("evidence_th") @db.Text
+  methodVersion       String   @default("jobthai-bridge.v1") @map("method_version")
+  /// Stamped on write. Omitting it is what left 6,224 program_demand_matches
+  /// invisible to realDataWhere(); that class of bug has appeared three times
+  /// in this repo.
+  ingestionRunId      String?  @map("ingestion_run_id")
+  computedAt          DateTime @default(now()) @map("computed_at")
+
+  program      Program           @relation(fields: [programId], references: [id], onDelete: Cascade)
+  occupation   JobThaiOccupation @relation(fields: [jobThaiOccupationId], references: [id], onDelete: Cascade)
+  ingestionRun IngestionRun?     @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([programId, jobThaiOccupationId])
+  @@index([programId])
+  @@index([jobThaiOccupationId])
+  @@map("program_jobthai_links")
 }
 
 model JobThaiOccupationSkill {
@@ -3167,6 +3203,7 @@ model IngestionRun {
   programDemandMatches       ProgramDemandMatch[]
   jobThaiBatches             JobThaiBatch[]
   jobPostings                JobPosting[]
+  programJobThaiLinks        ProgramJobThaiLink[]
   classOfferings             ClassOffering[]
   programCourses             ProgramCourse[]
   evaluationQuestions        EvaluationQuestion[]

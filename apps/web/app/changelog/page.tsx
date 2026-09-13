@@ -26,6 +26,23 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-13',
+    version: 'v1.9.4 \u00b7 Real Thai job postings now inform programme relevance',
+    title:
+      'KKU can upload the job-posting files JobThai sends; 47,631 of them now link to programmes and feed one measure inside the Relevance score \u2014 with the honest caveat that they describe the national market, not Isan',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'A new admin page accepts the spreadsheets JobThai sends. Each file becomes a batch: 47,631 postings were read, grouped into 240 occupations, and matched against the skill vocabulary. Uploading the same file twice does nothing, and a file with the wrong columns is refused at the moment of upload with the missing column named, rather than failing quietly later.',
+      'The value this adds over the labour-market data we already had is province and industry detail, and something no other source gives us: 40.7% of postings state which field of study they want a graduate to hold. That is a far more direct link to a programme than inferring one from skills.',
+      'What it cannot tell you, stated plainly because it governs every figure derived from it: 37% of these postings are in Bangkok and only 3.3% across the 20 Northeast provinces \u2014 Khon Kaen has 304. This is a picture of the national labour market, not of KKU\u2019s region. There is no salary, no employer name and no posting date in what we receive.',
+      'Programme relevance gains one new measure from this: the share of what a programme teaches that its linked occupations actually ask for. 64 of 297 programmes now carry it, scoring between 44 and 100 with a median of 71. Portfolio relevance moved from 73.9 to 74.0 \u2014 a small change, because this is one measure among six.',
+      'Postgraduate programmes deliberately receive NO score from this source, and that needs explaining because it looks like a gap. Only 41 of the 47,631 postings ask for a master\u2019s or doctorate as their minimum. Postgraduate programmes DO match the fields of study named in postings \u2014 82% of doctoral programmes do \u2014 but those postings want a bachelor\u2019s. Scoring a doctorate against undergraduate vacancies would have produced a healthy-looking number that meant nothing, so the measure reports nothing instead.',
+      'Gender and age requirements appear in roughly half of Thai job postings. They are discarded when the file is read and are never stored, never analysed and never shown. They are not skills, and a platform that surfaced "employers want women under 30" alongside programme decisions would be doing real harm.',
+      'While matching skills at this volume we found that the skill list itself contained 456 duplicate entries \u2014 "Data Science" existed five times. That split one skill across several entries, so a programme and a job posting could both name it and still fail to match. The duplicates are merged, the alternative Thai spellings kept as aliases so nothing was lost, and the code path that created them is fixed.',
+      'The methodology version moves to health-score.v5.1, and the published methodology paper (Docs \u2192 Methodology, Thai and English) records the change, the caveats, and the measurements behind every threshold used.',
+    ],
+  },
+  {
     date: '2026-09-12',
     version: 'v1.9.3 \u00b7 Faculty health scores now use the same measures as programme scores',
     title:

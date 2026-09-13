@@ -1,8 +1,45 @@
 # Health score methodology
 
-**Version:** `health-score.v5.0`
-**Reviewed:** 2026-09-12
+**Version:** `health-score.v5.1`
+**Reviewed:** 2026-09-13
 **Owner:** KKU Data Office
+
+**v5.1 (2026-09-13): the Relevance dimension gains
+`jobthai_demand_alignment`.**
+
+The share of a programme's taught skills that its linked JobThai occupations
+demand — the direct analogue of `labour_market_alignment`, which reads the
+LinkedIn-via-MHESI feed, so the two are comparable and can visibly disagree.
+
+Source: 47,631 Thai job postings delivered as spreadsheets (see
+`docs/data-sources/jobthai.md`), linked to programmes by two independent paths —
+the field of study a posting states, and skill overlap.
+
+**Caveats, which travel with every figure derived from this source.** 37.0% of
+postings are Bangkok and 3.3% the 20 Northeast provinces, Khon Kaen 304: this
+is the national labour market, not KKU's region. No salary, employer or posting
+date exists in the source.
+
+**Null, never 0 — and for postgraduate programmes that is the normal case, not
+an edge case.** Only 41 of 47,631 postings state a postgraduate qualification as
+their minimum, so 0 of 110 master's and 2 of 68 doctoral programmes receive a
+score. 82% of doctoral programmes *do* match a field of study named in a
+posting, but those postings want a bachelor's. Scoring a doctorate from
+undergraduate vacancies would have produced a healthy-looking number that meant
+nothing, so the driver reports nothing instead. That gate is enforced on the
+**posting's** stated education floor, not on whether a field matched.
+
+**Measured impact.** 64 of 297 programmes scored, values 44–100, median 71.
+Portfolio relevance 73.9 → 74.0; faculty-scope relevance 72.6 → 72.9;
+cross-scope relevance divergence −1.5 → −1.0. Dimension weights unchanged.
+
+**Every threshold is measured, not assumed** — see
+`packages/db/src/jobthai-bridge.ts` for the distributions behind each:
+`JOBTHAI_MIN_POSTINGS_FOR_SIGNAL = 20` (observed 25th percentile of the
+per-programme distribution), `MIN_SKILL_OVERLAP_SHARE = 0.5` with at least 3
+shared skills, `MAX_PROGRAMMES_PER_FIELD = 15` (a field matching more carries no
+discriminating power — "Science" matched 135 of 297 programmes), and
+`JOBTHAI_MIN_LINK_SCORE = 0.1`.
 
 **v5.0 (2026-09-12): scope driver parity, and a completeness figure that
 can see a missing driver.**

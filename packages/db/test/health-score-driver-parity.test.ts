@@ -38,6 +38,8 @@ const mocks = vi.hoisted(() => ({
   enrollmentMetricFindFirst: vi.fn(),
   facultyFindFirst: vi.fn(),
   programPedagogyAssessmentFindUnique: vi.fn(),
+  programJobThaiLinkFindMany: vi.fn(),
+  jobThaiOccupationSkillFindMany: vi.fn(),
 }));
 
 vi.mock('../src/index', () => {
@@ -61,6 +63,8 @@ vi.mock('../src/index', () => {
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
+      programJobThaiLink: { findMany: mocks.programJobThaiLinkFindMany },
+      jobThaiOccupationSkill: { findMany: mocks.jobThaiOccupationSkillFindMany },
       systemSetting: { findUnique: mocks.systemSettingFindUnique },
       $queryRaw: vi.fn().mockResolvedValue([]),
       $queryRawUnsafe: vi.fn().mockResolvedValue([]),
@@ -74,6 +78,7 @@ vi.mock('../src/scope', async () => {
   return { ...actual, queryMetricByScope: mocks.queryMetricByScope };
 });
 
+import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from '../src/jobthai-bridge';
 import {
   computeHealthScores,
   DIMENSION_DRIVERS,
@@ -110,6 +115,8 @@ beforeEach(() => {
   mocks.enrollmentMetricFindFirst.mockResolvedValue(null);
   mocks.facultyFindFirst.mockResolvedValue(null);
   mocks.programPedagogyAssessmentFindUnique.mockResolvedValue(null);
+  mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
+  mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([]);
   mocks.programFindMany.mockResolvedValue([]);
   mocks.programFindUnique.mockResolvedValue(null);
   mocks.queryMetricByScope.mockResolvedValue([]);
@@ -121,8 +128,10 @@ describe('summariseDrivers — absent drivers count against completeness', () =>
       { label: 'labour_market_alignment', value: 8.3, raw: null },
     ]);
     expect(result.score).toBe(8.3);
-    // 1 of 5, NOT 1 of 1.
-    expect(result.dataCompletenessPct).toBeCloseTo(20, 5);
+    // 1 of SIX canonical relevance drivers, not 1 of 1. The count moved from
+    // five to six when jobthai_demand_alignment landed in v5.1 — the point of
+    // the assertion is the denominator being canonical, not its exact value.
+    expect(result.dataCompletenessPct).toBeCloseTo((1 / DIMENSION_DRIVERS.relevance.length) * 100, 5);
     expect(result.drivers.map((d) => d.label)).toEqual([...DIMENSION_DRIVERS.relevance]);
     const padded = result.drivers.find((d) => d.label === 'pedagogical_fit');
     expect(padded).toBeDefined();
@@ -261,8 +270,8 @@ describe('collectProgramIdsForScope — canonical+active only', () => {
 
 // ── relevance at scope ────────────────────────────────────────────────
 
-describe('scoreRelevanceScope — no longer drops the per-programme drivers', () => {
-  it('carries all five canonical relevance drivers', async () => {
+describe('scoreRelevanceScope — carries every per-programme driver', () => {
+  it('carries all six canonical relevance drivers', async () => {
     mocks.facultyFindMany.mockResolvedValue([
       { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
     ]);
@@ -283,6 +292,7 @@ describe('scoreRelevanceScope — no longer drops the per-programme drivers', ()
         'demographic_resilience',
         'strategic_sector_alignment',
         'pedagogical_fit',
+        'jobthai_demand_alignment',
       ]);
     }
   });
@@ -464,5 +474,76 @@ describe('driver parity between program and scope scorers', () => {
         }
       }
     }
+  });
+});
+
+// ── jobthai_demand_alignment (v5.1) ───────────────────────────────────────
+
+describe('jobthai_demand_alignment', () => {
+  function facultyWithOneProgramme(level: string): void {
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'Science', nameTh: 'วิทย์' }]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level, nameTh: 'ก', kmitlCareerIds: [] });
+  }
+
+  it('is a canonical relevance driver', () => {
+    expect(DIMENSION_DRIVERS.relevance).toContain('jobthai_demand_alignment');
+  });
+
+  it('is the share of the taught skills that the linked occupations demand', async () => {
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programSkillFindMany.mockResolvedValue([
+      { skillId: 's1' }, { skillId: 's2' }, { skillId: 's3' }, { skillId: 's4' },
+    ]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([
+      { jobThaiOccupationId: 'o1', postingCount: 500, score: 0.8 },
+    ]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }, { skillId: 's2' }]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBe(50);
+  });
+
+  it('is NULL, never 0, for a postgraduate programme', async () => {
+    // Not because no field matched — 82% of doctoral programmes DO match one —
+    // but because the postings behind those matches require only a bachelor's.
+    // Only 41 of 47,631 postings state a postgraduate minimum, so the bridge
+    // leaves postgraduate programmes with no eligible link.
+    facultyWithOneProgramme('DOCTORAL');
+    mocks.programSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
+  });
+
+  it('is NULL below the signal floor rather than scoring a handful of adverts', async () => {
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([
+      { jobThaiOccupationId: 'o1', postingCount: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL - 1, score: 0.9 },
+    ]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
+  });
+
+  it('is NULL when the programme has no taught skills at all', async () => {
+    // A zero denominator is a data gap, not zero alignment.
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programSkillFindMany.mockResolvedValue([]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([
+      { jobThaiOccupationId: 'o1', postingCount: 500, score: 0.9 },
+    ]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
   });
 });

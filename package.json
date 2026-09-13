@@ -104,7 +104,8 @@
     "demand:backfill-provenance": "tsx apps/ingestion/src/scripts/backfill-demand-match-provenance.ts",
     "jobthai:derive": "tsx apps/ingestion/src/scripts/jobthai-derive.ts",
     "jobthai:embed": "tsx apps/ingestion/src/scripts/jobthai-embed.ts",
-    "skills:dedupe": "tsx apps/ingestion/src/scripts/dedupe-skills.ts"
+    "skills:dedupe": "tsx apps/ingestion/src/scripts/dedupe-skills.ts",
+    "jobthai:link-programs": "tsx apps/ingestion/src/scripts/jobthai-link-programs.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

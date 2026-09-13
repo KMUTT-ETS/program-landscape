@@ -107,7 +107,7 @@ const LIFECYCLE_VERSION = 'lifecycle.v1.4';
  * this on a sub-version update — CI fails until either the tag bumps
  * or the change is undone.
  */
-export const BUNDLE_CALENDAR_TAG = 'landscape-2026-09.v1';
+export const BUNDLE_CALENDAR_TAG = 'landscape-2026-09.v2';
 
 /**
  * The full sub-version manifest. Keys are stable, ordered alphabetically

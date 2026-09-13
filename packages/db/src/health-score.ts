@@ -5,6 +5,7 @@ import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
 import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
+import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from './jobthai-bridge';
 import { getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
 import {
@@ -150,7 +151,42 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // report honestly. Composites above program scope MOVE. See
 // `docs/methodologies/health-score.md` and
 // `docs/superpowers/plans/2026-09-12-health-score-scope-driver-parity.md`.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.0';
+/**
+ * Minimum link score for an occupation to contribute to the driver.
+ *
+ * A field-of-study link scores matchedFields/totalFields, so 0.1 means at least
+ * one in ten of the occupation's stated fields names this programme. Below that
+ * the tail is single generic-field matches — observed examples were Tourism
+ * Management linked to an accounting occupation at 0.05, and Business
+ * Administration to HR training at 0.01. Those occupations carry large demand
+ * sets, so admitting them can only inflate the driver.
+ */
+export const JOBTHAI_MIN_LINK_SCORE = 0.1;
+
+//
+// v5.1 (2026-09-13) — the Relevance dimension gains
+// `jobthai_demand_alignment`: the share of a programme's taught skills that
+// its linked JobThai occupations demand. The direct analogue of
+// `labour_market_alignment`, which reads the LinkedIn-via-MHESI feed, so the
+// two are comparable and can visibly disagree.
+//
+// Source caveats, which travel with every figure derived from it: 37.0% of the
+// 47,631 postings are Bangkok and 3.3% the 20 Northeast provinces (Khon Kaen
+// 304), so this is a national signal rather than a regional one; there is no
+// salary, employer or posting date in the source.
+//
+// NULL, NEVER 0, where the data cannot speak — and for postgraduate programmes
+// that is the normal case rather than an edge case. Only 41 of 47,631 postings
+// state a postgraduate qualification as their minimum, so the bridge leaves
+// almost every master's and doctoral programme without an eligible link. 82% of
+// doctoral programmes DO match a field of study, but on bachelor-level adverts;
+// scoring a PhD from undergraduate vacancies would have looked entirely healthy
+// and been wrong.
+//
+// Thresholds are measured, not assumed: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL = 20
+// (the observed 25th percentile), MIN_SKILL_OVERLAP_SHARE = 0.5,
+// MAX_PROGRAMMES_PER_FIELD = 15. See packages/db/src/jobthai-bridge.ts.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.1';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -294,6 +330,7 @@ export const DIMENSION_DRIVERS = {
     'demographic_resilience',
     'strategic_sector_alignment',
     'pedagogical_fit',
+    'jobthai_demand_alignment',
   ],
 } as const satisfies Record<HealthDimension, readonly string[]>;
 
@@ -1934,6 +1971,63 @@ const STRATEGIC_KMITL_GROUPS = new Set([
   'Food',
 ]);
 
+// ── jobthai_demand_alignment driver (added v5.1) ─────────────────────
+//
+// Share of a programme's taught skills that its linked JobThai occupations
+// demand. The direct analogue of `labour_market_alignment`, which reads the
+// LinkedIn-via-MHESI feed, so the two are comparable and can visibly disagree.
+//
+// NULL, NEVER 0, in three cases, each a data gap rather than poor performance:
+//   - the programme has no eligible link. For postgraduate programmes that is
+//     by design: the bridge admits only postings whose stated minimum is a
+//     postgraduate qualification, and just 41 of 47,631 postings do. 82% of
+//     doctoral programmes DO match a field of study, but those matches sit on
+//     bachelor-level adverts, and scoring a PhD on undergraduate vacancies
+//     would look healthy and be wrong;
+//   - the postings behind its links total fewer than
+//     JOBTHAI_MIN_POSTINGS_FOR_SIGNAL (20, the measured 25th percentile);
+//   - the programme has no taught skills, so the denominator is zero.
+async function jobThaiDemandAlignmentDriver(
+  programId: string,
+): Promise<HealthScore['drivers'][number]> {
+  const label = 'jobthai_demand_alignment';
+  const links = await prisma.programJobThaiLink.findMany({
+    where: { programId, score: { gte: JOBTHAI_MIN_LINK_SCORE } },
+    select: { jobThaiOccupationId: true, postingCount: true, score: true },
+  });
+  const postings = links.reduce((sum, l) => sum + l.postingCount, 0);
+  if (links.length === 0 || postings < JOBTHAI_MIN_POSTINGS_FOR_SIGNAL) {
+    return { label, value: null, raw: { links: links.length, postings, floor: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } };
+  }
+
+  const taught = await prisma.programSkill.findMany({ where: { programId }, select: { skillId: true } });
+  if (taught.length === 0) {
+    return { label, value: null, raw: { reason: 'programme has no taught skills' } };
+  }
+
+  const demanded = await prisma.jobThaiOccupationSkill.findMany({
+    where: { jobThaiOccupationId: { in: links.map((l) => l.jobThaiOccupationId) } },
+    select: { skillId: true },
+  });
+  const demandedSet = new Set(demanded.map((d) => d.skillId));
+  const taughtSet = new Set(taught.map((t) => t.skillId));
+  const matched = [...taughtSet].filter((id) => demandedSet.has(id)).length;
+
+  return {
+    label,
+    value: clamp((matched / taughtSet.size) * 100),
+    raw: {
+      taughtSkills: taughtSet.size,
+      demandedAmongTaught: matched,
+      occupations: links.length,
+      postings,
+      // Carried so a provenance drawer can state the caveat with numbers: this
+      // is a national signal, 37% Bangkok and 3.3% Northeast.
+      source: 'jobthai',
+    },
+  };
+}
+
 async function scoreRelevanceProgram(
   programId: string,
   kmitlAlignment: number | null,
@@ -2001,6 +2095,7 @@ async function scoreRelevanceProgram(
     // data origin is LinkedIn (subscribed by MHESI). See
     // memory/feedback_kmitl_data_attribution.md.
     { label: 'strategic_sector_alignment', value: sectorValue, raw: { targetedCareers: program?.kmitlCareerIds.length ?? 0 } },
+    await jobThaiDemandAlignmentDriver(programId),
     {
       label: 'pedagogical_fit',
       value: pedagogicalFit === null ? null : clamp(pedagogicalFit),
@@ -2062,6 +2157,7 @@ async function scoreRelevanceScope(
     rolledUpDriver(index, programIds, 'relevance', 'demographic_resilience'),
     rolledUpDriver(index, programIds, 'relevance', 'strategic_sector_alignment'),
     rolledUpDriver(index, programIds, 'relevance', 'pedagogical_fit'),
+    rolledUpDriver(index, programIds, 'relevance', 'jobthai_demand_alignment'),
   ];
   return summariseDrivers('relevance', drivers);
 }

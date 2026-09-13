@@ -64,11 +64,11 @@ A naive driver would therefore hand doctoral programmes a demand signal derived 
 
 ---
 
-### Task 1: `ProgramJobThaiLink` schema
+### Task 1: `ProgramJobThaiLink` schema ✅ DONE
 
 **Files:** `packages/db/prisma/schema.prisma`, new migration.
 
-- [ ] **Step 1: Add the model**
+- [x] **Step 1: Add the model**
 
 ```prisma
 /// Which JobThai occupations a programme's graduates plausibly fill.
@@ -106,7 +106,7 @@ model ProgramJobThaiLink {
 
 Add back-relations on `Program`, `JobThaiOccupation` and `IngestionRun`.
 
-- [ ] **Step 2: Hand-write the migration**
+- [x] **Step 2: Hand-write the migration**
 
 Generate a reference diff to a scratch path OUTSIDE the repo and copy only your own statements. A diff against this database also emits `DROP TABLE "mv_refresh_log"`, dropped `verdict_snapshots` columns, five `DROP INDEX` and two unrelated `CREATE INDEX`. Then:
 
@@ -118,15 +118,15 @@ pnpm --filter @kku/db exec prisma generate
 
 Restart api and ingestion — `nest start --watch` does not see `packages/` changes.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ---
 
-### Task 2: The bridge, pure functions first
+### Task 2: The bridge, pure functions first ✅ DONE
 
 **Files:** create `packages/db/src/jobthai-bridge.ts`, test `packages/db/test/jobthai-bridge.test.ts`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -208,9 +208,9 @@ describe('combineLinkSources', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `pnpm --filter @kku/db test -- jobthai-bridge`
+- [x] **Step 2: Run to verify they fail** — `pnpm --filter @kku/db test -- jobthai-bridge`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /**
@@ -240,15 +240,15 @@ export function eligiblePostingLevels(programLevel: string): string[] {
 
 `combineLinkSources` returns `{ linkSource, score }` or null. For `both`, score is `1 - (1 - fieldScore) * (1 - skillScore)` — corroboration raises confidence above either path alone without letting it exceed 1.
 
-- [ ] **Step 4: Run tests, then commit**
+- [x] **Step 4: Run tests, then commit**
 
 ---
 
-### Task 3: The link runner
+### Task 3: The link runner ✅ DONE — 2,105 links, thresholds corrected after hand-inspection
 
 **Files:** create `apps/ingestion/src/scripts/jobthai-link-programs.ts`; register `jobthai:link-programs`.
 
-- [ ] **Step 1: Implement, dry-run by default**
+- [x] **Step 1: Implement, dry-run by default**
 
 For each canonical ACTIVE programme:
 1. Resolve eligible postings via `eligiblePostingLevels(programme.level)`.
@@ -256,23 +256,23 @@ For each canonical ACTIVE programme:
 3. **Skill path** — intersect `ProgramSkill` with `JobThaiOccupationSkill`. This is the path the taxonomy de-duplication just unblocked: before it, a programme pointing at one "Data Science" row and the demand set at another produced a silent false negative.
 4. `combineLinkSources`, upsert with `postingCount` and `ingestionRunId`.
 
-- [ ] **Step 2: Run for real and record**
+- [x] **Step 2: Run for real and record**
 
 Report: programmes linked, links by `linkSource`, how many programmes clear the floor, and **how many postgraduate programmes end up with zero eligible postings** — expect nearly all of them, and that is the gate working.
 
-- [ ] **Step 3: Inspect 10 links by hand before trusting them**
+- [x] **Step 3: Inspect 10 links by hand before trusting them**
 
 Print programme name, occupation, score, source and evidence for a spread of scores. A link that reads implausibly means the field matcher is too loose — fix it before the driver consumes it. Plan A's field-of-study extraction needed three rounds of exactly this.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ---
 
-### Task 4: The relevance driver and `health-score.v5.1`
+### Task 4: The relevance driver and `health-score.v5.1` ✅ DONE
 
 **Files:** `packages/db/src/health-score.ts`, `packages/db/src/methodology-bundle.ts`, tests.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Extend `packages/db/test/health-score-driver-parity.test.ts`, whose mock harness
 already exists:
@@ -345,15 +345,15 @@ cannot recur here. Note that the guard asserts against `DRIVER_NOT_COMPUTED`,
 not merely against the label being present, because `summariseDrivers` pads
 every canonical label.
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 Add `jobthai_demand_alignment` to `DIMENSION_DRIVERS.relevance`, to `scoreRelevanceProgram`, and as a rollup in `scoreRelevanceScope` via `rolledUpDriver` — its calibration is per-programme, so it rolls up rather than aggregating.
 
-- [ ] **Step 3: Bump the version**
+- [x] **Step 3: Bump the version**
 
 `HEALTH_SCORE_VERSION = 'health-score.v5.1'` and `BUNDLE_CALENDAR_TAG`. The manifest fingerprint recomputes from the constant.
 
-- [ ] **Step 4: Measure what moved**
+- [x] **Step 4: Measure what moved**
 
 ```bash
 pnpm consistency:check --no-write
@@ -361,11 +361,11 @@ pnpm consistency:check --no-write
 
 Record the relevance mean before and after, how many programmes gained a non-null driver, and how many are null by the postgraduate gate versus by the floor. **Report the direction plainly** — v5.0's restored driver moved relevance DOWN because the dimension had been flattered by a missing input, and the same may happen here.
 
-- [ ] **Step 5: Docs and changelog**
+- [x] **Step 5: Docs and changelog**
 
 `docs/methodologies/health-score.md`, both `content-{en,th}.tsx` version tables, and a changelog entry. State the geography and postgraduate caveats as numbers, and that postgraduate programmes get null rather than a score built from undergraduate adverts.
 
-- [ ] **Step 6: Full verification and commit**
+- [x] **Step 6: Full verification and commit**
 
 All five suites green with counts at or above baseline (`@kku/shared` 995 · `@kku/db` 454 · web 157 · api 142 · ingestion 238), typecheck and lint clean.
 

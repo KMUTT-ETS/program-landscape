@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   enrollmentMetricFindFirst: vi.fn(),
   facultyFindFirst: vi.fn(),
   programPedagogyAssessmentFindUnique: vi.fn(),
+  programJobThaiLinkFindMany: vi.fn(),
+  jobThaiOccupationSkillFindMany: vi.fn(),
 }));
 
 // NO `vi.importActual('../src/index')` spread here, deliberately.
@@ -72,6 +74,8 @@ vi.mock('../src/index', () => {
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
+      programJobThaiLink: { findMany: mocks.programJobThaiLinkFindMany },
+      jobThaiOccupationSkill: { findMany: mocks.jobThaiOccupationSkillFindMany },
       // Backs getAcademicYearContext() (packages/db/src/academic-year.ts),
       // exercised for the first time by the tuition_trend_slope tests
       // below. Default (null → no stored override) below picks the
@@ -127,6 +131,8 @@ beforeEach(() => {
   mocks.enrollmentMetricFindFirst.mockResolvedValue(null);
   mocks.facultyFindFirst.mockResolvedValue(null);
   mocks.programPedagogyAssessmentFindUnique.mockResolvedValue(null);
+  mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
+  mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([]);
   // collectProgramIdsForScope hits prisma.program.findMany at uni
   // scope — empty array means relevance/capability scope-aggregations
   // fall through cleanly.

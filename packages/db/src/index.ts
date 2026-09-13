@@ -66,3 +66,4 @@ export * from './research-source-composition';
 export * from './publication-source-precedence';
 export * from './jobthai';
 export * from './skill-dedupe';
+export * from './jobthai-bridge';
