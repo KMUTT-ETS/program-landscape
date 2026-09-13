@@ -35,6 +35,53 @@ export interface MatchDemandParams {
   modelOverride?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Provenance
+//
+// A ProgramDemandMatch row exists because a demanded skill was resolved
+// from a demand source, so THAT source's ingestion run is the row's
+// provenance. These rows are AI-derived rather than connector-derived,
+// which is why "the latest run of this table's own connector" is
+// meaningless here — and why the column sat NULL on all 6,224 rows until
+// 2026-09-13, silently failing realDataWhere() and blanking the
+// `demand_match_filled` relevance driver on all 301 programmes.
+//
+// Every tier of the demand fallback chain reads KmitlCareerSkillDemand, so
+// today that source is always kmitl-skill-mapping. JobThai joins the chain
+// in a later change; when it does, this is the one place that decides what
+// a row's provenance is.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The demand source backing every tier of the current fallback chain. */
+export const DEMAND_SOURCE_SLUG = 'kmitl-skill-mapping';
+
+/** Injectable seam so the resolver is unit-testable without Prisma. */
+export interface DemandProvenanceDeps {
+  findLatestSucceededRun: (slug: string) => Promise<string | null>;
+  demandSourceSlug: string;
+}
+
+/**
+ * Returns null rather than fabricating a run id. A wrong provenance is
+ * worse than an absent one: realDataWhere() already treats null as "not
+ * real", whereas a fabricated FK would make unreal rows count as real.
+ */
+export async function resolveDemandProvenanceRunId(
+  deps: DemandProvenanceDeps,
+): Promise<string | null> {
+  return deps.findLatestSucceededRun(deps.demandSourceSlug);
+}
+
+/** Prisma-backed lookup. NOTE: the column is `completed_at`, not `finished_at`. */
+export async function findLatestSucceededRunId(slug: string): Promise<string | null> {
+  const run = await prisma.ingestionRun.findFirst({
+    where: { status: 'SUCCEEDED', dataSource: { slug } },
+    orderBy: { completedAt: 'desc' },
+    select: { id: true },
+  });
+  return run?.id ?? null;
+}
+
 export type MatchDemandOutcome =
   | {
       status: 'SUCCEEDED';
@@ -206,6 +253,13 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
   let gapsRelevant = 0;
   let irrelevant = 0;
 
+  // Resolved once per run, outside the transaction — it is one indexed
+  // read and every row in this batch shares the same provenance.
+  const demandRunId = await resolveDemandProvenanceRunId({
+    findLatestSucceededRun: findLatestSucceededRunId,
+    demandSourceSlug: DEMAND_SOURCE_SLUG,
+  });
+
   await prisma.$transaction(async (tx) => {
     // Replace prior matches for this program (a re-run reflects new
     // PLO / curriculum / demand state cleanly).
@@ -230,6 +284,10 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
           evidenceQuote: d.evidenceQuote || null,
           methodVersion: DEMAND_MATCH_VERSION,
           aiInferenceId: response.aiInferenceId,
+          // Without this the row fails realDataWhere() and the relevance
+          // driver that reads this table goes dark. See the provenance
+          // block at the top of this file.
+          ingestionRunId: demandRunId,
         },
       });
     }
