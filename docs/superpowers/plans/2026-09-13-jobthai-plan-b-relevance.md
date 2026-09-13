@@ -274,9 +274,76 @@ Print programme name, occupation, score, source and evidence for a spread of sco
 
 - [ ] **Step 1: Write the failing tests**
 
-Cover: the driver is the share of a programme's taught skills appearing in its linked occupations' demand sets; **null, never 0**, for a postgraduate programme; **null** when total `postingCount` is below the floor; present at BOTH programme and faculty scope; and the `DIMENSION_DRIVERS.relevance` entry exists.
+Extend `packages/db/test/health-score-driver-parity.test.ts`, whose mock harness
+already exists:
 
-The v5.0 parity guard will fail until the driver exists at both scopes — that is the guard doing its job, and it is why the v5.0 drift cannot recur here.
+```ts
+describe('jobthai_demand_alignment', () => {
+  it('is a canonical relevance driver', () => {
+    expect(DIMENSION_DRIVERS.relevance).toContain('jobthai_demand_alignment');
+  });
+
+  it('is the share of the programme's taught skills that its occupations demand', async () => {
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'Science', nameTh: 'วิทย์' }]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] });
+    // 4 taught skills, 2 of them demanded by the linked occupations.
+    mocks.programSkillFindMany.mockResolvedValue([
+      { skillId: 's1' }, { skillId: 's2' }, { skillId: 's3' }, { skillId: 's4' },
+    ]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([
+      { jobThaiOccupationId: 'o1', postingCount: 500 },
+    ]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }, { skillId: 's2' }]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBe(50);
+  });
+
+  it('is NULL, never 0, for a postgraduate programme', async () => {
+    // Not because no field matched — 82% of doctoral programmes DO match a
+    // field — but because the postings behind those matches require only a
+    // bachelor's. Only 41 postings nationally state a postgraduate minimum.
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'Science', nameTh: 'วิทย์' }]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level: 'DOCTORAL', nameTh: 'ก', kmitlCareerIds: [] });
+    mocks.programSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
+  });
+
+  it('is NULL below the signal floor rather than scoring a handful of adverts', async () => {
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'Science', nameTh: 'วิทย์' }]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] });
+    mocks.programSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([
+      { jobThaiOccupationId: 'o1', postingCount: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL - 1 },
+    ]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
+  });
+});
+```
+
+Add `programJobThaiLinkFindMany` and `jobThaiOccupationSkillFindMany` to the
+harness's `vi.hoisted` mock block and to the `prisma` mock object.
+
+The v5.0 parity guard will fail until the driver exists at both programme and
+scope level — that is the guard doing its job, and it is why the v5.0 drift
+cannot recur here. Note that the guard asserts against `DRIVER_NOT_COMPUTED`,
+not merely against the label being present, because `summariseDrivers` pads
+every canonical label.
 
 - [ ] **Step 2: Implement**
 
