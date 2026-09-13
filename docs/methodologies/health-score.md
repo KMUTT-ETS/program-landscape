@@ -1,11 +1,95 @@
 # Health score methodology
 
-**Version:** `health-score.v5.1`
+**Version:** `health-score.v5.2`
 **Reviewed:** 2026-09-13
 **Owner:** KKU Data Office
 
-**v5.1 (2026-09-13): the Relevance dimension gains
-`jobthai_demand_alignment`.**
+**v5.2 (2026-09-13): the JobThai signal corrected, and labour-market demand
+weighted domestic 75 : global 25.** v5.1 was superseded the same day, before
+any deployment; its measured impact below is kept as the record of what was
+wrong.
+
+1. **The programme links were wrong** (`jobthai-bridge.v2`). The skill-overlap
+   path compared a programme's taught skills with every skill that even ONE
+   posting in an occupation mentioned, and transferable skills carried it.
+   Doctor of Medicine was linked to Sales/AE, QC/QA and electrical engineering
+   on Communication, Critical thinking, Teamwork and Leadership, and
+   Professional ethics. Overlap-only links carried 120,251 of the 132,902
+   postings behind all links. Now:
+   - an occupation *demands* a skill only when at least 5% of its postings name
+     it (`OCCUPATION_SKILL_DEMAND_FLOOR`; measured share p50 0.013, p90 0.10);
+   - a skill demanded by more than 20% of the 240 occupations is *generic* and
+     cannot create a link (`GENERIC_SKILL_OCCUPATION_SHARE`; Communication 227,
+     Management 195, Accounting 52 versus Mechanical engineering 27,
+     Programming 24, Medicine 5);
+   - the field-of-study score is the share of the occupation's eligible
+     postings asking for the field, counted per posting. It had been matched
+     fields over distinct fields: Mechanical Engineering to mechanical engineer
+     read 0.04 against a posting share of 0.57.
+
+   Links at score >= 0.1: 835 -> 673; overlap-only links 365 -> 1;
+   programmes with a link at >= 0.1: 54, of which 42 clear the 20-posting floor.
+
+2. **The driver was circular.** A skill-overlap link exists exactly when a
+   programme's taught skills are demanded, so every overlap-linked programme
+   scored at least 50 by construction; 37 of the 64 scored under v5.1 took at
+   least 80% of their postings from such links. The driver now reads only
+   field-of-study and corroborated links.
+
+3. **Exact skill matching could not see the curriculum.** With honest links,
+   exact skill-ID overlap read 0 for 29 of 41 programmes — curricula say "Legal
+   Drafting" and "Thermodynamics", postings say "Litigation" and "Mechanical
+   engineering". The driver now uses the AI curriculum check that
+   `demand_match_filled` already uses: JobThai-demanded skills join the same
+   `programs:match-demand` call, each row tagged in `demand_sources`, and the
+   driver is the share of **relevant** JobThai-demanded skills the curriculum
+   covers. Generic skills are not checked. **Null below 5 relevant skills**
+   (`JOBTHAI_MIN_RELEVANT_SKILLS`): two identical AI runs gave BBA Marketing 33
+   then 67 on three skills, while programmes resting on 9-19 skills moved 7-11
+   points.
+
+4. **Relevance became profession-aware (`demand-match.v4`).** v3 asked "would a
+   graduate plausibly need this?" and called Electrical engineering and
+   Industrial engineering relevant gaps for Mechanical Engineering. They are
+   other professions — and in the JobThai data those strings come from
+   qualification lines listing accepted degrees (41 of the 45
+   mechanical-engineer postings tagged "Electrical engineering" mention it only
+   there). v4 gives the model the programme's target careers (its JobThai
+   occupations and LinkedIn careers) and each skill's demand context, and asks
+   for a closed-world fit — `core`, `supporting`, `other-profession`,
+   `not-relevant` or `uncertain` — with a one-sentence reason. `relevant` is
+   derived from the fit (core or supporting) and is **no longer implied by
+   `matched`**: a Mechanical programme's electrical service course does not make
+   electrical engineering a skill its graduates are hired for. This applies to
+   LinkedIn rows too, so `demand_match_filled` also becomes profession-aware as
+   each programme is re-run.
+
+5. **Domestic 75 : global 25.** `jobthai_demand_alignment` (JobThai, domestic)
+   and `labour_market_alignment` (LinkedIn via MHESI, global) keep their
+   combined weight of two drivers in the Relevance mean; only the split between
+   them is 75:25 (`LABOUR_MARKET_DEMAND_WEIGHTS`). When one has no data the
+   other takes the whole share. Both stay visible and both count toward
+   completeness. Other dimensions are unchanged.
+
+`demand_match_filled` and every other reader of `program_demand_matches`
+(strategic narrative, Gap Analyzer, benchmarking) are scoped to LinkedIn rows,
+so adding JobThai skills to the AI check does not change what they measure.
+
+**Measured on dev, 2026-09-13, and partial by design.** The AI check (v4) has
+run for 5 sample programmes; the full run belongs on production. Three carry the
+driver: Law 83, Statistics and Data Science 83, Mechanical Engineering 67
+(LinkedIn alignment 14, 8, 10). Under v3 Mechanical read 44, with Electrical and
+Industrial engineering among its gaps; under v4 its gaps are Preventive
+Maintenance and Continuous Improvement, and those two disciplines appear as
+degrees employers also accept. Accountancy and BBA Marketing show no figure
+(3 and 2 relevant skills). Portfolio relevance 74.9 under the v3 sample (74.0
+under v5.1). **Figures move again once the production run completes; re-measure
+then.**
+
+---
+
+**v5.1 (2026-09-13, superseded by v5.2 before deployment): the Relevance
+dimension gains `jobthai_demand_alignment`.**
 
 The share of a programme's taught skills that its linked JobThai occupations
 demand — the direct analogue of `labour_market_alignment`, which reads the

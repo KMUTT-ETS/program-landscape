@@ -244,9 +244,18 @@ taxonomy grows picks up new skills without duplicating old ones.
 
 Per gate 11 of `docs/readiness-checklist.md`, JobThai outputs are
 **preview-quality until 30 days of green history accrue from 2026-09-13**.
-The source does not yet feed the health score; that is Plan B
-(`docs/superpowers/plans/`), which adds a `jobthai_demand_alignment` relevance
-driver and bumps `health-score.v5.1`.
+The source feeds the `jobthai_demand_alignment` relevance driver
+(`health-score.v5.2`, weighted domestic 75 : global 25 against the LinkedIn
+driver) and the Deep-Dive Skills coverage JobThai view. Both read
+`programJobThaiSkillCoverage` in `packages/db/src/jobthai.ts`.
+
+**Programme links are `jobthai-bridge.v2`** (2026-09-13). v1's skill-overlap
+path linked programmes through generic skills (Doctor of Medicine to Sales/AE)
+and carried 120,251 of 132,902 linked postings; v2 counts a skill as demanded
+at a 5% posting share, excludes skills more than 20% of occupations demand, and
+scores field-of-study links by posting share. Re-run `pnpm jobthai:link-programs
+--apply` after any new drop, then `programs:match-demand` for the linked
+programmes so the AI curriculum check covers JobThai demand.
 
 ## PDPA posture
 
@@ -263,3 +272,4 @@ source. The uploaded files themselves live in MinIO and are deletable from
 | 2026-04-24 | Catalog stub created, mocked (prompt 14 scaffold). |
 | 2026-05-01 | Marked SUPERSEDED by `kmitl-skill-mapping` — on the incorrect assumption that JobThai required a paid API. |
 | 2026-09-13 | Un-deprecated and flipped real as a CSV/XLSX file source. 47,631 postings, 240 occupations loaded. Parser, connector, admin UI and deterministic skill matching shipped. |
+| 2026-09-13 | `jobthai-bridge.v2` links (posting-share field score, 5% demand floor, generic-skill exclusion); AI curriculum check extended to JobThai demand (`program_demand_matches.demand_sources`); `health-score.v5.2`; Deep-Dive Skills coverage JobThai view. |
