@@ -21,6 +21,7 @@ import {
   Database,
   FileSearch,
   FileText,
+  FileSpreadsheet,
   FileUp,
   GitBranch,
   Globe2,
@@ -505,6 +506,13 @@ function buildGroups({
       description:
         'Upload a document — PDF, Word, Excel, PowerPoint or HTML (e.g. a manpower-demand / job-posting report) — or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the KKU programs/skills it affects + recommended actions.',
       icon: <FileUp className="size-icon-xl" />,
+    },
+    {
+      href: '/admin/jobthai',
+      label: 'JobThai drops',
+      description:
+        'Upload the XLSX job-posting files JobThai sends. Each becomes a batch: postings are parsed, skills matched against the taxonomy, and occupations derived from the job categories. Gives province and industry-sector demand detail the LinkedIn-via-MHESI feed cannot.',
+      icon: <FileSpreadsheet className="size-icon-xl" />,
     },
     {
       href: '/admin/pdf-review',

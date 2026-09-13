@@ -57,6 +57,10 @@ if (!accessKeyId || !secretAccessKey) {
 const buckets = [
   process.env.MINIO_BUCKET_PDF_RAW ?? 'pdf-raw',
   process.env.MINIO_BUCKET_PDF_OUTPUT ?? 'pdf-output',
+  // Uploaded CSV/XLSX drops — JobThai job postings today. The connector's
+  // fetch() reads PENDING batches from here.
+  process.env.MINIO_BUCKET_CSV_UPLOADS ?? 'csv-uploads',
+  process.env.MINIO_BUCKET_AVATARS ?? 'avatars',
 ];
 
 // Load @aws-sdk/client-s3 from the shared package's node_modules. Using

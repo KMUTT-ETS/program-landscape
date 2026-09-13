@@ -1864,8 +1864,16 @@ model JobPosting {
   /// supply one, and the parser accepts it the moment they do.
   postedDateEstimated Boolean                @default(false) @map("posted_date_estimated")
 
+  /// Provenance. job_postings predates the ingestion_run_id convention and
+  /// had no such column, so nothing written here could ever pass
+  /// realDataWhere() — the same class of gap that left 6,224
+  /// program_demand_matches invisible. Added 2026-09-13 with the first
+  /// connector that actually writes to this table.
+  ingestionRunId   String?           @map("ingestion_run_id")
+
   sourcePdf        PdfDocument?      @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
   jobThaiBatch     JobThaiBatch?     @relation(fields: [jobThaiBatchId], references: [id], onDelete: Cascade)
+  ingestionRun     IngestionRun?     @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
   jobPostingSkills JobPostingSkill[]
 
   @@unique([source, externalId])
@@ -1873,6 +1881,7 @@ model JobPosting {
   @@index([postedDate])
   @@index([province])
   @@index([jobThaiBatchId])
+  @@index([ingestionRunId])
   @@index([jobCategory, jobSubcategory])
   @@map("job_postings")
 }
@@ -3157,6 +3166,7 @@ model IngestionRun {
   tcasAdmissionFunnels       TcasAdmissionFunnel[]
   programDemandMatches       ProgramDemandMatch[]
   jobThaiBatches             JobThaiBatch[]
+  jobPostings                JobPosting[]
   classOfferings             ClassOffering[]
   programCourses             ProgramCourse[]
   evaluationQuestions        EvaluationQuestion[]

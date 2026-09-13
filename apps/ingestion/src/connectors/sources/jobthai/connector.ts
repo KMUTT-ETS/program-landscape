@@ -146,26 +146,53 @@ export class JobThaiConnector extends CsvFileConnector {
 
     let loaded = 0;
     let failed = 0;
+    let firstError: string | null = null;
     for (let i = 0; i < rows.length; i += LOAD_CHUNK) {
       const chunk = rows.slice(i, i + LOAD_CHUNK);
       try {
-        loaded += (await this.deps.writePostings?.(chunk)) ?? 0;
+        const written = (await this.deps.writePostings?.(chunk)) ?? 0;
+        loaded += written;
+        // A chunk that writes fewer rows than it was given had rejections
+        // inside it. Counting only successes would report loaded=0 and
+        // failed=0 on a run where every single upsert failed — which is
+        // exactly what happened on the first live run here.
+        failed += chunk.length - written;
       } catch (e) {
         failed += chunk.length;
-        ctx.log.error('jobthai: chunk failed', { from: i, error: (e as Error).message });
+        firstError ??= (e as Error).message;
+        ctx.log.error('jobthai: chunk threw', { from: i, error: (e as Error).message });
       }
     }
 
     const batchIds = [...new Set(rows.map((r) => r.jobThaiBatchId as string).filter(Boolean))];
     for (const id of batchIds) {
-      await this.deps.markBatch?.(id, 'PARSED', undefined, loaded);
+      if (loaded === 0 && rows.length > 0) {
+        // Never claim PARSED when nothing landed. The operator needs to see
+        // FAILED with a reason, not a green batch holding zero postings.
+        await this.deps.markBatch?.(
+          id,
+          'FAILED',
+          firstError ?? `all ${rows.length} rows failed to load`,
+          0,
+        );
+      } else {
+        // rowCount is NOT touched here. It was set at upload time from the
+        // parse and is per-batch; `loaded` is the total across every batch in
+        // this run, so writing it would show 39,996 rows against a
+        // 10,000-row file. Observed on the first multi-batch run.
+        await this.deps.markBatch?.(id, 'PARSED');
+      }
+    }
+
+    if (loaded === 0 && rows.length > 0) {
+      throw new Error(`jobthai: every one of ${rows.length} rows failed to load. First error: ${firstError ?? 'unknown'}`);
     }
 
     return {
       recordsFetched: normalized.length,
       recordsLoaded: loaded,
       recordsFailed: failed,
-      metadata: { batches: batchIds.length, chunkSize: LOAD_CHUNK },
+      metadata: { batches: batchIds.length, chunkSize: LOAD_CHUNK, firstError },
     };
   }
 }
@@ -188,7 +215,10 @@ async function defaultReadObject(storageKey: string): Promise<Buffer> {
     accessKeyId: requireEnv('MINIO_ACCESS_KEY'),
     secretAccessKey: requireEnv('MINIO_SECRET_KEY'),
   });
-  return storage.getObject({ bucket: requireEnv('MINIO_BUCKET_CSV_UPLOADS'), key: storageKey });
+  // Defaulted rather than required, matching JobThaiService — the bucket name
+  // is not a secret and a missing override should not stop a connector run.
+  const bucket = process.env.MINIO_BUCKET_CSV_UPLOADS ?? 'csv-uploads';
+  return storage.getObject({ bucket, key: storageKey });
 }
 
 async function defaultWritePostings(rows: Array<Record<string, unknown>>): Promise<number> {
@@ -201,7 +231,16 @@ async function defaultWritePostings(rows: Array<Record<string, unknown>>): Promi
       }),
     ),
   );
-  return results.filter((x) => x.status === 'fulfilled').length;
+  const rejected = results.filter((x): x is PromiseRejectedResult => x.status === 'rejected');
+  if (rejected.length > 0) {
+    // allSettled makes it very easy to lose the reason entirely. Throw the
+    // first one so the caller can record it rather than reporting a silent
+    // zero.
+    throw new Error(
+      `${rejected.length} of ${rows.length} upserts failed. First: ${String((rejected[0]!.reason as Error).message).split('\n').slice(0, 3).join(' ')}`,
+    );
+  }
+  return results.length;
 }
 
 async function defaultMarkBatch(

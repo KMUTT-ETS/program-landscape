@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 
@@ -42,9 +42,14 @@ export class JobThaiService implements OnModuleInit {
   private readonly deps: JobThaiServiceDeps;
 
   constructor(
-    private readonly config?: ConfigService,
-    private readonly ingestion?: IngestionQueueService,
-    deps?: Partial<JobThaiServiceDeps>,
+    @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly ingestion?: IngestionQueueService,
+    // @Optional() is load-bearing: without it Nest tries to RESOLVE this
+    // test seam as a provider and the whole app fails to boot. The unit
+    // tests construct the service directly, so they never exercise the
+    // injector and cannot catch it — the same class of blind spot as a
+    // mocked queue accepting any job options.
+    @Optional() deps?: Partial<JobThaiServiceDeps>,
   ) {
     this.deps = {
       findByHash: deps?.findByHash ?? ((h) => prisma.jobThaiBatch.findUnique({ where: { contentHash: h }, select: { id: true } })),
