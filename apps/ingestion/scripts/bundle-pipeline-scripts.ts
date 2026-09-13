@@ -56,6 +56,14 @@ const TARGETS = [
   'link-class-offerings.ts',
   'materialise-program-courses.ts',
   'backfill-faculty-member-emails.ts',
+  // Operator-run JobThai + demand-match hydration (v1.9.4). Missing from this
+  // list, all four crashed in the prod image — `dotenv/config` not found, or
+  // ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING on @kku/db — so the documented
+  // post-deploy steps could not run. Verified by loading each in the image.
+  'jobthai-derive.ts',
+  'jobthai-embed.ts',
+  'jobthai-link-programs.ts',
+  'match-program-demand.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.
