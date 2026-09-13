@@ -51,6 +51,7 @@ import { AdminDataSetupModule } from './admin-data-setup/admin-data-setup.module
 import { EducationModule } from './education/education.module';
 import { StaffDashboardModule } from './staff-dashboard/staff.module';
 import { RisksModule } from './risks/risks.module';
+import { JobThaiModule } from './jobthai/jobthai.module';
 import { TrendDocumentsModule } from './trend-documents/trend-documents.module';
 import { AunqaModule } from './aunqa/aunqa.module';
 import { ScholarModule } from './scholar/scholar.module';
@@ -120,6 +121,7 @@ import {
     EducationModule,
     StaffDashboardModule,
     RisksModule,
+    JobThaiModule,
     TrendDocumentsModule,
     AunqaModule,
     ScholarModule,
