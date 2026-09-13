@@ -22,6 +22,8 @@ export interface JobThaiServiceDeps {
   createBatch: (data: Record<string, unknown>) => Promise<{ id: string }>;
   putObject: (args: { bucket: string; key: string; body: Buffer; contentType: string }) => Promise<void>;
   enqueue: (userId: string | null) => Promise<void>;
+  /** Deletes the batch row (postings cascade); null when it does not exist. */
+  deleteBatch: (id: string) => Promise<{ storageKey: string; postingsDeleted: number } | null>;
 }
 
 export interface IngestResult {
@@ -63,6 +65,17 @@ export class JobThaiService implements OnModuleInit {
           return storage.ensureBucket(a.bucket).then(() => storage.putObject(a)).then(() => undefined);
         }),
       enqueue: deps?.enqueue ?? ((userId) => this.ingestion!.enqueueManual('jobthai', userId ?? 'system').then(() => undefined)),
+      deleteBatch:
+        deps?.deleteBatch ??
+        (async (id) => {
+          const batch = await prisma.jobThaiBatch.findUnique({
+            where: { id },
+            select: { id: true, storageKey: true, _count: { select: { postings: true } } },
+          });
+          if (!batch) return null;
+          await prisma.jobThaiBatch.delete({ where: { id } });
+          return { storageKey: batch.storageKey, postingsDeleted: batch._count.postings };
+        }),
     };
   }
 
@@ -154,17 +167,15 @@ export class JobThaiService implements OnModuleInit {
     }));
   }
 
-  async remove(id: string): Promise<{ removed: boolean; postingsDeleted: number }> {
-    const batch = await prisma.jobThaiBatch.findUnique({
-      where: { id },
-      select: { id: true, storageKey: true, _count: { select: { postings: true } } },
-    });
+  async remove(id: string, removedByUserId: string | null = null): Promise<{ removed: boolean; postingsDeleted: number }> {
+    // Postings cascade via the FK.
+    const batch = await this.deps.deleteBatch(id);
     if (!batch) throw new ApiError('NOT_FOUND', `JobThai batch ${id} not found.`);
-    const postingsDeleted = batch._count.postings;
-    // Postings cascade via the FK. JobThaiOccupation rows are left intact —
-    // they are derived from the union of all batches, and phase 2 recomputes
-    // their counts on the next run.
-    await prisma.jobThaiBatch.delete({ where: { id } });
+    const postingsDeleted = batch.postingsDeleted;
+    // Occupations, skill matches and programme links are derived from the
+    // postings that remain. A connector run with nothing pending rebuilds them;
+    // without this they kept describing the deleted file.
+    await this.deps.enqueue(removedByUserId);
     if (this.storage) {
       await this.storage.deleteObject(this.bucket, batch.storageKey).catch((e: unknown) => {
         // A missing object is not a reason to fail the delete: the row is the

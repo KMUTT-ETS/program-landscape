@@ -35,6 +35,7 @@ function serviceWith(over: Partial<JobThaiServiceDeps> = {}) {
         calls.enqueued += 1;
         return Promise.resolve();
       }),
+    deleteBatch: over.deleteBatch ?? (() => Promise.resolve(null)),
   };
   return { svc: new JobThaiService(undefined, undefined, deps), calls };
 }
@@ -117,5 +118,30 @@ describe('JobThaiService.ingestFile', () => {
       uploadedByUserId: null,
     });
     expect(puts[0]).toMatch(/^jobthai\/[0-9a-f]{64}\.xlsx$/);
+  });
+});
+
+describe('JobThaiService.remove', () => {
+  it('queues a connector run after deleting, so occupations and programme links are rebuilt', async () => {
+    // WHY: removing a file deletes its postings (FK cascade) but left every
+    // derived layer — occupations, skill matches, programme links — built from
+    // the old set until someone ran the scripts by hand.
+    let enqueuedBy: string | null | undefined;
+    const { svc } = serviceWith({
+      deleteBatch: () => Promise.resolve({ storageKey: 'jobthai/x.xlsx', postingsDeleted: 10_000 }),
+      enqueue: (userId) => {
+        enqueuedBy = userId;
+        return Promise.resolve();
+      },
+    });
+    const r = await svc.remove('b1', 'user-9');
+    expect(r).toEqual({ removed: true, postingsDeleted: 10_000 });
+    expect(enqueuedBy).toBe('user-9');
+  });
+
+  it('does not queue a run for a batch that does not exist', async () => {
+    const { svc, calls } = serviceWith({ deleteBatch: () => Promise.resolve(null) });
+    await expect(svc.remove('missing', 'user-9')).rejects.toThrow(/not found/);
+    expect(calls.enqueued).toBe(0);
   });
 });

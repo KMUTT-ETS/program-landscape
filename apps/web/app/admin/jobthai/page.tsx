@@ -29,7 +29,7 @@ export default async function AdminJobThaiPage() {
             JobThai drops
           </span>
         }
-        subtitle="Upload the XLSX files JobThai sends. Each file becomes a batch: the postings are parsed, skills matched against the taxonomy, and occupations derived from the job categories. Uploading the same file twice is a no-op."
+        subtitle="Upload the XLSX files JobThai sends. Each file becomes a batch: the postings are parsed, then occupations, skill matches and programme links are rebuilt automatically from every file currently loaded — after an upload and after a delete. Uploading several files at once is fine: one run processes them all, and the other queued runs show as skipped on /admin/queues. Uploading the same file twice is a no-op. Programme scores update when the AI pipeline next runs for each programme."
       />
       <JobThaiClient initial={initial.ok ? initial.data : []} />
     </AuthedAppShell>

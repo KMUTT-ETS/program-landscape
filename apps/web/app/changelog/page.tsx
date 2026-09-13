@@ -27,6 +27,20 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-09-13',
+    version: 'v1.9.5 \u00b7 JobThai files take effect on their own',
+    title:
+      'Uploading or removing a JobThai file now updates occupations, skills and programme links automatically \u2014 no follow-up commands \u2014 and uploading several files at once no longer risks leaving one unprocessed',
+    audience: ['Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Until now an upload stopped after reading the postings. Occupations, the skills each one asks for, and the links from programmes to those occupations were only rebuilt when someone ran two commands on the server, so a newly loaded file changed nothing a reader could see. On the production system every programme showed \u201cNo JobThai demand signal\u201d after 47,631 postings had loaded successfully. Those layers are now rebuilt at the end of every upload, and again after a file is deleted, from exactly the files currently loaded.',
+      'The rebuild reads every posting, so it takes around ten minutes at today\u2019s volume, and the run shows as in progress for that time. Programme scores and gap lists that depend on the AI curriculum check update the next time the analysis pipeline runs for each programme \u2014 that step costs money per programme and is deliberately not triggered by a file upload.',
+      'Uploading several files together queues one run per file. Only one run proceeds at a time, and the others are recorded as skipped on the queues page \u2014 that is expected. The run in progress now also picks up any file that arrives while it is busy, where previously such a file could have waited indefinitely.',
+      'The application topology now shows the JobThai data flow as it actually runs: the connector building occupations and links itself, the skill taxonomy and programme records it reads, and the JobThai demand feeding the AI curriculum check.',
+      'The in-app methodology paper is updated to revision 1.3 for health-score.v5.2, and the older markdown copy of it, which had fallen thirteen versions behind, is retired so there is one maintained version.',
+    ],
+  },
+  {
+    date: '2026-09-13',
     version: 'v1.9.4 \u00b7 Real Thai job postings now inform programme relevance',
     title:
       'KKU can upload the job-posting files JobThai sends; 47,631 of them now link to programmes and feed one measure inside the Relevance score \u2014 with the honest caveat that they describe the national market, not Isan',

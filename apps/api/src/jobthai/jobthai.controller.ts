@@ -52,7 +52,7 @@ export class JobThaiController {
   @Delete('batches/:id')
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'jobthai.batch.delete', entityType: 'JobThaiBatch' })
-  async remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  async remove(@Param('id') id: string, @AuthSession() user: SessionUser) {
+    return this.service.remove(id, user.userId);
   }
 }

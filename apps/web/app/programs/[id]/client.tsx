@@ -2779,7 +2779,7 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
         <p className="text-xs text-text-tertiary">
           {data?.status === 'below-floor'
             ? `Only ${data.postings} JobThai postings name this programme's field of study — below the 20-posting floor, so no demand list is shown.`
-            : "No JobThai posting names this programme's field of study at a qualification level its graduates hold. Only 41 of 47,631 postings state a postgraduate minimum, so this is the normal state for master's and doctoral programmes. It is a data gap, not zero demand."}
+            : "No JobThai posting names this programme's field of study at a qualification level its graduates hold. Very few postings state a postgraduate minimum, so this is the normal state for master's and doctoral programmes. It is a data gap, not zero demand."}
         </p>
       </Card>
     );

@@ -291,7 +291,7 @@ const externalNodes: TopologyNode[] = [
       target: 'MinIO csv-uploads/jobthai/<sha256>.xlsx',
       notes: [
         'No API — delivery is a file drop; the same file uploaded twice is a no-op (content hash)',
-        '47,631 postings loaded on dev (2026-09-13)',
+        'Occupations, skill matches and programme links rebuild automatically after every upload or delete',
       ],
     },
   },
@@ -372,38 +372,18 @@ const connectorNodes: TopologyNode[] = [
     kind: 'connector',
     brand: 'jobthai',
     label: 'jobthai',
-    subtitle: 'On upload · postings + skills',
+    subtitle: 'On upload or delete · postings, then rebuild',
     details: {
       description:
-        'Parses PENDING JobThai batches into JobPosting rows and matches each posting against the skill taxonomy deterministically (word-bounded Latin terms, length-floored Thai terms). No LLM spend. Enqueued as an ordinary ingestion run by the /admin/jobthai upload.',
-      cadence: 'Manual · fired on each upload',
+        'One run per upload or delete at /admin/jobthai. Parses PENDING batches into JobPosting rows, then — once no batch is pending — rebuilds every derived layer from the postings that now exist: occupations, deterministic skill matches against the taxonomy (word-bounded Latin terms, length-floored Thai terms), and programme ↔ occupation links by stated field of study (jobthai-bridge.v2). No LLM spend.',
+      cadence: 'Event-driven · queued by each upload and each delete (no schedule)',
       sourceSlug: 'jobthai',
-    },
-  },
-  {
-    id: 'scr.jobthai-derive',
-    lane: 'connector',
-    kind: 'script',
-    brand: 'jobthai',
-    label: 'jobthai:derive',
-    subtitle: 'Manual · occupations + demand',
-    details: {
-      description:
-        'Derives JobThai occupations (distinct job-category pairs) and the skills each one demands from the posting-skill links.',
-      cadence: 'Manual · pnpm jobthai:derive --apply',
-    },
-  },
-  {
-    id: 'scr.jobthai-link-programs',
-    lane: 'connector',
-    kind: 'script',
-    brand: 'jobthai',
-    label: 'jobthai:link-programs',
-    subtitle: 'Manual · programme bridge',
-    details: {
-      description:
-        "Links programmes to JobThai occupations by the postings' stated field of study, gated on the posting's minimum education level so postgraduate programmes are not scored from bachelor-level vacancies.",
-      cadence: 'Manual · pnpm jobthai:link-programs --apply',
+      notes: [
+        'Uploading several files queues several runs; the worker runs 4 jobs at once and the runner skips overlapping copies, so /admin/queues shows them as skipped. The surviving run drains every batch that arrives while it is busy, then rebuilds once.',
+        'The rebuild scans every posting and takes roughly ten minutes at 47k postings; the run shows RUNNING throughout.',
+        'pnpm jobthai:derive and pnpm jobthai:link-programs run the same code for dry runs and repair.',
+        'The AI curriculum check is NOT run here — it costs money per programme and runs in programs-pipeline phase 3.',
+      ],
     },
   },
   {
@@ -702,12 +682,17 @@ const connectorNodes: TopologyNode[] = [
     id: 'ai.program-careers-demand',
     lane: 'ai',
     kind: 'ai-task',
+    brand: 'jobthai',
     label: 'Program careers + demand',
-    subtitle: 'Phase 3 · LinkedIn careers + demand',
+    subtitle: 'Phase 3 · demand-match.v4 fit',
     details: {
       description:
-        "Maps program skills to the LinkedIn-sourced career taxonomy (prompt: career-kmitl-mapping.v1) and crosswalks ESCO occupations against the program's skill set (demand-match.v2). Output drives the Deep-Dive demand section.",
+        "Maps the program to LinkedIn careers (career-kmitl-mapping), then checks every demanded skill from BOTH LinkedIn and JobThai against the program's PLOs, courses and extracted skills in one call (demand-match.v4). Each skill gets taught / not taught and a profession fit — core, supporting, other-profession, not-relevant or uncertain — with a reason, judged against the program's target careers. Rows record which source demanded the skill.",
       cadence: 'Per-program · programs-pipeline phase 3',
+      notes: [
+        'Only core and supporting count as relevant; other-profession skills are shown as degrees employers also accept, never as gaps.',
+        'New JobThai files change the demand lists immediately, but a programme\'s fit judgements update only when this phase next runs for it.',
+      ],
     },
   },
   {
@@ -1370,12 +1355,12 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'posting × matched skill',
     details: {
       description:
-        'Every JobThai vacancy, one row per posting, with its matched taxonomy skills. The only source of job_postings rows. Feeds the /skills demand sample and the Gap Analyzer job-postings demand path.',
+        'Every JobThai vacancy, one row per posting, with its matched taxonomy skills (rebuilt with the derived layers at the end of each connector run). The only source of job_postings rows. Feeds the /skills demand sample and the Gap Analyzer job-postings demand path.',
       prismaModel: 'JobThaiBatch + JobPosting + JobPostingSkill',
       relatedTables: [
         'JobThai batches — JobThaiBatch (one per uploaded file)',
-        'JobThai postings — JobPosting (47,631 on dev)',
-        'JobThai posting skills — JobPostingSkill (160,834 links)',
+        'JobThai postings — JobPosting',
+        'JobThai posting skills — JobPostingSkill',
       ],
     },
   },
@@ -1388,12 +1373,12 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'occupation × demanded skill',
     details: {
       description:
-        '240 occupations derived from JobThai job categories, the skills each demands, and the programme links (jobthai-bridge.v2) behind the jobthai_demand_alignment driver of health-score.v5.2 (Relevance, weighted domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
+        'Occupations derived from JobThai job categories, the skills each demands (a skill counts at a 5% posting share), and the programme links (jobthai-bridge.v2, by stated field of study at an education level the graduates hold). Rebuilt by the jobthai connector at the end of every run. Read by the AI curriculum check (demand-match.v4), the jobthai_demand_alignment driver of health-score.v5.2 (Relevance, domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
       prismaModel: 'JobThaiOccupation + JobThaiOccupationSkill + ProgramJobThaiLink',
       relatedTables: [
         'JobThai occupations — JobThaiOccupation',
         'JobThai occupation skills — JobThaiOccupationSkill',
-        'Programme ↔ occupation — ProgramJobThaiLink (1,716 links on dev, by field of study)',
+        'Programme ↔ occupation — ProgramJobThaiLink (by field of study)',
       ],
     },
   },
@@ -1545,7 +1530,7 @@ const tableNodes: TopologyNode[] = [
         'ProgramPedagogyAssessment (Phase 1)',
         'ProgramPeerSelection (Phase 5)',
         'ProgramPeerReview (Phase 5)',
-        'ProgramDemandMatch (Phase 3)',
+        'ProgramDemandMatch (Phase 3 — LinkedIn + JobThai demand, profession fit)',
         'ProgramResearchExpertise (Phase RE)',
         'ProgramCurriculumRevision (Phase CR)',
         'ProgramLifecycleVerdict (separate methodology)',
@@ -2376,11 +2361,12 @@ const edges: TopologyEdge[] = [
   { from: 'con.unicon-ds2003', to: 'tab.staff-education-history' },
   { from: 'con.kmitl-skill-mapping', to: 'tab.kmitl-demand' },
   { from: 'con.jobthai', to: 'tab.jobthai-postings' },
-  // jobthai:derive reads postings, so the script sits downstream of the
-  // postings table in reality; drawn from the connector lane to keep edges
-  // flowing left → right.
-  { from: 'scr.jobthai-derive', to: 'tab.jobthai-occupations' },
-  { from: 'scr.jobthai-link-programs', to: 'tab.jobthai-occupations' },
+  // The same connector run rebuilds occupations, skill matches and links once
+  // no batch is pending — there is no separate script step any more.
+  { from: 'con.jobthai', to: 'tab.jobthai-occupations' },
+  { from: 'tab.skill', to: 'tab.jobthai-postings' }, // postings matched against the taxonomy
+  { from: 'tab.program', to: 'tab.jobthai-occupations' }, // links by programme field of study
+  { from: 'tab.program-skill', to: 'tab.jobthai-occupations' }, // skill-overlap corroboration
   { from: 'con.tcas', to: 'tab.tcas-admission-stat' },
   { from: 'con.imd-rankings', to: 'tab.imd-ranking' },
 
@@ -2429,7 +2415,7 @@ const edges: TopologyEdge[] = [
   // Existing Cockpit gets two more upstream feeders (newly-surfaced)
   { from: 'tab.employer-feedback', to: 'dash.cockpit' },
   { from: 'tab.kmitl-demand', to: 'dash.cockpit' }, // demand dimension via health-score.v2
-  { from: 'tab.jobthai-occupations', to: 'dash.cockpit' }, // relevance via health-score.v5.1
+  { from: 'tab.jobthai-occupations', to: 'dash.cockpit' }, // relevance via health-score.v5.2
 
   // Existing Program Deep-Dive picks up the new connector outputs
   { from: 'tab.student-demographic', to: 'dash.program-deep-dive' },
@@ -2460,6 +2446,7 @@ const edges: TopologyEdge[] = [
   { from: 'tab.program', to: 'ai.program-careers-demand' },
   { from: 'tab.program-skill', to: 'ai.program-careers-demand' },
   { from: 'tab.kmitl-demand', to: 'ai.program-careers-demand' },
+  { from: 'tab.jobthai-occupations', to: 'ai.program-careers-demand' }, // JobThai demand checked by demand-match.v4
 
   // Phase 5 — peer selection + review
   { from: 'tab.program', to: 'ai.program-peers' },
