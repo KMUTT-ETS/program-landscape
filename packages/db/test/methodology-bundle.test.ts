@@ -28,6 +28,7 @@ import { GAP_ANALYSIS_VERSION } from '../src/gap-analysis';
 import { DASHBOARD_OVERVIEW_VERSION } from '../src/dashboard-overview';
 import { DECISION_WORKSPACE_VERSION } from '../src/decisions';
 import { DATA_QUALITY_VERSION } from '../src/data-quality';
+import { JOBTHAI_BRIDGE_VERSION } from '../src/jobthai-bridge';
 
 import {
   FORECASTING_VERSION,
@@ -77,6 +78,7 @@ describe('LANDSCAPE_METHODOLOGY_BUNDLE', () => {
   // ── Drift detection — every entry must match its imported constant ─
   it('manifest is current — drift catcher', () => {
     expect(METHODOLOGY_MANIFEST['health-score']).toBe(HEALTH_SCORE_VERSION);
+    expect(METHODOLOGY_MANIFEST['jobthai-bridge']).toBe(JOBTHAI_BRIDGE_VERSION);
     expect(METHODOLOGY_MANIFEST['risk-scoring']).toBe(RISK_SCORING_VERSION);
     expect(METHODOLOGY_MANIFEST['benchmarking']).toBe(BENCHMARKING_VERSION);
     expect(METHODOLOGY_MANIFEST['benchmarking-overview']).toBe(BENCHMARKING_OVERVIEW_VERSION);

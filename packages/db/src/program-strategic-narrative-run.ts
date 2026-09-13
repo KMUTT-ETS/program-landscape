@@ -12,6 +12,7 @@ import {
 import { prisma } from './index';
 import { computeHealthScores } from './health-score';
 import { realDataWhere } from './data-quality';
+import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { activeRevisionIdFor } from './program-revision';
 import {
   programAiReadiness,
@@ -394,7 +395,7 @@ async function fetchDemandMatchSummary(programId: string): Promise<{
   topUnmatchedSkills: string[];
 } | null> {
   const rows = await prisma.programDemandMatch.findMany({
-    where: { programId, relevant: true, ...realDataWhere() },
+    where: { programId, relevant: true, ...demandMatchSourceWhere(DEMAND_SOURCE_LINKEDIN), ...realDataWhere() },
     select: { matched: true, skillId: true },
   });
   if (rows.length === 0) return null;

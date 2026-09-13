@@ -20,6 +20,8 @@ import {
   prisma,
   programOutcomes,
   realDataWhere,
+  DEMAND_SOURCE_LINKEDIN,
+  demandMatchSourceWhere,
 } from '@kku/db';
 import type { BenchmarkingInsightsInput, KmitlDemandMatchSummary, SessionUser } from '@kku/shared';
 import {
@@ -294,7 +296,7 @@ export class BenchmarkingController {
 // cross-package export for a single caller.
 async function fetchDemandMatchSummary(programId: string): Promise<KmitlDemandMatchSummary | null> {
   const rows = await prisma.programDemandMatch.findMany({
-    where: { programId, relevant: true, ...realDataWhere() },
+    where: { programId, relevant: true, ...demandMatchSourceWhere(DEMAND_SOURCE_LINKEDIN), ...realDataWhere() },
     select: { matched: true, skillId: true },
   });
   if (rows.length === 0) return null;

@@ -16,6 +16,8 @@ import {
   type ProgramDimensionMeans,
 } from './health-score';
 import { queryMetricByScope } from './scope';
+import { programJobThaiSkillCoverage } from './jobthai';
+import { JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
 import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears } from './program-funnel';
 import { academicYearContextSync, getAcademicYearContext } from './academic-year';
@@ -3214,6 +3216,113 @@ export async function programSkills(programId: string) {
     (t) => !t.pickedFromPlo && (t.compulsoryWeight ?? t.weight) < 0.5,
   );
 
+  // ── JobThai (domestic) demand — v5.2 ─────────────────────────────────
+  // Read through programJobThaiSkillCoverage, the same loader the
+  // jobthai_demand_alignment health driver uses, so the gap list on this page
+  // and the score beside it cannot disagree. Never blended with the LinkedIn
+  // lists above: LinkedIn is % of profiles/postings per career, JobThai is %
+  // of the postings behind this programme's field-of-study links.
+  const jt = await programJobThaiSkillCoverage(programId);
+  const jtSkillIds = jt.demand.demand.map((d) => d.skillId);
+  const jtSkills = jtSkillIds.length === 0
+    ? []
+    : await prisma.skill.findMany({ where: { id: { in: jtSkillIds } }, select: { id: true, nameEn: true, nameTh: true, category: true } });
+  const jtSkillById = new Map(jtSkills.map((sk) => [sk.id, sk]));
+  const jtDemandSet = new Set(jtSkillIds);
+  const jtMatchedTaught = new Set(
+    [...jt.matches.values()].filter((m) => m.matched && m.matchedTaughtSkillId).map((m) => m.matchedTaughtSkillId as string),
+  );
+  const jtRelevant = [...jt.matches.values()].filter((m) => m.relevant);
+  const jtAiComputed = jt.matches.size > 0;
+  const jtSpecific = jt.demand.demand.filter((d) => !d.generic);
+  const jobThai = {
+    /** 'ok' | 'no-links' | 'below-floor' — the last two are data gaps, not zero demand. */
+    status: jt.demand.status,
+    postings: jt.demand.postings,
+    occupationCount: jt.demand.occupations,
+    /** The jobs this programme's field feeds, most postings first. */
+    occupations: jt.demand.linkedOccupations.slice(0, 8).map((o) => ({
+      category: o.category,
+      subcategory: o.subcategory,
+      postingCount: o.postingCount,
+      /** Share of that occupation's eligible postings asking for this field. */
+      linkScore: o.score,
+    })),
+    /** True once the AI curriculum check has run against JobThai demand. */
+    aiComputed: jtAiComputed,
+    /** Same figure as the jobthai_demand_alignment driver; null before the AI check. */
+    matchScore: jtRelevant.length < JOBTHAI_MIN_RELEVANT_SKILLS ? null : (jtRelevant.filter((m) => m.matched).length / jtRelevant.length) * 100,
+    minRelevantSkills: JOBTHAI_MIN_RELEVANT_SKILLS,
+    /** How many relevant demanded skills the score rests on — shown beside it. */
+    relevantCount: jtRelevant.length,
+    // A skill judged another profession (demand-match.v4) is a degree employers
+    // accept INSTEAD — job adverts list several — not something this
+    // programme's graduates are hired to do. Shown on its own line.
+    alsoAccepted: jtSpecific
+      .filter((d) => jt.matches.get(d.skillId)?.fit === 'other-profession')
+      .map((d) => ({
+        skillId: d.skillId,
+        nameEn: jtSkillById.get(d.skillId)?.nameEn ?? d.skillId,
+        nameTh: jtSkillById.get(d.skillId)?.nameTh ?? '',
+        fitReason: jt.matches.get(d.skillId)?.fitReason ?? null,
+      })),
+    demanded: jtSpecific.filter((d) => jt.matches.get(d.skillId)?.fit !== 'other-profession').slice(0, 20).map((d) => {
+      const sk = jtSkillById.get(d.skillId);
+      const m = jt.matches.get(d.skillId);
+      return {
+        skillId: d.skillId,
+        nameEn: sk?.nameEn ?? d.skillId,
+        nameTh: sk?.nameTh ?? '',
+        category: sk?.category ?? null,
+        /** % of the linked postings that name this skill. */
+        demandPct: d.share * 100,
+        occupationCount: d.occupations,
+        curriculumMatched: m ? m.matched : null,
+        relevant: m ? m.relevant : null,
+        fit: m?.fit ?? null,
+        fitReason: m?.fitReason ?? null,
+        matchSource: m?.matchSource ?? null,
+        evidenceQuote: m?.evidenceQuote ?? null,
+      };
+    }),
+    /** Demanded by most occupations, so shown for context but kept out of gaps and the score. */
+    generic: jt.demand.demand.filter((d) => d.generic).slice(0, 8).map((d) => ({
+      skillId: d.skillId,
+      nameEn: jtSkillById.get(d.skillId)?.nameEn ?? d.skillId,
+      nameTh: jtSkillById.get(d.skillId)?.nameTh ?? '',
+      demandPct: d.share * 100,
+    })),
+    // Gaps follow the LinkedIn rule: with an AI decision, matched=false AND
+    // relevant=true; without one, a taxonomy fallback flagged as such.
+    gaps: jtSpecific
+      .filter((d) => {
+        const m = jt.matches.get(d.skillId);
+        return m ? !m.matched && m.relevant : !taughtIds.has(d.skillId);
+      })
+      .slice(0, 12)
+      .map((d) => ({
+        skillId: d.skillId,
+        nameEn: jtSkillById.get(d.skillId)?.nameEn ?? d.skillId,
+        nameTh: jtSkillById.get(d.skillId)?.nameTh ?? '',
+        demandPct: d.share * 100,
+        occupationCount: d.occupations,
+        fit: jt.matches.get(d.skillId)?.fit ?? null,
+        fitReason: jt.matches.get(d.skillId)?.fitReason ?? null,
+      })),
+    // Taught, not named by the linked postings and not the taught skill the AI
+    // matched a demanded one to (a curriculum's "Legal Drafting" answering the
+    // postings' "Litigation" is not surplus).
+    surplus: taught
+      .filter((t) => !jtDemandSet.has(t.skillId) && !jtMatchedTaught.has(t.skillId))
+      .slice(0, 12)
+      .map((t) => ({
+        skillId: t.skillId,
+        nameEn: t.skill.nameEn,
+        nameTh: t.skill.nameTh,
+        pickedFromPlo: t.pickedFromPlo,
+      })),
+  };
+
   return {
     taught: taught.map((ps) => ({
       skillId: ps.skillId,
@@ -3252,6 +3361,9 @@ export async function programSkills(programId: string) {
           relatedness: m?.relatedness ?? null,
           /** Verbatim PLO/course quote evidence. */
           evidenceQuote: m?.evidenceQuote ?? null,
+          /** demand-match.v4 fit class + reason; null on v3 rows. */
+          fit: m?.fit ?? null,
+          fitReason: m?.fitReason ?? null,
         };
       }),
     // Demanded skills NOT taught BUT relevant to the program's discipline.
@@ -3306,6 +3418,8 @@ export async function programSkills(programId: string) {
     careerFilterCount: targetKmitlIds.length,
     /** The KMITL career IDs actually used for filtering (for UI labels). */
     careerFilterIds: targetKmitlIds,
+    /** Domestic demand (JobThai). Rendered behind a source toggle, never blended. */
+    jobThai,
     // Real "top 5 specific recommendations" text needs an AI call —
     // the narrative regen endpoint produces that; this method returns
     // the raw data the LLM needs.

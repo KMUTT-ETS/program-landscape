@@ -1226,6 +1226,16 @@ model ProgramDemandMatch {
   aiInferenceId        String?  @map("ai_inference_id")
   computedAt           DateTime @default(now()) @map("computed_at")
   ingestionRunId       String?  @map("ingestion_run_id")
+  /// DataSource slugs whose demand put this skill on the checklist:
+  /// 'kmitl-skill-mapping' (LinkedIn via MHESI) and/or 'jobthai'. Readers that
+  /// mean one source filter on it — see demand-match-sources.ts.
+  demandSources        String[] @default([]) @map("demand_sources")
+  /// demand-match.v4: 'core' | 'supporting' | 'other-profession' |
+  /// 'not-relevant' | 'uncertain'. `relevant` is derived from it
+  /// (core/supporting). NULL on rows written by v3.
+  fit                  String?  @map("fit")
+  /// One English sentence naming what the fit call rests on.
+  fitReason            String?  @map("fit_reason") @db.Text
 
   program      Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
   skill        Skill         @relation(fields: [skillId], references: [id], onDelete: Cascade)
@@ -1236,6 +1246,7 @@ model ProgramDemandMatch {
   @@index([programId])
   @@index([skillId])
   @@index([ingestionRunId])
+  @@index([demandSources], type: Gin)
   @@map("program_demand_matches")
 }
 

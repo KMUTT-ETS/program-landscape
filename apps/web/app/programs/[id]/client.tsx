@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Badge,
@@ -17,6 +17,9 @@ import {
   RadarChartSmall,
   type RadarPoint,
   Section,
+  Segmented,
+  SegmentedList,
+  SegmentedTrigger,
   Waterfall,
 } from '@kku/ui';
 // TYPE-ONLY. The `@kku/shared` barrel re-exports subpaths that pull
@@ -42,6 +45,7 @@ import {
 // Shared with /education/student-dq so both DQ radars mean the same
 // thing by a floor of 60 — see the helper for why it is not 0.
 import { dqRadarDomain } from '@/lib/dq-radar-domain';
+import { DataSourceMark, DriverSourceMark } from '@/components/data-source-mark';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -60,6 +64,7 @@ import type {
   DeepDiveOverview,
   DeepDivePeers,
   DeepDiveSkills,
+  DeepDiveJobThaiSkills,
   DeepDiveStudentCohorts,
   DeepDiveTcasStats,
   DeepDiveRecruitment,
@@ -2471,9 +2476,25 @@ function SkillsSection({
   data: DeepDiveSkills | null;
   programId: string;
 }) {
+  // Demand source lives in the URL (?skillsSource=jobthai|linkedin) so a view
+  // is shareable. With no explicit choice, JobThai (domestic) is the default
+  // whenever this programme has a JobThai demand list; LinkedIn otherwise.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const jobThaiAvailable = data?.jobThai?.status === 'ok' && (data.jobThai.demanded.length > 0 || data.jobThai.alsoAccepted.length > 0);
+  const requested = searchParams?.get('skillsSource');
+  const source: 'linkedin' | 'jobthai' =
+    requested === 'jobthai' || requested === 'linkedin' ? requested : jobThaiAvailable ? 'jobthai' : 'linkedin';
+  const setSource = (next: string) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('skillsSource', next === 'jobthai' ? 'jobthai' : 'linkedin');
+    router.replace(`${pathname}?${params.toString()}#skills`, { scroll: false });
+  };
   if (!data) return <EmptyCard title="Skills coverage" note="Skills data unavailable." />;
   void programId;
   const match = data.matchScore;
+  const jt = data.jobThai;
 
   // Split taught skills into MAJOR (PLO-tagged or compulsory ≥ 0.5)
   // vs MINOR (elective-only / no PLO). Drives the two-column tabular view.
@@ -2505,15 +2526,43 @@ function SkillsSection({
         </Card>
         <Card>
           <div className="text-xs uppercase tracking-wide text-text-tertiary">Demand match</div>
-          <div
-            className={
-              'mt-1 font-tabular text-3xl font-semibold ' +
-              (match < 40 ? 'text-danger' : match < 65 ? 'text-warning' : 'text-success')
-            }
-          >
-            {Math.round(match)}
-          </div>
-          <div className="text-xs text-text-tertiary">vs LinkedIn (MHESI)</div>
+          {source === 'jobthai' ? (
+            <>
+              <div
+                className={
+                  'mt-1 font-tabular text-3xl font-semibold ' +
+                  (jt?.matchScore == null
+                    ? 'text-text-tertiary'
+                    : jt.matchScore < 40 ? 'text-danger' : jt.matchScore < 65 ? 'text-warning' : 'text-success')
+                }
+              >
+                {jt?.matchScore == null ? '—' : Math.round(jt.matchScore)}
+              </div>
+              <div className="flex items-center gap-1 text-xs text-text-tertiary">
+                <DataSourceMark source="jobthai" size={12} />
+                vs JobThai (domestic)
+              </div>
+              {jt?.aiComputed && (
+                <div className="text-[11px] text-text-tertiary">
+                  {jt.matchScore != null
+                    ? `on ${jt.relevantCount} relevant skills`
+                    : `only ${jt.relevantCount} relevant skill${jt.relevantCount === 1 ? '' : 's'} — needs ${jt.minRelevantSkills}`}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div
+                className={
+                  'mt-1 font-tabular text-3xl font-semibold ' +
+                  (match < 40 ? 'text-danger' : match < 65 ? 'text-warning' : 'text-success')
+                }
+              >
+                {Math.round(match)}
+              </div>
+              <div className="text-xs text-text-tertiary">vs LinkedIn (MHESI, global)</div>
+            </>
+          )}
         </Card>
       </div>
 
@@ -2585,6 +2634,21 @@ function SkillsSection({
       )}
 
       {/* ── Demanded × Gaps × Surplus ──────────────────────────── */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs uppercase tracking-wide text-text-tertiary">Labour-market demand source</span>
+        <Segmented value={source} onValueChange={setSource}>
+          <SegmentedList aria-label="Labour-market demand source">
+            <SegmentedTrigger value="jobthai">
+              <DataSourceMark source="jobthai" size={14} />
+              JobThai · domestic
+            </SegmentedTrigger>
+            <SegmentedTrigger value="linkedin">LinkedIn · global</SegmentedTrigger>
+          </SegmentedList>
+        </Segmented>
+      </div>
+      {source === 'jobthai' ? (
+        <JobThaiDemandCards data={jt} />
+      ) : (
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card padding="md">
           <h4 className="mb-2 text-sm font-semibold">Top labour-market demand</h4>
@@ -2619,10 +2683,22 @@ function SkillsSection({
                           ✓ taught
                         </Badge>
                       )}
-                      {isUnmatched && (
-                        <Badge tone="danger" size="sm">
-                          ✗ gap
-                        </Badge>
+                      {isUnmatched && s.fit === 'other-profession' && (
+                        <span title={s.fitReason ?? undefined}>
+                          <Badge tone="neutral" size="sm">other profession</Badge>
+                        </span>
+                      )}
+                      {isUnmatched && s.fit !== 'other-profession' && s.fit !== 'not-relevant' && s.fit !== 'uncertain' && (
+                        <span title={s.fitReason ?? undefined}>
+                          <Badge tone="danger" size="sm">
+                            ✗ gap
+                          </Badge>
+                        </span>
+                      )}
+                      {isUnmatched && (s.fit === 'not-relevant' || s.fit === 'uncertain') && (
+                        <span title={s.fitReason ?? undefined}>
+                          <Badge tone="neutral" size="sm">{s.fit === 'uncertain' ? 'uncertain' : 'not for this field'}</Badge>
+                        </span>
                       )}
                     </div>
                     {s.evidenceQuote && (
@@ -2684,7 +2760,160 @@ function SkillsSection({
           </ul>
         </Card>
       </div>
+      )}
     </Section>
+  );
+}
+
+// JobThai (domestic) view of the three demand cards. Its figures come from
+// programJobThaiSkillCoverage, the loader behind the jobthai_demand_alignment
+// health driver, so the list here and the score cannot disagree.
+function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined }) {
+  if (!data || data.status !== 'ok') {
+    return (
+      <Card padding="md" tone="quiet">
+        <h4 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+          <DataSourceMark source="jobthai" size={14} />
+          No JobThai demand signal for this programme
+        </h4>
+        <p className="text-xs text-text-tertiary">
+          {data?.status === 'below-floor'
+            ? `Only ${data.postings} JobThai postings name this programme's field of study — below the 20-posting floor, so no demand list is shown.`
+            : "No JobThai posting names this programme's field of study at a qualification level its graduates hold. Only 41 of 47,631 postings state a postgraduate minimum, so this is the normal state for master's and doctoral programmes. It is a data gap, not zero demand."}
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <Card padding="md">
+        <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          <DataSourceMark source="jobthai" size={14} />
+          Top labour-market demand
+        </h4>
+        <p className="mb-2 text-xs text-text-tertiary">
+          JobThai postings (domestic) · {data.postings.toLocaleString()} postings across{' '}
+          {data.occupationCount} occupation{data.occupationCount === 1 ? '' : 's'} that ask for this field
+        </p>
+        {data.occupations.length > 0 && (
+          <details className="mb-2 text-[11px] text-text-tertiary">
+            <summary className="cursor-pointer">Which occupations</summary>
+            <ul className="mt-1 flex flex-col gap-0.5">
+              {data.occupations.map((o) => (
+                <li key={`${o.category}|${o.subcategory}`} className="flex justify-between gap-2">
+                  <span className="truncate">{o.subcategory === 'อื่นๆ' ? `${o.category} / ${o.subcategory}` : o.subcategory}</span>
+                  <span className="shrink-0 font-mono">{o.postingCount.toLocaleString()} postings</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        <ul className="flex flex-col gap-1.5 text-sm">
+          {data.demanded.slice(0, 12).map((s) => (
+            <li key={s.skillId} className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate">{s.nameEn || s.nameTh}</span>
+                  {s.curriculumMatched === true && s.relevant !== false && <Badge tone="success" size="sm">✓ taught</Badge>}
+                  {s.curriculumMatched === false && s.relevant === true && <Badge tone="danger" size="sm">✗ gap</Badge>}
+                  {s.relevant === false && (
+                    <Badge tone="neutral" size="sm">{s.fit === 'uncertain' ? 'uncertain' : 'not for this field'}</Badge>
+                  )}
+                  {s.fit === 'core' && <span className="text-[10px] uppercase tracking-wide text-text-tertiary">core</span>}
+                </div>
+                {s.fitReason && (
+                  <div className="mt-0.5 text-[11px] text-text-tertiary">{s.fitReason}</div>
+                )}
+                {s.evidenceQuote && (
+                  <div className="mt-0.5 truncate text-[11px] italic text-text-tertiary">
+                    “{s.evidenceQuote.slice(0, 80)}{s.evidenceQuote.length > 80 ? '…' : ''}”
+                  </div>
+                )}
+              </div>
+              <span className="shrink-0 font-mono text-xs text-text-tertiary">{s.demandPct.toFixed(0)}% of postings</span>
+            </li>
+          ))}
+          {data.demanded.length === 0 && (
+            <li className="text-xs text-text-tertiary">No field-specific skill reaches 5% of these postings.</li>
+          )}
+          {!data.aiComputed && data.demanded.length > 0 && (
+            <li className="mt-2 rounded-md border border-dashed border-border-default bg-surface-2/40 p-2 text-[11px] text-text-tertiary">
+              Curriculum match not yet computed for JobThai demand. Run{' '}
+              <code className="font-mono">programs:match-demand</code> to check each skill against the
+              programme&apos;s PLOs and course descriptions.
+            </li>
+          )}
+        </ul>
+        {data.alsoAccepted.length > 0 && (
+          <p className="mt-3 border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
+            <span className="font-medium text-text-secondary">Employers also accept graduates in:</span>{' '}
+            {data.alsoAccepted.map((a, i) => (
+              <span key={a.skillId} title={a.fitReason ?? undefined}>
+                {i > 0 && ' · '}
+                {a.nameEn || a.nameTh}
+              </span>
+            ))}
+            . Job adverts list several acceptable degrees; these are other professions, not gaps.
+          </p>
+        )}
+        {data.generic.length > 0 && (
+          <p className="mt-3 border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
+            Also asked for across most occupations, so not counted as gaps or in the score:{' '}
+            {data.generic.map((g, i) => (
+              <span key={g.skillId}>
+                {i > 0 && ' · '}
+                {g.nameEn || g.nameTh} ({g.demandPct.toFixed(0)}%)
+              </span>
+            ))}
+          </p>
+        )}
+      </Card>
+      <Card padding="md" tone={data.gaps.length > 0 ? 'glossy' : 'default'}>
+        <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-danger">
+          <DataSourceMark source="jobthai" size={14} />
+          Gaps — demanded, not taught
+        </h4>
+        <p className="mb-2 text-xs text-text-tertiary">
+          {data.aiComputed
+            ? 'Skills named in ≥5% of these postings, judged core or supporting to this profession, that the curriculum doesn\'t build'
+            : 'Taxonomy match only — the AI curriculum check has not run, so a skill taught under another name still shows here'}
+        </p>
+        <ul className="flex flex-col gap-1 text-sm">
+          {data.gaps.slice(0, 10).map((g) => (
+            <li key={g.skillId} className="flex flex-col">
+              <div className="flex justify-between gap-2">
+                <span className="truncate">
+                  {g.nameEn || g.nameTh}
+                  {g.fit === 'core' && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-danger">core</span>}
+                </span>
+                <span className="shrink-0 font-mono text-xs text-text-tertiary">{g.demandPct.toFixed(0)}%</span>
+              </div>
+              {g.fitReason && <span className="text-[11px] text-text-tertiary">{g.fitReason}</span>}
+            </li>
+          ))}
+          {data.gaps.length === 0 && <li className="text-xs text-text-tertiary">None.</li>}
+        </ul>
+      </Card>
+      <Card padding="md" tone="quiet">
+        <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          <DataSourceMark source="jobthai" size={14} />
+          Surplus — taught, not demanded
+        </h4>
+        <p className="mb-2 text-xs text-text-tertiary">
+          Not named by these postings, and not cited by the AI as answering one. Could be
+          foundational, a skill the postings phrase differently, or curriculum drift
+        </p>
+        <ul className="flex flex-col gap-1 text-sm">
+          {data.surplus.slice(0, 10).map((s) => (
+            <li key={s.skillId} className="flex justify-between">
+              <span className="truncate">{s.nameEn || s.nameTh}</span>
+              {s.pickedFromPlo && <Badge tone="accent" size="sm">PLO</Badge>}
+            </li>
+          ))}
+          {data.surplus.length === 0 && <li className="text-xs text-text-tertiary">None.</li>}
+        </ul>
+      </Card>
+    </div>
   );
 }
 
@@ -4654,8 +4883,9 @@ const DRIVER_LABEL_LOOKUP: Record<string, string> = {
   average_salary: 'Average graduate salary',
   further_study_rate: 'Further-study rate',
   // Relevance
-  labour_market_alignment: 'Labour-market alignment',
+  labour_market_alignment: 'Labour-market alignment (LinkedIn · global, 25%)',
   labour_market_alignment_kmitl: 'Labour-market alignment (LinkedIn · MHESI)',
+  jobthai_demand_alignment: 'Job-posting demand match (JobThai · domestic, 75%)',
   curriculum_modernity: 'Curriculum modernity (peer review)',
 };
 
@@ -4738,12 +4968,15 @@ function HealthScoreBreakdown({
                 <p className="mb-2 text-text-tertiary">
                   Average of populated drivers (null drivers excluded). Data completeness ={' '}
                   {Math.round(row.cell.dataCompletenessPct ?? 0)}%.
+                  {row.key === 'relevance' &&
+                    ' JobThai (domestic) and LinkedIn (global) demand are weighted 75:25 within their share; when one has no data the other takes it all.'}
                 </p>
                 <ul className="flex flex-col gap-1.5">
                   {row.cell.drivers.map((d, i) => (
                     <li key={i} className="rounded bg-surface-2/50 p-2">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-medium text-text-primary">
+                        <span className="flex items-center gap-1.5 font-medium text-text-primary">
+                          <DriverSourceMark label={d.label} size={14} />
                           {humaniseDriverLabel(d.label)}
                         </span>
                         <span className={`font-tabular ${scoreToneClass(d.value)}`}>

@@ -5,7 +5,9 @@ import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
 import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
-import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from './jobthai-bridge';
+import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
+import { programJobThaiSkillCoverage } from './jobthai';
+import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
 import {
@@ -151,17 +153,8 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // report honestly. Composites above program scope MOVE. See
 // `docs/methodologies/health-score.md` and
 // `docs/superpowers/plans/2026-09-12-health-score-scope-driver-parity.md`.
-/**
- * Minimum link score for an occupation to contribute to the driver.
- *
- * A field-of-study link scores matchedFields/totalFields, so 0.1 means at least
- * one in ten of the occupation's stated fields names this programme. Below that
- * the tail is single generic-field matches — observed examples were Tourism
- * Management linked to an accounting occupation at 0.05, and Business
- * Administration to HR training at 0.01. Those occupations carry large demand
- * sets, so admitting them can only inflate the driver.
- */
-export const JOBTHAI_MIN_LINK_SCORE = 0.1;
+// JOBTHAI_MIN_LINK_SCORE moved to jobthai-bridge.ts in v5.2 so the health
+// driver and the Deep-Dive Skills coverage section apply one rule.
 
 //
 // v5.1 (2026-09-13) — the Relevance dimension gains
@@ -186,7 +179,32 @@ export const JOBTHAI_MIN_LINK_SCORE = 0.1;
 // Thresholds are measured, not assumed: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL = 20
 // (the observed 25th percentile), MIN_SKILL_OVERLAP_SHARE = 0.5,
 // MAX_PROGRAMMES_PER_FIELD = 15. See packages/db/src/jobthai-bridge.ts.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.1';
+//
+// v5.2 (2026-09-13) — two corrections to the JobThai signal and one weighting.
+//
+//   1. The programme links were wrong (jobthai-bridge.v2). The skill-overlap
+//      path intersected taught skills with every skill ONE posting named, and
+//      transferable skills carried it: Doctor of Medicine linked to Sales/AE on
+//      Communication, Critical thinking, Teamwork and Professional ethics.
+//      Overlap-only links carried 120,251 of 132,902 postings. The
+//      field-of-study score also changed from matched-fields/distinct-fields
+//      (Mechanical Eng -> mechanical engineer 0.04) to a posting share (0.57).
+//   2. The driver was circular. A skill-overlap link exists exactly when the
+//      programme's taught skills are demanded, so every overlap-linked
+//      programme scored >= 50 by construction; 37 of the 64 scored under v5.1
+//      took at least 80% of their postings from such links. The driver now
+//      reads only field-of-study and corroborated links, counts a skill as
+//      demanded at a 5% posting share, leaves out skills most occupations
+//      demand, and takes taught / relevant from the AI curriculum check
+//      (program_demand_matches rows tagged 'jobthai') — the same instrument as
+//      demand_match_filled. Exact skill-ID overlap read 0 for 29 of 41
+//      programmes: curricula say "Legal Drafting", postings "Litigation".
+//   3. Labour-market demand is weighted DOMESTIC 75 : GLOBAL 25. JobThai is the
+//      domestic signal, LinkedIn-via-MHESI the global one (Council direction,
+//      2026-09-13). The pair keeps its weight of two drivers in the Relevance
+//      mean and only the split inside it changes; when one source is null the
+//      other counts as a single driver. See LABOUR_MARKET_DEMAND_WEIGHTS.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.2';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -1991,36 +2009,52 @@ async function jobThaiDemandAlignmentDriver(
   programId: string,
 ): Promise<HealthScore['drivers'][number]> {
   const label = 'jobthai_demand_alignment';
-  const links = await prisma.programJobThaiLink.findMany({
-    where: { programId, score: { gte: JOBTHAI_MIN_LINK_SCORE } },
-    select: { jobThaiOccupationId: true, postingCount: true, score: true },
-  });
-  const postings = links.reduce((sum, l) => sum + l.postingCount, 0);
-  if (links.length === 0 || postings < JOBTHAI_MIN_POSTINGS_FOR_SIGNAL) {
-    return { label, value: null, raw: { links: links.length, postings, floor: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } };
+  // One loader shared with the Deep-Dive Skills coverage section (v5.2), so the
+  // score and the gap list a reader sees beside it cannot disagree.
+  const { demand, checklist, matches } = await programJobThaiSkillCoverage(programId);
+  if (demand.status !== 'ok') {
+    return {
+      label,
+      value: null,
+      raw: { reason: demand.status, occupations: demand.occupations, postings: demand.postings, floor: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, minLinkScore: JOBTHAI_MIN_LINK_SCORE },
+    };
   }
 
-  const taught = await prisma.programSkill.findMany({ where: { programId }, select: { skillId: true } });
-  if (taught.length === 0) {
-    return { label, value: null, raw: { reason: 'programme has no taught skills' } };
+  // v5.2: the AI curriculum check decides whether each demanded skill is taught
+  // and whether it is relevant to the discipline — the same instrument as
+  // demand_match_filled. Exact skill-ID overlap read 0 for 29 of 41 programmes
+  // on dev, because curricula say "Legal Drafting" where postings say
+  // "Litigation". Generic skills are not on the checklist: teaching
+  // communication says nothing about fit to this field's jobs.
+  const rows = [...matches.values()];
+  const relevant = rows.filter((r) => r.relevant);
+  if (relevant.length < JOBTHAI_MIN_RELEVANT_SKILLS) {
+    return {
+      label,
+      value: null,
+      raw: {
+        reason: rows.length === 0
+          ? 'curriculum match not yet computed for JobThai demand'
+          : `only ${relevant.length} relevant JobThai-demanded skills — below the ${JOBTHAI_MIN_RELEVANT_SKILLS}-skill floor`,
+        relevantDemanded: relevant.length,
+        demandedSkills: checklist.length,
+        occupations: demand.occupations,
+        postings: demand.postings,
+      },
+    };
   }
-
-  const demanded = await prisma.jobThaiOccupationSkill.findMany({
-    where: { jobThaiOccupationId: { in: links.map((l) => l.jobThaiOccupationId) } },
-    select: { skillId: true },
-  });
-  const demandedSet = new Set(demanded.map((d) => d.skillId));
-  const taughtSet = new Set(taught.map((t) => t.skillId));
-  const matched = [...taughtSet].filter((id) => demandedSet.has(id)).length;
+  const matched = relevant.filter((r) => r.matched).length;
 
   return {
     label,
-    value: clamp((matched / taughtSet.size) * 100),
+    value: clamp((matched / relevant.length) * 100),
     raw: {
-      taughtSkills: taughtSet.size,
-      demandedAmongTaught: matched,
-      occupations: links.length,
-      postings,
+      relevantDemanded: relevant.length,
+      matchedDemanded: matched,
+      checkedSkills: rows.length,
+      demandedSkills: checklist.length,
+      occupations: demand.occupations,
+      postings: demand.postings,
       // Carried so a provenance drawer can state the caveat with numbers: this
       // is a national signal, 37% Bangkok and 3.3% Northeast.
       source: 'jobthai',
@@ -2035,7 +2069,7 @@ async function scoreRelevanceProgram(
   // Demand-match: share of *relevant* demanded skills the curriculum
   // already teaches. Only counts rows where relevant=true.
   const matchRows = await prisma.programDemandMatch.findMany({
-    where: { programId, relevant: true, ...realDataWhere() },
+    where: { programId, relevant: true, ...demandMatchSourceWhere(DEMAND_SOURCE_LINKEDIN), ...realDataWhere() },
     select: { matched: true },
   });
   let demandMatchValue: number | null = null;
@@ -2129,7 +2163,7 @@ async function scoreRelevanceScope(
       : null;
 
   const matchRows = await prisma.programDemandMatch.findMany({
-    where: { programId: { in: programIds }, relevant: true, ...realDataWhere() },
+    where: { programId: { in: programIds }, relevant: true, ...demandMatchSourceWhere(DEMAND_SOURCE_LINKEDIN), ...realDataWhere() },
     select: { matched: true, programId: true },
   });
   const byProgram = new Map<string, { m: number; t: number }>();
@@ -2371,6 +2405,24 @@ function linearSlope(series: SeriesPoint[]): number {
   return num / den;
 }
 
+/**
+ * v5.2 — labour-market demand, DOMESTIC 75 : GLOBAL 25.
+ *
+ * `jobthai_demand_alignment` (JobThai, domestic) and `labour_market_alignment`
+ * (LinkedIn via MHESI, global) keep their combined weight of two drivers in the
+ * Relevance mean; only the split between them becomes 75:25. Both stay separate,
+ * visible drivers and both count toward completeness. A null source is a data
+ * gap, so the other counts as an ordinary single driver.
+ */
+export const LABOUR_MARKET_DEMAND_WEIGHTS = {
+  jobthai_demand_alignment: 0.75,
+  labour_market_alignment: 0.25,
+} as const;
+
+const WEIGHTED_DRIVER_GROUPS: Partial<Record<HealthDimension, Readonly<Record<string, number>>>> = {
+  relevance: LABOUR_MARKET_DEMAND_WEIGHTS,
+};
+
 function summariseDrivers(
   dimension: HealthDimension,
   drivers: HealthScore['drivers'],
@@ -2400,7 +2452,32 @@ function summariseDrivers(
   if (nonNull.length === 0) {
     return { score: null, dataCompletenessPct: completeness, drivers: resolved };
   }
-  const score = nonNull.reduce((s, d) => s + (d.value ?? 0), 0) / nonNull.length;
+  // A weighted group keeps the combined weight its members would have had
+  // (one per non-null member) and only redistributes it internally. Collapsing
+  // the pair into a single slot would have halved labour-market's say in the
+  // dimension — measured on dev, Industrial Engineering 66 -> 78 from that alone.
+  const group = WEIGHTED_DRIVER_GROUPS[dimension];
+  let total = 0;
+  let count = 0;
+  let groupSum = 0;
+  let groupWeight = 0;
+  let groupMembers = 0;
+  for (const d of nonNull) {
+    const w = group?.[d.label];
+    if (w === undefined) {
+      total += d.value ?? 0;
+      count += 1;
+    } else {
+      groupSum += w * (d.value ?? 0);
+      groupWeight += w;
+      groupMembers += 1;
+    }
+  }
+  if (groupWeight > 0) {
+    total += (groupSum / groupWeight) * groupMembers;
+    count += groupMembers;
+  }
+  const score = total / count;
   return { score: clamp(score), dataCompletenessPct: completeness, drivers: resolved };
 }
 

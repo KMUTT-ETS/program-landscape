@@ -15,9 +15,17 @@ import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 // de-duplication, a programme could point at one "Data Science" row while the
 // demand set pointed at another, so the intersection silently missed and a
 // well-aligned programme read as misaligned.
+//
+// v2 (2026-09-13): the skill path intersected taught skills with every skill
+// ONE posting mentioned, and transferable skills carried it. Doctor of Medicine
+// linked to Sales/AE on Communication, Critical thinking, Teamwork and
+// Professional ethics; overlap-only links carried 120,251 of the 132,902
+// postings behind all links. An occupation now demands a skill only at
+// OCCUPATION_SKILL_DEMAND_FLOOR, and skills most occupations demand are
+// excluded from the overlap (GENERIC_SKILL_OCCUPATION_SHARE).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const JOBTHAI_BRIDGE_VERSION = 'jobthai-bridge.v1';
+export const JOBTHAI_BRIDGE_VERSION = 'jobthai-bridge.v2';
 
 /**
  * Minimum postings behind a programme's links before its JobThai signal is
@@ -132,13 +140,46 @@ export function matchFieldToProgramme(field: string, programmeName: string): boo
   return norm(programmeName).includes(f);
 }
 
-/** Share of an occupation's stated fields that name this programme. */
-export function scoreFieldOfStudyLink(input: {
-  matchedFields: number;
-  totalFieldsForOccupation: number;
-}): number {
-  if (input.totalFieldsForOccupation <= 0) return 0;
-  return input.matchedFields / input.totalFieldsForOccupation;
+/**
+ * Share of an occupation's ELIGIBLE postings that ask for this programme's field.
+ *
+ * v2. v1 divided matched fields by the occupation's distinct fields, which
+ * measured how many ways an occupation phrases its requirements rather than how
+ * strongly it wants these graduates: Mechanical Engineering -> mechanical
+ * engineer scored 0.04 while 57% of those postings named เครื่องกล, and
+ * Accounting -> general accounting 0.02 against a posting share of 0.48.
+ */
+export function scoreFieldOfStudyLink(input: { matchedPostings: number; eligiblePostings: number }): number {
+  if (input.eligiblePostings <= 0) return 0;
+  return Math.min(1, input.matchedPostings / input.eligiblePostings);
+}
+
+/**
+ * Distinct postings in one occupation that a programme's graduates can answer
+ * (education floor) and that name one of its fields. Counting per posting, not
+ * per field, is the point: a posting listing บัญชี and บัญชีบัณฑิต is one advert.
+ */
+export function matchedPostingCounts(input: {
+  postings: ReadonlyArray<{ level: string; fields: ReadonlyArray<string> }>;
+  levels: ReadonlySet<string>;
+  matchesField: (field: string) => boolean;
+}): { matchedPostings: number; eligiblePostings: number; matchedFields: string[] } {
+  let eligiblePostings = 0;
+  let matchedPostings = 0;
+  const matchedFields = new Set<string>();
+  for (const p of input.postings) {
+    if (!input.levels.has(p.level)) continue;
+    eligiblePostings += 1;
+    let hit = false;
+    for (const f of p.fields) {
+      if (input.matchesField(f)) {
+        hit = true;
+        matchedFields.add(f);
+      }
+    }
+    if (hit) matchedPostings += 1;
+  }
+  return { matchedPostings, eligiblePostings, matchedFields: [...matchedFields] };
 }
 
 /**
@@ -162,6 +203,181 @@ export function scoreSkillOverlapLink(input: { sharedSkills: number; taughtSkill
   if (share < MIN_SKILL_OVERLAP_SHARE) return 0;
   if (input.sharedSkills < MIN_SHARED_SKILLS) return 0;
   return share;
+}
+
+/**
+ * Minimum share of an occupation's postings that must name a skill before the
+ * occupation counts as DEMANDING it.
+ *
+ * `jobthai_occupation_skills` keeps a row for any skill a single posting
+ * mentioned, so an occupation's raw skill set runs to 100-350 entries. Under v1
+ * the overlap path intersected taught skills with that raw set, and Doctor of
+ * Medicine linked to Sales/AE, QC/QA and electrical engineering. MEASURED share
+ * distribution over all rows: p50 0.013, p75 0.037, p90 0.10.
+ */
+export const OCCUPATION_SKILL_DEMAND_FLOOR = 0.05;
+
+/**
+ * A skill demanded (at the floor above) by MORE than this fraction of all
+ * occupations says nothing about which occupation a programme feeds.
+ *
+ * MEASURED 2026-09-13 over 240 occupations at the 5% floor: median skill 2
+ * occupations, p90 16, p95 32. Communication 227, Management 195, Coordination
+ * 174, Marketing 113, Finance 78, Teamwork 70, Data analysis 66, Renovation 54
+ * (its Thai name การปรับปรุง simply means "improvement"), Accounting 52 — all
+ * above 48. Discipline skills sit below: Mechanical engineering 27, Electrical
+ * engineering 26, Programming 24, Medicine 5. The v1 Medicine → Sales/AE link
+ * rested on exactly such skills: Communication, Critical thinking, Teamwork and
+ * Leadership, Professional ethics.
+ */
+export const GENERIC_SKILL_OCCUPATION_SHARE = 0.2;
+
+export interface OccupationSkillShare {
+  occupationId: string;
+  skillId: string;
+  share: number;
+}
+
+/** Per-occupation demanded skills (at the floor) plus the set of generic skills. */
+export function distinctiveDemand(
+  rows: ReadonlyArray<OccupationSkillShare>,
+  occupationCount: number,
+): { demandedByOccupation: Map<string, Set<string>>; generic: Set<string> } {
+  const demandedByOccupation = new Map<string, Set<string>>();
+  const occupationsPerSkill = new Map<string, number>();
+  for (const r of rows) {
+    if (!demandedByOccupation.has(r.occupationId)) demandedByOccupation.set(r.occupationId, new Set());
+    if (r.share < OCCUPATION_SKILL_DEMAND_FLOOR) continue;
+    const set = demandedByOccupation.get(r.occupationId)!;
+    if (set.has(r.skillId)) continue;
+    set.add(r.skillId);
+    occupationsPerSkill.set(r.skillId, (occupationsPerSkill.get(r.skillId) ?? 0) + 1);
+  }
+  const generic = new Set<string>();
+  if (occupationCount > 0) {
+    for (const [skillId, n] of occupationsPerSkill) {
+      if (n / occupationCount > GENERIC_SKILL_OCCUPATION_SHARE) generic.add(skillId);
+    }
+  }
+  return { demandedByOccupation, generic };
+}
+
+/**
+ * The inputs to `scoreSkillOverlapLink`, with generic skills removed from BOTH
+ * sides. Removing them only from the shared count would punish a programme for
+ * teaching communication; removing them only from the taught set would leave
+ * them free to manufacture a link.
+ */
+export function skillOverlapCounts(input: {
+  taught: ReadonlySet<string>;
+  demanded: ReadonlySet<string>;
+  generic: ReadonlySet<string>;
+}): { sharedSkills: number; taughtSkills: number } {
+  let taughtSkills = 0;
+  let sharedSkills = 0;
+  for (const s of input.taught) {
+    if (input.generic.has(s)) continue;
+    taughtSkills += 1;
+    if (input.demanded.has(s)) sharedSkills += 1;
+  }
+  return { sharedSkills, taughtSkills };
+}
+
+/**
+ * Minimum link score for an occupation to count towards a programme's demand.
+ *
+ * Moved here from health-score.ts (v5.2) so the health driver and the Deep-Dive
+ * Skills coverage section apply one rule. Under v2 the field-of-study score is
+ * a POSTING share, so 0.1 means at least one in ten of the occupation's
+ * eligible postings asks for this programme's field. MEASURED over v2 links:
+ * p25 0.024, median 0.073, p75 0.17, p90 0.32. At 0.1, 54 programmes keep a
+ * link and 42 clear the posting floor; Mechanical Engineering keeps maintenance
+ * technician (0.20) and loses electrical technician (0.08).
+ */
+export const JOBTHAI_MIN_LINK_SCORE = 0.1;
+
+/**
+ * Minimum relevant demanded skills the AI must have checked before a JobThai
+ * match score is shown or scored.
+ *
+ * MEASURED 2026-09-13: two identical AI runs over the same five programmes gave
+ * BBA Marketing 33 then 67 and Accountancy 100 on three skills, while the
+ * programmes resting on 9-19 skills moved 7-11 points. A ratio of three flips a
+ * third on one changed decision. Below 5 the figure is null with its count shown.
+ */
+export const JOBTHAI_MIN_RELEVANT_SKILLS = 5;
+
+export interface ProgramJobThaiLinkInput {
+  occupationId: string;
+  linkSource: string;
+  score: number;
+  postingCount: number;
+}
+
+/** Links that may speak for a programme's demand: strong enough, and not self-vouching. */
+export function isEligibleJobThaiLink(l: Pick<ProgramJobThaiLinkInput, 'score' | 'linkSource'>): boolean {
+  return l.score >= JOBTHAI_MIN_LINK_SCORE && l.linkSource !== 'skill-overlap';
+}
+
+export interface ProgramJobThaiDemandSkill {
+  skillId: string;
+  /** 0..1 — estimated share of the linked postings that name this skill. */
+  share: number;
+  /** Linked occupations where the skill is at or above the demand floor. */
+  occupations: number;
+  /** Demanded by most occupations, so it says nothing about THIS programme. */
+  generic: boolean;
+}
+
+export interface ProgramJobThaiDemand {
+  /** 'no-links' and 'below-floor' are data gaps — render null, never 0. */
+  status: 'ok' | 'no-links' | 'below-floor';
+  postings: number;
+  occupations: number;
+  /** Skills at or above OCCUPATION_SKILL_DEMAND_FLOOR once weighted, highest share first. */
+  demand: ProgramJobThaiDemandSkill[];
+}
+
+/**
+ * One programme's JobThai skill demand: each skill's share of the postings
+ * behind its eligible links, weighting every occupation by its link's postings.
+ *
+ * Skill-overlap-only links are excluded. That path creates a link BECAUSE the
+ * programme's taught skills are demanded, so measuring alignment through it
+ * returns the link rule, not the labour market — under v1 every overlap-linked
+ * programme scored at least 50 on jobthai_demand_alignment by construction.
+ */
+export function aggregateProgramJobThaiDemand(input: {
+  links: ReadonlyArray<ProgramJobThaiLinkInput>;
+  occupationSkills: ReadonlyArray<OccupationSkillShare>;
+  generic: ReadonlySet<string>;
+}): ProgramJobThaiDemand {
+  const eligible = input.links.filter(isEligibleJobThaiLink);
+  const postings = eligible.reduce((s, l) => s + l.postingCount, 0);
+  if (eligible.length === 0) return { status: 'no-links', postings: 0, occupations: 0, demand: [] };
+  if (postings < JOBTHAI_MIN_POSTINGS_FOR_SIGNAL) {
+    return { status: 'below-floor', postings, occupations: eligible.length, demand: [] };
+  }
+
+  const weightByOccupation = new Map(eligible.map((l) => [l.occupationId, l.postingCount]));
+  const acc = new Map<string, { weighted: number; occupations: number }>();
+  for (const r of input.occupationSkills) {
+    const w = weightByOccupation.get(r.occupationId);
+    if (w === undefined) continue;
+    const e = acc.get(r.skillId) ?? { weighted: 0, occupations: 0 };
+    e.weighted += w * r.share;
+    if (r.share >= OCCUPATION_SKILL_DEMAND_FLOOR) e.occupations += 1;
+    acc.set(r.skillId, e);
+  }
+
+  const demand: ProgramJobThaiDemandSkill[] = [];
+  for (const [skillId, e] of acc) {
+    const share = e.weighted / postings;
+    if (share < OCCUPATION_SKILL_DEMAND_FLOOR) continue;
+    demand.push({ skillId, share, occupations: e.occupations, generic: input.generic.has(skillId) });
+  }
+  demand.sort((a, b) => b.share - a.share || a.skillId.localeCompare(b.skillId));
+  return { status: 'ok', postings, occupations: eligible.length, demand };
 }
 
 export interface CombinedLink {

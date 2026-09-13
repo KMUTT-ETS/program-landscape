@@ -20,6 +20,9 @@ import {
   matchFieldToProgramme,
   scoreFieldOfStudyLink,
   scoreSkillOverlapLink,
+  distinctiveDemand,
+  skillOverlapCounts,
+  matchedPostingCounts,
   JOBTHAI_BRIDGE_VERSION,
   JOBTHAI_MIN_POSTINGS_FOR_SIGNAL,
   MAX_PROGRAMMES_PER_FIELD,
@@ -62,27 +65,28 @@ async function main(): Promise<void> {
   const occupations = await prisma.jobThaiOccupation.findMany({
     select: {
       id: true, category: true, subcategory: true, postingCount: true,
-      skills: { select: { skillId: true } },
+      skills: { select: { skillId: true, share: true } },
     },
   });
+  // v2: demand at the posting-share floor, generic skills set aside.
+  const { demandedByOccupation, generic } = distinctiveDemand(
+    occupations.flatMap((o) => o.skills.map((s) => ({ occupationId: o.id, skillId: s.skillId, share: s.share }))),
+    occupations.length,
+  );
+  console.log(`generic skills excluded from overlap: ${generic.size}`);
 
-  // Per occupation, the fields of study its postings state, split by the
-  // posting's own education floor — that split IS the honest-signal gate.
-  const fieldRows = await prisma.$queryRaw<Array<{
-    job_category: string; job_subcategory: string; min_education_level: string;
-    field: string; postings: bigint;
-  }>>`
-    SELECT job_category, job_subcategory, min_education_level::text AS min_education_level,
-           unnest(required_fields_raw) AS field, COUNT(*)::bigint AS postings
-    FROM job_postings
-    WHERE source = 'jobthai' AND job_category IS NOT NULL AND job_subcategory IS NOT NULL
-    GROUP BY 1, 2, 3, 4`;
-
-  const byOccupation = new Map<string, Array<{ level: string; field: string; postings: number }>>();
-  for (const r of fieldRows) {
-    const key = `${r.job_category}|${r.job_subcategory}`;
+  // Per occupation, one entry per POSTING with its education floor and stated
+  // fields. v2 counts distinct postings; v1 unnested the fields and summed per
+  // field, so a posting naming two matching fields counted twice.
+  const postingRows = await prisma.jobPosting.findMany({
+    where: { source: 'jobthai', jobCategory: { not: null }, jobSubcategory: { not: null } },
+    select: { jobCategory: true, jobSubcategory: true, minEducationLevel: true, requiredFieldsRaw: true },
+  });
+  const byOccupation = new Map<string, Array<{ level: string; fields: string[] }>>();
+  for (const r of postingRows) {
+    const key = `${r.jobCategory}|${r.jobSubcategory}`;
     const list = byOccupation.get(key) ?? [];
-    list.push({ level: r.min_education_level, field: r.field, postings: Number(r.postings) });
+    list.push({ level: String(r.minEducationLevel), fields: r.requiredFieldsRaw });
     byOccupation.set(key, list);
   }
 
@@ -91,7 +95,7 @@ async function main(): Promise<void> {
   // bridge emitted Geotechnology -> Food Science because "technology" appears in
   // both. Computed here rather than hardcoded so it tracks the programme list.
   const allFields = new Set<string>();
-  for (const list of byOccupation.values()) for (const r of list) allFields.add(r.field);
+  for (const list of byOccupation.values()) for (const r of list) for (const f of r.fields) allFields.add(f);
   const promiscuous = new Set<string>();
   for (const f of allFields) {
     let hits = 0;
@@ -118,26 +122,29 @@ async function main(): Promise<void> {
     const levels = new Set(eligiblePostingLevels(String(p.level)));
     const taught = skillsByProgramme.get(p.id) ?? new Set<string>();
     const name = `${p.nameTh ?? ''} ${p.nameEn ?? ''}`;
+    const fieldMatch = new Map<string, boolean>();
+    const matchesField = (f: string): boolean => {
+      let m = fieldMatch.get(f);
+      if (m === undefined) {
+        m = !promiscuous.has(f) && matchFieldToProgramme(f, name);
+        fieldMatch.set(f, m);
+      }
+      return m;
+    };
 
     for (const occ of occupations) {
       const rows = byOccupation.get(`${occ.category}|${occ.subcategory}`) ?? [];
       // ── field path, gated on the POSTING's education floor ──
-      const eligible = rows.filter((r) => levels.has(r.level));
-      const distinctFields = new Set(eligible.map((r) => r.field));
-      const matched = [...distinctFields].filter((f) => !promiscuous.has(f) && matchFieldToProgramme(f, name));
-      const fieldPostings = eligible
-        .filter((r) => matched.includes(r.field))
-        .reduce((s, r) => s + r.postings, 0);
-      const fieldScore = scoreFieldOfStudyLink({
-        matchedFields: matched.length,
-        totalFieldsForOccupation: distinctFields.size,
-      });
+      const counts = matchedPostingCounts({ postings: rows, levels, matchesField });
+      const matched = counts.matchedFields;
+      const fieldPostings = counts.matchedPostings;
+      const fieldScore = scoreFieldOfStudyLink(counts);
 
       // ── skill path ──
-      const occSkills = new Set(occ.skills.map((s) => s.skillId));
-      const shared = [...occSkills].filter((s) => taught.has(s));
+      const demanded = demandedByOccupation.get(occ.id) ?? new Set<string>();
       // Denominator is what the PROGRAMME teaches — see scoreSkillOverlapLink.
-      const skillScore = scoreSkillOverlapLink({ sharedSkills: shared.length, taughtSkills: taught.size });
+      const overlap = skillOverlapCounts({ taught, demanded, generic });
+      const skillScore = scoreSkillOverlapLink(overlap);
 
       const combined = combineLinkSources({ fieldScore, skillScore });
       if (!combined) continue;
@@ -145,8 +152,7 @@ async function main(): Promise<void> {
       // Postings behind the link. The field path counts its own matched
       // postings; a skill-only link is backed by the occupation's eligible
       // postings, since that is the population the demand set came from.
-      const eligiblePostings = eligible.reduce((s, r) => s + r.postings, 0);
-      const postingCount = combined.linkSource === 'skill-overlap' ? eligiblePostings : fieldPostings;
+      const postingCount = combined.linkSource === 'skill-overlap' ? counts.eligiblePostings : fieldPostings;
       if (postingCount < MIN_POSTINGS_PER_LINK) continue;
 
       planned.push({
@@ -162,7 +168,7 @@ async function main(): Promise<void> {
         evidenceTh:
           matched.length > 0
             ? `สาขาที่ตรงกัน: ${matched.slice(0, 6).join(', ')}`
-            : `ทักษะที่ตรงกัน ${shared.length} จาก ${occSkills.size} รายการ`,
+            : `ทักษะเฉพาะที่ตรงกัน ${overlap.sharedSkills} จาก ${overlap.taughtSkills} ทักษะที่สอน`,
       });
       perProgramme.set(p.id, (perProgramme.get(p.id) ?? 0) + postingCount);
     }

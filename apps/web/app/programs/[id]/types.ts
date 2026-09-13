@@ -492,6 +492,8 @@ export interface DeepDiveSkills {
     relatedness: number | null;
     /** Verbatim PLO/course quote evidence (when matched). */
     evidenceQuote: string | null;
+    fit?: DemandSkillFit | null;
+    fitReason?: string | null;
   }>;
   gaps: Array<{ skillId: string; nameEn: string; nameTh: string; peakDemandPct: number; careerCount: number }>;
   surplus: Array<{
@@ -512,7 +514,48 @@ export interface DeepDiveSkills {
    *  0 = no career mapping yet → shows "unfiltered" banner. */
   careerFilterCount: number;
   careerFilterIds: number[];
+  /** Domestic demand (JobThai), rendered behind a source toggle — never blended with LinkedIn. */
+  jobThai: DeepDiveJobThaiSkills;
 }
+
+export interface DeepDiveJobThaiSkills {
+  /** 'no-links' and 'below-floor' are data gaps, not zero demand. */
+  status: 'ok' | 'no-links' | 'below-floor';
+  postings: number;
+  occupationCount: number;
+  occupations: Array<{ category: string; subcategory: string; postingCount: number; linkScore: number }>;
+  /** True once the AI curriculum check has run against JobThai demand. */
+  aiComputed: boolean;
+  /** Same figure as the jobthai_demand_alignment health driver; null before the AI check. */
+  matchScore: number | null;
+  /** Relevant demanded skills the score rests on. */
+  relevantCount: number;
+  /** Below this many relevant skills matchScore is null — the ratio is unstable. */
+  minRelevantSkills: number;
+  demanded: Array<{
+    skillId: string;
+    nameEn: string;
+    nameTh: string;
+    category: string | null;
+    /** % of the linked postings naming this skill. */
+    demandPct: number;
+    occupationCount: number;
+    curriculumMatched: boolean | null;
+    relevant: boolean | null;
+    fit: DemandSkillFit | null;
+    fitReason: string | null;
+    matchSource: string | null;
+    evidenceQuote: string | null;
+  }>;
+  /** Other degree fields employers accept for the same jobs (fit = other-profession). */
+  alsoAccepted: Array<{ skillId: string; nameEn: string; nameTh: string; fitReason: string | null }>;
+  generic: Array<{ skillId: string; nameEn: string; nameTh: string; demandPct: number }>;
+  gaps: Array<{ skillId: string; nameEn: string; nameTh: string; demandPct: number; occupationCount: number; fit: DemandSkillFit | null; fitReason: string | null }>;
+  surplus: Array<{ skillId: string; nameEn: string; nameTh: string; pickedFromPlo: boolean }>;
+}
+
+/** demand-match.v4 — how a demanded skill fits the programme's profession. */
+export type DemandSkillFit = 'core' | 'supporting' | 'other-profession' | 'not-relevant' | 'uncertain';
 
 export interface DeepDiveOutcomes {
   latest: {

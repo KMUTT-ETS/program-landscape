@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   programPedagogyAssessmentFindUnique: vi.fn(),
   programJobThaiLinkFindMany: vi.fn(),
   jobThaiOccupationSkillFindMany: vi.fn(),
+  jobThaiOccupationCount: vi.fn(),
 }));
 
 // NO `vi.importActual('../src/index')` spread here, deliberately.
@@ -76,6 +77,7 @@ vi.mock('../src/index', () => {
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
       programJobThaiLink: { findMany: mocks.programJobThaiLinkFindMany },
       jobThaiOccupationSkill: { findMany: mocks.jobThaiOccupationSkillFindMany },
+      jobThaiOccupation: { count: mocks.jobThaiOccupationCount },
       // Backs getAcademicYearContext() (packages/db/src/academic-year.ts),
       // exercised for the first time by the tuition_trend_slope tests
       // below. Default (null → no stored override) below picks the
@@ -133,6 +135,7 @@ beforeEach(() => {
   mocks.programPedagogyAssessmentFindUnique.mockResolvedValue(null);
   mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
   mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([]);
+  mocks.jobThaiOccupationCount.mockResolvedValue(0);
   // collectProgramIdsForScope hits prisma.program.findMany at uni
   // scope — empty array means relevance/capability scope-aggregations
   // fall through cleanly.

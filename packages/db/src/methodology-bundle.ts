@@ -39,6 +39,7 @@ import { GAP_ANALYSIS_VERSION } from './gap-analysis';
 import { DASHBOARD_OVERVIEW_VERSION } from './dashboard-overview';
 import { DECISION_WORKSPACE_VERSION } from './decisions';
 import { DATA_QUALITY_VERSION } from './data-quality';
+import { JOBTHAI_BRIDGE_VERSION } from './jobthai-bridge';
 
 // ── Imports from @kku/shared (engines + prompts) ────────────────────────
 import {
@@ -107,7 +108,7 @@ const LIFECYCLE_VERSION = 'lifecycle.v1.4';
  * this on a sub-version update — CI fails until either the tag bumps
  * or the change is undone.
  */
-export const BUNDLE_CALENDAR_TAG = 'landscape-2026-09.v2';
+export const BUNDLE_CALENDAR_TAG = 'landscape-2026-09.v3';
 
 /**
  * The full sub-version manifest. Keys are stable, ordered alphabetically
@@ -140,6 +141,9 @@ export const METHODOLOGY_MANIFEST = {
   'graduate-employment-survey': GRADUATE_EMPLOYMENT_SURVEY_VERSION,
   'health-score':              HEALTH_SCORE_VERSION,
   'imd-rankings-extract':      IMD_RANKINGS_EXTRACT_VERSION,
+  // Programme <-> JobThai occupation links: feed jobthai_demand_alignment and
+  // the Deep-Dive JobThai demand view, so a link-rule change moves Council figures.
+  'jobthai-bridge':            JOBTHAI_BRIDGE_VERSION,
   'lifecycle':                 LIFECYCLE_VERSION,
   'program-ai-readiness':      PROGRAM_AI_READINESS_VERSION,
   'program-digest':            PROGRAM_DIGEST_VERSION,

@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   programPedagogyAssessmentFindUnique: vi.fn(),
   programJobThaiLinkFindMany: vi.fn(),
   jobThaiOccupationSkillFindMany: vi.fn(),
+  jobThaiOccupationCount: vi.fn(),
 }));
 
 vi.mock('../src/index', () => {
@@ -65,6 +66,7 @@ vi.mock('../src/index', () => {
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
       programJobThaiLink: { findMany: mocks.programJobThaiLinkFindMany },
       jobThaiOccupationSkill: { findMany: mocks.jobThaiOccupationSkillFindMany },
+      jobThaiOccupation: { count: mocks.jobThaiOccupationCount },
       systemSetting: { findUnique: mocks.systemSettingFindUnique },
       $queryRaw: vi.fn().mockResolvedValue([]),
       $queryRawUnsafe: vi.fn().mockResolvedValue([]),
@@ -78,7 +80,7 @@ vi.mock('../src/scope', async () => {
   return { ...actual, queryMetricByScope: mocks.queryMetricByScope };
 });
 
-import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from '../src/jobthai-bridge';
+import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RELEVANT_SKILLS } from '../src/jobthai-bridge';
 import {
   computeHealthScores,
   DIMENSION_DRIVERS,
@@ -87,10 +89,12 @@ import {
   invalidateProgramScoreIndexCache,
   rolledUpDriverForTest,
   summariseDriversForTest,
+  LABOUR_MARKET_DEMAND_WEIGHTS,
   type HealthScore,
   type ProgramScoreIndex,
 } from '../src/health-score';
 import { invalidateAcademicYearCache } from '../src/academic-year';
+import { invalidateJobThaiGenericSkillsCache } from '../src/jobthai';
 
 beforeEach(() => {
   invalidateAcademicYearCache();
@@ -98,6 +102,7 @@ beforeEach(() => {
   // test reads the program set an earlier test mocked, and the failure
   // looks like a scorer bug.
   invalidateProgramScoreIndexCache();
+  invalidateJobThaiGenericSkillsCache();
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.kmitlDemandFindMany.mockResolvedValue([]);
   mocks.programSkillFindMany.mockResolvedValue([]);
@@ -117,6 +122,7 @@ beforeEach(() => {
   mocks.programPedagogyAssessmentFindUnique.mockResolvedValue(null);
   mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
   mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([]);
+  mocks.jobThaiOccupationCount.mockResolvedValue(0);
   mocks.programFindMany.mockResolvedValue([]);
   mocks.programFindUnique.mockResolvedValue(null);
   mocks.queryMetricByScope.mockResolvedValue([]);
@@ -477,7 +483,7 @@ describe('driver parity between program and scope scorers', () => {
   });
 });
 
-// ── jobthai_demand_alignment (v5.1) ───────────────────────────────────────
+// ── jobthai_demand_alignment (v5.1, revised v5.2) ─────────────────────────
 
 describe('jobthai_demand_alignment', () => {
   function facultyWithOneProgramme(level: string): void {
@@ -485,25 +491,123 @@ describe('jobthai_demand_alignment', () => {
     mocks.queryMetricByScope.mockResolvedValue([]);
     mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
     mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level, nameTh: 'ก', kmitlCareerIds: [] });
+    // Ten occupations, so a skill demanded by one of them is not generic.
+    mocks.jobThaiOccupationCount.mockResolvedValue(10);
   }
+  const link = (over: Partial<{ linkSource: string; postingCount: number; score: number }> = {}) => ({
+    jobThaiOccupationId: 'o1',
+    linkSource: 'field-of-study',
+    postingCount: 500,
+    score: 0.8,
+    occupation: { category: 'งานวิศวกรรม', subcategory: 'งานวิศวกรเครื่องกล' },
+    ...over,
+  });
+  const occSkill = (skillId: string, share = 0.3, occupationId = 'o1') => ({ jobThaiOccupationId: occupationId, skillId, share });
 
   it('is a canonical relevance driver', () => {
     expect(DIMENSION_DRIVERS.relevance).toContain('jobthai_demand_alignment');
   });
 
-  it('is the share of the taught skills that the linked occupations demand', async () => {
+  // v5.2: the AI curriculum check (program_demand_matches) decides taught /
+  // relevant. Exact skill-ID overlap read 0 for 29 of 41 programmes on dev —
+  // curricula say "Legal Drafting", postings say "Litigation".
+  function aiMatches(rows: Array<{ skillId: string; matched: boolean; relevant?: boolean; sources?: string[] }>): void {
+    mocks.programDemandMatchFindMany.mockImplementation(async (args: { where?: { demandSources?: { has?: string }; skillId?: { in?: string[] } } }) => {
+      const has = args?.where?.demandSources?.has;
+      const inIds = args?.where?.skillId?.in;
+      return rows
+        .map((r) => ({ relevant: true, sources: ['jobthai'], ...r }))
+        .filter((r) => (has ? r.sources.includes(has) : true))
+        .filter((r) => (inIds ? inIds.includes(r.skillId) : true))
+        .map((r) => ({ skillId: r.skillId, matched: r.matched, relevant: r.relevant, programId: 'prog-1' }));
+    });
+  }
+
+  it('is the share of RELEVANT JobThai-demanded skills the curriculum covers', async () => {
     facultyWithOneProgramme('BACHELOR');
-    mocks.programSkillFindMany.mockResolvedValue([
-      { skillId: 's1' }, { skillId: 's2' }, { skillId: 's3' }, { skillId: 's4' },
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link()]);
+    const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'];
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue(ids.map((id) => occSkill(id)));
+    // s7 judged irrelevant to the discipline: out of the denominator. 3 of 6 taught.
+    aiMatches([
+      { skillId: 's1', matched: true },
+      { skillId: 's2', matched: true },
+      { skillId: 's3', matched: true },
+      { skillId: 's4', matched: false },
+      { skillId: 's5', matched: false },
+      { skillId: 's6', matched: false },
+      { skillId: 's7', matched: false, relevant: false },
     ]);
-    mocks.programJobThaiLinkFindMany.mockResolvedValue([
-      { jobThaiOccupationId: 'o1', postingCount: 500, score: 0.8 },
-    ]);
-    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }, { skillId: 's2' }]);
 
     const rows = await computeHealthScores('faculty', 'fac-1');
     const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
     expect(d!.value).toBe(50);
+  });
+
+  it('is NULL when too few relevant skills were checked for the ratio to be stable', async () => {
+    // MEASURED: two identical AI runs gave BBA Marketing 33 then 67 — a
+    // three-skill ratio moves a whole third on one changed decision.
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link()]);
+    const ids = Array.from({ length: JOBTHAI_MIN_RELEVANT_SKILLS - 1 }, (_, i) => `k${i}`);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue(ids.map((id) => occSkill(id)));
+    aiMatches(ids.map((skillId) => ({ skillId, matched: true })));
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
+  });
+
+  it('ignores LinkedIn-only match rows', async () => {
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link()]);
+    const ids = ['s1', 's2', 's3', 's4', 's5', 'li'];
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue(ids.map((id) => occSkill(id)));
+    aiMatches([
+      ...['s1', 's2', 's3', 's4', 's5'].map((skillId) => ({ skillId, matched: true })),
+      { skillId: 'li', matched: false, sources: ['kmitl-skill-mapping'] },
+    ]);
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    // 'li' was checked as LinkedIn demand only, so its gap does not count here.
+    expect(d!.value).toBe(100);
+  });
+
+  it('is NULL, not 0, before the AI curriculum check has run', async () => {
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link()]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([occSkill('s1')]);
+    aiMatches([]);
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
+  });
+
+  it('does not count a generic skill even if the AI matched it', async () => {
+    // "comm" is demanded by 3 of 10 occupations (> 20%) — teaching it says
+    // nothing about fit to THIS field's jobs.
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link()]);
+    const ids = ['s1', 's2', 's3', 's4', 's5'];
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([
+      ...ids.map((id) => occSkill(id)), occSkill('comm'), occSkill('comm', 0.3, 'o2'), occSkill('comm', 0.3, 'o3'),
+    ]);
+    aiMatches([...ids.map((skillId) => ({ skillId, matched: false })), { skillId: 'comm', matched: true }]);
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBe(0);
+  });
+
+  it('is NULL when the only links are skill-overlap — they cannot vouch for themselves', async () => {
+    // v5.1 scored these, and every one read >= 50 by construction: the overlap
+    // path links a programme exactly when its taught skills are demanded.
+    facultyWithOneProgramme('BACHELOR');
+    mocks.programSkillFindMany.mockResolvedValue([{ skillId: 's1' }, { skillId: 's2' }]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link({ linkSource: 'skill-overlap' })]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([occSkill('s1'), occSkill('s2')]);
+
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
+    expect(d!.value).toBeNull();
   });
 
   it('is NULL, never 0, for a postgraduate programme', async () => {
@@ -523,27 +627,71 @@ describe('jobthai_demand_alignment', () => {
   it('is NULL below the signal floor rather than scoring a handful of adverts', async () => {
     facultyWithOneProgramme('BACHELOR');
     mocks.programSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
-    mocks.programJobThaiLinkFindMany.mockResolvedValue([
-      { jobThaiOccupationId: 'o1', postingCount: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL - 1, score: 0.9 },
-    ]);
-    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+    mocks.programJobThaiLinkFindMany.mockResolvedValue([link({ postingCount: JOBTHAI_MIN_POSTINGS_FOR_SIGNAL - 1, score: 0.9 })]);
+    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([occSkill('s1')]);
 
     const rows = await computeHealthScores('faculty', 'fac-1');
     const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
     expect(d!.value).toBeNull();
   });
 
-  it('is NULL when the programme has no taught skills at all', async () => {
-    // A zero denominator is a data gap, not zero alignment.
-    facultyWithOneProgramme('BACHELOR');
-    mocks.programSkillFindMany.mockResolvedValue([]);
-    mocks.programJobThaiLinkFindMany.mockResolvedValue([
-      { jobThaiOccupationId: 'o1', postingCount: 500, score: 0.9 },
-    ]);
-    mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([{ skillId: 's1' }]);
+});
 
-    const rows = await computeHealthScores('faculty', 'fac-1');
-    const d = rows[0]!.dimensions.relevance.drivers.find((x) => x.label === 'jobthai_demand_alignment');
-    expect(d!.value).toBeNull();
+// ── Domestic 75 : global 25 (v5.2) ────────────────────────────────────────
+
+describe('relevance — labour-market demand weighting', () => {
+  const others = [
+    { label: 'demand_match_filled', value: 60, raw: null },
+    { label: 'demographic_resilience', value: 60, raw: null },
+    { label: 'strategic_sector_alignment', value: 60, raw: null },
+    { label: 'pedagogical_fit', value: 60, raw: null },
+  ];
+
+  it('splits the labour-market pair 75:25 without changing the pair’s weight in the dimension', () => {
+    // Pair value = 0.75 × 80 + 0.25 × 40 = 70, still worth TWO drivers:
+    // (2 × 70 + 4 × 60) / 6 = 63.33. Counting the pair as one slot would have
+    // halved labour-market's say in Relevance — measured on dev, Industrial
+    // Engineering rose 66 -> 78 purely from that artefact.
+    const r = summariseDriversForTest('relevance', [
+      { label: 'jobthai_demand_alignment', value: 80, raw: null },
+      { label: 'labour_market_alignment', value: 40, raw: null },
+      ...others,
+    ]);
+    expect(r.score).toBeCloseTo((2 * 70 + 4 * 60) / 6, 6);
+    expect(LABOUR_MARKET_DEMAND_WEIGHTS).toEqual({ jobthai_demand_alignment: 0.75, labour_market_alignment: 0.25 });
+  });
+
+  it('uses whichever source exists at its ordinary one-driver weight when the other is null', () => {
+    // A missing source is a data gap: it must not drag the slot toward 0, and
+    // LinkedIn alone must not be discounted to a quarter of a driver.
+    const onlyGlobal = summariseDriversForTest('relevance', [
+      { label: 'labour_market_alignment', value: 40, raw: null },
+      ...others,
+    ]);
+    expect(onlyGlobal.score).toBeCloseTo((40 + 4 * 60) / 5, 6);
+    const onlyDomestic = summariseDriversForTest('relevance', [
+      { label: 'jobthai_demand_alignment', value: 80, raw: null },
+      ...others,
+    ]);
+    expect(onlyDomestic.score).toBeCloseTo((80 + 4 * 60) / 5, 6);
+  });
+
+  it('keeps both drivers visible and counts both toward completeness', () => {
+    const r = summariseDriversForTest('relevance', [
+      { label: 'jobthai_demand_alignment', value: 80, raw: null },
+      { label: 'labour_market_alignment', value: 40, raw: null },
+    ]);
+    expect(r.drivers.find((d) => d.label === 'jobthai_demand_alignment')?.value).toBe(80);
+    expect(r.drivers.find((d) => d.label === 'labour_market_alignment')?.value).toBe(40);
+    expect(r.dataCompletenessPct).toBeCloseTo((2 / DIMENSION_DRIVERS.relevance.length) * 100, 5);
+    expect(r.score).toBeCloseTo(70, 6);
+  });
+
+  it('leaves the other dimensions equally weighted', () => {
+    const r = summariseDriversForTest('capability', [
+      { label: 'senior_rank_share', value: 80, raw: null },
+      { label: 'student_faculty_ratio', value: 40, raw: null },
+    ]);
+    expect(r.score).toBe(60);
   });
 });

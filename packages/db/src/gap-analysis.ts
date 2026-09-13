@@ -3,6 +3,7 @@ import { Prisma, type ForecastKind, type SectorFamily } from '@prisma/client';
 import { prisma } from './index';
 import type { ScopeLevel } from './scope';
 import { realDataWhere, realDataSql } from './data-quality';
+import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import {
   forecastHoltLinear,
   forecastLinear,
@@ -782,6 +783,7 @@ export async function computeProgramDemandGaps(
     where: {
       ...(programIds.length > 0 ? { programId: { in: programIds } } : {}),
       relevant: true,
+      ...demandMatchSourceWhere(DEMAND_SOURCE_LINKEDIN),
       ...realDataWhere(),
     },
     include: {

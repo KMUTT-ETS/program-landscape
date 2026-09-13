@@ -1,5 +1,13 @@
 import { prisma } from './index';
 import { realDataWhere } from './data-quality';
+import {
+  aggregateProgramJobThaiDemand,
+  distinctiveDemand,
+  isEligibleJobThaiLink,
+  OCCUPATION_SKILL_DEMAND_FLOOR,
+  type ProgramJobThaiDemand,
+} from './jobthai-bridge';
+import { DEMAND_SOURCE_JOBTHAI, demandMatchSourceWhere } from './demand-match-sources';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // JobThai read helpers.
@@ -119,4 +127,154 @@ export async function topFieldsOfStudy(limit = 40): Promise<Array<{ field: strin
     ORDER BY 2 DESC
     LIMIT ${limit}`;
   return rows.map((r) => ({ field: r.field, postings: Number(r.postings) }));
+}
+
+// ── Per-programme skill demand ─────────────────────────────────────────────
+//
+// ONE loader for the two consumers that must agree: the health score's
+// `jobthai_demand_alignment` driver and the Deep-Dive Skills coverage section.
+// The aggregation rule itself is the pure `aggregateProgramJobThaiDemand`.
+
+let _genericCache: { at: number; generic: Set<string>; occupationCount: number } | null = null;
+const GENERIC_CACHE_TTL_MS = 10 * 60 * 1000;
+
+/** Skills most occupations demand — recomputed from the data, cached briefly. */
+export async function jobThaiGenericSkills(): Promise<{ generic: Set<string>; occupationCount: number }> {
+  const now = Date.now();
+  if (_genericCache && now - _genericCache.at < GENERIC_CACHE_TTL_MS) return _genericCache;
+  const [rows, occupationCount] = await Promise.all([
+    prisma.jobThaiOccupationSkill.findMany({
+      where: { share: { gte: OCCUPATION_SKILL_DEMAND_FLOOR } },
+      select: { jobThaiOccupationId: true, skillId: true, share: true },
+    }),
+    prisma.jobThaiOccupation.count(),
+  ]);
+  const { generic } = distinctiveDemand(
+    rows.map((r) => ({ occupationId: r.jobThaiOccupationId, skillId: r.skillId, share: r.share })),
+    occupationCount,
+  );
+  _genericCache = { at: now, generic, occupationCount };
+  return _genericCache;
+}
+
+/** Test seam — the cache is per-process. */
+export function invalidateJobThaiGenericSkillsCache(): void {
+  _genericCache = null;
+}
+
+export interface ProgramJobThaiDemandDetail extends ProgramJobThaiDemand {
+  /** The eligible occupations, most postings first — the "which jobs" evidence. */
+  linkedOccupations: Array<{
+    occupationId: string;
+    category: string;
+    subcategory: string;
+    linkSource: string;
+    score: number;
+    postingCount: number;
+  }>;
+}
+
+export async function programJobThaiDemand(programId: string): Promise<ProgramJobThaiDemandDetail> {
+  const links = await prisma.programJobThaiLink.findMany({
+    where: { programId, ...realDataWhere() },
+    select: {
+      jobThaiOccupationId: true, linkSource: true, score: true, postingCount: true,
+      occupation: { select: { category: true, subcategory: true } },
+    },
+    orderBy: { postingCount: 'desc' },
+  });
+  const linkInputs = links.map((l) => ({
+    occupationId: l.jobThaiOccupationId,
+    linkSource: l.linkSource,
+    score: l.score,
+    postingCount: l.postingCount,
+  }));
+  const eligibleIds = linkInputs
+    .filter(isEligibleJobThaiLink)
+    .map((l) => l.occupationId);
+
+  const [{ generic }, occupationSkills] = await Promise.all([
+    jobThaiGenericSkills(),
+    eligibleIds.length === 0
+      ? Promise.resolve([])
+      : prisma.jobThaiOccupationSkill.findMany({
+          where: { jobThaiOccupationId: { in: eligibleIds } },
+          select: { jobThaiOccupationId: true, skillId: true, share: true },
+        }),
+  ]);
+
+  const aggregate = aggregateProgramJobThaiDemand({
+    links: linkInputs,
+    occupationSkills: occupationSkills.map((r) => ({ occupationId: r.jobThaiOccupationId, skillId: r.skillId, share: r.share })),
+    generic,
+  });
+  const eligible = new Set(eligibleIds);
+  return {
+    ...aggregate,
+    linkedOccupations: links
+      .filter((l) => eligible.has(l.jobThaiOccupationId))
+      .map((l) => ({
+        occupationId: l.jobThaiOccupationId,
+        category: l.occupation.category,
+        subcategory: l.occupation.subcategory,
+        linkSource: l.linkSource,
+        score: l.score,
+        postingCount: l.postingCount,
+      })),
+  };
+}
+
+export interface JobThaiSkillMatch {
+  skillId: string;
+  matched: boolean;
+  relevant: boolean;
+  relatedness: number | null;
+  matchSource: string | null;
+  evidenceQuote: string | null;
+  matchedTaughtSkillId: string | null;
+  /** demand-match.v4 fit class; null on rows written by v3. */
+  fit: string | null;
+  fitReason: string | null;
+}
+
+export interface ProgramJobThaiSkillCoverage {
+  demand: ProgramJobThaiDemandDetail;
+  /** Non-generic demanded skills sent to the AI curriculum check, highest share first. */
+  checklist: string[];
+  /** AI decisions for checklist skills, tagged as JobThai demand. Empty until the check runs. */
+  matches: Map<string, JobThaiSkillMatch>;
+}
+
+/**
+ * Demand plus the AI curriculum decisions for it. Read by BOTH the
+ * `jobthai_demand_alignment` driver and the Deep-Dive Skills coverage section.
+ */
+export async function programJobThaiSkillCoverage(programId: string): Promise<ProgramJobThaiSkillCoverage> {
+  const demand = await programJobThaiDemand(programId);
+  const checklist = demand.status === 'ok' ? demand.demand.filter((d) => !d.generic).map((d) => d.skillId) : [];
+  const rows = checklist.length === 0
+    ? []
+    : await prisma.programDemandMatch.findMany({
+        where: { programId, skillId: { in: checklist }, ...demandMatchSourceWhere(DEMAND_SOURCE_JOBTHAI), ...realDataWhere() },
+        select: {
+          skillId: true, matched: true, relevant: true, relatedness: true,
+          matchSource: true, evidenceQuote: true, matchedTaughtSkillId: true,
+          fit: true, fitReason: true,
+        },
+      });
+  return {
+    demand,
+    checklist,
+    matches: new Map(rows.map((r) => [r.skillId, {
+      skillId: r.skillId,
+      matched: r.matched,
+      relevant: r.relevant,
+      relatedness: r.relatedness ?? null,
+      matchSource: r.matchSource ?? null,
+      evidenceQuote: r.evidenceQuote ?? null,
+      matchedTaughtSkillId: r.matchedTaughtSkillId ?? null,
+      fit: r.fit ?? null,
+      fitReason: r.fitReason ?? null,
+    }])),
+  };
 }

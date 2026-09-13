@@ -1,16 +1,25 @@
-import { prisma } from '@kku/db';
+import {
+  prisma,
+  programJobThaiDemand,
+  demandMatchProvenanceSource,
+  DEMAND_SOURCE_JOBTHAI,
+  DEMAND_SOURCE_LINKEDIN,
+  type ProgramJobThaiDemand,
+} from '@kku/db';
 import {
   buildDemandMatchMessages,
   DemandMatchSchema,
   DEMAND_MATCH_VERSION,
+  isRelevantFit,
   type AiService,
 } from '@kku/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Demand-driven curriculum match.
 //
-// 1. Resolve the program's demanded-skills set from labour-market data,
-//    filtered by Program.kmitlCareerIds.
+// 1. Resolve the program's demanded-skills set: LinkedIn-via-MHESI demand
+//    filtered by Program.kmitlCareerIds, plus (v5.2) JobThai demand from the
+//    programme's field-of-study occupation links.
 // 2. Pull the program's PLOs (from latest PROGRAM_SKILLS_DETAILED) +
 //    course descriptions (from latest PROGRAM_DIGEST) + already-extracted
 //    taught skills.
@@ -46,14 +55,58 @@ export interface MatchDemandParams {
 // 2026-09-13, silently failing realDataWhere() and blanking the
 // `demand_match_filled` relevance driver on all 301 programmes.
 //
-// Every tier of the demand fallback chain reads KmitlCareerSkillDemand, so
-// today that source is always kmitl-skill-mapping. JobThai joins the chain
-// in a later change; when it does, this is the one place that decides what
-// a row's provenance is.
+// From health-score.v5.2 the checklist is the union of LinkedIn-via-MHESI and
+// JobThai demand, so provenance is per ROW: each row carries the sources that
+// demanded its skill (`demand_sources`) and is stamped with the run of
+// `demandMatchProvenanceSource(sources)` — LinkedIn when both demanded it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The demand source backing every tier of the current fallback chain. */
-export const DEMAND_SOURCE_SLUG = 'kmitl-skill-mapping';
+/** The LinkedIn-via-MHESI demand source. Kept for callers of the old name. */
+export const DEMAND_SOURCE_SLUG = DEMAND_SOURCE_LINKEDIN;
+
+/**
+ * Most JobThai-demanded skills sent to one AI check. LinkedIn already sends up
+ * to 30; 25 keeps the combined prompt comparable. On dev the median linked
+ * programme has 12-20 non-generic JobThai skills at the 5% floor, so the cap
+ * rarely bites.
+ */
+export const JOBTHAI_CHECKLIST_MAX = 25;
+
+/**
+ * skillId -> the demand sources that put it on this programme's checklist.
+ * Generic JobThai skills are left off: "does this curriculum teach
+ * communication" is not a question about fit to this field's jobs.
+ */
+export function buildDemandChecklist(
+  linkedInSkillIds: ReadonlyArray<string>,
+  jobThai: Pick<ProgramJobThaiDemand, 'status' | 'demand'>,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const id of linkedInSkillIds) out.set(id, [DEMAND_SOURCE_LINKEDIN]);
+  if (jobThai.status === 'ok') {
+    for (const d of jobThai.demand.filter((x) => !x.generic).slice(0, JOBTHAI_CHECKLIST_MAX)) {
+      const sources = out.get(d.skillId) ?? [];
+      if (!sources.includes(DEMAND_SOURCE_JOBTHAI)) sources.push(DEMAND_SOURCE_JOBTHAI);
+      out.set(d.skillId, sources);
+    }
+  }
+  return out;
+}
+
+/**
+ * The programme's own skill row for the AI's `matchedTaughtSkillName`. Exact,
+ * case-insensitive, English or Thai — no fuzzy match, because a wrong taught
+ * skill would hide real surplus.
+ */
+export function resolveTaughtSkillId(
+  name: string,
+  taught: ReadonlyArray<{ skillId: string; nameEn: string | null; nameTh: string | null }>,
+): string | null {
+  const key = name.trim().toLowerCase();
+  if (key === '') return null;
+  const hit = taught.find((t) => (t.nameEn ?? '').trim().toLowerCase() === key || (t.nameTh ?? '').trim().toLowerCase() === key);
+  return hit?.skillId ?? null;
+}
 
 /** Injectable seam so the resolver is unit-testable without Prisma. */
 export interface DemandProvenanceDeps {
@@ -107,6 +160,8 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       id: true,
       code: true,
       nameTh: true,
+      nameEn: true,
+      level: true,
       kmitlCareerIds: true,
       faculty: { select: { nameTh: true } },
     },
@@ -146,7 +201,10 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       break;
     }
   }
-  const demandedIds = demandRows.map((d) => d.skillId).filter((id): id is string => Boolean(id));
+  const linkedInIds = demandRows.map((d) => d.skillId).filter((id): id is string => Boolean(id));
+  const jobThaiDemand = await programJobThaiDemand(program.id);
+  const checklist = buildDemandChecklist(linkedInIds, jobThaiDemand);
+  const demandedIds = [...checklist.keys()];
   if (demandedIds.length === 0) {
     return { status: 'SKIPPED', reason: 'no demanded skills resolved for this program' };
   }
@@ -196,10 +254,50 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
     };
   }
 
-  // 3. Run the AI match
+  // 3. Context for the profession-aware fit judgement (demand-match.v4):
+  //    the careers these graduates are hired into, and where each skill is
+  //    demanded. Without it the model judges "relevance" from the degree name
+  //    alone and calls other engineering disciplines gaps for Mechanical.
+  const linkedInCareers = program.kmitlCareerIds.length > 0
+    ? await prisma.kmitlCareer.findMany({
+        where: { kmitlCareerId: { in: program.kmitlCareerIds } },
+        select: { careerName: true, subGroupName: true },
+        take: 12,
+      })
+    : [];
+  const jobThaiOccupations = jobThaiDemand.status === 'ok' ? jobThaiDemand.linkedOccupations.slice(0, 12) : [];
+  const targetCareers = [
+    ...jobThaiOccupations.map((o) => ({
+      source: 'JobThai' as const,
+      title: `${o.category} / ${o.subcategory}`,
+      detail: `${Math.round(o.score * 100)}% of these postings ask for this programme's field; ${o.postingCount} postings`,
+    })),
+    ...linkedInCareers.map((c) => ({ source: 'LinkedIn' as const, title: c.careerName, detail: c.subGroupName.trim() })),
+  ];
+  const occupationName = new Map(jobThaiOccupations.map((o) => [o.occupationId, o.subcategory === 'อื่นๆ' ? `${o.category} / อื่นๆ` : o.subcategory]));
+  const occSkillRows = jobThaiOccupations.length === 0
+    ? []
+    : await prisma.jobThaiOccupationSkill.findMany({
+        where: { jobThaiOccupationId: { in: jobThaiOccupations.map((o) => o.occupationId) }, skillId: { in: demandedIds }, share: { gte: 0.05 } },
+        select: { jobThaiOccupationId: true, skillId: true, share: true },
+        orderBy: { share: 'desc' },
+      });
+  const demandedInBySkill = new Map<string, string[]>();
+  for (const r of occSkillRows) {
+    const list = demandedInBySkill.get(r.skillId) ?? [];
+    const name = occupationName.get(r.jobThaiOccupationId);
+    if (name && list.length < 3 && !list.includes(name)) list.push(name);
+    demandedInBySkill.set(r.skillId, list);
+  }
+  const jobThaiShare = new Map(jobThaiDemand.demand.map((d) => [d.skillId, d.share]));
+
+  // 4. Run the AI match
   const messages = buildDemandMatchMessages({
     programDegree: program.nameTh,
+    programDegreeEn: program.nameEn ?? '',
+    programLevel: String(program.level),
     programFaculty: program.faculty.nameTh,
+    targetCareers,
     programLearningOutcomes: plos,
     courses: courses.map((c) => ({
       code: c.code ?? '',
@@ -212,11 +310,18 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       nameEn: es.skill.nameEn,
       evidence: es.evidenceQuote ?? '',
     })),
-    demandedSkills: demandedSkills.map((s) => ({
-      skillId: s.id,
-      nameEn: s.nameEn,
-      nameTh: s.nameTh,
-    })),
+    demandedSkills: demandedSkills.map((s) => {
+      const sources = checklist.get(s.id) ?? [];
+      const share = jobThaiShare.get(s.id);
+      return {
+        skillId: s.id,
+        nameEn: s.nameEn,
+        nameTh: s.nameTh,
+        sources: sources.map((src) => (src === DEMAND_SOURCE_JOBTHAI ? 'JobThai' as const : 'LinkedIn' as const)),
+        demandPct: sources.includes(DEMAND_SOURCE_JOBTHAI) && share !== undefined ? share * 100 : null,
+        demandedIn: demandedInBySkill.get(s.id) ?? [],
+      };
+    }),
   });
 
   const response = await params.ai.extractStructured(
@@ -246,19 +351,21 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
   const decisions = response.parsed.matches;
   const validIds = new Set(demandedIds);
 
-  // 4. Persist
+  // 5. Persist
   const bySource: Record<string, number> = {};
   let totalRelatedness = 0;
   let matched = 0;
   let gapsRelevant = 0;
   let irrelevant = 0;
 
-  // Resolved once per run, outside the transaction — it is one indexed
-  // read and every row in this batch shares the same provenance.
-  const demandRunId = await resolveDemandProvenanceRunId({
-    findLatestSucceededRun: findLatestSucceededRunId,
-    demandSourceSlug: DEMAND_SOURCE_SLUG,
-  });
+  // Resolved once per source, outside the transaction — each is one indexed read.
+  const runIdBySource = new Map<string, string | null>();
+  for (const slug of [DEMAND_SOURCE_LINKEDIN, DEMAND_SOURCE_JOBTHAI]) {
+    runIdBySource.set(
+      slug,
+      await resolveDemandProvenanceRunId({ findLatestSucceededRun: findLatestSucceededRunId, demandSourceSlug: slug }),
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
     // Replace prior matches for this program (a re-run reflects new
@@ -266,19 +373,25 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
     await tx.programDemandMatch.deleteMany({ where: { programId: program.id } });
     for (const d of decisions) {
       if (!validIds.has(d.skillId)) continue; // ignore hallucinated skill IDs
+      const sources = checklist.get(d.skillId) ?? [];
+      const provenanceSource = demandMatchProvenanceSource(sources);
       bySource[d.matchSource] = (bySource[d.matchSource] ?? 0) + 1;
       totalRelatedness += d.relatedness;
+      // v4: relevance is the FIT, not implied by matched. A Mechanical
+      // programme's electrical service course does not make "Electrical
+      // engineering" a skill its graduates are hired for.
+      const relevant = isRelevantFit(d.fit);
       if (d.matched) matched++;
-      else if (d.relevantToCurriculum) gapsRelevant++;
+      else if (relevant) gapsRelevant++;
       else irrelevant++;
       await tx.programDemandMatch.create({
         data: {
           programId: program.id,
           skillId: d.skillId,
           matched: d.matched,
-          // Defensive: matched=true implies relevant=true (impossible to
-          // teach a skill that isn't relevant to the curriculum).
-          relevant: d.matched ? true : d.relevantToCurriculum,
+          relevant,
+          fit: d.fit,
+          fitReason: d.fitReason || null,
           relatedness: d.relatedness,
           matchSource: d.matchSource,
           evidenceQuote: d.evidenceQuote || null,
@@ -287,7 +400,14 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
           // Without this the row fails realDataWhere() and the relevance
           // driver that reads this table goes dark. See the provenance
           // block at the top of this file.
-          ingestionRunId: demandRunId,
+          ingestionRunId: provenanceSource ? runIdBySource.get(provenanceSource) ?? null : null,
+          demandSources: sources,
+          matchedTaughtSkillId: d.matched
+            ? resolveTaughtSkillId(
+                d.matchedTaughtSkillName,
+                extractedSkills.map((es) => ({ skillId: es.skillId, nameEn: es.skill.nameEn, nameTh: es.skill.nameTh })),
+              )
+            : null,
         },
       });
     }
