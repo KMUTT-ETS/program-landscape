@@ -5,9 +5,10 @@ export const metadata: Metadata = {
   title: 'Terms and Conditions of Use · Program Landscape',
 };
 
-const EFFECTIVE_DATE_EN = '27 August 2026';
-const EFFECTIVE_DATE_TH = '27 สิงหาคม 2569';
-const VERSION = '1.1';
+const EFFECTIVE_DATE_EN = '14 September 2026';
+const EFFECTIVE_DATE_TH = '14 กันยายน 2569';
+// 1.2 — Article 9.5 (page-view recording) added with v1.9.6.
+const VERSION = '1.2';
 
 export default function TermsPage() {
   return (
@@ -229,6 +230,21 @@ export default function TermsPage() {
             events, data mutations, AI inferences, PDF generations, and export
             events to support governance, security, and accountability. You
             acknowledge such logging by use of the Platform.
+          </p>
+          <p>
+            <strong>9.5.</strong> When you are signed in, the Platform records the
+            pages you open. Each record holds the route pattern of the page (for
+            example, “/programs/[id]”), the module it belongs to, the programme or
+            faculty then in view, your role and faculty at that time, and the time of
+            the view. It does not record your IP address, the full address of the
+            page, or any query string, and it records nothing before you sign in. Raw
+            records are retained for 120 days and are then reduced to daily counts.
+            Aggregate figures, in which no individual is named, are visible to
+            university-level users; the per-person access log is visible to platform
+            administrators only. These records are used to understand which parts of
+            the Platform are used and to support users, and are not used for
+            performance appraisal. A page an administrator opens while acting on
+            your behalf is never counted as your activity.
           </p>
 
           <h2>10. Confidentiality</h2>
@@ -576,6 +592,20 @@ export default function TermsPage() {
             ตัวตน การเปลี่ยนแปลงข้อมูล การเรียกใช้ AI การสร้าง PDF และการส่งออก
             เพื่อสนับสนุนการกำกับดูแล ความปลอดภัย และความรับผิดชอบ การใช้
             แพลตฟอร์มถือว่าท่านรับทราบการบันทึกดังกล่าว
+          </p>
+          <p>
+            <strong>9.5.</strong> เมื่อท่านลงชื่อเข้าใช้ แพลตฟอร์มจะบันทึกหน้าที่
+            ท่านเปิด โดยแต่ละรายการประกอบด้วยรูปแบบเส้นทางของหน้า (เช่น
+            “/programs/[id]”) โมดูลที่หน้านั้นสังกัด หลักสูตรหรือคณะที่กำลังดู
+            ในขณะนั้น บทบาทและคณะของท่าน ณ เวลานั้น และเวลาที่เข้าดู ทั้งนี้
+            ไม่มีการบันทึกที่อยู่ไอพี ที่อยู่เต็มของหน้า หรือส่วนคำค้นท้าย URL
+            และไม่มีการบันทึกใด ๆ ก่อนการลงชื่อเข้าใช้ ข้อมูลดิบเก็บไว้ 120 วัน
+            จากนั้นจะลดรูปเป็นจำนวนนับรายวัน ผู้ใช้ระดับมหาวิทยาลัยเห็นเฉพาะ
+            ตัวเลขภาพรวมซึ่งไม่ระบุตัวบุคคล ส่วนบันทึกการเข้าใช้รายบุคคล
+            เห็นได้เฉพาะผู้ดูแลระบบแพลตฟอร์มเท่านั้น บันทึกเหล่านี้ใช้เพื่อ
+            ทำความเข้าใจว่าส่วนใดของแพลตฟอร์มถูกใช้งานและเพื่อสนับสนุนผู้ใช้
+            มิได้ใช้เพื่อการประเมินผลการปฏิบัติงาน
+            หน้าที่ผู้ดูแลระบบเปิดขณะสวมบทบาทเป็นท่านจะไม่ถูกนับเป็นการใช้งานของท่าน
           </p>
 
           <h2>10. ความลับ</h2>

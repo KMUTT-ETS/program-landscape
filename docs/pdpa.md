@@ -25,6 +25,7 @@ This doc captures the PDPA posture of Program Landscape: what personal data we c
 | **Student demographics** | aggregate counts by cohort × admission route × gender × income bracket | KKU-Registrar feed (prompt 14) | Cohort-level analysis ONLY — no individual records | Per KKU-Registrar retention policy |
 | **Graduate outcomes** | aggregate employment rate, average salary, job relevance, sample size | Alumni survey (prompt 14) | Outcome tracking | Per alumni office retention |
 | **Employer feedback** | aggregate satisfaction score, sector, skill ratings | Employer survey (prompt 14) | Graduate fitness-for-role analysis | Per survey's consent terms |
+| **Page views** | user_id, effective role, impersonated flag, viewer faculty, route pattern, module, programme / faculty / department in view, timestamp | Browser beacon on each page, signed-in sessions only | Platform adoption + user support | **120 days** raw, then rolled into daily counts (`PageViewDaily`, no expiry) — see "Page-view recording" below |
 
 **Not collected:** individual student names, individual salaries, individual home addresses, bank accounts, biometric data, criminal records, health records.
 
@@ -40,6 +41,7 @@ This doc captures the PDPA posture of Program Landscape: what personal data we c
 | Student demographics | Legitimate interest (§24(5)) — institutional quality assurance under the Higher Education Act |
 | Graduate outcomes | Consent (§24(1)) — survey participation is opt-in |
 | Employer feedback | Consent (§24(1)) — survey participation is opt-in |
+| Page views | Legitimate interest (§24(5)) — understanding which parts of the service are used, and supporting the people who use them. Never individual performance appraisal |
 
 ---
 
@@ -166,6 +168,55 @@ Three tables, three different answers, because they hold different things.
 Legal basis for holding any of it: §24(4), legitimate interests of KKU
 governance, on data the subject made public by publishing. The archive's
 90-day window is the data-minimisation counterweight.
+
+### Page-view recording (from v1.9.6)
+
+The retention rule is in the list at the top of this section. This is what the
+rows hold, and who can read them.
+
+**What a page view records.** One row per page a **signed-in** user opens: the
+normalised route pattern (`/programs/[id]`), the module that route belongs to,
+the programme / faculty / department in view, the user's id, their effective
+role and their faculty at that moment, and the timestamp. Normalisation
+(`normalisePath()` in `@kku/shared/usage`) keeps a path segment only when it
+reads like a kebab-case route word and collapses everything else — a cuid, a
+`KKU-SEQ-` code, a UUID, a numeric id, percent-encoding, a whole URL — to
+`[id]`, and bounds the result to 200 characters. It is a deny-by-default shape
+rule, not a list of known routes, so a dynamic route added tomorrow is bounded
+the day it ships.
+
+**What it never records.** IP address, user agent, the raw URL, the query
+string or fragment (normalisation cuts at the first `?` or `#`), and anything
+at all before sign-in. `/p/<slug>` public-profile share tokens are collapsed to
+`[id]` unconditionally — that slug is the only access control on an
+unauthenticated page, so it must not be reconstructable from `page_views` even
+in the rare case it happens to read like a route word.
+
+**Impersonated views are never counted.** A view taken while an admin is
+impersonating another user is stored with `impersonated = true` (and the
+impersonated role), and is excluded by every reader and by the nightly
+roll-up. It never appears as that person's activity, and `PageViewDaily`
+therefore has no impersonation column to filter on.
+
+**Who can see what.** Aggregates — counts by module, programme, faculty and
+role, with no individual named — require `usage:read:aggregate`, held by
+SUPER_ADMIN, SYSTEM_ADMIN and UNIVERSITY_USER. The per-person access log and
+session timelines require `usage:read:detail`, held by the two admin grades
+only. Admin accounts are themselves excluded from the figures by default
+(`excludeAdmins` defaults to `true` on every endpoint). The detail window is
+capped at `RAW_RETENTION_DAYS`, because past that horizon only counts survive.
+
+**Purpose, and the limit on it.** Understanding which parts of the platform are
+used, by which roles and faculties, and reconciling a reported problem with
+what the platform actually saw. Legal basis: legitimate interest in operating
+the service (§24(5)). These rows are product telemetry and carry no
+`ingestion_run_id` by design, so `realDataWhere()` does not and must not admit
+them to any Council metric; they must not be used for individual performance
+appraisal.
+
+**On erasure.** `user_id` is `ON DELETE SET NULL` on both `page_views` and
+`page_view_daily`, so deleting a user drops the attribution and keeps the
+counts — the same posture as the audit log.
 
 ---
 

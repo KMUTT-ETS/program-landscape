@@ -27,11 +27,16 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-09-14',
-    version: 'v1.9.6 \u00b7 Acknowledgements',
+    version: 'v1.9.6 \u00b7 Platform usage, and Acknowledgements',
     title:
-      'A new Acknowledgements page records the organisations whose data the platform is built on, starting with JobThai',
+      'A new Platform usage page shows who opens which parts of the platform, and a new Acknowledgements page records the organisations whose data the platform is built on',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],
     bullets: [
+      'Dashboards \u2192 Platform usage (and the \u201cUsage & access\u201d tile on the admin console) answers who actually uses the platform: active users, page views, sessions, sign-ins and AI calls over the chosen window, daily active users, and a breakdown by module, programme, faculty and role, plus the actions people take. Every section carries its own provenance and freshness, and an empty section is shown as a gap in what was recorded rather than as a zero.',
+      'University-level users see aggregates in which no individual is named. Platform administrators can also open a per-person access log with each session\u2019s pages. Administrator accounts are excluded from the figures by default, so the numbers describe the people the platform was built for.',
+      'What is recorded, for signed-in users only: the route pattern of the page (for example \u201c/programs/[id]\u201d), the programme or faculty in view, the role and faculty at the time, and the time. Not recorded: IP address, the full address of the page, or any query string \u2014 and nothing before sign-in. Views taken while an administrator is impersonating someone are never counted as that person\u2019s activity. Article 9.5 of the Terms states this in Thai and English.',
+      'Page views are recorded from this release onwards, so the first days will look sparse \u2014 that is the start date, not low adoption. Sign-in history comes from the audit log and reaches further back. Raw records are kept for 120 days and are then rolled up into daily counts, which is also the reason the per-person log offers no window wider than 120 days.',
+      'That roll-up runs as part of a nightly retention sweep on the production server, which also applies the existing audit-log, AI-payload and Google Scholar rules. The sweep is new to production and has to be switched on once by hand after this release; until it is, nothing is deleted and nothing is lost.',
       'Reference \u2192 Acknowledgements lists each contributing organisation, what it contributes, and what that makes possible \u2014 in Thai and English. JobThai is the first entry; the JobThai icon shown beside any JobThai-derived figure now links there.',
       'Future contributors are recorded the same way, so the page grows with the platform.',
     ],
