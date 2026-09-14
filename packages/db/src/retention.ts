@@ -41,7 +41,9 @@
 // real `prisma` from @kku/db.
 
 import type { Prisma } from '@prisma/client';
-import { RAW_RETENTION_DAYS } from './usage';
+// From the import-free leaf, not './usage': this value is read at module top
+// level, and './usage' is inside the barrel's import cycle.
+import { RAW_RETENTION_DAYS } from './usage-constants';
 import { rollupPageViews, type RollupPrismaLike } from './usage-retention';
 
 export interface RetentionWindowsDays {

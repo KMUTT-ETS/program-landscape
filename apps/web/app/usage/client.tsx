@@ -43,7 +43,10 @@ import type {
 // failure of the thing being measured.
 // ─────────────────────────────────────────────────────────────────────────
 
-const MODULE_LABEL: Record<string, string> = {
+// Exported so a test can pin this map to USAGE_MODULES: the route-coverage
+// guard only stops a new folder landing in `other`, it does not stop a new
+// module rendering here as a raw slug.
+export const MODULE_LABEL: Record<string, string> = {
   home: 'Home',
   cockpit: 'Portfolio Cockpit',
   'deep-dive': 'Program Deep-Dive',

@@ -26,10 +26,15 @@ import { prisma } from './index';
 // the spec.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const RAW_RETENTION_DAYS = 120;
-export const USAGE_WINDOWS = [7, 30, 90, 365] as const;
-export type UsageWindowDays = (typeof USAGE_WINDOWS)[number];
-export const ADMIN_ROLES = ['SUPER_ADMIN', 'SYSTEM_ADMIN'] as const;
+// Defined in the import-free leaf so retention.ts can read them at module
+// top level without entering this file's barrel cycle (see usage-constants.ts).
+import {
+  ADMIN_ROLES,
+  RAW_RETENTION_DAYS,
+  USAGE_WINDOWS,
+  type UsageWindowDays,
+} from './usage-constants';
+export { ADMIN_ROLES, RAW_RETENTION_DAYS, USAGE_WINDOWS, type UsageWindowDays };
 const BKK = 'Asia/Bangkok';
 const DAY_MS = 86_400_000;
 
@@ -361,7 +366,10 @@ export async function usageByModule(
                LEAD(created_at) OVER (PARTITION BY user_id ORDER BY created_at) AS next_at
         FROM page_views
         WHERE created_at >= (${w.from} AT TIME ZONE 'UTC') AND created_at < (${w.to} AT TIME ZONE 'UTC')
-          AND impersonated = false
+          -- user_id IS NOT NULL: rows orphaned by ON DELETE SET NULL would otherwise
+          -- share one NULL partition and LEAD would chain different deleted people
+          -- into one dwell sequence. Same rule as usageMedianDwell.
+          AND impersonated = false AND user_id IS NOT NULL
         ${excludeAdmins ? Prisma.sql`AND role NOT IN ('SUPER_ADMIN','SYSTEM_ADMIN')` : Prisma.empty})
       SELECT module, percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (next_at - created_at)) * 1000) AS median_ms
       FROM v WHERE next_at IS NOT NULL AND next_at - created_at <= make_interval(secs => ${SESSION_GAP_MS / 1000}) GROUP BY module`),

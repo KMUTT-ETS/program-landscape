@@ -379,3 +379,11 @@ describe('resolveUsageParams', () => {
     expect(resolve({ q: 'x'.repeat(81) }).q).toBeNull();
   });
 });
+
+describe('MODULE_LABEL', () => {
+  it('names every usage module — a new module must get a label, not render as its slug', async () => {
+    const { USAGE_MODULES } = await import('@kku/shared/usage');
+    const { MODULE_LABEL } = await import('../app/usage/client');
+    expect(Object.keys(MODULE_LABEL).sort()).toEqual([...USAGE_MODULES].sort());
+  });
+});
