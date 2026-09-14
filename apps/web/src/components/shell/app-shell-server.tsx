@@ -4,15 +4,13 @@ import { AppShell, LeftNav, TopBar } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { appNavSectionsFor } from '@/lib/app-nav';
 import { fetchScopeEntities } from '@/lib/app-entities';
+import { UsageRecorder } from '@/components/usage-recorder';
 import { AppShellClientChrome } from './client-chrome';
 import { TopBarRight } from './top-bar-right';
 import { NavCredits } from './nav-user-footer';
 import { TopBarBreadcrumb } from './top-bar-breadcrumb';
 import { ImpersonationBanner } from './impersonation-banner';
-import {
-  IMPERSONATION_COOKIE,
-  tryDecodeImpersonation,
-} from '@/lib/auth/impersonation';
+import { IMPERSONATION_COOKIE, tryDecodeImpersonation } from '@/lib/auth/impersonation';
 import { resolveUserChrome } from '@/lib/display-name';
 
 // Server component. 2026-04-24 redesign — the sidebar is now the
@@ -37,9 +35,7 @@ export async function AuthedAppShell({
     // render instead.
     resolveUserChrome(user.userId).catch(() => ({ name: null, avatarUrl: null })),
   ]);
-  const impersonation = tryDecodeImpersonation(
-    cookieStore.get(IMPERSONATION_COOKIE)?.value,
-  );
+  const impersonation = tryDecodeImpersonation(cookieStore.get(IMPERSONATION_COOKIE)?.value);
 
   const brand = (
     <>
@@ -97,14 +93,11 @@ export async function AuthedAppShell({
           }
         />
       }
-      leftNav={
-        <LeftNav
-          sections={appNavSectionsFor(user)}
-          brand={brand}
-          footer={<NavCredits />}
-        />
-      }
+      leftNav={<LeftNav sections={appNavSectionsFor(user)} brand={brand} footer={<NavCredits />} />}
     >
+      <React.Suspense fallback={null}>
+        <UsageRecorder />
+      </React.Suspense>
       {impersonation && (
         <ImpersonationBanner
           role={impersonation.role}
