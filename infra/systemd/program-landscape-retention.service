@@ -1,5 +1,5 @@
 [Unit]
-Description=Program Landscape PDPA retention sweep (audit log, AI payloads, Scholar archive + bind attempts)
+Description=Program Landscape PDPA retention sweep (audit log, AI payloads, Scholar archive + bind attempts, page views)
 Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
 Requires=docker.service
 # Boot ordering only — the timers fire in separate transactions, so the real

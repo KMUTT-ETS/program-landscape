@@ -80,10 +80,23 @@ All app data is stored on KKU-owned infrastructure within Thailand. **Two extern
 - `ScholarFetchArchive` table: **90 days**, then hard-deleted.
 - `ScholarBindAttempt` table: **90 days** on the free text (`url`, `profile_name`, `error_text`), then redacted in place; the row itself is kept indefinitely.
 - `ScholarFetchRun` table: **no retention rule, deliberately.**
+- `PageView` table: **120 days** of raw rows, then each whole Asia/Bangkok day
+  is rolled into `PageViewDaily` (counts only — no timestamps, no IP, no
+  department, impersonated views excluded) and the raw rows are hard-deleted.
+  `PageViewDaily` itself has **no expiry**: it carries no personal timestamps,
+  only per-(day, user, role, module, path) counts. The 120 days is
+  `RAW_RETENTION_DAYS` in `packages/db/src/usage.ts` — the same constant the
+  usage reader switches on, deliberately not a second copy.
 
 Retention is enforced by `scripts/pdpa/retention-sweep.ts` (`--dry-run`
 reports without writing); the windows live in `packages/db/src/retention.ts`
-and are unit-tested there.
+and are unit-tested there. In production the sweep runs **nightly at 04:00
+Asia/Bangkok** via `program-landscape-retention.timer`, after the 02:00 backup
+(the dump precedes the delete) and the 03:00 verify-backup drill; each run
+tees its JSON report to
+`/opt/program-landscape/logs/retention-sweep-YYYYMMDD.json`, which is the
+evidence the control ran. A run that fails part-way still writes that report
+and exits non-zero.
 
 ### Redaction writes a sentinel, not a null
 

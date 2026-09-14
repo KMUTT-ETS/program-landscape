@@ -227,7 +227,7 @@ how the old inline sample here drifted out of step with the real ones.
 | `program-landscape-backup.timer` | daily 02:00 | `backup.sh --no-minio` — pg dump only |
 | `program-landscape-backup-full.timer` | Sun 02:30 | `backup.sh` — pg dump + MinIO mirror |
 | `program-landscape-verify-backup.timer` | daily 03:00 | restores the newest dump into a throwaway container and asserts against it |
-| `program-landscape-retention.timer` | daily 04:00 | PDPA retention sweep (audit log, AI inference payloads, Scholar archive + bind attempts) — see "PDPA retention sweep" below |
+| `program-landscape-retention.timer` | daily 04:00 | PDPA retention sweep (audit log, AI inference payloads, Scholar archive + bind attempts, page views) — see "PDPA retention sweep" below |
 
 **Why the MinIO mirror is weekly, not nightly.** It is a full tar of an
 append-only blob store — 2.5 GB on 2026-09-06 and growing. Nightly copies
@@ -269,7 +269,10 @@ Off-server mirror: configure `rclone` or `aws s3 sync` to copy `/opt/program-lan
 `program-landscape-retention.timer` runs the sweep nightly at 04:00 Bangkok
 (after the 02:00 backup, the 03:00 verify drill and the 03:30 off-server
 mirror slot). It hard-deletes / redacts the four tables listed in
-`docs/pdpa.md`. **Installing the timer is a manual step** — `deploy.sh` does
+`docs/pdpa.md`, and rolls raw **page views** older than 120 days into
+`page_view_daily` before deleting them — that rule writes before it deletes,
+one transaction per Bangkok day, so a failed run costs a retry and never a
+day of usage history. **Installing the timer is a manual step** — `deploy.sh` does
 not install units. If `systemctl list-timers 'program-landscape-*'` does not
 show it, copy the two files from `infra/systemd/` and enable it. Dry-run by
 hand:

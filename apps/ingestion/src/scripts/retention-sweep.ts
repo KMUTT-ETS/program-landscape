@@ -18,7 +18,8 @@
 // dev invocation keeps working unchanged.
 //
 // The window logic + the actual deleteMany / updateMany live in
-// `@kku/db/retention` so they can be unit-tested without a real DB.
+// `@kku/db/retention` so they can be unit-tested without a real DB; the
+// page-view roll-up-then-delete rule lives in `@kku/db/usage-retention`.
 // This file is the operator-facing entry point.
 
 import { prisma } from '@kku/db';
@@ -26,6 +27,7 @@ import {
   computeRetentionCutoffs,
   DEFAULT_WINDOWS,
   REDACTED_TEXT,
+  rollupPageViews,
   runRetentionSweep,
   type RetentionPrismaLike,
 } from '@kku/db';
@@ -51,6 +53,7 @@ async function main(): Promise<void> {
       aiToDelete,
       scholarArchiveToDelete,
       scholarBindTextToRedact,
+      pageViewPlan,
     ] = await Promise.all([
       prisma.auditLog.count({
         where: { createdAt: { lt: cutoffs.auditLogDeleteBefore } },
@@ -58,10 +61,7 @@ async function main(): Promise<void> {
       prisma.aiInference.count({
         where: {
           createdAt: { lt: cutoffs.aiInferencePayloadRedactBefore },
-          OR: [
-            { prompt: { not: REDACTED_TEXT } },
-            { response: { not: REDACTED_TEXT } },
-          ],
+          OR: [{ prompt: { not: REDACTED_TEXT } }, { response: { not: REDACTED_TEXT } }],
         },
       }),
       prisma.aiInference.count({
@@ -76,6 +76,10 @@ async function main(): Promise<void> {
           url: { not: REDACTED_TEXT },
         },
       }),
+      // The page-view rule is a roll-up, not a count, so its dry run is the
+      // rule itself with `dryRun: true` rather than a separate `count()` that
+      // could drift from what the wet run would actually do.
+      rollupPageViews({ prisma, cutoff: cutoffs.pageViewRollupBefore, dryRun: true }),
     ]);
 
     process.stdout.write(
@@ -89,17 +93,24 @@ async function main(): Promise<void> {
             aiInferencePayloadRedactBefore: cutoffs.aiInferencePayloadRedactBefore.toISOString(),
             aiInferenceDeleteBefore: cutoffs.aiInferenceDeleteBefore.toISOString(),
             scholarArchiveDeleteBefore: cutoffs.scholarArchiveDeleteBefore.toISOString(),
-            scholarBindAttemptRedactBefore:
-              cutoffs.scholarBindAttemptRedactBefore.toISOString(),
+            scholarBindAttemptRedactBefore: cutoffs.scholarBindAttemptRedactBefore.toISOString(),
+            pageViewRollupBefore: cutoffs.pageViewRollupBefore.toISOString(),
           },
           wouldDelete: {
             auditLog: auditLogToDelete,
             aiInference: aiToDelete,
             scholarFetchArchive: scholarArchiveToDelete,
+            // Only ever deleted after the day they belong to is written to
+            // page_view_daily — the two numbers below move together.
+            pageViews: pageViewPlan.rowsDeleted,
           },
           wouldRedactPayload: {
             aiInference: aiPayloadToRedact,
             scholarBindAttempt: scholarBindTextToRedact,
+          },
+          wouldRollUp: {
+            pageViewDays: pageViewPlan.daysRolledUp,
+            days: pageViewPlan.days,
           },
         },
         null,
@@ -107,15 +118,20 @@ async function main(): Promise<void> {
       ) + '\n',
     );
   } else {
-    // RetentionPrismaLike types `where` as unknown, which strictFunctionTypes
-    // rejects for the real client (contravariance). Build the pick explicitly
-    // so a renamed delegate still fails typecheck; a later task widens the type.
-    const client = {
+    // An explicit pick rather than `prisma` itself, so the sweep can only
+    // reach the four delegates the rules are allowed to touch (notably NOT
+    // `scholarFetchRun`, the quota ledger) and a renamed one fails typecheck.
+    // The raw trio is the page-view rule's surface; the methods are wrapped in
+    // arrows rather than passed by reference so they keep their `this`.
+    const client: RetentionPrismaLike = {
       auditLog: prisma.auditLog,
       aiInference: prisma.aiInference,
       scholarFetchArchive: prisma.scholarFetchArchive,
       scholarBindAttempt: prisma.scholarBindAttempt,
-    } as unknown as RetentionPrismaLike;
+      $queryRaw: (q) => prisma.$queryRaw(q),
+      $executeRaw: (q) => prisma.$executeRaw(q),
+      $transaction: (fn, options) => prisma.$transaction(fn, options),
+    };
     const result = await runRetentionSweep({ prisma: client, now });
     process.stdout.write(
       JSON.stringify(
@@ -124,26 +140,48 @@ async function main(): Promise<void> {
           generatedAt: now.toISOString(),
           cutoffs: {
             auditLogDeleteBefore: result.cutoffs.auditLogDeleteBefore.toISOString(),
-            aiInferencePayloadRedactBefore: result.cutoffs.aiInferencePayloadRedactBefore.toISOString(),
+            aiInferencePayloadRedactBefore:
+              result.cutoffs.aiInferencePayloadRedactBefore.toISOString(),
             aiInferenceDeleteBefore: result.cutoffs.aiInferenceDeleteBefore.toISOString(),
             scholarArchiveDeleteBefore: result.cutoffs.scholarArchiveDeleteBefore.toISOString(),
             scholarBindAttemptRedactBefore:
               result.cutoffs.scholarBindAttemptRedactBefore.toISOString(),
+            pageViewRollupBefore: result.cutoffs.pageViewRollupBefore.toISOString(),
           },
         },
         null,
         2,
       ) + '\n',
     );
+
+    // A partial night is still a reported night: the JSON above is already on
+    // stdout (and so in the tee'd evidence file) with the four destructive
+    // rules' counts and the days that did commit. What must not happen is
+    // exiting 0 — the days from `pageViewFailedDay` onwards are still raw, and
+    // only a non-zero status makes systemd record the failure and an operator
+    // look at the report.
+    if (result.pageViewFailedDay !== undefined) {
+      process.stderr.write(
+        `retention-sweep: page-view roll-up stopped at ${result.pageViewFailedDay}: ${result.pageViewFailedReason}\n`,
+      );
+      await prisma.$disconnect();
+      process.exit(1);
+    }
   }
 
   await prisma.$disconnect();
 }
 
 main().catch(async (err) => {
-  process.stderr.write(
-    `retention-sweep failed: ${err instanceof Error ? err.message : String(err)}\n`,
+  const message = err instanceof Error ? err.message : String(err);
+  // The tee'd file is the evidence the control ran; a failed night must leave a
+  // readable record, not a 0-byte file. Without this the only trace is on
+  // stderr, which `tee` never sees.
+  process.stdout.write(
+    JSON.stringify({ ok: false, generatedAt: new Date().toISOString(), error: message }, null, 2) +
+      '\n',
   );
+  process.stderr.write(`retention-sweep failed: ${message}\n`);
   await prisma.$disconnect();
   process.exit(1);
 });

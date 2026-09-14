@@ -7,6 +7,7 @@ import {
   type RetentionPrismaLike,
   type RetentionWindowsDays,
 } from '../src/retention';
+import { RAW_RETENTION_DAYS } from '../src/usage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -67,6 +68,31 @@ describe('computeRetentionCutoffs', () => {
     expect(DEFAULT_WINDOWS.scholarBindAttemptTextRetention).toBe(90);
   });
 
+  // ── Page views ────────────────────────────────────────────────────────
+  // The default is the READER's constant, not a second 120 written here. A
+  // literal would compile, pass, and then drift the day `usage_days` switches
+  // from raw rows to roll-ups away from the day this rule rolls up — which
+  // reads as a stretch of days with no traffic, not as an error.
+
+  it('takes the page-view window from the reader, not a literal', () => {
+    expect(DEFAULT_WINDOWS.pageViewRawRetention).toBe(RAW_RETENTION_DAYS);
+  });
+
+  it('derives the page-view cut-off from its own window', () => {
+    const base = computeRetentionCutoffs(NOW, DEFAULT_WINDOWS);
+    expect(base.pageViewRollupBefore.toISOString()).toBe(
+      new Date(NOW.getTime() - RAW_RETENTION_DAYS * DAY_MS).toISOString(),
+    );
+    const after = computeRetentionCutoffs(NOW, {
+      ...DEFAULT_WINDOWS,
+      pageViewRawRetention: DEFAULT_WINDOWS.pageViewRawRetention + 1,
+    });
+    expect(base.pageViewRollupBefore.getTime() - after.pageViewRollupBefore.getTime()).toBe(DAY_MS);
+    expect(after.scholarArchiveDeleteBefore.getTime()).toBe(
+      base.scholarArchiveDeleteBefore.getTime(),
+    );
+  });
+
   // MUTATION CHECK. Every assertion above would still pass if the Scholar
   // cut-off were hard-coded to a constant and ignored its window — which is
   // exactly the copy-paste failure this module invites, since three of its
@@ -114,12 +140,21 @@ describe('runRetentionSweep', () => {
   const aiDelete = vi.fn();
   const archiveDelete = vi.fn();
   const bindUpdate = vi.fn();
+  // The page-view rule is raw SQL rather than a delegate call. Its own
+  // behaviour is covered in usage-retention.test.ts; here it only has to be
+  // reachable, and `$queryRaw` returning no candidate days makes it a no-op.
+  const queryRaw = vi.fn();
+  const executeRaw = vi.fn();
+  const transaction = vi.fn();
 
   const prismaMock: RetentionPrismaLike = {
     auditLog: { deleteMany: auditDelete },
     aiInference: { updateMany: aiUpdate, deleteMany: aiDelete },
     scholarFetchArchive: { deleteMany: archiveDelete },
     scholarBindAttempt: { updateMany: bindUpdate },
+    $queryRaw: queryRaw,
+    $executeRaw: executeRaw,
+    $transaction: transaction,
   };
 
   beforeEach(() => {
@@ -128,6 +163,11 @@ describe('runRetentionSweep', () => {
     aiDelete.mockReset();
     archiveDelete.mockReset().mockResolvedValue({ count: 0 });
     bindUpdate.mockReset().mockResolvedValue({ count: 0 });
+    queryRaw.mockReset().mockResolvedValue([]);
+    executeRaw.mockReset().mockResolvedValue(0);
+    transaction
+      .mockReset()
+      .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock));
   });
 
   it('runs the three operations in the correct order: ai-delete → ai-redact → audit-delete', async () => {
@@ -292,12 +332,45 @@ describe('runRetentionSweep', () => {
     // writer to the injectable client, this fails and the reviewer has to
     // justify handing everyone a fresh monthly allowance.
     expect(Object.keys(prismaMock)).not.toContain('scholarFetchRun');
+    // The raw trio is the page-view rule's whole surface. It is deliberately
+    // NOT a `pageView` delegate: a `deleteMany` there would delete the rows
+    // without rolling them up, which is the one thing this rule must not do.
     expect(Object.keys(prismaMock).sort()).toEqual([
+      '$executeRaw',
+      '$queryRaw',
+      '$transaction',
       'aiInference',
       'auditLog',
       'scholarBindAttempt',
       'scholarFetchArchive',
     ]);
+    expect(Object.keys(prismaMock)).not.toContain('pageView');
+  });
+
+  // The page-view rule is the only one that WRITES before it deletes, so the
+  // sweep has to reach it with its own cut-off — not the audit or Scholar one,
+  // both of which would also "roll up old days" and pass every count assertion.
+  it('hands the page-view rule its own cut-off and reports what it moved', async () => {
+    auditDelete.mockResolvedValue({ count: 0 });
+    aiUpdate.mockResolvedValue({ count: 0 });
+    aiDelete.mockResolvedValue({ count: 0 });
+    queryRaw.mockResolvedValue([{ day: '2020-01-01', n: 11 }]);
+    executeRaw.mockResolvedValue(11);
+
+    const result = await runRetentionSweep({ prisma: prismaMock, now: NOW });
+    const expected = computeRetentionCutoffs(NOW);
+
+    expect(result.cutoffs.pageViewRollupBefore.getTime()).toBe(
+      expected.pageViewRollupBefore.getTime(),
+    );
+    expect(result.cutoffs.pageViewRollupBefore.getTime()).not.toBe(
+      expected.scholarArchiveDeleteBefore.getTime(),
+    );
+    // The candidate-day scan is bounded by the page-view cut-off; the bound is
+    // a bound SQL parameter, so it is checked through the emitted values.
+    expect(queryRaw.mock.calls[0]?.[0].values).toContainEqual(expected.pageViewRollupBefore);
+    expect(result.pageViewDaysRolledUp).toBe(1);
+    expect(result.pageViewRowsDeleted).toBe(11);
   });
 
   it('skips DB calls in dry-run mode', async () => {
@@ -311,9 +384,14 @@ describe('runRetentionSweep', () => {
     expect(aiDelete).not.toHaveBeenCalled();
     expect(archiveDelete).not.toHaveBeenCalled();
     expect(bindUpdate).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
     expect(result.dryRun).toBe(true);
     expect(result.auditLogDeleted).toBe(0);
     expect(result.scholarArchiveDeleted).toBe(0);
     expect(result.scholarBindAttemptTextRedacted).toBe(0);
+    expect(result.pageViewDaysRolledUp).toBe(0);
+    expect(result.pageViewRowsDeleted).toBe(0);
   });
 });

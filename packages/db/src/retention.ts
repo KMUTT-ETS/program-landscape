@@ -5,6 +5,11 @@
 //   AiInference          — payload-text 2 years; aggregate 7 years; then full delete
 //   ScholarFetchArchive  — full-row retention 90 days
 //   ScholarBindAttempt   — free-text redaction at 90 days; row kept
+//   PageView             — rolled into PageViewDaily at 120 days, then deleted
+//
+// The page-view rule is the only one that is not a plain delete or redact: the
+// counts have to survive the rows, because past 120 days the usage charts are
+// read entirely from the roll-up. Its mechanics live in ./usage-retention.
 //
 // WHY THE TWO SCHOLAR RULES DIFFER, AND WHY ScholarFetchRun HAS NONE.
 //
@@ -35,6 +40,10 @@
 // a real DB. The runner (scripts/pdpa/retention-sweep.ts) wires the
 // real `prisma` from @kku/db.
 
+import type { Prisma } from '@prisma/client';
+import { RAW_RETENTION_DAYS } from './usage';
+import { rollupPageViews, type RollupPrismaLike } from './usage-retention';
+
 export interface RetentionWindowsDays {
   /** Hard-delete AuditLog rows older than this many days. */
   auditLogFullRetention: number;
@@ -47,6 +56,9 @@ export interface RetentionWindowsDays {
   /** Redact url / profileName / errorText on ScholarBindAttempt rows older
    *  than this. The row — and with it the credit ledger — is kept. */
   scholarBindAttemptTextRetention: number;
+  /** Roll PageView rows older than this into PageViewDaily, then delete them.
+   *  Whole Bangkok days only — see ./usage-retention. */
+  pageViewRawRetention: number;
 }
 
 // Defaults from docs/pdpa.md §retention.
@@ -56,6 +68,10 @@ export const DEFAULT_WINDOWS: RetentionWindowsDays = {
   aiInferenceFullRetention: 7 * 365,
   scholarArchiveFullRetention: 90,
   scholarBindAttemptTextRetention: 90,
+  // The reader's own constant, not a second copy of 120: `usage_days` switches
+  // from raw rows to roll-ups at exactly RAW_RETENTION_DAYS, so if the two ever
+  // disagreed the gap would be read as days with no traffic.
+  pageViewRawRetention: RAW_RETENTION_DAYS,
 };
 
 /** Written over a free-text column once its row passes the retention window.
@@ -81,6 +97,9 @@ export interface RetentionCutoffs {
   aiInferenceDeleteBefore: Date;
   scholarArchiveDeleteBefore: Date;
   scholarBindAttemptRedactBefore: Date;
+  /** An instant. The Bangkok DAY it falls in is still served from raw rows;
+   *  only days strictly before it are rolled up and deleted. */
+  pageViewRollupBefore: Date;
 }
 
 export function computeRetentionCutoffs(
@@ -93,40 +112,49 @@ export function computeRetentionCutoffs(
     aiInferencePayloadRedactBefore: new Date(
       now.getTime() - ms(windows.aiInferencePayloadRetention),
     ),
-    aiInferenceDeleteBefore: new Date(
-      now.getTime() - ms(windows.aiInferenceFullRetention),
-    ),
-    scholarArchiveDeleteBefore: new Date(
-      now.getTime() - ms(windows.scholarArchiveFullRetention),
-    ),
+    aiInferenceDeleteBefore: new Date(now.getTime() - ms(windows.aiInferenceFullRetention)),
+    scholarArchiveDeleteBefore: new Date(now.getTime() - ms(windows.scholarArchiveFullRetention)),
     scholarBindAttemptRedactBefore: new Date(
       now.getTime() - ms(windows.scholarBindAttemptTextRetention),
     ),
+    pageViewRollupBefore: new Date(now.getTime() - ms(windows.pageViewRawRetention)),
   };
 }
 
-// Minimum interface the sweeper needs from a Prisma client. Lets us
-// inject a mock in tests. Loose `unknown` typing on `where` because
-// the real Prisma client carries deeply-generic conditional types we
-// don't want to reproduce here — unit tests bypass the DB anyway.
-export interface RetentionPrismaLike {
+// Minimum interface the sweeper needs from a Prisma client. Lets us inject a
+// mock in tests.
+//
+// `where` and `data` are typed against the real generated input types rather
+// than `unknown`. `unknown` looks more permissive but is strictly worse: the
+// two are not mutually assignable in EITHER direction, so every caller had to
+// launder the real client through a cast — which is exactly the kind of cast
+// that keeps compiling after a column is renamed out from under it. Passing an
+// `unknown` where an `AuditLogWhereInput` is wanted fails outright, and going
+// the other way fails too because `AuditLogDeleteManyArgs.where` is optional,
+// so `{ where: unknown }` is not assignable to it either. (It is NOT a
+// `strictFunctionTypes` contravariance story: these are method-shorthand
+// members, whose parameters are checked bivariantly.)
+//
+// It also extends RollupPrismaLike, because the page-view rule is raw SQL in a
+// transaction rather than a delegate call.
+export interface RetentionPrismaLike extends RollupPrismaLike {
   auditLog: {
-    deleteMany(args: { where: unknown }): Promise<{ count: number }>;
+    deleteMany(args: { where: Prisma.AuditLogWhereInput }): Promise<{ count: number }>;
   };
   aiInference: {
     updateMany(args: {
-      where: unknown;
-      data: Record<string, string | null>;
+      where: Prisma.AiInferenceWhereInput;
+      data: Prisma.AiInferenceUpdateManyMutationInput;
     }): Promise<{ count: number }>;
-    deleteMany(args: { where: unknown }): Promise<{ count: number }>;
+    deleteMany(args: { where: Prisma.AiInferenceWhereInput }): Promise<{ count: number }>;
   };
   scholarFetchArchive: {
-    deleteMany(args: { where: unknown }): Promise<{ count: number }>;
+    deleteMany(args: { where: Prisma.ScholarFetchArchiveWhereInput }): Promise<{ count: number }>;
   };
   scholarBindAttempt: {
     updateMany(args: {
-      where: unknown;
-      data: Record<string, string | null>;
+      where: Prisma.ScholarBindAttemptWhereInput;
+      data: Prisma.ScholarBindAttemptUpdateManyMutationInput;
     }): Promise<{ count: number }>;
   };
 }
@@ -138,6 +166,13 @@ export interface RetentionResult {
   aiInferenceDeleted: number;
   scholarArchiveDeleted: number;
   scholarBindAttemptTextRedacted: number;
+  /** Bangkok days folded into page_view_daily. */
+  pageViewDaysRolledUp: number;
+  /** Raw page_views rows deleted once their day was rolled up. */
+  pageViewRowsDeleted: number;
+  /** Set when the page-view loop stopped early. The run must exit non-zero. */
+  pageViewFailedDay?: string;
+  pageViewFailedReason?: string;
   dryRun: boolean;
   windowsDays: RetentionWindowsDays;
 }
@@ -168,6 +203,8 @@ export async function runRetentionSweep(opts: {
       aiInferenceDeleted: 0,
       scholarArchiveDeleted: 0,
       scholarBindAttemptTextRedacted: 0,
+      pageViewDaysRolledUp: 0,
+      pageViewRowsDeleted: 0,
       dryRun: true,
       windowsDays: windows,
     };
@@ -191,10 +228,7 @@ export async function runRetentionSweep(opts: {
     await prisma.aiInference.updateMany({
       where: {
         createdAt: { lt: cutoffs.aiInferencePayloadRedactBefore },
-        OR: [
-          { prompt: { not: REDACTED_TEXT } },
-          { response: { not: REDACTED_TEXT } },
-        ],
+        OR: [{ prompt: { not: REDACTED_TEXT } }, { response: { not: REDACTED_TEXT } }],
       },
       data: { prompt: REDACTED_TEXT, response: REDACTED_TEXT },
     })
@@ -225,6 +259,16 @@ export async function runRetentionSweep(opts: {
     })
   ).count;
 
+  // 5. Page views. Unlike every rule above it, this one is not purely
+  //    destructive: each Bangkok day past the window is folded into
+  //    page_view_daily and only then deleted, inside one transaction per day,
+  //    so the usage charts keep their history. See ./usage-retention.
+  const pageViews = await rollupPageViews({
+    prisma,
+    cutoff: cutoffs.pageViewRollupBefore,
+    dryRun: false,
+  });
+
   return {
     cutoffs,
     auditLogDeleted,
@@ -232,6 +276,18 @@ export async function runRetentionSweep(opts: {
     aiInferenceDeleted,
     scholarArchiveDeleted,
     scholarBindAttemptTextRedacted,
+    pageViewDaysRolledUp: pageViews.daysRolledUp,
+    pageViewRowsDeleted: pageViews.rowsDeleted,
+    // Absent on a clean run, so the report only carries the two keys when
+    // there is something to say. The runner turns their presence into a
+    // non-zero exit — the days before the failure are committed, the rest are
+    // untouched, and tomorrow's sweep resumes from the one that threw.
+    ...(pageViews.failedDay !== undefined
+      ? {
+          pageViewFailedDay: pageViews.failedDay,
+          pageViewFailedReason: pageViews.failedReason,
+        }
+      : {}),
     dryRun: false,
     windowsDays: windows,
   };
