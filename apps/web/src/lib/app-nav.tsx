@@ -31,6 +31,7 @@ import {
   ClipboardCheck,
   GitCompare,
   GraduationCap,
+  Handshake,
   History,
   Home,
   LineChart,
@@ -163,6 +164,12 @@ const referenceSection: NavSection = {
       href: '/docs/methodology',
       label: 'Methodology',
       icon: createElement(BookOpen),
+      moduleKey: 'neutral',
+    },
+    {
+      href: '/docs/acknowledgements',
+      label: 'Acknowledgements',
+      icon: createElement(Handshake),
       moduleKey: 'neutral',
     },
     {

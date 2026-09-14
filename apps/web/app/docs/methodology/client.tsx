@@ -11,10 +11,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Button } from '@kku/ui';
 import { Languages, Printer } from 'lucide-react';
+import { LangBtn, type Lang } from '@/components/lang-toggle';
 import { MethodologyContentEn } from './content-en';
 import { MethodologyContentTh } from './content-th';
-
-type Lang = 'en' | 'th';
 
 const TOC_EN: { id: string; label: string; section?: string }[] = [
   { id: 'provenance', label: 'Document provenance' },
@@ -172,33 +171,5 @@ export function MethodologyClient({ initialLang }: { initialLang: Lang }) {
         {lang === 'en' ? <MethodologyContentEn /> : <MethodologyContentTh />}
       </article>
     </div>
-  );
-}
-
-function LangBtn({
-  current,
-  value,
-  label,
-  onClick,
-}: {
-  current: Lang;
-  value: Lang;
-  label: string;
-  onClick: (v: Lang) => void;
-}) {
-  const active = current === value;
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(value)}
-      className={`flex-1 rounded-sm px-2 py-1 text-xs font-medium transition-colors ${
-        active
-          ? 'bg-surface-2 text-text-primary shadow-sm'
-          : 'text-text-secondary hover:text-text-primary'
-      }`}
-      aria-pressed={active}
-    >
-      {label}
-    </button>
   );
 }
