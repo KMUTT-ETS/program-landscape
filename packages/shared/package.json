@@ -20,6 +20,8 @@
     "./src/jobthai": "./src/jobthai/index.ts",
     "./jobthai/parse-sheet": "./src/jobthai/parse-sheet.ts",
     "./src/jobthai/parse-sheet": "./src/jobthai/parse-sheet.ts",
+    "./usage": "./src/usage/index.ts",
+    "./src/usage": "./src/usage/index.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

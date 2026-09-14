@@ -19,6 +19,9 @@ export * from './identity';
 export * from './observability';
 export * from './resilience';
 export * from './scholar';
+// Also reachable as `@kku/shared/usage` — the client recorder MUST use that
+// subpath, not this barrel (which pulls node:crypto).
+export * from './usage';
 // Also reachable as `@kku/shared/pipeline/program-phases` — client components
 // MUST use that subpath, not this barrel (which pulls node:crypto).
 export * from './pipeline/program-phases';
