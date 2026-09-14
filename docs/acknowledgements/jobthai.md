@@ -11,6 +11,11 @@
 > Written 2026-09-13 against release v1.9.5. Where a statement could drift, the
 > file that implements it is named so it can be re-verified.
 
+> The acknowledgement is also shown inside the application at
+> **Reference → Acknowledgements** (`/docs/acknowledgements#jobthai`), where the
+> JobThai icon beside any JobThai-derived figure links to it. Entries there come
+> from `apps/web/app/docs/acknowledgements/registry.tsx`.
+
 ---
 
 ## Contents

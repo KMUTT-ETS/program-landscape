@@ -26,6 +26,17 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-14',
+    version: 'v1.9.6 \u00b7 Acknowledgements',
+    title:
+      'A new Acknowledgements page records the organisations whose data the platform is built on, starting with JobThai',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Reference \u2192 Acknowledgements lists each contributing organisation, what it contributes, and what that makes possible \u2014 in Thai and English. JobThai is the first entry; the JobThai icon shown beside any JobThai-derived figure now links there.',
+      'Future contributors are recorded the same way, so the page grows with the platform.',
+    ],
+  },
+  {
     date: '2026-09-13',
     version: 'v1.9.5 \u00b7 JobThai files take effect on their own',
     title:

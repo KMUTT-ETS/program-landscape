@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Methodology — Program Health & Lifecycle',
   description:
-    'Public reference paper for the program health score and lifecycle verdict produced by Curriculum Landscape. English / Thai.',
+    'Public reference paper for the program health score and lifecycle verdict produced by Program Landscape. English / Thai.',
 };
 
 type Lang = 'en' | 'th';
