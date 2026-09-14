@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { isAdminGrade, type SessionUser } from '@kku/shared';
+import { isAdminGrade, type ApiMeta, type ApiSuccess, type SessionUser } from '@kku/shared';
+import { RAW_RETENTION_DAYS } from '@kku/db';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchEnvelope } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { Badge, Card, EdgeGlow } from '@kku/ui';
+import { Badge, Card, EdgeGlow, FreshnessBadge, ProvenanceButton, Sparkline } from '@kku/ui';
 import { HeroBanner, type HeroBannerStat } from '@/components/hero-banner';
 import { DataSourceMark } from '@/components/data-source-mark';
+import { mergeCaveats, pageCaveats, USAGE_FALLBACK_META } from '../usage/types';
+import type { UsageSummaryT } from '../usage/types';
 import {
   pickGreetingName,
   resolveUserChrome,
@@ -21,6 +24,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Database,
+  Eye,
   FileSearch,
   FileText,
   FileUp,
@@ -28,6 +32,7 @@ import {
   Globe2,
   GraduationCap,
   Layers,
+  LogIn,
   RefreshCw,
   Settings2,
   ShieldCheck,
@@ -97,6 +102,46 @@ interface ExternalAiSourceLite {
   recentSignalCount: number;
 }
 
+// ── Usage tiles ────────────────────────────────────────────────────────
+//
+// The hero's last three tiles answer "is anyone actually using this?" from
+// the same endpoint /usage reads, on a fixed 7-day window.
+//
+// `excludeAdmins` is FALSE here, unlike /usage's default: this strip is the
+// console's "is anyone in the building" glance, and the administrators
+// reading it are part of the answer. On an install whose only readers so
+// far are administrators (dev today) the /usage default would render every
+// tile as 0 — a true answer to a question the console is not asking. The
+// drawer says which accounts are counted; /usage keeps the leadership view
+// with admins hidden. A failed fetch renders "—" and says so, never a 0.
+const USAGE_DAYS = 7;
+const USAGE_EXCLUDE_ADMINS = false;
+const USAGE_QUERY = `/usage/summary?days=${USAGE_DAYS}&excludeAdmins=${USAGE_EXCLUDE_ADMINS}`;
+// The api answers in well under a second; two seconds is the point past
+// which an operator's console is being held up by a figure that is not why
+// they came. Past it the tiles render their unavailable state.
+const USAGE_TIMEOUT_MS = 2000;
+
+/**
+ * What the three usage tiles are built from.
+ *
+ * `summary` is null when the call failed or timed out — which the tiles
+ * must render as "unavailable", never as zeros. `meta` is present either
+ * way, because Council-readiness rule 1 is about the surface and not the
+ * happy path: the render where a reader most wants to ask where a figure
+ * came from is the one where it is missing.
+ */
+interface UsageHero {
+  // `UsageSummaryT` already carries `medianDwellMs` — the committed mirror
+  // folds in what UsageService.summary() adds, so no intersection is needed.
+  summary: UsageSummaryT | null;
+  meta: ApiMeta;
+  excludeAdmins: boolean;
+  /** When this page was built — /usage reports no freshnessDate, because
+   *  every figure is computed at read time, so render time IS freshness. */
+  computedAt: string;
+}
+
 export default async function AdminConsolePage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
@@ -106,7 +151,7 @@ export default async function AdminConsolePage() {
   // Pull live numbers in parallel; degrade gracefully if either endpoint
   // is reachable. The console renders fine without them — the badges
   // just disappear and the stat strip falls back to "—".
-  const [dataStats, sysStatus, externalAi, chrome] = await Promise.all([
+  const [dataStats, sysStatus, externalAi, usageEnvelope, chrome] = await Promise.all([
     apiFetch<DataSetupStats>('/admin/data-setup/stats').catch(() => null),
     apiFetch<SystemStatus>('/admin/system-status').catch(() => null),
     // External-AI source list — used to surface "X feeds active" on the
@@ -115,6 +160,16 @@ export default async function AdminConsolePage() {
     apiFetch<ExternalAiSourceLite[]>('/admin/external-ai-sources').catch(
       () => null as ExternalAiSourceLite[] | null,
     ),
+    // Usage summary — read through the ENVELOPE rather than apiFetch so the
+    // tiles carry the api's own sources and caveats into the provenance
+    // drawer. `apiFetchEnvelope` throws on an error envelope, so the catch
+    // is the whole failure path and what it returns is the success arm of
+    // the union — the same assertion /usage's server page makes.
+    apiFetchEnvelope<UsageSummaryT>(USAGE_QUERY, {
+      signal: AbortSignal.timeout(USAGE_TIMEOUT_MS),
+    })
+      .then((e) => e as ApiSuccess<UsageSummaryT>)
+      .catch(() => null),
     // Same name source as the home page — when the operator is on the
     // FacultyMember roster their rank-prefixed name comes through; SSO
     // honorifics (นาย / ดร. / Asst. Prof.) get stripped at fallback.
@@ -124,7 +179,20 @@ export default async function AdminConsolePage() {
     })),
   ]);
 
-  const heroStats = buildHeroStats(dataStats, sysStatus);
+  // The page's own caveats ride on top of the api's, with only the true
+  // duplicates dropped — same merge /usage performs, and the same text, so
+  // the two surfaces cannot end up describing the same figures differently.
+  const usage: UsageHero = {
+    summary: usageEnvelope?.data ?? null,
+    meta: {
+      ...(usageEnvelope?.meta ?? USAGE_FALLBACK_META),
+      caveats: mergeCaveats(usageEnvelope?.meta.caveats ?? [], usageCaveats(USAGE_EXCLUDE_ADMINS)),
+    },
+    excludeAdmins: USAGE_EXCLUDE_ADMINS,
+    computedAt: new Date().toISOString(),
+  };
+
+  const heroStats = buildHeroStats(dataStats, sysStatus, usage);
   const groups = buildGroups({ dataStats, sysStatus, externalAi, role: user.role });
 
   return (
@@ -350,9 +418,76 @@ interface ConsoleGroup {
   tiles: ConsoleTile[];
 }
 
-function buildHeroStats(
+/**
+ * The console's own caveats, on top of the api's.
+ *
+ * `pageCaveats` is imported rather than restated so the two surfaces cannot
+ * drift into describing the same figures differently; the two sentences
+ * added here are true of THIS strip and of nothing on /usage — the window
+ * is fixed at 7 days with no control to change it, and the sparkline beside
+ * the first figure is drawn over a different, longer window than the figure
+ * itself.
+ */
+function usageCaveats(excludeAdmins: boolean): string[] {
+  return [
+    ...pageCaveats({ rawRetentionDays: RAW_RETENTION_DAYS, excludeAdmins }),
+    `These three figures cover a fixed ${USAGE_DAYS}-day window, with no control on this page to widen it. Open Usage & access for any other window.`,
+    excludeAdmins
+      ? 'Because administrators are excluded, an installation whose only readers so far are operators shows 0 here. That 0 is an answer, not a failure — a figure that could not be read says “unavailable” instead. Turn “Exclude admin accounts” off on Usage & access to see operator activity.'
+      : 'Administrators are counted here alongside everyone else, so operator activity is part of every figure above.',
+    'The sparkline is daily active users over the last 30 Bangkok days — a longer window than the figure beside it — and carries a point only for days with activity, so it is not 30 points wide.',
+  ];
+}
+
+/**
+ * The value cell for a usage tile: the figure, an optional sparkline, and
+ * the provenance + freshness pair the Council rules require. They live in
+ * the VALUE because `HeroBannerStat.hint` is a plain string — the shared
+ * banner is left untouched rather than grown a slot for one caller.
+ */
+function UsageStatValue({
+  figure,
+  series,
+  title,
+  meta,
+  computedAt,
+}: {
+  figure: string;
+  /** Daily active users, oldest first. Omitted when there is no line to
+   *  draw — the caller decides that, since it is a fact about the data. */
+  series?: number[];
+  title: string;
+  meta: ApiMeta;
+  computedAt: string;
+}) {
+  return (
+    <span className="flex flex-col gap-[6px]">
+      <Link
+        href="/usage"
+        className="flex items-center gap-[10px] transition-colors hover:text-accent-default"
+      >
+        <span>{figure}</span>
+        {series && (
+          <span className="h-[28px] w-[72px] flex-shrink-0" aria-hidden>
+            <Sparkline data={series} />
+          </span>
+        )}
+      </Link>
+      <span className="flex items-center gap-[6px] font-sans text-[12px] font-normal leading-normal">
+        <ProvenanceButton size="xs" title={title} meta={meta} />
+        <FreshnessBadge freshnessDate={computedAt} label="these figures" />
+      </span>
+    </span>
+  );
+}
+
+// Exported for `test/admin-usage-hero.test.ts`: the strip is a pure
+// function of three already-fetched values precisely so its honesty about a
+// failed fetch can be asserted without a session, the api, or a DOM.
+export function buildHeroStats(
   data: DataSetupStats | null,
   sys: SystemStatus | null,
+  usage: UsageHero,
 ): HeroStat[] {
   const stats: HeroStat[] = [];
   if (data) {
@@ -388,14 +523,79 @@ function buildHeroStats(
       icon: <CircleDollarSign className="size-icon-sm" />,
     });
   }
-  // If both endpoints failed, fall back to a single placeholder card.
-  if (stats.length === 0) {
+  // If both endpoints failed, fall back to a single placeholder card. The
+  // test is on the two endpoints rather than on `stats.length`, which the
+  // usage tiles below now fill unconditionally.
+  if (!data && !sys) {
     stats.push({
       label: 'Stats',
       value: '—',
       hint: 'Live numbers unavailable; admin tools below still work.',
     });
   }
+
+  // ── Usage ───────────────────────────────────────────────────────────
+  // Always three tiles, whether or not the call landed: a strip that
+  // silently loses a figure teaches the operator the figure is zero.
+  const u = usage.summary;
+  // Who the figures are about. "non-admin" is not decoration — it is the
+  // difference between "nobody used the platform" and "nobody outside this
+  // room did", and only one of those is a problem.
+  const audience = usage.excludeAdmins ? 'non-admin accounts' : 'all accounts';
+  // A percentage against a zero baseline is not a percentage; say nothing
+  // rather than divide by it.
+  const delta = (cur: number, prev: number): string =>
+    prev === 0
+      ? ''
+      : ` · ${cur >= prev ? '+' : ''}${Math.round(((cur - prev) / prev) * 100)}% vs prior ${USAGE_DAYS}d`;
+  const UNAVAILABLE = 'Unavailable — the usage service did not answer';
+  const tile = (
+    label: string,
+    figure: string | null,
+    hint: string,
+    icon: React.ReactNode,
+    series?: number[],
+  ): HeroStat => ({
+    label,
+    value: (
+      <UsageStatValue
+        figure={figure ?? '—'}
+        series={figure === null ? undefined : series}
+        title={label}
+        meta={usage.meta}
+        computedAt={usage.computedAt}
+      />
+    ),
+    hint: figure === null ? UNAVAILABLE : hint,
+    icon,
+  });
+
+  stats.push(
+    tile(
+      `Active users · ${USAGE_DAYS}d`,
+      u ? u.current.activeUsers.toLocaleString() : null,
+      `${audience}${u ? delta(u.current.activeUsers, u.previous.activeUsers) : ''}`,
+      <Users className="size-icon-sm" />,
+      // A single point draws no line, and an empty line chart reads as a
+      // rendering failure rather than as a short history.
+      u && u.dailyActiveUsers.length > 1 ? u.dailyActiveUsers.map((d) => d.users) : undefined,
+    ),
+    tile(
+      `Page views · ${USAGE_DAYS}d`,
+      u ? u.current.views.toLocaleString() : null,
+      u
+        ? `in ${u.current.sessions.toLocaleString()} sessions · ${audience}${delta(u.current.views, u.previous.views)}`
+        : '',
+      <Eye className="size-icon-sm" />,
+    ),
+    tile(
+      'Sign-ins today',
+      u ? u.signinsToday.toLocaleString() : null,
+      u ? `${u.current.signins.toLocaleString()} in the last ${USAGE_DAYS} days · ${audience}` : '',
+      <LogIn className="size-icon-sm" />,
+    ),
+  );
+
   return stats;
 }
 
