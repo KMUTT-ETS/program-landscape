@@ -720,6 +720,8 @@ model User {
 
   auditLogs                AuditLog[]
   aiInferences             AiInference[]
+  pageViews                PageView[]
+  pageViewDays             PageViewDaily[]
   uploadedPdfs             PdfDocument[]            @relation("PdfUploader")
   jobThaiBatches           JobThaiBatch[]
   reviewedExtractions      PdfExtraction[]          @relation("ExtractionReviewer")
@@ -936,6 +938,87 @@ model AiInference {
   // 20260509120000_perf_composite_indexes.
   @@index([userId, createdAt])
   @@map("ai_inferences")
+}
+
+/// One recorded page view. Written by POST /usage/page-views; identity comes
+/// from the session, never the body. No IP, no raw URL, no query string.
+/// Raw rows live 120 days (docs/pdpa.md) then roll up into PageViewDaily.
+/// `created_at` is `timestamp without time zone` holding UTC wall-clock — the
+/// house convention here (99 other createdAt columns), and it requires the
+/// postgres server TimeZone to stay UTC (no TZ/PGTZ env on the postgres
+/// service; verified Etc/UTC). Day bucketing in @kku/db/usage is
+/// `created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok'`. A non-UTC
+/// server TZ would make CURRENT_TIMESTAMP and Prisma-written rows disagree by
+/// the offset, silently.
+/// `programId` / `facultyId` / `departmentId` are bare ids with NO foreign key
+/// on purpose: a programme can be deleted and the view still happened, so the
+/// count must survive it. No `ingestion_run_id` either — these rows are
+/// product telemetry, never an input to a Council metric, so realDataWhere()
+/// does not and must not apply to them.
+model PageView {
+  id              String   @id @default(cuid())
+  userId          String?  @map("user_id")
+  /// Effective role at the time — under impersonation, the impersonated role.
+  role            String
+  impersonated    Boolean  @default(false)
+  viewerFacultyId String?  @map("viewer_faculty_id")
+  /// Normalised route pattern, e.g. /programs/[id]. Bounded to
+  /// MAX_PATH_PATTERN_LENGTH (200) by normalisePath() — never write a raw
+  /// pathname here.
+  path            String
+  module          String
+  programId       String?  @map("program_id")
+  facultyId       String?  @map("faculty_id")
+  departmentId    String?  @map("department_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([programId, createdAt])
+  @@index([module, createdAt])
+  @@map("page_views")
+}
+
+/// Daily roll-up of PageView beyond 120 days, keyed by Asia/Bangkok day. Counts
+/// only. A structural test forbids timestamp and IP columns here. The unique
+/// index is NULLS NOT DISTINCT in the migration (Prisma cannot express it), so
+/// upserts are idempotent on nullable key columns.
+/// Deliberately NARROWER than PageView: no `departmentId`, and impersonated
+/// views are excluded by the roll-up (never folded in), so a read that unions
+/// raw rows with these must apply `impersonated = false` on the raw side only
+/// and must not group on department — past 120 days the answer would be
+/// silently wrong, not empty.
+/// `views` and `sessions` are page-view facts. `signins` is NOT — it comes from
+/// audit_logs (auth.signin.ok) and is attributed to one synthetic
+/// (module='signin', path='/signin') row per (day, user). Sum it only at day or
+/// day×user grain; a GROUP BY path or module over `signins` is meaningless.
+/// No `ingestion_run_id`: telemetry, never a Council input (see PageView).
+/// Prisma does not model NULLS NOT DISTINCT, so `prisma migrate diff` may
+/// either ignore the property or report the index as drift; neither matters,
+/// and CI runs `migrate deploy` only, never a drift check.
+model PageViewDaily {
+  id              String   @id @default(cuid())
+  day             DateTime @db.Date
+  userId          String?  @map("user_id")
+  role            String
+  viewerFacultyId String?  @map("viewer_faculty_id")
+  module          String
+  path            String
+  programId       String?  @map("program_id")
+  facultyId       String?  @map("faculty_id")
+  views           Int      @default(0)
+  sessions        Int      @default(0)
+  signins         Int      @default(0)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([day, userId, role, viewerFacultyId, module, path, programId, facultyId])
+  @@index([day])
+  @@index([userId, day])
+  @@index([programId, day])
+  @@map("page_view_daily")
 }
 
 // Structured output produced by an AiService extractStructured() call.
