@@ -26,6 +26,7 @@ function canSeeProgramAwareDashboards(role: string | undefined | null): boolean 
   );
 }
 import {
+  BarChart3,
   BookOpen,
   Building2,
   ClipboardCheck,
@@ -92,6 +93,22 @@ const dashboardItemsFacultyAware = [
   },
 ];
 
+// Platform usage — gated on `usage:read:aggregate`, which only the two
+// admin grades and UNIVERSITY_USER hold. This file can't call `can()`
+// (see the import comment at the top), so the role list is mirrored here;
+// the page itself re-checks with the real `can()` before rendering, so a
+// drift in this list shows as a missing menu entry, never as access.
+const usageItem = {
+  href: '/usage',
+  label: 'Platform usage',
+  icon: createElement(BarChart3),
+  moduleKey: 'neutral' as const,
+};
+
+function canSeeUsage(role: string | undefined | null): boolean {
+  return isAdminGrade(role) || role === 'UNIVERSITY_USER';
+}
+
 function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
   // Use effectiveRole when available — a user whose primary role is
   // PROGRAM_USER but who has a UserScope grant of UNIVERSITY_USER or
@@ -100,9 +117,16 @@ function dashboardsSectionFor(user: SessionUser | undefined): NavSection {
   const role = user?.effectiveRole ?? user?.role;
   return {
     label: 'Dashboards',
-    items: canSeeProgramAwareDashboards(role)
-      ? [...dashboardItemsBase, ...dashboardItemsFacultyAware]
-      : dashboardItemsBase,
+    items: [
+      ...(canSeeProgramAwareDashboards(role)
+        ? [...dashboardItemsBase, ...dashboardItemsFacultyAware]
+        : dashboardItemsBase),
+      // `can()` reads the PRIMARY role, not the effective one (UserScope
+      // phase 2 is still pending), and so does the api's @Authorized — so
+      // this one entry must follow `user.role` or the nav would offer a
+      // page the server then bounces to /no-access.
+      ...(canSeeUsage(user?.role) ? [usageItem] : []),
+    ],
   };
 }
 
@@ -155,8 +179,9 @@ const adminSection: NavSection = {
   ],
 };
 
-// Visible to every user — the public methodology paper + changelog are
-// reference material for everyone, not just admins.
+// Visible to every user — the methodology paper, the acknowledgements of
+// the organisations the platform's data comes from, and the release notes
+// are all reference material for everyone, not just admins.
 const referenceSection: NavSection = {
   label: 'Reference',
   items: [

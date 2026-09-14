@@ -15,6 +15,7 @@ import {
 import {
   Activity,
   ArrowUpRight,
+  BarChart3,
   Building2,
   CalendarClock,
   CircleDollarSign,
@@ -643,6 +644,14 @@ function buildGroups({
               : { label: 'healthy', tone: 'success' as const };
           })()
         : undefined,
+    },
+    {
+      href: '/usage',
+      label: 'Usage & access',
+      description:
+        'Who opens which parts of the platform — active users, modules, programmes, faculties, roles — plus the per-person access log and session timelines.',
+      icon: <BarChart3 className="size-icon-xl" />,
+      roles: ADMIN_GRADE,
     },
     {
       href: '/admin/pdf-generation',
