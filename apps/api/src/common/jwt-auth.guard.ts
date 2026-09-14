@@ -80,6 +80,9 @@ export class JwtAuthGuard implements CanActivate {
             departmentId: imp.departmentId ?? null,
             programId: imp.programId ?? null,
           };
+          // Published for telemetry: a handler cannot re-derive this,
+          // because req.user no longer carries the real role.
+          (req as unknown as { impersonated?: boolean }).impersonated = true;
         }
       }
 
