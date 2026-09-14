@@ -6,7 +6,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
 import { PageHeader } from '@kku/ui';
 import { JobThaiClient, type JobThaiBatchRow } from './client';
-import { DataSourceMark } from '@/components/data-source-mark';
+import { DataSourceMark, acknowledgementHref } from '@/components/data-source-mark';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'JobThai drops — Admin' };
@@ -25,7 +25,7 @@ export default async function AdminJobThaiPage() {
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2">
-            <DataSourceMark source="jobthai" size={24} />
+            <DataSourceMark source="jobthai" size={24} href={acknowledgementHref('jobthai')} />
             JobThai drops
           </span>
         }

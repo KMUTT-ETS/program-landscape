@@ -55,6 +55,16 @@ describe('ACKNOWLEDGEMENTS registry', () => {
     }
   });
 
+  it('every mark is reachable at its own anchor — acknowledgementHref depends on it', () => {
+    const slugs = ACKNOWLEDGEMENTS.map((a) => a.slug);
+    for (const key of Object.keys(DATA_SOURCE_MARKS)) {
+      expect(slugs, `DATA_SOURCE_MARKS.${key} has no acknowledgement entry`).toContain(key);
+    }
+    for (const a of ACKNOWLEDGEMENTS) {
+      if (a.logo) expect(a.logo, `${a.slug} logo`).toBe(a.slug);
+    }
+  });
+
   it('is ordered most recent first', () => {
     const dates = ACKNOWLEDGEMENTS.map((a) => a.since);
     for (const d of dates) {

@@ -8,7 +8,7 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
-import { DataSourceMark, isMarkedSource } from '@/components/data-source-mark';
+import { DataSourceMark, acknowledgementHref, isMarkedSource } from '@/components/data-source-mark';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data Source — Stats' };
@@ -85,7 +85,7 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
         title={
           isMarkedSource(stats.slug) ? (
             <span className="inline-flex items-center gap-2">
-              <DataSourceMark source={stats.slug} size={24} />
+              <DataSourceMark source={stats.slug} size={24} href={acknowledgementHref(stats.slug)} />
               {stats.name}
             </span>
           ) : (

@@ -45,7 +45,7 @@ import {
 // Shared with /education/student-dq so both DQ radars mean the same
 // thing by a floor of 60 — see the helper for why it is not 0.
 import { dqRadarDomain } from '@/lib/dq-radar-domain';
-import { DataSourceMark, DriverSourceMark } from '@/components/data-source-mark';
+import { DataSourceMark, DriverSourceMark, acknowledgementHref } from '@/components/data-source-mark';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -2539,7 +2539,7 @@ function SkillsSection({
                 {jt?.matchScore == null ? '—' : Math.round(jt.matchScore)}
               </div>
               <div className="flex items-center gap-1 text-xs text-text-tertiary">
-                <DataSourceMark source="jobthai" size={12} />
+                <DataSourceMark source="jobthai" size={12} href={acknowledgementHref('jobthai')} />
                 vs JobThai (domestic)
               </div>
               {jt?.aiComputed && (
@@ -2773,7 +2773,7 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
     return (
       <Card padding="md" tone="quiet">
         <h4 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-          <DataSourceMark source="jobthai" size={14} />
+          <DataSourceMark source="jobthai" size={14} href={acknowledgementHref('jobthai')} />
           No JobThai demand signal for this programme
         </h4>
         <p className="text-xs text-text-tertiary">
@@ -2788,7 +2788,7 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       <Card padding="md">
         <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-          <DataSourceMark source="jobthai" size={14} />
+          <DataSourceMark source="jobthai" size={14} href={acknowledgementHref('jobthai')} />
           Top labour-market demand
         </h4>
         <p className="mb-2 text-xs text-text-tertiary">
@@ -2870,7 +2870,7 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
       </Card>
       <Card padding="md" tone={data.gaps.length > 0 ? 'glossy' : 'default'}>
         <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-danger">
-          <DataSourceMark source="jobthai" size={14} />
+          <DataSourceMark source="jobthai" size={14} href={acknowledgementHref('jobthai')} />
           Gaps — demanded, not taught
         </h4>
         <p className="mb-2 text-xs text-text-tertiary">
@@ -2896,7 +2896,7 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
       </Card>
       <Card padding="md" tone="quiet">
         <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-          <DataSourceMark source="jobthai" size={14} />
+          <DataSourceMark source="jobthai" size={14} href={acknowledgementHref('jobthai')} />
           Surplus — taught, not demanded
         </h4>
         <p className="mb-2 text-xs text-text-tertiary">

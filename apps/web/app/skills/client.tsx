@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Badge, Card } from '@kku/ui';
 import { FilterSearch } from '@/components/filter-rail';
-import { DataSourceMark } from '@/components/data-source-mark';
+import { DataSourceMark, acknowledgementHref } from '@/components/data-source-mark';
 import type { SkillNode } from './page';
 
 // Tree + detail layout. Two columns: taxonomy tree (left, scrollable),
@@ -244,7 +244,7 @@ function SkillDetailPane({
 
       <Card>
         <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-          <DataSourceMark source="jobthai" size={14} />
+          <DataSourceMark source="jobthai" size={14} href={acknowledgementHref('jobthai')} />
           Recent demand signal ({demand})
         </h4>
         {demand === 0 ? (
