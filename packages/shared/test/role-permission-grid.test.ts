@@ -104,6 +104,10 @@ describe('Role → permission grid (canonical matrix)', () => {
       // (added in f9e26bf — scoped dashboard access). Scope filtering on
       // the endpoint keeps it safe.
       'institution:read:dashboard',
+      // University-wide leadership question: counts by module / programme
+      // / role / faculty, no names. `usage:read:detail` (the per-user
+      // access log) is deliberately withheld — that's admin-grade only.
+      'usage:read:aggregate',
     ]);
 
     for (const p of PERMISSIONS) {

@@ -16,6 +16,12 @@ import type { Role } from './roles';
 //                          member or per-individual drill-in (e.g. salary
 //                          line items)
 //
+// Not every third segment is a scope suffix — some are sub-resource
+// qualifiers naming *which* view of the resource is gated (e.g.
+// institution:read:dashboard, usage:read:aggregate vs :detail; the older
+// financials:read:aggregated_only means the same as :aggregate). Those are
+// non-spatial: can() ignores scopeContext for them.
+//
 // Keep this list sorted by resource for readability. Every new permission
 // must be added both to PERMISSIONS and to at least one role below.
 // ──────────────────────────────────────────────────────────────────────────
@@ -87,6 +93,12 @@ export const PERMISSIONS = [
   // retry / remove / clean / pause / resume.
   'queues:read',
   'queues:manage',
+
+  // Platform usage — aggregate = counts by module / programme / role /
+  // faculty, no names (leadership question); detail = the per-user access
+  // log and timelines (admin question, PDPA-sensitive).
+  'usage:read:aggregate',
+  'usage:read:detail',
 
   // Risk Management module — read = view assessments + indicators;
   // assess = trigger AI per-program assessment (idempotent within rate
@@ -172,6 +184,7 @@ const UNIVERSITY_USER_PERMS: Permission[] = [
   'risks:measures:edit',
   'institution:read:university',
   'institution:read:dashboard',
+  'usage:read:aggregate',
 ];
 
 // FACULTY_USER — read-only scoped to user's own faculty.
