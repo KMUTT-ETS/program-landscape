@@ -100,7 +100,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now program-landscape-backup.timer          # nightly pg dump
 sudo systemctl enable --now program-landscape-backup-full.timer     # weekly + MinIO
 sudo systemctl enable --now program-landscape-verify-backup.timer   # nightly verify
-sudo systemctl list-timers 'program-landscape-*' --no-pager         # confirm all three
+sudo systemctl enable --now program-landscape-retention.timer       # nightly PDPA sweep 04:00
+sudo systemctl list-timers 'program-landscape-*' --no-pager         # confirm all four
 ```
 
 Then coordinate with KKU network team (see [`docs/deployment/kku-network-integration.md`](./docs/deployment/kku-network-integration.md)) before the first deploy.
@@ -216,7 +217,7 @@ The script asks whether to restore the pre-deploy DB snapshot — say yes only w
 
 ## Backups
 
-**Automatic — three timers.** The unit files are shipped in the bundle at
+**Automatic — four timers.** The unit files are shipped in the bundle at
 `infra/systemd/`; install them with the step-7 block above. They are the
 authoritative copies — do not hand-write units from a doc snippet, which is
 how the old inline sample here drifted out of step with the real ones.
@@ -226,6 +227,7 @@ how the old inline sample here drifted out of step with the real ones.
 | `program-landscape-backup.timer` | daily 02:00 | `backup.sh --no-minio` — pg dump only |
 | `program-landscape-backup-full.timer` | Sun 02:30 | `backup.sh` — pg dump + MinIO mirror |
 | `program-landscape-verify-backup.timer` | daily 03:00 | restores the newest dump into a throwaway container and asserts against it |
+| `program-landscape-retention.timer` | daily 04:00 | PDPA retention sweep (audit log, AI inference payloads, Scholar archive + bind attempts) — see "PDPA retention sweep" below |
 
 **Why the MinIO mirror is weekly, not nightly.** It is a full tar of an
 append-only blob store — 2.5 GB on 2026-09-06 and growing. Nightly copies
@@ -261,6 +263,19 @@ Retention (enforced by the script):
 - Monthly archives (`monthly-YYYY-MM-01.sql.gz`, manually promoted): 365 days.
 
 Off-server mirror: configure `rclone` or `aws s3 sync` to copy `/opt/program-landscape/backups/` to KKU's central archive nightly at 03:30.
+
+### PDPA retention sweep
+
+`program-landscape-retention.timer` runs the sweep nightly at 04:00 Bangkok
+(after the 02:00 backup, the 03:00 verify drill and the 03:30 off-server
+mirror slot). It hard-deletes / redacts the four tables listed in
+`docs/pdpa.md`. **Installing the timer is a manual step** — `deploy.sh` does
+not install units. If `systemctl list-timers 'program-landscape-*'` does not
+show it, copy the two files from `infra/systemd/` and enable it. Dry-run by
+hand:
+`docker compose exec -T ingestion node /app/dist/scripts/retention-sweep.js --dry-run`.
+The unit runs it with `--apply`; without that flag the script only reports.
+Each run's JSON lands in `/opt/program-landscape/logs/retention-sweep-YYYYMMDD.json`.
 
 ---
 
@@ -458,6 +473,7 @@ Before every production deploy:
 - [ ] Release bundle checksum verified on the prod server before extraction.
 - [ ] Operator has a rollback window and knows `./scripts/rollback.sh`.
 - [ ] Council / Exec stakeholders informed if the release changes user-visible surfaces.
+- [ ] `systemctl list-timers 'program-landscape-*'` shows the retention timer — if not, install it per first-boot step 7 (deploy.sh does not install units).
 
 ---
 

@@ -1,0 +1,27 @@
+[Unit]
+Description=Program Landscape PDPA retention sweep (audit log, AI payloads, Scholar archive + bind attempts)
+Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
+Requires=docker.service
+# Boot ordering only — the timers fire in separate transactions, so the real
+# separation from the verify-backup drill is the 04:00 slot, not this line.
+After=docker.service program-landscape-verify-backup.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/program-landscape/current
+# Skip (not fail) when the stack is down or mid-deploy — deploy.sh stops the
+# containers during its drain, and an `exec` against a stopped service would
+# be a unit failure nobody notices until the next PDPA audit.
+ExecCondition=/bin/bash -lc "/usr/bin/docker compose ps --status running --services | grep -qx ingestion"
+# The JSON report is the evidence that the control ran; keep a copy on the
+# host (the logs dir is bind-mounted and chowned by deploy.sh). pipefail so
+# tee cannot mask the sweep's exit status.
+ExecStart=/bin/bash -lc "set -o pipefail; /usr/bin/docker compose exec -T ingestion node /app/dist/scripts/retention-sweep.js --apply | tee /opt/program-landscape/logs/retention-sweep-$$(date +%%Y%%m%%d).json"
+TimeoutStartSec=1800
+# Any non-zero is a real failure — do NOT widen this the way verify-backup does.
+SuccessExitStatus=0
+# Nice has no effect on the actual work: `docker compose exec` runs it in the
+# container's cgroup, not as a child of this unit. Kept for family resemblance
+# with backup.service (where pg_dump IS a child and Nice applies).
+Nice=10

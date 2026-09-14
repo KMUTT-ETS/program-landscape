@@ -68,6 +68,8 @@ const TARGETS = [
   // 456-row skill-taxonomy merge, and provenance for program_demand_matches.
   'dedupe-skills.ts',
   'backfill-demand-match-provenance.ts',
+  // PDPA retention sweep — run nightly on prod by program-landscape-retention.timer
+  'retention-sweep.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.

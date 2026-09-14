@@ -1,0 +1,15 @@
+[Unit]
+Description=Program Landscape — nightly PDPA retention sweep
+Documentation=file:///opt/program-landscape/current/DEPLOYMENT.md
+
+[Timer]
+# 04:00 Asia/Bangkok — after the 02:00 backup (the dump precedes the delete),
+# the 03:00 verify-backup drill, and the 03:30 slot DEPLOYMENT.md suggests for
+# the off-server mirror.
+OnCalendar=*-*-* 04:00:00 Asia/Bangkok
+RandomizedDelaySec=120
+Persistent=true
+Unit=program-landscape-retention.service
+
+[Install]
+WantedBy=timers.target
