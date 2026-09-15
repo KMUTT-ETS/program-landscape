@@ -1,4 +1,5 @@
 import { Prisma, type JobFieldReviewStatus } from '@prisma/client';
+import { JOB_FIELD_TAXONOMY_VERSION } from '@kku/shared';
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 import { prisma } from './index';
 import { realDataSql } from './data-quality';
@@ -102,18 +103,39 @@ export function planTaxonomyBatches(
   return { batches, other: { kinds: otherKinds, mentions: otherMentions }, absorbed };
 }
 
+/** The shape of one job-field-taxonomy prompt response that this module
+ *  reads (slugs already normalised by the prompt's Zod schema). */
 export interface TaxonomyOutputLike {
   newFields: Array<{ slug: string; nameTh: string; nameEn: string }>;
   assignments: Array<{ raw: string; fieldSlug: string }>;
+  /** Strings the model declined to attach: not a field of study at all. */
+  unassigned?: Array<{ raw: string; reason: string }>;
 }
+
+export type TaxonomyDropReason =
+  | 'unknown-slug'
+  | 'already-absorbed'
+  | 'not-in-batch'
+  | 'duplicate'
+  | 'abstained'
+  | 'rejected-field';
 
 export interface TaxonomyWrite {
   creates: Array<{ slug: string; nameTh: string; nameEn: string; synonyms: string[] }>;
   synonymAdds: Array<{ slug: string; synonyms: string[] }>;
-  dropped: Array<{ raw: string; reason: 'unknown-slug' | 'already-absorbed' | 'not-in-batch' | 'duplicate' }>;
+  dropped: Array<{ raw: string; reason: TaxonomyDropReason }>;
+  /** Batch strings the model mentioned in neither `assignments` nor
+   *  `unassigned`. Not absorbed, so planTaxonomyBatches re-sends them next run. */
+  missing: string[];
 }
 
-/** Turns one model response into writes, enforcing the invariants. Pure. */
+/** Turns one model response into writes, enforcing the invariants. Pure.
+ *
+ *  A target that resolves to a REJECTED row — named directly as `fieldSlug`,
+ *  or via a `newFields` entry colliding with a REJECTED slug — is dropped as
+ *  'rejected-field', never added as a synonym: planTaxonomyBatches treats
+ *  every synonym as absorbed, so the string would vanish for good. Anchors
+ *  exclude REJECTED rows, so this only happens by collision or hallucination. */
 export function applyTaxonomyOutput(
   output: TaxonomyOutputLike,
   existing: ExistingField[],
@@ -137,7 +159,9 @@ export function applyTaxonomyOutput(
     if (absorbed.has(a.raw)) { dropped.push({ raw: a.raw, reason: 'already-absorbed' }); continue; }
     const created = newBySlug.get(a.fieldSlug);
     if (created) { created.synonyms.push(a.raw); continue; }
-    if (existingBySlug.has(a.fieldSlug)) {
+    const anchor = existingBySlug.get(a.fieldSlug);
+    if (anchor) {
+      if (anchor.reviewStatus === 'REJECTED') { dropped.push({ raw: a.raw, reason: 'rejected-field' }); continue; }
       const list = addsBySlug.get(a.fieldSlug) ?? [];
       list.push(a.raw);
       addsBySlug.set(a.fieldSlug, list);
@@ -145,10 +169,16 @@ export function applyTaxonomyOutput(
     }
     dropped.push({ raw: a.raw, reason: 'unknown-slug' });
   }
+  for (const u of output.unassigned ?? []) {
+    if (!inBatch.has(u.raw) || seen.has(u.raw)) continue; // an assignment already accounted for it
+    seen.add(u.raw);
+    dropped.push({ raw: u.raw, reason: absorbed.has(u.raw) ? 'already-absorbed' : 'abstained' });
+  }
   return {
     creates: [...newBySlug.values()].filter((c) => c.synonyms.length > 0),
     synonymAdds: [...addsBySlug.entries()].map(([slug, synonyms]) => ({ slug, synonyms })),
     dropped,
+    missing: [...inBatch].filter((raw) => !seen.has(raw)),
   };
 }
 
@@ -165,7 +195,7 @@ export async function writeTaxonomy(write: TaxonomyWrite, runId: string, tx: Tx 
         nameEn: c.nameEn,
         synonyms: c.synonyms,
         reviewStatus: 'PROPOSED',
-        methodVersion: 'job-field-taxonomy.v1',
+        methodVersion: JOB_FIELD_TAXONOMY_VERSION,
         ingestionRunId: runId,
       },
     });
@@ -180,14 +210,18 @@ export async function writeTaxonomy(write: TaxonomyWrite, runId: string, tx: Tx 
 }
 
 /** mention_count = postings naming any synonym (bachelor and postgraduate
- *  alike — this is the review page's size hint, not the map's demand). */
+ *  alike — this is the review page's size hint, not the map's demand).
+ *  Gated by realDataSql so a mocked batch cannot inflate the hint. */
 export async function refreshMentionCounts(tx: Tx = prisma): Promise<void> {
   await tx.$executeRaw(Prisma.sql`
     UPDATE job_field_taxonomy f SET mention_count = sub.n
     FROM (
       SELECT f2.id, COUNT(DISTINCT jp.id)::int AS n
       FROM job_field_taxonomy f2
-      LEFT JOIN job_postings jp ON jp.source = 'jobthai' AND jp.required_fields_raw && f2.synonyms
+      LEFT JOIN job_postings jp
+        ON jp.source = 'jobthai'
+       AND jp.required_fields_raw && f2.synonyms
+       AND ${realDataSql('jp')}
       GROUP BY f2.id
     ) sub
     WHERE sub.id = f.id
@@ -243,7 +277,9 @@ export interface AssignmentWrite {
 }
 
 /** Upserts on (programId, fieldId). An existing APPROVED or REJECTED row is
- *  left exactly as it is; a PROPOSED row is refreshed. */
+ *  left exactly as it is; a PROPOSED row is refreshed.
+ *  Manual rows are written APPROVED by addProgramJobField, so this refresh
+ *  path never overwrites a 'manual' source unless an admin demoted the row. */
 export async function writeAssignments(rows: AssignmentWrite[], runId: string, tx: Tx = prisma): Promise<{ created: number; refreshed: number; kept: number }> {
   let created = 0;
   let refreshed = 0;
@@ -326,7 +362,7 @@ export async function listProgramJobFields(fieldId?: string): Promise<ProgramJob
       program: { select: { code: true, nameTh: true, nameEn: true, level: true } },
       field: { select: { slug: true } },
     },
-    orderBy: [{ reviewStatus: 'asc' }, { confidence: 'desc' }],
+    orderBy: [{ reviewStatus: 'asc' }, { confidence: { sort: 'desc', nulls: 'last' } }],
   });
   return rows.map((r) => ({
     id: r.id,
@@ -351,30 +387,67 @@ export async function renameJobField(id: string, names: { nameTh: string; nameEn
   await prisma.jobFieldTaxonomy.update({ where: { id }, data: names });
 }
 
+/** Review-status strength, for keeping the stronger of two rows on a merge. */
+const REVIEW_STATUS_RANK: Record<JobFieldReviewStatus, number> = { REJECTED: 0, PROPOSED: 1, APPROVED: 2 };
+
+export interface MergeJobFieldsResult {
+  synonymsMoved: number;
+  /** From-rows re-pointed at the target (no row for that programme there yet). */
+  assignmentsMoved: number;
+  /** Target rows that took the from-row's stronger status (and its source,
+   *  confidence, methodVersion) instead of being moved. */
+  assignmentsPromoted: number;
+}
+
 /** Moves synonyms and assignments from `fromId` into `intoId`, then deletes
- *  `fromId`. Assignments that already exist on the target are dropped by
- *  the unique key, never duplicated. One transaction. */
-export async function mergeJobFields(fromId: string, intoId: string): Promise<{ synonymsMoved: number; assignmentsMoved: number }> {
+ *  `fromId`. When a programme already has a row on the target, the target
+ *  row survives and keeps the STRONGER status of the two — APPROVED >
+ *  PROPOSED > REJECTED — taking the from-row's source, confidence and
+ *  methodVersion when the from-row wins; the unique key is never
+ *  duplicated. One transaction: pass `tx` to join a caller's transaction,
+ *  otherwise one is opened here. */
+export async function mergeJobFields(
+  fromId: string,
+  intoId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<MergeJobFieldsResult> {
   if (fromId === intoId) throw new Error('cannot merge a field into itself');
-  return prisma.$transaction(async (tx) => {
-    const from = await tx.jobFieldTaxonomy.findUniqueOrThrow({ where: { id: fromId }, select: { synonyms: true } });
-    const into = await tx.jobFieldTaxonomy.findUniqueOrThrow({ where: { id: intoId }, select: { synonyms: true } });
-    const merged = [...new Set([...into.synonyms, ...from.synonyms])];
-    await tx.jobFieldTaxonomy.update({ where: { id: intoId }, data: { synonyms: merged } });
-    const assignments = await tx.programJobField.findMany({ where: { fieldId: fromId } });
-    let moved = 0;
-    for (const a of assignments) {
-      const clash = await tx.programJobField.findUnique({
-        where: { programId_fieldId: { programId: a.programId, fieldId: intoId } },
-        select: { id: true },
-      });
-      if (clash) continue;
+  if (tx) return mergeJobFieldsWithin(tx, fromId, intoId);
+  return prisma.$transaction((t) => mergeJobFieldsWithin(t, fromId, intoId));
+}
+
+async function mergeJobFieldsWithin(tx: Prisma.TransactionClient, fromId: string, intoId: string): Promise<MergeJobFieldsResult> {
+  const from = await tx.jobFieldTaxonomy.findUniqueOrThrow({ where: { id: fromId }, select: { synonyms: true } });
+  const into = await tx.jobFieldTaxonomy.findUniqueOrThrow({ where: { id: intoId }, select: { synonyms: true } });
+  const merged = [...new Set([...into.synonyms, ...from.synonyms])];
+  await tx.jobFieldTaxonomy.update({ where: { id: intoId }, data: { synonyms: merged } });
+  const fromRows = await tx.programJobField.findMany({ where: { fieldId: fromId } });
+  const targetRows = await tx.programJobField.findMany({
+    where: { fieldId: intoId, programId: { in: fromRows.map((a) => a.programId) } },
+  });
+  const targetByProgram = new Map(targetRows.map((t) => [t.programId, t]));
+  let moved = 0;
+  let promoted = 0;
+  for (const a of fromRows) {
+    const target = targetByProgram.get(a.programId);
+    if (!target) {
       await tx.programJobField.update({ where: { id: a.id }, data: { fieldId: intoId } });
       moved += 1;
+      continue;
     }
-    await tx.jobFieldTaxonomy.delete({ where: { id: fromId } }); // cascades the un-moved clashes
-    return { synonymsMoved: merged.length - into.synonyms.length, assignmentsMoved: moved };
-  });
+    if (REVIEW_STATUS_RANK[a.reviewStatus] > REVIEW_STATUS_RANK[target.reviewStatus]) {
+      await tx.programJobField.update({
+        where: { id: target.id },
+        data: { reviewStatus: a.reviewStatus, source: a.source, confidence: a.confidence, methodVersion: a.methodVersion },
+      });
+      promoted += 1;
+    }
+  }
+  // ProgramJobField.field is onDelete: Cascade — deleting the from-field
+  // removes the from-rows that were not moved (their programme already had
+  // a row on the target, which now carries the stronger status).
+  await tx.jobFieldTaxonomy.delete({ where: { id: fromId } });
+  return { synonymsMoved: merged.length - into.synonyms.length, assignmentsMoved: moved, assignmentsPromoted: promoted };
 }
 
 export async function setProgramJobFieldStatus(id: string, reviewStatus: JobFieldReviewStatus): Promise<void> {
@@ -386,7 +459,7 @@ export async function addProgramJobField(programId: string, fieldId: string, run
   const row = await prisma.programJobField.upsert({
     where: { programId_fieldId: { programId, fieldId } },
     create: { programId, fieldId, source: 'manual', confidence: null, reviewStatus: 'APPROVED', methodVersion: 'manual', ingestionRunId: runId },
-    update: { source: 'manual', reviewStatus: 'APPROVED' },
+    update: { source: 'manual', reviewStatus: 'APPROVED', methodVersion: 'manual', confidence: null },
     select: { id: true },
   });
   return row.id;
