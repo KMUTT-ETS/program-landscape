@@ -28,6 +28,16 @@ describe('JobFieldTaxonomy', () => {
     expect(body).toMatch(/ingestionRunId\s+String\?/);
     expect(body).toContain('@@index([reviewStatus])');
   });
+  it('declares the GIN index the overlap join relies on, and defaults synonyms to empty', () => {
+    expect(body).toContain('@@index([synonyms], type: Gin, map: "job_field_taxonomy_synonyms_gin")');
+    expect(body).toMatch(/synonyms\s+String\[\]\s+@default\(\[\]\)/);
+  });
+});
+
+describe('JobPosting', () => {
+  it('declares the GIN index on required_fields_raw', () => {
+    expect(model('JobPosting')).toContain('@@index([requiredFieldsRaw], type: Gin, map: "job_postings_required_fields_raw_gin")');
+  });
 });
 
 describe('ProgramJobField', () => {

@@ -1979,6 +1979,7 @@ model JobPosting {
   @@index([jobThaiBatchId])
   @@index([ingestionRunId])
   @@index([jobCategory, jobSubcategory])
+  @@index([requiredFieldsRaw], type: Gin, map: "job_postings_required_fields_raw_gin")
   @@map("job_postings")
 }
 
@@ -2089,7 +2090,7 @@ model JobFieldTaxonomy {
   nameTh         String               @map("name_th")
   nameEn         String               @map("name_en")
   /// Raw `job_postings.required_fields_raw` strings this field absorbs.
-  synonyms       String[]
+  synonyms       String[]             @default([])
   /// Postings naming any synonym, refreshed by the build step. Denormalised
   /// for the review page; the map recomputes it from postings.
   mentionCount   Int                  @default(0) @map("mention_count")
@@ -2104,6 +2105,7 @@ model JobFieldTaxonomy {
   ingestionRun IngestionRun?     @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   @@index([reviewStatus])
+  @@index([synonyms], type: Gin, map: "job_field_taxonomy_synonyms_gin")
   @@map("job_field_taxonomy")
 }
 
@@ -3361,7 +3363,7 @@ model IngestionRun {
   jobThaiBatches             JobThaiBatch[]
   jobPostings                JobPosting[]
   programJobThaiLinks        ProgramJobThaiLink[]
-  jobFieldTaxonomy           JobFieldTaxonomy[]
+  jobFieldTaxonomies         JobFieldTaxonomy[]
   programJobFields           ProgramJobField[]
   classOfferings             ClassOffering[]
   programCourses             ProgramCourse[]
