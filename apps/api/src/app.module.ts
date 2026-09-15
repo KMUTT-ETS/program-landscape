@@ -52,6 +52,7 @@ import { EducationModule } from './education/education.module';
 import { StaffDashboardModule } from './staff-dashboard/staff.module';
 import { RisksModule } from './risks/risks.module';
 import { JobThaiModule } from './jobthai/jobthai.module';
+import { JobFieldsModule } from './job-fields/job-fields.module';
 import { UsageModule } from './usage/usage.module';
 import { TrendDocumentsModule } from './trend-documents/trend-documents.module';
 import { AunqaModule } from './aunqa/aunqa.module';
@@ -123,6 +124,7 @@ import {
     StaffDashboardModule,
     RisksModule,
     JobThaiModule,
+    JobFieldsModule,
     UsageModule,
     TrendDocumentsModule,
     AunqaModule,
