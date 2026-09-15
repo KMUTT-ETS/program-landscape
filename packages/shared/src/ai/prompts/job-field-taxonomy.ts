@@ -5,8 +5,8 @@ import type { AiMessage } from '../types';
 // Job-field taxonomy — clusters the free-text "field of study" strings JobThai
 // employers write ("วุฒิปริญญาตรี สาขาบัญชี", "Accounting", "บัญชี/การเงิน")
 // into canonical fields with Thai + English names, each absorbing its raw
-// strings as synonyms. Existing APPROVED fields are passed as ANCHORS so new
-// strings attach to them instead of duplicating.
+// strings as synonyms. Existing non-rejected fields (APPROVED and PROPOSED)
+// are passed as ANCHORS so new strings attach to them instead of duplicating.
 //
 // Used by apps/ingestion/src/jobthai/fields.ts (pnpm jobthai:fields, and the
 // end of every JobThai batch refresh). Rows land in job_field_taxonomy with
@@ -24,21 +24,44 @@ import type { AiMessage } from '../types';
 
 export const JOB_FIELD_TAXONOMY_VERSION = 'job-field-taxonomy.v1';
 export const JOB_FIELD_TAXONOMY_BATCH_MAX = 200;
+// 200 assignments ≈ 5-7k tokens plus up to ~130 new fields on the first batch
+// ≈ 9-11k when pretty-printed; a truncated JSON is the one failure no retry
+// can repair, and unemitted tokens cost nothing (repo precedent: 50,000 for a
+// 25-item normaliser batch).
+export const JOB_FIELD_TAXONOMY_MAX_OUTPUT_TOKENS = 32_000;
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** Model slugs drift ("Computer_Science", "IT ", "Électrique"); normalise instead of failing the batch. */
+export function normaliseSlug(s: string): string {
+  return s
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+const Slug = z.string().transform(normaliseSlug).pipe(z.string().min(1));
 
 export const JobFieldTaxonomyOutputSchema = z.object({
   newFields: z.array(
     z.object({
-      slug: z.string().regex(SLUG),
+      slug: Slug,
       nameTh: z.string().min(1),
       nameEn: z.string().min(1),
     }),
   ),
-  /** Every raw string in the input, exactly once, attached to an anchor slug or a new slug. */
-  assignments: z.array(z.object({ raw: z.string().min(1), fieldSlug: z.string().regex(SLUG) })),
+  /**
+   * Every raw string in the input, exactly once, attached to an anchor slug
+   * or a new slug. A raw string the model omits from both `assignments` and
+   * `unassigned` is counted by the caller as `missing` and re-sent on the
+   * next run.
+   */
+  assignments: z.array(z.object({ raw: z.string().min(1), fieldSlug: Slug })),
+  /** Raw strings that are not a field of study at all — a job title, a skill, or a fragment. */
+  unassigned: z
+    .array(z.object({ raw: z.string().min(1), reason: z.string().transform((s) => s.slice(0, 200)) }))
+    .default([]),
   confidence: z.number().min(0).max(1),
-  reasoning: z.string().max(600),
+  reasoning: z.string().transform((s) => s.slice(0, 600)),
 });
 export type JobFieldTaxonomyOutput = z.infer<typeof JobFieldTaxonomyOutputSchema>;
 
@@ -63,13 +86,14 @@ Output STRICT JSON (no prose, no markdown fences):
 {
   "newFields": [ { "slug": "kebab-case-english", "nameTh": "<Thai discipline name>", "nameEn": "<English discipline name>" } ],
   "assignments": [ { "raw": "<raw string verbatim>", "fieldSlug": "<anchor slug or new slug>" } ],
+  "unassigned": [ { "raw": "<raw string verbatim>", "reason": "<≤200 chars, English>" } ],
   "confidence": 0.0-1.0,
   "reasoning": "<≤600 chars, English>"
 }
 
 Rules:
-1. EVERY raw string in the input MUST appear in assignments exactly once, verbatim.
-2. A field is a DISCIPLINE a graduate holds (Accounting, Electrical engineering, Nursing, Logistics), not a job title and not a skill. "บัญชี", "การบัญชี", "Accounting", "บัญชี/การเงิน" are ONE field; "การเงิน" alone is Finance, a different field.
+1. EVERY raw string in the input MUST appear exactly once, verbatim — in assignments, or in unassigned when it is not a field of study at all (a job title, a skill, a fragment such as "related" or "other"). Never force a non-discipline into a field: a wrong synonym inflates that field's demand share.
+2. A field is a DISCIPLINE a graduate holds (Accounting, Electrical engineering, Nursing, Logistics), not a job title and not a skill. "บัญชี", "การบัญชี", "Accounting", "สาขาบัญชี" are ONE field; "การเงิน" alone is Finance, a different field.
 3. Prefer anchors. Attach to an anchor whenever the raw string names the same discipline or a sub-discipline of it; create a new field only for a discipline no anchor covers.
 4. Granularity: a field should be recognisable as a degree major. Do not split Electrical engineering into power vs electronics; do not merge Marketing into Business administration.
 5. Slugs: lowercase English kebab-case, stable and readable ("mechanical-engineering", "public-health"). Never reuse an anchor slug in newFields.

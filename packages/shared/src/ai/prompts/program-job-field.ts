@@ -17,6 +17,8 @@ import type { AiMessage } from '../types';
 export const PROGRAM_JOB_FIELD_VERSION = 'program-job-field.v1';
 export const PROGRAM_JOB_FIELD_BATCH_MAX = 50;
 export const PROGRAM_JOB_FIELD_MAX_FIELDS = 3;
+// 50 programmes × ≤3 fields ≈ 2-3k tokens.
+export const PROGRAM_JOB_FIELD_MAX_OUTPUT_TOKENS = 8_000;
 
 export const ProgramJobFieldOutputSchema = z.object({
   programs: z.array(
@@ -28,7 +30,7 @@ export const ProgramJobFieldOutputSchema = z.object({
     }),
   ),
   confidence: z.number().min(0).max(1),
-  reasoning: z.string().max(600),
+  reasoning: z.string().transform((s) => s.slice(0, 600)),
 });
 export type ProgramJobFieldOutput = z.infer<typeof ProgramJobFieldOutputSchema>;
 
