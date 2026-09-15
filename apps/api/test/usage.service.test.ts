@@ -49,7 +49,7 @@ describe('UsageService — aggregate caching', () => {
     mocks.usageByProgram.mockReset().mockResolvedValue([]);
     mocks.usageSummary.mockReset().mockResolvedValue({ totalViews: 1, totalSessions: 1 });
     mocks.usageMedianDwell.mockReset().mockResolvedValue(1000);
-    mocks.usageUsers.mockReset().mockResolvedValue([]);
+    mocks.usageUsers.mockReset().mockResolvedValue({ rows: [], total: 0, signinOnly: 0 });
   });
 
   it('does not recompute an identical aggregate call the second time', async () => {
@@ -113,15 +113,17 @@ describe('UsageService — aggregate caching', () => {
 
 describe('UsageService — detail reads are never cached', () => {
   beforeEach(() => {
-    mocks.usageUsers.mockReset().mockResolvedValue([]);
+    mocks.usageUsers.mockReset().mockResolvedValue({ rows: [], total: 0, signinOnly: 0 });
   });
 
   it('recomputes users() on every call, even with identical arguments', async () => {
     const svc = new UsageService(new FakeCache() as unknown as CacheService);
+    const opts = { activity: 'views' as const, page: 1, pageSize: 25 };
 
-    await svc.users(30, true, null);
-    await svc.users(30, true, null);
+    await svc.users(30, true, null, opts);
+    await svc.users(30, true, null, opts);
 
     expect(mocks.usageUsers).toHaveBeenCalledTimes(2);
+    expect(mocks.usageUsers).toHaveBeenLastCalledWith(30, true, null, opts);
   });
 });
