@@ -543,6 +543,7 @@ model Program {
   curricula             Curriculum[]
   courses               Course[]
   programJobThaiLinks      ProgramJobThaiLink[]
+  programJobFields         ProgramJobField[]
   programSkills         ProgramSkill[]
   programFaculties      ProgramFaculty[]
   programUsers          User[]                        @relation("ProgramUserScope")
@@ -2068,6 +2069,68 @@ model ProgramJobThaiLink {
   @@map("program_jobthai_links")
 }
 
+/// Review state shared by the field taxonomy and programme ↔ field assignments.
+/// PROPOSED rows are shown on the Gap Analyzer immediately, labelled
+/// "unreviewed" in provenance; APPROVED / REJECTED are never downgraded by the
+/// build step (docs/methodologies/gap-map.md §taxonomy).
+enum JobFieldReviewStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+}
+
+/// One canonical field of study that JobThai employers ask for, absorbing the
+/// raw free-text strings in `synonyms`. A raw string belongs to at most one
+/// row (enforced in packages/db/src/job-fields.ts, not by the database, since
+/// Postgres cannot express uniqueness across array elements of different rows).
+model JobFieldTaxonomy {
+  id             String               @id @default(cuid())
+  slug           String               @unique
+  nameTh         String               @map("name_th")
+  nameEn         String               @map("name_en")
+  /// Raw `job_postings.required_fields_raw` strings this field absorbs.
+  synonyms       String[]
+  /// Postings naming any synonym, refreshed by the build step. Denormalised
+  /// for the review page; the map recomputes it from postings.
+  mentionCount   Int                  @default(0) @map("mention_count")
+  reviewStatus   JobFieldReviewStatus @default(PROPOSED) @map("review_status")
+  methodVersion  String               @map("method_version")
+  /// Stamped on write so realDataWhere() admits the row.
+  ingestionRunId String?              @map("ingestion_run_id")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  programs     ProgramJobField[]
+  ingestionRun IngestionRun?     @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@index([reviewStatus])
+  @@map("job_field_taxonomy")
+}
+
+/// A programme's graduates hold this field of study. `source` is 'rule'
+/// (name match via matchFieldToProgramme), 'ai' (program-job-field prompt) or
+/// 'manual' (added on /admin/job-fields).
+model ProgramJobField {
+  id             String               @id @default(cuid())
+  programId      String               @map("program_id")
+  fieldId        String               @map("field_id")
+  source         String
+  confidence     Float?
+  reviewStatus   JobFieldReviewStatus @default(PROPOSED) @map("review_status")
+  methodVersion  String               @map("method_version")
+  ingestionRunId String?              @map("ingestion_run_id")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  program      Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  field        JobFieldTaxonomy @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  ingestionRun IngestionRun?    @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([programId, fieldId])
+  @@index([fieldId])
+  @@map("program_job_fields")
+}
+
 model JobThaiOccupationSkill {
   id                  String      @id @default(cuid())
   jobThaiOccupationId String      @map("jobthai_occupation_id")
@@ -3298,6 +3361,8 @@ model IngestionRun {
   jobThaiBatches             JobThaiBatch[]
   jobPostings                JobPosting[]
   programJobThaiLinks        ProgramJobThaiLink[]
+  jobFieldTaxonomy           JobFieldTaxonomy[]
+  programJobFields           ProgramJobField[]
   classOfferings             ClassOffering[]
   programCourses             ProgramCourse[]
   evaluationQuestions        EvaluationQuestion[]
