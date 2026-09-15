@@ -32,7 +32,12 @@ export function TopBar({ breadcrumb, center, right, className }: TopBarProps) {
         // overflow on narrow viewports. The mobile-only hamburger
         // strip sits above this on <md screens (rendered by
         // AppShell), so the topbar still reads as the second row.
-        'kku-topbar sticky top-14 z-20 flex h-14 items-center gap-2 px-3',
+        // 2026-09-15: that strip's height is `--app-mobile-bar-h`, and
+        // this sticky offset MUST equal it — a literal `top-14` was
+        // 28px on this half-scale spacing, not the 56px its name
+        // suggests, so the two rows overlapped by however much they
+        // disagreed.
+        'kku-topbar sticky top-[var(--app-mobile-bar-h)] z-20 flex h-14 items-center gap-2 px-3',
         'md:top-0 md:z-30 md:h-[72px] md:gap-5 md:px-7',
         'text-text-primary',
         className,

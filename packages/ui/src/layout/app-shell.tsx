@@ -2,249 +2,277 @@
 
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
-import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { cn } from '../lib/cn';
-
-// Per-user sidebar mode preference. Stored in localStorage rather than
-// the DB — it's a viewport-level UI affordance and varies per device.
-// FOUC is a non-issue: the page renders with the default 'pinned' mode
-// and the effect swaps to 'auto-hide' silently if that was the
-// preference. The transition is unobtrusive.
-type SidebarMode = 'pinned' | 'auto-hide';
-const SIDEBAR_MODE_KEY = 'kku-sidebar-mode';
-const SIDEBAR_DEFAULT_MODE: SidebarMode = 'pinned';
+import { NavChromeProvider } from './nav-chrome';
+import {
+  NAV_DEFAULT_VARIANT,
+  NAV_ELEMENT_ID,
+  readNavVariantCookie,
+  writeNavVariantCookie,
+  type NavVariant,
+} from './nav-preference';
 
 // The frame every authenticated module renders inside.
 //
-// Desktop (md+, ≥768px):
-//   ┌──────────┬──────── TopBar ─────────────┐
-//   │          ├─────────────────────────────┤
-//   │ LeftNav  │ content                     │
-//   │  (fixed) │                             │
-//   └──────────┴─────────────────────────────┘
+// Desktop (md+, ≥768px) — the nav is a RESERVED COLUMN, never an
+// overlay. It has two widths:
 //
-// Mobile (<768px):
+//   expanded (280px)                rail (56px)
+//   ┌──────────┬──── TopBar ──┐     ┌──┬──────── TopBar ────────┐
+//   │ LeftNav  │ content      │     │▣ │ content                │
+//   │          │              │     │▣ │                        │
+//   │ [ ‹ ]    │              │     │‹ │                        │
+//   └──────────┴──────────────┘     └──┴────────────────────────┘
+//
+// The rail keeps every module reachable — icon tiles with tooltips —
+// so collapsing is a density choice, not a "hide the navigation"
+// choice. Toggled by the chevron at the foot of the column or by `[`.
+// Remembered per browser; default expanded.
+//
+// Mobile (<768px) — the column is collapsed unconditionally and the nav
+// becomes an off-canvas drawer:
+//
 //   ┌─────────────────────────────────────────┐
-//   │ ☰  Brand                                │  ← mobile bar (56px)
+//   │ ☰  Brand                                │  ← mobile bar
 //   ├─────────────────────────────────────────┤
-//   │ TopBar (compact — scrolls horizontally) │
+//   │ TopBar (compact)                        │
 //   ├─────────────────────────────────────────┤
 //   │ content                                 │
 //   └─────────────────────────────────────────┘
-//   Tap ☰ → LeftNav slides in from the left over a dimmed backdrop.
 //
-// RightPanel is rendered by Radix Dialog portal, not as a grid column —
-// it slides over the content area regardless of breakpoint.
+// The drawer is a Radix Dialog, so the focus trap, Escape, body-scroll
+// lock, `role="dialog"` and `aria-modal` come from the primitive rather
+// than from four hand-rolled effects — the same primitive RightPanel is
+// built on. The two things Radix cannot know about are handled here:
+// closing on a route change, and closing when the viewport grows past
+// the breakpoint (a trapped focus ring over a nav that CSS has just
+// hidden is the worst of both layouts).
+//
+// Width lives in `--app-nav-width`, keyed off `[data-nav]` on this
+// component's root by CSS in @kku/design. `initialVariant` is resolved
+// on the SERVER from a cookie, so the first byte of HTML already
+// carries the right width — no flash, and nothing to suppress a
+// hydration warning for. See nav-preference.ts for why it is a cookie
+// and not localStorage. RightPanel is portaled by Radix, not a grid
+// column, so it slides over the content area at every breakpoint.
 
 export interface AppShellProps {
   topBar: React.ReactNode;
   leftNav: React.ReactNode;
   children: React.ReactNode;
-  /** Tailwind class for the nav width. Default 280px. */
-  navWidthClass?: string;
   /**
    * Compact label rendered in the mobile-only top bar next to the
    * hamburger icon. Defaults to "Program Landscape".
    */
   mobileBrandLabel?: string;
+  /**
+   * Collapse state as the server resolved it from the preference
+   * cookie. Rendering from this — rather than reading storage after
+   * mount — is what keeps the column the right width on first paint.
+   */
+  initialVariant?: NavVariant;
   className?: string;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 }
 
 export function AppShell({
   topBar,
   leftNav,
   children,
-  navWidthClass = 'w-[280px]',
   mobileBrandLabel = 'Program Landscape',
+  initialVariant = NAV_DEFAULT_VARIANT,
   className,
 }: AppShellProps) {
-  const [open, setOpen] = React.useState(false);
-  const [mode, setMode] = React.useState<SidebarMode>(SIDEBAR_DEFAULT_MODE);
+  const [variant, setVariant] = React.useState<NavVariant>(initialVariant);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const pathname = usePathname();
 
-  // Hydrate mode from localStorage (client-only).
-  React.useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(SIDEBAR_MODE_KEY);
-      if (stored === 'auto-hide' || stored === 'pinned') {
-        setMode(stored);
-      }
-    } catch {
-      /* localStorage may be unavailable in private mode — silent fallback */
-    }
+  const toggleVariant = React.useCallback(() => {
+    setVariant((current) => (current === 'rail' ? 'expanded' : 'rail'));
   }, []);
 
-  // Persist mode changes.
+  // `initialVariant` comes from the RSC payload, which Next may serve from
+  // the client router cache — a payload rendered before the last toggle. The
+  // cookie was written synchronously by that toggle, so it is newer. Reading
+  // it once on mount costs nothing when they agree (the common case) and is
+  // the difference between "remembered" and "remembered for 30 seconds".
   React.useEffect(() => {
-    try {
-      window.localStorage.setItem(SIDEBAR_MODE_KEY, mode);
-    } catch {
-      /* ignore */
-    }
-  }, [mode]);
+    const stored = readNavVariantCookie();
+    if (stored && stored !== initialVariant) setVariant(stored);
+    // mount only — later divergence is this tab's own writes
+  }, []);
 
-  // Close the drawer on route change so the user lands on the new
-  // page without an obstructing overlay.
+  // Updaters must stay pure — StrictMode double-invokes them, and a cookie
+  // write is a side effect. Persisting here instead also re-stamps max-age
+  // on every visit, not just on the visits where the user actually toggles.
   React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+    writeNavVariantCookie(variant);
+  }, [variant]);
 
-  // Lock body scroll while the drawer is open on mobile.
+  // `[` collapses / expands. No conflict with the existing registry:
+  // ⌘K opens the palette, ⌘/ the dashboard chat, `?` the shortcut sheet.
   React.useEffect(() => {
-    if (!open) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [open]);
-
-  // Close on Escape — keyboard parity with the rest of our overlays.
-  React.useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+      e.preventDefault();
+      toggleVariant();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [toggleVariant]);
 
-  // In auto-hide mode the sidebar behaves like the mobile drawer on
-  // ALL viewports — hidden by default, slides in with a backdrop when
-  // the user opens it. In pinned mode, the desktop sidebar is fixed
-  // (current default behaviour).
-  const isAutoHide = mode === 'auto-hide';
+  // Land on the new page without an obstructing overlay.
+  React.useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
+
+  // Growing past the breakpoint reveals the persistent column, so the
+  // drawer showing the same nav on top of it is both redundant and a
+  // focus trap the user did not ask for.
+  React.useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => {
+      if (mq.matches) setDrawerOpen(false);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const railed = variant === 'rail';
 
   return (
-    <div className={cn('min-h-screen bg-surface-0 text-text-primary', className)}>
-      {/* Backdrop — covers the content area when the drawer is open so
-          taps anywhere outside the nav close it. In pinned mode the
-          desktop nav is always visible, so the backdrop is mobile-only;
-          in auto-hide mode it appears on every viewport. */}
-      <div
-        aria-hidden
-        onClick={() => setOpen(false)}
-        className={cn(
-          'fixed inset-0 z-30 bg-black/55 backdrop-blur-[2px]',
-          isAutoHide ? '' : 'md:hidden',
-          'transition-opacity duration-200 ease-out',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-      />
-
-      {/* Sidebar — fixed on desktop in pinned mode, slide-in drawer
-          otherwise (mobile always, plus desktop in auto-hide mode). */}
+    <div
+      data-nav={variant}
+      className={cn('min-h-screen bg-surface-0 text-text-primary', className)}
+    >
+      {/* Persistent column — desktop only. `.kku-nav-rail-scope` is what
+          scopes every rail rule in tokens.css to this copy of the nav;
+          the drawer below renders the same `leftNav` and must stay
+          full-width whatever the stored preference is. */}
       <aside
+        id={NAV_ELEMENT_ID}
         aria-label="Primary navigation"
-        aria-hidden={!open ? undefined : false}
         className={cn(
-          'fixed inset-y-0 left-0 z-40 shrink-0',
-          navWidthClass,
-          // Pinned mode keeps the desktop nav visible permanently.
-          !isAutoHide && 'md:translate-x-0',
-          // Drawer translation (mobile always, desktop when auto-hide).
-          open ? 'translate-x-0 shadow-2xl' : '-translate-x-full',
-          'transition-transform duration-300 ease-out',
-          !isAutoHide && 'md:transition-none',
+          'kku-nav-rail-scope fixed inset-y-0 left-0 z-30 hidden flex-col md:flex',
+          'w-[var(--app-nav-width)] overflow-hidden',
+          'transition-[width] duration-slow ease-standard motion-reduce:transition-none',
         )}
       >
-        {leftNav}
-        {/* Close button — visible inside the drawer on every viewport
-            where the nav is currently a drawer (always when auto-hide,
-            mobile only otherwise). */}
-        <button
-          type="button"
-          aria-label="Close menu"
-          onClick={() => setOpen(false)}
+        <NavChromeProvider value={{ variant, railed, inDrawer: false }}>
+          <div className="min-h-0 flex-1">{leftNav}</div>
+        </NavChromeProvider>
+        <div
           className={cn(
-            'absolute right-3 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full',
-            'bg-surface-1/90 text-text-secondary shadow-sm backdrop-blur-sm',
-            'hover:bg-surface-2 hover:text-text-primary',
-            !isAutoHide && 'md:hidden',
+            'kku-nav-toggle-bar flex shrink-0 items-center justify-end',
+            'border-t border-subtle bg-nav-surface px-3 py-2',
           )}
         >
-          <X className="size-icon-lg" />
-        </button>
+          <button
+            type="button"
+            onClick={toggleVariant}
+            aria-expanded={!railed}
+            aria-controls={NAV_ELEMENT_ID}
+            aria-label={railed ? 'Expand navigation' : 'Collapse navigation'}
+            title={`${railed ? 'Expand' : 'Collapse'} navigation  [`}
+            className={cn(
+              // 32px hit area — the spacing scale is half-stock, so h-16
+              // is 32px. Kept on the scale because it is a button box,
+              // not an icon.
+              'inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-lg',
+              'text-text-tertiary transition-[background-color,color] duration-fast',
+              'hover:bg-accent-subtle hover:text-accent-default',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-default',
+            )}
+          >
+            {railed ? (
+              <PanelLeftOpen className="size-icon-md" aria-hidden />
+            ) : (
+              <PanelLeftClose className="size-icon-md" aria-hidden />
+            )}
+          </button>
+        </div>
       </aside>
 
       <div
         className={cn(
           'flex min-h-screen flex-col',
-          // Pinned mode reserves a 280px gutter; auto-hide takes full width.
-          !isAutoHide && 'md:ml-[280px]',
+          'md:pl-[var(--app-nav-width)]',
+          'transition-[padding-left] duration-slow ease-standard motion-reduce:transition-none',
         )}
       >
-        {/* Top strip with the drawer trigger + sidebar-mode toggle. On
-            mobile it's always visible (mode-agnostic); on desktop it's
-            visible only when auto-hide is on, since pinned mode has the
-            sidebar permanently expanded. */}
+        {/* Mobile bar — the only place the nav can be opened below md. */}
         <div
           className={cn(
-            'sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border-subtle',
-            'bg-surface-0/95 px-4 backdrop-blur-sm',
-            !isAutoHide && 'md:hidden',
+            'sticky top-0 z-20 flex h-[var(--app-mobile-bar-h)] items-center gap-3',
+            'border-b border-subtle bg-surface-0/95 px-4 backdrop-blur-sm md:hidden',
           )}
         >
-          {/* Hamburger — opens the drawer. Only meaningful when the
-              sidebar isn't already visible (mobile or auto-hide+closed). */}
-          {(!isAutoHide || (isAutoHide && !open)) && (
-            <button
-              type="button"
-              aria-label="Open menu"
-              aria-expanded={open}
-              onClick={() => setOpen(true)}
-              className={cn(
-                'inline-flex h-10 w-10 items-center justify-center rounded-lg',
-                'text-text-primary hover:bg-surface-2',
-                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-default',
-              )}
-            >
-              <Menu className="size-icon-lg" />
-            </button>
-          )}
-          <span className="truncate text-sm font-semibold tracking-tight md:hidden">
-            {mobileBrandLabel}
-          </span>
-          {/* Sidebar-mode toggle — switches between pinned and
-              auto-hide. Right-aligned on desktop, far-right on mobile. */}
-          <button
-            type="button"
-            aria-label={isAutoHide ? 'Pin sidebar' : 'Auto-hide sidebar (drawer)'}
-            title={isAutoHide ? 'Pin sidebar' : 'Auto-hide sidebar (drawer)'}
-            onClick={() => {
-              setMode(isAutoHide ? 'pinned' : 'auto-hide');
-              setOpen(false);
-            }}
-            className={cn(
-              'ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg',
-              'text-text-secondary hover:bg-surface-2 hover:text-text-primary',
-            )}
-          >
-            {isAutoHide ? (
-              <PanelLeftOpen className="size-icon-lg" />
-            ) : (
-              <PanelLeftClose className="size-icon-lg" />
-            )}
-          </button>
+          <DialogPrimitive.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <DialogPrimitive.Trigger asChild>
+              <button
+                type="button"
+                aria-label="Open navigation menu"
+                className={cn(
+                  'inline-flex h-20 w-20 shrink-0 items-center justify-center rounded-lg',
+                  'text-text-primary hover:bg-surface-2',
+                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-default',
+                )}
+              >
+                <Menu className="size-icon-lg" aria-hidden />
+              </button>
+            </DialogPrimitive.Trigger>
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Overlay
+                className={cn(
+                  'fixed inset-0 z-40 bg-text-primary/30 backdrop-blur-md',
+                  'data-[state=open]:animate-fade-in',
+                )}
+              />
+              <DialogPrimitive.Content
+                // Radix gives us role="dialog", the focus trap, Escape and
+                // the scroll lock, but this version does NOT emit
+                // `aria-modal` — verified in the browser, not assumed. It
+                // relies on aria-hidden'ing the siblings instead, which is
+                // stronger but leaves the dialog unannounced as modal.
+                aria-modal="true"
+                aria-describedby={undefined}
+                className={cn(
+                  // `kku-nav-drawer` carries the left-entry animation —
+                  // see tokens.css for why it is not a Tailwind keyframe.
+                  'kku-nav-drawer fixed inset-y-0 left-0 z-50 flex w-[min(300px,86vw)] flex-col shadow-2xl',
+                )}
+              >
+                <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
+                <NavChromeProvider value={{ variant: 'expanded', railed: false, inDrawer: true }}>
+                  {leftNav}
+                </NavChromeProvider>
+                <DialogPrimitive.Close
+                  aria-label="Close navigation menu"
+                  className={cn(
+                    'absolute right-3 top-4 z-10 inline-flex h-20 w-20 items-center justify-center rounded-full',
+                    'bg-surface-1/90 text-text-secondary shadow-sm backdrop-blur-sm',
+                    'hover:bg-surface-2 hover:text-text-primary',
+                    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-default',
+                  )}
+                >
+                  <X className="size-icon-lg" aria-hidden />
+                </DialogPrimitive.Close>
+              </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+          <span className="truncate text-sm font-semibold tracking-tight">{mobileBrandLabel}</span>
         </div>
-        {/* In pinned mode on desktop, the strip above is hidden — so
-            the mode-toggle still needs a desktop home. Render a small
-            floating control at the top-left of the content area. */}
-        {!isAutoHide && (
-          <button
-            type="button"
-            aria-label="Auto-hide sidebar (drawer)"
-            title="Auto-hide sidebar (drawer)"
-            onClick={() => setMode('auto-hide')}
-            className={cn(
-              'fixed left-[300px] top-3 z-30 hidden h-8 w-8 items-center justify-center rounded-md',
-              'bg-surface-1/90 text-text-tertiary shadow-sm backdrop-blur-sm',
-              'hover:bg-surface-2 hover:text-text-primary md:inline-flex',
-            )}
-          >
-            <PanelLeftClose className="size-icon-md" />
-          </button>
-        )}
+
         {topBar}
         <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10">
           <div className="mx-auto max-w-[1400px]">{children}</div>

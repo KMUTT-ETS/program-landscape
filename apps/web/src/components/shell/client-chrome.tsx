@@ -38,6 +38,7 @@ export function AppShellClientChrome({
       <KeyboardShortcuts
         shortcuts={[
           { keys: ['⌘', 'K'], description: 'Open command palette', group: 'Navigation' },
+          { keys: ['['], description: 'Collapse / expand the sidebar', group: 'Navigation' },
           { keys: ['?'], description: 'Show this sheet', group: 'Navigation' },
           { keys: ['Esc'], description: 'Close dialog / drawer', group: 'Navigation' },
         ]}

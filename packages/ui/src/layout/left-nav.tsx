@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import type { ModuleKey } from '@kku/design';
 import { cn } from '../lib/cn';
 import { Badge } from '../primitives/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../primitives/tooltip';
+import { useNavChrome } from './nav-chrome';
 
 // 2026-04-24 redesign — the LeftNav is now the brand-home of the app.
 // It renders on the dark nav-surface (near-black warm neutral) so the
@@ -133,8 +135,19 @@ const MODULE_CLASSES: Record<
   },
 };
 
+// 2026-09-15 — collapsible nav. The rail is rendered by CSS off
+// `html[data-nav='rail']`, scoped to the persistent desktop column (see
+// `.kku-nav-rail-scope` in @kku/design/src/css/tokens.css), so the
+// column is already narrow on the first paint. Everything the rail
+// hides carries `kku-nav-collapsible`; the class names below are the
+// contract between this file and that stylesheet — renaming one without
+// the other silently leaves a 280px-wide nav inside a 56px column.
 export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
-  const pathname = usePathname();
+  // `usePathname` is typed non-null but returns null when there is no
+  // router above — which is every `renderToStaticMarkup` in a test, and
+  // was an outright crash on `pathname.startsWith` before this default.
+  const pathname = usePathname() ?? '';
+  const { railed } = useNavChrome();
   return (
     <nav
       className={cn(
@@ -152,11 +165,14 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto px-4 py-5">
+      <div className="kku-nav-body flex-1 overflow-y-auto px-4 py-5">
         {sections.map((section, si) => (
-          <div key={si} className={cn('flex flex-col gap-1.5', si > 0 && 'mt-7')}>
+          <div
+            key={si}
+            className={cn('kku-nav-section flex flex-col gap-1.5', si > 0 && 'mt-7')}
+          >
             {section.label && (
-              <div className="flex items-center gap-2.5 px-3 pb-2.5 pt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent-default">
+              <div className="kku-nav-collapsible flex items-center gap-2.5 px-3 pb-2.5 pt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent-default">
                 <span className="h-[2px] w-3 rounded-full bg-gradient-to-r from-accent-default to-accent-hover" aria-hidden />
                 <span>{section.label}</span>
                 <span className="h-px flex-1 bg-gradient-to-r from-border-default/60 to-transparent" aria-hidden />
@@ -174,6 +190,7 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
                   item={item}
                   active={active}
                   classes={classes}
+                  railed={railed}
                 />
               );
             })}
@@ -182,7 +199,7 @@ export function LeftNav({ sections, brand, footer, className }: LeftNavProps) {
       </div>
 
       {footer ? (
-        <div className="border-t border-border-subtle p-3">{footer}</div>
+        <div className="kku-nav-collapsible border-t border-subtle p-3">{footer}</div>
       ) : null}
     </nav>
   );
@@ -192,17 +209,19 @@ function NavTile({
   item,
   active,
   classes,
+  railed,
 }: {
   item: NavItem;
   active: boolean;
   classes: (typeof MODULE_CLASSES)[ModuleKey];
+  railed: boolean;
 }) {
   // 2026-05-02f — menu tiles are NOT pills. rounded-full read as
   // "button" and the icon chip overlapped the curve at the left edge.
   // Switched to rounded-2xl (20px corner) which reads as a soft menu
   // row, with px-4 so the chip has room to breathe inside.
   const base = cn(
-    'group relative flex items-center gap-4 rounded-2xl px-4 py-3',
+    'kku-nav-tile group relative flex items-center gap-4 rounded-2xl px-4 py-3',
     'transition-[background-color,color,box-shadow,transform] duration-fast',
     active
       ? cn(
@@ -243,32 +262,51 @@ function NavTile({
           {item.icon}
         </span>
       )}
-      <span className="min-w-0 flex-1 truncate text-[15px] font-medium leading-tight relative top-[-1px]">
+      <span className="kku-nav-collapsible min-w-0 flex-1 truncate text-[15px] font-medium leading-tight relative top-[-1px]">
         {item.label}
       </span>
       {item.badge && (
-        <Badge tone={active ? 'accent' : 'neutral'} size="sm" className="shrink-0">
+        <Badge
+          tone={active ? 'accent' : 'neutral'}
+          size="sm"
+          className="kku-nav-collapsible shrink-0"
+        >
           {item.badge}
         </Badge>
       )}
       {item.hint && !item.badge && (
-        <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.1em] text-nav-fg-muted">
+        <span className="kku-nav-collapsible shrink-0 text-[10px] font-medium uppercase tracking-[0.1em] text-nav-fg-muted">
           {item.hint}
         </span>
       )}
     </>
   );
 
-  if (item.disabled) {
-    return (
-      <div className={base} aria-disabled="true" title={item.hint}>
-        {content}
-      </div>
-    );
-  }
-  return (
-    <Link href={item.href} className={base}>
+  // The label span is `display: none` on the rail, which removes it from
+  // the accessible-name computation too — so the name is stated on the
+  // element in both modes rather than only when collapsed. It matches
+  // the visible text when expanded, so nothing is overridden.
+  const tile = item.disabled ? (
+    <div className={base} aria-disabled="true" aria-label={item.label} title={item.hint}>
+      {content}
+    </div>
+  ) : (
+    <Link href={item.href} className={base} aria-label={item.label}>
       {content}
     </Link>
+  );
+
+  if (!railed) return tile;
+
+  // On the rail the icon is all that is left, so the label becomes a
+  // tooltip. `TooltipProvider` is mounted at the app root.
+  return (
+    <Tooltip delayDuration={120}>
+      <TooltipTrigger asChild>{tile}</TooltipTrigger>
+      <TooltipContent side="right" sideOffset={10}>
+        {item.label}
+        {item.badge ? ` · ${item.badge}` : item.hint ? ` · ${item.hint}` : null}
+      </TooltipContent>
+    </Tooltip>
   );
 }

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { cookies } from 'next/headers';
-import { AppShell, LeftNav, TopBar } from '@kku/ui';
+import { AppShell, LeftNav, TopBar, NAV_PREFERENCE_COOKIE, navVariantFromCookie } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { appNavSectionsFor } from '@/lib/app-nav';
 import { fetchScopeEntities } from '@/lib/app-entities';
@@ -36,6 +36,9 @@ export async function AuthedAppShell({
     resolveUserChrome(user.userId).catch(() => ({ name: null, avatarUrl: null })),
   ]);
   const impersonation = tryDecodeImpersonation(cookieStore.get(IMPERSONATION_COOKIE)?.value);
+  // Sidebar collapse state, resolved here rather than after hydration so
+  // the column renders at its real width in the first byte of HTML.
+  const navVariant = navVariantFromCookie(cookieStore.get(NAV_PREFERENCE_COOKIE)?.value);
 
   const brand = (
     <>
@@ -66,7 +69,9 @@ export async function AuthedAppShell({
           className="hidden h-[50px] w-[30px] object-contain dark:block"
         />
       </div>
-      <div className="flex min-w-0 flex-col leading-none">
+      {/* `kku-nav-collapsible` — the wordmark is what the icon rail
+          drops; the logo tile above stays. See tokens.css. */}
+      <div className="kku-nav-collapsible flex min-w-0 flex-col leading-none">
         <span className="truncate text-base font-semibold tracking-tight text-text-primary">
           Program Landscape
         </span>
@@ -79,6 +84,7 @@ export async function AuthedAppShell({
 
   return (
     <AppShell
+      initialVariant={navVariant}
       topBar={
         <TopBar
           breadcrumb={<TopBarBreadcrumb />}

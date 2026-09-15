@@ -264,6 +264,93 @@
   --shadow-glow-accent: 0 0 32px -4px rgb(255 165 105 / 0.55);
 }
 
+/* ── App-shell layout metrics ───────────────────────────────────── */
+:root {
+  /* Width of the persistent left-nav column. AppShell sizes the column
+     with `w-[var(--app-nav-width)]` and reserves the gutter with
+     `md:pl-[var(--app-nav-width)]`, so one variable moves both. */
+  --app-nav-width: 280px;
+
+  /* Height of the mobile-only bar that holds the hamburger. TopBar's
+     sticky offset reads the SAME variable — the two must agree or the
+     second row overlaps the first. 44px is the WCAG 2.5.5 target-size
+     minimum, which the 40px hamburger sits inside. */
+  --app-mobile-bar-h: 44px;
+}
+
+/* ── Left-nav rail (collapsed) ──────────────────────────────────────
+   `data-nav` is rendered on the AppShell root by the SERVER, from the
+   `kku-nav` preference cookie — so a collapsed nav arrives collapsed in
+   the first byte of HTML rather than snapping narrow after hydration.
+   (An inline pre-paint script was the other option and is what
+   next-themes does for `data-theme`; this app's CSP drops
+   `'unsafe-inline'` from script-src, so that route would have needed a
+   nonce from `headers()` in the root layout — and that opts every route
+   out of static rendering. See @kku/ui/layout/nav-preference.ts.)
+
+   Every rule is scoped to `.kku-nav-rail-scope`, which AppShell puts on
+   the PERSISTENT desktop column only. The mobile drawer renders the
+   same <LeftNav> through a Radix portal — outside the shell root, so it
+   never inherits `data-nav` — and stays full-width regardless. */
+[data-nav='rail'] {
+  --app-nav-width: 56px;
+}
+[data-nav='rail'] .kku-nav-rail-scope .kku-nav-collapsible {
+  display: none;
+}
+[data-nav='rail'] .kku-nav-rail-scope .kku-leftnav-brand {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+[data-nav='rail'] .kku-nav-rail-scope .kku-nav-body {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+[data-nav='rail'] .kku-nav-rail-scope .kku-nav-tile {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* Without labels the section groupings carry no text, so the generous
+   inter-section gap reads as an unexplained hole. */
+[data-nav='rail'] .kku-nav-rail-scope .kku-nav-section + .kku-nav-section {
+  margin-top: 0.75rem;
+}
+[data-nav='rail'] .kku-nav-rail-scope .kku-nav-toggle-bar {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Mobile navigation drawer — the one overlay in the app that enters
+   from the left, so it cannot reuse `animate-slide-in-right`. Written
+   here rather than as a Tailwind keyframe because the preset is
+   resolved once per dev-server boot: a new keyframe there does not
+   reach the browser until the server is restarted, and a drawer that
+   silently appears without animating is exactly the kind of thing that
+   passes review. 200ms — the ceiling in CLAUDE.md's motion rule. */
+@keyframes kku-nav-drawer-in {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.kku-nav-drawer[data-state='open'] {
+  animation: kku-nav-drawer-in 200ms cubic-bezier(0, 0, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kku-nav-drawer[data-state='open'] {
+    animation: none;
+  }
+}
+
 /* ── Typography ─────────────────────────────────────────────────── */
 :root {
   /* 2026-05-02: Sarabun is now the primary UI font — promoted from
