@@ -16,7 +16,7 @@ import type {
   ProgramUsageT,
   RoleUsageT,
   UsageSummaryT,
-  UserUsageT,
+  UsersResponseT,
 } from './types';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -41,7 +41,14 @@ export const metadata = { title: 'Platform usage — Program Landscape' };
 export default async function UsagePage({
   searchParams,
 }: {
-  searchParams: { days?: string; excludeAdmins?: string; facultyId?: string; q?: string };
+  searchParams: {
+    days?: string;
+    excludeAdmins?: string;
+    facultyId?: string;
+    q?: string;
+    activity?: string;
+    page?: string;
+  };
 }) {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
@@ -54,7 +61,7 @@ export default async function UsagePage({
   // each narrow exactly one card — the by-programme list and the access log —
   // so every other figure stays whole-window and the filtered card can be read
   // against an unchanged baseline.
-  const { days, excludeAdmins, detailDays, facultyId, q } = resolveUsageParams(
+  const { days, excludeAdmins, detailDays, facultyId, q, activity, page } = resolveUsageParams(
     searchParams,
     USAGE_WINDOWS,
     RAW_RETENTION_DAYS,
@@ -63,7 +70,7 @@ export default async function UsagePage({
 
   // The drawer's caveats depend on the controls above, so they are built here
   // rather than held as a module constant — see `pageCaveats`.
-  const caveats = pageCaveats({ rawRetentionDays: RAW_RETENTION_DAYS, excludeAdmins });
+  const caveats = pageCaveats({ rawRetentionDays: RAW_RETENTION_DAYS, excludeAdmins, activity });
   const withPageCaveats = (meta: ApiMeta): ApiMeta => ({
     ...meta,
     caveats: mergeCaveats(meta.caveats ?? [], caveats),
@@ -94,7 +101,9 @@ export default async function UsagePage({
       get<FacultyUsageT[]>(`/usage/faculties?${qs}`),
       get<ActionUsageT[]>(`/usage/actions?${qs}`),
       canSeeDetail
-        ? get<UserUsageT[]>(`/usage/users?${qs}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
+        ? get<UsersResponseT>(
+            `/usage/users?${qs}&activity=${activity}&page=${page}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+          )
         : Promise.resolve(null),
       // Read straight from the catalogue rather than through the api: the
       // filter's options are not a usage figure, and /usage has no endpoint
@@ -122,6 +131,8 @@ export default async function UsagePage({
           excludeAdmins,
           facultyId,
           q,
+          activity,
+          page,
           facultyOptions,
           canSeeDetail,
           detailDays,

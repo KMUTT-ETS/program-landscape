@@ -10,6 +10,7 @@ import {
   DetailWindowQuery,
   PageViewBody,
   UsageController,
+  UsersQuery,
   WindowQuery,
 } from '../src/usage/usage.controller';
 import type { UsageService } from '../src/usage/usage.service';
@@ -39,6 +40,9 @@ const noHeaders = { header: () => undefined, cookies: {} } as never;
 
 const windowQuery = (query: Record<string, unknown>) =>
   new ZodValidationPipe(WindowQuery).transform(query, {} as never);
+
+const usersQuery = (query: Record<string, unknown>) =>
+  new ZodValidationPipe(UsersQuery).transform(query, {} as never);
 
 describe('UsageController.recordPageView', () => {
   it('ignores identity fields in the body and passes the session identity', async () => {
@@ -174,6 +178,55 @@ describe('UsageController query forwarding', () => {
 
     expect(programs).toHaveBeenCalledWith(30, true, null);
   });
+
+  it('forwards the access log’s activity, page and page size to service.users', async () => {
+    const users = vi.fn(async () => ({ rows: [], total: 0, signinOnly: 0 }));
+    const c = new UsageController({ users } as unknown as UsageService);
+
+    await c.users(
+      usersQuery({ days: '90', excludeAdmins: 'false', q: 'ann', activity: 'all', page: '3' }),
+    );
+
+    expect(users).toHaveBeenCalledWith(90, false, 'ann', {
+      activity: 'all',
+      page: 3,
+      pageSize: 25,
+    });
+  });
+
+  it('defaults the access log to page 1 of people who opened pages', async () => {
+    // The whole point of the change: an unqualified read must not be the
+    // everyone-who-ever-signed-in list.
+    const users = vi.fn(async () => ({ rows: [], total: 0, signinOnly: 0 }));
+    const c = new UsageController({ users } as unknown as UsageService);
+
+    await c.users(usersQuery({}));
+
+    expect(users).toHaveBeenCalledWith(30, true, null, {
+      activity: 'views',
+      page: 1,
+      pageSize: 25,
+    });
+  });
+
+  it('answers with the page it served, not just the rows', async () => {
+    // The pager and the "n more signed in" line are both rendered from these,
+    // so dropping one silently removes a control from the page.
+    const users = vi.fn(async () => ({
+      rows: [{ userId: 'u1' }],
+      total: 128,
+      signinOnly: 447,
+    }));
+    const c = new UsageController({ users } as unknown as UsageService);
+
+    await expect(c.users(usersQuery({ page: '2', pageSize: '50' }))).resolves.toEqual({
+      rows: [{ userId: 'u1' }],
+      total: 128,
+      signinOnly: 447,
+      page: 2,
+      pageSize: 50,
+    });
+  });
 });
 
 describe('UsageController permissions (by reflection)', () => {
@@ -283,6 +336,51 @@ describe('WindowQuery', () => {
   it('rejects a q longer than 80 characters', () => {
     expect(() => parse({ q: 'x'.repeat(81) })).toThrow(ApiError);
     expect(parse({ q: 'x'.repeat(80) }).q).toHaveLength(80);
+  });
+});
+
+describe('UsersQuery', () => {
+  const parse = (query: Record<string, unknown>) => usersQuery(query);
+
+  it('defaults to the first page of people who opened pages', () => {
+    const q = parse({});
+    expect(q.activity).toBe('views');
+    expect(q.page).toBe(1);
+    expect(q.pageSize).toBe(25);
+  });
+
+  it('accepts activity=all and rejects any other value', () => {
+    expect(parse({ activity: 'all' }).activity).toBe('all');
+    expect(() => parse({ activity: 'everyone' })).toThrow(ApiError);
+  });
+
+  it('refuses a page below one — a negative OFFSET is not a smaller answer', () => {
+    expect(() => parse({ page: '0' })).toThrow(ApiError);
+    expect(() => parse({ page: '-1' })).toThrow(ApiError);
+    expect(() => parse({ page: '1.5' })).toThrow(ApiError);
+    expect(parse({ page: '4' }).page).toBe(4);
+  });
+
+  it('refuses a page past the ceiling — 1e18 is a whole number too', () => {
+    // It clears .int() and .min(1), so without a max it reaches the query as
+    // an OFFSET no bigint holds and the request fails below this schema
+    // rather than at it, with nothing to tell the caller what was wrong.
+    expect(() => parse({ page: '1e18' })).toThrow(ApiError);
+    expect(() => parse({ page: '100001' })).toThrow(ApiError);
+    expect(parse({ page: '100000' }).page).toBe(100_000);
+  });
+
+  it('bounds pageSize to 10–100 so one request cannot ask for the whole table', () => {
+    expect(() => parse({ pageSize: '9' })).toThrow(ApiError);
+    expect(() => parse({ pageSize: '101' })).toThrow(ApiError);
+    expect(parse({ pageSize: '100' }).pageSize).toBe(100);
+  });
+
+  it('still carries the window fields it extends', () => {
+    const q = parse({ days: '365', excludeAdmins: 'false', q: 'ann' });
+    expect(q.days).toBe(365);
+    expect(q.excludeAdmins).toBe(false);
+    expect(q.q).toBe('ann');
   });
 });
 

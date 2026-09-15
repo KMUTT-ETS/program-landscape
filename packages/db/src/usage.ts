@@ -561,45 +561,122 @@ export interface UserUsageRow {
   actions: number;
 }
 
+const UserCountRow = z.object({ views_total: Int, all_total: Int, signin_only: Int });
+
+/** Which people the access log is about. */
+export type UsageUsersActivity = 'views' | 'all';
+
+export interface UsageUsersOptions {
+  /**
+   * `views` — only people who opened at least one page in the window.
+   * `all` — anyone with a page view OR a sign-in.
+   *
+   * The distinction is not cosmetic. Sign-ins come from audit_logs for the
+   * WHOLE window while page views are capped by retention, so a year-wide
+   * `all` lists every account that has ever signed in — hundreds of rows, most
+   * of them with nothing but a sign-in count. `views` is the question the
+   * access log is actually asked.
+   */
+  activity: UsageUsersActivity;
+  /** 1-based. */
+  page: number;
+  pageSize: number;
+}
+
+export interface UsageUsersResult {
+  rows: UserUsageRow[];
+  /** People matching the activity filter and the search term — not just this page. */
+  total: number;
+  /**
+   * People in the window with sign-ins but no page view. Independent of
+   * `activity`, so the `views` view can say how many it is leaving out and
+   * the `all` view can say what it added.
+   */
+  signinOnly: number;
+}
+
 export async function usageUsers(
   days: UsageWindowDays,
   excludeAdmins: boolean,
   q: string | null,
+  opts: UsageUsersOptions,
   now = new Date(),
-): Promise<UserUsageRow[]> {
+): Promise<UsageUsersResult> {
   const w = windowFor(days, now);
   // A search term is user input, so its LIKE metacharacters are escaped: an
   // unescaped `%` or `_` would quietly widen the search rather than match
-  // literally. `ORDER BY views DESC, u.id` — without the tie-break, rows with
-  // equal `views` (very common: most users have 0) come back in an unstable
-  // order and LIMIT 500 returns a different 500 each call.
+  // literally. The tie-breaks on the ordering are load-bearing: rows with
+  // equal `views` (very common) would otherwise come back in an unstable
+  // order and a page boundary would drop and duplicate people between pages.
+  // `signins` sits THIRD, after `last_seen`, on purpose: in `all` mode every
+  // sign-in-only row has views = 0 and last_seen null, so without it the whole
+  // tail falls back to `u.id` and the busiest sign-in-only accounts scatter
+  // through hundreds of pages. Placing it after `last_seen` leaves `views`
+  // mode's ordering exactly as it was — those rows all have views > 0.
   const like = q ? '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%' : null;
-  const rows = await prisma.$queryRaw<unknown[]>(Prisma.sql`${usageDaysCte(w, excludeAdmins)}
-    SELECT u.id AS user_id, u.name, u.email, u.role::text AS role, f.name_th AS faculty_th,
-           (SELECT MAX(created_at) FROM page_views pv WHERE pv.user_id = u.id AND pv.impersonated = false) AS last_seen,
-           COALESCE(SUM(d.views),0)::int AS views, COALESCE(SUM(d.sessions),0)::int AS sessions, COALESCE(SUM(d.signins),0)::int AS signins
-    FROM usage_days d JOIN users u ON u.id = d.user_id LEFT JOIN faculties f ON f.id = u.faculty_id
-    ${like ? Prisma.sql`WHERE (u.name ILIKE ${like} ESCAPE '\\' OR u.email ILIKE ${like} ESCAPE '\\')` : Prisma.empty}
-    GROUP BY u.id, u.name, u.email, u.role, f.name_th ORDER BY views DESC, u.id LIMIT 500`);
+  const search = like
+    ? Prisma.sql`WHERE (u.name ILIKE ${like} ESCAPE '\\' OR u.email ILIKE ${like} ESCAPE '\\')`
+    : Prisma.empty;
+  // `perUser` is the same aggregate both queries group; keeping it identical
+  // is what stops `total` disagreeing with the rows it is meant to count.
+  const perUser = (cte: Prisma.Sql): Prisma.Sql => Prisma.sql`${cte},
+    per_user AS (
+      SELECT d.user_id,
+             COALESCE(SUM(d.views),0)::int AS views,
+             COALESCE(SUM(d.sessions),0)::int AS sessions,
+             COALESCE(SUM(d.signins),0)::int AS signins
+      FROM usage_days d JOIN users u ON u.id = d.user_id
+      ${search}
+      GROUP BY d.user_id
+    )`;
+  const activityFilter =
+    opts.activity === 'views'
+      ? Prisma.sql`WHERE pu.views > 0`
+      : Prisma.sql`WHERE (pu.views > 0 OR pu.signins > 0)`;
+  const offset = (opts.page - 1) * opts.pageSize;
+  // Two `$queryRaw` calls, each with its own freshly built CTE — never one
+  // hoisted `Prisma.Sql` shared between them (parameter-index drift; see the
+  // note on usageDaysCte).
+  const [rows, counts] = await Promise.all([
+    prisma.$queryRaw<unknown[]>(Prisma.sql`${perUser(usageDaysCte(w, excludeAdmins))}
+      SELECT u.id AS user_id, u.name, u.email, u.role::text AS role, f.name_th AS faculty_th,
+             (SELECT MAX(created_at) FROM page_views pv WHERE pv.user_id = u.id AND pv.impersonated = false) AS last_seen,
+             pu.views, pu.sessions, pu.signins
+      FROM per_user pu JOIN users u ON u.id = pu.user_id LEFT JOIN faculties f ON f.id = u.faculty_id
+      ${activityFilter}
+      ORDER BY pu.views DESC, last_seen DESC NULLS LAST, pu.signins DESC, u.id
+      LIMIT ${opts.pageSize} OFFSET ${offset}`),
+    // No `sessions` in this projection, so the window function is skipped.
+    prisma.$queryRaw<unknown[]>(Prisma.sql`${perUser(usageDaysCte(w, excludeAdmins, false))}
+      SELECT COUNT(*) FILTER (WHERE views > 0)::int AS views_total,
+             COUNT(*) FILTER (WHERE views > 0 OR signins > 0)::int AS all_total,
+             COUNT(*) FILTER (WHERE views = 0 AND signins > 0)::int AS signin_only
+      FROM per_user`),
+  ]);
   const users = z.array(UserRow).parse(rows);
+  const totals = UserCountRow.parse(counts[0] ?? { views_total: 0, all_total: 0, signin_only: 0 });
   const actions = await prisma.auditLog.groupBy({
     by: ['userId'],
     where: { createdAt: { gte: w.from, lt: w.to }, userId: { in: users.map((u) => u.user_id) } },
     _count: { _all: true },
   });
   const actionsBy = new Map(actions.map((a) => [a.userId, a._count._all]));
-  return users.map((u) => ({
-    userId: u.user_id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    facultyTh: u.faculty_th,
-    lastSeen: u.last_seen,
-    views: u.views,
-    sessions: u.sessions,
-    signins: u.signins,
-    actions: actionsBy.get(u.user_id) ?? 0,
-  }));
+  return {
+    rows: users.map((u) => ({
+      userId: u.user_id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      facultyTh: u.faculty_th,
+      lastSeen: u.last_seen,
+      views: u.views,
+      sessions: u.sessions,
+      signins: u.signins,
+      actions: actionsBy.get(u.user_id) ?? 0,
+    })),
+    total: opts.activity === 'views' ? totals.views_total : totals.all_total,
+    signinOnly: totals.signin_only,
+  };
 }
 
 export interface TimelineEvent {

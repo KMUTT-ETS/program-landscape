@@ -65,7 +65,14 @@ export const USAGE_FALLBACK_META: ApiMeta = {
  * in the server page's dependency graph (auth, Prisma, the api client) — this
  * module imports nothing but a type.
  */
-export function pageCaveats(o: { rawRetentionDays: number; excludeAdmins: boolean }): string[] {
+export function pageCaveats(o: {
+  rawRetentionDays: number;
+  excludeAdmins: boolean;
+  /** Optional so the admin console's tiles, which have no such control, can
+   *  ask for the caveats without inventing an activity mode. Absent reads as
+   *  the default `views`, which is what an unset `?activity=` resolves to. */
+  activity?: UsageActivity;
+}): string[] {
   return [
     `Raw page views are kept ${o.rawRetentionDays} days. Anything older comes from the daily roll-up, which keeps counts per user, page and programme but not timestamps — so dwell and the per-person timeline stop at that boundary.`,
     'Sign-ins are read from the audit log for the whole window, never from the page-view roll-up, so sign-in counts stay complete past that boundary.',
@@ -75,7 +82,13 @@ export function pageCaveats(o: { rawRetentionDays: number; excludeAdmins: boolea
     'A view rendered while an administrator was impersonating someone is never counted, for either account.',
     'A session is a run of one person’s views with no gap longer than 30 minutes. Dwell is the time from a view to that person’s next one, so the last view of a session contributes none. Days are Asia/Bangkok days.',
     '“Last seen” is the most recent raw page view. It is not limited to the selected window, and it is blank once that view passes the raw-retention boundary — which is not the same as never having been active.',
-    'The access log lists at most 500 people, busiest first.',
+    // The access log's own scope is a control on screen, so this sentence has
+    // to follow it. Said unconditionally, it denies — in the drawer that is
+    // meant to be the authority on the figures — the very rows the reader is
+    // looking at the moment they click "Include them".
+    o.activity === 'all'
+      ? 'The access log is listing everyone active in the window, including accounts that only signed in and opened no page. Sign-in-only accounts show a view count of zero.'
+      : 'The access log lists people who opened at least one page, busiest first; accounts that only signed in are counted separately and can be included.',
     'Aggregate figures are served from a 5-minute cache on the api and can be up to five minutes older than the freshness stamp; the access log and the two drill-down panels are read live.',
   ];
 }
@@ -118,6 +131,14 @@ function param(raw: string | undefined, max: number): string | null {
   return value;
 }
 
+/** Who the access log is about — see `UsageUsersOptions` in packages/db. */
+export type UsageActivity = 'views' | 'all';
+
+/** The ceiling `UsersQuery.page` enforces on the api. Kept in step by hand:
+ *  the page must never send a number the api would reject, because the whole
+ *  card then renders as "the usage service did not answer". */
+const MAX_PAGE = 100_000;
+
 /** Everything the page reads out of its own URL. */
 export interface UsageParams {
   days: number;
@@ -126,6 +147,10 @@ export interface UsageParams {
   detailDays: number;
   facultyId: string | null;
   q: string | null;
+  /** `?activity=` — `views` (the default) hides accounts that only signed in. */
+  activity: UsageActivity;
+  /** `?page=` — 1-based, access log only. */
+  page: number;
 }
 
 /**
@@ -143,7 +168,14 @@ export interface UsageParams {
  * `USAGE_WINDOWS` and `RAW_RETENTION_DAYS` from `@kku/db`.
  */
 export function resolveUsageParams(
-  sp: { days?: string; excludeAdmins?: string; facultyId?: string; q?: string },
+  sp: {
+    days?: string;
+    excludeAdmins?: string;
+    facultyId?: string;
+    q?: string;
+    activity?: string;
+    page?: string;
+  },
   windows: readonly number[],
   rawRetentionDays: number,
 ): UsageParams {
@@ -152,12 +184,24 @@ export function resolveUsageParams(
   const withinRetention = windows.filter((d) => d <= rawRetentionDays);
   const detailDays =
     days <= rawRetentionDays || withinRetention.length === 0 ? days : Math.max(...withinRetention);
+  // Anything that is not a whole page number at or past the first one is page
+  // one — `?page=0` and `?page=-3` would otherwise become negative OFFSETs,
+  // and `?page=abc` a NaN one, both of which the api would reject outright
+  // rather than render. The cap matches the api's: `?page=1e18` IS a whole
+  // number, so it passes every test above and then asks for an OFFSET the api
+  // refuses, turning a typo into a card that says the service did not answer.
+  const requestedPage = Number(sp.page);
   return {
     days,
     excludeAdmins: sp.excludeAdmins !== 'false',
     detailDays,
     facultyId: param(sp.facultyId, 64),
     q: param(sp.q, 80),
+    // `views` unless `all` was asked for by name: the default is the whole
+    // point of the control, so an unrecognised value must land on it.
+    activity: sp.activity === 'all' ? 'all' : 'views',
+    page:
+      Number.isInteger(requestedPage) && requestedPage >= 1 ? Math.min(requestedPage, MAX_PAGE) : 1,
   };
 }
 
@@ -248,6 +292,24 @@ export interface UserUsageT {
   actions: number;
 }
 
+/**
+ * `GET /usage/users` — one page of the access log, plus the two counts that
+ * let the card describe what it is NOT showing.
+ *
+ * Mirrors the controller's return, which is `UsageUsersResult` from
+ * packages/db widened with the page it was asked for. `total` counts everyone
+ * matching the activity filter and the search term, not the rows on this page;
+ * `signinOnly` counts people with sign-ins but no page view and is the same
+ * number in either activity mode.
+ */
+export interface UsersResponseT {
+  rows: UserUsageT[];
+  total: number;
+  signinOnly: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface TimelineEventT {
   at: string;
   kind: 'view' | 'signin' | 'action';
@@ -281,6 +343,10 @@ export interface UsageData {
   facultyId: string | null;
   /** `?q=` — narrows the access log to names/emails matching this term. */
   q: string | null;
+  /** `?activity=` — whether the access log includes sign-in-only accounts. */
+  activity: UsageActivity;
+  /** `?page=` — which page of the access log, 1-based. */
+  page: number;
   /**
    * The faculty catalogue, for the by-programme filter's options. Named
    * apart from `faculties` below, which is the by-VIEWER-faculty usage
@@ -306,5 +372,5 @@ export interface UsageData {
   roles: Enveloped<RoleUsageT[]> | null;
   faculties: Enveloped<FacultyUsageT[]> | null;
   actions: Enveloped<ActionUsageT[]> | null;
-  users: Enveloped<UserUsageT[]> | null;
+  users: Enveloped<UsersResponseT> | null;
 }

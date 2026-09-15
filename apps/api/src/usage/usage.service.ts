@@ -18,9 +18,10 @@ import {
   type RecordPageViewInput,
   type RoleUsage,
   type UsageSummary,
+  type UsageUsersOptions,
+  type UsageUsersResult,
   type UsageWindowDays,
   type UserTimeline,
-  type UserUsageRow,
   type ViewerFacultyUsage,
 } from '@kku/db';
 
@@ -109,8 +110,13 @@ export class UsageService {
 
   // ── Detail — uncached. ─────────────────────────────────────────────────
 
-  users(days: UsageWindowDays, excludeAdmins: boolean, q: string | null): Promise<UserUsageRow[]> {
-    return usageUsers(days, excludeAdmins, q);
+  users(
+    days: UsageWindowDays,
+    excludeAdmins: boolean,
+    q: string | null,
+    opts: UsageUsersOptions,
+  ): Promise<UsageUsersResult> {
+    return usageUsers(days, excludeAdmins, q, opts);
   }
 
   userTimeline(userId: string, days: UsageWindowDays): Promise<UserTimeline | null> {

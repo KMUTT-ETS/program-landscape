@@ -5,6 +5,7 @@ import {
   bangkokDay,
   branchBoundary,
   usageSummary,
+  usageUsers,
   windowFor,
   RAW_RETENTION_DAYS,
   USAGE_WINDOWS,
@@ -94,5 +95,59 @@ describe.skipIf(!postgresUp)('usageSummary sign-ins', () => {
       SELECT COUNT(*)::int AS n FROM audit_logs
       WHERE action = 'auth.signin.ok' AND created_at >= (${w.from} AT TIME ZONE 'UTC') AND created_at < (${w.to} AT TIME ZONE 'UTC')`);
     expect((await usageSummary(365, false, now)).current.signins).toBe(row!.n);
+  });
+});
+
+/**
+ * The access log's paging and its activity filter.
+ *
+ * Against the database, deliberately — every one of these properties lives in
+ * the SQL (the LIMIT/OFFSET, the HAVING-shaped activity predicate, and the
+ * ordering that makes a page boundary stable). A pure test of this function
+ * would only be a test of its mock.
+ *
+ * The assertions are relational rather than absolute so they hold on any
+ * dataset, including an empty one: `total` cannot be smaller than the rows it
+ * counts, and `views` cannot count more people than `all` does.
+ */
+describe.skipIf(!postgresUp)('usageUsers', () => {
+  const opts = (over: Partial<Parameters<typeof usageUsers>[3]> = {}) => ({
+    activity: 'all' as const,
+    page: 1,
+    pageSize: 10,
+    ...over,
+  });
+
+  it('returns at most one page, and a total that covers it', async () => {
+    const r = await usageUsers(365, false, null, opts());
+    expect(r.rows.length).toBeLessThanOrEqual(10);
+    expect(r.total).toBeGreaterThanOrEqual(r.rows.length);
+    expect(r.signinOnly).toBeGreaterThanOrEqual(0);
+  });
+
+  it('counts no more people under views than under all', async () => {
+    // `views` is a strict subset of `all` — everyone with a page view also
+    // satisfies "a page view OR a sign-in". A views total that exceeded the
+    // all total would mean the two queries disagree about the population.
+    const [views, all] = await Promise.all([
+      usageUsers(365, false, null, opts({ activity: 'views' })),
+      usageUsers(365, false, null, opts()),
+    ]);
+    expect(views.total).toBeLessThanOrEqual(all.total);
+    // …and the difference is exactly the people who only ever signed in.
+    expect(all.total - views.total).toBe(all.signinOnly);
+    // signinOnly does not depend on which view is being served.
+    expect(views.signinOnly).toBe(all.signinOnly);
+  });
+
+  it('serves a different first row on page 2 when there is more than one page', async () => {
+    const first = await usageUsers(365, false, null, opts());
+    if (first.total <= 10) return; // vacuous on a small dataset, honestly so.
+    const second = await usageUsers(365, false, null, opts({ page: 2 }));
+    expect(second.rows.length).toBeGreaterThan(0);
+    expect(second.rows[0]!.userId).not.toBe(first.rows[0]!.userId);
+    // No overlap at all: an unstable ORDER BY would repeat people across pages.
+    const ids = new Set(first.rows.map((r) => r.userId));
+    expect(second.rows.some((r) => ids.has(r.userId))).toBe(false);
   });
 });

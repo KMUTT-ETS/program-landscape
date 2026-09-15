@@ -6,7 +6,7 @@ import type { ApiMeta } from '@kku/shared';
 
 import { UsageSections } from '../app/usage/client';
 import { mergeCaveats, pageCaveats, resolveUsageParams } from '../app/usage/types';
-import type { UsageData } from '../app/usage/types';
+import type { UsageData, UsersResponseT, UserUsageT } from '../app/usage/types';
 
 // ────────────────────────────────────────────────────────────────────────────
 // /usage renders every aggregate section from already-fetched data, and the
@@ -41,6 +41,8 @@ const data: UsageData = {
     { id: 'f2', nameEn: 'Faculty of Science', nameTh: 'วิทยาศาสตร์' },
   ],
   canSeeDetail: false,
+  activity: 'views',
+  page: 1,
   detailDays: 30,
   computedAt: '2026-09-14T04:00:00.000Z',
   summary: {
@@ -115,27 +117,42 @@ function text(html: string): string {
     .trim();
 }
 
+const userRow = (over: Partial<UserUsageT> = {}): UserUsageT => ({
+  userId: 'u1',
+  name: 'A',
+  email: 'a@kku.ac.th',
+  role: 'FACULTY_USER',
+  facultyTh: null,
+  lastSeen: '2026-09-14T01:00:00.000Z',
+  views: 9,
+  sessions: 2,
+  signins: 1,
+  actions: 0,
+  ...over,
+});
+
 const WITH_DETAIL: UsageData = {
   ...data,
   canSeeDetail: true,
   users: {
-    data: [
-      {
-        userId: 'u1',
-        name: 'A',
-        email: 'a@kku.ac.th',
-        role: 'FACULTY_USER',
-        facultyTh: null,
-        lastSeen: '2026-09-14T01:00:00.000Z',
-        views: 9,
-        sessions: 2,
-        signins: 1,
-        actions: 0,
-      },
-    ],
+    data: { rows: [userRow()], total: 1, signinOnly: 0, page: 1, pageSize: 25 },
     meta,
   },
 };
+
+/** `WITH_DETAIL` with the access-log envelope patched — every access-log
+ *  assertion is about that envelope, and spelling it out each time buries
+ *  the one field the case is actually about. */
+function withUsers(over: Partial<UsersResponseT>): UsageData {
+  return {
+    ...WITH_DETAIL,
+    ...(over.page !== undefined ? { page: over.page } : {}),
+    users: {
+      data: { rows: [userRow()], total: 1, signinOnly: 0, page: 1, pageSize: 25, ...over },
+      meta,
+    },
+  };
+}
 
 describe('UsageSections', () => {
   it('renders every aggregate section and the recorded-since line', () => {
@@ -261,6 +278,15 @@ describe('UsageSections', () => {
     );
   });
 
+  it('does not report a count when the access log failed to load', () => {
+    // The counts fall back to 0 on a null envelope, so the counted wording
+    // would state "0 people opened pages" as a finding about the platform,
+    // directly above a line saying the service never answered.
+    const flat = text(render({ ...WITH_DETAIL, users: null }));
+    expect(flat).not.toContain('0 people');
+    expect(flat).toContain('The access log is unavailable');
+  });
+
   it('renders without a summary rather than throwing', () => {
     const flat = text(render({ ...data, summary: null }));
     expect(flat).toContain('Summary figures are unavailable');
@@ -285,7 +311,118 @@ describe('UsageSections', () => {
 
   it('reports the search term in the access-log subtitle', () => {
     const flat = text(render({ ...WITH_DETAIL, q: 'some' }));
-    expect(flat).toContain('1 user matching “some”');
+    expect(flat).toContain('matching “some”');
+  });
+});
+
+describe('UsageSections — the access log’s scope and paging', () => {
+  // The defect this whole group exists for: a 365-day window listed ~575
+  // people, because sign-ins are read from audit_logs for the WHOLE window
+  // while page views stop at retention. The card now leads with the people who
+  // actually read something and says how many it is leaving out.
+
+  it('leads with the people who opened pages, and offers the rest', () => {
+    const flat = text(render(withUsers({ total: 128, signinOnly: 447 })));
+    expect(flat).toContain('128 people opened pages in this window');
+    expect(flat).toContain('447 more signed in but opened no page');
+    expect(flat).toContain('Include them');
+    expect(flat).not.toContain('Only people who opened pages');
+  });
+
+  it('says nothing about sign-in-only accounts when there are none', () => {
+    const flat = text(render(withUsers({ total: 3, signinOnly: 0 })));
+    expect(flat).toContain('3 people opened pages in this window');
+    expect(flat).not.toContain('signed in but opened no page');
+    expect(flat).not.toContain('Include them');
+  });
+
+  it('says it is showing sign-ins too in all mode, and offers the way back', () => {
+    const flat = text(
+      render({ ...withUsers({ total: 575, signinOnly: 447 }), activity: 'all' as const }),
+    );
+    expect(flat).toContain('575 people active in this window · showing sign-ins too');
+    expect(flat).toContain('Only people who opened pages');
+    expect(flat).not.toContain('Include them');
+  });
+
+  it('pages only when there is more than one page', () => {
+    // 128 of 25 per page is five pages; 20 of 25 is one, and a pager on one
+    // page is a control that can only ever be disabled.
+    const paged = text(render(withUsers({ total: 128, pageSize: 25 })));
+    expect(paged).toContain('of 128');
+    expect(paged).toContain('Previous');
+    expect(paged).toContain('Next');
+
+    const single = text(render(withUsers({ total: 20, pageSize: 25 })));
+    expect(single).not.toContain('Previous');
+    expect(single).not.toContain('Next');
+  });
+
+  it('numbers the range from the rows actually returned', () => {
+    const rows = Array.from({ length: 25 }, (_, i) =>
+      userRow({ userId: `u${i}`, email: `${i}@x` }),
+    );
+    const flat = text(render(withUsers({ rows, total: 128, page: 2, pageSize: 25 })));
+    expect(flat).toContain('26–50 of 128');
+  });
+
+  it('disables Previous on the first page and Next on the last', () => {
+    const rows = Array.from({ length: 25 }, (_, i) =>
+      userRow({ userId: `u${i}`, email: `${i}@x` }),
+    );
+    const first = render(withUsers({ rows, total: 128, page: 1, pageSize: 25 }));
+    // One disabled button on page 1 (Previous), one on the last (Next).
+    expect(first.match(/disabled=""/g)?.length).toBe(1);
+    expect(text(first)).toContain('1–25 of 128');
+
+    const last = render(withUsers({ rows: rows.slice(0, 3), total: 128, page: 6, pageSize: 25 }));
+    expect(last.match(/disabled=""/g)?.length).toBe(1);
+    expect(text(last)).toContain('126–128 of 128');
+  });
+
+  it('names the sign-in-only accounts when the page itself is empty', () => {
+    // The one emptiness with a remedy on screen. "Nobody has been active"
+    // would be false — 447 people signed in.
+    const flat = text(render(withUsers({ rows: [], total: 0, signinOnly: 447 })));
+    expect(flat).toContain('Nobody opened a page in this window; 447 people signed in.');
+    expect(flat).toContain('Include them');
+    expect(flat).not.toContain('Nobody has been active in this window.');
+  });
+
+  it('offers a way back when the page is past the end of the list', () => {
+    // A bookmarked or hand-edited `?page=` lands here. Every other empty
+    // branch would say nobody was active, which the count on the same card
+    // contradicts — and none of them offers a control that fixes it.
+    const flat = text(
+      render(withUsers({ rows: [], total: 575, signinOnly: 574, page: 100, pageSize: 25 })),
+    );
+    expect(flat).toContain('past the end');
+    expect(flat).toContain('Back to the first page');
+    expect(flat).not.toContain('Nobody has been active in this window.');
+  });
+
+  it('keeps the search term in the sign-in-only empty copy, and the remedy with it', () => {
+    // A search that matched only sign-in-only accounts: "Nobody has been
+    // active" is false, and the unqualified sign-in line would claim NOBODY
+    // at all opened a page when it is only nobody named somchai.
+    const flat = text(
+      render({
+        ...withUsers({ rows: [], total: 0, signinOnly: 12 }),
+        q: 'somchai',
+        activity: 'views' as const,
+      }),
+    );
+    expect(flat).toContain('matching “somchai” opened a page');
+    expect(flat).toContain('Include them');
+    expect(flat).not.toContain('has been active');
+  });
+
+  it('falls back to the plain empty copy when nobody signed in either', () => {
+    const flat = text(
+      render({ ...withUsers({ rows: [], total: 0, signinOnly: 0 }), excludeAdmins: false }),
+    );
+    expect(flat).toContain('Nobody has been active in this window.');
+    expect(flat).not.toContain('Include them');
   });
 });
 
@@ -369,6 +506,32 @@ describe('resolveUsageParams', () => {
     expect(resolve({}).excludeAdmins).toBe(true);
     expect(resolve({ excludeAdmins: 'false' }).excludeAdmins).toBe(false);
     expect(resolve({ excludeAdmins: 'maybe' }).excludeAdmins).toBe(true);
+  });
+
+  it('defaults the access log to people who opened pages', () => {
+    expect(resolve({}).activity).toBe('views');
+    expect(resolve({ activity: 'all' }).activity).toBe('all');
+    // An unrecognised value lands on the default, never on the wide list.
+    expect(resolve({ activity: 'everyone' }).activity).toBe('views');
+  });
+
+  it('treats anything that is not a whole page at or past one as page one', () => {
+    expect(resolve({}).page).toBe(1);
+    expect(resolve({ page: '3' }).page).toBe(3);
+    expect(resolve({ page: '0' }).page).toBe(1);
+    expect(resolve({ page: '-2' }).page).toBe(1);
+    expect(resolve({ page: '1.5' }).page).toBe(1);
+    expect(resolve({ page: 'abc' }).page).toBe(1);
+  });
+
+  it('caps a huge page rather than sending one the api will refuse', () => {
+    // `1e18` IS a whole number at or past one, so it clears every guard above
+    // and then asks the api for an OFFSET it bounds — which renders as "the
+    // usage service did not answer", not as "that page does not exist".
+    expect(resolve({ page: '1e18' }).page).toBe(100_000);
+    expect(resolve({ page: '100001' }).page).toBe(100_000);
+    // Infinity is not an integer, so it falls all the way back to page one.
+    expect(resolve({ page: '1e999' }).page).toBe(1);
   });
 
   it('drops an over-long or blank id rather than truncating it', () => {

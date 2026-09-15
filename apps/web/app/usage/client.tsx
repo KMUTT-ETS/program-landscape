@@ -20,6 +20,7 @@ import type {
   FacultyOptionT,
   ProgramUsageT,
   ProgramViewerT,
+  UsageActivity,
   UsageData,
   UserTimelineT,
   UserUsageT,
@@ -99,6 +100,15 @@ function pct(cur: number, prev: number): string {
 function plural(n: number, word: string): string {
   return n === 1 ? word : `${word}s`;
 }
+
+/** "1 person", "4 people" — `plural()` cannot reach an irregular plural. */
+function people(n: number): string {
+  return `${n.toLocaleString()} ${n === 1 ? 'person' : 'people'}`;
+}
+
+/** The small bordered control used throughout the page's card headers. */
+const MINI_BUTTON =
+  'rounded-md border border-subtle px-2 py-1 text-[11px] text-text-secondary hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-40';
 
 function fmtDwell(ms: number | null): string {
   if (ms === null) return 'not enough data';
@@ -197,7 +207,8 @@ function SectionHead({
   action,
 }: {
   title: string;
-  note?: string;
+  /** A node rather than a string: the access log's carries a toggle link. */
+  note?: React.ReactNode;
   meta?: ApiMeta;
   computedAt: string;
   /** A filter control for this card, placed beside the freshness stamp. */
@@ -264,6 +275,8 @@ function UsageSectionsImpl({
   onOpenUser,
   onOpenProgram,
   onFacultyChange,
+  onActivityChange,
+  onPageChange,
   searchSlot,
 }: {
   data: UsageData;
@@ -271,6 +284,10 @@ function UsageSectionsImpl({
   onOpenProgram?: (p: ProgramUsageT) => void;
   /** '' clears the filter. Omitted when there is no router to navigate with. */
   onFacultyChange?: (facultyId: string) => void;
+  /** Switches the access log between people-who-read and everyone-active. */
+  onActivityChange?: (activity: UsageActivity) => void;
+  /** Moves the access log to a 1-based page. */
+  onPageChange?: (page: number) => void;
   /** The access log's search control. It carries the half-typed term, so it
    *  has to be a stateful client leaf — it is passed in rather than rendered
    *  here so this component stays a pure function of `UsageData`. */
@@ -281,10 +298,17 @@ function UsageSectionsImpl({
   const windowLabel = WINDOW_LABEL[data.days] ?? `${data.days} days`;
   const choices = facultyChoices(data);
   const selectedFaculty = choices.find((f) => f.id === data.facultyId) ?? null;
-  const userRows = data.users?.data ?? [];
-  // The access log's cap. 500 rows back is "at least 500", never "500" — the
-  // difference is the whole reason the caveat about the cap exists.
-  const userCount = userRows.length === 500 ? '500+' : userRows.length.toLocaleString();
+  // The access log is paged in SQL, so the rows on screen are one page of
+  // `total` — which is why every count in this card comes off the envelope
+  // rather than off `rows.length`.
+  const usersPage = data.users?.data ?? null;
+  const userRows = usersPage?.rows ?? [];
+  const userTotal = usersPage?.total ?? 0;
+  const signinOnly = usersPage?.signinOnly ?? 0;
+  const pageSize = usersPage?.pageSize ?? 25;
+  const pageNumber = usersPage?.page ?? 1;
+  const firstOnPage = (pageNumber - 1) * pageSize + 1;
+  const lastOnPage = (pageNumber - 1) * pageSize + userRows.length;
   // Empty copy has to name the filter that could be producing the emptiness:
   // "nothing was recorded" and "nothing was recorded from the accounts you
   // left in" are different facts, and only the second has a control on screen
@@ -726,9 +750,55 @@ function UsageSectionsImpl({
           <SectionHead
             title="Access log"
             note={
-              data.q
-                ? `${userCount} ${plural(userRows.length, 'user')} matching “${data.q}”. Open a row for that person's session-by-session timeline.`
-                : "Named individuals, over the selected window. Open a row for that person's session-by-session timeline."
+              // A failed fetch has no counts, and `userTotal` falls back to 0
+              // — so the counted wording would report "0 people opened pages"
+              // as a finding about the platform, next to a body that says the
+              // service did not answer. Say only what is still true.
+              data.users === null ? (
+                'Named individuals, over the selected window.'
+              ) : (
+                <>
+                  {data.activity === 'all' ? (
+                    <>
+                      <span className="font-medium text-text-secondary">
+                        {people(userTotal)} active
+                      </span>{' '}
+                      in this window · showing sign-ins too{' '}
+                      <button
+                        type="button"
+                        onClick={() => onActivityChange?.('views')}
+                        className="text-accent-default hover:underline"
+                      >
+                        Only people who opened pages
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium text-text-secondary">
+                        {people(userTotal)} opened pages
+                      </span>{' '}
+                      in this window
+                      {signinOnly > 0 ? (
+                        <>
+                          {' · '}
+                          <span className="font-medium text-text-secondary">
+                            {signinOnly.toLocaleString()} more signed in but opened no page
+                          </span>{' '}
+                          <button
+                            type="button"
+                            onClick={() => onActivityChange?.('all')}
+                            className="text-accent-default hover:underline"
+                          >
+                            Include them
+                          </button>
+                        </>
+                      ) : null}
+                    </>
+                  )}
+                  {data.q ? <> · matching “{data.q}”</> : null}. Open a row for that person&apos;s
+                  session-by-session timeline.
+                </>
+              )
             }
             meta={data.users?.meta ?? USAGE_FALLBACK_META}
             computedAt={data.computedAt}
@@ -809,14 +879,78 @@ function UsageSectionsImpl({
                   ))}
                 </tbody>
               </table>
+              {/* A pager only where there is more than one page. The range is
+                  computed from the rows actually returned, not from
+                  page × pageSize, so the last page reads "126–128 of 128". */}
+              {userTotal > pageSize ? (
+                <div className="mt-3 flex items-center justify-between gap-4 border-t border-subtle pt-3 text-[11px] text-text-tertiary">
+                  <span className="font-tabular">
+                    {firstOnPage.toLocaleString()}–{lastOnPage.toLocaleString()} of{' '}
+                    {userTotal.toLocaleString()}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={pageNumber <= 1}
+                      onClick={() => onPageChange?.(pageNumber - 1)}
+                      className={MINI_BUTTON}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={lastOnPage >= userTotal}
+                      onClick={() => onPageChange?.(pageNumber + 1)}
+                      className={MINI_BUTTON}
+                    >
+                      Next
+                    </button>
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : (
             <Absent>
-              {data.q
-                ? `Nobody matching “${data.q}” has been active in this window.`
-                : data.excludeAdmins
-                  ? 'No non-admin account has been active in this window.'
-                  : 'Nobody has been active in this window.'}
+              {userTotal > 0 ? (
+                // Rows are empty but people match: the reader is past the end
+                // of the list, usually from a bookmarked `?page=`. Every other
+                // branch here would tell them nobody was active, which the
+                // count beside it contradicts — and none offers a way back.
+                <>
+                  Page {pageNumber.toLocaleString()} is past the end of this list —{' '}
+                  {people(userTotal)} {userTotal === 1 ? 'matches' : 'match'} the current filters.{' '}
+                  <button
+                    type="button"
+                    onClick={() => onPageChange?.(1)}
+                    className="text-accent-default hover:underline"
+                  >
+                    Back to the first page
+                  </button>
+                </>
+              ) : data.activity === 'views' && signinOnly > 0 ? (
+                // The one emptiness with a remedy on screen: people WERE here,
+                // they just never opened a page. Saying only "nobody" would
+                // deny activity the very next click can show — and it must
+                // carry the search term, since the remedy is only the right
+                // one for the list the reader is actually looking at.
+                <>
+                  Nobody{data.q ? ` matching “${data.q}”` : ''} opened a page in this window;{' '}
+                  {people(signinOnly)} signed in.{' '}
+                  <button
+                    type="button"
+                    onClick={() => onActivityChange?.('all')}
+                    className="text-accent-default hover:underline"
+                  >
+                    Include them
+                  </button>
+                </>
+              ) : data.q ? (
+                `Nobody matching “${data.q}” has been active in this window.`
+              ) : data.excludeAdmins ? (
+                'No non-admin account has been active in this window.'
+              ) : (
+                'Nobody has been active in this window.'
+              )}
             </Absent>
           )}
         </Card>
@@ -909,11 +1043,17 @@ export function UsageClient({ data }: { data: UsageData }) {
   // Patches the URL rather than rebuilding it, so every control keeps the
   // others' state. An empty value removes the key: `?facultyId=` would be a
   // filter on the empty string as far as a reader of the URL is concerned.
+  //
+  // Changing anything OTHER than the page drops the page: page 4 of a
+  // 128-person list is page 0 of a 3-person search, and keeping the number
+  // across a filter change lands the reader on an empty table that looks like
+  // "no matches" rather than "past the end".
   const setParam = useCallback(
     (key: string, value: string) => {
       const params = new URLSearchParams(searchParams?.toString() ?? '');
       if (value === '') params.delete(key);
       else params.set(key, value);
+      if (key !== 'page') params.delete('page');
       const qs = params.toString();
       router.replace(qs === '' ? pathname : `${pathname}?${qs}`, { scroll: false });
     },
@@ -973,6 +1113,16 @@ export function UsageClient({ data }: { data: UsageData }) {
     [setParam],
   );
   const handleSearch = useCallback((q: string) => setParam('q', q), [setParam]);
+  // `views` is the default, so it is expressed by the key's ABSENCE rather
+  // than by `?activity=views` — the shared URL then says only what was chosen.
+  const handleActivityChange = useCallback(
+    (activity: UsageActivity) => setParam('activity', activity === 'all' ? 'all' : ''),
+    [setParam],
+  );
+  const handlePageChange = useCallback(
+    (page: number) => setParam('page', page <= 1 ? '' : String(page)),
+    [setParam],
+  );
 
   // The drill-downs read raw page_views, which retention sweeps; the api
   // refuses a window wider than that, so the server already narrowed it.
@@ -1010,6 +1160,8 @@ export function UsageClient({ data }: { data: UsageData }) {
         onOpenUser={data.canSeeDetail ? openUserPanel : undefined}
         onOpenProgram={data.canSeeDetail ? openProgramPanel : undefined}
         onFacultyChange={handleFacultyChange}
+        onActivityChange={data.canSeeDetail ? handleActivityChange : undefined}
+        onPageChange={data.canSeeDetail ? handlePageChange : undefined}
         searchSlot={
           data.canSeeDetail ? (
             <UsageSearch

@@ -51,6 +51,28 @@ export const WindowQuery = z.object({
 });
 type WindowQueryT = z.infer<typeof WindowQuery>;
 
+/**
+ * The access log's own query, and only its own.
+ *
+ * `activity` defaults to `views` because sign-ins are read from audit_logs for
+ * the whole window while page views stop at retention: a year-wide `all` lists
+ * every account that has ever signed in, which on dev is ~575 rows of mostly
+ * nothing. `all` is still reachable — the page offers it as a link — but it is
+ * the deliberate choice, not the landing state. Paging is in SQL, so the
+ * ceiling on `pageSize` is what bounds the response, not a fixed row cap.
+ *
+ * `page` is capped as well as floored: `1e18` is a whole number at or past
+ * one, so every other guard passes it through to an OFFSET no Postgres bigint
+ * can hold, and the request dies somewhere below this schema rather than at
+ * it. A bounded number is refused here, in one place, with a message.
+ */
+export const UsersQuery = WindowQuery.extend({
+  activity: z.enum(['views', 'all']).default('views'),
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
+  pageSize: z.coerce.number().int().min(10).max(100).default(25),
+});
+type UsersQueryT = z.infer<typeof UsersQuery>;
+
 // The timeline and viewer endpoints read raw page_views, which is swept
 // at RAW_RETENTION_DAYS. Offering a window wider than retention would
 // render as a real gap rather than a missing one.
@@ -183,8 +205,18 @@ export class UsageController {
   @Get('users')
   @Authorized('usage:read:detail')
   @Provenance(USAGE_PROVENANCE)
-  users(@Query(new ZodValidationPipe(WindowQuery)) q: WindowQueryT) {
-    return this.service.users(q.days, q.excludeAdmins, q.q ?? null);
+  async users(@Query(new ZodValidationPipe(UsersQuery)) q: UsersQueryT) {
+    const { rows, total, signinOnly } = await this.service.users(
+      q.days,
+      q.excludeAdmins,
+      q.q ?? null,
+      {
+        activity: q.activity,
+        page: q.page,
+        pageSize: q.pageSize,
+      },
+    );
+    return { rows, total, signinOnly, page: q.page, pageSize: q.pageSize };
   }
 
   @Get('users/:id')
