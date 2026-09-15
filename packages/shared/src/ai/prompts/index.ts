@@ -1,4 +1,5 @@
 export * from './course-skill-extraction';
+export * from './job-field-taxonomy';
 export * from './job-posting-skill-extraction';
 export * from './policy-doc-analysis';
 export * from './gap-insights';
@@ -10,6 +11,7 @@ export * from './demand-skill-match';
 export * from './program-digest';
 export * from './program-courses-extract';
 export * from './program-faculty-extraction';
+export * from './program-job-field';
 export * from './program-peer-selection';
 export * from './program-peer-review';
 export * from './program-strategic-narrative';
