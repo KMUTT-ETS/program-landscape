@@ -70,3 +70,4 @@ export * from './jobthai-bridge';
 export * from './demand-match-sources';
 export * from './usage';
 export * from './usage-retention';
+export * from './job-fields';
