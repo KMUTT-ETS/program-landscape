@@ -64,6 +64,10 @@ const TARGETS = [
   'jobthai-embed.ts',
   'jobthai-link-programs.ts',
   'match-program-demand.ts',
+  // Field-of-study taxonomy for the demand-first Gap Analyzer (v1.9.7). Runs
+  // at the end of each batch refresh; the script is the first-population and
+  // repair path on prod.
+  'jobthai-fields.ts',
   // One-off data fixes run on dev on 2026-09-13 that prod needs too: the
   // 456-row skill-taxonomy merge, and provenance for program_demand_matches.
   'dedupe-skills.ts',

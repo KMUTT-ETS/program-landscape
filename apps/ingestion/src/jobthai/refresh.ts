@@ -16,6 +16,8 @@ import {
 
 import { deriveOccupations, occupationCode } from './derive-occupations';
 import { loadSkillTerms, matchSkillTerms, rollUpOccupationSkills, type PostingSkillMatch } from './match-skills';
+import { createIngestionAiService } from '../lib/ai-service';
+import { defaultFieldsDeps, refreshJobFields, type FieldsSummary } from './fields';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // JobThai derived layers — occupations, skill matches and programme links.
@@ -339,6 +341,8 @@ export interface RefreshSummary {
   linksWritten: number;
   linkedProgrammes: number;
   clearingFloor: number;
+  /** Null when the taxonomy step failed (logged, never fatal to the batch). */
+  fields: FieldsSummary | null;
   durationMs: number;
 }
 
@@ -349,5 +353,20 @@ export async function refreshJobThaiDerived(opts: { runId: string; log?: Refresh
   const plan = await planJobThaiLinks();
   const linksWritten = await writeJobThaiLinks(plan.planned, opts.runId);
   opts.log?.(`links: ${linksWritten} across ${plan.linkedProgrammes} programme(s), ${plan.clearingFloor} clearing the posting floor`);
-  return { derive, linksWritten, linkedProgrammes: plan.linkedProgrammes, clearingFloor: plan.clearingFloor, durationMs: Date.now() - t0 };
+  // The field taxonomy costs model calls; a provider outage must not fail a
+  // batch whose postings, occupations and links already landed.
+  let fields: FieldsSummary | null = null;
+  try {
+    fields = await refreshJobFields({ apply: true, runId: opts.runId, log: opts.log }, defaultFieldsDeps(createIngestionAiService()));
+  } catch (err: unknown) {
+    opts.log?.(`fields: FAILED — ${err instanceof Error ? err.message : String(err)} (run pnpm jobthai:fields --apply to retry)`);
+  }
+  return {
+    derive,
+    linksWritten,
+    linkedProgrammes: plan.linkedProgrammes,
+    clearingFloor: plan.clearingFloor,
+    fields,
+    durationMs: Date.now() - t0,
+  };
 }
