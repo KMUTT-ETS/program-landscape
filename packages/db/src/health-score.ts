@@ -607,12 +607,16 @@ export interface ProgramScoreIndexEntry {
   programId: string;
   facultyId: string | null;
   dimensions: HealthScoreRow['dimensions'];
+  /** Overall composite, null when every dimension was null. */
+  overall: number | null;
 }
 export type ProgramScoreIndex = Map<string, ProgramScoreIndexEntry>;
 
 let _programIndexCache: { at: number; index: ProgramScoreIndex } | null = null;
 
-async function getProgramScoreIndex(): Promise<ProgramScoreIndex> {
+/** Every ACTIVE programme's health, memoised for PROGRAM_AVG_TTL_MS. Exported
+ *  for the gap map, which needs one number per programme without 297 calls. */
+export async function getProgramScoreIndex(): Promise<ProgramScoreIndex> {
   const now = Date.now();
   if (_programIndexCache && now - _programIndexCache.at < PROGRAM_AVG_TTL_MS) {
     return _programIndexCache.index;
@@ -633,7 +637,7 @@ async function getProgramScoreIndex(): Promise<ProgramScoreIndex> {
     );
     for (const { p, row } of scored) {
       if (!row) continue;
-      index.set(p.id, { programId: p.id, facultyId: p.facultyId, dimensions: row.dimensions });
+      index.set(p.id, { programId: p.id, facultyId: p.facultyId, dimensions: row.dimensions, overall: row.overall.score });
     }
   }
   _programIndexCache = { at: now, index };
