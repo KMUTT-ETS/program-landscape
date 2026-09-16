@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, type ApiFetchError } from '@/lib/api-client';
 import { auth } from '@/lib/auth';
 import type { SessionUser } from '@kku/shared';
 
@@ -9,7 +9,7 @@ import type { SessionUser } from '@kku/shared';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ALLOWED = /^(?:[A-Za-z0-9_-]+\/(?:approve|reject|merge)|assignments|assignments\/[A-Za-z0-9_-]+\/(?:approve|reject)|[A-Za-z0-9_-]+)$/;
+export const ALLOWED = /^(?:[A-Za-z0-9_-]+\/(?:approve|reject|merge)|assignments|assignments\/[A-Za-z0-9_-]+\/(?:approve|reject)|[A-Za-z0-9_-]+)$/;
 
 async function forward(req: Request, method: 'POST' | 'PATCH', path: string[]) {
   const session = await auth();
@@ -26,7 +26,11 @@ async function forward(req: Request, method: 'POST' | 'PATCH', path: string[]) {
     });
     return NextResponse.json({ data: result });
   } catch (err) {
-    return NextResponse.json({ error: { code: 'UPSTREAM_ERROR', message: (err as Error).message } }, { status: 502 });
+    const e = err as ApiFetchError;
+    return NextResponse.json(
+      { error: { code: e.code ?? 'UPSTREAM_ERROR', message: e.message } },
+      { status: e.status ?? 502 },
+    );
   }
 }
 
