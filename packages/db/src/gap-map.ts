@@ -80,6 +80,11 @@ export interface GapMapRow {
   pipeline: number | null;
   pipelineArrow: PipelineArrow | null;
   programmeCount: number;
+  /** Of `programmeCount` scored programmes, how many carry a supply
+   *  figure (alumni or enrolment-proxy). A partial gap (e.g. 2 of 3)
+   *  still gets a normal verdict; only a total absence (0) suppresses
+   *  one — see `verdict: 'supply-unknown'`. */
+  programmesWithSupply: number;
   signalCount: number;
   /** Present only when scope ≠ university: the same field scored over all of KKU. */
   kkuTotal: { supplyShare: number; ratio: number | null; verdict: GapVerdict } | null;
@@ -115,7 +120,7 @@ export interface GapMapResult {
     supplyShareSum: number;
     multiFieldProgrammes: number;
     /** Σ_f grads_f over scored programmes — the supply denominator. */
-    gradsTotal: number;
+    fieldGraduatesTotal: number;
   };
   taxonomy: { approved: number; proposed: number };
   freshness: { postingsAsOf: string | null; taxonomyAsOf: string | null };
@@ -153,17 +158,16 @@ export async function computeGapMap(args: {
     select: { id: true, slug: true, nameTh: true, nameEn: true, reviewStatus: true, updatedAt: true },
     orderBy: { slug: 'asc' },
   });
-  const [demandRows, universe, provinceRows] = await Promise.all([
-    prisma.$queryRaw<Array<{ field_id: string; postings: number }>>(Prisma.sql`
-      SELECT f.id AS field_id, COUNT(DISTINCT jp.id)::int AS postings
-      FROM job_field_taxonomy f
-      JOIN job_postings jp ON jp.required_fields_raw && f.synonyms
-      WHERE f.review_status IN ('APPROVED', 'PROPOSED')
-        AND jp.source = 'jobthai'
-        AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
-        AND ${realDataSql('jp')}
-      GROUP BY f.id
-    `),
+  // Single join pass: the demand-per-field count used to be its own query
+  // (`demandRows`), re-running the same job_field_taxonomy ⋈ job_postings
+  // join the province query below already does. Every eligible posting has
+  // exactly one province (COALESCE'd to '(unknown)'), so summing the
+  // per-(field, province) postings count over provinces for a fixed field
+  // gives the same distinct-posting total as grouping by field alone —
+  // `postingsByField` / `fieldMentions` are derived from `provinceRows`
+  // instead of a fourth pass. Cross-checked against a one-pass
+  // per-posting field count in the DB test.
+  const [universe, provinceRows] = await Promise.all([
     prisma.$queryRaw<
       Array<{
         eligible: number;
@@ -183,14 +187,11 @@ export async function computeGapMap(args: {
           AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
           AND ${realDataSql('jp')}
       ),
-      field_naming AS (
-        SELECT e.id FROM eligible e
-        WHERE EXISTS (SELECT 1 FROM job_field_taxonomy f WHERE f.review_status IN ('APPROVED','PROPOSED') AND e.required_fields_raw && f.synonyms)
-      ),
-      multi_field AS (
-        SELECT e.id FROM eligible e
+      field_counts AS (
+        SELECT e.id, COUNT(DISTINCT f.id)::int AS n_fields
+        FROM eligible e
         JOIN job_field_taxonomy f ON f.review_status IN ('APPROVED','PROPOSED') AND e.required_fields_raw && f.synonyms
-        GROUP BY e.id HAVING COUNT(DISTINCT f.id) >= 2
+        GROUP BY e.id
       ),
       other AS (
         SELECT s FROM eligible e, unnest(e.required_fields_raw) AS s
@@ -199,8 +200,8 @@ export async function computeGapMap(args: {
       )
       SELECT
         (SELECT COUNT(*)::int FROM eligible) AS eligible,
-        (SELECT COUNT(*)::int FROM field_naming) AS field_naming,
-        (SELECT COUNT(*)::int FROM multi_field) AS multi_field,
+        (SELECT COUNT(*)::int FROM field_counts) AS field_naming,
+        (SELECT COUNT(*)::int FROM field_counts WHERE n_fields > 1) AS multi_field,
         (SELECT COUNT(*)::int FROM eligible WHERE ${JOBTHAI_ANY_FIELD} = ANY(required_fields_raw)) AS any_field,
         (SELECT COUNT(*)::int FROM job_postings jp WHERE jp.source = 'jobthai' AND jp.min_education_level::text = ANY(${POSTGRAD_LEVELS}::text[]) AND ${realDataSql('jp')}) AS postgraduate,
         (SELECT COUNT(DISTINCT s)::int FROM other) AS other_kinds,
@@ -228,7 +229,8 @@ export async function computeGapMap(args: {
     other_mentions: 0,
     as_of: null,
   };
-  const postingsByField = new Map(demandRows.map((r) => [r.field_id, r.postings]));
+  const postingsByField = new Map<string, number>();
+  for (const r of provinceRows) postingsByField.set(r.field_id, (postingsByField.get(r.field_id) ?? 0) + r.postings);
 
   // ── Normalisation rule (docs/methodologies/gap-map.md) ────────────────────
   // A posting that accepts several fields is demand for each of them; a
@@ -239,7 +241,7 @@ export async function computeGapMap(args: {
   // more than once (`multiFieldPostings`, `multiFieldProgrammes`). `postings`
   // per row stays the raw distinct-posting count — the too-few-postings floor
   // and the displayed number are unaffected.
-  const fieldMentions = demandRows.reduce((n, r) => n + r.postings, 0);
+  const fieldMentions = [...postingsByField.values()].reduce((n, v) => n + v, 0);
   const provincesByField = new Map<string, Array<{ province: string; share: number }>>();
   for (const r of provinceRows) {
     const total = postingsByField.get(r.field_id) ?? 0;
@@ -366,8 +368,18 @@ export async function computeGapMap(args: {
     }),
   );
   const kkuScoredIds = new Set(assignedProgramIds.filter((id) => programById.get(id)!.level === 'BACHELOR'));
+  // `?? 0` here is correct and load-bearing for a SUM denominator: a
+  // programme with no supply figure contributes nothing to the total,
+  // which is exactly what summing "what is known" means. Do NOT read
+  // `gradsOf(id) === 0` as "this programme measured zero graduates" —
+  // use `hasSupply` for that distinction. verdictFor's `supply-unknown`
+  // state fires when a field has zero SCORED programmes with a supply
+  // figure at all, not when their (possibly-absent) figures sum to 0.
   const gradsOf = (id: string): number => supplyById.get(id)?.grads ?? 0;
-  const gradsTotal = assignments.filter((a) => scoredIds.has(a.program.id)).reduce((n, a) => n + gradsOf(a.program.id), 0);
+  const hasSupply = (id: string): boolean => supplyById.get(id)?.grads != null;
+  const fieldGraduatesTotal = assignments
+    .filter((a) => scoredIds.has(a.program.id))
+    .reduce((n, a) => n + gradsOf(a.program.id), 0);
   const kkuGradsTotal = assignments
     .filter((a) => kkuScoredIds.has(a.program.id))
     .reduce((n, a) => n + gradsOf(a.program.id), 0);
@@ -413,14 +425,16 @@ export async function computeGapMap(args: {
       })
       .sort((x, y) => (y.gradsPerYear ?? -1) - (x.gradsPerYear ?? -1));
     const scored = programmes.filter((p) => p.scored);
+    const scoredWithSupply = scored.filter((p) => p.gradsPerYear != null).length;
     const grads = scored.reduce((n, p) => n + (p.gradsPerYear ?? 0), 0);
     const pipeline = scored.reduce((n, p) => n + (p.pipeline ?? 0), 0);
     const hasGrads = scored.some((p) => p.gradsPerYear != null);
     const hasPipeline = scored.some((p) => p.pipeline != null);
-    const supplyShare = gradsTotal > 0 ? grads / gradsTotal : 0;
+    const supplyShare = fieldGraduatesTotal > 0 ? grads / fieldGraduatesTotal : 0;
     const { ratio, verdict } = verdictFor({
       postings,
       programmes: scored.length,
+      scoredWithSupply,
       demandShare,
       supplyShare,
       thresholds: args.thresholds,
@@ -429,11 +443,13 @@ export async function computeGapMap(args: {
     let kkuTotal: GapMapRow['kkuTotal'] = null;
     if (inScopeSet) {
       const kkuScored = mine.filter((a) => kkuScoredIds.has(a.program.id));
+      const kkuScoredWithSupply = kkuScored.filter((a) => hasSupply(a.program.id)).length;
       const kkuGrads = kkuScored.reduce((n, a) => n + gradsOf(a.program.id), 0);
       const kkuShare = kkuGradsTotal > 0 ? kkuGrads / kkuGradsTotal : 0;
       const v = verdictFor({
         postings,
         programmes: kkuScored.length,
+        scoredWithSupply: kkuScoredWithSupply,
         demandShare,
         supplyShare: kkuShare,
         thresholds: args.thresholds,
@@ -456,12 +472,17 @@ export async function computeGapMap(args: {
       pipeline: hasPipeline ? pipeline : null,
       pipelineArrow: pipelineArrow(hasGrads ? grads : null, hasPipeline ? pipeline : null),
       programmeCount: scored.length,
+      programmesWithSupply: scoredWithSupply,
       signalCount: signals.length,
       kkuTotal,
       provinces: provincesByField.get(f.id) ?? [],
       occupations: occByField.get(f.id) ?? [],
       programmes,
-      facultyIds: [...new Set(programmes.map((p) => p.facultyId).filter((x): x is string => x != null))],
+      // Restricted to SCORED programmes: an unscored (postgraduate, or
+      // out-of-scope) programme merely listed under this field would
+      // otherwise put its faculty in the strip for a field it
+      // contributes nothing to.
+      facultyIds: [...new Set(scored.map((p) => p.facultyId).filter((x): x is string => x != null))],
       globalSignal: globalSignals.get(f.id) ?? { skills: [], scope: null },
       trendSignals: signals,
     };
@@ -487,7 +508,7 @@ export async function computeGapMap(args: {
       programmeIds: r.programmes.filter((p) => p.scored).map((p) => p.programId),
       gradsPerYear: r.gradsPerYear ?? 0,
     })),
-    { fieldMentions, fieldGraduates: gradsTotal },
+    { fieldMentions, fieldGraduates: fieldGraduatesTotal },
   );
   const scopeLabel =
     args.scope === 'university' || !args.scopeId

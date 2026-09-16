@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { Prisma } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/index';
 import { computeGapMap, scopeProgramIds } from '../src/gap-map';
 import { GAP_MAP_VERSION, GAP_VERDICTS } from '../src/gap-map-rules';
+import { realDataSql } from '../src/data-quality';
+import { eligiblePostingLevels } from '../src/jobthai-bridge';
 
 const postgresUp: boolean = await (async () => {
   try {
@@ -32,7 +35,7 @@ describe.skipIf(!postgresUp)('computeGapMap at university scope', () => {
       // field-graduates), so each share set sums to 1 even though postings
       // and programmes may be counted in several rows.
       expect(map.reconciliation.demandShareSum).toBeCloseTo(1, 3);
-      if (map.reconciliation.gradsTotal > 0) expect(map.reconciliation.supplyShareSum).toBeCloseTo(1, 3);
+      if (map.reconciliation.fieldGraduatesTotal > 0) expect(map.reconciliation.supplyShareSum).toBeCloseTo(1, 3);
       expect(map.reconciliation.multiFieldPostings).toBeGreaterThanOrEqual(0);
       expect(map.reconciliation.multiFieldPostings).toBeLessThanOrEqual(map.reconciliation.fieldPostings);
       expect(map.reconciliation.fieldMentions).toBeGreaterThanOrEqual(map.reconciliation.fieldPostings);
@@ -46,10 +49,38 @@ describe.skipIf(!postgresUp)('computeGapMap at university scope', () => {
         // programmes is still a white space and still lists them.
         expect(r.programmes.filter((p) => p.scored).length === 0).toBe(r.verdict === 'white-space');
         if (r.verdict === 'too-few-postings') expect(r.postings).toBeLessThan(20);
+        // A missing supply figure is a data gap, never a measured zero:
+        // 'supply-unknown' never carries a ratio, and the with-supply
+        // count can never exceed the scored-programme count.
+        expect(r.programmesWithSupply).toBeLessThanOrEqual(r.programmeCount);
+        if (r.verdict === 'supply-unknown') expect(r.ratio).toBeNull();
       }
     }
     expect(map.reconciliation.anyFieldPostings).toBeGreaterThanOrEqual(0);
     expect(map.taxonomy.approved + map.taxonomy.proposed).toBe(map.rows.length);
+  }, DB_TIMEOUT_MS);
+
+  it('field-mentions derived from the province rows agrees with an independent one-pass per-posting recount', async () => {
+    // Task 7 fix 2 collapsed the separate demand-per-field query into a
+    // derivation from the province query (every posting has exactly one
+    // province, so summing per-(field,province) postings over provinces
+    // equals the distinct-posting count per field). Cross-check that
+    // against a one-pass per-posting field count computed independently.
+    const map = await computeGapMap({ scope: 'university', scopeId: null, thresholds: { under: 0.5, over: 2 } });
+    const BACHELOR_LEVELS = eligiblePostingLevels('BACHELOR');
+    const rows = await prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+      SELECT COALESCE(SUM(n_fields), 0)::int AS total FROM (
+        SELECT jp.id, COUNT(DISTINCT f.id)::int AS n_fields
+        FROM job_postings jp
+        JOIN job_field_taxonomy f ON jp.required_fields_raw && f.synonyms
+        WHERE f.review_status IN ('APPROVED', 'PROPOSED')
+          AND jp.source = 'jobthai'
+          AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
+          AND ${realDataSql('jp')}
+        GROUP BY jp.id
+      ) per_posting
+    `);
+    expect(rows[0]?.total ?? 0).toBe(map.reconciliation.fieldMentions);
   }, DB_TIMEOUT_MS);
 
   it('postgraduate programmes are listed but never scored', async () => {
@@ -72,8 +103,11 @@ describe.skipIf(!postgresUp)('computeGapMap at university scope', () => {
       expect(r.kkuTotal).not.toBeNull();
       const uniRow = uni.rows.find((u) => u.slug === r.slug)!;
       expect(r.kkuTotal!.verdict).toBe(uniRow.verdict);
-      if (r.verdict === 'white-space')
-        expect(['white-space', 'under-served', 'served', 'over-served', 'too-few-postings']).toContain(uniRow.verdict);
+      // The real invariant: no faculty can supply what the whole
+      // university does not. If NO faculty anywhere has a scored
+      // programme for this field (university-scope white space), this
+      // faculty's own row for the same field must be a white space too.
+      if (uniRow.verdict === 'white-space') expect(r.verdict).toBe('white-space');
     }
   }, DB_TIMEOUT_MS);
 
@@ -100,7 +134,10 @@ describe('computeGapMap provenance gating', () => {
   it('gates alumni, enrolment, cohort and link reads', () => {
     expect(src).toContain("realDataSql('acs')");
     expect(src).toContain("realDataSql('em')");
-    expect(src).toMatch(/studentCohortDistribution\.groupBy\([\s\S]*?realDataWhere\(\)/);
+    // Bounded (not `[\s\S]*?`, which is satisfiable by ANY later
+    // realDataWhere() anywhere in the file, however far away): the real
+    // call's where-clause gate sits ~126 chars after the opening paren.
+    expect(src).toMatch(/studentCohortDistribution\.groupBy\([\s\S]{0,160}?realDataWhere\(\)/);
     expect(src).toMatch(/programJobThaiLink\.findMany\(\{\s*where: realDataWhere\(\)/);
   });
 });

@@ -9,8 +9,21 @@ import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from './jobthai-bridge';
 
 export const GAP_MAP_VERSION = 'gap-map.v1';
 
-export type GapVerdict = 'white-space' | 'under-served' | 'served' | 'over-served' | 'too-few-postings';
-export const GAP_VERDICTS: readonly GapVerdict[] = ['white-space', 'under-served', 'served', 'over-served', 'too-few-postings'];
+export type GapVerdict =
+  | 'white-space'
+  | 'under-served'
+  | 'served'
+  | 'over-served'
+  | 'supply-unknown'
+  | 'too-few-postings';
+export const GAP_VERDICTS: readonly GapVerdict[] = [
+  'white-space',
+  'under-served',
+  'served',
+  'over-served',
+  'supply-unknown',
+  'too-few-postings',
+];
 
 export interface GapThresholds {
   /** ratio strictly below this → under-served */
@@ -32,15 +45,24 @@ export function parseThresholds(q: { under?: string | number; over?: string | nu
   return ThresholdsSchema.parse(q);
 }
 
-/** Share-vs-share rule (spec §2 decision 3). Shares are fractions (0..1). */
+/** Share-vs-share rule (spec §2 decision 3). Shares are fractions (0..1).
+ *
+ * `scoredWithSupply` is the count of SCORED programmes that carry a supply
+ * figure (alumni or enrolment-proxy) — distinct from `programmes`, which
+ * counts scored programmes whether or not any of them have a number. A
+ * field with programmes but none of them measured is not a "measured
+ * zero" ratio; it is a data gap, and gets no ratio at all (health-score's
+ * null-handling rule: missing metrics are excluded, never read as 0). */
 export function verdictFor(args: {
   postings: number;
   programmes: number;
+  scoredWithSupply: number;
   demandShare: number;
   supplyShare: number;
   thresholds: GapThresholds;
 }): { ratio: number | null; verdict: GapVerdict } {
   if (args.programmes === 0) return { ratio: null, verdict: 'white-space' };
+  if (args.scoredWithSupply === 0) return { ratio: null, verdict: 'supply-unknown' };
   const raw = args.demandShare > 0 ? args.supplyShare / args.demandShare : null;
   const ratio = raw == null ? null : Math.round(raw * 100) / 100;
   if (args.postings < JOBTHAI_MIN_POSTINGS_FOR_SIGNAL) return { ratio, verdict: 'too-few-postings' };
@@ -65,7 +87,11 @@ export interface Reconciliation {
   demandShareSum: number;
   supplyShareSum: number;
   multiFieldProgrammes: number;
-  gradsTotal: number;
+  /** Σ_f grads_f over SCORED programmes — the supply denominator. Named
+   *  for what it sums over (fields, not distinct programmes): a
+   *  two-field programme's graduates are counted twice, once per field
+   *  it is assigned to, matching `fieldMentions` on the demand side. */
+  fieldGraduatesTotal: number;
 }
 
 /** The line under the table. Both sides are normalised by the sum over
@@ -84,6 +110,6 @@ export function reconcile(
     demandShareSum: totals.fieldMentions > 0 ? rows.reduce((a, r) => a + r.postings, 0) / totals.fieldMentions : 0,
     supplyShareSum: totals.fieldGraduates > 0 ? rows.reduce((a, r) => a + r.gradsPerYear, 0) / totals.fieldGraduates : 0,
     multiFieldProgrammes: [...seen.values()].filter((n) => n > 1).length,
-    gradsTotal: totals.fieldGraduates,
+    fieldGraduatesTotal: totals.fieldGraduates,
   };
 }
