@@ -716,6 +716,13 @@ function buildGroups({
       icon: <DataSourceMark source="jobthai" size={28} />,
     },
     {
+      href: '/admin/job-fields',
+      label: 'Job fields',
+      description:
+        'Review the fields of study clustered from JobThai postings and the programmes assigned to each. These are the rows of the Gap Analyzer; proposed rows are shown there as unreviewed until approved here.',
+      icon: <DataSourceMark source="jobthai" size={28} />,
+    },
+    {
       href: '/admin/pdf-review',
       label: 'PDF library',
       description:
