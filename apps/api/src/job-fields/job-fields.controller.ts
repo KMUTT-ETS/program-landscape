@@ -6,10 +6,12 @@ import {
   listJobFields,
   listProgramJobFields,
   mergeJobFields,
+  Prisma,
   renameJobField,
   setJobFieldStatus,
   setProgramJobFieldStatus,
 } from '@kku/db';
+import { ApiError } from '@kku/shared';
 import { AuditLog, Authorized, ZodValidationPipe } from '../common';
 import { CacheService } from '../common/cache.service';
 
@@ -31,9 +33,20 @@ export class JobFieldsController {
     await this.cache.purge(GAP_MAP_CACHE_PATTERN);
   }
 
-  // Seam for the unit test; the real call is one line.
-  private setStatus(id: string, reviewStatus: 'APPROVED' | 'REJECTED'): Promise<void> {
-    return setJobFieldStatus(id, reviewStatus);
+  // A bad id from the URL/body is a caller mistake, not a server fault:
+  // Prisma's "record to update/delete not found" (P2025) becomes a 404, and
+  // a foreign-key miss on a create/upsert (P2003) becomes a 400. Anything
+  // else re-throws untouched (the global filter maps it to 500).
+  private async db<T>(op: () => Promise<T>): Promise<T> {
+    try {
+      return await op();
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === 'P2025') throw new ApiError('NOT_FOUND', 'no such field or assignment');
+        if (err.code === 'P2003') throw new ApiError('VALIDATION_FAILED', 'unknown programme or field id');
+      }
+      throw err;
+    }
   }
 
   @Get()
@@ -52,7 +65,7 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'job_field.approve', entityType: 'JobFieldTaxonomy' })
   async approve(@Param('id') id: string) {
-    await this.setStatus(id, 'APPROVED');
+    await this.db(() => setJobFieldStatus(id, 'APPROVED'));
     await this.invalidate();
     return { id, reviewStatus: 'APPROVED' };
   }
@@ -61,7 +74,7 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'job_field.reject', entityType: 'JobFieldTaxonomy' })
   async reject(@Param('id') id: string) {
-    await this.setStatus(id, 'REJECTED');
+    await this.db(() => setJobFieldStatus(id, 'REJECTED'));
     await this.invalidate();
     return { id, reviewStatus: 'REJECTED' };
   }
@@ -70,7 +83,7 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'job_field.rename', entityType: 'JobFieldTaxonomy' })
   async rename(@Param('id') id: string, @Body(new ZodValidationPipe(RenameBody)) body: z.infer<typeof RenameBody>) {
-    await renameJobField(id, body);
+    await this.db(() => renameJobField(id, body));
     await this.invalidate();
     return { id, ...body };
   }
@@ -79,16 +92,22 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'job_field.merge', entityType: 'JobFieldTaxonomy' })
   async merge(@Param('id') id: string, @Body(new ZodValidationPipe(MergeBody)) body: z.infer<typeof MergeBody>) {
-    const result = await mergeJobFields(id, body.intoId);
+    // mergeJobFields also guards this, but a validation error should read
+    // as a 400 (caller mistake), not the 500 a bare `throw new Error` maps to.
+    if (id === body.intoId) throw new ApiError('VALIDATION_FAILED', 'cannot merge a field into itself');
+    const result = await this.db(() => mergeJobFields(id, body.intoId));
     await this.invalidate();
-    return { from: id, into: body.intoId, ...result };
+    // The audit interceptor reads entityId from result.id — after a merge
+    // the from-row (id) no longer exists, so id here must be the survivor.
+    return { id: body.intoId, from: id, into: body.intoId, ...result };
   }
 
   @Post('assignments')
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'program_job_field.add', entityType: 'ProgramJobField' })
   async addAssignment(@Body(new ZodValidationPipe(AddAssignmentBody)) body: z.infer<typeof AddAssignmentBody>) {
-    const id = await addProgramJobField(body.programId, body.fieldId, await latestJobThaiRunId());
+    const runId = await latestJobThaiRunId();
+    const id = await this.db(() => addProgramJobField(body.programId, body.fieldId, runId));
     await this.invalidate();
     return { id, ...body, reviewStatus: 'APPROVED' };
   }
@@ -97,7 +116,7 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'program_job_field.approve', entityType: 'ProgramJobField' })
   async approveAssignment(@Param('id') id: string) {
-    await setProgramJobFieldStatus(id, 'APPROVED');
+    await this.db(() => setProgramJobFieldStatus(id, 'APPROVED'));
     await this.invalidate();
     return { id, reviewStatus: 'APPROVED' };
   }
@@ -106,7 +125,7 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'program_job_field.reject', entityType: 'ProgramJobField' })
   async rejectAssignment(@Param('id') id: string) {
-    await setProgramJobFieldStatus(id, 'REJECTED');
+    await this.db(() => setProgramJobFieldStatus(id, 'REJECTED'));
     await this.invalidate();
     return { id, reviewStatus: 'REJECTED' };
   }
