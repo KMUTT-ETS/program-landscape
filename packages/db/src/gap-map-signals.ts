@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './index';
+import { realDataWhere } from './data-quality';
 import { OCCUPATION_SKILL_DEMAND_FLOOR } from './jobthai-bridge';
 import { jobThaiGenericSkills } from './jobthai';
 
@@ -64,13 +65,20 @@ export async function globalSignalForFields(
   const result = new Map<string, FieldGlobalSignal>();
   const allOcc = [...new Set([...occupationIdsByField.values()].flat())];
   if (fieldIds.length === 0 || allOcc.length === 0) return result;
+  // `jobthai_occupation_skills` carries no `ingestion_run_id` column at all, so
+  // this read cannot be realDataWhere()-gated — there is nothing to gate on.
+  // `kmitl_skill_growths` is different: it DOES carry `ingestion_run_id`
+  // (see KmitlSkillGrowth in schema.prisma, populated by every write in
+  // apps/ingestion/src/connectors/sources/kmitl-skill-mapping/connector.ts),
+  // so it is gated below — matching the long-standing read of the same table
+  // in computeOpportunities() (gap-analysis.ts).
   const [occSkills, growth, generic] = await Promise.all([
     prisma.jobThaiOccupationSkill.findMany({
       where: { jobThaiOccupationId: { in: allOcc }, share: { gte: OCCUPATION_SKILL_DEMAND_FLOOR } },
       select: { jobThaiOccupationId: true, skillId: true },
     }),
     prisma.kmitlSkillGrowth.findMany({
-      where: { skillId: { not: null } },
+      where: { skillId: { not: null }, ...realDataWhere() },
       select: { skillId: true, dataScope: true, growthPct: true },
     }),
     jobThaiGenericSkills(),
