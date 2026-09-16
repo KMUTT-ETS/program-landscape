@@ -1,182 +1,158 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
+import { computeDqSkillLens, GAP_MAP_VERSION, GAP_VERDICTS, Prisma, prisma, ThresholdsSchema } from '@kku/db';
+import { ApiError, type SessionUser } from '@kku/shared';
 import {
-  computeDqSkillLens,
-  computeForecastAccuracy,
-  computeGapAnalysis,
-  computeOccupationGap,
-  computeOpportunities,
-  computeProgramDemandGaps,
-  computeRegionalGap,
-  computeRisks,
-  computeSectorGap,
-  computeSkillGap,
-} from '@kku/db';
-import type { SessionUser } from '@kku/shared';
-import {
+  AiCall,
+  AiQuota,
+  AuditLog,
   AuthSession,
   Authorized,
-  AiCall,
   Provenance,
   ZodValidationPipe,
-  AiQuota,
-  assertProgramAccessible,
   clampScopeForUser,
 } from '../common';
-import { GapInsightsService } from './gap-insights.service';
+import { GAP_MAP_SOURCES, GapBriefService, type BriefVerdictFilter } from './gap-brief.service';
+import { GapService } from './gap.service';
 
-// Gap Analyzer API (prompt 08). All reads are scope-aware via a shared
-// query schema; insight generation is a mutation-like call that writes
-// one AiInference row per request through the AiService recorder.
+// Gap Analyzer API — the demand-first map (gap-map.v1). Programme scope is
+// not a map: the page redirects it to the Deep-Dive, and the api refuses it.
 
-const FilterQuerySchema = z.object({
-  scope: z.enum(['university', 'faculty', 'department', 'program']).default('university'),
-  scopeId: z.string().optional(),
-  region: z.string().default('TH'),
-  // Using union of literals (not coerce.number + refine) so TS narrows to
-  // 0 | 3 | 5 | 10 and downstream compute* functions type-match cleanly.
-  horizon: z
-    .union([z.literal('0'), z.literal('3'), z.literal('5'), z.literal('10')])
-    .transform((v): 0 | 3 | 5 | 10 => Number(v) as 0 | 3 | 5 | 10)
-    .default('0'),
-  comparison: z.enum(['absolute', 'per-capita', 'growth-adjusted']).default('absolute'),
-  limit: z.coerce.number().int().positive().max(200).default(30),
+const ScopeSchema = z.enum(['university', 'faculty', 'department']);
+
+/** `GAP_VERDICTS` is the single list of what the map can say about a field;
+ *  spelling it out a second time here is how a sixth verdict
+ *  (`supply-unknown`) silently becomes unfilterable. The cast only turns a
+ *  readonly array into the non-empty tuple `z.enum` asks for — the values,
+ *  and the `BriefVerdictFilter` union they must match, come from @kku/db. */
+const VERDICT_FILTERS = ['all', ...GAP_VERDICTS] as [BriefVerdictFilter, ...BriefVerdictFilter[]];
+const VerdictFilterSchema = z.enum(VERDICT_FILTERS);
+
+export const MapQuery = z
+  .object({
+    scope: ScopeSchema.default('university'),
+    scopeId: z.string().optional(),
+  })
+  .and(ThresholdsSchema);
+type MapQueryT = z.infer<typeof MapQuery>;
+
+export const BriefBody = z
+  .object({
+    scope: ScopeSchema.default('university'),
+    scopeId: z.string().optional(),
+    verdict: VerdictFilterSchema.default('all'),
+    facultyId: z.string().optional(),
+  })
+  .and(ThresholdsSchema);
+type BriefBodyT = z.infer<typeof BriefBody>;
+
+const DisagreementBody = z.object({
+  aiInferenceId: z.string().optional(),
+  bodyEn: z.string().max(4000).optional(),
+  bodyTh: z.string().max(4000).optional(),
 });
-type FilterQuery = z.infer<typeof FilterQuerySchema>;
 
-const InsightBodySchema = z.object({
-  mode: z.enum(['strategic-top-5', 'program-skills-to-add', 'sector-brief']),
-  scope: z.enum(['university', 'faculty', 'department', 'program']).default('university'),
-  scopeId: z.string().optional(),
-  programId: z.string().optional(),
-  sectorCode: z.string().optional(),
-});
-type InsightBody = z.infer<typeof InsightBodySchema>;
+const MAP_CAVEATS = [
+  'JobThai adverts are national and Bangkok-weighted (37 % Bangkok, 3.3 % Isan); they carry no salary and no posting date.',
+  "Only adverts whose minimum education level admits a bachelor's graduate are counted; postgraduate programmes are listed but not scored.",
+  "A programme assigned to two fields counts in both fields' supply; the reconciliation line states how many.",
+  'A field whose programmes carry no graduate figure is reported as supply-unknown — a missing measurement, never a shortfall.',
+  'Proposed fields are shown before review; the provenance drawer states how many are unreviewed.',
+];
 
 @Controller('/gap')
 export class GapController {
-  constructor(private readonly insights: GapInsightsService) {}
+  constructor(
+    private readonly gap: GapService,
+    private readonly briefs: GapBriefService,
+  ) {}
 
-  // Helper — clamp the scope/scopeId pair to whatever the caller is
-  // allowed to see, then merge back into the FilterQuery shape that
-  // each compute* function expects. Refuses cross-scope queries (403)
-  // for FACULTY_USER / PROGRAM_USER.
-  private async clampFilter(q: FilterQuery, user: SessionUser): Promise<FilterQuery> {
+  private async clamp(
+    q: { scope: 'university' | 'faculty' | 'department'; scopeId?: string },
+    user: SessionUser,
+  ): Promise<{ scope: 'university' | 'faculty' | 'department'; scopeId: string | null }> {
     const eff = await clampScopeForUser(q.scope, q.scopeId ?? null, user);
-    return { ...q, scope: eff.scope, scopeId: eff.scopeId ?? undefined };
+    // A PROGRAM_USER's clamp lands on 'program'. The map is a portfolio
+    // view — a single programme is a Deep-Dive, not a field map — so the
+    // route refuses rather than silently widening the user's scope.
+    if (eff.scope === 'program') throw new ApiError('NOT_FOUND', 'programme scope has no gap map');
+    return { scope: eff.scope, scopeId: eff.scopeId };
   }
 
-  @Get('skills')
+  @Get('map')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'job-postings', name: 'Job postings' }, { id: 'program-skills', name: 'Program skills' }] })
-  async skills(
-    @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
-  ) {
-    return computeSkillGap(await this.clampFilter(q, user));
+  @Provenance({ sources: GAP_MAP_SOURCES, methodologyVersion: GAP_MAP_VERSION, caveats: MAP_CAVEATS })
+  async map(@AuthSession() user: SessionUser, @Query(new ZodValidationPipe(MapQuery)) q: MapQueryT) {
+    const eff = await this.clamp(q, user);
+    const result = await this.gap.map({ ...eff, thresholds: { under: q.under, over: q.over } });
+    // The envelope's freshnessDate is what <FreshnessBadge> reads; @Provenance
+    // is static metadata and cannot carry it, so the handler returns the
+    // envelope shape and lets the interceptor merge the two.
+    return { data: result, meta: { freshnessDate: result.freshness.postingsAsOf } };
   }
 
-  // Multi-lens Gap Analyzer — all 7 lenses + composite for the scope.
-  @Get('analysis')
+  @Get('map/fields/:slug')
   @Authorized('programs:read:all')
-  @Provenance({
-    sources: [
-      { id: 'kmitl-skill-demand', name: 'Skill demand (LinkedIn via MHESI)' },
-      { id: 'program-peer-reviews', name: 'AI peer reviews' },
-      { id: 'admission-campaign-stats', name: 'Admission campaigns' },
-      { id: 'faculty-members', name: 'Faculty + research' },
-      { id: 'demographic-projections', name: 'NESDC demographic projections' },
-    ],
-    methodologyVersion: 'gap-lenses.v1',
-  })
-  async analysis(
+  @Provenance({ sources: GAP_MAP_SOURCES, methodologyVersion: GAP_MAP_VERSION, caveats: MAP_CAVEATS })
+  async fieldDetail(
     @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+    @Param('slug') slug: string,
+    @Query(new ZodValidationPipe(MapQuery)) q: MapQueryT,
   ) {
-    const eff = await this.clampFilter(q, user);
-    return computeGapAnalysis(eff.scope, eff.scopeId ?? null);
+    const eff = await this.clamp(q, user);
+    const { row, freshness } = await this.gap.field({ ...eff, thresholds: { under: q.under, over: q.over }, slug });
+    if (!row) throw new ApiError('NOT_FOUND', `no field ${slug}`);
+    return { data: row, meta: { freshnessDate: freshness.postingsAsOf } };
   }
 
-  @Get('occupations')
+  @Post('brief')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'occupation-demand', name: 'Occupation demand' }] })
-  async occupations(
-    @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
-  ) {
-    return computeOccupationGap(await this.clampFilter(q, user));
+  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
+  @AiQuota({ module: 'gap-analysis' })
+  @AiCall({ module: 'gap-analysis' })
+  async brief(@AuthSession() user: SessionUser, @Body(new ZodValidationPipe(BriefBody)) body: BriefBodyT) {
+    const eff = await this.clamp(body, user);
+    return this.briefs.generate({
+      ...eff,
+      verdict: body.verdict,
+      facultyId: body.facultyId ?? null,
+      thresholds: { under: body.under, over: body.over },
+      userId: user.userId,
+    });
   }
 
-  @Get('sectors')
+  @Post('brief/disagreements')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'sectors', name: 'BCG + S-curve sectors' }] })
-  async sectors(
+  @AuditLog({ action: 'gap_brief.disagreement', entityType: 'Annotation' })
+  async disagree(
     @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+    @Body(new ZodValidationPipe(DisagreementBody)) body: z.infer<typeof DisagreementBody>,
   ) {
-    return computeSectorGap(await this.clampFilter(q, user));
+    const data: Prisma.AnnotationUncheckedCreateInput = {
+      userId: user.userId,
+      entityType: 'gap-map',
+      entityId: 'gap-brief',
+      kind: 'disagreement',
+      sectionKey: 'gap-brief',
+      aiInferenceId: body.aiInferenceId,
+      bodyEn: body.bodyEn,
+      bodyTh: body.bodyTh,
+    };
+    try {
+      return await prisma.annotation.create({ data });
+    } catch (err) {
+      // An aiInferenceId the caller made up is a caller mistake (400), not
+      // a server fault — the same mapping the job-fields review API uses.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        throw new ApiError('VALIDATION_FAILED', 'unknown aiInferenceId');
+      }
+      throw err;
+    }
   }
 
-  @Get('regional/:province')
-  @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'occupation-demand', name: 'Occupation demand' }] })
-  async regional(
-    @AuthSession() user: SessionUser,
-    @Param('province') province: string,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
-  ) {
-    const clamped = await this.clampFilter(q, user);
-    return computeRegionalGap({ ...clamped, region: province });
-  }
-
-  @Get('opportunities')
-  @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'job-postings', name: 'Job postings' }, { id: 'program-skills', name: 'Program skills' }] })
-  async opportunities(
-    @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
-  ) {
-    return computeOpportunities(await this.clampFilter(q, user));
-  }
-
-  @Get('risks')
-  @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'enrollment-metrics', name: 'Enrollment metrics' }, { id: 'demographic-projections', name: 'Demographic projections' }] })
-  async risks(
-    @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
-  ) {
-    return computeRisks(await this.clampFilter(q, user));
-  }
-
-  @Get('program-demand-gaps')
-  @Authorized('programs:read:all')
-  @Provenance({
-    sources: [
-      { id: 'program-demand-match', name: 'AI demand-match per program' },
-      { id: 'kmitl-skill-mapping', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
-    ],
-  })
-  async programDemandGaps(
-    @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
-  ) {
-    return computeProgramDemandGaps(await this.clampFilter(q, user));
-  }
-
-  // Digital-competency attainment lens. A SEPARATE axis beside the gap
-  // output, never a modifier on it: every other endpoint on this
-  // controller returns exactly what it returned before this route
-  // existed. Attainment measures what students demonstrably acquired,
-  // where the rest of the analyzer infers supply from what is taught.
+  // Digital-competency attainment lens — unchanged; the page moved to
+  // /education/digital-competency and still reads this server-side.
   @Get('digital-competency')
   @Authorized('programs:read:all')
   @Provenance({
@@ -192,51 +168,17 @@ export class GapController {
   })
   async digitalCompetency(
     @AuthSession() user: SessionUser,
-    @Query(new ZodValidationPipe(FilterQuerySchema)) q: FilterQuery,
+    @Query(
+      new ZodValidationPipe(
+        z.object({
+          scope: z.enum(['university', 'faculty', 'department', 'program']).default('university'),
+          scopeId: z.string().optional(),
+        }),
+      ),
+    )
+    q: { scope: 'university' | 'faculty' | 'department' | 'program'; scopeId?: string },
   ) {
-    const eff = await this.clampFilter(q, user);
+    const eff = await clampScopeForUser(q.scope, q.scopeId ?? null, user);
     return computeDqSkillLens({ scope: eff.scope, scopeId: eff.scopeId ?? null });
-  }
-
-  @Get('forecast-accuracy')
-  @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'forecast-runs', name: 'Forecast run history' }] })
-  async forecastAccuracy() {
-    return computeForecastAccuracy();
-  }
-
-  @Post('insights/generate')
-  @Authorized('programs:read:all')
-  @Throttle({ ai_short: { limit: 10, ttl: 60_000 }, ai_hourly: { limit: 60, ttl: 60 * 60 * 1000 } })
-  @AiQuota({ module: 'gap-analysis' })
-  @AiCall({ module: 'gap-analysis' })
-  async generateInsights(
-    @AuthSession() user: SessionUser,
-    @Body(new ZodValidationPipe(InsightBodySchema)) body: InsightBody,
-  ) {
-    if (body.mode === 'strategic-top-5') {
-      const eff = await clampScopeForUser(body.scope, body.scopeId ?? null, user);
-      return this.insights.generateStrategicTop5({
-        scope: eff.scope,
-        scopeId: eff.scopeId,
-        userId: user.userId,
-      });
-    }
-    if (body.mode === 'program-skills-to-add') {
-      if (!body.programId) throw new Error('programId required for program-skills-to-add');
-      await assertProgramAccessible(body.programId, user);
-      return this.insights.generateProgramSkillsToAdd({
-        programId: body.programId,
-        userId: user.userId,
-      });
-    }
-    if (body.mode === 'sector-brief') {
-      if (!body.sectorCode) throw new Error('sectorCode required for sector-brief');
-      return this.insights.generateSectorBrief({
-        sectorCode: body.sectorCode,
-        userId: user.userId,
-      });
-    }
-    throw new Error(`unknown mode ${String((body as { mode: string }).mode)}`);
   }
 }

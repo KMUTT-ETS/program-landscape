@@ -208,6 +208,15 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
 
   // ── Cross-module AI surfaces ─────────────────────────────────────────
   {
+    methodPrefix: 'gap-brief',
+    currentVersion: 'gap-brief.v1',
+    label: 'Gap map Council brief',
+    description: 'Up to five findings over the demand-map rows on screen, plus what the data cannot tell.',
+    module: 'gap',
+    tier: 'narrative',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
     methodPrefix: 'gap-insights',
     currentVersion: 'gap-insights.v1',
     label: 'Gap analyzer insights',

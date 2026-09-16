@@ -35,6 +35,7 @@ const DELIBERATELY_OTHER = new Set([
   'external_ai_source.delete',
   'external_ai_source.set_status',
   'external_ai_source.update',
+  'gap_brief.disagreement',
   'ingestion.bulk_status',
   'ingestion.source_patched',
   'job_field.approve',
