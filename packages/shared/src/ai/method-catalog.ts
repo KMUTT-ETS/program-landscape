@@ -14,6 +14,9 @@
 // future v-bump inherits the choice unless explicitly cleared.
 // ─────────────────────────────────────────────────────────────────────────
 
+import { JOB_FIELD_TAXONOMY_VERSION } from './prompts/job-field-taxonomy';
+import { PROGRAM_JOB_FIELD_VERSION } from './prompts/program-job-field';
+
 export type AiMethodTier =
   | 'reasoning' // Pro-class — needs reasoning, slow, expensive
   | 'extraction' // Structured PDF / text extraction
@@ -322,6 +325,24 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     currentVersion: 'career-kmitl-mapping.v2',
     label: 'KMITL career mapping',
     description: 'Maps KMITL skill-mapping careers to ISCO-08 + program affinity.',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'job-field-taxonomy',
+    currentVersion: JOB_FIELD_TAXONOMY_VERSION,
+    label: 'Job-field taxonomy',
+    description: 'Clusters the free-text "field of study" strings on JobThai postings into canonical fields of study with Thai and English names. Runs after every JobThai batch upload; reviewed at /admin/job-fields.',
+    module: 'ingestion',
+    tier: 'classification',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'program-job-field',
+    currentVersion: PROGRAM_JOB_FIELD_VERSION,
+    label: 'Programme → job-field assignment',
+    description: 'Assigns up to three canonical fields of study to each KKU programme, for the programmes the name-match rule could not settle.',
     module: 'ingestion',
     tier: 'classification',
     defaultModel: 'gemini-3.5-flash',
