@@ -336,4 +336,68 @@ describe('GapBriefService.generate — reconciliation against the rows the model
     expect(result.findingsDropped).toBe(1);
     expect(result.findingsCorrected).toBe(0);
   });
+
+  it('drops a finding whose field name is shared by two visible rows — neither row\'s verdict is guessed', async () => {
+    // nameEn carries no unique constraint (only slug does), and the map
+    // deliberately mixes APPROVED with PROPOSED rows — two proposed fields
+    // with distinct slugs but the same English name is a normal pre-merge
+    // state. The finding cannot be safely attributed to either row.
+    const underServed = makeRow({ nameEn: 'Logistics', verdict: 'under-served', slug: 'logistics-a' });
+    const overServed = makeRow({ nameEn: 'Logistics', verdict: 'over-served', slug: 'logistics-b' });
+    const map = makeMap([underServed, overServed]);
+    const output = cleanOutput([
+      { title: 'Logistics shortage', fieldNameEn: 'Logistics', verdict: 'under-served', evidence: 'e', implication: 'i' },
+    ]);
+    const extractStructured = vi.fn(async () => extractionResponse(output));
+    const ai = { extractStructured } as unknown as AiService;
+    const service = withAi(new GapBriefService(configWithProvider(), gapServiceReturning(map)), ai);
+
+    const result = await service.generate(baseParams);
+
+    expect(result.output?.findings).toEqual([]);
+    expect(result.findingsDropped).toBe(1);
+    expect(result.findingsCorrected).toBe(0);
+    expect(result.output?.findings.some((f) => f.verdict === 'under-served')).toBe(false);
+    expect(result.output?.findings.some((f) => f.verdict === 'over-served')).toBe(false);
+  });
+
+  it('still resolves a name that differs only by case or surrounding whitespace to its single row', async () => {
+    const row = makeRow({ nameEn: 'Nursing', verdict: 'served' });
+    const map = makeMap([row]);
+    const output = cleanOutput([
+      { title: 'Steady field', fieldNameEn: '  nursing  ', verdict: 'served', evidence: 'e', implication: 'i' },
+    ]);
+    const extractStructured = vi.fn(async () => extractionResponse(output));
+    const ai = { extractStructured } as unknown as AiService;
+    const service = withAi(new GapBriefService(configWithProvider(), gapServiceReturning(map)), ai);
+
+    const result = await service.generate(baseParams);
+
+    expect(result.output?.findings).toHaveLength(1);
+    expect(result.output?.findings[0]?.verdict).toBe('served');
+    expect(result.findingsDropped).toBe(0);
+    expect(result.findingsCorrected).toBe(0);
+  });
+
+  it('drops a finding naming a real field that was excluded by the row cap — it is not in the briefed rows', async () => {
+    const rows = Array.from({ length: GAP_BRIEF_MAX_ROWS + 1 }, (_, i) => makeRow({ nameEn: `Field ${i}` }));
+    // The last row (index GAP_BRIEF_MAX_ROWS) is real — it exists in the
+    // view — but is excluded from what the model was shown because
+    // `rows.slice(0, GAP_BRIEF_MAX_ROWS)` cuts it off. A finding naming it
+    // must take the unknown-field branch, exactly like a fully invented name.
+    const excludedName = `Field ${GAP_BRIEF_MAX_ROWS}`;
+    const map = makeMap(rows);
+    const output = cleanOutput([
+      { title: 'Excluded field', fieldNameEn: excludedName, verdict: 'served', evidence: 'e', implication: 'i' },
+    ]);
+    const extractStructured = vi.fn(async () => extractionResponse(output));
+    const ai = { extractStructured } as unknown as AiService;
+    const service = withAi(new GapBriefService(configWithProvider(), gapServiceReturning(map)), ai);
+
+    const result = await service.generate(baseParams);
+
+    expect(result.output?.findings).toEqual([]);
+    expect(result.findingsDropped).toBe(1);
+    expect(result.findingsCorrected).toBe(0);
+  });
 });

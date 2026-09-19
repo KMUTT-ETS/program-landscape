@@ -244,17 +244,44 @@ export class GapBriefService implements OnModuleInit {
     output: GapBriefOutput,
     rows: GapMapRow[],
   ): { output: GapBriefOutput; dropped: number; corrected: number } {
-    const byName = new Map(rows.map((r) => [normaliseFieldName(r.nameEn), r]));
+    // `nameEn` carries no unique constraint (only `slug` does — see
+    // JobFieldTaxonomy in schema.prisma), and this map deliberately mixes
+    // APPROVED rows with PROPOSED ones (packages/db/src/gap-map.ts), which
+    // job-fields.ts dedupes only by slug. Two AI-proposed fields with
+    // different slugs and the same English name are a normal, expected
+    // pre-merge state, not a bug — so names group into buckets here rather
+    // than a name winning a last-write-wins Map. A name naming more than one
+    // row is ambiguous: we cannot tell which row the model's prose actually
+    // describes, so the finding is dropped rather than pinned to whichever
+    // row happened to be resolved.
+    const byName = new Map<string, GapMapRow[]>();
+    for (const r of rows) {
+      const key = normaliseFieldName(r.nameEn);
+      const bucket = byName.get(key);
+      if (bucket) {
+        bucket.push(r);
+      } else {
+        byName.set(key, [r]);
+      }
+    }
     let dropped = 0;
     let corrected = 0;
     const findings: GapBriefOutput['findings'] = [];
     for (const f of output.findings) {
-      const row = byName.get(normaliseFieldName(f.fieldNameEn));
-      if (!row) {
+      const matches = byName.get(normaliseFieldName(f.fieldNameEn));
+      if (!matches || matches.length === 0) {
         dropped += 1;
         this.logger.warn(`gap-brief finding dropped: "${f.fieldNameEn}" is not a row in this view`);
         continue;
       }
+      if (matches.length > 1) {
+        dropped += 1;
+        this.logger.warn(
+          `gap-brief finding dropped: "${f.fieldNameEn}" matches ${matches.length} rows in this view — ambiguous, cannot tell which one the finding describes`,
+        );
+        continue;
+      }
+      const row = matches[0]!;
       if (row.verdict === f.verdict) {
         findings.push(f);
         continue;
@@ -283,8 +310,11 @@ export class GapBriefService implements OnModuleInit {
 
 /** Case- and whitespace-insensitive: the prompt asks for the name verbatim,
  *  and dropping an otherwise-sound finding over "Logistics" vs "logistics"
- *  would cost the reader a finding to punish a typo. Distinct field names
- *  cannot collide under this. */
+ *  would cost the reader a finding to punish a typo. This does NOT make
+ *  distinct field names collision-free — `nameEn` has no unique constraint,
+ *  so two different rows can normalise to the same key even before this
+ *  function runs any normalisation of its own. `reconcileFindings` handles
+ *  that case explicitly by dropping the ambiguous finding. */
 function normaliseFieldName(name: string): string {
   return name.trim().toLowerCase();
 }
