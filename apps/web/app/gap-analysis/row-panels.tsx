@@ -2,7 +2,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import type { ApiMeta } from '@kku/shared';
 import { ProvenanceButton } from '@kku/ui';
-import type { GapRowT } from './types';
+import type { GapLinkedProgrammeT, GapOccupationT, GapRowT } from './types';
 
 // The three panels of an expanded row. Server-rendered from the row already
 // in the page payload; no client fetch is needed because the map carries
@@ -13,7 +13,6 @@ const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 const int = (v: number) => Math.round(v).toLocaleString('en-US');
 
 export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React.JSX.Element {
-  const nameOf = new Map(row.programmes.map((p) => [p.programId, p.nameEn || p.nameTh]));
   return (
     <div className="grid gap-4 text-xs lg:grid-cols-[1.4fr_1fr_1fr]">
       <section>
@@ -23,17 +22,10 @@ export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React
         ) : (
           <ul className="space-y-1">
             {row.occupations.map((o) => (
-              <li key={o.occupationId}>
+              <li key={o.occupationId} className="mb-2">
                 <span className="font-medium">{o.subcategory}</span>
                 <span className="text-text-secondary"> — {int(o.postings)} adverts</span>
-                {o.linkedProgramIds.length > 0 ? (
-                  <span className="text-text-secondary">
-                    {' '}
-                    ← {o.linkedProgramIds.map((id) => nameOf.get(id) ?? id).slice(0, 3).join(', ')}
-                  </span>
-                ) : (
-                  <span className="text-text-tertiary"> · no linked programme</span>
-                )}
+                <LinkedProgrammes occupation={o} />
               </li>
             ))}
           </ul>
@@ -136,6 +128,72 @@ export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React
         )}
       </section>
     </div>
+  );
+}
+
+/** Which KKU programmes an occupation recruits from, by name.
+ *
+ *  The names arrive resolved from the gap map, so nothing here can fall
+ *  back to an id. Two groups, because they say different things: the
+ *  programmes of the field being read, and programmes assigned to OTHER
+ *  fields that this occupation nonetheless recruits from. The second is
+ *  real signal — an occupation drawing on half the faculty is not the same
+ *  finding as one drawing on a single programme — so it is stated in words
+ *  rather than dropped. Each group names up to three and then says how
+ *  many more there are; neither ever truncates in silence. */
+function LinkedProgrammes({ occupation: o }: { occupation: GapOccupationT }): React.JSX.Element {
+  const inField = o.linkedProgrammes.filter((p) => p.inField);
+  const outside = o.linkedProgrammes.filter((p) => !p.inField);
+  if (o.linkedInField === 0 && o.linkedOutsideField === 0) {
+    return <div className="pl-6 text-text-tertiary">No KKU programme is linked to this occupation.</div>;
+  }
+  return (
+    <div className="pl-6">
+      {inField.length > 0 && (
+        <div className="text-text-secondary">
+          Recruits from <ProgrammeNames shown={inField} total={o.linkedInField} /> in this field.
+        </div>
+      )}
+      {outside.length > 0 && (
+        <div className="text-text-tertiary">
+          Also recruits from <ProgrammeNames shown={outside} total={o.linkedOutsideField} />, assigned to
+          other fields.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Names, separated by semicolons because a single name already carries a
+ *  Thai · English middle dot, and anything more it needs said in words. */
+function ProgrammeNames({
+  shown,
+  total,
+}: {
+  shown: GapLinkedProgrammeT[];
+  total: number;
+}): React.JSX.Element {
+  const more = total - shown.length;
+  return (
+    <>
+      {shown.map((p, i) => (
+        <React.Fragment key={p.programId}>
+          {i > 0 && <span>; </span>}
+          <ProgrammeName programme={p} />
+        </React.Fragment>
+      ))}
+      {more > 0 && <span> and {more} more</span>}
+    </>
+  );
+}
+
+function ProgrammeName({ programme: p }: { programme: GapLinkedProgrammeT }): React.JSX.Element {
+  if (!p.nameTh) return <span>{p.nameEn || p.code}</span>;
+  return (
+    <span>
+      <span lang="th">{p.nameTh}</span>
+      {p.nameEn ? ` · ${p.nameEn}` : ''}
+    </span>
   );
 }
 

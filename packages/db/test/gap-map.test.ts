@@ -90,6 +90,37 @@ describe.skipIf(!postgresUp)('computeGapMap at university scope', () => {
     expect(rows[0]?.total ?? 0).toBe(map.reconciliation.fieldMentions);
   }, DB_TIMEOUT_MS);
 
+  it('every linked programme arrives with a name, and says whether it belongs to the field', async () => {
+    // The page used to receive bare ids and resolve them against the
+    // field's own programme list, which is not where most links point:
+    // `program_jobthai_links` links an occupation to any programme whose
+    // stated field of study matches. Readers saw cuids. The names are now
+    // resolved here, so the page has nothing to fall back to.
+    const map = await computeGapMap({ scope: 'university', scopeId: null, thresholds: { under: 0.5, over: 2 } });
+    const CUID = /^c[a-z0-9]{24}$/;
+    let sawOutsideField = false;
+    for (const r of map.rows) {
+      const mine = new Set(r.programmes.map((p) => p.programId));
+      for (const o of r.occupations) {
+        expect(o.linkedInField).toBeGreaterThanOrEqual(0);
+        // The sample never exceeds what the counts claim, and never
+        // silently stands in for the whole list.
+        expect(o.linkedProgrammes.filter((p) => p.inField).length).toBeLessThanOrEqual(o.linkedInField);
+        expect(o.linkedProgrammes.filter((p) => !p.inField).length).toBeLessThanOrEqual(o.linkedOutsideField);
+        for (const p of o.linkedProgrammes) {
+          expect(p.nameTh || p.nameEn || p.code).toBeTruthy();
+          expect(p.nameTh).not.toMatch(CUID);
+          expect(p.nameEn).not.toMatch(CUID);
+          expect(p.inField).toBe(mine.has(p.programId));
+          if (!p.inField) sawOutsideField = true;
+        }
+      }
+    }
+    // The out-of-field case is the common one, not an edge: if this map
+    // held none of them the assertion above would be vacuous.
+    if (map.rows.some((r) => r.occupations.length > 0)) expect(sawOutsideField).toBe(true);
+  }, DB_TIMEOUT_MS);
+
   it('postgraduate programmes are listed but never scored', async () => {
     const map = await computeGapMap({ scope: 'university', scopeId: null, thresholds: { under: 0.5, over: 2 } });
     for (const r of map.rows)

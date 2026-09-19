@@ -43,14 +43,46 @@ import {
 
 export type GapMapScope = 'university' | 'faculty' | 'department';
 
+/** A programme the JobThai bridge links to an occupation, resolved to its
+ *  names HERE rather than left as an id for the page to look up.
+ *
+ *  The page used to receive ids and resolve them against the field's own
+ *  programme list, falling back to the raw id when that missed — and it
+ *  missed most of the time, because `program_jobthai_links` links an
+ *  occupation to any programme whose stated field of study matches, not
+ *  only to the programmes of the field being read. Readers saw cuids. */
+export interface GapMapOccupationProgramme {
+  programId: string;
+  code: string;
+  nameTh: string;
+  nameEn: string;
+  /** True when this programme is one of the ones assigned to the field
+   *  this occupation is being listed under. False means the occupation
+   *  also recruits from elsewhere in KKU — real signal, so the page says
+   *  it in words rather than hiding the entry. */
+  inField: boolean;
+}
+
 export interface GapMapOccupation {
   occupationId: string;
   code: string;
   category: string;
   subcategory: string;
   postings: number;
-  linkedProgramIds: string[];
+  /** A sample, never the whole list: up to `LINKED_PROGRAMME_SAMPLE` from
+   *  inside the field and as many again from outside it, strongest link
+   *  first. One occupation carries up to 41 links on dev, and a row holds
+   *  twelve occupations — the full lists would dominate the payload. The
+   *  two counts below are what the page renders "and N more" from. */
+  linkedProgrammes: GapMapOccupationProgramme[];
+  linkedInField: number;
+  linkedOutsideField: number;
 }
+
+/** An occupation before its links are resolved. "Inside the field" is only
+ *  answerable once we know which field the occupation is being listed
+ *  under, so the link sample is attached per row, not per occupation. */
+type OccupationBase = Omit<GapMapOccupation, 'linkedProgrammes' | 'linkedInField' | 'linkedOutsideField'>;
 
 export interface GapMapProgramme {
   programId: string;
@@ -164,6 +196,11 @@ const POSTGRAD_LEVELS = eligiblePostingLevels('MASTER');
  *  every 5- and 6-year bachelor programme exactly two cohorts against a
  *  four-year programme's four. */
 const SUPPLY_WINDOW_COHORTS = 6;
+
+/** How many linked programmes an occupation carries per group (inside the
+ *  field, outside it). The page names these and says how many more there
+ *  are; it never truncates silently. */
+const LINKED_PROGRAMME_SAMPLE = 3;
 
 /** `COALESCE(duration_years, <nominal for the level>)` — the SQL twin of
  *  `durationYearsFor`, built from the same constants so the cohort window
@@ -311,15 +348,35 @@ export async function computeGapMap(args: {
     GROUP BY f.id, o.id, o.code, o.category, o.subcategory
     ORDER BY postings DESC
   `);
+  // The programme names travel with the links, in the same pass that loads
+  // them: whichever field an occupation is listed under, a linked programme
+  // has a name here, so the page never has to guess one from an id.
   const links = await prisma.programJobThaiLink.findMany({
     where: realDataWhere(),
-    select: { programId: true, jobThaiOccupationId: true },
+    select: {
+      programId: true,
+      jobThaiOccupationId: true,
+      score: true,
+      program: { select: { code: true, nameTh: true, nameEn: true } },
+    },
   });
-  const linkedByOcc = new Map<string, string[]>();
+  const linkedByOcc = new Map<string, Array<Omit<GapMapOccupationProgramme, 'inField'> & { score: number }>>();
   for (const l of links) {
-    linkedByOcc.set(l.jobThaiOccupationId, [...(linkedByOcc.get(l.jobThaiOccupationId) ?? []), l.programId]);
+    const list = linkedByOcc.get(l.jobThaiOccupationId) ?? [];
+    list.push({
+      programId: l.programId,
+      code: l.program.code,
+      nameTh: l.program.nameTh,
+      nameEn: l.program.nameEn,
+      score: l.score,
+    });
+    linkedByOcc.set(l.jobThaiOccupationId, list);
   }
-  const occByField = new Map<string, GapMapOccupation[]>();
+  // Strongest link first, so a sample of three is the three that matter.
+  for (const list of linkedByOcc.values()) {
+    list.sort((a, b) => b.score - a.score || a.nameEn.localeCompare(b.nameEn));
+  }
+  const occByField = new Map<string, OccupationBase[]>();
   for (const r of occRows) {
     const list = occByField.get(r.field_id) ?? [];
     if (list.length < 12) {
@@ -329,7 +386,6 @@ export async function computeGapMap(args: {
         category: r.category,
         subcategory: r.subcategory,
         postings: r.postings,
-        linkedProgramIds: linkedByOcc.get(r.occupation_id) ?? [],
       });
     }
     occByField.set(r.field_id, list);
@@ -510,6 +566,26 @@ export async function computeGapMap(args: {
     const postings = postingsByField.get(f.id) ?? 0;
     const demandShare = fieldMentions > 0 ? postings / fieldMentions : 0;
     const mine = assignments.filter((a) => a.fieldId === f.id);
+    const mineIds = new Set(mine.map((a) => a.program.id));
+    const occupations: GapMapOccupation[] = (occByField.get(f.id) ?? []).map((o) => {
+      const linked = linkedByOcc.get(o.occupationId) ?? [];
+      const inField = linked.filter((p) => mineIds.has(p.programId));
+      const outside = linked.filter((p) => !mineIds.has(p.programId));
+      const sample = (list: typeof linked, isInField: boolean): GapMapOccupationProgramme[] =>
+        list.slice(0, LINKED_PROGRAMME_SAMPLE).map((p) => ({
+          programId: p.programId,
+          code: p.code,
+          nameTh: p.nameTh,
+          nameEn: p.nameEn,
+          inField: isInField,
+        }));
+      return {
+        ...o,
+        linkedProgrammes: [...sample(inField, true), ...sample(outside, false)],
+        linkedInField: inField.length,
+        linkedOutsideField: outside.length,
+      };
+    });
     const programmes: GapMapProgramme[] = mine
       .map((a) => {
         const s = supplyById.get(a.program.id);
@@ -589,7 +665,7 @@ export async function computeGapMap(args: {
       signalCount: signals.length,
       kkuTotal,
       provinces: provincesByField.get(f.id) ?? [],
-      occupations: occByField.get(f.id) ?? [],
+      occupations,
       programmes,
       // Restricted to SCORED programmes: an unscored (postgraduate, or
       // out-of-scope) programme merely listed under this field would

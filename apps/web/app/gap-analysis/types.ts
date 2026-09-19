@@ -38,13 +38,32 @@ export const VERDICT_LABEL: Record<GapVerdictT, string> = {
   'too-few-postings': 'Too few postings',
 };
 
+/** A programme linked to an occupation, arriving with its names resolved.
+ *  It deliberately carries no bare id for the page to display: the ids used
+ *  to be sent alone and resolved against the field's own programme list,
+ *  which missed every programme outside the field and printed a cuid. */
+export interface GapLinkedProgrammeT {
+  programId: string;
+  code: string;
+  nameTh: string;
+  nameEn: string;
+  /** False means the occupation also recruits from a programme assigned to
+   *  another field — said in words, not hidden. */
+  inField: boolean;
+}
+
 export interface GapOccupationT {
   occupationId: string;
   code: string;
   category: string;
   subcategory: string;
   postings: number;
-  linkedProgramIds: string[];
+  /** A sample — at most three from inside the field and three from
+   *  outside. `linkedInField` / `linkedOutsideField` are the full counts,
+   *  so the page can say how many more there are. */
+  linkedProgrammes: GapLinkedProgrammeT[];
+  linkedInField: number;
+  linkedOutsideField: number;
 }
 
 export interface GapProgrammeT {

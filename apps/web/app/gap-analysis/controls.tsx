@@ -81,40 +81,98 @@ export function GapControls({
         </details>
       </div>
 
-      {facultyStrip.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {facultyStrip.map((f) => {
-            const on = params.facultyId === f.facultyId;
-            return (
-              <Link
-                key={f.facultyId}
-                href={href({ facultyId: on ? null : f.facultyId })}
-                aria-pressed={on}
-                className={`min-w-[168px] shrink-0 rounded border px-2 py-1 text-left text-xs ${
-                  on
-                    ? 'border-[oklch(var(--color-accent-default))] bg-accent-subtle'
-                    : 'border-default bg-surface-1'
-                }`}
-              >
-                <div className="truncate font-medium">{f.nameEn}</div>
-                {/* Six counts on one line: each pair is its own span and the
-                    separator is explicit, so "◔ 1" and "● 2" never read as
-                    one number. */}
-                <div className="mt-0.5 flex flex-wrap items-center text-text-tertiary">
-                  {VERDICT_ORDER.map((v, i) => (
-                    <span key={v} className="whitespace-nowrap">
-                      {i > 0 && <span aria-hidden className="px-1">·</span>}
-                      <span aria-hidden>{GLYPH[v]}</span>
-                      <span className="sr-only">{VERDICT_LABEL[v]}</span> {f.counts[v]}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {facultyStrip.length > 0 && <FacultyFilter params={params} href={href} facultyStrip={facultyStrip} />}
     </div>
+  );
+}
+
+/** The faculty filter: every faculty visible at once, none of it behind a
+ *  sideways scroll.
+ *
+ *  It used to be a `overflow-x-auto` strip, which on a 23-faculty portfolio
+ *  showed about four and hid the rest behind a gesture most readers never
+ *  make — a control that conceals its own options. This is a wrapped set
+ *  inside a `<details>`: the summary names the current selection and the
+ *  number of faculties, opening it reveals all of them on as many lines as
+ *  it takes, and the first entry clears the filter. `<details>` and links
+ *  are plain HTML, so the whole control still works with client JavaScript
+ *  switched off — which is the property the rest of this strip is built
+ *  for. Ordering is alphabetical rather than by count, because a reader
+ *  comes here looking for one particular faculty, usually their own. */
+function FacultyFilter({
+  params,
+  href,
+  facultyStrip,
+}: {
+  params: GapPageParams;
+  href: (patch: Partial<GapPageParams>) => string;
+  facultyStrip: GapMapT['facultyStrip'];
+}): React.JSX.Element {
+  const ordered = [...facultyStrip].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+  const selected = ordered.find((f) => f.facultyId === params.facultyId) ?? null;
+  return (
+    <details className="text-xs" open={selected != null}>
+      <summary className="cursor-pointer text-text-secondary">
+        Faculty:{' '}
+        <span className="font-medium text-text-primary">
+          {selected ? selected.nameEn : 'all faculties'}
+        </span>
+        <span className="text-text-tertiary">
+          {' '}
+          — choose from {ordered.length} with fields of study
+        </span>
+      </summary>
+      <div className="mt-4 flex flex-wrap gap-4">
+        <Link
+          href={href({ facultyId: null })}
+          aria-pressed={selected == null}
+          className={`w-[200px] rounded border px-2 py-1 text-left leading-tight ${
+            selected == null
+              ? 'border-[oklch(var(--color-accent-default))] bg-accent-subtle'
+              : 'border-default bg-surface-1'
+          }`}
+        >
+          <div className="font-medium">All faculties</div>
+          <div className="mt-0.5 text-text-tertiary">no faculty filter</div>
+        </Link>
+        {ordered.map((f) => {
+          const on = params.facultyId === f.facultyId;
+          return (
+            <Link
+              key={f.facultyId}
+              href={href({ facultyId: on ? null : f.facultyId })}
+              aria-pressed={on}
+              className={`w-[200px] rounded border px-2 py-1 text-left leading-tight ${
+                on
+                  ? 'border-[oklch(var(--color-accent-default))] bg-accent-subtle'
+                  : 'border-default bg-surface-1'
+              }`}
+            >
+              <div className="font-medium">{f.nameEn}</div>
+              <div lang="th" className="text-text-tertiary">
+                {f.nameTh}
+              </div>
+              {/* Six counts on one line: each pair is its own span and the
+                  separator is explicit, so "◔ 1" and "● 2" never read as
+                  one number. */}
+              <div className="mt-0.5 flex flex-wrap items-center text-text-tertiary">
+                {VERDICT_ORDER.map((v, i) => (
+                  <span key={v} className="whitespace-nowrap">
+                    {i > 0 && (
+                      <span aria-hidden className="px-1">
+                        ·
+                      </span>
+                    )}
+                    <span aria-hidden>{GLYPH[v]}</span>
+                    <span className="sr-only">{VERDICT_LABEL[v]}</span> {f.counts[v]}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 

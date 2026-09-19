@@ -45,7 +45,29 @@ const row = (o: Partial<GapRowT>): GapRowT => ({
       category: 'Cat',
       subcategory: 'Occ A',
       postings: 300,
-      linkedProgramIds: ['p1'],
+      // One programme of this field, and two from outside it — the case the
+      // page used to print raw cuids for, because it resolved names only
+      // against the field's own programmes. The ids here are real cuid
+      // shapes so the regression assertion has something to catch.
+      linkedProgrammes: [
+        { programId: 'p1', code: 'KKU-SEQ-0001', nameTh: 'โปรแกรม', nameEn: 'Programme', inField: true },
+        {
+          programId: 'cmon1wwxs000dzh902umgd22e',
+          code: 'KKU-SEQ-0044',
+          nameTh: 'วิศวกรรมเครื่องกล',
+          nameEn: 'Mechanical Engineering',
+          inField: false,
+        },
+        {
+          programId: 'cmon1wx1y000lzh90i65vo4pt',
+          code: 'KKU-SEQ-0045',
+          nameTh: 'วิศวกรรมไฟฟ้า',
+          nameEn: 'Electrical Engineering',
+          inField: false,
+        },
+      ],
+      linkedInField: 1,
+      linkedOutsideField: 5,
     },
   ],
   programmes: [
@@ -341,6 +363,66 @@ describe('GapMapSections', () => {
     // a bare "41 %" would read the same as a single-context observation.
     expect(t).toContain('28 contexts');
     expect(t).toContain('LinkedIn data via MHESI');
+  });
+
+  it('names every linked programme and never prints an id', () => {
+    // `program_jobthai_links` links an occupation to any programme whose
+    // stated field of study matches, so most linked programmes are NOT in
+    // the field being read. The page used to resolve names against the
+    // field's own list only, and printed the raw cuid for the rest:
+    // "งานช่างซ่อมบำรุง — 355 adverts ← cmon1wwxs000dzh902umgd22e, …".
+    const t = textOf(render(resolveGapParams({ field: 'electrical-engineering' })));
+    expect(t).toContain('Occ A');
+    expect(t).toContain('Mechanical Engineering');
+    expect(t).toContain('Electrical Engineering');
+    // An occupation that also recruits outside the field says so in words,
+    // and says how many more there are rather than truncating in silence.
+    expect(t).toMatch(/Also recruits from[^]*?and 3 more[^]*?assigned to other fields/);
+    expect(t).toMatch(/Recruits from[^]*?in this field/);
+  });
+
+  it('renders no cuid-shaped token anywhere a reader can see', () => {
+    // Asserted against the SHAPE, not against the two ids in the fixture:
+    // any future `?? id` fallback re-breaking this has to fail here.
+    const CUID = /\bc[a-z0-9]{24}\b/;
+    for (const params of [
+      resolveGapParams({}),
+      resolveGapParams({ field: 'electrical-engineering' }),
+      resolveGapParams({ field: 'logistics' }),
+      resolveGapParams({ field: 'psychology' }),
+    ]) {
+      expect(textOf(render(params))).not.toMatch(CUID);
+    }
+  });
+
+  it('says what each share is a percentage of, in the header and in a sentence', () => {
+    // The two shares carry the whole verdict; a bare "Demand share" left a
+    // general reader with no way to tell what it was a share OF.
+    expect(text).toContain('% of adverts');
+    expect(text).toContain('% of graduates');
+    expect(text).toContain('KKU ÷ demand');
+    expect(html).toContain('title="Demand share: of all the job adverts that name any field of study');
+    expect(html).toContain('title="KKU share: of all the graduates KKU produces each year');
+    // The plain-English line is always visible, not folded into the
+    // collapsed note the reader already could not follow.
+    expect(text).toMatch(/Each row compares two percentages/);
+    expect(text).toMatch(/below 1 means KKU produces proportionally fewer graduates/);
+    expect(text).toMatch(/above 1 means proportionally more/);
+  });
+
+  it('lists every faculty without a sideways scroller', () => {
+    const controls = /Faculty:[^]*?<\/details>/.exec(html)?.[0] ?? '';
+    expect(controls).not.toBe('');
+    expect(controls).not.toMatch(/overflow-x/);
+    expect(controls).toContain('Engineering');
+    expect(controls).toContain('All faculties');
+    expect(textOf(controls)).toMatch(/choose from 1 with fields of study/);
+  });
+
+  it('names the selected faculty in the filter summary and offers a way back to all', () => {
+    const t = textOf(render(resolveGapParams({ faculty: 'f1' })));
+    expect(t).toMatch(/Faculty: Engineering/);
+    expect(t).toContain('All faculties');
   });
 
   it('says where each programme-level graduate figure came from, and what it rests on', () => {

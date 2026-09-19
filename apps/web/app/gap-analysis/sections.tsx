@@ -76,15 +76,48 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
 
       {scopeNote && <p className="text-xs text-text-tertiary">{scopeNote}</p>}
 
+      {/* The two shares are what every verdict rests on, and a reader who
+          cannot follow them cannot follow the page. Said here in full
+          sentences, always visible — the precise definitions stay in the
+          collapsed note below the table and in the provenance drawer. */}
+      <p className="max-w-[80ch] text-xs text-text-secondary">
+        Each row compares two percentages.{' '}
+        <strong className="font-medium text-text-primary">Demand share</strong> is this field&apos;s share of
+        all the job adverts that name a field of study.{' '}
+        <strong className="font-medium text-text-primary">KKU share</strong> is its share of all the
+        graduates KKU produces each year in the fields we can measure. The{' '}
+        <strong className="font-medium text-text-primary">ratio</strong> is the second divided by the first:
+        below 1 means KKU produces proportionally fewer graduates in this field than employers ask for,
+        above 1 means proportionally more, and around 1 means the two are in step.
+      </p>
+
       <Card className="overflow-x-auto p-0">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-text-tertiary">
             <tr>
               <th className="px-3 py-2 font-medium">Field of study</th>
-              <th className="px-3 py-2 text-right font-medium">Demand share</th>
-              <th className="px-3 py-2 text-right font-medium">KKU share</th>
-              {wide && <th className="px-3 py-2 text-right font-medium">KKU total</th>}
-              <th className="px-3 py-2 text-right font-medium">Ratio</th>
+              <NumHead
+                label="Demand share"
+                unit="% of adverts"
+                title="Demand share: of all the job adverts that name any field of study, the percentage that name this one."
+              />
+              <NumHead
+                label="KKU share"
+                unit="% of graduates"
+                title="KKU share: of all the graduates KKU produces each year in fields we can measure, the percentage who hold this one."
+              />
+              {wide && (
+                <NumHead
+                  label="KKU total"
+                  unit="% of graduates, all KKU"
+                  title="The same KKU share measured over the whole university rather than over the faculty or department in scope."
+                />
+              )}
+              <NumHead
+                label="Ratio"
+                unit="KKU ÷ demand"
+                title="Ratio: KKU share divided by demand share. Below 1 means KKU produces proportionally fewer graduates in this field than employers ask for; above 1 means proportionally more."
+              />
               <th className="px-3 py-2 text-right font-medium">Graduates / yr</th>
               <th className="px-3 py-2 text-right font-medium">Pipeline</th>
               <th className="px-3 py-2 text-right font-medium">Programmes</th>
@@ -259,6 +292,29 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
         </details>
       </div>
     </div>
+  );
+}
+
+/** A numeric column header that says what its number is measured in.
+ *
+ *  "Demand share" and "KKU share" are the two figures every verdict rests
+ *  on, and a bare noun phrase left a general reader guessing what the
+ *  percentage was a percentage OF. The quieter second line carries the
+ *  unit; the `title` carries the whole sentence for a reader who hovers. */
+function NumHead({
+  label,
+  unit,
+  title,
+}: {
+  label: string;
+  unit: string;
+  title: string;
+}): React.JSX.Element {
+  return (
+    <th scope="col" title={title} className="px-3 py-2 text-right font-medium">
+      <span className="block text-text-secondary">{label}</span>
+      <span className="block text-[10px] font-normal text-text-tertiary">{unit}</span>
+    </th>
   );
 }
 
