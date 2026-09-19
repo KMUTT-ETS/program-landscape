@@ -929,15 +929,15 @@ const connectorNodes: TopologyNode[] = [
     },
   },
   {
-    id: 'ai.gap-insights',
+    id: 'ai.gap-brief',
     lane: 'ai',
     kind: 'ai-task',
-    label: 'Gap analyser insights',
-    subtitle: 'On-demand · gap-insights.v2',
+    label: 'Gap map Council brief',
+    subtitle: 'On-demand · gap-brief.v1',
     details: {
       description:
-        '3 modes: strategic-top-5 (Council-facing top opportunities), program-skills-to-add (per-program recommendation), sector-brief (1-page Thai sector analysis).',
-      cadence: 'User-triggered from /gap',
+        'One brief over the gap-map rows currently on screen: up to 5 findings, each citing one field of study’s own numbers, plus what the data cannot tell. Every finding is checked against the row it names before it is returned — a verdict that disagrees with its row is corrected, and one that resolves to supply-unknown or to an ambiguous field name is dropped rather than guessed. Replaced gap-insights.v2 and its three modes when the Gap Analyzer was rebuilt as a demand-first map.',
+      cadence: 'User-triggered from /gap-analysis',
     },
   },
   {
@@ -2172,7 +2172,7 @@ const edges: TopologyEdge[] = [
   // Direct data-input edges into AI tasks that consume external sources.
   // LLM provider is NOT shown as an edge — it's an inline pill on the
   // ai-task node (GEMINI / CLAUDE). Tasks that consume INTERNAL tables
-  // (cockpit-brief, gap-insights, scenario-insights, …) don't get
+  // (cockpit-brief, gap-brief, scenario-insights, …) don't get
   // upstream edges drawn — that would be L3 → L2 backward flow. Their
   // table dependencies are listed in the detail panel.
   // ──────────────────────────────────────────────────────────────────────
@@ -2245,7 +2245,7 @@ const edges: TopologyEdge[] = [
   { from: 'ai.risk-assess', to: 'tab.risk-indicators' },
 
   // Module insights — all land as AiExtraction rows (typed payload)
-  { from: 'ai.gap-insights', to: 'tab.ai-extraction' },
+  { from: 'ai.gap-brief', to: 'tab.ai-extraction' },
   { from: 'ai.scenario-insights', to: 'tab.ai-extraction' },
   { from: 'ai.benchmarking-insights', to: 'tab.ai-extraction' },
   { from: 'ai.outcome-review', to: 'tab.ai-extraction' },
@@ -2477,9 +2477,7 @@ const edges: TopologyEdge[] = [
   { from: 'tab.trend-signal', to: 'ai.cockpit-brief' },
 
   // Gap insights
-  { from: 'tab.program-skill', to: 'ai.gap-insights' },
-  { from: 'tab.kmitl-demand', to: 'ai.gap-insights' },
-  { from: 'tab.skill', to: 'ai.gap-insights' },
+  { from: 'tab.kmitl-demand', to: 'ai.gap-brief' },
 
   // Scenario insights
   { from: 'tab.scenario', to: 'ai.scenario-insights' },
