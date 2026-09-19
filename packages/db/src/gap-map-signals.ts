@@ -17,7 +17,22 @@ export interface FieldGlobalSignal {
    * below, whenever a figure is shown next to its skill: a GLOBAL pick is a
    * global figure even when a sibling pick in the same trio is Thai.
    */
-  skills: Array<{ skillId: string; nameEn: string; nameTh: string; growthPct: number; scope: 'THAILAND' | 'GLOBAL' }>;
+  skills: Array<{
+    skillId: string;
+    nameEn: string;
+    nameTh: string;
+    growthPct: number;
+    scope: 'THAILAND' | 'GLOBAL';
+    /**
+     * How many KMITL context rows (career / sub_group / group) `growthPct` was
+     * averaged over, within the newest capture — see buildGrowthIndex. 1 means
+     * the figure is a single raw observation, not a mean at all; it is still
+     * surfaced (no minimum-context floor is applied here — see the comment at
+     * the ranking site in pickGrowth), so a reader who wants to distinguish a
+     * thin figure from a broad one must look at this count.
+     */
+    contexts: number;
+  }>;
   /**
    * Aggregate label for the whole trio — THAILAND when ANY pick is Thai,
    * GLOBAL when they are all global fallbacks, null when nothing intersected.
@@ -128,15 +143,26 @@ export function pickGrowth(
   index: GrowthIndex,
   fieldSkillIds: Set<string>,
   genericSkillIds: Set<string>,
-): { picked: Array<{ skillId: string; growthPct: number; scope: 'THAILAND' | 'GLOBAL' }>; scope: 'THAILAND' | 'GLOBAL' | null } {
-  const candidates: Array<{ skillId: string; growthPct: number; scope: 'THAILAND' | 'GLOBAL' }> = [];
+): {
+  picked: Array<{ skillId: string; growthPct: number; scope: 'THAILAND' | 'GLOBAL'; contexts: number }>;
+  scope: 'THAILAND' | 'GLOBAL' | null;
+} {
+  const candidates: Array<{ skillId: string; growthPct: number; scope: 'THAILAND' | 'GLOBAL'; contexts: number }> = [];
   for (const skillId of fieldSkillIds) {
     if (genericSkillIds.has(skillId)) continue;
     const figures = index.bySkill.get(skillId);
     const chosen = figures?.find((f) => f.dataScope === 'THAILAND') ?? figures?.[0];
     if (!chosen || chosen.growthPct <= 0) continue;
-    candidates.push({ skillId, growthPct: chosen.growthPct, scope: chosen.dataScope });
+    candidates.push({ skillId, growthPct: chosen.growthPct, scope: chosen.dataScope, contexts: chosen.contexts });
   }
+  // Ranked by growth magnitude alone, thin and broad figures side by side. A
+  // 1-context figure competes here against one averaged over 181 contexts —
+  // measured on dev, 2026-09-16: 598 of 1,788 skills have exactly one context.
+  // Excluding thin figures below some minimum context count is an open
+  // methodology decision (belongs in docs/methodologies/, with Council
+  // sign-off), not made here — this function surfaces every figure with its
+  // true `contexts` count instead, so a caller can apply or explain the
+  // absence of a floor rather than being handed an unmarked number.
   const picked = candidates
     .sort((a, b) => b.growthPct - a.growthPct || a.skillId.localeCompare(b.skillId))
     .slice(0, GLOBAL_SIGNAL_TOP_N);
@@ -202,6 +228,7 @@ export async function globalSignalForFields(
         nameTh: nameById.get(p.skillId)?.nameTh ?? '',
         growthPct: p.growthPct,
         scope: p.scope,
+        contexts: p.contexts,
       })),
     });
   }

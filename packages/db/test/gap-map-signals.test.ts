@@ -57,7 +57,7 @@ describe('pickGrowth', () => {
   it('quotes only the newest snapshot, even when an older one is higher', () => {
     const mixed = [row('s1', 'GLOBAL', 600, THEN), row('s1', 'GLOBAL', 279.41, NOW)];
     const r = pickGrowth(buildGrowthIndex(mixed), new Set(['s1']), new Set());
-    expect(r.picked).toEqual([{ skillId: 's1', growthPct: 279.41, scope: 'GLOBAL' }]);
+    expect(r.picked).toEqual([{ skillId: 's1', growthPct: 279.41, scope: 'GLOBAL', contexts: 1 }]);
   });
   it('does not quote a skill at all when it is absent from the newest snapshot', () => {
     const stale = [row('old', 'THAILAND', 500, THEN), row('cur', 'GLOBAL', 10, NOW)];
@@ -76,6 +76,26 @@ describe('pickGrowth', () => {
     const index2 = buildGrowthIndex(outlier);
     expect(index2.bySkill.get('s1')).toEqual([{ dataScope: 'GLOBAL', growthPct: 110, contexts: 3 }]);
     expect(pickGrowth(index2, new Set(['s1']), new Set()).picked[0].growthPct).toBe(110);
+  });
+
+  // The honesty fix: a mean over one context and a mean over many contexts can
+  // both reach the top three by growth magnitude alone (no floor is applied —
+  // see the comment at the ranking site above), so each pick must carry its
+  // own true context count rather than presenting both as the same kind of
+  // figure. Measured on dev, 2026-09-16: 598 of 1,788 skills are single-context.
+  it('carries the context count through from buildGrowthIndex to the picked skills', () => {
+    const mixed = [
+      row('thin', 'GLOBAL', 782), // one context — a single raw observation
+      row('broad', 'GLOBAL', 200, NOW, 'career'),
+      row('broad', 'GLOBAL', 195, NOW, 'sub_group'),
+      row('broad', 'GLOBAL', 205, NOW, 'group'),
+    ];
+    const index2 = buildGrowthIndex(mixed);
+    const r = pickGrowth(index2, new Set(['thin', 'broad']), new Set());
+    expect(r.picked).toEqual([
+      { skillId: 'thin', growthPct: 782, scope: 'GLOBAL', contexts: 1 },
+      { skillId: 'broad', growthPct: 200, scope: 'GLOBAL', contexts: 3 },
+    ]);
   });
 
   it('reports the newest snapshot it indexed, and null for an empty table', () => {
