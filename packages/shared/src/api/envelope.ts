@@ -58,11 +58,32 @@ export const ApiMetaSourceCompositionSchema = z.object({
 });
 export type ApiMetaSourceComposition = z.infer<typeof ApiMetaSourceCompositionSchema>;
 
+/**
+ * One parameter the figure was computed under, rendered beside the
+ * methodology version it belongs to.
+ *
+ * Council-readiness rule 1 puts the CALCULATION METHOD in the drawer, and a
+ * threshold a reader can move from the URL is part of that method: two people
+ * can hold the same version stamp, the same sources and the same freshness
+ * date, and still be looking at different verdicts. A static `@Provenance`
+ * cannot carry it — the value is per request — so it travels in the handler's
+ * own `meta`, the way `freshnessDate` already does.
+ */
+export const ApiMetaParameterSchema = z.object({
+  /** What the parameter is, in the reader's words — not the code's name. */
+  label: z.string(),
+  /** Already formatted. The drawer prints it verbatim and never rounds. */
+  value: z.string(),
+});
+export type ApiMetaParameter = z.infer<typeof ApiMetaParameterSchema>;
+
 export const ApiMetaSchema = z.object({
   freshnessDate: z.string().datetime().nullable(),
   sources: z.array(ApiMetaSourceSchema),
   confidence: z.number().min(0).max(1).optional(),
   methodologyVersion: z.string().optional(),
+  /** Parameters in force for THIS request — see ApiMetaParameterSchema. */
+  methodologyParameters: z.array(ApiMetaParameterSchema).optional(),
   scope: ApiMetaScopeSchema.optional(),
   sourceComposition: ApiMetaSourceCompositionSchema.optional(),
   /** Known limits of this figure, in plain English. Rendered as a list in the

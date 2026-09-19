@@ -57,13 +57,22 @@ export class GapService {
   }
 
   /** One row, from the same cached map the table is built from — so the
-   *  panel and the row behind it can never disagree. The map's freshness
-   *  rides along: a row on its own carries no timestamp, and the panel owes
-   *  the reader the same "updated X ago" the table shows. */
+   *  panel and the row behind it can never disagree. The map's freshness and
+   *  its reconciliation ride along: a row on its own carries no timestamp and
+   *  no coverage figures, and the panel owes the reader the same "updated X
+   *  ago" the table shows and the same provenance drawer behind it. */
   async field(
     args: GapMapArgs & { slug: string },
-  ): Promise<{ row: GapMapRow | null; freshness: GapMapResult['freshness'] }> {
+  ): Promise<{
+    row: GapMapRow | null;
+    freshness: GapMapResult['freshness'];
+    reconciliation: GapMapResult['reconciliation'];
+  }> {
     const m = await this.map(args);
-    return { row: m.rows.find((r) => r.slug === args.slug) ?? null, freshness: m.freshness };
+    return {
+      row: m.rows.find((r) => r.slug === args.slug) ?? null,
+      freshness: m.freshness,
+      reconciliation: m.reconciliation,
+    };
   }
 }

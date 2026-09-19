@@ -43,23 +43,38 @@ One row per canonical field in `job_field_taxonomy` whose `reviewStatus` is
 |---|---|
 | **Demand share** | eligible adverts naming any of the field's synonyms ÷ **field-mentions** (§3) |
 | **KKU share** | graduates/yr of the field's *scored* programmes ÷ **field-graduates** (§3) |
-| **Ratio** | KKU share ÷ demand share, rounded to two decimals |
+| **Ratio** | KKU share ÷ demand share. **Displayed** rounded to two decimals; the verdict is decided on the **unrounded** value, so a raw 0.4999 reads `0.50` beside the word *under-served* |
 | **Grads / yr** | §5 |
-| **Pipeline** | current enrolment summed from `student_cohort_distributions` (`realDataWhere()`-gated). Arrow ↑ when pipeline ÷ 4 > 1.25 × grads/yr, ↓ when < 0.75 ×, → otherwise, and absent when either side is missing |
+| **Pipeline** | current enrolment summed from `student_cohort_distributions` (`realDataWhere()`-gated). The arrow compares **annualised intake** — Σ over scored programmes of *that programme's* enrolment ÷ *its own* length of study — against graduates/yr: ↑ above 1.25 ×, ↓ below 0.75 ×, → between, and absent when either side is missing. A field's summed pipeline divided by one nominal length overstated every six-year programme by half, which is how Pharmacy and Veterinary Medicine came to read *rising* against a steady intake (`annualisedIntake`, commit `6c2f979`) |
 | **Verdict** | §4 |
 | **Postings** | the raw distinct-advert count for the field — what the *too-few-postings* floor reads and what the table displays |
+
+Each programme inside a row carries the basis of its own figure:
+`supplySource`, `supplyCohorts` (how many entry cohorts the alumni mean was
+taken over), `supplyYear` (which academic year an enrolment-proxy figure came
+from) and `durationYears`. The row carries `postgraduateProgrammes` — see
+below, and §4's *white space*.
 
 **Eligible** adverts are those whose minimum education level admits a
 bachelor's graduate: `eligiblePostingLevels('BACHELOR')` = `VOCATIONAL_CERT`,
 `HIGHER_VOCATIONAL_CERT`, `BACHELOR`. `UNSPECIFIED` is never eligible
-(14,283 adverts on 2026-09-15). Of 47,631 JobThai adverts, 33,307 are
-bachelor-eligible.
+(14,283 adverts). Of 47,631 JobThai adverts, 33,307 are bachelor-eligible —
+20,482 stating a bachelor's minimum, 7,212 a higher vocational certificate
+and 5,613 a vocational certificate. Re-measured 2026-09-19.
 
 **Postgraduate programmes are listed inside a row with their graduates but
 are never scored.** Only **41 of 47,631** adverts state a postgraduate
-minimum, so any verdict on a master's or doctoral programme would have been
-built from undergraduate adverts. This is the same honest-signal gate
-`health-score.v5.2` applies to the `jobthai_demand_alignment` driver.
+minimum (39 master's, 2 doctoral), so any verdict on a master's or doctoral
+programme would have been built from undergraduate adverts. This is the same
+honest-signal gate `health-score.v5.2` applies to the
+`jobthai_demand_alignment` driver.
+
+It follows that **a white space means no *bachelor* programme, not no
+programme.** A field whose only KKU presence is a master's or doctoral track
+is a white space with `postgraduateProgrammes > 0`, and the row lists those
+tracks with their graduates so "Programmes: —" cannot be read as "nothing
+here". Two dev rows are in that state on 2026-09-19: **Psychology** (1
+postgraduate track) and **Geography** (2).
 
 ---
 
@@ -109,7 +124,7 @@ Six, in the order the rule tests them (`verdictFor` in `gap-map-rules.ts`):
 
 | Verdict | Condition | Meaning |
 |---|---|---|
-| **white space** | the field has **no scored programme** | employers ask; KKU produces nobody |
+| **white space** | the field has **no scored programme** | employers ask; KKU produces no *bachelor* graduate. Postgraduate tracks may exist, are listed, and are never scored |
 | **supply-unknown** | it has scored programmes but **none carries a graduate figure** | a **missing measurement**, never a shortfall |
 | **too few postings** | fewer than `JOBTHAI_MIN_POSTINGS_FOR_SIGNAL` (**20**) adverts, or no demand share at all | the demand side is too thin to read |
 | **under-served** | ratio < `under` | KKU's share of graduates is small against the market's share of adverts |
@@ -117,9 +132,18 @@ Six, in the order the rule tests them (`verdictFor` in `gap-map-rules.ts`):
 | **served** | otherwise | |
 
 Thresholds default to `under` **0.5** and `over` **2**. Both are URL
-parameters (`?under=…&over=…`), validated as `0 < under < over`, and echoed in
-the provenance drawer — an analyst can tighten them for one review without a
-code change, and the link they share carries the thresholds they used.
+parameters (`?under=…&over=…`), validated as `0 < under < over`, and shown in
+two places: above the table in the controls strip, and **in the provenance
+drawer**, under *Methodology*, beside the version they belong to
+(`meta.methodologyParameters`, assembled per request by `mapMeta` in
+`gap.controller.ts` — `@Provenance` is static and cannot carry a value that
+changes with the request). Both are needed: an analyst can tighten them for
+one review without a code change, and without the drawer a shared link
+carrying moved thresholds would look like the default to whoever opens it.
+
+The comparison uses the **unrounded** ratio. The table shows two decimals, so
+a field whose true ratio is 0.4999 displays `0.50` and is nonetheless
+*under-served*. Read the verdict, not the arithmetic of the displayed number.
 
 **`supply-unknown` is the verdict this methodology adds to the five the
 design foresaw, and it is load-bearing.** It fires on the *count of scored
@@ -138,19 +162,33 @@ can see the basis.
 > **This rule was rewritten on 2026-09-19 (commit `356c2f0`) because the
 > version the plan specified had been copied verbatim out of the
 > `computeSkillGap` it was replacing, and was wrong there too.** It under-
-> reported graduates by roughly 60 %. The rule below is what ships; the fault
-> is recorded because any earlier figure a reader remembers is not comparable.
+> reported graduates by roughly 60 %. `6c2f979`, later the same day, moved the
+> cohort window from a single global anchor to a per-programme one and moved
+> the totals again. The rule below is what ships; the faults are recorded
+> because no earlier figure a reader remembers is comparable to it.
 
 ### As it now is
 
 **Primary — registrar alumni cohorts** (`alumni_cohort_statuses`, `realDataWhere()`-gated):
 
-1. The five-cohort window is anchored on **graduation**: `max_be` is taken
-   over `status_bucket = 'GRADUATED'` rows only, and the window is
-   `[max_be − 5, max_be]`.
-2. A cohort is counted **only once it could have graduated**:
-   `entry_year_be + durationYears <= currentAcademicYearBE`, with
-   `durationYears` from the programme (4 where null — 16 of 301 programmes).
+1. The window is **per programme** and anchored on **graduation**. Its newest
+   end is the newest cohort *that* programme could have finished —
+   `currentAcademicYearBE − durationYears`, over `status_bucket = 'GRADUATED'`
+   rows only — and it reaches `SUPPLY_WINDOW_COHORTS` = **6** cohorts back
+   from there. A single global `MAX(entry_year_be)` anchor starved the long
+   programmes: it sat at BE 2567 on dev, set by the shortest degrees, leaving
+   every five- and six-year bachelor programme exactly **two** cohorts to
+   average against a four-year programme's four. Measured on dev after
+   `6c2f979`: the three six-year programmes average **6.00** cohorts, the one
+   five-year programme 5.00, and the 66 four-year ones 5.27.
+2. Length of study is the programme's own, and where none is recorded, the
+   **nominal figure for its level** — bachelor 4, doctoral 3, master's 2,
+   higher graduate diploma 2 (`NOMINAL_DURATION_YEARS`; 4 for a level outside
+   that list). This is not academic: all **16 of 301** programmes with no
+   recorded duration on dev are postgraduate (7 doctoral, 6 higher graduate
+   diploma, 3 master's), so the flat four-year default this rule replaced was
+   wrong for every one of them — it halved a two-year master's annualised
+   intake and threw its cohort window two years out.
 3. The divisor is **the number of cohorts actually averaged**, not a
    hard-coded 5.
 
@@ -166,7 +204,10 @@ Each programme reports which of the two it used (`supplySource`:
 status buckets, including currently-ACTIVE entrants, so a "five cohort"
 window spanned six *entry* cohorts of which only two had substantially
 graduated — and was then divided by a hard-coded 5.0. Counting four cohorts
-and dividing by five under-reports by a fifth on its own.
+and dividing by five under-reports by a fifth on its own. This was fixed in
+two steps: `356c2f0` moved the anchor onto graduated rows, and `6c2f979` made
+the anchor **per programme**, which is what finally gave the long degrees as
+many cohorts to average as the short ones.
 
 **(b) The proxy read the newest academic year, which is unfinished.** AY 2026
 reads 0 for 226 programmes, and a non-null 0 passes the "has a figure" test —
@@ -175,35 +216,64 @@ and `supply-unknown` never caught them. (AY 2025 and 2024 are all-zero too,
 which is why excluding only the *current* year would still have handed 33
 programmes a false zero: the rule takes the newest **non-zero** year instead.)
 
-### Measured effect on dev, 2026-09-19
+### Measured effect on dev
 
-| | Before | After |
+| | Before the fix | Now |
 |---|---|---|
-| `fieldGraduatesTotal` | 2,682 /yr | **7,050 /yr** |
+| `fieldGraduatesTotal` | 2,682 /yr | **6,958.6 /yr** |
 | Programmes reading a false zero | 24 | **0** |
-| Fields verdicted *under-served* | 18 | **10** |
+| Fields verdicted *under-served* | 18 | **9** |
 | Fields verdicted *supply-unknown* | 1 | **4** |
-| Electrical Engineering | 23 /yr, pipeline *rising* | **63.25 /yr, pipeline *flat*** |
+| Electrical Engineering | 23 /yr, pipeline *rising* | **66.10 /yr, pipeline *flat*** |
 
-**Independent check:** the alumni component reads 6,095/yr against 5,953 when
-recomputed by hand over five complete cohorts — **2.4 % apart**.
+*"Before the fix" was measured on 2026-09-19 against the rule `356c2f0`
+replaced. The **"Now" column was re-measured on 2026-09-19 after `6c2f979`**,
+which made the cohort window per programme: immediately after `356c2f0` and
+before that change, the same total read 7,050/yr and 10 fields were
+under-served. A figure that was true when it was written and is false now is
+exactly what this column exists to catch.*
+
+**Cross-check on the window length:** the alumni component reads **6,052.6/yr**
+over the six-cohort window; recomputed by a separate query over five cohorts
+it reads 6,035.9/yr — **0.3 % apart**, so the total is not an artefact of how
+far back the window reaches. (Both figures are assignment-weighted; see
+below.)
 
 ### The proxy's weight
 
-**14 programmes — 955 graduates/yr, 13.5 % of the total — rest on the
-enrolment-metric fallback**, i.e. a single year's raw count standing in for a
-mean, drawn from AY 2022–2024. This is visible per programme in the row panel
-and counted in `reconciliation.supplyFromProxy`. It is the largest single
-piece of softness in the supply side.
+**13 programmes rest on the enrolment-metric fallback** — a single year's raw
+count standing in for a mean. Their figures were read from **AY 2012, AY 2019
+and AY 2022** (eleven of the thirteen are 2022); the reach-back has no floor,
+which is why the year travels with the figure in the row panel.
+
+Two numbers, because they answer different questions and mixing them is how
+the earlier version of this paragraph went wrong:
+
+- counted **once each**, those 13 programmes produce **587.0 graduates/yr**;
+- counted **as the supply denominator counts them** — once per field they are
+  assigned to, the mirror of field-mentions — they produce **906.0/yr**,
+  which is **13.0 % of the 6,958.6/yr total**.
+
+The count is visible per programme in the row panel, is counted in
+`reconciliation.supplyFromProxy` (13 of the `scoredWithSupply` 83), and is
+stated in the provenance drawer with the counts of the response in front of
+the reader. It is the largest single piece of softness in the supply side.
 
 ### OPEN DECISION — cohort completeness
 
-A cohort is admitted as soon as `entry_year + durationYears <= current
-academic year`. On dev the newest admitted cohort (BE 2565) reads **29**
-graduates against ~40 for its neighbours, because late graduations are still
-accruing against it — so the mean is dragged down a few per cent. A stricter
-rule ("complete only at `duration + 1`") would exclude it and raise every
-figure slightly.
+**Still open. The per-programme window (`6c2f979`) moved *which* cohort sits
+at the edge; it did not settle whether that cohort should be there at all.**
+
+A cohort is admitted as soon as `entry_year + durationYears <=
+currentAcademicYearBE` — for a four-year programme in AY 2569 that is the
+BE 2565 entrants. Because late graduations are still accruing against the
+newest admitted cohort, it reads thin: measured across the scored bachelor
+programmes on 2026-09-19, the newest admitted cohort averages **68.4**
+graduates per programme against **79.2** across the five cohorts behind it
+(80.4, 79.8, 84.5, 75.1, 76.4) — about **14 % lower**. Averaged into a
+six-cohort mean that drags each programme's figure down by roughly 2 %.
+A stricter rule ("complete only at `duration + 1`") would exclude it and
+raise every figure slightly.
 
 **This was not changed unilaterally. The methodology owner decides, and the
 decision belongs in this section.** Until then, read every graduates-per-year
@@ -222,8 +292,8 @@ rather than take them on trust. It carries:
 | `fieldPostings` | **distinct** eligible adverts naming at least one canonical field |
 | `fieldMentions` | Σ_f postings_f — the demand denominator (≥ `fieldPostings`) |
 | `multiFieldPostings` | adverts naming ≥ 2 canonical fields (4,654 of 17,077 on dev) |
-| `anyFieldPostings` | adverts carrying the `*ANY*` (ทุกสาขา) sentinel — reported as its own line, assigned to nothing |
-| `otherKinds` / `otherMentions` | raw strings below the taxonomy floor: counted in the "other" bucket, never assigned |
+| `anyFieldPostings` | **bachelor-eligible** adverts carrying the `*ANY*` (ทุกสาขา) sentinel — 2,405 on dev. Reported as its own line, assigned to nothing, in neither denominator. Not the same universe as §7's 2,566, which counts the sentinel over all 47,631 adverts |
+| `otherKinds` / `otherMentions` | raw field strings on eligible adverts that **no non-rejected taxonomy row has absorbed as a synonym** (3,233 kinds / 5,759 mentions on dev). That is a *superset* of "below the floor": it also holds above-floor strings not yet clustered, and strings held only by a `REJECTED` row. Reported as their own line and counted in **neither denominator** — they are the residue the shares do not cover, not part of them |
 | `postgraduatePostings` | adverts stating a postgraduate minimum (41) |
 | `demandShareSum` / `supplyShareSum` | both must be 1 by construction; printed as the check |
 | `fieldGraduatesTotal` | the supply denominator, Σ_f grads_f |
@@ -243,16 +313,29 @@ JobThai batch refresh.
 ### Clustering
 
 Raw `job_postings.required_fields_raw` strings with **≥ 5 mentions**
-(`JOB_FIELD_MENTION_FLOOR`; **518 of 3,854** distinct strings cleared it on
-2026-09-15) are clustered by `job-field-taxonomy.v1` into canonical fields
-with Thai and English names. Each field absorbs its raw strings as
-**synonyms**, and a raw string belongs to at most one field — enforced in
-`packages/db/src/job-fields.ts`, because Postgres cannot express it.
+(`JOB_FIELD_MENTION_FLOOR`; **517 of 3,854** distinct strings cleared it,
+re-measured 2026-09-19) are clustered by `job-field-taxonomy.v1` into
+canonical fields with Thai and English names. Each field absorbs its raw
+strings as **synonyms**, and a raw string belongs to at most one field —
+enforced in `packages/db/src/job-fields.ts`, because Postgres cannot express
+it.
 
-Strings **below the floor** are the **other** bucket: counted in the
-denominators of the reconciliation line, never assigned to a field.
-`*ANY*` (ทุกสาขา — "any field", 2,566 adverts) is reported as its own line
-and assigned to nothing.
+*Both halves of that fraction exclude the `*ANY*` sentinel, which
+`collectRawFieldStrings` drops before anything else happens. Counting it
+gives 518 of 3,855; the **518 of 3,854** this page used to print was one of
+each and belonged to neither universe.*
+
+*The clustering step reads **all** JobThai adverts, while the map's
+reconciliation line counts only the bachelor-eligible ones. That is why
+`otherKinds` (3,233) is not 3,854 − 517: the two are counted over different
+universes as well as by different rules.*
+
+Strings **below the floor** are never assigned to a field, and they are in
+**neither share denominator**. They are reported on the reconciliation line —
+inside `otherKinds` / `otherMentions`, which is a superset of them (§6).
+`*ANY*` (ทุกสาขา — "any field", **2,566** of all 47,631 adverts; **2,405** of
+the bachelor-eligible ones the map scores) is reported as its own line and
+assigned to nothing.
 
 Batches are 200 strings; new fields from one batch become **anchors** for the
 next, which is what stops a discipline being created twice across batches.
@@ -276,9 +359,12 @@ the provenance drawer. `APPROVED` → reviewed. `REJECTED` → invisible
 everywhere, and never re-created: the build step never renames, downgrades or
 strips synonyms from an `APPROVED` or `REJECTED` row.
 
-Every write stamps the latest SUCCEEDED JobThai `ingestionRunId`, so the rows
-pass `realDataWhere()` (the trap that has silently hidden three other row
-families in this repo).
+Every write stamps the latest SUCCEEDED JobThai `ingestionRunId` — all 71
+taxonomy rows and all 328 assignments carry one on dev (2026-09-19). The map
+itself does **not** gate these two tables: it selects on `reviewStatus`
+alone. So the stamp hides nothing today; it is there so that any reader which
+*does* gate finds these rows instead of silently dropping them — the trap
+that has hidden three other row families in this repo.
 
 ### Known limitations of the taxonomy step
 
@@ -332,13 +418,17 @@ Two rules that are defensibility, not convenience:
 1. **Newest capture only.** `kmitl_skill_growths` *accumulates* captures: its
    unique key is `(contextLevel, contextId, skillNameRaw, dataScope)` with no
    `snapshotAt`, and the raw skill-name string drifts between runs, so an
-   older capture's rows are never superseded. Dev held 16,795 rows across two
-   captures (2026-07-20 and 2026-09-14); reading across both let July's figure
-   be quoted as today's — "Digital marketing" returned **600 %** when the
-   current capture's figure for the same skill was **279.41 %**. A skill absent
-   from the newest capture is stale and is not quoted at all.
+   older capture's rows are never superseded. On dev the table holds **18,789
+   rows, of which 16,795 carry a resolved skill** — the only ones this rule
+   reads — across two captures (2026-07-20 and 2026-09-14). Reading across
+   both let July's figure be quoted as today's: "Digital marketing" returned
+   **600 %** when the current capture's figure for the same skill was
+   **279.41 %**. A skill absent from the newest capture is stale and is not
+   quoted at all.
 2. **Mean across contexts, not max.** A skill appears once per KMITL context
-   that demands it (median 3, p90 12, max 181 on dev). Taking the highest was
+   that demands it. Over the 1,788 skills in the newest capture (measured
+   2026-09-19): **median 2** contexts — the middle pair is 2 and 3, so the
+   interpolated median is 2.5 — p90 12, max 181. Taking the highest was
    cherry-picking the single most flattering career bucket. Each figure
    carries **the number of contexts it was averaged over** so the reader can
    judge it.
@@ -361,8 +451,12 @@ Two rules that are defensibility, not convenience:
 > "mean" is a raw unattenuated observation (max **782 %**) competing on
 > magnitude against figures averaged over up to 181 contexts (max 200 %). We
 > **show** the context count beside each figure but do **not** exclude thin
-> ones. A floor of 3 contexts (the observed median is 2.5) would drop a third
-> of the skill population — **measure the coverage loss before adopting it.**
+> ones. The coverage loss is now measured rather than guessed: a floor of
+> **3** contexts would drop **894 of 1,788 skills — half the population**, not
+> the third an earlier draft of this paragraph said (that third is the
+> single-context share, which is what a floor of **2** would drop). Half the
+> population is a large price for an attenuation the context count already
+> discloses; the decision is still the methodology owner's.
 
 ### (b) Trends Radar signals
 
@@ -382,10 +476,13 @@ matched Biology, Mathematics and Agricultural Science through the label
 `งาน data scientist/data engineer/data analyst`). A role-side word is
 therefore dropped when it appears in more than **10 %** of the taxonomy's
 fields — **derived from the data, not hand-listed**, the same way generic
-skills are derived from how many occupations demand them. Measured on dev
-the threshold sits in a clean gap: *business* 15 %, *analyst* 14 %,
-*marketing* and *data* 13 % (dropped) against *digital* 8 %, *supply* and
-*chain* 1 % (kept). **The worst single signal now lands on 15 of 71 fields.**
+skills are derived from how many occupations demand them. Re-measured on dev
+2026-09-19 over the 37 distinct role tokens the nine live signals produce
+(only 7 reach any field at all), the threshold sits in a clean gap:
+*business* 11/71 (15 %), *analyst* 10/71 (14 %), *data* and *marketing* 9/71
+(13 %) are dropped, against *digital* 6/71 (8 %), *supply* and *chain* 1/71
+(1 %) kept. **The worst single signal now lands on 10 of 71 fields** —
+counted over every field it matches, before the five-per-row cap.
 
 **Forecasting is deferred** until JobThai batches form a time series — there
 is currently one delivery, and no posting date within it.
@@ -409,9 +506,13 @@ attaching the right verdict to the wrong row, so:
   ambiguity of §7) → **dropped**, not pinned to whichever matched first;
 - a finding whose verdict **disagrees with its row** → **corrected** to the
   row's verdict, and logged;
-- a finding resolving to a **`supply-unknown`** row → dropped, because a
-  narrative about a shortfall built on a missing registrar figure is the exact
-  misreading that verdict exists to prevent.
+- a finding that gives a **`supply-unknown`** row *some other* verdict →
+  **dropped**, not corrected, because the prose was written as a shortfall and
+  relabelling it would leave a finding whose text asserts a shortage its own
+  label denies. That is the exact misreading the verdict exists to prevent.
+  A finding that **correctly labels** a `supply-unknown` row `supply-unknown`
+  is kept — the model is allowed to report a measurement gap, it is only
+  forbidden to dress one up as a shortfall.
 
 The brief reports how many findings were dropped and how many corrected.
 Confidence, sources, reasoning and a disagreement button are shown; one
@@ -425,7 +526,9 @@ Confidence, sources, reasoning and a disagreement button are shown; one
   0**. A field with no measured programme is `supply-unknown`, not a 0 ratio.
   (`gradsOf()` returns 0 *only* as a summand — `hasSupply()` is the predicate
   that decides whether anything is known.)
-- A field below 20 adverts gets a **ratio but no verdict**.
+- A field below 20 adverts gets a **ratio, and the verdict
+  `too-few-postings`** — one of the six, not an empty cell. What it withholds
+  is a *reading of the gap*, never the numbers behind it.
 - A pipeline arrow is absent, not flat, when either side is missing.
 - A rising-skill figure absent from the newest KMITL capture is **not shown**
   rather than shown from an older one.
@@ -440,7 +543,7 @@ Confidence, sources, reasoning and a disagreement button are shown; one
 | Table | Role | Gated by `realDataWhere()` |
 |---|---|---|
 | `job_postings` (source `jobthai`) | demand: fields, provinces, occupations, education level | **yes** |
-| `job_field_taxonomy`, `program_job_fields` | the rows and the assignments | **yes** (every write stamps a run) |
+| `job_field_taxonomy`, `program_job_fields` | the rows and the assignments | **no — the map selects on `reviewStatus` alone.** Every write does stamp a run and all rows carry one on dev, so nothing is hidden today either way (§7) |
 | `alumni_cohort_statuses` | graduates per year (primary) | **yes** |
 | `enrollment_metrics` | graduates per year (fallback proxy) | **yes** |
 | `student_cohort_distributions` | pipeline | **yes** |
@@ -456,8 +559,11 @@ The map **writes nothing**. It is a read-time computation, cached 5 minutes.
 
 ## 13. Caveats that travel with every figure
 
-These are the strings the API attaches to `@Provenance`; they are on screen,
-not only here.
+These are the strings the API attaches to every map response; they are on
+screen in the provenance drawer, not only here. The first six are static
+(`MAP_CAVEATS`); the last carries the counts of the response the reader is
+looking at, assembled per request by `mapMeta` (`gap.controller.ts`) — as do
+the thresholds, which appear under *Methodology* rather than here (§4).
 
 - JobThai adverts are **national and Bangkok-weighted** (37 % Bangkok, 3.3 %
   Isan); they carry **no salary and no posting date**.
@@ -475,7 +581,11 @@ not only here.
   a guarantee of freshness. **Ingestion has no `CacheService`, so a taxonomy
   rebuild from the connector does not purge `gap:map:*` at all; the map waits
   out the TTL.**
-- 13.5 % of the KKU supply total rests on a single-year enrolment proxy (§5).
+- Part of the KKU supply total rests on a **single-year enrolment figure
+  standing in for a multi-cohort mean** (§5). The drawer states the live
+  counts — 13 of the 83 scored programmes carrying a graduate figure on dev,
+  **13.0 % of the supply total** once each is counted per field it is assigned
+  to.
 
 ---
 
@@ -484,7 +594,11 @@ not only here.
 Every item here is genuinely undecided. None is a bug.
 
 1. **Cohort completeness** (§5) — admit a cohort at `duration` or at
-   `duration + 1`? Today's rule mildly under-states graduates.
+   `duration + 1`? Today's rule mildly under-states graduates: on dev the
+   newest admitted cohort averages 14 % fewer graduates than the five behind
+   it, worth roughly 2 % of each programme's mean. Making the window
+   per programme (`6c2f979`) changed which cohort sits at that edge and left
+   the question open.
 2. **Minimum-context floor on rising skills** (§9a) — show thin figures with
    their context count, as today, or exclude them?
 3. **Duplicate `nameEn` on rename** (§7) — refuse, or warn?

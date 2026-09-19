@@ -955,7 +955,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'On-demand · gap-brief.v1',
     details: {
       description:
-        'One brief over the gap-map rows currently on screen: up to 5 findings, each citing one field of study’s own numbers, plus what the data cannot tell. Every finding is checked against the row it names before it is returned — a verdict that disagrees with its row is corrected, and one that resolves to supply-unknown or to an ambiguous field name is dropped rather than guessed. Replaced gap-insights.v2 and its three modes when the Gap Analyzer was rebuilt as a demand-first map.',
+        'One brief over the gap-map rows currently on screen: up to 5 findings, each citing one field of study’s own numbers, plus what the data cannot tell. Every finding is checked against the row it names before it is returned — a verdict that disagrees with its row is corrected to the row’s own, except that a finding giving a supply-unknown row some other verdict is dropped outright (its prose asserts a shortfall the label would deny), as is one whose field name matches more than one row. A finding that correctly calls a supply-unknown row supply-unknown is kept. Replaced gap-insights.v2 and its three modes when the Gap Analyzer was rebuilt as a demand-first map.',
       cadence: 'User-triggered from /gap-analysis',
     },
   },
@@ -1410,7 +1410,7 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'canonical field × raw synonyms',
     details: {
       description:
-        'One row per canonical field of study, with a Thai and an English name and the raw JobThai strings it absorbs as synonyms. Built from the free text of job adverts by job-field-taxonomy.v1 at a 5-mention floor — 518 of 3,854 distinct strings cleared it on 2026-09-15; strings below it are the "other" bucket, counted in the map’s denominators and assigned to nothing, as is the *ANY* (ทุกสาขา) sentinel. Review states: PROPOSED (shown on the map, labelled unreviewed), APPROVED, REJECTED (invisible everywhere). The rows of the gap map.',
+        'One row per canonical field of study, with a Thai and an English name and the raw JobThai strings it absorbs as synonyms. Built from the free text of job adverts by job-field-taxonomy.v1 at a 5-mention floor — 517 of 3,854 distinct strings cleared it (re-measured 2026-09-19; both counts exclude the *ANY* sentinel). Strings below the floor go to the "other" bucket: reported on the map’s reconciliation line, in neither share denominator, assigned to nothing — as is the *ANY* (ทุกสาขา) sentinel. Review states: PROPOSED (shown on the map, labelled unreviewed), APPROVED, REJECTED (invisible everywhere). The rows of the gap map.',
       prismaModel: 'JobFieldTaxonomy',
     },
   },
@@ -2038,8 +2038,8 @@ const dashboardNodes: TopologyNode[] = [
       description:
         'Demand-first gap map (gap-map.v1): one row per field of study employers ask for (JobThai), KKU supply share from registrar graduates, a share-vs-share verdict, the occupations and programmes inside each row, LinkedIn-via-MHESI growth and Trends Radar signals as what is coming, and one Council brief. Replaced the seven-lens analyzer and its composite gap index; /gap-analysis/opportunities, /risks and /education/digital-competency keep the old bookmarks working.',
       notes: [
-        'Verdicts: white space · under-served · served · over-served · supply-unknown (programmes exist but none carries a graduate figure — a missing measurement, never a shortfall) · too few postings (under 20 adverts).',
-        'Under and over thresholds are URL parameters echoed in the provenance drawer; every view is a shareable link.',
+        'Verdicts: white space (no bachelor programme — postgraduate tracks may exist, are listed in the row and are never scored) · under-served · served · over-served · supply-unknown (programmes exist but none carries a graduate figure — a missing measurement, never a shortfall) · too few postings (under 20 adverts, which is itself one of the six verdicts, not an empty cell).',
+        'Under and over thresholds are URL parameters, shown above the table and in the provenance drawer under Methodology, beside the version they belong to; every view is a shareable link.',
         'Reads only; writes nothing. Cached 5 minutes, purged when a job field is approved.',
       ],
     },

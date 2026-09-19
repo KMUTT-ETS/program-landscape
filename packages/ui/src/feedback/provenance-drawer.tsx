@@ -17,7 +17,9 @@ import { useProvenance } from './provenance-context';
 // ProvenanceButton shows its item here. We read the envelope's `meta`
 // field (see @kku/shared ApiMeta) and render:
 //   - data sources with timestamps and URLs
-//   - calculation method (via methodologyVersion) with a doc link
+//   - calculation method: the methodologyVersion, a doc link, and the
+//     parameters in force for THIS request (thresholds a reader can move
+//     from the URL are part of the method, not decoration)
 //   - last refreshed
 //   - source composition, when a figure draws on more than one writer
 //   - caveats, in plain English
@@ -177,17 +179,33 @@ export function ProvenanceDrawer() {
               </section>
             )}
 
-            {item.meta.methodologyVersion && (
+            {(item.meta.methodologyVersion ||
+              (item.meta.methodologyParameters && item.meta.methodologyParameters.length > 0)) && (
               <section>
                 <h3 className="mb-2 text-xs uppercase tracking-wide text-text-tertiary">
                   Methodology
                 </h3>
-                <p className="text-text-primary">
-                  Version{' '}
-                  <span className="font-tabular">
-                    {item.meta.methodologyVersion}
-                  </span>
-                </p>
+                {item.meta.methodologyVersion && (
+                  <p className="text-text-primary">
+                    Version{' '}
+                    <span className="font-tabular">
+                      {item.meta.methodologyVersion}
+                    </span>
+                  </p>
+                )}
+                {item.meta.methodologyParameters && item.meta.methodologyParameters.length > 0 && (
+                  <ul className="mt-2 flex flex-col gap-1">
+                    {item.meta.methodologyParameters.map((p) => (
+                      <li
+                        key={p.label}
+                        className="flex items-baseline justify-between gap-3 text-text-secondary"
+                      >
+                        <span>{p.label}</span>
+                        <span className="font-tabular text-text-primary">{p.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="mt-1 text-xs text-text-tertiary">
                   See <code>docs/methodologies/</code> in the repo for the full
                   spec of this metric.

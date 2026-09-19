@@ -39,10 +39,10 @@ export function MethodologyContentEn() {
           <MetaTable
             rows={[
               { label: 'Methodology code', value: <><Code>health-score.v5.2</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.4' },
+              { label: 'Document version', value: '1.5' },
               { label: 'Prepared by', value: 'KKU Data Office — Program Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
-              { label: 'Date', value: '2026-09-13' },
+              { label: 'Date', value: '2026-09-19' },
             ]}
           />
         </div>
@@ -1078,11 +1078,15 @@ otherwise                                         → SUNSET`}</Pre>
             <Strong>Demand share</Strong> is the field&rsquo;s share of eligible adverts &mdash; those
             whose minimum education level admits a bachelor&rsquo;s graduate &mdash; that name any
             canonical field. <Strong>KKU share</Strong> is the field&rsquo;s share of graduates per
-            year across every programme assigned to a field. The <Strong>verdict</Strong> is the
-            ratio of the two: <Em>white space</Em> when no programme is assigned,{' '}
+            year across the programmes the map <Em>scores</Em> for that field: bachelor programmes
+            inside the scope being viewed. The <Strong>verdict</Strong> is the ratio of the two:{' '}
+            <Em>white space</Em> when the field has no scored programme &mdash; postgraduate tracks
+            may exist, are listed inside the row, and are never scored &mdash;{' '}
             <Em>under-served</Em> below 0.5, <Em>over-served</Em> above 2, <Em>served</Em> between,
-            and no verdict under 20 adverts. Thresholds are URL parameters echoed in the provenance
-            drawer.
+            and <Em>too few postings</Em> under 20 adverts, which is one of the six verdicts rather
+            than a blank. The comparison is made on the unrounded ratio while the table displays two
+            decimals. Thresholds are URL parameters, shown above the table and in the provenance
+            drawer under <Em>Methodology</Em>, beside the version they belong to.
           </P>
           <P>
             Both sides are normalised by the sum over fields of their own numerators, not by a
@@ -1099,9 +1103,13 @@ otherwise                                         → SUNSET`}</Pre>
             a shortfall</Strong> &mdash; the same null-handling rule the Health Score applies in
             &sect;2. Graduates per year follow the registrar rule used elsewhere in this paper: the
             mean of the entry cohorts that could have graduated, over however many of them there
-            are, with a single-year graduated-on-time figure as a fallback. Current enrolment
-            supplies a pipeline arrow. Postgraduate programmes are listed inside a row but are not
-            scored, because only 41 of 47,631 adverts state a postgraduate minimum.
+            are, with a single-year graduated-on-time figure as a fallback. The window is taken{' '}
+            <Strong>per programme</Strong> &mdash; six cohorts ending with the newest one that
+            programme&rsquo;s own length of study allows it to have finished &mdash; so a six-year
+            degree is averaged over as many cohorts as a four-year one. Current enrolment supplies a
+            pipeline arrow, annualised by each programme&rsquo;s own length of study rather than by
+            one nominal figure for the field. Postgraduate programmes are listed inside a row but
+            are not scored, because only 41 of 47,631 adverts state a postgraduate minimum.
           </P>
           <P>
             Shares replace the earlier demand &minus; supply difference, which compared a sum of
@@ -1713,6 +1721,7 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>1.0</TD><TD>2026-05-07</TD><TD>Initial public release — documents <Code>health-score.v3.5</Code> and <Code>lifecycle.v1.4</Code>.</TD></TR>
             <TR><TD mono>1.1</TD><TD>2026-06-01</TD><TD>Re-issued for <Code>health-score.v3.8</Code> and <Code>risk-scoring.v1.12</Code>: the recruitment funnel feeding the Attractiveness dimension and the risk L1 / competitiveness-percentile inputs are re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code>). Also captures the interim <Code>health-score.v3.7</Code> (student-satisfaction driver) and <Code>risk-scoring.v1.11</Code> (forward demographic projection). Driver formulas and weights unchanged.</TD></TR>
             <TR><TD mono>1.2</TD><TD>2026-08-25</TD><TD>Re-issued for <Code>health-score.v4.0</Code>: the Outcomes dimension gains a <Code>dq_digital_competency</Code> driver from the Digital Intelligence (DQ) test, bachelor programs only. Also captures the interim <Code>health-score.v3.9</Code> (financial dimension scored on the last complete academic year). The five dimensions, their weights, and the lifecycle verdict are unchanged.</TD></TR>
+            <TR><TD mono>1.5</TD><TD>2026-09-19</TD><TD>&sect;4.8 corrected against the code after <Code>6c2f979</Code>. The pipeline arrow annualises each programme&rsquo;s enrolment by its own length of study, not the field&rsquo;s summed pipeline by a nominal four years; the cohort window is taken per programme rather than from one university-wide anchor; a white space means no <Em>bachelor</Em> programme, with postgraduate tracks listed but never scored; <Em>too few postings</Em> is one of the six verdicts rather than a blank; the KKU share counts only the programmes the map scores; and the thresholds a reader may move from the URL are now genuinely carried into the provenance drawer. No scorer changed &mdash; Health Score, the lifecycle verdict and <Code>gap-map.v1</Code> itself are unchanged.</TD></TR>
             <TR><TD mono>1.4</TD><TD>2026-09-19</TD><TD>Re-issued for <Code>gap-map.v1</Code>: the Gap Analyzer is rebuilt as a demand-first field-of-study map (new &sect;4.8). <Code>gap-analysis.v1</Code> (skill-level demand &minus; supply) and <Code>gap-lenses.v1</Code> (seven lenses and a composite gap index) are retired, along with the three <Code>gap-insights</Code> modes. Also captures revision 1.3 (<Code>health-score.v5.2</Code>), which was issued without an entry here. Health Score dimensions, weights and the lifecycle verdict are unchanged.</TD></TR>
           </tbody>
         </Tbl>

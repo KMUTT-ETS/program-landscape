@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '@kku/shared';
+import { ApiError, type ApiMeta } from '@kku/shared';
 import { AI_CALL_META, AUDIT_LOG_META, PERMISSION_META, PROVENANCE_META } from '../src/common/decorators';
 import { ZodValidationPipe } from '../src/common/zod-validation.pipe';
 import type { CacheService } from '../src/common/cache.service';
@@ -16,7 +16,7 @@ vi.mock('../src/common/scope-guards', async () => {
   return { ...actual, clampScopeForUser: mocks.clampScopeForUser };
 });
 
-const { BriefBody, GapController, MapQuery } = await import('../src/gap/gap.controller');
+const { BriefBody, GapController, MapQuery, mapMeta } = await import('../src/gap/gap.controller');
 const { GapService } = await import('../src/gap/gap.service');
 type GapService = InstanceType<typeof GapService>;
 type GapBriefService = import('../src/gap/gap-brief.service').GapBriefService;
@@ -115,13 +115,17 @@ describe('GapService.map cache key', () => {
     expect(compute).not.toHaveBeenCalled();
   });
 
-  it('field() picks the row by slug, carries the map freshness, and is null when absent', async () => {
+  it('field() picks the row by slug, carries the map freshness and reconciliation, and is null when absent', async () => {
     const freshness = { postingsAsOf: '2026-09-01T00:00:00.000Z', taxonomyAsOf: null };
-    const compute = vi.fn(async () => ({ rows: [{ slug: 'logistics' }, { slug: 'nursing' }], freshness }));
+    const reconciliation = { scoredWithSupply: 83, supplyFromProxy: 13 };
+    const compute = vi.fn(async () => ({ rows: [{ slug: 'logistics' }, { slug: 'nursing' }], freshness, reconciliation }));
     const s = new GapService({ get: vi.fn(async () => undefined), set: vi.fn() } as unknown as CacheService, compute as never);
     const args = { scope: 'university' as const, scopeId: null, thresholds: { under: 0.5, over: 2 } };
-    expect(await s.field({ ...args, slug: 'nursing' })).toEqual({ row: { slug: 'nursing' }, freshness });
-    expect(await s.field({ ...args, slug: 'nope' })).toEqual({ row: null, freshness });
+    // The reconciliation rides along because the panel's provenance drawer
+    // states how much of the supply total rests on the enrolment proxy, and a
+    // single row carries neither that count nor a timestamp.
+    expect(await s.field({ ...args, slug: 'nursing' })).toEqual({ row: { slug: 'nursing' }, freshness, reconciliation });
+    expect(await s.field({ ...args, slug: 'nope' })).toEqual({ row: null, freshness, reconciliation });
   });
 });
 
@@ -148,12 +152,37 @@ describe('GapController decorators', () => {
   });
 
   it('map returns the envelope shape so the freshness badge has a real timestamp', async () => {
-    const result = { rows: [], freshness: { postingsAsOf: '2026-09-01T00:00:00.000Z', taxonomyAsOf: null } };
+    const result = {
+      rows: [],
+      thresholds: { under: 0.5, over: 2 },
+      reconciliation: { scoredWithSupply: 83, supplyFromProxy: 13 },
+      freshness: { postingsAsOf: '2026-09-01T00:00:00.000Z', taxonomyAsOf: null },
+    };
     const c = new GapController({ map: vi.fn(async () => result) } as unknown as GapService, {} as GapBriefService);
-    expect(await c.map(user, mapQuery({}))).toEqual({
-      data: result,
-      meta: { freshnessDate: '2026-09-01T00:00:00.000Z' },
+    const env = (await c.map(user, mapQuery({}))) as { data: unknown; meta: ApiMeta };
+    expect(env.data).toBe(result);
+    expect(env.meta.freshnessDate).toBe('2026-09-01T00:00:00.000Z');
+  });
+
+  it('the map meta carries the thresholds in force and the proxy weight of THIS response', () => {
+    // @Provenance is static: it cannot say which thresholds produced the
+    // verdicts on screen, and a shared link that moved them would otherwise
+    // look like the default. Council-readiness rule 1 puts the calculation
+    // method in the drawer, and a URL threshold is part of that method.
+    const meta = mapMeta({
+      thresholds: { under: 0.7, over: 3 },
+      reconciliation: { scoredWithSupply: 83, supplyFromProxy: 13 },
+      freshnessDate: null,
     });
+    expect(meta.methodologyParameters).toEqual([
+      { label: 'Under-served below a ratio of', value: '0.70' },
+      { label: 'Over-served above a ratio of', value: '3.00' },
+      { label: 'Too few adverts to read, below', value: '20 adverts' },
+    ]);
+    // Both caveats the methodology's §13 promises but the decorator cannot
+    // hold: the cache race, and the proxy's weight with live counts.
+    expect(meta.caveats?.some((c) => c.includes('cached for five minutes'))).toBe(true);
+    expect(meta.caveats?.some((c) => c.includes('13 of the 83 scored programmes'))).toBe(true);
   });
 
   it('brief passes only the current view to the service', async () => {

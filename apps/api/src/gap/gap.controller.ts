@@ -1,8 +1,18 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
-import { computeDqSkillLens, GAP_MAP_VERSION, GAP_VERDICTS, Prisma, prisma, ThresholdsSchema } from '@kku/db';
-import { ApiError, type SessionUser } from '@kku/shared';
+import {
+  computeDqSkillLens,
+  GAP_MAP_VERSION,
+  GAP_VERDICTS,
+  JOBTHAI_MIN_POSTINGS_FOR_SIGNAL,
+  Prisma,
+  prisma,
+  ThresholdsSchema,
+  type GapMapResult,
+  type GapThresholds,
+} from '@kku/db';
+import { ApiError, type ApiMeta, type SessionUser } from '@kku/shared';
 import {
   AiCall,
   AiQuota,
@@ -59,7 +69,45 @@ const MAP_CAVEATS = [
   "A programme assigned to two fields counts in both fields' supply; the reconciliation line states how many.",
   'A field whose programmes carry no graduate figure is reported as supply-unknown — a missing measurement, never a shortfall.',
   'Proposed fields are shown before review; the provenance drawer states how many are unreviewed.',
+  'The map is cached for five minutes and purged when a taxonomy row is approved, so a map computed concurrently with an approval can serve pre-approval rows until that cache expires. Ingestion has no cache service, so a taxonomy rebuild from the JobThai connector purges nothing at all — the map waits the five minutes out.',
 ];
+
+/**
+ * Provenance that changes with the request, merged over the static
+ * `@Provenance` by the response interceptor (which spreads the handler's own
+ * `meta` last — see ResponseEnvelopeInterceptor).
+ *
+ * Two facts belong here rather than in the decorator:
+ *
+ *  - **The thresholds.** They are URL parameters, so two readers can hold the
+ *    same `gap-map.v1` stamp and different verdicts. Council-readiness rule 1
+ *    puts the calculation method in the drawer; a threshold an analyst moved
+ *    for one review is part of that method, and a drawer that shows only the
+ *    version would let a shared link look like the default.
+ *  - **How much of the supply total rests on the enrolment proxy.** It is the
+ *    softest part of the supply side and it moves with the data, so the
+ *    sentence carries the counts this response actually computed rather than a
+ *    figure that was true on the day it was written.
+ */
+export function mapMeta(args: {
+  thresholds: GapThresholds;
+  reconciliation: Pick<GapMapResult['reconciliation'], 'scoredWithSupply' | 'supplyFromProxy'>;
+  freshnessDate: string | null;
+}): Pick<ApiMeta, 'freshnessDate' | 'caveats' | 'methodologyParameters'> {
+  const { scoredWithSupply, supplyFromProxy } = args.reconciliation;
+  return {
+    freshnessDate: args.freshnessDate,
+    methodologyParameters: [
+      { label: 'Under-served below a ratio of', value: args.thresholds.under.toFixed(2) },
+      { label: 'Over-served above a ratio of', value: args.thresholds.over.toFixed(2) },
+      { label: 'Too few adverts to read, below', value: `${JOBTHAI_MIN_POSTINGS_FOR_SIGNAL} adverts` },
+    ],
+    caveats: [
+      ...MAP_CAVEATS,
+      `Part of the KKU supply total rests on a single-year enrolment figure standing in for a multi-cohort mean: ${supplyFromProxy} of the ${scoredWithSupply} scored programmes carrying a graduate figure are counted that way. It is the largest single piece of softness in the supply side.`,
+    ],
+  };
+}
 
 @Controller('/gap')
 export class GapController {
@@ -86,10 +134,19 @@ export class GapController {
   async map(@AuthSession() user: SessionUser, @Query(new ZodValidationPipe(MapQuery)) q: MapQueryT) {
     const eff = await this.clamp(q, user);
     const result = await this.gap.map({ ...eff, thresholds: { under: q.under, over: q.over } });
-    // The envelope's freshnessDate is what <FreshnessBadge> reads; @Provenance
-    // is static metadata and cannot carry it, so the handler returns the
-    // envelope shape and lets the interceptor merge the two.
-    return { data: result, meta: { freshnessDate: result.freshness.postingsAsOf } };
+    // The envelope's freshnessDate is what <FreshnessBadge> reads, and the
+    // thresholds and the proxy's weight are per-request facts the drawer owes
+    // the reader; @Provenance is static metadata and can carry none of them,
+    // so the handler returns the envelope shape and lets the interceptor merge
+    // the two.
+    return {
+      data: result,
+      meta: mapMeta({
+        thresholds: result.thresholds,
+        reconciliation: result.reconciliation,
+        freshnessDate: result.freshness.postingsAsOf,
+      }),
+    };
   }
 
   @Get('map/fields/:slug')
@@ -101,9 +158,13 @@ export class GapController {
     @Query(new ZodValidationPipe(MapQuery)) q: MapQueryT,
   ) {
     const eff = await this.clamp(q, user);
-    const { row, freshness } = await this.gap.field({ ...eff, thresholds: { under: q.under, over: q.over }, slug });
+    const thresholds = { under: q.under, over: q.over };
+    const { row, freshness, reconciliation } = await this.gap.field({ ...eff, thresholds, slug });
     if (!row) throw new ApiError('NOT_FOUND', `no field ${slug}`);
-    return { data: row, meta: { freshnessDate: freshness.postingsAsOf } };
+    return {
+      data: row,
+      meta: mapMeta({ thresholds, reconciliation, freshnessDate: freshness.postingsAsOf }),
+    };
   }
 
   @Post('brief')
