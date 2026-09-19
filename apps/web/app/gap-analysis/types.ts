@@ -146,6 +146,14 @@ export interface GapMapT {
     /** Σ over fields of the field's graduates per year — the supply
      *  denominator, so a two-field programme is counted in both. */
     fieldGraduatesTotal: number;
+    /** Distinct scored programmes across all rows — counted once each,
+     *  unlike `fieldGraduatesTotal`. */
+    scoredProgrammes: number;
+    /** How many of those carry a graduates-per-year figure at all. */
+    scoredWithSupply: number;
+    /** How many of `scoredWithSupply` rest on the enrolment-metric
+     *  fallback rather than on alumni entry cohorts. */
+    supplyFromProxy: number;
   };
   taxonomy: { approved: number; proposed: number };
   freshness: { postingsAsOf: string | null; taxonomyAsOf: string | null };

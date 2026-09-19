@@ -204,6 +204,10 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
         <p>
           Supply shares sum to {pct1(rec.supplyShareSum)} of {int(rec.fieldGraduatesTotal)} graduates per
           year because {rec.multiFieldProgrammes} programmes are assigned to two fields and count in each.
+          That total rests on {rec.scoredWithSupply} of {rec.scoredProgrammes} scored programmes —{' '}
+          {rec.scoredWithSupply - rec.supplyFromProxy} counted from alumni entry cohorts,{' '}
+          {rec.supplyFromProxy} from the enrolment-metric fallback, and{' '}
+          {rec.scoredProgrammes - rec.scoredWithSupply} with no graduate figure at all.
           Postgraduate programmes are listed but not scored — {rec.postgraduatePostings} adverts state a
           postgraduate minimum.
         </p>
@@ -217,8 +221,12 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
           <summary className="cursor-pointer">Thresholds in force and the supply rule</summary>
           <p className="mt-1">
             Under-served below {params.under}, over-served above {params.over} (ratio = KKU share ÷
-            demand share). Graduates per year = the last five registrar cohorts ÷ 5, or the latest
-            graduated-on-time figure where alumni rows are missing; a field whose programmes carry
+            demand share). Graduates per year = the mean of a programme&apos;s recent registrar entry
+            cohorts that could already have graduated — an entry year counts only once it is at least
+            the programme&apos;s length behind the current academic year — divided by however many such
+            cohorts there are, not by a fixed five. Where no alumni cohort qualifies, the fallback is
+            the most recent graduated-on-time figure that records any graduations at all; an academic
+            year still in progress is never read as a measured zero. A field whose programmes carry
             neither is reported as supply unknown rather than as a shortfall. Pipeline = students
             currently enrolled; the arrow compares pipeline ÷ 4 with graduates per year at ±25 %. A
             field below the posting floor is shown with its advert count instead of a verdict. Cached

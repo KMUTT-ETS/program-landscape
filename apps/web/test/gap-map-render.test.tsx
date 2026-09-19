@@ -109,6 +109,38 @@ const map: GapMapT = {
       verdict: 'served',
       programmeCount: 3,
       programmesWithSupply: 2,
+      programmes: [
+        {
+          programId: 'p1',
+          code: 'KKU-SEQ-0001',
+          nameTh: 'โปรแกรม',
+          nameEn: 'Programme',
+          level: 'BACHELOR',
+          facultyId: 'f1',
+          facultyNameEn: 'Engineering',
+          gradsPerYear: 100,
+          supplySource: 'alumni',
+          pipeline: 400,
+          healthScore: 71,
+          scored: true,
+          reviewStatus: 'APPROVED',
+        },
+        {
+          programId: 'p2',
+          code: 'KKU-SEQ-0002',
+          nameTh: 'โปรแกรมสอง',
+          nameEn: 'Fallback programme',
+          level: 'BACHELOR',
+          facultyId: 'f1',
+          facultyNameEn: 'Engineering',
+          gradsPerYear: 40,
+          supplySource: 'enrolment-proxy',
+          pipeline: 150,
+          healthScore: 60,
+          scored: true,
+          reviewStatus: 'APPROVED',
+        },
+      ],
       globalSignal: {
         skills: [{ skillId: 's1', nameEn: 'PLC programming', nameTh: 'พีแอลซี', growthPct: 41, scope: 'THAILAND', contexts: 28 }],
         scope: 'THAILAND',
@@ -189,6 +221,9 @@ const map: GapMapT = {
     supplyShareSum: 1.12,
     multiFieldProgrammes: 9,
     fieldGraduatesTotal: 12_000,
+    scoredProgrammes: 99,
+    scoredWithSupply: 83,
+    supplyFromProxy: 14,
   },
   taxonomy: { approved: 3, proposed: 2 },
   freshness: { postingsAsOf: '2026-09-13T00:00:00Z', taxonomyAsOf: '2026-09-15T00:00:00Z' },
@@ -255,6 +290,28 @@ describe('GapMapSections', () => {
     // a bare "41 %" would read the same as a single-context observation.
     expect(t).toContain('28 contexts');
     expect(t).toContain('LinkedIn data via MHESI');
+  });
+
+  it('says where each programme-level graduate figure came from', () => {
+    // An alumni-cohort mean and an enrolment-metric fallback are not the
+    // same measurement; rendering both as a bare "N graduates / yr" made
+    // them indistinguishable to a reader.
+    const t = textOf(render(resolveGapParams({ field: 'electrical-engineering' })));
+    expect(t).toContain('100 graduates / yr (alumni cohorts)');
+    expect(t).toContain('40 graduates / yr (enrolment fallback)');
+  });
+
+  it('states what the reconciliation supply total rests on', () => {
+    expect(text).toMatch(/rests on 83 of 99 scored programmes/i);
+    expect(text).toContain('69 counted from alumni entry cohorts');
+    expect(text).toContain('14 from the enrolment-metric fallback');
+    expect(text).toContain('16 with no graduate figure at all');
+  });
+
+  it('describes the supply rule as a per-cohort mean, never as a fixed divisor', () => {
+    expect(text).not.toMatch(/last five registrar cohorts/i);
+    expect(text).toMatch(/not by a fixed five/i);
+    expect(text).toMatch(/still in progress is never read as a measured zero/i);
   });
 
   it('says how much of a field is actually measured when only some programmes have graduates', () => {

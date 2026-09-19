@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 import { prisma } from './index';
+import { getAcademicYearContext } from './academic-year';
 import { realDataSql, realDataWhere } from './data-quality';
 import { getProgramScoreIndex } from './health-score';
 import { eligiblePostingLevels } from './jobthai-bridge';
@@ -121,6 +122,13 @@ export interface GapMapResult {
     multiFieldProgrammes: number;
     /** Σ_f grads_f over scored programmes — the supply denominator. */
     fieldGraduatesTotal: number;
+    /** Distinct scored (bachelor, in-scope) programmes across all rows. */
+    scoredProgrammes: number;
+    /** How many of those carry a graduates-per-year figure at all. */
+    scoredWithSupply: number;
+    /** How many of `scoredWithSupply` came from the enrolment-metric
+     *  fallback rather than alumni entry cohorts. The rest are alumni. */
+    supplyFromProxy: number;
   };
   taxonomy: { approved: number; proposed: number };
   freshness: { postingsAsOf: string | null; taxonomyAsOf: string | null };
@@ -128,6 +136,11 @@ export interface GapMapResult {
 
 const BACHELOR_LEVELS = eligiblePostingLevels('BACHELOR');
 const POSTGRAD_LEVELS = eligiblePostingLevels('MASTER');
+
+/** Fallback length of study when `Program.durationYears` is null (16 of 301
+ *  programmes on dev). Four years is the nominal bachelor's degree, and the
+ *  same divisor `pipelineArrow` already assumes. */
+const NOMINAL_DURATION_YEARS = 4;
 
 export async function scopeProgramIds(scope: GapMapScope, scopeId: string | null): Promise<string[] | null> {
   if (scope === 'university' || !scopeId) return null;
@@ -149,6 +162,7 @@ export async function computeGapMap(args: {
   now?: Date;
 }): Promise<GapMapResult> {
   const now = args.now ?? new Date();
+  const { currentAcademicYearBE } = await getAcademicYearContext(now);
   const inScope = await scopeProgramIds(args.scope, args.scopeId);
   const inScopeSet = inScope ? new Set(inScope) : null;
 
@@ -311,6 +325,30 @@ export async function computeGapMap(args: {
   });
   const programById = new Map(assignments.map((a) => [a.program.id, a.program]));
   const assignedProgramIds = [...programById.keys()];
+  // Graduates per year = the mean of the entry cohorts that COULD have
+  // graduated, over however many of them there are (spec §4; corrected
+  // 2026-09-19). Three rules make that sentence true:
+  //
+  //  1. The window is anchored on graduation, not on enrolment. `max_be`
+  //     over GRADUATED rows only. Taken over every status bucket it reads
+  //     the newest ENTRANTS (BE 2569 on dev), pushing the window two
+  //     cohorts past anything that can have finished.
+  //  2. A cohort is counted only once it could have graduated:
+  //     `entry_year_be + durationYears <= currentAcademicYearBE`. A
+  //     student entering 2565 on a 4-year programme is in year
+  //     `current - entry + 1`, so they finish at the end of AY 2568 and
+  //     2569 is the first year the cohort is complete.
+  //  3. The divisor is the number of cohorts actually averaged, not a
+  //     hard-coded 5. Counting four cohorts and dividing by five under-
+  //     reports by a fifth, which is most of the old shortfall.
+  //
+  // The enrolment proxy takes the newest year with a NON-ZERO figure
+  // rather than simply the newest. On dev the newest row is an unfinished
+  // AY 2026 for 226 programmes and reads 0 for every one of them — and
+  // 2025 (28 programmes) and 2024 (5) are all-zero too, so excluding only
+  // the current academic year would still hand 33 programmes a zero that
+  // was never measured. A programme left with nothing comes out NULL and
+  // the row's `supply-unknown` state says so honestly.
   const supplyRows =
     assignedProgramIds.length === 0
       ? []
@@ -318,20 +356,28 @@ export async function computeGapMap(args: {
           Prisma.sql`
     WITH latest_be AS (
       SELECT MAX(entry_year_be) AS max_be FROM alumni_cohort_statuses acs0
-      WHERE ${realDataSql('acs0')}
+      WHERE acs0.status_bucket = 'GRADUATED' AND ${realDataSql('acs0')}
+    ),
+    alumni_cohorts AS (
+      SELECT acs.program_id, acs.entry_year_be, SUM(acs.count)::float AS graduates
+      FROM alumni_cohort_statuses acs
+      JOIN programs pr ON pr.id = acs.program_id
+      CROSS JOIN latest_be
+      WHERE acs.status_bucket = 'GRADUATED'
+        AND acs.entry_year_be >= latest_be.max_be - 5
+        AND acs.entry_year_be + COALESCE(pr.duration_years, ${NOMINAL_DURATION_YEARS}) <= ${currentAcademicYearBE}
+        AND ${realDataSql('acs')}
+      GROUP BY acs.program_id, acs.entry_year_be
     ),
     alumni_per_program AS (
-      SELECT program_id, SUM(count)::float / 5.0 AS graduates_per_year
-      FROM alumni_cohort_statuses acs, latest_be
-      WHERE status_bucket = 'GRADUATED'
-        AND entry_year_be >= latest_be.max_be - 5
-        AND ${realDataSql('acs')}
+      SELECT program_id, SUM(graduates) / COUNT(*)::float AS graduates_per_year
+      FROM alumni_cohorts
       GROUP BY program_id
     ),
     latest_grad AS (
       SELECT DISTINCT ON (program_id) program_id, graduated_on_time
       FROM enrollment_metrics em
-      WHERE ${realDataSql('em')}
+      WHERE em.graduated_on_time > 0 AND ${realDataSql('em')}
       ORDER BY program_id, academic_year DESC
     )
     SELECT
@@ -535,6 +581,12 @@ export async function computeGapMap(args: {
       otherMentions: u.other_mentions,
       postgraduatePostings: u.postgraduate,
       ...rec,
+      // Distinct programmes, not assignments: `fieldGraduatesTotal` counts a
+      // two-field programme twice (the mirror of field-mentions), but "how
+      // many programmes is this total built from" has to count it once.
+      scoredProgrammes: scoredIds.size,
+      scoredWithSupply: [...scoredIds].filter((id) => hasSupply(id)).length,
+      supplyFromProxy: [...scoredIds].filter((id) => supplyById.get(id)?.source === 'enrolment-proxy').length,
     },
     taxonomy: {
       approved: fields.filter((f) => f.reviewStatus === 'APPROVED').length,

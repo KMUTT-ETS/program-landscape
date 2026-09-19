@@ -62,7 +62,11 @@ export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React
                 <div className="text-text-secondary">
                   {p.gradsPerYear == null
                     ? 'graduates not recorded'
-                    : `${int(p.gradsPerYear)} graduates / yr`}
+                    : `${int(p.gradsPerYear)} graduates / yr (${
+                        p.supplySource === 'enrolment-proxy'
+                          ? 'enrolment fallback'
+                          : 'alumni cohorts'
+                      })`}
                   {' · '}
                   {p.pipeline == null ? 'pipeline not recorded' : `${int(p.pipeline)} enrolled`}
                   {' · '}
