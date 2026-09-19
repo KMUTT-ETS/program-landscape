@@ -2,11 +2,11 @@ import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/com
 import { ConfigService } from '@nestjs/config';
 import {
   computeHealthScores,
-  computeRisks,
-  computeSkillGap,
   getAiModelOverrideStore,
   prisma,
   PrismaAiInferenceRecorder,
+  snapshotGapMap,
+  summariseSnapshotGap,
   type DecisionSnapshot,
 } from '@kku/db';
 import {
@@ -22,7 +22,7 @@ import {
 import type { OutcomeReviewHorizon } from "@kku/db";
 
 // AI-generated post-decision outcome review. Same factory pattern as
-// gap-insights / scenario-insights / benchmarking-insights services.
+// gap-brief / scenario-insights / benchmarking-insights services.
 
 @Injectable()
 export class DecisionReviewService implements OnModuleInit {
@@ -89,10 +89,9 @@ export class DecisionReviewService implements OnModuleInit {
     const scopeId = decision.facultyId ?? undefined;
 
     // Recompute current state.
-    const [currentHealth, currentRisks, currentGaps] = await Promise.all([
+    const [currentHealth, currentGapMap] = await Promise.all([
       computeHealthScores(scope, scopeId ?? null),
-      computeRisks({ scope, scopeId, region: 'TH', horizon: 5, comparison: 'absolute', limit: 10 }),
-      computeSkillGap({ scope, scopeId, region: 'TH', horizon: 0, comparison: 'absolute', limit: 10 }),
+      snapshotGapMap(scope, scopeId ?? null),
     ]);
 
     const input: DecisionReviewInput = {
@@ -103,14 +102,14 @@ export class DecisionReviewService implements OnModuleInit {
       affectedPrograms: programs,
       snapshot: {
         healthSummary: summariseHealth(snapshot.health),
-        riskSummary: summariseRisks(snapshot.risks),
-        topSkillGapsSummary: summariseGaps(snapshot.topSkillGaps),
+        riskSummary: RISK_REGISTER_POINTER,
+        topSkillGapsSummary: summariseSnapshotGap(snapshot),
         recentTrendCount: snapshot.recentTrendCount,
       },
       current: {
         healthSummary: summariseHealth(currentHealth),
-        riskSummary: summariseRisks(currentRisks),
-        topSkillGapsSummary: summariseGaps(currentGaps),
+        riskSummary: RISK_REGISTER_POINTER,
+        topSkillGapsSummary: summariseSnapshotGap({ gapMap: currentGapMap }),
         recentTrendCount: 0,
       },
       milestones: decision.milestones.map((m) => ({
@@ -213,16 +212,11 @@ function summariseHealth(health: unknown): string {
   return `${health.length} entities, avg overall ${avg.toFixed(0)}/100, ${nonNull.length} with non-null data`;
 }
 
-function summariseRisks(risks: unknown): string {
-  if (!risks || typeof risks !== 'object' || !('rows' in (risks as object))) return '(no data)';
-  const r = risks as { rows: Array<{ oversupplyPct: number }> };
-  const highRisk = r.rows.filter((x) => x.oversupplyPct > 50).length;
-  return `${r.rows.length} programs assessed, ${highRisk} with >50% oversupply risk`;
-}
-
-function summariseGaps(gaps: unknown): string {
-  if (!gaps || typeof gaps !== 'object' || !('rows' in (gaps as object))) return '(no data)';
-  const g = gaps as { rows: Array<{ gap: number; nameEn: string }> };
-  const top = g.rows.slice(0, 3).map((x) => x.nameEn).join(', ');
-  return `${g.rows.length} skill gaps; top 3: ${top || '(none)'}`;
-}
+/**
+ * The seven-lens analyzer's `computeRisks` oversupply lens is retired: it
+ * inferred risk from a skill-level demand-vs-supply ratio that the gap map
+ * no longer computes. Programme risk lives in the risk register
+ * (risk-scoring), which this prompt does not read, so say so rather than
+ * feeding the model "(no data)" — which it reads as "risk was not assessed".
+ */
+const RISK_REGISTER_POINTER = '(not part of this review — see the risk register at /risks)';

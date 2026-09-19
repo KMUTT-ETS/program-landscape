@@ -3,6 +3,7 @@ import {
   assertTransitionAllowed,
   assertTransitionAllowedForRole,
   dueOutcomeReviewHorizons,
+  summariseSnapshotGap,
 } from '../src/decisions';
 
 // Pure-function rules the Decision Workspace contract depends on:
@@ -126,5 +127,46 @@ describe('dueOutcomeReviewHorizons', () => {
     const now = new Date('2024-01-01');
     const due = dueOutcomeReviewHorizons(effective, [], now);
     expect(due).toEqual([]);
+  });
+});
+
+// ── Snapshot gap summary ─────────────────────────────────────────────
+//
+// One line for the outcome-review prompt. It must read BOTH generations
+// of snapshot: decisions reviewed before v1.9.7 froze the seven-lens
+// skill-gap payload, and those rows are immutable — re-reading them
+// under the new shape is the whole point of an outcome review.
+describe('summariseSnapshotGap', () => {
+  it('reads a gap-map snapshot', () => {
+    expect(
+      summariseSnapshotGap({
+        gapMap: {
+          verdictCounts: {
+            'white-space': 2,
+            'under-served': 3,
+            served: 10,
+            'over-served': 1,
+            'supply-unknown': 6,
+            'too-few-postings': 4,
+          },
+          topWhiteSpaces: [{ nameEn: 'Logistics', demandSharePct: 4.8 }],
+          methodologyVersion: 'gap-map.v1',
+        },
+      }),
+    ).toBe(
+      'gap map: 2 white spaces, 3 under-served, 10 served, 1 over-served ' +
+        '(6 with no graduate figure, 4 with too few postings to judge); ' +
+        'top white spaces: Logistics (4.8 %)',
+    );
+  });
+
+  it('still reads a pre-v1.9.7 skill-gap snapshot', () => {
+    expect(
+      summariseSnapshotGap({ topSkillGaps: { rows: [{ gap: 5, nameEn: 'Python' }, { gap: 3, nameEn: 'SQL' }] } }),
+    ).toBe('2 skill gaps; top 3: Python, SQL');
+  });
+
+  it('states missing data', () => {
+    expect(summariseSnapshotGap({})).toBe('(no data)');
   });
 });

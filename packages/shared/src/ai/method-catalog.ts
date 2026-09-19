@@ -219,15 +219,12 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     tier: 'narrative',
     defaultModel: 'gemini-3.5-flash',
   },
-  {
-    methodPrefix: 'gap-insights',
-    currentVersion: 'gap-insights.v1',
-    label: 'Gap analyzer insights',
-    description: 'Strategic top-5 / per-program skills / sector brief — three modes.',
-    module: 'gap',
-    tier: 'narrative',
-    defaultModel: 'gemini-3.5-flash',
-  },
+  // `gap-insights` (three modes over the seven-lens analyzer) was removed in
+  // v1.9.7 along with its prompt module. An entry here for a prompt nobody
+  // can run is worse than no entry: it offers a model to pin on
+  // /admin/app/ai-settings for a method that never executes, and
+  // assessModelHealth would report it as silently unused for ever.
+  // `gap-brief` above is its replacement.
   {
     methodPrefix: 'scenario-insights',
     currentVersion: 'scenario-insights.v1',

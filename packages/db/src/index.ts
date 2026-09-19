@@ -27,7 +27,6 @@ export * from './program-strategic-narrative-run';
 export * from './program-research-expertise';
 export * from './program-research-expertise-run';
 export * from './gap-analysis';
-export * from './gap-lenses';
 export * from './dq-skill-lens';
 export * from './benchmarking';
 export * from './decisions';

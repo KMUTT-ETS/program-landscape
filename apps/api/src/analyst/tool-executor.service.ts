@@ -2,14 +2,10 @@ import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
   BENCHMARKING_VERSION,
   computeDistinctiveness,
-  computeOccupationGap,
-  computeOpportunities,
+  computeGapMap,
   computeProgramPeers,
-  computeRisks,
-  computeSectorGap,
-  computeSkillGap,
-  FORECASTING_VERSION,
   GAP_ANALYSIS_VERSION,
+  GAP_MAP_VERSION,
   HEALTH_SCORE_VERSION,
   Prisma,
   prisma,
@@ -46,6 +42,7 @@ import {
   QuerySkillsInputSchema,
   QueryTrendsInputSchema,
   RunQuickScenarioInputSchema,
+  FORECASTING_VERSION,
   SCENARIO_ENGINE_VERSION,
   SearchPolicyDocsInputSchema,
   SearchResearchInputSchema,
@@ -255,14 +252,52 @@ export class AnalystToolExecutor {
     },
 
     query_gaps: async (input) => {
+      // The scope clamp runs before this handler and can narrow a
+      // PROGRAM_USER's ask to their own programme. The map has no
+      // programme scope, so say why rather than emitting a Zod enum
+      // error the model will read as a malformed call and retry.
+      if (input && typeof input === 'object' && (input as { scope?: unknown }).scope === 'program') {
+        return {
+          error:
+            'The gap map is computed at university, faculty or department scope. ' +
+            'A single programme has no demand share of its own; use get_program for one programme.',
+        };
+      }
       const q = QueryGapsInputSchema.parse(input);
-      const base = { scope: q.scope, scopeId: q.scopeId, region: q.region, horizon: q.horizon, comparison: 'absolute' as const, limit: q.limit };
-      if (q.dimension === 'skills') return computeSkillGap(base);
-      if (q.dimension === 'occupations') return computeOccupationGap(base);
-      if (q.dimension === 'sectors') return computeSectorGap(base);
-      if (q.dimension === 'risks') return computeRisks(base);
-      if (q.dimension === 'opportunities') return computeOpportunities(base);
-      return { error: 'Unknown dimension' };
+      const map = await computeGapMap({
+        scope: q.scope,
+        scopeId: q.scopeId ?? null,
+        thresholds: { under: q.under, over: q.over },
+      });
+      const rows = map.rows
+        .filter((r) => q.dimension === 'map' || r.verdict === q.dimension)
+        .slice(0, q.limit)
+        .map((r) => ({
+          slug: r.slug,
+          nameEn: r.nameEn,
+          nameTh: r.nameTh,
+          verdict: r.verdict,
+          demandSharePct: Math.round(r.demandShare * 1000) / 10,
+          supplySharePct: Math.round(r.supplyShare * 1000) / 10,
+          ratio: r.ratio,
+          gradsPerYear: r.gradsPerYear,
+          pipelineArrow: r.pipelineArrow,
+          postings: r.postings,
+          programmeCount: r.programmeCount,
+          // Of the scored programmes, how many carry a graduate figure.
+          // A row where this is 0 is 'supply-unknown' — unmeasured, not short.
+          programmesWithSupply: r.programmesWithSupply,
+          programmes: r.programmes.slice(0, 5).map((p) => ({ programId: p.programId, code: p.code, nameEn: p.nameEn })),
+          unreviewed: r.reviewStatus === 'PROPOSED',
+        }));
+      return {
+        methodologyVersion: map.methodologyVersion,
+        thresholds: map.thresholds,
+        verdictCounts: map.verdictCounts,
+        reconciliation: map.reconciliation,
+        taxonomy: map.taxonomy,
+        rows,
+      };
     },
 
     compare_peers: async (input) => {
@@ -520,12 +555,20 @@ export class AnalystToolExecutor {
             summary:
               '3-tier peer suggestion (skill-overlap → subject+country → embedding-cosine scaffold). White-space detection by peer-consensus threshold. Distinctiveness = 100 × (1 − sharedSkills / totalKkuSkills).',
           };
+        case 'gap-map':
+          return {
+            name: 'gap-map',
+            version: GAP_MAP_VERSION,
+            summary:
+              "One row per canonical field of study. Demand share = eligible bachelor-level JobThai adverts naming any synonym of the field ÷ the sum of that count over all fields; supply share = graduates per year of the field's scored programmes ÷ the same sum over fields. Verdict is share vs share: below `under` (default 0.5) under-served, above `over` (default 2) over-served. No KKU programme at all → white-space. Programmes but no graduate figure → supply-unknown, which is a missing measurement and not a shortfall. Below the honest-signal posting floor → too-few-postings.",
+            docPath: 'docs/methodologies/gap-map.md',
+          };
         case 'gap-analysis':
           return {
             name: 'gap-analysis',
             version: GAP_ANALYSIS_VERSION,
             summary:
-              'Demand from JobPostingSkill + OccupationDemand; supply from ProgramSkill × graduate counts. Ranked by |gap|. Regional filter is a view filter, not a flow model.',
+              'Per-programme LinkedIn demand-gap helper: for each programme, the share of demand-relevant skills its curriculum already covers, from AI-resolved ProgramDemandMatch rows. Soft/transferable skills excluded by default. This is NOT the field-of-study gap map — for that, ask for gap-map.',
           };
       }
     },

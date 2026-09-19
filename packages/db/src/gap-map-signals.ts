@@ -182,8 +182,8 @@ export async function globalSignalForFields(
   // `kmitl_skill_growths` is different: it DOES carry `ingestion_run_id`
   // (see KmitlSkillGrowth in schema.prisma, populated by every write in
   // apps/ingestion/src/connectors/sources/kmitl-skill-mapping/connector.ts),
-  // so it is gated below — matching the long-standing read of the same table
-  // in computeOpportunities() (gap-analysis.ts).
+  // so it is gated below — matching how the retired seven-lens analyzer read
+  // the same table before v1.9.7.
   const [occSkills, growth, generic] = await Promise.all([
     prisma.jobThaiOccupationSkill.findMany({
       where: { jobThaiOccupationId: { in: allOcc }, share: { gte: OCCUPATION_SKILL_DEMAND_FLOOR } },

@@ -6,7 +6,11 @@
 // PDF via existing templates so the output is Council-ready from day one.
 // ═════════════════════════════════════════════════════════════════════
 
-export const ANALYST_BRIEFS_VERSION = 'analyst-briefs.v1';
+// v2 (2026-09-19) — three briefs named query_gaps dimensions that no
+// longer exist (opportunities / sectors) or a `region` argument the gap
+// map never had. A brief that asks for a retired dimension spends a tool
+// call on a validation error and then invents the shape of the answer.
+export const ANALYST_BRIEFS_VERSION = 'analyst-briefs.v2';
 
 export interface BriefTemplate {
   slug: string;
@@ -55,7 +59,7 @@ export const ANALYST_BRIEFS: BriefTemplate[] = [
     descriptionEn: 'AI-ranked opportunities synthesising gap data + trends + peer benchmarks.',
     descriptionTh: '5 โอกาสเชิงกลยุทธ์สูงสุดประจำปีจากการวิเคราะห์ช่องว่างและแนวโน้ม',
     prompt:
-      'รวบรวมโอกาสเชิงกลยุทธ์ 5 อันดับแรกของ KKU ปีนี้ โดยอ้างอิงข้อมูลจาก query_gaps (dimension=opportunities), query_trends, และ compare_peers. สำหรับแต่ละโอกาส: (1) ขนาดความต้องการ, (2) ความสอดคล้องกับจุดแข็ง KKU, (3) ความเป็นไปได้ในการลงทุน, (4) risk ที่ต้องจับตา',
+      'รวบรวมโอกาสเชิงกลยุทธ์ 5 อันดับแรกของ KKU ปีนี้ โดยอ้างอิงข้อมูลจาก query_gaps (dimension=white-space แล้วตามด้วย dimension=under-served), query_trends, และ compare_peers. สำหรับแต่ละโอกาส: (1) ขนาดความต้องการ (demandSharePct + จำนวนประกาศงาน), (2) ความสอดคล้องกับจุดแข็ง KKU, (3) ความเป็นไปได้ในการลงทุน, (4) risk ที่ต้องจับตา. อย่านับ dimension=supply-unknown เป็นโอกาส — นั่นคือสาขาที่ KKU มีหลักสูตรอยู่แล้วแต่ยังไม่มีตัวเลขผู้สำเร็จการศึกษา',
     preferredTools: ['query_gaps', 'query_trends', 'compare_peers'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,
@@ -88,7 +92,7 @@ export const ANALYST_BRIEFS: BriefTemplate[] = [
     descriptionEn: 'How KKU\'s portfolio aligns with Northeast (Isaan) development priorities.',
     descriptionTh: 'ความสอดคล้องของพอร์ตหลักสูตร KKU กับยุทธศาสตร์ภาคอีสาน',
     prompt:
-      'วิเคราะห์ความสอดคล้องของหลักสูตร KKU กับยุทธศาสตร์ภาคอีสาน ใช้ query_gaps (region=Northeast), query_trends (signalType=POLICY), และ search_policy_docs สำหรับนโยบาย NESDC/NXPO ที่กล่าวถึงอีสาน. สรุป (1) จุดแข็งที่สอดคล้อง, (2) ช่องว่างที่ควรเติม, (3) นโยบายที่ควรติดตาม',
+      'วิเคราะห์ความสอดคล้องของหลักสูตร KKU กับยุทธศาสตร์ภาคอีสาน ใช้ query_gaps (dimension=map แล้วอ่านสัดส่วนจังหวัดในแต่ละแถว — ประกาศงานในภาคอีสาน), query_trends (signalType=POLICY), และ search_policy_docs สำหรับนโยบาย NESDC/NXPO ที่กล่าวถึงอีสาน. สรุป (1) จุดแข็งที่สอดคล้อง, (2) ช่องว่างที่ควรเติม, (3) นโยบายที่ควรติดตาม',
     preferredTools: ['query_gaps', 'query_trends', 'search_policy_docs'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,
@@ -99,7 +103,7 @@ export const ANALYST_BRIEFS: BriefTemplate[] = [
     descriptionEn: '1-page deep dive per BCG or S-curve sector.',
     descriptionTh: 'การวิเคราะห์เชิงลึก 1 หน้าต่อภาค BCG หรือ S-curve',
     prompt:
-      'สร้างบทวิเคราะห์เชิงลึก 1 หน้าสำหรับภาคที่ระบุ. ใช้ query_gaps (dimension=sectors) และ query_trends. ให้ครอบคลุม (1) ตัวชี้วัด headline, (2) ความคืบหน้า 3 ปี, (3) หลักสูตร KKU ที่เกี่ยวข้อง, (4) นโยบาย/แนวโน้มล่าสุด 3 ชิ้น',
+      'สร้างบทวิเคราะห์เชิงลึก 1 หน้าสำหรับภาคที่ระบุ. ใช้ query_gaps (dimension=map แล้วเลือกเฉพาะสาขาที่เกี่ยวข้องกับภาคนั้น) และ query_trends. ให้ครอบคลุม (1) ตัวชี้วัด headline, (2) ความคืบหน้า 3 ปี, (3) หลักสูตร KKU ที่เกี่ยวข้อง, (4) นโยบาย/แนวโน้มล่าสุด 3 ชิ้น',
     preferredTools: ['query_gaps', 'query_trends', 'query_programs', 'search_policy_docs'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,

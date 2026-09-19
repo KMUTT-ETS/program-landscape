@@ -8,7 +8,8 @@ import {
 } from '@prisma/client';
 import { prisma } from './index';
 import { computeHealthScores } from './health-score';
-import { computeRisks, computeSkillGap } from './gap-analysis';
+import { computeGapMap } from './gap-map';
+import { DEFAULT_GAP_THRESHOLDS } from './gap-map-rules';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Decision Workspace (prompt 12)
@@ -113,14 +114,80 @@ export async function getDecisionWithEverything(decisionId: string) {
 // Called when status transitions to COUNCIL_REVIEWED. Freezes the
 // cockpit/gap/trend state so the future outcome review can diff against
 // it. Idempotent: once captured, refuses to overwrite.
+export interface DecisionSnapshotGapMap {
+  verdictCounts: Record<string, number>;
+  topWhiteSpaces: Array<{ nameEn: string; demandSharePct: number }>;
+  methodologyVersion: string;
+}
+
 export interface DecisionSnapshot {
   capturedAt: string;
   scope: { affectedProgramIds: string[]; facultyId: string | null };
   health: unknown;
+  /**
+   * Snapshots captured before v1.9.7 carry the seven-lens risk + skill-gap
+   * payloads here; those rows are frozen and must stay readable, so both
+   * fields survive as `unknown` and are written `null` from now on.
+   */
   risks: unknown;
   topSkillGaps: unknown;
+  /** The demand-first gap map. Null on any pre-v1.9.7 snapshot. */
+  gapMap: DecisionSnapshotGapMap | null;
   recentTrendCount: number;
   methodologyVersion: typeof DECISION_WORKSPACE_VERSION;
+}
+
+/**
+ * One line for the outcome-review prompt, from EITHER snapshot generation.
+ *
+ * An outcome review reads a snapshot frozen months or years ago. Rewriting
+ * the reader to understand only the new shape would silently turn every
+ * pre-v1.9.7 decision's gap line into "(no data)" — which the model would
+ * then report as "the gap position was not recorded", when in fact it was.
+ */
+export function summariseSnapshotGap(s: {
+  gapMap?: DecisionSnapshotGapMap | null;
+  topSkillGaps?: unknown;
+}): string {
+  if (s.gapMap) {
+    const c = s.gapMap.verdictCounts;
+    const top = s.gapMap.topWhiteSpaces
+      .map((w) => `${w.nameEn} (${w.demandSharePct.toFixed(1)} %)`)
+      .join(', ');
+    // 'supply-unknown' and 'too-few-postings' are named separately and
+    // never folded into a single "no verdict" count: one is a field KKU
+    // teaches but has not measured, the other is a demand signal too thin
+    // to judge, and a reader who cannot tell them apart will read the
+    // first as unmet demand.
+    return (
+      `gap map: ${c['white-space'] ?? 0} white spaces, ${c['under-served'] ?? 0} under-served, ` +
+      `${c.served ?? 0} served, ${c['over-served'] ?? 0} over-served ` +
+      `(${c['supply-unknown'] ?? 0} with no graduate figure, ` +
+      `${c['too-few-postings'] ?? 0} with too few postings to judge); ` +
+      `top white spaces: ${top || '(none)'}`
+    );
+  }
+  const gaps = s.topSkillGaps;
+  if (!gaps || typeof gaps !== 'object' || !('rows' in (gaps as object))) return '(no data)';
+  const g = gaps as { rows: Array<{ gap: number; nameEn: string }> };
+  const top = g.rows.slice(0, 3).map((x) => x.nameEn).join(', ');
+  return `${g.rows.length} skill gaps; top 3: ${top || '(none)'}`;
+}
+
+/** The gap-map slice of a decision snapshot, at the decision's own scope. */
+export async function snapshotGapMap(
+  scope: 'university' | 'faculty',
+  scopeId: string | null,
+): Promise<DecisionSnapshotGapMap> {
+  const map = await computeGapMap({ scope, scopeId, thresholds: DEFAULT_GAP_THRESHOLDS });
+  return {
+    verdictCounts: map.verdictCounts,
+    topWhiteSpaces: map.rows
+      .filter((r) => r.verdict === 'white-space')
+      .slice(0, 5)
+      .map((r) => ({ nameEn: r.nameEn, demandSharePct: Math.round(r.demandShare * 1000) / 10 })),
+    methodologyVersion: map.methodologyVersion,
+  };
 }
 
 export async function captureSnapshot(decisionId: string, force = false): Promise<DecisionSnapshot> {
@@ -136,11 +203,10 @@ export async function captureSnapshot(decisionId: string, force = false): Promis
 
   // Pull current state at the decision's scope.
   const scope = decision.facultyId ? 'faculty' : 'university';
-  const scopeId = decision.facultyId ?? undefined;
-  const [health, risks, topSkillGaps, recentTrendCount] = await Promise.all([
-    computeHealthScores(scope, scopeId ?? null),
-    computeRisks({ scope, scopeId, region: 'TH', horizon: 5, comparison: 'absolute', limit: 20, demandSource: 'auto' }),
-    computeSkillGap({ scope, scopeId, region: 'TH', horizon: 0, comparison: 'absolute', limit: 10, demandSource: 'auto' }),
+  const scopeId = decision.facultyId ?? null;
+  const [health, gapMap, recentTrendCount] = await Promise.all([
+    computeHealthScores(scope, scopeId),
+    snapshotGapMap(scope, scopeId),
     prisma.trendSignal.count({
       where: {
         detectedDate: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
@@ -155,8 +221,9 @@ export async function captureSnapshot(decisionId: string, force = false): Promis
     capturedAt: new Date().toISOString(),
     scope: { affectedProgramIds: decision.affectedProgramIds, facultyId: decision.facultyId },
     health,
-    risks,
-    topSkillGaps,
+    risks: null,
+    topSkillGaps: null,
+    gapMap,
     recentTrendCount,
     methodologyVersion: DECISION_WORKSPACE_VERSION,
   };

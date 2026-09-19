@@ -25,6 +25,7 @@ import { RISK_SCORING_VERSION } from '../src/risk-scoring';
 import { BENCHMARKING_VERSION } from '../src/benchmarking';
 import { BENCHMARKING_OVERVIEW_VERSION } from '../src/benchmarking-overview';
 import { GAP_ANALYSIS_VERSION } from '../src/gap-analysis';
+import { GAP_MAP_VERSION } from '../src/gap-map-rules';
 import { DASHBOARD_OVERVIEW_VERSION } from '../src/dashboard-overview';
 import { DECISION_WORKSPACE_VERSION } from '../src/decisions';
 import { DATA_QUALITY_VERSION } from '../src/data-quality';
@@ -47,7 +48,9 @@ import {
   CAREER_KMITL_MAPPING_VERSION,
   SCENARIO_INSIGHTS_VERSION,
   BENCHMARKING_INSIGHTS_VERSION,
-  GAP_INSIGHTS_VERSION,
+  GAP_BRIEF_VERSION,
+  JOB_FIELD_TAXONOMY_VERSION,
+  PROGRAM_JOB_FIELD_VERSION,
   IMD_RANKINGS_EXTRACT_VERSION,
   ANALYST_SYSTEM_PROMPT_VERSION,
   ANALYST_SAFETY_VERSION,
@@ -102,7 +105,10 @@ describe('LANDSCAPE_METHODOLOGY_BUNDLE', () => {
     expect(METHODOLOGY_MANIFEST['career-kmitl-mapping']).toBe(CAREER_KMITL_MAPPING_VERSION);
     expect(METHODOLOGY_MANIFEST['scenario-insights']).toBe(SCENARIO_INSIGHTS_VERSION);
     expect(METHODOLOGY_MANIFEST['benchmarking-insights']).toBe(BENCHMARKING_INSIGHTS_VERSION);
-    expect(METHODOLOGY_MANIFEST['gap-insights']).toBe(GAP_INSIGHTS_VERSION);
+    expect(METHODOLOGY_MANIFEST['gap-map']).toBe(GAP_MAP_VERSION);
+    expect(METHODOLOGY_MANIFEST['gap-brief']).toBe(GAP_BRIEF_VERSION);
+    expect(METHODOLOGY_MANIFEST['job-field-taxonomy']).toBe(JOB_FIELD_TAXONOMY_VERSION);
+    expect(METHODOLOGY_MANIFEST['program-job-field']).toBe(PROGRAM_JOB_FIELD_VERSION);
     expect(METHODOLOGY_MANIFEST['imd-rankings-extract']).toBe(IMD_RANKINGS_EXTRACT_VERSION);
     expect(METHODOLOGY_MANIFEST['analyst-system']).toBe(ANALYST_SYSTEM_PROMPT_VERSION);
     expect(METHODOLOGY_MANIFEST['analyst-safety']).toBe(ANALYST_SAFETY_VERSION);

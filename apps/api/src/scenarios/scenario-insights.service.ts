@@ -18,7 +18,7 @@ import {
 // ═════════════════════════════════════════════════════════════════════
 // Scenario AI insights — 5 modes wrapped around the AiService. Follows
 // the same factory-at-OnModuleInit pattern as CockpitService and
-// GapInsightsService. Graceful no-key fallback returns a placeholder.
+// GapBriefService. Graceful no-key fallback returns a placeholder.
 // ═════════════════════════════════════════════════════════════════════
 
 export type ScenarioInsightMode = ScenarioInsightsInput['mode'];

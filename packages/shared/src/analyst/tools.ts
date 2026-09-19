@@ -14,7 +14,11 @@ import type { ToolDefinition } from '../ai/types';
 //     apps/api.
 // ═════════════════════════════════════════════════════════════════════
 
-export const ANALYST_TOOLS_VERSION = 'analyst-tools.v1';
+// v2 (2026-09-19) — query_gaps was five lenses over the retired seven-lens
+// Gap Analyzer (skills / occupations / sectors / risks / opportunities). It
+// now reads the demand-first gap map: one row per field of study employers
+// ask for, filtered by verdict.
+export const ANALYST_TOOLS_VERSION = 'analyst-tools.v2';
 
 // ── Common sub-types ────────────────────────────────────────────────
 const ScopeSchema = z.object({
@@ -69,13 +73,36 @@ export const QueryTrendsInputSchema = z.object({
 export type QueryTrendsInput = z.infer<typeof QueryTrendsInputSchema>;
 
 // ── 5. query_gaps ───────────────────────────────────────────────────
-export const QueryGapsInputSchema = z.object({
-  dimension: z.enum(['skills', 'occupations', 'sectors', 'risks', 'opportunities']),
-  ...ScopeSchema.shape,
-  region: z.string().default('TH'),
-  horizon: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10)]).default(0),
-  limit: z.number().int().min(1).max(50).default(20),
-});
+//
+// The demand-first gap map (gap-map.v1). `dimension` selects a verdict
+// filter; 'map' returns every field. There is no programme scope — a
+// single programme has no demand share of its own, so the map's smallest
+// unit is a department.
+//
+// All six verdicts are selectable, not just the four that read as a
+// judgement: 'supply-unknown' (KKU has programmes in the field but none
+// with a graduate figure) and 'too-few-postings' (the demand signal is
+// thinner than the honest-signal floor) both appear in `verdictCounts`,
+// and a model that can count them but not list them will guess which
+// fields they are.
+export const QueryGapsInputSchema = z
+  .object({
+    dimension: z.enum([
+      'map',
+      'white-space',
+      'under-served',
+      'served',
+      'over-served',
+      'supply-unknown',
+      'too-few-postings',
+    ]),
+    scope: z.enum(['university', 'faculty', 'department']).default('university'),
+    scopeId: z.string().optional(),
+    under: z.number().positive().default(0.5),
+    over: z.number().positive().default(2),
+    limit: z.number().int().min(1).max(50).default(20),
+  })
+  .refine((q) => q.under < q.over, { message: 'under must be less than over' });
 export type QueryGapsInput = z.infer<typeof QueryGapsInputSchema>;
 
 // ── 6. compare_peers ────────────────────────────────────────────────
@@ -137,7 +164,7 @@ export type SearchResearchInput = z.infer<typeof SearchResearchInputSchema>;
 
 // ── 12. get_methodology ─────────────────────────────────────────────
 export const GetMethodologyInputSchema = z.object({
-  metricName: z.enum(['health-score', 'forecasting', 'scenario-engine', 'benchmarking', 'gap-analysis']),
+  metricName: z.enum(['health-score', 'forecasting', 'scenario-engine', 'benchmarking', 'gap-map', 'gap-analysis']),
 });
 export type GetMethodologyInput = z.infer<typeof GetMethodologyInputSchema>;
 
@@ -331,18 +358,19 @@ export const ANALYST_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'query_gaps',
-    description: 'Demand vs supply analysis. Dimensions: "skills" (skill-level gap), "occupations" (ISCO-level gap), "sectors" (BCG + S-curve), "risks" (oversupply), "opportunities" (underserved). Region defaults TH.',
+    description:
+      'Demand-first gap map: one row per field of study that employers ask for on JobThai, with KKU\'s share of graduates in that field and a verdict. Dimensions: "map" (every field), "white-space" (employers ask, KKU has no programme), "under-served" (KKU\'s graduate share is far below the demand share), "served", "over-served", "supply-unknown" (KKU HAS programmes in the field but none of them has a graduate figure — a missing measurement, NOT a shortage: never report these as unmet demand), "too-few-postings" (too few adverts to judge). Shares are of eligible bachelor-level adverts and of graduates per year; the verdict is share-vs-share, thresholds default 0.5 / 2. No programme scope — the smallest unit is a department.',
     inputSchema: {
       type: 'object',
       properties: {
-        dimension: { type: 'string', enum: ['skills', 'occupations', 'sectors', 'risks', 'opportunities'] },
-        scope: { type: 'string', enum: ['university', 'faculty', 'department', 'program'], default: 'university' },
+        dimension: {
+          type: 'string',
+          enum: ['map', 'white-space', 'under-served', 'served', 'over-served', 'supply-unknown', 'too-few-postings'],
+        },
+        scope: { type: 'string', enum: ['university', 'faculty', 'department'], default: 'university' },
         scopeId: { type: 'string' },
-        region: { type: 'string', default: 'TH' },
-        // Gemini function-calling rejects number-typed enums (only string
-        // enums are accepted), so use min/max + a description hint
-        // instead. Downstream Zod still constrains to {0,3,5,10}.
-        horizon: { type: 'number', minimum: 0, maximum: 10, description: 'Years forward (canonical: 0, 3, 5, or 10).', default: 0 },
+        under: { type: 'number', minimum: 0, description: 'Under-served below this ratio (default 0.5).', default: 0.5 },
+        over: { type: 'number', minimum: 0, description: 'Over-served above this ratio (default 2).', default: 2 },
         limit: { type: 'number', minimum: 1, maximum: 50, default: 20 },
       },
       required: ['dimension'],
@@ -449,7 +477,7 @@ export const ANALYST_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         metricName: {
           type: 'string',
-          enum: ['health-score', 'forecasting', 'scenario-engine', 'benchmarking', 'gap-analysis'],
+          enum: ['health-score', 'forecasting', 'scenario-engine', 'benchmarking', 'gap-map', 'gap-analysis'],
         },
       },
       required: ['metricName'],

@@ -62,6 +62,7 @@ vi.mock('@kku/db', async () => {
   };
 });
 
+import { QueryGapsInputSchema } from '@kku/shared';
 import { AnalystToolExecutor } from '../src/analyst/tool-executor.service';
 
 beforeEach(() => {
@@ -200,5 +201,45 @@ describe('AnalystToolExecutor — generate_chart', () => {
     const parsed = JSON.parse(result) as { ok: boolean; chart: { title: string } };
     expect(parsed.ok).toBe(true);
     expect(parsed.chart.title).toBe('Enrollment trend');
+  });
+});
+
+describe('AnalystToolExecutor — query_gaps (gap map)', () => {
+  it('rejects the retired lens dimensions', async () => {
+    const exec = new AnalystToolExecutor();
+    for (const dimension of ['skills', 'occupations', 'sectors', 'risks', 'opportunities']) {
+      const parsed = JSON.parse(
+        await exec.execute({ id: 'c1', name: 'query_gaps', input: { dimension } }),
+      ) as { error?: string };
+      expect(parsed.error, `dimension "${dimension}" should no longer be accepted`).toBeTruthy();
+    }
+  });
+
+  it('accepts every verdict the map can return, plus "map"', () => {
+    // Six verdicts, not five: 'supply-unknown' is a field that HAS KKU
+    // programmes but none with a graduate figure — a missing measurement,
+    // not a shortfall — and 'too-few-postings' is a demand signal too thin
+    // to judge. The model must be able to ask for both by name, or it will
+    // read them off `verdictCounts` with no way to see which fields they are.
+    for (const dimension of [
+      'map',
+      'white-space',
+      'under-served',
+      'served',
+      'over-served',
+      'supply-unknown',
+      'too-few-postings',
+    ]) {
+      expect(QueryGapsInputSchema.safeParse({ dimension }).success, dimension).toBe(true);
+    }
+  });
+
+  it('has no programme scope — the map is never computed for one programme', () => {
+    expect(QueryGapsInputSchema.safeParse({ dimension: 'map', scope: 'program', scopeId: 'p1' }).success).toBe(false);
+  });
+
+  it('refuses thresholds that are not an ordered pair', () => {
+    expect(QueryGapsInputSchema.safeParse({ dimension: 'map', under: 2, over: 0.5 }).success).toBe(false);
+    expect(QueryGapsInputSchema.safeParse({ dimension: 'map', under: 0.8, over: 1.5 }).success).toBe(true);
   });
 });

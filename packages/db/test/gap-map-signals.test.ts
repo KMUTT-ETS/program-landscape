@@ -170,8 +170,8 @@ describe('genericRoleTokens', () => {
 // Provenance gating is structural, same reasoning as gap-map.test.ts's
 // "computeGapMap provenance gating" describe block: `kmitl_skill_growths`
 // DOES carry `ingestion_run_id` (see KmitlSkillGrowth in schema.prisma) and
-// must be realDataWhere()-gated, matching the long-standing read of the same
-// table in gap-analysis.ts's computeOpportunities(). `jobthai_occupation_skills`
+// must be realDataWhere()-gated, matching how the retired seven-lens analyzer
+// read the same table before v1.9.7. `jobthai_occupation_skills`
 // has no ingestion_run_id column at all, so it genuinely cannot be gated —
 // asserting its absence here so nobody "fixes" it into a gate that doesn't
 // compile against a column that isn't there.

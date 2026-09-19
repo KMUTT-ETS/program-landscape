@@ -306,7 +306,7 @@ No prose outside the JSON. No markdown fences around the JSON.`;
 //   - Live job-posting / KMITL demand counts for the SPECIFIC roles named —
 //     this prompt's job is to interpret one signal's text, not to
 //     cross-reference labour-market APIs; that reconciliation lives in the
-//     Gap Analyzer module (`computeSkillGap` / KMITL demand tables), a
+//     gap map (`computeGapMap` / JobThai field-of-study demand), a
 //     separate, differently-scoped surface.
 //   - Program-level RiskAssessment / health-score rows — would let the model
 //     bias role-fit toward "healthy" programs, which isn't this prompt's

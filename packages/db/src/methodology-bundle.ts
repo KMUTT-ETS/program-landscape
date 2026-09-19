@@ -36,6 +36,7 @@ import { RISK_SCORING_VERSION } from './risk-scoring';
 import { BENCHMARKING_VERSION } from './benchmarking';
 import { BENCHMARKING_OVERVIEW_VERSION } from './benchmarking-overview';
 import { GAP_ANALYSIS_VERSION } from './gap-analysis';
+import { GAP_MAP_VERSION } from './gap-map-rules';
 import { DASHBOARD_OVERVIEW_VERSION } from './dashboard-overview';
 import { DECISION_WORKSPACE_VERSION } from './decisions';
 import { DATA_QUALITY_VERSION } from './data-quality';
@@ -64,7 +65,9 @@ import {
   CAREER_KMITL_MAPPING_VERSION,
   SCENARIO_INSIGHTS_VERSION,
   BENCHMARKING_INSIGHTS_VERSION,
-  GAP_INSIGHTS_VERSION,
+  GAP_BRIEF_VERSION,
+  JOB_FIELD_TAXONOMY_VERSION,
+  PROGRAM_JOB_FIELD_VERSION,
   IMD_RANKINGS_EXTRACT_VERSION,
   ANALYST_SYSTEM_PROMPT_VERSION,
   ANALYST_SAFETY_VERSION,
@@ -108,7 +111,7 @@ const LIFECYCLE_VERSION = 'lifecycle.v1.4';
  * this on a sub-version update — CI fails until either the tag bumps
  * or the change is undone.
  */
-export const BUNDLE_CALENDAR_TAG = 'landscape-2026-09.v3';
+export const BUNDLE_CALENDAR_TAG = 'landscape-2026-09.v4';
 
 /**
  * The full sub-version manifest. Keys are stable, ordered alphabetically
@@ -136,11 +139,18 @@ export const METHODOLOGY_MANIFEST = {
   'demand-match':              DEMAND_MATCH_VERSION,
   'expertise-narrative':       EXPERTISE_NARRATIVE_VERSION,
   'forecasting':               FORECASTING_VERSION,
+  // The per-programme LinkedIn demand-gap helper. NOT the gap map — the
+  // seven-lens analyzer it used to belong to was retired in v1.9.7.
   'gap-analysis':              GAP_ANALYSIS_VERSION,
-  'gap-insights':              GAP_INSIGHTS_VERSION,
+  // Demand-first gap map: the verdict rule Council reads on /gap-analysis.
+  'gap-brief':                 GAP_BRIEF_VERSION,
+  'gap-map':                   GAP_MAP_VERSION,
   'graduate-employment-survey': GRADUATE_EMPLOYMENT_SURVEY_VERSION,
   'health-score':              HEALTH_SCORE_VERSION,
   'imd-rankings-extract':      IMD_RANKINGS_EXTRACT_VERSION,
+  // The field-of-study taxonomy the map's rows come from — a prompt bump
+  // re-clusters demand, so it moves Council figures.
+  'job-field-taxonomy':        JOB_FIELD_TAXONOMY_VERSION,
   // Programme <-> JobThai occupation links: feed jobthai_demand_alignment and
   // the Deep-Dive JobThai demand view, so a link-rule change moves Council figures.
   'jobthai-bridge':            JOBTHAI_BRIDGE_VERSION,
@@ -148,6 +158,8 @@ export const METHODOLOGY_MANIFEST = {
   'program-ai-readiness':      PROGRAM_AI_READINESS_VERSION,
   'program-digest':            PROGRAM_DIGEST_VERSION,
   'program-faculty':           PROGRAM_FACULTY_VERSION,
+  // Which fields of study each programme supplies — the map's supply side.
+  'program-job-field':         PROGRAM_JOB_FIELD_VERSION,
   'program-peer-review':       PROGRAM_PEER_REVIEW_VERSION,
   'program-pedagogy':          PROGRAM_PEDAGOGY_VERSION,
   'program-peer-selection':    PROGRAM_PEER_SELECTION_VERSION,
