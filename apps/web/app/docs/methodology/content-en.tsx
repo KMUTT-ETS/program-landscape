@@ -39,8 +39,8 @@ export function MethodologyContentEn() {
           <MetaTable
             rows={[
               { label: 'Methodology code', value: <><Code>health-score.v5.2</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.3' },
-              { label: 'Prepared by', value: 'KKU Data Office — Curriculum Landscape working group' },
+              { label: 'Document version', value: '1.4' },
+              { label: 'Prepared by', value: 'KKU Data Office — Program Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
               { label: 'Date', value: '2026-09-13' },
             ]}
@@ -53,7 +53,7 @@ export function MethodologyContentEn() {
       <DocSection id="provenance" title="Document provenance and disclosures">
         <P>
           This document is a <Strong>plain-language reference paper</Strong> for the program health
-          score and lifecycle verdict produced by the Curriculum Landscape application. It was{' '}
+          score and lifecycle verdict produced by the Program Landscape application. It was{' '}
           <Strong>drafted by a large language model (Anthropic Claude) under direct human supervision</Strong>
           , working from:
         </P>
@@ -88,7 +88,7 @@ export function MethodologyContentEn() {
 
       <DocSection id="abstract" title="Abstract">
         <P>
-          The Curriculum Landscape application produces two quantitative outputs to inform decisions on
+          The Program Landscape application produces two quantitative outputs to inform decisions on
           the 297 academic programs at Khon Kaen University: a <Strong>Program Health Score</Strong> (a
           0–100 composite across five operational dimensions) and a <Strong>Program Lifecycle Verdict</Strong>{' '}
           (a four-band classifier — Sunset / Stable / Rising / Frontier — that integrates the health
@@ -110,7 +110,7 @@ export function MethodologyContentEn() {
             strategic positioning of the institution's 297 academic programs. Inputs to those
             deliberations have historically been (a) annually-reported enrollment and financial figures
             from internal divisions and (b) qualitative reviews authored by deans and program
-            coordinators. Curriculum Landscape was commissioned to add a{' '}
+            coordinators. Program Landscape was commissioned to add a{' '}
             <Strong>third, quantitative layer</Strong>: a per-program health score and lifecycle
             classification computed reproducibly from operational data — TCAS recruitment statistics,
             registrar enrollment series, finance ledgers, HR rosters, faculty publication counts,
@@ -1069,6 +1069,50 @@ otherwise                                         → SUNSET`}</Pre>
             that section. <Code>&lt;ProvenanceButton&gt;</Code> opens the canonical Provenance drawer.
           </P>
         </DocSubsection>
+
+        <DocSubsection number="4.8" title="Gap map — field-of-study demand against KKU supply">
+          <P>
+            The Gap Analyzer (<Code>gap-map.v1</Code>) starts from demand. Each row is a{' '}
+            <Strong>field of study</Strong> that employers name in JobThai adverts, clustered from
+            free text by <Code>job-field-taxonomy.v1</Code> and reviewed by an administrator.{' '}
+            <Strong>Demand share</Strong> is the field&rsquo;s share of eligible adverts &mdash; those
+            whose minimum education level admits a bachelor&rsquo;s graduate &mdash; that name any
+            canonical field. <Strong>KKU share</Strong> is the field&rsquo;s share of graduates per
+            year across every programme assigned to a field. The <Strong>verdict</Strong> is the
+            ratio of the two: <Em>white space</Em> when no programme is assigned,{' '}
+            <Em>under-served</Em> below 0.5, <Em>over-served</Em> above 2, <Em>served</Em> between,
+            and no verdict under 20 adverts. Thresholds are URL parameters echoed in the provenance
+            drawer.
+          </P>
+          <P>
+            Both sides are normalised by the sum over fields of their own numerators, not by a
+            count of distinct adverts or programmes: an advert naming two fields is demand for
+            each, and a programme assigned to two fields supplies both. Measured on development,
+            4,654 of 17,077 field-naming adverts name more than one field, and a distinct-advert
+            denominator made the demand shares sum to 1.40 rather than 1. The reconciliation line
+            under the table states how many adverts and programmes are counted more than once,
+            alongside how many programmes carry a graduate figure at all.
+          </P>
+          <P>
+            A sixth verdict, <Em>supply-unknown</Em>, is reported when a field has KKU programmes
+            but none of them carries a graduate figure. It is a <Strong>missing measurement, never
+            a shortfall</Strong> &mdash; the same null-handling rule the Health Score applies in
+            &sect;2. Graduates per year follow the registrar rule used elsewhere in this paper: the
+            mean of the entry cohorts that could have graduated, over however many of them there
+            are, with a single-year graduated-on-time figure as a fallback. Current enrolment
+            supplies a pipeline arrow. Postgraduate programmes are listed inside a row but are not
+            scored, because only 41 of 47,631 adverts state a postgraduate minimum.
+          </P>
+          <P>
+            Shares replace the earlier demand &minus; supply difference, which compared a sum of
+            percentages with a count of graduates. <Strong>Figures on this page are not comparable
+            to any earlier Composite Gap Index</Strong>, and the graduate figures are corrected
+            upward &mdash; a fault inherited from the retired calculation under-reported them by
+            roughly 60 %. See <Code>docs/methodologies/gap-map.md</Code> for the open decisions
+            that remain, including cohort completeness and the absence of a Thailand series in the
+            current LinkedIn-via-MHESI capture.
+          </P>
+        </DocSubsection>
       </DocSection>
 
       <DocSection id="risk-management" number="5." title="Risk Management">
@@ -1669,6 +1713,7 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>1.0</TD><TD>2026-05-07</TD><TD>Initial public release — documents <Code>health-score.v3.5</Code> and <Code>lifecycle.v1.4</Code>.</TD></TR>
             <TR><TD mono>1.1</TD><TD>2026-06-01</TD><TD>Re-issued for <Code>health-score.v3.8</Code> and <Code>risk-scoring.v1.12</Code>: the recruitment funnel feeding the Attractiveness dimension and the risk L1 / competitiveness-percentile inputs are re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code>). Also captures the interim <Code>health-score.v3.7</Code> (student-satisfaction driver) and <Code>risk-scoring.v1.11</Code> (forward demographic projection). Driver formulas and weights unchanged.</TD></TR>
             <TR><TD mono>1.2</TD><TD>2026-08-25</TD><TD>Re-issued for <Code>health-score.v4.0</Code>: the Outcomes dimension gains a <Code>dq_digital_competency</Code> driver from the Digital Intelligence (DQ) test, bachelor programs only. Also captures the interim <Code>health-score.v3.9</Code> (financial dimension scored on the last complete academic year). The five dimensions, their weights, and the lifecycle verdict are unchanged.</TD></TR>
+            <TR><TD mono>1.4</TD><TD>2026-09-19</TD><TD>Re-issued for <Code>gap-map.v1</Code>: the Gap Analyzer is rebuilt as a demand-first field-of-study map (new &sect;4.8). <Code>gap-analysis.v1</Code> (skill-level demand &minus; supply) and <Code>gap-lenses.v1</Code> (seven lenses and a composite gap index) are retired, along with the three <Code>gap-insights</Code> modes. Also captures revision 1.3 (<Code>health-score.v5.2</Code>), which was issued without an entry here. Health Score dimensions, weights and the lifecycle verdict are unchanged.</TD></TR>
           </tbody>
         </Tbl>
         <P>
@@ -1683,6 +1728,7 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
           </THead>
           <tbody>
+            <TR><TD mono>gap-map.v1</TD><TD>2026-09-19</TD><TD><Strong>The Gap Analyzer rebuilt as a demand-first map.</Strong> One row per field of study employers name in JobThai adverts, clustered by <Code>job-field-taxonomy.v1</Code> and reviewed at Admin &rarr; Job fields; programmes are assigned by name-match rule, then by <Code>program-job-field.v1</Code>, then by hand. The verdict is KKU&rsquo;s share of graduates against the market&rsquo;s share of adverts, with thresholds in the address bar, and a sixth state, <Em>supply-unknown</Em>, for a field whose programmes carry no graduate figure &mdash; a missing measurement, never a shortfall. Both share sets are normalised by the sum of their own per-field numerators, because 4,654 of 17,077 field-naming adverts name more than one field. Only adverts admitting a bachelor&rsquo;s graduate are counted and postgraduate programmes are listed but unscored (41 of 47,631 adverts state a postgraduate minimum). The graduates-per-year rule was corrected at the same time: the cohort window is anchored on graduation rather than enrolment, a cohort counts only once it could have finished, the divisor is the number of cohorts averaged, and the fallback takes the newest non-zero year &mdash; the field total moved from 2,682 to 7,050 graduates a year and 24 programmes stopped reading a zero that was never measured. Replaces <Code>gap-analysis.v1</Code> and <Code>gap-lenses.v1</Code>; figures are not comparable to the retired Composite Gap Index. Council brief <Code>gap-brief.v1</Code> checks every finding against the row it names. Methodology: <Code>docs/methodologies/gap-map.md</Code>.</TD></TR>
             <TR><TD mono>health-score.v1</TD><TD>2026-04-23</TD><TD>Initial five-dimension scorer; <Code>relevance</Code> and <Code>capability</Code> placeholder-null.</TD></TR>
             <TR><TD mono>health-score.v2</TD><TD>2026-05-01</TD><TD>Added <Code>labor_market_alignment_kmitl</Code> driver under <Code>demand</Code>; first external real labour-market signal.</TD></TR>
             <TR><TD mono>health-score.v2.1</TD><TD>2026-05-01</TD><TD>Four-quadrant fallback chain on labour-market driver.</TD></TR>

@@ -234,11 +234,63 @@ no `EMBEDDING_MATCHED` row has been written. Inspect with
 CONNECTOR_JOBTHAI_MODE=real pnpm connector:run jobthai   # parse PENDING batches
 pnpm jobthai:derive                                      # dry run
 pnpm jobthai:derive --apply                              # occupations + skills
+pnpm jobthai:fields                                      # dry run (makes the model calls, writes nothing)
+pnpm jobthai:fields --apply                              # field taxonomy + programme assignments
 ```
 
-Both phases are idempotent. Occupations upsert on (category, subcategory);
+`jobthai:fields` runs by itself at the end of every connector run; the two
+forms above are for a dry run and for repair after a model outage. **The dry
+run makes real model calls** — it is a truthful preview, not a free one — and
+`--apply` is the only flag accepted (anything else is refused rather than
+guessed at).
+
+Both derive phases are idempotent. Occupations upsert on (category, subcategory);
 skill links are replaced for this source on each run, so re-running after the
 taxonomy grows picks up new skills without duplicating old ones.
+
+## Field-of-study taxonomy (v1.9.7)
+
+40.7 % of JobThai postings state which field of study they want a graduate to
+hold, as free text: `บัญชี`, `Accounting`, `บัญชี/การเงิน`,
+`วุฒิปริญญาตรี สาขาบัญชี`. Two additive tables turn that into something a
+Council reader can count.
+
+- **`job_field_taxonomy`** — one row per canonical field, with a Thai and an
+  English name and the raw strings it absorbs as `synonyms`. A raw string
+  belongs to at most one field. Review states: `PROPOSED` (shown on the map,
+  labelled unreviewed), `APPROVED`, `REJECTED` (invisible everywhere).
+- **`program_job_fields`** — which KKU programmes produce graduates of each
+  field, with the source recorded per assignment: `rule` (the same name-match
+  the bridge uses, rejecting any synonym that matches more than 15
+  programmes), `ai` (`program-job-field.v1`, ≤ 3 fields per programme), or
+  `manual`.
+
+**The floor is 5 mentions.** On 2026-09-15 there were **3,854** distinct field
+strings on 47,631 postings, of which **518** cleared it. Strings below the
+floor are the **"other" bucket**: counted in the map's reconciliation
+denominators, never assigned to a field. The `*ANY*` sentinel (ทุกสาขา,
+**2,566** postings) is reported as its own line and assigned to nothing.
+
+**When it runs.** `refreshJobFields` runs at the end of every batch refresh,
+after the programme links. It is the only step in that chain that costs model
+credits. **A model outage does not fail the batch** — the run logs
+`fields: FAILED — <reason> (run pnpm jobthai:fields --apply to retry)` and
+still succeeds; batches already committed stay committed and a retry continues
+rather than duplicating. Every write stamps the run's `ingestion_run_id`, so
+the rows pass `realDataWhere()`.
+
+**Review** at `/admin/job-fields` — approve, reject, rename, merge two fields,
+and add or remove a programme assignment by hand. Approving a field purges the
+gap map's cache. Every mutation is audit-logged.
+
+**`/gap-analysis` reads only these two tables plus `job_postings`** on the
+demand side; nothing else in the estate reads them yet. See
+`docs/methodologies/gap-map.md`.
+
+**Known limitation.** A raw string the model declines to attach is re-sent on
+every refresh, because a string is only skipped once it is some field's
+synonym — roughly 127 strings, about $0.17 of model calls per refresh. A
+persisted "declined string" ledger would fix it and does not yet exist.
 
 ## Readiness
 
@@ -279,3 +331,4 @@ source. The uploaded files themselves live in MinIO and are deletable from
 | 2026-05-01 | Marked SUPERSEDED by `kmitl-skill-mapping` — on the incorrect assumption that JobThai required a paid API. |
 | 2026-09-13 | Un-deprecated and flipped real as a CSV/XLSX file source. 47,631 postings, 240 occupations loaded. Parser, connector, admin UI and deterministic skill matching shipped. |
 | 2026-09-13 | `jobthai-bridge.v2` links (posting-share field score, 5% demand floor, generic-skill exclusion); AI curriculum check extended to JobThai demand (`program_demand_matches.demand_sources`); `health-score.v5.2`; Deep-Dive Skills coverage JobThai view. |
+| 2026-09-19 | Field-of-study taxonomy (v1.9.7): `job_field_taxonomy` + `program_job_fields`, built by `pnpm jobthai:fields` and at the end of every batch refresh; review page at `/admin/job-fields`. `/gap-analysis` rebuilt as the demand-first field map on top of them (`gap-map.v1`). |

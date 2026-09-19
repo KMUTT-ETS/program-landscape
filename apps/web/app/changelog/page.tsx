@@ -26,6 +26,22 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-19',
+    version: 'v1.9.7 · The Gap Analyzer rebuilt as a demand-first map',
+    title:
+      'The Gap Analyzer now starts from what employers ask for: one row per field of study, KKU’s share of graduates against the market’s share of adverts, and a verdict for each field',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Each row is a field of study named in Thai job adverts — accounting, electrical engineering, logistics — with the market’s share of adverts asking for it, KKU’s share of graduates holding it, and the ratio between them. White space means no KKU programme produces graduates of that field. Under-served and over-served follow thresholds you can change in the address bar, so the link you share carries the thresholds you used. A field with fewer than twenty adverts gets no verdict, and a field whose KKU programmes carry no graduate figure is reported as “supply unknown” — a missing measurement, never a shortfall.',
+      'Open a row for the occupations behind the demand and where in Thailand those adverts are, the KKU programmes in the field with their graduates, enrolment and health, and what is coming: the fastest-rising skills among the field’s occupations (LinkedIn data via MHESI) and Trends Radar signals that name one of the programmes or one of the occupations.',
+      'Filter by verdict or by faculty; every view is a link. A Council brief button writes up to five findings from the rows on screen, each citing that row’s own numbers, with confidence, sources, reasoning and a disagree button. Every finding is checked against the row it names before you see it: a verdict that disagrees with its row is corrected, and one that cannot be tied to a single row is dropped rather than guessed.',
+      'The fields are clustered from employers’ free text by AI and reviewed at Admin → Job fields, where they can be approved, renamed or merged and a programme can be assigned by hand. Fields that have not yet been reviewed are shown and labelled as such rather than hidden. The step runs after every JobThai upload, and has to be run once by hand after this release.',
+      'Two things to know before comparing anything. These numbers are not comparable to the previous Composite Gap Index: the unit changed from a skill to a field of study, and the measure changed from a difference between two incompatible quantities to a share against a share. And the graduate figures are corrected upward from what any earlier build would have shown — the old calculation counted student intakes that could not yet have graduated, then divided by a fixed five years, under-reporting graduates by roughly sixty per cent. The correction moved the university total from 2,682 to 7,050 graduates a year on the development data, and stopped twenty-four programmes reading a zero that had never been measured.',
+      'The seven-lens view is retired, along with the opportunities and risks sub-pages and the three insight modes. Opportunities are now the white-space filter on the map, programme risk lives in the risk register, which was always the authority on it, and the digital-competency lens has moved to Education. Old links redirect.',
+      'What the map cannot tell you, stated on every figure: the adverts are national and Bangkok-weighted, they carry no salary and no posting date, only adverts a bachelor’s graduate can apply for are counted, and postgraduate programmes are listed inside a row but are not scored — forty-one of 47,631 adverts state a postgraduate minimum. The in-app methodology paper gains a new section 4.8 in Thai and English, and the full rules, measurements and open questions are in the methodology document.',
+    ],
+  },
+  {
     date: '2026-09-14',
     version: 'v1.9.6 \u00b7 Platform usage, and Acknowledgements',
     title:

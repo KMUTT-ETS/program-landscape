@@ -90,7 +90,7 @@ Each module has its own signature colour in the sidebar — learning the colours
 | 01 | **Portfolio Cockpit** | Indigo | `/cockpit` | "Where is every program today?" Heatmap, BCG matrix, rollup tree. |
 | 02 | **Program Deep-Dive** | Violet | `/programs/<id>` | Per-program scorecard — 10 sections including financials, skills, faculty, peers, trends. |
 | 03 | **Trends Radar** | Amber | `/trends` | External signals (policy, research, market, tech) with impact on programs. |
-| 04 | **Gap Analyzer** | Teal | `/gap-analysis` | Labour-market demand vs. KKU graduate supply, per skill and sector. |
+| 04 | **Gap Analyzer** | Teal | `/gap-analysis` | Demand-first field map: one row per field of study employers ask for, KKU's share of graduates against the market's share of adverts, and a verdict per field (`gap-map.v1`). |
 | 05 | **Scenario Planner** | Emerald | `/scenarios` | What-if simulation: close program X, merge Y with Z, launch new curriculum. |
 | 06 | **Benchmarking** | Cyan | `/benchmarking` | Peer comparison (Thai / ASEAN / global) and white-space detection. |
 | 07 | **AI Analyst** | Rose | `/analyst` | Conversational interface; asks questions in Thai or English. |
@@ -107,7 +107,7 @@ to you:
 | Surface | URL | What it answers |
 |---|---|---|
 | **Student DQ** | `/education/student-dq` | How KKU undergraduates actually score on the university's Digital Intelligence competency test, drillable from faculty down to a single programme, with a column per module. |
-| **Digital Competency Attainment** | `/gap-analysis/digital-competency` | What students *measurably score* on the digital competencies the labour market asks for — measured attainment, not taught coverage. |
+| **Digital Competency Attainment** | `/education/digital-competency` | What students *measurably score* on the digital competencies the labour market asks for — measured attainment, not taught coverage. |
 | **Curriculum revision** | section on `/programs/<id>` | What a newly submitted มคอ.2 changes relative to the curriculum it replaces. Also appears in the programme's PDF report. |
 
 Three whole families now sit alongside the eight modules — **Education** (§3.3), **Staff** (§3.4)

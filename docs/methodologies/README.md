@@ -14,7 +14,11 @@ lookup map in `@kku/shared/methodologies.ts`.
 | Slug | Module(s) | Current version | Doc |
 |---|---|---|---|
 | `health-score` | Cockpit, Deep-Dive | `health-score.v1` | [health-score.md](./health-score.md) |
-| `forecasting` | Gap Analyzer | `forecasting.v1` | [forecasting.md](./forecasting.md) |
+| `forecasting` | (deferred — no consumer since v1.9.7) | `forecasting.v1` | [forecasting.md](./forecasting.md) |
+| `gap-map` | Gap Analyzer | `gap-map.v1` | [gap-map.md](./gap-map.md) |
+| `gap-brief` | Gap Analyzer (Council brief) | `gap-brief.v1` | `packages/shared/src/ai/prompts/gap-brief.ts` |
+| `job-field-taxonomy` | Gap Analyzer (the rows) | `job-field-taxonomy.v1` | [gap-map.md](./gap-map.md) §7 |
+| `program-job-field` | Gap Analyzer (programme assignments) | `program-job-field.v1` | [gap-map.md](./gap-map.md) §7 |
 | `scenario-engine` | Scenario Planner | `scenario-engine.v1` | [scenario-engine.md](./scenario-engine.md) |
 | `benchmarking` | Benchmarking | `benchmarking.v1` | See [benchmarking.md](./benchmarking.md) (placeholder — extend from service comments) |
 | `curriculum-heuristic` | PDF intake / curriculum extraction | `heuristic-v1` | In-code docstring: `apps/ingestion/src/pdf-intake/extractors/curriculum-extractor.ts` |

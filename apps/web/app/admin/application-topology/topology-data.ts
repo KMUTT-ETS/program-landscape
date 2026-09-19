@@ -632,6 +632,25 @@ const connectorNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'scr.jobthai-fields',
+    lane: 'connector',
+    kind: 'script',
+    brand: 'jobthai',
+    label: 'jobthai-fields',
+    subtitle: 'After every JobThai refresh · field taxonomy',
+    details: {
+      description:
+        'Collects the free-text field-of-study strings on JobThai postings, clusters those with at least 5 mentions into canonical fields (job-field-taxonomy.v1, 200 per batch, existing non-rejected fields riding along as anchors), then assigns programmes to them — the bridge’s name-match rule first, program-job-field.v1 for the remainder. The only model spend in the JobThai chain. Existing APPROVED and REJECTED rows are never renamed, downgraded or stripped of synonyms; every write stamps the run so the rows pass realDataWhere().',
+      cadence: 'After every JobThai batch refresh · operator dry-run + --apply',
+      notes: [
+        'pnpm jobthai:fields is a dry run that still makes the model calls — a truthful preview, not a free one. --apply is the only flag accepted.',
+        'A model outage logs "fields: FAILED — … (run pnpm jobthai:fields --apply to retry)" and does NOT fail the batch; committed batches stay committed and a retry continues rather than duplicating.',
+        'A raw string the model declines to attach is re-sent on every refresh (~127 strings, ~$0.17 a run) until a declined-string ledger exists.',
+        'Bundled to dist/ for prod operator-run.',
+      ],
+    },
+  },
+  {
     id: 'scr.programs-pipeline',
     lane: 'connector',
     kind: 'script',
@@ -1383,6 +1402,32 @@ const tableNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'tab.job-field-taxonomy',
+    lane: 'table',
+    kind: 'table',
+    brand: 'jobthai',
+    label: 'Job-field taxonomy',
+    subtitle: 'canonical field × raw synonyms',
+    details: {
+      description:
+        'One row per canonical field of study, with a Thai and an English name and the raw JobThai strings it absorbs as synonyms. Built from the free text of job adverts by job-field-taxonomy.v1 at a 5-mention floor — 518 of 3,854 distinct strings cleared it on 2026-09-15; strings below it are the "other" bucket, counted in the map’s denominators and assigned to nothing, as is the *ANY* (ทุกสาขา) sentinel. Review states: PROPOSED (shown on the map, labelled unreviewed), APPROVED, REJECTED (invisible everywhere). The rows of the gap map.',
+      prismaModel: 'JobFieldTaxonomy',
+    },
+  },
+  {
+    id: 'tab.program-job-field',
+    lane: 'table',
+    kind: 'table',
+    brand: 'jobthai',
+    label: 'Programme job fields',
+    subtitle: 'programme × field assignment',
+    details: {
+      description:
+        'Which KKU programmes produce graduates of each field, with the source recorded per assignment: rule (the bridge’s name match, rejecting any synonym that matches more than 15 programmes), ai (program-job-field.v1, at most 3 fields per programme), or manual. The supply side of the gap map — a programme assigned to two fields counts in both.',
+      prismaModel: 'ProgramJobField',
+    },
+  },
+  {
     id: 'tab.tcas-admission-stat',
     lane: 'table',
     kind: 'table',
@@ -1986,11 +2031,30 @@ const dashboardNodes: TopologyNode[] = [
     lane: 'dashboard',
     kind: 'dashboard',
     label: 'Gap Analyzer',
-    subtitle: '/gap',
-    href: '/gap',
+    subtitle: '/gap-analysis',
+    href: '/gap-analysis',
+    brand: 'jobthai',
     details: {
       description:
-        'Demand-supply gap analysis. KKU production (ProgramSkill rolled up to graduates) vs labour-market demand (LinkedIn aggregates via MHESI + OccupationDemand). Skill-by-skill gap bars + schematic Thailand regional map + per-sector forecast.',
+        'Demand-first gap map (gap-map.v1): one row per field of study employers ask for (JobThai), KKU supply share from registrar graduates, a share-vs-share verdict, the occupations and programmes inside each row, LinkedIn-via-MHESI growth and Trends Radar signals as what is coming, and one Council brief. Replaced the seven-lens analyzer and its composite gap index; /gap-analysis/opportunities, /risks and /education/digital-competency keep the old bookmarks working.',
+      notes: [
+        'Verdicts: white space · under-served · served · over-served · supply-unknown (programmes exist but none carries a graduate figure — a missing measurement, never a shortfall) · too few postings (under 20 adverts).',
+        'Under and over thresholds are URL parameters echoed in the provenance drawer; every view is a shareable link.',
+        'Reads only; writes nothing. Cached 5 minutes, purged when a job field is approved.',
+      ],
+    },
+  },
+  {
+    id: 'dash.job-fields-review',
+    lane: 'dashboard',
+    kind: 'dashboard',
+    brand: 'jobthai',
+    label: 'Job fields review',
+    subtitle: '/admin/job-fields',
+    href: '/admin/job-fields',
+    details: {
+      description:
+        'Admin review of the AI-proposed field-of-study taxonomy and the programme assignments behind the gap map: approve, reject, rename, merge two fields, and add or remove a programme assignment by hand. Proposed rows are already visible on /gap-analysis, labelled unreviewed. Every mutation is audit-logged and approving a field purges the gap-map cache.',
     },
   },
   {
@@ -2245,7 +2309,6 @@ const edges: TopologyEdge[] = [
   { from: 'ai.risk-assess', to: 'tab.risk-indicators' },
 
   // Module insights — all land as AiExtraction rows (typed payload)
-  { from: 'ai.gap-brief', to: 'tab.ai-extraction' },
   { from: 'ai.scenario-insights', to: 'tab.ai-extraction' },
   { from: 'ai.benchmarking-insights', to: 'tab.ai-extraction' },
   { from: 'ai.outcome-review', to: 'tab.ai-extraction' },
@@ -2255,6 +2318,9 @@ const edges: TopologyEdge[] = [
   // ai-inference is the only outbound, drawn explicitly so the node
   // doesn't look orphaned.
   { from: 'ai.cockpit-brief', to: 'tab.ai-inference' },
+  // The gap-map Council brief is the same shape: one AiInference per call,
+  // no typed extraction row.
+  { from: 'ai.gap-brief', to: 'tab.ai-inference' },
 
   // Analyst persists conversation state in addition to ai-inference
   { from: 'ai.analyst-agent', to: 'tab.analyst-conversation' },
@@ -2364,6 +2430,16 @@ const edges: TopologyEdge[] = [
   // The same connector run rebuilds occupations, skill matches and links once
   // no batch is pending — there is no separate script step any more.
   { from: 'con.jobthai', to: 'tab.jobthai-occupations' },
+  // The field-of-study taxonomy: the connector hands off to the build step,
+  // which clusters the postings' raw field strings and assigns programmes.
+  // The admin review page reads both tables (and writes back to them by
+  // hand — approve / reject / rename / merge; drawn as a read so the graph
+  // keeps flowing left to right).
+  { from: 'con.jobthai', to: 'scr.jobthai-fields' }, // runs at the end of every batch refresh
+  { from: 'scr.jobthai-fields', to: 'tab.job-field-taxonomy' },
+  { from: 'scr.jobthai-fields', to: 'tab.program-job-field' },
+  { from: 'tab.job-field-taxonomy', to: 'dash.job-fields-review' },
+  { from: 'tab.program-job-field', to: 'dash.job-fields-review' },
   { from: 'tab.skill', to: 'tab.jobthai-postings' }, // postings matched against the taxonomy
   { from: 'tab.program', to: 'tab.jobthai-occupations' }, // links by programme field of study
   { from: 'tab.program-skill', to: 'tab.jobthai-occupations' }, // skill-overlap corroboration
@@ -2381,13 +2457,20 @@ const edges: TopologyEdge[] = [
   { from: 'tab.faculty', to: 'dash.trends-radar' },
 
   // Gap Analyzer — demand × supply
-  { from: 'tab.program-skill', to: 'dash.gap-analyzer' },
-  { from: 'tab.kmitl-demand', to: 'dash.gap-analyzer' },
-  { from: 'tab.jobthai-postings', to: 'dash.gap-analyzer' }, // job_postings demand path
-  { from: 'tab.skill', to: 'dash.gap-analyzer' },
+  // gap-map.v1 — demand from JobThai postings through the field taxonomy,
+  // supply from the registrar's graduate and enrolment rows through the
+  // programme assignments, plus what's coming (LinkedIn-via-MHESI growth
+  // and Trends Radar signals). The map writes nothing.
+  { from: 'tab.jobthai-postings', to: 'dash.gap-analyzer' }, // demand: adverts × synonyms
+  { from: 'tab.job-field-taxonomy', to: 'dash.gap-analyzer' }, // the rows
+  { from: 'tab.program-job-field', to: 'dash.gap-analyzer' }, // the supply assignments
+  { from: 'tab.jobthai-occupations', to: 'dash.gap-analyzer' }, // occupations inside a row + programme links
+  { from: 'tab.enrollment-metric', to: 'dash.gap-analyzer' }, // graduates-per-year proxy + pipeline
+  { from: 'tab.kmitl-demand', to: 'dash.gap-analyzer' }, // rising skills (KmitlSkillGrowth, newest capture)
+  { from: 'tab.skill', to: 'dash.gap-analyzer' }, // names for the rising skills
+  { from: 'tab.trend-signal', to: 'dash.gap-analyzer' }, // what's coming
   { from: 'tab.program', to: 'dash.gap-analyzer' },
   { from: 'tab.faculty', to: 'dash.gap-analyzer' },
-  { from: 'tab.ai-extraction', to: 'dash.gap-analyzer' }, // GAP_INSIGHTS
 
   // Benchmarking — peer comparison + white spaces
   { from: 'tab.program-skill', to: 'dash.benchmarking' },
@@ -2476,8 +2559,13 @@ const edges: TopologyEdge[] = [
   { from: 'tab.graduate-outcome', to: 'ai.cockpit-brief' },
   { from: 'tab.trend-signal', to: 'ai.cockpit-brief' },
 
-  // Gap insights
-  { from: 'tab.kmitl-demand', to: 'ai.gap-brief' },
+  // Gap-map Council brief — reads the rows gap-map.v1 built, so its inputs
+  // are the map's own: the field taxonomy, the assignments and the adverts
+  // behind them. One AiInference per call; nothing is stored per field.
+  { from: 'tab.job-field-taxonomy', to: 'ai.gap-brief' },
+  { from: 'tab.program-job-field', to: 'ai.gap-brief' },
+  { from: 'tab.jobthai-postings', to: 'ai.gap-brief' },
+  { from: 'ai.gap-brief', to: 'dash.gap-analyzer' },
 
   // Scenario insights
   { from: 'tab.scenario', to: 'ai.scenario-insights' },
@@ -2603,7 +2691,7 @@ export const FILTER_ANCHORS: Record<Exclude<ScopeFilter, 'all'>, readonly string
     'dash.risk-drivers',
   ],
   trends: ['dash.trends-radar'],
-  gap: ['dash.gap-analyzer'],
+  gap: ['dash.gap-analyzer', 'dash.job-fields-review'],
   benchmarking: ['dash.benchmarking'],
   scenarios: ['dash.scenarios'],
   decisions: ['dash.decisions'],
