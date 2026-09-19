@@ -248,7 +248,7 @@ Both derive phases are idempotent. Occupations upsert on (category, subcategory)
 skill links are replaced for this source on each run, so re-running after the
 taxonomy grows picks up new skills without duplicating old ones.
 
-## Field-of-study taxonomy (v1.9.8)
+## Field-of-study taxonomy (v1.9.7)
 
 40.7 % of JobThai postings state which field of study they want a graduate to
 hold, as free text: `บัญชี`, `Accounting`, `บัญชี/การเงิน`,
@@ -331,4 +331,4 @@ source. The uploaded files themselves live in MinIO and are deletable from
 | 2026-05-01 | Marked SUPERSEDED by `kmitl-skill-mapping` — on the incorrect assumption that JobThai required a paid API. |
 | 2026-09-13 | Un-deprecated and flipped real as a CSV/XLSX file source. 47,631 postings, 240 occupations loaded. Parser, connector, admin UI and deterministic skill matching shipped. |
 | 2026-09-13 | `jobthai-bridge.v2` links (posting-share field score, 5% demand floor, generic-skill exclusion); AI curriculum check extended to JobThai demand (`program_demand_matches.demand_sources`); `health-score.v5.2`; Deep-Dive Skills coverage JobThai view. |
-| 2026-09-19 | Field-of-study taxonomy (v1.9.8): `job_field_taxonomy` + `program_job_fields`, built by `pnpm jobthai:fields` and at the end of every batch refresh; review page at `/admin/job-fields`. `/gap-analysis` rebuilt as the demand-first field map on top of them (`gap-map.v1`). |
+| 2026-09-19 | Field-of-study taxonomy (v1.9.7): `job_field_taxonomy` + `program_job_fields`, built by `pnpm jobthai:fields` and at the end of every batch refresh; review page at `/admin/job-fields`. `/gap-analysis` rebuilt as the demand-first field map on top of them (`gap-map.v1`). |

@@ -9,7 +9,7 @@ import { scopeProgramIds } from './gap-map';
 //
 // What is LEFT of prompt 08's Gap Analyzer. The seven lenses it used to
 // hold (skill gap, occupation gap, sector gap, regional gap,
-// opportunities, risks, forecast accuracy) were retired in v1.9.8 and
+// opportunities, risks, forecast accuracy) were retired in v1.9.7 and
 // replaced by the demand-first gap map — `computeGapMap` in gap-map.ts,
 // which is what /gap-analysis and the AI Analyst now read.
 //
