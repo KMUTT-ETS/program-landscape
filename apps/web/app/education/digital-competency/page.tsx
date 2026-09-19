@@ -11,15 +11,19 @@ import type {
   DqSkillConfidenceDto,
   DqSkillLensResponse,
   DqSkillLensRowDto,
-} from '../types';
+  // The lens still reads /gap/digital-competency, so its DTOs stay beside
+  // the Gap Analyzer's; only the page moved. `@/…` is aliased to `src/`, not
+  // to the app root, so this import is relative.
+} from '../../gap-analysis/types';
 
 // Digital-competency attainment lens.
 //
-// The rest of the Gap Analyzer infers supply from what programmes TEACH.
-// This page shows what students demonstrably ACQUIRED, measured by KKU's
-// Digital Intelligence (DQ) test. It is a separate axis and it modifies
-// nothing: no figure on /gap-analysis, /gap-analysis/opportunities or
-// /gap-analysis/risks is derived from anything here.
+// The Gap Analyzer infers supply from what programmes TEACH. This page
+// shows what students demonstrably ACQUIRED, measured by KKU's Digital
+// Intelligence (DQ) test. It is a separate axis and it modifies nothing:
+// no figure on /gap-analysis is derived from anything here. That is why
+// it lives under /education rather than inside the Gap Analyzer — the old
+// /gap-analysis/digital-competency URL redirects here.
 //
 // Server component throughout — no client bundle, so no runtime
 // @kku/shared or @kku/db import can leak into one.
@@ -77,14 +81,14 @@ export default async function DigitalCompetencyPage({
       />
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3 text-xs text-text-tertiary">
+          <Link href="/education" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
+            ← Back to Education
+          </Link>
+          <Link href="/education/student-dq" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
+            Student DQ scores →
+          </Link>
           <Link href="/gap-analysis" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
-            ← Back to Gap Analyzer
-          </Link>
-          <Link href="/gap-analysis/opportunities" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
-            Opportunities →
-          </Link>
-          <Link href="/gap-analysis/risks" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
-            Risks →
+            Gap Analyzer →
           </Link>
         </div>
 

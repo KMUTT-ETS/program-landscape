@@ -1,215 +1,221 @@
 // Shared types for the Gap Analyzer UI. Mirror the API response shapes
-// from @kku/db gap-analysis helpers — intentionally not importing from
-// db here because this is a client-reachable module.
+// from @kku/db's gap-map helpers — intentionally not importing from db
+// here because this is a client-reachable module.
 
-export interface SkillGapRowDto {
-  skillId: string;
-  skillCode: string;
-  nameTh: string;
-  nameEn: string;
-  category: string | null;
-  demand: number;
-  supply: number;
-  gap: number;
-  gapPct: number | null;
-  topDemandingEmployers: string[];
-  topSupplyingProgramIds: string[];
-  methodologyVersion: string;
+import type { ApiMeta } from '@kku/shared';
+
+// ── The demand-first field map (gap-map.v1) ───────────────────────────────
+
+/** Six verdicts, mirroring `GAP_VERDICTS` in `@kku/db/gap-map-rules`.
+ *
+ *  `supply-unknown` is the one that is easy to read wrongly: the field HAS
+ *  KKU programmes, but not one of them carries a graduate figure, so no
+ *  ratio exists. It is a missing measurement, never a shortfall — which is
+ *  why it is toned like absent data rather than like a white space. */
+export type GapVerdictT =
+  | 'white-space'
+  | 'under-served'
+  | 'served'
+  | 'over-served'
+  | 'supply-unknown'
+  | 'too-few-postings';
+
+export const VERDICT_ORDER: readonly GapVerdictT[] = [
+  'white-space',
+  'under-served',
+  'served',
+  'over-served',
+  'supply-unknown',
+  'too-few-postings',
+];
+
+export const VERDICT_LABEL: Record<GapVerdictT, string> = {
+  'white-space': 'White space',
+  'under-served': 'Under-served',
+  served: 'Served',
+  'over-served': 'Over-served',
+  'supply-unknown': 'Supply unknown',
+  'too-few-postings': 'Too few postings',
+};
+
+export interface GapOccupationT {
+  occupationId: string;
+  code: string;
+  category: string;
+  subcategory: string;
+  postings: number;
+  linkedProgramIds: string[];
 }
 
-export interface SkillGapResponse {
-  filter: Record<string, unknown>;
-  rows: SkillGapRowDto[];
-  totalSkillsConsidered: number;
-  asOf: string;
-  lowConfidenceReason: string | null;
-}
-
-// ── Multi-lens Gap Analyzer (gap-lenses.v1) ────────────────────────────────
-export type GapLensKey = 'skill' | 'content' | 'aiReadiness' | 'recruitment' | 'staff' | 'demographic';
-
-export interface ProgramGapProfileDto {
+export interface GapProgrammeT {
   programId: string;
   code: string;
-  nameEn: string;
   nameTh: string;
-  facultyId: string;
-  facultyNameEn: string;
-  content: { major: number; moderate: number; minor: number; total: number; reviewed: boolean };
-  ai: { curriculumIntegration: number | null; displaceableShare: number | null; aiNative: number; aiAugmented: number; aiDisplaceable: number; neutral: number };
-  recruitment: { entryYearBE: number; planPerYear: number; regReported: number; applicants: number; fillRateVsPlan: number; competitionRatio: number; registrationYield: number | null } | null;
-  staff: { active: number; seniorShare: number; successionRiskPct: number; avgAgeYears: number | null; pubsLast3y: number; pubsPerHead: number } | null;
-  demographic: { competitionNow: number; superCriticalYear: number | null; contraction15yPct: number } | null;
-  skill: { relevant: number; covered: number; gaps: number; coveragePct: number } | null;
-  subScores: Record<GapLensKey, number | null>;
-  composite: number | null;
+  nameEn: string;
+  level: string;
+  facultyId: string | null;
+  facultyNameEn: string | null;
+  gradsPerYear: number | null;
+  supplySource: 'alumni' | 'enrolment-proxy' | null;
+  pipeline: number | null;
+  healthScore: number | null;
+  scored: boolean;
+  reviewStatus: 'PROPOSED' | 'APPROVED';
 }
 
-export interface GapAnalysisResponse {
+export interface GapGlobalSignalT {
+  /** Each pick carries its own series and its own context count — read
+   *  `scope` and `contexts` here, next to the figure, never from the
+   *  aggregate `scope` below: a 782 % figure averaged over one context
+   *  and a 41 % figure averaged over 28 must not look alike. */
+  skills: Array<{
+    skillId: string;
+    nameEn: string;
+    nameTh: string;
+    growthPct: number;
+    scope?: 'THAILAND' | 'GLOBAL';
+    contexts?: number;
+  }>;
+  /** Coarse "is there any Thai evidence here" flag for the whole trio —
+   *  not a per-skill value. */
+  scope: 'THAILAND' | 'GLOBAL' | null;
+}
+
+export interface GapTrendSignalT {
+  id: string;
+  title: string;
+  signalType: string;
+  impactScore: number;
+  detectedDate: string;
+  matchedBy: 'programme' | 'initiative';
+}
+
+export interface GapRowT {
+  slug: string;
+  nameTh: string;
+  nameEn: string;
+  reviewStatus: 'PROPOSED' | 'APPROVED';
+  postings: number;
+  demandShare: number;
+  supplyShare: number;
+  ratio: number | null;
+  verdict: GapVerdictT;
+  gradsPerYear: number | null;
+  pipeline: number | null;
+  pipelineArrow: 'up' | 'down' | 'flat' | null;
+  programmeCount: number;
+  /** Of `programmeCount` scored programmes, how many carry a graduate
+   *  figure. Below `programmeCount` means the supply share is built from
+   *  part of the field only — the programmes panel says so in words. */
+  programmesWithSupply: number;
+  signalCount: number;
+  kkuTotal: { supplyShare: number; ratio: number | null; verdict: GapVerdictT } | null;
+  provinces: Array<{ province: string; share: number }>;
+  occupations: GapOccupationT[];
+  programmes: GapProgrammeT[];
+  facultyIds: string[];
+  globalSignal: GapGlobalSignalT;
+  trendSignals: GapTrendSignalT[];
+}
+
+export interface GapMapT {
   methodologyVersion: string;
-  scope: string;
+  computedAt: string;
+  scope: { level: 'university' | 'faculty' | 'department'; id: string | null; label: string | null };
+  thresholds: { under: number; over: number };
+  rows: GapRowT[];
+  verdictCounts: Record<GapVerdictT, number>;
+  facultyStrip: Array<{
+    facultyId: string;
+    nameTh: string;
+    nameEn: string;
+    counts: Record<GapVerdictT, number>;
+  }>;
+  reconciliation: {
+    eligiblePostings: number;
+    fieldPostings: number;
+    fieldMentions: number;
+    multiFieldPostings: number;
+    anyFieldPostings: number;
+    otherKinds: number;
+    otherMentions: number;
+    postgraduatePostings: number;
+    demandShareSum: number;
+    supplyShareSum: number;
+    multiFieldProgrammes: number;
+    /** Σ over fields of the field's graduates per year — the supply
+     *  denominator, so a two-field programme is counted in both. */
+    fieldGraduatesTotal: number;
+  };
+  taxonomy: { approved: number; proposed: number };
+  freshness: { postingsAsOf: string | null; taxonomyAsOf: string | null };
+}
+
+export interface GapPageParams {
+  scope: 'university' | 'faculty' | 'department';
   scopeId: string | null;
-  generatedAt: string;
-  programCount: number;
-  composite: {
-    weights: Record<GapLensKey, number>;
-    rows: ProgramGapProfileDto[];
-    facultyHeatmap: Array<{ facultyId: string; facultyNameEn: string; programCount: number; avgComposite: number | null; subScores: Record<GapLensKey, number | null> }>;
+  verdict: 'all' | GapVerdictT;
+  facultyId: string | null;
+  under: number;
+  over: number;
+  field: string | null;
+}
+
+/** URL → params. Bad thresholds fall back to defaults rather than 500 the page;
+ *  the api validates the same values and the drawer echoes what is in force. */
+export function resolveGapParams(sp: Record<string, string | undefined>): GapPageParams {
+  const num = (v: string | undefined, d: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : d;
   };
-  content: {
-    reviewedPrograms: number;
-    severity: { major: number; moderate: number; minor: number };
-    topTopics: Array<{ topic: string; total: number; major: number; moderate: number; minor: number }>;
-    worstPrograms: Array<GapProgRefDto & { major: number; total: number }>;
+  let under = num(sp.under, 0.5);
+  let over = num(sp.over, 2);
+  if (!(under < over)) {
+    under = 0.5;
+    over = 2;
+  }
+  const scope = sp.scope === 'faculty' || sp.scope === 'department' ? sp.scope : 'university';
+  const verdict = (VERDICT_ORDER as readonly string[]).includes(sp.verdict ?? '')
+    ? (sp.verdict as GapVerdictT)
+    : 'all';
+  return {
+    scope,
+    scopeId: sp.scopeId ?? null,
+    verdict,
+    facultyId: sp.faculty ?? null,
+    under,
+    over,
+    field: sp.field ?? null,
   };
-  aiReadiness: {
-    scoredPrograms: number;
-    avgResilience: number | null;
-    avgIntegration: number | null;
-    skillMix: { aiNative: number; aiAugmented: number; aiDisplaceable: number; neutral: number };
-    worstPrograms: Array<GapProgRefDto & { skillResilience: number; curriculumIntegration: number; aiNative: number; aiDisplaceable: number }>;
-  };
-  recruitment: {
-    coveredPrograms: number;
-    underFilling: Array<GapProgRefDto & { entryYearBE: number; fillRateVsPlan: number; competitionRatio: number; registrationYield: number | null }>;
-  };
-  staff: {
-    coveredPrograms: number;
-    atRisk: Array<GapProgRefDto & { active: number; successionRiskPct: number; avgAgeYears: number | null; seniorShare: number; pubsPerHead: number }>;
-  };
-  demographic: {
-    coveredPrograms: number;
-    contraction15yPct: number;
-    superCritical: Array<GapProgRefDto & { competitionNow: number; superCriticalYear: number | null }>;
-  };
-  whiteSpace: {
-    marketGaps: Array<{ skillId: string; nameEn: string; nameTh: string; demand: number; topCareers: string[] }>;
-    systemicTopics: Array<{ topic: string; programCount: number; majorCount: number; sampleFaculties: string[] }>;
-    minPrograms: number;
-    staffExpertiseNote: string;
-  };
-  skill: SkillGapResponse;
 }
 
-export interface GapProgRefDto {
-  programId: string;
-  code: string;
-  nameEn: string;
-  nameTh: string;
-  facultyNameEn: string;
+export function gapHref(p: GapPageParams, patch: Partial<GapPageParams> = {}): string {
+  const q = { ...p, ...patch };
+  const s = new URLSearchParams();
+  if (q.scope !== 'university') {
+    s.set('scope', q.scope);
+    if (q.scopeId) s.set('scopeId', q.scopeId);
+  }
+  if (q.verdict !== 'all') s.set('verdict', q.verdict);
+  if (q.facultyId) s.set('faculty', q.facultyId);
+  if (q.under !== 0.5) s.set('under', String(q.under));
+  if (q.over !== 2) s.set('over', String(q.over));
+  if (q.field) s.set('field', q.field);
+  const qs = s.toString();
+  return `/gap-analysis${qs ? `?${qs}` : ''}`;
 }
 
-export interface SectorGapRowDto {
-  sectorId: string;
-  sectorCode: string;
-  family: 'BCG' | 'SCURVE' | 'CUSTOM';
-  nameTh: string;
-  nameEn: string;
-  demandIndex: number;
-  supplyIndex: number;
-  gap: number;
-  trend: 'growing' | 'shrinking' | 'flat';
-  contributingProgramIds: string[];
-  methodologyVersion: string;
-}
-
-export interface SectorGapResponse {
-  filter: Record<string, unknown>;
-  rows: SectorGapRowDto[];
-  asOf: string;
-}
-
-export interface OccupationGapRowDto {
-  occupationCode: string;
-  region: string;
-  demandCurrent: number;
-  demandForecast: number | null;
-  supplyCurrent: number;
-  supplyForecast: number | null;
-  gap: number;
-  thailandAverageShare: number;
-  kkuProductionShare: number;
-  methodologyVersion: string;
-}
-
-export interface OccupationGapResponse {
-  filter: Record<string, unknown>;
-  rows: OccupationGapRowDto[];
-  asOf: string;
-  lowConfidenceReason: string | null;
-}
-
-export interface RegionalGapCellDto {
-  province: string;
-  demandTotal: number;
-  supplyTotal: number;
-  gap: number;
-  intensity: 'demand-heavy' | 'supply-heavy' | 'balanced' | 'no-data';
-}
-
-export interface RegionalGapResponse {
-  filter: Record<string, unknown>;
-  cells: RegionalGapCellDto[];
-  asOf: string;
-  lowConfidenceReason: string | null;
-}
-
-export interface OpportunityRowDto {
-  skillId: string;
-  nameTh: string;
-  nameEn: string;
-  recentDemand: number;
-  demandGrowthPct: number;
-  existingProgramCount: number;
-  peerProgramCount: number;
-  estimatedCohortSize: number;
-  fitNote: string;
-}
-
-export interface OpportunityResponse {
-  filter: Record<string, unknown>;
-  rows: OpportunityRowDto[];
-  asOf: string;
-}
-
-export interface ProgramDemandGapRowDto {
-  programId: string;
-  programCode: string;
-  programNameEn: string;
-  programNameTh: string;
-  facultyCode: string;
-  relevantSkillCount: number;
-  coveredCount: number;
-  gapCount: number;
-  coverageRatio: number;
-  topGaps: Array<{ skillId: string; skillNameEn: string; skillNameTh: string; relatedness: number }>;
-  methodologyVersion: string;
-}
-
-export interface ProgramDemandGapResponse {
-  filter: Record<string, unknown>;
-  rows: ProgramDemandGapRowDto[];
-  uncoveredProgramCount: number;
-  asOf: string;
-}
-
-export interface RiskRowDto {
-  programId: string;
-  programCode: string;
-  nameTh: string;
-  nameEn: string;
-  curriculumYearBE: number | null;
-  currentGraduates: number;
-  projectedSupply5yr: number;
-  projectedSupplyAfterDemographic: number;
-  estimatedRegionalDemand: number;
-  oversupplyPct: number;
-  recommendationHint: 'reduce-intake' | 'rebalance' | 'repurpose' | 'watch';
+export interface GapPageData {
+  params: GapPageParams;
+  map: GapMapT;
+  meta: ApiMeta;
 }
 
 // ── Digital-competency attainment lens (dq-skill-lens.v1) ─────────────────
 // A separate axis beside the gap output, never a modifier on it: nothing
-// above this comment reads any of the fields below.
+// above this comment reads any of the fields below. The page that renders
+// these lives at /education/digital-competency; the types stay here because
+// the endpoint behind it is still /gap/digital-competency.
 
 export type DqSkillConfidenceDto = 'exact' | 'near' | 'none';
 

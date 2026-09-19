@@ -40,8 +40,8 @@ export default async function WhiteSpacesPage({
           <Link href="/benchmarking" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
             ← Back to Benchmarking
           </Link>
-          <Link href="/gap-analysis/opportunities" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
-            Gap opportunities →
+          <Link href="/gap-analysis?verdict=white-space" className="rounded-sm px-2 py-1 text-text-secondary hover:bg-surface-2">
+            Gap map white spaces →
           </Link>
         </div>
 
@@ -97,10 +97,10 @@ export default async function WhiteSpacesPage({
 
         <p className="text-xs leading-relaxed text-text-tertiary">
           Cross-reference:{' '}
-          <Link href="/gap-analysis/opportunities" className="underline">
-            Gap Analyzer opportunities
+          <Link href="/gap-analysis?verdict=white-space" className="underline">
+            the Gap Analyzer&apos;s white spaces
           </Link>{' '}
-          shows skills with market demand; this page shows skills with peer-institution consensus. The overlap is where a new track or program is most defensible to Council.
+          are fields of study employers advertise for that no KKU programme is assigned to; this page shows skills with peer-institution consensus. The overlap is where a new track or program is most defensible to Council.
         </p>
       </div>
     </AuthedAppShell>
