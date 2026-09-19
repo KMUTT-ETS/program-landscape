@@ -163,6 +163,16 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
                     </td>
                     <td className="px-3 py-2 text-right font-tabular">
                       {r.programmeCount === 0 ? <span className="text-text-tertiary">—</span> : r.programmeCount}
+                      {/* A white space holding a Master's or a PhD used to
+                          show the same bare dash as a field KKU teaches
+                          nothing in. The count sits on its own line rather
+                          than beside the dash, so the two numbers can never
+                          be read as one. */}
+                      {r.programmeCount === 0 && r.postgraduateProgrammes > 0 && (
+                        <span className="block text-[10px] text-text-tertiary">
+                          {r.postgraduateProgrammes} postgraduate
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right font-tabular">
                       {r.signalCount === 0 ? <span className="text-text-tertiary">0</span> : r.signalCount}
@@ -208,8 +218,14 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
           {rec.scoredWithSupply - rec.supplyFromProxy} counted from alumni entry cohorts,{' '}
           {rec.supplyFromProxy} from the enrolment-metric fallback, and{' '}
           {rec.scoredProgrammes - rec.scoredWithSupply} with no graduate figure at all.
-          Postgraduate programmes are listed but not scored — {rec.postgraduatePostings} adverts state a
-          postgraduate minimum.
+        </p>
+        <p>
+          Every verdict on this page is about bachelor programmes only. A field&apos;s postgraduate
+          programmes are listed inside its row with their graduates, but never scored, because only{' '}
+          {rec.postgraduatePostings.toLocaleString('en-US')} of the{' '}
+          {rec.eligiblePostings.toLocaleString('en-US')} adverts state a postgraduate minimum — too few
+          to judge one against. So a white space means KKU has no bachelor programme in that field; it
+          may still run a Master&apos;s or a PhD there, and the row says so where it does.
         </p>
         <p>
           Field review: {map.taxonomy.approved} of {fieldsTotal} fields have been checked by an admin;
@@ -221,16 +237,23 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
           <summary className="cursor-pointer">Thresholds in force and the supply rule</summary>
           <p className="mt-1">
             Under-served below {params.under}, over-served above {params.over} (ratio = KKU share ÷
-            demand share). Graduates per year = the mean of a programme&apos;s recent registrar entry
-            cohorts that could already have graduated — an entry year counts only once it is at least
-            the programme&apos;s length behind the current academic year — divided by however many such
-            cohorts there are, not by a fixed five. Where no alumni cohort qualifies, the fallback is
-            the most recent graduated-on-time figure that records any graduations at all; an academic
-            year still in progress is never read as a measured zero. A field whose programmes carry
-            neither is reported as supply unknown rather than as a shortfall. Pipeline = students
-            currently enrolled; the arrow compares pipeline ÷ 4 with graduates per year at ±25 %. A
-            field below the posting floor is shown with its advert count instead of a verdict. Cached
-            five minutes; computed{' '}
+            demand share). Graduates per year = the mean of a programme&apos;s registrar entry cohorts
+            that could already have graduated — an entry year counts only once it is at least the
+            programme&apos;s length behind the current academic year — divided by however many such
+            cohorts there are, not by a fixed five. The window is anchored on each programme
+            separately, reaching six years back from its own newest graduatable cohort, so a six-year
+            programme is averaged over as many cohorts as a four-year one; the row panel says how many
+            each figure rests on. Where no alumni cohort qualifies, the fallback is the most recent
+            graduated-on-time figure that records any graduations at all, shown with the academic year
+            it came from because that reach-back has no floor; an academic year still in progress is
+            never read as a measured zero. A field whose programmes carry neither is reported as
+            supply unknown rather than as a shortfall. Pipeline = students currently enrolled; the
+            arrow compares graduates per year with the annual intake behind that pipeline — each
+            programme&apos;s enrolled students divided by its OWN length of study, then summed — at
+            ±25 %. Where a programme records no length, the nominal one for its level is used (four
+            years bachelor, three doctoral, two master&apos;s and higher graduate diploma). A field
+            below the posting floor is shown with its advert count instead of a verdict. Cached five
+            minutes; computed{' '}
             {map.computedAt.slice(0, 16).replace('T', ' ')} UTC.
           </p>
         </details>
@@ -242,5 +265,10 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
 function verdictText(r: GapRowT): string {
   if (r.verdict === 'too-few-postings') return `too few postings (${r.postings})`;
   if (r.verdict === 'supply-unknown') return 'supply not recorded';
+  // "White space" is this platform's term for a field KKU should launch
+  // into but has not. Where a postgraduate track already exists, the
+  // verdict is still true of the bachelor level it is scored on — and it
+  // has to say which, at a glance, without expanding the row.
+  if (r.verdict === 'white-space' && r.postgraduateProgrammes > 0) return 'White space at bachelor level';
   return VERDICT_LABEL[r.verdict];
 }

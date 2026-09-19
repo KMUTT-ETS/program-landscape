@@ -8,6 +8,9 @@ import { eligiblePostingLevels } from './jobthai-bridge';
 import {
   GAP_MAP_VERSION,
   GAP_VERDICTS,
+  NOMINAL_DURATION_FALLBACK,
+  NOMINAL_DURATION_YEARS,
+  annualisedIntake,
   pipelineArrow,
   reconcile,
   verdictFor,
@@ -59,6 +62,18 @@ export interface GapMapProgramme {
   facultyNameEn: string | null;
   gradsPerYear: number | null;
   supplySource: 'alumni' | 'enrolment-proxy' | null;
+  /** How many entry cohorts the alumni mean was taken over. Null unless
+   *  `supplySource === 'alumni'` — a figure that rests on two cohorts and
+   *  one that rests on six must not read alike. */
+  supplyCohorts: number | null;
+  /** The academic year the enrolment fallback was read from (CE). Null
+   *  unless `supplySource === 'enrolment-proxy'`. The reach-back can be
+   *  long — 2006 at the far end on dev — so the year is carried with the
+   *  figure rather than left to look like last year's. */
+  supplyYear: number | null;
+  /** As recorded on the programme; null means the nominal figure for the
+   *  level was used (`NOMINAL_DURATION_YEARS`). */
+  durationYears: number | null;
   pipeline: number | null;
   healthScore: number | null;
   /** false for postgraduate programmes and for programmes outside the scope. */
@@ -86,6 +101,10 @@ export interface GapMapRow {
    *  still gets a normal verdict; only a total absence (0) suppresses
    *  one — see `verdict: 'supply-unknown'`. */
   programmesWithSupply: number;
+  /** Listed but never scored because they are postgraduate. A white space
+   *  with one of these is not a field KKU is absent from — the collapsed
+   *  row has to say so, or "Programmes: —" reads as "nothing here". */
+  postgraduateProgrammes: number;
   signalCount: number;
   /** Present only when scope ≠ university: the same field scored over all of KKU. */
   kkuTotal: { supplyShare: number; ratio: number | null; verdict: GapVerdict } | null;
@@ -137,10 +156,22 @@ export interface GapMapResult {
 const BACHELOR_LEVELS = eligiblePostingLevels('BACHELOR');
 const POSTGRAD_LEVELS = eligiblePostingLevels('MASTER');
 
-/** Fallback length of study when `Program.durationYears` is null (16 of 301
- *  programmes on dev). Four years is the nominal bachelor's degree, and the
- *  same divisor `pipelineArrow` already assumes. */
-const NOMINAL_DURATION_YEARS = 4;
+/** How many entry cohorts the alumni mean may be taken over, at most. The
+ *  window is anchored on each programme's OWN newest graduatable cohort
+ *  (`currentAcademicYearBE - duration`) and reaches this many years back, so
+ *  a six-year programme gets as many cohorts to average as a four-year one.
+ *  A single global anchor starved them: on dev it sat at BE 2567, leaving
+ *  every 5- and 6-year bachelor programme exactly two cohorts against a
+ *  four-year programme's four. */
+const SUPPLY_WINDOW_COHORTS = 6;
+
+/** `COALESCE(duration_years, <nominal for the level>)` — the SQL twin of
+ *  `durationYearsFor`, built from the same constants so the cohort window
+ *  and the pipeline arrow can never read a programme as different lengths. */
+const durationYearsSql = Prisma.sql`COALESCE(p.duration_years, CASE p.level::text ${Prisma.join(
+  Object.entries(NOMINAL_DURATION_YEARS).map(([level, years]) => Prisma.sql`WHEN ${level} THEN ${years}::int`),
+  ' ',
+)} ELSE ${NOMINAL_DURATION_FALLBACK}::int END)::int`;
 
 export async function scopeProgramIds(scope: GapMapScope, scopeId: string | null): Promise<string[] | null> {
   if (scope === 'university' || !scopeId) return null;
@@ -317,6 +348,7 @@ export async function computeGapMap(args: {
           nameTh: true,
           nameEn: true,
           level: true,
+          durationYears: true,
           facultyId: true,
           faculty: { select: { nameEn: true } },
         },
@@ -327,18 +359,24 @@ export async function computeGapMap(args: {
   const assignedProgramIds = [...programById.keys()];
   // Graduates per year = the mean of the entry cohorts that COULD have
   // graduated, over however many of them there are (spec §4; corrected
-  // 2026-09-19). Three rules make that sentence true:
+  // 2026-09-19). Four rules make that sentence true:
   //
-  //  1. The window is anchored on graduation, not on enrolment. `max_be`
-  //     over GRADUATED rows only. Taken over every status bucket it reads
-  //     the newest ENTRANTS (BE 2569 on dev), pushing the window two
-  //     cohorts past anything that can have finished.
-  //  2. A cohort is counted only once it could have graduated:
-  //     `entry_year_be + durationYears <= currentAcademicYearBE`. A
-  //     student entering 2565 on a 4-year programme is in year
+  //  1. The window is anchored PER PROGRAMME, on graduation. Its newest
+  //     end is the newest cohort that programme could have finished,
+  //     `currentAcademicYearBE - duration`, and it reaches
+  //     SUPPLY_WINDOW_COHORTS years back from there. A single global
+  //     `MAX(entry_year_be)` anchor (BE 2567 on dev, set by the shortest
+  //     programmes) left every 5- and 6-year bachelor programme exactly
+  //     two cohorts to average while four-year ones got up to four.
+  //  2. A cohort is counted only once it could have graduated. A student
+  //     entering 2565 on a 4-year programme is in year
   //     `current - entry + 1`, so they finish at the end of AY 2568 and
-  //     2569 is the first year the cohort is complete.
-  //  3. The divisor is the number of cohorts actually averaged, not a
+  //     2569 is the first year the cohort is complete. That is the same
+  //     `entry <= current - duration` bound the window's top end uses.
+  //  3. Length of study is the programme's own, and where it is not
+  //     recorded the nominal figure for its LEVEL — never four years for
+  //     a two-year Master's (`durationYearsSql`).
+  //  4. The divisor is the number of cohorts actually averaged, not a
   //     hard-coded 5. Counting four cohorts and dividing by five under-
   //     reports by a fifth, which is most of the old shortfall.
   //
@@ -348,50 +386,72 @@ export async function computeGapMap(args: {
   // 2025 (28 programmes) and 2024 (5) are all-zero too, so excluding only
   // the current academic year would still hand 33 programmes a zero that
   // was never measured. A programme left with nothing comes out NULL and
-  // the row's `supply-unknown` state says so honestly.
+  // the row's `supply-unknown` state says so honestly. The reach-back has
+  // no floor, so the year it landed on travels with the figure: on dev it
+  // ranges from AY 2025 down to AY 2006, and a nine-year-old number that
+  // does not say its age is indistinguishable from last year's.
   const supplyRows =
     assignedProgramIds.length === 0
       ? []
-      : await prisma.$queryRaw<Array<{ program_id: string; supply: number | null; source: 'alumni' | 'enrolment-proxy' | null }>>(
+      : await prisma.$queryRaw<
+          Array<{
+            program_id: string;
+            supply: number | null;
+            source: 'alumni' | 'enrolment-proxy' | null;
+            cohorts: number | null;
+            supply_year: number | null;
+            duration_years: number;
+          }>
+        >(
           Prisma.sql`
-    WITH latest_be AS (
-      SELECT MAX(entry_year_be) AS max_be FROM alumni_cohort_statuses acs0
-      WHERE acs0.status_bucket = 'GRADUATED' AND ${realDataSql('acs0')}
+    WITH prog AS (
+      SELECT p.id AS program_id, ${durationYearsSql} AS duration_years
+      FROM programs p
+      WHERE p.id = ANY(${assignedProgramIds}::text[])
     ),
     alumni_cohorts AS (
       SELECT acs.program_id, acs.entry_year_be, SUM(acs.count)::float AS graduates
       FROM alumni_cohort_statuses acs
-      JOIN programs pr ON pr.id = acs.program_id
-      CROSS JOIN latest_be
+      JOIN prog ON prog.program_id = acs.program_id
       WHERE acs.status_bucket = 'GRADUATED'
-        AND acs.entry_year_be >= latest_be.max_be - 5
-        AND acs.entry_year_be + COALESCE(pr.duration_years, ${NOMINAL_DURATION_YEARS}) <= ${currentAcademicYearBE}
+        AND acs.entry_year_be <= ${currentAcademicYearBE} - prog.duration_years
+        AND acs.entry_year_be >= ${currentAcademicYearBE} - prog.duration_years - ${SUPPLY_WINDOW_COHORTS - 1}
         AND ${realDataSql('acs')}
       GROUP BY acs.program_id, acs.entry_year_be
     ),
     alumni_per_program AS (
-      SELECT program_id, SUM(graduates) / COUNT(*)::float AS graduates_per_year
+      SELECT program_id, SUM(graduates) / COUNT(*)::float AS graduates_per_year, COUNT(*)::int AS cohorts
       FROM alumni_cohorts
       GROUP BY program_id
     ),
     latest_grad AS (
-      SELECT DISTINCT ON (program_id) program_id, graduated_on_time
+      SELECT DISTINCT ON (program_id) program_id, graduated_on_time, academic_year
       FROM enrollment_metrics em
       WHERE em.graduated_on_time > 0 AND ${realDataSql('em')}
       ORDER BY program_id, academic_year DESC
     )
     SELECT
-      p.id AS program_id,
+      prog.program_id,
       COALESCE(a.graduates_per_year, lg.graduated_on_time)::float AS supply,
-      CASE WHEN a.graduates_per_year IS NOT NULL THEN 'alumni' WHEN lg.graduated_on_time IS NOT NULL THEN 'enrolment-proxy' ELSE NULL END AS source
-    FROM programs p
-    LEFT JOIN alumni_per_program a ON a.program_id = p.id
-    LEFT JOIN latest_grad lg ON lg.program_id = p.id
-    WHERE p.id = ANY(${assignedProgramIds}::text[])
+      CASE WHEN a.graduates_per_year IS NOT NULL THEN 'alumni' WHEN lg.graduated_on_time IS NOT NULL THEN 'enrolment-proxy' ELSE NULL END AS source,
+      a.cohorts,
+      CASE WHEN a.graduates_per_year IS NULL THEN lg.academic_year ELSE NULL END AS supply_year,
+      prog.duration_years
+    FROM prog
+    LEFT JOIN alumni_per_program a ON a.program_id = prog.program_id
+    LEFT JOIN latest_grad lg ON lg.program_id = prog.program_id
   `,
         );
   const supplyById = new Map(
-    supplyRows.map((r) => [r.program_id, { grads: r.supply == null ? null : Number(r.supply), source: r.source }]),
+    supplyRows.map((r) => [
+      r.program_id,
+      {
+        grads: r.supply == null ? null : Number(r.supply),
+        source: r.source,
+        cohorts: r.cohorts == null ? null : Number(r.cohorts),
+        year: r.supply_year == null ? null : Number(r.supply_year),
+      },
+    ]),
   );
   const pipelineRows =
     assignedProgramIds.length === 0
@@ -463,6 +523,9 @@ export async function computeGapMap(args: {
           facultyNameEn: a.program.faculty?.nameEn ?? null,
           gradsPerYear: s?.grads ?? null,
           supplySource: s?.source ?? null,
+          supplyCohorts: s?.source === 'alumni' ? (s.cohorts ?? null) : null,
+          supplyYear: s?.source === 'enrolment-proxy' ? (s.year ?? null) : null,
+          durationYears: a.program.durationYears,
           pipeline: pipelineById.get(a.program.id) ?? null,
           healthScore: health.get(a.program.id)?.overall ?? null,
           scored: scoredIds.has(a.program.id),
@@ -476,6 +539,9 @@ export async function computeGapMap(args: {
     const pipeline = scored.reduce((n, p) => n + (p.pipeline ?? 0), 0);
     const hasGrads = scored.some((p) => p.gradsPerYear != null);
     const hasPipeline = scored.some((p) => p.pipeline != null);
+    // Annualised per programme, then summed — never the field's summed
+    // pipeline over one nominal length. See `annualisedIntake`.
+    const annualIntake = annualisedIntake(scored);
     const supplyShare = fieldGraduatesTotal > 0 ? grads / fieldGraduatesTotal : 0;
     const { ratio, verdict } = verdictFor({
       postings,
@@ -516,9 +582,10 @@ export async function computeGapMap(args: {
       verdict,
       gradsPerYear: hasGrads ? grads : null,
       pipeline: hasPipeline ? pipeline : null,
-      pipelineArrow: pipelineArrow(hasGrads ? grads : null, hasPipeline ? pipeline : null),
+      pipelineArrow: pipelineArrow(hasGrads ? grads : null, annualIntake),
       programmeCount: scored.length,
       programmesWithSupply: scoredWithSupply,
+      postgraduateProgrammes: programmes.filter((p) => !p.scored && p.level !== 'BACHELOR').length,
       signalCount: signals.length,
       kkuTotal,
       provinces: provincesByField.get(f.id) ?? [],

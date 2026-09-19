@@ -53,6 +53,7 @@ function makeRow(overrides: Partial<GapMapRow> = {}): GapMapRow {
     pipelineArrow: 'flat',
     programmeCount: 2,
     programmesWithSupply: 2,
+    postgraduateProgrammes: 0,
     signalCount: 0,
     kkuTotal: null,
     provinces: [],

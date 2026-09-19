@@ -62,11 +62,7 @@ export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React
                 <div className="text-text-secondary">
                   {p.gradsPerYear == null
                     ? 'graduates not recorded'
-                    : `${int(p.gradsPerYear)} graduates / yr (${
-                        p.supplySource === 'enrolment-proxy'
-                          ? 'enrolment fallback'
-                          : 'alumni cohorts'
-                      })`}
+                    : `${int(p.gradsPerYear)} graduates / yr (${supplyBasis(p)})`}
                   {' · '}
                   {p.pipeline == null ? 'pipeline not recorded' : `${int(p.pipeline)} enrolled`}
                   {' · '}
@@ -143,11 +139,38 @@ export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React
   );
 }
 
+/** What a graduates-per-year figure rests on, in the words beside it.
+ *
+ *  An alumni mean over one entry cohort and one over six are not the same
+ *  evidence, and an enrolment fallback read from AY 2012 is not the same
+ *  measurement as one read from last year. Both used to render as a bare
+ *  "N graduates / yr (alumni cohorts)" / "(enrolment fallback)". */
+function supplyBasis(p: GapRowT['programmes'][number]): string {
+  if (p.supplySource === 'enrolment-proxy') {
+    return p.supplyYear == null ? 'enrolment fallback' : `enrolment fallback, AY ${p.supplyYear}`;
+  }
+  if (p.supplyCohorts == null) return 'alumni cohorts';
+  return `mean of ${p.supplyCohorts} alumni ${p.supplyCohorts === 1 ? 'cohort' : 'cohorts'}`;
+}
+
 /** How much of the field the KKU share is actually built from. A partial gap
  *  would otherwise fold silently into the total — the reader sees three
  *  programmes and one share, and cannot tell that only two were measured. */
 function SupplyCoverageNote({ row }: { row: GapRowT }): React.JSX.Element | null {
-  if (row.programmeCount === 0) return null;
+  if (row.programmeCount === 0) {
+    if (row.postgraduateProgrammes === 0) return null;
+    // A white space that holds a Master's or a PhD. The verdict is still
+    // "white space" — it is scored on bachelor programmes only — but the
+    // reader must not take it as "KKU does not teach this at all".
+    return (
+      <p className="mb-1 text-text-tertiary">
+        KKU has no bachelor programme in this field, which is what the white-space verdict measures.
+        It does run {row.postgraduateProgrammes} postgraduate{' '}
+        {row.postgraduateProgrammes === 1 ? 'programme' : 'programmes'} here, listed below and never
+        scored.
+      </p>
+    );
+  }
   if (row.programmesWithSupply === 0) {
     return (
       <p className="mb-1 text-text-tertiary">

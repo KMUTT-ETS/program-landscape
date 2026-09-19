@@ -34,6 +34,7 @@ const row = (o: Partial<GapRowT>): GapRowT => ({
   pipelineArrow: 'flat',
   programmeCount: 1,
   programmesWithSupply: 1,
+  postgraduateProgrammes: 0,
   signalCount: 0,
   kkuTotal: null,
   provinces: [{ province: 'กรุงเทพมหานคร', share: 0.6 }],
@@ -58,6 +59,9 @@ const row = (o: Partial<GapRowT>): GapRowT => ({
       facultyNameEn: 'Engineering',
       gradsPerYear: 100,
       supplySource: 'alumni',
+      supplyCohorts: 5,
+      supplyYear: null,
+      durationYears: 4,
       pipeline: 400,
       healthScore: 71,
       scored: true,
@@ -120,6 +124,9 @@ const map: GapMapT = {
           facultyNameEn: 'Engineering',
           gradsPerYear: 100,
           supplySource: 'alumni',
+          supplyCohorts: 6,
+          supplyYear: null,
+          durationYears: 4,
           pipeline: 400,
           healthScore: 71,
           scored: true,
@@ -135,6 +142,9 @@ const map: GapMapT = {
           facultyNameEn: 'Engineering',
           gradsPerYear: 40,
           supplySource: 'enrolment-proxy',
+          supplyCohorts: null,
+          supplyYear: 2017,
+          durationYears: 4,
           pipeline: 150,
           healthScore: 60,
           scored: true,
@@ -176,6 +186,9 @@ const map: GapMapT = {
           facultyNameEn: 'Veterinary Medicine',
           gradsPerYear: null,
           supplySource: null,
+          supplyCohorts: null,
+          supplyYear: null,
+          durationYears: 6,
           pipeline: 120,
           healthScore: null,
           scored: true,
@@ -184,9 +197,47 @@ const map: GapMapT = {
       ],
       facultyIds: ['f2'],
     }),
+    // A white space that is only a white space at bachelor level: KKU runs
+    // a Master's in it. The collapsed row must not read like `logistics`,
+    // where KKU teaches nothing at all.
+    row({
+      slug: 'psychology',
+      nameEn: 'Psychology',
+      nameTh: 'จิตวิทยา',
+      verdict: 'white-space',
+      ratio: null,
+      supplyShare: 0,
+      programmeCount: 0,
+      programmesWithSupply: 0,
+      postgraduateProgrammes: 1,
+      gradsPerYear: null,
+      pipeline: null,
+      pipelineArrow: null,
+      facultyIds: [],
+      programmes: [
+        {
+          programId: 'p7',
+          code: 'KKU-SEQ-0253',
+          nameTh: 'จิตวิทยามหาบัณฑิต',
+          nameEn: 'Master of Psychology',
+          level: 'MASTER',
+          facultyId: 'f3',
+          facultyNameEn: 'Humanities and Social Sciences',
+          gradsPerYear: 1,
+          supplySource: 'alumni',
+          supplyCohorts: 1,
+          supplyYear: null,
+          durationYears: 2,
+          pipeline: 12,
+          healthScore: 64,
+          scored: false,
+          reviewStatus: 'APPROVED',
+        },
+      ],
+    }),
   ],
   verdictCounts: {
-    'white-space': 1,
+    'white-space': 2,
     'under-served': 1,
     served: 1,
     'over-served': 0,
@@ -225,7 +276,7 @@ const map: GapMapT = {
     scoredWithSupply: 83,
     supplyFromProxy: 14,
   },
-  taxonomy: { approved: 3, proposed: 2 },
+  taxonomy: { approved: 4, proposed: 2 },
   freshness: { postingsAsOf: '2026-09-13T00:00:00Z', taxonomyAsOf: '2026-09-15T00:00:00Z' },
 };
 
@@ -244,8 +295,8 @@ describe('GapMapSections', () => {
   const text = textOf(html);
 
   it('shows verdict chips with counts and the faculty strip', () => {
-    expect(text).toMatch(/All\s*·\s*5/);
-    expect(text).toMatch(/White space\s*·\s*1/);
+    expect(text).toMatch(/All\s*·\s*6/);
+    expect(text).toMatch(/White space\s*·\s*2/);
     expect(text).toMatch(/Supply unknown\s*·\s*1/);
     expect(text).toMatch(/Too few postings\s*·\s*1/);
     expect(text).toContain('Engineering');
@@ -292,13 +343,52 @@ describe('GapMapSections', () => {
     expect(t).toContain('LinkedIn data via MHESI');
   });
 
-  it('says where each programme-level graduate figure came from', () => {
+  it('says where each programme-level graduate figure came from, and what it rests on', () => {
     // An alumni-cohort mean and an enrolment-metric fallback are not the
     // same measurement; rendering both as a bare "N graduates / yr" made
-    // them indistinguishable to a reader.
+    // them indistinguishable to a reader. Nor are a mean over six cohorts
+    // and one over one, nor a fallback read last year and one read in 2017.
     const t = textOf(render(resolveGapParams({ field: 'electrical-engineering' })));
-    expect(t).toContain('100 graduates / yr (alumni cohorts)');
-    expect(t).toContain('40 graduates / yr (enrolment fallback)');
+    expect(t).toContain('100 graduates / yr (mean of 6 alumni cohorts)');
+    expect(t).toContain('40 graduates / yr (enrolment fallback, AY 2017)');
+  });
+
+  it('names the year an enrolment-proxy figure was read from wherever one is shown', () => {
+    // The reach-back has no floor — AY 2006 at the far end on dev — so a
+    // figure with no year is indistinguishable from one taken last year.
+    const t = textOf(render(resolveGapParams({ field: 'electrical-engineering' })));
+    expect(t).toMatch(/enrolment fallback, AY 2017/);
+    expect(t).not.toMatch(/enrolment fallback\)/);
+  });
+
+  it('distinguishes a white space that holds a postgraduate programme from one that holds nothing', () => {
+    // Both rows show "Programmes: —". Read at a glance, `psychology` must
+    // not say the same thing as `human-resource-management` does: KKU runs
+    // a Master's in it, and only the bachelor level is scored.
+    const t = textOf(render(resolveGapParams({ verdict: 'white-space' })));
+    expect(t).toContain('Psychology');
+    expect(t).toContain('1 postgraduate');
+    expect(t).toContain('White space at bachelor level');
+    // The field where KKU teaches nothing keeps the plain verdict.
+    expect(t).toMatch(/Logistics[^]*?White space/);
+    const logisticsRow = /<tr data-verdict="white-space"[^]*?โลจิสติกส์[^]*?<\/tr>/.exec(
+      render(resolveGapParams({ verdict: 'white-space' })),
+    )?.[0];
+    expect(logisticsRow).toBeDefined();
+    expect(logisticsRow).not.toContain('postgraduate');
+  });
+
+  it('states the bachelor-only scope where it is always visible, not only inside an expanded row', () => {
+    // The collapsed table is what most readers act on; a scope caveat that
+    // only appears once a row is opened is not a caveat they will see.
+    expect(text).toMatch(/verdict on this page is about bachelor programmes only/i);
+    expect(text).toMatch(/may still run a Master(&#x27;|&#39;|’|')s or a PhD/i);
+  });
+
+  it('explains the pipeline arrow as each programme’s own length of study, never a nominal four', () => {
+    expect(text).not.toMatch(/pipeline ÷ 4/);
+    expect(text).toMatch(/divided by its OWN length of study/);
+    expect(text).toMatch(/nominal one for its level/i);
   });
 
   it('states what the reconciliation supply total rests on', () => {
@@ -336,7 +426,7 @@ describe('GapMapSections', () => {
   });
 
   it('states the review backlog as a state of the taxonomy, not as a failure', () => {
-    expect(text).toMatch(/3 of 5 fields/);
+    expect(text).toMatch(/4 of 6 fields/);
     expect(text).toMatch(/awaiting review/i);
     expect(text).not.toMatch(/error|invalid|broken/i);
   });

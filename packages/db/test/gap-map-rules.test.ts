@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_GAP_THRESHOLDS,
+  annualisedIntake,
+  durationYearsFor,
   parseThresholds,
   pipelineArrow,
   reconcile,
@@ -68,17 +70,83 @@ describe('parseThresholds', () => {
   });
 });
 
-describe('pipelineArrow', () => {
-  it('compares pipeline ÷ 4 with graduates per year at 1.25× and 0.75×', () => {
-    expect(pipelineArrow(100, 600)).toBe('up'); // 150 > 125
-    expect(pipelineArrow(100, 400)).toBe('flat'); // 100
-    expect(pipelineArrow(100, 280)).toBe('down'); // 70 < 75
-    expect(pipelineArrow(100, 500)).toBe('flat'); // 125 is not > 125
+describe('durationYearsFor', () => {
+  it('prefers the recorded length and falls back per LEVEL, never to four for everything', () => {
+    expect(durationYearsFor('BACHELOR', 6)).toBe(6);
+    expect(durationYearsFor('MASTER', 3)).toBe(3);
+    // The 16 programmes with no recorded length on dev are all Master's,
+    // Doctoral or Higher Graduate Diploma; four years is wrong for every
+    // one of them.
+    expect(durationYearsFor('BACHELOR', null)).toBe(4);
+    expect(durationYearsFor('MASTER', null)).toBe(2);
+    expect(durationYearsFor('DOCTORAL', null)).toBe(3);
+    expect(durationYearsFor('HIGHER_GRAD_DIPLOMA', null)).toBe(2);
+    expect(durationYearsFor('SOMETHING_ELSE', null)).toBe(4);
+    // A zero or negative length would divide by nothing; read as nominal.
+    expect(durationYearsFor('MASTER', 0)).toBe(2);
   });
+});
+
+describe('annualisedIntake', () => {
+  it('divides each programme by its OWN length before summing', () => {
+    // A six-year programme holding 1,992 students admits ~332 a year, not
+    // the 498 a nominal four-year divisor would report.
+    expect(annualisedIntake([{ pipeline: 1992, durationYears: 6, level: 'BACHELOR' }])).toBe(332);
+    expect(
+      annualisedIntake([
+        { pipeline: 400, durationYears: 4, level: 'BACHELOR' },
+        { pipeline: 600, durationYears: 6, level: 'BACHELOR' },
+      ]),
+    ).toBe(200); // 100 + 100, never 1000 / 4 = 250
+  });
+  it('uses the nominal length for its level when none is recorded', () => {
+    expect(annualisedIntake([{ pipeline: 20, durationYears: null, level: 'MASTER' }])).toBe(10);
+    expect(annualisedIntake([{ pipeline: 20, durationYears: null, level: 'BACHELOR' }])).toBe(5);
+  });
+  it('is null when no programme carries a pipeline figure — absent, not zero', () => {
+    expect(annualisedIntake([])).toBeNull();
+    expect(annualisedIntake([{ pipeline: null, durationYears: 4, level: 'BACHELOR' }])).toBeNull();
+    // One measured programme among unmeasured ones still yields a figure.
+    expect(
+      annualisedIntake([
+        { pipeline: null, durationYears: 4, level: 'BACHELOR' },
+        { pipeline: 400, durationYears: 4, level: 'BACHELOR' },
+      ]),
+    ).toBe(100);
+  });
+});
+
+describe('pipelineArrow', () => {
+  it('compares annual intake with graduates per year at 1.25× and 0.75×', () => {
+    expect(pipelineArrow(100, 150)).toBe('up');
+    expect(pipelineArrow(100, 100)).toBe('flat');
+    expect(pipelineArrow(100, 70)).toBe('down');
+    expect(pipelineArrow(100, 125)).toBe('flat'); // 125 is not > 125
+    expect(pipelineArrow(100, 75)).toBe('flat'); // 75 is not < 75
+  });
+
+  // The Critical defect, in the two shapes it took on dev. Under the old
+  // `pipeline / 4` rule both of these read "rising" — an overstatement of
+  // intake on exactly the professional programmes a Council scrutinises
+  // hardest. Computed on six years, both are steady.
+  it('a six-year programme is judged on six years, not four', () => {
+    const pharmacy = [
+      { pipeline: 996, durationYears: 6, level: 'BACHELOR' },
+      { pipeline: 996, durationYears: 6, level: 'BACHELOR' },
+    ];
+    expect(annualisedIntake(pharmacy)).toBe(332);
+    expect(pipelineArrow(296, annualisedIntake(pharmacy))).toBe('flat'); // 332 < 1.25 × 296 = 370
+    expect(pipelineArrow(296, 1992 / 4)).toBe('up'); // what the old divisor said
+
+    const vet = [{ pipeline: 452, durationYears: 6, level: 'BACHELOR' }];
+    expect(pipelineArrow(62.5, annualisedIntake(vet))).toBe('flat'); // 75.3 < 78.1
+    expect(pipelineArrow(62.5, 452 / 4)).toBe('up');
+  });
+
   it('is null when either side is missing or graduates are zero', () => {
-    expect(pipelineArrow(null, 400)).toBeNull();
+    expect(pipelineArrow(null, 100)).toBeNull();
     expect(pipelineArrow(100, null)).toBeNull();
-    expect(pipelineArrow(0, 400)).toBeNull();
+    expect(pipelineArrow(0, 100)).toBeNull();
   });
 });
 

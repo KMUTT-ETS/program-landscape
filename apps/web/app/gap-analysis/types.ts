@@ -57,6 +57,14 @@ export interface GapProgrammeT {
   facultyNameEn: string | null;
   gradsPerYear: number | null;
   supplySource: 'alumni' | 'enrolment-proxy' | null;
+  /** How many entry cohorts the alumni mean was taken over — shown beside
+   *  the figure, because one cohort and six are not the same evidence. */
+  supplyCohorts: number | null;
+  /** The academic year (CE) the enrolment fallback was read from. Shown
+   *  whenever `supplySource === 'enrolment-proxy'`: the reach-back has no
+   *  floor, so a figure can be years old and must say so. */
+  supplyYear: number | null;
+  durationYears: number | null;
   pipeline: number | null;
   healthScore: number | null;
   scored: boolean;
@@ -108,6 +116,11 @@ export interface GapRowT {
    *  figure. Below `programmeCount` means the supply share is built from
    *  part of the field only — the programmes panel says so in words. */
   programmesWithSupply: number;
+  /** Listed under the field but never scored because they are
+   *  postgraduate. A white space carrying one of these is NOT a field KKU
+   *  is absent from, and the collapsed row says so — otherwise
+   *  "Programmes: —" reads identically to a field with nothing at all. */
+  postgraduateProgrammes: number;
   signalCount: number;
   kkuTotal: { supplyShare: number; ratio: number | null; verdict: GapVerdictT } | null;
   provinces: Array<{ province: string; share: number }>;

@@ -74,12 +74,62 @@ export function verdictFor(args: {
 
 export type PipelineArrow = 'up' | 'down' | 'flat';
 
-/** Pipeline ÷ 4 (a nominal four-year intake) against graduates per year. */
-export function pipelineArrow(gradsPerYear: number | null, pipeline: number | null): PipelineArrow | null {
-  if (gradsPerYear == null || pipeline == null || gradsPerYear <= 0) return null;
-  const perYear = pipeline / 4;
-  if (perYear > 1.25 * gradsPerYear) return 'up';
-  if (perYear < 0.75 * gradsPerYear) return 'down';
+/** Nominal length of study, per level, when `Program.durationYears` is null.
+ *
+ *  Each value is the modal observed duration at that level on the KKU record
+ *  (bachelor 96 of 102 at 4 years, master 107 of 110 at 2, doctoral 52 of 63
+ *  at 3, higher graduate diploma 8 of 11 at 2). A four-year default for every
+ *  level was wrong in one direction for all three postgraduate ones: all 16
+ *  programmes with a null duration on dev are Master's, Doctoral or Higher
+ *  Graduate Diploma, and reading a two-year Master's as four halves its
+ *  annualised intake and throws its cohort window two years out. */
+export const NOMINAL_DURATION_YEARS: Readonly<Record<string, number>> = {
+  BACHELOR: 4,
+  MASTER: 2,
+  DOCTORAL: 3,
+  HIGHER_GRAD_DIPLOMA: 2,
+};
+/** For a level outside the enum — four years, the commonest degree here. */
+export const NOMINAL_DURATION_FALLBACK = 4;
+
+/** The length of study a programme is read as having: its own if recorded,
+ *  otherwise the nominal figure for its level. Never a global constant. */
+export function durationYearsFor(level: string, durationYears: number | null): number {
+  if (durationYears != null && durationYears > 0) return durationYears;
+  return NOMINAL_DURATION_YEARS[level] ?? NOMINAL_DURATION_FALLBACK;
+}
+
+/** Annualised intake: Σ over programmes of enrolled students ÷ THAT
+ *  programme's own length of study.
+ *
+ *  A programme holds one cohort per year of study at once, so the yearly
+ *  intake behind a pipeline figure is `enrolled ÷ duration`. Dividing a
+ *  field's summed pipeline by a nominal four overstates a six-year
+ *  programme's intake by half — which is exactly how Pharmacy and
+ *  Veterinary Medicine came to read "rising" against a steady intake.
+ *
+ *  Null when no programme carries a pipeline figure at all: an absent
+ *  measurement, never a zero intake. */
+export function annualisedIntake(
+  programmes: ReadonlyArray<{ pipeline: number | null; durationYears: number | null; level: string }>,
+): number | null {
+  let total = 0;
+  let measured = 0;
+  for (const p of programmes) {
+    if (p.pipeline == null) continue;
+    measured += 1;
+    total += p.pipeline / durationYearsFor(p.level, p.durationYears);
+  }
+  return measured === 0 ? null : total;
+}
+
+/** Annualised intake against graduates per year, at ±25 %. Both sides are
+ *  per-year quantities, so the comparison is like for like whatever the
+ *  programmes' lengths — see `annualisedIntake` for the divisor. */
+export function pipelineArrow(gradsPerYear: number | null, annualIntake: number | null): PipelineArrow | null {
+  if (gradsPerYear == null || annualIntake == null || gradsPerYear <= 0) return null;
+  if (annualIntake > 1.25 * gradsPerYear) return 'up';
+  if (annualIntake < 0.75 * gradsPerYear) return 'down';
   return 'flat';
 }
 
