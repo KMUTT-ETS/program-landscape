@@ -220,7 +220,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     defaultModel: 'gemini-3.5-flash',
   },
   // `gap-insights` (three modes over the seven-lens analyzer) was removed in
-  // v1.9.7 along with its prompt module. An entry here for a prompt nobody
+  // v1.9.8 along with its prompt module. An entry here for a prompt nobody
   // can run is worse than no entry: it offers a model to pin on
   // /admin/app/ai-settings for a method that never executes, and
   // assessModelHealth would report it as silently unused for ever.

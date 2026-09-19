@@ -27,7 +27,7 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-09-19',
-    version: 'v1.9.7 · The Gap Analyzer rebuilt as a demand-first map',
+    version: 'v1.9.8 · The Gap Analyzer rebuilt as a demand-first map',
     title:
       'The Gap Analyzer now starts from what employers ask for: one row per field of study, KKU’s share of graduates against the market’s share of adverts, and a verdict for each field',
     audience: ['Council', 'Executive', 'Analyst', 'Admin'],

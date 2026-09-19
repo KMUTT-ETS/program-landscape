@@ -140,7 +140,7 @@ export const METHODOLOGY_MANIFEST = {
   'expertise-narrative':       EXPERTISE_NARRATIVE_VERSION,
   'forecasting':               FORECASTING_VERSION,
   // The per-programme LinkedIn demand-gap helper. NOT the gap map — the
-  // seven-lens analyzer it used to belong to was retired in v1.9.7.
+  // seven-lens analyzer it used to belong to was retired in v1.9.8.
   'gap-analysis':              GAP_ANALYSIS_VERSION,
   // Demand-first gap map: the verdict rule Council reads on /gap-analysis.
   'gap-brief':                 GAP_BRIEF_VERSION,

@@ -12,7 +12,7 @@ rising-skills pick both changed during construction (2026-09-16 and
 has reached a reader under the earlier behaviour, and nothing persists a
 stamped row — the map is a read-time computation cached for five minutes. So
 `gap-map.v1` is still being *defined*, not revised. **The first change to any
-rule on this page after v1.9.7 ships does bump it.**
+rule on this page after v1.9.8 ships does bump it.**
 
 ---
 
@@ -632,7 +632,7 @@ space; `/gap-analysis/risks` → `/risks` (the risk register owns programme
 risk, and two screens computing it differently is how they came to disagree);
 `/gap-analysis/digital-competency` → `/education/digital-competency`.
 
-> **Numbers on `/gap-analysis` after v1.9.7 are not comparable to any earlier
+> **Numbers on `/gap-analysis` after v1.9.8 are not comparable to any earlier
 > figure on that page.** The units changed (shares, not a difference), the
 > unit of analysis changed (field of study, not skill), and the supply figure
 > was corrected upward by roughly 2.6× (§5). A reader comparing against a

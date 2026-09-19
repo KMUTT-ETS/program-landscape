@@ -183,7 +183,7 @@ export async function globalSignalForFields(
   // (see KmitlSkillGrowth in schema.prisma, populated by every write in
   // apps/ingestion/src/connectors/sources/kmitl-skill-mapping/connector.ts),
   // so it is gated below — matching how the retired seven-lens analyzer read
-  // the same table before v1.9.7.
+  // the same table before v1.9.8.
   const [occSkills, growth, generic] = await Promise.all([
     prisma.jobThaiOccupationSkill.findMany({
       where: { jobThaiOccupationId: { in: allOcc }, share: { gte: OCCUPATION_SKILL_DEMAND_FLOOR } },

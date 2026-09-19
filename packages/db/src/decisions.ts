@@ -125,13 +125,13 @@ export interface DecisionSnapshot {
   scope: { affectedProgramIds: string[]; facultyId: string | null };
   health: unknown;
   /**
-   * Snapshots captured before v1.9.7 carry the seven-lens risk + skill-gap
+   * Snapshots captured before v1.9.8 carry the seven-lens risk + skill-gap
    * payloads here; those rows are frozen and must stay readable, so both
    * fields survive as `unknown` and are written `null` from now on.
    */
   risks: unknown;
   topSkillGaps: unknown;
-  /** The demand-first gap map. Null on any pre-v1.9.7 snapshot. */
+  /** The demand-first gap map. Null on any pre-v1.9.8 snapshot. */
   gapMap: DecisionSnapshotGapMap | null;
   recentTrendCount: number;
   methodologyVersion: typeof DECISION_WORKSPACE_VERSION;
@@ -142,7 +142,7 @@ export interface DecisionSnapshot {
  *
  * An outcome review reads a snapshot frozen months or years ago. Rewriting
  * the reader to understand only the new shape would silently turn every
- * pre-v1.9.7 decision's gap line into "(no data)" — which the model would
+ * pre-v1.9.8 decision's gap line into "(no data)" — which the model would
  * then report as "the gap position was not recorded", when in fact it was.
  */
 export function summariseSnapshotGap(s: {

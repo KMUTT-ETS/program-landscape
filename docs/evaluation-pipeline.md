@@ -4,7 +4,7 @@
 >
 > **Audience.** Engineers + analysts working across modules. Read this before making cross-cutting changes; otherwise consult the per-methodology doc.
 >
-> **Last updated.** 2026-09-19 (v1.9.7 — the Gap Analyzer is rebuilt as the demand-first field map `gap-map.v1`. `gap-analysis.v1`'s six lenses and `gap-lenses.v1`'s composite index are retired; `gap-insights` is replaced by `gap-brief.v1`; two new mapping prompts, `job-field-taxonomy.v1` and `program-job-field.v1`, build the rows. `forecasting.v1` loses its last consumer. See `docs/methodologies/gap-map.md`.)
+> **Last updated.** 2026-09-19 (v1.9.8 — the Gap Analyzer is rebuilt as the demand-first field map `gap-map.v1`. `gap-analysis.v1`'s six lenses and `gap-lenses.v1`'s composite index are retired; `gap-insights` is replaced by `gap-brief.v1`; two new mapping prompts, `job-field-taxonomy.v1` and `program-job-field.v1`, build the rows. `forecasting.v1` loses its last consumer. See `docs/methodologies/gap-map.md`.)
 >
 > Previously 2026-05-12 (gaps #1 + #2 + #4 + #6 + #7 closed; gap #3 infrastructure + gap #5 PDF path + gap #8 scorer-side counterfactual landed. `lifecycle.v1.1 → v1.2` — `ProgramLifecycleResult` now carries `ungatedVerdict` + `gatesApplied[]` so Council readers can see the modifier gate's effect, not just its outcome).
 >
@@ -290,7 +290,7 @@ Rule-based fallback at `pnpm risks:seed-measures` generates 2–4 horizon-balanc
 Code: `packages/shared/src/ai/prompts/*.ts` · the directory holds **33 prompt builders** plus one
 `index.ts` barrel that re-exports all of them (34 files; `index.ts` itself defines no prompt).
 **30 of the 33 are tabulated below** — the per-section counts drifted from the directory before
-v1.9.7 and are reconciled area by area as each is touched; treat the directory, not this heading,
+v1.9.8 and are reconciled area by area as each is touched; treat the directory, not this heading,
 as the census. All
 routed through `AiService` (which writes `AiInference` audit row per call). Every prompt has a
 `*_VERSION` constant. Edit policy: behaviour change = bump version (major-only per
@@ -341,7 +341,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 |---|---|---|
 | `program-strategic-narrative.v1` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt. Never sees graduate outcomes, demand match, trend signals, risk, or cohort data — the largest single grounding gap in the estate (see prompt audit) |
 | `expertise-narrative.v2` | `user_expertise_narratives` (profile page only) | Pure expertise extraction from education + publication titles; bilingual TH+EN narrative + parallel keyword arrays |
-| `gap-brief.v1` | `/gap-analysis` Council brief | One call over the ≤ 60 gap-map rows on screen: ≤ 5 findings, each citing one field's own numbers, plus what the data cannot tell. **Every finding is reconciled against the row it names before it is returned** — a mismatched verdict is corrected, and one resolving to `supply-unknown` or to an ambiguous field name is dropped rather than guessed. Replaced `gap-insights` and its 3 modes at v1.9.7. On-demand, not stored |
+| `gap-brief.v1` | `/gap-analysis` Council brief | One call over the ≤ 60 gap-map rows on screen: ≤ 5 findings, each citing one field's own numbers, plus what the data cannot tell. **Every finding is reconciled against the row it names before it is returned** — a mismatched verdict is corrected, and one resolving to `supply-unknown` or to an ambiguous field name is dropped rather than guessed. Replaced `gap-insights` and its 3 modes at v1.9.8. On-demand, not stored |
 | `scenario-insights.v1` | `/scenarios` AI panel | 5 modes incl. devils-advocate (argues *against* apparent-best scenario). On-demand, not stored |
 | `benchmarking-insights.v1` | `/benchmarking` AI panel | 4 modes: suggest-peers · curriculum-gap · distinctiveness · positioning-brief. On-demand, not stored |
 | `trend-signal-analysis.v3` | `trend_signals` (affected programs + roles + recommended actions + white-space initiatives) | Runs on every trend signal, whether monitor-sourced or document-sourced; per-program job-role candidates (immediate vs. 1-3yr emerging) |
@@ -423,7 +423,7 @@ Quick "where does this number come from" reference. Read this when a UI value lo
 | `decision_outcome_reviews` | Decision Workspace outcome panel · search-lessons-learned |
 | `mv_program_metrics` / `mv_*_metrics` | `queryMetricByScope()` — exclusively |
 
-### 7.1b The gap map's input set (`gap-map.v1`, v1.9.7)
+### 7.1b The gap map's input set (`gap-map.v1`, v1.9.8)
 
 The demand-first Gap Analyzer is the one surface that reads across the JobThai,
 registrar and LinkedIn-via-MHESI families at once, and it **writes nothing** — it is
@@ -539,9 +539,9 @@ Per-scorer versions:
 - `lifecycle.v1.2`
 - `risk-scoring.v1.11`
 - `benchmarking.v1`
-- `forecasting.v1` (no consumer since v1.9.7 — retained for audit of stored `forecast_runs`)
+- `forecasting.v1` (no consumer since v1.9.8 — retained for audit of stored `forecast_runs`)
 - `scenario-engine.v1`
-- `gap-map.v1` (replaced `gap-analysis.v1` + `gap-lenses.v1` at v1.9.7; both retired)
+- `gap-map.v1` (replaced `gap-analysis.v1` + `gap-lenses.v1` at v1.9.8; both retired)
 - `dashboard-overview.v1`
 - `ai-readiness.v1` (deterministic Path A)
 - `decision-workspace.v1`

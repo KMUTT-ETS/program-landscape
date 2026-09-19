@@ -133,7 +133,7 @@ describe('dueOutcomeReviewHorizons', () => {
 // ── Snapshot gap summary ─────────────────────────────────────────────
 //
 // One line for the outcome-review prompt. It must read BOTH generations
-// of snapshot: decisions reviewed before v1.9.7 froze the seven-lens
+// of snapshot: decisions reviewed before v1.9.8 froze the seven-lens
 // skill-gap payload, and those rows are immutable — re-reading them
 // under the new shape is the whole point of an outcome review.
 describe('summariseSnapshotGap', () => {
@@ -160,7 +160,7 @@ describe('summariseSnapshotGap', () => {
     );
   });
 
-  it('still reads a pre-v1.9.7 skill-gap snapshot', () => {
+  it('still reads a pre-v1.9.8 skill-gap snapshot', () => {
     expect(
       summariseSnapshotGap({ topSkillGaps: { rows: [{ gap: 5, nameEn: 'Python' }, { gap: 3, nameEn: 'SQL' }] } }),
     ).toBe('2 skill gaps; top 3: Python, SQL');
