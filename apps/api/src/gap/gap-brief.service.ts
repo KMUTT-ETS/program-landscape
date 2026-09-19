@@ -13,6 +13,7 @@ import {
   buildGapBriefMessages,
   createAiService,
   extractStructuredWithParseRetry,
+  GAP_BRIEF_MAX_ROWS,
   GAP_BRIEF_VERSION,
   GapBriefOutputSchema,
   lintBannedTells,
@@ -51,7 +52,21 @@ export interface GapBriefResponse {
   confidence: number;
   /** Sources the panel lists — the same ids the map endpoint declares. */
   sources: Array<{ id: string; name: string }>;
+  /** Rows actually put in front of the model — `totalVisible` capped at
+   *  `GAP_BRIEF_MAX_ROWS`. */
   rowsBriefed: number;
+  /** Rows the reader has on screen, before the cap. `rowsBriefed` below
+   *  this number is the whole story a "covered 60 of 74" line tells; with
+   *  only the post-cap count no surface could say it. */
+  totalVisible: number;
+  /** Findings removed because they named a field this view does not carry,
+   *  or because their verdict corrected to `supply-unknown`. */
+  findingsDropped: number;
+  /** Findings kept but whose verdict was reset to the row's own. */
+  findingsCorrected: number;
+  /** Why there is no `output`. `'ok'` whenever the model ran — a UI must
+   *  never tell the two empty paths apart by matching English prose. */
+  reason: 'ok' | 'empty-view' | 'no-provider';
 }
 
 export const GAP_MAP_SOURCES = [
@@ -106,12 +121,21 @@ export class GapBriefService implements OnModuleInit {
 
   async generate(params: GapBriefParams): Promise<GapBriefResponse> {
     const map = await this.gap.map({ scope: params.scope, scopeId: params.scopeId, thresholds: params.thresholds });
-    const rows = visibleRows(map, params.verdict, params.facultyId).slice(0, 60);
-    const base = { methodologyVersion: GAP_BRIEF_VERSION, sources: GAP_MAP_SOURCES, rowsBriefed: rows.length };
+    // Filtered once: the pre-cap count is what the reader sees, the sliced
+    // array is what the model sees, and the response carries both.
+    const allVisible = visibleRows(map, params.verdict, params.facultyId);
+    const rows = allVisible.slice(0, GAP_BRIEF_MAX_ROWS);
+    const base = {
+      methodologyVersion: GAP_BRIEF_VERSION,
+      sources: GAP_MAP_SOURCES,
+      rowsBriefed: rows.length,
+      totalVisible: allVisible.length,
+    };
     if (!this.hasProvider() || rows.length === 0) {
       return {
         ...base,
         output: null,
+        reason: rows.length === 0 ? 'empty-view' : 'no-provider',
         rawText:
           rows.length === 0
             ? 'No rows in this view to brief.'
@@ -121,6 +145,8 @@ export class GapBriefService implements OnModuleInit {
         tokens: { input: 0, output: 0 },
         cost: { usd: 0, model: 'none' },
         confidence: 0,
+        findingsDropped: 0,
+        findingsCorrected: 0,
       };
     }
     const facultyLabel = params.facultyId
@@ -167,16 +193,14 @@ export class GapBriefService implements OnModuleInit {
       GapBriefOutputSchema,
       'gap-brief',
     );
-    const violations = lintBannedTells(freeText(response.parsed));
-    if (violations.length > 0) {
+    const complaints = draftComplaints(response.parsed);
+    if (complaints.length > 0) {
       const correction: AiMessage[] = [
         ...messages,
         { role: 'assistant', content: response.rawText },
         {
           role: 'user',
-          content: `Your draft used banned phrase(s): ${violations
-            .map((v) => `"${v.phrase}"`)
-            .join(', ')}. Rewrite the ENTIRE JSON without any of these words or their close paraphrases — same structure, same grounding rules.`,
+          content: `Your draft has problems. ${complaints.join(' ')} Rewrite the ENTIRE JSON with these fixed — same structure, same grounding rules.`,
         },
       ];
       const retry = await extractStructuredWithParseRetry(
@@ -185,23 +209,107 @@ export class GapBriefService implements OnModuleInit {
         GapBriefOutputSchema,
         'gap-brief',
       );
-      const still = lintBannedTells(freeText(retry.parsed));
+      const still = draftComplaints(retry.parsed);
       if (still.length > 0) {
-        this.logger.warn(`gap-brief banned-tell lint still failing after retry: ${still.map((v) => v.phrase).join(', ')}`);
+        this.logger.warn(`gap-brief draft still failing after retry: ${still.join(' ')}`);
       }
       response = retry;
     }
+    const reconciled = this.reconcileFindings(response.parsed, rows);
     return {
       ...base,
-      output: response.parsed,
+      output: reconciled.output,
+      reason: 'ok',
       rawText: response.rawText,
       model: response.model,
       aiInferenceId: response.aiInferenceId,
       tokens: response.tokens,
       cost: response.cost,
       confidence: response.confidence,
+      findingsDropped: reconciled.dropped,
+      findingsCorrected: reconciled.corrected,
     };
   }
+
+  /** Every finding must be about a row the reader can point at, wearing that
+   *  row's own verdict. The schema only checks the verdict is one of the six
+   *  legal strings — nothing stops the model from naming a `supply-unknown`
+   *  field and tagging it `under-served`, which manufactures a shortfall out
+   *  of a missing registrar figure. That is the exact reading `supply-unknown`
+   *  exists to prevent, and prompt rule 4 alone has no teeth.
+   *
+   *  Runs after the model calls, not as another one — like the banned-tell
+   *  pass, this is deterministic bookkeeping over text we already paid for. */
+  private reconcileFindings(
+    output: GapBriefOutput,
+    rows: GapMapRow[],
+  ): { output: GapBriefOutput; dropped: number; corrected: number } {
+    const byName = new Map(rows.map((r) => [normaliseFieldName(r.nameEn), r]));
+    let dropped = 0;
+    let corrected = 0;
+    const findings: GapBriefOutput['findings'] = [];
+    for (const f of output.findings) {
+      const row = byName.get(normaliseFieldName(f.fieldNameEn));
+      if (!row) {
+        dropped += 1;
+        this.logger.warn(`gap-brief finding dropped: "${f.fieldNameEn}" is not a row in this view`);
+        continue;
+      }
+      if (row.verdict === f.verdict) {
+        findings.push(f);
+        continue;
+      }
+      if (row.verdict === 'supply-unknown') {
+        // The prose was written as a shortfall; relabelling it would leave a
+        // finding whose text asserts a shortage its own label denies. There
+        // is no salvageable half, so the whole finding goes.
+        dropped += 1;
+        this.logger.warn(
+          `gap-brief finding dropped: "${f.fieldNameEn}" claimed ${f.verdict} but the row is supply-unknown`,
+        );
+        continue;
+      }
+      // The prose and the numbers still belong to this row — only the label
+      // was wrong, so the label is what gets fixed.
+      corrected += 1;
+      this.logger.warn(
+        `gap-brief finding corrected: "${f.fieldNameEn}" claimed ${f.verdict}, the row is ${row.verdict}`,
+      );
+      findings.push({ ...f, verdict: row.verdict });
+    }
+    return { output: { ...output, findings }, dropped, corrected };
+  }
+}
+
+/** Case- and whitespace-insensitive: the prompt asks for the name verbatim,
+ *  and dropping an otherwise-sound finding over "Logistics" vs "logistics"
+ *  would cost the reader a finding to punish a typo. Distinct field names
+ *  cannot collide under this. */
+function normaliseFieldName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** Deterministic faults worth one corrective call: banned tells, and a
+ *  `cannotTell` list shorter than prompt rule 5's two entries.
+ *
+ *  Rule 5's minimum is enforced here rather than as `.min(2)` on the schema
+ *  because the schema is the contract the map's own tests pin — a one-entry
+ *  `cannotTell` is a weak brief, not an unparseable one, and failing the
+ *  parse would spend the parse-retry on a response that is otherwise sound
+ *  and then throw. A correction turn asks for the missing entry instead, at
+ *  the same cost as the banned-tell retry and sharing its single call. */
+function draftComplaints(o: GapBriefOutput): string[] {
+  const complaints: string[] = [];
+  const tells = lintBannedTells(freeText(o));
+  if (tells.length > 0) {
+    complaints.push(
+      `You used banned phrase(s): ${tells.map((v) => `"${v.phrase}"`).join(', ')} — remove them and their close paraphrases.`,
+    );
+  }
+  if (o.cannotTell.length < 2) {
+    complaints.push(`"cannotTell" has ${o.cannotTell.length} entr${o.cannotTell.length === 1 ? 'y' : 'ies'}; rule 5 requires at least two.`);
+  }
+  return complaints;
 }
 
 function freeText(o: GapBriefOutput): string {
