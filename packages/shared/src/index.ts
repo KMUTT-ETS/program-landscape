@@ -28,6 +28,7 @@ export * from './usage';
 // Also reachable as `@kku/shared/pipeline/program-phases` — client components
 // MUST use that subpath, not this barrel (which pulls node:crypto).
 export * from './pipeline/program-phases';
+export * from './job108';
 
 import { z } from 'zod';
 import { ScopeLevelSchema } from './auth/scope-level';
