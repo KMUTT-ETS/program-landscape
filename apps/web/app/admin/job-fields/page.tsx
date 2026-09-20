@@ -7,7 +7,7 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import { DataSourceMark, acknowledgementHref } from '@/components/data-source-mark';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
-import { JobFieldsReview, type JobFieldRowDto, type ProgramJobFieldRowDto } from './client';
+import { JobFieldsReview, type FieldSynonymSourceDto, type JobFieldRowDto, type ProgramJobFieldRowDto } from './client';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Job fields — Admin' };
@@ -18,9 +18,10 @@ export default async function AdminJobFieldsPage() {
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
-  const [fields, assignments] = await Promise.all([
+  const [fields, assignments, synonymSources] = await Promise.all([
     apiFetchSafe<JobFieldRowDto[]>('/admin/job-fields'),
     apiFetchSafe<ProgramJobFieldRowDto[]>('/admin/job-fields/assignments'),
+    apiFetchSafe<FieldSynonymSourceDto[]>('/admin/job-fields/synonym-sources'),
   ]);
 
   return (
@@ -36,7 +37,11 @@ export default async function AdminJobFieldsPage() {
         subtitle="The fields of study JobThai employers ask for, clustered from the free-text strings on postings, and the programmes assigned to each. Proposed rows already appear on the Gap Analyzer, labelled unreviewed; approving one makes it Council-grade. Rebuilt after every JobThai upload (pnpm jobthai:fields for a dry run)."
       />
       {fields.ok && assignments.ok ? (
-        <JobFieldsReview fields={fields.data} assignments={assignments.data} />
+        // The synonym-source attribution is a review aid, not core data — if
+        // it fails to load, the approve/reject/merge loop must still work,
+        // just without the per-synonym labels and the government-only
+        // warning. Degrade to an empty list rather than blocking the page.
+        <JobFieldsReview fields={fields.data} assignments={assignments.data} synonymSources={synonymSources.ok ? synonymSources.data : []} />
       ) : (
         <DiagnosticEmptyState surface="job fields" error={!fields.ok ? fields.error : assignments.ok ? null : assignments.error} />
       )}

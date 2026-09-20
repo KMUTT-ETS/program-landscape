@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   setProgramJobFieldStatus: vi.fn(),
   addProgramJobField: vi.fn(),
   latestDemandRunId: vi.fn(),
+  synonymSourcesForField: vi.fn(),
+  synonymSourcesForAllFields: vi.fn(),
 }));
 
 vi.mock('@kku/db', async () => {
@@ -34,6 +36,8 @@ vi.mock('@kku/db', async () => {
     setProgramJobFieldStatus: mocks.setProgramJobFieldStatus,
     addProgramJobField: mocks.addProgramJobField,
     latestDemandRunId: mocks.latestDemandRunId,
+    synonymSourcesForField: mocks.synonymSourcesForField,
+    synonymSourcesForAllFields: mocks.synonymSourcesForAllFields,
   };
 });
 
@@ -71,6 +75,33 @@ describe('JobFieldsController decorators', () => {
   }
   it('list is gated on data_sources:read', () => {
     expect(meta<string>(PERMISSION_META, JobFieldsController.prototype.list)).toBe('data_sources:read');
+  });
+  it('synonymSources is gated on data_sources:read, like the other reads', () => {
+    expect(meta<string>(PERMISSION_META, JobFieldsController.prototype.synonymSources)).toBe('data_sources:read');
+  });
+});
+
+describe('JobFieldsController.synonymSources', () => {
+  it('with no fieldId, returns the bulk attribution for every field', async () => {
+    const { controller } = makeController();
+    mocks.synonymSourcesForAllFields.mockResolvedValue([{ fieldId: 'f1', synonym: 'บัญชี', sources: ['jobthai'] }]);
+
+    const result = await controller.synonymSources({});
+
+    expect(mocks.synonymSourcesForAllFields).toHaveBeenCalledTimes(1);
+    expect(mocks.synonymSourcesForField).not.toHaveBeenCalled();
+    expect(result).toEqual([{ fieldId: 'f1', synonym: 'บัญชี', sources: ['jobthai'] }]);
+  });
+
+  it('with a fieldId, calls the single-field lookup and stamps the id onto each row', async () => {
+    const { controller } = makeController();
+    mocks.synonymSourcesForField.mockResolvedValue([{ synonym: 'รัฐประศาสนศาสตร์', sources: ['job-108'] }]);
+
+    const result = await controller.synonymSources({ fieldId: 'f1' });
+
+    expect(mocks.synonymSourcesForField).toHaveBeenCalledWith('f1');
+    expect(mocks.synonymSourcesForAllFields).not.toHaveBeenCalled();
+    expect(result).toEqual([{ fieldId: 'f1', synonym: 'รัฐประศาสนศาสตร์', sources: ['job-108'] }]);
   });
 });
 

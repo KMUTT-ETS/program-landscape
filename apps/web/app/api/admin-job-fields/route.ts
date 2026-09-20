@@ -13,11 +13,12 @@ export async function GET() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) return NextResponse.json({ data: null, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
   try {
-    const [fields, assignments] = await Promise.all([
+    const [fields, assignments, synonymSources] = await Promise.all([
       apiFetch('/admin/job-fields'),
       apiFetch('/admin/job-fields/assignments'),
+      apiFetch('/admin/job-fields/synonym-sources'),
     ]);
-    return NextResponse.json({ data: { fields, assignments } });
+    return NextResponse.json({ data: { fields, assignments, synonymSources } });
   } catch (err) {
     const e = err as ApiFetchError;
     return NextResponse.json(

@@ -10,6 +10,8 @@ import {
   renameJobField,
   setJobFieldStatus,
   setProgramJobFieldStatus,
+  synonymSourcesForAllFields,
+  synonymSourcesForField,
 } from '@kku/db';
 import { ApiError } from '@kku/shared';
 import { AuditLog, Authorized, ZodValidationPipe } from '../common';
@@ -59,6 +61,22 @@ export class JobFieldsController {
   @Authorized('data_sources:read')
   async assignments(@Query(new ZodValidationPipe(AssignmentsQuery)) q: z.infer<typeof AssignmentsQuery>) {
     return listProgramJobFields(q.fieldId);
+  }
+
+  // Which demand source(s) contributed each synonym of a field — see
+  // synonymSourcesForField's doc comment (packages/db/src/job-fields.ts) for
+  // why a reviewer needs this before approving. With no fieldId, returns the
+  // bulk attribution for every field in one query, which is what the review
+  // page loads (the "government-only" warning has to hold for every row, not
+  // only whichever one is selected).
+  @Get('synonym-sources')
+  @Authorized('data_sources:read')
+  async synonymSources(@Query(new ZodValidationPipe(AssignmentsQuery)) q: z.infer<typeof AssignmentsQuery>) {
+    if (q.fieldId) {
+      const rows = await synonymSourcesForField(q.fieldId);
+      return rows.map((r) => ({ fieldId: q.fieldId as string, ...r }));
+    }
+    return synonymSourcesForAllFields();
   }
 
   @Post(':id/approve')

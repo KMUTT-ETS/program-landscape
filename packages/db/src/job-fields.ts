@@ -561,3 +561,31 @@ export async function synonymSourcesForField(fieldId: string): Promise<SynonymSo
   `);
   return rows;
 }
+
+export interface FieldSynonymSources extends SynonymSources {
+  fieldId: string;
+}
+
+/**
+ * The bulk sibling of {@link synonymSourcesForField}: attribution for every
+ * synonym of every field, in one query. /admin/job-fields needs this for the
+ * whole taxonomy at once — the "every synonym is government-only" warning
+ * has to be correct for a field the reviewer has not clicked into yet (the
+ * approve button sits on every row, not only the selected one), so per-field
+ * lazy loading would let an unselected row's warning silently not fire.
+ * Same derivation, same realDataSql gate as the single-field version.
+ */
+export async function synonymSourcesForAllFields(): Promise<FieldSynonymSources[]> {
+  const rows = await prisma.$queryRaw<FieldSynonymSources[]>(Prisma.sql`
+    SELECT f.id AS "fieldId", syn AS synonym, array_agg(DISTINCT jp.source ORDER BY jp.source) AS sources
+    FROM job_field_taxonomy f
+    CROSS JOIN LATERAL unnest(f.synonyms) AS syn
+    JOIN job_postings jp
+      ON syn = ANY(jp.required_fields_raw)
+     AND jp.source = ANY(${TAXONOMY_SOURCES}::text[])
+     AND ${realDataSql('jp')}
+    GROUP BY f.id, syn
+    ORDER BY f.id ASC, syn ASC
+  `);
+  return rows;
+}

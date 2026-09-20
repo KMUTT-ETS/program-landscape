@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 import { Badge, Button, Card } from '@kku/ui';
-import { Check, GitMerge, Pencil, X } from 'lucide-react';
+import { AlertTriangle, Check, GitMerge, Pencil, X } from 'lucide-react';
 
 // @kku/ui has no text-input primitive; the /usage search box uses a plain
 // <input> with token classes, and so does this page — classes copied from
@@ -37,11 +37,43 @@ export interface ProgramJobFieldRowDto {
   reviewStatus: 'PROPOSED' | 'APPROVED' | 'REJECTED';
 }
 
+// Which demand source(s) contributed a synonym — derived from the postings
+// (packages/db/src/job-fields.ts: synonymSourcesForField / …ForAllFields),
+// not stored, so it can never drift from what is actually on file.
+export interface FieldSynonymSourceDto {
+  fieldId: string;
+  synonym: string;
+  sources: string[];
+}
+
 const STATUS_LABEL: Record<JobFieldRowDto['reviewStatus'], { label: string; tone: 'warning' | 'success' | 'outline' }> = {
   PROPOSED: { label: 'Proposed', tone: 'warning' },
   APPROVED: { label: 'Approved', tone: 'success' },
   REJECTED: { label: 'Rejected', tone: 'outline' },
 };
+
+// Plain-text labels — deliberately NOT the shared <DataSourceMark> component
+// (apps/web/src/components/data-source-mark.tsx). A concurrent task is
+// adding a job-108 slug + text variant to that component; importing it here
+// would collide with that work. Swap these for <DataSourceMark> once both
+// land — a deliberate deferral, not an oversight.
+const SOURCE_LABEL: Record<string, string> = { jobthai: 'JobThai', 'job-108': 'Job-108' };
+
+/**
+ * True only when every synonym the field carries has attribution data AND
+ * every one of those is job-108 (government announcements) alone. A field
+ * with a synonym that has no attribution at all (never seen on a posting
+ * under the current filters) is NOT asserted government-only — there is no
+ * evidence either way for that synonym, so silence must not read as "safe".
+ */
+export function isGovernmentOnlyField(synonyms: string[], sources: FieldSynonymSourceDto[]): boolean {
+  if (synonyms.length === 0) return false;
+  const bySynonym = new Map(sources.map((r) => [r.synonym, r.sources]));
+  return synonyms.every((s) => {
+    const src = bySynonym.get(s);
+    return src != null && src.length === 1 && src[0] === 'job-108';
+  });
+}
 
 async function call(path: string, method: 'POST' | 'PATCH', body?: unknown): Promise<boolean> {
   const res = await fetch(`/api/admin-job-fields/${path}`, {
@@ -57,7 +89,15 @@ async function call(path: string, method: 'POST' | 'PATCH', body?: unknown): Pro
   return true;
 }
 
-export function JobFieldsReview({ fields: initialFields, assignments: initialAssignments }: { fields: JobFieldRowDto[]; assignments: ProgramJobFieldRowDto[] }): React.JSX.Element {
+export function JobFieldsReview({
+  fields: initialFields,
+  assignments: initialAssignments,
+  synonymSources = [],
+}: {
+  fields: JobFieldRowDto[];
+  assignments: ProgramJobFieldRowDto[];
+  synonymSources?: FieldSynonymSourceDto[];
+}): React.JSX.Element {
   const [fields, setFields] = React.useState(initialFields);
   const [assignments, setAssignments] = React.useState(initialAssignments);
   const [selected, setSelected] = React.useState<string | null>(initialFields[0]?.id ?? null);
@@ -65,6 +105,21 @@ export function JobFieldsReview({ fields: initialFields, assignments: initialAss
   const [renaming, setRenaming] = React.useState<{ id: string; nameTh: string; nameEn: string } | null>(null);
   const [merging, setMerging] = React.useState<string | null>(null);
   const [mergeTarget, setMergeTarget] = React.useState('');
+
+  // Not a useState: synonym-source attribution doesn't change when a field
+  // or assignment is approved/rejected/renamed/merged, so it doesn't need to
+  // participate in the refresh() round trip — recomputing it from the prop
+  // on every render is enough. (Also keeps this component's useState call
+  // order stable, which the render test below pins to fixed indices.)
+  const sourcesByField = React.useMemo(() => {
+    const map = new Map<string, FieldSynonymSourceDto[]>();
+    for (const row of synonymSources) {
+      const list = map.get(row.fieldId);
+      if (list) list.push(row);
+      else map.set(row.fieldId, [row]);
+    }
+    return map;
+  }, [synonymSources]);
 
   const refresh = React.useCallback(async () => {
     const res = await fetch('/api/admin-job-fields');
@@ -104,15 +159,36 @@ export function JobFieldsReview({ fields: initialFields, assignments: initialAss
           <div className="text-xs text-text-tertiary">{approved} approved · {proposed} proposed · {fields.length - approved - proposed} rejected</div>
         </div>
         <ul className="divide-y divide-default">
-          {fields.map((f) => (
+          {fields.map((f) => {
+            const fieldSources = sourcesByField.get(f.id) ?? [];
+            const governmentOnly = isGovernmentOnlyField(f.synonyms, fieldSources);
+            return (
             <li key={f.id} className={`px-4 py-3 ${selected === f.id ? 'bg-surface-2' : ''}`}>
+              {governmentOnly && f.reviewStatus !== 'APPROVED' && (
+                <div
+                  data-testid="government-only-warning"
+                  className="mb-2 flex items-start gap-2 rounded-md border border-[oklch(var(--color-warning-default)/0.3)] bg-warning-subtle px-3 py-2 text-xs leading-relaxed text-text-primary"
+                >
+                  <AlertTriangle className="mt-0.5 h-[14px] w-[14px] shrink-0 text-warning" aria-hidden="true" />
+                  <span>
+                    Every synonym of this field comes from government announcements. Approving it will also change which programmes JobThai adverts are matched to, because an approved field&rsquo;s assignments decide that match — and those links feed the JobThai demand-alignment health driver.
+                  </span>
+                </div>
+              )}
               <div className="flex items-start justify-between gap-3">
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setSelected(f.id)}>
                   <div className="truncate text-sm font-medium">{f.nameTh} <span className="text-text-secondary">· {f.nameEn}</span></div>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {f.synonyms.map((s) => (
-                      <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-text-secondary">{s}</span>
-                    ))}
+                    {f.synonyms.map((s) => {
+                      const rowSources = fieldSources.find((r) => r.synonym === s)?.sources ?? [];
+                      const label = rowSources.map((src) => SOURCE_LABEL[src] ?? src).join(', ');
+                      return (
+                        <span key={s} className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-text-secondary">
+                          {s}
+                          {label && <span className="text-text-tertiary"> · {label}</span>}
+                        </span>
+                      );
+                    })}
                   </div>
                   <div className="mt-1 text-xs text-text-tertiary">{f.mentionCount.toLocaleString()} postings · {f.programmeCount} programmes</div>
                 </button>
@@ -255,7 +331,8 @@ export function JobFieldsReview({ fields: initialFields, assignments: initialAss
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
           {fields.length === 0 && <li className="px-4 py-6 text-sm text-text-tertiary">No fields yet. Run pnpm jobthai:fields --apply after a JobThai upload.</li>}
         </ul>
       </Card>
