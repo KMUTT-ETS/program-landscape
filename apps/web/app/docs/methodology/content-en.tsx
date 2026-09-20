@@ -39,10 +39,10 @@ export function MethodologyContentEn() {
           <MetaTable
             rows={[
               { label: 'Methodology code', value: <><Code>health-score.v5.2</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.5' },
+              { label: 'Document version', value: '1.6' },
               { label: 'Prepared by', value: 'KKU Data Office — Program Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
-              { label: 'Date', value: '2026-09-19' },
+              { label: 'Date', value: '2026-09-20' },
             ]}
           />
         </div>
@@ -88,18 +88,24 @@ export function MethodologyContentEn() {
 
       <DocSection id="abstract" title="Abstract">
         <P>
-          The Program Landscape application produces two quantitative outputs to inform decisions on
-          the 297 academic programs at Khon Kaen University: a <Strong>Program Health Score</Strong> (a
-          0–100 composite across five operational dimensions) and a <Strong>Program Lifecycle Verdict</Strong>{' '}
+          The Program Landscape application computes two <Strong>per-programme</Strong> quantitative
+          outputs to inform decisions on the 297 academic programs at Khon Kaen University: a{' '}
+          <Strong>Program Health Score</Strong> (a 0–100 composite across five operational
+          dimensions) and a <Strong>Program Lifecycle Verdict</Strong>{' '}
           (a four-band classifier — Sunset / Stable / Rising / Frontier — that integrates the health
           score with content-modernity and AI-readiness signals). This paper specifies the inputs,
-          formulas, aggregation rules, null-handling conventions, and governance guardrails of both
-          outputs. The intended audience is decision-makers (University Council, executive officers,
-          deans) and program coordinators who must interpret these scores when reviewing the program
-          portfolio. The paper is deliberately conservative in its claims: every score informs, none
-          decides, and program closure / merger / launch decisions remain a human-in-the-loop process
-          requiring two-reviewer Council approval regardless of the computed values. Limitations and
-          known data gaps are documented in §8.
+          formulas, aggregation rules, null-handling conventions, and governance guardrails of both.
+          It also specifies the two <Strong>portfolio-level</Strong> layers that sit beside them and
+          are not reducible to either: <Strong>Risk Management</Strong> (§5), which turns those
+          scores into watched indicators and tracked mitigations, and the{' '}
+          <Strong>Gap Analyzer</Strong> (§6), which starts from labour-market demand rather than
+          from KKU and asks which fields of study the portfolio serves, over-serves or does not
+          serve at all. The intended audience is decision-makers (University Council, executive
+          officers, deans) and program coordinators who must interpret these outputs when reviewing
+          the program portfolio. The paper is deliberately conservative in its claims: every score
+          informs, none decides, and program closure / merger / launch decisions remain a
+          human-in-the-loop process requiring two-reviewer Council approval regardless of the
+          computed values. Limitations and known data gaps are documented in §9.
         </P>
       </DocSection>
 
@@ -126,7 +132,7 @@ export function MethodologyContentEn() {
         </DocSubsection>
 
         <DocSubsection number="1.2" title="Scope and audience">
-          <P>This paper specifies <Strong>two outputs</Strong>:</P>
+          <P>This paper specifies <Strong>two per-programme outputs</Strong>:</P>
           <UL>
             <LI>The <Strong>Program Health Score</Strong> — a five-dimension composite that diagnoses{' '}
               <Em>current operational state</Em>.</LI>
@@ -134,9 +140,16 @@ export function MethodologyContentEn() {
               <Em>strategic trajectory</Em> by combining the health score with content-modernity and
               AI-readiness signals.</LI>
           </UL>
+          <P>and <Strong>two portfolio-level layers</Strong> that read alongside them:</P>
+          <UL>
+            <LI><Strong>Risk Management</Strong> (§5) — key risk indicators, an AI-assisted risk
+              assessment, and the mitigation lifecycle that follows from them.</LI>
+            <LI><Strong>The Gap Analyzer</Strong> (§6) — a demand-first map of the fields of study
+              employers ask for, against the graduates KKU produces in each.</LI>
+          </UL>
           <P>
-            Other quantitative outputs from the platform (cost allocation, gap analysis, scenario
-            projection, peer benchmarking) are documented separately under <Code>docs/methodologies/</Code>.
+            Other quantitative outputs from the platform (cost allocation, scenario projection,
+            peer benchmarking) are documented separately under <Code>docs/methodologies/</Code>.
           </P>
           <P>
             Audience: University Council members, the President's executive team, deans, department
@@ -455,7 +468,7 @@ export function MethodologyContentEn() {
                 <TR>
                   <TD mono>demographic_resilience</TD>
                   <TD><Code>100 − clamp(requiredShareAt+10y × 100 000 × 100)</Code>. The required share is the fraction of Thailand's 18–22 cohort the programme would need to recruit from, ten years out, to maintain its current intake. {'<'} 0.05% → ≈ 100; {'>'} 0.2% → ≈ 0.</TD>
-                  <TD><Code>programDemographicOutlook</Code> (driven by Thailand cohort projections; see §4.3 for the calculation, §6 for the data source, and <Code>docs/methodologies/forecasting.md</Code>).</TD>
+                  <TD><Code>programDemographicOutlook</Code> (driven by Thailand cohort projections; see §4.3 for the calculation, §7 for the data source, and <Code>docs/methodologies/forecasting.md</Code>).</TD>
                 </TR>
                 <TR>
                   <TD mono>strategic_sector_alignment</TD>
@@ -502,7 +515,7 @@ export function MethodologyContentEn() {
             slopes, per-level revenue targets, intake floors, peer-subject percentiles) rolls up as the
             mean of its program values; a driver whose scale is scope-invariant is computed as a
             ratio of sums, which weights each program by its size. A faculty's score is therefore{' '}
-            <Strong>not</Strong> the simple average of its programs' scores, deliberately — see §8.3
+            <Strong>not</Strong> the simple average of its programs' scores, deliberately — see §9.3
             for the measured difference.
           </P>
           <P>
@@ -1011,7 +1024,7 @@ otherwise                                         → SUNSET`}</Pre>
             count of <Code>severity = major</Code> content gaps. The richer fields are
             presentation-only on the Deep-Dive. AI peer-review outputs below the auto-approve
             confidence threshold (currently 0.85, configurable) sit in an analyst review queue and
-            are never silently materialised — see §7 (Governance).
+            are never silently materialised — see §8 (Governance).
           </P>
         </DocSubsection>
 
@@ -1070,57 +1083,6 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="4.8" title="Gap map — field-of-study demand against KKU supply">
-          <P>
-            The Gap Analyzer (<Code>gap-map.v1</Code>) starts from demand. Each row is a{' '}
-            <Strong>field of study</Strong> that employers name in JobThai adverts, clustered from
-            free text by <Code>job-field-taxonomy.v1</Code> and reviewed by an administrator.{' '}
-            <Strong>Demand share</Strong> is the field&rsquo;s share of eligible adverts &mdash; those
-            whose minimum education level admits a bachelor&rsquo;s graduate &mdash; that name any
-            canonical field. <Strong>KKU share</Strong> is the field&rsquo;s share of graduates per
-            year across the programmes the map <Em>scores</Em> for that field: bachelor programmes
-            inside the scope being viewed. The <Strong>verdict</Strong> is the ratio of the two:{' '}
-            <Em>white space</Em> when the field has no scored programme &mdash; postgraduate tracks
-            may exist, are listed inside the row, and are never scored &mdash;{' '}
-            <Em>under-served</Em> below 0.5, <Em>over-served</Em> above 2, <Em>served</Em> between,
-            and <Em>too few postings</Em> under 20 adverts, which is one of the six verdicts rather
-            than a blank. The comparison is made on the unrounded ratio while the table displays two
-            decimals. Thresholds are URL parameters, shown above the table and in the provenance
-            drawer under <Em>Methodology</Em>, beside the version they belong to.
-          </P>
-          <P>
-            Both sides are normalised by the sum over fields of their own numerators, not by a
-            count of distinct adverts or programmes: an advert naming two fields is demand for
-            each, and a programme assigned to two fields supplies both. Measured on development,
-            4,654 of 17,077 field-naming adverts name more than one field, and a distinct-advert
-            denominator made the demand shares sum to 1.40 rather than 1. The reconciliation line
-            under the table states how many adverts and programmes are counted more than once,
-            alongside how many programmes carry a graduate figure at all.
-          </P>
-          <P>
-            A sixth verdict, <Em>supply-unknown</Em>, is reported when a field has KKU programmes
-            but none of them carries a graduate figure. It is a <Strong>missing measurement, never
-            a shortfall</Strong> &mdash; the same null-handling rule the Health Score applies in
-            &sect;2. Graduates per year follow the registrar rule used elsewhere in this paper: the
-            mean of the entry cohorts that could have graduated, over however many of them there
-            are, with a single-year graduated-on-time figure as a fallback. The window is taken{' '}
-            <Strong>per programme</Strong> &mdash; six cohorts ending with the newest one that
-            programme&rsquo;s own length of study allows it to have finished &mdash; so a six-year
-            degree is averaged over as many cohorts as a four-year one. Current enrolment supplies a
-            pipeline arrow, annualised by each programme&rsquo;s own length of study rather than by
-            one nominal figure for the field. Postgraduate programmes are listed inside a row but
-            are not scored, because only 41 of 47,631 adverts state a postgraduate minimum.
-          </P>
-          <P>
-            Shares replace the earlier demand &minus; supply difference, which compared a sum of
-            percentages with a count of graduates. <Strong>Figures on this page are not comparable
-            to any earlier Composite Gap Index</Strong>, and the graduate figures are corrected
-            upward &mdash; a fault inherited from the retired calculation under-reported them by
-            roughly 60 %. See <Code>docs/methodologies/gap-map.md</Code> for the open decisions
-            that remain, including cohort completeness and the absence of a Thailand series in the
-            current LinkedIn-via-MHESI capture.
-          </P>
-        </DocSubsection>
       </DocSection>
 
       <DocSection id="risk-management" number="5." title="Risk Management">
@@ -1371,14 +1333,384 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="data-sources" number="6." title="Data sources and provenance">
+      <DocSection id="gap-map" number="6." title="The Gap Analyzer — field-of-study demand against KKU supply">
+        <P>
+          Health Score (§2), Lifecycle Verdict (§3) and Risk Management (§5) all look at one
+          programme at a time. The <Strong>Gap Analyzer</Strong> (<Code>gap-map.v1</Code>) asks
+          the portfolio question instead, and it asks it from the other end: starting from{' '}
+          <Strong>demand</Strong> rather than from KKU&rsquo;s programme list, which parts of the
+          labour market does the university fail to serve, over-serve, or serve with the wrong
+          programmes. It answers strategic questions 3 and 5 of the project charter.
+        </P>
+        <P>
+          <Strong>Scope</Strong>: the whole portfolio, at university, faculty or department
+          scope. A faculty or department view restricts <Em>supply</Em> to that unit&rsquo;s
+          programmes and adds a <Strong>KKU-total column</Strong> to every row, so a field the
+          Faculty of Engineering does not serve but the university does is visibly that, and not
+          a portfolio gap. There is no programme scope: a single programme is a Deep-Dive, and{' '}
+          <Code>/gap-analysis?scope=program</Code> is refused by the API rather than silently
+          widened.
+        </P>
+        <P>
+          The companion canonical doc is <Code>docs/methodologies/gap-map.md</Code>. Locked
+          references: <Code>packages/db/src/gap-map.ts</Code> (the query),{' '}
+          <Code>packages/db/src/gap-map-rules.ts</Code> (the pure rules),{' '}
+          <Code>packages/db/src/gap-map-signals.ts</Code> (&ldquo;what&rsquo;s coming&rdquo;). The
+          map <Strong>writes nothing</Strong> — it is a read-time computation cached for five
+          minutes.
+        </P>
+
+        <DocSubsection number="6.1" title="Why the unit is a field of study">
+          <P>
+            The row of this map is a <Strong>field of study</Strong> — what an employer says a
+            graduate should hold — and not a skill, an occupation or a programme. JobThai adverts
+            state a required field directly and with counts, which no other source available to
+            the application does: <Strong>40.7 %</Strong> of JobThai postings name at least one.
+            An occupation would need a crosswalk KKU does not have; a skill produced the failure
+            described below.
+          </P>
+          <P>
+            Both sides of the comparison are expressed as <Strong>shares</Strong>. The retired{' '}
+            <Code>gap-analysis.v1</Code> compared a sum of posting-weight <Em>percentages</Em>{' '}
+            (2,469 at university scope) against <Em>graduates per year</Em> (157,356) and called
+            the difference a gap. The two quantities have no common unit, so nearly everything
+            read as oversupply. Shares put both sides on the same scale, and they also absorb
+            JobThai&rsquo;s national, Bangkok-weighted volume: 37 % of adverts are Bangkok and
+            3.3 % the 20 Northeast provinces (Khon Kaen: 304). A field&rsquo;s <Em>share</Em> of
+            adverts is comparable across fields even though the absolute count is not a KKU-region
+            figure — which is why the province breakdown is shown inside every row, so a reader
+            can see how national a given field&rsquo;s demand is before acting on it.
+          </P>
+          <Callout tone="warning" title="Figures on this page are not comparable to any earlier Gap Analyzer number">
+            <P>
+              The unit of analysis changed (field of study, not skill), the units changed (shares,
+              not a difference), and the supply figure was corrected upward by roughly 2.6×
+              (&sect;6.4). A reader comparing against a remembered <Em>Composite Gap Index</Em> is
+              comparing two unrelated quantities. <Code>gap-lenses.v1</Code>&rsquo;s seven lenses
+              and composite index, and the three <Code>gap-insights</Code> AI modes, are retired.
+            </P>
+          </Callout>
+        </DocSubsection>
+
+        <DocSubsection number="6.2" title="The field-of-study taxonomy, and its review states">
+          <P>
+            Employers type a field as free text. Raw strings from{' '}
+            <Code>job_postings.required_fields_raw</Code> with at least{' '}
+            <Strong>5 mentions</Strong> (<Code>JOB_FIELD_MENTION_FLOOR</Code>; 517 of 3,854
+            distinct strings cleared it, re-measured 2026-09-19) are clustered by{' '}
+            <Code>job-field-taxonomy.v1</Code> into canonical fields with Thai and English names.
+            Each field absorbs its raw strings as <Strong>synonyms</Strong>, and a raw string
+            belongs to <Strong>at most one field</Strong> — enforced in application code, because
+            Postgres cannot express the constraint. Batches are 200 strings, and new fields from
+            one batch become anchors for the next, which is what stops a discipline being created
+            twice across batches. Strings below the floor are never assigned to a field and are in
+            neither denominator; they are reported on their own line instead (&sect;6.6).
+          </P>
+          <P>
+            Programmes are then assigned to fields by <Strong>three sources, in this order</Strong>,
+            and each assignment records which one placed it:
+          </P>
+          <OL>
+            <LI>
+              <Code>rule</Code> — the name-match rule the JobThai bridge already uses. A synonym
+              matching more than <Code>MAX_PROGRAMMES_PER_FIELD</Code> (<Strong>15</Strong>)
+              programmes is generic vocabulary and creates no assignment at all.
+            </LI>
+            <LI>
+              <Code>ai</Code> — <Code>program-job-field.v1</Code>, at most <Strong>3 fields per
+              programme</Strong>, and only for the programmes the rule did not place. An empty
+              list is a valid answer.
+            </LI>
+            <LI><Code>manual</Code> — by hand at <Code>/admin/job-fields</Code>.</LI>
+          </OL>
+          <P>
+            <Strong>Review states.</Strong> A field is <Code>PROPOSED</Code> when it is created:
+            it appears on the map <Strong>at once, labelled unreviewed</Strong>, and the count of
+            unreviewed fields is stated in the provenance drawer. <Code>APPROVED</Code> means an
+            administrator has reviewed it. <Code>REJECTED</Code> is invisible everywhere and is
+            never re-created — the build step never renames, downgrades or strips synonyms from an{' '}
+            <Code>APPROVED</Code> or <Code>REJECTED</Code> row. Showing proposed fields before
+            review is a deliberate choice: withholding them would silently understate demand, and
+            the label is the honest alternative.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.3" title="Demand share">
+          <P>
+            <Strong>Demand share</Strong> is the field&rsquo;s eligible adverts divided by{' '}
+            <Strong>field-mentions</Strong> = Σ<sub>f</sub> (eligible adverts naming field{' '}
+            <Em>f</Em>). An advert naming <Em>k</Em> fields counts <Em>k</Em> times, because it is
+            genuine demand for each of them.
+          </P>
+          <P>
+            <Strong>Eligible</Strong> means the advert&rsquo;s stated minimum education level
+            admits a bachelor&rsquo;s graduate: vocational certificate, higher vocational
+            certificate, or bachelor&rsquo;s. <Code>UNSPECIFIED</Code> is never eligible (14,283
+            adverts). Of <Strong>47,631</Strong> JobThai adverts, <Strong>33,307</Strong> are
+            bachelor-eligible — 20,482 stating a bachelor&rsquo;s minimum, 7,212 a higher
+            vocational certificate and 5,613 a vocational certificate (re-measured 2026-09-19).
+          </P>
+          <P>
+            The denominator rule matters and it was got wrong first. Measured on development,{' '}
+            <Strong>4,654 of 17,077</Strong> field-naming eligible adverts name more than one
+            field. With a <Em>distinct-posting</Em> denominator the demand shares summed to{' '}
+            <Strong>1.40</Strong>, not 1 — every share was silently deflated, and by a different
+            amount per field. With field-mentions, the share set sums to 1 and the ratio carries no
+            bias from multi-assignment. The cost of the rule is that the same advert can be counted
+            more than once across the table; the reconciliation line states how many.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.4" title="KKU share, and the graduates-per-year rule">
+          <P>
+            <Strong>KKU share</Strong> is graduates per year of the field&rsquo;s <Em>scored</Em>{' '}
+            programmes divided by <Strong>field-graduates</Strong> = Σ<sub>f</sub> (graduates/yr of{' '}
+            <Em>f</Em>&rsquo;s scored programmes) — the mirror of field-mentions, so a programme
+            assigned to two fields counts in both.
+          </P>
+          <P>
+            <Strong>Postgraduate programmes are listed inside a row with their graduates but are
+            never scored.</Strong> Only <Strong>41 of 47,631</Strong> adverts state a postgraduate
+            minimum (39 master&rsquo;s, 2 doctoral), so any verdict on a master&rsquo;s or doctoral
+            programme would have been built from undergraduate adverts. This is the same
+            honest-signal gate <Code>health-score.v5.2</Code> applies to the{' '}
+            <Code>jobthai_demand_alignment</Code> driver. It follows that a{' '}
+            <Strong>white space means no <Em>bachelor</Em> programme, not no programme</Strong>: a
+            field whose only KKU presence is a master&rsquo;s or doctoral track is a white space
+            whose row nonetheless lists those tracks with their graduates, so
+            &ldquo;Programmes: —&rdquo; cannot be read as &ldquo;nothing here&rdquo;. Two fields
+            are in that state on development (2026-09-19): Psychology, with one postgraduate
+            track, and Geography, with two.
+          </P>
+          <P><Strong>Graduates per year</Strong> is computed as follows.</P>
+          <P>
+            <Strong>Primary — registrar alumni cohorts.</Strong> The window is{' '}
+            <Strong>per programme</Strong> and anchored on <Em>graduation</Em>, not enrolment: its
+            newest end is the newest cohort <Em>that</Em> programme could have finished
+            (<Code>currentAcademicYearBE &minus; durationYears</Code>, over graduated rows only),
+            and it reaches <Code>SUPPLY_WINDOW_COHORTS</Code> = <Strong>6</Strong> cohorts back
+            from there. The divisor is <Strong>the number of cohorts actually averaged</Strong>,
+            never a hard-coded five. Length of study is the programme&rsquo;s own; where none is
+            recorded, the nominal figure for its level is used — bachelor 4, doctoral 3,
+            master&rsquo;s 2, higher graduate diploma 2. That is not academic: all{' '}
+            <Strong>16 of 301</Strong> programmes with no recorded duration on development are
+            postgraduate, so the flat four-year default this rule replaced was wrong for every one
+            of them.
+          </P>
+          <P>
+            <Strong>Fallback — a single graduated-on-time figure</Strong> from{' '}
+            <Code>enrollment_metrics</Code>, taking the newest academic year with a{' '}
+            <Strong>non-zero</Strong> value. Each programme reports which of the two it used, and
+            an enrolment-proxy figure carries the academic year it came from.
+          </P>
+          <P>
+            <Strong>Both faults this rule replaced under-reported graduates, and by a lot.</Strong>{' '}
+            (a) The old window was anchored on enrolment, so a &ldquo;five cohort&rdquo; window
+            spanned six entry cohorts of which only two had substantially graduated — and was then
+            divided by a hard-coded 5.0. (b) The proxy read the newest academic year, which is
+            unfinished: AY 2026 reads 0 for 226 programmes, and a non-null 0 passed the
+            &ldquo;has a figure&rdquo; test, so 24 of 94 &ldquo;measured&rdquo; programmes
+            contributed a zero that was never measured. Measured on development:
+          </P>
+          <Tbl label="Table 4. Effect of the corrected supply rule, measured on development 2026-09-19.">
+            <THead>
+              <TR>
+                <TH>Quantity</TH>
+                <TH width="24%">Before the fix</TH>
+                <TH width="24%">Now</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD>Field-graduates denominator</TD><TD>2,682 /yr</TD><TD><Strong>6,958.6 /yr</Strong></TD></TR>
+              <TR><TD>Programmes reading a false zero</TD><TD>24</TD><TD><Strong>0</Strong></TD></TR>
+              <TR><TD>Fields verdicted <Em>under-served</Em></TD><TD>18</TD><TD><Strong>9</Strong></TD></TR>
+              <TR><TD>Fields verdicted <Em>supply-unknown</Em></TD><TD>1</TD><TD><Strong>4</Strong></TD></TR>
+              <TR><TD>Electrical Engineering</TD><TD>23 /yr, pipeline <Em>rising</Em></TD><TD><Strong>66.10 /yr, pipeline flat</Strong></TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            The window length is not itself doing the work: over six cohorts the alumni component
+            reads 6,052.6 /yr, and recomputed over five it reads 6,035.9 /yr — <Strong>0.3 %
+            apart</Strong>.
+          </P>
+          <P>
+            <Strong>Pipeline.</Strong> Current enrolment gives each row an arrow, comparing{' '}
+            <Strong>annualised intake</Strong> — Σ over scored programmes of <Em>that</Em>{' '}
+            programme&rsquo;s enrolment ÷ <Em>its own</Em> length of study — against graduates per
+            year: rising above 1.25×, falling below 0.75×, steady between, and{' '}
+            <Strong>absent, not flat</Strong>, when either side is missing. Dividing a
+            field&rsquo;s summed pipeline by one nominal length overstated every six-year
+            programme by half, which is how Pharmacy and Veterinary Medicine came to read
+            &ldquo;rising&rdquo; against a steady intake.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.5" title="The verdict rule">
+          <P>
+            The <Strong>ratio</Strong> is KKU share ÷ demand share. Six verdicts, in the order the
+            rule tests them:
+          </P>
+          <Tbl label="Table 5. The six gap-map verdicts, in evaluation order.">
+            <THead>
+              <TR>
+                <TH width="20%">Verdict</TH>
+                <TH width="30%">Condition</TH>
+                <TH>Meaning</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD><Strong>white space</Strong></TD><TD>the field has no scored programme</TD><TD>employers ask; KKU produces no <Em>bachelor</Em> graduate. Postgraduate tracks may exist, are listed, and are never scored</TD></TR>
+              <TR><TD><Strong>supply-unknown</Strong></TD><TD>it has scored programmes but none carries a graduate figure</TD><TD>a <Strong>missing measurement, never a shortfall</Strong></TD></TR>
+              <TR><TD><Strong>too few postings</Strong></TD><TD>fewer than 20 adverts, or no demand share at all</TD><TD>the demand side is too thin to read</TD></TR>
+              <TR><TD><Strong>under-served</Strong></TD><TD>ratio &lt; <Code>under</Code> (default 0.5)</TD><TD>KKU&rsquo;s share of graduates is small against the market&rsquo;s share of adverts</TD></TR>
+              <TR><TD><Strong>over-served</Strong></TD><TD>ratio &gt; <Code>over</Code> (default 2)</TD><TD>the reverse</TD></TR>
+              <TR><TD><Strong>served</Strong></TD><TD>otherwise</TD><TD>&mdash;</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            <Strong>The comparison uses the unrounded ratio while the table displays two
+            decimals</Strong>, so a field whose true ratio is 0.4999 reads <Code>0.50</Code> beside
+            the word <Em>under-served</Em>. Read the verdict, not the arithmetic of the displayed
+            number.
+          </P>
+          <P>
+            Both thresholds are <Strong>URL parameters</Strong> (<Code>?under=…&amp;over=…</Code>),
+            validated as <Code>0 &lt; under &lt; over</Code>, and shown in two places: above the
+            table in the controls strip, and in the <Strong>provenance drawer</Strong> under{' '}
+            <Em>Methodology</Em>, beside the version they belong to. Both are needed. An analyst
+            can tighten them for one review without a code change; and without the drawer, a shared
+            link carrying moved thresholds would look like the default to whoever opens it.
+          </P>
+          <P>
+            <Strong><Em>supply-unknown</Em> is the verdict this methodology adds to the five the
+            design foresaw, and it is load-bearing.</Strong> It fires on the <Em>count of scored
+            programmes carrying a figure</Em>, not on their sum. Reading a field with
+            programmes-but-no-numbers as a zero ratio would have called it under-served —
+            presenting a registrar data gap to Council as a production shortfall. It is the same
+            null-handling rule the Health Score uses at &sect;2.4: a missing metric is excluded,
+            never substituted with 0. A <Em>partial</Em> gap (2 of 3 programmes measured) still
+            gets a normal verdict, and the row states how many programmes carry a figure so the
+            reader can see the basis.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.6" title="Reconciliation — checking that the shares add up">
+          <P>
+            The line under the table exists so a reader can check the shares rather than take them
+            on trust. It reports the eligible adverts in scope; the distinct adverts naming at
+            least one canonical field; <Code>fieldMentions</Code>, the demand denominator; how many
+            adverts name two or more fields; how many carry the &ldquo;any field&rdquo;
+            (ทุกสาขา) sentinel, which is assigned to nothing and is in neither denominator (2,405
+            of the bachelor-eligible adverts on development); the raw field strings no non-rejected
+            taxonomy row has absorbed as a synonym (3,233 kinds / 5,759 mentions), likewise in
+            neither denominator; the 41 postgraduate adverts; both share sums, which must be 1 by
+            construction and are printed as the check; the field-graduates denominator; and the
+            scored programmes counted in more than one field.
+          </P>
+          <P>
+            The last triple is the honest coverage statement for the whole table and is the first
+            thing to read before quoting any KKU share: <Strong>how many programmes are scored, how
+            many carry a graduate figure at all, and how many of those came from the
+            single-year enrolment proxy</Strong> — 13 of the 83 with a figure, on development.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.7" title="What is coming — rising skills and trend signals">
+          <P>
+            Each row carries a forward-looking panel built from two independent paths. Neither
+            invents a career-to-field mapping, and <Strong>forecasting is deferred</Strong> until
+            JobThai batches form a time series — there is currently one delivery, and no posting
+            date within it.
+          </P>
+          <P>
+            <Strong>(a) Rising skills</Strong> — LinkedIn data via MHESI. The field&rsquo;s
+            occupations give their demanded skills at 5 % posting share or above, generic skills
+            are removed, the remainder is intersected with the LinkedIn-via-MHESI growth table, and
+            the <Strong>top three by growth</Strong> are shown, each labelled with that
+            attribution. Two rules are defensibility rather than convenience. First,{' '}
+            <Strong>the newest capture only</Strong>: that table accumulates captures rather than
+            superseding them, so reading across two let a July figure be quoted as today&rsquo;s —
+            &ldquo;Digital marketing&rdquo; returned 600 % when the current capture&rsquo;s figure
+            for the same skill was 279.41 %. A skill absent from the newest capture is stale and is
+            not quoted at all. Second, <Strong>the mean across contexts, not the maximum</Strong>:
+            a skill appears once per career context that demands it (median 2 contexts, p90 12, max
+            181 over the 1,788 skills in the newest capture), and taking the highest was
+            cherry-picking the single most flattering career bucket. Each figure carries{' '}
+            <Strong>the number of contexts it was averaged over</Strong> so the reader can judge
+            it.
+          </P>
+          <P>
+            <Strong>(b) Trends Radar signals</Strong> — up to five per field. A signal reaches a
+            row when its affected programmes include one of the field&rsquo;s assigned programmes,
+            or when one of its proposed new initiatives names one of the field&rsquo;s occupations.
+            The occupation side is <Strong>deliberately never tokenised</Strong>: a whole
+            normalised occupation label must appear in the role text. JobThai&rsquo;s catch-all
+            bucket <Em>หัวหน้า / ผู้จัดการ / ผู้บริหาร</Em> split on the slash into the generic
+            word ผู้บริหาร, and one signal then matched 46 of 71 fields through it. That was
+            necessary but not sufficient — common English business words still reached through
+            composite labels — so a role-side word is dropped when it appears in more than{' '}
+            <Strong>10 % of the taxonomy&rsquo;s fields</Strong>, a threshold derived from the data
+            rather than hand-listed. Re-measured on development, the worst single signal now lands
+            on 10 of 71 fields.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.8" title="The Council brief, and its grounding check">
+          <P>
+            <Code>gap-brief.v1</Code> is one model call over <Strong>the rows currently on
+            screen</Strong> (up to 60, with the verdict filter, faculty filter and thresholds
+            passed in). It returns at most <Strong>five findings</Strong>, each citing one
+            row&rsquo;s own numbers, plus a &ldquo;what the data cannot tell&rdquo; list.
+            Programme-level recommendations are forbidden by the prompt: the map is a portfolio
+            instrument.
+          </P>
+          <P>
+            <Strong>Every finding is checked against the row it names before it is
+            returned.</Strong> The model may only echo a verdict a row already carries, but nothing
+            stops it attaching the right verdict to the wrong row, so:
+          </P>
+          <UL>
+            <LI>a finding naming <Strong>no row in this view</Strong> is dropped;</LI>
+            <LI>a finding whose field name matches <Strong>more than one row</Strong> is dropped, not pinned to whichever matched first;</LI>
+            <LI>a finding whose verdict <Strong>disagrees with its row</Strong> is corrected to the row&rsquo;s verdict, and logged;</LI>
+            <LI>
+              a finding that gives a <Em>supply-unknown</Em> row <Strong>some other verdict</Strong>{' '}
+              is <Strong>dropped, not corrected</Strong> — the prose was written as a shortfall, and
+              relabelling it would leave a finding whose text asserts a shortage its own label
+              denies. A finding that <Em>correctly</Em> labels such a row <Em>supply-unknown</Em>{' '}
+              is kept: the model is allowed to report a measurement gap, only forbidden to dress
+              one up as a shortfall.
+            </LI>
+          </UL>
+          <P>
+            The brief reports how many findings were dropped and how many corrected. Confidence,
+            sources, reasoning and a disagreement button are shown, and one <Code>AiInference</Code>{' '}
+            row is written per call. The confidence badge is the <Strong>model&rsquo;s</Strong>{' '}
+            self-reported confidence in its findings; it says nothing about data coverage, which is
+            the reconciliation triple of &sect;6.6 and the unreviewed-fields count.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="6.9" title="Known limitations">
+          <UL>
+            <LI><Strong>Cohort completeness is an open decision, and today&rsquo;s rule under-states graduates.</Strong> A cohort is admitted to the window as soon as it could have finished. Late graduations are still accruing against the newest admitted cohort, so it reads thin: across the scored bachelor programmes it averages 68.4 graduates against 79.2 across the five cohorts behind it, about 14 % lower, which drags each programme&rsquo;s six-cohort mean down by roughly 2 %. Read every graduates-per-year figure as a mild <Em>under</Em>-statement until the methodology owner settles the rule.</LI>
+            <LI><Strong>The current LinkedIn-via-MHESI capture carries no Thailand rows at all.</Strong> The 2026-09-14 capture holds 10,256 rows with a resolved skill, all global scope and none Thailand; the previous capture (2026-07-20) held 895 Thailand rows. Before the newest-capture rule the map reached back into July and labelled 55 of 71 fields &ldquo;Thailand data&rdquo;, every one of those figures two months old. The label is now honest — 0 of 71 Thailand, everything a global fallback. <Strong>This exposure is not confined to the Gap Analyzer</Strong>: anything reading that table for a Thailand figure has it, including the Health Score&rsquo;s labour-market driver.</LI>
+            <LI><Strong>Part of the KKU supply total rests on a single-year enrolment figure.</Strong> 13 of the 83 scored programmes carrying a graduate figure use the proxy rather than a multi-cohort mean; counted the way the supply denominator counts them, that is 906.0 of 6,958.6 graduates a year, or <Strong>13.0 %</Strong> of the supply total. Their figures were read from AY 2012, AY 2019 and AY 2022, and the reach-back has no floor, which is why the year travels with the figure in the row panel. It is the largest single piece of softness in the supply side.</LI>
+            <LI><Strong>The taxonomy is largely unreviewed.</Strong> Fields appear on the map as soon as they are proposed, labelled unreviewed, and the provenance drawer states how many. On development at 2026-09-20 the page reports <Strong>1 of 71 fields checked by an administrator</Strong>; until the queue at <Code>/admin/job-fields</Code> is worked through, almost every row is machine-clustered rather than human-confirmed. Two consequences travel with that: the English name of a field carries no uniqueness constraint, so two rows can share one, and the raw strings below the five-mention floor are outside both denominators entirely.</LI>
+            <LI><Strong>A field&rsquo;s demand share is national.</Strong> 37 % of adverts are Bangkok and 3.3 % the 20 Northeast provinces; the source carries no salary and no posting date. Shares make fields comparable with each other, not with KKU&rsquo;s regional catchment — the province breakdown inside each row is what answers that.</LI>
+            <LI><Strong>The map is cached for five minutes and purged when a taxonomy row is approved</Strong>, but ingestion has no cache client, so a taxonomy rebuild from the connector does not purge it and the map waits out the interval. This is bounded staleness, not a freshness guarantee.</LI>
+          </UL>
+        </DocSubsection>
+      </DocSection>
+
+      <DocSection id="data-sources" number="7." title="Data sources and provenance">
         <P>
           This section lists every external and internal data source consumed by the health score and
           lifecycle verdict, with attribution. Each source has a per-source specification at{' '}
           <Code>docs/data-sources/&lt;slug&gt;.md</Code> describing the integration, refresh cadence,
           and PDPA posture.
         </P>
-        <Tbl label="Table 4. Data sources, attribution, and current operational status.">
+        <Tbl label="Table 6. Data sources, attribution, and current operational status.">
           <THead>
             <TR>
               <TH width="14%">Slug</TH>
@@ -1435,14 +1767,14 @@ otherwise                                         → SUNSET`}</Pre>
               <TD mono>kmitl-skill-mapping</TD>
               <TD>LinkedIn-derived labour-market skill demand — aggregated skill demand by career, derived from LinkedIn profiles and Thai job postings</TD>
               <TD><Strong>Data: LinkedIn.</Strong> Subscriber / licence-holder: <Strong>MHESI</Strong>. API hosted by KMITL on behalf of MHESI</TD>
-              <TD>Relevance (<Code>labour_market_alignment</Code>, <Code>strategic_sector_alignment</Code>)</TD>
-              <TD><Strong>Live</Strong> since 2026-05-01</TD>
+              <TD>Relevance (<Code>labour_market_alignment</Code>, <Code>strategic_sector_alignment</Code>), Gap Analyzer (the rising-skills panel inside a row)</TD>
+              <TD><Strong>Live</Strong> since 2026-05-01. The newest capture (2026-09-14) carries <Strong>no Thailand rows</Strong> — every growth figure currently read from it is a global fallback (§9.8).</TD>
             </TR>
             <TR>
               <TD mono>jobthai</TD>
               <TD>JobThai job postings — per-posting vacancy files (occupation, province, industry, stated field of study and education level)</TD>
               <TD>JobThai; files delivered to KKU and uploaded by the KKU Data Office</TD>
-              <TD>Relevance (<Code>jobthai_demand_alignment</Code>), Deep-Dive Skills coverage (JobThai view)</TD>
+              <TD>Relevance (<Code>jobthai_demand_alignment</Code>), Deep-Dive Skills coverage (JobThai view), Gap Analyzer (the demand side of every row: fields, provinces, occupations, education level)</TD>
               <TD><Strong>Live</Strong> since 2026-09-13 (<Code>health-score.v5.2</Code>). National, not regional: 37% of postings are Bangkok and 3.3% the Northeast; no salary, employer or posting date; near-blind to postgraduate programmes.</TD>
             </TR>
             <TR>
@@ -1465,6 +1797,39 @@ otherwise                                         → SUNSET`}</Pre>
               <TD>Khon Kaen University, Alumni Affairs Office</TD>
               <TD>Outcomes (employment, salary)</TD>
               <TD><Strong>Live</Strong> through survey-report intake (PDF / XLSX) since 2026-05-11; the scheduled connector itself is not used</TD>
+            </TR>
+            <TR>
+              <TD mono>job_field_taxonomy</TD>
+              <TD>
+                Field-of-study taxonomy — canonical fields with Thai and English names, clustered
+                by <Code>job-field-taxonomy.v1</Code> from the free-text field strings JobThai
+                employers write, each absorbing its raw strings as synonyms
+              </TD>
+              <TD>
+                Derived from JobThai text by the KKU Data Office; reviewed and edited by
+                administrators at <Code>/admin/job-fields</Code>
+              </TD>
+              <TD>Gap Analyzer (the rows of the map)</TD>
+              <TD>
+                <Strong>Live</Strong> since 2026-09-19 (<Code>gap-map.v1</Code>). 517 of 3,854
+                distinct raw strings clear the five-mention floor. Proposed fields are shown
+                before review, labelled unreviewed (§6.2).
+              </TD>
+            </TR>
+            <TR>
+              <TD mono>program_job_fields</TD>
+              <TD>
+                Programme-to-field assignments — which KKU programmes supply each field, placed by
+                name-match rule, then by <Code>program-job-field.v1</Code>, then by hand, with the
+                source recorded per assignment
+              </TD>
+              <TD>Khon Kaen University, Data Office; administrators at <Code>/admin/job-fields</Code></TD>
+              <TD>Gap Analyzer (the supply side of every row)</TD>
+              <TD>
+                <Strong>Live</Strong> since 2026-09-19 (<Code>gap-map.v1</Code>). A synonym
+                matching more than 15 programmes is treated as generic vocabulary and creates no
+                assignment.
+              </TD>
             </TR>
             <TR>
               <TD>Strategic sector taxonomy</TD>
@@ -1495,8 +1860,8 @@ otherwise                                         → SUNSET`}</Pre>
         </P>
       </DocSection>
 
-      <DocSection id="governance" number="7." title="Governance, audit, and versioning">
-        <DocSubsection number="7.1" title="Versioning policy">
+      <DocSection id="governance" number="8." title="Governance, audit, and versioning">
+        <DocSubsection number="8.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.2'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
@@ -1516,7 +1881,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.2" title="Audit and reproducibility">
+        <DocSubsection number="8.2" title="Audit and reproducibility">
           <P>Every score and verdict is reproducible from:</P>
           <OL>
             <LI>The git commit recorded in the <Code>programLifecycleSnapshots.driversJson</Code> payload (or, for health scores, the <Code>IngestionRun</Code> rows referenced in provenance);</LI>
@@ -1529,7 +1894,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="7.3" title="Human-in-the-loop requirement">
+        <DocSubsection number="8.3" title="Human-in-the-loop requirement">
           <P>
             No score, verdict, or AI-generated narrative authorises an institutional decision. Per{' '}
             <Code>docs/ai-governance.md</Code>:
@@ -1541,7 +1906,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="7.4" title="Guardrails enforced at compute time">
+        <DocSubsection number="8.4" title="Guardrails enforced at compute time">
           <P>The scoring service enforces, at every computation:</P>
           <UL>
             <LI>All driver and dimension scores are clamped to <Code>[0, 100]</Code>.</LI>
@@ -1553,9 +1918,9 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="limitations" number="8." title="Limitations and known caveats">
+      <DocSection id="limitations" number="9." title="Limitations and known caveats">
         <P>This section is deliberately exhaustive. Decision-makers should read it with care.</P>
-        <DocSubsection number="8.1" title="Equal-weighting is a deliberate, conservative default">
+        <DocSubsection number="9.1" title="Equal-weighting is a deliberate, conservative default">
           <P>
             The composite score weighs all five dimensions equally. This is a least-arguable default:
             any weighted formulation encodes a value judgement, and the application errs toward making
@@ -1567,7 +1932,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.2" title="Data completeness varies sharply across programs">
+        <DocSubsection number="9.2" title="Data completeness varies sharply across programs">
           <P>A non-trivial number of KKU programs lack complete data for one or more dimensions:</P>
           <UL>
             <LI>Graduate outcomes arrive through survey-report intake (<Code>kku-alumni</Code>), so Outcomes coverage follows which survey reports have been ingested; programmes without one rely on the TCAS minimum-score percentile, student satisfaction and digital competency.</LI>
@@ -1580,7 +1945,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.3" title="Cross-scope consistency is not asserted">
+        <DocSubsection number="9.3" title="Cross-scope consistency is not asserted">
           <P>
             A faculty's overall health score is not guaranteed to equal the average of its programs'
             scores. Before <Code>health-score.v5.0</Code> the gap was large and one-sided — measured
@@ -1593,7 +1958,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.4" title="Some signals are still synthetic or proxied">
+        <DocSubsection number="9.4" title="Some signals are still synthetic or proxied">
           <UL>
             <LI>JobThai describes the national labour market, not KKU's region: 37% of postings are in Bangkok and 3.3% across the 20 Northeast provinces. Only 41 postings state a postgraduate minimum, so master's and doctoral programmes normally receive no JobThai signal — a data gap, not zero demand.</LI>
             <LI>Profession fit (§4.4) is an AI judgement with a stated reason, not a lookup. Repeated runs can move individual calls, which is why a JobThai score needs at least 5 relevant skills; an analyst who disagrees with a call can record the disagreement from the page.</LI>
@@ -1601,7 +1966,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="8.5" title="The lifecycle verdict's modifier gates are an institutional position, not an empirical fact">
+        <DocSubsection number="9.5" title="The lifecycle verdict's modifier gates are an institutional position, not an empirical fact">
           <P>
             The two AI-readiness floors (§3.5) and the OLD_SCHOOL content cap (§3.5) are explicit
             institutional positions, not findings. Decision-makers may disagree with those positions;
@@ -1609,7 +1974,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.6" title="The verdict bands are calibration choices">
+        <DocSubsection number="9.6" title="The verdict bands are calibration choices">
           <P>
             The trajectory cut-offs (45 / 65 / 80) and the health bands (40 / 65) were chosen to
             produce a roughly even distribution of programs across bands at KKU's current state. They
@@ -1618,7 +1983,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.7" title="Score volatility under data refreshes">
+        <DocSubsection number="9.7" title="Score volatility under data refreshes">
           <P>
             A single ingestion run can move a program's overall score by several points if it lands a
             previously-missing driver. This is by design (we want fresh data to register). Users of
@@ -1626,9 +1991,53 @@ otherwise                                         → SUNSET`}</Pre>
             not across raw timestamps, when assessing trend.
           </P>
         </DocSubsection>
+
+        <DocSubsection number="9.8" title="The Gap Analyzer's supply side is softer than its demand side">
+          <P>
+            Four caveats travel with every figure on the gap map. They are stated in full at
+            &sect;6.9 and in the provenance drawer on the page itself; they are repeated here
+            because a Council reader who reads only this section should still know them.
+          </P>
+          <UL>
+            <LI>
+              <Strong>Cohort completeness is undecided, and the current rule under-states
+              graduates.</Strong> The newest cohort admitted to a programme&rsquo;s averaging
+              window is still accruing late graduations: across the scored bachelor programmes it
+              averages 68.4 graduates against 79.2 across the five behind it, dragging each
+              programme&rsquo;s mean down by roughly 2 %. Every graduates-per-year figure is a
+              mild under-statement until the methodology owner settles the rule.
+            </LI>
+            <LI>
+              <Strong>The current LinkedIn-via-MHESI capture has no Thailand series.</Strong> The
+              2026-09-14 capture holds 10,256 rows with a resolved skill, all global; the
+              previous one held 895 Thailand rows. The map quotes the newest capture only, so
+              every rising-skill figure is presently a global fallback and is labelled as such —
+              0 of 71 fields carry a Thailand figure, where reaching back into the older capture
+              would have labelled 55 of 71 &ldquo;Thailand&rdquo; on two-month-old numbers.{' '}
+              <Strong>The exposure is not confined to the Gap Analyzer</Strong>: any reader of
+              that table that wants a Thailand figure has it, the Health Score&rsquo;s
+              labour-market driver included.
+            </LI>
+            <LI>
+              <Strong>13.0 % of the KKU supply total rests on a single-year enrolment
+              proxy.</Strong> 13 of the 83 scored programmes carrying a graduate figure have no
+              usable alumni-cohort series, and a single year&rsquo;s graduated-on-time count
+              stands in for a multi-cohort mean — read from AY 2012, AY 2019 and AY 2022. The
+              reach-back has no floor, so the year is displayed beside the figure.
+            </LI>
+            <LI>
+              <Strong>The field-of-study taxonomy is largely unreviewed.</Strong> Fields appear on
+              the map as soon as they are proposed, labelled unreviewed, with the count in the
+              provenance drawer. On development at 2026-09-20 the page reports
+              <Strong>1 of 71 fields checked by an administrator</Strong>; until that queue is
+              worked through, almost every row is machine-clustered rather than human-confirmed,
+              and a field&rsquo;s English name carries no uniqueness constraint.
+            </LI>
+          </UL>
+        </DocSubsection>
       </DocSection>
 
-      <DocSection id="glossary" number="9." title="Glossary">
+      <DocSection id="glossary" number="10." title="Glossary">
         <UL>
           <LI><Strong>CUPT</Strong> — Council of University Presidents of Thailand (สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย); administers TCAS.</LI>
           <LI><Strong>TCAS</Strong> — Thai University Central Admission System; the four-round national admission process for Thai universities. KKU participates in rounds 1–4.</LI>
@@ -1649,13 +2058,13 @@ otherwise                                         → SUNSET`}</Pre>
         </UL>
       </DocSection>
 
-      <DocSection id="references" number="10." title="References">
+      <DocSection id="references" number="11." title="References">
         <P>
           The following are the actual source materials this paper draws from. References are split
           into (a) institutional source code and documentation that defines the methodology, and (b)
           external public references for the data sources cited.
         </P>
-        <DocSubsection number="10.1" title="Internal — methodology canon">
+        <DocSubsection number="11.1" title="Internal — methodology canon">
           <UL>
             <LI><Code>packages/db/src/health-score.ts</Code>. Primary implementation of the five-dimension health score scorers. Methodology version constant <Code>HEALTH_SCORE_VERSION</Code>.</LI>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programLifecycleVerdict</Code> and <Code>programAiReadiness</Code>. Methodology version constant <Code>LIFECYCLE_VERSION</Code>.</LI>
@@ -1663,14 +2072,15 @@ otherwise                                         → SUNSET`}</Pre>
             <LI><Code>docs/methodologies/cost-allocation.md</Code>. Cost-allocation methodology (v0 draft) feeding the Financial dimension.</LI>
             <LI><Code>packages/db/src/jobthai-bridge.ts</Code> and <Code>packages/db/src/jobthai.ts</Code>. Programme–occupation links (<Code>JOBTHAI_BRIDGE_VERSION</Code>) and the per-programme JobThai demand read by both the health driver and the Deep-Dive.</LI>
             <LI><Code>packages/shared/src/ai/prompts/demand-skill-match.ts</Code>. The curriculum check and profession-fit classification (<Code>DEMAND_MATCH_VERSION</Code>).</LI>
+            <LI><Code>docs/methodologies/gap-map.md</Code>. The Gap Analyzer methodology (§6), including the open decisions listed at §6.9. Implementation: <Code>packages/db/src/gap-map.ts</Code> (the query), <Code>packages/db/src/gap-map-rules.ts</Code> (the pure verdict, supply and pipeline rules, and the version constant <Code>GAP_MAP_VERSION</Code>), <Code>packages/db/src/gap-map-signals.ts</Code> (the rising-skills and trend-signal panel), <Code>packages/db/src/job-fields.ts</Code> (the taxonomy build).</LI>
             <LI><Code>docs/methodologies/forecasting.md</Code>. Forecasting methodology feeding demographic-resilience and trend drivers.</LI>
-            <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §6.</LI>
-            <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §7.</LI>
+            <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §7.</LI>
+            <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §8.</LI>
             <LI><Code>CLAUDE.md</Code>. Project charter and the eight strategic questions referenced in §2.1.</LI>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="10.2" title="External — data source operators (publicly available references)">
+        <DocSubsection number="11.2" title="External — data source operators (publicly available references)">
           <UL>
             <LI><Strong>OurResearch / OpenAlex.</Strong> Public scholarly-works catalogue. <a className="text-accent underline-offset-2 hover:underline" href="https://openalex.org" target="_blank" rel="noopener noreferrer">https://openalex.org</a>.</LI>
             <LI><Strong>CUPT (Council of University Presidents of Thailand).</Strong> Administers TCAS. <a className="text-accent underline-offset-2 hover:underline" href="https://www.mytcas.com" target="_blank" rel="noopener noreferrer">https://www.mytcas.com</a>.</LI>
@@ -1685,7 +2095,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="10.3" title="External — referenced policy frameworks">
+        <DocSubsection number="11.3" title="External — referenced policy frameworks">
           <UL>
             <LI>The <Strong>Bio-Circular-Green (BCG) economic model</Strong> is a Thai national-strategy framework articulated by the Royal Thai Government and operationalised through MHESI and NXPO. Public materials are available on the NXPO website.</LI>
             <LI>The <Strong>S-curve target industries</Strong> are likewise defined in Thai government strategy documentation.</LI>
@@ -1721,8 +2131,9 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>1.0</TD><TD>2026-05-07</TD><TD>Initial public release — documents <Code>health-score.v3.5</Code> and <Code>lifecycle.v1.4</Code>.</TD></TR>
             <TR><TD mono>1.1</TD><TD>2026-06-01</TD><TD>Re-issued for <Code>health-score.v3.8</Code> and <Code>risk-scoring.v1.12</Code>: the recruitment funnel feeding the Attractiveness dimension and the risk L1 / competitiveness-percentile inputs are re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (replacing the curriculum-grain <Code>ADMISSION_STAT_CURRID</Code>). Also captures the interim <Code>health-score.v3.7</Code> (student-satisfaction driver) and <Code>risk-scoring.v1.11</Code> (forward demographic projection). Driver formulas and weights unchanged.</TD></TR>
             <TR><TD mono>1.2</TD><TD>2026-08-25</TD><TD>Re-issued for <Code>health-score.v4.0</Code>: the Outcomes dimension gains a <Code>dq_digital_competency</Code> driver from the Digital Intelligence (DQ) test, bachelor programs only. Also captures the interim <Code>health-score.v3.9</Code> (financial dimension scored on the last complete academic year). The five dimensions, their weights, and the lifecycle verdict are unchanged.</TD></TR>
-            <TR><TD mono>1.5</TD><TD>2026-09-19</TD><TD>&sect;4.8 corrected against the code after <Code>6c2f979</Code>. The pipeline arrow annualises each programme&rsquo;s enrolment by its own length of study, not the field&rsquo;s summed pipeline by a nominal four years; the cohort window is taken per programme rather than from one university-wide anchor; a white space means no <Em>bachelor</Em> programme, with postgraduate tracks listed but never scored; <Em>too few postings</Em> is one of the six verdicts rather than a blank; the KKU share counts only the programmes the map scores; and the thresholds a reader may move from the URL are now genuinely carried into the provenance drawer. No scorer changed &mdash; Health Score, the lifecycle verdict and <Code>gap-map.v1</Code> itself are unchanged.</TD></TR>
-            <TR><TD mono>1.4</TD><TD>2026-09-19</TD><TD>Re-issued for <Code>gap-map.v1</Code>: the Gap Analyzer is rebuilt as a demand-first field-of-study map (new &sect;4.8). <Code>gap-analysis.v1</Code> (skill-level demand &minus; supply) and <Code>gap-lenses.v1</Code> (seven lenses and a composite gap index) are retired, along with the three <Code>gap-insights</Code> modes. Also captures revision 1.3 (<Code>health-score.v5.2</Code>), which was issued without an entry here. Health Score dimensions, weights and the lifecycle verdict are unchanged.</TD></TR>
+            <TR><TD mono>1.4</TD><TD>2026-09-19</TD><TD>Re-issued for <Code>gap-map.v1</Code>: the Gap Analyzer is rebuilt as a demand-first field-of-study map (new &sect;4.8, promoted to &sect;6 at revision 1.6). <Code>gap-analysis.v1</Code> (skill-level demand &minus; supply) and <Code>gap-lenses.v1</Code> (seven lenses and a composite gap index) are retired, along with the three <Code>gap-insights</Code> modes. Also captures revision 1.3 (<Code>health-score.v5.2</Code>), which was issued without an entry here. Health Score dimensions, weights and the lifecycle verdict are unchanged.</TD></TR>
+            <TR><TD mono>1.5</TD><TD>2026-09-19</TD><TD>&sect;4.8 (now &sect;6) corrected against the code after <Code>6c2f979</Code>. The pipeline arrow annualises each programme&rsquo;s enrolment by its own length of study, not the field&rsquo;s summed pipeline by a nominal four years; the cohort window is taken per programme rather than from one university-wide anchor; a white space means no <Em>bachelor</Em> programme, with postgraduate tracks listed but never scored; <Em>too few postings</Em> is one of the six verdicts rather than a blank; the KKU share counts only the programmes the map scores; and the thresholds a reader may move from the URL are now genuinely carried into the provenance drawer. No scorer changed &mdash; Health Score, the lifecycle verdict and <Code>gap-map.v1</Code> itself are unchanged.</TD></TR>
+            <TR><TD mono>1.6</TD><TD>2026-09-20</TD><TD><Strong>The Gap Analyzer is promoted from &sect;4.8 to its own &sect;6</Strong>, placed after Risk Management because both are portfolio-level layers rather than facets of one programme&rsquo;s detail page. It was previously a subsection of the Program Deep-Dive, which is where a reader could not find it &mdash; it did not appear in the table of contents at all. The four paragraphs become nine subsections: why the unit is a field of study, the taxonomy and its review states, demand share, KKU share and the graduates-per-year rule, the verdict rule with all six verdicts, the reconciliation line, the rising-skills and trend-signal panel, the Council brief and its grounding check, and known limitations. &sect;6 onward are renumbered (data sources 6&rarr;7, governance 7&rarr;8, limitations 8&rarr;9, glossary 9&rarr;10, references 10&rarr;11) and every cross-reference is moved with them. The abstract now names the two portfolio-level layers rather than claiming the paper specifies two outputs; &sect;7 gains rows for the field-of-study taxonomy and the programme-to-field assignments; &sect;9.8 carries the gap map&rsquo;s four real limitations. Two figures were corrected against <Code>docs/methodologies/gap-map.md</Code>: the field-graduates total reads <Strong>6,958.6</Strong> a year, not the 7,050 the <Code>gap-map.v1</Code> entry below quoted (7,050 was the intermediate value after <Code>356c2f0</Code> and before <Code>6c2f979</Code> made the cohort window per programme), and <Em>under-served</Em> fields read 9, not 10. No scorer changed &mdash; Health Score, the lifecycle verdict and <Code>gap-map.v1</Code> itself are unchanged.</TD></TR>
           </tbody>
         </Tbl>
         <P>
@@ -1737,7 +2148,7 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
           </THead>
           <tbody>
-            <TR><TD mono>gap-map.v1</TD><TD>2026-09-19</TD><TD><Strong>The Gap Analyzer rebuilt as a demand-first map.</Strong> One row per field of study employers name in JobThai adverts, clustered by <Code>job-field-taxonomy.v1</Code> and reviewed at Admin &rarr; Job fields; programmes are assigned by name-match rule, then by <Code>program-job-field.v1</Code>, then by hand. The verdict is KKU&rsquo;s share of graduates against the market&rsquo;s share of adverts, with thresholds in the address bar, and a sixth state, <Em>supply-unknown</Em>, for a field whose programmes carry no graduate figure &mdash; a missing measurement, never a shortfall. Both share sets are normalised by the sum of their own per-field numerators, because 4,654 of 17,077 field-naming adverts name more than one field. Only adverts admitting a bachelor&rsquo;s graduate are counted and postgraduate programmes are listed but unscored (41 of 47,631 adverts state a postgraduate minimum). The graduates-per-year rule was corrected at the same time: the cohort window is anchored on graduation rather than enrolment, a cohort counts only once it could have finished, the divisor is the number of cohorts averaged, and the fallback takes the newest non-zero year &mdash; the field total moved from 2,682 to 7,050 graduates a year and 24 programmes stopped reading a zero that was never measured. Replaces <Code>gap-analysis.v1</Code> and <Code>gap-lenses.v1</Code>; figures are not comparable to the retired Composite Gap Index. Council brief <Code>gap-brief.v1</Code> checks every finding against the row it names. Methodology: <Code>docs/methodologies/gap-map.md</Code>.</TD></TR>
+            <TR><TD mono>gap-map.v1</TD><TD>2026-09-19</TD><TD><Strong>The Gap Analyzer rebuilt as a demand-first map.</Strong> One row per field of study employers name in JobThai adverts, clustered by <Code>job-field-taxonomy.v1</Code> and reviewed at Admin &rarr; Job fields; programmes are assigned by name-match rule, then by <Code>program-job-field.v1</Code>, then by hand. The verdict is KKU&rsquo;s share of graduates against the market&rsquo;s share of adverts, with thresholds in the address bar, and a sixth state, <Em>supply-unknown</Em>, for a field whose programmes carry no graduate figure &mdash; a missing measurement, never a shortfall. Both share sets are normalised by the sum of their own per-field numerators, because 4,654 of 17,077 field-naming adverts name more than one field. Only adverts admitting a bachelor&rsquo;s graduate are counted and postgraduate programmes are listed but unscored (41 of 47,631 adverts state a postgraduate minimum). The graduates-per-year rule was corrected at the same time: the cohort window is anchored on graduation rather than enrolment, a cohort counts only once it could have finished, the divisor is the number of cohorts averaged, and the fallback takes the newest non-zero year &mdash; the field total moved from 2,682 to 6,958.6 graduates a year and 24 programmes stopped reading a zero that was never measured. (An intermediate 7,050 was measured after the first of those two corrections and before <Code>6c2f979</Code> made the cohort window per programme; 6,958.6 is the figure the shipped rule produces.) Replaces <Code>gap-analysis.v1</Code> and <Code>gap-lenses.v1</Code>; figures are not comparable to the retired Composite Gap Index. Council brief <Code>gap-brief.v1</Code> checks every finding against the row it names. Methodology: <Code>docs/methodologies/gap-map.md</Code>.</TD></TR>
             <TR><TD mono>health-score.v1</TD><TD>2026-04-23</TD><TD>Initial five-dimension scorer; <Code>relevance</Code> and <Code>capability</Code> placeholder-null.</TD></TR>
             <TR><TD mono>health-score.v2</TD><TD>2026-05-01</TD><TD>Added <Code>labor_market_alignment_kmitl</Code> driver under <Code>demand</Code>; first external real labour-market signal.</TD></TR>
             <TR><TD mono>health-score.v2.1</TD><TD>2026-05-01</TD><TD>Four-quadrant fallback chain on labour-market driver.</TD></TR>
