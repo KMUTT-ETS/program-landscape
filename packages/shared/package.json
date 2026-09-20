@@ -22,6 +22,8 @@
     "./src/jobthai/parse-sheet": "./src/jobthai/parse-sheet.ts",
     "./usage": "./src/usage/index.ts",
     "./src/usage": "./src/usage/index.ts",
+    "./demand/sources": "./src/demand/sources.ts",
+    "./src/demand/sources": "./src/demand/sources.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

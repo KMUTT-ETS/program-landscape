@@ -7,6 +7,9 @@ export * from './ingestion';
 export * from './pdf-intake';
 export * from './ai';
 export * from './skills';
+// Also reachable as `@kku/shared/demand/sources` — client components MUST
+// use that subpath, not this barrel (which pulls node:crypto).
+export * from './demand/sources';
 export * from './forecasting';
 export * from './scenarios';
 export * from './analyst';
