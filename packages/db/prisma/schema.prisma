@@ -1960,6 +1960,18 @@ model JobPosting {
   /// supply one, and the parser accepts it the moment they do.
   postedDateEstimated Boolean                @default(false) @map("posted_date_estimated")
 
+  /// Seats offered for this position-type (`จำนวน N ตำแหน่ง` / `อัตรา`).
+  /// STORED AND DISPLAYED, NEVER WEIGHTED into a demand share: JobThai
+  /// carries no headcount column, so weighting public seats against private
+  /// adverts of unknown size would over-weight the public side by an
+  /// unknowable factor. Null on every JobThai row.
+  positionCount        Int?                      @map("position_count")
+  /// Application closing date, where the announcement states one. Public
+  /// rows only. Lets the counting window be re-cut without refetching.
+  /// Deliberately denormalised from the parent announcement: the gap map
+  /// filters postings by date on every read and should not join to do it.
+  applicationCloseDate DateTime?                 @map("application_close_date") @db.Date
+
   /// Provenance. job_postings predates the ingestion_run_id convention and
   /// had no such column, so nothing written here could ever pass
   /// realDataWhere() — the same class of gap that left 6,224
@@ -1967,10 +1979,14 @@ model JobPosting {
   /// connector that actually writes to this table.
   ingestionRunId   String?           @map("ingestion_run_id")
 
-  sourcePdf        PdfDocument?      @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
-  jobThaiBatch     JobThaiBatch?     @relation(fields: [jobThaiBatchId], references: [id], onDelete: Cascade)
-  ingestionRun     IngestionRun?     @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
-  jobPostingSkills JobPostingSkill[]
+  // ── job-108 public-sector fields (2026-09-20) ──────────────────────
+  job108AnnouncementId String?             @map("job108_announcement_id")
+
+  sourcePdf          PdfDocument?         @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  jobThaiBatch       JobThaiBatch?        @relation(fields: [jobThaiBatchId], references: [id], onDelete: Cascade)
+  ingestionRun       IngestionRun?        @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  job108Announcement Job108Announcement?  @relation(fields: [job108AnnouncementId], references: [id], onDelete: Cascade)
+  jobPostingSkills   JobPostingSkill[]
 
   @@unique([source, externalId])
   @@index([source])
@@ -1980,6 +1996,8 @@ model JobPosting {
   @@index([ingestionRunId])
   @@index([jobCategory, jobSubcategory])
   @@index([requiredFieldsRaw], type: Gin, map: "job_postings_required_fields_raw_gin")
+  @@index([job108AnnouncementId])
+  @@index([source, postedDate])
   @@map("job_postings")
 }
 
@@ -2008,6 +2026,56 @@ model JobThaiBatch {
 
   @@index([status])
   @@map("jobthai_batches")
+}
+
+enum Job108AnnouncementStatus {
+  PENDING
+  EXTRACTED
+  FAILED
+}
+
+/// One government recruitment announcement page from job-108.com. The fetch
+/// unit and the dedupe unit, mirroring JobThaiBatch so re-extraction and
+/// failure triage work the same way.
+///
+/// An announcement bundles several position-types, each with its own field
+/// list and seat count, so one row here fans out to several JobPosting rows.
+model Job108Announcement {
+  id             String                   @id @default(cuid())
+  /// The site's own id, e.g. `id20256`. Stable across refetches.
+  announcementId String                   @unique @map("announcement_id")
+  url            String
+  /// SHA-256 of the fetched bytes. Diagnostic only, and deliberately NOT
+  /// unique: the refetch gate is `sourceLastmod`, and these pages carry ads
+  /// and a "published N days ago" widget, so an unchanged announcement can
+  /// hash differently between fetches while several withdrawn ones can hash
+  /// identically to the same removal template.
+  contentHash    String                   @map("content_hash")
+  /// Nullable because `status = FAILED` rows are stored deliberately: a page
+  /// that did not parse still belongs in the ledger with its error. Requiring
+  /// a title would mean inventing one to persist the failure.
+  title          String?
+  agencyName     String?                  @map("agency_name")
+  publishedDate  DateTime?                @map("published_date") @db.Date
+  applicationOpenDate  DateTime?          @map("application_open_date") @db.Date
+  applicationCloseDate DateTime?          @map("application_close_date") @db.Date
+  /// Sitemap `lastmod` at the time we fetched. An entry no newer than this
+  /// is never refetched.
+  sourceLastmod  DateTime?                @map("source_lastmod") @db.Date
+  fetchedAt      DateTime                 @default(now()) @map("fetched_at")
+  status         Job108AnnouncementStatus @default(PENDING)
+  parseError     String?                  @map("parse_error") @db.Text
+  ingestionRunId String?                  @map("ingestion_run_id")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  postings     JobPosting[]
+
+  @@index([status])
+  @@index([ingestionRunId])
+  @@index([contentHash])
+  @@map("job108_announcements")
 }
 
 /// The profession layer — one row per (category, subcategory). 173 from the
@@ -3362,6 +3430,7 @@ model IngestionRun {
   programDemandMatches       ProgramDemandMatch[]
   jobThaiBatches             JobThaiBatch[]
   jobPostings                JobPosting[]
+  job108Announcements        Job108Announcement[]
   programJobThaiLinks        ProgramJobThaiLink[]
   jobFieldTaxonomies         JobFieldTaxonomy[]
   programJobFields           ProgramJobField[]
