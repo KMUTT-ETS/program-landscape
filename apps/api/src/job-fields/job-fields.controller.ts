@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { z } from 'zod';
 import {
   addProgramJobField,
-  latestJobThaiRunId,
+  latestDemandRunId,
   listJobFields,
   listProgramJobFields,
   mergeJobFields,
@@ -106,7 +106,7 @@ export class JobFieldsController {
   @Authorized('data_sources:configure')
   @AuditLog({ action: 'program_job_field.add', entityType: 'ProgramJobField' })
   async addAssignment(@Body(new ZodValidationPipe(AddAssignmentBody)) body: z.infer<typeof AddAssignmentBody>) {
-    const runId = await latestJobThaiRunId();
+    const runId = await latestDemandRunId();
     const id = await this.db(() => addProgramJobField(body.programId, body.fieldId, runId));
     await this.invalidate();
     return { id, ...body, reviewStatus: 'APPROVED' };

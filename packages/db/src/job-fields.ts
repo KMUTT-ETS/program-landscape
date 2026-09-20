@@ -1,5 +1,5 @@
 import { Prisma, type JobFieldReviewStatus } from '@prisma/client';
-import { JOB_FIELD_TAXONOMY_VERSION } from '@kku/shared';
+import { JOB_FIELD_TAXONOMY_VERSION, demandSourcesFor } from '@kku/shared';
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 import { prisma } from './index';
 import { realDataSql } from './data-quality';
@@ -20,12 +20,22 @@ import {
 // bridge already uses (source 'rule'), then by the program-job-field prompt
 // (source 'ai'), then by hand on /admin/job-fields (source 'manual').
 //
+// Both demand sources (private JobThai postings, public job-108 government
+// announcements) seed the vocabulary — see TAXONOMY_SOURCES below. A field of
+// study is a field of study regardless of who advertised it, and separate
+// vocabularies would leave no shared row for the map to carry a private and a
+// public share on.
+//
 // Invariants enforced HERE, because Postgres cannot express them:
 //   - a raw string belongs to at most one field's synonyms;
 //   - APPROVED / REJECTED rows are never renamed, never downgraded, and their
 //     synonyms are never removed by the build step;
 //   - every write stamps ingestionRunId (realDataWhere()).
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Source slugs whose postings seed and count toward the taxonomy. Both
+ *  bases, not just 'private' — see the module banner above. */
+const TAXONOMY_SOURCES = demandSourcesFor('all');
 
 /** Strings mentioned by fewer postings form the "other" bucket: counted in
  *  denominators, never assigned. 518 of 3,854 strings cleared it on 2026-09-15. */
@@ -47,14 +57,15 @@ export interface ExistingField {
   reviewStatus: JobFieldReviewStatus;
 }
 
-/** Every distinct field string on JobThai postings with its mention count,
- *  excluding the any-field sentinel. Gated by realDataSql so a mocked or
- *  untagged batch cannot seed the taxonomy. */
+/** Every distinct field string on postings from either demand source (private
+ *  JobThai or public job-108) with its mention count, excluding the any-field
+ *  sentinel. Gated by realDataSql so a mocked or untagged batch cannot seed
+ *  the taxonomy. */
 export async function collectRawFieldStrings(): Promise<RawFieldString[]> {
   const rows = await prisma.$queryRaw<Array<{ raw: string; mentions: number }>>(Prisma.sql`
     SELECT s AS raw, COUNT(*)::int AS mentions
     FROM job_postings jp, unnest(jp.required_fields_raw) AS s
-    WHERE jp.source = 'jobthai'
+    WHERE jp.source = ANY(${TAXONOMY_SOURCES}::text[])
       AND s <> ${JOBTHAI_ANY_FIELD}
       AND ${realDataSql('jp')}
     GROUP BY s
@@ -215,8 +226,9 @@ export async function writeTaxonomy(write: TaxonomyWrite, runId: string, tx: Tx 
 }
 
 /** mention_count = postings naming any synonym (bachelor and postgraduate
- *  alike — this is the review page's size hint, not the map's demand).
- *  Gated by realDataSql so a mocked batch cannot inflate the hint. */
+ *  alike, private and public demand alike — this is the review page's size
+ *  hint, not the map's demand). Gated by realDataSql so a mocked batch cannot
+ *  inflate the hint. */
 export async function refreshMentionCounts(tx: Tx = prisma): Promise<void> {
   await tx.$executeRaw(Prisma.sql`
     UPDATE job_field_taxonomy f SET mention_count = sub.n
@@ -224,7 +236,7 @@ export async function refreshMentionCounts(tx: Tx = prisma): Promise<void> {
       SELECT f2.id, COUNT(DISTINCT jp.id)::int AS n
       FROM job_field_taxonomy f2
       LEFT JOIN job_postings jp
-        ON jp.source = 'jobthai'
+        ON jp.source = ANY(${TAXONOMY_SOURCES}::text[])
        AND jp.required_fields_raw && f2.synonyms
        AND ${realDataSql('jp')}
       GROUP BY f2.id
@@ -502,13 +514,50 @@ export async function addProgramJobField(programId: string, fieldId: string, run
   return row.id;
 }
 
-/** The run every taxonomy write is attributed to: the latest SUCCEEDED
- *  JobThai run. Null on a database that has never ingested JobThai. */
-export async function latestJobThaiRunId(): Promise<string | null> {
+/** The run every taxonomy write is attributed to: the most recent SUCCEEDED
+ *  run of ANY demand source. Both seed the vocabulary, so anchoring to one of
+ *  them would stamp rows built partly from the other's text with a run that
+ *  never saw them. Null on a database that has never ingested either source. */
+export async function latestDemandRunId(): Promise<string | null> {
   const run = await prisma.ingestionRun.findFirst({
-    where: { status: 'SUCCEEDED', dataSource: { slug: 'jobthai' } },
+    where: { status: 'SUCCEEDED', dataSource: { slug: { in: TAXONOMY_SOURCES } } },
     orderBy: { completedAt: 'desc' },
     select: { id: true },
   });
   return run?.id ?? null;
+}
+
+/** @deprecated Use latestDemandRunId. */
+export const latestJobThaiRunId = latestDemandRunId;
+
+export interface SynonymSources {
+  synonym: string;
+  sources: string[];
+}
+
+/**
+ * Which demand sources contributed each synonym of a field.
+ *
+ * Derived rather than stored: the answer is already in the postings, and a
+ * stored array would drift as new postings arrive. Reviewers use this to see
+ * whether a field is private-only, public-only, or both before approving it —
+ * since jobthai-bridge.v3, an APPROVED field's assignments decide which
+ * programmes a posting asks for, and those links feed a Council-facing
+ * health driver, so a field built entirely from government text is worth
+ * knowing about at review time.
+ */
+export async function synonymSourcesForField(fieldId: string): Promise<SynonymSources[]> {
+  const rows = await prisma.$queryRaw<Array<{ synonym: string; sources: string[] }>>(Prisma.sql`
+    SELECT syn AS synonym, array_agg(DISTINCT jp.source ORDER BY jp.source) AS sources
+    FROM job_field_taxonomy f
+    CROSS JOIN LATERAL unnest(f.synonyms) AS syn
+    JOIN job_postings jp
+      ON syn = ANY(jp.required_fields_raw)
+     AND jp.source = ANY(${TAXONOMY_SOURCES}::text[])
+     AND ${realDataSql('jp')}
+    WHERE f.id = ${fieldId}
+    GROUP BY syn
+    ORDER BY syn ASC
+  `);
+  return rows;
 }

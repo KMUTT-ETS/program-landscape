@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   mergeJobFields: vi.fn(),
   setProgramJobFieldStatus: vi.fn(),
   addProgramJobField: vi.fn(),
-  latestJobThaiRunId: vi.fn(),
+  latestDemandRunId: vi.fn(),
 }));
 
 vi.mock('@kku/db', async () => {
@@ -33,7 +33,7 @@ vi.mock('@kku/db', async () => {
     mergeJobFields: mocks.mergeJobFields,
     setProgramJobFieldStatus: mocks.setProgramJobFieldStatus,
     addProgramJobField: mocks.addProgramJobField,
-    latestJobThaiRunId: mocks.latestJobThaiRunId,
+    latestDemandRunId: mocks.latestDemandRunId,
   };
 });
 
@@ -227,14 +227,14 @@ describe('JobFieldsController.merge', () => {
 });
 
 describe('JobFieldsController.addAssignment', () => {
-  it('passes the run id from latestJobThaiRunId and purges once after the write', async () => {
+  it('passes the run id from latestDemandRunId and purges once after the write', async () => {
     const { controller, purge } = makeController();
-    mocks.latestJobThaiRunId.mockResolvedValue('run-1');
+    mocks.latestDemandRunId.mockResolvedValue('run-1');
     mocks.addProgramJobField.mockResolvedValue('assignment-1');
 
     const result = await controller.addAssignment({ programId: 'p1', fieldId: 'f1' });
 
-    expect(mocks.latestJobThaiRunId).toHaveBeenCalledTimes(1);
+    expect(mocks.latestDemandRunId).toHaveBeenCalledTimes(1);
     expect(mocks.addProgramJobField).toHaveBeenCalledWith('p1', 'f1', 'run-1');
     expect(purge).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ id: 'assignment-1', programId: 'p1', fieldId: 'f1', reviewStatus: 'APPROVED' });
@@ -242,7 +242,7 @@ describe('JobFieldsController.addAssignment', () => {
 
   it('does not purge when the write rejects', async () => {
     const { controller, purge } = makeController();
-    mocks.latestJobThaiRunId.mockResolvedValue(null);
+    mocks.latestDemandRunId.mockResolvedValue(null);
     mocks.addProgramJobField.mockRejectedValue(new Error('boom'));
 
     await expect(controller.addAssignment({ programId: 'p1', fieldId: 'f1' })).rejects.toThrow('boom');
@@ -251,7 +251,7 @@ describe('JobFieldsController.addAssignment', () => {
 
   it('a P2003 (unknown programme/field id) becomes ApiError VALIDATION_FAILED', async () => {
     const { controller, purge } = makeController();
-    mocks.latestJobThaiRunId.mockResolvedValue(null);
+    mocks.latestDemandRunId.mockResolvedValue(null);
     mocks.addProgramJobField.mockRejectedValue(p2003());
 
     const err = await controller.addAssignment({ programId: 'bad', fieldId: 'f1' }).catch((e) => e);
