@@ -118,7 +118,7 @@ describe('demand sources', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/shared vitest run test/demand/sources.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/demand/sources.test.ts`
 Expected: FAIL — `Cannot find module '../../src/demand/sources'`.
 
 - [ ] **Step 3: Write the module**
@@ -172,7 +172,7 @@ export * from './demand/sources';
 
 - [ ] **Step 5: Run the test**
 
-Run: `pnpm --filter @kku/shared vitest run test/demand/sources.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/demand/sources.test.ts`
 Expected: PASS, 4 tests.
 
 - [ ] **Step 6: Commit**
@@ -363,7 +363,7 @@ describe('job-108 catalog entry', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/shared vitest run test/ingestion/jobthai-catalog.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/ingestion/jobthai-catalog.test.ts`
 Expected: FAIL — `expected undefined to be defined`.
 
 - [ ] **Step 3: Add the entry**
@@ -394,7 +394,7 @@ In `packages/shared/src/ingestion/catalog.ts`, directly after the `jobthai` entr
 
 - [ ] **Step 4: Run the test**
 
-Run: `pnpm --filter @kku/shared vitest run test/ingestion/jobthai-catalog.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/ingestion/jobthai-catalog.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Seed the DataSource row**
@@ -523,7 +523,7 @@ describe('htmlToText', () => {
 
 - [ ] **Step 3: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/shared vitest run test/job108/sitemap.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/job108/sitemap.test.ts`
 Expected: FAIL — `Cannot find module '../../src/job108'`.
 
 - [ ] **Step 4: Write `sitemap.ts`**
@@ -620,7 +620,7 @@ export * from './job108';
 
 - [ ] **Step 7: Run the tests**
 
-Run: `pnpm --filter @kku/shared vitest run test/job108/sitemap.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/job108/sitemap.test.ts`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 8: Commit**
@@ -745,7 +745,7 @@ describe('buildJob108AnnouncementMessages', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/shared vitest run test/ai/job108-announcement.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/ai/job108-announcement.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the prompt module**
@@ -863,7 +863,7 @@ export * from './job108-announcement';
 
 - [ ] **Step 5: Run the tests**
 
-Run: `pnpm --filter @kku/shared vitest run test/ai/job108-announcement.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/ai/job108-announcement.test.ts`
 Expected: PASS, 8 tests.
 
 - [ ] **Step 6: Commit**
@@ -971,7 +971,7 @@ describe('toPostingRows', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/db vitest run test/job108.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/job108.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the module**
@@ -1204,7 +1204,7 @@ export * from './job108';
 
 - [ ] **Step 5: Run the tests**
 
-Run: `pnpm --filter @kku/db vitest run test/job108.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/job108.test.ts`
 Expected: PASS, 7 tests.
 
 - [ ] **Step 6: Commit**
@@ -1304,7 +1304,7 @@ describe('extractAnnouncement', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter ingestion vitest run test/job108/extract.test.ts`
+Run: `pnpm --filter ingestion exec vitest run test/job108/extract.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write `fetch.ts`**
@@ -1456,7 +1456,7 @@ export async function extractAnnouncement(
 
 - [ ] **Step 5: Run the tests**
 
-Run: `pnpm --filter ingestion vitest run test/job108/extract.test.ts`
+Run: `pnpm --filter ingestion exec vitest run test/job108/extract.test.ts`
 Expected: PASS, 3 tests.
 
 If the import fails to resolve, confirm the deep path matches what `packages/db/src/job-fields.ts` uses for `JOBTHAI_ANY_FIELD`. Do **not** "fix" it by adding `jobthai` to the `@kku/shared` root barrel: the barrel is imported by client components, `parse-row.ts` pulls in `node:crypto`, and that combination has broken a build before.
@@ -2071,7 +2071,7 @@ This reads the function source deliberately: these are `$queryRaw` templates who
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/db vitest run test/job-fields-sources.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/job-fields-sources.test.ts`
 Expected: FAIL — `latestDemandRunId` is not exported, and the source check finds the hardcoded slug.
 
 - [ ] **Step 3: Replace the three predicates**
@@ -2175,10 +2175,10 @@ export async function synonymSourcesForField(fieldId: string): Promise<SynonymSo
 
 - [ ] **Step 6: Run the test and the suite**
 
-Run: `pnpm --filter @kku/db vitest run test/job-fields-sources.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/job-fields-sources.test.ts`
 Expected: PASS, 3 tests.
 
-Run: `pnpm --filter @kku/db vitest run`
+Run: `pnpm --filter @kku/db exec vitest run`
 Expected: all previously-passing tests still pass.
 
 - [ ] **Step 7: Verify against the database**
@@ -2276,7 +2276,7 @@ describe('publicWindowStart', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/db vitest run test/gap-map-basis.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/gap-map-basis.test.ts`
 Expected: FAIL — `parseDemandBasis` is not exported.
 
 - [ ] **Step 3: Add the parser to `gap-map-rules.ts`**
@@ -2323,7 +2323,7 @@ export function publicWindowStart(now: Date, months: number): Date {
 
 - [ ] **Step 4: Run the rules test**
 
-Run: `pnpm --filter @kku/db vitest run test/gap-map-basis.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/gap-map-basis.test.ts`
 Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Thread the basis through `computeGapMap`**
@@ -2506,7 +2506,7 @@ and set `demand` in the returned object:
 - [ ] **Step 9: Typecheck and run the suite**
 
 ```bash
-pnpm --filter @kku/db typecheck && pnpm --filter @kku/db vitest run
+pnpm --filter @kku/db typecheck && pnpm --filter @kku/db exec vitest run
 ```
 
 Expected: exit 0, all tests pass. `verdictFor()` must be untouched — if a verdict test fails, you changed the supply side by mistake.
@@ -2632,7 +2632,7 @@ describe('mapMeta', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter api vitest run test/gap-demand-basis.test.ts`
+Run: `pnpm --filter api exec vitest run test/gap-demand-basis.test.ts`
 Expected: FAIL — `mapMeta` does not accept `demand`.
 
 - [ ] **Step 3: Extend `GapMapArgs` and the cache key**
@@ -2733,7 +2733,7 @@ Build the `demand` argument for `gap.map(...)` with `parseDemandBasis({ basis: q
 
 - [ ] **Step 6: Run the tests**
 
-Run: `pnpm --filter api vitest run test/gap-demand-basis.test.ts`
+Run: `pnpm --filter api exec vitest run test/gap-demand-basis.test.ts`
 Expected: PASS, 4 tests.
 
 - [ ] **Step 7: Verify live**
@@ -2821,7 +2821,7 @@ describe('GapRowShares', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter web vitest run test/gap-analysis-basis.test.tsx`
+Run: `pnpm --filter web exec vitest run test/gap-analysis-basis.test.tsx`
 Expected: FAIL — `row-shares` does not exist.
 
 - [ ] **Step 3: Write `row-shares.tsx`**
@@ -2888,7 +2888,7 @@ Use the project's own token class names if these differ — check `packages/desi
 
 - [ ] **Step 4: Run the test**
 
-Run: `pnpm --filter web vitest run test/gap-analysis-basis.test.tsx`
+Run: `pnpm --filter web exec vitest run test/gap-analysis-basis.test.tsx`
 Expected: PASS, 3 tests.
 
 - [ ] **Step 5: Add the basis control**
@@ -3089,7 +3089,7 @@ describe('job108-announcement is manageable', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/shared vitest run test/ai/method-catalog.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/ai/method-catalog.test.ts`
 Expected: FAIL — `expected undefined to be defined`.
 
 - [ ] **Step 3: Add the entry**
@@ -3119,7 +3119,7 @@ and add the entry directly after `program-job-field`:
 
 - [ ] **Step 4: Run the test**
 
-Run: `pnpm --filter @kku/shared vitest run test/ai/method-catalog.test.ts`
+Run: `pnpm --filter @kku/shared exec vitest run test/ai/method-catalog.test.ts`
 Expected: PASS, 3 tests.
 
 - [ ] **Step 5: Verify on the page**
@@ -3211,7 +3211,7 @@ describe('parseJob108Settings', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm --filter @kku/db vitest run test/job108-settings.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/job108-settings.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the settings module**
@@ -3351,7 +3351,7 @@ export * from './job108-settings';
 
 - [ ] **Step 4: Run the test**
 
-Run: `pnpm --filter @kku/db vitest run test/job108-settings.test.ts`
+Run: `pnpm --filter @kku/db exec vitest run test/job108-settings.test.ts`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Make the connector read the settings**
