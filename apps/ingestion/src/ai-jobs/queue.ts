@@ -45,6 +45,22 @@ export type AiJobKind =
   // packages/db/src/ai-model-health.ts). Registered as a daily
   // repeatable; `entityId` is an unused sentinel.
   | 'NOTIFY_MODEL_HEALTH'
+  // /admin/job-fields "Rebuild programme links" button. Runs
+  // planJobThaiLinks() + writeJobThaiLinks() (apps/ingestion/src/jobthai/
+  // refresh.ts) — deterministic, no model calls, free. Attributed to the
+  // most recent SUCCEEDED taxonomy-source ingestion run (latestDemandRunId).
+  // `entityId` is an unused sentinel (portfolio-wide, not per-field).
+  | 'RUN_JOBTHAI_LINK_REBUILD'
+  // /admin/job-fields "Full derived refresh" button. Runs
+  // refreshJobThaiDerived() — occupations, skills, links, AND the field
+  // taxonomy build (refreshJobFields, which calls the AI model and spends
+  // real money, roughly USD 0.26-0.33 per run — see CLAUDE.md's gap-map.v1
+  // notes). The taxonomy step is wrapped in try/catch inside
+  // refreshJobThaiDerived, so a provider outage still lets the links +
+  // occupations half succeed; the handler's `partial` outcome flag is what
+  // tells the operator that happened rather than reporting a flat success.
+  // `entityId` is an unused sentinel.
+  | 'RUN_JOBTHAI_FULL_REFRESH'
   // One person's Google Scholar publication record, pulled through
   // ScrapingBee and merged into ResearchOutput. `entityId` is the TARGET
   // user's id, `triggeredByUserId` the actor (equal for a self-fetch).
@@ -53,6 +69,35 @@ export type AiJobKind =
   // returns FAILED rather than throwing: a BullMQ retry would re-walk the
   // profile and spend again.
   | 'SCHOLAR_FETCH';
+
+/**
+ * Runtime mirror of the AiJobKind union above, kept in lock-step by the
+ * type-checker rather than by hand: `Record<AiJobKind, true>` requires every
+ * union member as a key (a missing one is a TS error) and, because this is
+ * an object LITERAL assigned to that type, an excess key is also a TS error.
+ * So this can never itself drift from the union it mirrors — what it CAN do
+ * is drift from the equivalent const in
+ * apps/api/src/ai-jobs/ai-jobs-queue.service.ts, which is exactly the drift
+ * apps/api/test/ai-job-kind-parity.test.ts compares the two `Object.keys()`
+ * against (NOTIFY_MODEL_HEALTH was missing from the api side for some time
+ * before this test existed — see CLAUDE.md).
+ */
+export const AI_JOB_KINDS: Record<AiJobKind, true> = {
+  EMBED_SKILL: true,
+  EXTRACT_COURSE_SKILLS: true,
+  EXTRACT_JOB_POSTING_SKILLS: true,
+  ANALYZE_POLICY_DOC: true,
+  ANALYZE_TREND_DOCUMENT: true,
+  RUN_PROGRAM_DIGEST: true,
+  RUN_PROGRAM_PIPELINE: true,
+  RUN_IMD_RANKINGS_EXTRACT: true,
+  RUN_CLASS_OFFERINGS_LINK: true,
+  REFRESH_MODEL_CATALOG: true,
+  NOTIFY_MODEL_HEALTH: true,
+  RUN_JOBTHAI_LINK_REBUILD: true,
+  RUN_JOBTHAI_FULL_REFRESH: true,
+  SCHOLAR_FETCH: true,
+};
 
 // Pipeline phases. Mirrors the API-side definition in
 // apps/api/src/ai-jobs/ai-jobs-queue.service.ts and the runtime in

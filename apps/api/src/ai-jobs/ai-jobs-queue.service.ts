@@ -26,6 +26,21 @@ export type AiJobKind =
   | 'RUN_IMD_RANKINGS_EXTRACT'
   | 'RUN_CLASS_OFFERINGS_LINK'
   | 'REFRESH_MODEL_CATALOG'
+  // NOTIFY_MODEL_HEALTH — daily aiModelHealth() sweep, registered as a
+  // repeatable entirely on the ingestion side (apps/ingestion never enqueues
+  // it via this service). Listed here purely so this union stays a true
+  // mirror of apps/ingestion/src/ai-jobs/queue.ts's AiJobKind — see
+  // test/ai-job-kind-parity.test.ts. This entry was missing until 2026-09-20;
+  // see CLAUDE.md's "AiJobKind is declared in two hand-maintained places" note.
+  | 'NOTIFY_MODEL_HEALTH'
+  // /admin/job-fields "Rebuild programme links" button — deterministic,
+  // free, no model calls. See the matching comment in
+  // apps/ingestion/src/ai-jobs/queue.ts for what the handler does.
+  | 'RUN_JOBTHAI_LINK_REBUILD'
+  // /admin/job-fields "Full derived refresh" button — spends real money
+  // (the field-taxonomy step calls the AI model). See the matching comment
+  // in apps/ingestion/src/ai-jobs/queue.ts.
+  | 'RUN_JOBTHAI_FULL_REFRESH'
   // SCHOLAR_FETCH — pull one person's Google Scholar publication record
   // through ScrapingBee and merge it into ResearchOutput. `entityId` is the
   // TARGET user's id; `triggeredByUserId` is whoever asked for it (equal for
@@ -34,6 +49,28 @@ export type AiJobKind =
   // UI polls GET /scholar/status/me. Binding a profile is NOT queued — see
   // apps/api/src/scholar/scholar.controller.ts.
   | 'SCHOLAR_FETCH';
+
+/**
+ * Runtime mirror of the AiJobKind union above — see the identical construct
+ * (and the full rationale) in apps/ingestion/src/ai-jobs/queue.ts. Compared
+ * against that file's `AI_JOB_KINDS` by test/ai-job-kind-parity.test.ts.
+ */
+export const AI_JOB_KINDS: Record<AiJobKind, true> = {
+  EMBED_SKILL: true,
+  EXTRACT_COURSE_SKILLS: true,
+  EXTRACT_JOB_POSTING_SKILLS: true,
+  ANALYZE_POLICY_DOC: true,
+  ANALYZE_TREND_DOCUMENT: true,
+  RUN_PROGRAM_DIGEST: true,
+  RUN_PROGRAM_PIPELINE: true,
+  RUN_IMD_RANKINGS_EXTRACT: true,
+  RUN_CLASS_OFFERINGS_LINK: true,
+  REFRESH_MODEL_CATALOG: true,
+  NOTIFY_MODEL_HEALTH: true,
+  RUN_JOBTHAI_LINK_REBUILD: true,
+  RUN_JOBTHAI_FULL_REFRESH: true,
+  SCHOLAR_FETCH: true,
+};
 
 /**
  * Pipeline phases. Mirrors apps/ingestion/src/scripts/programs-pipeline.ts:
@@ -142,6 +179,48 @@ export class AiJobsQueueService implements OnModuleInit, OnModuleDestroy {
       (j) => j.data?.kind === kind && (entityId === undefined || j.data?.entityId === entityId),
     ).length;
   }
+
+  /**
+   * The most recently FINISHED job of a given kind (completed or failed).
+   * Used by /admin/job-fields's refresh-status GET so the operator sees what
+   * the last rebuild/refresh actually did, not just that a button was
+   * clicked. `status: 'JOB_FAILED'` means the handler threw rather than
+   * reporting a result of its own (BullMQ's `failedReason`, not the
+   * handler's `AiJobOutcome.status`); `partial` is true only when the
+   * handler explicitly said so (see AiJobOutcome.partial in
+   * apps/ingestion/src/ai-jobs/handlers.ts) — RUN_JOBTHAI_FULL_REFRESH sets
+   * it when refreshJobThaiDerived's field-taxonomy step failed but links
+   * and occupations still landed.
+   */
+  async latestOutcome(kind: AiJobKind): Promise<AiJobOutcomeSummary | null> {
+    if (!this.queue) return null;
+    const jobs = await this.queue.getJobs(['completed', 'failed'], 0, 50);
+    const matching = jobs.filter((j) => j.data?.kind === kind);
+    if (matching.length === 0) return null;
+    matching.sort((a, b) => (b.finishedOn ?? 0) - (a.finishedOn ?? 0));
+    const job = matching[0];
+    if (!job) return null;
+    const finishedAt = job.finishedOn ? new Date(job.finishedOn).toISOString() : null;
+    const rv = job.returnvalue as { status?: unknown; message?: unknown; partial?: unknown } | undefined;
+    const status = rv?.status;
+    if (status !== 'SUCCEEDED' && status !== 'SKIPPED' && status !== 'FAILED') {
+      // The handler never got to return — BullMQ recorded a thrown error.
+      return { status: 'JOB_FAILED', message: job.failedReason ?? null, partial: false, finishedAt };
+    }
+    return {
+      status,
+      message: typeof rv?.message === 'string' ? rv.message : null,
+      partial: rv?.partial === true,
+      finishedAt,
+    };
+  }
+}
+
+export interface AiJobOutcomeSummary {
+  status: 'SUCCEEDED' | 'SKIPPED' | 'FAILED' | 'JOB_FAILED';
+  message: string | null;
+  partial: boolean;
+  finishedAt: string | null;
 }
 
 /**

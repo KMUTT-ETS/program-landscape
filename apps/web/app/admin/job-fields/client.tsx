@@ -3,12 +3,22 @@
 import * as React from 'react';
 import { toast } from 'sonner';
 import { Badge, Button, Card } from '@kku/ui';
-import { AlertTriangle, Check, CheckSquare, GitMerge, Pencil, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckSquare, CircleDollarSign, GitMerge, Loader2, Pencil, RefreshCw, X } from 'lucide-react';
 
 // @kku/ui has no text-input primitive; the /usage search box uses a plain
 // <input> with token classes, and so does this page — classes copied from
 // apps/web/app/usage/client.tsx's search input.
 const INPUT = 'rounded-md border border-default bg-surface-1 px-3 py-1.5 text-xs text-text-primary';
+
+// Border colour utilities mostly emit no CSS (only border-subtle / -default
+// / -strong / -transparent exist — see CLAUDE.md's "807 border-colour
+// utilities" note); an arbitrary value wrapping the token var is the
+// working pattern, same as the government-only / over-cap warnings below.
+const OUTCOME_TONE_CLASSES: Record<'success' | 'warning' | 'danger', string> = {
+  success: 'border-[oklch(var(--color-success-default)/0.3)] bg-success-subtle',
+  warning: 'border-[oklch(var(--color-warning-default)/0.3)] bg-warning-subtle',
+  danger: 'border-[oklch(var(--color-danger-default)/0.3)] bg-danger-subtle',
+};
 
 export interface JobFieldRowDto {
   id: string;
@@ -359,6 +369,159 @@ export async function runBulkApprove(
   return deps.post(selection.ids);
 }
 
+// ── Derived-layer rebuild triggers ──────────────────────────────────────────
+//
+// Approving a field or an assignment changes nothing an operator can SEE
+// until the JobThai programme-link bridge is rebuilt from it — today that
+// only happens via a CLI script (pnpm jobthai:link-programs / jobthai:fields)
+// or the next JobThai upload. These two triggers let an operator run the
+// same rebuild from this page.
+//
+//   - Rebuild programme links: planJobThaiLinks() + writeJobThaiLinks() —
+//     deterministic, no model calls, free.
+//   - Full derived refresh: refreshJobThaiDerived() — occupations, skills,
+//     links, AND the field-of-study taxonomy build, which calls the AI
+//     model and spends real money.
+//
+// Server-side: apps/api/src/job-fields/job-fields.controller.ts's
+// rebuildLinks / refreshAll / refreshStatus. Handlers:
+// apps/ingestion/src/ai-jobs/handlers.ts's RUN_JOBTHAI_LINK_REBUILD /
+// RUN_JOBTHAI_FULL_REFRESH.
+
+/** Live count of ProgramJobThaiLink rows — read fresh on every refresh-status
+ *  poll, never hardcoded (the CLAUDE.md-documented "1,716 links across 82
+ *  programmes" figure is a point-in-time snapshot, not a constant). */
+export interface JobThaiLinkStateDto {
+  totalLinks: number;
+  linkedProgrammes: number;
+  methodologyVersion: string;
+}
+
+/**
+ * The last FINISHED job of one kind. `status: 'JOB_FAILED'` means the
+ * handler threw rather than returning a result of its own (a BullMQ-level
+ * failure); `partial: true` means the handler explicitly said a SUCCEEDED
+ * run did not finish everything — see RUN_JOBTHAI_FULL_REFRESH's doc
+ * comment in apps/ingestion/src/ai-jobs/handlers.ts. `message` is built
+ * server-side from counts only, never a raw id — see the "no raw cuid on
+ * screen" test in this page's test suite.
+ */
+export interface RefreshOutcomeDto {
+  status: 'SUCCEEDED' | 'SKIPPED' | 'FAILED' | 'JOB_FAILED';
+  message: string | null;
+  partial: boolean;
+  finishedAt: string | null;
+}
+
+export interface RefreshStatusDto {
+  linkRebuildRunning: boolean;
+  fullRefreshRunning: boolean;
+  linkState: JobThaiLinkStateDto | null;
+  lastLinkRebuild: RefreshOutcomeDto | null;
+  lastFullRefresh: RefreshOutcomeDto | null;
+}
+
+// Documented estimate, not a live computation — see CLAUDE.md's gap-map.v1
+// notes ("roughly USD 0.26-0.33 ... plus a known recurring waste of about
+// $0.17 a run"). There is no formula in this codebase that derives this
+// number from current data; it is the operator's known-cost figure for the
+// taxonomy step, restated here so the button names it before the click.
+export const JOBTHAI_FULL_REFRESH_COST_MIN_USD = 0.26;
+export const JOBTHAI_FULL_REFRESH_COST_MAX_USD = 0.33;
+
+/** Deliberately does NOT mention money — button 1 is free and deterministic,
+ *  and must never look like it costs something. */
+export const LINK_REBUILD_HELP_TEXT = 'Free · deterministic, no model calls.';
+
+export function fullRefreshCostLabel(): string {
+  return `~USD ${JOBTHAI_FULL_REFRESH_COST_MIN_USD.toFixed(2)}–${JOBTHAI_FULL_REFRESH_COST_MAX_USD.toFixed(2)} per run`;
+}
+
+/**
+ * The full-refresh confirmation text — names the cost figure and what it
+ * pays for, the same "named numbers, not are-you-sure" style as
+ * buildBulkApproveConfirmation above. Must be shown, and confirmed, before
+ * RUN_JOBTHAI_FULL_REFRESH is ever enqueued.
+ */
+export function buildFullRefreshConfirmation(): string {
+  return [
+    'Run the full JobThai derived-layer refresh?',
+    'This rebuilds occupations, skills, and programme links, AND the field-of-study taxonomy — the same rebuild the JobThai connector runs at the end of every upload.',
+    `The taxonomy step calls the AI model and will spend roughly ${fullRefreshCostLabel()}.`,
+    'Programme links feed jobthai_demand_alignment, a Council-facing health driver — this also changes which programmes JobThai adverts are matched to.',
+  ].join('\n');
+}
+
+export interface TriggerDeps {
+  post: () => Promise<boolean>;
+}
+
+/** No confirmation — button 1 is free and deterministic. */
+export async function runLinkRebuild(deps: TriggerDeps): Promise<boolean> {
+  return deps.post();
+}
+
+export interface TriggerWithConfirmDeps extends TriggerDeps {
+  confirm: (message: string) => boolean;
+}
+
+/** Confirms with exactly buildFullRefreshConfirmation()'s text before
+ *  posting — never posts if the confirmation is declined. */
+export async function runFullRefresh(deps: TriggerWithConfirmDeps): Promise<boolean> {
+  if (!deps.confirm(buildFullRefreshConfirmation())) return false;
+  return deps.post();
+}
+
+/** Which job(s), if any, are keeping both buttons disabled — named so the
+ *  reason is visible on screen, not a silently dead button. */
+export function describeJobsInFlight(status: RefreshStatusDto | null): string | null {
+  if (!status) return null;
+  if (status.linkRebuildRunning && status.fullRefreshRunning) {
+    return 'A link rebuild and a full refresh are both running — both buttons are disabled until they finish.';
+  }
+  if (status.fullRefreshRunning) {
+    return 'A full derived refresh is running — both buttons are disabled until it finishes.';
+  }
+  if (status.linkRebuildRunning) {
+    return 'A programme-link rebuild is running — both buttons are disabled until it finishes.';
+  }
+  return null;
+}
+
+export interface RefreshOutcomeDisplay {
+  tone: 'success' | 'warning' | 'danger';
+  text: string;
+}
+
+/**
+ * Turns the last-run outcome into what the operator sees — and, critically,
+ * gives a PARTIAL full refresh (the field-taxonomy step failed but links and
+ * occupations still landed) a visibly different tone and wording than an
+ * ordinary full success. Reporting "Done." either way would be the flat
+ * "done" this feature exists to avoid.
+ */
+export function describeRefreshOutcome(
+  outcome: RefreshOutcomeDto | null | undefined,
+  label: string,
+): RefreshOutcomeDisplay | null {
+  if (!outcome) return null;
+  if (outcome.status === 'FAILED' || outcome.status === 'JOB_FAILED') {
+    return { tone: 'danger', text: `${label} failed: ${outcome.message ?? 'no details available — check the ingestion log.'}` };
+  }
+  if (outcome.status === 'SKIPPED') {
+    return { tone: 'warning', text: `${label} skipped: ${outcome.message ?? 'no details available.'}` };
+  }
+  if (outcome.partial) {
+    return {
+      tone: 'warning',
+      text:
+        `${label}: partial — links and occupations refreshed, but the field-taxonomy step did not complete.` +
+        (outcome.message ? ` ${outcome.message}` : ''),
+    };
+  }
+  return { tone: 'success', text: `${label}: done.${outcome.message ? ` ${outcome.message}` : ''}` };
+}
+
 async function call(path: string, method: 'POST' | 'PATCH', body?: unknown): Promise<boolean> {
   const res = await fetch(`/api/admin-job-fields/${path}`, {
     method,
@@ -378,6 +541,7 @@ export function JobFieldsReview({
   assignments: initialAssignments,
   synonymSources = [],
   maxProgrammesPerField,
+  initialRefreshStatus = null,
 }: {
   fields: JobFieldRowDto[];
   assignments: ProgramJobFieldRowDto[];
@@ -389,6 +553,11 @@ export function JobFieldsReview({
    *  over-cap flag simply never fires, rather than falling back to a
    *  second hardcoded "15" that could drift from the real constant. */
   maxProgrammesPerField?: number;
+  /** GET /admin/job-fields/refresh-status, fetched server-side in page.tsx.
+   *  Optional (and defaults to null) so existing callers/tests render
+   *  unchanged; null renders the rebuild controls with "unknown" in-flight
+   *  state rather than blocking the rest of the page. */
+  initialRefreshStatus?: RefreshStatusDto | null;
 }): React.JSX.Element {
   // Hook order is pinned by apps/web/test/job-fields-admin-render.test.tsx,
   // which mocks useState by call index to force the rename/merge forms open
@@ -407,6 +576,10 @@ export function JobFieldsReview({
   // Appended AFTER selectedIds (index 9) so the hook-order test's pinned
   // indices never shift — see apps/web/test/job-fields-admin-bulk-approve.test.tsx.
   const [assignmentSelectedIds, setAssignmentSelectedIds] = React.useState<Set<string>>(new Set());
+  // Appended AFTER assignmentSelectedIds (index 10) — see
+  // apps/web/test/job-fields-admin-assignment-bulk-approve.test.tsx's own
+  // pinned-index comment. Index 11; do not insert anything before this.
+  const [refreshStatus, setRefreshStatus] = React.useState<RefreshStatusDto | null>(initialRefreshStatus);
 
   // Not a useState: synonym-source attribution doesn't change when a field
   // or assignment is approved/rejected/renamed/merged, so it doesn't need to
@@ -532,8 +705,119 @@ export function JobFieldsReview({
     if (ok) clearAssignmentSelection();
   }
 
+  const fetchRefreshStatus = React.useCallback(async () => {
+    const res = await fetch('/api/admin-job-fields/refresh-status');
+    if (!res.ok) return;
+    const body = (await res.json().catch(() => null)) as { data: RefreshStatusDto } | null;
+    if (body?.data) setRefreshStatus(body.data);
+  }, []);
+
+  // Polls while either derived-layer job might be running so the buttons
+  // re-enable and the outcome banner appears without a manual reload — a
+  // full refresh can run for minutes. Not exercised by this package's tests
+  // (no jsdom, no timers to drive); the polling itself is not business
+  // logic, only fetchRefreshStatus and the pure functions above are.
+  React.useEffect(() => {
+    if (!refreshStatus?.linkRebuildRunning && !refreshStatus?.fullRefreshRunning) return;
+    const id = window.setInterval(() => void fetchRefreshStatus(), 5000);
+    return () => window.clearInterval(id);
+  }, [refreshStatus?.linkRebuildRunning, refreshStatus?.fullRefreshRunning, fetchRefreshStatus]);
+
+  const jobsInFlightReason = describeJobsInFlight(refreshStatus);
+  const jobsInFlight = jobsInFlightReason !== null;
+  const linkRebuildOutcome = describeRefreshOutcome(refreshStatus?.lastLinkRebuild, 'Rebuild programme links');
+  const fullRefreshOutcome = describeRefreshOutcome(refreshStatus?.lastFullRefresh, 'Full derived refresh');
+
+  async function triggerLinkRebuild(): Promise<void> {
+    const ok = await runLinkRebuild({
+      post: () =>
+        act('rebuild-links', 'rebuild-links', 'POST', undefined, 'Programme-link rebuild queued'),
+    });
+    if (ok) await fetchRefreshStatus();
+  }
+
+  async function triggerFullRefresh(): Promise<void> {
+    const ok = await runFullRefresh({
+      confirm: (message) => window.confirm(message),
+      post: () => act('refresh-all', 'refresh-all', 'POST', undefined, 'Full derived refresh queued'),
+    });
+    if (ok) await fetchRefreshStatus();
+  }
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+    <div className="grid gap-4">
+      <Card className="p-4" data-testid="derived-layer-rebuilds">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">Derived-layer rebuilds</div>
+            <div className="mt-1 text-xs text-text-tertiary" data-testid="link-state">
+              {refreshStatus?.linkState
+                ? `${refreshStatus.linkState.totalLinks.toLocaleString()} program_jobthai_links across ${refreshStatus.linkState.linkedProgrammes} programme${refreshStatus.linkState.linkedProgrammes === 1 ? '' : 's'} · ${refreshStatus.linkState.methodologyVersion}`
+                : 'Link state unavailable — reload to try again.'}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                data-action="rebuild-links"
+                disabled={jobsInFlight || busy !== null}
+                onClick={() => void triggerLinkRebuild()}
+              >
+                <RefreshCw className="h-[14px] w-[14px]" />
+                Rebuild programme links
+              </Button>
+              <span className="text-[11px] text-text-tertiary" data-testid="rebuild-links-help">
+                {LINK_REBUILD_HELP_TEXT}
+              </span>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                data-action="refresh-all"
+                disabled={jobsInFlight || busy !== null}
+                onClick={() => void triggerFullRefresh()}
+              >
+                <CircleDollarSign className="h-[14px] w-[14px]" />
+                Full derived refresh
+              </Button>
+              <span className="text-[11px] text-text-tertiary" data-testid="refresh-all-help">
+                Spends real money — {fullRefreshCostLabel()}
+              </span>
+            </div>
+          </div>
+        </div>
+        {jobsInFlight && (
+          <div
+            data-testid="jobs-in-flight"
+            className="mt-3 flex items-center gap-2 rounded-md border border-[oklch(var(--color-accent-default)/0.3)] bg-surface-2 px-3 py-2 text-xs text-text-secondary"
+          >
+            <Loader2 className="h-[14px] w-[14px] animate-spin" aria-hidden="true" />
+            {jobsInFlightReason}
+          </div>
+        )}
+        {linkRebuildOutcome && (
+          <div
+            data-testid="link-rebuild-outcome"
+            className={`mt-3 rounded-md border px-3 py-2 text-xs leading-relaxed text-text-primary ${OUTCOME_TONE_CLASSES[linkRebuildOutcome.tone]}`}
+          >
+            {linkRebuildOutcome.text}
+          </div>
+        )}
+        {fullRefreshOutcome && (
+          <div
+            data-testid="full-refresh-outcome"
+            className={`mt-3 rounded-md border px-3 py-2 text-xs leading-relaxed text-text-primary ${OUTCOME_TONE_CLASSES[fullRefreshOutcome.tone]}`}
+          >
+            {fullRefreshOutcome.text}
+          </div>
+        )}
+      </Card>
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
       <Card className="p-0">
         <div className="flex items-center justify-between border-b border-default px-4 py-3">
           <div className="text-sm font-medium">Fields · {fields.length}</div>
@@ -907,6 +1191,7 @@ export function JobFieldsReview({
           </form>
         )}
       </Card>
+      </div>
     </div>
   );
 }

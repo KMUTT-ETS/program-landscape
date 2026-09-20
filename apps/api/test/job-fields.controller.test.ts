@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@kku/db';
-import { ApiError } from '@kku/shared';
+import { ApiError, type SessionUser } from '@kku/shared';
 import { AUDIT_LOG_META, PERMISSION_META } from '../src/common/decorators';
 import type { CacheService } from '../src/common/cache.service';
+import type { AiJobsQueueService } from '../src/ai-jobs/ai-jobs-queue.service';
 import { ZodValidationPipe } from '../src/common/zod-validation.pipe';
 
 // Mutations must be audit-logged, gated on data_sources:configure, and must
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   latestDemandRunId: vi.fn(),
   synonymSourcesForField: vi.fn(),
   synonymSourcesForAllFields: vi.fn(),
+  jobThaiLinkState: vi.fn(),
 }));
 
 vi.mock('@kku/db', async () => {
@@ -44,6 +46,7 @@ vi.mock('@kku/db', async () => {
     latestDemandRunId: mocks.latestDemandRunId,
     synonymSourcesForField: mocks.synonymSourcesForField,
     synonymSourcesForAllFields: mocks.synonymSourcesForAllFields,
+    jobThaiLinkState: mocks.jobThaiLinkState,
   };
 });
 
@@ -61,10 +64,24 @@ function p2003(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('foreign key violation', { code: 'P2003', clientVersion: 'test' });
 }
 
-function makeController(): { controller: JobFieldsController; purge: ReturnType<typeof vi.fn> } {
+interface FakeAiJobs {
+  enqueue: ReturnType<typeof vi.fn>;
+  countRunning: ReturnType<typeof vi.fn>;
+  latestOutcome: ReturnType<typeof vi.fn>;
+}
+
+function makeController(): { controller: JobFieldsController; purge: ReturnType<typeof vi.fn>; aiJobs: FakeAiJobs } {
   const purge = vi.fn(async () => 1);
-  const controller = new JobFieldsController({ purge } as unknown as CacheService);
-  return { controller, purge };
+  const aiJobs: FakeAiJobs = {
+    enqueue: vi.fn(async () => 'job-1'),
+    countRunning: vi.fn(async () => 0),
+    latestOutcome: vi.fn(async () => null),
+  };
+  const controller = new JobFieldsController(
+    { purge } as unknown as CacheService,
+    aiJobs as unknown as AiJobsQueueService,
+  );
+  return { controller, purge, aiJobs };
 }
 
 beforeEach(() => {
@@ -72,7 +89,19 @@ beforeEach(() => {
 });
 
 describe('JobFieldsController decorators', () => {
-  const mutations: Array<keyof JobFieldsController> = ['approve', 'reject', 'rename', 'merge', 'bulkApprove', 'addAssignment', 'approveAssignment', 'rejectAssignment', 'bulkApproveAssignments'];
+  const mutations: Array<keyof JobFieldsController> = [
+    'approve',
+    'reject',
+    'rename',
+    'merge',
+    'bulkApprove',
+    'addAssignment',
+    'approveAssignment',
+    'rejectAssignment',
+    'bulkApproveAssignments',
+    'rebuildLinks',
+    'refreshAll',
+  ];
   for (const name of mutations) {
     it(`${name} is audit-logged and gated on data_sources:configure`, () => {
       const method = JobFieldsController.prototype[name] as (...args: never[]) => unknown;
@@ -85,6 +114,18 @@ describe('JobFieldsController decorators', () => {
   });
   it('synonymSources is gated on data_sources:read, like the other reads', () => {
     expect(meta<string>(PERMISSION_META, JobFieldsController.prototype.synonymSources)).toBe('data_sources:read');
+  });
+  it('refreshStatus is gated on data_sources:read, like the other reads', () => {
+    expect(meta<string>(PERMISSION_META, JobFieldsController.prototype.refreshStatus)).toBe('data_sources:read');
+  });
+  // A free, deterministic link rebuild and a full refresh that spends real
+  // AI money must never look the same to someone reading the audit log.
+  it('rebuildLinks and refreshAll are audited as two DISTINCT actions', () => {
+    const rebuildAction = meta<{ action: string }>(AUDIT_LOG_META, JobFieldsController.prototype.rebuildLinks)?.action;
+    const refreshAction = meta<{ action: string }>(AUDIT_LOG_META, JobFieldsController.prototype.refreshAll)?.action;
+    expect(rebuildAction).toBe('job_field.rebuild_links');
+    expect(refreshAction).toBe('job_field.refresh_all');
+    expect(rebuildAction).not.toBe(refreshAction);
   });
 });
 
@@ -453,5 +494,86 @@ describe('JobFieldsController.rejectAssignment', () => {
 
     await expect(controller.rejectAssignment('a1')).rejects.toThrow('boom');
     expect(purge).not.toHaveBeenCalled();
+  });
+});
+
+// Derived-layer rebuild triggers. NOTE: these tests only prove the endpoints
+// enqueue the right kind and that the status GET reports what the queue
+// says — they never enqueue a REAL job (aiJobs.enqueue is a mock, no BullMQ
+// connection exists in this test process) and never spend AI money.
+describe('JobFieldsController.rebuildLinks', () => {
+  it('enqueues RUN_JOBTHAI_LINK_REBUILD, MANUAL, with the caller as triggeredByUserId', async () => {
+    const { controller, aiJobs } = makeController();
+    aiJobs.enqueue.mockResolvedValue('job-42');
+
+    const result = await controller.rebuildLinks({ userId: 'u1' } as SessionUser);
+
+    expect(aiJobs.enqueue).toHaveBeenCalledTimes(1);
+    expect(aiJobs.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'RUN_JOBTHAI_LINK_REBUILD', trigger: 'MANUAL', triggeredByUserId: 'u1' }),
+    );
+    expect(result).toEqual({ jobId: 'job-42' });
+  });
+});
+
+describe('JobFieldsController.refreshAll', () => {
+  it('enqueues RUN_JOBTHAI_FULL_REFRESH, MANUAL, with the caller as triggeredByUserId', async () => {
+    const { controller, aiJobs } = makeController();
+    aiJobs.enqueue.mockResolvedValue('job-43');
+
+    const result = await controller.refreshAll({ userId: 'u2' } as SessionUser);
+
+    expect(aiJobs.enqueue).toHaveBeenCalledTimes(1);
+    expect(aiJobs.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'RUN_JOBTHAI_FULL_REFRESH', trigger: 'MANUAL', triggeredByUserId: 'u2' }),
+    );
+    expect(result).toEqual({ jobId: 'job-43' });
+  });
+
+  it('enqueues a DIFFERENT kind than rebuildLinks', async () => {
+    const { controller, aiJobs } = makeController();
+
+    await controller.rebuildLinks({ userId: 'u1' } as SessionUser);
+    await controller.refreshAll({ userId: 'u1' } as SessionUser);
+
+    const kinds = aiJobs.enqueue.mock.calls.map((c) => (c[0] as { kind: string }).kind);
+    expect(kinds).toEqual(['RUN_JOBTHAI_LINK_REBUILD', 'RUN_JOBTHAI_FULL_REFRESH']);
+  });
+});
+
+describe('JobFieldsController.refreshStatus', () => {
+  it('reports each kind\'s in-flight state independently, plus the live link state', async () => {
+    const { controller, aiJobs } = makeController();
+    aiJobs.countRunning.mockImplementation(async (kind: string) => (kind === 'RUN_JOBTHAI_FULL_REFRESH' ? 1 : 0));
+    aiJobs.latestOutcome.mockImplementation(async (kind: string) =>
+      kind === 'RUN_JOBTHAI_LINK_REBUILD'
+        ? { status: 'SUCCEEDED', message: 'wrote 1716 program_jobthai_links across 82 programme(s)', partial: false, finishedAt: '2026-09-20T00:00:00Z' }
+        : null,
+    );
+    mocks.jobThaiLinkState.mockResolvedValue({ totalLinks: 1716, linkedProgrammes: 82, methodologyVersion: 'jobthai-bridge.v3' });
+
+    const result = await controller.refreshStatus();
+
+    expect(result.linkRebuildRunning).toBe(false);
+    expect(result.fullRefreshRunning).toBe(true);
+    expect(result.linkState).toEqual({ totalLinks: 1716, linkedProgrammes: 82, methodologyVersion: 'jobthai-bridge.v3' });
+    expect(result.lastLinkRebuild?.status).toBe('SUCCEEDED');
+    expect(result.lastFullRefresh).toBeNull();
+  });
+
+  it('surfaces a partial full-refresh outcome distinctly', async () => {
+    const { controller, aiJobs } = makeController();
+    aiJobs.countRunning.mockResolvedValue(0);
+    aiJobs.latestOutcome.mockImplementation(async (kind: string) =>
+      kind === 'RUN_JOBTHAI_FULL_REFRESH'
+        ? { status: 'SUCCEEDED', partial: true, message: 'fields: FAILED — provider outage', finishedAt: '2026-09-20T01:00:00Z' }
+        : null,
+    );
+    mocks.jobThaiLinkState.mockResolvedValue({ totalLinks: 1716, linkedProgrammes: 82, methodologyVersion: 'jobthai-bridge.v3' });
+
+    const result = await controller.refreshStatus();
+
+    expect(result.lastFullRefresh?.partial).toBe(true);
+    expect(result.lastFullRefresh?.status).toBe('SUCCEEDED');
   });
 });

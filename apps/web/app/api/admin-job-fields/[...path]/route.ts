@@ -44,3 +44,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
 export async function PATCH(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   return forward(req, 'PATCH', (await params).path);
 }
+
+// GET passthrough — a separate, even narrower closed set than the mutation
+// paths above (exact match, not a pattern): today this is ONLY
+// refresh-status, the derived-layer rebuild triggers' polling endpoint.
+const ALLOWED_GET = new Set(['refresh-status']);
+
+export async function GET(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+  const session = await auth();
+  const user = session?.user as SessionUser | undefined;
+  if (!user?.userId) return NextResponse.json({ error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+  const joined = (await params).path.join('/');
+  if (!ALLOWED_GET.has(joined)) return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 });
+  try {
+    const result = await apiFetch(`/admin/job-fields/${joined}`);
+    return NextResponse.json({ data: result });
+  } catch (err) {
+    const e = err as ApiFetchError;
+    return NextResponse.json(
+      { error: { code: e.code ?? 'UPSTREAM_ERROR', message: e.message } },
+      { status: e.status ?? 502 },
+    );
+  }
+}

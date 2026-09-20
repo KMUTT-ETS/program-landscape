@@ -6,6 +6,7 @@ import {
   bulkApproveProgramJobFields,
   JOB_FIELDS_BULK_APPROVE_MAX,
   PROGRAM_JOB_FIELDS_BULK_APPROVE_MAX,
+  jobThaiLinkState,
   latestDemandRunId,
   listJobFields,
   listProgramJobFields,
@@ -17,9 +18,10 @@ import {
   synonymSourcesForAllFields,
   synonymSourcesForField,
 } from '@kku/db';
-import { ApiError } from '@kku/shared';
-import { AuditLog, Authorized, ZodValidationPipe } from '../common';
+import { ApiError, type SessionUser } from '@kku/shared';
+import { AuditLog, AuthSession, Authorized, ZodValidationPipe } from '../common';
 import { CacheService } from '../common/cache.service';
+import { AiJobsQueueService } from '../ai-jobs/ai-jobs-queue.service';
 
 // Review API for the field-of-study taxonomy (spec §3.3). Every mutation is
 // audit-logged and purges the Gap Analyzer's map cache.
@@ -45,7 +47,10 @@ export const BulkApproveAssignmentsBody = z.object({
 
 @Controller('/admin/job-fields')
 export class JobFieldsController {
-  constructor(private readonly cache: CacheService) {}
+  constructor(
+    private readonly cache: CacheService,
+    private readonly aiJobs: AiJobsQueueService,
+  ) {}
 
   private async invalidate(): Promise<void> {
     await this.cache.purge(GAP_MAP_CACHE_PATTERN);
@@ -93,6 +98,60 @@ export class JobFieldsController {
       return rows.map((r) => ({ fieldId: q.fieldId as string, ...r }));
     }
     return synonymSourcesForAllFields();
+  }
+
+  // ── Derived-layer rebuild triggers ─────────────────────────────────────
+  //
+  // Approving a field or an assignment changes nothing visible on its own —
+  // both feed the JobThai programme-link bridge, which is only rebuilt by a
+  // CLI script today. These two POSTs let an operator trigger that rebuild
+  // from the page instead. Same shape as
+  // EducationController's class-offerings/refresh: enqueue a BullMQ ai-jobs
+  // job, ingestion's worker does the work, GET reports freshness + whether a
+  // job is currently in flight.
+  //
+  // Audited as two DISTINCT actions on purpose — a free, deterministic link
+  // rebuild and a full refresh that spends real AI money must never look the
+  // same to someone reading the audit log later.
+
+  @Post('rebuild-links')
+  @Authorized('data_sources:configure')
+  @AuditLog({ action: 'job_field.rebuild_links', entityType: 'ProgramJobThaiLink' })
+  async rebuildLinks(@AuthSession() user: SessionUser) {
+    const jobId = await this.aiJobs.enqueue({
+      kind: 'RUN_JOBTHAI_LINK_REBUILD',
+      // entityId is an unused sentinel — the rebuild is portfolio-wide.
+      entityId: '__all__',
+      trigger: 'MANUAL',
+      triggeredByUserId: user.userId,
+    });
+    return { jobId };
+  }
+
+  @Post('refresh-all')
+  @Authorized('data_sources:configure')
+  @AuditLog({ action: 'job_field.refresh_all', entityType: 'ProgramJobThaiLink' })
+  async refreshAll(@AuthSession() user: SessionUser) {
+    const jobId = await this.aiJobs.enqueue({
+      kind: 'RUN_JOBTHAI_FULL_REFRESH',
+      entityId: '__all__',
+      trigger: 'MANUAL',
+      triggeredByUserId: user.userId,
+    });
+    return { jobId };
+  }
+
+  @Get('refresh-status')
+  @Authorized('data_sources:read')
+  async refreshStatus() {
+    const [linkRebuildRunning, fullRefreshRunning, lastLinkRebuild, lastFullRefresh, linkState] = await Promise.all([
+      this.aiJobs.countRunning('RUN_JOBTHAI_LINK_REBUILD').then((n) => n > 0),
+      this.aiJobs.countRunning('RUN_JOBTHAI_FULL_REFRESH').then((n) => n > 0),
+      this.aiJobs.latestOutcome('RUN_JOBTHAI_LINK_REBUILD'),
+      this.aiJobs.latestOutcome('RUN_JOBTHAI_FULL_REFRESH'),
+      jobThaiLinkState(),
+    ]);
+    return { linkRebuildRunning, fullRefreshRunning, lastLinkRebuild, lastFullRefresh, linkState };
   }
 
   @Post(':id/approve')

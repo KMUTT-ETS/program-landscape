@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { Logger } from '@nestjs/common';
-import { Prisma, prisma, refreshAiModelCatalog, runScholarFetch } from '@kku/db';
+import { Prisma, prisma, refreshAiModelCatalog, runScholarFetch, latestDemandRunId } from '@kku/db';
 import { z } from 'zod';
 // Transport by subpath, not the barrel — see the note in scholar/index.ts.
 import {
@@ -29,6 +29,7 @@ import { runProgramDigest } from '../program-digest/run';
 import { runImdRankingsExtract } from '../imd-rankings-extract/run';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
 import { runModelHealthNotifier } from './model-health-notifier';
+import { planJobThaiLinks, writeJobThaiLinks, refreshJobThaiDerived, type RefreshLog } from '../jobthai/refresh';
 import type { AiJobKind, ProgramPipelinePhase } from './queue';
 import type { Role, ScholarTrigger } from '@kku/shared';
 
@@ -57,6 +58,14 @@ export interface AiJobOutcome {
   aiExtractionId?: string;
   aiInferenceId?: string;
   message?: string;
+  /**
+   * True only when the handler explicitly says a SUCCEEDED run did not
+   * finish everything it set out to do — RUN_JOBTHAI_FULL_REFRESH sets this
+   * when refreshJobThaiDerived's field-taxonomy step failed (a provider
+   * outage) but links + occupations still landed. Never inferred from
+   * `message` text; absent (falsy) means a full, ordinary success.
+   */
+  partial?: boolean;
 }
 
 export type AiJobHandler = (ctx: AiJobContext) => Promise<AiJobOutcome>;
@@ -542,6 +551,71 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         status: 'FAILED',
         message: `link-class-offerings exited with code ${exitCode}; log=${logPath}`,
       };
+    },
+
+    // /admin/job-fields "Rebuild programme links" button. Calls the two
+    // functions the connector's own end-of-run refresh calls for this half
+    // of the work (apps/ingestion/src/jobthai/refresh.ts) — deterministic,
+    // no model calls, free. Same runId-resolution rule as the
+    // jobthai:link-programs CLI script (apps/ingestion/src/scripts/
+    // jobthai-link-programs.ts): the most recent SUCCEEDED run of any
+    // taxonomy demand source. Without a run to attribute the write to, the
+    // written links would fail realDataWhere() and vanish from every
+    // Council-facing surface — so this FAILs rather than writing untagged
+    // rows.
+    RUN_JOBTHAI_LINK_REBUILD: async ({ triggeredByUserId }) => {
+      const runId = await latestDemandRunId();
+      if (!runId) {
+        return {
+          status: 'FAILED',
+          message:
+            'No SUCCEEDED jobthai/job-108 ingestion run to attribute these links to. Upload a JobThai batch first.',
+        };
+      }
+      const plan = await planJobThaiLinks();
+      const written = await writeJobThaiLinks(plan.planned, runId);
+      // Counts only — never the runId — in the message that reaches the
+      // web UI (via AiJobsQueueService.latestOutcome). The runId is a real
+      // cuid and has no business appearing on screen.
+      const message = `wrote ${written} program_jobthai_links across ${plan.linkedProgrammes} programme(s), ${plan.clearingFloor} clearing the posting floor`;
+      logger.log(`RUN_JOBTHAI_LINK_REBUILD ${message} (run ${runId}, by user ${triggeredByUserId ?? 'unknown'})`);
+      return { status: 'SUCCEEDED', message };
+    },
+
+    // /admin/job-fields "Full derived refresh" button. Rebuilds every
+    // JobThai derived layer from the postings that exist now: occupations,
+    // skills, programme links, AND the field-of-study taxonomy. The
+    // taxonomy step calls the AI model and spends real money (roughly USD
+    // 0.26-0.33 per run — see CLAUDE.md's gap-map.v1 notes); the operator
+    // confirms that cost on the button before this job is ever enqueued.
+    //
+    // refreshJobThaiDerived wraps the taxonomy step in its own try/catch so
+    // a provider outage doesn't fail the links + occupations that already
+    // landed — `summary.fields` comes back null on that path. `partial` on
+    // the outcome is how the UI tells a full success from that half-success
+    // apart, rather than reporting a flat "done" either way.
+    RUN_JOBTHAI_FULL_REFRESH: async ({ triggeredByUserId }) => {
+      const runId = await latestDemandRunId();
+      if (!runId) {
+        return {
+          status: 'FAILED',
+          message:
+            'No SUCCEEDED jobthai/job-108 ingestion run to attribute this refresh to. Upload a JobThai batch first.',
+        };
+      }
+      const log: RefreshLog = (line) => logger.log(`RUN_JOBTHAI_FULL_REFRESH: ${line}`);
+      const summary = await refreshJobThaiDerived({ runId, log });
+      const partial = summary.fields === null;
+      const message = partial
+        ? `links: ${summary.linksWritten} across ${summary.linkedProgrammes} programme(s), ${summary.clearingFloor} clearing the posting floor. ` +
+          'fields: FAILED — the field-taxonomy step did not complete (see the ingestion log for the reason). Retry with pnpm jobthai:fields --apply.'
+        : `links: ${summary.linksWritten} across ${summary.linkedProgrammes} programme(s), ${summary.clearingFloor} clearing the posting floor. ` +
+          `fields: ${summary.fields!.taxonomy.creates} new field(s), ${summary.fields!.taxonomy.synonymAdds} synonym(s) added, ` +
+          `${summary.fields!.assignments.rule + summary.fields!.assignments.ai} programme assignment(s) proposed.`;
+      logger.log(
+        `RUN_JOBTHAI_FULL_REFRESH ${partial ? 'PARTIAL' : 'complete'} (run ${runId}, by user ${triggeredByUserId ?? 'unknown'}, ${summary.durationMs}ms): ${message}`,
+      );
+      return { status: 'SUCCEEDED', partial, message };
     },
 
     // Re-fetch the Google Gemini model list from OpenRouter (discovery

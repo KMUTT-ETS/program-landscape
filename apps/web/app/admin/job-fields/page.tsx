@@ -8,7 +8,13 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import { DataSourceMark, acknowledgementHref } from '@/components/data-source-mark';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
-import { JobFieldsReview, type FieldSynonymSourceDto, type JobFieldRowDto, type ProgramJobFieldRowDto } from './client';
+import {
+  JobFieldsReview,
+  type FieldSynonymSourceDto,
+  type JobFieldRowDto,
+  type ProgramJobFieldRowDto,
+  type RefreshStatusDto,
+} from './client';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Job fields — Admin' };
@@ -19,10 +25,11 @@ export default async function AdminJobFieldsPage() {
   if (!user?.userId) redirect('/signin');
   if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
-  const [fields, assignments, synonymSources] = await Promise.all([
+  const [fields, assignments, synonymSources, refreshStatus] = await Promise.all([
     apiFetchSafe<JobFieldRowDto[]>('/admin/job-fields'),
     apiFetchSafe<ProgramJobFieldRowDto[]>('/admin/job-fields/assignments'),
     apiFetchSafe<FieldSynonymSourceDto[]>('/admin/job-fields/synonym-sources'),
+    apiFetchSafe<RefreshStatusDto>('/admin/job-fields/refresh-status'),
   ]);
 
   return (
@@ -47,6 +54,7 @@ export default async function AdminJobFieldsPage() {
           assignments={assignments.data}
           synonymSources={synonymSources.ok ? synonymSources.data : []}
           maxProgrammesPerField={MAX_PROGRAMMES_PER_FIELD}
+          initialRefreshStatus={refreshStatus.ok ? refreshStatus.data : null}
         />
       ) : (
         <DiagnosticEmptyState surface="job fields" error={!fields.ok ? fields.error : assignments.ok ? null : assignments.error} />

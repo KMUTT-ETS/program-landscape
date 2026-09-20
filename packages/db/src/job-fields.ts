@@ -4,6 +4,7 @@ import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 import { prisma } from './index';
 import { realDataSql } from './data-quality';
 import {
+  JOBTHAI_BRIDGE_VERSION,
   MAX_PROGRAMMES_PER_FIELD,
   buildReviewedFieldVocabulary,
   matchFieldToProgramme,
@@ -664,4 +665,35 @@ export async function synonymSourcesForAllFields(): Promise<FieldSynonymSources[
     ORDER BY f.id ASC, syn ASC
   `);
   return rows;
+}
+
+export interface JobThaiLinkState {
+  totalLinks: number;
+  linkedProgrammes: number;
+  methodologyVersion: string;
+}
+
+/**
+ * Live snapshot of the JobThai programme-link bridge, for the
+ * /admin/job-fields "Rebuild programme links" / "Full derived refresh"
+ * buttons. Read fresh on every call — this is an operator-facing count, not
+ * a cached Council metric, so there is no case for stamping a stale figure
+ * into CLAUDE.md-style prose. `methodologyVersion` is the bridge's CURRENT
+ * version (JOBTHAI_BRIDGE_VERSION), not whatever version is on the oldest
+ * row — the map always reads the version constant that would apply to the
+ * next rebuild.
+ */
+export async function jobThaiLinkState(): Promise<JobThaiLinkState> {
+  const [totalLinks, distinctProgrammes] = await Promise.all([
+    prisma.programJobThaiLink.count(),
+    prisma.programJobThaiLink.findMany({
+      distinct: ['programId'],
+      select: { programId: true },
+    }),
+  ]);
+  return {
+    totalLinks,
+    linkedProgrammes: distinctProgrammes.length,
+    methodologyVersion: JOBTHAI_BRIDGE_VERSION,
+  };
 }
