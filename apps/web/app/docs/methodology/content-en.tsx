@@ -39,7 +39,7 @@ export function MethodologyContentEn() {
           <MetaTable
             rows={[
               { label: 'Methodology code', value: <><Code>health-score.v5.2</Code> (program health) · <Code>lifecycle.v1.4</Code> (lifecycle verdict)</> },
-              { label: 'Document version', value: '1.7' },
+              { label: 'Document version', value: '1.8' },
               { label: 'Prepared by', value: 'KKU Data Office — Program Landscape working group' },
               { label: 'Status', value: 'Public — for distribution to University Council, Deans, Department Heads, Program Coordinators' },
               { label: 'Date', value: '2026-09-20' },
@@ -1341,11 +1341,24 @@ otherwise                                         → SUNSET`}</Pre>
       <DocSection id="gap-map" number="6." title="The Gap Analyzer — field-of-study demand against KKU supply">
         <P>
           Health Score (§2), Lifecycle Verdict (§3) and Risk Management (§5) all look at one
-          programme at a time. The <Strong>Gap Analyzer</Strong> (<Code>gap-map.v1</Code>) asks
+          programme at a time. The <Strong>Gap Analyzer</Strong> (<Code>gap-map.v2</Code>) asks
           the portfolio question instead, and it asks it from the other end: starting from{' '}
           <Strong>demand</Strong> rather than from KKU&rsquo;s programme list, which parts of the
           labour market does the university fail to serve, over-serve, or serve with the wrong
           programmes. It answers strategic questions 3 and 5 of the project charter.
+        </P>
+        <P>
+          Since <Code>gap-map.v2</Code> (2026-09-20), demand is read from <Strong>two</Strong>{' '}
+          sources rather than one: JobThai private-sector adverts, and Thai government and
+          state-enterprise recruitment announcements scraped from job-108.com. A request-scoped{' '}
+          <Strong>demand basis</Strong> (private / public / all) selects which source or sources
+          form the denominator, defaulting to <Strong>all</Strong> — excluding the state would
+          bias the map against exactly the nursing, public-health, teaching and agriculture
+          programmes a regional university exists to feed. <Strong>Because this changes the
+          demand denominator a published figure is computed against, the version constant moved
+          from <Code>gap-map.v1</Code> to <Code>gap-map.v2</Code>, and a share read under one is
+          not comparable to a share read under the other, even for the same field</Strong> — see
+          Appendix A, revision 1.8.
         </P>
         <P>
           <Strong>Scope</Strong>: the whole portfolio, at university, faculty or department
@@ -1816,9 +1829,11 @@ otherwise                                         → SUNSET`}</Pre>
               </TD>
               <TD>Gap Analyzer (the rows of the map)</TD>
               <TD>
-                <Strong>Live</Strong> since 2026-09-19 (<Code>gap-map.v1</Code>). 517 of 3,854
-                distinct raw strings clear the five-mention floor. Proposed fields are shown
-                before review, labelled unreviewed (§6.2).
+                <Strong>Live</Strong> since 2026-09-19 (<Code>gap-map.v1</Code>; <Code>gap-map.v2</Code>{' '}
+                since 2026-09-20 fed from both JobThai and job-108 text). 517 of 3,854 distinct
+                JobThai raw strings clear the five-mention floor (not yet re-measured against the
+                combined corpus). Proposed fields are shown before review, labelled unreviewed
+                (§6.2).
               </TD>
             </TR>
             <TR>
@@ -1835,6 +1850,9 @@ otherwise                                         → SUNSET`}</Pre>
                 matching more than 15 programmes is treated as generic vocabulary and creates no
                 assignment.
               </TD>
+              {/* Note: this row (program_job_fields — programme-to-field assignments) is a
+                  supply-side table, unaffected by the demand-basis change in gap-map.v2; the
+                  job_field_taxonomy row above is the one whose "Live since" note was extended. */}
             </TR>
             <TR>
               <TD>Strategic sector taxonomy</TD>
@@ -2140,6 +2158,7 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>1.5</TD><TD>2026-09-19</TD><TD>&sect;4.8 (now &sect;6) corrected against the code after <Code>6c2f979</Code>. The pipeline arrow annualises each programme&rsquo;s enrolment by its own length of study, not the field&rsquo;s summed pipeline by a nominal four years; the cohort window is taken per programme rather than from one university-wide anchor; a white space means no <Em>bachelor</Em> programme, with postgraduate tracks listed but never scored; <Em>too few postings</Em> is one of the six verdicts rather than a blank; the KKU share counts only the programmes the map scores; and the thresholds a reader may move from the URL are now genuinely carried into the provenance drawer. No scorer changed &mdash; Health Score, the lifecycle verdict and <Code>gap-map.v1</Code> itself are unchanged.</TD></TR>
             <TR><TD mono>1.6</TD><TD>2026-09-20</TD><TD><Strong>The Gap Analyzer is promoted from &sect;4.8 to its own &sect;6</Strong>, placed after Risk Management because both are portfolio-level layers rather than facets of one programme&rsquo;s detail page. It was previously a subsection of the Program Deep-Dive, which is where a reader could not find it &mdash; it did not appear in the table of contents at all. The four paragraphs become nine subsections: why the unit is a field of study, the taxonomy and its review states, demand share, KKU share and the graduates-per-year rule, the verdict rule with all six verdicts, the reconciliation line, the rising-skills and trend-signal panel, the Council brief and its grounding check, and known limitations. &sect;6 onward are renumbered (data sources 6&rarr;7, governance 7&rarr;8, limitations 8&rarr;9, glossary 9&rarr;10, references 10&rarr;11) and every cross-reference is moved with them. The abstract now names the two portfolio-level layers rather than claiming the paper specifies two outputs; &sect;7 gains rows for the field-of-study taxonomy and the programme-to-field assignments; &sect;9.8 carries the gap map&rsquo;s four real limitations. Two figures were corrected against <Code>docs/methodologies/gap-map.md</Code>: the field-graduates total reads <Strong>6,958.6</Strong> a year, not the 7,050 the <Code>gap-map.v1</Code> entry below quoted (7,050 was the intermediate value after <Code>356c2f0</Code> and before <Code>6c2f979</Code> made the cohort window per programme), and <Em>under-served</Em> fields read 9, not 10. No scorer changed &mdash; Health Score, the lifecycle verdict and <Code>gap-map.v1</Code> itself are unchanged.</TD></TR>
             <TR><TD mono>1.7</TD><TD>2026-09-20</TD><TD>Re-issued for <Code>jobthai-bridge.v3</Code>. The field-of-study path that links a programme to an occupation now prefers a <Strong>reviewed</Strong> answer to a substring guess: where an administrator has approved a field in the taxonomy of &sect;6.2, that field&rsquo;s approved programme assignments decide which programmes a posting asks for, and the filter that discards a field matching too many programme names is skipped, because a person approved those assignments. An approved field claiming more programmes than that same limit is excluded and falls back to the name match &mdash; a field that broad cannot tell one programme from another, and the per-synonym limit never sees assignments made by the AI pass. Unreviewed fields are invisible to the bridge, so AI clustering cannot reach the <Code>jobthai_demand_alignment</Code> driver of &sect;2. Additive: 1 of 71 fields was approved on the day it shipped and no link moved. Nothing in &sect;2, &sect;3 or &sect;6 changed.</TD></TR>
+            <TR><TD mono>1.8</TD><TD>2026-09-20</TD><TD><Strong>Figures on &sect;6 computed under <Code>gap-map.v1</Code> and under <Code>gap-map.v2</Code> are not comparable, even for the same field of study &mdash; read this entry before quoting any number from &sect;6.</Strong> Re-issued for <Code>gap-map.v2</Code>: Thai government and state-enterprise recruitment announcements scraped from job-108.com join JobThai as a second demand source. A request-scoped <Strong>demand basis</Strong> (<Code>private</Code> &mdash; JobThai only, what every <Code>gap-map.v1</Code> figure was; <Code>public</Code> &mdash; job-108 only, inside an operator-configurable counting window, since job-108 postings carry a real date and JobThai&rsquo;s do not; <Code>all</Code> &mdash; both, blended) selects which source or sources form the demand denominator of &sect;6.3. <Strong><Code>all</Code> is the default</Strong>, because excluding the state biases the map against exactly the nursing, public-health, teaching and agriculture programmes a regional university exists to feed. The version constant moved because the repo&rsquo;s rule is that a version identifies the formula a <Em>published</Em> figure was computed under, and <Code>gap-map.v1</Code> had by this point reached production. The supply side of &sect;6.4 and the verdict rule of &sect;6.5 are <Strong>unchanged</Strong> &mdash; the basis is one input to an unchanged function, not a change to the function. Every row carries its private-only and public-only shares alongside whichever basis is active, so switching the basis needs no second request. A calibration run (120 JobThai postings, read through both the shipped regex and the new job-108 AI extractor) measured how far the two field-of-study extraction methods disagree on identical text: 33 of 120 agreed exactly, 33 more found by the model that the regex missed, 5 more found by the regex that the model missed. Of the 69 field names the regex missed, only 4 (5.8&#37;) contain &ldquo;และ&rdquo; (&ldquo;and&rdquo;) &mdash; confirming, but as a minority cause, that the shipped JobThai extractor&rsquo;s regex incorrectly treats &ldquo;และ&rdquo; as a separator inside compound Thai discipline names. <Strong>Not fixed here</Strong> &mdash; fixing it would move every existing JobThai-side demand share on &sect;6. Methodology: <Code>docs/methodologies/gap-map.md</Code> &sect;14.</TD></TR>
           </tbody>
         </Tbl>
         <P>
@@ -2154,6 +2173,7 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
           </THead>
           <tbody>
+            <TR><TD mono>gap-map.v2</TD><TD>2026-09-20</TD><TD><Strong>Job-108 government demand joins JobThai behind a selectable basis.</Strong> Thai government and state-enterprise recruitment announcements, scraped from job-108.com and read by <Code>job108-announcement.v1</Code>, become a second demand source alongside JobThai. A request-scoped <Code>basis</Code> parameter (<Code>private</Code> / <Code>public</Code> / <Code>all</Code>, default <Code>all</Code>) selects which source or sources form the demand denominator; the supply side and the verdict rule are unchanged. Bumped from <Code>gap-map.v1</Code> because the demand denominator a published figure is computed against has changed and <Code>gap-map.v1</Code> had by this point reached production &mdash; see revision 1.8 above and <Code>docs/methodologies/gap-map.md</Code> &sect;14.</TD></TR>
             <TR><TD mono>gap-map.v1</TD><TD>2026-09-19</TD><TD><Strong>The Gap Analyzer rebuilt as a demand-first map.</Strong> One row per field of study employers name in JobThai adverts, clustered by <Code>job-field-taxonomy.v1</Code> and reviewed at Admin &rarr; Job fields; programmes are assigned by name-match rule, then by <Code>program-job-field.v1</Code>, then by hand. The verdict is KKU&rsquo;s share of graduates against the market&rsquo;s share of adverts, with thresholds in the address bar, and a sixth state, <Em>supply-unknown</Em>, for a field whose programmes carry no graduate figure &mdash; a missing measurement, never a shortfall. Both share sets are normalised by the sum of their own per-field numerators, because 4,654 of 17,077 field-naming adverts name more than one field. Only adverts admitting a bachelor&rsquo;s graduate are counted and postgraduate programmes are listed but unscored (41 of 47,631 adverts state a postgraduate minimum). The graduates-per-year rule was corrected at the same time: the cohort window is anchored on graduation rather than enrolment, a cohort counts only once it could have finished, the divisor is the number of cohorts averaged, and the fallback takes the newest non-zero year &mdash; the field total moved from 2,682 to 6,958.6 graduates a year and 24 programmes stopped reading a zero that was never measured. (An intermediate 7,050 was measured after the first of those two corrections and before <Code>6c2f979</Code> made the cohort window per programme; 6,958.6 is the figure the shipped rule produces.) Replaces <Code>gap-analysis.v1</Code> and <Code>gap-lenses.v1</Code>; figures are not comparable to the retired Composite Gap Index. Council brief <Code>gap-brief.v1</Code> checks every finding against the row it names. Methodology: <Code>docs/methodologies/gap-map.md</Code>.</TD></TR>
             <TR><TD mono>health-score.v1</TD><TD>2026-04-23</TD><TD>Initial five-dimension scorer; <Code>relevance</Code> and <Code>capability</Code> placeholder-null.</TD></TR>
             <TR><TD mono>health-score.v2</TD><TD>2026-05-01</TD><TD>Added <Code>labor_market_alignment_kmitl</Code> driver under <Code>demand</Code>; first external real labour-market signal.</TD></TR>

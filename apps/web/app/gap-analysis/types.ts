@@ -11,7 +11,7 @@ import { DEFAULT_DEMAND_BASIS, DEMAND_BASES, type DemandBasis } from '@kku/share
 
 export type { DemandBasis };
 
-// ── The demand-first field map (gap-map.v1) ───────────────────────────────
+// ── The demand-first field map (gap-map.v2) ───────────────────────────────
 
 /** Six verdicts, mirroring `GAP_VERDICTS` in `@kku/db/gap-map-rules`.
  *

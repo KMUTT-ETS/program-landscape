@@ -74,7 +74,7 @@ export type QueryTrendsInput = z.infer<typeof QueryTrendsInputSchema>;
 
 // ── 5. query_gaps ───────────────────────────────────────────────────
 //
-// The demand-first gap map (gap-map.v1). `dimension` selects a verdict
+// The demand-first gap map (gap-map.v2). `dimension` selects a verdict
 // filter; 'map' returns every field. There is no programme scope — a
 // single programme has no demand share of its own, so the map's smallest
 // unit is a department.

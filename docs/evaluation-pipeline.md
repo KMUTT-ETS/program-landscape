@@ -4,7 +4,9 @@
 >
 > **Audience.** Engineers + analysts working across modules. Read this before making cross-cutting changes; otherwise consult the per-methodology doc.
 >
-> **Last updated.** 2026-09-19 (v1.9.7 — the Gap Analyzer is rebuilt as the demand-first field map `gap-map.v1`. `gap-analysis.v1`'s six lenses and `gap-lenses.v1`'s composite index are retired; `gap-insights` is replaced by `gap-brief.v1`; two new mapping prompts, `job-field-taxonomy.v1` and `program-job-field.v1`, build the rows. `forecasting.v1` loses its last consumer. See `docs/methodologies/gap-map.md`.)
+> **Last updated.** 2026-09-20 (`gap-map.v1 → gap-map.v2` — a second demand source, Thai government recruitment announcements scraped from job-108.com, joins JobThai behind a selectable `basis` parameter (`private` / `public` / `all`, default `all`). Bumped because the denominator a published figure was computed under has changed; a v1 demand share and a v2 demand share are not comparable. See `docs/methodologies/gap-map.md` and `docs/data-sources/job-108.md`.)
+>
+> Previously 2026-09-19 (v1.9.7 — the Gap Analyzer is rebuilt as the demand-first field map `gap-map.v1`. `gap-analysis.v1`'s six lenses and `gap-lenses.v1`'s composite index are retired; `gap-insights` is replaced by `gap-brief.v1`; two new mapping prompts, `job-field-taxonomy.v1` and `program-job-field.v1`, build the rows. `forecasting.v1` loses its last consumer. See `docs/methodologies/gap-map.md`.)
 >
 > Previously 2026-05-12 (gaps #1 + #2 + #4 + #6 + #7 closed; gap #3 infrastructure + gap #5 PDF path + gap #8 scorer-side counterfactual landed. `lifecycle.v1.1 → v1.2` — `ProgramLifecycleResult` now carries `ungatedVerdict` + `gatesApplied[]` so Council readers can see the modifier gate's effect, not just its outcome).
 >
@@ -409,7 +411,7 @@ Quick "where does this number come from" reference. Read this when a UI value lo
 | `research_outputs` | Health capability (publications_per_faculty) · `programAiReadiness` Path A (AI-keyword filter) · Profile page publications |
 | `program_skills × skill` | Health relevance (labour_market_alignment) · `programAiReadiness` Path A (curriculum integration + skill resilience) · Risk L2 skill_pressure · Deep-Dive Skills · `program-job-field.v1` input (gap-map assignments) |
 | `kmitl_career_skill_demands` | Health relevance (labour_market_alignment, 4-quadrant fallback) · Deep-Dive Skills demand side · benchmarking white-spaces |
-| `job_field_taxonomy` × `program_job_fields` | **Gap map rows and assignments** (`gap-map.v1`) · `/admin/job-fields` review page. Nothing else reads them |
+| `job_field_taxonomy` × `program_job_fields` | **Gap map rows and assignments** (`gap-map.v2`) · `/admin/job-fields` review page. Nothing else reads them |
 | `kmitl_skill_growths` | Gap map "what's coming" (rising skills, **newest capture only**). ⚠ The table keeps superseded captures — its unique key omits `snapshotAt` — and the newest capture carries **no THAILAND rows**. Every other reader of it has that exposure |
 | `program_demand_matches` | Health relevance (demand_match_filled) · Deep-Dive Skills match score |
 | `demographic_projections` | Health relevance (demographic_resilience via `programDemographicOutlook`) · Lifecycle driver 7 |
@@ -423,15 +425,21 @@ Quick "where does this number come from" reference. Read this when a UI value lo
 | `decision_outcome_reviews` | Decision Workspace outcome panel · search-lessons-learned |
 | `mv_program_metrics` / `mv_*_metrics` | `queryMetricByScope()` — exclusively |
 
-### 7.1b The gap map's input set (`gap-map.v1`, v1.9.7)
+### 7.1b The gap map's input set (`gap-map.v2`, job-108 government-demand basis)
 
 The demand-first Gap Analyzer is the one surface that reads across the JobThai,
-registrar and LinkedIn-via-MHESI families at once, and it **writes nothing** — it is
-a read-time computation cached for five minutes.
+job-108, registrar and LinkedIn-via-MHESI families at once, and it **writes
+nothing** — it is a read-time computation cached for five minutes (per demand
+basis + threshold combination — see below).
 
-Demand: `job_postings` (source `jobthai`, bachelor-eligible only) × `job_field_taxonomy`
-(synonym overlap), with `program_job_fields` for the assignments and
-`jobthai_occupations` for the occupations inside a row. Supply:
+Demand: `job_postings` (source `jobthai`, bachelor-eligible only, unwindowed —
+JobThai carries no real posted date) **and** `job_postings` (source `job-108`,
+bachelor-eligible, windowed to the operator-configured `publicWindowMonths`,
+default 12) × `job_field_taxonomy` (synonym overlap), with `program_job_fields`
+for the assignments and `jobthai_occupations` for the occupations inside a row.
+Which of the two sources (or both, blended) forms the denominator is a
+request-scoped `basis` parameter (`private` / `public` / `all`) — see
+`docs/methodologies/gap-map.md` §demand basis. Supply:
 `alumni_cohort_statuses` (graduates, primary) → `enrollment_metrics.graduated_on_time`
 (proxy fallback) and `student_cohort_distributions` (pipeline). Context:
 `program_jobthai_links` (which programmes a row's occupations already link to),
@@ -463,7 +471,7 @@ JobThai run.
 | `/cockpit` | `getDashboardOverview()` in `dashboard-overview.ts` | All sections in parallel; reads snapshots not live recompute |
 | `/programs/[id]` | 10 fan-out endpoints in `programs.controller.ts` | `programOverview` · `programDemandFunnel` · `programStudentCohorts` · `programDemographicOutlook` · `programFinancials` · `programSkills` · `programOutcomes` · `programFaculty` (role-gated) · `programPeers` · `programTrends` · `programDecisions` · `programStrategicNarrative` · `programLifecycleVerdict` · `programAiReadiness` |
 | `/risks/portfolio` + `/risks/programs/[id]` | `RiskAssessment` table reads | Built by `pnpm risks:assess --all` batch |
-| `/gap-analysis` | `computeGapMap` (one call builds the whole page) | `gap-map.ts` + `gap-map-rules.ts` + `gap-map-signals.ts` — `gap-map.v1`; Council brief `gap-brief.v1`. `computeProgramDemandGaps` survives in `gap-analysis.ts` as AI-Analyst evidence only |
+| `/gap-analysis` | `computeGapMap` (one call builds the whole page) | `gap-map.ts` + `gap-map-rules.ts` + `gap-map-signals.ts` — `gap-map.v2`; Council brief `gap-brief.v1`. `computeProgramDemandGaps` survives in `gap-analysis.ts` as AI-Analyst evidence only |
 | `/scenarios` | scenario-engine.v1 (pure function, in `@kku/shared`) | Deterministic; same input + seed → same output |
 | `/benchmarking` | benchmarking.v1 (`benchmarking.ts`) | 6 helpers: peerSets · portfolioComparison · subjectLeadership · programPeers · whiteSpaces · distinctiveness |
 | `/trends` | `TrendsRadar` polar viz | Reads `trend_signals` directly + 6 monitor cron stubs |
@@ -541,7 +549,7 @@ Per-scorer versions:
 - `benchmarking.v1`
 - `forecasting.v1` (no consumer since v1.9.7 — retained for audit of stored `forecast_runs`)
 - `scenario-engine.v1`
-- `gap-map.v1` (replaced `gap-analysis.v1` + `gap-lenses.v1` at v1.9.7; both retired)
+- `gap-map.v2` (replaced `gap-analysis.v1` + `gap-lenses.v1` at v1.9.7 as `gap-map.v1`, both retired; bumped to v2 when job-108 government demand joined JobThai behind a selectable basis)
 - `dashboard-overview.v1`
 - `ai-readiness.v1` (deterministic Path A)
 - `decision-workspace.v1`

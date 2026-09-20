@@ -90,7 +90,7 @@ Each module has its own signature colour in the sidebar — learning the colours
 | 01 | **Portfolio Cockpit** | Indigo | `/cockpit` | "Where is every program today?" Heatmap, BCG matrix, rollup tree. |
 | 02 | **Program Deep-Dive** | Violet | `/programs/<id>` | Per-program scorecard — 10 sections including financials, skills, faculty, peers, trends. |
 | 03 | **Trends Radar** | Amber | `/trends` | External signals (policy, research, market, tech) with impact on programs. |
-| 04 | **Gap Analyzer** | Teal | `/gap-analysis` | Demand-first field map: one row per field of study employers ask for, KKU's share of graduates against the market's share of adverts, and a verdict per field (`gap-map.v1`). |
+| 04 | **Gap Analyzer** | Teal | `/gap-analysis` | Demand-first field map: one row per field of study employers ask for — private-sector JobThai adverts and, since `gap-map.v2`, public-sector job-108 government announcements, blended by default — KKU's share of graduates against the market's share of adverts, and a verdict per field (`gap-map.v2`). |
 | 05 | **Scenario Planner** | Emerald | `/scenarios` | What-if simulation: close program X, merge Y with Z, launch new curriculum. |
 | 06 | **Benchmarking** | Cyan | `/benchmarking` | Peer comparison (Thai / ASEAN / global) and white-space detection. |
 | 07 | **AI Analyst** | Rose | `/analyst` | Conversational interface; asks questions in Thai or English. |

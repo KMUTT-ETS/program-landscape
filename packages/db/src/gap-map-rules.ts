@@ -3,12 +3,12 @@ import { DEFAULT_DEMAND_BASIS, DEFAULT_PUBLIC_WINDOW_MONTHS, DEMAND_BASES, type 
 import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from './jobthai-bridge';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Gap-map rules — pure functions behind `gap-map.v1` (docs/methodologies/
+// Gap-map rules — pure functions behind `gap-map.v2` (docs/methodologies/
 // gap-map.md). No database, no Date.now: every input is explicit so the
 // verdict on a row is reproducible from the numbers shown beside it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const GAP_MAP_VERSION = 'gap-map.v1';
+export const GAP_MAP_VERSION = 'gap-map.v2';
 
 export type GapVerdict =
   | 'white-space'
@@ -76,7 +76,7 @@ export const DemandBasisQuerySchema = DemandBasisSchema.extend({
  * From URL / query strings. Throws on an unrecognised basis rather than
  * falling back to the default — a shared link carrying a typo (e.g.
  * `?basis=government`) should fail visibly rather than quietly render a
- * different denominator under the same `gap-map.v1` methodology stamp.
+ * different denominator under the same `gap-map.v2` methodology stamp.
  *
  * Precedence on `publicWindowMonths`: explicit `q.publicWindowMonths` →
  * `opts.defaultPublicWindowMonths` (the operator-configured stored

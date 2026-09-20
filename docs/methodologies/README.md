@@ -15,7 +15,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 |---|---|---|---|
 | `health-score` | Cockpit, Deep-Dive | `health-score.v1` | [health-score.md](./health-score.md) |
 | `forecasting` | (deferred — no consumer since v1.9.7) | `forecasting.v1` | [forecasting.md](./forecasting.md) |
-| `gap-map` | Gap Analyzer | `gap-map.v1` | [gap-map.md](./gap-map.md) |
+| `gap-map` | Gap Analyzer | `gap-map.v2` | [gap-map.md](./gap-map.md) |
 | `gap-brief` | Gap Analyzer (Council brief) | `gap-brief.v1` | `packages/shared/src/ai/prompts/gap-brief.ts` |
 | `job-field-taxonomy` | Gap Analyzer (the rows) | `job-field-taxonomy.v1` | [gap-map.md](./gap-map.md) §7 |
 | `program-job-field` | Gap Analyzer (programme assignments) | `program-job-field.v1` | [gap-map.md](./gap-map.md) §7 |

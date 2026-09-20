@@ -29,7 +29,8 @@ import {
 import { GAP_MAP_SOURCES, GapBriefService, type BriefVerdictFilter } from './gap-brief.service';
 import { GapService } from './gap.service';
 
-// Gap Analyzer API — the demand-first map (gap-map.v1). Programme scope is
+// Gap Analyzer API — the demand-first map (gap-map.v2 since the job-108
+// government-demand basis; gap-map.v1 was JobThai-only). Programme scope is
 // not a map: the page redirects it to the Deep-Dive, and the api refuses it.
 
 const ScopeSchema = z.enum(['university', 'faculty', 'department']);
@@ -108,7 +109,7 @@ const DEMAND_BASIS_LABELS: Record<DemandBasis, string> = {
  * Facts belong here rather than in the decorator when they are per-request:
  *
  *  - **The thresholds.** They are URL parameters, so two readers can hold the
- *    same `gap-map.v1` stamp and different verdicts. Council-readiness rule 1
+ *    same `gap-map.v2` stamp and different verdicts. Council-readiness rule 1
  *    puts the calculation method in the drawer; a threshold an analyst moved
  *    for one review is part of that method, and a drawer that shows only the
  *    version would let a shared link look like the default.

@@ -30,12 +30,20 @@ import {
 } from './gap-map-signals';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The demand-first gap map — `gap-map.v1` (spec §4).
+// The demand-first gap map — `gap-map.v2` (spec §4 for the original v1 design;
+// docs/superpowers/specs/2026-09-20-job108-government-demand-design.md for the
+// job-108 basis this module now also computes).
 //
 // One row per canonical field of study. Demand share = eligible postings
-// naming any synonym ÷ field-mentions (Σ over fields of that count). Supply
+// naming any synonym ÷ field-mentions (Σ over fields of that count), computed
+// against a caller-selected demand BASIS — `private` (JobThai only, the only
+// basis v1 ever computed), `public` (job-108 government postings only,
+// windowed), or `all`/blended (the v2 default: private + public). Supply
 // share = graduates/yr of the field's scored programmes ÷ field-graduates
-// (Σ over fields of that count). Verdict = share vs share (gap-map-rules).
+// (Σ over fields of that count) — unchanged by the basis. Verdict = share vs
+// share (gap-map-rules). See docs/methodologies/gap-map.md for why each basis
+// needs its own denominator and why a `gap-map.v1` share is not comparable to
+// a `gap-map.v2` share of the same field.
 //
 // "Eligible" is the bachelor universe: postings whose minimum education
 // level admits a bachelor's graduate (eligiblePostingLevels('BACHELOR')).

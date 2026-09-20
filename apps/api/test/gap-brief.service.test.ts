@@ -68,7 +68,7 @@ function makeRow(overrides: Partial<GapMapRow> = {}): GapMapRow {
 
 function makeMap(rows: GapMapRow[], overrides: Partial<GapMapResult> = {}): GapMapResult {
   return {
-    methodologyVersion: 'gap-map.v1',
+    methodologyVersion: 'gap-map.v2',
     computedAt: '2026-09-19T00:00:00.000Z',
     scope: { level: 'university', id: null, label: 'KKU (all faculties)' },
     thresholds: { under: 0.5, over: 2 },

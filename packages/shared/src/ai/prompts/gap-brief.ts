@@ -13,7 +13,7 @@ import type { AiMessage } from '../types';
 export const GAP_BRIEF_VERSION = 'gap-brief.v1';
 export const GAP_BRIEF_MAX_ROWS = 60;
 
-/** The six verdicts `gap-map.v1` can produce (GAP_VERDICTS in @kku/db). The
+/** The six verdicts `gap-map.v2` can produce (GAP_VERDICTS in @kku/db). The
  *  model may only echo a verdict the row already carries, so this list must
  *  stay in step with the rules module — a brief that invents a seventh name
  *  is a brief the reader cannot trace back to the table. */

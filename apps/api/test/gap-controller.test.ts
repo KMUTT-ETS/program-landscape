@@ -153,7 +153,7 @@ describe('GapController decorators', () => {
       const m = GapController.prototype[name] as (...a: never[]) => unknown;
       expect(Reflect.getMetadata(PERMISSION_META, m)).toBe('programs:read:all');
       const prov = Reflect.getMetadata(PROVENANCE_META, m) as { methodologyVersion: string; caveats: string[] };
-      expect(prov.methodologyVersion).toBe('gap-map.v1');
+      expect(prov.methodologyVersion).toBe('gap-map.v2');
       expect(prov.caveats.length).toBeGreaterThan(0);
     }
   });

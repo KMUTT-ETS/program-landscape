@@ -2036,7 +2036,7 @@ const dashboardNodes: TopologyNode[] = [
     brand: 'jobthai',
     details: {
       description:
-        'Demand-first gap map (gap-map.v1): one row per field of study employers ask for (JobThai), KKU supply share from registrar graduates, a share-vs-share verdict, the occupations and programmes inside each row, LinkedIn-via-MHESI growth and Trends Radar signals as what is coming, and one Council brief. Replaced the seven-lens analyzer and its composite gap index; /gap-analysis/opportunities, /risks and /education/digital-competency keep the old bookmarks working.',
+        'Demand-first gap map (gap-map.v2): one row per field of study employers ask for — JobThai private-sector adverts and, since v2, Thai government recruitment announcements from job-108.com, blended behind a selectable demand basis (private / public / all, default all) — KKU supply share from registrar graduates, a share-vs-share verdict, the occupations and programmes inside each row, LinkedIn-via-MHESI growth and Trends Radar signals as what is coming, and one Council brief. Replaced the seven-lens analyzer and its composite gap index; /gap-analysis/opportunities, /risks and /education/digital-competency keep the old bookmarks working. NOTE: this diagram does not yet show job-108 as a source node/edge — see docs/data-sources/job-108.md.',
       notes: [
         'Verdicts: white space (no bachelor programme — postgraduate tracks may exist, are listed in the row and are never scored) · under-served · served · over-served · supply-unknown (programmes exist but none carries a graduate figure — a missing measurement, never a shortfall) · too few postings (under 20 adverts, which is itself one of the six verdicts, not an empty cell).',
         'Under and over thresholds are URL parameters, shown above the table and in the provenance drawer under Methodology, beside the version they belong to; every view is a shareable link.',
@@ -2457,10 +2457,12 @@ const edges: TopologyEdge[] = [
   { from: 'tab.faculty', to: 'dash.trends-radar' },
 
   // Gap Analyzer — demand × supply
-  // gap-map.v1 — demand from JobThai postings through the field taxonomy,
-  // supply from the registrar's graduate and enrolment rows through the
-  // programme assignments, plus what's coming (LinkedIn-via-MHESI growth
-  // and Trends Radar signals). The map writes nothing.
+  // gap-map.v2 — demand from JobThai postings (private basis) and, since v2,
+  // job-108 government announcements (public basis), blended by default,
+  // through the field taxonomy; supply from the registrar's graduate and
+  // enrolment rows through the programme assignments, plus what's coming
+  // (LinkedIn-via-MHESI growth and Trends Radar signals). The map writes
+  // nothing. job-108's own source table is not yet wired into this diagram.
   { from: 'tab.jobthai-postings', to: 'dash.gap-analyzer' }, // demand: adverts × synonyms
   { from: 'tab.job-field-taxonomy', to: 'dash.gap-analyzer' }, // the rows
   { from: 'tab.program-job-field', to: 'dash.gap-analyzer' }, // the supply assignments
@@ -2559,7 +2561,7 @@ const edges: TopologyEdge[] = [
   { from: 'tab.graduate-outcome', to: 'ai.cockpit-brief' },
   { from: 'tab.trend-signal', to: 'ai.cockpit-brief' },
 
-  // Gap-map Council brief — reads the rows gap-map.v1 built, so its inputs
+  // Gap-map Council brief — reads the rows gap-map.v2 built, so its inputs
   // are the map's own: the field taxonomy, the assignments and the adverts
   // behind them. One AiInference per call; nothing is stored per field.
   { from: 'tab.job-field-taxonomy', to: 'ai.gap-brief' },

@@ -15,7 +15,7 @@ import { gapHref, resolveGapParams, type GapMapT, type GapRowT } from '../app/ga
 const meta: ApiMeta = {
   freshnessDate: '2026-09-15T00:00:00Z',
   sources: [{ id: 'jobthai', name: 'JobThai' }],
-  methodologyVersion: 'gap-map.v1',
+  methodologyVersion: 'gap-map.v2',
   caveats: ['national adverts'],
 };
 
@@ -105,7 +105,7 @@ const row = (o: Partial<GapRowT>): GapRowT => ({
 });
 
 const map: GapMapT = {
-  methodologyVersion: 'gap-map.v1',
+  methodologyVersion: 'gap-map.v2',
   computedAt: '2026-09-15T00:00:00Z',
   scope: { level: 'university', id: null, label: null },
   thresholds: { under: 0.5, over: 2 },
