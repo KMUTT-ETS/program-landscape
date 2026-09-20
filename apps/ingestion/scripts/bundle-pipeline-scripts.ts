@@ -74,6 +74,12 @@ const TARGETS = [
   'backfill-demand-match-provenance.ts',
   // PDPA retention sweep — run nightly on prod by program-landscape-retention.timer
   'retention-sweep.ts',
+  // One-off archive walk of the full job-108.com sitemap (Task 8, 2026-09-20).
+  // Operator-run on prod via `docker compose exec ingestion node
+  // /app/dist/scripts/job108-backfill.js`. Missing from this list means it
+  // does not exist inside the production image — dev's tsx run can't catch
+  // that, since dev runs the TypeScript source directly.
+  'job108-backfill.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.
