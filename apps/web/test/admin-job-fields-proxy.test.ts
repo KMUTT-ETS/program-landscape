@@ -18,6 +18,7 @@ describe('admin-job-fields proxy path allowlist', () => {
     'assignments/x/approve',
     'assignments/x/reject',
     'x',
+    'bulk-approve',
   ])('accepts %s', (path) => {
     expect(ALLOWED.test(path)).toBe(true);
   });

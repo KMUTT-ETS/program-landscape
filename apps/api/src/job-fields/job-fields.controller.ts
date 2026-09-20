@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { z } from 'zod';
 import {
   addProgramJobField,
+  bulkApproveJobFields,
+  JOB_FIELDS_BULK_APPROVE_MAX,
   latestDemandRunId,
   listJobFields,
   listProgramJobFields,
@@ -26,6 +28,12 @@ export const RenameBody = z.object({ nameTh: z.string().min(1).max(200), nameEn:
 export const MergeBody = z.object({ intoId: z.string().min(1) });
 export const AddAssignmentBody = z.object({ programId: z.string().min(1), fieldId: z.string().min(1) });
 const AssignmentsQuery = z.object({ fieldId: z.string().optional() });
+export const BulkApproveBody = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1, 'select at least one field')
+    .max(JOB_FIELDS_BULK_APPROVE_MAX, `at most ${JOB_FIELDS_BULK_APPROVE_MAX} fields per bulk approval`),
+});
 
 @Controller('/admin/job-fields')
 export class JobFieldsController {
@@ -118,6 +126,22 @@ export class JobFieldsController {
     // The audit interceptor reads entityId from result.id — after a merge
     // the from-row (id) no longer exists, so id here must be the survivor.
     return { id: body.intoId, from: id, into: body.intoId, ...result };
+  }
+
+  // Bulk approve. Atomic — see bulkApproveJobFields's doc comment — and
+  // logged as ONE audit event carrying every id in the payload, not one
+  // event per field, so a reviewer scanning the audit log sees the batch as
+  // the single decision it was, not noise. Deliberately no bulk-reject: this
+  // page's guidance is "approve narrow fields first", and rejection has a
+  // different risk profile nobody asked to bulk.
+  @Post('bulk-approve')
+  @Authorized('data_sources:configure')
+  @AuditLog({ action: 'job_field.bulk_approve', entityType: 'JobFieldTaxonomy' })
+  async bulkApprove(@Body(new ZodValidationPipe(BulkApproveBody)) body: z.infer<typeof BulkApproveBody>) {
+    const ids = [...new Set(body.ids)];
+    const result = await this.db(() => bulkApproveJobFields(ids));
+    await this.invalidate();
+    return { ids, approved: result.approved };
   }
 
   @Post('assignments')

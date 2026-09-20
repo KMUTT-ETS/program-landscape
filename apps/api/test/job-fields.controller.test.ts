@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   mergeJobFields: vi.fn(),
   setProgramJobFieldStatus: vi.fn(),
   addProgramJobField: vi.fn(),
+  bulkApproveJobFields: vi.fn(),
   latestDemandRunId: vi.fn(),
   synonymSourcesForField: vi.fn(),
   synonymSourcesForAllFields: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@kku/db', async () => {
   const actual = await vi.importActual<typeof import('@kku/db')>('@kku/db');
   return {
     Prisma: actual.Prisma,
+    JOB_FIELDS_BULK_APPROVE_MAX: actual.JOB_FIELDS_BULK_APPROVE_MAX,
     listJobFields: mocks.listJobFields,
     listProgramJobFields: mocks.listProgramJobFields,
     setJobFieldStatus: mocks.setJobFieldStatus,
@@ -35,13 +37,15 @@ vi.mock('@kku/db', async () => {
     mergeJobFields: mocks.mergeJobFields,
     setProgramJobFieldStatus: mocks.setProgramJobFieldStatus,
     addProgramJobField: mocks.addProgramJobField,
+    bulkApproveJobFields: mocks.bulkApproveJobFields,
     latestDemandRunId: mocks.latestDemandRunId,
     synonymSourcesForField: mocks.synonymSourcesForField,
     synonymSourcesForAllFields: mocks.synonymSourcesForAllFields,
   };
 });
 
-import { JobFieldsController, MergeBody, RenameBody } from '../src/job-fields/job-fields.controller';
+import { BulkApproveBody, JobFieldsController, MergeBody, RenameBody } from '../src/job-fields/job-fields.controller';
+import { JOB_FIELDS_BULK_APPROVE_MAX } from '@kku/db';
 
 const meta = <T,>(key: string, method: (...args: never[]) => unknown): T | undefined =>
   Reflect.getMetadata(key, method) as T | undefined;
@@ -65,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('JobFieldsController decorators', () => {
-  const mutations: Array<keyof JobFieldsController> = ['approve', 'reject', 'rename', 'merge', 'addAssignment', 'approveAssignment', 'rejectAssignment'];
+  const mutations: Array<keyof JobFieldsController> = ['approve', 'reject', 'rename', 'merge', 'bulkApprove', 'addAssignment', 'approveAssignment', 'rejectAssignment'];
   for (const name of mutations) {
     it(`${name} is audit-logged and gated on data_sources:configure`, () => {
       const method = JobFieldsController.prototype[name] as (...args: never[]) => unknown;
@@ -112,6 +116,25 @@ describe('bodies', () => {
   it('merge requires intoId', () => {
     expect(() => new ZodValidationPipe(MergeBody).transform({}, {} as never)).toThrow();
     expect(() => new ZodValidationPipe(MergeBody).transform({ intoId: 'f1' }, {} as never)).not.toThrow();
+  });
+  it('bulk-approve requires at least one id and refuses an over-size batch with a clear message', () => {
+    const parse = (ids: unknown) => new ZodValidationPipe(BulkApproveBody).transform({ ids }, {} as never);
+    expect(() => parse([])).toThrow();
+    expect(parse(['f1', 'f2'])).toEqual({ ids: ['f1', 'f2'] });
+    const tooMany = Array.from({ length: JOB_FIELDS_BULK_APPROVE_MAX + 1 }, (_, i) => `f${i}`);
+    const err = ((): ApiError => {
+      try {
+        parse(tooMany);
+        throw new Error('expected parse to throw');
+      } catch (e) {
+        return e as ApiError;
+      }
+    })();
+    expect(err).toBeInstanceOf(ApiError);
+    const issues = (err.details as { issues: Array<{ message: string }> }).issues;
+    expect(issues[0]?.message).toMatch(new RegExp(`at most ${JOB_FIELDS_BULK_APPROVE_MAX} fields per bulk approval`));
+    const atCap = Array.from({ length: JOB_FIELDS_BULK_APPROVE_MAX }, (_, i) => `f${i}`);
+    expect(() => parse(atCap)).not.toThrow();
   });
 });
 
@@ -251,6 +274,38 @@ describe('JobFieldsController.merge', () => {
     mocks.mergeJobFields.mockRejectedValue(p2025());
 
     const err = await controller.merge('from1', { intoId: 'into1' }).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('NOT_FOUND');
+    expect(purge).not.toHaveBeenCalled();
+  });
+});
+
+describe('JobFieldsController.bulkApprove', () => {
+  it('calls bulkApproveJobFields with a deduplicated id list and purges once after the write', async () => {
+    const { controller, purge } = makeController();
+    mocks.bulkApproveJobFields.mockResolvedValue({ approved: 2 });
+
+    const result = await controller.bulkApprove({ ids: ['f1', 'f2', 'f1'] });
+
+    expect(mocks.bulkApproveJobFields).toHaveBeenCalledTimes(1);
+    expect(mocks.bulkApproveJobFields).toHaveBeenCalledWith(['f1', 'f2']);
+    expect(purge).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ ids: ['f1', 'f2'], approved: 2 });
+  });
+
+  it('does not purge when the write rejects — a partial approval must not appear applied', async () => {
+    const { controller, purge } = makeController();
+    mocks.bulkApproveJobFields.mockRejectedValue(new Error('boom'));
+
+    await expect(controller.bulkApprove({ ids: ['f1', 'f2'] })).rejects.toThrow('boom');
+    expect(purge).not.toHaveBeenCalled();
+  });
+
+  it('a NOT_FOUND from bulkApproveJobFields (some id no longer exists) propagates untouched', async () => {
+    const { controller, purge } = makeController();
+    mocks.bulkApproveJobFields.mockRejectedValue(new ApiError('NOT_FOUND', 'bulk approve: 1 of 2 selected fields no longer exist — no field was approved'));
+
+    const err = await controller.bulkApprove({ ids: ['f1', 'f2'] }).catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).code).toBe('NOT_FOUND');
     expect(purge).not.toHaveBeenCalled();

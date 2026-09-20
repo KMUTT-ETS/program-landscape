@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
+import { MAX_PROGRAMMES_PER_FIELD } from '@kku/db';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -41,7 +42,12 @@ export default async function AdminJobFieldsPage() {
         // it fails to load, the approve/reject/merge loop must still work,
         // just without the per-synonym labels and the government-only
         // warning. Degrade to an empty list rather than blocking the page.
-        <JobFieldsReview fields={fields.data} assignments={assignments.data} synonymSources={synonymSources.ok ? synonymSources.data : []} />
+        <JobFieldsReview
+          fields={fields.data}
+          assignments={assignments.data}
+          synonymSources={synonymSources.ok ? synonymSources.data : []}
+          maxProgrammesPerField={MAX_PROGRAMMES_PER_FIELD}
+        />
       ) : (
         <DiagnosticEmptyState surface="job fields" error={!fields.ok ? fields.error : assignments.ok ? null : assignments.error} />
       )}

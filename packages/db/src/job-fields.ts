@@ -1,5 +1,5 @@
 import { Prisma, type JobFieldReviewStatus } from '@prisma/client';
-import { JOB_FIELD_TAXONOMY_VERSION, demandSourcesFor } from '@kku/shared';
+import { ApiError, JOB_FIELD_TAXONOMY_VERSION, demandSourcesFor } from '@kku/shared';
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 import { prisma } from './index';
 import { realDataSql } from './data-quality';
@@ -430,6 +430,39 @@ export async function listProgramJobFields(fieldId?: string): Promise<ProgramJob
 
 export async function setJobFieldStatus(id: string, reviewStatus: JobFieldReviewStatus): Promise<void> {
   await prisma.jobFieldTaxonomy.update({ where: { id }, data: { reviewStatus } });
+}
+
+/** Batch cap for {@link bulkApproveJobFields}. 71 fields exist on the taxonomy
+ *  today, all APPROVED; a review batch realistically tops out at a fraction
+ *  of that. 100 leaves headroom for a future backfill's proposals while still
+ *  refusing an unbounded id list from a client bug. */
+export const JOB_FIELDS_BULK_APPROVE_MAX = 100;
+
+/**
+ * Approves every field in `ids` in one transaction — every one or none.
+ *
+ * A partial bulk approval would leave the taxonomy in a state nobody chose
+ * (see /admin/job-fields's own warning about a broad approval being "the
+ * most destructive action available on that page while looking like ordinary
+ * review" — CLAUDE.md). If any id no longer exists (deleted by a concurrent
+ * merge, say) the whole batch is rolled back rather than silently applying to
+ * the rest.
+ */
+export async function bulkApproveJobFields(ids: string[]): Promise<{ approved: number }> {
+  const uniqueIds = [...new Set(ids)];
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.jobFieldTaxonomy.updateMany({
+      where: { id: { in: uniqueIds } },
+      data: { reviewStatus: 'APPROVED' },
+    });
+    if (result.count !== uniqueIds.length) {
+      throw new ApiError(
+        'NOT_FOUND',
+        `bulk approve: ${uniqueIds.length - result.count} of ${uniqueIds.length} selected fields no longer exist — no field was approved`,
+      );
+    }
+    return { approved: result.count };
+  });
 }
 
 export async function renameJobField(id: string, names: { nameTh: string; nameEn: string }): Promise<void> {

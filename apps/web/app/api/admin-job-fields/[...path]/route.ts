@@ -9,6 +9,10 @@ import type { SessionUser } from '@kku/shared';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Note: 'bulk-approve' (POST /admin/job-fields/bulk-approve) is already
+// admitted by the bare-token alternative below — [A-Za-z0-9_-]+ was written
+// for the rename-by-id PATCH path, but a literal alphanumeric-and-hyphen
+// segment matches it too. Not listed separately to avoid a duplicate branch.
 export const ALLOWED = /^(?:[A-Za-z0-9_-]+\/(?:approve|reject|merge)|assignments|assignments\/[A-Za-z0-9_-]+\/(?:approve|reject)|[A-Za-z0-9_-]+)$/;
 
 async function forward(req: Request, method: 'POST' | 'PATCH', path: string[]) {
