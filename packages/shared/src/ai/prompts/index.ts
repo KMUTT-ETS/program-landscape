@@ -31,3 +31,4 @@ export * from './pdf-classify';
 export * from './trend-signal-analysis';
 export * from './trend-document-ingest';
 export * from './aunqa-criterion-narrative';
+export * from './job108-announcement';

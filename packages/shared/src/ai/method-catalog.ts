@@ -16,6 +16,7 @@
 
 import { JOB_FIELD_TAXONOMY_VERSION } from './prompts/job-field-taxonomy';
 import { PROGRAM_JOB_FIELD_VERSION } from './prompts/program-job-field';
+import { JOB108_ANNOUNCEMENT_VERSION } from './prompts/job108-announcement';
 
 export type AiMethodTier =
   | 'reasoning' // Pro-class — needs reasoning, slow, expensive
@@ -342,6 +343,15 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     description: 'Assigns up to three canonical fields of study to each KKU programme, for the programmes the name-match rule could not settle.',
     module: 'ingestion',
     tier: 'classification',
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
+    methodPrefix: 'job108-announcement',
+    currentVersion: JOB108_ANNOUNCEMENT_VERSION,
+    label: 'Job-108 announcement extraction',
+    description: 'Extracts one or more positions (title, seats, salary, minimum education, fields of study) from a Thai government recruitment announcement page.',
+    module: 'ingestion',
+    tier: 'extraction',
     defaultModel: 'gemini-3.5-flash',
   },
   {
