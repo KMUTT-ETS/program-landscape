@@ -3147,13 +3147,25 @@ EOF
 
 ---
 
-### Task 16: Register the prompt in the AI method catalog
+### Task 16: Verify the prompt is manageable on /admin/app/ai-settings
 
 > **Execution order:** run Tasks 16 and 17 **before** Task 15. Task 15 is the
 > documentation pass and must describe the finished system, including the two
 > admin surfaces below.
 
-Without an entry the new prompt is unmanageable: no admin can pick its model, and its spend is not attributed on `/admin/app/ai-settings`. This is the same class as the standing rule that a new analysis must be added to the pipeline lists or it silently never runs.
+> **MOSTLY DONE ALREADY — this task shrank.** The plan assumed the catalog
+> entry could be added late. It cannot: `packages/shared/test/method-catalog-coverage.test.ts`
+> fails the build if a new `*_VERSION` export has no `AI_METHOD_CATALOG` entry,
+> and `packages/shared/test/prompt-standard-conformance.test.ts` fails it if the
+> prompt lacks the LANGUAGE RULE / CONFIDENCE RUBRIC / BANNED PHRASES blocks
+> required by `docs/prompt-standard.md`. Task 5 therefore had to register the
+> prompt at birth. **The repository enforced this correctly and the plan was
+> wrong** — a good argument for the ratchet tests existing.
+>
+> What remains is verification, not implementation. Confirm the entry reads
+> sensibly, and that the admin page actually surfaces it.
+
+Without a catalog entry a prompt is unmanageable: no admin can pick its model, and its spend is attributed to nothing on `/admin/app/ai-settings`.
 
 **Files:**
 - Modify: `packages/shared/src/ai/method-catalog.ts`
@@ -3191,9 +3203,17 @@ describe('job108-announcement is manageable', () => {
 Run: `pnpm --filter @kku/shared exec vitest run test/ai/method-catalog.test.ts`
 Expected: FAIL — `expected undefined to be defined`.
 
-- [ ] **Step 3: Add the entry**
+- [ ] **Step 3: Confirm the entry Task 5 added is right**
 
-In `packages/shared/src/ai/method-catalog.ts`, import the version beside the others:
+It already exists. Read it and check the fields rather than re-adding it:
+
+```bash
+cd /home/denpong/projects/program-landscape && grep -n -A8 "methodPrefix: 'job108-announcement'" packages/shared/src/ai/method-catalog.ts
+```
+
+Confirm `tier` is `'extraction'` and not `'classification'`: this prompt reads long Thai prose and returns a structured array, which is the extraction shape, and the tier decides which model an operator is offered first. The two taxonomy prompts beside it are classification, so the contrast is deliberate.
+
+Only if a field is wrong, edit it. The original instruction, retained for reference, was to import the version beside the others:
 
 ```ts
 import { JOB108_ANNOUNCEMENT_VERSION } from './prompts/job108-announcement';
