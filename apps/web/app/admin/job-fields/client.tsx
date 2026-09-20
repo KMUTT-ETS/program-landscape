@@ -222,9 +222,123 @@ export function nextSelectionAfterSelectAllToggle(
   return next;
 }
 
+// ── Assignment-level bulk approve (within one field) ────────────────────────
+//
+// A ProgramJobField row says "this programme's graduates hold this field of
+// study". Unlike field-level approval (global, one list across all 71
+// fields), an assignment selection is SCOPED to whichever field's programme
+// list is currently on screen — the right-hand panel shows exactly one
+// field's assignments at a time. `summarizeAssignmentSelection` below
+// enforces that scoping the same way `summarizeSelection` enforces "visible
+// only" above: it intersects the selected-id set against
+// `visibleSelectableAssignments`, which the caller must already have
+// filtered to the CURRENT field's PROPOSED rows. An id left over from a
+// different field the reviewer looked at earlier sits harmlessly in the
+// underlying Set — it can never reach `selection.ids` (and therefore never
+// reach the POST body) until that field is the one on screen again.
+
+export interface AssignmentSelectionSummary {
+  /** Selected ids narrowed to what is CURRENTLY VISIBLE for the field on
+   *  screen — the same "visible-only" contract as SelectionSummary.ids. */
+  ids: string[];
+  count: number;
+  ruleCount: number;
+  aiCount: number;
+}
+
+const EMPTY_ASSIGNMENT_SELECTION: AssignmentSelectionSummary = { ids: [], count: 0, ruleCount: 0, aiCount: 0 };
+
+/**
+ * Summarises an assignment bulk-approve selection against one field's
+ * currently-visible PROPOSED rows. `visibleSelectableAssignments` must
+ * already be that field's PROPOSED-only list — an assignment that is
+ * APPROVED, REJECTED, or belongs to a different field contributes nothing
+ * here, which is both the "already-approved can never be selected" rule and
+ * the cross-field-leakage guard in one mechanism.
+ */
+export function summarizeAssignmentSelection(
+  selectedIds: ReadonlySet<string>,
+  visibleSelectableAssignments: ProgramJobFieldRowDto[],
+): AssignmentSelectionSummary {
+  const chosen = visibleSelectableAssignments.filter((a) => selectedIds.has(a.id));
+  if (chosen.length === 0) return EMPTY_ASSIGNMENT_SELECTION;
+  let ruleCount = 0;
+  let aiCount = 0;
+  for (const a of chosen) {
+    if (a.source === 'rule') ruleCount += 1;
+    else if (a.source === 'ai') aiCount += 1;
+  }
+  return { ids: chosen.map((a) => a.id), count: chosen.length, ruleCount, aiCount };
+}
+
+/** True when every currently-visible selectable assignment is in `selectedIds`. */
+export function isAllVisibleAssignmentsSelected(
+  selectedIds: ReadonlySet<string>,
+  visibleSelectableAssignments: ProgramJobFieldRowDto[],
+): boolean {
+  return visibleSelectableAssignments.length > 0 && visibleSelectableAssignments.every((a) => selectedIds.has(a.id));
+}
+
+/**
+ * The next selected-id set after toggling "select all shown" for the field
+ * currently on screen. Touches ONLY `visibleSelectableAssignments` — an id
+ * selected earlier for a different field is left exactly as it was, so this
+ * can never add or remove anything belonging to another field.
+ */
+export function nextAssignmentSelectionAfterSelectAllToggle(
+  selectedIds: ReadonlySet<string>,
+  visibleSelectableAssignments: ProgramJobFieldRowDto[],
+): Set<string> {
+  const next = new Set(selectedIds);
+  if (isAllVisibleAssignmentsSelected(selectedIds, visibleSelectableAssignments)) {
+    for (const a of visibleSelectableAssignments) next.delete(a.id);
+  } else {
+    for (const a of visibleSelectableAssignments) next.add(a.id);
+  }
+  return next;
+}
+
+/**
+ * The assignment bulk-approve confirmation text. Names the rule/AI split
+ * whenever both are present, and calls out the AI count explicitly when any
+ * AI-sourced row is in the batch — an AI assignment is a model's guess, not
+ * a name match, and a reviewer approving 88 of them in one click should see
+ * that is what they are doing (see the module banner in
+ * packages/db/src/job-fields.ts on why source matters here).
+ */
+export function buildBulkApproveAssignmentsConfirmation(selection: AssignmentSelectionSummary): string {
+  const lines = [`Approve ${selection.count} assignment${selection.count === 1 ? '' : 's'}?`];
+  const parts: string[] = [];
+  if (selection.ruleCount > 0) parts.push(`${selection.ruleCount} rule-matched`);
+  if (selection.aiCount > 0) parts.push(`${selection.aiCount} AI-suggested`);
+  if (parts.length > 0) lines.push(`${parts.join(', ')}.`);
+  if (selection.aiCount > 0) {
+    lines.push(
+      `${selection.aiCount} of these came from the AI field-matching model, not a name match — review before approving in bulk.`,
+    );
+  }
+  return lines.join('\n');
+}
+
 export interface BulkApproveDeps {
   confirm: (message: string) => boolean;
   post: (ids: string[]) => Promise<boolean>;
+}
+
+/**
+ * The assignment bulk-approve action's logic — same shape and same testing
+ * rationale as runBulkApprove above (no DOM in this package's vitest env).
+ * Confirms with exactly the message buildBulkApproveAssignmentsConfirmation
+ * produces, posts ONCE with the full id list, and never posts at all if the
+ * confirmation is declined or nothing is selected.
+ */
+export async function runBulkApproveAssignments(
+  selection: AssignmentSelectionSummary,
+  deps: BulkApproveDeps,
+): Promise<boolean> {
+  if (selection.ids.length === 0) return false;
+  if (!deps.confirm(buildBulkApproveAssignmentsConfirmation(selection))) return false;
+  return deps.post(selection.ids);
 }
 
 /**
@@ -290,6 +404,9 @@ export function JobFieldsReview({
   const [mergeTarget, setMergeTarget] = React.useState('');
   const [query, setQuery] = React.useState('');
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  // Appended AFTER selectedIds (index 9) so the hook-order test's pinned
+  // indices never shift — see apps/web/test/job-fields-admin-bulk-approve.test.tsx.
+  const [assignmentSelectedIds, setAssignmentSelectedIds] = React.useState<Set<string>>(new Set());
 
   // Not a useState: synonym-source attribution doesn't change when a field
   // or assignment is approved/rejected/renamed/merged, so it doesn't need to
@@ -339,6 +456,21 @@ export function JobFieldsReview({
 
   const clearSelection = (): void => setSelectedIds(new Set());
 
+  function toggleAssignment(id: string): void {
+    setAssignmentSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisibleAssignments(): void {
+    setAssignmentSelectedIds((prev) => nextAssignmentSelectionAfterSelectAllToggle(prev, selectableSelectedAssignments));
+  }
+
+  const clearAssignmentSelection = (): void => setAssignmentSelectedIds(new Set());
+
   const refresh = React.useCallback(async () => {
     const res = await fetch('/api/admin-job-fields');
     if (!res.ok) {
@@ -377,6 +509,28 @@ export function JobFieldsReview({
   const proposed = fields.filter((f) => f.reviewStatus === 'PROPOSED').length;
   const selectedField = fields.find((f) => f.id === selected) ?? null;
   const selectedAssignments = assignments.filter((a) => a.fieldId === selected);
+  // Only PROPOSED rows are bulk-selectable — an APPROVED assignment can never
+  // be selected (it is simply absent from this list), and REJECTED rows stay
+  // out of bulk-approve too even though the per-row button still allows
+  // re-approving one individually.
+  const selectableSelectedAssignments = selectedAssignments.filter((a) => a.reviewStatus === 'PROPOSED');
+  const assignmentSelection = summarizeAssignmentSelection(assignmentSelectedIds, selectableSelectedAssignments);
+  const allVisibleAssignmentsSelected = isAllVisibleAssignmentsSelected(assignmentSelectedIds, selectableSelectedAssignments);
+
+  async function bulkApproveAssignments(): Promise<void> {
+    const ok = await runBulkApproveAssignments(assignmentSelection, {
+      confirm: (message) => window.confirm(message),
+      post: (ids) =>
+        act(
+          'bulk-approve-assignments',
+          'assignments/bulk-approve',
+          'POST',
+          { ids },
+          `Approved ${ids.length} assignment${ids.length === 1 ? '' : 's'}`,
+        ),
+    });
+    if (ok) clearAssignmentSelection();
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -639,10 +793,57 @@ export function JobFieldsReview({
         <div className="border-b border-default px-4 py-3 text-sm font-medium">
           Programmes{selectedField ? ` · ${selectedField.nameEn}` : ''} · {selectedAssignments.length}
         </div>
+        {selectableSelectedAssignments.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-default px-4 py-3">
+            <label className="flex items-center gap-2 text-xs text-text-secondary">
+              <input
+                type="checkbox"
+                aria-label={allVisibleAssignmentsSelected ? 'Deselect all shown assignments' : 'Select all shown assignments'}
+                data-action="select-all-assignments"
+                checked={allVisibleAssignmentsSelected}
+                disabled={busy !== null}
+                onChange={toggleSelectAllVisibleAssignments}
+              />
+              Select all proposed ({selectableSelectedAssignments.length})
+            </label>
+            {assignmentSelection.count > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="accent" data-testid="assignment-selection-summary">
+                  <CheckSquare className="h-[14px] w-[14px]" aria-hidden="true" />
+                  {assignmentSelection.count} assignment{assignmentSelection.count === 1 ? '' : 's'} selected ({assignmentSelection.ruleCount} rule, {assignmentSelection.aiCount} AI)
+                </Badge>
+                <Button size="sm" variant="ghost" type="button" onClick={clearAssignmentSelection} disabled={busy !== null}>
+                  Clear
+                </Button>
+                <Button
+                  size="sm"
+                  type="button"
+                  data-action="bulk-approve-assignments"
+                  disabled={busy !== null}
+                  onClick={() => void bulkApproveAssignments()}
+                >
+                  <Check className="h-[14px] w-[14px]" />
+                  Approve {assignmentSelection.count} assignment{assignmentSelection.count === 1 ? '' : 's'}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         <ul className="divide-y divide-default">
           {selectedAssignments.map((a) => (
             <li key={a.id} className="flex items-start justify-between gap-3 px-4 py-3">
-              <div className="min-w-0">
+              {a.reviewStatus === 'PROPOSED' && (
+                <input
+                  type="checkbox"
+                  className="mt-1 shrink-0"
+                  aria-label={assignmentSelectedIds.has(a.id) ? `Deselect ${a.programNameEn}` : `Select ${a.programNameEn}`}
+                  data-action="select-assignment"
+                  checked={assignmentSelectedIds.has(a.id)}
+                  disabled={busy !== null}
+                  onChange={() => toggleAssignment(a.id)}
+                />
+              )}
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{a.programNameTh} <span className="text-text-secondary">· {a.programNameEn}</span></div>
                 <div className="text-xs text-text-tertiary">{a.programCode} · {a.programLevel} · {a.source}{a.confidence != null ? ` · ${(a.confidence * 100).toFixed(0)} %` : ''}</div>
               </div>

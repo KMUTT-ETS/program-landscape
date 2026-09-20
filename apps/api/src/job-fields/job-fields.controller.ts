@@ -3,7 +3,9 @@ import { z } from 'zod';
 import {
   addProgramJobField,
   bulkApproveJobFields,
+  bulkApproveProgramJobFields,
   JOB_FIELDS_BULK_APPROVE_MAX,
+  PROGRAM_JOB_FIELDS_BULK_APPROVE_MAX,
   latestDemandRunId,
   listJobFields,
   listProgramJobFields,
@@ -33,6 +35,12 @@ export const BulkApproveBody = z.object({
     .array(z.string().min(1))
     .min(1, 'select at least one field')
     .max(JOB_FIELDS_BULK_APPROVE_MAX, `at most ${JOB_FIELDS_BULK_APPROVE_MAX} fields per bulk approval`),
+});
+export const BulkApproveAssignmentsBody = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1, 'select at least one assignment')
+    .max(PROGRAM_JOB_FIELDS_BULK_APPROVE_MAX, `at most ${PROGRAM_JOB_FIELDS_BULK_APPROVE_MAX} assignments per bulk approval`),
 });
 
 @Controller('/admin/job-fields')
@@ -152,6 +160,22 @@ export class JobFieldsController {
     const id = await this.db(() => addProgramJobField(body.programId, body.fieldId, runId));
     await this.invalidate();
     return { id, ...body, reviewStatus: 'APPROVED' };
+  }
+
+  // Bulk approve — the assignment-level sibling of `bulkApprove` above. Same
+  // atomicity + one-audit-event contract (bulkApproveProgramJobFields's own
+  // comment has the details). Deliberately no cap tied to a single field:
+  // enforcement here is a flat batch-size cap only — the UI is what keeps a
+  // submission scoped to one field's visible rows (see
+  // apps/web/app/admin/job-fields/client.tsx's selectedByField map).
+  @Post('assignments/bulk-approve')
+  @Authorized('data_sources:configure')
+  @AuditLog({ action: 'program_job_field.bulk_approve', entityType: 'ProgramJobField' })
+  async bulkApproveAssignments(@Body(new ZodValidationPipe(BulkApproveAssignmentsBody)) body: z.infer<typeof BulkApproveAssignmentsBody>) {
+    const ids = [...new Set(body.ids)];
+    const result = await this.db(() => bulkApproveProgramJobFields(ids));
+    await this.invalidate();
+    return { ids, approved: result.approved };
   }
 
   @Post('assignments/:id/approve')

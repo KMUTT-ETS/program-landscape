@@ -465,6 +465,49 @@ export async function bulkApproveJobFields(ids: string[]): Promise<{ approved: n
   });
 }
 
+/**
+ * Batch cap for {@link bulkApproveProgramJobFields}.
+ *
+ * Unlike {@link JOB_FIELDS_BULK_APPROVE_MAX} (global across all 71 fields on
+ * the taxonomy), an assignment bulk-approve is SCOPED to one field's visible
+ * list — see apps/web/app/admin/job-fields/client.tsx, where selection is
+ * keyed per field so approving inside one field can never sweep up another
+ * field's rows. Measured live 2026-09-20: 324 PROPOSED assignments exist in
+ * total, and the largest single field's PROPOSED list is business-
+ * administration at 29 rows. 50 comfortably covers today's largest field with
+ * room for growth, while still refusing an unbounded id list (e.g. a client
+ * bug that unions ids across fields, or a stale selection from before a
+ * merge) rather than silently accepting it.
+ */
+export const PROGRAM_JOB_FIELDS_BULK_APPROVE_MAX = 50;
+
+/**
+ * Approves every ProgramJobField row in `ids` in one transaction — every one
+ * or none. Same atomicity contract as {@link bulkApproveJobFields}: if any id
+ * no longer exists (deleted by a concurrent merge, or already resolved by
+ * another reviewer), the whole batch is rolled back rather than silently
+ * applying to the rest. Idempotent on an already-APPROVED row (updateMany
+ * re-writes the same status), which matters because the UI drops an
+ * already-approved id from the visible-selectable set but does not itself
+ * guarantee no race with another tab.
+ */
+export async function bulkApproveProgramJobFields(ids: string[]): Promise<{ approved: number }> {
+  const uniqueIds = [...new Set(ids)];
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.programJobField.updateMany({
+      where: { id: { in: uniqueIds } },
+      data: { reviewStatus: 'APPROVED' },
+    });
+    if (result.count !== uniqueIds.length) {
+      throw new ApiError(
+        'NOT_FOUND',
+        `bulk approve: ${uniqueIds.length - result.count} of ${uniqueIds.length} selected assignments no longer exist — no assignment was approved`,
+      );
+    }
+    return { approved: result.count };
+  });
+}
+
 export async function renameJobField(id: string, names: { nameTh: string; nameEn: string }): Promise<void> {
   await prisma.jobFieldTaxonomy.update({ where: { id }, data: names });
 }
