@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/index';
 import { academicYearContextSync, getAcademicYearContext } from '../src/academic-year';
 import { computeGapMap, scopeProgramIds } from '../src/gap-map';
-import { GAP_MAP_VERSION, GAP_VERDICTS } from '../src/gap-map-rules';
+import { DEFAULT_GAP_THRESHOLDS, GAP_MAP_VERSION, GAP_VERDICTS, parseDemandBasis } from '../src/gap-map-rules';
 import { realDataSql } from '../src/data-quality';
 import { eligiblePostingLevels } from '../src/jobthai-bridge';
 
@@ -87,7 +87,40 @@ describe.skipIf(!postgresUp)('computeGapMap at university scope', () => {
         GROUP BY jp.id
       ) per_posting
     `);
-    expect(rows[0]?.total ?? 0).toBe(map.reconciliation.fieldMentions);
+    // The recount below is JobThai-only, so it is paired with the private
+    // figure rather than the blended total. The default basis is `all`, and
+    // fieldMentions under that basis spans both sources.
+    expect(rows[0]?.total ?? 0).toBe(map.reconciliation.privateFieldMentions);
+  }, DB_TIMEOUT_MS);
+
+  it('the blended denominator is exactly the two source denominators summed', async () => {
+    const map = await computeGapMap({ scope: 'university', scopeId: null, thresholds: DEFAULT_GAP_THRESHOLDS });
+    expect(map.reconciliation.fieldMentions).toBe(
+      map.reconciliation.privateFieldMentions + map.reconciliation.publicFieldMentions,
+    );
+  }, DB_TIMEOUT_MS);
+
+  it('the public window excludes announcements published before it', async () => {
+    const base = { scope: 'university' as const, scopeId: null, thresholds: DEFAULT_GAP_THRESHOLDS };
+
+    // Every job-108 row is dated 2026-09-07..19. A window anchored far enough
+    // ahead starts after all of them, so the public side must empty out while
+    // the private side — which is never windowed, because JobThai postings are
+    // undated and carry their batch receipt date — is unaffected.
+    const inside = await computeGapMap({
+      ...base,
+      demand: parseDemandBasis({ basis: 'all' }),
+      now: new Date('2026-09-20T00:00:00Z'),
+    });
+    const outside = await computeGapMap({
+      ...base,
+      demand: parseDemandBasis({ basis: 'all', publicWindowMonths: '1' }),
+      now: new Date('2027-06-01T00:00:00Z'),
+    });
+
+    expect(inside.reconciliation.publicFieldMentions).toBeGreaterThan(0);
+    expect(outside.reconciliation.publicFieldMentions).toBe(0);
+    expect(outside.reconciliation.privateFieldMentions).toBe(inside.reconciliation.privateFieldMentions);
   }, DB_TIMEOUT_MS);
 
   it('every linked programme arrives with a name, and says whether it belongs to the field', async () => {

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
+import { PRIVATE_DEMAND_SOURCE, PUBLIC_DEMAND_SOURCE } from '@kku/shared';
 import { prisma } from './index';
 import { getAcademicYearContext } from './academic-year';
 import { realDataSql, realDataWhere } from './data-quality';
@@ -11,9 +12,12 @@ import {
   NOMINAL_DURATION_FALLBACK,
   NOMINAL_DURATION_YEARS,
   annualisedIntake,
+  parseDemandBasis,
   pipelineArrow,
+  publicWindowStart,
   reconcile,
   verdictFor,
+  type DemandBasisOptions,
   type GapThresholds,
   type GapVerdict,
   type PipelineArrow,
@@ -121,6 +125,21 @@ export interface GapMapRow {
   reviewStatus: 'PROPOSED' | 'APPROVED';
   postings: number;
   demandShare: number;
+  /** This field's share of eligible JobThai-only postings, normalised by
+   *  `privateFieldMentions` — computed on every row regardless of the
+   *  active `demand.basis`, so a viewer switching bases sees the
+   *  alternative without a second read. */
+  privateDemandShare: number;
+  /** This field's share of eligible job-108 postings inside the public
+   *  window, normalised by `publicFieldMentions` — same "always computed"
+   *  rule as `privateDemandShare`. */
+  publicDemandShare: number;
+  /** Distinct eligible JobThai postings naming this field (unwindowed —
+   *  JobThai carries no real posted date). */
+  privatePostings: number;
+  /** Distinct eligible job-108 postings naming this field, inside the
+   *  active public window. */
+  publicPostings: number;
   supplyShare: number;
   ratio: number | null;
   verdict: GapVerdict;
@@ -153,6 +172,10 @@ export interface GapMapResult {
   computedAt: string;
   scope: { level: GapMapScope; id: string | null; label: string | null };
   thresholds: GapThresholds;
+  /** The demand basis this result was computed under, plus the resolved
+   *  window start (ISO date) so a shared link is self-explaining without
+   *  the reader having to re-derive it from `computedAt`. */
+  demand: DemandBasisOptions & { publicWindowFrom: string };
   rows: GapMapRow[];
   verdictCounts: Record<GapVerdict, number>;
   facultyStrip: Array<{ facultyId: string; nameTh: string; nameEn: string; counts: Record<GapVerdict, number> }>;
@@ -160,8 +183,14 @@ export interface GapMapResult {
     eligiblePostings: number;
     /** Distinct eligible postings naming at least one field. */
     fieldPostings: number;
-    /** Σ_f postings_f — the demand denominator; ≥ fieldPostings. */
+    /** Σ_f postings_f — the demand denominator FOR THE ACTIVE BASIS; ≥ fieldPostings. */
     fieldMentions: number;
+    /** Σ_f postings_f over JobThai only, whatever the active basis — see
+     *  `GapMapRow.privateDemandShare`. */
+    privateFieldMentions: number;
+    /** Σ_f postings_f over job-108 only, inside the public window, whatever
+     *  the active basis — see `GapMapRow.publicDemandShare`. */
+    publicFieldMentions: number;
     /** Eligible postings whose fields overlap ≥ 2 non-rejected taxonomy rows. */
     multiFieldPostings: number;
     anyFieldPostings: number;
@@ -180,6 +209,17 @@ export interface GapMapResult {
     /** How many of `scoredWithSupply` came from the enrolment-metric
      *  fallback rather than alumni entry cohorts. The rest are alumni. */
     supplyFromProxy: number;
+    /** Distinct job-108 announcements inside the public window (any
+     *  education level, whether or not they named a field). An
+     *  announcement can carry several positions. */
+    publicAnnouncements: number;
+    /** job-108 postings (one row per position) inside the public window. */
+    publicPositions: number;
+    /** Σ of `position_count` across those postings — reported, and NEVER
+     *  weighted into a share: JobThai has no headcount column, so weighting
+     *  public seats against private adverts of unknown size would
+     *  over-weight the public side by an unknowable factor. */
+    publicSeats: number;
   };
   taxonomy: { approved: number; proposed: number };
   freshness: { postingsAsOf: string | null; taxonomyAsOf: string | null };
@@ -228,11 +268,31 @@ export async function computeGapMap(args: {
   scopeId: string | null;
   thresholds: GapThresholds;
   now?: Date;
+  /** Which source(s) form the demand denominator. Defaults to the blended
+   *  basis (`parseDemandBasis({})` — see `@kku/shared/demand/sources` for
+   *  why `all` is the default). */
+  demand?: DemandBasisOptions;
 }): Promise<GapMapResult> {
   const now = args.now ?? new Date();
+  const demand = args.demand ?? parseDemandBasis({});
+  const windowStart = publicWindowStart(now, demand.publicWindowMonths);
   const { currentAcademicYearBE } = await getAcademicYearContext(now);
   const inScope = await scopeProgramIds(args.scope, args.scopeId);
   const inScopeSet = inScope ? new Set(inScope) : null;
+
+  // One gate, used by every demand query, so the three bases cannot
+  // disagree about which rows they count. The window applies to public
+  // rows only: JobThai postings are undated — postedDateEstimated is true
+  // on all 47,631, they carry their batch receipt date — so windowing them
+  // would silently drop the entire private side.
+  const sourceGate = (alias: string): Prisma.Sql => {
+    const a = Prisma.raw(alias);
+    const privateGate = Prisma.sql`${a}.source = ${PRIVATE_DEMAND_SOURCE}`;
+    const publicGate = Prisma.sql`(${a}.source = ${PUBLIC_DEMAND_SOURCE} AND ${a}.posted_date >= ${windowStart})`;
+    if (demand.basis === 'private') return privateGate;
+    if (demand.basis === 'public') return publicGate;
+    return Prisma.sql`(${privateGate} OR ${publicGate})`;
+  };
 
   // ── Demand ────────────────────────────────────────────────────────────────
   const fields = await prisma.jobFieldTaxonomy.findMany({
@@ -249,7 +309,7 @@ export async function computeGapMap(args: {
   // `postingsByField` / `fieldMentions` are derived from `provinceRows`
   // instead of a fourth pass. Cross-checked against a one-pass
   // per-posting field count in the DB test.
-  const [universe, provinceRows] = await Promise.all([
+  const [universe, provinceRows, sourceRows] = await Promise.all([
     prisma.$queryRaw<
       Array<{
         eligible: number;
@@ -265,7 +325,7 @@ export async function computeGapMap(args: {
       WITH eligible AS (
         SELECT jp.id, jp.required_fields_raw, jp.freshness_date
         FROM job_postings jp
-        WHERE jp.source = 'jobthai'
+        WHERE ${sourceGate('jp')}
           AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
           AND ${realDataSql('jp')}
       ),
@@ -285,7 +345,7 @@ export async function computeGapMap(args: {
         (SELECT COUNT(*)::int FROM field_counts) AS field_naming,
         (SELECT COUNT(*)::int FROM field_counts WHERE n_fields > 1) AS multi_field,
         (SELECT COUNT(*)::int FROM eligible WHERE ${JOBTHAI_ANY_FIELD} = ANY(required_fields_raw)) AS any_field,
-        (SELECT COUNT(*)::int FROM job_postings jp WHERE jp.source = 'jobthai' AND jp.min_education_level::text = ANY(${POSTGRAD_LEVELS}::text[]) AND ${realDataSql('jp')}) AS postgraduate,
+        (SELECT COUNT(*)::int FROM job_postings jp WHERE ${sourceGate('jp')} AND jp.min_education_level::text = ANY(${POSTGRAD_LEVELS}::text[]) AND ${realDataSql('jp')}) AS postgraduate,
         (SELECT COUNT(DISTINCT s)::int FROM other) AS other_kinds,
         (SELECT COUNT(*)::int FROM other) AS other_mentions,
         (SELECT MAX(freshness_date) FROM eligible) AS as_of
@@ -295,10 +355,30 @@ export async function computeGapMap(args: {
       FROM job_field_taxonomy f
       JOIN job_postings jp ON jp.required_fields_raw && f.synonyms
       WHERE f.review_status IN ('APPROVED', 'PROPOSED')
-        AND jp.source = 'jobthai'
+        AND ${sourceGate('jp')}
         AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
         AND ${realDataSql('jp')}
       GROUP BY f.id, COALESCE(jp.province, '(unknown)')
+    `),
+    // Per-field postings, split by source, spanning BOTH sources — always,
+    // regardless of `demand.basis`. Every row carries its private and its
+    // public share alongside whichever one is active, so a viewer flipping
+    // the URL parameter sees the alternative without a second round trip.
+    // The public side is windowed here exactly as `sourceGate('public')`
+    // windows it; the private side is not, for the same reason `sourceGate`
+    // never windows it (JobThai postings carry no real date).
+    prisma.$queryRaw<Array<{ field_id: string; source: string; postings: number }>>(Prisma.sql`
+      SELECT f.id AS field_id, jp.source AS source, COUNT(DISTINCT jp.id)::int AS postings
+      FROM job_field_taxonomy f
+      JOIN job_postings jp ON jp.required_fields_raw && f.synonyms
+      WHERE f.review_status IN ('APPROVED', 'PROPOSED')
+        AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
+        AND ${realDataSql('jp')}
+        AND (
+          jp.source = ${PRIVATE_DEMAND_SOURCE}
+          OR (jp.source = ${PUBLIC_DEMAND_SOURCE} AND jp.posted_date >= ${windowStart})
+        )
+      GROUP BY f.id, jp.source
     `),
   ]);
   const u = universe[0] ?? {
@@ -313,6 +393,20 @@ export async function computeGapMap(args: {
   };
   const postingsByField = new Map<string, number>();
   for (const r of provinceRows) postingsByField.set(r.field_id, (postingsByField.get(r.field_id) ?? 0) + r.postings);
+
+  // Each side normalised by ITS OWN sum of per-field numerators — never the
+  // other side's, and never `fieldMentions` (the active basis's sum). A
+  // posting naming k fields counts k times on whichever side it sits, so
+  // `privateFieldMentions` and `publicFieldMentions` are two separate sums,
+  // neither derivable from the other or from the active-basis total.
+  const privateByField = new Map<string, number>();
+  const publicByField = new Map<string, number>();
+  for (const r of sourceRows) {
+    const target = r.source === PRIVATE_DEMAND_SOURCE ? privateByField : r.source === PUBLIC_DEMAND_SOURCE ? publicByField : null;
+    if (target) target.set(r.field_id, (target.get(r.field_id) ?? 0) + r.postings);
+  }
+  const privateFieldMentions = [...privateByField.values()].reduce((n, v) => n + v, 0);
+  const publicFieldMentions = [...publicByField.values()].reduce((n, v) => n + v, 0);
 
   // ── Normalisation rule (docs/methodologies/gap-map.md) ────────────────────
   // A posting that accepts several fields is demand for each of them; a
@@ -334,6 +428,14 @@ export async function computeGapMap(args: {
   for (const list of provincesByField.values()) list.sort((a, b) => b.share - a.share).splice(5);
 
   // ── Occupations inside a row ──────────────────────────────────────────────
+  // This join runs the same sourceGate as every other demand query — under
+  // `all` or `public` a government posting is eligible in principle — but
+  // job_category / job_subcategory are NULL on every job-108 row (the
+  // government source carries no occupation classification), so the INNER
+  // JOIN on jobthai_occupations excludes public rows by construction. That
+  // is intended, not a gap: occupations feed the JobThai-only bridge
+  // (program_jobthai_links), and government postings feed the field layer
+  // only.
   const occRows = await prisma.$queryRaw<
     Array<{ field_id: string; occupation_id: string; code: string; category: string; subcategory: string; postings: number }>
   >(Prisma.sql`
@@ -342,7 +444,7 @@ export async function computeGapMap(args: {
     JOIN job_postings jp ON jp.required_fields_raw && f.synonyms
     JOIN jobthai_occupations o ON o.category = jp.job_category AND o.subcategory = jp.job_subcategory
     WHERE f.review_status IN ('APPROVED', 'PROPOSED')
-      AND jp.source = 'jobthai'
+      AND ${sourceGate('jp')}
       AND jp.min_education_level::text = ANY(${BACHELOR_LEVELS}::text[])
       AND ${realDataSql('jp')}
     GROUP BY f.id, o.id, o.code, o.category, o.subcategory
@@ -565,6 +667,13 @@ export async function computeGapMap(args: {
   const rows: GapMapRow[] = fields.map((f) => {
     const postings = postingsByField.get(f.id) ?? 0;
     const demandShare = fieldMentions > 0 ? postings / fieldMentions : 0;
+    const privatePostings = privateByField.get(f.id) ?? 0;
+    const publicPostings = publicByField.get(f.id) ?? 0;
+    // Each computed on every row, whatever the active basis, and each
+    // normalised by its OWN sum — see the `privateFieldMentions` /
+    // `publicFieldMentions` comment above.
+    const privateDemandShare = privateFieldMentions > 0 ? privatePostings / privateFieldMentions : 0;
+    const publicDemandShare = publicFieldMentions > 0 ? publicPostings / publicFieldMentions : 0;
     const mine = assignments.filter((a) => a.fieldId === f.id);
     const mineIds = new Set(mine.map((a) => a.program.id));
     const occupations: GapMapOccupation[] = (occByField.get(f.id) ?? []).map((o) => {
@@ -653,6 +762,10 @@ export async function computeGapMap(args: {
       reviewStatus: f.reviewStatus === 'APPROVED' ? 'APPROVED' : 'PROPOSED',
       postings,
       demandShare,
+      privateDemandShare,
+      publicDemandShare,
+      privatePostings,
+      publicPostings,
       supplyShare,
       ratio,
       verdict,
@@ -699,6 +812,21 @@ export async function computeGapMap(args: {
     })),
     { fieldMentions, fieldGraduates: fieldGraduatesTotal },
   );
+  // publicSeats is reported and NEVER weighted into a share: JobThai has no
+  // headcount column, so weighting public seats against private adverts of
+  // unknown size would over-weight the public side by an unknowable factor.
+  const [publicTotals] = await prisma.$queryRaw<Array<{ announcements: number; positions: number; seats: number }>>(
+    Prisma.sql`
+      SELECT
+        COUNT(DISTINCT jp.job108_announcement_id)::int AS announcements,
+        COUNT(*)::int AS positions,
+        COALESCE(SUM(jp.position_count), 0)::int AS seats
+      FROM job_postings jp
+      WHERE jp.source = ${PUBLIC_DEMAND_SOURCE}
+        AND jp.posted_date >= ${windowStart}
+        AND ${realDataSql('jp')}
+    `,
+  );
   const scopeLabel =
     args.scope === 'university' || !args.scopeId
       ? null
@@ -711,6 +839,10 @@ export async function computeGapMap(args: {
     computedAt: now.toISOString(),
     scope: { level: args.scope, id: args.scopeId, label: scopeLabel },
     thresholds: args.thresholds,
+    // Date only, not a timestamp: the window is a day boundary, and carrying
+    // the time of day would make this string differ between two requests a
+    // second apart while implying a precision the rule does not have.
+    demand: { ...demand, publicWindowFrom: windowStart.toISOString().slice(0, 10) },
     rows: rows.sort((a, b) => b.demandShare - a.demandShare),
     verdictCounts,
     facultyStrip,
@@ -718,6 +850,8 @@ export async function computeGapMap(args: {
       eligiblePostings: u.eligible,
       fieldPostings: u.field_naming,
       fieldMentions,
+      privateFieldMentions,
+      publicFieldMentions,
       multiFieldPostings: u.multi_field,
       anyFieldPostings: u.any_field,
       otherKinds: u.other_kinds,
@@ -730,6 +864,9 @@ export async function computeGapMap(args: {
       scoredProgrammes: scoredIds.size,
       scoredWithSupply: [...scoredIds].filter((id) => hasSupply(id)).length,
       supplyFromProxy: [...scoredIds].filter((id) => supplyById.get(id)?.source === 'enrolment-proxy').length,
+      publicAnnouncements: publicTotals?.announcements ?? 0,
+      publicPositions: publicTotals?.positions ?? 0,
+      publicSeats: publicTotals?.seats ?? 0,
     },
     taxonomy: {
       approved: fields.filter((f) => f.reviewStatus === 'APPROVED').length,

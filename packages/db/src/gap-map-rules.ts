@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_DEMAND_BASIS, DEFAULT_PUBLIC_WINDOW_MONTHS, DEMAND_BASES, type DemandBasis } from '@kku/shared';
 import { JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from './jobthai-bridge';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,6 +44,37 @@ export const ThresholdsSchema = z
 /** From URL / query strings. Throws on 0 < under < over violations. */
 export function parseThresholds(q: { under?: string | number; over?: string | number }): GapThresholds {
   return ThresholdsSchema.parse(q);
+}
+
+export interface DemandBasisOptions {
+  /** Which source(s) form the demand denominator. See `@kku/shared/demand/sources`. */
+  basis: DemandBasis;
+  /** How many months back a `public` (job-108) posting counts. Ignored under
+   *  `private` — JobThai postings carry no real date to window against. */
+  publicWindowMonths: number;
+}
+
+export const DemandBasisSchema = z.object({
+  basis: z.enum(DEMAND_BASES).default(DEFAULT_DEMAND_BASIS),
+  publicWindowMonths: z.coerce.number().int().positive().default(DEFAULT_PUBLIC_WINDOW_MONTHS),
+});
+
+/** From URL / query strings. Throws on an unrecognised basis rather than
+ *  falling back to the default — a shared link carrying a typo (e.g.
+ *  `?basis=government`) should fail visibly rather than quietly render a
+ *  different denominator under the same `gap-map.v1` methodology stamp. */
+export function parseDemandBasis(q: { basis?: string; publicWindowMonths?: string | number }): DemandBasisOptions {
+  return DemandBasisSchema.parse(q);
+}
+
+/** The earliest `posted_date` that counts under a public-basis window of
+ *  `months`, measured back from `now`. Calendar-month arithmetic (not a
+ *  fixed day count) so "12 months" means "this date last year" whatever the
+ *  month lengths in between. */
+export function publicWindowStart(now: Date, months: number): Date {
+  const d = new Date(now.getTime());
+  d.setUTCMonth(d.getUTCMonth() - months);
+  return d;
 }
 
 /** Share-vs-share rule (spec §2 decision 3). Shares are fractions (0..1).
