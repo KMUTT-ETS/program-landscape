@@ -23,9 +23,24 @@ import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 // postings behind all links. An occupation now demands a skill only at
 // OCCUPATION_SKILL_DEMAND_FLOOR, and skills most occupations demand are
 // excluded from the overlap (GENERIC_SKILL_OCCUPATION_SHARE).
+//
+// v3 (2026-09-20): the field-of-study path prefers a REVIEWED answer over a
+// substring guess. matchFieldToProgramme's own doc comment justified raw
+// containment with "Crude, but the alternative is a curated discipline
+// vocabulary we do not have" — and that stopped being true when the Gap
+// Analyzer built one: `job_field_taxonomy` clusters the raw JobThai strings
+// into canonical fields, and `program_job_fields` records which programmes
+// supply each. Where a field is APPROVED, its assignments now decide the
+// match and the promiscuity filter is skipped (see reviewedFieldVerdict) —
+// UNLESS the field claims more than MAX_PROGRAMMES_PER_FIELD programmes, which
+// is the same blow-up one level up and is capped in
+// buildReviewedFieldVocabulary. Everywhere else v2's behaviour is untouched,
+// so this is additive: on the day it shipped 1 of 71 fields was APPROVED and
+// no link moved. Each field an admin approves from then on replaces guesses
+// with reviewed answers.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const JOBTHAI_BRIDGE_VERSION = 'jobthai-bridge.v2';
+export const JOBTHAI_BRIDGE_VERSION = 'jobthai-bridge.v3';
 
 /**
  * Minimum postings behind a programme's links before its JobThai signal is
@@ -125,9 +140,12 @@ function norm(s: string): string {
 /**
  * Does a posting's stated field of study name this programme's discipline?
  *
- * Substring containment against the programme name. Crude, but the alternative
- * is a curated discipline vocabulary we do not have, and the failure mode is
- * visible: an implausible link shows up in the hand-inspection step.
+ * Substring containment against the programme name. Crude, and since v3 it is
+ * the FALLBACK: the curated discipline vocabulary this comment once said we did
+ * not have exists — `job_field_taxonomy` plus `program_job_fields`, built by the
+ * Gap Analyzer — and `reviewedFieldVerdict` answers first for any raw string an
+ * APPROVED field has absorbed. This function decides the rest, where the failure
+ * mode is visible: an implausible link shows up in the hand-inspection step.
  *
  * The any-field sentinel is explicitly NOT a match. Treating it as one would
  * link every programme to every occupation that ever said ทุกสาขา — 2,566
@@ -138,6 +156,137 @@ export function matchFieldToProgramme(field: string, programmeName: string): boo
   if (f === '' || f === norm(JOBTHAI_ANY_FIELD) || field === JOBTHAI_ANY_FIELD) return false;
   if (f.length < MIN_FIELD_LENGTH) return false;
   return norm(programmeName).includes(f);
+}
+
+/**
+ * The reviewed field-of-study vocabulary, as the bridge consults it.
+ *
+ * Only APPROVED fields appear in `approvedFieldByRawString`. A PROPOSED field is
+ * an unreviewed AI clustering, and a link feeds `jobthai_demand_alignment` — a
+ * Council-facing health driver weighted 0.75 inside relevance — so admitting one
+ * would let the model's guess set a Council number without a human in between.
+ * A REJECTED field is a human saying no. Both are invisible here, and a raw
+ * string they hold therefore falls through to the substring fallback exactly as
+ * it did under v2.
+ */
+export interface ReviewedFieldVocabulary {
+  /** Raw `required_fields_raw` string → the APPROVED field that absorbed it. */
+  approvedFieldByRawString: ReadonlyMap<string, string>;
+  /** Programme id → field ids it has a NON-REJECTED `program_job_fields` row for. */
+  fieldsByProgramme: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+export const EMPTY_REVIEWED_FIELD_VOCABULARY: ReviewedFieldVocabulary = {
+  approvedFieldByRawString: new Map(),
+  fieldsByProgramme: new Map(),
+};
+
+/**
+ * Builds the vocabulary, dropping any field that claims more than
+ * MAX_PROGRAMMES_PER_FIELD programmes. Its strings fall back to substring
+ * matching exactly as an unreviewed string does.
+ *
+ * **This is the field-granularity twin of the synonym-level cap.**
+ * MAX_PROGRAMMES_PER_FIELD is applied per SYNONYM in `planRuleAssignments`, and
+ * a field escapes it two ways: by accumulating programmes across many synonyms,
+ * and via the AI assignment path, which the synonym cap never touches at all.
+ *
+ * MEASURED 2026-09-20 on the all-approved counterfactual: of 620 added
+ * programme↔occupation pairs, **310 — exactly half — came from one field,
+ * `business-administration`, holding 29 programmes across 21 synonyms**.
+ * Tourism Innovation Management and Innovation Management each went from 17
+ * postings to about 2,150 across 54-56 occupations, collecting purchasing,
+ * general administration, production planning and sales coordination. That is
+ * "Science matched 135 of 297" reappearing one level up. The other field over
+ * the cap, `biology`, holds 21 programmes on a SINGLE synonym — proof the
+ * synonym cap cannot stand in for this one.
+ *
+ * Approving a field suspends the promiscuity filter for its strings, so without
+ * this cap approving a broad field is the most destructive action available on
+ * /admin/job-fields, and it looks like ordinary review.
+ */
+export function buildReviewedFieldVocabulary(
+  fields: ReadonlyArray<{ fieldId: string; synonyms: ReadonlyArray<string> }>,
+  assignments: ReadonlyArray<{ programId: string; fieldId: string }>,
+): { vocabulary: ReviewedFieldVocabulary; cappedFieldIds: string[] } {
+  const programmesByField = new Map<string, Set<string>>();
+  for (const a of assignments) {
+    const set = programmesByField.get(a.fieldId) ?? new Set<string>();
+    set.add(a.programId);
+    programmesByField.set(a.fieldId, set);
+  }
+  const cappedFieldIds = fields
+    .map((f) => f.fieldId)
+    .filter((id) => (programmesByField.get(id)?.size ?? 0) > MAX_PROGRAMMES_PER_FIELD);
+  const capped = new Set(cappedFieldIds);
+
+  const approvedFieldByRawString = new Map<string, string>();
+  for (const f of fields) {
+    if (capped.has(f.fieldId)) continue;
+    for (const syn of f.synonyms) approvedFieldByRawString.set(syn, f.fieldId);
+  }
+  const fieldsByProgramme = new Map<string, Set<string>>();
+  for (const a of assignments) {
+    if (capped.has(a.fieldId)) continue;
+    const set = fieldsByProgramme.get(a.programId) ?? new Set<string>();
+    set.add(a.fieldId);
+    fieldsByProgramme.set(a.programId, set);
+  }
+  return { vocabulary: { approvedFieldByRawString, fieldsByProgramme }, cappedFieldIds };
+}
+
+/**
+ * `unreviewed` means no APPROVED field has absorbed this raw string, so the
+ * caller falls back to the promiscuity filter plus `matchFieldToProgramme`.
+ */
+export type ReviewedFieldVerdict = 'reviewed-yes' | 'reviewed-no' | 'unreviewed';
+
+/**
+ * Does the REVIEWED vocabulary answer whether this posting's stated field
+ * belongs to this programme?
+ *
+ * **The promiscuity filter deliberately does not apply to a reviewed answer.**
+ * MAX_PROGRAMMES_PER_FIELD exists because a substring guess that matches 135
+ * programmes ("Science") is vocabulary, not a discipline — it is a proxy for
+ * "nobody checked". A curated field legitimately spanning many programmes is a
+ * different object: a human read the assignments and approved them, so the
+ * breadth is the reviewed answer rather than evidence of a bad one.
+ *
+ * The any-field sentinel is refused before the lookup. It is excluded when the
+ * taxonomy is built so it should never be a synonym, but treating it as a
+ * reviewed match would link every assigned programme to every occupation that
+ * ever said ทุกสาขา, which is too expensive a failure to leave to an invariant
+ * enforced in another file.
+ */
+export function reviewedFieldVerdict(
+  vocabulary: ReviewedFieldVocabulary,
+  field: string,
+  programId: string,
+): ReviewedFieldVerdict {
+  if (field === JOBTHAI_ANY_FIELD || norm(field) === norm(JOBTHAI_ANY_FIELD)) return 'unreviewed';
+  const fieldId = vocabulary.approvedFieldByRawString.get(field);
+  if (fieldId === undefined) return 'unreviewed';
+  return vocabulary.fieldsByProgramme.get(programId)?.has(fieldId) ? 'reviewed-yes' : 'reviewed-no';
+}
+
+/**
+ * The whole v3 field-of-study rule for one (posting field, programme) pair.
+ *
+ * A reviewed answer wins outright, promiscuity filter and all — see
+ * `reviewedFieldVerdict`. Everything the reviewed vocabulary has not absorbed
+ * keeps v2's rule unchanged: reject the field if it matches more than
+ * MAX_PROGRAMMES_PER_FIELD programmes, then test substring containment.
+ */
+export function fieldMatchesProgramme(input: {
+  field: string;
+  programId: string;
+  programmeName: string;
+  vocabulary: ReviewedFieldVocabulary;
+  promiscuous: ReadonlySet<string>;
+}): boolean {
+  const verdict = reviewedFieldVerdict(input.vocabulary, input.field, input.programId);
+  if (verdict !== 'unreviewed') return verdict === 'reviewed-yes';
+  return !input.promiscuous.has(input.field) && matchFieldToProgramme(input.field, input.programmeName);
 }
 
 /**

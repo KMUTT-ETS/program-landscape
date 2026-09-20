@@ -8,10 +8,13 @@ import {
   distinctiveDemand,
   skillOverlapCounts,
   matchedPostingCounts,
+  fieldMatchesProgramme,
+  loadReviewedFieldVocabulary,
   JOBTHAI_BRIDGE_VERSION,
   JOBTHAI_MIN_POSTINGS_FOR_SIGNAL,
   MAX_PROGRAMMES_PER_FIELD,
   MIN_POSTINGS_PER_LINK,
+  type ReviewedFieldVocabulary,
 } from '@kku/db';
 
 import { deriveOccupations, occupationCode } from './derive-occupations';
@@ -179,10 +182,32 @@ export interface LinkPlan {
   postgraduateProgrammes: number;
   postgraduateLinked: number;
   bySource: Record<string, number>;
+  /** APPROVED taxonomy fields the reviewed path consulted (v3). */
+  reviewedFields: number;
+  /** Raw field strings those fields have absorbed, decided by review not substring. */
+  reviewedRawStrings: number;
+  /** APPROVED fields dropped for claiming more than MAX_PROGRAMMES_PER_FIELD programmes. */
+  cappedFields: number;
 }
 
-/** The programme ↔ occupation bridge (jobthai-bridge.v2), computed from current data. */
-export async function planJobThaiLinks(): Promise<LinkPlan> {
+/**
+ * The programme ↔ occupation bridge (jobthai-bridge.v3), computed from current
+ * data.
+ *
+ * `vocabulary` is a seam for measurement and tests only. Production passes
+ * nothing and gets `loadReviewedFieldVocabulary()`, which admits APPROVED fields
+ * and nothing else; pass a widened one from a scratch script to answer "what
+ * would working the review queue be worth". Build it with
+ * `buildReviewedFieldVocabulary` so the field-level cap still applies — the
+ * counterfactual is worthless if it measures an uncapped rule we would not ship.
+ */
+export async function planJobThaiLinks(
+  opts: { vocabulary?: ReviewedFieldVocabulary; cappedFieldIds?: string[] } = {},
+): Promise<LinkPlan> {
+  const loaded = opts.vocabulary ? null : await loadReviewedFieldVocabulary();
+  const vocabulary = opts.vocabulary ?? loaded!.vocabulary;
+  const cappedFieldIds = opts.cappedFieldIds ?? loaded?.cappedFieldIds ?? [];
+
   const programmes = await prisma.program.findMany({
     where: { status: 'ACTIVE', sequenceNoFromSheet: { not: null } },
     select: { id: true, code: true, nameTh: true, nameEn: true, level: true },
@@ -249,7 +274,13 @@ export async function planJobThaiLinks(): Promise<LinkPlan> {
     const matchesField = (f: string): boolean => {
       let m = fieldMatch.get(f);
       if (m === undefined) {
-        m = !promiscuous.has(f) && matchFieldToProgramme(f, name);
+        // v3: a reviewed answer wins outright, and the promiscuity filter is
+        // NOT applied to it — MAX_PROGRAMMES_PER_FIELD guards against a
+        // substring guess spreading across unrelated programmes, whereas a
+        // curated field spanning many programmes was read and approved by a
+        // human. Everything the reviewed vocabulary has not absorbed keeps v2's
+        // rule exactly.
+        m = fieldMatchesProgramme({ field: f, programId: p.id, programmeName: name, vocabulary, promiscuous });
         fieldMatch.set(f, m);
       }
       return m;
@@ -308,6 +339,9 @@ export async function planJobThaiLinks(): Promise<LinkPlan> {
       acc[l.linkSource] = (acc[l.linkSource] ?? 0) + 1;
       return acc;
     }, {}),
+    reviewedFields: new Set(vocabulary.approvedFieldByRawString.values()).size,
+    reviewedRawStrings: vocabulary.approvedFieldByRawString.size,
+    cappedFields: cappedFieldIds.length,
   };
 }
 

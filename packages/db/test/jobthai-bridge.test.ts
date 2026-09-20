@@ -7,6 +7,11 @@ import {
   scoreSkillOverlapLink,
   combineLinkSources,
   matchFieldToProgramme,
+  fieldMatchesProgramme,
+  reviewedFieldVerdict,
+  buildReviewedFieldVocabulary,
+  EMPTY_REVIEWED_FIELD_VOCABULARY,
+  type ReviewedFieldVocabulary,
   MAX_PROGRAMMES_PER_FIELD,
   MIN_POSTINGS_PER_LINK,
   distinctiveDemand,
@@ -197,6 +202,168 @@ describe('skillOverlapCounts', () => {
     const counts = skillOverlapCounts({ taught, demanded, generic: new Set(['comm']) });
     expect(counts).toEqual({ sharedSkills: 3, taughtSkills: 3 });
     expect(scoreSkillOverlapLink(counts)).toBe(1);
+  });
+});
+
+describe('fieldMatchesProgramme (jobthai-bridge.v3 — reviewed vocabulary first)', () => {
+  // "วิทยาศาสตร์" is the worst case on purpose: as a raw substring it matches 45
+  // KKU programmes, so v2 rejects it as promiscuous and it can never produce a
+  // link. Once a human APPROVES the field that absorbed it, breadth is the
+  // reviewed answer rather than evidence of a bad one.
+  const FIELD = 'วิทยาศาสตร์';
+  const PROMISCUOUS = new Set([FIELD]);
+
+  const approved: ReviewedFieldVocabulary = {
+    approvedFieldByRawString: new Map([[FIELD, 'field-science']]),
+    fieldsByProgramme: new Map([['prog-physics', new Set(['field-science'])]]),
+  };
+
+  it('an APPROVED field resolves through the assignments, promiscuity filter and all', () => {
+    expect(
+      fieldMatchesProgramme({
+        field: FIELD,
+        programId: 'prog-physics',
+        // Deliberately a name the substring rule would ALSO accept, so the pass
+        // cannot be mistaken for the fallback having answered.
+        programmeName: 'วิทยาศาสตรบัณฑิต (ฟิสิกส์) Bachelor of Science in Physics',
+        vocabulary: approved,
+        promiscuous: PROMISCUOUS,
+      }),
+    ).toBe(true);
+    expect(reviewedFieldVerdict(approved, FIELD, 'prog-physics')).toBe('reviewed-yes');
+  });
+
+  it('an APPROVED field REFUSES a programme it was not assigned to, however the name reads', () => {
+    expect(
+      fieldMatchesProgramme({
+        field: FIELD,
+        programId: 'prog-nursing',
+        programmeName: 'พยาบาลศาสตรบัณฑิต วิทยาศาสตร์สุขภาพ',
+        vocabulary: approved,
+        promiscuous: new Set(),
+      }),
+    ).toBe(false);
+    expect(reviewedFieldVerdict(approved, FIELD, 'prog-nursing')).toBe('reviewed-no');
+  });
+
+  it('a PROPOSED field is invisible, so the same string stays on v2 behaviour', () => {
+    // loadReviewedFieldVocabulary admits APPROVED rows only, so a PROPOSED
+    // field's synonyms simply are not in the map. An unreviewed AI clustering
+    // must never reach a link: links feed jobthai_demand_alignment.
+    const proposedIsAbsent = EMPTY_REVIEWED_FIELD_VOCABULARY;
+    expect(reviewedFieldVerdict(proposedIsAbsent, FIELD, 'prog-physics')).toBe('unreviewed');
+    expect(
+      fieldMatchesProgramme({
+        field: FIELD,
+        programId: 'prog-physics',
+        programmeName: 'วิทยาศาสตรบัณฑิต (ฟิสิกส์) Bachelor of Science in Physics',
+        vocabulary: proposedIsAbsent,
+        promiscuous: PROMISCUOUS,
+      }),
+    ).toBe(false);
+  });
+
+  it('an unabsorbed string still falls through to substring matching', () => {
+    expect(
+      fieldMatchesProgramme({
+        field: 'บัญชี',
+        programId: 'prog-accounting',
+        programmeName: 'หลักสูตรบัญชีบัณฑิต',
+        vocabulary: approved,
+        promiscuous: new Set(),
+      }),
+    ).toBe(true);
+    expect(
+      fieldMatchesProgramme({
+        field: 'บัญชี',
+        programId: 'prog-physics',
+        programmeName: 'วิทยาศาสตรบัณฑิต (ฟิสิกส์)',
+        vocabulary: approved,
+        promiscuous: new Set(),
+      }),
+    ).toBe(false);
+  });
+
+  it('never treats the any-field sentinel as reviewed, even if it were a synonym', () => {
+    const sentinelSmuggled: ReviewedFieldVocabulary = {
+      approvedFieldByRawString: new Map([['*ANY*', 'field-anything']]),
+      fieldsByProgramme: new Map([['prog-physics', new Set(['field-anything'])]]),
+    };
+    expect(reviewedFieldVerdict(sentinelSmuggled, '*ANY*', 'prog-physics')).toBe('unreviewed');
+    expect(
+      fieldMatchesProgramme({
+        field: '*ANY*',
+        programId: 'prog-physics',
+        programmeName: 'วิทยาศาสตรบัณฑิต (ฟิสิกส์)',
+        vocabulary: sentinelSmuggled,
+        promiscuous: new Set(),
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('buildReviewedFieldVocabulary (the field-granularity cap)', () => {
+  const programmesFor = (fieldId: string, n: number): Array<{ programId: string; fieldId: string }> =>
+    Array.from({ length: n }, (_, i) => ({ programId: `p${i}`, fieldId }));
+
+  it('drops a field claiming more than MAX_PROGRAMMES_PER_FIELD programmes', () => {
+    // The measured business-administration case: 29 programmes across 21
+    // synonyms, which alone produced half the added pairs in the counterfactual.
+    const { vocabulary, cappedFieldIds } = buildReviewedFieldVocabulary(
+      [{ fieldId: 'business-administration', synonyms: ['บริหารธุรกิจ', 'Business Administration'] }],
+      programmesFor('business-administration', MAX_PROGRAMMES_PER_FIELD + 14),
+    );
+    expect(cappedFieldIds).toEqual(['business-administration']);
+    expect(vocabulary.approvedFieldByRawString.size).toBe(0);
+    expect(vocabulary.fieldsByProgramme.size).toBe(0);
+    // Its strings must fall back, not resolve to false: a capped field is
+    // exactly as invisible as an unreviewed one.
+    expect(reviewedFieldVerdict(vocabulary, 'บริหารธุรกิจ', 'p0')).toBe('unreviewed');
+    expect(
+      fieldMatchesProgramme({
+        field: 'บริหารธุรกิจ',
+        programId: 'p0',
+        programmeName: 'บริหารธุรกิจบัณฑิต',
+        vocabulary,
+        promiscuous: new Set(),
+      }),
+    ).toBe(true);
+  });
+
+  it('caps a single-synonym field too — the synonym-level cap cannot stand in for this', () => {
+    // `biology`: 21 programmes on ONE synonym, assigned by the AI path, which
+    // planRuleAssignments' per-synonym cap never sees.
+    const { cappedFieldIds } = buildReviewedFieldVocabulary(
+      [{ fieldId: 'biology', synonyms: ['ชีววิทยา'] }],
+      programmesFor('biology', 21),
+    );
+    expect(cappedFieldIds).toEqual(['biology']);
+  });
+
+  it('keeps a field exactly at the cap, and caps only the offender', () => {
+    const { vocabulary, cappedFieldIds } = buildReviewedFieldVocabulary(
+      [
+        { fieldId: 'at-cap', synonyms: ['สถิติ'] },
+        { fieldId: 'over-cap', synonyms: ['วิทยาศาสตร์'] },
+      ],
+      [
+        ...programmesFor('at-cap', MAX_PROGRAMMES_PER_FIELD),
+        ...programmesFor('over-cap', MAX_PROGRAMMES_PER_FIELD + 1),
+      ],
+    );
+    expect(cappedFieldIds).toEqual(['over-cap']);
+    expect(vocabulary.approvedFieldByRawString.get('สถิติ')).toBe('at-cap');
+    expect(vocabulary.approvedFieldByRawString.has('วิทยาศาสตร์')).toBe(false);
+    expect(vocabulary.fieldsByProgramme.get('p0')).toEqual(new Set(['at-cap']));
+  });
+
+  it('counts DISTINCT programmes, so duplicate assignment rows cannot trip the cap', () => {
+    const duplicated = Array.from({ length: MAX_PROGRAMMES_PER_FIELD + 10 }, () => ({
+      programId: 'p0',
+      fieldId: 'narrow',
+    }));
+    const { cappedFieldIds } = buildReviewedFieldVocabulary([{ fieldId: 'narrow', synonyms: ['x'] }], duplicated);
+    expect(cappedFieldIds).toEqual([]);
   });
 });
 

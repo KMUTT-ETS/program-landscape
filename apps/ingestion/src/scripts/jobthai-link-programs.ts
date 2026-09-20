@@ -33,7 +33,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL } from '@kku/db';
+import { prisma, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, MAX_PROGRAMMES_PER_FIELD } from '@kku/db';
 
 import { planJobThaiLinks, writeJobThaiLinks } from '../jobthai/refresh';
 
@@ -54,6 +54,12 @@ async function main(): Promise<void> {
   const plan = await planJobThaiLinks();
   console.log(`generic skills excluded from overlap: ${plan.genericSkills}`);
   console.log(`fields rejected as too generic: ${plan.promiscuousFields} of ${plan.totalFields}`);
+  console.log(
+    `reviewed vocabulary: ${plan.reviewedRawStrings} raw string(s) under ${plan.reviewedFields} APPROVED field(s) — decided by review, not substring`,
+  );
+  console.log(
+    `  ...APPROVED fields dropped for claiming more than ${MAX_PROGRAMMES_PER_FIELD} programmes: ${plan.cappedFields}`,
+  );
   console.log(`=== jobthai:link-programs (${apply ? 'APPLY' : 'DRY RUN'}) ===`);
   console.log(`programmes            : ${plan.programmes}`);
   console.log(`occupations           : ${plan.occupations}`);

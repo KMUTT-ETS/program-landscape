@@ -3,7 +3,12 @@ import { JOB_FIELD_TAXONOMY_VERSION } from '@kku/shared';
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 import { prisma } from './index';
 import { realDataSql } from './data-quality';
-import { MAX_PROGRAMMES_PER_FIELD, matchFieldToProgramme } from './jobthai-bridge';
+import {
+  MAX_PROGRAMMES_PER_FIELD,
+  buildReviewedFieldVocabulary,
+  matchFieldToProgramme,
+  type ReviewedFieldVocabulary,
+} from './jobthai-bridge';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job-field taxonomy — the rows of the demand-first Gap Analyzer.
@@ -266,6 +271,38 @@ export function planRuleAssignments(
     promiscuousSynonyms: promiscuous,
     unassignedProgramIds: programmes.filter((p) => !assigned.has(p.id)).map((p) => p.id),
   };
+}
+
+/**
+ * The reviewed vocabulary the JobThai bridge consults (jobthai-bridge.v3).
+ *
+ * APPROVED fields only, with their NON-REJECTED programme assignments. Read once
+ * per link plan — two queries, not one per programme. An assignment's own review
+ * status is deliberately NOT required to be APPROVED: approving the FIELD is the
+ * act that makes its cluster trustworthy, and the assignments under it are then
+ * the reviewer's working set. A REJECTED assignment is the reviewer having
+ * looked at that one pair and said no, so it is excluded.
+ *
+ * `buildReviewedFieldVocabulary` then drops any field claiming more than
+ * MAX_PROGRAMMES_PER_FIELD programmes — see its comment for the measured
+ * `business-administration` blow-up that cap exists to stop.
+ */
+export async function loadReviewedFieldVocabulary(): Promise<{
+  vocabulary: ReviewedFieldVocabulary;
+  cappedFieldIds: string[];
+}> {
+  const fields = await prisma.jobFieldTaxonomy.findMany({
+    where: { reviewStatus: 'APPROVED' },
+    select: { id: true, synonyms: true },
+  });
+  const assignments = await prisma.programJobField.findMany({
+    where: { reviewStatus: { not: 'REJECTED' }, fieldId: { in: fields.map((f) => f.id) } },
+    select: { programId: true, fieldId: true },
+  });
+  return buildReviewedFieldVocabulary(
+    fields.map((f) => ({ fieldId: f.id, synonyms: f.synonyms })),
+    assignments,
+  );
 }
 
 export interface AssignmentWrite {
