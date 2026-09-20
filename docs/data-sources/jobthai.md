@@ -301,11 +301,24 @@ The source feeds the `jobthai_demand_alignment` relevance driver
 driver) and the Deep-Dive Skills coverage JobThai view. Both read
 `programJobThaiSkillCoverage` in `packages/db/src/jobthai.ts`.
 
-**Programme links are `jobthai-bridge.v2`** (2026-09-13). v1's skill-overlap
+**Programme links are `jobthai-bridge.v3`** (2026-09-20; v2 from 2026-09-13). v1's skill-overlap
 path linked programmes through generic skills (Doctor of Medicine to Sales/AE)
 and carried 120,251 of 132,902 linked postings; v2 counts a skill as demanded
 at a 5% posting share, excludes skills more than 20% of occupations demand, and
-scores field-of-study links by posting share. Occupations, skill matches and
+scores field-of-study links by posting share. **v3 prefers a reviewed answer to
+a substring guess**: where a posting's stated field is a synonym of an
+**APPROVED** `job_field_taxonomy` row, that field's non-REJECTED
+`program_job_fields` assignments decide which programmes the posting asks for,
+and the promiscuity filter is skipped because a person approved those
+assignments. An approved field claiming more than `MAX_PROGRAMMES_PER_FIELD`
+programmes is excluded and falls back to the name match — `business-administration`
+(29 programmes) and `biology` (21, on a single synonym, from the AI assignment
+path that the per-synonym cap never sees) are the two above the line today.
+PROPOSED and REJECTED fields are invisible to the bridge, so unreviewed AI
+clustering can never reach `jobthai_demand_alignment`. On the day v3 shipped 1
+of 71 fields was approved and no link moved; with the queue worked through and
+the cap applied it is worth 29 more programmes with links and 23 more clearing
+the 20-posting floor, with none lost. Occupations, skill matches and
 links are rebuilt automatically at the end of every connector run — after each
 upload and each delete (v1.9.5, `apps/ingestion/src/jobthai/refresh.ts`). The AI
 curriculum check still updates per programme when `programs:match-demand` (or
@@ -332,3 +345,4 @@ source. The uploaded files themselves live in MinIO and are deletable from
 | 2026-09-13 | Un-deprecated and flipped real as a CSV/XLSX file source. 47,631 postings, 240 occupations loaded. Parser, connector, admin UI and deterministic skill matching shipped. |
 | 2026-09-13 | `jobthai-bridge.v2` links (posting-share field score, 5% demand floor, generic-skill exclusion); AI curriculum check extended to JobThai demand (`program_demand_matches.demand_sources`); `health-score.v5.2`; Deep-Dive Skills coverage JobThai view. |
 | 2026-09-19 | Field-of-study taxonomy (v1.9.7): `job_field_taxonomy` + `program_job_fields`, built by `pnpm jobthai:fields` and at the end of every batch refresh; review page at `/admin/job-fields`. `/gap-analysis` rebuilt as the demand-first field map on top of them (`gap-map.v1`). |
+| 2026-09-20 | `jobthai-bridge.v3`: the field-of-study path prefers an APPROVED taxonomy field's reviewed assignments over substring matching on the programme name, with a field-level programme cap so an over-broad approved field falls back rather than suspending the guard. Additive — 1 of 71 fields approved on the day, no link moved. |

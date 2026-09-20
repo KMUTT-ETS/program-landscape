@@ -341,7 +341,7 @@ The full, versioned methodology is the in-app paper at `/docs/methodology`
 (§2.2, §2.3, §4.4) and `docs/methodologies/health-score.md`. In brief:
 
 - **Links come from the stated field of study**, scored as the share of an
-  occupation's eligible postings that name it (`jobthai-bridge.v2`). Links below
+  occupation's eligible postings that name it (`jobthai-bridge.v3`). Links below
   0.1, and programmes with fewer than 20 postings behind their links, give no
   signal.
 - **Education level is enforced on the posting.** Postgraduate programmes only

@@ -1,7 +1,7 @@
 import { JOBTHAI_ANY_FIELD } from '@kku/shared/src/jobthai';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Programme ↔ JobThai-occupation bridge — `jobthai-bridge.v1`.
+// Programme ↔ JobThai-occupation bridge — `jobthai-bridge.v3`.
 //
 // Two independent paths, so they can corroborate or disagree:
 //

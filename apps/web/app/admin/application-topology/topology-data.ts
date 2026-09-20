@@ -375,7 +375,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'On upload or delete · postings, then rebuild',
     details: {
       description:
-        'One run per upload or delete at /admin/jobthai. Parses PENDING batches into JobPosting rows, then — once no batch is pending — rebuilds every derived layer from the postings that now exist: occupations, deterministic skill matches against the taxonomy (word-bounded Latin terms, length-floored Thai terms), and programme ↔ occupation links by stated field of study (jobthai-bridge.v2). No LLM spend.',
+        'One run per upload or delete at /admin/jobthai. Parses PENDING batches into JobPosting rows, then — once no batch is pending — rebuilds every derived layer from the postings that now exist: occupations, deterministic skill matches against the taxonomy (word-bounded Latin terms, length-floored Thai terms), and programme ↔ occupation links by stated field of study (jobthai-bridge.v3 — an approved field in the taxonomy decides through its reviewed programme assignments, otherwise the field string is matched against the programme name). No LLM spend.',
       cadence: 'Event-driven · queued by each upload and each delete (no schedule)',
       sourceSlug: 'jobthai',
       notes: [
@@ -1392,7 +1392,7 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'occupation × demanded skill',
     details: {
       description:
-        'Occupations derived from JobThai job categories, the skills each demands (a skill counts at a 5% posting share), and the programme links (jobthai-bridge.v2, by stated field of study at an education level the graduates hold). Rebuilt by the jobthai connector at the end of every run. Read by the AI curriculum check (demand-match.v4), the jobthai_demand_alignment driver of health-score.v5.2 (Relevance, domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
+        'Occupations derived from JobThai job categories, the skills each demands (a skill counts at a 5% posting share), and the programme links (jobthai-bridge.v3, by stated field of study at an education level the graduates hold, preferring an approved field’s reviewed assignments over a name match). Rebuilt by the jobthai connector at the end of every run. Read by the AI curriculum check (demand-match.v4), the jobthai_demand_alignment driver of health-score.v5.2 (Relevance, domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
       prismaModel: 'JobThaiOccupation + JobThaiOccupationSkill + ProgramJobThaiLink',
       relatedTables: [
         'JobThai occupations — JobThaiOccupation',
