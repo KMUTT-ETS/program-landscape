@@ -284,12 +284,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // Weekly, Mondays 03:00. The site publishes ~96 announcements a month
     // (1,339 over the 14 months to 2026-09), so a weekly run finds ~22 and
     // the sitemap's lastmod keeps us from refetching the rest.
-    //
-    // scheduleEnabled stays false until the connector is registered:
-    // ConnectorRunner looks up the registry before it creates an IngestionRun
-    // row, so a scheduled run for an unregistered slug throws into the worker
-    // log and leaves no trace on the admin dashboard.
-    scheduleEnabled: false,
+    scheduleEnabled: true,
     cadenceCron: '0 3 * * 1',
     ownerContact: 'KKU Data Office',
     notes:
@@ -300,12 +295,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'everywhere except /go.php and /url.php. The connector must therefore identify ' +
       'itself as KKU rather than route through a scraping proxy, and must never request ' +
       'those two paths.',
-    // Mocked until the connector lands and registers itself. The seed derives
-    // `status` from this flag, so `false` here would show job-108 as an active
-    // source on /admin/data-sources having never run anything. The connector
-    // task flips both this and scheduleEnabled — that flip is the moment the
-    // source becomes real, and realDataWhere() starts admitting its rows.
-    mocked: true,
+    mocked: false,
   },
   {
     slug: 'jobsdb',

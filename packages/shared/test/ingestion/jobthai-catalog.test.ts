@@ -44,14 +44,14 @@ describe('jobthai catalog entry', () => {
 describe('job-108 catalog entry', () => {
   const entry = SOURCE_CATALOG.find((s) => s.slug === 'job-108');
 
-  // scheduleEnabled must stay false until a connector is registered:
-  // ConnectorRunner throws on an unknown slug BEFORE creating an IngestionRun
-  // row, so a premature schedule fails weekly with nothing on the dashboard.
-  it('is declared but not yet scheduled, because no connector is registered', () => {
-    expect(entry).toBeDefined();
-    expect(entry?.scheduleEnabled).toBe(false);
+  // mocked must be false now that the connector is registered: realDataWhere()
+  // excludes every row whose ingestion run traces to a mocked source, so a
+  // mocked job-108 would write postings the Gap Analyzer cannot see — no
+  // error, just an empty page. That failure has happened three times here.
+  it('is real and scheduled, now that the connector is registered', () => {
+    expect(entry?.mocked).toBe(false);
+    expect(entry?.scheduleEnabled).toBe(true);
     expect(entry?.cadenceCron).toBe('0 3 * * 1');
-    expect(entry?.mocked).toBe(true);
   });
 
   // The connector reads HTML pages it fetches itself, not a file drop. If

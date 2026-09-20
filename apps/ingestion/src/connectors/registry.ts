@@ -35,6 +35,7 @@ import { KkuRegistryRealConnector } from './sources/kku-registry';
 import { KkuTcasFunnelRealConnector } from './sources/kku-tcas-funnel';
 import { KkuAdmissionCampaignsRealConnector } from './sources/kku-admission-campaigns';
 import { KkuResearchRealConnector } from './sources/kku-research';
+import { Job108Connector } from './sources/job-108';
 import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
 import { KkuHrProcessedRealConnector } from './sources/kku-hr-processed';
 import { UniconDs1001RealConnector } from './sources/unicon-ds1001';
@@ -166,6 +167,11 @@ const ENTRIES: readonly ConnectorEntry[] = [
   // Scheduler skips them via DataSource.scheduleEnabled=false (set in seed).
   { slug: 'jobthai',            mock: () => new JobThaiMockConnector(), real: () => new JobThaiConnector() },
   { slug: 'jobsdb',             mock: () => new JobsDbConnector() },
+  // Public-sector counterpart to jobthai. Both slots hold the real connector
+  // deliberately: there is no mock, per the no-mock-data policy, and the
+  // registry falls back to `mock` when `real` is absent, so leaving it out
+  // would silently disable the source.
+  { slug: 'job-108',            mock: () => new Job108Connector(), real: () => new Job108Connector() },
 
   // National Thai (PDF) ──────────────────────────────────────────────
   { slug: 'nso-labor-force',    mock: () => new NsoConnector() },
