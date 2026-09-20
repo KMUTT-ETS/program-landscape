@@ -361,7 +361,7 @@ Expected: `1 migration found`, applied, then `Generated Prisma Client`.
 
 ```bash
 cd /home/denpong/projects/program-landscape && docker compose exec -T postgres \
-  psql -U postgres -d program_landscape -c "\d job_postings" | grep -E 'position_count|application_close_date|job108'
+  psql -U kku -d program_landscape -c "\d job_postings" | grep -E 'position_count|application_close_date|job108'
 ```
 
 Expected: three rows printed.
@@ -458,7 +458,7 @@ pnpm db:seed
 Then confirm it landed with `mocked = false`, because a `mocked` source is invisible to `realDataWhere()` and every row this connector writes would silently vanish from the map:
 
 ```bash
-docker compose exec -T postgres psql -U postgres -d program_landscape \
+docker compose exec -T postgres psql -U kku -d program_landscape \
   -c "SELECT slug, status, mocked, schedule_enabled, cadence_cron FROM data_sources WHERE slug = 'job-108';"
 ```
 
@@ -1684,7 +1684,7 @@ cd /home/denpong/projects/program-landscape && pnpm connector:run job-108
 Expected: an `IngestionRun` reaching `SUCCEEDED`, with `recordsLoaded` matching the number of due announcements and `metadata.postingsWritten` greater than it. Then confirm the rows are visible to the map's provenance gate:
 
 ```bash
-docker compose exec -T postgres psql -U postgres -d program_landscape -c "
+docker compose exec -T postgres psql -U kku -d program_landscape -c "
 SELECT COUNT(*) AS rows,
        COUNT(*) FILTER (WHERE ingestion_run_id IS NOT NULL) AS tagged,
        COUNT(*) FILTER (WHERE array_length(required_fields_raw, 1) > 0) AS naming_a_field
@@ -1867,7 +1867,7 @@ Expected: `Loaded 10 announcements, 0 failed, <n> positions written` with `n > 1
 Then read three of them and check the extraction is sane — this is the one place a person must look at the output rather than a count:
 
 ```bash
-docker compose exec -T postgres psql -U postgres -d program_landscape -c "
+docker compose exec -T postgres psql -U kku -d program_landscape -c "
 SELECT title, position_count, min_education_level, required_fields_raw
 FROM job_postings WHERE source = 'job-108' ORDER BY created_at DESC LIMIT 3;"
 ```
@@ -2236,7 +2236,7 @@ Expected: all previously-passing tests still pass.
 - [ ] **Step 7: Verify against the database**
 
 ```bash
-docker compose exec -T postgres psql -U postgres -d program_landscape -c "
+docker compose exec -T postgres psql -U kku -d program_landscape -c "
 SELECT jp.source, COUNT(DISTINCT s) AS distinct_field_strings
 FROM job_postings jp, unnest(jp.required_fields_raw) AS s
 WHERE jp.source IN ('jobthai','job-108') AND s <> '*ANY*'
