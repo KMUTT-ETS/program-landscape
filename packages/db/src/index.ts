@@ -73,3 +73,4 @@ export * from './job-fields';
 export * from './gap-map-rules';
 export * from './gap-map';
 export * from './gap-map-signals';
+export * from './job108';
