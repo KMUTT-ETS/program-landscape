@@ -85,7 +85,12 @@ describe('GapService.map cache key', () => {
     const set = vi.fn(async () => undefined);
     const compute = vi.fn(async () => ({ rows: [] }));
     const s = new GapService({ get, set } as unknown as CacheService, compute as never);
-    await s.map({ scope: 'faculty', scopeId: 'f1', thresholds: { under: 0.7, over: 3 } });
+    await s.map({
+      scope: 'faculty',
+      scopeId: 'f1',
+      thresholds: { under: 0.7, over: 3 },
+      demand: { basis: 'all', publicWindowMonths: 12 },
+    });
     const key = (get.mock.calls[0] as unknown as [string])[0];
     expect(key).toContain('gap:map');
     expect(key).toContain('faculty');
@@ -99,8 +104,9 @@ describe('GapService.map cache key', () => {
     const get = vi.fn(async () => undefined);
     const compute = vi.fn(async () => ({ rows: [] }));
     const s = new GapService({ get, set: vi.fn() } as unknown as CacheService, compute as never);
-    await s.map({ scope: 'university', scopeId: null, thresholds: { under: 0.5, over: 2 } });
-    await s.map({ scope: 'university', scopeId: null, thresholds: { under: 0.8, over: 2 } });
+    const demand = { basis: 'all' as const, publicWindowMonths: 12 };
+    await s.map({ scope: 'university', scopeId: null, thresholds: { under: 0.5, over: 2 }, demand });
+    await s.map({ scope: 'university', scopeId: null, thresholds: { under: 0.8, over: 2 }, demand });
     const keys = get.mock.calls.map((c) => (c as unknown as [string])[0]);
     expect(keys[0]).not.toBe(keys[1]);
   });
@@ -109,7 +115,14 @@ describe('GapService.map cache key', () => {
     const get = vi.fn(async () => ({ rows: ['cached'] }));
     const compute = vi.fn();
     const s = new GapService({ get, set: vi.fn() } as unknown as CacheService, compute as never);
-    expect(await s.map({ scope: 'university', scopeId: null, thresholds: { under: 0.5, over: 2 } })).toEqual({
+    expect(
+      await s.map({
+        scope: 'university',
+        scopeId: null,
+        thresholds: { under: 0.5, over: 2 },
+        demand: { basis: 'all', publicWindowMonths: 12 },
+      }),
+    ).toEqual({
       rows: ['cached'],
     });
     expect(compute).not.toHaveBeenCalled();
@@ -120,7 +133,12 @@ describe('GapService.map cache key', () => {
     const reconciliation = { scoredWithSupply: 83, supplyFromProxy: 13 };
     const compute = vi.fn(async () => ({ rows: [{ slug: 'logistics' }, { slug: 'nursing' }], freshness, reconciliation }));
     const s = new GapService({ get: vi.fn(async () => undefined), set: vi.fn() } as unknown as CacheService, compute as never);
-    const args = { scope: 'university' as const, scopeId: null, thresholds: { under: 0.5, over: 2 } };
+    const args = {
+      scope: 'university' as const,
+      scopeId: null,
+      thresholds: { under: 0.5, over: 2 },
+      demand: { basis: 'all' as const, publicWindowMonths: 12 },
+    };
     // The reconciliation rides along because the panel's provenance drawer
     // states how much of the supply total rests on the enrolment proxy, and a
     // single row carries neither that count nor a timestamp.
@@ -155,7 +173,14 @@ describe('GapController decorators', () => {
     const result = {
       rows: [],
       thresholds: { under: 0.5, over: 2 },
-      reconciliation: { scoredWithSupply: 83, supplyFromProxy: 13 },
+      demand: { basis: 'all', publicWindowMonths: 12, publicWindowFrom: '2025-09-01' },
+      reconciliation: {
+        scoredWithSupply: 83,
+        supplyFromProxy: 13,
+        publicAnnouncements: 10,
+        publicPositions: 20,
+        publicSeats: 100,
+      },
       freshness: { postingsAsOf: '2026-09-01T00:00:00.000Z', taxonomyAsOf: null },
     };
     const c = new GapController({ map: vi.fn(async () => result) } as unknown as GapService, {} as GapBriefService);
@@ -171,18 +196,31 @@ describe('GapController decorators', () => {
     // method in the drawer, and a URL threshold is part of that method.
     const meta = mapMeta({
       thresholds: { under: 0.7, over: 3 },
-      reconciliation: { scoredWithSupply: 83, supplyFromProxy: 13 },
+      demand: { basis: 'private', publicWindowMonths: 12, publicWindowFrom: '2025-09-01' },
+      reconciliation: {
+        scoredWithSupply: 83,
+        supplyFromProxy: 13,
+        publicAnnouncements: 10,
+        publicPositions: 20,
+        publicSeats: 100,
+      },
       freshnessDate: null,
     });
     expect(meta.methodologyParameters).toEqual([
+      { label: 'Demand counted from', value: 'Private sector only — JobThai adverts' },
+      { label: 'Public announcements counted since', value: '2025-09-01 (12 months back)' },
       { label: 'Under-served below a ratio of', value: '0.70' },
       { label: 'Over-served above a ratio of', value: '3.00' },
       { label: 'Too few adverts to read, below', value: '20 adverts' },
     ]);
-    // Both caveats the methodology's §13 promises but the decorator cannot
-    // hold: the cache race, and the proxy's weight with live counts.
+    // Caveats the methodology's §13 promises but the decorator cannot hold:
+    // the cache race, the proxy's weight with live counts, the public seats
+    // that are shown but never weighted, and the two extractors' measured
+    // disagreement rate.
     expect(meta.caveats?.some((c) => c.includes('cached for five minutes'))).toBe(true);
     expect(meta.caveats?.some((c) => c.includes('13 of the 83 scored programmes'))).toBe(true);
+    expect(meta.caveats?.some((c) => c.includes('never weighted'))).toBe(true);
+    expect(meta.caveats?.some((c) => c.includes('extracted differently'))).toBe(true);
   });
 
   it('brief passes only the current view to the service', async () => {

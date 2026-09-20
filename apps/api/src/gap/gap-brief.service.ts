@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   getAiModelOverrideStore,
+  parseDemandBasis,
   PrismaAiInferenceRecorder,
   type GapMapResult,
   type GapMapRow,
@@ -120,7 +121,15 @@ export class GapBriefService implements OnModuleInit {
   }
 
   async generate(params: GapBriefParams): Promise<GapBriefResponse> {
-    const map = await this.gap.map({ scope: params.scope, scopeId: params.scopeId, thresholds: params.thresholds });
+    // The brief has no basis selector of its own yet (task 12 only wired the
+    // map route + the single-row route) — it always briefs the default,
+    // blended basis, same as the map did before that basis existed.
+    const map = await this.gap.map({
+      scope: params.scope,
+      scopeId: params.scopeId,
+      thresholds: params.thresholds,
+      demand: parseDemandBasis({}),
+    });
     // Filtered once: the pre-cap count is what the reader sees, the sliced
     // array is what the model sees, and the response carries both.
     const allVisible = visibleRows(map, params.verdict, params.facultyId);
