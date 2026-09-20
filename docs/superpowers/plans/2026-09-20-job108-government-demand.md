@@ -47,6 +47,8 @@ Read the spec. Then read these three, which the plan assumes you know:
 | `apps/ingestion/src/connectors/sources/job-108/connector.ts` | `Connector` implementation. |
 | `apps/ingestion/src/scripts/job108-backfill.ts` | One-off backfill over the sitemap. |
 | `apps/ingestion/src/scripts/job108-calibrate.ts` | AI-vs-regex calibration on JobThai text. |
+| `packages/db/src/job108-settings.ts` | Operator-editable fetch settings over the existing SystemSetting table. |
+| `apps/api/src/admin/external-ai/job108-settings.controller.ts` | GET/PATCH for those settings. |
 | `docs/data-sources/job-108.md` | Source spec and session log. |
 
 **Modified files**
@@ -62,6 +64,8 @@ Read the spec. Then read these three, which the plan assumes you know:
 | `apps/api/src/gap/gap.controller.ts` | Query schema, `mapMeta` parameters and caveats. |
 | `apps/web/app/gap-analysis/*` | Basis control, both shares, government evidence block, source marks. |
 | `apps/web/app/admin/job-fields/*` | Per-synonym source attribution. |
+| `packages/shared/src/ai/method-catalog.ts` | Register `job108-announcement` so its model is selectable and its spend attributed. |
+| `apps/web/app/admin/external/ai-search/*` | Job-108 fetch-settings panel. |
 | `docs/methodologies/gap-map.md` | New section on the two bases; calibration result. |
 | `apps/web/app/changelog/page.tsx` | Release entry. |
 
@@ -3044,6 +3048,478 @@ EOF
 
 ---
 
+### Task 16: Register the prompt in the AI method catalog
+
+> **Execution order:** run Tasks 16 and 17 **before** Task 15. Task 15 is the
+> documentation pass and must describe the finished system, including the two
+> admin surfaces below.
+
+Without an entry the new prompt is unmanageable: no admin can pick its model, and its spend is not attributed on `/admin/app/ai-settings`. This is the same class as the standing rule that a new analysis must be added to the pipeline lists or it silently never runs.
+
+**Files:**
+- Modify: `packages/shared/src/ai/method-catalog.ts`
+- Modify: `packages/shared/test/ai/method-catalog.test.ts` (create if absent)
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// packages/shared/test/ai/method-catalog.test.ts  (append if the file exists)
+import { describe, expect, it } from 'vitest';
+import { AI_METHOD_CATALOG, findAiMethodEntry } from '../../src/ai/method-catalog';
+import { JOB108_ANNOUNCEMENT_VERSION } from '../../src/ai/prompts/job108-announcement';
+
+describe('job108-announcement is manageable', () => {
+  it('has a catalog entry', () => {
+    const entry = findAiMethodEntry('job108-announcement');
+    expect(entry).toBeDefined();
+    expect(entry?.currentVersion).toBe(JOB108_ANNOUNCEMENT_VERSION);
+  });
+
+  it('is findable from the runtime methodVersion, which is how spend is attributed', () => {
+    const entry = AI_METHOD_CATALOG.find((e) => JOB108_ANNOUNCEMENT_VERSION.startsWith(e.methodPrefix));
+    expect(entry?.methodPrefix).toBe('job108-announcement');
+  });
+
+  it('every catalog prefix is unique, so spend cannot be attributed twice', () => {
+    const prefixes = AI_METHOD_CATALOG.map((e) => e.methodPrefix);
+    expect(new Set(prefixes).size).toBe(prefixes.length);
+  });
+});
+```
+
+- [ ] **Step 2: Run it and watch it fail**
+
+Run: `pnpm --filter @kku/shared vitest run test/ai/method-catalog.test.ts`
+Expected: FAIL — `expected undefined to be defined`.
+
+- [ ] **Step 3: Add the entry**
+
+In `packages/shared/src/ai/method-catalog.ts`, import the version beside the others:
+
+```ts
+import { JOB108_ANNOUNCEMENT_VERSION } from './prompts/job108-announcement';
+```
+
+and add the entry directly after `program-job-field`:
+
+```ts
+  {
+    methodPrefix: 'job108-announcement',
+    currentVersion: JOB108_ANNOUNCEMENT_VERSION,
+    label: 'Government announcement extract',
+    description:
+      'Reads a Thai government recruitment announcement and returns one entry per position-type, with seats, the lowest acceptable education level and the fields of study it accepts. Feeds the public-sector side of the Gap Analyzer. Runs weekly on new announcements and once over the archive during a backfill.',
+    module: 'ingestion',
+    tier: 'extraction',
+    defaultModel: 'gemini-3.5-flash',
+  },
+```
+
+`tier: 'extraction'` rather than `'classification'`, unlike the two taxonomy prompts beside it: this reads long Thai prose and returns a structured array, which is the extraction shape, and the tier drives the default model an operator sees first.
+
+- [ ] **Step 4: Run the test**
+
+Run: `pnpm --filter @kku/shared vitest run test/ai/method-catalog.test.ts`
+Expected: PASS, 3 tests.
+
+- [ ] **Step 5: Verify on the page**
+
+Restart api, then open `http://localhost:3000/admin/app/ai-settings` and confirm:
+
+- a **Government announcement extract** row is present;
+- changing its model persists and survives a reload;
+- after Task 8's ten-announcement run, its spend and call count are non-zero on that row.
+
+If the spend column reads exactly `$0.00` while calls are non-zero, that is the known `gemini-3.8-flash` pricing gap, not a fault in this task — `AiModelPricingStore.estimateUsd` is synchronous over a cache that populates out of band, and short-lived CLI runs resolve before the first refresh. Note it and move on.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/shared/src/ai/method-catalog.ts packages/shared/test/ai/method-catalog.test.ts
+git commit -F - <<'EOF'
+feat(ai): make the government-announcement prompt operator-manageable
+
+A prompt missing from AI_METHOD_CATALOG cannot have its model chosen and its
+spend is attributed to nothing on /admin/app/ai-settings. Same class as a new
+analysis missing from the pipeline lists: it works, and it is invisible.
+
+Filed as extraction rather than classification, unlike the two taxonomy
+prompts beside it — this one reads long Thai prose and returns a structured
+array, and the tier decides which model an operator is offered first.
+EOF
+```
+
+---
+
+### Task 17: job-108 configuration on `/admin/external/ai-search`
+
+Operator-editable fetch settings, stored in the existing `SystemSetting` key/value table — no migration.
+
+**The counting window is stored here as a DEFAULT only.** The `publicWindowMonths` URL parameter still overrides it, and the provenance drawer renders the window each response actually used (Task 12). So the setting is editable without a deploy, and a Council figure can never move with no visible cause: whatever the default, the drawer states what that page was computed with.
+
+**Files:**
+- Create: `packages/db/src/job108-settings.ts`
+- Create: `packages/db/test/job108-settings.test.ts`
+- Create: `apps/api/src/admin/external-ai/job108-settings.controller.ts`
+- Modify: `apps/web/app/admin/external/ai-search/page.tsx` and `client.tsx`
+- Modify: `apps/ingestion/src/job108/fetch.ts`, `apps/ingestion/src/connectors/sources/job-108/connector.ts`
+- Modify: `apps/api/src/gap/gap.controller.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// packages/db/test/job108-settings.test.ts
+import { describe, expect, it } from 'vitest';
+import { JOB108_SETTING_DEFAULTS, parseJob108Settings } from '../src/job108-settings';
+
+describe('parseJob108Settings', () => {
+  it('falls back to the defaults when nothing is stored', () => {
+    expect(parseJob108Settings({})).toEqual(JOB108_SETTING_DEFAULTS);
+  });
+
+  it('reads stored values', () => {
+    const parsed = parseJob108Settings({
+      'job108.sitemapUrl': 'https://www.job-108.com/sitemap.xml',
+      'job108.requestSpacingMs': '3000',
+      'job108.maxAnnouncementsPerRun': '40',
+      'job108.defaultWindowMonths': '18',
+    });
+    expect(parsed.requestSpacingMs).toBe(3000);
+    expect(parsed.maxAnnouncementsPerRun).toBe(40);
+    expect(parsed.defaultWindowMonths).toBe(18);
+  });
+
+  it('refuses a spacing below the politeness floor', () => {
+    expect(() => parseJob108Settings({ 'job108.requestSpacingMs': '100' })).toThrow();
+  });
+
+  it('refuses a sitemap url off the job-108 origin', () => {
+    expect(() => parseJob108Settings({ 'job108.sitemapUrl': 'https://example.com/sitemap.xml' })).toThrow();
+  });
+
+  it('refuses a url on a path robots.txt disallows', () => {
+    expect(() => parseJob108Settings({ 'job108.sitemapUrl': 'https://www.job-108.com/go.php' })).toThrow();
+  });
+
+  it('ignores a stored value it cannot parse rather than crashing the connector', () => {
+    expect(parseJob108Settings({ 'job108.maxAnnouncementsPerRun': 'banana' }).maxAnnouncementsPerRun).toBe(
+      JOB108_SETTING_DEFAULTS.maxAnnouncementsPerRun,
+    );
+  });
+});
+```
+
+- [ ] **Step 2: Run it and watch it fail**
+
+Run: `pnpm --filter @kku/db vitest run test/job108-settings.test.ts`
+Expected: FAIL — module not found.
+
+- [ ] **Step 3: Write the settings module**
+
+```ts
+// packages/db/src/job108-settings.ts
+import { DEFAULT_PUBLIC_WINDOW_MONTHS } from '@kku/shared';
+
+import { prisma } from './index';
+
+export interface Job108Settings {
+  sitemapUrl: string;
+  /** Politeness delay between page fetches. */
+  requestSpacingMs: number;
+  /** Cap on one scheduled run. The backfill script overrides it explicitly. */
+  maxAnnouncementsPerRun: number;
+  /** DEFAULT counting window. The publicWindowMonths URL parameter overrides
+   *  it, and the provenance drawer states the window each response used, so
+   *  changing this can never move a figure without a visible cause. */
+  defaultWindowMonths: number;
+}
+
+export const JOB108_SETTING_DEFAULTS: Job108Settings = {
+  sitemapUrl: 'https://www.job-108.com/sitemap.xml',
+  requestSpacingMs: 2_000,
+  maxAnnouncementsPerRun: 60,
+  defaultWindowMonths: DEFAULT_PUBLIC_WINDOW_MONTHS,
+};
+
+export const JOB108_SETTING_KEYS = {
+  sitemapUrl: 'job108.sitemapUrl',
+  requestSpacingMs: 'job108.requestSpacingMs',
+  maxAnnouncementsPerRun: 'job108.maxAnnouncementsPerRun',
+  defaultWindowMonths: 'job108.defaultWindowMonths',
+} as const;
+
+/** Below this we would be hammering a site that has given us no rate limit. */
+const MIN_REQUEST_SPACING_MS = 1_000;
+const ALLOWED_ORIGIN = 'https://www.job-108.com';
+/** Paths robots.txt disallows for every user-agent. */
+const DISALLOWED_PREFIXES = ['/go.php', '/url.php'];
+
+function assertAllowedUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`Not a valid URL: ${raw}`);
+  }
+  if (url.origin !== ALLOWED_ORIGIN) {
+    throw new Error(`Sitemap URL must be on ${ALLOWED_ORIGIN}, got ${url.origin}`);
+  }
+  if (DISALLOWED_PREFIXES.some((d) => url.pathname.startsWith(d))) {
+    throw new Error(`robots.txt disallows ${url.pathname}`);
+  }
+  return url.toString();
+}
+
+const intOr = (raw: string | undefined, fallback: number): number => {
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  // A value we cannot parse falls back rather than throwing: a typo in a
+  // settings row must not take the weekly connector down.
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+};
+
+/**
+ * Settings from a `key → value` map, validated.
+ *
+ * The origin and robots checks throw, unlike the numeric fallbacks: a
+ * malformed number is an operator typo the connector can survive, whereas a
+ * URL pointing somewhere else is a request to fetch a site we have made no
+ * agreement with, and that must fail loudly.
+ */
+export function parseJob108Settings(rows: Record<string, string>): Job108Settings {
+  const spacingRaw = rows[JOB108_SETTING_KEYS.requestSpacingMs];
+  const spacing = intOr(spacingRaw, JOB108_SETTING_DEFAULTS.requestSpacingMs);
+  if (spacingRaw !== undefined && spacing < MIN_REQUEST_SPACING_MS) {
+    throw new Error(`requestSpacingMs must be at least ${MIN_REQUEST_SPACING_MS}ms, got ${spacing}`);
+  }
+
+  const urlRaw = rows[JOB108_SETTING_KEYS.sitemapUrl];
+  return {
+    sitemapUrl: urlRaw === undefined ? JOB108_SETTING_DEFAULTS.sitemapUrl : assertAllowedUrl(urlRaw),
+    requestSpacingMs: spacing,
+    maxAnnouncementsPerRun: intOr(
+      rows[JOB108_SETTING_KEYS.maxAnnouncementsPerRun],
+      JOB108_SETTING_DEFAULTS.maxAnnouncementsPerRun,
+    ),
+    defaultWindowMonths: intOr(
+      rows[JOB108_SETTING_KEYS.defaultWindowMonths],
+      JOB108_SETTING_DEFAULTS.defaultWindowMonths,
+    ),
+  };
+}
+
+export async function readJob108Settings(): Promise<Job108Settings> {
+  const rows = await prisma.systemSetting.findMany({
+    where: { key: { in: Object.values(JOB108_SETTING_KEYS) } },
+    select: { key: true, value: true },
+  });
+  return parseJob108Settings(Object.fromEntries(rows.map((r) => [r.key, r.value])));
+}
+
+export async function writeJob108Settings(
+  patch: Partial<Job108Settings>,
+  userId: string,
+): Promise<Job108Settings> {
+  // Validate the merged result BEFORE writing, so a rejected value never
+  // lands and a half-applied patch cannot exist.
+  const merged = { ...(await readJob108Settings()), ...patch };
+  parseJob108Settings({
+    [JOB108_SETTING_KEYS.sitemapUrl]: merged.sitemapUrl,
+    [JOB108_SETTING_KEYS.requestSpacingMs]: String(merged.requestSpacingMs),
+    [JOB108_SETTING_KEYS.maxAnnouncementsPerRun]: String(merged.maxAnnouncementsPerRun),
+    [JOB108_SETTING_KEYS.defaultWindowMonths]: String(merged.defaultWindowMonths),
+  });
+
+  await prisma.$transaction(
+    Object.entries(JOB108_SETTING_KEYS).map(([field, key]) =>
+      prisma.systemSetting.upsert({
+        where: { key },
+        create: { key, value: String(merged[field as keyof Job108Settings]), updatedBy: userId },
+        update: { value: String(merged[field as keyof Job108Settings]), updatedBy: userId },
+      }),
+    ),
+  );
+  return merged;
+}
+```
+
+Export it from `packages/db/src/index.ts`:
+
+```ts
+export * from './job108-settings';
+```
+
+- [ ] **Step 4: Run the test**
+
+Run: `pnpm --filter @kku/db vitest run test/job108-settings.test.ts`
+Expected: PASS, 6 tests.
+
+- [ ] **Step 5: Make the connector read the settings**
+
+In `apps/ingestion/src/job108/fetch.ts`, change `fetchJob108PagePolitely` to take the spacing rather than reading a constant:
+
+```ts
+/** Fetch with the politeness delay applied BEFORE the request. */
+export async function fetchJob108PagePolitely(url: string, spacingMs: number): Promise<string> {
+  await sleep(spacingMs);
+  return fetchJob108Page(url);
+}
+```
+
+Keep `JOB108_REQUEST_SPACING_MS` exported as the default the settings module falls back to.
+
+In the connector, read settings once per run and use them:
+
+```ts
+import { readJob108Settings } from '@kku/db';
+```
+
+In `fetch()`, replace the hardcoded sitemap URL and cap:
+
+```ts
+  async fetch(ctx: ConnectorContext): Promise<RawRecord[]> {
+    const settings = await readJob108Settings();
+    this.settings = settings;
+    const xml = await fetchJob108Page(settings.sitemapUrl);
+    const entries = parseSitemap(xml);
+    const held = await heldAnnouncementLastmods();
+    // An explicit constructor cap wins — the backfill script sets it
+    // deliberately and must not be clamped by an operator setting meant for
+    // the weekly run.
+    const cap = this.maxPerRun ?? settings.maxAnnouncementsPerRun;
+    const due = planJob108Fetch(entries, held, cap);
+    ctx.log.info('job-108 discovery', {
+      inSitemap: entries.length,
+      alreadyHeld: held.size,
+      due: due.length,
+      cap,
+      sitemapUrl: settings.sitemapUrl,
+    });
+    return due.map((e) => ({ externalId: e.announcementId, data: e, sourceTimestamp: e.lastmod }));
+  }
+```
+
+Change the constructor so the cap is optional, and hold the settings for `load()`:
+
+```ts
+  private settings: Job108Settings | null = null;
+
+  constructor(private readonly maxPerRun?: number) {}
+```
+
+In `load()`, use the spacing:
+
+```ts
+        const html = await fetchJob108PagePolitely(url, this.settings?.requestSpacingMs ?? JOB108_REQUEST_SPACING_MS);
+```
+
+- [ ] **Step 6: Make the window default flow into the gap API**
+
+In `apps/api/src/gap/gap.controller.ts`, where the demand options are built, use the stored default when the request does not specify a window:
+
+```ts
+    const settings = await readJob108Settings();
+    const demand = parseDemandBasis({
+      basis: q.basis,
+      publicWindowMonths: q.publicWindowMonths ?? settings.defaultWindowMonths,
+    });
+```
+
+Remove `publicWindowMonths`' `.default(...)` from the **route** query schema so an absent parameter is `undefined` and the stored default applies; `DemandBasisSchema` keeps its own default as the last resort. The provenance drawer already renders the window that was used (Task 12), so a changed default is always visible on the page it affected.
+
+- [ ] **Step 7: Add the API endpoints**
+
+Create `apps/api/src/admin/external-ai/job108-settings.controller.ts`, following the conventions of `external-ai.controller.ts` in the same directory — same `pdf:admin` gate, same `@AuditLog` and `@Provenance` decorators, same `ZodValidationPipe`:
+
+```ts
+import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { z } from 'zod';
+import { readJob108Settings, writeJob108Settings } from '@kku/db';
+import type { SessionUser } from '@kku/shared';
+import { AuditLog, AuthSession, Authorized, Provenance, ZodValidationPipe } from '../../common';
+
+const PatchSchema = z.object({
+  sitemapUrl: z.string().url().optional(),
+  requestSpacingMs: z.number().int().positive().optional(),
+  maxAnnouncementsPerRun: z.number().int().positive().optional(),
+  defaultWindowMonths: z.number().int().positive().optional(),
+});
+type PatchBody = z.infer<typeof PatchSchema>;
+
+@Controller('/admin/external-ai-sources/job-108/settings')
+export class Job108SettingsController {
+  @Get()
+  @Authorized('pdf:admin')
+  @Provenance({ sources: [{ id: 'platform', name: 'Platform runtime' }] })
+  async get() {
+    return readJob108Settings();
+  }
+
+  @Patch()
+  @Authorized('pdf:admin')
+  @AuditLog({ action: 'job108_settings.update', entityType: 'SystemSetting' })
+  async patch(
+    @Body(new ZodValidationPipe(PatchSchema)) body: PatchBody,
+    @AuthSession() user: SessionUser,
+  ) {
+    return writeJob108Settings(body, user.userId);
+  }
+}
+```
+
+Register it in the module that already provides `ExternalAiController`.
+
+- [ ] **Step 8: Add the panel to the page**
+
+On `apps/web/app/admin/external/ai-search`, add a **Job-108 (government announcements)** panel above or below the existing source list, clearly separated from the `ExternalAiSource` rows, with a one-line note that this source is connector-backed and its runs are at `/admin/data-sources/job-108`.
+
+Four fields: sitemap URL, request spacing (ms), max announcements per run, default counting window (months). Under the window field, put this line verbatim, because it is what keeps the setting honest:
+
+> Default only. A link carrying `publicWindowMonths` overrides it, and the Gap Analyzer's provenance drawer always states the window that page was computed with.
+
+Show a validation error from the API inline rather than as a toast — a rejected sitemap origin needs to be readable next to the field that caused it.
+
+- [ ] **Step 9: Verify end to end**
+
+```bash
+curl -s http://localhost:4000/api/v1/admin/external-ai-sources/job-108/settings | python3 -m json.tool
+```
+
+Expected: the four defaults.
+
+Then in the browser at `/admin/external/ai-search`: change the window to 18, save, reload `/gap-analysis` and confirm the provenance drawer reads **18 months**; then open `/gap-analysis?publicWindowMonths=6` and confirm the drawer reads **6 months** — the URL overriding the default is the property that makes this setting safe.
+
+Then try to save `https://example.com/sitemap.xml` and confirm it is refused with a readable message and nothing is written.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add packages/db/src/job108-settings.ts packages/db/test/job108-settings.test.ts apps/api/src/admin/external-ai apps/web/app/admin/external/ai-search apps/ingestion/src/job108 apps/ingestion/src/connectors/sources/job-108 apps/api/src/gap/gap.controller.ts packages/db/src/index.ts
+git commit -F - <<'EOF'
+feat(admin): operator-editable job-108 fetch settings
+
+Sitemap URL, politeness spacing, per-run cap and the default counting window,
+on /admin/external/ai-search beside the ExternalAiSource rows, stored in the
+existing SystemSetting table — no migration.
+
+The window is a DEFAULT, not the value. The publicWindowMonths URL parameter
+still overrides it and the provenance drawer states the window each response
+actually used, so changing the default can never move a Council figure with
+no visible cause. That property is the reason this setting is safe to expose
+at all, so the page says it in words next to the field.
+
+Validation splits deliberately: a malformed number falls back, because an
+operator typo must not take the weekly connector down, while a sitemap URL
+off the job-108 origin or on a robots-disallowed path throws — that is a
+request to fetch a site we have no agreement with.
+
+An explicit constructor cap still wins over the setting, so the backfill
+script is not clamped by a value meant for the weekly run.
+EOF
+```
+
+---
+
 ## Deployment notes
 
 Not part of the plan's tasks — hand these to the operator.
@@ -3053,6 +3529,8 @@ Not part of the plan's tasks — hand these to the operator.
 3. **Rebuild the taxonomy afterwards** with `pnpm jobthai:fields` — dry run (~$0.26, and this one is *not* free) then `--apply`. Government strings only enter the vocabulary on a rebuild.
 4. **Then review at `/admin/job-fields`**, narrow fields first.
 5. **No new environment keys, no new buckets, no compose changes.** The connector needs no credentials.
+6. **Check `/admin/app/ai-settings`** after the first run — the *Government announcement extract* row should show calls and spend. A `$0.00` spend with non-zero calls is the known `gemini-3.8-flash` pricing gap, not a fault of this release.
+7. **Fetch settings live at `/admin/external/ai-search`** — sitemap URL, request spacing, per-run cap and the default counting window. The window is a default the URL can override; the provenance drawer always states what was used.
 
 ---
 
