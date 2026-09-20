@@ -44,6 +44,23 @@ describe('job108-announcement schema', () => {
     expect(parsed.positions).toEqual([]);
   });
 
+  // 2026-09-20 live run: the model's retry response omitted all three date
+  // keys rather than sending them as explicit null, and .nullable() rejected
+  // that with a bare "Required" error on every one of the four failures. An
+  // omitted date and an explicit null mean the same thing here — the
+  // announcement did not state one — so both must parse without throwing.
+  it('accepts an object with the three date keys entirely absent, not just explicit null', () => {
+    const parsed = Job108AnnouncementOutputSchema.parse({
+      agencyName: 'กรมการข้าว',
+      // publishedDate, applicationOpenDate, applicationCloseDate: omitted.
+      positions: [validPosition],
+      confidence: 0.7,
+    });
+    expect(parsed.publishedDate ?? null).toBeNull();
+    expect(parsed.applicationOpenDate ?? null).toBeNull();
+    expect(parsed.applicationCloseDate ?? null).toBeNull();
+  });
+
   it('rejects an unknown education level rather than coercing it', () => {
     expect(() =>
       Job108AnnouncementOutputSchema.parse({
@@ -116,5 +133,18 @@ describe('buildJob108AnnouncementMessages', () => {
     const [system] = buildJob108AnnouncementMessages({ announcementId: 'id1', text: 'ประกาศ' });
     expect(system?.content).toContain('การจัดการโลจิสติกส์และโซ่อุปทาน');
     expect(system?.content).toMatch(/"และ".{0,20}NOT a separator/);
+  });
+
+  // 4 of 25 live announcements (2026-09-20) made the model invent a
+  // "DIPLOMA" value outside the enum for อนุปริญญา — a real Thai
+  // qualification tier the schema has no slot for. Fixed by mapping it to
+  // HIGHER_VOCATIONAL_CERT and telling the model never to invent a value.
+  // This test guards the rule surviving a future prompt edit; it costs no
+  // model call.
+  it('instructs the model to map อนุปริญญา to HIGHER_VOCATIONAL_CERT and never invent a value', () => {
+    const [system] = buildJob108AnnouncementMessages({ announcementId: 'id1', text: 'ประกาศ' });
+    expect(system?.content).toContain('อนุปริญญา');
+    expect(system?.content).toMatch(/อนุปริญญา[\s\S]{0,120}HIGHER_VOCATIONAL_CERT/);
+    expect(system?.content).toMatch(/never invent a value/i);
   });
 });

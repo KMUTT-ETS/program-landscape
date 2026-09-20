@@ -58,10 +58,15 @@ const EDUCATION_LEVELS = [
   'DOCTORATE',
 ] as const;
 
+// .nullish(), not .nullable(): a model that omits the key entirely (rather
+// than emitting `"publishedDate": null`) means the same thing — the
+// announcement did not state a date — and 2026-09-20's live run showed the
+// model does exactly that under retry. .nullable() rejects an omitted key
+// with a bare "Required" error; .nullish() accepts both null and undefined.
 const IsoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .nullable();
+  .nullish();
 
 export const Job108PositionSchema = z.object({
   title: z.string().min(1).max(300),
@@ -135,6 +140,8 @@ For each position:
 - positionCount: the seats offered ("จำนวน 3 ตำแหน่ง", "3 อัตรา") as an integer. If the announcement does not state a number, return null. Never guess.
 - salaryMin / salaryMax: monthly baht as numbers, null when unstated. A single figure goes in salaryMin with salaryMax null.
 - minEducationLevel: the LOWEST level the position accepts, not the highest. "ปวช., ปวส. - ปริญญาตรี" means a ปวช holder qualifies, so the answer is VOCATIONAL_CERT. "ปริญญาตรี ขึ้นไป" is BACHELOR. A bare "ปริญญา" with no ตรี / โท / เอก means BACHELOR — that is the ordinary reading in Thai recruitment notices, and it is the floor. Use UNSPECIFIED only when no level is stated at all.
+
+  Thai announcements also state อนุปริญญา (an associate degree, which sits between ปวส. and ปริญญาตรี). The enum has no separate value for it: return HIGHER_VOCATIONAL_CERT, because what matters is that the floor is below a bachelor's degree. Never invent a value outside the list — if a stated qualification does not fit, choose the nearest listed level BELOW it, and use UNSPECIFIED only when no level is stated at all.
 - requiredFieldsRaw: the fields of study the position accepts, each exactly as written in Thai, as separate array entries. The list usually follows "ในสาขาวิชา" or "สาขา". Members are separated by SPACES, by commas, or by "หรือ".
 
   "และ" is NOT a separator. Thai discipline names commonly contain it inside a single name — "การจัดการโลจิสติกส์และโซ่อุปทาน" (Logistics and Supply Chain Management), "วิทยาศาสตร์และเทคโนโลยีการอาหาร" (Food Science and Technology) and "อาชีวอนามัยและความปลอดภัย" (Occupational Health and Safety) are each ONE field, not two. Splitting them produces disciplines that do not exist.
@@ -160,6 +167,19 @@ CONFIDENCE RUBRIC (report one number):
   0.50-0.69  verdict rests on a single channel, or inputs conflict materially
   below 0.50 best effort over sparse input — flag for human review
 Grade against the bands. Do not default to 0.95. Text marked [truncated] below, or a page that reads as garbled or incomplete, should score in the lower bands — a truncated page may be missing trailing positions you cannot see, so a high confidence on it would overstate what you actually read.
+
+Return ONE JSON object with this exact shape — not a bare array of positions:
+
+{
+  "agencyName": "กรมการข้าว" | null,
+  "publishedDate": "2026-09-09" | null,
+  "applicationOpenDate": "2026-09-15" | null,
+  "applicationCloseDate": "2026-09-30" | null,
+  "positions": [ { "title": ..., "positionCount": ..., "salaryMin": ..., "salaryMax": ..., "minEducationLevel": ..., "requiredFieldsRaw": [...], "qualificationRaw": ... } ],
+  "confidence": 0.0 to 1.0
+}
+
+The positions array goes INSIDE that object. Returning the array on its own is wrong however many positions the announcement has.
 
 BANNED PHRASES (do not use these words/phrases or their close paraphrases, in any field this prompt authors rather than quotes verbatim). This schema has no narrative field today — the list is kept anyway because a future field (e.g. a rejection reason) inherits it automatically, and because dropping it would be the one thing every other prompt in this directory does NOT do:
 - "delve"
