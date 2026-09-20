@@ -31,7 +31,11 @@ describe('AcknowledgementsList', () => {
     const html = renderToStaticMarkup(
       AcknowledgementsList({ lang: 'th', showDetailLinks: true }),
     );
-    const first = ACKNOWLEDGEMENTS[0]!;
+    // Looked up by slug rather than `[0]`: the list is sorted most-recent
+    // `since` first, and a later entry (job-108, added 2026-09-20) can
+    // outrank jobthai in that order without this test caring which one is
+    // first — it is specifically about jobthai's dates and Thai body.
+    const first = ACKNOWLEDGEMENTS.find((a) => a.slug === 'jobthai')!;
     expect(html).toContain(first.contributes.th);
     expect(html).toContain('เอกสารฉบับเต็ม');
     expect(html).not.toContain(first.contributes.en);

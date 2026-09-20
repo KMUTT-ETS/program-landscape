@@ -1,5 +1,9 @@
 import * as React from 'react';
 import Link from 'next/link';
+// Runtime value from the client-safe subpath, not the root barrel — see the
+// HARD CONSTRAINT this whole page is built under: the root barrel pulls
+// node:crypto and a value import of it fails the build.
+import { DEFAULT_DEMAND_BASIS, DEMAND_BASES, type DemandBasis } from '@kku/shared/demand/sources';
 import {
   VERDICT_LABEL,
   VERDICT_ORDER,
@@ -63,6 +67,12 @@ export function GapControls({
             {params.scopeId && <input type="hidden" name="scopeId" value={params.scopeId} />}
             {params.verdict !== 'all' && <input type="hidden" name="verdict" value={params.verdict} />}
             {params.facultyId && <input type="hidden" name="faculty" value={params.facultyId} />}
+            {/* Without this, "Apply" on the thresholds form would silently
+                drop whichever demand basis the reader had selected — this
+                form is a plain GET submitting only the inputs it lists,
+                unlike every other control on the page which is a link that
+                carries the whole state forward. */}
+            {params.basis !== DEFAULT_DEMAND_BASIS && <input type="hidden" name="basis" value={params.basis} />}
             <label>
               Under-served below
               <input name="under" className={INPUT} defaultValue={String(params.under)} inputMode="decimal" />
@@ -81,7 +91,41 @@ export function GapControls({
         </details>
       </div>
 
+      <BasisControl params={params} href={href} />
+
       {facultyStrip.length > 0 && <FacultyFilter params={params} href={href} facultyStrip={facultyStrip} />}
+    </div>
+  );
+}
+
+/** Labels written for a Council reader, not the source slugs — matches the
+ *  wording `DEMAND_BASIS_LABELS` in the api's gap.controller.ts uses for the
+ *  provenance drawer, so the control and the drawer agree on what "both
+ *  markets" means. */
+const BASIS_LABEL: Record<DemandBasis, string> = {
+  all: 'Both markets',
+  private: 'Private only',
+  public: 'Government only',
+};
+
+/** Three-way, URL-shareable via `?basis=`, following the same GET-link
+ *  pattern as the verdict chips above — no client JavaScript, and a shared
+ *  link carries the basis a reader chose. */
+function BasisControl({
+  params,
+  href,
+}: {
+  params: GapPageParams;
+  href: (patch: Partial<GapPageParams>) => string;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="text-text-secondary">Demand counted from</span>
+      {DEMAND_BASES.map((b) => (
+        <Chip key={b} active={params.basis === b} href={href({ basis: b })}>
+          {BASIS_LABEL[b]}
+        </Chip>
+      ))}
     </div>
   );
 }

@@ -215,7 +215,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
                   {open && (
                     <tr className="bg-surface-2">
                       <td colSpan={columns} className="px-3 pb-4 pt-1">
-                        <RowPanels row={r} meta={meta} />
+                        <RowPanels row={r} meta={meta} basis={params.basis} />
                       </td>
                     </tr>
                   )}
@@ -234,6 +234,14 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
           </tbody>
         </table>
       </Card>
+
+      {/* Always visible, never a tooltip or a drawer — this exact sentence
+          was written after "two bare percentages side by side" was reported
+          as a defect on this page once already. */}
+      <p className="text-xs text-text-secondary">
+        Demand share is each field&apos;s share of all adverts naming a field of study, on the selected
+        basis. KKU share is that field&apos;s share of KKU&apos;s bachelor graduates per year.
+      </p>
 
       <div className="space-y-1 text-xs text-text-tertiary">
         <p>

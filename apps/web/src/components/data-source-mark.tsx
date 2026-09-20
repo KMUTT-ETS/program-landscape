@@ -12,6 +12,13 @@
 // allows `img-src 'self'`, and the prod server sits on KKU's internal network
 // where the upstream host may not be reachable.
 //
+// A source can be marked with NO image (`src` omitted in DATA_SOURCE_MARKS,
+// as with `job-108`, added 2026-09-20). We were not given a job-108 brand
+// asset, and taking one — scraping or hotlinking a logo off job-108.com — is
+// not ours to do. That source renders as an honest bordered text chip
+// instead, at the same size, spacing and link behaviour as the image
+// variant, rather than going unmarked or borrowing an image nobody gave us.
+//
 // Standalone marks pass href={acknowledgementHref(slug)} so the mark links to
 // the contributor's entry. Marks inside a Link, a button or a click-through
 // table row must NOT — nested interactive content is invalid and steals the
@@ -22,10 +29,11 @@
 
 import Link from 'next/link';
 
-export type DataSourceMarkSlug = 'jobthai';
+export type DataSourceMarkSlug = 'jobthai' | 'job-108';
 
-export const DATA_SOURCE_MARKS: Record<DataSourceMarkSlug, { src: string; name: string }> = {
+export const DATA_SOURCE_MARKS: Record<DataSourceMarkSlug, { src?: string; name: string }> = {
   jobthai: { src: '/brand/jobthai.png', name: 'JobThai' },
+  'job-108': { name: 'Job-108' },
 };
 
 /** True when a `DataSource.slug` has a brand mark — lets tables keyed by slug opt in. */
@@ -68,21 +76,35 @@ export function DataSourceMark({
   href?: string;
 }) {
   const mark = DATA_SOURCE_MARKS[source];
-  const img = (
+  const title = href ? `Data from ${mark.name} · Acknowledgements` : `Data from ${mark.name}`;
+  const content = mark.src ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={mark.src}
       alt={href ? '' : `Data from ${mark.name}`}
-      title={href ? `Data from ${mark.name} · Acknowledgements` : `Data from ${mark.name}`}
+      title={title}
       width={size}
       height={size}
       style={{ width: size, height: size }}
       className={`inline-block shrink-0 rounded-[3px] align-[-0.125em] ${className}`}
     />
+  ) : (
+    // No brand asset for this source — an honest text chip at the same
+    // sizing, spacing and link behaviour as the image variant. `aria-hidden`
+    // only when wrapped in a link (the link's own aria-label already names
+    // the source), matching the img's `alt=''` in that same branch.
+    <span
+      aria-hidden={href ? true : undefined}
+      title={title}
+      style={{ height: size, lineHeight: `${size}px`, fontSize: Math.max(8, size - 6) }}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-[3px] border border-default px-1 align-[-0.125em] font-medium text-text-secondary ${className}`}
+    >
+      {mark.name}
+    </span>
   );
 
   if (!href) {
-    return img;
+    return content;
   }
 
   return (
@@ -91,7 +113,7 @@ export function DataSourceMark({
       className="inline-flex shrink-0 align-[-0.125em] transition-opacity duration-fast hover:opacity-80"
       aria-label={`Data from ${mark.name} — see Acknowledgements`}
     >
-      {img}
+      {content}
     </Link>
   );
 }

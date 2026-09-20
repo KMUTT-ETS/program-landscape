@@ -3,6 +3,13 @@
 // here because this is a client-reachable module.
 
 import type { ApiMeta } from '@kku/shared';
+// `@kku/shared/demand/sources` rather than the root barrel: this module is
+// imported at runtime (not type-only) by server components in this folder,
+// and staying on the client-safe subpath means it never becomes a trap if
+// one of those files ever gains a 'use client' pragma.
+import { DEFAULT_DEMAND_BASIS, DEMAND_BASES, type DemandBasis } from '@kku/shared/demand/sources';
+
+export type { DemandBasis };
 
 // ── The demand-first field map (gap-map.v1) ───────────────────────────────
 
@@ -124,6 +131,20 @@ export interface GapRowT {
   reviewStatus: 'PROPOSED' | 'APPROVED';
   postings: number;
   demandShare: number;
+  /** This field's share of eligible JobThai-only postings, normalised by
+   *  the private side's own field-mentions — always computed, whatever the
+   *  active basis, so switching the URL parameter shows the alternative
+   *  without a second read. */
+  privateDemandShare: number;
+  /** This field's share of eligible job-108 postings inside the active
+   *  public window, normalised the same "always computed" way. */
+  publicDemandShare: number;
+  /** Distinct eligible JobThai postings naming this field (unwindowed —
+   *  JobThai carries no real posted date). */
+  privatePostings: number;
+  /** Distinct eligible job-108 postings naming this field, inside the
+   *  active public window. */
+  publicPostings: number;
   supplyShare: number;
   ratio: number | null;
   verdict: GapVerdictT;
@@ -199,6 +220,9 @@ export interface GapPageParams {
   under: number;
   over: number;
   field: string | null;
+  /** Which market forms the demand denominator. Defaults to `all` (both
+   *  markets) — see `DEFAULT_DEMAND_BASIS` for why. */
+  basis: DemandBasis;
 }
 
 /** URL → params. Bad thresholds fall back to defaults rather than 500 the page;
@@ -218,6 +242,9 @@ export function resolveGapParams(sp: Record<string, string | undefined>): GapPag
   const verdict = (VERDICT_ORDER as readonly string[]).includes(sp.verdict ?? '')
     ? (sp.verdict as GapVerdictT)
     : 'all';
+  const basis = (DEMAND_BASES as readonly string[]).includes(sp.basis ?? '')
+    ? (sp.basis as DemandBasis)
+    : DEFAULT_DEMAND_BASIS;
   return {
     scope,
     scopeId: sp.scopeId ?? null,
@@ -226,6 +253,7 @@ export function resolveGapParams(sp: Record<string, string | undefined>): GapPag
     under,
     over,
     field: sp.field ?? null,
+    basis,
   };
 }
 
@@ -241,6 +269,7 @@ export function gapHref(p: GapPageParams, patch: Partial<GapPageParams> = {}): s
   if (q.under !== 0.5) s.set('under', String(q.under));
   if (q.over !== 2) s.set('over', String(q.over));
   if (q.field) s.set('field', q.field);
+  if (q.basis !== DEFAULT_DEMAND_BASIS) s.set('basis', q.basis);
   const qs = s.toString();
   return `/gap-analysis${qs ? `?${qs}` : ''}`;
 }

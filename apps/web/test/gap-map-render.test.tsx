@@ -26,6 +26,14 @@ const row = (o: Partial<GapRowT>): GapRowT => ({
   reviewStatus: 'APPROVED',
   postings: 500,
   demandShare: 0.05,
+  // Defaults keep the fixture entirely private-sector, so the new
+  // government-positions block (rendered only when publicPostings > 0)
+  // stays out of every pre-existing assertion in this file; the basis
+  // control's own coverage lives in gap-analysis-basis.test.tsx.
+  privateDemandShare: 0.05,
+  publicDemandShare: 0,
+  privatePostings: 500,
+  publicPostings: 0,
   supplyShare: 0.05,
   ratio: 1,
   verdict: 'served',

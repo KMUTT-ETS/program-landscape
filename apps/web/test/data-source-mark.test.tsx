@@ -22,4 +22,21 @@ describe('DataSourceMark', () => {
   it('acknowledgementHref points at the contributor anchor', () => {
     expect(acknowledgementHref('jobthai')).toBe('/docs/acknowledgements#jobthai');
   });
+
+  it('renders a source with no brand asset as a text chip, not an image', () => {
+    // job-108 has no logo we were given — see the comment block at the top
+    // of data-source-mark.tsx for why one was never hotlinked or scraped.
+    const html = renderToStaticMarkup(<DataSourceMark source="job-108" />);
+    expect(html).not.toContain('<img');
+    expect(html).toContain('Job-108');
+  });
+
+  it('wraps the text chip the same way the image variant is wrapped', () => {
+    const html = renderToStaticMarkup(
+      <DataSourceMark source="job-108" href={acknowledgementHref('job-108')} />,
+    );
+    expect(html).toMatch(/^<a [^>]*href="\/docs\/acknowledgements#job-108"/);
+    expect(html).toContain('Job-108');
+    expect(html).toContain('aria-label="Data from Job-108 — see Acknowledgements"');
+  });
 });

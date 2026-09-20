@@ -108,6 +108,51 @@ const ENTRIES: readonly Acknowledgement[] = [
     },
     detailUrl: `${GITHUB_DOCS}jobthai.md`,
   },
+  {
+    slug: 'job-108',
+    kind: 'data-provider',
+    name: 'Job-108',
+    logo: 'job-108',
+    since: '2026-09-20',
+    contributes: {
+      en: 'Thai government and state-enterprise recruitment announcements — the platform’s view of public-sector labour demand, alongside JobThai’s private-sector view.',
+      th: 'ประกาศรับสมัครงานของหน่วยงานรัฐและรัฐวิสาหกิจไทย — มุมมองอุปสงค์แรงงานภาครัฐของระบบ คู่กับมุมมองภาคเอกชนจาก JobThai',
+    },
+    body: {
+      en: (
+        <>
+          <p>
+            Khon Kaen University acknowledges <strong>job-108.com</strong>, whose published government
+            and state-enterprise recruitment announcements let Program Landscape read Thai public-sector
+            demand as its own market rather than folding it silently into the private-sector picture.
+          </p>
+          <p>
+            Every field-of-study row on the Gap Analyzer can be read against three denominators — the
+            private sector alone, the government sector alone, or both markets blended, which is the
+            platform’s default precisely because excluding the state would bias the map against exactly
+            the nursing, public-health, teaching and agriculture programmes a regional university exists
+            to feed. Government rows carry no occupation classification, so they inform the field-of-study
+            layer only, not the occupation-level detail JobThai supplies.
+          </p>
+        </>
+      ),
+      th: (
+        <>
+          <p>
+            มหาวิทยาลัยขอนแก่นขอขอบคุณ <strong>job-108.com</strong> ที่เผยแพร่ประกาศรับสมัครงานของหน่วยงานรัฐและรัฐวิสาหกิจ
+            ซึ่งทำให้ Program Landscape สามารถมองเห็นอุปสงค์แรงงานภาครัฐของไทยเป็นตลาดของตนเองได้
+            แทนที่จะรวมเข้ากับภาพภาคเอกชนโดยไม่แยกแยะ
+          </p>
+          <p>
+            แต่ละแถวสาขาวิชาในตัววิเคราะห์ช่องว่างสามารถอ่านเทียบกับฐานได้สามแบบ — ภาคเอกชนอย่างเดียว ภาครัฐอย่างเดียว
+            หรือผสมทั้งสองตลาด ซึ่งเป็นค่าตั้งต้นของระบบเพราะการตัดภาครัฐออกจะทำให้แผนที่มีอคติต่อหลักสูตรพยาบาล
+            สาธารณสุข ครุศาสตร์ และเกษตรศาสตร์ ซึ่งเป็นพันธกิจหลักของมหาวิทยาลัยภูมิภาค
+            ประกาศภาครัฐไม่มีการจำแนกตามอาชีพ จึงใช้ประกอบชั้นสาขาวิชาเท่านั้น ไม่ใช่รายละเอียดระดับอาชีพที่ JobThai ให้
+          </p>
+        </>
+      ),
+    },
+  },
 ];
 
 /** Sorted most-recent `since` first. */

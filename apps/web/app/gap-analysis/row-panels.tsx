@@ -1,22 +1,32 @@
 import * as React from 'react';
 import Link from 'next/link';
 import type { ApiMeta } from '@kku/shared';
+// Client-safe subpath, not the root barrel — see the HARD CONSTRAINT at the
+// top of every file in this folder: the barrel pulls node:crypto.
+import type { DemandBasis } from '@kku/shared/demand/sources';
 import { ProvenanceButton } from '@kku/ui';
+import { DataSourceMark, acknowledgementHref } from '@/components/data-source-mark';
+import { GapRowShares } from './row-shares';
 import type { GapLinkedProgrammeT, GapOccupationT, GapRowT } from './types';
 
-// The three panels of an expanded row. Server-rendered from the row already
-// in the page payload; no client fetch is needed because the map carries
-// every row's panels. (The /api/gap-map/fields/[slug] proxy exists for the
-// AI Analyst's evidence rail and for future incremental loads.)
+// The panels of an expanded row. Server-rendered from the row already in the
+// page payload; no client fetch is needed because the map carries every
+// row's panels. (The /api/gap-map/fields/[slug] proxy exists for the AI
+// Analyst's evidence rail and for future incremental loads.)
 
 const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 const int = (v: number) => Math.round(v).toLocaleString('en-US');
 
-export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React.JSX.Element {
+export function RowPanels({ row, meta, basis }: { row: GapRowT; meta: ApiMeta; basis: DemandBasis }): React.JSX.Element {
   return (
-    <div className="grid gap-4 text-xs lg:grid-cols-[1.4fr_1fr_1fr]">
-      <section>
-        <Header title="Occupations asking for this field (JobThai)" meta={meta} />
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
+        <GapRowShares row={row} basis={basis} />
+        <GovernmentPositionsBlock row={row} basis={basis} />
+      </div>
+      <div className="grid gap-4 text-xs lg:grid-cols-[1.4fr_1fr_1fr]">
+        <section>
+        <Header title="Occupations asking for this field (JobThai)" meta={meta} mark="jobthai" />
         {row.occupations.length === 0 ? (
           <p className="text-text-tertiary">No occupation on eligible adverts names this field.</p>
         ) : (
@@ -127,6 +137,7 @@ export function RowPanels({ row, meta }: { row: GapRowT; meta: ApiMeta }): React
           </ul>
         )}
       </section>
+      </div>
     </div>
   );
 }
@@ -249,11 +260,69 @@ function SupplyCoverageNote({ row }: { row: GapRowT }): React.JSX.Element | null
   return null;
 }
 
-function Header({ title, meta }: { title: string; meta: ApiMeta }): React.JSX.Element {
+function Header({
+  title,
+  meta,
+  mark,
+}: {
+  title: string;
+  meta: ApiMeta;
+  /** Optional brand mark for the source this panel draws on — see
+   *  data-source-mark.tsx. Standalone here (not inside the ProvenanceButton,
+   *  which is itself a button), so it carries its own link to the
+   *  contributor's Acknowledgements entry. */
+  mark?: 'jobthai' | 'job-108';
+}): React.JSX.Element {
   return (
     <div className="mb-1 flex items-center gap-2">
       <h4 className="text-[11px] uppercase tracking-wide text-text-tertiary">{title}</h4>
+      {mark && <DataSourceMark source={mark} size={14} href={acknowledgementHref(mark)} />}
       <ProvenanceButton title={title} meta={meta} size="xs" />
     </div>
+  );
+}
+
+/** Government positions inside this field, from job-108.com. Rendered only
+ *  when there is at least one to show.
+ *
+ *  `GapMapRow` (packages/db/src/gap-map.ts) does not carry per-position
+ *  detail — no agency name, position title, seat count or closing date, and
+ *  no announcement id to link out to job-108.com with. Only the count
+ *  (`publicPostings`) reaches this row today. Rather than inventing an
+ *  endpoint to fetch that detail, this block says plainly what is and isn't
+ *  available; a later task can extend `GapMapRow` with a
+ *  `governmentPositions` list once that is worth the payload cost. */
+function GovernmentPositionsBlock({ row, basis }: { row: GapRowT; basis: DemandBasis }): React.JSX.Element | null {
+  if (row.publicPostings === 0) return null;
+  const body = (
+    <div className="text-text-secondary">
+      <p>
+        {int(row.publicPostings)} government {row.publicPostings === 1 ? 'posting names' : 'postings name'}{' '}
+        this field, from Thai government recruitment announcements on job-108.com, inside the counting window.
+      </p>
+      <p className="mt-1 text-text-tertiary">
+        Per-position detail — agency, position title, seats and closing date, each linking to its
+        announcement — is not yet carried into this view; only the count above is available here today.
+      </p>
+    </div>
+  );
+  return (
+    <section className="rounded border border-default bg-surface-1 p-3 text-xs">
+      <div className="mb-1 flex items-center gap-2">
+        <h4 className="text-[11px] uppercase tracking-wide text-text-tertiary">Government positions</h4>
+        <DataSourceMark source="job-108" size={14} href={acknowledgementHref('job-108')} />
+      </div>
+      {basis === 'private' ? (
+        <details>
+          <summary className="cursor-pointer text-text-tertiary">
+            Not counted in the current basis (private sector only) — {int(row.publicPostings)} government{' '}
+            {row.publicPostings === 1 ? 'posting exists' : 'postings exist'} as evidence
+          </summary>
+          <div className="mt-2">{body}</div>
+        </details>
+      ) : (
+        body
+      )}
+    </section>
   );
 }

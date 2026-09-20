@@ -31,6 +31,7 @@ export default async function GapAnalysisPage({
     scope: params.scope,
     under: String(params.under),
     over: String(params.over),
+    basis: params.basis,
   });
   if (params.scopeId) qs.set('scopeId', params.scopeId);
 
