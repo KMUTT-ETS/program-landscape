@@ -530,7 +530,7 @@ Create `packages/shared/test/fixtures/job108/sitemap-sample.xml`:
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { htmlToText, parseSitemap } from '../../src/job108';
+import { announcementPageToText, parseSitemap } from '../../src/job108';
 
 const xml = readFileSync(join(__dirname, '../fixtures/job108/sitemap-sample.xml'), 'utf8');
 
@@ -556,11 +556,11 @@ describe('parseSitemap', () => {
   });
 });
 
-describe('htmlToText', () => {
+describe('announcementPageToText', () => {
   it('drops scripts, styles and tags and unescapes entities', () => {
     const html = '<html><head><style>a{}</style><script>var x=1</script></head>' +
       '<body><h1>ประกาศ</h1><p>&nbsp;จำนวน 3 &lt;ตำแหน่ง&gt;</p></body></html>';
-    const text = htmlToText(html);
+    const text = announcementPageToText(html);
     expect(text).toContain('ประกาศ');
     expect(text).toContain('จำนวน 3 <ตำแหน่ง>');
     expect(text).not.toContain('var x');
@@ -568,7 +568,7 @@ describe('htmlToText', () => {
   });
 
   it('collapses runs of whitespace', () => {
-    expect(htmlToText('<p>a</p>\n\n\n<p>b</p>')).toBe('a\nb');
+    expect(announcementPageToText('<p>a</p>\n\n\n<p>b</p>')).toBe('a\nb');
   });
 });
 ```
@@ -638,13 +638,22 @@ const ENTITIES: Record<string, string> = {
 };
 
 /**
- * An announcement page reduced to plain text for the extractor.
+ * A whole announcement page reduced to plain text for the extractor.
+ *
+ * Distinct from `scholar/html-text.ts`'s `htmlToText`, which is for a
+ * FRAGMENT: that one collapses every whitespace run to a single space and
+ * leaves script and style bodies in place. Measured on the same input,
+ * scholar's returns `"a{}\u0e2b\u0e19\u0e36\u0e48\u0e07 \u0e2a\u0e2d\u0e07"` where this returns
+ * `"\u0e2b\u0e19\u0e36\u0e48\u0e07\nสอง"` — CSS left in and paragraphs flattened, against CSS
+ * stripped and structure kept. The root barrel exports both, so identical
+ * names would have made picking the wrong one a silent degradation of the
+ * model's input rather than a compile error.
  *
  * Deliberately crude: the pages are prose inside a conventional template and
  * the model reads the text, not the markup. Numeric entities are decoded
  * because Thai text in these pages sometimes arrives that way.
  */
-export function htmlToText(html: string): string {
+export function announcementPageToText(html: string): string {
   let out = html.replace(DROP_ELEMENTS, ' ').replace(TAGS, ' ');
   for (const [entity, char] of Object.entries(ENTITIES)) out = out.replaceAll(entity, char);
   out = out.replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
@@ -1443,7 +1452,7 @@ import {
   Job108AnnouncementOutputSchema,
   buildJob108AnnouncementMessages,
   extractStructuredWithParseRetry,
-  htmlToText,
+  announcementPageToText,
   type Job108Position,
   type StructuredExtractor,
 } from '@kku/shared';
@@ -1476,7 +1485,7 @@ export async function extractAnnouncement(
   ai: StructuredExtractor,
   input: { announcementId: string; html: string },
 ): Promise<ExtractedAnnouncement> {
-  const text = scrubPostingText(htmlToText(input.html));
+  const text = scrubPostingText(announcementPageToText(input.html));
 
   const r = await extractStructuredWithParseRetry(
     ai,
