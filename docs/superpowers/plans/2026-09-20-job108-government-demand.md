@@ -25,7 +25,7 @@ Read the spec. Then read these three, which the plan assumes you know:
 - `nest start --watch` only watches `apps/api/src`. After **any** change under `packages/`, restart api and ingestion or you are testing stale code. Check `ps -o lstart= -p <pid>` against your commit time before debugging anything.
 - Run `npx prisma` from `packages/db`, never the repo root — the root resolves a global Prisma 7 that rejects this schema. Or use `packages/db/node_modules/.bin/prisma`.
 - `pnpm check` exits non-zero at the lint step on a pre-existing 171-error backlog. Run `pnpm -r typecheck` and `pnpm test` separately.
-- Migrations are hand-written. Generate SQL with `prisma migrate diff --from-schema-datasource --to-schema-datamodel`, never `--from-migrations` (it resets whatever `--shadow-database-url` points at; that emptied the dev database on 2026-09-08).
+- **Migrations are hand-written, and `prisma migrate diff` must NOT be used to generate one here.** This database carries 73 lines of pre-existing drift from the Prisma schema — including a `DROP TABLE` and two `DROP COLUMN`s — even though `migrate status` reports it up to date. Diff output is a cross-check to read, never a file to save. And never the `--from-migrations` form: it resets whatever shadow database it is pointed at, which emptied the dev database on 2026-09-08. The dev-safety hook blocks that flag outright; hand any such command to the operator.
 - An `Edit` once wrote a literal NUL byte into a template literal and both typecheck and the full suite passed with it present. Run `grep -cP '\x00' <file>` on any file you edit before committing.
 
 ---
@@ -283,19 +283,71 @@ Add the back-relation on `IngestionRun` beside its other collections:
   job108Announcements Job108Announcement[]
 ```
 
-- [ ] **Step 3: Generate the migration SQL**
+- [ ] **Step 3: HAND-WRITE the migration SQL — do not generate it**
 
-```bash
-cd packages/db
-./node_modules/.bin/prisma migrate diff \
-  --from-schema-datasource prisma/schema.prisma \
-  --to-schema-datamodel prisma/schema.prisma \
-  --script > /tmp/job108.sql
-mkdir -p prisma/migrations/20260920120000_job108_public_sector
-mv /tmp/job108.sql prisma/migrations/20260920120000_job108_public_sector/migration.sql
+**Do not run `prisma migrate diff` and save its output as this migration.** Measured on this database on 2026-09-20: `migrate status` reports "Database schema is up to date", yet a datasource-to-datamodel diff emits **73 lines of pre-existing drift** that has nothing to do with this task — 5 `DROP INDEX`, `DROP TABLE "mv_refresh_log"`, `ALTER TABLE "verdict_snapshots" DROP COLUMN "lifecycle_verdict", DROP COLUMN "risk_tier"`, and six `DROP DEFAULT`s. Saved as the job-108 migration, that would ship a data-destroying migration to production under a name promising two added columns.
+
+Hand-writing is this repository's convention for exactly this reason: every migration in the Google Scholar work was "additive, hand-written", and prompt 02c's was "hand-written to match Prisma's diff output".
+
+Create `packages/db/prisma/migrations/20260920120000_job108_public_sector/migration.sql` with exactly this content:
+
+```sql
+-- AlterTable: seats and closing date on job_postings.
+-- position_count is stored and displayed but never weighted into a demand
+-- share; see docs/methodologies/gap-map.md.
+ALTER TABLE "job_postings" ADD COLUMN "position_count" INTEGER;
+ALTER TABLE "job_postings" ADD COLUMN "application_close_date" DATE;
+ALTER TABLE "job_postings" ADD COLUMN "job108_announcement_id" TEXT;
+
+-- CreateEnum
+CREATE TYPE "Job108AnnouncementStatus" AS ENUM ('PENDING', 'EXTRACTED', 'FAILED');
+
+-- CreateTable
+CREATE TABLE "job108_announcements" (
+    "id" TEXT NOT NULL,
+    "announcement_id" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "content_hash" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "agency_name" TEXT,
+    "published_date" DATE,
+    "application_open_date" DATE,
+    "application_close_date" DATE,
+    "source_lastmod" DATE,
+    "fetched_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" "Job108AnnouncementStatus" NOT NULL DEFAULT 'PENDING',
+    "parse_error" TEXT,
+    "ingestion_run_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "job108_announcements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "job108_announcements_announcement_id_key" ON "job108_announcements"("announcement_id");
+CREATE UNIQUE INDEX "job108_announcements_content_hash_key" ON "job108_announcements"("content_hash");
+CREATE INDEX "job108_announcements_status_idx" ON "job108_announcements"("status");
+CREATE INDEX "job108_announcements_ingestion_run_id_idx" ON "job108_announcements"("ingestion_run_id");
+CREATE INDEX "job_postings_job108_announcement_id_idx" ON "job_postings"("job108_announcement_id");
+
+-- AddForeignKey
+ALTER TABLE "job108_announcements" ADD CONSTRAINT "job108_announcements_ingestion_run_id_fkey" FOREIGN KEY ("ingestion_run_id") REFERENCES "ingestion_runs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "job_postings" ADD CONSTRAINT "job_postings_job108_announcement_id_fkey" FOREIGN KEY ("job108_announcement_id") REFERENCES "job108_announcements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ```
 
-Open the file and delete the Prisma update banner comment if one is present. Read the SQL and confirm every statement is `CREATE` or `ALTER TABLE … ADD`. If you see any statement that removes a column, table or type, **stop** — the diff was generated against the wrong direction.
+Every statement is `ADD`, `CREATE` or `ADD CONSTRAINT`. Nothing is removed. If you find yourself wanting to remove anything, stop and report BLOCKED instead.
+
+**Cross-check your hand-written SQL against what Prisma expects** — read the output, never save it:
+
+```bash
+cd packages/db && ./node_modules/.bin/prisma migrate diff \
+  --from-schema-datasource prisma/schema.prisma \
+  --to-schema-datamodel prisma/schema.prisma --script \
+  | grep -iE 'job108|position_count|application_close_date'
+```
+
+Every line it prints for these objects should correspond to something in your file. Ignore everything it prints about other tables — that is the pre-existing drift, and it is not yours to fix in this task.
 
 - [ ] **Step 4: Apply and verify**
 
