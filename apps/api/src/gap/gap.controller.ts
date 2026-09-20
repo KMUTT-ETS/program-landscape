@@ -3,13 +3,14 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import {
   computeDqSkillLens,
-  DemandBasisSchema,
+  DemandBasisQuerySchema,
   GAP_MAP_VERSION,
   GAP_VERDICTS,
   JOBTHAI_MIN_POSTINGS_FOR_SIGNAL,
   parseDemandBasis,
   Prisma,
   prisma,
+  readJob108Settings,
   ThresholdsSchema,
   type GapMapResult,
   type GapThresholds,
@@ -41,18 +42,27 @@ const ScopeSchema = z.enum(['university', 'faculty', 'department']);
 const VERDICT_FILTERS = ['all', ...GAP_VERDICTS] as [BriefVerdictFilter, ...BriefVerdictFilter[]];
 const VerdictFilterSchema = z.enum(VERDICT_FILTERS);
 
-// `basis` + `publicWindowMonths` reuse `DemandBasisSchema` rather than
+// `basis` + `publicWindowMonths` reuse `DemandBasisQuerySchema` rather than
 // re-declaring `z.enum(DEMAND_BASES)` here — same DRY reasoning as
 // `.and(ThresholdsSchema)` below. An unrecognised basis (e.g. `?basis=
 // government`) fails validation rather than silently falling back to the
 // default: a shared link with a typo should look broken, not different.
+//
+// `DemandBasisQuerySchema`, not `DemandBasisSchema`: the latter defaults
+// `publicWindowMonths` to `DEFAULT_PUBLIC_WINDOW_MONTHS` INSIDE this Zod
+// parse, before the handler ever sees it — which would mean
+// `q.publicWindowMonths` is never `undefined` and the operator-configured
+// stored default (`job108.defaultWindowMonths`) could never win. Leaving
+// it optional here lets `parseDemandBasis`'s own precedence chain
+// (explicit URL parameter → stored setting → built-in default) decide,
+// in one place, without duplicating that logic at the route boundary.
 export const MapQuery = z
   .object({
     scope: ScopeSchema.default('university'),
     scopeId: z.string().optional(),
   })
   .and(ThresholdsSchema)
-  .and(DemandBasisSchema);
+  .and(DemandBasisQuerySchema);
 type MapQueryT = z.infer<typeof MapQuery>;
 
 export const BriefBody = z
@@ -162,12 +172,27 @@ export class GapController {
     return { scope: eff.scope, scopeId: eff.scopeId };
   }
 
+  /** Precedence: explicit `?publicWindowMonths=` on the request → the
+   *  operator-configured `job108.defaultWindowMonths` SystemSetting →
+   *  `DEFAULT_PUBLIC_WINDOW_MONTHS`. `parseDemandBasis` is the one place
+   *  that resolves the chain; this only supplies its per-request stored
+   *  fallback, read fresh on every call so an operator's edit on
+   *  /admin/external/ai-search takes effect immediately (SystemSetting has
+   *  no cache layer here, unlike academic-year's 60s cache). */
+  private async resolveDemand(q: {
+    basis?: string;
+    publicWindowMonths?: string | number;
+  }): Promise<ReturnType<typeof parseDemandBasis>> {
+    const settings = await readJob108Settings();
+    return parseDemandBasis(q, { defaultPublicWindowMonths: settings.defaultWindowMonths });
+  }
+
   @Get('map')
   @Authorized('programs:read:all')
   @Provenance({ sources: GAP_MAP_SOURCES, methodologyVersion: GAP_MAP_VERSION, caveats: MAP_CAVEATS })
   async map(@AuthSession() user: SessionUser, @Query(new ZodValidationPipe(MapQuery)) q: MapQueryT) {
     const eff = await this.clamp(q, user);
-    const demand = parseDemandBasis({ basis: q.basis, publicWindowMonths: q.publicWindowMonths });
+    const demand = await this.resolveDemand({ basis: q.basis, publicWindowMonths: q.publicWindowMonths });
     const result = await this.gap.map({ ...eff, thresholds: { under: q.under, over: q.over }, demand });
     // The envelope's freshnessDate is what <FreshnessBadge> reads, and the
     // thresholds, the demand basis and the proxy's weight are per-request
@@ -197,7 +222,7 @@ export class GapController {
   ) {
     const eff = await this.clamp(q, user);
     const thresholds = { under: q.under, over: q.over };
-    const demand = parseDemandBasis({ basis: q.basis, publicWindowMonths: q.publicWindowMonths });
+    const demand = await this.resolveDemand({ basis: q.basis, publicWindowMonths: q.publicWindowMonths });
     const { row, freshness, reconciliation, demand: resolvedDemand } = await this.gap.field({
       ...eff,
       thresholds,

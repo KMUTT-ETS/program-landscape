@@ -7,6 +7,8 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Button } from '@kku/ui';
 import { ArrowLeft, Globe2 } from 'lucide-react';
 import { AiSearchClient, type ExternalAiSourceRow } from './client';
+import { Job108SettingsPanel } from './job108-settings-client';
+import type { Job108SettingsView } from '@/lib/actions/job108-settings';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'AI search & synthesis — Admin' };
@@ -23,6 +25,14 @@ export default async function AdminAiSearchPage() {
     sources = await apiFetch<ExternalAiSourceRow[]>('/admin/external-ai-sources');
   } catch (e) {
     loadError = (e as Error).message;
+  }
+
+  let job108Settings: Job108SettingsView | null = null;
+  let job108LoadError: string | null = null;
+  try {
+    job108Settings = await apiFetch<Job108SettingsView>('/admin/job108-settings');
+  } catch (e) {
+    job108LoadError = (e as Error).message;
   }
 
   return (
@@ -61,6 +71,14 @@ export default async function AdminAiSearchPage() {
         ) : (
           <AiSearchClient initial={sources} />
         )}
+
+        {job108LoadError ? (
+          <div className="rounded-lg border border-danger-default/30 bg-danger-default/5 p-4 text-sm text-danger-default">
+            Could not load Job-108 settings: {job108LoadError}
+          </div>
+        ) : job108Settings ? (
+          <Job108SettingsPanel initial={job108Settings} />
+        ) : null}
       </div>
     </AuthedAppShell>
   );

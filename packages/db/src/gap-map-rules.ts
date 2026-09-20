@@ -59,12 +59,42 @@ export const DemandBasisSchema = z.object({
   publicWindowMonths: z.coerce.number().int().positive().default(DEFAULT_PUBLIC_WINDOW_MONTHS),
 });
 
-/** From URL / query strings. Throws on an unrecognised basis rather than
- *  falling back to the default — a shared link carrying a typo (e.g.
- *  `?basis=government`) should fail visibly rather than quietly render a
- *  different denominator under the same `gap-map.v1` methodology stamp. */
-export function parseDemandBasis(q: { basis?: string; publicWindowMonths?: string | number }): DemandBasisOptions {
-  return DemandBasisSchema.parse(q);
+/** Same shape as `DemandBasisSchema`, but `publicWindowMonths` carries NO
+ *  default — it stays `undefined` when the caller's query string doesn't
+ *  specify one. Route query schemas that `.and()` this (instead of
+ *  `DemandBasisSchema`) let `parseDemandBasis`'s own
+ *  `defaultPublicWindowMonths` option (the operator-configured
+ *  `job108.defaultWindowMonths` setting) supply the fallback — composing
+ *  `DemandBasisSchema` directly would apply Zod's built-in default first,
+ *  so the field would never reach `parseDemandBasis` as `undefined` and
+ *  the stored setting could never win. See gap.controller.ts's `MapQuery`. */
+export const DemandBasisQuerySchema = DemandBasisSchema.extend({
+  publicWindowMonths: z.coerce.number().int().positive().optional(),
+});
+
+/**
+ * From URL / query strings. Throws on an unrecognised basis rather than
+ * falling back to the default — a shared link carrying a typo (e.g.
+ * `?basis=government`) should fail visibly rather than quietly render a
+ * different denominator under the same `gap-map.v1` methodology stamp.
+ *
+ * Precedence on `publicWindowMonths`: explicit `q.publicWindowMonths` →
+ * `opts.defaultPublicWindowMonths` (the operator-configured stored
+ * setting, when the caller supplies one) → `DEFAULT_PUBLIC_WINDOW_MONTHS`
+ * (Zod's `.default()` on `DemandBasisSchema`, applied last). Every
+ * existing caller that doesn't pass `opts` keeps exactly its old
+ * behaviour — this only changes what happens when `q.publicWindowMonths`
+ * is `undefined` AND a caller opts in to a different fallback.
+ */
+export function parseDemandBasis(
+  q: { basis?: string; publicWindowMonths?: string | number },
+  opts?: { defaultPublicWindowMonths?: number },
+): DemandBasisOptions {
+  const withStoredDefault =
+    q.publicWindowMonths === undefined && opts?.defaultPublicWindowMonths !== undefined
+      ? { ...q, publicWindowMonths: opts.defaultPublicWindowMonths }
+      : q;
+  return DemandBasisSchema.parse(withStoredDefault);
 }
 
 /** The earliest `posted_date` that counts under a public-basis window of

@@ -32,4 +32,17 @@ describe('fetchJob108Page', () => {
     await fetchJob108Page(`${JOB108_BASE_URL}/id20256.html`);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
+
+  // The last line of defence: this guard sits on the function that
+  // actually makes the request, so it holds no matter how an off-origin
+  // URL got here — a bad SystemSetting row, a bug upstream, anything.
+  it('refuses an off-origin URL without making a network call', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new Error('network call attempted — should never happen for an off-origin URL'),
+    );
+    await expect(fetchJob108Page('https://evil.example.com/sitemap.xml')).rejects.toBeInstanceOf(
+      Job108FetchError,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

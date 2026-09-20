@@ -9,6 +9,7 @@ import { BackupVerificationService } from './backup-verification.service';
 import { DataQualityController } from './data-quality.controller';
 import { ExternalAiController } from './external-ai/external-ai.controller';
 import { ExternalAiService } from './external-ai/external-ai.service';
+import { Job108SettingsController } from './external-ai/job108-settings.controller';
 import { ImdController } from './imd.controller';
 import { QueuesController } from './queues.controller';
 import { QueuesService } from './queues.service';
@@ -24,6 +25,7 @@ import { SystemStatusController } from './system-status.controller';
     AiCostController,
     AiSettingsController,
     ExternalAiController,
+    Job108SettingsController,
     ImdController,
     QueuesController,
     RegistryMappingController,

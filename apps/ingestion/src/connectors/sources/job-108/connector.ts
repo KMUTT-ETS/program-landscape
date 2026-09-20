@@ -16,6 +16,13 @@
 //
 // No scraping proxy: fetch.ts identifies honestly as KKU and never requests
 // /go.php or /url.php, the two paths robots.txt disallows for every agent.
+//
+// The sitemap URL, the per-request politeness spacing and the per-run cap
+// are all operator-editable (Task 17, /admin/external/ai-search) via
+// `job108.*` SystemSetting rows — see @kku/db/job108-settings. Settings are
+// read once per run (fetch() reads and caches; load() reuses the cache) —
+// ConnectorRunner constructs one connector instance per run and calls
+// fetch/transform/load on it in sequence, so this never crosses runs.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -34,20 +41,16 @@ import {
   heldAnnouncementLastmods,
   hashPage,
   planJob108Fetch,
+  readJob108Settings,
   recordJob108Failure,
   toPostingRows,
   upsertJob108Announcement,
+  type Job108Settings,
 } from '@kku/db';
 
 import { extractAnnouncement } from '../../../job108/extract';
 import { fetchJob108Page, fetchJob108PagePolitely, job108SitemapUrl } from '../../../job108/fetch';
 import { createIngestionAiService } from '../../../lib/ai-service';
-
-/** Cap on one scheduled run. The steady state is ~22; the cap stops a
- *  sitemap anomaly from turning a weekly run into a 2,000-page backfill.
- *  A dedicated backfill path raises it deliberately, via the constructor
- *  argument, when one is needed. */
-const DEFAULT_MAX_ANNOUNCEMENTS_PER_RUN = 60;
 
 interface Job108SitemapPayload {
   announcementId: string;
@@ -60,11 +63,30 @@ export class Job108Connector implements Connector {
   readonly mocked = false;
   readonly inputFormat: DataSourceInputFormat = 'HTML';
 
-  constructor(private readonly maxPerRun: number = DEFAULT_MAX_ANNOUNCEMENTS_PER_RUN) {}
+  private cachedSettings: Job108Settings | null = null;
+
+  /**
+   * `explicitMaxPerRun`, when passed, OVERRIDES the operator-configured
+   * `job108.maxAnnouncementsPerRun` setting outright — undefined (every
+   * current caller, including the registry) means "use the setting".
+   * This is how a deliberate high-volume run (a future dedicated backfill
+   * path constructing this connector directly, mirroring the reasoning in
+   * apps/ingestion/src/scripts/job108-backfill.ts's own `--limit`) can ask
+   * for a different number than the weekly cadence's cap without that
+   * number being silently clamped back down by a setting meant for the
+   * routine weekly run.
+   */
+  constructor(private readonly explicitMaxPerRun?: number) {}
+
+  private async settings(): Promise<Job108Settings> {
+    if (!this.cachedSettings) this.cachedSettings = await readJob108Settings();
+    return this.cachedSettings;
+  }
 
   async healthCheck(_ctx: ConnectorContext): Promise<HealthStatus> {
     try {
-      const xml = await fetchJob108Page(job108SitemapUrl());
+      const settings = await this.settings();
+      const xml = await fetchJob108Page(job108SitemapUrl(settings.sitemapUrl));
       const entries = parseSitemap(xml);
       return entries.length > 0
         ? { ok: true, message: `sitemap reachable, ${entries.length} announcements` }
@@ -80,14 +102,18 @@ export class Job108Connector implements Connector {
    * recorded against its announcement row in load() instead.
    */
   async fetch(ctx: ConnectorContext, _since?: Date): Promise<RawRecord[]> {
-    const xml = await fetchJob108Page(job108SitemapUrl());
+    const settings = await this.settings();
+    const xml = await fetchJob108Page(job108SitemapUrl(settings.sitemapUrl));
     const entries: SitemapEntry[] = parseSitemap(xml);
     const held = await heldAnnouncementLastmods();
-    const due = planJob108Fetch(entries, held, this.maxPerRun);
+    const cap = this.explicitMaxPerRun ?? settings.maxAnnouncementsPerRun;
+    const due = planJob108Fetch(entries, held, cap);
     ctx.log.info('job-108 discovery', {
       inSitemap: entries.length,
       alreadyHeld: held.size,
       due: due.length,
+      cap,
+      capSource: this.explicitMaxPerRun !== undefined ? 'explicit' : 'setting',
     });
     return due.map((e) => ({
       externalId: e.announcementId,
@@ -109,6 +135,7 @@ export class Job108Connector implements Connector {
   }
 
   async load(ctx: ConnectorContext, normalized: NormalizedRecord[]): Promise<LoadResult> {
+    const settings = await this.settings();
     const ai = createIngestionAiService();
     let loaded = 0;
     let failed = 0;
@@ -123,7 +150,7 @@ export class Job108Connector implements Connector {
       // "failed before we had bytes" is a real, distinguishable state.
       let contentHash = '';
       try {
-        const html = await fetchJob108PagePolitely(url);
+        const html = await fetchJob108PagePolitely(url, settings.requestSpacingMs);
         contentHash = hashPage(html);
         const extracted = await extractAnnouncement(ai, { announcementId: rec.externalId, html });
         if (extracted.positions.length === 0) announcementsWithNoPositions++;
