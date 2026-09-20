@@ -40,3 +40,25 @@ describe('jobthai catalog entry', () => {
     expect(jobsdb!.deprecated).toBe(true);
   });
 });
+
+describe('job-108 catalog entry', () => {
+  const entry = SOURCE_CATALOG.find((s) => s.slug === 'job-108');
+
+  // scheduleEnabled must stay false until a connector is registered:
+  // ConnectorRunner throws on an unknown slug BEFORE creating an IngestionRun
+  // row, so a premature schedule fails weekly with nothing on the dashboard.
+  it('is declared but not yet scheduled, because no connector is registered', () => {
+    expect(entry).toBeDefined();
+    expect(entry?.scheduleEnabled).toBe(false);
+    expect(entry?.cadenceCron).toBe('0 3 * * 1');
+    expect(entry?.mocked).toBe(true);
+  });
+
+  // The connector reads HTML pages it fetches itself, not a file drop. If
+  // either of these changes, the connector's shape changed and the catalog
+  // was not updated with it.
+  it('is a scraped HTML source', () => {
+    expect(entry?.kind).toBe('SCRAPE');
+    expect(entry?.inputFormat).toBe('HTML');
+  });
+});
