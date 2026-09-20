@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "trends:purge-mock": "tsx src/scripts/purge-mock-signals.ts",
-    "job108:backfill": "tsx src/scripts/job108-backfill.ts"
+    "job108:backfill": "tsx src/scripts/job108-backfill.ts",
+    "job108:calibrate": "tsx src/scripts/job108-calibrate.ts"
   },
   "dependencies": {
     "@kku/db": "workspace:*",

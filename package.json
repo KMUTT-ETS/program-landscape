@@ -107,7 +107,8 @@
     "skills:dedupe": "tsx apps/ingestion/src/scripts/dedupe-skills.ts",
     "jobthai:link-programs": "tsx apps/ingestion/src/scripts/jobthai-link-programs.ts",
     "jobthai:fields": "tsx apps/ingestion/src/scripts/jobthai-fields.ts",
-    "job108:backfill": "pnpm --filter ingestion job108:backfill"
+    "job108:backfill": "pnpm --filter ingestion job108:backfill",
+    "job108:calibrate": "pnpm --filter ingestion job108:calibrate"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
