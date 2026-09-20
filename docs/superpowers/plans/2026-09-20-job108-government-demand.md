@@ -1684,6 +1684,44 @@ and add the entry to the registry array, following the shape the other real-only
 
 Both slots hold the real connector deliberately: there is no mock, per the no-mock-data policy, and the registry falls back to `mock` when `real` is absent, so pointing both at the real one keeps the flag from silently disabling the source.
 
+- [ ] **Step 7b: Flip the source from mocked to real — the connector now exists**
+
+Task 3 deliberately declared `job-108` with `mocked: true` and `scheduleEnabled: false`, because `ConnectorRunner` looks up the registry before it creates an `IngestionRun` row and throws invisibly on an unregistered slug. You have just registered it, so both flags change now.
+
+In `packages/shared/src/ingestion/catalog.ts`, on the `job-108` entry:
+
+```ts
+    mocked: false,
+    scheduleEnabled: true,
+```
+
+and delete the two comments that explained why they were the other way — they no longer describe anything true. Keep the cadence measurement comment.
+
+Update the Task 3 test in `packages/shared/test/ingestion/jobthai-catalog.test.ts` that asserted the pre-connector state. Replace it with:
+
+```ts
+  // mocked must be false now that the connector is registered: realDataWhere()
+  // excludes every row whose ingestion run traces to a mocked source, so a
+  // mocked job-108 would write postings the Gap Analyzer cannot see — no
+  // error, just an empty page. That failure has happened three times here.
+  it('is real and scheduled, now that the connector is registered', () => {
+    expect(entry?.mocked).toBe(false);
+    expect(entry?.scheduleEnabled).toBe(true);
+    expect(entry?.cadenceCron).toBe('0 3 * * 1');
+  });
+```
+
+Re-seed and confirm the row flipped:
+
+```bash
+cd /home/denpong/projects/program-landscape && pnpm db:seed
+docker compose exec -T postgres psql -U kku -d program_landscape -c "SELECT slug, status, mocked, schedule_enabled FROM data_sources WHERE slug = 'job-108';"
+```
+
+Expected: `mocked = f`, `status = active`, `schedule_enabled = t`.
+
+**If `mocked` still reads `t` after re-seeding, stop and report it.** The seed may be insert-only for that column, in which case every future connector flip in this repo has the same problem and it needs a decision rather than a manual row edit. `status` and `mocked` must move together — a drift between them is a documented recurring trap here.
+
 - [ ] **Step 8: Verify it runs end to end against the live site**
 
 ```bash
