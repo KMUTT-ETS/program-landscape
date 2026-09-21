@@ -19,6 +19,11 @@ describe('admin-job-fields proxy path allowlist', () => {
     'assignments/x/reject',
     'x',
     'bulk-approve',
+    // Two segments, unlike the field-level 'bulk-approve' above. The bare-token
+    // alternative cannot match it because that class excludes '/', and
+    // 'assignments/<id>/approve' is three. Missing it meant the proxy 404'd
+    // every assignment bulk approval before the request reached the api.
+    'assignments/bulk-approve',
   ])('accepts %s', (path) => {
     expect(ALLOWED.test(path)).toBe(true);
   });

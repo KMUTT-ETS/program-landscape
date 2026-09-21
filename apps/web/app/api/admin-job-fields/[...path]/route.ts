@@ -13,7 +13,11 @@ export const dynamic = 'force-dynamic';
 // admitted by the bare-token alternative below — [A-Za-z0-9_-]+ was written
 // for the rename-by-id PATCH path, but a literal alphanumeric-and-hyphen
 // segment matches it too. Not listed separately to avoid a duplicate branch.
-export const ALLOWED = /^(?:[A-Za-z0-9_-]+\/(?:approve|reject|merge)|assignments|assignments\/[A-Za-z0-9_-]+\/(?:approve|reject)|[A-Za-z0-9_-]+)$/;
+// 'assignments/bulk-approve' needs its own alternative and cannot borrow one:
+// the bare-token class excludes '/', and 'assignments/<id>/approve' is three
+// segments where this is two. Without it the proxy 404s every assignment bulk
+// approval before the request reaches the api, which is what happened on dev.
+export const ALLOWED = /^(?:[A-Za-z0-9_-]+\/(?:approve|reject|merge)|assignments|assignments\/bulk-approve|assignments\/[A-Za-z0-9_-]+\/(?:approve|reject)|[A-Za-z0-9_-]+)$/;
 
 async function forward(req: Request, method: 'POST' | 'PATCH', path: string[]) {
   const session = await auth();
