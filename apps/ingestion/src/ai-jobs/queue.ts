@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueEvents, type ConnectionOptions } from 'bullmq';
+import { Queue, Worker, QueueEvents, type ConnectionOptions, type WorkerOptions } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import type { ProgramPipelinePhase, Role, ScholarTrigger } from '@kku/shared';
 import type { AiJobHandler } from './handlers';
@@ -48,8 +48,11 @@ export type AiJobKind =
   // /admin/job-fields "Rebuild programme links" button. Runs
   // planJobThaiLinks() + writeJobThaiLinks() (apps/ingestion/src/jobthai/
   // refresh.ts) — deterministic, no model calls, free. Attributed to the
-  // most recent SUCCEEDED taxonomy-source ingestion run (latestDemandRunId).
-  // `entityId` is an unused sentinel (portfolio-wide, not per-field).
+  // most recent SUCCEEDED 'jobthai' ingestion run specifically
+  // (latestJobThaiScopedRunId — NOT the broadened any-demand-source
+  // latestDemandRunId used for the field taxonomy; see both functions' doc
+  // comments in packages/db/src/job-fields.ts). `entityId` is an unused
+  // sentinel (portfolio-wide, not per-field).
   | 'RUN_JOBTHAI_LINK_REBUILD'
   // /admin/job-fields "Full derived refresh" button. Runs
   // refreshJobThaiDerived() — occupations, skills, links, AND the field
@@ -173,6 +176,56 @@ export function createAiJobsQueue(config: AiJobsConfig): Queue<AiJobData> {
   });
 }
 
+/**
+ * Lock duration (ms) for the ai-jobs worker.
+ *
+ * BullMQ 5.76's default `lockDuration` is 30_000 (30s) — see
+ * `node_modules/bullmq/dist/*\/interfaces/worker-options.d.ts`. That is fine
+ * for most kinds on this queue but nowhere near enough for
+ * RUN_JOBTHAI_FULL_REFRESH: `refreshJobThaiDerived` (apps/ingestion/src/
+ * jobthai/refresh.ts) takes roughly 11 minutes end to end at 47k postings —
+ * ~600s of that is the synchronous skill-term scan inside `deriveJobThai`
+ * (see the JobThaiConnector doc comment for the same measurement). At the
+ * 30s default the job's lock is guaranteed to expire long before the
+ * handler returns, and BullMQ fails it with "job stalled more than
+ * allowable limit" — exactly what happened on dev 2026-09-20.
+ *
+ * BullMQ's lock is a Redis-side TTL set when the job starts and normally
+ * kept alive by a background timer (LockManager, which re-extends it every
+ * `lockRenewTime / 2` ms — see bullmq/dist/*\/classes/lock-manager.js).
+ * That TTL is tracked by Redis's own clock, not by the Node event loop, so
+ * as long as `lockDuration` comfortably exceeds the job's actual wall-clock
+ * duration the job survives even in the worst case where the renewal timer
+ * never gets a turn. Sizing this value is therefore a complete fix on its
+ * own, not merely a mitigation — see the handler-blocking finding below for
+ * why the renewal timer works too, as defence in depth.
+ *
+ * 30 minutes gives roughly 3x headroom over the measured ~11-minute run,
+ * matching the 30-minute convention already used for this exact job
+ * elsewhere in the codebase (the JobThai connector's own ingestion-run lock
+ * and stale-run reaper — apps/ingestion/src/connectors/sources/jobthai/
+ * connector.ts, JOBTHAI_MAX_REFRESHES_PER_RUN's doc comment). Going much
+ * higher would let a genuinely dead worker sit on a job for that much
+ * longer before another worker can pick it back up — 30 minutes is the
+ * smallest round number with real margin over the measured worst case, not
+ * an arbitrarily large one.
+ */
+export const AI_JOBS_WORKER_LOCK_DURATION_MS = 30 * 60 * 1000;
+
+/**
+ * Builds the non-connection Worker options for the ai-jobs queue. Exported
+ * (rather than inlined into `createAiJobsWorker`) so a test can assert on
+ * `lockDuration` without opening a real Redis connection — a config value
+ * that cannot be asserted is a config value that drifts back to the 30s
+ * default unnoticed.
+ */
+export function aiJobsWorkerOptions(config: AiJobsConfig): Pick<WorkerOptions, 'concurrency' | 'lockDuration'> {
+  return {
+    concurrency: config.concurrency,
+    lockDuration: AI_JOBS_WORKER_LOCK_DURATION_MS,
+  };
+}
+
 export function createAiJobsWorker(
   config: AiJobsConfig,
   handlers: Record<AiJobKind, AiJobHandler>,
@@ -207,7 +260,7 @@ export function createAiJobsWorker(
     },
     {
       connection: redisConnection(config.redisUrl),
-      concurrency: config.concurrency,
+      ...aiJobsWorkerOptions(config),
     },
   );
 }

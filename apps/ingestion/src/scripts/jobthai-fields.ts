@@ -37,14 +37,21 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, latestJobThaiRunId } from '@kku/db';
+import { prisma, latestDemandRunId } from '@kku/db';
 
 import { createIngestionAiService } from '../lib/ai-service';
 import { defaultFieldsDeps, parseFieldsArgs, refreshJobFields } from '../jobthai/fields';
 
 async function main(): Promise<void> {
   const args = parseFieldsArgs(process.argv.slice(2));
-  const runId = await latestJobThaiRunId();
+  // The taxonomy this script builds draws on every demand source that feeds
+  // it (see TAXONOMY_SOURCES in packages/db/src/job-fields.ts), not JobThai
+  // alone, so the run it's attributed to is the broadened "any demand
+  // source" lookup — the same one the connector's own refreshJobThaiDerived
+  // uses for the taxonomy step. Do not swap this for a jobthai-scoped
+  // lookup: that would under-attribute a taxonomy that legitimately drew on
+  // the other source's postings too.
+  const runId = await latestDemandRunId();
   if (!runId) {
     console.error('No SUCCEEDED jobthai ingestion run to attribute the taxonomy to. Upload a JobThai batch first.');
     process.exit(1);

@@ -2,7 +2,14 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { Logger } from '@nestjs/common';
-import { Prisma, prisma, refreshAiModelCatalog, runScholarFetch, latestDemandRunId } from '@kku/db';
+import {
+  Prisma,
+  prisma,
+  refreshAiModelCatalog,
+  runScholarFetch,
+  latestDemandRunId,
+  latestJobThaiScopedRunId,
+} from '@kku/db';
 import { z } from 'zod';
 // Transport by subpath, not the barrel — see the note in scholar/index.ts.
 import {
@@ -558,18 +565,23 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
     // of the work (apps/ingestion/src/jobthai/refresh.ts) — deterministic,
     // no model calls, free. Same runId-resolution rule as the
     // jobthai:link-programs CLI script (apps/ingestion/src/scripts/
-    // jobthai-link-programs.ts): the most recent SUCCEEDED run of any
-    // taxonomy demand source. Without a run to attribute the write to, the
-    // written links would fail realDataWhere() and vanish from every
-    // Council-facing surface — so this FAILs rather than writing untagged
-    // rows.
+    // jobthai-link-programs.ts): the most recent SUCCEEDED run of the
+    // 'jobthai' source SPECIFICALLY — program_jobthai_links is built from
+    // JobThai postings, not from whichever demand source happened to run
+    // most recently. (Fixed 2026-09-21: this used to call the broadened
+    // latestDemandRunId(), correct for the field taxonomy but not for these
+    // links — it stamped all 2,619 existing rows with an unrelated job-108
+    // run. See latestJobThaiScopedRunId's doc comment in
+    // packages/db/src/job-fields.ts and CLAUDE.md.) Without a run to
+    // attribute the write to, the written links would fail realDataWhere()
+    // and vanish from every Council-facing surface — so this FAILs rather
+    // than writing untagged rows.
     RUN_JOBTHAI_LINK_REBUILD: async ({ triggeredByUserId }) => {
-      const runId = await latestDemandRunId();
+      const runId = await latestJobThaiScopedRunId();
       if (!runId) {
         return {
           status: 'FAILED',
-          message:
-            'No SUCCEEDED jobthai/job-108 ingestion run to attribute these links to. Upload a JobThai batch first.',
+          message: 'No SUCCEEDED jobthai ingestion run to attribute these links to. Upload a JobThai batch first.',
         };
       }
       const plan = await planJobThaiLinks();
@@ -589,6 +601,16 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
     // 0.26-0.33 per run — see CLAUDE.md's gap-map.v1 notes); the operator
     // confirms that cost on the button before this job is ever enqueued.
     //
+    // Two separate run ids, resolved separately (fixed 2026-09-21 — see
+    // CLAUDE.md and refreshJobThaiDerived's `linksRunId` doc comment): the
+    // taxonomy legitimately draws on both demand sources, so it is
+    // attributed to `runId` (the broadened latestDemandRunId). The
+    // programme links are JobThai-only and are attributed to `linksRunId`
+    // (the jobthai-scoped latestJobThaiScopedRunId) — passing a single
+    // broadened id for both, as this handler used to, stamped links with
+    // whichever demand source happened to run most recently regardless of
+    // whether it was JobThai.
+    //
     // refreshJobThaiDerived wraps the taxonomy step in its own try/catch so
     // a provider outage doesn't fail the links + occupations that already
     // landed — `summary.fields` comes back null on that path. `partial` on
@@ -603,8 +625,23 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
             'No SUCCEEDED jobthai/job-108 ingestion run to attribute this refresh to. Upload a JobThai batch first.',
         };
       }
+      // Reachable: job-108 and jobthai are independent connectors (see
+      // packages/shared/src/ingestion/catalog.ts), so a database can have a
+      // SUCCEEDED job-108 run with no jobthai run ever having succeeded.
+      // program_jobthai_links cannot be honestly attributed in that state —
+      // refuse the whole job rather than silently falling back to the
+      // broadened id (which is exactly the defect this fixes) or silently
+      // skipping the links half of a button labelled "full" refresh.
+      const linksRunId = await latestJobThaiScopedRunId();
+      if (!linksRunId) {
+        return {
+          status: 'FAILED',
+          message:
+            'No SUCCEEDED jobthai ingestion run to attribute the programme links to (a job-108 run exists, but no jobthai run has ever succeeded). Upload a JobThai batch first.',
+        };
+      }
       const log: RefreshLog = (line) => logger.log(`RUN_JOBTHAI_FULL_REFRESH: ${line}`);
-      const summary = await refreshJobThaiDerived({ runId, log });
+      const summary = await refreshJobThaiDerived({ runId, linksRunId, log });
       const partial = summary.fields === null;
       const message = partial
         ? `links: ${summary.linksWritten} across ${summary.linkedProgrammes} programme(s), ${summary.clearingFloor} clearing the posting floor. ` +
@@ -612,8 +649,9 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         : `links: ${summary.linksWritten} across ${summary.linkedProgrammes} programme(s), ${summary.clearingFloor} clearing the posting floor. ` +
           `fields: ${summary.fields!.taxonomy.creates} new field(s), ${summary.fields!.taxonomy.synonymAdds} synonym(s) added, ` +
           `${summary.fields!.assignments.rule + summary.fields!.assignments.ai} programme assignment(s) proposed.`;
+      const runIdSuffix = linksRunId === runId ? `run ${runId}` : `run ${runId}, links run ${linksRunId}`;
       logger.log(
-        `RUN_JOBTHAI_FULL_REFRESH ${partial ? 'PARTIAL' : 'complete'} (run ${runId}, by user ${triggeredByUserId ?? 'unknown'}, ${summary.durationMs}ms): ${message}`,
+        `RUN_JOBTHAI_FULL_REFRESH ${partial ? 'PARTIAL' : 'complete'} (${runIdSuffix}, by user ${triggeredByUserId ?? 'unknown'}, ${summary.durationMs}ms): ${message}`,
       );
       return { status: 'SUCCEEDED', partial, message };
     },

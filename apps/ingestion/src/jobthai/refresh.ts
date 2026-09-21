@@ -381,12 +381,37 @@ export interface RefreshSummary {
 }
 
 /** Rebuilds every JobThai derived layer from the postings that exist now. */
-export async function refreshJobThaiDerived(opts: { runId: string; log?: RefreshLog }): Promise<RefreshSummary> {
+export async function refreshJobThaiDerived(opts: {
+  runId: string;
+  /**
+   * Attribution for the bridge links (program_jobthai_links) specifically.
+   * Defaults to `runId`.
+   *
+   * The taxonomy legitimately draws on both demand sources and is attributed
+   * to whichever one most recently succeeded (`runId`, resolved by the
+   * caller from latestDemandRunId — see packages/db/src/job-fields.ts).
+   * Bridge links are built from JobThai postings only and must NOT be
+   * stamped with a job-108 (or other non-jobthai) run that merely happened
+   * to finish more recently — see the 2026-09-20 defect in CLAUDE.md, where
+   * exactly this conflation stamped 2,619 links with an unrelated run.
+   *
+   * The connector's own end-of-batch call passes only `runId` (its own
+   * ingestion run, already jobthai-scoped), so the default keeps that path
+   * unchanged.
+   */
+  linksRunId?: string;
+  log?: RefreshLog;
+}): Promise<RefreshSummary> {
   const t0 = Date.now();
+  const linksRunId = opts.linksRunId ?? opts.runId;
   const derive = await deriveJobThai({ apply: true, log: opts.log });
   const plan = await planJobThaiLinks();
-  const linksWritten = await writeJobThaiLinks(plan.planned, opts.runId);
-  opts.log?.(`links: ${linksWritten} across ${plan.linkedProgrammes} programme(s), ${plan.clearingFloor} clearing the posting floor`);
+  const linksWritten = await writeJobThaiLinks(plan.planned, linksRunId);
+  opts.log?.(
+    linksRunId === opts.runId
+      ? `links: ${linksWritten} across ${plan.linkedProgrammes} programme(s), ${plan.clearingFloor} clearing the posting floor (run ${linksRunId})`
+      : `links: ${linksWritten} across ${plan.linkedProgrammes} programme(s), ${plan.clearingFloor} clearing the posting floor (run ${linksRunId}, taxonomy run ${opts.runId})`,
+  );
   // The field taxonomy costs model calls; a provider outage must not fail a
   // batch whose postings, occupations and links already landed.
   let fields: FieldsSummary | null = null;

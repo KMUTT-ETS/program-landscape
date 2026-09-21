@@ -33,18 +33,9 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, MAX_PROGRAMMES_PER_FIELD } from '@kku/db';
+import { prisma, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, MAX_PROGRAMMES_PER_FIELD, latestJobThaiScopedRunId } from '@kku/db';
 
 import { planJobThaiLinks, writeJobThaiLinks } from '../jobthai/refresh';
-
-async function resolveRunId(): Promise<string | null> {
-  const run = await prisma.ingestionRun.findFirst({
-    where: { status: 'SUCCEEDED', dataSource: { slug: 'jobthai' } },
-    orderBy: { completedAt: 'desc' },
-    select: { id: true },
-  });
-  return run?.id ?? null;
-}
 
 async function main(): Promise<void> {
   const apply = process.argv.includes('--apply');
@@ -87,7 +78,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runId = await resolveRunId();
+  const runId = await latestJobThaiScopedRunId();
   if (!runId) {
     console.error('No SUCCEEDED jobthai ingestion run to attribute these links to. Run the connector first.');
     process.exit(1);

@@ -594,7 +594,16 @@ export async function addProgramJobField(programId: string, fieldId: string, run
 /** The run every taxonomy write is attributed to: the most recent SUCCEEDED
  *  run of ANY demand source. Both seed the vocabulary, so anchoring to one of
  *  them would stamp rows built partly from the other's text with a run that
- *  never saw them. Null on a database that has never ingested either source. */
+ *  never saw them. Null on a database that has never ingested either source.
+ *
+ *  Use this for the field-of-study TAXONOMY only (jobFieldTaxonomy +
+ *  programJobField rows, built from both sources' posting text — see
+ *  refreshJobFields). For the programme ↔ occupation BRIDGE
+ *  (program_jobthai_links), use latestJobThaiScopedRunId below: those links
+ *  are derived from JobThai postings alone, and a run from a different
+ *  source is not evidence for them. Conflating the two is exactly what
+ *  stamped 2,619 program_jobthai_links rows with a job-108 (non-JobThai) run
+ *  id on 2026-09-20 — see CLAUDE.md. */
 export async function latestDemandRunId(): Promise<string | null> {
   const run = await prisma.ingestionRun.findFirst({
     where: { status: 'SUCCEEDED', dataSource: { slug: { in: TAXONOMY_SOURCES } } },
@@ -604,8 +613,25 @@ export async function latestDemandRunId(): Promise<string | null> {
   return run?.id ?? null;
 }
 
-/** @deprecated Use latestDemandRunId. */
-export const latestJobThaiRunId = latestDemandRunId;
+/** The run programme ↔ occupation BRIDGE links are attributed to: the most
+ *  recent SUCCEEDED run of the 'jobthai' source specifically, never a
+ *  broader "any demand source" run. program_jobthai_links is built from
+ *  JobThai postings through the taxonomy (see planJobThaiLinks /
+ *  writeJobThaiLinks in apps/ingestion/src/jobthai/refresh.ts) — a run from
+ *  a different demand source is not provenance for those rows, even though
+ *  it would be valid provenance for the taxonomy itself (latestDemandRunId
+ *  above). Mirrors resolveRunId() in
+ *  apps/ingestion/src/scripts/jobthai-link-programs.ts, which this
+ *  duplicates rather than the two drifting apart. Null on a database that
+ *  has never ingested a JobThai batch. */
+export async function latestJobThaiScopedRunId(): Promise<string | null> {
+  const run = await prisma.ingestionRun.findFirst({
+    where: { status: 'SUCCEEDED', dataSource: { slug: 'jobthai' } },
+    orderBy: { completedAt: 'desc' },
+    select: { id: true },
+  });
+  return run?.id ?? null;
+}
 
 export interface SynonymSources {
   synonym: string;
