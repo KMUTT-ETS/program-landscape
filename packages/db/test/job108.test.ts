@@ -86,6 +86,46 @@ describe('toPostingRows', () => {
     expect(row?.postedDateEstimated).toBe(true);
   });
 
+  /* Two genuinely distinct vacancies can share a title and character-identical
+   * qualification text, differing only by the posting unit, which this schema
+   * does not store. Announcement id20185 (การนิคมอุตสาหกรรมแห่งประเทศไทย) lists
+   * วิศวกร 5 at Eastern Seaboard (Rayong) and at Laem Chabang exactly that way.
+   * Before this was handled, the pair hashed to one id and createMany aborted
+   * the whole announcement — discarding a model call already paid for, and
+   * leaving the page FAILED, which planJob108Fetch then skips forever. */
+  it('keeps both of two positions that share a title and qualification text', () => {
+    const rows = toPostingRows(base, [
+      position({ title: 'วิศวกร 5', qualificationRaw: 'ปริญญาตรีวิศวกรรมศาสตร์' }),
+      position({ title: 'วิศวกร 5', qualificationRaw: 'ปริญญาตรีวิศวกรรมศาสตร์' }),
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((r) => r.externalId)).size).toBe(2);
+    for (const row of rows) {
+      expect(row.externalId.startsWith('id20256#')).toBe(true);
+    }
+  });
+
+  /* The disambiguating suffix is assigned by content order, not array order,
+   * so the ids of a colliding pair survive the source reordering them. */
+  it('gives a colliding pair the same ids whichever way round the page lists them', () => {
+    const a = position({ title: 'วิศวกร 5', qualificationRaw: 'q', positionCount: 1 });
+    const b = position({ title: 'วิศวกร 5', qualificationRaw: 'q', positionCount: 4 });
+    const forward = toPostingRows(base, [a, b]);
+    const reversed = toPostingRows(base, [b, a]);
+    expect(new Set(forward.map((r) => r.externalId))).toEqual(new Set(reversed.map((r) => r.externalId)));
+    const idOf = (rows: typeof forward, seats: number) =>
+      rows.find((r) => r.positionCount === seats)?.externalId;
+    expect(idOf(forward, 1)).toBe(idOf(reversed, 1));
+    expect(idOf(forward, 4)).toBe(idOf(reversed, 4));
+  });
+
+  /* A position with no twin keeps the bare hash, so adding this did not churn
+   * the ids of anything already stored. */
+  it('leaves an uncontested position id unsuffixed', () => {
+    const [row] = toPostingRows(base, [position()]);
+    expect(row?.externalId).toMatch(/^id20256#[0-9a-f]{10}$/);
+  });
+
   it('carries seats through without multiplying rows', () => {
     const rows = toPostingRows(base, [position({ positionCount: 89, requiredFieldsRaw: ['พยาบาล'] })]);
     expect(rows).toHaveLength(1);

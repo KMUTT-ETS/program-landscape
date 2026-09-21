@@ -68,8 +68,65 @@ export function planJob108Fetch(
  *  literal, not a literal NUL byte in the file — checked with
  *  `grep -cP '\x00'`) stops title="ab", qual="c" colliding with
  *  title="a", qual="bc". */
-const positionExternalId = (announcementId: string, p: Job108Position): string =>
-  `${announcementId}#${createHash('sha256').update(`${p.title}\u0000${p.qualificationRaw}`).digest('hex').slice(0, 10)}`;
+const positionContentHash = (p: Job108Position): string =>
+  createHash('sha256').update(`${p.title}\u0000${p.qualificationRaw}`).digest('hex').slice(0, 10);
+
+/** Everything stored about a position that the id hash does not already cover,
+ *  in a fixed order. Used only to put a colliding group into a deterministic
+ *  order — never to build an id, so a corrected seat count does not turn a
+ *  position into a different one. */
+const positionTiebreakKey = (p: Job108Position): string =>
+  JSON.stringify([p.positionCount, p.salaryMin, p.salaryMax, p.minEducationLevel, p.requiredFieldsRaw]);
+
+/**
+ * Ids for one announcement's positions, unique within it.
+ *
+ * Two genuinely distinct vacancies can share a title and character-identical
+ * qualification text, differing only by the posting unit — which this schema
+ * does not store. Announcement id20185 lists วิศวกร 5 at Eastern Seaboard
+ * (Rayong) and at Laem Chabang exactly that way. They are therefore
+ * indistinguishable to the hash, and the unsuffixed id that worked for every
+ * other announcement collided here: `createMany` has no `skipDuplicates`, so
+ * it aborted the transaction and the whole announcement was recorded FAILED —
+ * discarding an extraction already paid for, and, because planJob108Fetch
+ * counts FAILED as held, never retrying it. Measured at 1 announcement in 25
+ * during the archive backfill.
+ *
+ * Dropping the twin was the cheaper fix and the wrong one: it would delete a
+ * real vacancy. Instead a colliding group gets a `~n` suffix, ordered by
+ * content rather than by array position, so reordering the page cannot
+ * reassign a suffix from one vacancy to another — the same property the bare
+ * hash was chosen for. Positions that are identical in every stored field can
+ * still swap suffixes, which is unobservable precisely because nothing
+ * distinguishes them.
+ *
+ * A position with no twin keeps the bare hash, so this changed no id already
+ * stored.
+ */
+function positionExternalIds(announcementId: string, positions: Job108Position[]): string[] {
+  const hashes = positions.map(positionContentHash);
+  const groups = new Map<string, number[]>();
+  hashes.forEach((h, i) => {
+    const group = groups.get(h);
+    if (group === undefined) groups.set(h, [i]);
+    else group.push(i);
+  });
+
+  const suffixes = positions.map(() => '');
+  for (const indices of groups.values()) {
+    if (indices.length === 1) continue;
+    const byContent = [...indices].sort((a, b) => {
+      const ka = positionTiebreakKey(positions[a]!);
+      const kb = positionTiebreakKey(positions[b]!);
+      return ka < kb ? -1 : ka > kb ? 1 : a - b;
+    });
+    byContent.forEach((positionIndex, n) => {
+      suffixes[positionIndex] = `~${n + 1}`;
+    });
+  }
+
+  return hashes.map((h, i) => `${announcementId}#${h}${suffixes[i]}`);
+}
 
 /**
  * One row per position-type. `positionCount` rides along as evidence and is
@@ -88,8 +145,9 @@ export function toPostingRows(
   fetchedAt: Date = new Date(),
 ): Job108PostingRow[] {
   const posted = header.publishedDate ?? fetchedAt;
-  return positions.map((p) => ({
-    externalId: positionExternalId(header.announcementId, p),
+  const externalIds = positionExternalIds(header.announcementId, positions);
+  return positions.map((p, i) => ({
+    externalId: externalIds[i]!,
     title: p.title,
     employerName: header.agencyName,
     postedDate: posted,
@@ -228,10 +286,14 @@ export async function upsertJob108Announcement(args: {
         })),
       });
 
-      // The number actually written, not args.rows.length: createMany can
-      // legitimately write fewer rows than it was given (e.g. a duplicate
-      // externalId within the same batch), and the caller should be told
-      // what happened, not what was attempted.
+      // The number actually written, not args.rows.length. This comment used
+      // to claim createMany "can legitimately write fewer rows than it was
+      // given (e.g. a duplicate externalId within the same batch)" — that is
+      // only true with skipDuplicates, which is deliberately NOT set here.
+      // Without it a duplicate throws and takes the whole announcement with
+      // it, which is what positionExternalIds now prevents at the source. The
+      // count is still read back rather than assumed, so if the two ever
+      // disagree the caller is told what happened, not what was attempted.
       return { postingsWritten: created.count };
     },
     // A busy backfill announcement, or a moment of connection-pool
