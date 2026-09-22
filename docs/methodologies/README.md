@@ -13,7 +13,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 
 | Slug | Module(s) | Current version | Doc |
 |---|---|---|---|
-| `health-score` | Cockpit, Deep-Dive | `health-score.v1` | [health-score.md](./health-score.md) |
+| `health-score` | Cockpit, Deep-Dive | `health-score.v5.2` | [health-score.md](./health-score.md) |
 | `forecasting` | (deferred — no consumer since v1.9.7) | `forecasting.v1` | [forecasting.md](./forecasting.md) |
 | `gap-map` | Gap Analyzer | `gap-map.v2` | [gap-map.md](./gap-map.md) |
 | `gap-brief` | Gap Analyzer (Council brief) | `gap-brief.v1` | `packages/shared/src/ai/prompts/gap-brief.ts` |
@@ -24,13 +24,13 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `curriculum-heuristic` | PDF intake / curriculum extraction | `heuristic-v1` | In-code docstring: `apps/ingestion/src/pdf-intake/extractors/curriculum-extractor.ts` |
 | `curriculum-gemini` | PDF intake / curriculum extraction | `gemini-v1` | In-code docstring: `apps/ingestion/src/pdf-intake/extractors/curriculum-ai-extractor.ts` |
 | `outcome-review` | Decision Workspace | `outcome-review.v1` | See `apps/api/src/decisions/decision-review.service.ts` |
-| `analyst-safety` | AI Analyst | `analyst-safety.v1` | `packages/shared/src/analyst/safety.ts` |
-| `analyst-system` | AI Analyst | `analyst-system.v1` | `packages/shared/src/analyst/tools.ts` |
+| `analyst-safety` | AI Analyst | `analyst-safety.v3` | `packages/shared/src/analyst/safety.ts` |
+| `analyst-system` | AI Analyst | `analyst-system.v2` | `packages/shared/src/analyst/tools.ts` |
 | `ai-extraction-accuracy` | AI extraction governance | `ai-extraction-accuracy.v1` | [ai-extraction-accuracy.md](./ai-extraction-accuracy.md) |
 | `methodology-bundle` | Cross-cutting (release stamp) | `landscape-2026-05.v1` (tag) + 8-char fingerprint | `packages/db/src/methodology-bundle.ts` |
 | `verdict-stability` | Verdict back-test loop | `verdict-stability.v1` | [verdict-stability.md](./verdict-stability.md) |
 | `cross-scope-consistency` | Top-down vs bottom-up divergence | `cross-scope-consistency.v1` | [cross-scope-consistency.md](./cross-scope-consistency.md) |
-| `risk-scoring` | Risk Management (formula) | `risk-scoring.v1.9` | [risk-scoring.md](./risk-scoring.md) |
+| `risk-scoring` | Risk Management (formula) | `risk-scoring.v1.13` | [risk-scoring.md](./risk-scoring.md) |
 | `risk-management` | Risk Management (workflow) | `risk-management.v2` | [risk-management.md](./risk-management.md) |
 | `risk-measure-rules` | Risk Management (rule engine) | `risk-measure-rules.v1` | `packages/db/src/risk-measure-rules.ts` |
 | `risk-assessment` | Risk Management (AI prompt) | `risk-assessment.v3` | `packages/shared/src/ai/prompts/risk-assessment.ts` |

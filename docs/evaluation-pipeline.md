@@ -4,7 +4,9 @@
 >
 > **Audience.** Engineers + analysts working across modules. Read this before making cross-cutting changes; otherwise consult the per-methodology doc.
 >
-> **Last updated.** 2026-09-20 (`gap-map.v1 → gap-map.v2` — a second demand source, Thai government recruitment announcements scraped from job-108.com, joins JobThai behind a selectable `basis` parameter (`private` / `public` / `all`, default `all`). Bumped because the denominator a published figure was computed under has changed; a v1 demand share and a v2 demand share are not comparable. See `docs/methodologies/gap-map.md` and `docs/data-sources/job-108.md`.)
+> **Last updated.** 2026-09-21 (v1.9.8 — the job-108 archive is backfilled in full on dev: 1,997 announcements, 5,700 postings, 10.7 % of the demand corpus. No formula changed, so `gap-map.v2` is unchanged; what changed is coverage, and the blended basis now collapses `too-few-postings` from 9 fields to 1. Government-only field strings clearing the 5-mention floor went 0 → 262 (198 atomic, 64 compound — see `docs/methodologies/gap-map.md` §15 item 8). **The taxonomy has not been rebuilt, so none of those 262 has become a field yet.**)
+>
+> Previously 2026-09-20 (`gap-map.v1 → gap-map.v2` — a second demand source, Thai government recruitment announcements scraped from job-108.com, joins JobThai behind a selectable `basis` parameter (`private` / `public` / `all`, default `all`). Bumped because the denominator a published figure was computed under has changed; a v1 demand share and a v2 demand share are not comparable. See `docs/methodologies/gap-map.md` and `docs/data-sources/job-108.md`.)
 >
 > Previously 2026-09-19 (v1.9.7 — the Gap Analyzer is rebuilt as the demand-first field map `gap-map.v1`. `gap-analysis.v1`'s six lenses and `gap-lenses.v1`'s composite index are retired; `gap-insights` is replaced by `gap-brief.v1`; two new mapping prompts, `job-field-taxonomy.v1` and `program-job-field.v1`, build the rows. `forecasting.v1` loses its last consumer. See `docs/methodologies/gap-map.md`.)
 >

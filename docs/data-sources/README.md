@@ -8,35 +8,52 @@ Architectural overview of the ingestion pipeline lives at [`../data-sources.md`]
 
 ## Status dashboard
 
-Keep this table in sync as integrations land. The "Mode" column is the env-flag state (`CONNECTOR_<SLUG>_MODE`, or the global `CONNECTOR_MODE`).
+Keep this table in sync as integrations land. The "Mode" column is read from `data_sources` (`status` + `mocked`) and was last reconciled against the database on **2026-09-22**, when 19 rows were found stale — several connectors driving Council-facing numbers still read `mocked` here long after they were flipped. **Reconcile this column against the database, not against memory**; the two flags must move together (see the `data_sources` drift audit).
+
+All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connector and a `data_sources` row but no per-source spec document.
 
 | Phase | Slug | Owner / source | Mode today | Spec | Real implementation |
 |---|---|---|---|---|---|
-| **A** Internal | `kku-registry` | KKU Registration Division | `mocked` | [kku-registry.md](./kku-registry.md) | — |
-| **A** Internal | `kku-finance` | KKU Finance Division | `mocked` | [kku-finance.md](./kku-finance.md) | Blocked on cost methodology v1.0 |
-| **A** Internal | `kku-hr` | KKU Human Resources | `mocked` | [kku-hr.md](./kku-hr.md) | PDPA sign-off required |
-| **A** Internal | `kku-alumni` | KKU Alumni Affairs | `mocked` | [kku-alumni.md](./kku-alumni.md) | — |
-| **A** Internal | `kku-research` | KKU Research Affairs | `mocked` | [kku-research.md](./kku-research.md) | — |
-| **A** Internal | `kku-evaluations` | KKU Student Evaluations (Teaching & Learning) | `mocked` | [kku-evaluations.md](./kku-evaluations.md) | Phase 0 complete 2026-05-19 |
+| **A** Internal | `kku-registry` | KKU Registration Division | **`real`** | [kku-registry.md](./kku-registry.md) | — |
+| **A** Internal | `kku-finance` | KKU Finance Division | **`real`** | [kku-finance.md](./kku-finance.md) | Blocked on cost methodology v1.0 |
+| **A** Internal | `kku-hr` | KKU Human Resources | **`real`** | [kku-hr.md](./kku-hr.md) | PDPA sign-off required |
+| **A** Internal | `kku-alumni` | KKU Alumni Affairs | **`real`** | [kku-alumni.md](./kku-alumni.md) | — |
+| **A** Internal | `kku-research` | KKU Research Affairs | **`real`** | [kku-research.md](./kku-research.md) | — |
+| **A** Internal | `kku-evaluations` | KKU Student Evaluations (Teaching & Learning) | **`real`** | [kku-evaluations.md](./kku-evaluations.md) | Phase 0 complete 2026-05-19 |
 | **A** Internal | `digital-transcript` | Thailand Digital Transcript | `mocked` | [digital-transcript.md](./digital-transcript.md) | — |
 | **A** Internal | `mhesi-cisa` | MHESI CISA portal | `mocked` | [mhesi-cisa.md](./mhesi-cisa.md) | — |
 | **B** National | `nso-labor-force` | NSO Thailand | `mocked` | [nso-labor-force.md](./nso-labor-force.md) | PDF pipeline |
 | **B** National | `tpqi` | TPQI | `mocked` | [tpqi.md](./tpqi.md) | Mixed PDF + API |
-| **B** National | `tcas` | ทปอ. / MUA | `mocked` | [tcas.md](./tcas.md) | PDF + XLSX |
-| **B** National | `jobthai` | JobThai | `mocked` | [jobthai.md](./jobthai.md) | Paid access agreement |
+| **B** National | `tcas` | ทปอ. / MUA | **`real`** | [tcas.md](./tcas.md) | PDF + XLSX |
+| **B** National | `jobthai` | JobThai | **`real`** | [jobthai.md](./jobthai.md) | Paid access agreement |
 | **B** National | `jobsdb` | JobsDB / SEEK | `mocked` | [jobsdb.md](./jobsdb.md) | Paid access agreement |
-| **B** National | `mhesi-policy` | MHESI publications | `mocked` | [mhesi-policy.md](./mhesi-policy.md) | RSS / scrape |
-| **B** National | `nesdc-reports` | NESDC | `mocked` | [nesdc-reports.md](./nesdc-reports.md) | PDF bulk-load |
-| **B** National | `nxpo-reports` | NXPO | `mocked` | [nxpo-reports.md](./nxpo-reports.md) | PDF bulk-load |
-| **B** National | `boi-sectoral` | BOI | `mocked` | [boi-sectoral.md](./boi-sectoral.md) | PDF bulk-load |
-| **B** National | `eeco-reports` | EECO | `mocked` | [eeco-reports.md](./eeco-reports.md) | PDF bulk-load |
-| **C** Intl | `openalex` | OpenAlex | `mocked` | [openalex.md](./openalex.md) | Free; priority target |
-| **C** Intl | `wef-future-of-jobs` | World Economic Forum | `mocked` | [wef-future-of-jobs.md](./wef-future-of-jobs.md) | Annual PDF |
-| **C** Intl | `oecd-reports` | OECD | `mocked` | [oecd-reports.md](./oecd-reports.md) | Mixed API + PDF |
-| **C** Intl | `world-bank` | World Bank | `mocked` | [world-bank.md](./world-bank.md) | Open data API |
-| **C** Intl | `adb-gms` | ADB Greater Mekong Subregion | `mocked` | [adb-gms.md](./adb-gms.md) | PDF reports |
-| **C** Intl | `scopus` | Elsevier Scopus | `mocked` | [scopus.md](./scopus.md) | Paid (KKU Library) |
+| **B** National | `mhesi-policy` | MHESI publications | **`real`** | [mhesi-policy.md](./mhesi-policy.md) | RSS / scrape |
+| **B** National | `nesdc-reports` | NESDC | **`real`** | [nesdc-reports.md](./nesdc-reports.md) | PDF bulk-load |
+| **B** National | `nxpo-reports` | NXPO | **`real`** | [nxpo-reports.md](./nxpo-reports.md) | PDF bulk-load |
+| **B** National | `boi-sectoral` | BOI | **`real`** | [boi-sectoral.md](./boi-sectoral.md) | PDF bulk-load |
+| **B** National | `eeco-reports` | EECO | **`real`** | [eeco-reports.md](./eeco-reports.md) | PDF bulk-load |
+| **C** Intl | `openalex` | OpenAlex | `deprecated` | [openalex.md](./openalex.md) | Free; priority target |
+| **C** Intl | `wef-future-of-jobs` | World Economic Forum | **`real`** | [wef-future-of-jobs.md](./wef-future-of-jobs.md) | Annual PDF |
+| **C** Intl | `oecd-reports` | OECD | **`real`** | [oecd-reports.md](./oecd-reports.md) | Mixed API + PDF |
+| **C** Intl | `world-bank` | World Bank | **`real`** | [world-bank.md](./world-bank.md) | Open data API |
+| **C** Intl | `adb-gms` | ADB Greater Mekong Subregion | **`real`** | [adb-gms.md](./adb-gms.md) | PDF reports |
+| **C** Intl | `scopus` | Elsevier Scopus | `deprecated` | [scopus.md](./scopus.md) | Paid (KKU Library) |
 | **C** Intl | `peer-programs-scraper` | ASEAN + global peers | `mocked` | [peer-programs-scraper.md](./peer-programs-scraper.md) | Hand-curate first 20 |
+| **A** Internal | `unicon-ds1001` | UNICON DS1001 — Student information | **`real`** | — *(no spec yet)* | UNICON feed |
+| **A** Internal | `unicon-ds2001` | UNICON DS2001 — Staff master record | **`real`** | — *(no spec yet)* | UNICON feed |
+| **A** Internal | `unicon-ds2003` | UNICON DS2003 — Employee education qualifications | **`real`** | — *(no spec yet)* | UNICON feed |
+| **A** Internal | `unicon-ds2004` | UNICON DS2004 — Academic staff per program | **`real`** | — *(no spec yet)* | UNICON feed |
+| **A** Internal | `kku-admission-campaigns` | KKU Actual Recruitment Campaigns | **`real`** | — *(no spec yet)* | — |
+| **A** Internal | `kku-dq` | KKU Digital Intelligence (DQ) Student Scores | **`real`** | — *(no spec yet)* | — |
+| **A** Internal | `kku-hr-processed` | KKU HR Processed — salary aggregate | **`real`** | — *(no spec yet)* | — |
+| **A** Internal | `kku-tcas-funnel` | KKU TCAS Admission Funnel | `deprecated` | — *(no spec yet)* | Superseded by `tcas` |
+| **B** National | `job-108` | Job-108 — Thai government job announcements | **`real`** | [job-108.md](./job-108.md) | Public web, honest UA, no proxy |
+| **B** National | `kmitl-skill-mapping` | LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted) | **`real`** | [kmitl-skill-mapping.md](./kmitl-skill-mapping.md) | Institutional-partner API |
+| **B** National | `thailand-demographics` | Thailand Demographics (DOPA · NESDC · BOI repost) | `mocked` | — *(no spec yet)* | — |
+| **C** International | `the-rankings` | Times Higher Education (THE) Subject Rankings | `mocked` | — *(no spec yet)* | Subscription |
+| **C** International | `qs-rankings` | QS Subject Rankings | `mocked` | — *(no spec yet)* | Subscription |
+| **C** International | `scimago` | SCImago Journal & Institution Rankings | `mocked` | — *(no spec yet)* | Public |
+| **C** International | `imd-rankings` | IMD World Competitiveness Rankings | **`real`** | — *(no spec yet)* | Subscription |
 
 Phase ordering tracks the prompt-14 priority list: A (highest-leverage internal) → B (national Thai) → C (regional + international).
 

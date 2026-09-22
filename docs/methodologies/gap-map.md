@@ -349,14 +349,25 @@ English names. Each field absorbs its raw strings as **synonyms**, and a raw
 string belongs to at most one field — enforced in
 `packages/db/src/job-fields.ts`, because Postgres cannot express it.
 
-**On the 35-announcement job-108 sample measured so far**: 75 distinct
-government field strings, of which **22 appear on no JobThai posting at
+**With the job-108 archive fully loaded (2026-09-21)**: 6,101 distinct
+government field strings, of which **2,247 appear on no JobThai posting at
 all** — the premise of the whole feature, that the state advertises for
-disciplines the private board does not. **None of those 22 has cleared the
-5-mention floor yet**; each appears once or twice on 35 announcements, so
-none has entered the taxonomy. See §14 and §15 item 8 — the ~2,000-
-announcement backfill is what gives these strings a chance to be counted at
-all, not merely more evidence for fields already on the map.
+disciplines the private board does not — and **262 of those now clear the
+5-mention floor**, against **none** on the 35-announcement sample, when only
+22 government-only strings existed at all.
+
+**Report that 262 split, because the halves mean different things.** **198
+are atomic** — no และ, no space, so JobThai's first-token rule *could* have
+emitted them and their absence is a genuine market fact (แพทยศาสตร์ 80,
+ทันตแพทยศาสตร์ 47, วิทยาศาสตร์กายภาพ 176). **64 are compound** and JobThai's
+reader could never have produced them whatever the market did, so counting
+those as absences would credit this source with a gap that is an artefact of
+the *other* extractor — the same และ-splitting defect recorded at §15 item 7.
+
+**The strings are stored; the fields are not yet built.** `pnpm
+jobthai:fields --apply` has not been run since the backfill, so none of the
+262 has entered `job_field_taxonomy` and the map still renders 76 rows. The
+dry run plans **25 new fields** for ≈ $0.10. See §14 and §15 item 8.
 
 *Both halves of that fraction exclude the `*ANY*` sentinel, which
 `collectRawFieldStrings` drops before anything else happens. Counting it
@@ -809,16 +820,21 @@ Every item here is genuinely undecided. None is a bug.
    `source='jobthai'`. **Not fixed here** — fixing it would move every
    existing JobThai-side demand share on `/gap-analysis`, which needs its own
    deliberate change and version bump rather than riding in on this one.
-8. **The 22 job-108-only field strings measured on 35 announcements are all
-   below `JOB_FIELD_MENTION_FLOOR` (5)**, so none of them has yet entered
-   `job_field_taxonomy` — public-only disciplines (e.g.
-   `รัฐประศาสนศาสตร์/บริหารรัฐกิจ`, public administration) exist in the raw
-   `job_postings` data today but cannot yet earn a row on the map. **The
-   ~2,000-announcement archive backfill (`pnpm job108:backfill`, ≈ $15 at the
-   measured $0.0077/announcement rate) is therefore a precondition for
-   public-only fields to appear at all, not merely a refinement of figures
-   already showing** — until it runs, every government-only discipline is
-   invisible to the map regardless of how real the underlying demand is.
+8. **RESOLVED on dev 2026-09-21, still open in production, and half-done
+   either way.** The archive backfill has run on dev — 1,997 announcements,
+   5,700 postings, $11.00 against the ≈ $15 projected — and government-only
+   strings clearing `JOB_FIELD_MENTION_FLOOR` went **0 → 262**. Two things
+   remain. **(a)** The taxonomy has not been rebuilt, so those 262 strings
+   are stored but no canonical field carries them: `pnpm jobthai:fields
+   --apply`, measured at **$0.0946** for the identical dry run, plans 25 new
+   fields. Until it runs the map still shows 76 rows and a public-only
+   discipline is still invisible. **(b)** Production starts from an empty
+   table, so the whole 3-hour backfill is a post-deploy step there. **A new
+   open question the backfill created:** the floor now rejects **5,212 of
+   6,101** raw strings on a corpus whose government half is markedly more
+   verbose than JobThai's, so whether 5 is still the right floor with two
+   sources is a methodology decision — changing it would move existing
+   published figures and needs its own version bump.
 9. **Per-position government detail is not yet carried into `GapMapRow`.**
    `job108Announcement` / `jobPosting` rows carry seats, salary range,
    education-level floor and the agency name per position, but a `GapMapRow`

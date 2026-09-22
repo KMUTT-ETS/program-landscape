@@ -1,6 +1,6 @@
 # KKU Curriculum Intelligence Platform — Program Landscape
 
-**User manual — v1.0 · 2026-04-24**
+**User manual — v1.1 · 2026-09-22 · documents Program Landscape v1.9.8**
 
 This manual covers every role that uses the application, the features each can reach, and — for administrators — the end-to-end workflow for processing input documents and managing the data pipeline.
 
