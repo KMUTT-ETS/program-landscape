@@ -84,6 +84,52 @@ describe('mapMeta — demand basis', () => {
     expect(params[windowIdx]!.value).toContain('12');
   });
 
+  /* The provenance drawer and the Council brief cite what a figure rests on.
+   * GAP_MAP_SOURCES listed only jobthai, so a blended- or public-basis figure
+   * under-stated its own sources; naively adding job-108 to the static list
+   * would swap that for the opposite error, citing a board a private-basis
+   * figure never read. The cited demand boards are therefore derived from
+   * `demandSourcesFor`, the same function that decides the denominator, so
+   * the two cannot drift. */
+  it('cites exactly the demand boards its denominator read, per basis', () => {
+    const expected: Record<string, string[]> = {
+      all: ['jobthai', 'job-108'],
+      private: ['jobthai'],
+      public: ['job-108'],
+    };
+    for (const basis of DEMAND_BASES) {
+      const meta = mapMeta({
+        thresholds: { under: 0.5, over: 2 },
+        demand: { basis, publicWindowMonths: 12, publicWindowFrom: '2025-09-20' },
+        reconciliation,
+        freshnessDate: null,
+      });
+      const ids = (meta.sources ?? []).map((s) => s.id);
+      for (const id of expected[basis]!) expect(ids).toContain(id);
+      for (const id of ['jobthai', 'job-108']) {
+        if (!expected[basis]!.includes(id)) expect(ids).not.toContain(id);
+      }
+      // The supply and signal sources are basis-independent and must survive.
+      expect(ids).toContain('alumni-cohort-statuses');
+      expect(ids).toContain('job-field-taxonomy');
+    }
+  });
+
+  it('gives every cited source a human name, never a bare slug', () => {
+    for (const basis of DEMAND_BASES) {
+      const meta = mapMeta({
+        thresholds: { under: 0.5, over: 2 },
+        demand: { basis, publicWindowMonths: 12, publicWindowFrom: '2025-09-20' },
+        reconciliation,
+        freshnessDate: null,
+      });
+      for (const src of meta.sources ?? []) {
+        expect(src.name.length).toBeGreaterThan(0);
+        expect(src.name).not.toBe(src.id);
+      }
+    }
+  });
+
   it('names the sources in words, not slugs, for each basis', () => {
     for (const basis of DEMAND_BASES) {
       const meta = mapMeta({

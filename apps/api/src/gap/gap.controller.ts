@@ -26,7 +26,12 @@ import {
   ZodValidationPipe,
   clampScopeForUser,
 } from '../common';
-import { GAP_MAP_SOURCES, GapBriefService, type BriefVerdictFilter } from './gap-brief.service';
+import {
+  GAP_MAP_SOURCES,
+  gapMapSourcesFor,
+  GapBriefService,
+  type BriefVerdictFilter,
+} from './gap-brief.service';
 import { GapService } from './gap.service';
 
 // Gap Analyzer API — the demand-first map (gap-map.v2 since the job-108
@@ -130,10 +135,15 @@ export function mapMeta(args: {
     'scoredWithSupply' | 'supplyFromProxy' | 'publicAnnouncements' | 'publicPositions' | 'publicSeats'
   >;
   freshnessDate: string | null;
-}): Pick<ApiMeta, 'freshnessDate' | 'caveats' | 'methodologyParameters'> {
+}): Pick<ApiMeta, 'freshnessDate' | 'caveats' | 'methodologyParameters' | 'sources'> {
   const { scoredWithSupply, supplyFromProxy, publicAnnouncements, publicPositions, publicSeats } = args.reconciliation;
   return {
     freshnessDate: args.freshnessDate,
+    // Overrides the route's static @Provenance sources. The decorator cannot
+    // know the basis, and a figure must cite the boards its denominator
+    // actually read — see gapMapSourcesFor. The interceptor merges
+    // `{ ...provenance, ...meta }`, so this wins.
+    sources: gapMapSourcesFor(args.demand.basis),
     methodologyParameters: [
       { label: 'Demand counted from', value: DEMAND_BASIS_LABELS[args.demand.basis] },
       {

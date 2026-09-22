@@ -18,6 +18,11 @@ import {
   GAP_BRIEF_VERSION,
   GapBriefOutputSchema,
   lintBannedTells,
+  DEFAULT_DEMAND_BASIS,
+  demandSourcesFor,
+  PRIVATE_DEMAND_SOURCE,
+  PUBLIC_DEMAND_SOURCE,
+  type DemandBasis,
   type AiMessage,
   type AiProviderId,
   type AiService,
@@ -70,8 +75,22 @@ export interface GapBriefResponse {
   reason: 'ok' | 'empty-view' | 'no-provider';
 }
 
-export const GAP_MAP_SOURCES = [
-  { id: 'jobthai', name: 'JobThai job postings (fields of study, occupations, provinces)' },
+/** Human names for the two demand boards, keyed by the **same slugs
+ *  `demandSourcesFor` returns**. That keying is the point: the drawer cites
+ *  whichever boards actually formed the denominator, so a citation cannot
+ *  drift from the query. Adding a third board means adding its slug here and
+ *  to `SOURCES_BY_BASIS`; miss this one and `gapMapSourcesFor` throws rather
+ *  than silently citing a slug with no name. */
+const DEMAND_SOURCE_NAMES: Readonly<Record<string, string>> = {
+  [PRIVATE_DEMAND_SOURCE]: 'JobThai job postings (fields of study, occupations, provinces)',
+  [PUBLIC_DEMAND_SOURCE]:
+    'Job-108 government recruitment announcements (fields of study, seats, minimum education level)',
+};
+
+/** Everything the map reads that is *not* a demand board. These are
+ *  basis-independent: the supply side, the shared vocabulary and the signal
+ *  feeds are the same whichever market the denominator counts. */
+const GAP_MAP_COMMON_SOURCES: readonly { id: string; name: string }[] = [
   { id: 'job-field-taxonomy', name: 'Field-of-study taxonomy (AI-clustered, admin-reviewed)' },
   { id: 'alumni-cohort-statuses', name: 'Registrar alumni cohorts (graduates per year)' },
   { id: 'student-cohort-distributions', name: 'Registrar active cohorts (pipeline)' },
@@ -81,6 +100,33 @@ export const GAP_MAP_SOURCES = [
   },
   { id: 'trend-signals', name: 'Trends Radar signals' },
 ];
+
+/**
+ * What a figure computed under `basis` actually rests on.
+ *
+ * Before this existed the list was static and named only JobThai, so a
+ * blended- or public-basis figure under-stated its sources. A static list
+ * naming both boards would have been the mirror error — a `private` figure
+ * citing government announcements it never read — which is why this is
+ * per-request. `@Provenance` is static metadata and cannot express it; the
+ * response interceptor merges `{ ...provenance, ...meta }`, so the handler's
+ * `mapMeta` overrides the decorator for the routes that take a basis.
+ */
+export function gapMapSourcesFor(basis: DemandBasis): { id: string; name: string }[] {
+  return [
+    ...demandSourcesFor(basis).map((id) => {
+      const name = DEMAND_SOURCE_NAMES[id];
+      if (name === undefined) throw new Error(`gapMapSourcesFor: no provenance name for demand source '${id}'`);
+      return { id, name };
+    }),
+    ...GAP_MAP_COMMON_SOURCES.map((s) => ({ ...s })),
+  ];
+}
+
+/** Static fallback for `@Provenance`, and the source list the Council brief
+ *  cites — the brief has no basis selector and always briefs the blended
+ *  default, so the blended list is the correct one for it. */
+export const GAP_MAP_SOURCES = gapMapSourcesFor(DEFAULT_DEMAND_BASIS);
 
 /** The rows the reader has on screen, in the order the page shows them. */
 export function visibleRows(map: GapMapResult, verdict: BriefVerdictFilter, facultyId: string | null): GapMapRow[] {
