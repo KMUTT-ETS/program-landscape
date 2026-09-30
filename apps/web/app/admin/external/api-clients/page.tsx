@@ -43,7 +43,7 @@ export default async function AdminApiClientsPage() {
             <h1 className="text-2xl font-medium tracking-tight">API clients</h1>
             <p className="mt-1 max-w-[720px] text-sm text-text-secondary">
               Other KKU systems call{' '}
-              <code className="rounded bg-surface-2 px-1">POST /api/v1/external/staff-profile</code> with a key
+              <code className="rounded-sm bg-surface-2 px-1">POST /api/v1/external/staff-profile</code> with a key
               issued here. Keys are shown once.
             </p>
           </div>

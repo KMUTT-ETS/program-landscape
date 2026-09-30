@@ -68,6 +68,9 @@ export interface ApiFetchError extends Error {
   status: number | null;
   code: string | null;
   category: ApiFetchErrorCategory;
+  /** The envelope's `error.details` when the API sent one (e.g. Zod
+   *  `issues` on VALIDATION_FAILED); absent for network / decode failures. */
+  details?: Record<string, unknown> | null;
 }
 
 function categoriseStatus(status: number, errorCode: string | null): ApiFetchErrorCategory {
@@ -123,6 +126,7 @@ export async function apiFetch<T>(
     e.status = res.status;
     e.code = code;
     e.category = categoriseStatus(res.status, code);
+    e.details = json.error?.details ?? null;
     throw e;
   }
   return json.data as T;

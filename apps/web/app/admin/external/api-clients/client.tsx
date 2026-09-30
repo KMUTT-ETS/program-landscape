@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Badge,
@@ -42,7 +42,7 @@ const IP_ALLOWLIST_OFF_NOTE =
 const USAGE_STATUSES = [200, 400, 403, 404, 429, 500] as const;
 
 const DANGER_BOX =
-  'rounded-lg border border-[oklch(var(--color-danger-default)/0.3)] bg-danger-default/5 p-3 text-sm text-danger-default';
+  'rounded-lg border border-[oklch(var(--color-danger-default)/0.3)] bg-danger/5 p-3 text-sm text-danger';
 
 interface Draft {
   name: string;
@@ -87,7 +87,16 @@ function viewToDraft(c: ApiClientDetail): Draft {
 /** Returns a validation message, or the input the API expects. */
 function draftToInput(d: Draft): { error: string } | { input: ApiClientInput } {
   const name = d.name.trim();
-  if (name.length < 2) return { error: 'Name must be at least 2 characters.' };
+  if (name.length < 2 || name.length > 100) return { error: 'Name must be 2 to 100 characters.' };
+  if (d.description.trim().length > 500) return { error: 'Description must be 500 characters or fewer.' };
+  if (d.ownerContact.trim().length > 200) return { error: 'Contact must be 200 characters or fewer.' };
+  const ipAllowlist = d.ipText
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const badIp = ipAllowlist.find((s) => !IP_OR_CIDR.test(s));
+  if (badIp) return { error: `"${badIp}" is not an IP address or CIDR range.` };
+  if (ipAllowlist.length > 50) return { error: 'At most 50 IP ranges.' };
   const rate = Number(d.rateLimit);
   if (!Number.isInteger(rate) || rate < 1 || rate > 600) {
     return { error: 'Rate limit must be a whole number from 1 to 600.' };
@@ -101,14 +110,15 @@ function draftToInput(d: Draft): { error: string } | { input: ApiClientInput } {
       allowCitizenIdLookup: d.allowCitizenIdLookup,
       allowEmailLookup: d.allowEmailLookup,
       includeInactive: d.includeInactive,
-      ipAllowlist: d.ipText
-        .split('\n')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0),
+      ipAllowlist,
       rateLimitPerMinute: rate,
     },
   };
 }
+
+// A shape check only — the API validates each entry properly with
+// isValidAllowlistEntry, which cannot be imported here (it uses node:net).
+const IP_OR_CIDR = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/;
 
 function relativeTime(iso: string | null): string {
   if (!iso) return 'Never';
@@ -241,7 +251,9 @@ export function ApiClientsClient({
                 return (
                   <tr
                     key={c.id}
-                    className="cursor-pointer border-t border-default align-top hover:bg-surface-2/60 focus-visible:bg-surface-2/60 focus-visible:outline-none"
+                    className="cursor-pointer border-t border-default align-top hover:bg-surface-2/60 focus-visible:bg-surface-2/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-default"
+                    role="button"
+                    aria-label={`Open ${c.name}`}
                     tabIndex={0}
                     onClick={() => setSelectedId(c.id)}
                     onKeyDown={(e) => {
@@ -273,7 +285,7 @@ export function ApiClientsClient({
                     <td className="px-3 py-3 text-right tabular-nums">{c.requests30d.toLocaleString()}</td>
                     <td
                       className={`px-3 py-3 text-right tabular-nums ${
-                        rate !== null && rate > 0.2 ? 'text-warning-default' : ''
+                        rate !== null && rate > 0.2 ? 'text-warning' : ''
                       }`}
                       title={rate === null ? undefined : `${c.notFound30d} of ${c.requests30d} requests`}
                     >
@@ -372,7 +384,13 @@ function KeyRevealDialog({ reveal, onClose }: { reveal: RevealState | null; onCl
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-xl">
+      {/* Only Done closes it: Escape or a stray click outside would destroy the
+          one copy of the key. */}
+      <DialogContent
+        className="max-w-xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         {reveal ? (
           <>
             <DialogHeader>
@@ -399,15 +417,15 @@ function KeyRevealDialog({ reveal, onClose }: { reveal: RevealState | null; onCl
             </div>
             <div className="mt-2 min-h-[1.25rem] text-xs" aria-live="polite">
               {copied === 'copied' ? (
-                <span className="inline-flex items-center gap-1 text-success-default">
+                <span className="inline-flex items-center gap-1 text-success">
                   <CheckCircle2 className="size-icon-xs" aria-hidden /> Copied to clipboard.
                 </span>
               ) : copied === 'failed' ? (
-                <span className="text-danger-default">Clipboard is blocked here; select the key and copy it by hand.</span>
+                <span className="text-danger">Clipboard is blocked here; select the key and copy it by hand.</span>
               ) : null}
             </div>
-            <div className="mt-2 flex items-start gap-2 rounded-lg border border-[oklch(var(--color-warning-default)/0.35)] bg-warning-default/5 p-3 text-sm">
-              <TriangleAlert className="mt-[2px] size-icon-sm shrink-0 text-warning-default" aria-hidden />
+            <div className="mt-2 flex items-start gap-2 rounded-lg border border-[oklch(var(--color-warning-default)/0.35)] bg-warning/5 p-3 text-sm">
+              <TriangleAlert className="mt-[2px] size-icon-sm shrink-0 text-warning" aria-hidden />
               <span>Copy this key now. It will not be shown again.</span>
             </div>
             <div className="mt-4 flex justify-end">
@@ -443,12 +461,21 @@ function ClientDetailPanel({
   const [expiry, setExpiry] = useState('');
   const [revoking, setRevoking] = useState<{ keyId: string; reason: string } | null>(null);
 
+  // The client the panel is showing NOW. Every async result checks it before
+  // touching state, so a slow response for client A can never land in (and
+  // reset the settings form of) client B's panel.
+  const currentIdRef = useRef<string | null>(clientId);
+  currentIdRef.current = clientId;
+  const isCurrent = (id: string) => currentIdRef.current === id;
+
   const load = useCallback(async (id: string) => {
     const res = await getApiClientDetailAction(id);
+    if (currentIdRef.current !== id) return;
     if (!res.ok) {
       setLoadError(res.message);
       return;
     }
+    setLoadError(null);
     setDetail(res.data);
     setDraft(viewToDraft(res.data));
   }, []);
@@ -464,19 +491,23 @@ function ClientDetailPanel({
     if (clientId) void load(clientId);
   }, [clientId, load]);
 
-  function mutate(fn: () => Promise<{ ok: true } | { ok: false; message: string }>, success: string) {
-    if (!clientId) return;
+  function mutate(
+    id: string,
+    fn: () => Promise<{ ok: true } | { ok: false; message: string }>,
+    success: string,
+  ) {
     setError(null);
     setNotice(null);
     startTransition(async () => {
       const res = await fn();
+      router.refresh();
+      if (!isCurrent(id)) return;
       if (!res.ok) {
         setError(res.message);
         return;
       }
       setNotice(success);
-      await load(clientId);
-      router.refresh();
+      await load(id);
     });
   }
 
@@ -490,14 +521,17 @@ function ClientDetailPanel({
     // With allowlists off the field is read-only; leave the stored value alone.
     const { ipAllowlist, ...rest } = parsed.input;
     const patch = ipAllowlistEnabled ? { ...rest, ipAllowlist } : rest;
-    mutate(() => updateApiClientAction(clientId, patch), 'Settings saved.');
+    const id = clientId;
+    mutate(id, () => updateApiClientAction(id, patch), 'Settings saved.');
   }
 
   function toggleStatus() {
     if (!clientId || !detail) return;
     const status = detail.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
+    const id = clientId;
     mutate(
-      () => updateApiClientAction(clientId, { status }),
+      id,
+      () => updateApiClientAction(id, { status }),
       status === 'DISABLED' ? 'Client disabled. Its keys stop working immediately.' : 'Client enabled.',
     );
   }
@@ -514,18 +548,22 @@ function ClientDetailPanel({
       expiresAt = d.toISOString();
     }
     const clientName = detail.name;
+    const id = clientId;
     setError(null);
     setNotice(null);
     startTransition(async () => {
-      const res = await issueApiKeyAction(clientId, expiresAt);
+      const res = await issueApiKeyAction(id, expiresAt);
+      // The key is revealed even if the admin has moved to another client
+      // meanwhile — it is the only copy, and the dialog names its client.
+      if (res.ok) onKeyIssued({ clientName, key: res.data });
+      router.refresh();
+      if (!isCurrent(id)) return;
       if (!res.ok) {
         setError(res.message);
         return;
       }
       setExpiry('');
-      onKeyIssued({ clientName, key: res.data });
-      await load(clientId);
-      router.refresh();
+      await load(id);
     });
   }
 
@@ -538,13 +576,16 @@ function ClientDetailPanel({
     }
     const { keyId } = revoking;
     setRevoking(null);
-    mutate(() => revokeApiKeyAction(clientId, keyId, reason), 'Key revoked.');
+    const id = clientId;
+    mutate(id, () => revokeApiKeyAction(id, keyId, reason), 'Key revoked.');
   }
 
-  const tomorrow = useMemo(() => {
-    const d = new Date(Date.now() + 86_400_000);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, []);
+  // Recomputed on every render (cheap), so a panel left open past midnight
+  // still offers the right earliest date.
+  const tomorrowDate = new Date(Date.now() + 86_400_000);
+  const tomorrow = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, '0')}-${String(
+    tomorrowDate.getDate(),
+  ).padStart(2, '0')}`;
 
   const usage = useMemo(() => {
     const counts = new Map((detail?.statusCounts30d ?? []).map((r) => [r.status, r.count]));
@@ -599,7 +640,7 @@ function ClientDetailPanel({
           {error ? <div className={DANGER_BOX}>{error}</div> : null}
           {notice ? (
             <div
-              className="rounded-lg border border-[oklch(var(--color-success-default)/0.3)] bg-success-default/5 p-3 text-sm"
+              className="rounded-lg border border-[oklch(var(--color-success-default)/0.3)] bg-success/5 p-3 text-sm"
               aria-live="polite"
             >
               {notice}
@@ -651,7 +692,7 @@ function ClientDetailPanel({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-danger-default hover:text-danger-default"
+                              className="text-danger hover:text-danger"
                               onClick={() => {
                                 setError(null);
                                 setRevoking({ keyId: k.id, reason: '' });
@@ -713,7 +754,11 @@ function ClientDetailPanel({
                   value={expiry}
                   onChange={(e) => setExpiry(e.target.value)}
                   className="w-[11rem]"
+                  aria-describedby="key-expiry-hint"
                 />
+                <span id="key-expiry-hint" className="text-[11px] text-text-tertiary">
+                  Expires at 23:59:59 local time on the chosen day
+                </span>
               </label>
               <Button size="sm" onClick={issueKey} disabled={pending || detail.status !== 'ACTIVE'}>
                 <KeyRound className="size-icon-sm" aria-hidden /> Issue key
@@ -801,7 +846,7 @@ function ClientDetailPanel({
             </pre>
             <p className="mt-2 text-xs text-text-tertiary">
               Full contract, error codes and field list:{' '}
-              <code className="rounded bg-surface-2 px-1">docs/integrations/staff-profile-api.md</code>
+              <code className="rounded-sm bg-surface-2 px-1">docs/integrations/staff-profile-api.md</code>
             </p>
           </PanelSection>
         </div>

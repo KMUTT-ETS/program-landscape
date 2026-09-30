@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, type ApiFetchError } from '@/lib/api-client';
 import { can, type SessionUser } from '@kku/shared';
 import type {
   ApiClientDetail,
@@ -21,6 +21,21 @@ import type {
 const PAGE = '/admin/external/api-clients';
 type Result<T> = { ok: true; data: T } | { ok: false; message: string };
 
+/** The API's message, plus the first Zod issue when it rejected the body —
+ *  "Request validation failed" alone does not tell an admin which field. */
+function errorMessage(e: unknown): string {
+  const err = e as Partial<ApiFetchError>;
+  const base = err.message ?? 'Request failed';
+  const issues = err.details?.issues;
+  if (Array.isArray(issues) && issues.length > 0) {
+    const first = issues[0] as { path?: unknown; message?: unknown };
+    const where = Array.isArray(first.path) && first.path.length > 0 ? first.path.join('.') : null;
+    const what = typeof first.message === 'string' ? first.message : null;
+    if (what) return `${base}: ${where ? `${where} ` : ''}${what}`;
+  }
+  return base;
+}
+
 async function guard(): Promise<string | null> {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
@@ -35,7 +50,7 @@ async function run<T>(fn: () => Promise<T>): Promise<Result<T>> {
     revalidatePath(PAGE);
     return { ok: true, data };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: errorMessage(e) };
   }
 }
 
@@ -83,6 +98,6 @@ export async function getApiClientDetailAction(id: string): Promise<Result<ApiCl
   try {
     return { ok: true, data: await apiFetch<ApiClientDetail>(`/admin/api-clients/${encodeURIComponent(id)}`) };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: errorMessage(e) };
   }
 }
