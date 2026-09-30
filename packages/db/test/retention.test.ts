@@ -140,6 +140,7 @@ describe('runRetentionSweep', () => {
   const aiDelete = vi.fn();
   const archiveDelete = vi.fn();
   const bindUpdate = vi.fn();
+  const apiLogDelete = vi.fn();
   // The page-view rule is raw SQL rather than a delegate call. Its own
   // behaviour is covered in usage-retention.test.ts; here it only has to be
   // reachable, and `$queryRaw` returning no candidate days makes it a no-op.
@@ -152,6 +153,7 @@ describe('runRetentionSweep', () => {
     aiInference: { updateMany: aiUpdate, deleteMany: aiDelete },
     scholarFetchArchive: { deleteMany: archiveDelete },
     scholarBindAttempt: { updateMany: bindUpdate },
+    apiRequestLog: { deleteMany: apiLogDelete },
     $queryRaw: queryRaw,
     $executeRaw: executeRaw,
     $transaction: transaction,
@@ -163,6 +165,7 @@ describe('runRetentionSweep', () => {
     aiDelete.mockReset();
     archiveDelete.mockReset().mockResolvedValue({ count: 0 });
     bindUpdate.mockReset().mockResolvedValue({ count: 0 });
+    apiLogDelete.mockReset().mockResolvedValue({ count: 7 });
     queryRaw.mockReset().mockResolvedValue([]);
     executeRaw.mockReset().mockResolvedValue(0);
     transaction
@@ -327,6 +330,21 @@ describe('runRetentionSweep', () => {
     );
   });
 
+  it('hard-deletes api request log rows older than 365 days and reports the count', async () => {
+    auditDelete.mockResolvedValue({ count: 0 });
+    aiUpdate.mockResolvedValue({ count: 0 });
+    aiDelete.mockResolvedValue({ count: 0 });
+    const now = new Date('2026-09-30T00:00:00Z');
+    expect(computeRetentionCutoffs(now).apiRequestLogDeleteBefore.toISOString()).toBe(
+      '2025-09-30T00:00:00.000Z',
+    );
+    const r = await runRetentionSweep({ prisma: prismaMock, now });
+    expect(apiLogDelete).toHaveBeenCalledWith({
+      where: { createdAt: { lt: r.cutoffs.apiRequestLogDeleteBefore } },
+    });
+    expect(r.apiRequestLogDeleted).toBe(7);
+  });
+
   it('never touches ScholarFetchRun — it is the quota ledger', () => {
     // Structural, not behavioural: if a future edit adds a `scholarFetchRun`
     // writer to the injectable client, this fails and the reviewer has to
@@ -340,6 +358,7 @@ describe('runRetentionSweep', () => {
       '$queryRaw',
       '$transaction',
       'aiInference',
+      'apiRequestLog',
       'auditLog',
       'scholarBindAttempt',
       'scholarFetchArchive',
@@ -384,6 +403,8 @@ describe('runRetentionSweep', () => {
     expect(aiDelete).not.toHaveBeenCalled();
     expect(archiveDelete).not.toHaveBeenCalled();
     expect(bindUpdate).not.toHaveBeenCalled();
+    expect(apiLogDelete).not.toHaveBeenCalled();
+    expect(result.apiRequestLogDeleted).toBe(0);
     expect(queryRaw).not.toHaveBeenCalled();
     expect(executeRaw).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
