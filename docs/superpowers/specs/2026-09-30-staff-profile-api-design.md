@@ -269,7 +269,7 @@ reads any `Authorization: Bearer`). Order of checks:
    ID). With one api container this is effectively exact. Only the first
    rejection in a window is written to the call log, so a client hammering
    past its limit cannot turn each call into a database write.
-5. Lookup type permitted by the client → else 403 `LOOKUP_NOT_PERMITTED`
+5. Lookup type permitted by the client → else 403 `FORBIDDEN` with `details.reason: lookup_not_permitted`
    (evaluated after body validation).
 
 `lastUsedAt` on key and client is updated at most once a minute per key, so a
