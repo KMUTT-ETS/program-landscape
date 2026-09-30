@@ -17,7 +17,7 @@
 - **Run the dev-safety guard's rules, never around them.** `.claude/settings.json` blocks `prisma migrate dev`, `db push`, `migrate reset`, `migrate diff --from-migrations`, `--shadow-database-url`, `TRUNCATE`, `DROP DATABASE`. Migrations here are hand-written SQL applied with `pnpm db:migrate` (= `prisma migrate deploy`). If a command is refused, stop and tell the controller.
 - **Never print `.env`.** Test a key is set with `grep -c '^KEY=' .env`.
 - **Commit with `git commit -F <file>`**, message ending with
-  `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   Never `git add` `handoff.md`, `presentation_en.md`, `presentation_th.md`.
 - **Scratch files** go in the session scratchpad; delete only files you created, by name.
 - **`nest start --watch` does not reload `packages/*`**, and a long-running `next dev` keeps the old Prisma client after a schema change. After Tasks 4, 5 and 7, restart the dev servers before any live check (resolve PIDs with `ss -ltnp`; never `pkill -f "pnpm dev"`).
@@ -185,11 +185,11 @@ import { describe, expect, it } from 'vitest';
 import { isValidThaiCitizenId, normaliseThaiCitizenId } from '../src/identity/thai-citizen-id';
 
 // 1101700203883: weights 13..2 over the first 12 digits sum to 162;
-// (11 - 162 % 11) % 10 = 3, the 13th digit. 3100600123455 likewise (sum 160).
+// (11 - 162 % 11) % 10 = 3, the 13th digit. 3100600123450 likewise (sum 155).
 describe('isValidThaiCitizenId', () => {
   it('accepts ids whose 13th digit matches the mod-11 checksum', () => {
     expect(isValidThaiCitizenId('1101700203883')).toBe(true);
-    expect(isValidThaiCitizenId('3100600123455')).toBe(true);
+    expect(isValidThaiCitizenId('3100600123450')).toBe(true);
   });
   it('rejects a wrong check digit', () => {
     expect(isValidThaiCitizenId('1101700203884')).toBe(false);
@@ -3318,11 +3318,13 @@ Disabling a client is `PATCH { "status": "DISABLED" }`.
 
 Register it: in `apps/api/src/admin/admin.module.ts` import `ApiClientsController` from `'./api-clients/api-clients.controller'` and add it to `controllers`.
 
+Classify the four new audit actions. `packages/shared/test/usage-action-coverage.test.ts` walks every `@AuditLog` in `apps/api/src` and fails for any action that lands in the usage dashboard's `other` family without being listed. These are routine configuration CRUD, so add them, alphabetically, to its `DELIBERATELY_OTHER` set: `'api_client.create'`, `'api_client.key.issue'`, `'api_client.key.revoke'`, `'api_client.update'`. (That test already had four unrelated failures before this plan began — `job108_settings.update`, `job_field.bulk_approve`, `job_field.rebuild_links`, `program_job_field.bulk_approve`. Leave those alone; confirm only that your four are no longer reported.)
+
 - [ ] **Step 3: Test and commit**
 
 Run the test → PASS (3). `pnpm --filter api test` and `pnpm --filter api typecheck` → clean.
 ```bash
-git add apps/api/src/admin/api-clients apps/api/src/admin/admin.module.ts apps/api/test/api-clients-controller.test.ts
+git add apps/api/src/admin/api-clients apps/api/src/admin/admin.module.ts apps/api/test/api-clients-controller.test.ts packages/shared/test/usage-action-coverage.test.ts
 git commit -F <msg>   # feat(api): admin API for staff-profile API clients and keys
 ```
 
