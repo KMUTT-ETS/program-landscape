@@ -169,7 +169,7 @@ Field rules:
   none.
 - **`teaching.totals.studentsTaught` is Σ enrolled seats**, not distinct
   students: a student in two of the person's courses counts twice, exactly as on
-  the page. `meta.methodology.studentsTaught` says so.
+  the page. A note in `meta.caveats` says so.
 - **`meta` follows the shared `ApiMetaSchema`**, whose keys are fixed. It gains
   one optional block, `integration` (`apiVersion`, `generatedAt`,
   `publicationsCache`, `sectionsIncluded`, `sectionsWithheld`). Methodology notes
