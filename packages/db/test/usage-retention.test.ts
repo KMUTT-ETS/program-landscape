@@ -213,17 +213,34 @@ async function insertView(
     VALUES (${id}, NULL, 'VIEWER', ${impersonated}, ${path}, 'cockpit', (${at} AT TIME ZONE 'UTC'))`);
 }
 
-async function dailyRows(
+/** Roll-up rows for ONE Bangkok day.
+ *
+ *  Scoped to the day under test rather than reading the whole table: this runs
+ *  against a live database, and `page_view_daily` holds whatever the real
+ *  nightly sweep has already written. An unscoped `toEqual` would be asserting
+ *  that nobody has ever used the application. */
+async function dailyRowsForDay(
   tx: TxLike,
+  day: string,
 ): Promise<Array<{ day: string; views: number; sessions: number; signins: number }>> {
   return tx.$queryRaw(Prisma.sql`
-    SELECT day::text AS day, views, sessions, signins FROM page_view_daily ORDER BY day, path`);
+    SELECT day::text AS day, views, sessions, signins FROM page_view_daily
+    WHERE day = ${day}::date ORDER BY day, path`);
 }
 
+/** Fixture rows still present on `at`'s Bangkok day.
+ *
+ *  The `pvt-` scope is load-bearing, not tidiness. Without it this counts real
+ *  telemetry that happens to share the day: on 2026-09-30 the fixture's RECENT
+ *  day (NOW − 10 days) was 2026-09-20, which already held 33 genuine page
+ *  views, so the assertion below read 35 instead of 2 and the suite failed for
+ *  a reason that had nothing to do with the roll-up. Every row this test
+ *  inserts is prefixed `pvt-`. */
 async function rawCount(tx: TxLike, at: Date): Promise<number> {
   const rows = await tx.$queryRaw<Array<{ n: number }>>(Prisma.sql`
     SELECT COUNT(*)::int AS n FROM page_views
-    WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = ${bangkokDay(at)}::date`);
+    WHERE id LIKE 'pvt-%'
+      AND (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = ${bangkokDay(at)}::date`);
   return rows[0]?.n ?? 0;
 }
 
@@ -258,7 +275,7 @@ describe.skipIf(!postgresUp)('rollupPageViews against postgres', () => {
 
           const first = await rollupPageViews({ prisma: client, cutoff: CUTOFF, dryRun: false });
           seen.first = first;
-          seen.dailyAfterFirst = await dailyRows(tx);
+          seen.dailyAfterFirst = await dailyRowsForDay(tx, bangkokDay(OLD));
           seen.oldRawAfterFirst = await rawCount(tx, OLD);
           seen.recentRawAfterFirst = await rawCount(tx, RECENT);
 
@@ -269,7 +286,7 @@ describe.skipIf(!postgresUp)('rollupPageViews against postgres', () => {
           await insertView(tx, 'pvt-old-2b', new Date(OLD.getTime() + 60_000), false);
           await insertView(tx, 'pvt-old-3b', new Date(OLD.getTime() + 2 * 3_600_000), false);
           seen.second = await rollupPageViews({ prisma: client, cutoff: CUTOFF, dryRun: false });
-          seen.dailyAfterSecond = await dailyRows(tx);
+          seen.dailyAfterSecond = await dailyRowsForDay(tx, bangkokDay(OLD));
 
           throw new Error('rollback');
         },
@@ -283,7 +300,20 @@ describe.skipIf(!postgresUp)('rollupPageViews against postgres', () => {
         if (!(e instanceof Error) || e.message !== 'rollback') throw e;
       });
 
-    expect(seen.first).toMatchObject({ daysRolledUp: 1, days: [bangkokDay(OLD)], rowsDeleted: 4 });
+    // `days` CONTAINS the fixture's day rather than equalling `[it]`, and the
+    // run's total `rowsDeleted` is not asserted at all. Both were exact, and
+    // both were only passing by luck: the roll-up consumes every Bangkok day
+    // older than the cutoff, so the moment this database holds real page views
+    // past raw retention — which is a matter of time, not of correctness — a
+    // whole-run total stops being a fact about the fixture.
+    //
+    // Nothing is lost. "Only the eligible days roll up" is the planner's
+    // property and `planRollupDays` covers it exhaustively above, without a
+    // database. What this test uniquely proves is the SQL round-trip, and the
+    // scoped assertions below still carry all of it: the impersonated row was
+    // deleted (oldRawAfterFirst === 0) but never folded into the totals
+    // (views === 3, not 4).
+    expect((seen.first as { days: string[] }).days).toContain(bangkokDay(OLD));
     // One roll-up row: the three non-impersonated views collapse on the shared
     // key, and the impersonated one is not there at all.
     expect(seen.dailyAfterFirst).toEqual([
@@ -293,8 +323,10 @@ describe.skipIf(!postgresUp)('rollupPageViews against postgres', () => {
     expect(seen.recentRawAfterFirst).toBe(2);
 
     // Idempotent: still ONE row (NULLS NOT DISTINCT matched it) and still 3
-    // views. An additive upsert would read 6 here.
-    expect(seen.second).toMatchObject({ daysRolledUp: 1, rowsDeleted: 3 });
+    // views. An additive upsert would read 6 here — which is what the
+    // dailyAfterSecond assertion below actually catches, so the whole-run
+    // total is dropped for the same reason as above.
+    expect((seen.second as { days: string[] }).days).toContain(bangkokDay(OLD));
     expect(seen.dailyAfterSecond).toEqual([
       { day: bangkokDay(OLD), views: 3, sessions: 2, signins: 0 },
     ]);
