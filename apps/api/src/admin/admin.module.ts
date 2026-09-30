@@ -5,6 +5,7 @@ import { AiCostController } from './ai-cost.controller';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 import { AiSettingsController } from './ai-settings.controller';
 import { AiSettingsService } from './ai-settings.service';
+import { ApiClientsController } from './api-clients/api-clients.controller';
 import { BackupVerificationService } from './backup-verification.service';
 import { DataQualityController } from './data-quality.controller';
 import { ExternalAiController } from './external-ai/external-ai.controller';
@@ -24,6 +25,7 @@ import { SystemStatusController } from './system-status.controller';
     DataQualityController,
     AiCostController,
     AiSettingsController,
+    ApiClientsController,
     ExternalAiController,
     Job108SettingsController,
     ImdController,
