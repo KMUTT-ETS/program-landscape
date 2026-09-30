@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, hashCitizenId } from '@kku/shared';
+import { ApiError, ApiMetaSchema, hashCitizenId } from '@kku/shared';
+import { HTTP_CODE_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
+import { RequestMethod } from '@nestjs/common';
 import { staffProfileFixture } from './fixtures/staff-profile';
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +12,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@kku/db', () => mocks);
 
 import { StaffProfileService } from '../src/external/staff-profile.service';
+import { StaffProfileController } from '../src/external/staff-profile.controller';
+import { API_KEY_AUTH_META } from '../src/external/api-key.guard';
 
 const RAW_ID = '1101700203883';
 const baseClient = {
@@ -102,5 +106,66 @@ describe('StaffProfileService.lookup', () => {
     for (const secret of [RAW_ID, hashCitizenId(RAW_ID)!, 'secret.person', '1101700203884']) {
       expect(logged).not.toContain(secret);
     }
+  });
+
+  const loggedStatus = () =>
+    (mocks.recordApiRequest.mock.calls.at(-1)?.[0] as { status: number }).status;
+
+  it('logs the status actually returned for 400, 403 and 404', async () => {
+    await thrown(svc.lookup(req(), { citizenId: '1101700203884' }));
+    expect(loggedStatus()).toBe(400);
+    await thrown(svc.lookup(req(), { email: 'a@kku.ac.th' }));
+    expect(loggedStatus()).toBe(403);
+    mocks.resolveStaffForLookup.mockResolvedValue(null);
+    await thrown(svc.lookup(req(), { citizenId: RAW_ID }));
+    expect(loggedStatus()).toBe(404);
+  });
+
+  it('logs 500 with the resolved staff id when the profile build throws unexpectedly', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockRejectedValue(new Error('db went away'));
+    await expect(svc.lookup(req(), { citizenId: RAW_ID })).rejects.toThrow('db went away');
+    expect(mocks.recordApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 500, facultyMemberId: 'fm1' }),
+    );
+  });
+
+  it('logs 502 when the profile build raises UPSTREAM_UNAVAILABLE', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockRejectedValue(new ApiError('UPSTREAM_UNAVAILABLE', 'mirror down'));
+    const e = await thrown(svc.lookup(req(), { citizenId: RAW_ID }));
+    expect(e.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(loggedStatus()).toBe(502);
+  });
+
+  it('returns meta that satisfies the envelope schema', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    const out = await svc.lookup(req(), { citizenId: RAW_ID });
+    expect(() => ApiMetaSchema.parse({ freshnessDate: null, sources: [], ...out.meta })).not.toThrow();
+  });
+
+  it('withholds the email from a client without email lookup', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    const out = await svc.lookup(req(), { citizenId: RAW_ID });
+    expect(out.data.person.email).toBeNull();
+  });
+
+  it('refuses with UNAUTHORIZED, and logs nothing, when no client is attached', async () => {
+    const e = await thrown(svc.lookup({ ip: '10.0.0.1', headers: {} } as never, { citizenId: RAW_ID }));
+    expect(e.code).toBe('UNAUTHORIZED');
+    expect(mocks.resolveStaffForLookup).not.toHaveBeenCalled();
+    expect(mocks.recordApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('StaffProfileController', () => {
+  const handler = StaffProfileController.prototype.lookup;
+
+  it('is an API-key route answering POST with 200', () => {
+    expect(Reflect.getMetadata(API_KEY_AUTH_META, handler)).toBe(true);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(200);
+    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(RequestMethod.POST);
   });
 });

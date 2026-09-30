@@ -10,6 +10,7 @@ import {
 import type { ApiLookupType } from '@kku/db';
 import { requestIdOf, type ApiClientRequest } from './api-key.guard';
 import { toStaffProfileResponse } from './staff-profile.mapper';
+import { statusForCode } from '../common/exception.filter';
 
 const CAVEATS = [
   'teaching.totals.studentsTaught is the sum of enrolled seats across sections over the window: a student taking two of this person\'s courses is counted twice.',
@@ -25,9 +26,11 @@ export class StaffProfileService {
     req: ApiClientRequest,
     body: unknown,
   ): Promise<{ data: StaffProfileResponseData; meta: Partial<ApiMeta> }> {
+    // ApiKeyGuard sets this on every @ApiKeyAuth() route; refuse rather than
+    // trust that if the service is ever reached another way.
+    if (!req.apiClient) throw new ApiError('UNAUTHORIZED', 'Invalid or missing API key');
     const started = Date.now();
-    // ApiKeyGuard guarantees this on every @ApiKeyAuth() route.
-    const { client, keyId } = req.apiClient!;
+    const { client, keyId } = req.apiClient;
     let lookupType: ApiLookupType | null = null;
     let facultyMemberId: string | null = null;
     let sectionsReturned: string[] = [];
@@ -36,7 +39,6 @@ export class StaffProfileService {
     try {
       const parsed = StaffProfileLookupSchema.safeParse(body);
       if (!parsed.success) {
-        status = 400;
         // Paths and messages only — never the received value.
         throw new ApiError('VALIDATION_FAILED', 'Request validation failed', {
           issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
@@ -46,7 +48,6 @@ export class StaffProfileService {
       lookupType = 'citizenId' in lookup ? 'CITIZEN_ID' : 'EMAIL';
       const permitted = lookupType === 'CITIZEN_ID' ? client.allowCitizenIdLookup : client.allowEmailLookup;
       if (!permitted) {
-        status = 403;
         throw new ApiError('FORBIDDEN', 'This client may not look staff up by that identifier', {
           reason: 'lookup_not_permitted',
         });
@@ -55,7 +56,6 @@ export class StaffProfileService {
       facultyMemberId = await resolveStaffForLookup(lookup, { includeInactive: client.includeInactive });
       const profile = facultyMemberId ? await buildStaffProfile(facultyMemberId, { courseLimit: null }) : null;
       if (!profile) {
-        status = 404;
         facultyMemberId = null;
         throw new ApiError('NOT_FOUND', 'Staff member not found');
       }
@@ -85,6 +85,10 @@ export class StaffProfileService {
           },
         },
       };
+    } catch (err) {
+      // Log the status the exception filter will actually send.
+      status = err instanceof ApiError ? statusForCode(err.code) : 500;
+      throw err;
     } finally {
       recordApiRequest({
         clientId: client.id,

@@ -13,6 +13,7 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { recordApiRequest, resolveApiKey, touchApiKeyUsage, type ResolvedApiKey } from '@kku/db';
 import { ApiError, ipAllowed } from '@kku/shared';
@@ -21,8 +22,20 @@ import { CacheService } from '../common/cache.service';
 
 export const API_KEY_AUTH_META = Symbol('api-key-auth');
 
+/**
+ * Marks a route as API-key authenticated. It also skips the app-wide `default`
+ * throttler bucket (240/min, app.module.ts): that bucket would otherwise cap a
+ * client configured above 240/min with an unlogged 429. On these routes the
+ * limits are the per-client `rateLimitPerMinute` enforced below and nginx's
+ * external zone. The opt-in buckets (ai_short, ai_hourly, heavy) already skip
+ * any route that does not name them.
+ */
 export const ApiKeyAuth = (): MethodDecorator & ClassDecorator =>
-  applyDecorators(Public(), SetMetadata(API_KEY_AUTH_META, true));
+  applyDecorators(
+    Public(),
+    SetMetadata(API_KEY_AUTH_META, true),
+    SkipThrottle({ default: true }),
+  );
 
 export interface ApiClientRequest extends Request {
   apiClient?: ResolvedApiKey;

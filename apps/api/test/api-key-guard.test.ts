@@ -3,6 +3,7 @@ import { Controller, Post, type ExecutionContext } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { ApiError } from '@kku/shared';
+import { THROTTLER_SKIP } from '@nestjs/throttler/dist/throttler.constants';
 
 const mocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
@@ -283,5 +284,13 @@ describe('@ApiKeyAuth() with the real decorator and guards', () => {
       expect(e.code).toBe('UNAUTHORIZED');
       await expect(jwt.canActivate(realCtx(WholeController, m))).resolves.toBe(true);
     }
+  });
+
+  it('skips the default throttler bucket, and only that one', () => {
+    const handler = MixedController.prototype.ext;
+    expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, handler)).toBe(true);
+    expect(Reflect.getMetadata(`${THROTTLER_SKIP}heavy`, handler)).toBeUndefined();
+    expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, MixedController.prototype.plain)).toBeUndefined();
+    expect(Reflect.getMetadata(`${THROTTLER_SKIP}default`, WholeController)).toBe(true);
   });
 });
