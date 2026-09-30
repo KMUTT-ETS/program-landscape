@@ -7,11 +7,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Prisma, type ApiClient, type ApiClientStatus, type ApiLookupType } from '@prisma/client';
 import { z } from 'zod';
-import { isValidAllowlistEntry, STAFF_PROFILE_SECTIONS } from '@kku/shared';
+import { ApiError, isValidAllowlistEntry, STAFF_PROFILE_SECTIONS } from '@kku/shared';
 import { prisma } from './index';
 
 export const API_KEY_PREFIX = 'kpl_live_';
 export const API_KEY_LOOKUP_PREFIX_LENGTH = 16;
+/** 32 random bytes as unpadded base64url is 43 characters. */
+export const API_KEY_LENGTH = API_KEY_PREFIX.length + 43;
 
 export interface GeneratedApiKey {
   key: string;
@@ -58,7 +60,7 @@ export interface ResolvedApiKey {
 }
 
 export async function resolveApiKey(presented: string, now: Date = new Date()): Promise<ResolvedApiKey | null> {
-  if (!presented.startsWith(API_KEY_PREFIX) || presented.length <= API_KEY_LOOKUP_PREFIX_LENGTH) return null;
+  if (!presented.startsWith(API_KEY_PREFIX) || presented.length !== API_KEY_LENGTH) return null;
   const row = await prisma.apiClientKey.findUnique({
     where: { prefix: presented.slice(0, API_KEY_LOOKUP_PREFIX_LENGTH) },
     include: { client: true },
@@ -69,6 +71,13 @@ export async function resolveApiKey(presented: string, now: Date = new Date()): 
 
 // lastUsedAt is written at most once a minute per key, so a busy client does
 // not turn every call into two extra UPDATEs.
+//
+// - The Map holds one entry per key that has authenticated in this process, so
+//   it is bounded by the number of admin-issued keys.
+// - The transaction rejects if the key or client row has vanished, so callers
+//   must `.catch` it (a usage stamp must never fail the request).
+// - It also bumps ApiClient.updatedAt, so updatedAt does not mean "settings
+//   last changed".
 const lastTouchMs = new Map<string, number>();
 export async function touchApiKeyUsage(keyId: string, clientId: string, nowMs: number = Date.now()): Promise<void> {
   const prev = lastTouchMs.get(keyId);
@@ -105,7 +114,8 @@ export const ApiClientInputSchema = z
     name: z.string().trim().min(2).max(100),
     description: z.string().trim().max(500).nullable().optional(),
     ownerContact: z.string().trim().max(200).nullable().optional(),
-    allowedSections: z.array(z.enum(STAFF_PROFILE_SECTIONS)).max(STAFF_PROFILE_SECTIONS.length),
+    allowedSections: z.array(z.enum(STAFF_PROFILE_SECTIONS)).max(STAFF_PROFILE_SECTIONS.length)
+      .transform((xs) => [...new Set(xs)]),
     allowCitizenIdLookup: z.boolean(),
     allowEmailLookup: z.boolean(),
     includeInactive: z.boolean(),
@@ -124,7 +134,13 @@ export const ApiClientPatchSchema = ApiClientInputSchema.partial()
 export type ApiClientPatch = z.infer<typeof ApiClientPatchSchema>;
 
 export const IssueKeySchema = z
-  .object({ expiresAt: z.string().datetime().nullable().optional() })
+  .object({ expiresAt: z
+      .string()
+      .datetime({ offset: true })
+      .nullable()
+      .optional()
+      .refine((v) => v == null || Date.parse(v) > Date.now(), 'expiresAt must be in the future'),
+  })
   .strict();
 export const RevokeKeySchema = z.object({ reason: z.string().trim().min(3).max(300) }).strict();
 
@@ -208,44 +224,71 @@ async function insertKey(
   actorId: string | null,
   expiresAt: Date | null,
 ): Promise<IssuedApiKey> {
-  // A 42-bit prefix collision is vanishingly rare; retry rather than fail.
+  // A 42-bit prefix collision is vanishingly rare. We look before we insert
+  // rather than catching P2002: a unique violation aborts the surrounding
+  // Postgres transaction, so a retry after one could never succeed. (A racing
+  // insert of the same prefix between the check and the create would still
+  // fail the whole call, which is acceptable at this probability.)
   for (let attempt = 0; attempt < 3; attempt++) {
     const g = generateApiKey();
-    try {
-      const row = await tx.apiClientKey.create({
-        data: { clientId, prefix: g.prefix, keyHash: g.keyHash, expiresAt, createdById: actorId },
-      });
-      return { id: row.id, prefix: row.prefix, key: g.key, expiresAt: iso(row.expiresAt) };
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') continue;
-      throw err;
-    }
+    const taken = await tx.apiClientKey.findUnique({ where: { prefix: g.prefix }, select: { id: true } });
+    if (taken) continue;
+    const row = await tx.apiClientKey.create({
+      data: { clientId, prefix: g.prefix, keyHash: g.keyHash, expiresAt, createdById: actorId },
+    });
+    return { id: row.id, prefix: row.prefix, key: g.key, expiresAt: iso(row.expiresAt) };
   }
   throw new Error('could not generate a unique API key prefix');
+}
+
+const nameTaken = (): ApiError =>
+  new ApiError('VALIDATION_FAILED', 'An API client with this name already exists', { reason: 'name_taken' });
+
+function isUniqueViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+}
+
+async function assertNameFree(name: string, exceptId?: string): Promise<void> {
+  const clash = await prisma.apiClient.findFirst({
+    where: { name: { equals: name.trim(), mode: 'insensitive' }, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    select: { id: true },
+  });
+  if (clash) throw nameTaken();
 }
 
 export async function createApiClient(
   input: ApiClientInput,
   actorId: string | null,
 ): Promise<{ id: string; client: ApiClientView; key: IssuedApiKey }> {
-  return prisma.$transaction(async (tx) => {
-    const client = await tx.apiClient.create({
-      data: {
-        ...input,
-        description: input.description ?? null,
-        ownerContact: input.ownerContact ?? null,
-        createdById: actorId,
-      },
+  await assertNameFree(input.name);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const client = await tx.apiClient.create({
+        data: {
+          ...input,
+          description: input.description ?? null,
+          ownerContact: input.ownerContact ?? null,
+          createdById: actorId,
+        },
+      });
+      const key = await insertKey(tx, client.id, actorId, null);
+      return { id: client.id, client: toView(client), key };
     });
-    const key = await insertKey(tx, client.id, actorId, null);
-    return { id: client.id, client: toView(client), key };
-  });
+  } catch (err) {
+    if (isUniqueViolation(err)) throw nameTaken();
+    throw err;
+  }
 }
 
 export async function updateApiClient(id: string, patch: ApiClientPatch): Promise<ApiClientView | null> {
-  const exists = await prisma.apiClient.findUnique({ where: { id }, select: { id: true } });
-  if (!exists) return null;
-  return toView(await prisma.apiClient.update({ where: { id }, data: patch }));
+  if (patch.name !== undefined) await assertNameFree(patch.name, id);
+  try {
+    return toView(await prisma.apiClient.update({ where: { id }, data: patch }));
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') return null;
+    if (isUniqueViolation(err)) throw nameTaken();
+    throw err;
+  }
 }
 
 export async function issueApiClientKey(
@@ -263,15 +306,14 @@ export async function revokeApiClientKey(
   keyId: string,
   reason: string,
 ): Promise<ApiClientKeyView | null> {
-  const key = await prisma.apiClientKey.findFirst({ where: { id: keyId, clientId } });
-  if (!key) return null;
-  const row = key.revokedAt
-    ? key
-    : await prisma.apiClientKey.update({
-        where: { id: keyId },
-        data: { revokedAt: new Date(), revokedReason: reason },
-      });
-  return keyView(row);
+  // Conditional on revokedAt IS NULL so the first revocation stays
+  // authoritative; a second revoke is a no-op that returns the key as it is.
+  await prisma.apiClientKey.updateMany({
+    where: { id: keyId, clientId, revokedAt: null },
+    data: { revokedAt: new Date(), revokedReason: reason },
+  });
+  const row = await prisma.apiClientKey.findFirst({ where: { id: keyId, clientId } });
+  return row ? keyView(row) : null;
 }
 
 function keyView(k: {
