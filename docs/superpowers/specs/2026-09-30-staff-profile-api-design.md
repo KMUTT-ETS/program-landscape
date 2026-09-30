@@ -1,6 +1,6 @@
 # Staff Profile API — design
 
-**Date:** 2026-09-30 · **Status:** approved in brainstorming, awaiting spec review
+**Date:** 2026-09-30 · **Status:** implemented 2026-09-30 (not deployed)
 **Version string:** `staff-profile.v1`
 
 ## 1. Purpose
@@ -79,7 +79,7 @@ no new codes are added; the specific reason travels in `error.details.reason`.
 | 403 | `FORBIDDEN` | `lookup_not_permitted` / `ip_not_allowed` | Client not granted this lookup type; caller IP outside allowlist |
 | 404 | `NOT_FOUND` | — | No match (or inactive and not permitted). **Identical body whichever identifier was used.** |
 | 429 | `RATE_LIMITED` | — | Per-client limit exceeded; `Retry-After` header set |
-| 500 | `INTERNAL` | — | Unexpected; carries the request id, never the identifier |
+| 500 | `INTERNAL` | — | Unexpected; never the identifier. The body carries no request id — callers quote the `x-request-id` response header |
 
 ## 4. Response
 
@@ -352,7 +352,8 @@ Each step leaves `/profile` rendering identically.
 
 - Live enrichment keeps its existing 8 s per-call timeouts and fallbacks. A
   failed live source yields a response built from local rows, not a 5xx.
-- Unexpected errors → 500 envelope with the request id. No raw identifier
+- Unexpected errors → 500 envelope; the request id travels in the
+  `x-request-id` response header, not the body. No raw identifier
   appears in any log line or error message.
 
 ## 8. Testing

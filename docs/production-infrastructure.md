@@ -370,7 +370,7 @@ GET /profile (server component)
          ├── DOI bridge (OpenAlex → Scopus by DOI)
          └── Metadata search (OpenAlex → Scopus by title + surname)
   → render hero + sections
-  → user_publications_cache stores final result for 24h
+  → staff_publications_cache (keyed by staff record) stores final result for 24h
 ```
 
 Cold load: ~5s. Warm load (cache hit): ~10ms.

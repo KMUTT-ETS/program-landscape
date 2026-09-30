@@ -249,8 +249,10 @@ on a miss), status, sections returned, latency, IP, request id. It never
 stores the citizen id **or its hash**. `hashCitizenId()` is unsalted over a
 keyspace of roughly 2^43 values, so a stored hash is recoverable in hours on a
 GPU; storing it would be storing the id. The resolved staff record id tells an
-auditor who was looked up without that risk. Rejected 429 and 403 calls are
-logged at most once per client per minute. Retention: 365 days (see the list
+auditor who was looked up without that risk. Rejected 429 and 403
+`ip_not_allowed` calls are logged at most once per client per minute; a 403
+`lookup_not_permitted` is logged on every call, bounded by the client's rate
+limit. Retention: 365 days (see the list
 above). Every client and key change is written to the audit log with the key
 prefix only, never the key.
 
@@ -264,6 +266,11 @@ deploy that enables them earlier.
 data is that system's own. It must be recorded per calling system, with the
 sections and lookup types justified, **before its key is issued**. A key is
 not issued on the promise of a basis to follow.
+
+**Access requests.** A DSAR export (`scripts/pdpa/dsar.ts`, schema `dsar.v2`)
+includes the person's `api_request_logs` rows (with the calling client's name)
+and their `staff_publications_cache` row, reached through their staff record
+from either the citizen hash or the user id.
 
 ---
 

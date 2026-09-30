@@ -61,7 +61,7 @@ point for rollups — `queryMetricByScope` in `@kku/db` — and modules
 | PDF | `PdfDocument`, `PdfPage`, `PdfExtraction`, `PdfTable` | First-class external input pipeline |
 | Decisions | `Scenario`, `ScenarioResult`, `CouncilDecision`, `Annotation` | Decision Workspace |
 | Governance | `User`, `AuditLog`, `AiInference`, `DataSource` | RBAC, audit trail, AI traces, source inventory |
-| Profile page (per-user) | `UserExpertiseNarrative`, `UserPublicationsCache`, `User.avatarStorageKey`, `User.employeeId` | AI expertise blurb cache, kkuscholar+Scopus publication cache, MinIO avatar pointer, HR employment-number bridge to FacultyMember |
+| Profile page (per-user) | `UserExpertiseNarrative`, `StaffPublicationsCache`, `User.avatarStorageKey`, `User.employeeId` | AI expertise blurb cache, kkuscholar+Scopus publication cache (keyed by staff record, shared with the external staff-profile API), MinIO avatar pointer, HR employment-number bridge to FacultyMember |
 
 ### Materialized views for scope rollup
 

@@ -30,7 +30,7 @@ You receive one key, shown **once** at creation. Store it in your server's secre
 ## 3. Request
 
 ```bash
-curl -sS -X POST https://program-landscape.kku.ac.th/api/v1/external/staff-profile \
+curl -sS --max-time 60 -X POST https://program-landscape.kku.ac.th/api/v1/external/staff-profile \
   -H 'Authorization: Bearer kpl_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' \
   -H 'Content-Type: application/json' \
   --max-time 60 \
@@ -99,7 +99,13 @@ Standard envelope `{ data, meta, error }`. A section is present only if granted.
   },
   "meta": {
     "freshnessDate": "2026-09-29T02:10:00Z",
-    "sources": [ "…" ],
+    "sources": [
+      { "id": "kku-hr", "name": "KKU HR (staff record)" },
+      { "id": "unicon-ds2003", "name": "UNICON DS2003 (education history)" },
+      { "id": "kku-registry", "name": "KKU Registrar (class offerings)" },
+      { "id": "kku-publications", "name": "KKU Publications mirror (Scopus, PubMed)" },
+      { "id": "google-scholar", "name": "Google Scholar (on-demand import)" }
+    ],
     "methodologyVersion": "staff-profile.v1",
     "caveats": [ "…" ],
     "integration": {
@@ -146,7 +152,7 @@ Failures use the same envelope with `data: null` and an `error` object
 | 403 | `FORBIDDEN` | `ip_not_allowed` | Caller address is outside your client's allowlist (only when allowlists are enabled) |
 | 404 | `NOT_FOUND` | — | No match, or the person is inactive and your client is not granted inactive staff. Identical whichever identifier you used. |
 | 429 | `RATE_LIMITED` | — | Per-client limit exceeded. `Retry-After` header gives seconds. |
-| 500 | `INTERNAL` | — | Unexpected. Carries a request id, never the identifier. Quote the request id when reporting. |
+| 500 | `INTERNAL` | — | Unexpected. The body carries no request id and never the identifier: quote the `x-request-id` **response header** when reporting (every response carries it). |
 | 502 | `UPSTREAM_UNAVAILABLE` | — | Possible when a dependency behind the API is unreachable. Retry with backoff. |
 
 A live publication source failing does **not** produce an error: you receive a
@@ -156,6 +162,7 @@ response built from locally held rows.
 
 - The **first call for a person** can take up to about **45 seconds**: their publications are built live from Scopus, PubMed and the library mirror. Later calls for the same person within 24 hours are served from cache in milliseconds.
 - Set a client timeout of **at least 60 seconds** (the gateway allows 90).
+- Cold builds are capped platform-wide (4 at once by default); further first calls queue behind them. Concurrent calls for the **same** person share one build.
 - **Do not loop over every staff member.** Each cold call spends the university's Scopus quota (20,000 requests a week, shared by the whole institution). Fetch on demand, cache on your side, and refresh no more than daily.
 
 ## 7. Limits
@@ -175,6 +182,6 @@ alongside v1 until callers have migrated.
 
 - **Logged per call:** your client, the staff record matched (null on a miss), lookup type, HTTP status, sections returned, latency, caller IP and request id.
 - **Never logged:** the citizen id, its hash, or the email you sent. Not in the call log, the application logs or error messages.
-- Rejected calls (429 and 403) are logged at most once per client per minute.
+- Rejected `429` and `403 ip_not_allowed` calls are logged at most once per client per minute. A `403 lookup_not_permitted` is logged on every call (your rate limit bounds it).
 - Call-log rows are deleted after **365 days**.
 - The API discloses personal data about named staff. The **legal basis for your system receiving it is your own**, and must be recorded with the platform team before a key is issued. Grant and use only the sections you need, and do not pass the data on beyond that purpose.

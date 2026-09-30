@@ -30,6 +30,7 @@ Endpoint: `POST /api/v1/admin/dsar/export` (to be built as part of 13b — the r
 | `analyst-conversations.json` | All chats with the AI Analyst (conversation + messages + feedback) |
 | `uploaded-pdfs.json` | All `PdfDocument` rows where `uploadedByUserId = target` (metadata only; content is in MinIO) |
 | `attached-documents.json` | All `ProgramDocument` rows attached by the user |
+| `staff-profile.json` | For the person's staff record(s): their `staff_publications_cache` row and every external staff-profile API call that looked them up (`api_request_logs`, with the calling client's name). Today `pnpm tsx scripts/pdpa/dsar.ts` (schema `dsar.v2`) exports these as `staffPublicationsCache` / `apiRequestLogs`, with `staffRecord.matchedBy` — check a `profile-resolver` (name) match before sending. |
 
 **Manifest:** `_manifest.json` at the root of the bundle listing every file's row count + checksum.
 

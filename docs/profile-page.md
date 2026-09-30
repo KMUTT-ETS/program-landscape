@@ -24,8 +24,10 @@
 ## Publications pipeline
 
 ```
-getProfileData(userId)
-  └── loadPublicationsWithCache(userId, compute) [user_publications_cache]
+getProfileData(userId)  — apps/web/src/lib/profile-data.ts (thin wrapper)
+  └── buildStaffProfile(facultyMemberId) — packages/db/src/staff-profile/profile.ts
+      │ (the same builder serves POST /api/v1/external/staff-profile)
+  └── loadPublicationsWithCache(facultyMemberId, compute) [staff_publications_cache]
          │ decidePublicationsCacheAction() — @kku/db
          │ cache miss                 → run compute() → write cache
          │ fetched_at = epoch         → run compute() → write cache
@@ -121,7 +123,7 @@ Three new tables (all per-user, cascade on User delete):
 | Table | Purpose | Key |
 |---|---|---|
 | `user_expertise_narratives` | AI expertise blurbs (TH + EN + keyword arrays) | `(user_id, method_version)` |
-| `user_publications_cache` | Cached enriched publication list | `user_id` (unique) |
+| `staff_publications_cache` | Cached enriched publication list (replaces `user_publications_cache`, which has no reader and is dropped next release) | `faculty_member_id` (unique) |
 | `users.avatar_storage_key` + `users.avatar_updated_at` | MinIO key for the uploaded photo + last-update timestamp for cache-busting | per-User |
 
 All four migrations:
