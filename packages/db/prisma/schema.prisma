@@ -824,6 +824,7 @@ model UserExpertiseNarrative {
 //     background refresh.
 //   - First-ever load (no row) blocks on the live fetch, then writes
 //     a row.
+// DEPRECATED 2026-09-30 — no reader; superseded by StaffPublicationsCache.
 model UserPublicationsCache {
   id          String   @id @default(cuid())
   userId      String   @unique @map("user_id")
@@ -835,6 +836,26 @@ model UserPublicationsCache {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_publications_cache")
+}
+
+// Publications-list cache keyed by STAFF RECORD (replaces the user-keyed
+// UserPublicationsCache above, which has no reader after 2026-09-30 and is
+// dropped in a later release). Keyed by staff record so the /profile page, the
+// home sparkline and the external staff-profile API share one row per person —
+// and so staff who have never signed in can be cached at all.
+// The Scholar runner invalidates a row by backdating fetched_at to the epoch
+// (PUBLICATIONS_CACHE_INVALIDATED_MS); readers treat that value as a miss.
+model StaffPublicationsCache {
+  id              String        @id @default(cuid())
+  facultyMemberId String        @unique @map("faculty_member_id")
+  payloadJson     Json          @map("payload_json")
+  paperCount      Int           @map("paper_count")
+  fetchedAt       DateTime      @default(now()) @map("fetched_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  facultyMember FacultyMember @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
+
+  @@map("staff_publications_cache")
 }
 
 // Multi-scope assignments per user. Each row = one (role, scope) tuple.
@@ -1545,6 +1566,7 @@ model FacultyMember {
   scholarBoundBy        User?                       @relation("ScholarProfileBoundBy", fields: [scholarBoundById], references: [id], onDelete: SetNull)
   scholarBindAttempts   ScholarBindAttempt[]        @relation("ScholarBindFacultyMember")
   scholarFetchRuns      ScholarFetchRun[]
+  publicationsCache     StaffPublicationsCache?
 
   @@index([facultyId])
   @@index([departmentId])
