@@ -3316,6 +3316,18 @@ export class ApiClientsController {
 ```
 Disabling a client is `PATCH { "status": "DISABLED" }`.
 
+**IP allowlists are switched off by default** (see Task 16): the real client address cannot be trusted until nginx's `set_real_ip_from` is pinned to the KKU proxy. In `create` and `update`, before calling the domain function, refuse a non-empty `ipAllowlist` unless `process.env.API_CLIENT_IP_ALLOWLIST === 'enabled'`:
+```ts
+function assertAllowlistPermitted(ipAllowlist: readonly string[] | undefined): void {
+  if (ipAllowlist && ipAllowlist.length > 0 && process.env.API_CLIENT_IP_ALLOWLIST !== 'enabled') {
+    throw new ApiError('VALIDATION_FAILED', 'Per-client IP allowlists are not enabled on this deployment', {
+      reason: 'ip_allowlist_disabled',
+    });
+  }
+}
+```
+(`ApiError` from `@kku/shared`.) Add a test: with the env var unset, `create` with `ipAllowlist: ['10.0.0.0/8']` throws `VALIDATION_FAILED` / `ip_allowlist_disabled` and `createApiClient` is not called; with it set to `enabled`, the call goes through. Restore `process.env` after each test.
+
 Register it: in `apps/api/src/admin/admin.module.ts` import `ApiClientsController` from `'./api-clients/api-clients.controller'` and add it to `controllers`.
 
 Classify the four new audit actions. `packages/shared/test/usage-action-coverage.test.ts` walks every `@AuditLog` in `apps/api/src` and fails for any action that lands in the usage dashboard's `other` family without being listed. These are routine configuration CRUD, so add them, alphabetically, to its `DELIBERATELY_OTHER` set: `'api_client.create'`, `'api_client.key.issue'`, `'api_client.key.revoke'`, `'api_client.update'`. (That test already had four unrelated failures before this plan began — `job108_settings.update`, `job_field.bulk_approve`, `job_field.rebuild_links`, `program_job_field.bulk_approve`. Leave those alone; confirm only that your four are no longer reported.)
@@ -3453,8 +3465,28 @@ git commit -F <msg>   # feat(retention): delete external API call-log rows after
     proxy_set_header X-Request-Id $req_id;
     # A cold publications cache can take ~45 s to build.
     proxy_read_timeout 90s;
+    # Take exactly ONE address — the one the immediate trusted proxy appended —
+    # and hand the api exactly one. With recursive lookup on, a caller on a
+    # trusted range could choose its own address by prefixing X-Forwarded-For.
+    real_ip_recursive off;
+    proxy_set_header X-Forwarded-For $remote_addr;
   }
 ```
+Note `proxy_set_header X-Forwarded-For $remote_addr` **replaces** the `$proxy_add_x_forwarded_for` line in this block (do not keep both).
+
+This is necessary but not sufficient: while `set_real_ip_from` still trusts the placeholder RFC-1918 ranges, any KKU-LAN host connecting straight to `:8443` is itself "trusted" and can still name its own address. Per-client IP allowlists are therefore **switched off** until the KKU proxy's real address is pinned, behind an env switch and a deploy gate:
+
+- `.env.prod.example`: add, with a comment explaining the dependency,
+```
+# Per-client IP allowlists for the external staff-profile API. Leave unset
+# until infra/nginx/nginx.conf's set_real_ip_from names ONLY the KKU reverse
+# proxy (not the RFC-1918 placeholders) — otherwise any KKU-LAN host can forge
+# the address an allowlist is checked against. preflight refuses a deploy that
+# enables this while the placeholders are still in place.
+API_CLIENT_IP_ALLOWLIST=
+```
+- `scripts/preflight.sh`: add `gate_external_api_real_ip`, following the file's existing gate pattern (`record "<name>" "PASS|WARN|FAIL" "<detail>"`) and registered where the other gates are called. It reads `API_CLIENT_IP_ALLOWLIST` from the deployed env file and checks the deployed nginx.conf (use the same path variables the script already uses for the install dir / current release; read the file to find them). **FAIL** when the switch is `enabled` and nginx.conf still contains `set_real_ip_from 10.0.0.0/8` (or `172.16.0.0/12` / `192.168.0.0/16`); **PASS** otherwise, with detail "ip allowlists off" or "ip allowlists on; real-ip pinned".
+- Extend the Step 1 test with: the external block contains `real_ip_recursive off` and `proxy_set_header X-Forwarded-For $remote_addr`, and does NOT contain `$proxy_add_x_forwarded_for`; and `scripts/preflight.sh` defines and calls `gate_external_api_real_ip`.
 
 - [ ] **Step 3: Test and commit**
 
@@ -3464,8 +3496,9 @@ docker run --rm -v "$PWD/infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$P
 ```
 Expected: `syntax is ok`. (If `nginx -t` fails only on the missing certificate files or upstream host resolution, that is environmental, not this change — note it and move on; the regex test is the gate.)
 ```bash
-git add infra/nginx apps/api/test/build-release.test.ts
-git commit -F <msg>   # feat(nginx): separate rate-limit zone for external API clients
+bash -n scripts/preflight.sh   # syntax check
+git add infra/nginx apps/api/test/build-release.test.ts scripts/preflight.sh .env.prod.example
+git commit -F <msg>   # feat(nginx): external API zone, one trusted address, and a gate on IP allowlists
 ```
 
 ---
@@ -3600,7 +3633,7 @@ export default async function AdminApiClientsPage() {
 
 1. **Header:** title "API clients", one line: "Other KKU systems call `POST /api/v1/external/staff-profile` with a key issued here. Keys are shown once." A "New client" button.
 2. **List table** of `initial` rows — columns Name, Status (`Badge`), Sections (comma list, "person only" when empty), Lookups (`citizen id` / `email`), Last used (relative, exact on hover), Requests 24 h / 30 d, 404 rate over 30 d (`notFound30d / requests30d`, `—` when 0 requests; tone warning above 20 %). Clicking a row opens the detail panel.
-3. **Create dialog** (`Dialog`): name, contact, description, section checkboxes over `STAFF_PROFILE_SECTIONS` (import the constant from `'@kku/shared/src/staff-profile/api-schema'` — deep path; the barrel pulls `node:crypto`), two lookup checkboxes, include-inactive checkbox, IP ranges (textarea, one per line → array, trimmed, blanks dropped), rate limit (number, 1–600, default 60). Submit calls `createApiClientAction`; on `ok:false` show `message` inline; on success switch the dialog to the **key reveal** state.
+3. **Create dialog** (`Dialog`): name, contact, description, section checkboxes over `STAFF_PROFILE_SECTIONS` (import the constant from `'@kku/shared/src/staff-profile/api-schema'` — deep path; the barrel pulls `node:crypto`), two lookup checkboxes, include-inactive checkbox, IP ranges (textarea, one per line → array, trimmed, blanks dropped — **disabled** with the note "IP allowlists are off on this deployment until the KKU proxy address is pinned in nginx" unless the server page passes `ipAllowlistEnabled`, computed in `page.tsx` as `process.env.API_CLIENT_IP_ALLOWLIST === 'enabled'`), rate limit (number, 1–600, default 60). Submit calls `createApiClientAction`; on `ok:false` show `message` inline; on success switch the dialog to the **key reveal** state.
 4. **Key reveal** (shared by create and issue): the key in a monospace read-only field, a Copy button (`navigator.clipboard.writeText`), the warning "Copy this key now. It will not be shown again.", and a Done button. The key lives only in component state and is cleared on close.
 5. **Detail side panel** (`Drawer` or `RightPanel` from `@kku/ui`): loads `getApiClientDetailAction(id)`.
    - Settings form (same fields as create) → `updateApiClientAction`.

@@ -252,12 +252,23 @@ reads any `Authorization: Bearer`). Order of checks:
 2. Key not revoked, not expired; client `ACTIVE`. Any failure → the single
    identical 401.
 3. Caller IP (from `req.ip`, which honours `trust proxy`) inside `ipAllowlist`
-   when non-empty → else 403 `IP_NOT_ALLOWED`.
+   when non-empty → else 403 `ip_not_allowed`. **Allowlists are switched off
+   by default** (decided 2026-09-30). nginx's `set_real_ip_from` still trusts
+   RFC-1918 placeholder ranges, so any KKU-LAN host can name its own address
+   in `X-Forwarded-For`; an allowlist checked against that would be
+   decoration. The admin API refuses a non-empty allowlist unless
+   `API_CLIENT_IP_ALLOWLIST=enabled`, and `scripts/preflight.sh` FAILS a
+   deploy that enables it while the placeholders remain. The external nginx
+   location also takes exactly one forwarded address (`real_ip_recursive off`,
+   `X-Forwarded-For` overwritten).
 4. Per-client fixed-window counter in Redis
    (`api-rl:<clientId>:<epochMinute>`, TTL 120 s) against
-   `rateLimitPerMinute` → else 429. **Redis unavailable → allow and log a
-   warning**, matching `CacheService`'s fail-open posture; the nginx zone is the
-   backstop.
+   `rateLimitPerMinute` → else 429. **Redis unavailable → count in process
+   memory instead** (decided 2026-09-30, replacing fail-open: a leaked key
+   during a Redis outage must not be able to walk the staff list by citizen
+   ID). With one api container this is effectively exact. Only the first
+   rejection in a window is written to the call log, so a client hammering
+   past its limit cannot turn each call into a database write.
 5. Lookup type permitted by the client → else 403 `LOOKUP_NOT_PERMITTED`
    (evaluated after body validation).
 
