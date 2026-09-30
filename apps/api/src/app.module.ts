@@ -57,6 +57,7 @@ import { UsageModule } from './usage/usage.module';
 import { TrendDocumentsModule } from './trend-documents/trend-documents.module';
 import { AunqaModule } from './aunqa/aunqa.module';
 import { ScholarModule } from './scholar/scholar.module';
+import { ExternalModule } from './external/external.module';
 import { ApiKeyGuard } from './external/api-key.guard';
 
 import {
@@ -130,6 +131,7 @@ import {
     TrendDocumentsModule,
     AunqaModule,
     ScholarModule,
+    ExternalModule,
   ],
   exports: [CacheService],
   controllers: [
