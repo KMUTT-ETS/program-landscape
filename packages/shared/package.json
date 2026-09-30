@@ -16,6 +16,7 @@
     "./src/scholar/search-parse": "./src/scholar/search-parse.ts",
     "./src/scholar/resolve": "./src/scholar/resolve.ts",
     "./src/staff-profile/types": "./src/staff-profile/types.ts",
+    "./src/staff-profile/api-schema": "./src/staff-profile/api-schema.ts",
     "./src/scholar/scrapingbee": "./src/scholar/scrapingbee.ts",
     "./jobthai": "./src/jobthai/index.ts",
     "./src/jobthai": "./src/jobthai/index.ts",
