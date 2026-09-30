@@ -12,6 +12,10 @@ import path from 'node:path';
 // apps/api/test → repo root is three levels up.
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
+// Case-insensitive regex, not a prefix: Nest routes /api/v1/EXTERNAL/… to the
+// same handler, and a case-sensitive prefix would let it skip external_zone.
+const EXTERNAL_LOCATION = 'location ~* ^/api/v1/external/ {';
+
 describe('build-release', () => {
   it('has a tsx-runnable root script', () => {
     const pkg = JSON.parse(
@@ -105,12 +109,20 @@ describe('build-release', () => {
       'utf8',
     );
     expect(main).toMatch(/limit_req_zone\s+\$binary_remote_addr\s+zone=external_zone:/);
-    const start = site.indexOf('location /api/v1/external/');
+    const start = site.indexOf(EXTERNAL_LOCATION);
     expect(start).toBeGreaterThan(-1);
     // The block runs to its closing brace (no nested braces inside it).
     const block = site.slice(start, site.indexOf('\n  }', start));
     expect(block).toMatch(/limit_req zone=external_zone/);
     expect(block).toMatch(/proxy_pass http:\/\/api_upstream;/);
+    // No case-sensitive prefix form may linger alongside it.
+    expect(site).not.toMatch(/^\s*location\s+\/api\/v1\/external\//im);
+    // Regex locations: first match wins. Every regex location that precedes
+    // the external one must be unable to match an /api/v1/external/ path.
+    const earlierRegexes = [...site.slice(0, start).matchAll(/location\s+~\*?\s+(\S+)\s*\{/g)];
+    for (const m of earlierRegexes) {
+      expect(new RegExp(m[1] ?? '', 'i').test('/api/v1/external/staff-profile')).toBe(false);
+    }
   });
 
   it('resolves one trusted hop and hands the external API a single address', () => {
@@ -124,7 +136,7 @@ describe('build-release', () => {
     expect(main).not.toMatch(/^\s*real_ip_recursive\s+on;/m);
     expect(site).not.toMatch(/^\s*real_ip_recursive\b/m);
 
-    const start = site.indexOf('location /api/v1/external/');
+    const start = site.indexOf(EXTERNAL_LOCATION);
     const block = site.slice(start, site.indexOf('\n  }', start));
     expect(block).toMatch(/proxy_set_header X-Forwarded-For \$remote_addr;/);
     expect(block).not.toContain('$proxy_add_x_forwarded_for');
@@ -250,6 +262,58 @@ describe('build-release', () => {
         confD: { 'site.conf': 'server {\n  set_real_ip_from 10.0.0.0/8;\n}\n' },
       });
       expect(r.verdict).toBe('FAIL');
+    });
+
+    it('fails on a directive split across lines (parsed by statement, not by line)', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf: 'set_real_ip_from 10.1.1.1;\nset_real_ip_from\n    10.0.0.0/8;\n',
+      });
+      expect(r.verdict).toBe('FAIL');
+      expect(r.detail).toContain('10.0.0.0/8');
+    });
+
+    it('finds a set_real_ip_from that shares a line with a block opener', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf: 'http { set_real_ip_from 10.1.1.1; server { set_real_ip_from 10.0.0.0/8; } }\n',
+      });
+      expect(r.verdict).toBe('FAIL');
+    });
+
+    it('fails when set_real_ip_from has no value or more than one', () => {
+      const env = 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n';
+      expect(runGate({ env, nginxConf: 'set_real_ip_from 10.1.1.1;\nset_real_ip_from;\n' }).verdict).toBe('FAIL');
+      expect(runGate({ env, nginxConf: 'set_real_ip_from 10.1.1.1 10.0.0.0/8;\n' }).verdict).toBe('FAIL');
+    });
+
+    it('accepts the mime.types and conf.d/*.conf includes the shipped nginx.conf uses', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf:
+          'http {\n  include /etc/nginx/mime.types;\n  set_real_ip_from 10.1.1.1;\n  include /etc/nginx/conf.d/*.conf;\n}\n',
+      });
+      expect(r.verdict).toBe('PASS');
+    });
+
+    it('fails when nginx includes a file the gate does not scan', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf: 'http {\n  set_real_ip_from 10.1.1.1;\n  include /etc/nginx/realip/*.conf;\n}\n',
+      });
+      expect(r.verdict).toBe('FAIL');
+      expect(r.detail).toContain('include');
+    });
+
+    it('accepts KKU_PROXY_IPS separated by commas as well as spaces', () => {
+      const nginxConf = 'set_real_ip_from 10.1.1.1;\nset_real_ip_from 10.2.2.2;\n';
+      for (const list of ['10.1.1.1,10.2.2.2', '10.1.1.1, 10.2.2.2', '10.1.1.1 10.2.2.2']) {
+        const r = runGate({ env: `API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS="${list}"\n`, nginxConf });
+        expect(r, list).toEqual({
+          verdict: 'PASS',
+          detail: 'ip allowlists on; real-ip pinned to 2 proxy address(es)',
+        });
+      }
     });
 
     it('ignores a commented-out set_real_ip_from', () => {

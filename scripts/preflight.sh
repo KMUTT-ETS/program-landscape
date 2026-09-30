@@ -310,8 +310,10 @@ _preflight_env_value() {
   pattern="^[[:space:]]*(export[[:space:]]+)?${key}="
   if [ -r "$file" ]; then
     line="$(grep -E "$pattern" "$file" 2>/dev/null | tail -1)"
-  elif sudo test -r "$file" 2>/dev/null; then
-    line="$(sudo grep -E "$pattern" "$file" 2>/dev/null | tail -1)"
+  elif sudo -n test -r "$file" 2>/dev/null; then
+    # -n: never prompt. With no cached credentials this fails and the gate
+    # FAILs, telling the operator to run `sudo -v` first.
+    line="$(sudo -n grep -E "$pattern" "$file" 2>/dev/null | tail -1)"
   else
     return 1
   fi
@@ -319,6 +321,20 @@ _preflight_env_value() {
   line="${line%%#*}"                              # trailing comment
   line="$(printf '%s' "$line" | tr -d "\"'\r" | xargs 2>/dev/null)"   # quotes + outer blanks
   printf '%s' "$line"
+}
+
+# Every nginx directive in the given files, one per line, whitespace
+# collapsed. Parsed by STATEMENT, not by line: nginx lets a directive span
+# lines (`set_real_ip_from\n    10.0.0.0/8;`), and a line-based grep would
+# miss the value and report a false PASS. Comments are stripped first; `{`
+# and `}` end a statement as well as `;`, so `server { set_real_ip_from …`
+# yields the directive on its own. Quotes are dropped from values.
+_preflight_nginx_statements() {
+  sed -e 's/#.*//' "$@" 2>/dev/null \
+    | tr '\n\t\r' '   ' \
+    | tr '{};' '\n\n\n' \
+    | tr -d "\"'" \
+    | awk 'NF { $1 = $1; print }'
 }
 
 # Strip a /32 (IPv4) or /128 (IPv6) suffix; lowercase. Prints nothing for a
@@ -360,7 +376,8 @@ gate_external_api_real_ip() {
 
   local -a proxies=() trusted=()
   local p h
-  for p in $proxies_raw; do
+  # Spaces or commas: "10.1.2.3 10.1.2.4" and "10.1.2.3,10.1.2.4" both work.
+  for p in ${proxies_raw//,/ }; do
     if ! h="$(_preflight_single_host "$p")"; then
       record "external_api_real_ip" "FAIL" "KKU_PROXY_IPS entry '$p' is a range, not a single proxy address"
       return
@@ -378,20 +395,42 @@ gate_external_api_real_ip() {
     return
   fi
 
-  local v
-  while read -r v; do
-    [ -n "$v" ] || continue
+  local statements
+  statements="$(_preflight_nginx_statements "${conf_files[@]}")"
+
+  # Only nginx.conf + conf.d/*.conf are scanned, so an `include` of anything
+  # else could carry a set_real_ip_from this gate never sees. Refuse it.
+  local inc
+  while read -r inc; do
+    [ -n "$inc" ] || continue
+    case "$inc" in
+      # Exactly the two paths docker-compose.prod.yml mounts (relative
+      # forms resolve against /etc/nginx, the nginx prefix).
+      "include mime.types"|"include /etc/nginx/mime.types") ;;
+      "include conf.d/*.conf"|"include /etc/nginx/conf.d/*.conf") ;;
+      *)
+        record "external_api_real_ip" "FAIL" "nginx '$inc' — only mime.types and conf.d/*.conf includes can be checked; inline it before enabling ip allowlists"
+        return
+        ;;
+    esac
+  done < <(printf '%s\n' "$statements" | awk '$1 == "include"')
+
+  local stmt v
+  local -a parts
+  while read -r stmt; do
+    [ -n "$stmt" ] || continue
+    read -r -a parts <<<"$stmt"      # word-split without globbing
+    if [ "${#parts[@]}" -ne 2 ]; then
+      record "external_api_real_ip" "FAIL" "malformed '$stmt' — set_real_ip_from takes exactly one address"
+      return
+    fi
+    v="${parts[1]}"
     if ! h="$(_preflight_single_host "$v")"; then
       record "external_api_real_ip" "FAIL" "set_real_ip_from $v trusts a range — pin it to the KKU proxy address(es) before enabling ip allowlists"
       return
     fi
     trusted+=("$h")
-  done < <(
-    # Ignore comments; one value per directive.
-    sed -e 's/#.*//' "${conf_files[@]}" 2>/dev/null \
-      | grep -oE '(^|[[:space:];])set_real_ip_from[[:space:]]+[^;[:space:]]+' \
-      | awk '{print $NF}'
-  )
+  done < <(printf '%s\n' "$statements" | awk '$1 == "set_real_ip_from"')
 
   if [ ${#trusted[@]} -eq 0 ]; then
     record "external_api_real_ip" "FAIL" "API_CLIENT_IP_ALLOWLIST=enabled but nginx has no set_real_ip_from"
