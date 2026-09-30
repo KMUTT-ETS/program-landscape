@@ -44,3 +44,4 @@ export const ScopeParamsSchema = z.object({
   scopeId: z.string().optional(),
 });
 export type ScopeParams = z.infer<typeof ScopeParamsSchema>;
+export * from './staff-profile';

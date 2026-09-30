@@ -505,6 +505,8 @@ async function mergeAndEnrichPublications(
           }))
         : [],
       authorsAreComplete: hasAuthors,
+      source: `live:${sp.source}`,
+      scholarPaperId: null,
     });
   }
 
@@ -801,6 +803,8 @@ interface ResearchOutputRow {
   pmid: string | null;
   doi: string | null;
   kkuAuthorName: string | null;
+  source: string | null;
+  scholarPaperId: string | null;
 }
 
 /**
@@ -849,6 +853,8 @@ function dedupePublications(rows: ResearchOutputRow[]): PublicationEntry[] {
       // empty here so the pure-dedup function stays side-effect-free.
       authors: [],
       authorsAreComplete: false,
+      source: canonical.source,
+      scholarPaperId: canonical.scholarPaperId,
     });
   }
   // Sort by year desc, then citations desc within year.
