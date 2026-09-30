@@ -50,8 +50,10 @@ describe('GlobalExceptionFilter — malformed JSON bodies', () => {
     expect(logged).toContain(MALFORMED_JSON_MESSAGE);
   });
 
-  it('also recognises a raw SyntaxError and a SyntaxError cause', () => {
-    expect(isBodyParseFailure(new SyntaxError('x'))).toBe(true);
+  it('recognises a body-parser SyntaxError (by its marker) and a SyntaxError cause', () => {
+    expect(isBodyParseFailure(new SyntaxError('x'))).toBe(false);
+    const marked = Object.assign(new SyntaxError('x'), { type: 'entity.parse.failed' });
+    expect(isBodyParseFailure(marked)).toBe(true);
     expect(
       isBodyParseFailure(new BadRequestException('bad', { cause: new SyntaxError('x') })),
     ).toBe(true);
@@ -62,6 +64,21 @@ describe('GlobalExceptionFilter — malformed JSON bodies', () => {
   it('keeps an ordinary HttpException message', () => {
     const { body } = run(new BadRequestException('page must be a number'));
     expect(body.error.message).toBe('page must be a number');
+  });
+});
+
+describe('GlobalExceptionFilter — server-side SyntaxError', () => {
+  it('reports an unmarked SyntaxError as a 500 INTERNAL and still scrubs its log line', () => {
+    const err = new SyntaxError(
+      `Unexpected token '<', "<!DOCTYPE "... is not valid JSON ${RAW_ID}`,
+    );
+    const { status, body, logged } = run(err);
+    expect(status).toBe(500);
+    expect(body.error.code).toBe('INTERNAL');
+    expect(body.error.message).not.toBe(MALFORMED_JSON_MESSAGE);
+    expect(logged).not.toContain(RAW_ID);
+    expect(logged).toContain('[REDACTED:THAI_ID]');
+    expect(logged).toContain('is not valid JSON');
   });
 });
 

@@ -139,3 +139,34 @@ describe('scrubLogObject — long string values', () => {
     expect(out.msg.endsWith('[REDACTED:THAI_ID] tail')).toBe(true);
   });
 });
+
+describe('scrubLogObject — array elements and deep values', () => {
+  it('redacts an id inside a long string inside an array', () => {
+    const long = `${'x'.repeat(300)} 1101700203883 tail`;
+    const out = scrubLogObject({ lines: [long, 'ok'] }) as { lines: string[] };
+    expect(out.lines[0]).not.toContain('1101700203883');
+    expect(out.lines[0]).toContain('[REDACTED:THAI_ID]');
+    expect(out.lines[1]).toBe('ok');
+  });
+
+  it('redacts a short id string in an array whole, like an object value', () => {
+    expect(scrubLogObject({ a: ['1101700203883'] })).toEqual({ a: ['[REDACTED]'] });
+  });
+
+  it('scrubs a string below the recursion depth limit', () => {
+    // An array at depth 7 puts its element at depth 8 (== MAX_RECURSION_DEPTH).
+    let deep: unknown = ['1101700203883', `${'x'.repeat(300)} 1101700203883`];
+    for (let i = 0; i < 7; i++) deep = { n: deep };
+    expect(JSON.stringify(scrubLogObject(deep))).not.toContain('1101700203883');
+  });
+});
+
+describe('space-grouped citizen id', () => {
+  it('is scrubbed', () => {
+    expect(scrubString('pid 1 1017 00203 88 3.')).toBe('pid [REDACTED:THAI_ID].');
+  });
+
+  it('is not matched when there is an extra digit', () => {
+    expect(scrubString('n=1 1017 00203 88 34')).toBe('n=1 1017 00203 88 34');
+  });
+});

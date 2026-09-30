@@ -36,7 +36,13 @@ const JSON_PARSE_MESSAGE_RE =
  * case a future Nest version starts attaching it.
  */
 export function isBodyParseFailure(e: unknown): boolean {
-  if (e instanceof SyntaxError) return true;
+  // A RAW SyntaxError is a body-parse failure only when it carries
+  // body-parser's marker. Nest wraps real body-parser errors in a
+  // BadRequestException, so any other raw SyntaxError (a bad JSON.parse, an
+  // upstream HTML page fed to res.json()) is a server-side fault and must stay a 500.
+  if (e instanceof SyntaxError) {
+    return (e as { type?: unknown }).type === 'entity.parse.failed';
+  }
   if (!(e instanceof HttpException) || e.getStatus() !== 400) return false;
   if (e.cause instanceof SyntaxError) return true;
   return JSON_PARSE_MESSAGE_RE.test(e.message);

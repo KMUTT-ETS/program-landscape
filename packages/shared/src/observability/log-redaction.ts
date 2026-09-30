@@ -106,6 +106,12 @@ const MAX_RECURSION_DEPTH = 8; // guard against pathological cycles
 // back the request/response context, mutating which would corrupt other
 // log lines).
 export function scrubLogObject<T = unknown>(input: T, depth = 0): T {
+  // Strings are handled first, before the depth guard, so an id in an array
+  // element or below MAX_RECURSION_DEPTH is still scrubbed. Same rule as an
+  // object value: short values are redacted whole, long ones scrubbed in place.
+  if (typeof input === 'string') {
+    return (looksLikeThai13DigitId(input) ? REDACTED : scrubString(input)) as unknown as T;
+  }
   if (depth >= MAX_RECURSION_DEPTH) return input;
   if (input === null || typeof input !== 'object') return input;
   if (Array.isArray(input)) {
@@ -153,6 +159,7 @@ export function scrubLogObject<T = unknown>(input: T, depth = 0): T {
 const THAI_ID_PATTERNS: readonly RegExp[] = [
   /(?<!\d)\d{13}(?!\d)/g,
   /(?<!\d)\d-\d{4}-\d{5}-\d{2}-\d(?!\d)/g,
+  /(?<!\d)\d \d{4} \d{5} \d{2} \d(?!\d)/g,
 ];
 
 /** Strings up to this length are redacted wholesale when they contain an id;
