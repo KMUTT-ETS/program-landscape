@@ -78,6 +78,26 @@ export class CacheService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Increment a counter that expires `ttlSeconds` after its first increment.
+   * Returns the new value, or undefined when Redis is unavailable — callers
+   * that rate-limit on it decide what "unknown" means. INCR then EXPIRE is
+   * not atomic, which is harmless here: the key names a single time window,
+   * and the TTL exists only to clean it up.
+   */
+  async incrWindow(key: string, ttlSeconds: number): Promise<number | undefined> {
+    if (!this.client) return undefined;
+    try {
+      const k = this.keyPrefix + key;
+      const count = await this.client.incr(k);
+      if (count === 1) await this.client.expire(k, Math.max(1, Math.floor(ttlSeconds)));
+      return count;
+    } catch (err) {
+      this.logger.debug(`cache.incrWindow(${key}) failed: ${msg(err)}`);
+      return undefined;
+    }
+  }
+
   async purge(pattern: string): Promise<number> {
     if (!this.client) return 0;
     try {
