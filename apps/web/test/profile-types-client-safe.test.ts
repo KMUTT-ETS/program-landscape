@@ -7,7 +7,9 @@ import path from 'node:path';
 // @kku/db barrel, webpack tries to bundle node:crypto and the build breaks.
 // Pin the two files' import lines structurally.
 const read = (...p: string[]) => readFileSync(path.join(__dirname, '..', ...p), 'utf8');
-const importLines = (src: string) => src.split('\n').filter((l) => /^\s*(import|export)\b.*\bfrom\s+'/.test(l));
+// Whole statements, not lines: a runtime import Prettier wraps across lines
+// (`import {\n  z,\n} from 'zod';`) is exactly the one that must not slip past.
+const importLines = (src: string) => src.match(/^\s*(?:import|export)\b[^;]*?\bfrom\s+'[^']+'/gm) ?? [];
 
 describe('profile types stay client-safe', () => {
   it('the shared types module has no runtime imports at all', () => {
