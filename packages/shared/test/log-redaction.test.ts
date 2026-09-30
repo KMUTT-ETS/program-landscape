@@ -113,4 +113,29 @@ describe('scrubString', () => {
   it('leaves shorter runs alone', () => {
     expect(scrubString('id=1234567')).toBe('id=1234567');
   });
+
+  it('redacts an id embedded in a string longer than 200 characters', () => {
+    const long = `${'x'.repeat(250)} body "1101700203883" ${'y'.repeat(250)}`;
+    const out = scrubString(long);
+    expect(out).not.toContain('1101700203883');
+    expect(out).toContain('[REDACTED:THAI_ID]');
+  });
+
+  it('redacts an id glued to letters and the dash-grouped form', () => {
+    expect(scrubString('id1101700203883abc')).toBe('id[REDACTED:THAI_ID]abc');
+    expect(scrubString('pid 1-1017-00203-88-3.')).toBe('pid [REDACTED:THAI_ID].');
+  });
+
+  it('does not treat a longer digit run as an id', () => {
+    expect(scrubString('n=12345678901234')).toBe('n=12345678901234');
+  });
+});
+
+describe('scrubLogObject — long string values', () => {
+  it('replaces the id in place in a value longer than 200 characters', () => {
+    const msg = `${'x'.repeat(300)} 1101700203883 tail`;
+    const out = scrubLogObject({ msg }) as { msg: string };
+    expect(out.msg).not.toContain('1101700203883');
+    expect(out.msg.endsWith('[REDACTED:THAI_ID] tail')).toBe(true);
+  });
 });

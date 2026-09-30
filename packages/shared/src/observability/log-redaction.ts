@@ -130,6 +130,11 @@ export function scrubLogObject<T = unknown>(input: T, depth = 0): T {
       // Catch raw 13-digit Thai citizen IDs that slip in as bare values
       // (e.g. via a stack-trace string or a generic `data: string` log).
       out[key] = REDACTED;
+    } else if (typeof value === 'string' && value.length > SHORT_VALUE_MAX) {
+      // A long value (a stack trace, a serialised request) is too useful to
+      // blank out wholesale, but must not carry an id through either: redact
+      // the id runs in place.
+      out[key] = scrubString(value);
     } else {
       out[key] = scrubLogObject(value, depth + 1);
     }
@@ -137,20 +142,41 @@ export function scrubLogObject<T = unknown>(input: T, depth = 0): T {
   return out as unknown as T;
 }
 
-// Thai citizen IDs are exactly 13 digits. We treat any 13-consecutive-digit
-// run inside a string value as PII-shaped. Conservative — could occasionally
-// false-positive on a transaction-ID. Acceptable: false positives in logs
-// are noise; false negatives leak personal data.
-const THAI_ID_RE = /\b\d{13}\b/;
+// Thai citizen IDs are exactly 13 digits, written bare or grouped
+// 1-2345-67890-12-3. We treat any such run inside a string value as
+// PII-shaped. Conservative — could occasionally false-positive on a
+// transaction-ID. Acceptable: false positives in logs are noise; false
+// negatives leak personal data.
+//
+// Digit lookarounds rather than \b: `\b` needs a word/non-word transition, so
+// an id glued to a letter (`id1234567890123`, `...0123abc`) slipped past it.
+const THAI_ID_PATTERNS: readonly RegExp[] = [
+  /(?<!\d)\d{13}(?!\d)/g,
+  /(?<!\d)\d-\d{4}-\d{5}-\d{2}-\d(?!\d)/g,
+];
 
-function looksLikeThai13DigitId(value: string): boolean {
-  if (value.length < 13 || value.length > 200) return false;
-  return THAI_ID_RE.test(value);
+/** Strings up to this length are redacted wholesale when they contain an id;
+ *  longer ones have the id runs replaced in place (see scrubLogObject). */
+const SHORT_VALUE_MAX = 200;
+
+function containsThaiId(value: string): boolean {
+  return THAI_ID_PATTERNS.some((re) => {
+    re.lastIndex = 0;
+    return re.test(value);
+  });
 }
 
-// Convenience: scrub a single string. Used by the AI safety + analyst
-// output sanitisers if they want to call this directly. Replaces every
-// 13-digit run with [REDACTED:THAI_ID].
+function looksLikeThai13DigitId(value: string): boolean {
+  if (value.length < 13 || value.length > SHORT_VALUE_MAX) return false;
+  return containsThaiId(value);
+}
+
+// Scrub a single string of any length: replaces every 13-digit run (bare or
+// dash-grouped) with [REDACTED:THAI_ID]. Used for pino `msg` lines, which
+// `formatters.log` / scrubLogObject never see, and by the AI output
+// sanitisers.
 export function scrubString(value: string): string {
-  return value.replace(/\b\d{13}\b/g, '[REDACTED:THAI_ID]');
+  let out = value;
+  for (const re of THAI_ID_PATTERNS) out = out.replace(re, '[REDACTED:THAI_ID]');
+  return out;
 }

@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiError } from '@kku/shared';
+import { ApiError, scrubString } from '@kku/shared';
 import type { ApiFailure, SessionUser } from '@kku/shared';
 
 // Maps any thrown exception to the ApiFailure envelope. ApiError gives us
@@ -18,6 +18,30 @@ import type { ApiFailure, SessionUser } from '@kku/shared';
 //     { requestId, userId, route, method, code, status, stack? }
 //   The stack is included in the LOG ONLY (never the response body, in
 //   any environment).
+/** What a caller and the log see when the request body was not valid JSON. */
+export const MALFORMED_JSON_MESSAGE = 'Malformed JSON body';
+
+/** Wording of V8's JSON.parse errors, which body-parser rethrows verbatim. */
+const JSON_PARSE_MESSAGE_RE =
+  /is not valid JSON|Unexpected token|JSON at position|Unexpected end of JSON input|Unexpected non-whitespace character/;
+
+/**
+ * True when the exception is a request-body JSON parse failure.
+ *
+ * body-parser throws a SyntaxError whose message QUOTES the body it could not
+ * parse — for the external staff-profile endpoint that is a citizen id or an
+ * email. Nest's RoutesResolver.mapExternalException turns it into
+ * `new BadRequestException(err.message)` with no `cause`, so the message is
+ * the reliable signal; `cause instanceof SyntaxError` is checked as well in
+ * case a future Nest version starts attaching it.
+ */
+export function isBodyParseFailure(e: unknown): boolean {
+  if (e instanceof SyntaxError) return true;
+  if (!(e instanceof HttpException) || e.getStatus() !== 400) return false;
+  if (e.cause instanceof SyntaxError) return true;
+  return JSON_PARSE_MESSAGE_RE.test(e.message);
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -44,6 +68,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           data: null,
           meta: null,
           error: { code: e.code, message: e.message, details: e.details },
+        },
+      };
+    }
+
+    if (isBodyParseFailure(e)) {
+      return {
+        status: 400,
+        body: {
+          data: null,
+          meta: null,
+          error: { code: 'VALIDATION_FAILED', message: MALFORMED_JSON_MESSAGE },
         },
       };
     }
@@ -86,6 +121,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     code: string,
     req: Request & { user?: SessionUser; id?: string },
   ): void {
+    // A parse failure's message and stack both carry the raw body.
+    const parseFailure = isBodyParseFailure(e);
     const ctx = {
       requestId: req.id ?? (req.headers['x-request-id'] as string | undefined) ?? null,
       userId: req.user?.userId ?? null,
@@ -96,8 +133,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       // stack is for ops only — never the response body. The pino
       // redaction layer doesn't strip stacks (they're not PII), but
       // the body never gets one in any environment.
-      stack: e instanceof Error ? e.stack : undefined,
-      message: e instanceof Error ? e.message : String(e),
+      stack: !parseFailure && e instanceof Error ? e.stack : undefined,
+      message: parseFailure ? MALFORMED_JSON_MESSAGE : e instanceof Error ? e.message : String(e),
     };
 
     // 5xx (incl. unhandled) → error level. 4xx → warn (caller-fault is
@@ -110,7 +147,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // labels, not payload) — prod 500s logged with no message/stack for
     // weeks because of exactly that (found 2026-07-09 debugging the
     // /pdfs/upload failure).
-    const line = `[${code}] ${req.method} ${req.originalUrl ?? req.url} ${JSON.stringify(ctx)}`;
+    //
+    // The whole line is id-scrubbed: pino's formatters.log never sees the
+    // message string, so nothing downstream would catch an id in it.
+    const line = scrubString(
+      `[${code}] ${req.method} ${req.originalUrl ?? req.url} ${JSON.stringify(ctx)}`,
+    );
     if (status >= 500) {
       this.logger.error(line);
     } else {
@@ -119,7 +161,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 }
 
-function statusForCode(code: string): number {
+export function statusForCode(code: string): number {
   switch (code) {
     case 'UNAUTHORIZED':
       return 401;
