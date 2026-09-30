@@ -106,7 +106,7 @@ KKU proxy MUST send, and our nginx trusts:
 |---|---|---|
 | `Host` | `program-landscape.kku.ac.th` | NextAuth callback URLs, CSP `connect-src` |
 | `X-Real-IP` | client IP | optional |
-| `X-Forwarded-For` | `<client>, <kku-proxy>` | audit IPs in `AuditLog` |
+| `X-Forwarded-For` | `[<whatever the caller sent>, ] <client>` — the KKU proxy **appends** the client address it saw (`$proxy_add_x_forwarded_for`); its own address arrives as the TCP peer, not in this header | real client IP for rate limits, audit IPs in `AuditLog`, external-API IP allowlists |
 | `X-Forwarded-Proto` | `https` | NextAuth `secure` flag, app-generated links |
 | `X-Forwarded-Host` | `program-landscape.kku.ac.th` | same |
 
@@ -123,6 +123,21 @@ set_real_ip_from 192.168.0.0/16;
 ```
 
 **Before Phase 2 of the rollout:** replace with the actual KKU reverse proxy CIDR (ask KKU network team). This is the set of IPs we trust to send `X-Forwarded-For`. Narrower is more secure — a spoofed `X-Forwarded-For` from an outside IP would be ignored.
+
+`real_ip_recursive` is **`off`** (http level, in `nginx.conf`): nginx takes the **last** `X-Forwarded-For` entry — the one the KKU proxy appended — and never walks further left into entries the caller wrote. That is right for exactly one trusted hop. If KKU ever puts a second proxy or load balancer in front of theirs, every user would resolve to that hop's address and share one rate-limit bucket; tell us and we will revisit. (A `real_ip_recursive` inside a `location` block is ignored by nginx's realip module — it only takes effect at http/server level.)
+
+### 6a. External API IP allowlists — two manual go-live checks
+
+Per-client IP allowlists on `POST /api/v1/external/staff-profile` are **switched off** by default (`API_CLIENT_IP_ALLOWLIST` unset in `.env.prod`; the api refuses to save a non-empty allowlist). The address they are checked against is only trustworthy once `set_real_ip_from` names **only** the KKU proxy — while it trusts a range, any host inside that range can connect straight to `:8443` and name its own address.
+
+To switch them on:
+
+1. Pin `set_real_ip_from` in `infra/nginx/nginx.conf` to the KKU proxy's single address(es) (no ranges), set `KKU_PROXY_IPS` in `.env.prod` to the same address(es), then `API_CLIENT_IP_ALLOWLIST=enabled`. `scripts/preflight.sh`'s `external_api_real_ip` gate refuses the deploy unless every `set_real_ip_from` (in `nginx.conf` and `conf.d/*.conf`) is a single host and the set equals `KKU_PROXY_IPS` exactly.
+
+The gate cannot see the network. These two checks are **manual**, and both must pass **before** pinning and enabling:
+
+- [ ] **The KKU proxy appends (or overwrites) `X-Forwarded-For`; it does not pass the client's header through unchanged.** With `real_ip_recursive off` we trust the last entry — if the proxy forwards a client-written header verbatim, the client chooses its own address. Test from a workstation: `curl -sk -o /dev/null -H 'X-Forwarded-For: 203.0.113.9' https://program-landscape.kku.ac.th/signin`, then find that request in the access log (`docker logs --tail 50 program-landscape-nginx` — the nginx image links `access.log` to stdout, and a named volume seeded from the image keeps that link; if it prints nothing, the log is a real file: `docker exec program-landscape-nginx tail -n 50 /var/log/nginx/access.log`): `xff="…"` must END with the workstation's real address, and the line's first field (`$remote_addr`) must be that address — never `203.0.113.9`. (Not `/healthz`: that location has `access_log off`.)
+- [ ] **nginx sees the KKU proxy's address as the TCP peer.** Docker's published `8443` keeps the IPv4 source address under DNAT, but an IPv6 path or a userland `docker-proxy` presents the Docker gateway (`172.x`) instead — pinning `set_real_ip_from` to the proxy would then trust nothing, and every request would resolve to the gateway (one shared rate-limit bucket, allowlists matching nobody). In the same access-log lines, `peer="…"` (`$realip_remote_addr`, the TCP peer before the realip rewrite) must be the KKU proxy's address. Only then pin and enable.
 
 ## 7. Cert fingerprint exchange
 
@@ -164,6 +179,7 @@ Before the first `deploy.sh` in production:
 
 - [ ] DNS A-record confirmed for `program-landscape.kku.ac.th`.
 - [ ] KKU proxy source IP(s) placed in our nginx `set_real_ip_from`.
+- [ ] Before enabling external-API IP allowlists: both manual checks in §6a passed, `KKU_PROXY_IPS` set, preflight `external_api_real_ip` PASS.
 - [ ] KKU proxy config uses `proxy_ssl_verify off` OR our cert fingerprint pinned.
 - [ ] KKU proxy forwards to `https://<our-ip>:8443` (not `:443`, not `http://`).
 - [ ] Firewall allows ingress on `:8443` from KKU proxy IPs only.

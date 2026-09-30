@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # preflight.sh — single command that answers "are we go for production?"
 #
-# Aggregates 8 objective gates from prompts 01–19. Exit 0 means GO;
+# Aggregates 9 objective gates from prompts 01–19. Exit 0 means GO;
 # any FAIL exits non-zero. WARN does not block — it surfaces in the
 # summary so the operator can decide.
 #
@@ -282,6 +282,141 @@ gate_e2e_k6() {
   fi
 }
 
+# ── Gate 9: external-API IP allowlists only behind a pinned real-IP ──
+#
+# ApiKeyGuard checks a client's IP allowlist against the address nginx
+# resolves from X-Forwarded-For. That address is only as trustworthy as
+# `set_real_ip_from`: while it trusts a range wider than the KKU reverse
+# proxy itself, any host inside that range can connect straight to :8443
+# and name whatever address it likes. So API_CLIENT_IP_ALLOWLIST=enabled is
+# refused unless every set_real_ip_from (nginx.conf AND conf.d/*.conf) is a
+# single host and the set equals KKU_PROXY_IPS exactly.
+#
+# Inputs (overridable for tests):
+#   PREFLIGHT_ENV_FILE   — the deployed env file. deploy.sh's ENV_FILE,
+#                          $DEPLOY_ROOT/.env.prod (root:root 0600 on prod,
+#                          so it is read through sudo when not readable).
+#   PREFLIGHT_NGINX_DIR  — the nginx config this bundle is about to deploy,
+#                          $REPO_ROOT/infra/nginx (deploy.sh runs this
+#                          script from the unpacked bundle, and
+#                          docker-compose.prod.yml mounts exactly
+#                          infra/nginx/nginx.conf + infra/nginx/conf.d).
+# Only the two keys are ever extracted from the env file — never print it.
+_preflight_env_value() {
+  # $1 = env file, $2 = key. Last assignment wins (as with compose env_file).
+  # Returns 1 when the file cannot be read at all, so an unreadable file can
+  # never pass as "switch unset".
+  local file="$1" key="$2" line pattern
+  pattern="^[[:space:]]*(export[[:space:]]+)?${key}="
+  if [ -r "$file" ]; then
+    line="$(grep -E "$pattern" "$file" 2>/dev/null | tail -1)"
+  elif sudo test -r "$file" 2>/dev/null; then
+    line="$(sudo grep -E "$pattern" "$file" 2>/dev/null | tail -1)"
+  else
+    return 1
+  fi
+  line="${line#*=}"
+  line="${line%%#*}"                              # trailing comment
+  line="$(printf '%s' "$line" | tr -d "\"'\r" | xargs 2>/dev/null)"   # quotes + outer blanks
+  printf '%s' "$line"
+}
+
+# Strip a /32 (IPv4) or /128 (IPv6) suffix; lowercase. Prints nothing for a
+# range, so the caller can tell a single host from a CIDR.
+_preflight_single_host() {
+  local v
+  v="$(printf '%s' "$1" | tr 'A-Z' 'a-z')"
+  case "$v" in
+    */32|*/128) v="${v%/*}" ;;
+    */*) return 1 ;;
+  esac
+  [ -n "$v" ] || return 1
+  printf '%s' "$v"
+}
+
+gate_external_api_real_ip() {
+  local deploy_root="${DEPLOY_ROOT:-/opt/program-landscape}"
+  local env_file="${PREFLIGHT_ENV_FILE:-$deploy_root/.env.prod}"
+  local nginx_dir="${PREFLIGHT_NGINX_DIR:-$REPO_ROOT/infra/nginx}"
+
+  local switch=""
+  if [ -e "$env_file" ]; then
+    if ! switch="$(_preflight_env_value "$env_file" API_CLIENT_IP_ALLOWLIST)"; then
+      record "external_api_real_ip" "FAIL" "cannot read $env_file (even via sudo) — API_CLIENT_IP_ALLOWLIST unverifiable; run 'sudo -v' first"
+      return
+    fi
+  fi
+  if [ "$switch" != "enabled" ]; then
+    record "external_api_real_ip" "PASS" "ip allowlists off"
+    return
+  fi
+
+  local proxies_raw
+  proxies_raw="$(_preflight_env_value "$env_file" KKU_PROXY_IPS)"
+  if [ -z "$proxies_raw" ]; then
+    record "external_api_real_ip" "FAIL" "API_CLIENT_IP_ALLOWLIST=enabled but KKU_PROXY_IPS is empty"
+    return
+  fi
+
+  local -a proxies=() trusted=()
+  local p h
+  for p in $proxies_raw; do
+    if ! h="$(_preflight_single_host "$p")"; then
+      record "external_api_real_ip" "FAIL" "KKU_PROXY_IPS entry '$p' is a range, not a single proxy address"
+      return
+    fi
+    proxies+=("$h")
+  done
+
+  local conf_files=("$nginx_dir/nginx.conf")
+  local f
+  for f in "$nginx_dir"/conf.d/*.conf; do
+    [ -f "$f" ] && conf_files+=("$f")
+  done
+  if [ ! -f "$nginx_dir/nginx.conf" ]; then
+    record "external_api_real_ip" "FAIL" "API_CLIENT_IP_ALLOWLIST=enabled but $nginx_dir/nginx.conf not found"
+    return
+  fi
+
+  local v
+  while read -r v; do
+    [ -n "$v" ] || continue
+    if ! h="$(_preflight_single_host "$v")"; then
+      record "external_api_real_ip" "FAIL" "set_real_ip_from $v trusts a range — pin it to the KKU proxy address(es) before enabling ip allowlists"
+      return
+    fi
+    trusted+=("$h")
+  done < <(
+    # Ignore comments; one value per directive.
+    sed -e 's/#.*//' "${conf_files[@]}" 2>/dev/null \
+      | grep -oE '(^|[[:space:];])set_real_ip_from[[:space:]]+[^;[:space:]]+' \
+      | awk '{print $NF}'
+  )
+
+  if [ ${#trusted[@]} -eq 0 ]; then
+    record "external_api_real_ip" "FAIL" "API_CLIENT_IP_ALLOWLIST=enabled but nginx has no set_real_ip_from"
+    return
+  fi
+
+  local want got
+  want="$(printf '%s\n' "${proxies[@]}" | sort -u | tr '\n' ' ')"
+  got="$(printf '%s\n' "${trusted[@]}" | sort -u | tr '\n' ' ')"
+  if [ "$want" != "$got" ]; then
+    record "external_api_real_ip" "FAIL" "set_real_ip_from { ${got% } } != KKU_PROXY_IPS { ${want% } }"
+    return
+  fi
+  local n
+  n="$(printf '%s\n' "${proxies[@]}" | sort -u | wc -l | tr -d ' ')"
+  record "external_api_real_ip" "PASS" "ip allowlists on; real-ip pinned to $n proxy address(es)"
+}
+
+# Sourced (e.g. by apps/api/test/build-release.test.ts, to exercise one gate
+# against fixture files)? Stop here: define the gates, run none of them.
+# Executed directly, this is a no-op and behaviour is unchanged.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
+
 # ─── Run all gates ────────────────────────────────────────────────────
 gate_reports_present
 gate_no_unowned_deferrals
@@ -291,6 +426,7 @@ gate_tests
 gate_backup_verification
 gate_restore_drill
 gate_e2e_k6
+gate_external_api_real_ip
 
 # ─── Tally ───────────────────────────────────────────────────────────
 PASS=0; WARN=0; FAIL=0; SKIP=0

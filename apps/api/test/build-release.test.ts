@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 
 // Static checks on the build-release script + the artefacts it ships.
@@ -94,6 +96,169 @@ describe('build-release', () => {
     expect(conf).toMatch(/location\s+\/api\/v1\/\s*\{[^}]*api_upstream/);
     // The bare /api/ default must route to web (the user-typed inversion).
     expect(conf).toMatch(/location\s+\/api\/\s*\{[^}]*web_upstream/);
+  });
+
+  it('routes /api/v1/external/ through its own rate-limit zone', () => {
+    const main = readFileSync(path.join(REPO_ROOT, 'infra', 'nginx', 'nginx.conf'), 'utf8');
+    const site = readFileSync(
+      path.join(REPO_ROOT, 'infra', 'nginx', 'conf.d', 'program-landscape.conf'),
+      'utf8',
+    );
+    expect(main).toMatch(/limit_req_zone\s+\$binary_remote_addr\s+zone=external_zone:/);
+    const start = site.indexOf('location /api/v1/external/');
+    expect(start).toBeGreaterThan(-1);
+    // The block runs to its closing brace (no nested braces inside it).
+    const block = site.slice(start, site.indexOf('\n  }', start));
+    expect(block).toMatch(/limit_req zone=external_zone/);
+    expect(block).toMatch(/proxy_pass http:\/\/api_upstream;/);
+  });
+
+  it('resolves one trusted hop and hands the external API a single address', () => {
+    const main = readFileSync(path.join(REPO_ROOT, 'infra', 'nginx', 'nginx.conf'), 'utf8');
+    const site = readFileSync(
+      path.join(REPO_ROOT, 'infra', 'nginx', 'conf.d', 'program-landscape.conf'),
+      'utf8',
+    );
+    // http-level only: a location-level real_ip_recursive is ignored by realip.
+    expect(main).toMatch(/^\s*real_ip_recursive\s+off;/m);
+    expect(main).not.toMatch(/^\s*real_ip_recursive\s+on;/m);
+    expect(site).not.toMatch(/^\s*real_ip_recursive\b/m);
+
+    const start = site.indexOf('location /api/v1/external/');
+    const block = site.slice(start, site.indexOf('\n  }', start));
+    expect(block).toMatch(/proxy_set_header X-Forwarded-For \$remote_addr;/);
+    expect(block).not.toContain('$proxy_add_x_forwarded_for');
+    expect(block).not.toContain('real_ip_recursive');
+
+    const preflight = readFileSync(path.join(REPO_ROOT, 'scripts', 'preflight.sh'), 'utf8');
+    expect(preflight).toMatch(/^gate_external_api_real_ip\(\)\s*\{/m);
+    expect(preflight).toMatch(/^gate_external_api_real_ip\s*$/m);
+    expect(preflight).toContain('KKU_PROXY_IPS');
+  });
+
+  describe('preflight gate_external_api_real_ip', () => {
+    const PREFLIGHT = path.join(REPO_ROOT, 'scripts', 'preflight.sh');
+
+    // Runs ONLY the gate (the script stops after defining gates when
+    // sourced) against a throwaway env file + nginx dir.
+    function runGate(opts: {
+      env: string;
+      nginxConf: string;
+      confD?: Record<string, string>;
+    }): { verdict: string; detail: string } {
+      const dir = mkdtempSync(path.join(os.tmpdir(), 'preflight-realip-'));
+      try {
+        const nginxDir = path.join(dir, 'nginx');
+        mkdirSync(path.join(nginxDir, 'conf.d'), { recursive: true });
+        writeFileSync(path.join(nginxDir, 'nginx.conf'), opts.nginxConf);
+        for (const [name, body] of Object.entries(opts.confD ?? {})) {
+          writeFileSync(path.join(nginxDir, 'conf.d', name), body);
+        }
+        const envFile = path.join(dir, 'env');
+        writeFileSync(envFile, opts.env);
+        const out = execFileSync(
+          'bash',
+          [
+            '-c',
+            // shift first: a bare `source` would hand the script our $1 as
+            // its own argument list, which it rejects as an unknown arg.
+            'f="$1"; shift; source "$f" && gate_external_api_real_ip && printf "%s\\t%s" "${GATE_VERDICTS[0]}" "${GATE_DETAILS[0]}"',
+            'gate-test',
+            PREFLIGHT,
+          ],
+          {
+            encoding: 'utf8',
+            env: { ...process.env, PREFLIGHT_ENV_FILE: envFile, PREFLIGHT_NGINX_DIR: nginxDir },
+          },
+        );
+        const [verdict = '', detail = ''] = out.split('\t');
+        return { verdict, detail };
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+
+    const PLACEHOLDERS = [
+      'set_real_ip_from 10.0.0.0/8;',
+      'set_real_ip_from 172.16.0.0/12;',
+      'set_real_ip_from 192.168.0.0/16;',
+      'real_ip_header   X-Forwarded-For;',
+      'real_ip_recursive off;',
+    ].join('\n');
+
+    it('passes when the switch is off, whatever nginx trusts', () => {
+      const r = runGate({ env: 'API_CLIENT_IP_ALLOWLIST=\nKKU_PROXY_IPS=\n', nginxConf: PLACEHOLDERS });
+      expect(r).toEqual({ verdict: 'PASS', detail: 'ip allowlists off' });
+    });
+
+    it('fails when on while set_real_ip_from is still the RFC-1918 placeholders', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.2.3\n',
+        nginxConf: PLACEHOLDERS,
+      });
+      expect(r.verdict).toBe('FAIL');
+    });
+
+    it('passes when on and nginx trusts exactly the single pinned proxy', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.2.3\n',
+        nginxConf: 'set_real_ip_from 10.1.2.3;\nreal_ip_recursive off;\n',
+      });
+      expect(r).toEqual({
+        verdict: 'PASS',
+        detail: 'ip allowlists on; real-ip pinned to 1 proxy address(es)',
+      });
+    });
+
+    it('treats a bare address and its /32 form as the same host', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST="enabled"\nKKU_PROXY_IPS="10.1.2.3/32"\n',
+        nginxConf: 'set_real_ip_from 10.1.2.3;\n',
+      });
+      expect(r.verdict).toBe('PASS');
+    });
+
+    it('fails when on with a /16 range, even if KKU_PROXY_IPS lists the same range', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.101.0.0/16\n',
+        nginxConf: 'set_real_ip_from 10.101.0.0/16;\n',
+      });
+      expect(r.verdict).toBe('FAIL');
+    });
+
+    it('fails when on with KKU_PROXY_IPS empty', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=\n',
+        nginxConf: 'set_real_ip_from 10.1.2.3;\n',
+      });
+      expect(r.verdict).toBe('FAIL');
+      expect(r.detail).toContain('KKU_PROXY_IPS');
+    });
+
+    it('fails when on and nginx trusts an address KKU_PROXY_IPS does not name', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.2.3\n',
+        nginxConf: 'set_real_ip_from 10.9.9.9;\n',
+      });
+      expect(r.verdict).toBe('FAIL');
+    });
+
+    it('counts a set_real_ip_from in conf.d/*.conf', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.2.3\n',
+        nginxConf: 'set_real_ip_from 10.1.2.3;\n',
+        confD: { 'site.conf': 'server {\n  set_real_ip_from 10.0.0.0/8;\n}\n' },
+      });
+      expect(r.verdict).toBe('FAIL');
+    });
+
+    it('ignores a commented-out set_real_ip_from', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.2.3\n',
+        nginxConf: '# set_real_ip_from 10.0.0.0/8;\nset_real_ip_from 10.1.2.3;\n',
+      });
+      expect(r.verdict).toBe('PASS');
+    });
   });
 
   it('deploy + rollback scripts are executable', () => {
