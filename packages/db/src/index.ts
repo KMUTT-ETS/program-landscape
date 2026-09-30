@@ -77,3 +77,4 @@ export * from './gap-map-signals';
 export * from './job108';
 export * from './job108-settings';
 export * from './staff-profile';
+export * from './api-clients';
