@@ -5974,3 +5974,87 @@ model ScholarBindAttempt {
   @@index([createdAt])
   @@map("scholar_bind_attempts")
 }
+
+// ─── External API clients (staff-profile.v1) ───────────────────────────────
+// Other KKU systems call POST /api/v1/external/staff-profile with a per-client
+// API key. Keys are stored as SHA-256 only; the plaintext is shown once.
+// Creator ids are plain columns, not relations: @AuditLog records who did what.
+
+enum ApiClientStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ApiLookupType {
+  CITIZEN_ID
+  EMAIL
+}
+
+model ApiClient {
+  id                   String          @id @default(cuid())
+  name                 String          @unique
+  description          String?
+  ownerContact         String?         @map("owner_contact")
+  status               ApiClientStatus @default(ACTIVE)
+  /// Subset of STAFF_PROFILE_SECTIONS; `person` is implicit.
+  allowedSections      String[]        @default([]) @map("allowed_sections")
+  allowCitizenIdLookup Boolean         @default(false) @map("allow_citizen_id_lookup")
+  allowEmailLookup     Boolean         @default(false) @map("allow_email_lookup")
+  includeInactive      Boolean         @default(false) @map("include_inactive")
+  /// CIDRs or bare addresses; empty = any address.
+  ipAllowlist          String[]        @default([]) @map("ip_allowlist")
+  rateLimitPerMinute   Int             @default(60) @map("rate_limit_per_minute")
+  createdById          String?         @map("created_by_id")
+  lastUsedAt           DateTime?       @map("last_used_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  keys     ApiClientKey[]
+  requests ApiRequestLog[]
+
+  @@map("api_clients")
+}
+
+model ApiClientKey {
+  id            String    @id @default(cuid())
+  clientId      String    @map("client_id")
+  /// First 16 chars of the key — shown in the UI and used to find the row.
+  prefix        String    @unique
+  /// SHA-256 hex of the full key. The key is 32 random bytes, so unsalted is sound.
+  keyHash       String    @map("key_hash")
+  expiresAt     DateTime? @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+  lastUsedAt    DateTime? @map("last_used_at")
+  createdById   String?   @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  client ApiClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("api_client_keys")
+}
+
+/// One row per authenticated call. NEVER stores the citizen id, its hash
+/// (unsalted over a ~2^43 keyspace — storing it is storing the id) or the
+/// email. Deleted after 365 days by the retention sweep.
+model ApiRequestLog {
+  id               String         @id @default(cuid())
+  clientId         String         @map("client_id")
+  keyId            String?        @map("key_id")
+  /// Null when the call failed before its lookup type was known.
+  lookupType       ApiLookupType? @map("lookup_type")
+  facultyMemberId  String?        @map("faculty_member_id")
+  status           Int
+  sectionsReturned String[]       @default([]) @map("sections_returned")
+  latencyMs        Int            @map("latency_ms")
+  ip               String?
+  requestId        String?        @map("request_id")
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  client ApiClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@index([createdAt])
+  @@map("api_request_logs")
+}
