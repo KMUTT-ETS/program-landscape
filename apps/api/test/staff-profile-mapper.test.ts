@@ -19,6 +19,13 @@ describe('toStaffProfileResponse', () => {
     expect(r.withheld).toEqual(['affiliation', 'teaching', 'research', 'publications']);
   });
 
+  it('takes the title abbreviation from the builder, not a table of its own', () => {
+    const p = staffProfileFixture();
+    p.basic = { ...p.basic, rankAbbrevTh: 'รศ.x', rankAbbrevEn: 'Assoc.x' };
+    const { title } = toStaffProfileResponse(p, grant([])).data.person;
+    expect(title).toMatchObject({ abbrevTh: 'รศ.x', abbrevEn: 'Assoc.x' });
+  });
+
   it('withholds the staff email unless the client holds email lookup', () => {
     expect(toStaffProfileResponse(staffProfileFixture(), grant([], false)).data.person.email).toBeNull();
     expect(toStaffProfileResponse(staffProfileFixture(), grant([], true)).data.person.email).toBe('somchai@kku.ac.th');

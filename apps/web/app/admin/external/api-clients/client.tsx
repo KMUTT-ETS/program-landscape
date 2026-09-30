@@ -839,7 +839,7 @@ function ClientDetailPanel({
 
           <PanelSection title="How to call">
             <pre className="overflow-x-auto rounded-md border border-subtle bg-surface-2 p-3 font-mono text-xs leading-relaxed">
-              {`curl -sS https://program-landscape.kku.ac.th/api/v1/external/staff-profile \\
+              {`curl -sS --max-time 60 https://program-landscape.kku.ac.th/api/v1/external/staff-profile \\
   -H "Authorization: Bearer <your key>" \\
   -H "Content-Type: application/json" \\
   -d '{"email":"someone@kku.ac.th"}'`}

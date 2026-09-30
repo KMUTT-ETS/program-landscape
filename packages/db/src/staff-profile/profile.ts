@@ -50,12 +50,20 @@ const RANK_LABEL: Record<FacultyRankCode, { th: string; en: string; thAbbrev: st
 
 /** Basic info derivable from the staff record alone. The page adds the
  *  signed-in user's email and avatar; the API adds the staff record's email. */
-export type StaffBasicInfo = Omit<ProfileBasicInfo, 'email' | 'avatarUrl'>;
+export type StaffBasicInfo = Omit<ProfileBasicInfo, 'email' | 'avatarUrl'> & {
+  /** Rank abbreviation ("รศ." / "Assoc. Prof.") — the same RANK_LABEL entry
+   *  the full display names are built from, so the two cannot disagree. */
+  rankAbbrevTh: string;
+  rankAbbrevEn: string;
+};
 
 export interface StaffProfileOptions {
   /** Passed to summariseTeaching: 10 for the page (the default), null for
    *  every course (the external API). */
   courseLimit?: number | null;
+  /** Compute the Teaching Talent stamp (default true). The external API
+   *  passes false: it never returns the verdict, so computing it is waste. */
+  includeTalent?: boolean;
 }
 
 export interface StaffProfile {
@@ -182,7 +190,7 @@ export async function buildStaffProfile(
       { id: member.id, kkuEmail: member.kkuEmail },
       { courseLimit: opts.courseLimit === undefined ? DEFAULT_COURSE_LIMIT : opts.courseLimit },
     ),
-    teachingTalentForFacultyMember(member.id),
+    opts.includeTalent === false ? Promise.resolve(null) : teachingTalentForFacultyMember(member.id),
   ]);
 
   return {
@@ -502,7 +510,7 @@ async function mergeAndEnrichPublications(
         if (ext && ext.authors.length > 0) resolved = ext.authors;
       } catch (err) {
         console.warn(
-          `[profile-data] DOI author fetch failed for doi=${p.doi}:`,
+          `[staff-profile] DOI author fetch failed for doi=${p.doi}:`,
           (err as Error).message,
         );
       }
@@ -523,7 +531,7 @@ async function mergeAndEnrichPublications(
         if (ext && ext.authors.length > 0) resolved = ext.authors;
       } catch (err) {
         console.warn(
-          `[profile-data] metadata-search author fetch failed for "${p.title.slice(0, 50)}":`,
+          `[staff-profile] metadata-search author fetch failed for "${p.title.slice(0, 50)}":`,
           (err as Error).message,
         );
       }
@@ -624,6 +632,8 @@ function buildMemberBasicInfo(
     fullNameEn: `${rank.enAbbrev}${drEn} ${member.nameEn}`.replace(/\s+/g, ' ').trim(),
     rankLabelTh: rank.th,
     rankLabelEn: rank.en,
+    rankAbbrevTh: rank.thAbbrev,
+    rankAbbrevEn: rank.enAbbrev,
     facultyNameTh: member.faculty?.nameTh ?? null,
     facultyNameEn: member.faculty?.nameEn ?? null,
     departmentNameTh: member.department?.nameTh ?? null,

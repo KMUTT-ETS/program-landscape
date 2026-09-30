@@ -13,6 +13,8 @@ export function staffProfileFixture(over: Partial<StaffProfile> = {}): StaffProf
       fullNameEn: 'Assoc. Prof. Dr. Somchai Jaidee',
       rankLabelTh: 'รองศาสตราจารย์',
       rankLabelEn: 'Associate Professor',
+      rankAbbrevTh: 'รศ.',
+      rankAbbrevEn: 'Assoc. Prof.',
       facultyNameTh: 'คณะวิทยาศาสตร์',
       facultyNameEn: 'Faculty of Science',
       departmentNameTh: null,

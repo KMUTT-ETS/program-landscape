@@ -8,13 +8,6 @@ import {
   type StaffProfileSection,
 } from '@kku/shared';
 
-const RANK_ABBREV: Record<StaffProfile['rank'], { th: string; en: string }> = {
-  PROF: { th: 'ศ.', en: 'Prof.' },
-  ASSOC_PROF: { th: 'รศ.', en: 'Assoc. Prof.' },
-  ASST_PROF: { th: 'ผศ.', en: 'Asst. Prof.' },
-  LECTURER: { th: 'อ.', en: 'Lect.' },
-};
-
 export interface StaffProfileGrant {
   allowedSections: readonly string[];
   allowEmailLookup: boolean;
@@ -35,8 +28,8 @@ export function toStaffProfileResponse(p: StaffProfile, grant: StaffProfileGrant
       title: {
         th: p.basic.rankLabelTh,
         en: p.basic.rankLabelEn,
-        abbrevTh: RANK_ABBREV[p.rank].th,
-        abbrevEn: RANK_ABBREV[p.rank].en,
+        abbrevTh: p.basic.rankAbbrevTh,
+        abbrevEn: p.basic.rankAbbrevEn,
       },
       name: { th: p.nameTh, en: p.nameEn },
       displayName: { th: p.basic.fullNameTh, en: p.basic.fullNameEn },

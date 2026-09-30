@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, ApiMetaSchema, hashCitizenId } from '@kku/shared';
 import { HTTP_CODE_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
-import { RequestMethod } from '@nestjs/common';
+import { Logger, RequestMethod } from '@nestjs/common';
 import { staffProfileFixture } from './fixtures/staff-profile';
 
 const mocks = vi.hoisted(() => ({
@@ -50,7 +50,7 @@ describe('StaffProfileService.lookup', () => {
       publicationsCache: 'hit',
       sectionsWithheld: ['affiliation', 'teaching', 'research'],
     });
-    expect(mocks.buildStaffProfile).toHaveBeenCalledWith('fm1', { courseLimit: null });
+    expect(mocks.buildStaffProfile).toHaveBeenCalledWith('fm1', { courseLimit: null, includeTalent: false });
     expect(mocks.recordApiRequest).toHaveBeenCalledWith(
       expect.objectContaining({ status: 200, lookupType: 'CITIZEN_ID', facultyMemberId: 'fm1' }),
     );
@@ -157,6 +157,89 @@ describe('StaffProfileService.lookup', () => {
     expect(e.code).toBe('UNAUTHORIZED');
     expect(mocks.resolveStaffForLookup).not.toHaveBeenCalled();
     expect(mocks.recordApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => { resolve = r; });
+  return { promise, resolve };
+}
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+describe('StaffProfileService build bounding', () => {
+  it('coalesces concurrent lookups of the same person onto one build', async () => {
+    const s = new StaffProfileService();
+    const d = deferred<ReturnType<typeof staffProfileFixture>>();
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockReturnValue(d.promise);
+    const a = s.lookup(req(), { citizenId: RAW_ID });
+    const b = s.lookup(req(), { citizenId: RAW_ID });
+    await tick();
+    d.resolve(staffProfileFixture());
+    const [ra, rb] = await Promise.all([a, b]);
+    expect(mocks.buildStaffProfile).toHaveBeenCalledTimes(1);
+    expect(ra.data.person.facultyMemberId).toBe('fm1');
+    expect(rb.data.person.facultyMemberId).toBe('fm1');
+    // Finished builds are forgotten: a later lookup builds afresh.
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    await s.lookup(req(), { citizenId: RAW_ID });
+    expect(mocks.buildStaffProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('never runs more builds at once than STAFF_PROFILE_MAX_CONCURRENT_BUILDS', async () => {
+    const prev = process.env.STAFF_PROFILE_MAX_CONCURRENT_BUILDS;
+    process.env.STAFF_PROFILE_MAX_CONCURRENT_BUILDS = '2';
+    try {
+      const s = new StaffProfileService();
+      let running = 0;
+      let peak = 0;
+      const gates: Array<() => void> = [];
+      mocks.resolveStaffForLookup.mockImplementation(async (l: { citizenId: string }) => `fm-${l.citizenId}`);
+      mocks.buildStaffProfile.mockImplementation(async (id: string) => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise<void>((r) => gates.push(r));
+        running -= 1;
+        return staffProfileFixture({ facultyMemberId: id });
+      });
+      // Five distinct valid citizen ids (the schema checks the checksum).
+      const ids = ['1101700203883', '1101700203891', '1101700203905', '1101700203913', '1101700203921'];
+      const all = Promise.all(ids.map((citizenId) => s.lookup(req(), { citizenId })));
+      for (let i = 0; i < 20 && mocks.buildStaffProfile.mock.calls.length < ids.length; i++) {
+        await tick();
+        expect(running).toBeLessThanOrEqual(2);
+        gates.splice(0).forEach((open) => open());
+      }
+      const out = await all;
+      expect(out).toHaveLength(5);
+      expect(mocks.buildStaffProfile).toHaveBeenCalledTimes(5);
+      expect(peak).toBe(2);
+    } finally {
+      if (prev === undefined) delete process.env.STAFF_PROFILE_MAX_CONCURRENT_BUILDS;
+      else process.env.STAFF_PROFILE_MAX_CONCURRENT_BUILDS = prev;
+    }
+  });
+});
+
+describe('StaffProfileService response check', () => {
+  it('logs the failing paths, never the values, and still returns the data', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+      mocks.buildStaffProfile.mockResolvedValue(
+        staffProfileFixture({ nameTh: 12345 as never, kkuEmail: 'secret.person@kku.ac.th' }),
+      );
+      const out = await new StaffProfileService().lookup(req(), { citizenId: RAW_ID });
+      expect(out.data.person.name.th).toBe(12345);
+      const messages = warn.mock.calls.map((c) => String(c[0]));
+      const hit = messages.find((m) => m.includes('failed its schema'));
+      expect(hit).toContain('person.name.th');
+      expect(hit).not.toContain('12345');
+      expect(mocks.recordApiRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 200 }));
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
