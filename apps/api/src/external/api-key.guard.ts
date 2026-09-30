@@ -32,9 +32,21 @@ export interface ApiClientRequest extends Request {
  *  to tell an unknown key from a revoked, expired or disabled one. */
 const UNAUTHENTICATED_MESSAGE = 'Invalid or missing API key';
 
+/** Only a conservative token shape is stored: the header is caller-controlled
+ *  and lands in the request log verbatim. */
+const REQUEST_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
+
 export function requestIdOf(req: Request): string | null {
   const id = (req as { id?: unknown }).id ?? req.headers['x-request-id'];
-  return typeof id === 'string' && id.length > 0 ? id : null;
+  return typeof id === 'string' && REQUEST_ID_RE.test(id) ? id : null;
+}
+
+/** Drop every `${clientId}:${minute}` entry from an earlier minute, so the
+ *  per-process maps stay bounded by (active clients x 1). */
+function pruneBefore(minute: number, keys: Map<string, unknown> | Set<string>): void {
+  for (const k of keys.keys()) {
+    if (Number(k.slice(k.lastIndexOf(':') + 1)) < minute) keys.delete(k);
+  }
 }
 
 function readBearer(req: Request): string | null {
@@ -48,6 +60,14 @@ function readBearer(req: Request): string | null {
 export class ApiKeyGuard implements CanActivate {
   private readonly logger = new Logger(ApiKeyGuard.name);
   private lastRedisWarnMinute = -1;
+  private lastRecordWarnMinute = -1;
+  private lastTouchWarnMinute = -1;
+  /** Fallback rate-limit counters, used only while Redis is unavailable.
+   *  With one api container (today's deployment) this is effectively exact;
+   *  with several it would be per-process, i.e. limit x replicas. */
+  private readonly memoryWindows = new Map<string, number>();
+  /** Clients whose 403 ip_not_allowed has already been logged this minute. */
+  private readonly ipRejectLogged = new Set<string>();
 
   constructor(
     private readonly reflector: Reflector,
@@ -70,31 +90,48 @@ export class ApiKeyGuard implements CanActivate {
     if (!resolved) throw new ApiError('UNAUTHORIZED', UNAUTHENTICATED_MESSAGE);
     const { client, keyId } = resolved;
 
+    const minute = Math.floor(Date.now() / 60_000);
+    const windowKey = `${client.id}:${minute}`;
+
     if (!ipAllowed(req.ip, client.ipAllowlist)) {
-      this.log(req, resolved, 403, started);
+      // A caller hammering from a disallowed address must not become an
+      // unbounded stream of DB writes: log the first rejection per minute.
+      pruneBefore(minute, this.ipRejectLogged);
+      if (!this.ipRejectLogged.has(windowKey)) {
+        this.ipRejectLogged.add(windowKey);
+        this.log(req, resolved, 403, started);
+      }
       throw new ApiError('FORBIDDEN', 'Caller address is not permitted for this client', {
         reason: 'ip_not_allowed',
       });
     }
 
-    const minute = Math.floor(Date.now() / 60_000);
-    const count = await this.cache.incrWindow(`api-rl:${client.id}:${minute}`, 120);
+    let count = await this.cache.incrWindow(`api-rl:${windowKey}`, 120);
     if (count === undefined) {
-      // Fail open, like CacheService everywhere else; nginx's zone is the backstop.
+      // Redis is down: this endpoint returns personal data, so it must not
+      // fail open. Count in a per-process fixed window instead.
       if (this.lastRedisWarnMinute !== minute) {
         this.lastRedisWarnMinute = minute;
-        this.logger.warn('API rate limit unavailable (Redis down) — allowing calls this minute');
+        this.logger.warn('API rate limit counting in process memory (Redis unavailable)');
       }
-    } else if (count > client.rateLimitPerMinute) {
+      pruneBefore(minute, this.memoryWindows);
+      count = (this.memoryWindows.get(windowKey) ?? 0) + 1;
+      this.memoryWindows.set(windowKey, count);
+    }
+    if (count > client.rateLimitPerMinute) {
       res.setHeader('Retry-After', String(60 - (Math.floor(Date.now() / 1000) % 60)));
-      this.log(req, resolved, 429, started);
+      // Log only the first rejection in a window; later ones are implied.
+      if (count === client.rateLimitPerMinute + 1) this.log(req, resolved, 429, started);
       throw new ApiError('RATE_LIMITED', 'Rate limit exceeded for this client');
     }
 
     req.apiClient = resolved;
-    touchApiKeyUsage(keyId, client.id).catch((err: unknown) =>
-      this.logger.warn(`could not record key usage: ${(err as Error).message}`),
-    );
+    touchApiKeyUsage(keyId, client.id).catch((err: unknown) => {
+      const m = Math.floor(Date.now() / 60_000);
+      if (this.lastTouchWarnMinute === m) return;
+      this.lastTouchWarnMinute = m;
+      this.logger.warn(`could not record key usage: ${(err as Error).message}`);
+    });
     return true;
   }
 
@@ -109,6 +146,11 @@ export class ApiKeyGuard implements CanActivate {
       latencyMs: Date.now() - started,
       ip: req.ip ?? null,
       requestId: requestIdOf(req),
-    }).catch((err: unknown) => this.logger.warn(`could not log API request: ${(err as Error).message}`));
+    }).catch((err: unknown) => {
+      const m = Math.floor(Date.now() / 60_000);
+      if (this.lastRecordWarnMinute === m) return;
+      this.lastRecordWarnMinute = m;
+      this.logger.warn(`could not log API request: ${(err as Error).message}`);
+    });
   }
 }
