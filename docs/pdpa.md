@@ -89,6 +89,7 @@ All app data is stored on KKU-owned infrastructure within Thailand. **Two extern
   only per-(day, user, role, module, path) counts. The 120 days is
   `RAW_RETENTION_DAYS` in `packages/db/src/usage.ts` — the same constant the
   usage reader switches on, deliberately not a second copy.
+- `ApiRequestLog` table: **365 days**, then hard-deleted. Never stores the citizen id, its hash or the email a caller sent — only the staff record matched.
 
 Retention is enforced by `scripts/pdpa/retention-sweep.ts` (`--dry-run`
 reports without writing); the windows live in `packages/db/src/retention.ts`
@@ -217,6 +218,52 @@ appraisal.
 **On erasure.** `user_id` is `ON DELETE SET NULL` on both `page_views` and
 `page_view_daily`, so deleting a user drops the attribution and keeps the
 counts — the same posture as the audit log.
+
+### External staff-profile API (from v1.9.9)
+
+`POST /api/v1/external/staff-profile` lets another KKU system read the data
+behind a staff member's `/profile` page. Consumer guide:
+`docs/integrations/staff-profile-api.md`.
+
+**What it discloses, per section.** `person` is always returned: staff record
+id, academic title, Thai and English name, ORCID / Scopus / OpenAlex / Scholar
+identifiers, and the KKU email only for a client allowed to look up by email.
+The rest is granted per client by an admin: `affiliation` (faculty, department,
+programmes and the person's role in them), `education` (degrees, institute,
+year), `teaching` (courses and enrolled-seat totals over five academic years),
+`research` (paper, citation and h-index summary) and `publications` (the full
+list). A client receives only the sections it was granted; the response names
+the ones withheld. Excluded from v1: photograph, AI expertise narrative and
+the Teaching Talent verdict.
+
+**How a person is found.** By Thai citizen id or by email, in the body of a
+POST, never in a URL, so the identifier does not reach proxy or access logs.
+The request logger also redacts `req.body.citizenId` and `req.body.email`.
+A miss returns the same 404 for either identifier, so the API cannot be used
+to test which identifiers exist. Inactive staff are hidden unless the client
+was granted them.
+
+**What is logged, and what is deliberately not.** Each call writes an
+`ApiRequestLog` row: client, key, lookup type, the resolved staff record (null
+on a miss), status, sections returned, latency, IP, request id. It never
+stores the citizen id **or its hash**. `hashCitizenId()` is unsalted over a
+keyspace of roughly 2^43 values, so a stored hash is recoverable in hours on a
+GPU; storing it would be storing the id. The resolved staff record id tells an
+auditor who was looked up without that risk. Rejected 429 and 403 calls are
+logged at most once per client per minute. Retention: 365 days (see the list
+above). Every client and key change is written to the audit log with the key
+prefix only, never the key.
+
+**Who can call.** Per-client API keys, stored as SHA-256 hashes and shown once,
+managed at `/admin/external/api-clients` under the `api_clients:admin`
+permission (SUPER_ADMIN and SYSTEM_ADMIN). Per-client IP allowlists exist but
+are off until the KKU proxy address is pinned in nginx; preflight refuses a
+deploy that enables them earlier.
+
+**Basis for sharing.** The legal basis for a calling system to receive this
+data is that system's own. It must be recorded per calling system, with the
+sections and lookup types justified, **before its key is issued**. A key is
+not issued on the promise of a basis to follow.
 
 ---
 
