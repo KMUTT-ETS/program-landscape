@@ -68,15 +68,18 @@ Inactive staff (`isActive = false`) return **404** unless the client has
 
 ### Status codes (standard `{ data, meta, error }` envelope)
 
-| Code | `error.code` | When |
-|------|--------------|------|
-| 200 | — | Found |
-| 400 | `INVALID_REQUEST` | Not exactly one identifier; malformed or checksum-failing citizen ID; malformed email |
-| 401 | `UNAUTHENTICATED` | Missing, unknown, revoked or expired key, or disabled client. **Byte-identical body for all five.** |
-| 403 | `LOOKUP_NOT_PERMITTED` / `IP_NOT_ALLOWED` | Client not granted this lookup type; caller IP outside allowlist |
-| 404 | `STAFF_NOT_FOUND` | No match (or inactive and not permitted). **Identical body whichever identifier was used.** |
-| 429 | `RATE_LIMITED` | Per-client limit exceeded; `Retry-After` header set |
-| 500 | `INTERNAL` | Unexpected; carries the request id, never the identifier |
+`ApiError` codes are a closed union (`packages/shared/src/api/errors.ts`), so
+no new codes are added; the specific reason travels in `error.details.reason`.
+
+| HTTP | `error.code` | `details.reason` | When |
+|------|--------------|------------------|------|
+| 200 | — | — | Found |
+| 400 | `VALIDATION_FAILED` | (Zod issues) | Not exactly one identifier; malformed or checksum-failing citizen ID; malformed email |
+| 401 | `UNAUTHORIZED` | — | Missing, unknown, revoked or expired key, or disabled client. **Byte-identical body for all five.** |
+| 403 | `FORBIDDEN` | `lookup_not_permitted` / `ip_not_allowed` | Client not granted this lookup type; caller IP outside allowlist |
+| 404 | `NOT_FOUND` | — | No match (or inactive and not permitted). **Identical body whichever identifier was used.** |
+| 429 | `RATE_LIMITED` | — | Per-client limit exceeded; `Retry-After` header set |
+| 500 | `INTERNAL` | — | Unexpected; carries the request id, never the identifier |
 
 ## 4. Response
 
@@ -131,13 +134,17 @@ granted it; `person` is always present so a caller can confirm who came back.
     ]
   },
   "meta": {
-    "apiVersion": "staff-profile.v1",
-    "generatedAt": "2026-09-30T07:50:00Z",
-    "publicationsCache": "hit",
-    "sectionsIncluded": ["person", "affiliation", "education", "teaching", "research", "publications"],
-    "sectionsWithheld": [],
-    "freshness": { "teaching": "…", "publications": "…" },
-    "methodology": { "hIndex": "…", "studentsTaught": "…" }
+    "freshnessDate": "2026-09-29T02:10:00Z",
+    "sources": [ … ],
+    "methodologyVersion": "staff-profile.v1",
+    "caveats": [ "studentsTaught is a sum of enrolled seats …", "hIndex is computed from …" ],
+    "integration": {
+      "apiVersion": "staff-profile.v1",
+      "generatedAt": "2026-09-30T07:50:00Z",
+      "publicationsCache": "hit",
+      "sectionsIncluded": ["person", "affiliation", "education", "teaching", "research", "publications"],
+      "sectionsWithheld": []
+    }
   },
   "error": null
 }
@@ -154,7 +161,7 @@ Field rules:
   on `ResearchOutput.source`). **`PublicationEntry` does not carry `source` or
   `scholarPaperId` today** — both are added to the shared type (additive; the
   page ignores them). A paper surfaced only by the live Scopus read, with no
-  local row, reports `source: "scopus-live"`.
+  local row, reports `source: "live:<scopus|pubmed|isi|tci>"`.
 - **Publications sort:** year desc, then citations desc, then title asc — a
   total order, so two calls return the same sequence.
 - **Teaching returns every course in the window**, not the page's top 10. The
@@ -163,9 +170,15 @@ Field rules:
 - **`teaching.totals.studentsTaught` is Σ enrolled seats**, not distinct
   students: a student in two of the person's courses counts twice, exactly as on
   the page. `meta.methodology.studentsTaught` says so.
-- **`meta.publicationsCache`** ∈ `hit` | `stale` | `miss` | `degraded`.
-  `degraded` means a live source failed and the list was built from local rows
-  only.
+- **`meta` follows the shared `ApiMetaSchema`**, whose keys are fixed. It gains
+  one optional block, `integration` (`apiVersion`, `generatedAt`,
+  `publicationsCache`, `sectionsIncluded`, `sectionsWithheld`). Methodology notes
+  ride in the existing `caveats`; `freshnessDate` is the publications cache's
+  `fetchedAt`.
+- **`meta.integration.publicationsCache`** ∈ `hit` | `stale` | `miss`. (A
+  `degraded` state was considered and dropped: the enrichment pipeline swallows
+  live-source failures internally and would need plumbing to report them. A
+  live-source failure still yields a response from local rows.)
 - **Deliberately excluded from v1:** the avatar (its URL needs a signed-in
   viewer), the AI expertise narrative (an AI output leaving the platform needs
   its own confidence and review story), the Teaching Talent stamp (a verdict,
@@ -177,6 +190,10 @@ Field rules:
 
 ### 5.1 Data model (one additive migration)
 
+Creator columns are plain ids, not foreign keys: `@AuditLog()` already records
+who made each change, and a relation would add back-relations on `User` for no
+reader.
+
 **`ApiClient`**
 
 | Column | Notes |
@@ -187,7 +204,7 @@ Field rules:
 | `allowCitizenIdLookup`, `allowEmailLookup` | booleans, default false |
 | `includeInactive` | boolean, default false |
 | `ipAllowlist` | `text[]` of CIDRs; empty = any |
-| `rateLimitPerMinute` | int, default 60 |
+| `rateLimitPerMinute` | int, default 60, 1–600 |
 | `createdById`, `createdAt`, `updatedAt`, `lastUsedAt` | |
 
 **`ApiClientKey`**
@@ -195,7 +212,7 @@ Field rules:
 | Column | Notes |
 |--------|-------|
 | `id`, `clientId` (FK, cascade) | |
-| `prefix` | first 12 chars of the key, unique, indexed — shown in UI, used for lookup |
+| `prefix` | first 16 chars of the key (`kpl_live_` + 7 random chars, 42 bits), unique — shown in UI, used for lookup; regenerate on the vanishingly rare collision |
 | `keyHash` | SHA-256 hex of the full key. The key is 32 random bytes, so an unsalted hash is sound (unlike a citizen ID) |
 | `expiresAt`, `revokedAt`, `revokedReason`, `lastUsedAt`, `createdById`, `createdAt` | |
 
@@ -223,8 +240,12 @@ job (`packages/db/src/retention.ts`); `docs/pdpa.md` gains the entry.
 
 ### 5.2 `ApiKeyGuard`
 
-The endpoint is `@Public()` so `JwtAuthGuard` skips it; `ApiKeyGuard` is applied
-at the controller. Order of checks:
+The codebase applies no guard with `@UseGuards`: every guard is a global
+`APP_GUARD` that no-ops unless its route metadata is present. `ApiKeyGuard`
+follows that pattern — registered in `AppModule` directly after `JwtAuthGuard`,
+active only on routes carrying `@ApiKeyAuth()`. The route is also `@Public()`,
+because `JwtAuthGuard` would otherwise try to verify the API key as a JWT (it
+reads any `Authorization: Bearer`). Order of checks:
 
 1. Parse `Authorization: Bearer kpl_live_…`; look up by `prefix`; compare
    SHA-256 with `crypto.timingSafeEqual`.
@@ -247,8 +268,9 @@ Pino redaction gains `req.body.citizenId` and `req.body.email`.
 
 ### 5.3 Admin console — `/admin/external/api-clients`
 
-Gated by a new permission **`api_clients:admin`**, granted to ADMIN (and
-SUPER_ADMIN), added to `@kku/shared/auth/permissions.ts`.
+Gated by a new permission **`api_clients:admin`**, appended to `PERMISSIONS` in
+`@kku/shared/auth/permissions.ts`. There is no `ADMIN` role: appending grants it
+automatically to `SUPER_ADMIN` and `SYSTEM_ADMIN`, and to no other role.
 
 - **List:** name, status, granted sections, lookup types, last used, requests
   (24 h / 30 d), 404 rate over 30 d.
@@ -274,27 +296,33 @@ Integration guide for consumers: `docs/integrations/staff-profile-api.md`.
 
 Each step leaves `/profile` rendering identically.
 
-1. **Extract, no behaviour change.** Move `profile-data.ts`,
-   `teaching-profile.ts`, `scopus-publications.ts`, `external-publications.ts`
-   and `kku-publications.ts` from `apps/web/src/lib/` into
-   `packages/db/src/staff-profile/`. None imports a web-only `@/` path.
-   The core becomes `buildStaffProfile(facultyMemberId, { courseLimit })`.
-   `getProfileData(userId)` in `apps/web` shrinks to: resolve the signed-in
-   user's staff record → `buildStaffProfile` → add avatar and cached AI
-   narrative. `profile-types.ts` stays client-safe (`import type` only — the
-   `@kku/shared` barrel pulls `node:crypto`).
-   **Guard:** a characterisation test snapshots `getProfileData` output for
-   fixture staff before the move and asserts equality after.
-2. **Publications cache keyed by staff record.** Add unique
-   `faculty_member_id` to `user_publications_cache`; all writes and reads key on
-   it. Three consumers move: the page, the home-page sparkline
-   (`getHomePublicationsSnapshot`) and the Scholar runner's epoch-backdate
-   invalidation in `packages/db/src/scholar-fetch.ts`. **No backfill** — it is a
-   cache; old user-keyed rows age out and the next load is cold. Side benefit:
-   staff who never signed in become cacheable.
-3. **API:** `ApiKeyGuard`, controller, Zod request/response schemas, section
+1. **Types and APA helpers to `@kku/shared`.** `profile-types.ts` holds pure
+   types and three pure functions that both the client component and the API
+   need. They move to `packages/shared/src/staff-profile/types.ts`. The client
+   imports that file by its **deep path**, never the `@kku/shared` barrel (which
+   pulls `node:crypto`). `ProfileData` — which references `TeachingTalentStamp`
+   from `@kku/db` — stays in `apps/web/src/lib/profile-types.ts`.
+2. **Move the builder to `packages/db/src/staff-profile/`.** `teaching-profile.ts`,
+   `scopus-publications.ts`, `external-publications.ts`, `kku-publications.ts`
+   and the core of `profile-data.ts` move. `packages/db` gains `pg` and
+   `@types/pg` (only `kku-publications.ts` needs them). The core becomes
+   `buildStaffProfile(facultyMemberId, { courseLimit })`; the user→staff-record
+   bridge becomes `resolveFacultyMemberForUser`. `getProfileData(userId)` and
+   `getHomePublicationsSnapshot(userId)` stay in `apps/web` as thin wrappers.
+3. **Publications cache keyed by staff record — a NEW table.**
+   `user_publications_cache.user_id` is `NOT NULL` with a foreign key, so it is
+   not altered. A new `staff_publications_cache` (unique `faculty_member_id`,
+   cascade on staff-record delete) replaces it; the old table has no reader
+   and is dropped in a later release. The Scholar runner's epoch-backdate
+   invalidation moves to the new table, keyed by the staff record it already
+   holds. **No backfill** — it is a cache. Side benefit: staff who never
+   signed in become cacheable.
+   **Guard for steps 1–3:** a dev-only snapshot script captures
+   `getProfileData` output for a handful of real dev users with the cache
+   forced cold, before and after; the outputs must match.
+4. **API:** `ApiKeyGuard`, controller, Zod request/response schemas, section
    filter, request log.
-4. **Admin console** and its NestJS controller.
+5. **Admin console** and its NestJS controller.
 
 ### Operational consequences
 
@@ -312,8 +340,7 @@ Each step leaves `/profile` rendering identically.
 ## 7. Error handling
 
 - Live enrichment keeps its existing 8 s per-call timeouts and fallbacks. A
-  failed live source yields a response built from local rows with
-  `publicationsCache: "degraded"`, not a 5xx.
+  failed live source yields a response built from local rows, not a 5xx.
 - Unexpected errors → 500 envelope with the request id. No raw identifier
   appears in any log line or error message.
 
