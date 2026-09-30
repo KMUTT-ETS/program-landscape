@@ -3,11 +3,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 // ────────────────────────────────────────────────────────────────────────────
-// The two readers of `user_publications_cache` must compute the same list.
+// The two readers of `staff_publications_cache` must compute the same list.
 //
-// `getProfileData` (the profile page) and `getHomePublicationsSnapshot` (the
-// home-page sparkline) both call `loadPublicationsWithCache` with the SAME key
-// — the user id — so they write the same row. While each carried its own copy
+// `buildStaffProfile` (the profile page and the external API) and
+// `getStaffPublicationsSnapshot` (the home-page sparkline) both call
+// `loadPublicationsWithCache` with the SAME key — the staff-record id — so
+// they write the same row. While each carried its own copy
 // of the compute body, a source-precedence rule added to one and not the other
 // would not fail anywhere: the two would take turns overwriting the row, and
 // the profile list would show Scholar or not depending on which page had been
@@ -22,7 +23,7 @@ import path from 'node:path';
 // ────────────────────────────────────────────────────────────────────────────
 
 const SOURCE = readFileSync(
-  path.join(__dirname, '..', 'src', 'lib', 'profile-data.ts'),
+  path.join(__dirname, '..', 'src', 'staff-profile', 'profile.ts'),
   'utf8',
 );
 
@@ -33,7 +34,7 @@ function countInCode(needle: string): number {
     .filter((line) => line.includes(needle)).length;
 }
 
-describe('user_publications_cache readers', () => {
+describe('staff_publications_cache readers', () => {
   it('has exactly two callers, matching the two entry points', () => {
     expect(countInCode('loadPublicationsWithCache(')).toBe(3); // 2 calls + the definition
   });
@@ -48,22 +49,22 @@ describe('user_publications_cache readers', () => {
     expect(countInCode('hasScholarImport(')).toBe(2);
   });
 
-  it('takes the rule from @kku/db rather than re-deriving it here', () => {
+  it('takes the rule from publication-source-precedence rather than re-deriving it here', () => {
     expect(SOURCE).toContain('hasScholarImport');
-    expect(SOURCE).toContain("from '@kku/db'");
+    expect(SOURCE).toContain("from '../publication-source-precedence'");
     // A local re-implementation would be a second definition of the rule and
     // would drift from the one the provenance drawer counts against.
     expect(SOURCE).not.toMatch(/function\s+hasScholarImport/);
     expect(SOURCE).not.toContain("'google-scholar'");
   });
 
-  // The invalidation branch lives in @kku/db too, for the same reason: it is
-  // tested there against the runner's own sentinel. Both the loader and the
-  // home page's `isStale` hint go through it — a hand-rolled age comparison
-  // beside it would read an invalidated row as merely stale and put a
-  // "refreshing…" hint on a list that had just been recomputed.
+  // The invalidation branch lives in publication-source-precedence too, for
+  // the same reason: it is tested there against the runner's own sentinel.
+  // The loader is the only freshness decision. The home snapshot used to make
+  // a second one to report `isStale`; it now reads the status the loader
+  // returns, so the two cannot disagree about an invalidated row.
   it('defers every cache freshness decision to the shared rule', () => {
-    expect(countInCode('decidePublicationsCacheAction(')).toBe(2);
+    expect(countInCode('decidePublicationsCacheAction(')).toBe(1);
     expect(SOURCE).not.toMatch(/fetchedAt\.getTime\(\)\s*[<>]/);
   });
 });

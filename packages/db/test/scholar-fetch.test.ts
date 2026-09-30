@@ -54,7 +54,7 @@ vi.mock('../src/index', () => ({
       createMany: mocks.researchOutputCreateMany,
       updateMany: mocks.researchOutputUpdateMany,
     },
-    userPublicationsCache: { updateMany: mocks.cacheUpdateMany },
+    staffPublicationsCache: { updateMany: mocks.cacheUpdateMany },
     auditLog: { create: mocks.auditLogCreate },
     scholarBindAttempt: {
       findMany: mocks.bindAttemptFindMany,
@@ -1157,7 +1157,7 @@ describe('runScholarFetch — happy path', () => {
     // Publications cache expired (aged out, never removed) so the profile page
     // recomputes against the rows just added.
     expect(mocks.cacheUpdateMany).toHaveBeenCalledWith({
-      where: { userId: USER_ID },
+      where: { facultyMemberId: MEMBER_ID },
       data: { fetchedAt: new Date(0) },
     });
 

@@ -464,7 +464,8 @@ export function databaseScholarRoster(): ScholarRosterLookup {
  * it yields nothing, an exact normalised name match against
  * `FacultyMember.nameEn` is the fallback.
  *
- * Diverges from `apps/web/src/lib/profile-data.ts` in two deliberate ways,
+ * Diverges from `resolveFacultyMemberForUser` (packages/db/src/staff-profile/
+ * profile.ts, the /profile page bridge) in two deliberate ways,
  * both approved for this feature: no `isActive: true` filter (see
  * `pickSingleMember`), and the fallback matches the English name rather than
  * the Thai one. The two surfaces can therefore resolve differently for a
@@ -1095,12 +1096,12 @@ async function archiveScholarPayload(
 }
 
 /**
- * `user_publications_cache.fetched_at` written by the expiry below: the epoch,
+ * `staff_publications_cache.fetched_at` written by the expiry below: the epoch,
  * meaning "this row was invalidated on purpose", as distinct from a row that
  * merely aged past its 24h window.
  *
  * Exported because the READER has to tell those two apart.
- * `loadPublicationsWithCache` in apps/web/src/lib/profile-data.ts is
+ * `loadPublicationsWithCache` in packages/db/src/staff-profile/profile.ts is
  * stale-while-revalidate: an aged row is served immediately and refreshed in
  * the background, which is right for a row that is a day old and wrong for one
  * a user just invalidated by pressing sync — that path showed the OLD list
@@ -1112,7 +1113,7 @@ async function archiveScholarPayload(
 export const PUBLICATIONS_CACHE_INVALIDATED_MS = 0;
 
 /**
- * Mark the user's publications cache stale so the next profile-page load
+ * Mark the staff member's publications cache stale so the next profile-page load
  * recomputes it against the rows this fetch just added.
  *
  * Expiry, not removal — this module never removes a row from any table (see
@@ -1123,14 +1124,17 @@ export const PUBLICATIONS_CACHE_INVALIDATED_MS = 0;
  * Never throws: a cache that failed to expire is a stale page, not a lost
  * fetch, and the ResearchOutput writes are already committed by this point.
  */
-async function expireUserPublicationsCache(userId: string): Promise<void> {
+async function expireStaffPublicationsCache(facultyMemberId: string): Promise<void> {
   try {
-    await prisma.userPublicationsCache.updateMany({
-      where: { userId },
+    await prisma.staffPublicationsCache.updateMany({
+      where: { facultyMemberId },
       data: { fetchedAt: new Date(PUBLICATIONS_CACHE_INVALIDATED_MS) },
     });
   } catch (err) {
-    console.warn(`[scholar-fetch] could not expire publications cache for user=${userId}:`, describeError(err));
+    console.warn(
+      `[scholar-fetch] could not expire publications cache for member=${facultyMemberId}:`,
+      describeError(err),
+    );
   }
 }
 
@@ -1532,7 +1536,7 @@ export async function runScholarFetch(
     });
 
     // ── 7. Expire the publications cache ─────────────────────────────────
-    await expireUserPublicationsCache(userId);
+    await expireStaffPublicationsCache(member.id);
 
     // ── 8. Finalise ──────────────────────────────────────────────────────
     const notes: string[] = [];

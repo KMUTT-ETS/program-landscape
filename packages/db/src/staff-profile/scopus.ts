@@ -26,7 +26,7 @@
 import type {
   AuthorPosition,
   KkuScholarPublication,
-} from './kku-publications';
+} from './kku-scholar';
 
 const SCOPUS_SEARCH = 'https://api.elsevier.com/content/search/scopus';
 const SCOPUS_AUTHOR_SEARCH = 'https://api.elsevier.com/content/search/author';

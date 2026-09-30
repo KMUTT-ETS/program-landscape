@@ -13,12 +13,12 @@
 // rather than fabricating numbers.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { prisma } from '@kku/db';
+import { prisma } from '../index';
 import type {
   TeachingProfile,
   TeachingTopCourse,
   TeachingYearPoint,
-} from './profile-types';
+} from '@kku/shared';
 
 /** How many academic years (inclusive of the latest) to summarise. */
 const WINDOW_YEARS = 5;
@@ -41,11 +41,19 @@ async function resolveWindowLatestYearBE(): Promise<number> {
   return row[0]?.y ?? new Date().getUTCFullYear() + 543;
 }
 
+export interface SummariseTeachingOptions {
+  /** Maximum courses in `topCourses`, ranked by sections then students.
+   *  `null` returns every course in the window (the external API).
+   *  Defaults to TOP_COURSES_LIMIT, the page's top-10. */
+  courseLimit?: number | null;
+}
+
 /** Build the teaching profile for one staff member. */
-export async function summariseTeaching(member: {
-  id: string;
-  kkuEmail: string | null;
-}): Promise<TeachingProfile> {
+export async function summariseTeaching(
+  member: { id: string; kkuEmail: string | null },
+  opts: SummariseTeachingOptions = {},
+): Promise<TeachingProfile> {
+  const courseLimit = opts.courseLimit === undefined ? TOP_COURSES_LIMIT : opts.courseLimit;
   const latestBE = await resolveWindowLatestYearBE();
   const fromBE = latestBE - (WINDOW_YEARS - 1);
   const emailLower = (member.kkuEmail ?? '').toLowerCase();
@@ -187,19 +195,21 @@ export async function summariseTeaching(member: {
     byYear.pop();
   }
 
-  // Top courses by section count, then by students-taught as tiebreak.
-  const topCourses: TeachingTopCourse[] = [...courseMap.values()]
-    .sort((a, b) => b.sections - a.sections || b.studentsTaught - a.studentsTaught)
-    .slice(0, TOP_COURSES_LIMIT)
-    .map((c) => ({
-      courseCode: c.courseCode,
-      courseNameTh: c.courseNameTh,
-      courseNameEn: c.courseNameEn,
-      sections: c.sections,
-      studentsTaught: c.studentsTaught,
-      firstYearBE: c.firstYear,
-      lastYearBE: c.lastYear,
-    }));
+  // Ranked by section count, then students taught as tiebreak.
+  const rankedCourses = [...courseMap.values()].sort(
+    (a, b) => b.sections - a.sections || b.studentsTaught - a.studentsTaught,
+  );
+  const topCourses: TeachingTopCourse[] = (
+    courseLimit === null ? rankedCourses : rankedCourses.slice(0, courseLimit)
+  ).map((c) => ({
+    courseCode: c.courseCode,
+    courseNameTh: c.courseNameTh,
+    courseNameEn: c.courseNameEn,
+    sections: c.sections,
+    studentsTaught: c.studentsTaught,
+    firstYearBE: c.firstYear,
+    lastYearBE: c.lastYear,
+  }));
 
   const expertiseAreas = [...areaMap.entries()]
     .map(([registryFacultyName, v]) => ({

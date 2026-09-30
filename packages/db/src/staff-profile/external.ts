@@ -14,7 +14,7 @@
 // result feeds into `user_publications_cache` so the slow path runs
 // at most once per 24h.
 
-import type { AuthorPosition } from './kku-publications';
+import type { AuthorPosition } from './kku-scholar';
 
 const OPENALEX_BASE = 'https://api.openalex.org';
 const SCOPUS_BASE = 'https://api.elsevier.com/content/abstract/doi';
