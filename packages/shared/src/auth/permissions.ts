@@ -123,6 +123,12 @@ export const PERMISSIONS = [
   // grant is implicit in a spread rather than written down anywhere.
   'scholar:admin',
 
+  // Manage machine clients of the external staff-profile API
+  // (/admin/external/api-clients): create clients, grant sections, issue and
+  // revoke keys. Admin-grade only — appending here grants it to SUPER_ADMIN
+  // and SYSTEM_ADMIN and to no other role.
+  'api_clients:admin',
+
   // AI model dispatch — gates the admin AI-settings page where the
   // per-method model picker lives. Super-admin only because model
   // choice has direct cost + reliability + Council-defensibility

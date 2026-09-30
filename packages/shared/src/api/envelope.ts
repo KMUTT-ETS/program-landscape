@@ -77,6 +77,21 @@ export const ApiMetaParameterSchema = z.object({
 });
 export type ApiMetaParameter = z.infer<typeof ApiMetaParameterSchema>;
 
+/**
+ * Present only on responses to machine clients of the external API
+ * (e.g. POST /api/v1/external/staff-profile). Says which contract version
+ * answered, how fresh the expensive part was, and which sections the client's
+ * grant withheld — so a missing section is never mistaken for missing data.
+ */
+export const ApiMetaIntegrationSchema = z.object({
+  apiVersion: z.string(),
+  generatedAt: z.string().datetime(),
+  publicationsCache: z.enum(['hit', 'stale', 'miss']),
+  sectionsIncluded: z.array(z.string()),
+  sectionsWithheld: z.array(z.string()),
+});
+export type ApiMetaIntegration = z.infer<typeof ApiMetaIntegrationSchema>;
+
 export const ApiMetaSchema = z.object({
   freshnessDate: z.string().datetime().nullable(),
   sources: z.array(ApiMetaSourceSchema),
@@ -89,6 +104,7 @@ export const ApiMetaSchema = z.object({
   /** Known limits of this figure, in plain English. Rendered as a list in the
    *  provenance drawer — the slot the drawer has always reserved for them. */
   caveats: z.array(z.string()).optional(),
+  integration: ApiMetaIntegrationSchema.optional(),
 });
 export type ApiMeta = z.infer<typeof ApiMetaSchema>;
 

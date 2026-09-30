@@ -80,6 +80,9 @@ export const REDACT_PATHS: readonly string[] = [
   'req.body.apiKey',
   'req.body.token',
   'req.body.exportReason',
+  // External staff-profile lookups: the identifier a machine client sent.
+  'req.body.citizenId',
+  'req.body.email',
 
   // Top-level common patterns. fast-redact's `*.x` only walks one level
   // deep — these catch direct properties on the log record root.
