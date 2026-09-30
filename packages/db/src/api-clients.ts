@@ -244,8 +244,15 @@ async function insertKey(
 const nameTaken = (): ApiError =>
   new ApiError('VALIDATION_FAILED', 'An API client with this name already exists', { reason: 'name_taken' });
 
-function isUniqueViolation(err: unknown): boolean {
-  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+/** A unique violation on the client NAME — not on any other unique column
+ *  (a key prefix, say), which must not be reported as a name clash. Postgres
+ *  may name the column (`name`) or the constraint (`api_clients_name_key`), so
+ *  the target is matched as a substring. */
+export function isNameUniqueViolation(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') return false;
+  const target = err.meta?.target;
+  const names = Array.isArray(target) ? target.map(String) : typeof target === 'string' ? [target] : [];
+  return names.some((t) => t.includes('name'));
 }
 
 async function assertNameFree(name: string, exceptId?: string): Promise<void> {
@@ -275,7 +282,7 @@ export async function createApiClient(
       return { id: client.id, client: toView(client), key };
     });
   } catch (err) {
-    if (isUniqueViolation(err)) throw nameTaken();
+    if (isNameUniqueViolation(err)) throw nameTaken();
     throw err;
   }
 }
@@ -286,7 +293,7 @@ export async function updateApiClient(id: string, patch: ApiClientPatch): Promis
     return toView(await prisma.apiClient.update({ where: { id }, data: patch }));
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') return null;
-    if (isUniqueViolation(err)) throw nameTaken();
+    if (isNameUniqueViolation(err)) throw nameTaken();
     throw err;
   }
 }

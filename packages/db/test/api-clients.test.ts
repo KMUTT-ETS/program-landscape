@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@kku/shared';
+import { Prisma } from '@prisma/client';
 
 const m = vi.hoisted(() => ({
   keyFindUnique: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('../src/index', () => ({
 }));
 
 import {
+  isNameUniqueViolation,
   API_KEY_LENGTH,
   API_KEY_LOOKUP_PREFIX_LENGTH,
   API_KEY_PREFIX,
@@ -209,5 +211,22 @@ describe('DB-touching functions', () => {
     expect(v?.revokedReason).toBe('first');
     m.keyFindFirst.mockResolvedValue(null);
     expect(await revokeApiClientKey('c1', 'nope', 'reason')).toBeNull();
+  });
+});
+
+describe('isNameUniqueViolation', () => {
+  const p2002 = (target: unknown) =>
+    new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target },
+    });
+  it('recognises a clash on the name column or its constraint', () => {
+    expect(isNameUniqueViolation(p2002(['name']))).toBe(true);
+    expect(isNameUniqueViolation(p2002('api_clients_name_key'))).toBe(true);
+  });
+  it('does not report a clash on another unique column as a name clash', () => {
+    expect(isNameUniqueViolation(p2002(['prefix']))).toBe(false);
+    expect(isNameUniqueViolation(new Error('boom'))).toBe(false);
   });
 });
