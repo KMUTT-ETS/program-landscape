@@ -7,9 +7,9 @@ import {
   type TeachingTalentResult,
 } from '@kku/db';
 
-// Thai rank labels. The web app has its own maps
-// (apps/web/src/lib/profile-data.ts) but apps/api cannot import from
-// apps/web, so the labels are restated here.
+// Thai rank labels. The staff-profile builder has its own map
+// (RANK_LABEL in packages/db/src/staff-profile/profile.ts), not exported,
+// so the labels are restated here.
 const RANK_LABEL_TH: Record<string, string> = {
   LECTURER: 'อาจารย์',
   ASST_PROF: 'ผู้ช่วยศาสตราจารย์',

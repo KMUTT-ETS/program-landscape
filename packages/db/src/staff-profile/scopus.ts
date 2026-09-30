@@ -9,7 +9,7 @@
 // per-user `/profile` route only — much faster (1-3 s vs 30+ s)
 // and broader coverage for most KKU faculty. Returns the same
 // `KkuScholarPublication` shape so the existing merge/enrichment
-// logic in profile-data.ts is unchanged.
+// logic in ./profile.ts is unchanged.
 //
 // Two functions:
 //   - `resolveScopusAuthorId(...)` — Scopus author search by name

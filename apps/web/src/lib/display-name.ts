@@ -40,7 +40,7 @@ const DOCTORATE_RX = /ph\.?\s*d|doctor|doctoral|ปริญญาเอก|ด�
 // Honorifics emitted by SSONext's firstName/lastName claims. Stripped
 // before a name-based FacultyMember lookup so e.g. "นาย เด่นพงษ์
 // สุดภักดี" (User.name from SSO) matches FacultyMember.nameTh =
-// "เด่นพงษ์ สุดภักดี". Mirrors the table in apps/web/src/lib/profile-data.ts.
+// "เด่นพงษ์ สุดภักดี". Mirrors the table in packages/db/src/staff-profile/profile.ts.
 const TITLE_PREFIXES = new Set([
   'นาย', 'นาง', 'นางสาว', 'น.ส.', 'ดร.', 'ดร', 'อ.', 'อาจารย์',
   'ผศ.', 'รศ.', 'ศ.', 'ผศ', 'รศ', 'ศ',
@@ -125,7 +125,8 @@ export async function resolveUserChrome(userId: string): Promise<UserChrome> {
   // FM.employee_id is a SHA256 hash from kku-hr while User.employee_id
   // is the cleartext from SSO; or admin-created users with no
   // employeeId), fall back to a Thai-name match — mirrors the same
-  // chain used by /profile (apps/web/src/lib/profile-data.ts).
+  // chain used by /profile (resolveFacultyMemberForUser in
+  // packages/db/src/staff-profile/profile.ts).
   let member = user.employeeId
     ? await prisma.facultyMember.findFirst({
         where: { employeeId: user.employeeId, isActive: true },

@@ -42,7 +42,7 @@ const BAND_COLOUR = {
 // Full-form Thai rank titles — what KKU staff are addressed by. Used
 // to prefix every teacher's display name in the deep-dive (e.g.,
 // "ผู้ช่วยศาสตราจารย์ เด่นพงษ์ สุดภักดี") so we can drop the separate
-// Position column. Mirrors apps/web/src/lib/profile-data.ts but uses
+// Position column. Mirrors packages/db/src/staff-profile/profile.ts but uses
 // the full (un-abbreviated) form because the name + title reads as
 // one phrase, the way it's spoken.
 const RANK_TITLE_TH: Record<string, string> = {
