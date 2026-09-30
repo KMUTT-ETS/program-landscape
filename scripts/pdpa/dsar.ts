@@ -8,6 +8,10 @@
 //   --user-id <uuid>             — covers user-bound surfaces
 //                                  (audit log, AI inference, notifications,
 //                                   scenarios, decisions, profile cache, etc.)
+// Either key also reaches the person's staff record(s), and through them the
+// staff-profile publications cache and the external staff-profile API's call
+// log (which KKU system looked the person up, and when).
+// The row collectors live in ./dsar-dump.ts.
 // Both can be passed together for the full personal-data footprint.
 //
 // Output: a single deterministic JSON envelope (sorted keys, sorted row
@@ -23,9 +27,12 @@
 // downstream PDPA tooling can branch on it.
 
 import { writeFileSync } from 'node:fs';
-import { prisma } from '@kku/db';
+import { prisma, resolveFacultyMemberForUser } from '@kku/db';
+import { dumpByCitizenHash, dumpByUserId } from './dsar-dump';
 
-const DSAR_SCHEMA_VERSION = 'dsar.v1';
+// v2: adds staffPublicationsCache + apiRequestLogs (both keys) and
+// byUserId.staffRecord (which staff records the user resolved to, and how).
+const DSAR_SCHEMA_VERSION = 'dsar.v2';
 
 // ── CLI parsing ──────────────────────────────────────────────────────
 interface Args {
@@ -73,156 +80,6 @@ function printUsage(): void {
       '',
     ].join('\n'),
   );
-}
-
-// ── Hash-keyed dump (covers HR / staff / DS2003 / lifecycle) ────────
-async function dumpByCitizenHash(hash: string) {
-  const [
-    facultyMembers,
-    staffEducationHistory,
-    staffLifecycleDates,
-    staffMasterRecords,
-    staffProgramAssignments,
-    studentProgramRecords,
-  ] = await Promise.all([
-    prisma.facultyMember.findMany({
-      where: { citizenIdHash: hash },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.staffEducationHistory.findMany({
-      where: { citizenIdHash: hash },
-      orderBy: [{ id: 'asc' }],
-    }),
-    prisma.staffLifecycleDates.findMany({
-      where: { citizenIdHash: hash },
-      orderBy: { citizenIdHash: 'asc' },
-    }),
-    prisma.staffMasterRecord.findMany({
-      where: { citizenIdHash: hash },
-      orderBy: [{ academicYear: 'asc' }, { semester: 'asc' }],
-    }),
-    prisma.staffProgramAssignment.findMany({
-      where: { citizenIdHash: hash },
-      orderBy: [{ academicYear: 'asc' }, { semester: 'asc' }, { id: 'asc' }],
-    }),
-    prisma.studentProgramRecord.findMany({
-      where: { citizenIdHash: hash },
-      orderBy: [{ academicYear: 'asc' }, { semester: 'asc' }],
-    }),
-  ]);
-
-  return {
-    facultyMembers,
-    staffEducationHistory,
-    staffLifecycleDates,
-    staffMasterRecords,
-    staffProgramAssignments,
-    studentProgramRecords,
-  };
-}
-
-// ── User-keyed dump (covers session-bound personal surfaces) ────────
-async function dumpByUserId(userId: string) {
-  const [
-    user,
-    userScopes,
-    auditLogs,
-    aiInferences,
-    annotations,
-    analystConversations,
-    analystFeedback,
-    councilDecisions,
-    decisionApprovers,
-    notifications,
-    pdfDocumentsUploaded,
-    pdfExtractionsReviewed,
-    savedCockpitViews,
-    scenarios,
-    signalSubscriptions,
-    userExpertiseNarratives,
-    userPublicationsCache,
-  ] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
-    prisma.userScope.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
-    prisma.auditLog.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.aiInference.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.annotation.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.analystConversation.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
-    }),
-    prisma.analystFeedback.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.councilDecision.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.decisionApprover.findMany({
-      where: { userId },
-      orderBy: { addedAt: 'asc' },
-    }),
-    prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.pdfDocument.findMany({
-      where: { uploadedByUserId: userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.pdfExtraction.findMany({
-      where: { reviewedByUserId: userId },
-      orderBy: { reviewedAt: 'asc' },
-    }),
-    prisma.savedCockpitView.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.scenario.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.signalSubscription.findMany({
-      where: { userId },
-      orderBy: { id: 'asc' },
-    }),
-    prisma.userExpertiseNarrative.findMany({
-      where: { userId },
-      orderBy: { generatedAt: 'asc' },
-    }),
-    prisma.userPublicationsCache.findUnique({ where: { userId } }),
-  ]);
-
-  return {
-    user,
-    userScopes,
-    auditLogs,
-    aiInferences,
-    annotations,
-    analystConversations,
-    analystFeedback,
-    councilDecisions,
-    decisionApprovers,
-    notifications,
-    pdfDocumentsUploaded,
-    pdfExtractionsReviewed,
-    savedCockpitViews,
-    scenarios,
-    signalSubscriptions,
-    userExpertiseNarratives,
-    userPublicationsCache,
-  };
 }
 
 // ── Deterministic JSON serialiser (sorts keys recursively) ──────────
@@ -274,10 +131,10 @@ async function main(): Promise<void> {
 
   const data = envelope.data as Record<string, unknown>;
   if (args.citizenHash) {
-    data.byCitizenHash = await dumpByCitizenHash(args.citizenHash);
+    data.byCitizenHash = await dumpByCitizenHash(prisma, args.citizenHash);
   }
   if (args.userId) {
-    data.byUserId = await dumpByUserId(args.userId);
+    data.byUserId = await dumpByUserId(prisma, args.userId, resolveFacultyMemberForUser);
   }
 
   const sorted = sortKeysDeep(envelope);
