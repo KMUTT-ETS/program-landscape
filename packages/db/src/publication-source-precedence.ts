@@ -79,7 +79,7 @@ export function hasScholarImport(rows: readonly PublicationSourceRow[]): boolean
 
 // ── Cache freshness ────────────────────────────────────────────────────────
 
-/** What a reader should do with the `user_publications_cache` row it found. */
+/** What a reader should do with the `staff_publications_cache` row it found. */
 export type PublicationsCacheAction =
   /** No usable row: block on the recompute. */
   | 'compute'

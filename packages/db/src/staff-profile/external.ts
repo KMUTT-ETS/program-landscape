@@ -9,9 +9,9 @@
 // Google Scholar is intentionally NOT used — no official API, the
 // unofficial scrapers violate ToS, and IP-blocking risk is real.
 //
-// All calls are server-side (we run inside Next's Node runtime) and
+// All calls are server-side (the Next.js server and the NestJS api) and
 // wrapped in try/catch so a network blip never breaks the page. The
-// result feeds into `user_publications_cache` so the slow path runs
+// result feeds into `staff_publications_cache` so the slow path runs
 // at most once per 24h.
 
 import type { AuthorPosition } from './kku-scholar';
