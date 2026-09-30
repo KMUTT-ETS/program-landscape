@@ -3465,28 +3465,37 @@ git commit -F <msg>   # feat(retention): delete external API call-log rows after
     proxy_set_header X-Request-Id $req_id;
     # A cold publications cache can take ~45 s to build.
     proxy_read_timeout 90s;
-    # Take exactly ONE address — the one the immediate trusted proxy appended —
-    # and hand the api exactly one. With recursive lookup on, a caller on a
-    # trusted range could choose its own address by prefixing X-Forwarded-For.
-    real_ip_recursive off;
+    # Hand the api exactly one address (collapses any caller-supplied chain,
+    # which also stops UserAwareThrottlerGuard reading a forged first entry).
     proxy_set_header X-Forwarded-For $remote_addr;
   }
 ```
 Note `proxy_set_header X-Forwarded-For $remote_addr` **replaces** the `$proxy_add_x_forwarded_for` line in this block (do not keep both).
 
-This is necessary but not sufficient: while `set_real_ip_from` still trusts the placeholder RFC-1918 ranges, any KKU-LAN host connecting straight to `:8443` is itself "trusted" and can still name its own address. Per-client IP allowlists are therefore **switched off** until the KKU proxy's real address is pinned, behind an env switch and a deploy gate:
+**`real_ip_recursive off` goes at `http` level in `nginx.conf`, next to `set_real_ip_from` — NOT in the location.** The realip module resolves the address once, in the post-read phase, from the http/server-level config; a location-level `real_ip_recursive` is silently ignored (verified live on nginx:alpine 1.31: with `off` in the location, `X-Forwarded-For: 1.2.3.4, 10.9.9.9` still yielded `1.2.3.4`). In `nginx.conf` change `real_ip_recursive on;` to:
+```nginx
+  # One trusted hop: take the single address the KKU proxy appended, never an
+  # earlier entry the caller wrote. (Must be here — a location-level
+  # real_ip_recursive is ignored by the realip module.)
+  real_ip_recursive off;
+```
 
-- `.env.prod.example`: add, with a comment explaining the dependency,
+This is necessary but **not sufficient**. While `set_real_ip_from` trusts anything wider than the KKU proxy's own address, a host inside the trusted range can connect straight to `:8443` and name its own address. The security rests on pinning `set_real_ip_from` to the proxy — so per-client IP allowlists are **switched off** until that is done, behind an env switch and a deploy gate:
+
+- `.env.prod.example`: add, with comments,
 ```
 # Per-client IP allowlists for the external staff-profile API. Leave unset
 # until infra/nginx/nginx.conf's set_real_ip_from names ONLY the KKU reverse
-# proxy (not the RFC-1918 placeholders) — otherwise any KKU-LAN host can forge
-# the address an allowlist is checked against. preflight refuses a deploy that
-# enables this while the placeholders are still in place.
+# proxy — otherwise a host inside a trusted range can forge the address an
+# allowlist is checked against. preflight refuses a deploy that enables this
+# unless every set_real_ip_from equals an address in KKU_PROXY_IPS.
 API_CLIENT_IP_ALLOWLIST=
+# Space-separated single addresses of the KKU reverse proxy (no ranges).
+KKU_PROXY_IPS=
 ```
-- `scripts/preflight.sh`: add `gate_external_api_real_ip`, following the file's existing gate pattern (`record "<name>" "PASS|WARN|FAIL" "<detail>"`) and registered where the other gates are called. It reads `API_CLIENT_IP_ALLOWLIST` from the deployed env file and checks the deployed nginx.conf (use the same path variables the script already uses for the install dir / current release; read the file to find them). **FAIL** when the switch is `enabled` and nginx.conf still contains `set_real_ip_from 10.0.0.0/8` (or `172.16.0.0/12` / `192.168.0.0/16`); **PASS** otherwise, with detail "ip allowlists off" or "ip allowlists on; real-ip pinned".
-- Extend the Step 1 test with: the external block contains `real_ip_recursive off` and `proxy_set_header X-Forwarded-For $remote_addr`, and does NOT contain `$proxy_add_x_forwarded_for`; and `scripts/preflight.sh` defines and calls `gate_external_api_real_ip`.
+- `scripts/preflight.sh`: add `gate_external_api_real_ip`, following the file's existing gate pattern (`record "<name>" "PASS|WARN|FAIL" "<detail>"`) and registered where the other gates are called. It reads `API_CLIENT_IP_ALLOWLIST` and `KKU_PROXY_IPS` from the deployed env file and collects every `set_real_ip_from` value from the deployed `nginx.conf` **and** `conf.d/*.conf` (use the path variables the script already uses for the install dir / current release; read the file to find them). When the switch is not `enabled`: **PASS**, detail "ip allowlists off". When it is `enabled`: **FAIL** unless `KKU_PROXY_IPS` is non-empty, every entry of it is a single host (a bare address, `/32` or `/128`), and the set of `set_real_ip_from` values equals the set of `KKU_PROXY_IPS` exactly (normalise a bare address and its `/32`/`/128` form as equal); otherwise **PASS**, detail "ip allowlists on; real-ip pinned to <n> proxy address(es)".
+- In `docs/deployment/kku-network-integration.md`, under the real-IP section, add **two manual go-live checks** no script can verify: (1) the KKU proxy must APPEND the real client address to `X-Forwarded-For` (or overwrite it) rather than pass the client's header through unchanged; (2) nginx must see the proxy's address as the TCP peer — Docker's published `8443` keeps the IPv4 source under DNAT, but an IPv6 path or a userland `docker-proxy` shows the Docker gateway (172.x) instead. Confirm from nginx's access log that `$remote_addr` for proxied requests is the KKU proxy's address **before** pinning and enabling allowlists.
+- Extend the Step 1 test with: `nginx.conf` contains `real_ip_recursive off` and no `real_ip_recursive on`; the external location block contains `proxy_set_header X-Forwarded-For $remote_addr`, does NOT contain `$proxy_add_x_forwarded_for`, and does NOT contain `real_ip_recursive` (it would be ignored there, and its presence would suggest otherwise); `scripts/preflight.sh` defines and calls `gate_external_api_real_ip` and references `KKU_PROXY_IPS`. Then exercise the gate for real: write a tiny fixture harness in the test (or a bash test driven from vitest via `execFileSync`) that runs just the gate function against temp files for three cases — switch off → PASS; switch on + placeholders → FAIL; switch on + `set_real_ip_from 10.1.2.3;` + `KKU_PROXY_IPS=10.1.2.3` → PASS; switch on + `set_real_ip_from 10.101.0.0/16;` + `KKU_PROXY_IPS=10.101.0.0/16` → FAIL (a range is not a proxy). If the gate cannot be sourced in isolation, restructure it minimally so it can (e.g. guard the main invocation with `[[ "${BASH_SOURCE[0]}" == "$0" ]]`).
 
 - [ ] **Step 3: Test and commit**
 
@@ -3497,7 +3506,7 @@ docker run --rm -v "$PWD/infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" -v "$P
 Expected: `syntax is ok`. (If `nginx -t` fails only on the missing certificate files or upstream host resolution, that is environmental, not this change — note it and move on; the regex test is the gate.)
 ```bash
 bash -n scripts/preflight.sh   # syntax check
-git add infra/nginx apps/api/test/build-release.test.ts scripts/preflight.sh .env.prod.example
+git add infra/nginx apps/api/test/build-release.test.ts scripts/preflight.sh .env.prod.example docs/deployment/kku-network-integration.md
 git commit -F <msg>   # feat(nginx): external API zone, one trusted address, and a gate on IP allowlists
 ```
 

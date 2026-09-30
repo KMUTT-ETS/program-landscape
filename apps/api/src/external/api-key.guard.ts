@@ -109,7 +109,10 @@ export class ApiKeyGuard implements CanActivate {
     let count = await this.cache.incrWindow(`api-rl:${windowKey}`, 120);
     if (count === undefined) {
       // Redis is down: this endpoint returns personal data, so it must not
-      // fail open. Count in a per-process fixed window instead.
+      // fail open. Count in a per-process fixed window instead. The two
+      // counters are independent, so in a minute where Redis drops or
+      // recovers a client can reach up to ~2x its limit — bounded, and
+      // accepted rather than reconciled.
       if (this.lastRedisWarnMinute !== minute) {
         this.lastRedisWarnMinute = minute;
         this.logger.warn('API rate limit counting in process memory (Redis unavailable)');
