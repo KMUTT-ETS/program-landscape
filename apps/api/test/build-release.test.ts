@@ -316,6 +316,31 @@ describe('build-release', () => {
       }
     });
 
+    it('does not treat a # inside quotes as a comment (it cannot hide a directive)', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf: "set_real_ip_from 10.1.1.1;\nlog_format x '#'; set_real_ip_from 10.0.0.0/8;\n",
+      });
+      expect(r.verdict).toBe('FAIL');
+      expect(r.detail).toContain('10.0.0.0/8');
+    });
+
+    it('a quoted # with nothing hidden behind it is not a false positive', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf: 'set_real_ip_from 10.1.1.1;\nlog_format x "a#b" ;\n',
+      });
+      expect(r.verdict).toBe('PASS');
+    });
+
+    it('still honours a real trailing comment', () => {
+      const r = runGate({
+        env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.1.1\n',
+        nginxConf: 'set_real_ip_from 10.1.1.1; # note ; set_real_ip_from 10.0.0.0/8;\n',
+      });
+      expect(r.verdict).toBe('PASS');
+    });
+
     it('ignores a commented-out set_real_ip_from', () => {
       const r = runGate({
         env: 'API_CLIENT_IP_ALLOWLIST=enabled\nKKU_PROXY_IPS=10.1.2.3\n',

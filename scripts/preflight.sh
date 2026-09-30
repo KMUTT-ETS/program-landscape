@@ -326,15 +326,48 @@ _preflight_env_value() {
 # Every nginx directive in the given files, one per line, whitespace
 # collapsed. Parsed by STATEMENT, not by line: nginx lets a directive span
 # lines (`set_real_ip_from\n    10.0.0.0/8;`), and a line-based grep would
-# miss the value and report a false PASS. Comments are stripped first; `{`
-# and `}` end a statement as well as `;`, so `server { set_real_ip_from …`
-# yields the directive on its own. Quotes are dropped from values.
+# miss the value and report a false PASS. `{` and `}` end a statement as well
+# as `;`, so `server { set_real_ip_from …` yields the directive on its own.
+#
+# Comments follow nginx's own tokenizer (ngx_conf_read_token), not a regex:
+# `#` starts a comment only OUTSIDE quotes and only where a new token could
+# begin (line start, after whitespace or after ; { }). A quote-unaware
+# `s/#.*//` let `log_format x '#'; set_real_ip_from 10.0.0.0/8;` hide a live
+# directive. Quoted strings may span lines and carry backslash escapes; the
+# quote characters themselves are dropped, and a `;`/`{`/`}` inside quotes
+# does not end the statement. Unbalanced quotes at end of file keep the
+# remainder (fail closed: nothing is silently discarded).
 _preflight_nginx_statements() {
-  sed -e 's/#.*//' "$@" 2>/dev/null \
-    | tr '\n\t\r' '   ' \
-    | tr '{};' '\n\n\n' \
-    | tr -d "\"'" \
-    | awk 'NF { $1 = $1; print }'
+  local f
+  for f in "$@"; do
+    [ -r "$f" ] || continue
+    awk '
+      BEGIN { q = ""; esc = 0; comment = 0; last_space = 1; out = "" }
+      {
+        line = $0
+        n = length(line)
+        comment = 0
+        for (i = 1; i <= n; i++) {
+          c = substr(line, i, 1)
+          if (comment) break
+          if (q != "") {
+            if (esc) { out = out c; esc = 0; continue }
+            if (c == "\\") { esc = 1; out = out c; continue }
+            if (c == q) { q = ""; last_space = 0; continue }
+            out = out c
+            continue
+          }
+          if (c == "#" && last_space) { comment = 1; break }
+          if (c == "\"" || c == "\047") { q = c; last_space = 0; continue }
+          if (c == ";" || c == "{" || c == "}") { out = out "\n"; last_space = 1; continue }
+          if (c == " " || c == "\t" || c == "\r") { out = out " "; last_space = 1; continue }
+          out = out c; last_space = 0
+        }
+        out = out " "; last_space = 1
+      }
+      END { printf "%s\n", out }
+    ' "$f" 2>/dev/null
+  done | awk 'NF { $1 = $1; print }'
 }
 
 # Strip a /32 (IPv4) or /128 (IPv6) suffix; lowercase. Prints nothing for a
