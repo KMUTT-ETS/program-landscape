@@ -26,6 +26,20 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-09-30',
+    version: 'v1.9.9 · Staff profiles for other KKU systems',
+    title:
+      'Other KKU systems can now read a staff member’s profile — the same figures shown on My profile — through a keyed API, and administrators decide which system sees what',
+    audience: ['Executive', 'Admin'],
+    bullets: [
+      'A calling system sends a staff member’s citizen ID or KKU email and receives their name and academic title, affiliation, education, five years of teaching (every course and the students taught), a research summary and their publications, newest first. The numbers are computed by the same code that builds My profile, so the two cannot disagree. Each publication says where it came from — Google Scholar or the university library’s Scopus and PubMed records.',
+      'Admin → API clients is where access is granted. Each calling system gets its own key, shown once and stored only in scrambled form; an administrator chooses which sections it may receive and whether it may look people up by citizen ID, by email, or both, and can rotate, expire or revoke a key at any time. The page shows each system’s recent calls and how often its lookups found no one — a sudden rise is the sign of a system guessing identifiers.',
+      'What is recorded about each call: which system asked, which staff member it matched, the outcome and the time. Never recorded: the citizen ID or email that was sent, in any form. Those records are kept for a year, are included when a staff member asks for their own data, and are deleted automatically after that.',
+      'Restricting a system to particular network addresses is built but switched off. It only becomes trustworthy once the university’s reverse proxy address is fixed in the server configuration; until then a machine on the KKU network could claim another machine’s address, so the option stays off rather than offer protection it cannot give. A deployment check refuses to switch it on early.',
+      'Also in this release: when a new data source is added to the platform, it is now registered automatically as the release is installed, rather than needing a manual database step on the server.',
+    ],
+  },
+  {
     date: '2026-09-21',
     version: 'v1.9.8 · Government job announcements join JobThai',
     title:
