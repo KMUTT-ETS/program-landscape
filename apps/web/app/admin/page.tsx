@@ -31,6 +31,7 @@ import {
   GitBranch,
   Globe2,
   GraduationCap,
+  KeyRound,
   Layers,
   LogIn,
   RefreshCw,
@@ -700,6 +701,13 @@ function buildGroups({
             return `${signals} signal${signals === 1 ? '' : 's'} from ${externalAi.length} feeds · 30d`;
           })()
         : undefined,
+    },
+    {
+      href: '/admin/external/api-clients',
+      label: 'API clients',
+      description: 'Keys and section grants for systems that read staff profiles through the external API.',
+      icon: <KeyRound className="size-icon-xl" />,
+      roles: ADMIN_GRADE,
     },
     {
       href: '/admin/trend-documents',
