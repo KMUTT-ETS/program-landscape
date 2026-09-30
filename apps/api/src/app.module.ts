@@ -57,6 +57,7 @@ import { UsageModule } from './usage/usage.module';
 import { TrendDocumentsModule } from './trend-documents/trend-documents.module';
 import { AunqaModule } from './aunqa/aunqa.module';
 import { ScholarModule } from './scholar/scholar.module';
+import { ApiKeyGuard } from './external/api-key.guard';
 
 import {
   AccessControlGuard,
@@ -146,6 +147,9 @@ import {
     // @Public(). AccessControlGuard runs after JwtAuthGuard and evaluates
     // @RequirePermission / @RequireScope metadata.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // External machine clients (POST /api/v1/external/*): no-ops unless the
+    // route carries @ApiKeyAuth(). Must run before AccessControlGuard.
+    { provide: APP_GUARD, useClass: ApiKeyGuard },
     { provide: APP_GUARD, useClass: AccessControlGuard },
     // UserAwareThrottlerGuard keys by user ID (not source IP) so each
     // user gets their own bucket. JwtAuthGuard runs first and sets
