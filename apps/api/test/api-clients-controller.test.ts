@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ExecutionContext } from '@nestjs/common';
+import { NotFoundException, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 const mocks = vi.hoisted(() => ({
@@ -96,5 +96,51 @@ describe('ApiClientsController', () => {
     mocks.createApiClient.mockResolvedValue({ id: 'c1' });
     await ctl.create({ userId: 'u1' } as never, body);
     expect(mocks.createApiClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('labels audit rows by the entity whose id the handler returns', () => {
+    const expected = { create: 'ApiClient', update: 'ApiClient', issueKey: 'ApiClientKey', revokeKey: 'ApiClientKey' } as const;
+    for (const m of MUTATIONS) {
+      const handler = (ApiClientsController.prototype as unknown as Record<string, object>)[m]!;
+      expect(Reflect.getMetadata(AUDIT_LOG_META, handler)).toMatchObject({ entityType: expected[m] });
+    }
+  });
+
+  it('answers 404 when the domain function finds nothing', async () => {
+    const ctl = new ApiClientsController();
+    mocks.getApiClientDetail.mockResolvedValue(null);
+    await expect(ctl.detail('x')).rejects.toBeInstanceOf(NotFoundException);
+    mocks.updateApiClient.mockResolvedValue(null);
+    await expect(ctl.update('x', { name: 'n' })).rejects.toBeInstanceOf(NotFoundException);
+    mocks.issueApiClientKey.mockResolvedValue(null);
+    await expect(ctl.issueKey({ userId: 'u1' } as never, 'x', {} as never)).rejects.toBeInstanceOf(NotFoundException);
+    mocks.revokeApiClientKey.mockResolvedValue(null);
+    await expect(ctl.revokeKey('x', 'k', { reason: 'r' } as never)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('allows clearing an allowlist (empty array) even when allowlists are disabled', async () => {
+    delete process.env.API_CLIENT_IP_ALLOWLIST;
+    mocks.updateApiClient.mockResolvedValue({ id: 'c1' });
+    const ctl = new ApiClientsController();
+    await ctl.update('c1', { ipAllowlist: [] });
+    expect(mocks.updateApiClient).toHaveBeenCalledWith('c1', { ipAllowlist: [] });
+  });
+
+  it('issueKey passes expiresAt as a Date, or null when omitted', async () => {
+    mocks.issueApiClientKey.mockResolvedValue({ id: 'k1' });
+    const ctl = new ApiClientsController();
+    const iso = '2027-01-01T00:00:00.000Z';
+    await ctl.issueKey({ userId: 'u1' } as never, 'c1', { expiresAt: iso } as never);
+    const arg = mocks.issueApiClientKey.mock.calls[0]![2];
+    expect(arg).toBeInstanceOf(Date);
+    expect((arg as Date).toISOString()).toBe(iso);
+    await ctl.issueKey({ userId: 'u1' } as never, 'c1', {} as never);
+    expect(mocks.issueApiClientKey.mock.calls[1]![2]).toBeNull();
+  });
+
+  it('the real input schema rejects a body that smuggles in a key field', async () => {
+    const real = await vi.importActual<typeof import('../../../packages/db/src/api-clients')>('../../../packages/db/src/api-clients');
+    expect(real.ApiClientInputSchema.safeParse({ ...baseBody, key: 'kpl_live_x' }).success).toBe(false);
+    expect(real.ApiClientInputSchema.safeParse(baseBody).success).toBe(true);
   });
 });

@@ -79,7 +79,9 @@ export class ApiClientsController {
 
   @Post(':id/keys')
   @Authorized('api_clients:admin')
-  @AuditLog({ action: 'api_client.key.issue', entityType: 'ApiClient' })
+  // The audit interceptor takes entityId from the returned { id }, which here is the
+  // KEY id, so the row is labelled ApiClientKey; the key row links to its client.
+  @AuditLog({ action: 'api_client.key.issue', entityType: 'ApiClientKey' })
   async issueKey(
     @AuthSession() user: SessionUser,
     @Param('id') id: string,
@@ -92,7 +94,8 @@ export class ApiClientsController {
 
   @Post(':id/keys/:keyId/revoke')
   @Authorized('api_clients:admin')
-  @AuditLog({ action: 'api_client.key.revoke', entityType: 'ApiClient' })
+  // entityId is the key id (the returned key view's id); the key row links to its client.
+  @AuditLog({ action: 'api_client.key.revoke', entityType: 'ApiClientKey' })
   async revokeKey(
     @Param('id') id: string,
     @Param('keyId') keyId: string,
