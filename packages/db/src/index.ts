@@ -16,6 +16,7 @@ if (process.env.NODE_ENV !== 'production') {
 export * from '@prisma/client';
 export * from './scope';
 export * from './provenance';
+export * from './data-source-sync';
 export * from './ai-inference-recorder';
 export * from './ai-model-override-store';
 export * from './ai-model-catalog';

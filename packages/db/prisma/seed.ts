@@ -1,7 +1,6 @@
 import {
   CourseType,
   CurriculumStatus,
-  DataSourceKind,
   FacultyRank,
   PdfLanguage,
   PdfProcessingStatus,
@@ -14,6 +13,7 @@ import {
   SkillTaxonomy,
   UserRole,
 } from '@prisma/client';
+import { formatDataSourceSync, syncDataSourcesFromCatalog } from '../src/data-source-sync';
 
 const prisma = new PrismaClient();
 
@@ -739,56 +739,16 @@ async function main() {
   } // end if (SEED_MOCKS) — job postings
 
   // ── Data sources (inventory seed — catalog lives in @kku/shared) ────────
-  // The connector registry in apps/ingestion looks up its DataSource row
-  // by slug at boot. Keep this in sync with SOURCE_CATALOG in
-  // packages/shared/src/ingestion/catalog.ts — `pnpm db:seed` writes from
-  // that one list, so there is no drift.
-  const { SOURCE_CATALOG } = await import('@kku/shared');
-  for (const entry of SOURCE_CATALOG) {
-    const scheduleEnabled = entry.deprecated ? false : (entry.scheduleEnabled ?? true);
-    // `status` is the human-readable label the admin surfaces render. It has
-    // to account for `deprecated` as well as `mocked`: deriving it from
-    // `mocked` alone re-labelled every superseded source as "active" on each
-    // seed, which is how openalex + scopus kept advertising themselves as
-    // live feeds for the four months after kku-research replaced them.
-    const sourceStatus = entry.mocked ? 'mocked' : entry.deprecated ? 'deprecated' : 'active';
-    await prisma.dataSource.upsert({
-      where: { slug: entry.slug },
-      update: {
-        name: entry.name,
-        kind: entry.kind,
-        inputFormat: entry.inputFormat,
-        acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
-        baseUrl: entry.baseUrl ?? null,
-        cadenceCron: entry.cadenceCron ?? null,
-        scheduleEnabled,
-        ownerContact: entry.ownerContact ?? null,
-        notes: entry.notes ?? null,
-        status: sourceStatus,
-        // Keep `mocked` atomic with `status` — flipping a connector real in
-        // the catalog must update BOTH columns (drift-audit invariant), else
-        // the connector runs real while data_sources still reads mocked=true.
-        mocked: entry.mocked,
-      },
-      create: {
-        slug: entry.slug,
-        name: entry.name,
-        kind: entry.kind,
-        inputFormat: entry.inputFormat,
-        acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
-        baseUrl: entry.baseUrl ?? null,
-        cadenceCron: entry.cadenceCron ?? null,
-        scheduleEnabled,
-        ownerContact: entry.ownerContact ?? null,
-        notes: entry.notes ?? null,
-        status: sourceStatus,
-        // Keep `mocked` atomic with `status` — flipping a connector real in
-        // the catalog must update BOTH columns (drift-audit invariant), else
-        // the connector runs real while data_sources still reads mocked=true.
-        mocked: entry.mocked,
-      },
-    });
-  }
+  // The connector registry in apps/ingestion looks up its DataSource row by
+  // slug at boot. The upsert loop that used to live inline here now lives in
+  // packages/db/src/data-source-sync.ts, because production needs it too:
+  // deploy.sh runs migrations but never this seed, so a newly declared
+  // connector reached production with no row at all and every script
+  // resolving it by slug failed. Both callers share one implementation
+  // deliberately — a copy would drift from the catalog, and drift in this
+  // table is the realDataWhere() trap.
+  const dataSourceSync = await syncDataSourcesFromCatalog(prisma);
+  for (const line of formatDataSourceSync(dataSourceSync)) console.log(`  data_sources ${line}`);
 
   // ── KKU SSO org-code mappings (dev seed — real values from KKU IT) ──────
   // KKU SSO emits faculty/department codes in a specific taxonomy; our

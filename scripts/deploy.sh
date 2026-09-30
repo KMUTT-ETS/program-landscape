@@ -199,6 +199,29 @@ else
     || fail "prisma migrate deploy failed — rollback recommended"
 fi
 
+# ── 6.4. Reconcile data_sources with the connector catalog ───────────
+# A connector declared in packages/shared/src/ingestion/catalog.ts needs a
+# `data_sources` row before anything can resolve it by slug. Migrations do
+# not create it and this script has never seeded, so until 2026-09-30 every
+# newly declared connector arrived in production with no row at all: job-108
+# failed with "no DataSource with slug='job-108'" three hours into the v1.9.8
+# window, on a documented post-deploy step.
+#
+# Runs BEFORE the symlink swap on purpose: this is still inside the
+# rollback-able region, so a failure here aborts without a half-deployed
+# release. Idempotent — the steady state prints "0 created, 0 updated".
+#
+# Uses the ingestion image because that is where the script is bundled (the
+# migration above uses api, which does not carry it).
+if [ "${SKIP_DATA_SOURCE_SYNC:-0}" = "1" ]; then
+  log "SKIP_DATA_SOURCE_SYNC=1 — skipping data_sources catalog reconciliation"
+else
+  log "Reconciling data_sources with the connector catalog"
+  docker compose run --rm --entrypoint "" ingestion \
+    node /app/dist/scripts/sync-data-sources.js --apply \
+    || fail "data_sources sync failed — a new connector would be unresolvable; rollback recommended"
+fi
+
 # ── 6.5. Drain the old release ───────────────────────────────────────
 # Before swapping the `current` symlink, ask the running containers to
 # drain. SIGTERM → flips the api/ingestion drain flag → `/api/v1/ready`

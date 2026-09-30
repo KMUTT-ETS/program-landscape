@@ -80,6 +80,11 @@ const TARGETS = [
   // does not exist inside the production image — dev's tsx run can't catch
   // that, since dev runs the TypeScript source directly.
   'job108-backfill.ts',
+  // Reconciles data_sources with the connector catalog. deploy.sh calls this
+  // between `migrate deploy` and the symlink swap: without it a newly declared
+  // connector reaches production with no row and every script that resolves it
+  // by slug dies, which is how the v1.9.8 rollout stalled on 2026-09-30.
+  'sync-data-sources.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.

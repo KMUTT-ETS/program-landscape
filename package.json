@@ -107,6 +107,7 @@
     "skills:dedupe": "tsx apps/ingestion/src/scripts/dedupe-skills.ts",
     "jobthai:link-programs": "tsx apps/ingestion/src/scripts/jobthai-link-programs.ts",
     "jobthai:fields": "tsx apps/ingestion/src/scripts/jobthai-fields.ts",
+    "data-sources:sync": "tsx apps/ingestion/src/scripts/sync-data-sources.ts",
     "job108:backfill": "pnpm --filter ingestion job108:backfill",
     "job108:calibrate": "pnpm --filter ingestion job108:calibrate"
   },
