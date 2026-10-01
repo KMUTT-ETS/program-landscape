@@ -379,23 +379,31 @@ describe('ScholarService.selfStatus — a refusal is visible and explains itself
   });
 
   it('takes nextEligibleAt from the quota unit rather than recomputing the window', async () => {
-    const startedAt = new Date('2026-09-01T00:00:00Z');
-    mocks.facultyMemberFindUnique.mockResolvedValue({
-      scholarProfileId: 'abc',
-      scholarProfileUrl: 'https://scholar.google.com/citations?user=abc',
-      scholarBoundAt: startedAt,
-    });
-    mocks.scholarFetchRunFindMany.mockResolvedValue([
-      { ...NOW_RUN, status: 'SUCCEEDED' as const, errorText: null, papersFound: 12, startedAt },
-    ]);
+    // selfStatus reads the real clock; pin it inside the 30-day window so the
+    // assertion does not start failing on the day the window closes.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-15T00:00:00Z'));
+    try {
+      const startedAt = new Date('2026-09-01T00:00:00Z');
+      mocks.facultyMemberFindUnique.mockResolvedValue({
+        scholarProfileId: 'abc',
+        scholarProfileUrl: 'https://scholar.google.com/citations?user=abc',
+        scholarBoundAt: startedAt,
+      });
+      mocks.scholarFetchRunFindMany.mockResolvedValue([
+        { ...NOW_RUN, status: 'SUCCEEDED' as const, errorText: null, papersFound: 12, startedAt },
+      ]);
 
-    const status = await buildService().selfStatus('u1', 'FACULTY_USER');
+      const status = await buildService().selfStatus('u1', 'FACULTY_USER');
 
-    expect(status.profile).toMatchObject({ bound: true, scholarProfileId: 'abc' });
-    expect(status.needsBinding).toBe(false);
-    // 30 days on from the successful run — decideScholarQuota's own retryAt.
-    expect(status.nextEligibleAt?.toISOString()).toBe('2026-10-01T00:00:00.000Z');
-    expect(status.quotaReason).toMatch(/One fetch per 30 days/);
+      expect(status.profile).toMatchObject({ bound: true, scholarProfileId: 'abc' });
+      expect(status.needsBinding).toBe(false);
+      // 30 days on from the successful run — decideScholarQuota's own retryAt.
+      expect(status.nextEligibleAt?.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+      expect(status.quotaReason).toMatch(/One fetch per 30 days/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('exempts SUPER_ADMIN, matching the quota unit', async () => {
