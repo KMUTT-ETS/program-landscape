@@ -26,6 +26,16 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-01',
+    version: 'v1.9.10 · Each degree listed once',
+    title: 'A staff member’s education history no longer repeats on My profile or in the staff-profile API',
+    audience: ['Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'The university’s staff education records are reported once per academic term, and the platform keeps each term as its own snapshot. My profile was reading every term together, so as soon as a second term was loaded every degree appeared twice. It now shows the most recent term each person appears in — so a record corrected in a later term replaces the old one rather than standing beside it. Someone who left before the newest term keeps their last recorded history.',
+      'The same fix applies to the staff-profile API, which builds its education section from the same code.',
+    ],
+  },
+  {
     date: '2026-09-30',
     version: 'v1.9.9 · Staff profiles for other KKU systems',
     title:
