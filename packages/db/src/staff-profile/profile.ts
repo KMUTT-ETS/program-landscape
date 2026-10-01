@@ -40,6 +40,7 @@ import {
 import { fetchPublicationsByScopusAuthor, resolveScopusAuthorId } from './scopus';
 import { fetchExternalAuthors, fetchExternalAuthorsByMetadata } from './external';
 import { summariseTeaching } from './teaching';
+import { latestEducationSnapshot } from './education-snapshot';
 
 const RANK_LABEL: Record<FacultyRankCode, { th: string; en: string; thAbbrev: string; enAbbrev: string }> = {
   PROF: { th: 'ศาสตราจารย์', en: 'Professor', thAbbrev: 'ศ.', enAbbrev: 'Prof.' },
@@ -149,8 +150,11 @@ export async function buildStaffProfile(
 
   // Build education entries — DS2003 is authoritative when present;
   // fall back to the freeform academicQualification parser otherwise.
-  const education = ds2003Rows.length > 0
-    ? ds2003Rows.map(ds2003ToEducationEntry)
+  // DS2003 re-lists each person once per term loaded, so read only their
+  // most recent term (see education-snapshot.ts).
+  const ds2003Snapshot = latestEducationSnapshot(ds2003Rows);
+  const education = ds2003Snapshot.length > 0
+    ? ds2003Snapshot.map(ds2003ToEducationEntry)
     : parseEducation(member.academicQualification);
 
   // Which source builds the list is decided by `hasScholarImport`, and
