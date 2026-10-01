@@ -31,6 +31,7 @@ import type {
   ResearchSummary,
   TeachingProfile,
 } from '@kku/shared';
+import { parseScholarAuthorName } from '@kku/shared';
 import {
   fetchAuthorsByPaper,
   fetchKkuScholarPublicationsByPerson,
@@ -451,7 +452,9 @@ async function mergeAndEnrichPublications(
           authorsAreComplete: true,
         });
       } else {
-        enrichedLocal.push({ ...p, authors: [], authorsAreComplete: false });
+        // dedupePublications already set authors (Scholar's stored list, or none);
+        // keep them rather than resetting.
+        enrichedLocal.push(p);
       }
     }
   }
@@ -761,6 +764,17 @@ interface ResearchOutputRow {
   kkuAuthorName: string | null;
   source: string | null;
   scholarPaperId: string | null;
+  scholarAuthors: unknown;
+}
+
+/** A research_outputs.scholar_authors value as AuthorName[], or null when absent or malformed. */
+export function authorsFromScholarColumn(
+  value: unknown,
+): { authors: PublicationEntry['authors']; complete: boolean } | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as { names?: unknown; complete?: unknown };
+  if (!Array.isArray(v.names) || v.names.length === 0 || !v.names.every((n) => typeof n === 'string')) return null;
+  return { authors: (v.names as string[]).map(parseScholarAuthorName), complete: v.complete === true };
 }
 
 /**
@@ -793,6 +807,8 @@ function dedupePublications(rows: ResearchOutputRow[]): PublicationEntry[] {
     const kkuAuthors = Array.from(
       new Set(bucket.map((r) => r.kkuAuthorName).filter((n): n is string => !!n)),
     );
+    const scholar =
+      canonical.source === SCHOLAR_RESEARCH_OUTPUT_SOURCE ? authorsFromScholarColumn(canonical.scholarAuthors) : null;
     out.push({
       id: canonical.id,
       year: canonical.year,
@@ -805,10 +821,10 @@ function dedupePublications(rows: ResearchOutputRow[]): PublicationEntry[] {
       openalexId: canonical.openalexId,
       type: canonical.type,
       kkuAuthors,
-      // Filled by enrichPublicationsWithAuthors() after dedup runs;
-      // empty here so the pure-dedup function stays side-effect-free.
-      authors: [],
-      authorsAreComplete: false,
+      // Scholar rows carry their own stored list; others are filled by
+      // enrichPublicationsWithAuthors() after dedup runs.
+      authors: scholar ? scholar.authors : [],
+      authorsAreComplete: scholar ? scholar.complete : false,
       source: canonical.source,
       scholarPaperId: canonical.scholarPaperId,
     });
