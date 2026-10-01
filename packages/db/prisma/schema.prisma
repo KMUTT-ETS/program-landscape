@@ -1920,6 +1920,10 @@ model ResearchOutput {
   // on one paper produce multiple rows, each carrying that author's
   // display name here.
   kkuAuthorName       String?            @map("kku_author_name")
+  /// Google Scholar author list for source='google-scholar' rows:
+  /// { names: string[], complete: boolean, fetchedAt: string }. `complete` is
+  /// false while only the list page's shortened line is known.
+  scholarAuthors      Json?              @map("scholar_authors")
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
   ingestionRunId      String?            @map("ingestion_run_id")
