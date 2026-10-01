@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { buildScholarCitationUrl, type ScholarPaper } from '@kku/shared';
+import {
+  ScrapingBeeAuthError,
+  ScrapingBeeConfigError,
+  ScrapingBeeQuotaError,
+} from '@kku/shared/src/scholar/scrapingbee';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks prisma via '../src/index' — the pattern used by sign-in-lockout.test.ts
@@ -31,6 +36,10 @@ const mocks = vi.hoisted(() => ({
   // Routed apart from researchOutputFindMany so a test that sets the merge's
   // existing rows does not also hand those rows to the detail-page phase.
   researchOutputFindShortened: vi.fn(),
+  // Counts of shortened rows: the plain one (pending) and the one ANDed with
+  // detailAttempts >= 3 (abandoned). Routed by the presence of `AND`.
+  researchOutputCountShortened: vi.fn(),
+  researchOutputCountAbandoned: vi.fn(),
   cacheUpdateMany: vi.fn(),
   auditLogCreate: vi.fn(),
   bindAttemptFindMany: vi.fn(),
@@ -62,6 +71,10 @@ vi.mock('../src/index', () => ({
       createMany: mocks.researchOutputCreateMany,
       updateMany: mocks.researchOutputUpdateMany,
       update: mocks.researchOutputUpdate,
+      count: (args: { where?: Record<string, unknown> } | undefined) =>
+        args?.where && 'AND' in args.where
+          ? mocks.researchOutputCountAbandoned(args)
+          : mocks.researchOutputCountShortened(args),
     },
     staffPublicationsCache: { updateMany: mocks.cacheUpdateMany },
     auditLog: { create: mocks.auditLogCreate },
@@ -76,6 +89,8 @@ vi.mock('../src/index', () => ({
 import {
   SCHOLAR_MAX_PAGES,
   SCHOLAR_AUTHOR_DETAIL_CAP,
+  SCHOLAR_AUTHOR_DETAIL_CANDIDATES,
+  SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS,
   SCHOLAR_NEEDS_BINDING,
   SCHOLAR_PAGE_SIZE,
   bindScholarProfile,
@@ -280,6 +295,8 @@ beforeEach(() => {
   mocks.archiveCreate.mockResolvedValue({ id: 'arch-1' });
   mocks.researchOutputFindMany.mockResolvedValue([]);
   mocks.researchOutputFindShortened.mockResolvedValue([]);
+  mocks.researchOutputCountShortened.mockResolvedValue(0);
+  mocks.researchOutputCountAbandoned.mockResolvedValue(0);
   mocks.researchOutputUpdate.mockResolvedValue({});
   mocks.cacheUpdateMany.mockResolvedValue({ count: 1 });
   mocks.bindAttemptFindMany.mockResolvedValue([]); // no bind attempts today
@@ -2070,6 +2087,28 @@ describe('author lists', () => {
   const detailCalls = (urls: string[]): string[] =>
     urls.filter((u) => u.includes('view_op=view_citation'));
 
+  /** A shortened row as the candidate read selects it. */
+  function shortRow(
+    i: number | string,
+    opts: { year?: number; detailAttempts?: number } = {},
+  ): { id: string; scholarPaperId: string; year: number; scholarAuthors: Record<string, unknown> } {
+    return {
+      id: `ro-${i}`,
+      scholarPaperId: `${PROFILE_ID}:s${i}`,
+      year: opts.year ?? 2020,
+      scholarAuthors: {
+        names: ['A Author'],
+        complete: false,
+        fetchedAt: '2026-01-01T00:00:00.000Z',
+        ...(opts.detailAttempts !== undefined ? { detailAttempts: opts.detailAttempts } : {}),
+      },
+    };
+  }
+
+  const WALL = '<html><body>Before you continue to Google</body></html>';
+  const profileOnly = () =>
+    page([row({ paperId: `${PROFILE_ID}:c`, title: 'Complete', year: 2022, citations: 2 })]);
+
   async function run(fetchPage: (url: string) => Promise<ScholarPageResult>) {
     return runScholarFetch(
       { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
@@ -2120,7 +2159,9 @@ describe('author lists', () => {
     ]);
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
     mocks.researchOutputUpdateMany.mockResolvedValue({ count: 1 });
-    mocks.researchOutputFindShortened.mockResolvedValue([{ id: 'ro-long', scholarPaperId: LONG_ID }]);
+    mocks.researchOutputFindShortened.mockResolvedValue([
+      { id: 'ro-long', scholarPaperId: LONG_ID, year: 2021, scholarAuthors: { names: ['A Author'], complete: false } },
+    ]);
 
     const result = await run(fetchPage);
 
@@ -2180,16 +2221,18 @@ describe('author lists', () => {
     });
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
     mocks.researchOutputFindShortened.mockResolvedValue(
-      Array.from({ length: SCHOLAR_AUTHOR_DETAIL_CAP + 1 }, (_, i) => ({
-        id: `ro-${i}`,
-        scholarPaperId: `${PROFILE_ID}:s${i}`,
-      })),
+      Array.from({ length: SCHOLAR_AUTHOR_DETAIL_CAP + 1 }, (_, i) => shortRow(i)),
     );
+    // After the loop one shortened row remains.
+    mocks.researchOutputCountShortened.mockResolvedValue(1);
 
     const result = await run(fetchPage);
 
     expect(mocks.researchOutputFindShortened).toHaveBeenCalledWith(
-      expect.objectContaining({ take: SCHOLAR_AUTHOR_DETAIL_CAP + 1 }),
+      expect.objectContaining({
+        take: SCHOLAR_AUTHOR_DETAIL_CANDIDATES,
+        orderBy: [{ year: 'desc' }, { id: 'asc' }],
+      }),
     );
     expect(detailCalls(fetchPage.urls)).toHaveLength(20);
     expect(mocks.researchOutputUpdate).toHaveBeenCalledTimes(20);
@@ -2209,17 +2252,22 @@ describe('author lists', () => {
       },
     });
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
-    mocks.researchOutputFindShortened.mockResolvedValue([
-      { id: 'ro-0', scholarPaperId: `${PROFILE_ID}:s0` },
-      { id: 'ro-1', scholarPaperId: `${PROFILE_ID}:s1` },
-    ]);
+    mocks.researchOutputFindShortened.mockResolvedValue([shortRow(0), shortRow(1)]);
+    mocks.researchOutputCountShortened.mockResolvedValue(2);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = await run(fetchPage);
     warn.mockRestore();
 
     expect(detailCalls(fetchPage.urls)).toHaveLength(2);
-    expect(mocks.researchOutputUpdate).not.toHaveBeenCalled();
+    // Each failure is recorded as an attempt; the list itself is kept.
+    expect(mocks.researchOutputUpdate).toHaveBeenCalledTimes(2);
+    for (const [arg] of mocks.researchOutputUpdate.mock.calls) {
+      expect((arg as { data: { scholarAuthors: unknown } }).data.scholarAuthors).toMatchObject({
+        complete: false,
+        detailAttempts: 1,
+      });
+    }
     expect(result.status).toBe('SUCCEEDED');
     expect(result.reason).toBeNull();
     expect(result.authorListsCompleted).toBe(0);
@@ -2297,5 +2345,297 @@ describe('author lists', () => {
     // An author-line write is not a citation update.
     expect(result.citationsUpdated).toBe(0);
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports pending from a count of the shortened rows left, not from the batch size', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(detailHtml('A Author, B Author, C Author'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue(Array.from({ length: 50 }, (_, i) => shortRow(i)));
+    mocks.researchOutputCountShortened.mockResolvedValue(30);
+
+    const result = await run(fetchPage);
+
+    expect(result.authorListsCompleted).toBe(20);
+    expect(result.authorListsPending).toBe(30);
+    expect(result.authorListsAbandoned).toBe(0);
+    // The count asks the same question as the candidate read.
+    expect(mocks.researchOutputCountShortened).toHaveBeenCalledWith({
+      where: {
+        facultyMemberId: MEMBER_ID,
+        source: 'google-scholar',
+        scholarPaperId: { not: null },
+        scholarAuthors: { path: ['complete'], equals: false },
+      },
+    });
+  });
+
+  it('excludes abandoned rows from pending and reports them separately', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(detailHtml('A Author, B Author'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([]);
+    mocks.researchOutputCountShortened.mockResolvedValue(7);
+    mocks.researchOutputCountAbandoned.mockResolvedValue(3);
+
+    const result = await run(fetchPage);
+
+    expect(result.authorListsPending).toBe(4);
+    expect(result.authorListsAbandoned).toBe(3);
+    expect(mocks.researchOutputCountAbandoned).toHaveBeenCalledWith({
+      where: {
+        facultyMemberId: MEMBER_ID,
+        source: 'google-scholar',
+        scholarPaperId: { not: null },
+        AND: [
+          { scholarAuthors: { path: ['complete'], equals: false } },
+          { scholarAuthors: { path: ['detailAttempts'], gte: SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS } },
+        ],
+      },
+    });
+  });
+
+  it('stops the phase after two consecutive walls, without failing the run', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(WALL, 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue(Array.from({ length: 20 }, (_, i) => shortRow(i)));
+    mocks.researchOutputCountShortened.mockResolvedValue(20);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await run(fetchPage);
+    warn.mockRestore();
+
+    expect(detailCalls(fetchPage.urls)).toHaveLength(2);
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.authorListsCompleted).toBe(0);
+    expect(result.authorListsPending).toBe(20);
+    expect(result.creditsUsed).toBe(15 + 2 * 15);
+  });
+
+  it('a success between failures resets the consecutive-failure count', async () => {
+    let n = 0;
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      // fail, succeed, fail, fail -> stop
+      detail: async () => {
+        n += 1;
+        return n === 2 ? pageResult(detailHtml('A Author, B Author'), 15) : pageResult(WALL, 15);
+      },
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue(Array.from({ length: 20 }, (_, i) => shortRow(i)));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await run(fetchPage);
+    warn.mockRestore();
+
+    expect(detailCalls(fetchPage.urls)).toHaveLength(4);
+    expect(result.authorListsCompleted).toBe(1);
+  });
+
+  it('counts a thrown fetch error toward the breaker', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => {
+        throw new Error('ScrapingBee timed out');
+      },
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue(Array.from({ length: 20 }, (_, i) => shortRow(i)));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await run(fetchPage);
+    warn.mockRestore();
+
+    expect(detailCalls(fetchPage.urls)).toHaveLength(2);
+    expect(result.status).toBe('SUCCEEDED');
+  });
+
+  for (const [label, make] of [
+    ['quota', () => new ScrapingBeeQuotaError()],
+    ['auth', () => new ScrapingBeeAuthError(401)],
+    ['config', () => new ScrapingBeeConfigError('SCRAPINGBEE_API_KEY is not set')],
+  ] as const) {
+    it(`stops after one fetch on a ScrapingBee ${label} error, records no attempt, and keeps the run`, async () => {
+      const fetchPage = detailFetcher({
+        profileHtml: profileOnly(),
+        detail: async () => {
+          throw make();
+        },
+      });
+      mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+      mocks.researchOutputFindShortened.mockResolvedValue(Array.from({ length: 20 }, (_, i) => shortRow(i)));
+      mocks.researchOutputCountShortened.mockResolvedValue(20);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = await run(fetchPage);
+      warn.mockRestore();
+
+      expect(detailCalls(fetchPage.urls)).toHaveLength(1);
+      // Not the row's fault: no attempt is charged against it.
+      expect(mocks.researchOutputUpdate).not.toHaveBeenCalled();
+      expect(result.status).toBe('SUCCEEDED');
+      expect(result.authorListsPending).toBe(20);
+    });
+  }
+
+  it('records an attempt on failure, keeping the stored names and flag', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(WALL, 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([shortRow(0, { detailAttempts: 1 })]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await run(fetchPage);
+    warn.mockRestore();
+
+    expect(mocks.researchOutputUpdate).toHaveBeenCalledWith({
+      where: { id: 'ro-0' },
+      data: {
+        scholarAuthors: {
+          names: ['A Author'],
+          complete: false,
+          fetchedAt: '2026-01-01T00:00:00.000Z',
+          detailAttempts: 2,
+          detailAttemptedAt: NOW.toISOString(),
+        },
+      },
+    });
+  });
+
+  it('never fetches a row that has used up its attempts', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(detailHtml('A Author, B Author'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([
+      shortRow('dead', { year: 2025, detailAttempts: SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS }),
+      shortRow('live', { year: 2019 }),
+    ]);
+
+    await run(fetchPage);
+
+    expect(detailCalls(fetchPage.urls)).toEqual([buildScholarCitationUrl(PROFILE_ID, `${PROFILE_ID}:slive`)]);
+  });
+
+  it('fetches never-attempted rows first, then by year desc, then id asc', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(detailHtml('A Author, B Author'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    // Returned in the database's order (year desc, id asc).
+    mocks.researchOutputFindShortened.mockResolvedValue([
+      shortRow('t2', { year: 2024, detailAttempts: 2 }),
+      shortRow('t1', { year: 2023, detailAttempts: 1 }),
+      shortRow('a', { year: 2022 }),
+      shortRow('b', { year: 2022 }),
+      shortRow('z', { year: 2020 }),
+    ]);
+
+    await run(fetchPage);
+
+    expect(detailCalls(fetchPage.urls)).toEqual(
+      ['a', 'b', 'z', 't1', 't2'].map((k) => buildScholarCitationUrl(PROFILE_ID, `${PROFILE_ID}:s${k}`)),
+    );
+  });
+
+  it('the cap is spent on never-attempted rows before attempted ones', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(detailHtml('A Author, B Author'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([
+      ...Array.from({ length: 5 }, (_, i) => shortRow(`old${i}`, { year: 2025, detailAttempts: 1 })),
+      ...Array.from({ length: SCHOLAR_AUTHOR_DETAIL_CAP }, (_, i) => shortRow(`new${i}`, { year: 2010 })),
+    ]);
+
+    await run(fetchPage);
+
+    const fetched = detailCalls(fetchPage.urls);
+    expect(fetched).toHaveLength(SCHOLAR_AUTHOR_DETAIL_CAP);
+    expect(fetched.some((u) => u.includes('old'))).toBe(false);
+  });
+
+  it('a detail page that is itself shortened is stored incomplete and counted as an attempt', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: profileOnly(),
+      detail: async () => pageResult(detailHtml('A Author, B Author, C Author, ...'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([shortRow(0)]);
+    mocks.researchOutputCountShortened.mockResolvedValue(1);
+
+    const result = await run(fetchPage);
+
+    expect(mocks.researchOutputUpdate).toHaveBeenCalledWith({
+      where: { id: 'ro-0' },
+      data: {
+        scholarAuthors: {
+          names: ['A Author', 'B Author', 'C Author'],
+          complete: false,
+          fetchedAt: NOW.toISOString(),
+          detailAttempts: 1,
+          detailAttemptedAt: NOW.toISOString(),
+        },
+      },
+    });
+    expect(result.authorListsCompleted).toBe(0);
+    expect(result.authorListsPending).toBe(1);
+  });
+
+  it('a list-page refresh of a shortened row keeps its detail-attempt count', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([
+        row({ paperId: LONG_ID, title: 'Long paper', year: 2021, citations: 3, authors: 'A Author, B Author, ...' }),
+      ]),
+      detail: async () => pageResult(WALL, 15),
+    });
+    mocks.researchOutputFindMany.mockResolvedValue([
+      {
+        id: 'ro-long',
+        title: 'Long paper',
+        year: 2021,
+        doi: null,
+        citations: 3,
+        source: 'google-scholar',
+        scholarPaperId: LONG_ID,
+        scholarAuthors: {
+          names: ['A Author'],
+          complete: false,
+          fetchedAt: '2026-01-01T00:00:00.000Z',
+          detailAttempts: 2,
+          detailAttemptedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+    ]);
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+    mocks.researchOutputUpdateMany.mockResolvedValue({ count: 1 });
+
+    await run(fetchPage);
+
+    expect(mocks.researchOutputUpdateMany).toHaveBeenCalledWith({
+      where: { facultyMemberId: MEMBER_ID, scholarPaperId: LONG_ID, source: 'google-scholar' },
+      data: {
+        scholarAuthors: {
+          names: ['A Author', 'B Author'],
+          complete: false,
+          fetchedAt: NOW.toISOString(),
+          detailAttempts: 2,
+          detailAttemptedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+    });
   });
 });

@@ -784,7 +784,10 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
       const detail = `scholar run ${result.runId ?? '(none)'}: ${result.status}` +
         (result.reason ? ` — ${result.reason}` : '') +
         ` [found=${result.papersFound} inserted=${result.papersInserted}` +
-        ` citations=${result.citationsUpdated} credits=${result.creditsUsed}]`;
+        ` citations=${result.citationsUpdated} credits=${result.creditsUsed}` +
+        ` authorListsCompleted=${result.authorListsCompleted}` +
+        ` authorListsPending=${result.authorListsPending}` +
+        ` authorListsAbandoned=${result.authorListsAbandoned}]`;
       logger.log(`SCHOLAR_FETCH user=${entityId} ${detail}`);
 
       if (result.status === 'REFUSED') return { status: 'SKIPPED', message: detail };

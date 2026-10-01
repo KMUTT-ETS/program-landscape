@@ -9,19 +9,22 @@
 // `gsc_oci_value` div. We match on the LABEL ("Authors", or "Inventors" for a
 // patent), never on position — the field order varies by publication type.
 import { htmlToText } from './html-text';
+import { splitScholarAuthorLine, type ScholarAuthorLine } from './author-names';
 
 const AUTHORS_FIELD_RE =
   /<div class="gsc_oci_field">\s*(?:Authors|Inventors)\s*<\/div>\s*<div class="gsc_oci_value">([\s\S]*?)<\/div>/;
 
-/** The complete author list, or null when the page has no Authors field. */
-export function parseScholarCitationAuthors(html: string): string[] | null {
+/**
+ * The author list on a detail page, or null when the page has no Authors field.
+ *
+ * Normally complete. Split with the list-page splitter so a detail page that
+ * itself ends in "..."/"…" has the ellipsis stripped and reads incomplete
+ * rather than storing "..." as an author name.
+ */
+export function parseScholarCitationAuthors(html: string): ScholarAuthorLine | null {
   const raw = AUTHORS_FIELD_RE.exec(html)?.[1];
   if (!raw) return null;
-  const names = htmlToText(raw)
-    .split(',')
-    .map((n) => n.trim())
-    .filter((n) => n.length > 0);
-  return names.length > 0 ? names : null;
+  return splitScholarAuthorLine(htmlToText(raw));
 }
 
 /** The detail-page URL for one paper on one profile. */

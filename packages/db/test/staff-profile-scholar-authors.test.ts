@@ -16,6 +16,17 @@ describe('authorsFromScholarColumn', () => {
   it('keeps a shortened list marked incomplete', () => {
     expect(authorsFromScholarColumn({ names: ['D Soodphakdee'], complete: false, fetchedAt: 'x' })?.complete).toBe(false);
   });
+  it('ignores the detail-attempt bookkeeping stored beside the list', () => {
+    expect(
+      authorsFromScholarColumn({
+        names: ['D Soodphakdee'],
+        complete: false,
+        fetchedAt: 'x',
+        detailAttempts: 3,
+        detailAttemptedAt: '2026-10-01T00:00:00.000Z',
+      }),
+    ).toEqual({ authors: [{ family: 'Soodphakdee', given: null, initials: 'D.' }], complete: false });
+  });
   it('returns null for anything that is not a stored list', () => {
     for (const v of [null, undefined, 'x', { names: 'a' }, { names: [], complete: true }]) {
       expect(authorsFromScholarColumn(v)).toBeNull();

@@ -11,7 +11,9 @@ const html = readFileSync(join(__dirname, 'fixtures', 'scholar', 'citation-detai
 
 describe('parseScholarCitationAuthors', () => {
   it('reads the complete author list from a real detail page', () => {
-    const names = parseScholarCitationAuthors(html);
+    const parsed = parseScholarCitationAuthors(html);
+    expect(parsed?.complete).toBe(true);
+    const names = parsed?.names;
     expect(names).toEqual([
       'Geoffrey Hinton',
       'Li Deng',
@@ -32,7 +34,20 @@ describe('parseScholarCitationAuthors', () => {
   it('reads an Inventors field the same way (patents)', () => {
     const patent =
       '<div class="gsc_oci_field">Inventors</div><div class="gsc_oci_value">Ada Lovelace, Charles Babbage</div>';
-    expect(parseScholarCitationAuthors(patent)).toEqual(['Ada Lovelace', 'Charles Babbage']);
+    expect(parseScholarCitationAuthors(patent)).toEqual({ names: ['Ada Lovelace', 'Charles Babbage'], complete: true });
+  });
+
+  it('strips a trailing ellipsis on a detail page and reports the list incomplete', () => {
+    const cut = (tail: string) =>
+      `<div class="gsc_oci_field">Authors</div><div class="gsc_oci_value">Ada Lovelace, Charles Babbage${tail}</div>`;
+    expect(parseScholarCitationAuthors(cut(', ...'))).toEqual({
+      names: ['Ada Lovelace', 'Charles Babbage'],
+      complete: false,
+    });
+    expect(parseScholarCitationAuthors(cut(' …'))).toEqual({
+      names: ['Ada Lovelace', 'Charles Babbage'],
+      complete: false,
+    });
   });
 
   it('returns null for a page without an Authors field (a wall or a bad page)', () => {

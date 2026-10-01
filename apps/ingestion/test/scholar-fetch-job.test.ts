@@ -60,6 +60,9 @@ const BASE_RESULT = {
   papersSkippedNoYear: 0,
   creditsUsed: 0,
   searchQuery: 'Somchai Example',
+  authorListsCompleted: 0,
+  authorListsPending: 0,
+  authorListsAbandoned: 0,
 };
 
 const JOB = {
@@ -131,6 +134,18 @@ describe('SCHOLAR_FETCH handler — refusals are distinguishable', () => {
     const outcome = await handlers.SCHOLAR_FETCH(JOB);
     expect(outcome.status).toBe('SUCCEEDED');
     expect(outcome.message).toContain('found=42 inserted=12 citations=30 credits=30');
+  });
+
+  it('carries the author-list counts in the message', async () => {
+    mocks.runScholarFetch.mockResolvedValue({
+      ...BASE_RESULT,
+      status: 'SUCCEEDED',
+      authorListsCompleted: 20,
+      authorListsPending: 30,
+      authorListsAbandoned: 2,
+    });
+    const outcome = await handlers.SCHOLAR_FETCH(JOB);
+    expect(outcome.message).toContain('authorListsCompleted=20 authorListsPending=30 authorListsAbandoned=2');
   });
 
   it('keeps PARTIAL greppable in the message even though the job succeeded', async () => {

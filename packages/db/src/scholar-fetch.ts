@@ -81,7 +81,7 @@
 
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { ResearchOutputType } from '@prisma/client';
+import type { Prisma, ResearchOutputType } from '@prisma/client';
 import {
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
   SCHOLAR_LEDGER_LOOKBACK_MS,
@@ -223,6 +223,39 @@ const SOURCE = SCHOLAR_RESEARCH_OUTPUT_SOURCE;
 export const SCHOLAR_AUTHOR_DETAIL_CAP = 20;
 
 /**
+ * Detail-page attempts a shortened row gets before it is abandoned: left
+ * shortened for good and no longer fetched, so a paper whose detail page never
+ * yields an author list cannot drain 15 credits a sync forever.
+ */
+export const SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS = 3;
+
+/**
+ * Shortened rows read per sync to choose the batch from. Prisma cannot order by
+ * a JSON path, so the never-attempted-first ordering is applied in memory over
+ * this bounded set (newest first by year, then id).
+ */
+export const SCHOLAR_AUTHOR_DETAIL_CANDIDATES = 200;
+
+/**
+ * Consecutive detail-page failures (a wall, or a thrown error) after which the
+ * phase stops for this sync. Google walls a session rather than a page, so two
+ * in a row means every remaining fetch would be billed for the same wall.
+ */
+const SCHOLAR_AUTHOR_DETAIL_MAX_CONSECUTIVE_FAILURES = 2;
+
+/**
+ * ScrapingBee errors that no further page this sync can get past: the plan is
+ * out of credits, the key is rejected, or the transport is unconfigured. Matched
+ * by `name` — the classes live in the transport module, which this package does
+ * not import (see the header on `fetchPage`).
+ */
+const SCRAPINGBEE_STOP_ERRORS = new Set([
+  'ScrapingBeeQuotaError',
+  'ScrapingBeeAuthError',
+  'ScrapingBeeConfigError',
+]);
+
+/**
  * The shape stored in `research_outputs.scholar_authors`. A type alias, not an
  * interface: Prisma's JSON input type needs the implicit index signature only
  * an alias carries.
@@ -232,10 +265,35 @@ type StoredScholarAuthors = {
   /** False when the list is Scholar's shortened one ("A, B, ..."). */
   complete: boolean;
   fetchedAt: string;
+  /** Detail-page fetches tried for this row that did not yield a complete list. */
+  detailAttempts?: number;
+  /** When the last such attempt was made. */
+  detailAttemptedAt?: string;
 };
 
-function scholarAuthorsValue(names: string[], complete: boolean, now: Date): StoredScholarAuthors {
-  return { names, complete, fetchedAt: now.toISOString() };
+type DetailAttemptFields = Pick<StoredScholarAuthors, 'detailAttempts' | 'detailAttemptedAt'>;
+
+function scholarAuthorsValue(
+  names: string[],
+  complete: boolean,
+  now: Date,
+  attempts: DetailAttemptFields = {},
+): StoredScholarAuthors {
+  return { names, complete, fetchedAt: now.toISOString(), ...attempts };
+}
+
+/** The attempt bookkeeping carried by a stored value, to survive a rewrite. */
+function detailAttemptFields(value: unknown): DetailAttemptFields {
+  if (typeof value !== 'object' || value === null) return {};
+  const v = value as { detailAttempts?: unknown; detailAttemptedAt?: unknown };
+  return {
+    ...(typeof v.detailAttempts === 'number' ? { detailAttempts: v.detailAttempts } : {}),
+    ...(typeof v.detailAttemptedAt === 'string' ? { detailAttemptedAt: v.detailAttemptedAt } : {}),
+  };
+}
+
+function detailAttemptsOf(value: unknown): number {
+  return detailAttemptFields(value).detailAttempts ?? 0;
 }
 
 function isCompleteStored(value: unknown): boolean {
@@ -296,12 +354,15 @@ export interface ScholarFetchResult {
   /** Shortened author lists replaced by the full list from a detail page this sync. */
   authorListsCompleted: number;
   /**
-   * Scholar rows still holding a shortened list after this sync — past the
-   * per-sync cap, or whose detail page failed. Informational only: it is NOT a
-   * run note, because a note turns the run PARTIAL and the papers themselves
-   * all arrived.
+   * Scholar rows still holding a shortened list after this sync that a later
+   * sync will try again — past the per-sync cap, or whose detail page failed
+   * fewer than SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS times. Excludes abandoned
+   * rows. Informational only: it is NOT a run note, because a note turns the
+   * run PARTIAL and the papers themselves all arrived.
    */
   authorListsPending: number;
+  /** Shortened rows whose detail page failed too often; never fetched again. */
+  authorListsAbandoned: number;
 }
 
 /**
@@ -1044,7 +1105,11 @@ async function applyMergePlan(input: {
   const authorLineUpdates = usable.flatMap((p) => {
     if (!p.authors || !storedAuthorsByPaperId.has(p.scholarPaperId)) return [];
     if (isCompleteStored(storedAuthorsByPaperId.get(p.scholarPaperId))) return [];
-    return [{ scholarPaperId: p.scholarPaperId, authors: p.authors }];
+    // A refresh of a shortened line keeps the row's detail-attempt count, or
+    // every sync would reset it and an unreadable paper would never be
+    // abandoned.
+    const attempts = detailAttemptFields(storedAuthorsByPaperId.get(p.scholarPaperId));
+    return [{ scholarPaperId: p.scholarPaperId, authors: p.authors, attempts }];
   });
 
   const insertRows = plan.inserts.map((p) => ({
@@ -1090,7 +1155,14 @@ async function applyMergePlan(input: {
     ...authorLineUpdates.map((a) =>
       prisma.researchOutput.updateMany({
         where: { facultyMemberId: memberId, scholarPaperId: a.scholarPaperId, source: SOURCE },
-        data: { scholarAuthors: scholarAuthorsValue(a.authors.names, a.authors.complete, now) },
+        data: {
+          scholarAuthors: scholarAuthorsValue(
+            a.authors.names,
+            a.authors.complete,
+            now,
+            a.authors.complete ? {} : a.attempts,
+          ),
+        },
       }),
     ),
   ]);
@@ -1108,7 +1180,10 @@ async function applyMergePlan(input: {
 
 interface AuthorDetailOutcome {
   completed: number;
+  /** Shortened rows left that a later sync will still try. */
   pending: number;
+  /** Shortened rows that used up their attempts and are no longer fetched. */
+  abandoned: number;
 }
 
 /**
@@ -1117,9 +1192,13 @@ interface AuthorDetailOutcome {
  * full list. Once complete, a row is never selected again, so each paper costs
  * one detail page for its lifetime.
  *
- * Each page is independent and a failure is non-fatal: a timeout, or a wall
- * with no Authors field, leaves that row shortened for the next sync. The
- * papers were already imported by the merge; this phase only improves them.
+ * Rows never tried come first; a row whose detail page failed
+ * SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS times is abandoned (left shortened, never
+ * fetched again). Each failure — a wall with no Authors field, a thrown error,
+ * or a detail page that is itself shortened — is recorded on the row. Two
+ * consecutive failures end the phase for this sync, and a ScrapingBee quota,
+ * auth or config error ends it at once. None of this fails the run: the papers
+ * were already imported by the merge; this phase only improves them.
  */
 async function completeShortenedAuthorLists(input: {
   memberId: string;
@@ -1128,40 +1207,112 @@ async function completeShortenedAuthorLists(input: {
   progress: ScholarFetchProgress;
   now: Date;
 }): Promise<AuthorDetailOutcome> {
-  const rows = await prisma.researchOutput.findMany({
-    where: {
-      facultyMemberId: input.memberId,
-      source: SOURCE,
-      scholarPaperId: { not: null },
-      scholarAuthors: { path: ['complete'], equals: false },
-    },
-    select: { id: true, scholarPaperId: true },
-    orderBy: { year: 'desc' },
-    // One past the cap, so "more are waiting" is known without a count query.
-    take: SCHOLAR_AUTHOR_DETAIL_CAP + 1,
+  const scope = {
+    facultyMemberId: input.memberId,
+    source: SOURCE,
+    scholarPaperId: { not: null },
+  } as const;
+  const shortened = { path: ['complete'], equals: false };
+  const candidates = await prisma.researchOutput.findMany({
+    where: { ...scope, scholarAuthors: shortened },
+    select: { id: true, scholarPaperId: true, year: true, scholarAuthors: true },
+    orderBy: [{ year: 'desc' }, { id: 'asc' }],
+    take: SCHOLAR_AUTHOR_DETAIL_CANDIDATES,
   });
-  const batch = rows.slice(0, SCHOLAR_AUTHOR_DETAIL_CAP);
+  const batch = candidates
+    .map((row) => ({ row, attempts: detailAttemptsOf(row.scholarAuthors) }))
+    .filter((c) => c.attempts < SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS)
+    .sort(
+      (a, b) =>
+        a.attempts - b.attempts ||
+        b.row.year - a.row.year ||
+        (a.row.id < b.row.id ? -1 : a.row.id > b.row.id ? 1 : 0),
+    )
+    .slice(0, SCHOLAR_AUTHOR_DETAIL_CAP);
+
   let completed = 0;
-  for (const row of batch) {
+  let consecutiveFailures = 0;
+  for (const { row, attempts } of batch) {
     if (!row.scholarPaperId) continue;
+    // The attempt bookkeeping written on any outcome short of a complete list.
+    const nextAttempt: DetailAttemptFields = {
+      detailAttempts: attempts + 1,
+      detailAttemptedAt: input.now.toISOString(),
+    };
+    let parsed: ReturnType<typeof parseScholarCitationAuthors>;
     try {
       const page = await input.fetchPage(buildScholarCitationUrl(input.profileId, row.scholarPaperId));
       addCredits(input.progress, page.creditsUsed);
-      const names = parseScholarCitationAuthors(page.html);
-      if (!names) continue;
-      await prisma.researchOutput.update({
-        where: { id: row.id },
-        data: { scholarAuthors: scholarAuthorsValue(names, true, input.now) },
-      });
-      completed += 1;
+      parsed = parseScholarCitationAuthors(page.html);
     } catch (err) {
+      if (err instanceof Error && SCRAPINGBEE_STOP_ERRORS.has(err.name)) {
+        // Not this paper's fault, so no attempt is charged against it.
+        console.warn(
+          `[scholar-fetch] author detail phase stopped for member=${input.memberId}:`,
+          describeError(err),
+        );
+        break;
+      }
       console.warn(
         `[scholar-fetch] author detail page failed for row=${row.id}:`,
         describeError(err),
       );
+      parsed = null;
+    }
+
+    if (parsed?.complete) {
+      await prisma.researchOutput.update({
+        where: { id: row.id },
+        data: { scholarAuthors: scholarAuthorsValue(parsed.names, true, input.now) },
+      });
+      completed += 1;
+      consecutiveFailures = 0;
+      continue;
+    }
+    if (parsed) {
+      // The detail page is itself shortened: keep its (longer) list, still
+      // incomplete, and charge the attempt so it is abandoned in time.
+      await prisma.researchOutput.update({
+        where: { id: row.id },
+        data: { scholarAuthors: scholarAuthorsValue(parsed.names, false, input.now, nextAttempt) },
+      });
+      consecutiveFailures = 0;
+      continue;
+    }
+    // A wall, or a thrown error: keep what is stored and charge the attempt.
+    const stored =
+      typeof row.scholarAuthors === 'object' && row.scholarAuthors !== null
+        ? (row.scholarAuthors as Record<string, unknown>)
+        : {};
+    await prisma.researchOutput.update({
+      where: { id: row.id },
+      data: { scholarAuthors: { ...stored, ...nextAttempt } as Prisma.InputJsonObject },
+    });
+    consecutiveFailures += 1;
+    if (consecutiveFailures >= SCHOLAR_AUTHOR_DETAIL_MAX_CONSECUTIVE_FAILURES) {
+      console.warn(
+        `[scholar-fetch] author detail phase stopped for member=${input.memberId} after ` +
+          `${consecutiveFailures} consecutive failures`,
+      );
+      break;
     }
   }
-  return { completed, pending: rows.length - completed };
+
+  // Counted, not inferred from the batch: the candidate read is bounded, so
+  // "how many are left" needs the database.
+  const [shortenedLeft, abandoned] = await Promise.all([
+    prisma.researchOutput.count({ where: { ...scope, scholarAuthors: shortened } }),
+    prisma.researchOutput.count({
+      where: {
+        ...scope,
+        AND: [
+          { scholarAuthors: shortened },
+          { scholarAuthors: { path: ['detailAttempts'], gte: SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS } },
+        ],
+      },
+    }),
+  ]);
+  return { completed, pending: Math.max(0, shortenedLeft - abandoned), abandoned };
 }
 
 // ── Run bookkeeping ───────────────────────────────────────────────────────
@@ -1684,7 +1835,7 @@ export async function runScholarFetch(
     // ── 6a. Complete shortened author lists from detail pages ────────────
     // After the merge, so rows inserted this sync are eligible at once. Never
     // fails the run: the import is committed and this only enriches it.
-    let authorLists: AuthorDetailOutcome = { completed: 0, pending: 0 };
+    let authorLists: AuthorDetailOutcome = { completed: 0, pending: 0, abandoned: 0 };
     try {
       authorLists = await completeShortenedAuthorLists({
         memberId: member.id,
@@ -1754,6 +1905,7 @@ export async function runScholarFetch(
       searchQuery,
       authorListsCompleted: authorLists.completed,
       authorListsPending: authorLists.pending,
+      authorListsAbandoned: authorLists.abandoned,
     };
   } catch (err) {
     // Nothing reached ResearchOutput: every write to it lives inside the
@@ -1802,6 +1954,7 @@ export async function runScholarFetch(
       searchQuery,
       authorListsCompleted: 0,
       authorListsPending: 0,
+      authorListsAbandoned: 0,
     };
   }
 }
@@ -1816,10 +1969,12 @@ function emptyCounts(): Pick<
   | 'retryAt'
   | 'authorListsCompleted'
   | 'authorListsPending'
+  | 'authorListsAbandoned'
 > {
   return {
     authorListsCompleted: 0,
     authorListsPending: 0,
+    authorListsAbandoned: 0,
     papersFound: 0,
     papersInserted: 0,
     citationsUpdated: 0,
