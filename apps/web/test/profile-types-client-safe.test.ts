@@ -17,6 +17,24 @@ describe('profile types stay client-safe', () => {
     for (const line of importLines(src)) expect(line).toMatch(/^\s*(import|export) type\b/);
   });
 
+  it('the shared teaching-evaluation module has no imports at all', () => {
+    // The /profile evaluation panel is a client component and reaches this
+    // file at runtime; anything it imports lands in the browser bundle.
+    const src = read('..', '..', 'packages', 'shared', 'src', 'staff-profile', 'teaching-evaluation.ts');
+    expect(importLines(src)).toEqual([]);
+    expect(src).not.toMatch(/\brequire\(|\bimport\(/);
+  });
+
+  it('web teaching-evaluation-summary takes runtime code only from the deep path', () => {
+    const src = read('src', 'lib', 'teaching-evaluation-summary.ts');
+    const lines = importLines(src);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      if (/^\s*(import|export) type\b/.test(line)) continue;
+      expect(line).toContain("'@kku/shared/src/staff-profile/teaching-evaluation'");
+    }
+  });
+
   it('web profile-types takes runtime code only from the deep path', () => {
     const src = read('src', 'lib', 'profile-types.ts');
     for (const line of importLines(src)) {

@@ -12,7 +12,9 @@ const summary: TeachingEvaluationSummary = {
     { tag: 'active-learning', questions: 3, allTime: 4.36, latest: 4.62 },
     { tag: 'ethics', questions: 2, allTime: 4.32, latest: null },
   ],
-  untaggedQuestions: 1, freshnessDate: '2026-09-30T00:00:00.000Z', methodologyVersion: 'kku-evaluations.v1',
+  untaggedQuestions: 1,
+  courses: [{ code: '000101', nameTh: 'วิชาทดสอบ', nameEn: 'Test course', rating: 4.348, answers: 1880, latestYearBE: 2568, latestSemester: 2 }],
+  freshnessDate: '2026-09-30T00:00:00.000Z', methodologyVersion: 'kku-evaluations.v1',
 };
 
 // The app root supplies both providers; FreshnessBadge and ProvenanceButton

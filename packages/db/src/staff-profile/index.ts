@@ -11,3 +11,4 @@ export {
   type StaffPublicationsSnapshot,
 } from './profile';
 export { resolveStaffForLookup, type StaffLookup } from './lookup';
+export { getStaffTeachingEvaluation } from './teaching-evaluation';

@@ -17,6 +17,7 @@
     "./src/scholar/resolve": "./src/scholar/resolve.ts",
     "./src/staff-profile/types": "./src/staff-profile/types.ts",
     "./src/staff-profile/api-schema": "./src/staff-profile/api-schema.ts",
+    "./src/staff-profile/teaching-evaluation": "./src/staff-profile/teaching-evaluation.ts",
     "./src/scholar/scrapingbee": "./src/scholar/scrapingbee.ts",
     "./src/scholar/costs": "./src/scholar/costs.ts",
     "./jobthai": "./src/jobthai/index.ts",
