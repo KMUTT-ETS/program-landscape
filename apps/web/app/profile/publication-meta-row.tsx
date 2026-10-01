@@ -40,15 +40,15 @@ export function PublicationMetaRow({ pub, lang }: { pub: PublicationEntry; lang:
     source: pub.source ?? null,
   });
   return (
-    <div className="mt-2 space-y-1 text-xs">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-text-tertiary">
+    <div className="mt-[8px] space-y-[4px] text-xs">
+      <div className="flex flex-wrap items-center gap-x-[12px] gap-y-[4px] text-text-tertiary">
         <span className="tabular-nums text-text-secondary">{pub.year}</span>
         {type && (
           <>
             <Sep />
             <span
               data-meta="type"
-              className="inline-flex items-center gap-1 rounded-full border border-default px-2 py-[1px] text-text-secondary"
+              className="inline-flex items-center gap-[4px] rounded-full border border-default px-[8px] py-[1px] text-text-secondary"
             >
               <FileText className="h-[12px] w-[12px]" aria-hidden />
               {type}
@@ -58,7 +58,7 @@ export function PublicationMetaRow({ pub, lang }: { pub: PublicationEntry; lang:
         {pub.citations > 0 && (
           <>
             <Sep />
-            <span data-meta="citations" className="inline-flex items-center gap-1 font-medium text-accent-default">
+            <span data-meta="citations" className="inline-flex items-center gap-[4px] font-medium text-accent-default">
               <Quote className="h-[12px] w-[12px]" aria-hidden />
               {l.cited(pub.citations)}
             </span>
@@ -71,13 +71,13 @@ export function PublicationMetaRow({ pub, lang }: { pub: PublicationEntry; lang:
           </>
         )}
         {(pub.scopusId || pub.pmid) && (
-          <span className="ml-auto inline-flex items-center gap-3">
+          <span className="ml-auto inline-flex items-center gap-[12px]">
             {pub.scopusId && (
               <a
                 href={scopusRecordUrl(pub.scopusId)}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-1 text-accent-default hover:underline"
+                className="inline-flex items-center gap-[4px] text-accent-default hover:underline"
               >
                 Scopus <ExternalLink className="h-[12px] w-[12px]" aria-hidden />
               </a>
@@ -87,7 +87,7 @@ export function PublicationMetaRow({ pub, lang }: { pub: PublicationEntry; lang:
                 href={`https://pubmed.ncbi.nlm.nih.gov/${pub.pmid}/`}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-1 text-accent-default hover:underline"
+                className="inline-flex items-center gap-[4px] text-accent-default hover:underline"
               >
                 PubMed <ExternalLink className="h-[12px] w-[12px]" aria-hidden />
               </a>
