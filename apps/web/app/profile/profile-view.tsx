@@ -14,6 +14,8 @@ import type { AuthorName, ProfileData, PublicationEntry } from '@/lib/profile-ty
 import { formatAuthorApa, kkuAuthorsAsAuthorNames } from '@/lib/profile-types';
 import { AvatarUploader } from './avatar-uploader';
 import { PublicationMetaRow } from './publication-meta-row';
+import { TeachingEvaluationPanel } from './teaching-evaluation-panel';
+import type { TeachingEvaluationSummary } from '@/lib/teaching-evaluation-summary';
 
 // Profile-page client component. Owns:
 //   - TH/EN toggle (visible string flips, but the data-bilingual fields
@@ -160,6 +162,7 @@ export function ProfileView({
   userEmail,
   publicMode = false,
   scholarSlot = null,
+  teachingEvaluation = null,
 }: {
   profile: ProfileData | null;
   userEmail: string;
@@ -172,6 +175,9 @@ export function ProfileView({
   // page composes the element and passes it down. /p/[slug] passes
   // nothing, which is also how the panel stays off the public view.
   scholarSlot?: React.ReactNode;
+  // Owner-only student-evaluation summary, read server-side. /p/[slug]
+  // passes nothing, and the panel sits inside the !publicMode block anyway.
+  teachingEvaluation?: TeachingEvaluationSummary | null;
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -277,19 +283,7 @@ export function ProfileView({
           {!publicMode && profile.hasFacultyMemberRecord && (
             <>
               <TeachingSection teaching={profile.teaching} lang={lang} t={t} />
-              <a
-                href="/staff/teaching"
-                className="block rounded-lg border border-border-subtle bg-surface-1 p-4 transition hover:bg-surface-2"
-              >
-                <div className="text-xs uppercase tracking-wider text-text-tertiary">
-                  {lang === 'th' ? 'การประเมินการสอนของฉัน' : 'My teaching evaluations'}
-                </div>
-                <div className="mt-1 text-sm text-text-primary">
-                  {lang === 'th'
-                    ? 'ดูคะแนนประเมินจากนักศึกษารายข้อ + รายวิชา ตามภาคการศึกษา'
-                    : 'See your per-question and per-course student-evaluation scores across semesters.'}
-                </div>
-              </a>
+              <TeachingEvaluationPanel summary={teachingEvaluation ?? null} lang={lang} />
             </>
           )}
           <PublicationsSection

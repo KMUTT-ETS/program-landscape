@@ -5,7 +5,7 @@ import type { SessionUser, PublicProfileState } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { prisma, SCHOLAR_RESEARCH_OUTPUT_SOURCE } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { getProfileData } from '@/lib/profile-data';
+import { getMyTeachingEvaluation, getProfileData } from '@/lib/profile-data';
 import { ShareCard } from '@/components/profile/share-card';
 import { getScholarStatusAction } from '@/lib/actions/scholar';
 import { ProfileView } from './profile-view';
@@ -36,7 +36,7 @@ export default async function ProfilePage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const [profile, share, scholar] = await Promise.all([
+  const [profile, share, scholar, teachingEvaluation] = await Promise.all([
     getProfileData(user.userId),
     prisma.user.findUnique({
       where: { id: user.userId },
@@ -52,6 +52,8 @@ export default async function ProfilePage() {
     // disabled-with-a-reason one. Fetching them client-side would flash an
     // enabled button at someone who has no staff record.
     getScholarStatusAction(),
+    // Owner-only: the evaluation panel renders on this page, never on /p/[slug].
+    getMyTeachingEvaluation(user.userId),
   ]);
 
   // Publication provenance for the section header. Counted straight off
@@ -130,6 +132,7 @@ export default async function ProfilePage() {
       <ProfileView
         profile={profile}
         userEmail={user.email}
+        teachingEvaluation={teachingEvaluation}
         scholarSlot={
           scholar.ok ? (
             <ScholarPanel initialStatus={scholar.status} sources={scholarSources} />
