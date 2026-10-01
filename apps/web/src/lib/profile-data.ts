@@ -8,12 +8,14 @@ import {
   buildStaffProfile,
   emptyResearchSummary,
   getStaffPublicationsSnapshot,
+  instructorPersonal,
   prisma,
   resolveFacultyMemberForUser,
   type StaffPublicationsSnapshot,
 } from '@kku/db';
 import { EXPERTISE_NARRATIVE_VERSION } from '@kku/shared';
 import type { ProfileBasicInfo, ProfileData } from './profile-types';
+import { summariseTeachingEvaluation, type TeachingEvaluationSummary } from './teaching-evaluation-summary';
 
 export type {
   CurriculumProgram,
@@ -164,3 +166,26 @@ export async function getHomePublicationsSnapshot(
   const memberId = await resolveFacultyMemberForUser(user);
   return memberId ? getStaffPublicationsSnapshot(memberId) : null;
 }
+
+/**
+ * The signed-in user's own teaching-evaluation summary for the /profile panel.
+ * Server-only; never called for /p/[slug]. Visibility: a user's own data
+ * (instructorPersonal does no permission check — this function's only caller
+ * passes the session's own user id).
+ */
+export async function getMyTeachingEvaluation(userId: string): Promise<TeachingEvaluationSummary | null> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { employeeId: true, name: true } });
+  if (!user) return null;
+  const memberId = await resolveFacultyMemberForUser(user);
+  if (!memberId) return null;
+  const [result, lastRun] = await Promise.all([
+    instructorPersonal(memberId),
+    prisma.ingestionRun.findFirst({
+      where: { status: 'SUCCEEDED', dataSource: { slug: 'kku-evaluations' } },
+      orderBy: { completedAt: 'desc' },
+      select: { completedAt: true },
+    }),
+  ]);
+  return summariseTeachingEvaluation(result, lastRun?.completedAt?.toISOString() ?? null);
+}
+
