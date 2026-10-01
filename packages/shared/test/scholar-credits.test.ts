@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   GOOGLE_PAGE_CREDIT_COST,
   GOOGLE_SEARCH_CREDIT_COST,
+  SCHOLAR_AUTHOR_DETAIL_CAP,
+  estimateScholarBulkCreditCeiling,
   estimateScholarBulkCredits,
 } from '../src/scholar';
 
@@ -95,5 +97,41 @@ describe('estimateScholarBulkCredits', () => {
     expect(estimateScholarBulkCredits([{ profileBound: true }])).toBe(
       estimateScholarBulkCredits([{ profileBound: true, quotaBlocked: false }]),
     );
+  });
+});
+
+// The ceiling adds the author-list allowance: a first sync also fetches up to
+// SCHOLAR_AUTHOR_DETAIL_CAP detail pages for author lists Scholar shortened.
+const DETAIL_ALLOWANCE = SCHOLAR_AUTHOR_DETAIL_CAP * GOOGLE_PAGE_CREDIT_COST;
+
+describe('estimateScholarBulkCreditCeiling', () => {
+  it('is the floor plus 20 detail pages for every target that reaches Google', () => {
+    expect(SCHOLAR_AUTHOR_DETAIL_CAP).toBe(20);
+    expect(estimateScholarBulkCreditCeiling([{ profileBound: true }])).toBe(
+      GOOGLE_PAGE_CREDIT_COST + DETAIL_ALLOWANCE,
+    );
+    expect(estimateScholarBulkCreditCeiling([{ profileBound: false }])).toBe(UNLINKED + DETAIL_ALLOWANCE);
+  });
+
+  it('adds nothing for a quota-blocked target, and is zero for an empty run', () => {
+    expect(estimateScholarBulkCreditCeiling([])).toBe(0);
+    expect(
+      estimateScholarBulkCreditCeiling([
+        { profileBound: true, quotaBlocked: true },
+        { profileBound: false, quotaBlocked: true },
+      ]),
+    ).toBe(0);
+  });
+
+  it('never falls below the floor, and sums a mixed run', () => {
+    const targets = [
+      { profileBound: true },
+      { profileBound: false },
+      { profileBound: true, quotaBlocked: true },
+    ];
+    expect(estimateScholarBulkCreditCeiling(targets)).toBe(
+      estimateScholarBulkCredits(targets) + 2 * DETAIL_ALLOWANCE,
+    );
+    expect(estimateScholarBulkCreditCeiling(targets)).toBeGreaterThan(estimateScholarBulkCredits(targets));
   });
 });

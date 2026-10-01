@@ -73,6 +73,20 @@ export function classifyScrapingBeeRequest(targetUrl: string): ScrapingBeeReques
   }
 }
 
+/**
+ * Detail pages fetched per sync for papers whose author list Scholar shortened.
+ *
+ * The profile list page cuts long author lines with "..."; only the paper's
+ * own view_citation page carries the whole list, at a profile page's price. A
+ * bound, current record pays this once per paper — a completed list is never
+ * fetched again — so the cap only bounds the first sync of a large library,
+ * and whatever it leaves is picked up by the next one.
+ *
+ * Lives here, not in the runner, because the bulk estimate prices it too: the
+ * runner that spends it and the console that quotes it read one constant.
+ */
+export const SCHOLAR_AUTHOR_DETAIL_CAP = 20;
+
 /** Pair a request kind with its price, so an estimator cannot re-derive it wrongly. */
 export function creditCostForRequestKind(kind: ScrapingBeeRequestKind): number {
   return kind === 'search' ? GOOGLE_SEARCH_CREDIT_COST : GOOGLE_PAGE_CREDIT_COST;

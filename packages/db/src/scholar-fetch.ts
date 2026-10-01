@@ -84,6 +84,7 @@ import { z } from 'zod';
 import type { Prisma, ResearchOutputType } from '@prisma/client';
 import {
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
+  SCHOLAR_AUTHOR_DETAIL_CAP,
   SCHOLAR_LEDGER_LOOKBACK_MS,
   SCHOLAR_PARSER_VERSION,
   buildScholarCitationUrl,
@@ -213,14 +214,11 @@ const SOURCE = SCHOLAR_RESEARCH_OUTPUT_SOURCE;
 
 /**
  * Detail pages fetched per sync for papers whose author list Scholar shortened.
- *
- * The profile list page cuts long author lines with "..."; only the paper's
- * own view_citation page carries the whole list, at 15 credits a page. A
- * bound, current record pays this once per paper — a completed list is never
- * fetched again — so the cap only bounds the first sync of a large library,
- * and whatever it leaves is picked up by the next one.
+ * Defined in @kku/shared (costs.ts) so the bulk estimate that quotes it and
+ * this runner that spends it share one constant; re-exported here for callers
+ * of the runner.
  */
-export const SCHOLAR_AUTHOR_DETAIL_CAP = 20;
+export { SCHOLAR_AUTHOR_DETAIL_CAP };
 
 /**
  * Detail-page attempts a shortened row gets before it is abandoned: left

@@ -2,7 +2,12 @@
 
 import { z } from 'zod';
 import { SCHOLAR_NEEDS_BINDING, planScholarBulkTargets } from '@kku/db';
-import { can, estimateScholarBulkCredits, type SessionUser } from '@kku/shared';
+import {
+  can,
+  estimateScholarBulkCreditCeiling,
+  estimateScholarBulkCredits,
+  type SessionUser,
+} from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { scholarBulkMaxTargets } from '@/lib/scholar-admin-config';
 import { apiFetch } from '@/lib/api-client';
@@ -123,6 +128,7 @@ export async function previewScholarBulkAction(
         unboundCount: plan.runnable.filter((t) => !t.quotaBlocked && !t.profileBound).length,
         unresolvableCount: plan.skipped.length,
         estimatedCredits: estimateScholarBulkCredits(plan.runnable),
+        estimatedCreditsCeiling: estimateScholarBulkCreditCeiling(plan.runnable),
         maxTargets: scholarBulkMaxTargets(),
       },
     };
@@ -140,6 +146,8 @@ export interface ScholarBulkOutcome {
   duplicatesDropped: number;
   /** The API's figure, rendered verbatim. Never recomputed here. */
   estimatedCredits: number;
+  /** The API's ceiling (floor + author-list allowance), rendered verbatim. */
+  estimatedCreditsCeiling: number;
   /** How many of them actually reached Google. */
   chargeableCount: number;
   enqueuedUserIds: string[];
@@ -155,6 +163,7 @@ const BulkResponseSchema = z.object({
   targetCount: z.number(),
   duplicatesDropped: z.number(),
   estimatedCredits: z.number(),
+  estimatedCreditsCeiling: z.number(),
   chargeableCount: z.number(),
 });
 
@@ -182,6 +191,7 @@ export async function bulkFetchScholarAction(
         targetCount: parsed.targetCount,
         duplicatesDropped: parsed.duplicatesDropped,
         estimatedCredits: parsed.estimatedCredits,
+        estimatedCreditsCeiling: parsed.estimatedCreditsCeiling,
         chargeableCount: parsed.chargeableCount,
         enqueuedUserIds: parsed.enqueued.map((e) => e.userId),
       },

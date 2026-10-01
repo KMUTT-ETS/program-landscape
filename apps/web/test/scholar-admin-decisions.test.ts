@@ -31,6 +31,7 @@ function preview(overrides: Partial<ScholarBulkPreview> = {}): ScholarBulkPrevie
     unboundCount: 0,
     unresolvableCount: 0,
     estimatedCredits: 30,
+    estimatedCreditsCeiling: 630,
     maxTargets: 100,
     ...overrides,
   };

@@ -292,7 +292,12 @@ export interface ScholarBulkPreview {
   /** Not enqueued at all: the pre-flight already proved no single staff
    *  record matches the account. */
   unresolvableCount: number;
+  /** The floor: one profile page per person, plus the name search for the
+   *  unlinked. */
   estimatedCredits: number;
+  /** The floor plus up to SCHOLAR_AUTHOR_DETAIL_CAP author-list detail pages
+   *  for everyone who reaches Google. Server-supplied, like the floor. */
+  estimatedCreditsCeiling: number;
   maxTargets: number;
 }
 

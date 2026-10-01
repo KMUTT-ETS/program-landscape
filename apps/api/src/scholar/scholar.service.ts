@@ -16,6 +16,7 @@ import {
   SCHOLAR_LEDGER_LOOKBACK_MS,
   decideScholarBindQuota,
   decideScholarQuota,
+  estimateScholarBulkCreditCeiling,
   estimateScholarBulkCredits,
   parseScholarProfileUrl,
   scholarBindQuotaWhere,
@@ -76,6 +77,10 @@ export interface ScholarBulkResult {
   /** Duplicate ids the request carried and this service collapsed. */
   duplicatesDropped: number;
   estimatedCredits: number;
+  /** `estimatedCredits` plus up to SCHOLAR_AUTHOR_DETAIL_CAP author-list
+   *  detail pages for every target that reaches Google — see
+   *  `estimateScholarBulkCreditCeiling`. Still one profile page per person. */
+  estimatedCreditsCeiling: number;
   /** Targets that actually reached Google, and therefore what
    *  `estimatedCredits` prices. Echoed so the caller can see that the number
    *  it quoted and the number that was billed describe the same run. */
@@ -651,6 +656,7 @@ export class ScholarService {
       targetCount: distinct.length,
       duplicatesDropped,
       estimatedCredits: estimateScholarBulkCredits(plan.runnable),
+      estimatedCreditsCeiling: estimateScholarBulkCreditCeiling(plan.runnable),
       chargeableCount: plan.chargeableCount,
       targets: plan.targets,
     };

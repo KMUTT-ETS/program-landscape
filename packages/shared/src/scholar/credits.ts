@@ -11,7 +11,7 @@
 // the first time the rule changed the confirmation dialog would quote the old
 // one.
 
-import { creditCostForRequestKind } from './costs';
+import { SCHOLAR_AUTHOR_DETAIL_CAP, creditCostForRequestKind } from './costs';
 
 /**
  * Floor price of a bulk run, in ScrapingBee credits.
@@ -72,4 +72,24 @@ export function estimateScholarBulkCredits(
     const search = target.profileBound ? 0 : creditCostForRequestKind('search');
     return sum + search + creditCostForRequestKind('profile');
   }, 0);
+}
+
+/**
+ * The floor above, plus the author-list allowance: every target that reaches
+ * Google may also spend up to SCHOLAR_AUTHOR_DETAIL_CAP detail pages completing
+ * author lists Scholar shortened (a first sync of a large library is the case
+ * that spends all of them; a record already synced spends few or none).
+ *
+ * It is a ceiling on that allowance, NOT on the run: like the floor it assumes
+ * one profile page per person, and a profile longer than that adds a page
+ * price for each further page on top of both figures. Callers must say so.
+ */
+export function estimateScholarBulkCreditCeiling(
+  targets: ReadonlyArray<{ profileBound: boolean; quotaBlocked?: boolean }>,
+): number {
+  const reachGoogle = targets.filter((t) => !t.quotaBlocked).length;
+  return (
+    estimateScholarBulkCredits(targets) +
+    reachGoogle * SCHOLAR_AUTHOR_DETAIL_CAP * creditCostForRequestKind('profile')
+  );
 }

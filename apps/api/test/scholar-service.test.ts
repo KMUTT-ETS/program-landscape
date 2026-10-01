@@ -71,6 +71,7 @@ import {
   GOOGLE_PAGE_CREDIT_COST,
   GOOGLE_SEARCH_CREDIT_COST,
   ROLE_PERMISSIONS,
+  SCHOLAR_AUTHOR_DETAIL_CAP,
   can,
 } from '@kku/shared';
 import type { Role, SessionUser } from '@kku/shared';
@@ -513,6 +514,11 @@ describe('estimateScholarBulkCredits', () => {
 
     expect(result.estimatedCredits).toBe(
       2 * GOOGLE_PAGE_CREDIT_COST + (GOOGLE_SEARCH_CREDIT_COST + GOOGLE_PAGE_CREDIT_COST),
+    );
+    // The ceiling adds up to 20 author-list detail pages for each of the three
+    // that reach Google; u3 stops at the quota and adds nothing.
+    expect(result.estimatedCreditsCeiling).toBe(
+      result.estimatedCredits + 3 * SCHOLAR_AUTHOR_DETAIL_CAP * GOOGLE_PAGE_CREDIT_COST,
     );
     // `chargeableCount` counts PROFILE WALKS — targets that already know their
     // id — because that is what the stale-quote token is about: somebody

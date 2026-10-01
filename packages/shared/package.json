@@ -18,6 +18,7 @@
     "./src/staff-profile/types": "./src/staff-profile/types.ts",
     "./src/staff-profile/api-schema": "./src/staff-profile/api-schema.ts",
     "./src/scholar/scrapingbee": "./src/scholar/scrapingbee.ts",
+    "./src/scholar/costs": "./src/scholar/costs.ts",
     "./jobthai": "./src/jobthai/index.ts",
     "./src/jobthai": "./src/jobthai/index.ts",
     "./jobthai/parse-sheet": "./src/jobthai/parse-sheet.ts",

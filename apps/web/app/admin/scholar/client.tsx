@@ -18,6 +18,11 @@ import {
   Skeleton,
   type ColumnDef,
 } from '@kku/ui';
+// Deep path, not the barrel: costs.ts is pure constants, safe in a client bundle.
+import {
+  GOOGLE_PAGE_CREDIT_COST,
+  SCHOLAR_AUTHOR_DETAIL_CAP,
+} from '@kku/shared/src/scholar/costs';
 import { formatScholarDay, formatScholarDayTime } from '@/lib/scholar-status';
 import {
   EMPTY_ROSTER_FILTERS,
@@ -691,9 +696,11 @@ function CostPreamble({
         ))}
       </div>
       <p className="mt-6 max-w-[52rem] text-xs leading-relaxed text-text-secondary">
-        Every page fetched from Google costs 15 ScrapingBee credits, and a prolific
-        researcher&rsquo;s profile runs to several pages. Estimates below are a floor, never a
-        forecast.
+        Every page fetched from Google costs {GOOGLE_PAGE_CREDIT_COST} ScrapingBee credits, and a
+        prolific researcher&rsquo;s profile runs to several pages. A first sync also completes up
+        to {SCHOLAR_AUTHOR_DETAIL_CAP} author lists Google Scholar shortened, at{' '}
+        {GOOGLE_PAGE_CREDIT_COST} credits each. Estimates below assume one profile page per
+        person; they are never a forecast.
       </p>
     </section>
   );
@@ -889,11 +896,27 @@ export function BulkConfirmPanel({
             >
               {preview.estimatedCredits}
             </div>
+            {/* The ceiling on its own line with its own words, so the two
+                figures never read as one token. */}
+            <div className="mt-2 text-sm text-text-secondary">
+              at most{' '}
+              <span
+                className="font-tabular font-semibold text-text-primary"
+                data-testid="scholar-estimated-credits-ceiling"
+              >
+                {preview.estimatedCreditsCeiling}
+              </span>{' '}
+              ScrapingBee credits
+            </div>
             <p className="mt-2 text-xs leading-relaxed text-text-secondary">
-              ScrapingBee credits, at least. A profile longer than one page costs more, and
-              this cannot know how many pages it runs to without fetching it. Someone with no
-              linked profile is searched for by name first, which is the single most expensive
-              call here and is spent even when it finds nobody.
+              A first sync also completes up to {SCHOLAR_AUTHOR_DETAIL_CAP} author lists Google
+              Scholar shortened, at {GOOGLE_PAGE_CREDIT_COST} credits each; that is the gap
+              between the two figures, and a record already synced spends little of it. Both
+              figures assume one profile page per person: a longer profile costs{' '}
+              {GOOGLE_PAGE_CREDIT_COST} more for each further page, and this cannot know how many
+              pages it runs to without fetching it. Someone with no linked profile is searched for
+              by name first, which is the single most expensive call here and is spent even when
+              it finds nobody.
             </p>
           </div>
 
@@ -1007,7 +1030,7 @@ function sendLabel(preview: ScholarBulkPreview | null, submitting: boolean): str
   if (submitting) return 'Sending…';
   if (!preview) return 'Send';
   if (preview.estimatedCredits === 0) return 'Send — nothing will be spent';
-  return `Send — at least ${preview.estimatedCredits} credits`;
+  return `Send — estimated ${preview.estimatedCredits}, at most ${preview.estimatedCreditsCeiling} credits`;
 }
 
 function PlanLine({
@@ -1077,11 +1100,19 @@ export function RunLedger({
               service priced the run at after de-duplicating and dropping the
               unsendable, and it is what the invoice will reflect. */}
           <p className="mt-2">
-            It priced the run at{' '}
+            It priced the run at an estimated{' '}
             <span className="font-tabular text-text-primary" data-testid="scholar-outcome-credits">
               {lastOutcome.estimatedCredits}
             </span>{' '}
-            ScrapingBee credits, at least.
+            ScrapingBee credits, at most{' '}
+            <span
+              className="font-tabular text-text-primary"
+              data-testid="scholar-outcome-credits-ceiling"
+            >
+              {lastOutcome.estimatedCreditsCeiling}
+            </span>{' '}
+            with up to {SCHOLAR_AUTHOR_DETAIL_CAP} shortened author lists completed per person, one
+            profile page each.
           </p>
         </div>
       )}

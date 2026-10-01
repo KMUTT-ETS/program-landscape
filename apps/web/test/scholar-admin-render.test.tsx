@@ -65,6 +65,8 @@ function preview(overrides: Partial<ScholarBulkPreview> = {}): ScholarBulkPrevie
     // the panel must render what the server said, and a component that
     // recomputed the figure locally would print 45 and fail here.
     estimatedCredits: 987,
+    // Likewise not 987 + 3 × 20 × 15: the server's ceiling, rendered verbatim.
+    estimatedCreditsCeiling: 1543,
     maxTargets: 100,
     ...overrides,
   };
@@ -100,7 +102,7 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
     expect(html).not.toContain('>45<');
   });
 
-  it('presents the estimate as a floor, and names each gate that will stop a target', () => {
+  it('presents the estimate with its author-list ceiling, and names each gate that will stop a target', () => {
     // Four targets, one at each gate. The runner checks resolution, then
     // quota, then binding, so the dialog has to say which gate each person
     // will hit rather than merely that some of them will not be read.
@@ -121,7 +123,8 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
         onCancel={() => undefined}
       />,
     );
-    expect(html).toMatch(/at least/i);
+    expect(html).toMatch(/Send — estimated \d+, at most \d+ credits/);
+    expect(html).toMatch(/costs 15 more for each further page/);
     expect(html).toMatch(/Linked, ready to read/);
     expect(html).toMatch(/Already fetched this month/);
     expect(html).toMatch(/quota gate/i);
@@ -174,6 +177,7 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
           unboundCount: 0,
           unresolvableCount: 0,
           estimatedCredits: 15,
+          estimatedCreditsCeiling: 315,
         })}
         pricing={false}
         error={null}
@@ -183,7 +187,7 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
         onCancel={() => undefined}
       />,
     );
-    expect(html).toContain('Send — at least 15 credits');
+    expect(html).toContain('Send — estimated 15, at most 315 credits');
     expect(html).not.toContain('150');
   });
 
@@ -238,7 +242,7 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
   it('puts the figure on the send button, and never threatens a bill of zero', () => {
     const paid = renderToStaticMarkup(
       <BulkConfirmPanel
-        preview={preview({ estimatedCredits: 987 })}
+        preview={preview({ estimatedCredits: 987, estimatedCreditsCeiling: 1543 })}
         pricing={false}
         error={null}
         gate={{ canEnqueue: true }}
@@ -247,7 +251,13 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
         onCancel={() => undefined}
       />,
     );
-    expect(paid).toContain('Send — at least 987 credits');
+    expect(paid).toContain('Send — estimated 987, at most 1543 credits');
+    // The headline says both figures and why they differ.
+    expect(paid).toContain('scholar-estimated-credits-ceiling');
+    expect(paid).toMatch(/up to 20 author lists Google Scholar shortened, at 15 credits each/);
+    // Both figures are one profile page per person; the copy must still say a
+    // longer profile costs more, or "at most" would be a promise it cannot keep.
+    expect(paid).toMatch(/longer profile/i);
 
     // A free run — and note WHICH shape that is now. Every target refreshed
     // inside its 30-day window, so every one of them refuses at the quota gate
@@ -255,7 +265,12 @@ describe('BulkConfirmPanel — the estimate is the server’s', () => {
     // and that batch is now the dearest thing this console can send.
     const free = renderToStaticMarkup(
       <BulkConfirmPanel
-        preview={preview({ chargeableCount: 0, quotaBlockedCount: 3, estimatedCredits: 0 })}
+        preview={preview({
+          chargeableCount: 0,
+          quotaBlockedCount: 3,
+          estimatedCredits: 0,
+          estimatedCreditsCeiling: 0,
+        })}
         pricing={false}
         error={null}
         gate={{ canEnqueue: true }}
@@ -396,12 +411,14 @@ describe('RunLedger — a completed run that found nothing is not a success', ()
           duplicatesDropped: 0,
           // Again deliberately not 3 × 15: it is the service's own figure.
           estimatedCredits: 861,
+          estimatedCreditsCeiling: 1761,
           chargeableCount: 3,
           enqueuedUserIds: ['u1', 'u2', 'u3'],
         }}
       />,
     );
     expect(html).toContain('861');
+    expect(html).toContain('1761');
     expect(html).not.toContain('>45<');
   });
 });
