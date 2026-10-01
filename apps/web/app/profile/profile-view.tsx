@@ -11,7 +11,8 @@ import {
 } from '@kku/ui';
 import { BookOpen, Camera, GraduationCap, Sparkles, Globe2, Award } from 'lucide-react';
 import type { AuthorName, ProfileData, PublicationEntry } from '@/lib/profile-types';
-import { formatAuthorApa, kkuAuthorsAsAuthorNames } from '@/lib/profile-types';
+import { kkuAuthorsAsAuthorNames } from '@/lib/profile-types';
+import { buildAuthorListJsx } from './apa-author-list';
 import { AvatarUploader } from './avatar-uploader';
 import { PublicationMetaRow } from './publication-meta-row';
 import { TeachingEvaluationPanel } from './teaching-evaluation-panel';
@@ -177,7 +178,8 @@ export function ProfileView({
   scholarSlot?: React.ReactNode;
   // Owner-only student-evaluation summary, read server-side. /p/[slug]
   // passes nothing, and the panel sits inside the !publicMode block anyway.
-  teachingEvaluation?: TeachingEvaluationSummary | null;
+  // 'unavailable' = the read failed (shown as such, not as "none yet").
+  teachingEvaluation?: TeachingEvaluationSummary | null | 'unavailable';
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -1555,7 +1557,7 @@ function PublicationApaLine({
   // the per-paper enrichment didn't populate `authors`.
   const authors: AuthorName[] =
     pub.authors.length > 0 ? pub.authors : kkuAuthorsAsAuthorNames(pub);
-  const authorJsx = buildAuthorListJsx(authors, ownerSurname);
+  const authorJsx = buildAuthorListJsx(authors, ownerSurname, pub.authorsAreComplete);
   const trailingDot = /[.!?]$/.test(pub.title) ? '' : '.';
 
   return (
@@ -1583,61 +1585,6 @@ function PublicationApaLine({
       )}
     </p>
   );
-}
-
-/**
- * Render an APA-7 author block as JSX with the owner's name bolded.
- * Mirrors `formatApaAuthorList` from profile-types.ts (commas, &,
- * 21+ ellipsis truncation) but emits React nodes so we can wrap
- * the matching author in <strong>.
- */
-function buildAuthorListJsx(
-  authors: AuthorName[],
-  ownerSurname: string | null,
-): React.ReactNode {
-  if (authors.length === 0) return null;
-  const items = authors
-    .map((a) => ({
-      text: formatAuthorApa(a),
-      isOwner: isOwnerAuthor(a, ownerSurname),
-    }))
-    .filter((it) => it.text.length > 0);
-  if (items.length === 0) return null;
-
-  // APA 7 §9.8: 21+ authors → first 19, ..., last.
-  const useEllipsis = items.length > 20;
-  const display = useEllipsis ? [...items.slice(0, 19), items[items.length - 1]!] : items;
-
-  const parts: React.ReactNode[] = [];
-  display.forEach((item, i) => {
-    parts.push(
-      item.isOwner ? (
-        <strong key={`a${i}`} className="font-semibold">
-          {item.text}
-        </strong>
-      ) : (
-        <React.Fragment key={`a${i}`}>{item.text}</React.Fragment>
-      ),
-    );
-    if (i < display.length - 1) {
-      const isSecondToLast = i === display.length - 2;
-      const sep = isSecondToLast
-        ? useEllipsis
-          ? ', ... '
-          : ', & ' /* serial-Oxford comma + ampersand */
-        : ', ';
-      parts.push(<React.Fragment key={`s${i}`}>{sep}</React.Fragment>);
-    }
-  });
-  // Trailing period before "(Year)".
-  parts.push(<React.Fragment key="trail">. </React.Fragment>);
-  return parts;
-}
-
-function isOwnerAuthor(a: AuthorName, ownerSurname: string | null): boolean {
-  if (!ownerSurname) return false;
-  const normalised = (a.family ?? '').trim().toLocaleLowerCase();
-  return normalised.length > 0 && normalised === ownerSurname;
 }
 
 // ─── TH/EN toggle ────────────────────────────────────────────────────────
