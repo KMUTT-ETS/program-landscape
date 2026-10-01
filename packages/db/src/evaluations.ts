@@ -1575,8 +1575,19 @@ export async function instructorPersonal(
   const filter = typeof args === 'string' ? legacyFilter : args.filter;
   const f = resolveFilter(filter);
   // Pull all cells for this instructor in window. When `programId` is
-  // set, JOIN through program_courses so only cells for courses taught
-  // by that program survive.
+  // set, only cells for courses taught by that program survive.
+  //
+  // Plain parameters only — no nested Prisma.sql / Prisma.empty fragments.
+  // This runs inside the /profile server component, and in Next.js dev
+  // @prisma/client is bundled once per server-component context: a fragment
+  // built in one context fails `instanceof Sql` in another, gets bound as a
+  // parameter, and Postgres rejects the query with `syntax error at or near
+  // "$1"` (same failure as dashboard-overview.ts, commit 668dd46). The two
+  // optional filters are therefore NULL-guarded parameters. The program filter
+  // is an EXISTS rather than a JOIN, so a course listed twice for a program
+  // cannot duplicate cells.
+  const programFilter = programId ?? null;
+  const acadYearFilter = f.acadYearBE ?? null;
   const cells = await prisma.$queryRaw<
     Array<{
       acad_year_be: number;
@@ -1599,15 +1610,17 @@ export async function instructorPersonal(
     FROM evaluation_response_summaries e
     JOIN ingestion_runs ir ON ir.id = e.ingestion_run_id
     JOIN data_sources ds ON ds.id = ir.data_source_id
-    ${
-      programId
-        ? Prisma.sql`JOIN program_courses pc ON pc.course_code = e.course_code AND pc.program_id = ${programId}`
-        : Prisma.empty
-    }
     WHERE ds.mocked = false
       AND e.faculty_member_id = ${facultyMemberId}
       AND e.semester = ANY(${f.semester}::int[])
-      ${f.acadYearBE ? Prisma.sql`AND e.acad_year_be = ANY(${f.acadYearBE}::int[])` : Prisma.empty}
+      AND (${acadYearFilter}::int[] IS NULL OR e.acad_year_be = ANY(${acadYearFilter}::int[]))
+      AND (
+        ${programFilter}::text IS NULL
+        OR EXISTS (
+          SELECT 1 FROM program_courses pc
+          WHERE pc.course_code = e.course_code AND pc.program_id = ${programFilter}::text
+        )
+      )
   `;
   if (cells.length === 0) {
     return {
