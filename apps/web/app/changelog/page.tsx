@@ -27,6 +27,20 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-10-01',
+    version: 'v1.9.11 · A clearer My profile, and teaching evaluations on it',
+    title:
+      'My profile now lists co-authors for Google Scholar papers, shows each publication’s details more clearly, and embeds your teaching evaluation results',
+    audience: ['Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Papers imported from Google Scholar used to say “co-authors could not be fetched”, because Scholar records carry no DOI to look the authors up by. The authors Scholar itself lists are now kept. Where Scholar shortens a long author list, the next Google Scholar sync reads that paper’s full list once (at most twenty papers per sync, each costing one 15-credit page), and until then the citation ends with “…” and says the list is shortened rather than presenting it as complete. Thai author names are shown exactly as Scholar gives them.',
+      'Under each publication, the year, the publication type, “Cited by” and the source the record came from are now set apart and labelled, so a citation count can no longer be mistaken for a category. The type is not shown for Google Scholar papers, because Scholar never states one. The Top venues panel has been removed.',
+      'The “My teaching evaluations” link is replaced by a panel on your own profile: your overall rating, the latest academic year against the one before, the number of answers and courses, and a radar of your scores by evaluation category for the latest year against all years, with the exact figures in a table beside it. It is never shown on the public profile page.',
+      'Systems that read staff profiles through the external API can now also receive these teaching-evaluation results, including per-course ratings — but only when an administrator grants that section to the specific system, and existing systems do not receive it. It is marked in Admin → API clients as performance data that needs a recorded basis before it is granted.',
+      'Administrators: the Google Scholar bulk-sync estimate now also shows a ceiling, because a first sync can complete up to twenty shortened author lists per person.',
+    ],
+  },
+  {
+    date: '2026-10-01',
     version: 'v1.9.10 · Each degree listed once',
     title: 'A staff member’s education history no longer repeats on My profile or in the staff-profile API',
     audience: ['Executive', 'Analyst', 'Admin'],
