@@ -22,7 +22,7 @@ const signinWall = read('author-search-blocked-signin-wall.html'); // real respo
 
 describe('SCHOLAR_PARSER_VERSION', () => {
   it('is the versioned string archived payloads get stamped with', () => {
-    expect(SCHOLAR_PARSER_VERSION).toBe('scholar-parse.v1');
+    expect(SCHOLAR_PARSER_VERSION).toBe('scholar-parse.v2');
   });
 });
 
@@ -38,6 +38,7 @@ describe('parseScholarPublications', () => {
       citations: 199623,
       venue: 'Advances in neural information processing systems 25',
       type: null,
+      authors: { names: ['A Krizhevsky', 'I Sutskever', 'GE Hinton'], complete: true },
     });
   });
 
@@ -255,5 +256,15 @@ describe('parseScholarProfileUrl', () => {
   it('never throws on garbage input', () => {
     expect(() => parseScholarProfileUrl('not a url at all !! ///')).not.toThrow();
     expect(() => parseScholarProfileUrl('☺️')).not.toThrow();
+  });
+});
+
+describe('author lines (scholar-parse.v2)', () => {
+  it('captures every row author line from the real Hinton capture', () => {
+    const papers = parseScholarPublications(profilePage1);
+    const imagenet = papers.find((p) => p.scholarPaperId === 'JicYPdAAAAAJ:VN7nJs4JPk0C')!;
+    expect(imagenet.authors).toEqual({ names: ['A Krizhevsky', 'I Sutskever', 'GE Hinton'], complete: true });
+    expect(papers.filter((p) => p.authors && !p.authors.complete)).toHaveLength(4);
+    expect(papers.every((p) => p.authors !== undefined)).toBe(true);
   });
 });

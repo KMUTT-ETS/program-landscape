@@ -12,3 +12,4 @@ export * from './html-text';
 export * from './costs';
 export * from './credits';
 export * from './disclosure';
+export * from './author-names';

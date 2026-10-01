@@ -1,4 +1,6 @@
 // packages/shared/src/scholar/merge.ts
+import type { ScholarAuthorLine } from './author-names';
+
 export interface ScholarPaper {
   scholarPaperId: string;
   title: string;
@@ -7,6 +9,9 @@ export interface ScholarPaper {
   citations: number;
   venue: string | null;
   type: string | null;
+  /** The row's author line as Scholar printed it; null when the row had none.
+   *  `complete` is false when Scholar shortened the list. */
+  authors: ScholarAuthorLine | null;
 }
 
 export interface ExistingOutput {

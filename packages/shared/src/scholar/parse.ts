@@ -11,9 +11,11 @@
 // (Task 6) so an archived raw payload can be reprocessed under a later parser
 // instead of re-scraping.
 import type { ScholarPaper } from './merge';
+import { splitScholarAuthorLine } from './author-names';
 import { decodeHtmlEntities, htmlToText } from './html-text';
 
-export const SCHOLAR_PARSER_VERSION = 'scholar-parse.v1';
+// v2 (2026-10-01): captures each row's author line.
+export const SCHOLAR_PARSER_VERSION = 'scholar-parse.v2';
 
 export interface ScholarCandidate {
   /** The Scholar `user=` id — what a confirmed binding stores as `scholarProfileId`. */
@@ -52,6 +54,9 @@ export interface ScholarCandidate {
 //     citations rendered as nothing, not "0")
 //   - titles and venues can carry `&amp;` / `&quot;` etc.
 //
+// The first gs_gray div (the author line) IS captured since v2: initials-first,
+// comma-separated, ending in a literal ", ..." when Scholar shortened the list.
+//
 // NOT present anywhere in either capture, confirmed by full-text search:
 //   - a DOI. Scholar's list view never carries one — only the per-paper
 //     citation detail page might, and this parser only ever sees the list
@@ -63,6 +68,7 @@ export interface ScholarCandidate {
 const ROW_RE = /<tr class="gsc_a_tr">([\s\S]*?)<\/tr>/g;
 const TITLE_RE = /href="[^"]*citation_for_view=([^"&]+)"[^>]*class="gsc_a_at">([\s\S]*?)<\/a>/;
 const VENUE_RE = /<div class="gs_gray">[\s\S]*?<\/div>\s*<div class="gs_gray">([\s\S]*?)<\/div>/;
+const AUTHORS_RE = /class="gsc_a_at">[\s\S]*?<\/a>\s*<div class="gs_gray">([\s\S]*?)<\/div>/;
 const CITATIONS_RE = /class="gsc_a_c">\s*<a[^>]*class="gsc_a_ac gs_ibl">(\d*)<\/a>/;
 const YEAR_RE = /class="gsc_a_y">\s*<span class="gsc_a_h gsc_a_hc gs_ibl">(\d*)<\/span>/;
 const TRAILING_YEAR_SPAN_RE = /<span class="gs_oph">[^<]*<\/span>\s*$/;
@@ -105,6 +111,9 @@ export function parseScholarPublications(html: string): ScholarPaper[] {
     const venueText = htmlToText(venueRaw.replace(TRAILING_YEAR_SPAN_RE, ''));
     const venue = venueText.length > 0 ? venueText : null;
 
+    const authorsRaw = AUTHORS_RE.exec(row)?.[1];
+    const authors = authorsRaw ? splitScholarAuthorLine(htmlToText(authorsRaw)) : null;
+
     const citationsMatch = CITATIONS_RE.exec(row);
     const citationsText = citationsMatch?.[1] ?? '';
     const citations = citationsText ? Number(citationsText) : 0;
@@ -117,6 +126,7 @@ export function parseScholarPublications(html: string): ScholarPaper[] {
       citations: Number.isFinite(citations) ? citations : 0,
       venue,
       type: null, // never present on the list page — see notes above
+      authors,
     });
   }
   return out;

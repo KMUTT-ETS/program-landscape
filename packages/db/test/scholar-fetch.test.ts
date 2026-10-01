@@ -1150,7 +1150,7 @@ describe('runScholarFetch — happy path', () => {
     // Raw payload archived under the parser version that read it.
     expect(mocks.archiveCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ fetchRunId: 'run-1', parserVersion: 'scholar-parse.v1' }),
+        data: expect.objectContaining({ fetchRunId: 'run-1', parserVersion: 'scholar-parse.v2' }),
       }),
     );
 
@@ -1350,8 +1350,8 @@ describe('runScholarFetch — papers with no usable year', () => {
     // Injected parser: the shipped one already drops year-less rows, so this
     // is the only way to prove the runner's own guard actually fires.
     const parsePage = (): ScholarPaper[] => [
-      { scholarPaperId: 'a', title: 'Has a year', year: 2021, doi: null, citations: 3, venue: null, type: null },
-      { scholarPaperId: 'b', title: 'No year', year: 0, doi: null, citations: 1, venue: null, type: null },
+      { scholarPaperId: 'a', title: 'Has a year', year: 2021, doi: null, citations: 3, venue: null, type: null, authors: null },
+      { scholarPaperId: 'b', title: 'No year', year: 0, doi: null, citations: 1, venue: null, type: null, authors: null },
       {
         scholarPaperId: 'c',
         title: 'Nonsense year',
@@ -1360,6 +1360,7 @@ describe('runScholarFetch — papers with no usable year', () => {
         citations: 1,
         venue: null,
         type: null,
+        authors: null,
       },
     ];
     mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
