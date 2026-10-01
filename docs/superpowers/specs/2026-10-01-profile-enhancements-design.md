@@ -69,7 +69,7 @@ Under each APA citation, one metadata row, 12 px text, 12 px gaps, `·` separato
 | Type | outlined chip with icon, readable label: Journal article, Conference paper, Book, Patent | **hidden for `source = 'google-scholar'`** — Scholar states no type; the stored `JOURNAL` is a placeholder |
 | Citations | NOT a chip: quote icon + "Cited by N", accent colour | hidden at 0 |
 | Source | small grey text: Google Scholar, Scopus, PubMed, OpenAlex, … | from `PublicationEntry.source` (`kku-publications:scopus` → Scopus, `live:<x>` → its name) |
-| Identifiers | small labelled links: DOI ↗, Scopus ↗, PubMed ↗ | right side, wrap on narrow screens |
+| Identifiers | small labelled links: Scopus ↗, PubMed ↗ | right side, wrap on narrow screens. DOI stays in the APA citation line (APA requires it and it is already linked there), so no identifier is shown twice |
 | Author status | quiet note on its own line | only when relevant (see §1) |
 
 - "N authors" count is dropped (the names are in the citation line).
