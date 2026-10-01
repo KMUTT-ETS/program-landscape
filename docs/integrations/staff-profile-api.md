@@ -6,7 +6,7 @@ Program Landscape as JSON. Version string: `staff-profile.v1`.
 ## 1. What it returns
 
 `POST /api/v1/external/staff-profile` returns the data behind a staff member's
-`/profile` page. `person` is always present; the other five sections are
+`/profile` page. `person` is always present; the other six sections are
 returned only if your client was granted them.
 
 - **`person`** — always. Staff record id, active flag, academic title, name (Thai and English), `displayName` (title plus name, ready to print), email, and identifiers (ORCID, Scopus author id, OpenAlex author id, Google Scholar profile id). `email` is non-null only for a client allowed to look up by email.
@@ -15,6 +15,7 @@ returned only if your client was granted them.
 - **`teaching`** — courses taught and students taught over the last five academic years: totals, per-year figures and every course in the window.
 - **`research`** — papers, citations, h-index, years active, peak year, top venues.
 - **`publications`** — the full paper list, newest first, each with an APA 7 string.
+- **`teachingEvaluation`** — **opt-in.** Student course-evaluation ratings: overall, latest vs previous academic year, a score per question category, and a rating per course. This is performance data about the person, so no client receives it unless an admin grants it explicitly, and the grant needs a recorded basis (§9). Clients created before this section existed do not hold it.
 
 ## 2. Getting a key
 
@@ -95,7 +96,23 @@ Standard envelope `{ data, meta, error }`. A section is present only if granted.
         "doi": null, "scopusId": null, "pmid": null, "scholarPaperId": "…",
         "authors": [ { "family": "…", "given": "…", "initials": null } ],
         "authorsComplete": false, "apa": "…" }
-    ]
+    ],
+    "teachingEvaluation": {
+      "scale": { "min": 1, "max": 5 },
+      "overall": 4.35, "totalAnswers": 1880, "courseCount": 1, "termCount": 4,
+      "firstYearBE": 2566, "lastYearBE": 2568,
+      "latestYearBE": 2568, "latestRating": 4.41,
+      "previousYearBE": 2567, "previousRating": 4.30,
+      "categories": [
+        { "tag": "ethics", "labelEn": "Ethics", "labelTh": "คุณธรรมจริยธรรม",
+          "questions": 2, "latest": 4.52, "allTime": 4.44 }
+      ],
+      "untaggedQuestions": 1,
+      "courses": [
+        { "code": "…", "nameTh": "…", "nameEn": "…", "rating": 4.35, "answers": 1880,
+          "latestYearBE": 2568, "latestSemester": 2 }
+      ]
+    }
   },
   "meta": {
     "freshnessDate": "2026-09-29T02:10:00Z",
@@ -104,7 +121,8 @@ Standard envelope `{ data, meta, error }`. A section is present only if granted.
       { "id": "unicon-ds2003", "name": "UNICON DS2003 (education history)" },
       { "id": "kku-registry", "name": "KKU Registrar (class offerings)" },
       { "id": "kku-publications", "name": "KKU Publications mirror (Scopus, PubMed)" },
-      { "id": "google-scholar", "name": "Google Scholar (on-demand import)" }
+      { "id": "google-scholar", "name": "Google Scholar (on-demand import)" },
+      { "id": "kku-evaluations", "name": "KKU student course evaluations" }
     ],
     "methodologyVersion": "staff-profile.v1",
     "caveats": [ "…" ],
@@ -112,7 +130,7 @@ Standard envelope `{ data, meta, error }`. A section is present only if granted.
       "apiVersion": "staff-profile.v1",
       "generatedAt": "2026-09-30T07:50:00Z",
       "publicationsCache": "hit",
-      "sectionsIncluded": ["person", "affiliation", "education", "teaching", "research", "publications"],
+      "sectionsIncluded": ["person", "affiliation", "education", "teaching", "research", "publications", "teachingEvaluation"],
       "sectionsWithheld": []
     }
   },
@@ -134,6 +152,13 @@ Standard envelope `{ data, meta, error }`. A section is present only if granted.
 | `publications[].source` | Where that paper came from: `google-scholar`, `kku-publications:scopus`, `kku-publications:pubmed`, `openalex`, or `live:<scopus\|pubmed\|isi\|tci>` for a paper found only by the live read. |
 | `publications[].authorsComplete` | `false` when the source gave a truncated author list. |
 | **Sort order** | Publications: year descending, then citations descending, then title ascending. It is a total order, so two calls return the same sequence. |
+| `teachingEvaluation` | **Opt-in** (see §1). `null` means your client holds the grant but the person has no student evaluations on record; a client without the grant gets no key at all and sees `teachingEvaluation` in `sectionsWithheld`. The `kku-evaluations` source and the two caveats below appear in `meta` only when the section is returned (including as `null`). |
+| `teachingEvaluation.scale` | Always `{ "min": 1, "max": 5 }`; every rating is on that scale. |
+| `teachingEvaluation.totalAnswers`, `courses[].answers` | Counts of **answers**, one per question answered — **not** students. A class of 30 answering a 20-question form gives 600. Also stated in `meta.caveats`. |
+| `teachingEvaluation.termCount` | Terms (academic year + semester) with at least one answer. |
+| `teachingEvaluation.latestRating` / `previousRating` | Answer-weighted mean over all terms of the latest / previous academic year with answers; `previous*` is `null` when only one year has data. |
+| `teachingEvaluation.categories[]` | One per question category (`tag`), each the answer-weighted mean of its questions, all-time and for the latest year (`latest` is `null` if the category had no answers that year). Labels are given in English and Thai; an unknown tag is returned with the tag as its label. `untaggedQuestions` counts questions in no category; they count towards `overall` but not towards any category. |
+| `teachingEvaluation.courses[]` | Every evaluated course, sorted by the term it was last evaluated (newest first), then course code. `rating` is the course's all-time answer-weighted mean. A course rating reflects the course as taught by this person, but students rate the whole course experience, and a course with few answers can swing on a handful of respondents — read it with `answers` beside it, and do not rank people by it. |
 | `meta.freshnessDate` | When the publications list was last built. |
 | `meta.integration.publicationsCache` | `hit` (fresh, under 24 h), `stale` (served immediately, refresh started) or `miss` (built during this call). |
 | `meta.integration.sectionsIncluded` / `sectionsWithheld` | The sections returned, and the grantable sections your client does not hold. A withheld section is absent from `data`, not empty. `person` is never withheld. |
@@ -152,7 +177,7 @@ Failures use the same envelope with `data: null` and an `error` object
 | 403 | `FORBIDDEN` | `ip_not_allowed` | Caller address is outside your client's allowlist (only when allowlists are enabled) |
 | 404 | `NOT_FOUND` | — | No match, or the person is inactive and your client is not granted inactive staff. Identical whichever identifier you used. |
 | 429 | `RATE_LIMITED` | — | Per-client limit exceeded. `Retry-After` header gives seconds. |
-| 500 | `INTERNAL` | — | Unexpected. The body carries no request id and never the identifier: quote the `x-request-id` **response header** when reporting (every response carries it). |
+| 500 | `INTERNAL` | — | Unexpected — including a granted section that could not be loaded (a granted `teachingEvaluation` is never silently dropped). The body carries no request id and never the identifier: quote the `x-request-id` **response header** when reporting (every response carries it). |
 | 502 | `UPSTREAM_UNAVAILABLE` | — | Possible when a dependency behind the API is unreachable. Retry with backoff. |
 
 A live publication source failing does **not** produce an error: you receive a
@@ -185,3 +210,4 @@ alongside v1 until callers have migrated.
 - Rejected `429` and `403 ip_not_allowed` calls are logged at most once per client per minute. A `403 lookup_not_permitted` is logged on every call (your rate limit bounds it).
 - Call-log rows are deleted after **365 days**.
 - The API discloses personal data about named staff. The **legal basis for your system receiving it is your own**, and must be recorded with the platform team before a key is issued. Grant and use only the sections you need, and do not pass the data on beyond that purpose.
+- **`teachingEvaluation` is performance data** about the person (student ratings overall, by category and by course). It is disclosed only to a client explicitly granted that section, and the grant needs its own recorded basis — a basis for receiving staff directory data does not cover it.

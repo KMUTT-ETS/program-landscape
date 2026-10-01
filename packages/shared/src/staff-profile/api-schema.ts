@@ -16,8 +16,20 @@ export const STAFF_PROFILE_SECTIONS = [
   'teaching',
   'research',
   'publications',
+  // Performance data about the person: opt-in, never granted by default.
+  'teachingEvaluation',
 ] as const;
 export type StaffProfileSection = (typeof STAFF_PROFILE_SECTIONS)[number];
+
+/** Human-readable names for the admin console; the wire keys stay as above. */
+export const STAFF_PROFILE_SECTION_LABELS: Record<StaffProfileSection, string> = {
+  affiliation: 'Affiliation',
+  education: 'Education',
+  teaching: 'Teaching load',
+  research: 'Research summary',
+  publications: 'Publications',
+  teachingEvaluation: 'Teaching evaluation',
+};
 
 export const StaffProfileLookupSchema = z.union([
   z
@@ -143,6 +155,48 @@ export const StaffProfileResponseDataSchema = z.object({
         apa: z.string(),
       }),
     )
+    .optional(),
+  // null = granted, but no student evaluations on record (distinct from
+  // withheld, where the key is absent and listed in sectionsWithheld).
+  teachingEvaluation: z
+    .object({
+      scale: z.object({ min: z.literal(1), max: z.literal(5) }),
+      overall: z.number(),
+      /** Answers, one per question answered — not students. */
+      totalAnswers: z.number(),
+      courseCount: z.number(),
+      /** Terms with answers. */
+      termCount: z.number(),
+      firstYearBE: z.number().nullable(),
+      lastYearBE: z.number().nullable(),
+      latestYearBE: z.number().nullable(),
+      latestRating: z.number().nullable(),
+      previousYearBE: z.number().nullable(),
+      previousRating: z.number().nullable(),
+      categories: z.array(
+        z.object({
+          tag: z.string(),
+          labelEn: z.string(),
+          labelTh: z.string(),
+          questions: z.number(),
+          latest: z.number().nullable(),
+          allTime: z.number().nullable(),
+        }),
+      ),
+      untaggedQuestions: z.number(),
+      courses: z.array(
+        z.object({
+          code: z.string(),
+          nameTh: z.string().nullable(),
+          nameEn: z.string().nullable(),
+          rating: z.number(),
+          answers: z.number(),
+          latestYearBE: z.number(),
+          latestSemester: z.number(),
+        }),
+      ),
+    })
+    .nullable()
     .optional(),
 });
 export type StaffProfileResponseData = z.infer<typeof StaffProfileResponseDataSchema>;

@@ -236,6 +236,15 @@ list). A client receives only the sections it was granted; the response names
 the ones withheld. Excluded from v1: photograph, AI expertise narrative and
 the Teaching Talent verdict.
 
+**Teaching evaluations are opt-in performance data.** The `teachingEvaluation`
+section carries the person's student course-evaluation ratings — overall, by
+question category and by course. It is disclosed only to a client an admin has
+explicitly granted `teachingEvaluation`; no existing client holds it, it is
+never loaded for a client without the grant, and the admin console flags it as
+performance data at the point of granting. The grant needs its own recorded
+basis for the receiving system: a basis for receiving directory or publication
+data does not cover ratings of the person's teaching.
+
 **How a person is found.** By Thai citizen id or by email, in the body of a
 POST, never in a URL, so the identifier does not reach proxy or access logs.
 The request logger also redacts `req.body.citizenId` and `req.body.email`.

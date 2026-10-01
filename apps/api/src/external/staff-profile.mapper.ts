@@ -2,10 +2,12 @@
 // wire shape, filtered to what this client was granted. Pure: no I/O.
 import type { StaffProfile } from '@kku/db';
 import {
+  EVALUATION_THEME_LABELS,
   formatApa,
   STAFF_PROFILE_SECTIONS,
   type StaffProfileResponseData,
   type StaffProfileSection,
+  type TeachingEvaluationSummary,
 } from '@kku/shared';
 
 export interface StaffProfileGrant {
@@ -19,7 +21,54 @@ export interface MappedStaffProfile {
   withheld: StaffProfileSection[];
 }
 
-export function toStaffProfileResponse(p: StaffProfile, grant: StaffProfileGrant): MappedStaffProfile {
+/** Data loaded outside the profile builder, fetched only for the sections
+ *  that need it. `teachingEvaluation: null` = granted, nothing on record. */
+export interface StaffProfileExtras {
+  teachingEvaluation?: TeachingEvaluationSummary | null;
+}
+
+function toWireEvaluation(
+  t: TeachingEvaluationSummary | null,
+): NonNullable<StaffProfileResponseData['teachingEvaluation']> | null {
+  if (!t) return null;
+  return {
+    scale: { min: 1, max: 5 },
+    overall: t.overall,
+    totalAnswers: t.totalAnswers,
+    courseCount: t.courseCount,
+    termCount: t.termCount,
+    firstYearBE: t.firstYearBE,
+    lastYearBE: t.lastYearBE,
+    latestYearBE: t.latestYearBE,
+    latestRating: t.latestRating,
+    previousYearBE: t.previousYearBE,
+    previousRating: t.previousRating,
+    categories: t.categories.map((c) => ({
+      tag: c.tag,
+      labelEn: EVALUATION_THEME_LABELS[c.tag]?.en ?? c.tag,
+      labelTh: EVALUATION_THEME_LABELS[c.tag]?.th ?? c.tag,
+      questions: c.questions,
+      latest: c.latest,
+      allTime: c.allTime,
+    })),
+    untaggedQuestions: t.untaggedQuestions,
+    courses: t.courses.map((c) => ({
+      code: c.code,
+      nameTh: c.nameTh,
+      nameEn: c.nameEn,
+      rating: c.rating,
+      answers: c.answers,
+      latestYearBE: c.latestYearBE,
+      latestSemester: c.latestSemester,
+    })),
+  };
+}
+
+export function toStaffProfileResponse(
+  p: StaffProfile,
+  grant: StaffProfileGrant,
+  extras: StaffProfileExtras = {},
+): MappedStaffProfile {
   const granted = new Set(grant.allowedSections);
   const data: StaffProfileResponseData = {
     person: {
@@ -126,6 +175,15 @@ export function toStaffProfileResponse(p: StaffProfile, grant: StaffProfileGrant
         authorsComplete: pub.authorsAreComplete,
         apa: formatApa(pub),
       }));
+  }
+
+  if (granted.has('teachingEvaluation')) {
+    // Undefined means the caller never loaded it. Answering null would tell the
+    // client "no evaluations on record", which would be false — refuse instead.
+    if (extras.teachingEvaluation === undefined) {
+      throw new Error('teachingEvaluation is granted but was not loaded');
+    }
+    data.teachingEvaluation = toWireEvaluation(extras.teachingEvaluation);
   }
 
   const included = STAFF_PROFILE_SECTIONS.filter((s) => granted.has(s));

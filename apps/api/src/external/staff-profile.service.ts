@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { buildStaffProfile, recordApiRequest, resolveStaffForLookup } from '@kku/db';
+import {
+  buildStaffProfile,
+  getStaffTeachingEvaluation,
+  recordApiRequest,
+  resolveStaffForLookup,
+} from '@kku/db';
 import {
   ApiError,
   STAFF_PROFILE_API_VERSION,
@@ -7,6 +12,7 @@ import {
   StaffProfileResponseDataSchema,
   type ApiMeta,
   type StaffProfileResponseData,
+  type TeachingEvaluationSummary,
 } from '@kku/shared';
 import type { ApiLookupType, StaffProfile } from '@kku/db';
 import { requestIdOf, type ApiClientRequest } from './api-key.guard';
@@ -19,6 +25,21 @@ const CAVEATS = [
   'research.hIndex and totalCitations are computed from the per-paper citation counts in the publication list; papers without an indexed citation count contribute 0.',
   'research.basis is google-scholar once any Google Scholar import exists for this person; the list is then Scholar papers plus library papers Scholar matched.',
 ];
+
+/** Said only when the teachingEvaluation section is actually returned. */
+const EVALUATION_CAVEATS = [
+  'Teaching ratings are on a 1–5 scale; category scores are respondent-weighted means of their questions.',
+  'teachingEvaluation.totalAnswers counts answers, one per question answered, not students.',
+];
+
+const BASE_SOURCES = [
+  { id: 'kku-hr', name: 'KKU HR (staff record)' },
+  { id: 'unicon-ds2003', name: 'UNICON DS2003 (education history)' },
+  { id: 'kku-registry', name: 'KKU Registrar (class offerings)' },
+  { id: 'kku-publications', name: 'KKU Publications mirror (Scopus, PubMed)' },
+  { id: 'google-scholar', name: 'Google Scholar (on-demand import)' },
+];
+const EVALUATION_SOURCE = { id: 'kku-evaluations', name: 'KKU student course evaluations' };
 
 /**
  * A cold build fans out to the publications mirror, Scopus, OpenAlex and the
@@ -38,6 +59,19 @@ export class StaffProfileService {
   /** One in-flight build per staff record: concurrent lookups of the same
    *  person share it rather than each paying for (and queueing) a build. */
   private readonly inFlight = new Map<string, Promise<StaffProfile | null>>();
+  /** Same coalescing for the teaching-evaluation load (one query family, so
+   *  it runs beside the bounded build rather than taking a build slot). */
+  private readonly evaluationsInFlight = new Map<string, Promise<TeachingEvaluationSummary | null>>();
+
+  private evaluationOnce(facultyMemberId: string): Promise<TeachingEvaluationSummary | null> {
+    const existing = this.evaluationsInFlight.get(facultyMemberId);
+    if (existing) return existing;
+    const p = getStaffTeachingEvaluation(facultyMemberId).finally(() =>
+      this.evaluationsInFlight.delete(facultyMemberId),
+    );
+    this.evaluationsInFlight.set(facultyMemberId, p);
+    return p;
+  }
 
   private buildOnce(facultyMemberId: string): Promise<StaffProfile | null> {
     const existing = this.inFlight.get(facultyMemberId);
@@ -87,13 +121,25 @@ export class StaffProfileService {
       }
 
       facultyMemberId = await resolveStaffForLookup(lookup, { includeInactive: client.includeInactive });
+      // Performance data: loaded only for a client granted the section, never
+      // fetched and then filtered out.
+      const wantsEvaluation = client.allowedSections.includes('teachingEvaluation');
+      const evaluation =
+        facultyMemberId && wantsEvaluation ? this.evaluationOnce(facultyMemberId) : undefined;
+      // Observe a rejection now so a 404 below never leaves it unhandled; the
+      // await further down still throws it.
+      evaluation?.catch(() => undefined);
       const profile = facultyMemberId ? await this.buildOnce(facultyMemberId) : null;
       if (!profile) {
         facultyMemberId = null;
         throw new ApiError('NOT_FOUND', 'Staff member not found');
       }
+      // A granted section that cannot be loaded fails the request (500 via the
+      // catch below) rather than being silently dropped from the answer.
+      const extras = evaluation ? { teachingEvaluation: await evaluation } : {};
 
-      const mapped = toStaffProfileResponse(profile, client);
+      const mapped = toStaffProfileResponse(profile, client, extras);
+      const evaluationReturned = mapped.included.includes('teachingEvaluation');
       // Runtime check of the wire shape. A drift is logged and the data still
       // returned: failing a caller over our own schema lag would be worse.
       // Issue paths only — never the values, which are personal data.
@@ -109,14 +155,8 @@ export class StaffProfileService {
         meta: {
           freshnessDate: profile.publicationsFetchedAt,
           methodologyVersion: STAFF_PROFILE_API_VERSION,
-          sources: [
-            { id: 'kku-hr', name: 'KKU HR (staff record)' },
-            { id: 'unicon-ds2003', name: 'UNICON DS2003 (education history)' },
-            { id: 'kku-registry', name: 'KKU Registrar (class offerings)' },
-            { id: 'kku-publications', name: 'KKU Publications mirror (Scopus, PubMed)' },
-            { id: 'google-scholar', name: 'Google Scholar (on-demand import)' },
-          ],
-          caveats: CAVEATS,
+          sources: evaluationReturned ? [...BASE_SOURCES, EVALUATION_SOURCE] : BASE_SOURCES,
+          caveats: evaluationReturned ? [...CAVEATS, ...EVALUATION_CAVEATS] : CAVEATS,
           integration: {
             apiVersion: STAFF_PROFILE_API_VERSION,
             generatedAt: new Date().toISOString(),

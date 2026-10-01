@@ -20,7 +20,14 @@ import { Ban, CheckCircle2, Copy, KeyRound, Plus, Power, TriangleAlert } from 'l
 // node:crypto into the browser bundle and breaks the build.
 import type { ApiClientDetail, ApiClientInput, ApiClientKeyView, ApiClientSummary, IssuedApiKey } from '@kku/db';
 // Deep path on purpose — this module is browser-safe; the @kku/shared barrel is not.
-import { STAFF_PROFILE_SECTIONS } from '@kku/shared/src/staff-profile/api-schema';
+import {
+  STAFF_PROFILE_SECTION_LABELS,
+  STAFF_PROFILE_SECTIONS,
+} from '@kku/shared/src/staff-profile/api-schema';
+
+/** Shown beside the one section that carries performance data about the person. */
+const TEACHING_EVALUATION_GRANT_NOTE =
+  'Performance data about the person — grant only to systems with a recorded basis for it.';
 import {
   createApiClientAction,
   getApiClientDetailAction,
@@ -897,9 +904,24 @@ function ClientFields({
       <fieldset>
         <legend className="text-xs text-text-tertiary">Sections returned (person details are always included)</legend>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          {STAFF_PROFILE_SECTIONS.map((s) => (
-            <Check key={s} label={s} checked={draft.sections.includes(s)} onChange={() => toggleSection(s)} />
+          {STAFF_PROFILE_SECTIONS.filter((s) => s !== 'teachingEvaluation').map((s) => (
+            <Check
+              key={s}
+              label={STAFF_PROFILE_SECTION_LABELS[s]}
+              wireKey={s}
+              checked={draft.sections.includes(s)}
+              onChange={() => toggleSection(s)}
+            />
           ))}
+        </div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-4">
+          <Check
+            label={STAFF_PROFILE_SECTION_LABELS.teachingEvaluation}
+            wireKey="teachingEvaluation"
+            checked={draft.sections.includes('teachingEvaluation')}
+            onChange={() => toggleSection('teachingEvaluation')}
+          />
+          <span className="text-xs text-warning">{TEACHING_EVALUATION_GRANT_NOTE}</span>
         </div>
       </fieldset>
 
@@ -954,11 +976,23 @@ function ClientFields({
 const TEXTAREA =
   'w-full rounded-md border border-default bg-surface-1 px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50';
 
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+function Check({
+  label,
+  wireKey,
+  checked,
+  onChange,
+}: {
+  label: string;
+  /** The API's own name for the option, shown so admins can match it to the docs. */
+  wireKey?: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
   return (
     <label className="inline-flex cursor-pointer items-center gap-2 py-1">
       <input type="checkbox" checked={checked} onChange={onChange} className="size-icon-sm accent-accent-default" />
       <span>{label}</span>
+      {wireKey ? <code className="font-mono text-[11px] text-text-tertiary">{wireKey}</code> : null}
     </label>
   );
 }

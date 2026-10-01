@@ -7,6 +7,7 @@ import { staffProfileFixture } from './fixtures/staff-profile';
 const mocks = vi.hoisted(() => ({
   resolveStaffForLookup: vi.fn(),
   buildStaffProfile: vi.fn(),
+  getStaffTeachingEvaluation: vi.fn(),
   recordApiRequest: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@kku/db', () => mocks);
@@ -36,6 +37,7 @@ const svc = new StaffProfileService();
 beforeEach(() => {
   mocks.resolveStaffForLookup.mockReset();
   mocks.buildStaffProfile.mockReset();
+  mocks.getStaffTeachingEvaluation.mockReset();
   mocks.recordApiRequest.mockClear();
 });
 
@@ -48,7 +50,7 @@ describe('StaffProfileService.lookup', () => {
     expect(out.meta.integration).toMatchObject({
       apiVersion: 'staff-profile.v1',
       publicationsCache: 'hit',
-      sectionsWithheld: ['affiliation', 'teaching', 'research'],
+      sectionsWithheld: ['affiliation', 'teaching', 'research', 'teachingEvaluation'],
     });
     expect(mocks.buildStaffProfile).toHaveBeenCalledWith('fm1', { courseLimit: null, includeTalent: false });
     expect(mocks.recordApiRequest).toHaveBeenCalledWith(
@@ -219,6 +221,89 @@ describe('StaffProfileService build bounding', () => {
       if (prev === undefined) delete process.env.STAFF_PROFILE_MAX_CONCURRENT_BUILDS;
       else process.env.STAFF_PROFILE_MAX_CONCURRENT_BUILDS = prev;
     }
+  });
+});
+
+const evaluationSummary = () => ({
+  overall: 4.348,
+  totalAnswers: 1880,
+  courseCount: 1,
+  termCount: 2,
+  firstYearBE: 2567,
+  lastYearBE: 2568,
+  latestYearBE: 2568,
+  latestRating: 4.4,
+  previousYearBE: 2567,
+  previousRating: 4.3,
+  categories: [{ tag: 'ethics', questions: 2, allTime: 4.4, latest: 4.5 }],
+  untaggedQuestions: 0,
+  courses: [
+    { code: '000101', nameTh: 'ก', nameEn: 'A', rating: 4.348, answers: 1880, latestYearBE: 2568, latestSemester: 2 },
+  ],
+  freshnessDate: null,
+  methodologyVersion: 'evaluations.v1',
+});
+
+describe('StaffProfileService teaching evaluation', () => {
+  const granted = { ...baseClient, allowedSections: ['education', 'teachingEvaluation'] };
+  const sourceIds = (meta: { sources?: Array<{ id: string }> }) => (meta.sources ?? []).map((s) => s.id);
+
+  it('never loads evaluations for a client without the grant, and says nothing about them', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    const out = await svc.lookup(req(), { citizenId: RAW_ID });
+    expect(mocks.getStaffTeachingEvaluation).not.toHaveBeenCalled();
+    expect(out.data).not.toHaveProperty('teachingEvaluation');
+    expect(sourceIds(out.meta)).not.toContain('kku-evaluations');
+    expect(out.meta.caveats!.join(' ')).not.toMatch(/teachingEvaluation|1–5 scale/);
+  });
+
+  it('loads once for a granted client and returns it with its source and caveats', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    mocks.getStaffTeachingEvaluation.mockResolvedValue(evaluationSummary());
+    const out = await svc.lookup(req(granted), { citizenId: RAW_ID });
+    expect(mocks.getStaffTeachingEvaluation).toHaveBeenCalledTimes(1);
+    expect(mocks.getStaffTeachingEvaluation).toHaveBeenCalledWith('fm1');
+    expect(out.data.teachingEvaluation).toMatchObject({ overall: 4.348, totalAnswers: 1880 });
+    expect(out.data.teachingEvaluation!.courses).toHaveLength(1);
+    expect(sourceIds(out.meta)).toContain('kku-evaluations');
+    expect(out.meta.caveats).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('1–5 scale'),
+        expect.stringContaining('teachingEvaluation.totalAnswers counts answers'),
+      ]),
+    );
+    expect(out.meta.integration).toMatchObject({ sectionsIncluded: ['person', 'education', 'teachingEvaluation'] });
+    expect(() => ApiMetaSchema.parse({ freshnessDate: null, sources: [], ...out.meta })).not.toThrow();
+  });
+
+  it('returns null (still a returned section, with its source) when nothing is on record', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    mocks.getStaffTeachingEvaluation.mockResolvedValue(null);
+    const out = await svc.lookup(req(granted), { citizenId: RAW_ID });
+    expect(out.data.teachingEvaluation).toBeNull();
+    expect(sourceIds(out.meta)).toContain('kku-evaluations');
+    expect(out.meta.integration).toMatchObject({ sectionsWithheld: ['affiliation', 'teaching', 'research', 'publications'] });
+  });
+
+  it('fails the request, logged as 500, when a granted evaluation cannot be loaded', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    mocks.getStaffTeachingEvaluation.mockRejectedValue(new Error('evaluations cube down'));
+    await expect(svc.lookup(req(granted), { citizenId: RAW_ID })).rejects.toThrow('evaluations cube down');
+    expect(mocks.recordApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 500, facultyMemberId: 'fm1', sectionsReturned: [] }),
+    );
+  });
+
+  it('still answers 404 for a missing profile even if the evaluation load also failed', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(null);
+    mocks.getStaffTeachingEvaluation.mockRejectedValue(new Error('evaluations cube down'));
+    const e = await thrown(svc.lookup(req(granted), { citizenId: RAW_ID }));
+    expect(e.code).toBe('NOT_FOUND');
   });
 });
 

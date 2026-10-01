@@ -30,4 +30,10 @@ describe('api-clients console stays client-safe', () => {
   it('takes STAFF_PROFILE_SECTIONS from the browser-safe deep path', () => {
     expect(importStatements.some((s) => s.includes("'@kku/shared/src/staff-profile/api-schema'"))).toBe(true);
   });
+
+  it('labels sections readably and flags teaching evaluation as performance data', () => {
+    expect(importStatements.some((s) => s.includes('STAFF_PROFILE_SECTION_LABELS'))).toBe(true);
+    expect(src).toContain('Performance data about the person — grant only to systems with a recorded basis for it.');
+    expect(src).toContain("toggleSection('teachingEvaluation')");
+  });
 });
