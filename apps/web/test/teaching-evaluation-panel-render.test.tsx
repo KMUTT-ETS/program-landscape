@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ProvenanceProvider, TooltipProvider } from '@kku/ui';
-import { TeachingEvaluationPanel } from '../app/profile/teaching-evaluation-panel';
+import { TEACHING_EVALUATION_LABELS, TeachingEvaluationPanel } from '../app/profile/teaching-evaluation-panel';
 import type { TeachingEvaluationSummary } from '@/lib/teaching-evaluation-summary';
 
 const summary: TeachingEvaluationSummary = {
@@ -17,7 +17,7 @@ const summary: TeachingEvaluationSummary = {
 
 // The app root supplies both providers; FreshnessBadge and ProvenanceButton
 // need them to render at all.
-const render = (s: TeachingEvaluationSummary | null, lang: 'th' | 'en' = 'en') =>
+const render = (s: TeachingEvaluationSummary | null | 'unavailable', lang: 'th' | 'en' = 'en') =>
   renderToStaticMarkup(
     <TooltipProvider>
       <ProvenanceProvider>
@@ -57,5 +57,37 @@ describe('TeachingEvaluationPanel', () => {
   });
   it('speaks Thai', () => {
     expect(render(summary, 'th')).toContain('การประเมินการสอนของฉัน');
+  });
+  it('says the evaluations are unavailable when the read failed — not that there are none', () => {
+    const en = render('unavailable');
+    expect(en).toContain('Teaching evaluations are temporarily unavailable.');
+    expect(en).not.toContain('No student evaluations recorded yet');
+    expect(en).toContain('href="/staff/teaching"');
+    const th = render('unavailable', 'th');
+    expect(th).toContain('ผลการประเมินการสอนไม่พร้อมใช้งานชั่วคราว');
+    expect(th).not.toContain('ยังไม่มีผลการประเมินจากนักศึกษา');
+  });
+  it('shows a zero change as neutral, not as a green rise', () => {
+    const html = render({ ...summary, latestRating: 4.7, previousRating: 4.7 });
+    expect(html).toContain('± 0.00 vs AY 2567');
+    expect(html).not.toContain('▲');
+    expect(html).not.toContain('▼');
+    expect(html).toMatch(/<span class="text-text-tertiary">± 0\.00 vs AY 2567<\/span>/);
+  });
+  it('colours a real rise and fall', () => {
+    expect(render({ ...summary, latestRating: 4.8, previousRating: 4.7 })).toContain('text-success');
+    expect(render(summary)).toContain('text-danger');
+  });
+  it('hides the latest-year KPI when there is no latest year, instead of repeating Overall', () => {
+    const html = render({ ...summary, latestYearBE: null, latestRating: null, previousYearBE: null, previousRating: null });
+    expect(html.match(/>Overall</g)?.length).toBe(1);
+    expect(html).not.toContain('AY 2568');
+  });
+  it('localises the freshness label and provenance caveats', () => {
+    const { en, th } = TEACHING_EVALUATION_LABELS;
+    expect(th.freshnessLabel).not.toBe(en.freshnessLabel);
+    expect(th.freshnessLabel).toMatch(/[\u0E00-\u0E7F]/);
+    expect(th.caveats).toHaveLength(en.caveats.length);
+    for (const c of th.caveats) expect(c).toMatch(/[\u0E00-\u0E7F]/);
   });
 });

@@ -53,7 +53,17 @@ export default async function ProfilePage() {
     // enabled button at someone who has no staff record.
     getScholarStatusAction(),
     // Owner-only: the evaluation panel renders on this page, never on /p/[slug].
-    getMyTeachingEvaluation(user.userId),
+    // A failed read must not take the whole profile down with it, and must not
+    // be presented as "no evaluations yet" either — the panel says it is
+    // unavailable instead. Logs the error class and code only: a driver
+    // message can echo query parameters, i.e. the user's identifiers.
+    getMyTeachingEvaluation(user.userId).catch((err: unknown) => {
+      const name = err instanceof Error ? err.name : typeof err;
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err ? String((err as { code: unknown }).code) : null;
+      console.error(`[profile] teaching evaluation read failed: ${name}${code ? ` (${code})` : ''}`);
+      return 'unavailable' as const;
+    }),
   ]);
 
   // Publication provenance for the section header. Counted straight off

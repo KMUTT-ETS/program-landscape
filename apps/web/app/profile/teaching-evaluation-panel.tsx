@@ -1,6 +1,6 @@
 'use client';
 
-// "My teaching evaluation" on the owner's own /profile: five KPIs, a radar
+// "My teaching evaluation" on the owner's own /profile: up to five KPIs, a radar
 // with one axis per question category (latest academic year against
 // all-time), and the same numbers in a table beside it so nobody has to read
 // a value off a polygon. Data is summarised server-side by
@@ -17,7 +17,7 @@ import {
 
 type Lang = 'th' | 'en';
 
-const L = {
+export const TEACHING_EVALUATION_LABELS = {
   en: {
     title: 'My teaching evaluation',
     overall: 'Overall',
@@ -35,7 +35,14 @@ const L = {
       `${n} question${n === 1 ? ' has' : 's have'} no category — counted in the overall rating, not plotted.`,
     full: 'Full breakdown by question and course →',
     empty: 'No student evaluations recorded yet.',
+    unavailable: 'Teaching evaluations are temporarily unavailable.',
     nd: 'n/d',
+    freshnessLabel: 'student evaluations',
+    sourceName: 'KKU student course evaluations',
+    caveats: [
+      'Ratings are on a 1–5 scale; category scores are respondent-weighted means of their questions.',
+      'Answers count each question answered, not students.',
+    ],
   },
   th: {
     title: 'การประเมินการสอนของฉัน',
@@ -53,9 +60,18 @@ const L = {
     untagged: (n: number) => `มี ${n} ข้อที่ไม่มีหมวด — นับในคะแนนภาพรวม แต่ไม่แสดงในกราฟ`,
     full: 'ดูรายละเอียดรายข้อและรายวิชา →',
     empty: 'ยังไม่มีผลการประเมินจากนักศึกษา',
+    unavailable: 'ผลการประเมินการสอนไม่พร้อมใช้งานชั่วคราว',
     nd: 'n/d',
+    freshnessLabel: 'ผลการประเมินจากนักศึกษา',
+    sourceName: 'ผลการประเมินรายวิชาโดยนักศึกษา มข.',
+    caveats: [
+      'คะแนนอยู่ในช่วง 1–5 คะแนนรายหมวดเป็นค่าเฉลี่ยของข้อคำถามในหมวด ถ่วงน้ำหนักด้วยจำนวนผู้ตอบ',
+      'จำนวนคำตอบนับต่อข้อที่ตอบ ไม่ใช่จำนวนนักศึกษา',
+    ],
   },
 } as const;
+
+const L = TEACHING_EVALUATION_LABELS;
 
 const fmt = (v: number | null, d = 2): string | null => (v === null ? null : v.toFixed(d));
 
@@ -86,7 +102,9 @@ export function TeachingEvaluationPanel({
   summary,
   lang,
 }: {
-  summary: TeachingEvaluationSummary | null;
+  /** `null` = read succeeded and there are no evaluations; `'unavailable'` =
+   *  the read failed, which must not be presented as "no evaluations". */
+  summary: TeachingEvaluationSummary | null | 'unavailable';
   lang: Lang;
 }) {
   const l = L[lang];
@@ -102,11 +120,11 @@ export function TeachingEvaluationPanel({
     </a>
   );
 
-  if (!summary) {
+  if (summary === null || summary === 'unavailable') {
     return (
       <Section title={title}>
         <Card className="p-5" elevation="lg">
-          <p className="text-sm text-text-secondary">{l.empty}</p>
+          <p className="text-sm text-text-secondary">{summary === null ? l.empty : l.unavailable}</p>
           <div className="mt-3">{fullLink}</div>
         </Card>
       </Section>
@@ -121,10 +139,15 @@ export function TeachingEvaluationPanel({
     summary.latestRating !== null && summary.previousRating !== null
       ? summary.latestRating - summary.previousRating
       : null;
+  // Compare at display precision: a change that rounds to 0.00 is no change,
+  // and must not read as a green rise.
+  const shownDelta = delta === null ? null : Number(delta.toFixed(2));
   const deltaHint =
-    delta === null || summary.previousYearBE === null ? undefined : (
-      <span className={delta >= 0 ? 'text-success' : 'text-danger'}>
-        {`${delta >= 0 ? '▲ +' : '▼ −'}${Math.abs(delta).toFixed(2)} ${l.vs(summary.previousYearBE)}`}
+    shownDelta === null || summary.previousYearBE === null ? undefined : shownDelta === 0 ? (
+      <span className="text-text-tertiary">{`± 0.00 ${l.vs(summary.previousYearBE)}`}</span>
+    ) : (
+      <span className={shownDelta > 0 ? 'text-success' : 'text-danger'}>
+        {`${shownDelta > 0 ? '▲ +' : '▼ −'}${Math.abs(shownDelta).toFixed(2)} ${l.vs(summary.previousYearBE)}`}
       </span>
     );
 
@@ -132,30 +155,31 @@ export function TeachingEvaluationPanel({
     <Section title={title}>
       <Card className="p-5" elevation="lg">
         <div className="flex items-center justify-end gap-2">
-          <FreshnessBadge freshnessDate={summary.freshnessDate} label="student evaluations" />
+          <FreshnessBadge freshnessDate={summary.freshnessDate} label={l.freshnessLabel} />
           <ProvenanceButton
             size="xs"
             title={l.title}
             meta={{
               freshnessDate: summary.freshnessDate,
-              sources: [{ id: 'kku-evaluations', name: 'KKU student course evaluations' }],
+              sources: [{ id: 'kku-evaluations', name: l.sourceName }],
               methodologyVersion: summary.methodologyVersion,
-              caveats: [
-                'Ratings are on a 1–5 scale; category scores are respondent-weighted means of their questions.',
-                'Answers count each question answered, not students.',
-              ],
+              caveats: [...l.caveats],
             }}
           />
         </div>
 
-        <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <dl
+          className={`mt-3 grid grid-cols-2 gap-3 ${summary.latestYearBE !== null ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}
+        >
           <Kpi label={l.overall} value={summary.overall.toFixed(2)} unit="/ 5" />
-          <Kpi
-            label={summary.latestYearBE !== null ? l.year(summary.latestYearBE) : l.overall}
-            value={fmt(summary.latestRating) ?? '—'}
-            unit="/ 5"
-            hint={deltaHint}
-          />
+          {summary.latestYearBE !== null && (
+            <Kpi
+              label={l.year(summary.latestYearBE)}
+              value={fmt(summary.latestRating) ?? '—'}
+              unit="/ 5"
+              hint={deltaHint}
+            />
+          )}
           <Kpi label={l.answers} value={summary.totalAnswers.toLocaleString('en-US')} hint={l.answersHint} />
           <Kpi label={l.courses} value={String(summary.courseCount)} />
           <Kpi
